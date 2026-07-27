@@ -7,106 +7,93 @@
   --phone-ttg-figure-y: 0px;
   --phone-ttg-figure-scale: .8;
   --phone-ttg-figure-opacity: 1;
+  --phone-ttg-scene-width: max(100vw, 178svh, 1180px);
+  --phone-ttg-background-width: max(100vw, 208svh, 1180px);
   position: relative;
-  inset: 0;
   display: block;
-  width: 100%;
-  height: 100%;
-  min-height: 100%;
-  overflow: hidden;
-  isolation: auto;
-  background:
-    radial-gradient(ellipse at 54% 38%, rgba(207, 165, 86, .15), transparent 36%),
-    radial-gradient(ellipse at 48% 54%, rgba(29, 82, 92, .18), transparent 55%),
-    linear-gradient(180deg, #101919 0%, #090e11 58%, #040506 100%);
-}
-
-.phone-ttg__fallback,
-.phone-ttg > .ttg-page.r4-ttg-animation {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
-
-.phone-ttg__fallback {
-  z-index: 0;
-  background:
-    radial-gradient(ellipse at 54% 38%, rgba(207, 165, 86, .15), transparent 36%),
-    radial-gradient(ellipse at 48% 54%, rgba(29, 82, 92, .18), transparent 55%),
-    linear-gradient(180deg, #101919 0%, #090e11 58%, #040506 100%);
-}
-
-/*
- * Keep the desktop composition ratios on a stable 16:9 virtual camera. The
- * foreground uses that same camera width rather than the narrow phone width,
- * so the railing, floor and figure remain at their authored relative scale.
- */
-.phone-ttg > .ttg-page.r4-ttg-animation {
-  --ttg-scene-width: max(
-    100vw,
-    calc(var(--portrait-stage-height, 100lvh) * 1.78),
-    1180px
-  );
-  --ttg-bg-width: max(
-    100vw,
-    calc(var(--portrait-stage-height, 100lvh) * 1.84),
-    1180px
-  );
-  --ttg-front-width: var(--ttg-scene-width);
-  z-index: 1;
   overflow: clip;
-  background: #080d10;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 54% 38%, rgba(207, 165, 86, .15), transparent 36%),
+    radial-gradient(ellipse at 48% 54%, rgba(29, 82, 92, .18), transparent 55%),
+    linear-gradient(180deg, #101919 0%, #090e11 58%, #040506 100%);
 }
 
-.phone-ttg .ttg-scroll,
-.phone-ttg .ttg-sticky,
-.phone-ttg .ttg-field,
-.phone-ttg .ttg-layer-stack {
+.phone-ttg__field,
+.phone-ttg__layer {
   position: absolute;
+}
+
+.phone-ttg__field {
   inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 100%;
+  overflow: clip;
+  isolation: isolate;
 }
 
-.phone-ttg .ttg-sticky,
-.phone-ttg .ttg-field,
-.phone-ttg .ttg-layer-stack {
-  overflow: hidden;
-  background-color: #080d10;
+.phone-ttg__layer {
+  left: 50%;
+  top: 50%;
+  display: block;
+  max-inline-size: none;
+  user-select: none;
+  pointer-events: none;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
 }
 
-.phone-ttg .ttg-progress {
-  display: none;
+.phone-ttg__layer--background {
+  z-index: 1;
+  top: 0;
+  /* Keep the 16:9 background beyond the bottom edge of a tall phone even
+     * after its upward parallax. The former 154svh camera left a black
+     * unowned band below the figure. */
+  inline-size: var(--phone-ttg-background-width);
+  block-size: auto;
+  transform: translate3d(-50%, var(--phone-ttg-background-y), 0)
+    scale(var(--phone-ttg-background-scale));
+  transform-origin: 50% 0;
 }
 
-.phone-ttg .ttg-layer--figure {
-  --ttg-figure-layer-height: min(
-    calc(var(--portrait-stage-height, 100lvh) * 1.44),
-    1460px
-  );
-}
-
-/* Preserve the desktop layer scale, then move only the portrait crop. The
-   cathedral is authored in the left half of its transparent 16:9 plate; at a
-   centered portrait crop it otherwise sits completely outside the viewport. */
-.phone-ttg .ttg-layer--middle {
-  left: 175%;
-}
-
-.phone-ttg video.ttg-layer--figure[data-phone-ttg-endpoint-ready] {
-  opacity: var(--ttg-figure-video-opacity, 1);
-}
-
-.phone-ttg[data-phone-media-state="fallback"] .phone-ttg__fallback,
-.phone-ttg[data-phone-media-state="reduced"] .phone-ttg__fallback {
+.phone-ttg__layer--middle {
   z-index: 2;
+  inline-size: var(--phone-ttg-scene-width);
+  block-size: auto;
+  transform: translate3d(-50%, calc(-50% + var(--phone-ttg-middle-y)), 0)
+    scale(var(--phone-ttg-middle-scale));
+}
+
+.phone-ttg__layer--foreground {
+  z-index: 3;
+  top: 100%;
+  inline-size: max(100vw, 68svh);
+  block-size: auto;
+  transform: translate3d(-50%, calc(-100% + var(--phone-ttg-foreground-y)), 0);
+  transform-origin: 50% 100%;
+}
+
+.phone-ttg__layer--figure {
+  --phone-ttg-figure-height: min(132svh, 1080px);
+  z-index: 4;
+  inline-size: calc(var(--phone-ttg-figure-height) * .5625);
+  block-size: var(--phone-ttg-figure-height);
+  opacity: 0;
+  object-fit: contain;
+  object-position: center;
+  clip-path: inset(1px);
+  transform: translate3d(-50%, calc(-50% + var(--phone-ttg-figure-y)), 0)
+    scale(var(--phone-ttg-figure-scale));
+}
+
+.phone-ttg__layer--figure[data-timeline-video-frame-ready="true"] {
+  opacity: var(--phone-ttg-figure-opacity);
+}
+
+.phone-ttg[data-phone-media-state="fallback"] .phone-ttg__layer--middle {
+  filter: saturate(.86) contrast(1.05);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .phone-ttg .ttg-layer {
+  .phone-ttg__layer {
     will-change: auto;
   }
 }

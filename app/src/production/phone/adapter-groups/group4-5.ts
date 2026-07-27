@@ -29,26 +29,12 @@ export type Group45PhoneTransitionId =
 
 export type Group45PhoneSceneProps = Readonly<{
   active: boolean;
-  /** Document traversal direction; time-owned visuals replay symmetrically. */
-  direction?: 1 | -1;
   /** Decode only the immediately upcoming visual; playback still waits for entry. */
   prewarm?: boolean;
   reducedMotion: boolean;
   onReady?: () => void;
   /** Lets the shell settle the affected bridge at its declared endpoint. */
   onMediaError?: (scene: Group45PhoneSceneId) => void;
-  /** Canonical media progress drives adjacent copy/transition cues. */
-  onProgress?: (
-    scene: Group45PhoneSceneId,
-    progress: number,
-    direction: 1 | -1
-  ) => void;
-  /**
-   * A time-owned visual reports its authoritative terminal endpoint once.
-   * The shell may then reveal the next native-document receiver without
-   * inventing a second full-screen hold.
-   */
-  onComplete?: (scene: Group45PhoneSceneId, direction: 1 | -1) => void;
 }>;
 
 export type Group45PhoneTransitionProps = Readonly<{
