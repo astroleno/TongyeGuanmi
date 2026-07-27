@@ -268,6 +268,8 @@ export type PhoneStoryEvent =
       corridor?: PhoneScrollCorridorId | null;
       progress?: number | undefined;
       direction?: -1 | 0 | 1 | undefined;
+      scene?: SceneId | undefined;
+      run?: PhoneScrollRunId | undefined;
     }>;
 
 export type PhoneStoryEffect = never;
@@ -434,6 +436,74 @@ function nextStable(
     scene,
     session: null
   };
+}
+
+type PhoneScrollRunEvidence = Readonly<{
+  run: PhoneScrollRunId;
+  direction: 1 | -1;
+  progress: number;
+  actualY: number;
+  corridor: PhoneScrollCorridorId | null;
+}>;
+
+function nextScrollRun(
+  snapshot: Exclude<PhoneStorySnapshot, PhoneTransactionSnapshot>,
+  evidence: PhoneScrollRunEvidence
+): PhoneScrollRunSnapshot {
+  const virtual: PhoneScrollRunSnapshot = {
+    authorityId: snapshot.authorityId,
+    revision: snapshot.revision + 1,
+    diagnostics: snapshot.diagnostics,
+    scroll: {
+      actualY: evidence.actualY,
+      corridor: evidence.corridor,
+      progress: clamp(evidence.progress),
+      direction: evidence.direction,
+      sampleRevision: snapshot.scroll.sampleRevision + 1
+    },
+    input: snapshot.input,
+    projection: phoneStableProjection(phoneScrollRun(evidence.run).from, 'candidate'),
+    status: 'scroll-run',
+    run: evidence.run,
+    session: null
+  };
+  return { ...virtual, projection: phoneStoryPresentation(scrollRunCursor(virtual)) };
+}
+
+function nextSampledScroll(
+  snapshot: Exclude<PhoneStorySnapshot, PhoneTransactionSnapshot>,
+  event: Extract<PhoneStoryEvent, { type: 'SCROLL_SAMPLED' }>
+): PhoneStorySnapshot {
+  const scroll = {
+    actualY: event.actualY,
+    corridor: event.corridor ?? snapshot.scroll.corridor,
+    progress: event.progress === undefined ? snapshot.scroll.progress : clamp(event.progress),
+    direction: event.direction ?? snapshot.scroll.direction,
+    sampleRevision: snapshot.scroll.sampleRevision + 1
+  };
+  if (event.run) {
+    return nextScrollRun(snapshot, {
+      run: event.run,
+      direction: scroll.direction === -1 ? -1 : 1,
+      progress: scroll.progress,
+      actualY: scroll.actualY,
+      corridor: scroll.corridor
+    });
+  }
+  if (event.scene) {
+    return {
+      authorityId: snapshot.authorityId,
+      revision: snapshot.revision + 1,
+      diagnostics: snapshot.diagnostics,
+      scroll,
+      input: snapshot.input,
+      projection: phoneStableProjection(event.scene),
+      status: 'stable',
+      scene: event.scene,
+      session: null
+    };
+  }
+  return { ...snapshot, revision: snapshot.revision + 1, scroll };
 }
 
 function nextTransaction(
@@ -831,25 +901,13 @@ export function reducePhoneStorySnapshot(
 
   if (event.type === 'SCROLL_RUN_RECONCILED') {
     if (snapshot.status === 'transaction') return reduced(snapshot);
-    const virtual: PhoneScrollRunSnapshot = {
-      authorityId: snapshot.authorityId,
-      revision: snapshot.revision + 1,
-      diagnostics: snapshot.diagnostics,
-      scroll: {
-        actualY: event.actualY,
-        corridor: event.corridor ?? null,
-        progress: clamp(event.progress),
-        direction: event.direction,
-        sampleRevision: snapshot.scroll.sampleRevision + 1
-      },
-      input: snapshot.input,
-      projection: phoneStableProjection(phoneScrollRun(event.run).from, 'candidate'),
-      status: 'scroll-run',
+    return reduced(nextScrollRun(snapshot, {
       run: event.run,
-      session: null
-    };
-    const cursor = scrollRunCursor(virtual);
-    return reduced({ ...virtual, projection: phoneStoryPresentation(cursor) });
+      direction: event.direction,
+      progress: event.progress,
+      actualY: event.actualY,
+      corridor: event.corridor ?? null
+    }));
   }
 
   if (event.type === 'SCROLL_SAMPLED') {
@@ -865,18 +923,7 @@ export function reducePhoneStorySnapshot(
           }
         });
     }
-    return reduced({
-        ...snapshot,
-        revision: snapshot.revision + 1,
-        scroll: {
-          ...snapshot.scroll,
-          actualY: event.actualY,
-          corridor: event.corridor ?? snapshot.scroll.corridor,
-          progress: event.progress === undefined ? snapshot.scroll.progress : clamp(event.progress),
-          direction: event.direction ?? snapshot.scroll.direction,
-          sampleRevision: snapshot.scroll.sampleRevision + 1
-        }
-      });
+    return reduced(nextSampledScroll(snapshot, event));
   }
 
   if (!eventOwnsTransaction(snapshot, event)) return reduced(snapshot);

@@ -39,6 +39,22 @@ const inkAdapterSource = readFileSync(
   new URL('./transitions/PhoneInkTransition.tsx', import.meta.url),
   'utf8'
 );
+const heroSource = readFileSync(
+  new URL('./scenes/PhoneHero.tsx', import.meta.url),
+  'utf8'
+);
+const patternCss = readFileSync(
+  new URL('./scenes/PhonePattern.css', import.meta.url),
+  'utf8'
+);
+const starMapSource = readFileSync(
+  new URL('./scenes/PhoneStarMap.tsx', import.meta.url),
+  'utf8'
+);
+const aodSource = readFileSync(
+  new URL('./scenes/PhoneAod.tsx', import.meta.url),
+  'utf8'
+);
 
 describe('formal Unit7-B phone integration', () => {
   it('embeds the continuation without nesting the Unit6 acceptance shell', () => {
@@ -132,11 +148,43 @@ describe('formal Unit7-B phone integration', () => {
     expect(stageRuntimeSource).not.toContain(
       'orchestrator.reportPresentation'
     );
-    expect(stageRuntimeSource).toContain(
-      'orchestrator.reconcileScrollRun'
-    );
+    expect(stageRuntimeSource).toContain('registerScrollCorridor');
+    expect(stageRuntimeSource).toContain('phoneFrontRailSample');
+    expect(stageRuntimeSource).toContain("id: 'front:hero'");
+    expect(stageRuntimeSource).toContain("id: 'front:pattern'");
+    expect(stageRuntimeSource).toContain("id: 'front:star'");
+    expect(stageRuntimeSource).toContain("id: FRONT_AOD_SURFACE");
+    for (const legacyOwner of [
+      'requestRun',
+      'reconcileHold',
+      'reconcileScrollHold',
+      'reconcileScrollRun',
+      'setOwnership',
+      'setHeroFigureActive',
+      'setPatternActive',
+      'setStarVisible',
+      'setAodFigureActive',
+      'aodRun'
+    ]) {
+      expect(stageRuntimeSource).not.toContain(legacyOwner);
+    }
     expect(continuationSource).not.toContain('onCheckpoint?:');
     expect(continuationSource).not.toContain('onEdgeScene?:');
     expect(continuationSource).not.toContain('onSceneChange?:');
+  });
+
+  it('uses global surface roles while scene active props remain resource-only', () => {
+    for (const source of [heroSource, starMapSource, aodSource]) {
+      expect(source).not.toContain('data-phone-surface-role');
+      expect(source).not.toContain('style.visibility');
+    }
+    expect(starMapSource).toContain('__phoneStarActive');
+    expect(aodSource).toContain('`active` is strictly a decoder/compositor lease');
+    expect(aodSource).toContain('const autoplayIdentityRef = useRef<PhoneExecutionIdentity | null>(null)');
+    expect(aodSource).toContain('startAutoplay(direction, identity)');
+    expect(aodSource).toContain('progressListenerRef.current?.(progress, direction, identity)');
+    expect(aodSource).toContain('completeListenerRef.current?.(direction, identity)');
+    expect(patternCss).not.toContain('.portrait-scroll-spike__pattern-motion::after');
+    expect(patternCss).not.toContain('--portrait-pattern-edge-surface');
   });
 });

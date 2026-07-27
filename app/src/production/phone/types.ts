@@ -67,7 +67,10 @@ export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
 };
 
 export type PhoneAodAdapterHandle = PhoneSceneAdapterHandle & {
-  startAutoplay(direction: 1 | -1): Promise<PhoneAodStartResult>;
+  startAutoplay(
+    direction: 1 | -1,
+    identity: PhoneExecutionIdentity
+  ): Promise<PhoneAodStartResult>;
   resetAutoplay(): void;
 };
 
@@ -75,8 +78,15 @@ export type PhoneSceneAdapterProps = Readonly<{
   active: boolean;
   reducedMotion: boolean;
   onReady?: () => void;
-  onAodProgress?: (progress: number, direction: 1 | -1) => void;
-  onAodComplete?: (direction: 1 | -1) => void;
+  onAodProgress?: (
+    progress: number,
+    direction: 1 | -1,
+    identity: PhoneExecutionIdentity
+  ) => void;
+  onAodComplete?: (
+    direction: 1 | -1,
+    identity: PhoneExecutionIdentity
+  ) => void;
 }>;
 
 export type PhoneHeroAdapterProps = PhoneSceneAdapterProps & Readonly<{

@@ -6,6 +6,7 @@ import {
   mapAodMediaToTimelineProgress,
   mapAodTimelineToMediaProgress
 } from '../../scenes/aod-animation/progress';
+import type { PhoneExecutionIdentity } from './phone-story-state';
 
 export const PHONE_AOD_METHOD_START_PROGRESS = 0.8;
 
@@ -32,15 +33,25 @@ type PhoneAodAutoplayOptions = Readonly<{
   sourceUrl?: string;
   driveReverseFrame?(mediaProgress: number, runId: string): void;
   disposeReverseDriver?(): void;
-  onProgress(progress: number, direction: PhoneAodPlaybackDirection): void;
-  onComplete?(direction: PhoneAodPlaybackDirection): void;
+  onProgress(
+    progress: number,
+    direction: PhoneAodPlaybackDirection,
+    identity: PhoneExecutionIdentity | null
+  ): void;
+  onComplete?(
+    direction: PhoneAodPlaybackDirection,
+    identity: PhoneExecutionIdentity | null
+  ): void;
   visibilityDocument?: VisibilityDocument;
   requestFrame?: (callback: FrameRequestCallback) => number;
   cancelFrame?: (frame: number) => void;
 }>;
 
 export type PhoneAodAutoplay = Readonly<{
-  start(direction?: PhoneAodPlaybackDirection): Promise<PhoneAodStartResult>;
+  start(
+    direction?: PhoneAodPlaybackDirection,
+    identity?: PhoneExecutionIdentity | null
+  ): Promise<PhoneAodStartResult>;
   reset(): void;
   dispose(): void;
 }>;
@@ -136,6 +147,7 @@ export function createPhoneAodAutoplay(
   let reverseProgress = 1;
   let reverseAnchorProgress = 1;
   let reverseStartedAt: number | undefined;
+  let executionIdentity: PhoneExecutionIdentity | null = null;
   let resolveStart: ((result: PhoneAodStartResult) => void) | undefined;
 
   const beginStartResult = () => (
@@ -189,7 +201,7 @@ export function createPhoneAodAutoplay(
         ? 'forward'
         : 'reverse';
     }
-    options.onProgress(progress, direction);
+    options.onProgress(progress, direction, executionIdentity);
     return progress;
   };
 
@@ -198,6 +210,7 @@ export function createPhoneAodAutoplay(
       return;
     }
     const completedDirection = direction;
+    const completedIdentity = executionIdentity;
     active = false;
     playAttempt += 1;
     playPending = false;
@@ -212,7 +225,8 @@ export function createPhoneAodAutoplay(
       completedDirection === 1 ? 'complete-forward' : 'complete-reverse'
     );
     render(completedDirection === 1 ? 1 : 0, false);
-    options.onComplete?.(completedDirection);
+    options.onComplete?.(completedDirection, completedIdentity);
+    executionIdentity = null;
   };
 
   const renderForwardAndComplete = () => {
@@ -421,7 +435,7 @@ export function createPhoneAodAutoplay(
   };
 
   return {
-    start(nextDirection = 1) {
+    start(nextDirection = 1, nextIdentity = null) {
       if (disposed) {
         return Promise.resolve('error');
       }
@@ -436,6 +450,7 @@ export function createPhoneAodAutoplay(
       stopCurrentRun();
       const result = beginStartResult();
       direction = nextDirection;
+      executionIdentity = nextIdentity;
       selectSource();
       runRevision += 1;
       publishPlaybackOwnership(direction === 1 ? 'forward' : 'reverse');
@@ -473,6 +488,7 @@ export function createPhoneAodAutoplay(
         return;
       }
       stopCurrentRun();
+      executionIdentity = null;
       direction = 1;
       selectSource();
       runRevision += 1;
@@ -490,6 +506,7 @@ export function createPhoneAodAutoplay(
         return;
       }
       active = false;
+      executionIdentity = null;
       disposed = true;
       playAttempt += 1;
       playPending = false;

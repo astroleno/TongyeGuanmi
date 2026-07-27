@@ -165,7 +165,9 @@ function roleFor(
   }
   if (registration.id === projection.sourceSurface) return 'transition-source';
   if (registration.kind === 'fixed' && projection.stageOwner !== 'native') {
-    return 'fixed-current';
+    return registration.scene === projection.stageScene
+      ? 'fixed-current'
+      : snapshot.status === 'stable' ? 'retired' : 'retained-under-stage';
   }
   return snapshot.status === 'stable' ? 'retired' : 'retained-under-stage';
 }

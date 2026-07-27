@@ -48,4 +48,5 @@ describe('PhonePattern Route B adapter', () => {
     });
     expect(completed.washOpacity).toBeCloseTo(0.94, 8);
   });
+
 });

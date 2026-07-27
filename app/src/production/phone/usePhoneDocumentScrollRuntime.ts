@@ -61,6 +61,8 @@ export function createPhoneDocumentScrollRuntime(
       authorityId: snapshot.authorityId,
       actualY: sample?.actualY ?? actualY,
       corridor: selected?.corridor ?? null,
+      ...(sample?.scene ? { scene: sample.scene } : {}),
+      ...(sample?.run ? { run: sample.run } : {}),
       progress: sample?.progress,
       direction: sample?.direction
     });

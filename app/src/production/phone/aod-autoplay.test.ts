@@ -42,4 +42,36 @@ describe('phone AOD autoplay lifecycle', () => {
     expect(video.dataset.phoneAodAutoplay).toBe('blocked');
     controller.dispose();
   });
+
+  it('retains the start identity for progress and terminal playback evidence', async () => {
+    const video = new FakeVideo();
+    const onProgress = vi.fn();
+    const onComplete = vi.fn();
+    const identity = {
+      authorityId: 'authority-a',
+      sessionId: 'session-a',
+      generation: 7,
+      leg: 0,
+      direction: 1 as const
+    };
+    const controller = createPhoneAodAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 1,
+        onProgress,
+        onComplete,
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+
+    await expect(controller.start(1, identity)).resolves.toBe('playing');
+    expect(onProgress).toHaveBeenCalledWith(0, 1, identity);
+
+    video.currentTime = 1;
+    video.dispatchEvent(new Event('timeupdate'));
+
+    expect(onComplete).toHaveBeenCalledWith(1, identity);
+    controller.dispose();
+  });
 });

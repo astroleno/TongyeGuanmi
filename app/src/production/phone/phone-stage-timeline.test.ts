@@ -6,6 +6,7 @@ import {
   phoneAodCheckpointForMethodProgress,
   phoneAodCompletionCheckpoint,
   phoneDirectEntryCompletesAod,
+  phoneFrontRailSample,
   phoneStageFrame
 } from './phone-stage-timeline';
 
@@ -77,6 +78,29 @@ describe('phone stage timeline', () => {
     expect(phoneAodCheckpointForMethodProgress(0.002)).toBe('aod-to-method');
     expect(phoneAodCompletionCheckpoint(1)).toBe('method-intro');
     expect(phoneAodCompletionCheckpoint(-1)).toBe('aod-stage');
+  });
+
+  it('[Task 4] maps one front-rail geometry sample to a hold or one scroll run', () => {
+    const heroPattern = phoneFrontRailSample(
+      (PHONE_STAGE_STOPS.heroMotionEnd + PHONE_STAGE_STOPS.heroPatternEnd) / 2,
+      1
+    );
+    expect(heroPattern).toMatchObject({
+      run: 'hero-pattern-scroll',
+      direction: 1
+    });
+    expect(heroPattern.progress).toBeCloseTo(0.5);
+    expect(phoneFrontRailSample(PHONE_STAGE_STOPS.patternMotionStart + 0.01, 1))
+      .toEqual({ scene: 'pattern', progress: PHONE_STAGE_STOPS.patternMotionStart + 0.01, direction: 1 });
+    const starAod = phoneFrontRailSample(
+      (PHONE_STAGE_STOPS.starAodStart + PHONE_STAGE_STOPS.starAodEnd) / 2,
+      -1
+    );
+    expect(starAod).toMatchObject({
+      run: 'star-aod-scroll',
+      direction: -1
+    });
+    expect(starAod.progress).toBeCloseTo(0.5);
   });
 
   it('completes the full named front-half trace without relying on scroll after AOD starts', () => {

@@ -3,6 +3,7 @@ import {
   type FrontHalfCheckpointId
 } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
+import type { PhoneScrollRunId } from './phone-story-runs';
 import type { PhoneStageSceneId } from './types';
 
 export const PHONE_STAGE_STOPS = Object.freeze({
@@ -35,6 +36,13 @@ export type PhoneStageFrame = Readonly<{
   starAodProgress: number;
   shouldStartAodAutoplay: boolean;
   ownership: PhoneStageOwnership;
+}>;
+
+export type PhoneFrontRailSample = Readonly<{
+  scene?: PhoneStageSceneId;
+  run?: PhoneScrollRunId;
+  progress: number;
+  direction: -1 | 0 | 1;
 }>;
 
 function clamp(value: number): number {
@@ -173,6 +181,41 @@ export function phoneStageFrame(rawProgress: number, reducedMotion = false): Pho
     shouldStartAodAutoplay: progress >= stops.aodAutoplayStart,
     ownership: { key: 'hold-aod', visible: ['aod-animation'], stack: ['aod-animation'] }
   };
+}
+
+/** Converts front rail geometry into the one semantic sample the authority consumes. */
+export function phoneFrontRailSample(
+  rawProgress: number,
+  direction: -1 | 0 | 1,
+  reducedMotion = false
+): PhoneFrontRailSample {
+  const frame = phoneStageFrame(rawProgress, reducedMotion);
+  switch (frame.ownership.key) {
+    case 'handoff-hero-pattern':
+      return {
+        run: 'hero-pattern-scroll',
+        progress: frame.heroPatternProgress,
+        direction
+      };
+    case 'handoff-pattern-star':
+      return {
+        run: 'pattern-star-scroll',
+        progress: frame.patternStarProgress,
+        direction
+      };
+    case 'handoff-star-aod':
+      return {
+        run: 'star-aod-scroll',
+        progress: frame.starAodProgress,
+        direction
+      };
+    default:
+      return {
+        scene: frame.navigationScene,
+        progress: frame.progress,
+        direction
+      };
+  }
 }
 
 export function frontHalfCheckpointIndex(id: FrontHalfCheckpointId): number {

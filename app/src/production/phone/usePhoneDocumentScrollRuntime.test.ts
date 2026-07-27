@@ -37,7 +37,12 @@ describe('authority-scoped document scroll runtime', () => {
     const visualViewport = Object.assign(new EventTargetStub(), { offsetTop: 0 });
     const frames = new Map<number, () => void>();
     const registry = createPhoneScrollCorridorRegistry();
-    const heroSample = vi.fn(() => ({ actualY: 240, progress: .4, direction: 1 as const }));
+    const heroSample = vi.fn(() => ({
+      actualY: 240,
+      run: 'hero-pattern-scroll' as const,
+      progress: .4,
+      direction: 1 as const
+    }));
     const brandSample = vi.fn(() => ({ actualY: 240, progress: .8, direction: 1 as const }));
     registry.register({
       id: 'front',
@@ -88,6 +93,7 @@ describe('authority-scoped document scroll runtime', () => {
       authorityId: 'a',
       actualY: 240,
       corridor: 'front',
+      run: 'hero-pattern-scroll',
       progress: .4,
       direction: 1
     });

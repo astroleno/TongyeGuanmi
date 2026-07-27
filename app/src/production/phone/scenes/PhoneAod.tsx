@@ -29,6 +29,7 @@ import {
   type PhoneAodPlaybackDirection
 } from '../aod-autoplay';
 import { phoneMediaUrlFor } from '../phone-media';
+import type { PhoneExecutionIdentity } from '../phone-story-state';
 import type { PhoneAodAdapterHandle, PhoneSceneAdapterProps } from '../types';
 import './PhoneAod.css';
 
@@ -52,15 +53,20 @@ function clamp(value: number): number {
  */
 export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps>(
   function PhoneAod(
-    { reducedMotion, onReady, onAodProgress, onAodComplete },
+    { active, reducedMotion, onReady, onAodProgress, onAodComplete },
     forwardedRef
   ) {
     const rootRef = useRef<HTMLDivElement | null>(null);
     const autoplayRef = useRef<PhoneAodAutoplay | undefined>(undefined);
     const compositorRef = useRef<PackedAlphaVideoCompositor | undefined>(undefined);
     const renderRef = useRef<
-      ((progress: number, direction?: PhoneAodPlaybackDirection) => void) | undefined
+      (
+        progress: number,
+        direction?: PhoneAodPlaybackDirection,
+        identity?: PhoneExecutionIdentity | null
+      ) => void
     >(undefined);
+    const autoplayIdentityRef = useRef<PhoneExecutionIdentity | null>(null);
     const progressListenerRef = useRef(onAodProgress);
     const completeListenerRef = useRef(onAodComplete);
     const releaseCompositor = useCallback(() => {
@@ -101,7 +107,8 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       let lastProgress = Number.NaN;
       const render = (
         rawProgress: number,
-        direction: PhoneAodPlaybackDirection = 1
+        direction: PhoneAodPlaybackDirection = 1,
+        identity: PhoneExecutionIdentity | null = null
       ) => {
         const progress = clamp(rawProgress);
         root.dataset.portraitAodAlpha = progress < PHONE_AOD_ALPHA_END_PROGRESS
@@ -153,7 +160,9 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           );
           transition.setAttribute('data-aod-exit-active', 'true');
         }
-        progressListenerRef.current?.(progress, direction);
+        if (identity) {
+          progressListenerRef.current?.(progress, direction, identity);
+        }
       };
       renderRef.current = render;
 
@@ -187,13 +196,18 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         },
         disposeReverseDriver: () => disposeTimelineVideoDriver(video),
         onProgress: render,
-        onComplete: (direction) => completeListenerRef.current?.(direction)
+        onComplete: (direction, identity) => {
+          if (!identity) return;
+          autoplayIdentityRef.current = null;
+          completeListenerRef.current?.(direction, identity);
+        }
       });
       autoplayRef.current = autoplay;
       autoplay.reset();
       onReady?.();
 
       return () => {
+        autoplayIdentityRef.current = null;
         autoplay.dispose();
         releaseCompositor();
         if (autoplayRef.current === autoplay) autoplayRef.current = undefined;
@@ -204,21 +218,35 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       };
     }, [onReady, reducedMotion, releaseCompositor]);
 
+    // `active` is strictly a decoder/compositor lease. Root visibility is
+    // assigned synchronously by the story projector's surface role.
+    useEffect(() => {
+      if (active) {
+        ensureCompositor()?.setActive(!reducedMotion);
+        return;
+      }
+      compositorRef.current?.setActive(false);
+      releaseCompositor();
+    }, [active, ensureCompositor, reducedMotion, releaseCompositor]);
+
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
       update(progress) {
         renderRef.current?.(progress);
       },
-      startAutoplay(direction) {
+      startAutoplay(direction, identity) {
+        autoplayIdentityRef.current = identity;
         if (reducedMotion) {
-          renderRef.current?.(direction === 1 ? 1 : 0, direction);
-          completeListenerRef.current?.(direction);
+          renderRef.current?.(direction === 1 ? 1 : 0, direction, identity);
+          autoplayIdentityRef.current = null;
+          completeListenerRef.current?.(direction, identity);
           return Promise.resolve('playing');
         }
         ensureCompositor()?.setActive(true);
-        return autoplayRef.current?.start(direction) ?? Promise.resolve('error');
+        return autoplayRef.current?.start(direction, identity) ?? Promise.resolve('error');
       },
       resetAutoplay() {
+        autoplayIdentityRef.current = null;
         if (reducedMotion) {
           renderRef.current?.(0);
         } else {
@@ -229,10 +257,12 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         ensureCompositor()?.setActive(true);
       },
       leave() {
+        autoplayIdentityRef.current = null;
         releaseCompositor();
       },
       reverse() {},
       dispose() {
+        autoplayIdentityRef.current = null;
         autoplayRef.current?.dispose();
         releaseCompositor();
       }

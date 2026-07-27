@@ -128,6 +128,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   });
   const orchestrator = authority.port;
   const navigation = usePhoneStoryNavigationRuntime(orchestrator, loaderHidden);
+  const activeFrontSurface = (id: 'front:hero' | 'front:pattern' | 'front:star' | 'front:aod') => (
+    navigation.snapshot.projection.sourceSurface === id
+    || navigation.snapshot.projection.receiverSurface === id
+  );
 
   usePhoneViewportGeometry(rootRef, motionEnabled);
 
@@ -147,15 +151,14 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     patternStarMapRef: patternStarMapAdapterRef,
     starMapAodRef: starMapAodAdapterRef,
     orchestrator,
+    snapshot: navigation.snapshot,
     enabled: fixedStageRegistered && loaderHidden
-      && !directStoryEntry
       && !directContinuationEntry
       && ready
       && aodAlphaEndProgress !== undefined
       && !staticFallback,
     reducedMotion: !motionEnabled,
     adapterRevision,
-    aodAlphaEndProgress: aodAlphaEndProgress ?? 0,
     mapAodToMethod
   });
 
@@ -189,7 +192,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         {!directContinuationEntry && Hero && (
           <Hero
             ref={bindHeroAdapter}
-            active={loaderHidden}
+            active={loaderHidden && activeFrontSurface('front:hero')}
             reducedMotion={!motionEnabled}
             motionDriver={phoneMotionDriver}
             onReady={markHeroReady}
@@ -198,7 +201,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         {!directContinuationEntry && Pattern && (
           <Pattern
             ref={bindPatternAdapter}
-            active={false}
+            active={loaderHidden && activeFrontSurface('front:pattern')}
             reducedMotion={!motionEnabled}
             motionDriver={phoneMotionDriver}
             onReady={markPatternReady}
@@ -207,7 +210,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         {!directContinuationEntry && StarMap && (
           <StarMap
             ref={bindStarMapAdapter}
-            active={false}
+            active={loaderHidden && activeFrontSurface('front:star')}
             reducedMotion={!motionEnabled}
             motionDriver={phoneMotionDriver}
           />
@@ -215,7 +218,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         {!directContinuationEntry && Aod && (
           <Aod
             ref={bindAodAdapter}
-            active={false}
+            active={loaderHidden && activeFrontSurface('front:aod')}
             reducedMotion={!motionEnabled}
             onAodProgress={runtime.onAodProgress}
             onAodComplete={runtime.onAodComplete}

@@ -12,6 +12,7 @@ type SnapshotView = Readonly<{
   revision: number;
   status: 'stable' | 'scroll-run' | 'transaction';
   scene?: string;
+  run?: string;
   session: Readonly<{
     sessionId: string;
     generation: number;
@@ -42,7 +43,7 @@ type SnapshotView = Readonly<{
 type SnapshotApi = Readonly<{
   createPhoneStorySnapshot(input: Readonly<{
     authorityId: string;
-    scene: 'brand' | 'services';
+    scene: 'brand' | 'services' | 'hero' | 'pattern' | 'aod-animation';
     actualY: number;
   }>): SnapshotView;
   reducePhoneStorySnapshot(
@@ -736,6 +737,89 @@ describe('PhoneStorySnapshot reducer', () => {
       status: 'stable',
       scene: 'services',
       session: null
+    });
+  });
+
+  it('[Task 4] derives front holds and scroll-runs from one corridor sample', async () => {
+    const api = await snapshotApi();
+    const stable = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'hero',
+      actualY: 0
+    });
+    const scrolling = api.reducePhoneStorySnapshot(stable, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: snapshotIdentity.authorityId,
+      actualY: 180,
+      corridor: 'front-rail',
+      run: 'hero-pattern-scroll',
+      progress: 0.5,
+      direction: 1
+    }).snapshot;
+
+    expect(scrolling).toMatchObject({
+      status: 'scroll-run',
+      run: 'hero-pattern-scroll',
+      session: null,
+      scroll: {
+        actualY: 180,
+        corridor: 'front-rail',
+        progress: 0.5,
+        direction: 1
+      }
+    });
+
+    const settled = api.reducePhoneStorySnapshot(scrolling, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: snapshotIdentity.authorityId,
+      actualY: 240,
+      corridor: 'front-rail',
+      scene: 'pattern',
+      progress: 1,
+      direction: 1
+    }).snapshot;
+    expect(settled).toMatchObject({
+      status: 'stable',
+      scene: 'pattern',
+      session: null,
+      scroll: {
+        actualY: 240,
+        corridor: 'front-rail',
+        progress: 1,
+        direction: 1
+      }
+    });
+  });
+
+  it('[Task 4] keeps an active transaction authoritative over later rail samples', async () => {
+    const api = await snapshotApi();
+    const stable = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'aod-animation',
+      actualY: 800
+    });
+    const transaction = api.reducePhoneStorySnapshot(stable, {
+      type: 'RUN_STARTED',
+      ...snapshotIdentity,
+      run: 'aod-method',
+      direction: 1,
+      anchorY: 800,
+      inputEpoch: 8
+    }).snapshot;
+    const sampled = api.reducePhoneStorySnapshot(transaction, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: snapshotIdentity.authorityId,
+      actualY: 760,
+      corridor: 'front-rail',
+      scene: 'aod-animation',
+      progress: 0.9,
+      direction: -1
+    }).snapshot;
+
+    expect(sampled).toMatchObject({
+      status: 'transaction',
+      session: { operation: { run: 'aod-method' } },
+      scroll: { actualY: 760, corridor: 'front-rail' }
     });
   });
 });

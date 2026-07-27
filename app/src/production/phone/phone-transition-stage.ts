@@ -11,19 +11,16 @@ export type PhoneStageTransitionRenderers = Readonly<{
 }>;
 
 /**
- * Adjacent ink adapters share scene endpoints. Inactive adapters must render
- * their terminal canvas state before scene ownership clears stale boundaries;
- * only the active adapter may write a boundary after ownership is committed.
+ * Adjacent ink adapters share scene endpoints. This function only renders
+ * adapter frames; the snapshot projector alone assigns surface roles.
  */
 export function renderPhoneStageTransitions(
   frame: PhoneStageFrame,
-  transitions: PhoneStageTransitionRenderers,
-  commitOwnership: () => void
+  transitions: PhoneStageTransitionRenderers
 ): void {
   if (frame.ownership.key === 'handoff-hero-pattern') {
     transitions.patternStar.render(frame.patternStarProgress);
     transitions.starAod.render(frame.starAodProgress);
-    commitOwnership();
     transitions.heroPattern.render(frame.heroPatternProgress);
     return;
   }
@@ -31,7 +28,6 @@ export function renderPhoneStageTransitions(
   if (frame.ownership.key === 'handoff-pattern-star') {
     transitions.heroPattern.render(frame.heroPatternProgress);
     transitions.starAod.render(frame.starAodProgress);
-    commitOwnership();
     transitions.patternStar.render(frame.patternStarProgress);
     return;
   }
@@ -39,7 +35,6 @@ export function renderPhoneStageTransitions(
   if (frame.ownership.key === 'handoff-star-aod') {
     transitions.heroPattern.render(frame.heroPatternProgress);
     transitions.patternStar.render(frame.patternStarProgress);
-    commitOwnership();
     transitions.starAod.render(frame.starAodProgress);
     return;
   }
@@ -47,5 +42,4 @@ export function renderPhoneStageTransitions(
   transitions.heroPattern.render(frame.heroPatternProgress);
   transitions.patternStar.render(frame.patternStarProgress);
   transitions.starAod.render(frame.starAodProgress);
-  commitOwnership();
 }

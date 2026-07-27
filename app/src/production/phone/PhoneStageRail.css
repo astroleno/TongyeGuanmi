@@ -126,3 +126,17 @@
 .portrait-scroll-spike [data-phone-surface-role="transition-receiver"] {
   z-index: 12 !important;
 }
+
+/* The projector is the only visibility authority for fixed scene roots. */
+.portrait-scroll-spike [data-phone-surface-role="fixed-current"],
+.portrait-scroll-spike [data-phone-surface-role="stable"],
+.portrait-scroll-spike [data-phone-surface-role="candidate-stable"],
+.portrait-scroll-spike [data-phone-surface-role="transition-source"],
+.portrait-scroll-spike [data-phone-surface-role="transition-receiver"] {
+  visibility: visible !important;
+}
+
+.portrait-scroll-spike [data-phone-surface-role="retired"],
+.portrait-scroll-spike [data-phone-surface-role="retained-under-stage"] {
+  visibility: hidden !important;
+}

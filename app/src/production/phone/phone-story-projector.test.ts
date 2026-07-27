@@ -110,4 +110,36 @@ describe('phone story projector', () => {
     expect(documentElement.dataset.portraitEdgeScene).toBeUndefined();
     expect(theme.content).toBe('#010203');
   });
+
+  it('[Task 4] assigns one fixed front surface role and retires sibling roots', () => {
+    const root = element();
+    const hero = element();
+    const pattern = element();
+    const projector = createPhoneStoryProjector({
+      authorityId: 'phone-authority-test',
+      scope: 'formal',
+      root: () => root
+    });
+    projector.registerSurface({
+      id: 'front:hero',
+      scene: 'hero',
+      kind: 'fixed',
+      root: () => hero
+    });
+    projector.registerSurface({
+      id: 'front:pattern',
+      scene: 'pattern',
+      kind: 'fixed',
+      root: () => pattern
+    });
+    const plan = projector.preflight(createPhoneStorySnapshot({
+      authorityId: 'phone-authority-test',
+      scene: 'hero'
+    }));
+    if (!plan) throw new Error('Expected front projection plan');
+    projector.apply(plan);
+
+    expect(hero.dataset.phoneSurfaceRole).toBe('fixed-current');
+    expect(pattern.dataset.phoneSurfaceRole).toBe('retired');
+  });
 });

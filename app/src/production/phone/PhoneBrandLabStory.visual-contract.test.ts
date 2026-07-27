@@ -128,18 +128,22 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(formalShellSource).not.toContain('usePhoneEdgeSurface(');
     expect(formalShellSource).toContain("scope: 'formal'");
     expect(stageRuntimeSource).toContain(
-      'else renderStage(stageTrigger.progress)'
+      "if (snapshot.projection.stageOwner !== 'front') return null"
     );
+    expect(stageRuntimeSource).toContain('phoneFrontRailSample');
   });
 
   it('keeps AOD media-owned without converting the front rail to timed ink', () => {
     expect(stageRuntimeSource).toContain(
-      'aodRun = { direction, session, timeout: 0 }'
+      "snapshot.session.operation.run === 'aod-method'"
     );
     expect(stageRuntimeSource).toContain(
-      'aodAdapter.startAutoplay(run.direction)'
+      'aodAdapter.startAutoplay(direction, identity)'
     );
-    expect(stageRuntimeSource).toContain('session.reportAnimationComplete()');
+    expect(stageRuntimeSource).toContain('session.reportPresentedFrame()');
+    expect(stageRuntimeSource).toContain("type: 'PROGRESS_REPORTED'");
+    expect(stageRuntimeSource).toContain("type: 'LEG_COMPLETED'");
+    expect(stageRuntimeSource).not.toContain('aodRun');
     expect(stageRuntimeSource).not.toContain('FRONT_INK_BOUNDARIES');
     expect(stageRuntimeSource).not.toContain('runPhoneTimedTransition');
   });

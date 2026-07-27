@@ -14,16 +14,15 @@ function renderTrace(progress: number): string[] {
     heroPattern: renderer('hero-pattern'),
     patternStar: renderer('pattern-star'),
     starAod: renderer('star-aod')
-  }, () => calls.push(`ownership:${frame.ownership.key}`));
+  });
   return calls;
 }
 
-describe('phone transition endpoint ownership order', () => {
-  it('lets only Hero → Pattern write Pattern after ownership is committed', () => {
+describe('phone transition adapter rendering', () => {
+  it('renders the active Hero → Pattern adapter after inactive terminals', () => {
     expect(renderTrace(0.205)).toEqual([
       'pattern-star:0.0000',
       'star-aod:0.0000',
-      'ownership:handoff-hero-pattern',
       'hero-pattern:0.5000'
     ]);
   });
@@ -32,23 +31,20 @@ describe('phone transition endpoint ownership order', () => {
     expect(renderTrace(0.565)).toEqual([
       'hero-pattern:1.0000',
       'star-aod:0.0000',
-      'ownership:handoff-pattern-star',
       'pattern-star:0.5000'
     ]);
     expect(renderTrace(0.755)).toEqual([
       'hero-pattern:1.0000',
       'pattern-star:1.0000',
-      'ownership:handoff-star-aod',
       'star-aod:0.5000'
     ]);
   });
 
-  it('clears every terminal boundary before committing a held scene', () => {
+  it('renders every terminal adapter for a held scene without owning visibility', () => {
     expect(renderTrace(0.3)).toEqual([
       'hero-pattern:1.0000',
       'pattern-star:0.0000',
-      'star-aod:0.0000',
-      'ownership:hold-pattern'
+      'star-aod:0.0000'
     ]);
   });
 });
