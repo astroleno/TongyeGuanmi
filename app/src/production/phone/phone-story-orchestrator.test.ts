@@ -4,6 +4,7 @@ import {
   type PhoneOrchestratedRunSession,
   type PhoneRunCapability
 } from './phone-story-orchestrator';
+import type { PhoneStoryOrchestrator } from './phone-story-orchestrator.types';
 
 function element(top = 0): HTMLElement {
   const properties = new Map<string, string>();
@@ -39,6 +40,20 @@ function intent() {
   return { inputEpoch: 1, direction: 1 as const, startY: 0, projectedY: 240 };
 }
 
+function registerCorridor(
+  orchestrator: PhoneStoryOrchestrator,
+  run: 'brand-services' | 'lab-education' = 'brand-services',
+  boundary = 100
+) {
+  return orchestrator.registerScrollCorridor({
+    id: `test:${run}`,
+    scenes: run === 'brand-services' ? ['brand', 'services'] : ['lab', 'education'],
+    sample: () => null,
+    boundary: (requestedRun) => requestedRun === run ? boundary : null,
+    landing: () => boundary
+  });
+}
+
 describe('single phone story projector transaction', () => {
   it('projects the next revision before notifying external-store subscribers', () => {
     const root = element();
@@ -53,7 +68,11 @@ describe('single phone story projector transaction', () => {
       observed.push(`${root.dataset.phoneRevision}:${root.dataset.phoneCursor}`);
     });
 
-    orchestrator.reconcileHold('services');
+    orchestrator.dispatch({
+      type: 'HOLD_RECONCILED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      scene: 'services'
+    });
 
     expect(observed).toEqual(['1:hold:services']);
     expect(orchestrator.getSnapshot()).toMatchObject({
@@ -90,7 +109,11 @@ describe('single phone story projector transaction', () => {
 
     expect(brand.dataset.phoneSurfaceRole).toBe('stable');
     expect(services.dataset.phoneSurfaceRole).toBe('retired');
-    orchestrator.reconcileHold('services');
+    orchestrator.dispatch({
+      type: 'HOLD_RECONCILED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      scene: 'services'
+    });
     expect(brand.dataset.phoneSurfaceRole).toBe('retired');
     expect(services.dataset.phoneSurfaceRole).toBe('stable');
   });
@@ -110,8 +133,9 @@ describe('single phone story projector transaction', () => {
     ) => {
       session = activeSession;
     }));
+    registerCorridor(orchestrator);
 
-    expect(orchestrator.handleIntent(intent())).toBe(true);
+    expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
     session?.reportPresentedFrame();
     session?.reportEndpointCommit('receiver');
     session?.reportPresentedFrame();
@@ -144,13 +168,14 @@ describe('single phone story projector transaction', () => {
     ) => {
       session = activeSession;
     }));
+    registerCorridor(orchestrator);
     orchestrator.subscribe(() => {
       if (orchestrator.getSnapshot().status === 'stable') {
         events.push(`stable:${root.dataset.phoneInputState}`);
       }
     });
 
-    orchestrator.handleIntent(intent());
+    expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
     session?.reportPresentedFrame();
     session?.reportEndpointCommit('receiver');
     session?.reportPresentedFrame();
@@ -195,8 +220,9 @@ describe('single phone story projector transaction', () => {
     ) => {
       session = activeSession;
     }));
+    registerCorridor(orchestrator);
 
-    orchestrator.handleIntent(intent());
+    expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
     session?.reportFailure();
 
     expect(orchestrator.getSnapshot()).toMatchObject({
@@ -232,7 +258,7 @@ describe('single phone story projector transaction', () => {
       scrollY: () => actualY,
       scrollTo: (nextY) => {
         commands.push(nextY);
-        if (commands.length >= 3) actualY = nextY;
+        if (commands.length >= 2) actualY = nextY;
       },
       scheduleFrame: (callback) => frames.push(callback)
     });
@@ -242,8 +268,9 @@ describe('single phone story projector transaction', () => {
     ) => {
       session = activeSession;
     }));
+    registerCorridor(orchestrator);
 
-    orchestrator.handleIntent(intent());
+    expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
     session?.reportPresentedFrame();
     session?.reportEndpointCommit('receiver');
     session?.reportPresentedFrame();
@@ -257,7 +284,9 @@ describe('single phone story projector transaction', () => {
     });
     frames.shift()?.();
 
-    expect(commands).toHaveLength(3);
+    // The boundary claim no longer performs an eager scroll command. The two
+    // commands are the transaction-owned alignment and its single correction.
+    expect(commands).toHaveLength(2);
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'stable',
       scene: 'services'
@@ -276,7 +305,11 @@ describe('single phone story projector transaction', () => {
     orchestrator.subscribe(observed);
     root.isConnected = false;
 
-    orchestrator.reconcileHold('services');
+    orchestrator.dispatch({
+      type: 'HOLD_RECONCILED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      scene: 'services'
+    });
 
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'stable',
@@ -300,7 +333,14 @@ describe('single phone story projector transaction', () => {
       }
     });
 
-    orchestrator.activateDirectEntry();
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: 'ph-animation',
+      source: 'initial',
+      fallbackScene: 'lab',
+      cinematic: { run: 'lab-education', direction: 1, legIndex: 1 }
+    });
 
     expect(session).toMatchObject({
       authorityId: expect.any(String),
@@ -310,4 +350,148 @@ describe('single phone story projector transaction', () => {
       direction: 1
     });
   });
+
+  it('waits for a matching late capability without reviving an old stable input', () => {
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+    registerCorridor(orchestrator);
+
+    expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'preparing', inputEpoch: 1 }
+    });
+
+    let session: PhoneOrchestratedRunSession | undefined;
+    orchestrator.registerRunCapability('brand-services', 'late', capability(100, (
+      _direction,
+      activeSession
+    ) => {
+      session = activeSession;
+    }));
+
+    expect(session).toMatchObject({
+      sessionId: expect.any(String),
+      generation: expect.any(Number),
+      leg: 0,
+      direction: 1
+    });
+  });
+
+  it('does not replay an unclaimed input when a corridor appears later', () => {
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+    let starts = 0;
+    orchestrator.registerRunCapability('brand-services', 'test', capability(100, () => {
+      starts += 1;
+    }));
+
+    expect(orchestrator.resolveIntent(intent())).toBe('pass-native');
+    registerCorridor(orchestrator);
+
+    expect(starts).toBe(0);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'brand'
+    });
+  });
+
+  it('uses the same alignment transaction for a stable direct entry after its corridor is ready', () => {
+    const frames: Array<() => void> = [];
+    let actualY = 0;
+    const commands: number[] = [];
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      scrollY: () => actualY,
+      scrollTo: (nextY) => {
+        commands.push(nextY);
+        actualY = nextY;
+      },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: 'services',
+      source: 'menu',
+      fallbackScene: 'brand',
+      cinematic: null
+    });
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target' },
+      projection: { semanticScene: 'services', commitState: 'candidate' }
+    });
+    expect(commands).toEqual([]);
+
+    orchestrator.registerScrollCorridor({
+      id: 'direct-services',
+      scenes: ['brand', 'services'],
+      sample: () => null,
+      boundary: () => 100,
+      landing: (scene) => scene === 'services' ? 220 : 0
+    });
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target' }
+    });
+    orchestrator.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => element(),
+      presented: () => true
+    });
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'measuring-landing' }
+    });
+    frames.shift()?.();
+    frames.shift()?.();
+
+    expect(commands).toEqual([220]);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'services',
+      session: null
+    });
+  });
+
+  it.each(['hash', 'menu', 'history'] as const)(
+    'normalizes %s navigation into the same direct-entry transaction',
+    (source) => {
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'brand',
+        scrollY: () => 0,
+        scrollTo: () => undefined
+      });
+
+      orchestrator.dispatch({
+        type: 'NAVIGATE_REQUESTED',
+        authorityId: orchestrator.getSnapshot().authorityId,
+        scene: 'services',
+        source
+      });
+
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: {
+          operation: {
+            trigger: 'entry',
+            run: null,
+            direction: 1,
+            from: 'brand',
+            to: 'services'
+          }
+        }
+      });
+    }
+  );
 });

@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useState,
   type Dispatch,
   type SetStateAction
@@ -12,15 +13,12 @@ import {
 } from './phone-loader-lifecycle';
 import {
   phoneStoryEntryPlanFromHash,
-  phoneStoryEntryTarget,
   type PhoneContinuationEntryPlan,
   type PhoneStoryEntryPlan
 } from './phone-entry-plan';
-import {
-  createPhoneDirectEntryPositioner
-} from './phone-direct-entry-position';
 import type { PhoneEdgeScene } from './phone-edge-surface';
 import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
+import { phoneEntryPlan } from './phone-story-runs';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
 export type PhoneStoryEntryState = Readonly<{
@@ -71,6 +69,28 @@ export function usePhoneStoryEntryLifecycle(
     loaderHidden
   } = entry;
 
+  // This runs before the factory's passive attach effect. Direct entry therefore
+  // enters the immutable transaction state before the route can project a
+  // target stable hold, while the factory remains the sole listener owner.
+  useLayoutEffect(() => {
+    if (!directEntryPlan) return;
+    const snapshot = orchestrator.getSnapshot();
+    const plan = phoneEntryPlan(directEntryPlan.scene);
+    const fallbackScene = snapshot.status === 'stable'
+      ? snapshot.scene
+      : snapshot.projection.semanticScene;
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: snapshot.authorityId,
+      target: directEntryPlan.scene,
+      source: 'initial',
+      fallbackScene,
+      cinematic: plan.kind === 'cinematic'
+        ? { run: plan.run, direction: plan.direction, legIndex: plan.legIndex }
+        : null
+    });
+  }, [directEntryPlan, orchestrator]);
+
   useEffect(() => {
     if (directStoryEntry) return;
     return attachPhoneLoaderVisibilityLifecycle();
@@ -78,34 +98,28 @@ export function usePhoneStoryEntryLifecycle(
 
   useEffect(() => {
     const documentElement = document.documentElement;
-    let disposePositioner: (() => void) | undefined;
     documentElement.dataset.portraitSpikeLoader = loaderHidden
       ? 'ready'
       : 'active';
     if (directEntryPlan) {
       document.getElementById('story-loader-static')?.remove();
-      disposePositioner = createPhoneDirectEntryPositioner({
-        target: () => phoneStoryEntryTarget(directEntryPlan.scene),
-        targetOffset: (target) => directEntryPlan.proofPanelIndex === undefined
-          ? 0
-          : directEntryPlan.proofPanelIndex
-            * Math.max(0, target.getBoundingClientRect().height - window.innerHeight)
-            / 2,
-        scrollY: () => window.scrollY,
-        scrollTo: (y) => window.scrollTo(0, y),
-        requestFrame: (callback) => window.requestAnimationFrame(callback),
-        cancelFrame: (frame) => window.cancelAnimationFrame(frame),
-        onReady: () => orchestrator.activateDirectEntry()
-      }).dispose;
     } else {
-      if (loaderHidden) orchestrator.reconcileHold('hero');
+      if (loaderHidden) {
+        const snapshot = orchestrator.getSnapshot();
+        orchestrator.dispatch({
+          type: 'BOOTSTRAP_REQUESTED',
+          authorityId: snapshot.authorityId,
+          target: 'hero',
+          fallbackScene: 'hero',
+          cinematic: null
+        });
+      }
       else window.scrollTo(0, 0);
     }
     const refreshFrame = loaderHidden
       ? window.requestAnimationFrame(refreshPhoneScrollStage)
       : 0;
     return () => {
-      disposePositioner?.();
       if (refreshFrame) window.cancelAnimationFrame(refreshFrame);
       delete documentElement.dataset.portraitSpikeLoader;
     };

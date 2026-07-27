@@ -1,8 +1,5 @@
 import type { SceneId } from '../../story/types';
-import type {
-  PhoneRunId,
-  PhoneScrollRunId
-} from './phone-story-runs';
+import type { PhoneRunId } from './phone-story-runs';
 import type {
   PhoneStoryCursor,
   PhoneStoryEvent,
@@ -11,6 +8,7 @@ import type {
 } from './phone-story-state';
 import type {
   PhoneIntent,
+  PhoneIntentDisposition,
   PhoneTransitionDirection,
   PhoneTransitionSession
 } from './phone-transition-coordinator';
@@ -18,7 +16,11 @@ import type {
   PhoneStoryProjector,
   PhoneSurfaceRegistration
 } from './phone-story-projector';
-import type { PhoneStageSceneId } from './types';
+import type {
+  PhoneScrollCorridor,
+  PhoneScrollCorridorLease,
+  PhoneScrollCorridorRegistry
+} from './phone-scroll-corridor-registry';
 
 export type { PhoneSurfaceRegistration } from './phone-story-projector';
 
@@ -101,25 +103,14 @@ export type PhoneStoryRuntimePort = Readonly<{
     capability: PhoneRunCapability
   ): PhoneCapabilityLease;
   registerSurface(registration: PhoneSurfaceRegistration): PhoneCapabilityLease;
-  /** @deprecated Removed with the input/direct-entry migration in Task 3. */
-  activateDirectEntry(): void;
-  /** @deprecated Removed with the input/direct-entry migration in Task 3. */
-  requestRun(direction: PhoneTransitionDirection): boolean;
-  /** @deprecated Removed with the input/direct-entry migration in Task 3. */
-  handleIntent(intent: PhoneIntent): boolean;
-  /** @deprecated Removed with the document sampler migration in Task 3. */
-  reconcileHold(scene: SceneId): void;
-  /** @deprecated Removed with the document sampler migration in Task 3. */
-  reconcileScrollHold(scene: PhoneStageSceneId): void;
-  /** @deprecated Removed with the document sampler migration in Task 3. */
-  reconcileScrollRun(
-    run: PhoneScrollRunId,
-    direction: PhoneTransitionDirection,
-    progress: number
-  ): void;
+  registerScrollCorridor(corridor: PhoneScrollCorridor): PhoneScrollCorridorLease;
 }>;
 
 /** @deprecated Internal engine type; production components receive RuntimePort. */
 export type PhoneStoryOrchestrator = PhoneStoryRuntimePort & Readonly<{
+  /** Factory-only input ingress; route descendants receive RuntimePort instead. */
+  resolveIntent(intent: PhoneIntent): PhoneIntentDisposition;
+  /** Factory-only registry ingress for the single document scroll sampler. */
+  scrollCorridors: PhoneScrollCorridorRegistry;
   dispose(): void;
 }>;

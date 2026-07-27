@@ -5,13 +5,14 @@ import {
   useSyncExternalStore
 } from 'react';
 import type { SceneId } from '../../story/types';
-import { hashForScene } from '../navigation';
+import { hashForScene, sceneFromHash } from '../navigation';
 import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
 
 /** Navigation has only menu UI state; its canonical scene is a snapshot selector. */
 export function usePhoneStoryNavigationRuntime(
   port: PhoneStoryRuntimePort,
-  loaderHidden: boolean
+  loaderHidden: boolean,
+  resolveLocationTarget: (hash: string) => SceneId | undefined = sceneFromHash
 ) {
   const snapshot = useSyncExternalStore(
     (notify) => {
@@ -43,5 +44,19 @@ export function usePhoneStoryNavigationRuntime(
       source
     });
   }, [port]);
+  useEffect(() => {
+    const navigateFromLocation = (source: 'hash' | 'history') => {
+      const target = resolveLocationTarget(window.location.hash);
+      if (target) navigate(target, source);
+    };
+    const onHashChange = () => navigateFromLocation('hash');
+    const onPopState = () => navigateFromLocation('history');
+    window.addEventListener('hashchange', onHashChange);
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('hashchange', onHashChange);
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [navigate, resolveLocationTarget]);
   return { snapshot, scene, visible, menuOpen, setMenuOpen, navigate };
 }

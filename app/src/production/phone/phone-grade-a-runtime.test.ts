@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPhoneStoryHold, startPhoneStoryRun } from './phone-story-state';
+import {
+  createPhoneStoryHold,
+  startPhoneStoryRun
+} from './phone-story-cursor-test-support';
 import {
   createPhoneGradeARunner,
   phoneGradeABoundaryProgress,

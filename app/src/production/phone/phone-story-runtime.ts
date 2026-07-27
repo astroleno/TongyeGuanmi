@@ -6,6 +6,9 @@ import type {
 import { createPhoneStoryProjector } from './phone-story-projector';
 import type { PhoneRouteScope } from './phone-route-scope';
 import { createPhoneIntentCoordinator } from './phone-transition-coordinator';
+import {
+  createPhoneDocumentScrollRuntime
+} from './usePhoneDocumentScrollRuntime';
 
 export type PhoneStoryAuthority = Readonly<{
   authorityId: string;
@@ -57,6 +60,7 @@ export function createPhoneStoryRuntime(
   let attached = false;
   let disposed = false;
   let disposeCoordinator: (() => void) | undefined;
+  let disposeDocumentScrollRuntime: (() => void) | undefined;
   let disposeBrowserReapply: (() => void) | undefined;
 
   let authority: PhoneStoryAuthority;
@@ -86,9 +90,32 @@ export function createPhoneStoryRuntime(
         };
       }
       if (pageWindow) {
+        const scrollRuntime = createPhoneDocumentScrollRuntime({
+          page: pageWindow,
+          document: page,
+          visualViewport: pageWindow.visualViewport,
+          registry: engine.scrollCorridors,
+          getSnapshot: port.getSnapshot,
+          dispatch: port.dispatch,
+          requestFrame: pageWindow.requestAnimationFrame.bind(pageWindow),
+          cancelFrame: pageWindow.cancelAnimationFrame.bind(pageWindow)
+        });
+        disposeDocumentScrollRuntime = scrollRuntime.dispose;
         disposeCoordinator = createPhoneIntentCoordinator(
           root,
-          (intent) => port.handleIntent(intent)
+          engine.resolveIntent,
+          {
+            scrollY: options.scrollY,
+            scrollTo: options.scrollTo,
+            scrollState: () => {
+              const snapshot = port.getSnapshot();
+              return {
+                revision: snapshot.revision,
+                corridor: snapshot.scroll.corridor
+              };
+            },
+            onNativeScrollCorrection: scrollRuntime.sampleNow
+          }
         ).dispose;
       }
     },
@@ -97,6 +124,8 @@ export function createPhoneStoryRuntime(
       disposed = true;
       disposeCoordinator?.();
       disposeCoordinator = undefined;
+      disposeDocumentScrollRuntime?.();
+      disposeDocumentScrollRuntime = undefined;
       disposeBrowserReapply?.();
       disposeBrowserReapply = undefined;
       const root = options.root();

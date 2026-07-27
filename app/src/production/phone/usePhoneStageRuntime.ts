@@ -430,37 +430,6 @@ export function usePhoneStageRuntime(
       if (import.meta.env.DEV) {
         root.dataset.portraitStageProgress = progress.toFixed(4);
       }
-      if (!aodRun) {
-        const direction = movingBackward ? -1 : 1;
-        if (frame.ownership.key === 'handoff-hero-pattern') {
-          options.orchestrator.reconcileScrollRun(
-            'hero-pattern-scroll',
-            direction,
-            frame.heroPatternProgress
-          );
-        } else if (frame.ownership.key === 'handoff-pattern-star') {
-          options.orchestrator.reconcileScrollRun(
-            'pattern-star-scroll',
-            direction,
-            frame.patternStarProgress
-          );
-        } else if (frame.ownership.key === 'handoff-star-aod') {
-          options.orchestrator.reconcileScrollRun(
-            'star-aod-scroll',
-            direction,
-            frame.starAodProgress
-          );
-        } else {
-          options.orchestrator.reconcileScrollHold(frame.navigationScene);
-        }
-      }
-      if (
-        motionEnabled
-        && frame.shouldStartAodAutoplay
-        && !(previousStageProgress >= PHONE_STAGE_STOPS.aodAutoplayStart)
-      ) {
-        options.orchestrator.requestRun(1);
-      }
       setHeroFigureActive(
         motionEnabled && progress < PHONE_STAGE_STOPS.heroPatternEnd
       );

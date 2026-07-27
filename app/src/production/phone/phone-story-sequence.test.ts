@@ -32,13 +32,21 @@ describe('canonical phone story sequence', () => {
         }
       });
     }
+    orchestrator.registerScrollCorridor({
+      id: 'sequence',
+      scenes: phoneStoryRuns.flatMap((run) => [run.from, run.to]),
+      sample: () => null,
+      boundary: () => 100,
+      landing: () => 100
+    });
 
     let epoch = 0;
     const drive = (direction: PhoneTransitionDirection) => {
       const runs = direction === 1 ? phoneStoryRuns : [...phoneStoryRuns].reverse();
       for (const run of runs) {
         const target = direction === 1 ? run.to : run.from;
-        expect(orchestrator.handleIntent(intent(++epoch, direction))).toBe(true);
+        expect(orchestrator.resolveIntent(intent(++epoch, direction)))
+          .toBe('claim-boundary');
         const session = sessions.at(-1);
         if (!session) throw new Error('Expected a phone transaction session');
         session.reportPresentedFrame();
@@ -88,7 +96,14 @@ describe('canonical phone story sequence', () => {
       }
     });
 
-    orchestrator.activateDirectEntry();
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: scene,
+      source: 'initial',
+      fallbackScene: phoneStoryRuns.find((candidate) => candidate.id === run)!.from,
+      cinematic: { run, direction: 1, legIndex: leg }
+    });
 
     expect(session).toMatchObject({
       authorityId: expect.any(String),

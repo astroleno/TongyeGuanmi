@@ -3,7 +3,7 @@ import {
   createPhoneStoryHold,
   reducePhoneStoryCursor,
   startPhoneStoryRun
-} from './phone-story-state';
+} from './phone-story-cursor-test-support';
 import {
   phoneBrandLabCompositeFrame,
   phoneBrandLabRunForVisual

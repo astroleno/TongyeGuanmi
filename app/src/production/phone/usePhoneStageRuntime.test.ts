@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createPhoneStoryHold, startPhoneStoryRun } from './phone-story-state';
+import {
+  createPhoneStoryHold,
+  startPhoneStoryRun
+} from './phone-story-cursor-test-support';
 import { phoneStageCursorOwnsAod } from './usePhoneStageRuntime';
 
 describe('phone stage AOD ownership', () => {

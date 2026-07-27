@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState
@@ -84,7 +83,11 @@ export function PhoneBrandLabStory({
     initialScene,
     rootRef
   });
-  const navigation = usePhoneStoryNavigationRuntime(authority.port, true);
+  const navigation = usePhoneStoryNavigationRuntime(
+    authority.port,
+    true,
+    phoneGroup45EntryFromHash
+  );
 
   const bindStageHost = useCallback((host: HTMLDivElement | null) => {
     if (stageCanvasRef.current === host) return;
@@ -117,14 +120,6 @@ export function PhoneBrandLabStory({
       else delete documentElement.dataset.phoneGroup45Scope;
     };
   }, [reducedMotion]);
-
-  useEffect(() => {
-    const onHashChange = () => {
-      navigation.navigate(phoneGroup45EntryFromHash(window.location.hash), 'hash');
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, [navigation]);
 
   const navigate = useCallback((scene: SceneId) => {
     navigation.navigate(isGroup45Scene(scene) ? scene : 'brand');

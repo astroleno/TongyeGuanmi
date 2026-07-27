@@ -57,6 +57,8 @@ export type PhoneStoryProjector = Readonly<{
   apply(plan: PhoneStoryProjectionPlan): void;
   reapplyCurrent(): void;
   registerSurface(registration: PhoneSurfaceRegistration): PhoneSurfaceLease;
+  /** True only when a registered scene surface is connected and presented. */
+  hasPresentedSurface(scene: SceneId): boolean;
   registerTransitionEndpoints(endpoints: PhoneTransitionEndpoints): void;
   clearTransitionEndpoints(): void;
   rootForScene(scene: SceneId): HTMLElement | null;
@@ -255,11 +257,14 @@ export function createPhoneStoryProjector({
       const projection = snapshot.projection;
       if (routeRoot) {
         ownRoot(routeRoot);
+        const execution = snapshot.status === 'transaction'
+          ? snapshot.session.operation
+          : null;
         const cursor = snapshot.status === 'stable'
           ? `hold:${snapshot.scene}`
           : snapshot.status === 'scroll-run'
             ? `transition:${snapshot.run}:0`
-            : `transition:${snapshot.session.operation.run}:${snapshot.session.operation.legIndex}`;
+            : `transition:${execution?.run ?? 'entry'}:${execution?.legIndex ?? 0}`;
         const session = snapshot.status === 'transaction' ? snapshot.session : null;
         const edgeSurface = phoneEdgeSurfaceForScene(projection.edge);
         data(routeRoot, 'phoneAuthorityId', authorityId);
@@ -284,7 +289,7 @@ export function createPhoneStoryProjector({
         data(routeRoot, 'phoneAnchorY', session?.anchor.y === null || !session
           ? undefined
           : String(Math.round(session.anchor.y)));
-        data(routeRoot, 'phoneRetryableRun', snapshot.diagnostics.lastRollback?.run);
+        data(routeRoot, 'phoneRetryableRun', snapshot.diagnostics.lastRollback?.run ?? undefined);
         data(routeRoot, 'portraitCheckpoint', projection.checkpoint);
         data(routeRoot, 'portraitCheckpointTrace', plan.checkpointTrace.join('>'));
         data(routeRoot, 'portraitEdgeScene', projection.edge);
@@ -348,6 +353,19 @@ export function createPhoneStoryProjector({
           }
         }
       };
+    },
+    hasPresentedSurface(scene) {
+      for (const registration of registrations.values()) {
+        if (registration.scene !== scene) continue;
+        const surfaceRoot = registration.root();
+        const coverageRoot = registration.coverageRoot?.() ?? surfaceRoot;
+        if (
+          connected(surfaceRoot)
+          && connected(coverageRoot)
+          && (registration.presented?.() ?? true)
+        ) return true;
+      }
+      return false;
     },
     registerTransitionEndpoints(next) {
       endpoints = next;

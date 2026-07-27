@@ -82,6 +82,13 @@ describe('phone stable presentation contract', () => {
         session = activeSession;
       }
     });
+    orchestrator.registerScrollCorridor({
+      id: 'stable-presentation',
+      scenes: ['brand', 'services'],
+      sample: () => null,
+      boundary: () => 100,
+      landing: () => 100
+    });
     orchestrator.subscribe(() => {
       const cursor = orchestrator.cursor();
       if (cursor.kind !== 'hold') return;
@@ -91,12 +98,12 @@ describe('phone stable presentation contract', () => {
       });
     });
 
-    expect(orchestrator.handleIntent({
+    expect(orchestrator.resolveIntent({
       inputEpoch: 1,
       direction: 1,
       startY: 0,
       projectedY: 200
-    })).toBe(true);
+    })).toBe('claim-boundary');
     if (!session) throw new Error('Expected a claimed brand-services session');
     session.reportPresentedFrame();
     session.reportEndpointCommit('receiver');

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import type { PhoneStoryCursor } from './phone-story-state';
 import {
   createPhoneStoryHold,
   reducePhoneStoryCursor,
   startPhoneStoryRun,
-  type PhoneStoryCursor,
   type PhoneStoryLegacyCursor
-} from './phone-story-state';
+} from './phone-story-cursor-test-support';
 
 type SnapshotView = Readonly<{
   authorityId: string;
@@ -16,10 +16,12 @@ type SnapshotView = Readonly<{
     sessionId: string;
     generation: number;
     operation: Readonly<{
-      kind: string;
-      run?: string;
-      direction?: number;
-      legIndex?: number;
+      trigger: string;
+      run: string | null;
+      direction: number;
+      legIndex: number;
+      from: string;
+      to: string;
     }>;
     phase: string;
     progress: number;
@@ -303,10 +305,12 @@ describe('PhoneStorySnapshot reducer', () => {
         sessionId: snapshotIdentity.sessionId,
         generation: snapshotIdentity.generation,
         operation: {
-          kind: 'run',
+          trigger: 'input',
           run: 'brand-services',
           direction: 1,
-          legIndex: 0
+          legIndex: 0,
+          from: 'brand',
+          to: 'services'
         },
         phase: 'preparing',
         progress: 0,
@@ -617,6 +621,121 @@ describe('PhoneStorySnapshot reducer', () => {
       diagnostics: {
         lastRollback: { generation: snapshotIdentity.generation + 1 }
       }
+    });
+  });
+
+  it('[Task 3] claims a crossed input boundary immediately and never stores a free pending intent', async () => {
+    const api = await snapshotApi();
+    const stable = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'brand',
+      actualY: 64
+    });
+    const claimed = api.reducePhoneStorySnapshot(stable, {
+      type: 'INTENT_RESOLVED',
+      authorityId: snapshotIdentity.authorityId,
+      inputEpoch: 19,
+      direction: 1,
+      run: 'brand-services',
+      anchorY: 480,
+      boundaryKnown: true,
+      crossedBoundary: true
+    });
+
+    expect(claimed).toMatchObject({ inputDisposition: 'claim-boundary' });
+    expect(claimed.snapshot).toMatchObject({
+      status: 'transaction',
+      session: {
+        operation: {
+          trigger: 'input',
+          run: 'brand-services',
+          direction: 1,
+          from: 'brand',
+          to: 'services'
+        },
+        phase: 'preparing',
+        anchor: { y: 480 }
+      },
+      input: { completedEpoch: 19 }
+    });
+    expect(api.reducePhoneStorySnapshot(claimed.snapshot, {
+      type: 'INTENT_RESOLVED',
+      authorityId: snapshotIdentity.authorityId,
+      inputEpoch: 20,
+      direction: 1,
+      run: 'brand-services',
+      anchorY: 480,
+      boundaryKnown: true,
+      crossedBoundary: true
+    })).toMatchObject({ inputDisposition: 'block-active-session' });
+    expect(api.reducePhoneStorySnapshot(stable, {
+      type: 'INTENT_RESOLVED',
+      authorityId: snapshotIdentity.authorityId,
+      inputEpoch: 20,
+      direction: 1,
+      run: null,
+      anchorY: null,
+      boundaryKnown: false,
+      crossedBoundary: false
+    })).toMatchObject({ inputDisposition: 'pass-native' });
+  });
+
+  it('[Task 3] starts a static direct entry as one locked precommit transaction', async () => {
+    const api = await snapshotApi();
+    const stable = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'brand',
+      actualY: 64
+    });
+    let current = api.reducePhoneStorySnapshot(stable, {
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: snapshotIdentity.authorityId,
+      target: 'services',
+      source: 'menu',
+      fallbackScene: 'brand',
+      cinematic: null
+    }).snapshot;
+
+    expect(current).toMatchObject({
+      status: 'transaction',
+      session: {
+        operation: {
+          trigger: 'entry',
+          run: null,
+          direction: 1,
+          legIndex: 0,
+          from: 'brand',
+          to: 'services'
+        },
+        phase: 'verifying-target',
+        anchor: { y: null }
+      },
+      projection: { commitState: 'candidate' }
+    });
+    const session = current.session;
+    if (!session) throw new Error('Expected direct entry session');
+    const identity = {
+      authorityId: snapshotIdentity.authorityId,
+      sessionId: session.sessionId,
+      generation: session.generation,
+      leg: 0,
+      direction: 1
+    } as const;
+    for (const event of [
+      { type: 'TARGET_PRESENTED' },
+      { type: 'LAYOUT_RELEASED' },
+      { type: 'LANDING_MEASURED', targetY: 720, geometryRevision: 2 },
+      { type: 'SCROLL_COMMANDED', commandId: 1 },
+      { type: 'SCROLL_CONFIRMED', commandId: 1, actualY: 720 },
+      { type: 'STABLE_PRESENTATION_VERIFIED' }
+    ]) {
+      current = api.reducePhoneStorySnapshot(current, { ...identity, ...event }).snapshot;
+    }
+
+    expect(current).toMatchObject({
+      status: 'stable',
+      scene: 'services',
+      session: null
     });
   });
 });

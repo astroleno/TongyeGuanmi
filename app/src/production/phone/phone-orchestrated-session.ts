@@ -1,9 +1,5 @@
 import type { SceneId } from '../../story/types';
-import {
-  phoneRun,
-  type PhoneRunDefinition,
-  type PhoneRunId
-} from './phone-story-runs';
+import type { PhoneRunId } from './phone-story-runs';
 import { PHONE_SCROLL_ALIGNMENT_TOLERANCE_PX } from './phone-story-state';
 import type {
   PhoneExecutionIdentity,
@@ -21,18 +17,18 @@ import type {
 export type PhoneActiveRun = Readonly<{
   sessionId: string;
   generation: number;
-  run: PhoneRunId;
+  run: PhoneRunId | null;
   anchorY: number;
-  directScene?: SceneId | undefined;
 }>;
 
 type ManagedPhoneActiveRun = {
   sessionId: string;
   generation: number;
-  run: PhoneRunId;
+  run: PhoneRunId | null;
   direction: PhoneTransitionDirection;
+  source: SceneId;
+  target: SceneId;
   anchorY: number;
-  directScene?: SceneId | undefined;
 };
 
 type SessionControllerOptions = Readonly<{
@@ -40,7 +36,11 @@ type SessionControllerOptions = Readonly<{
   dispatch(event: PhoneStoryEvent): void;
   scrollY(): number;
   scrollTo(y: number): void;
-  resolveLanding(scene: SceneId, fallbackY: number): number;
+  resolveLanding(
+    scene: SceneId,
+    fallbackY: number,
+    mode: 'forward' | 'rollback'
+  ): number;
   registerEndpoints(endpoints: PhoneTransitionEndpoints): void;
   clearEndpoints(): void;
   scheduleFrame?: ((callback: () => void) => void) | undefined;
@@ -49,14 +49,7 @@ type SessionControllerOptions = Readonly<{
 
 export type PhoneOrchestratedSessionController = Readonly<{
   active(): PhoneActiveRun | null;
-  activate(
-    definition: PhoneRunDefinition,
-    direction: PhoneTransitionDirection,
-    anchorY: number,
-    legIndex?: number,
-    directScene?: SceneId,
-    inputEpoch?: number | null
-  ): PhoneOrchestratedRunSession;
+  resume(): PhoneOrchestratedRunSession | null;
   dispose(): void;
 }>;
 
@@ -72,8 +65,6 @@ export function createPhoneOrchestratedSessionController(
 ): PhoneOrchestratedSessionController {
   let active: ManagedPhoneActiveRun | null = null;
   let cancelAnimation: (() => void) | undefined;
-  let generation = 0;
-  let sequence = 0;
   let scrollCommand = 0;
   let releaseLease: PhoneReleaseLease | undefined;
   let geometryReleased = false;
@@ -89,18 +80,22 @@ export function createPhoneOrchestratedSessionController(
     const { session } = snapshot;
     if (mode === 'rollback') {
       if (!session.phase.startsWith('rollback-')) return null;
-    } else if (
-      session.sessionId !== run.sessionId
-      || session.generation !== run.generation
-      || session.operation.run !== run.run
-      || session.operation.direction !== run.direction
-    ) return null;
+    } else {
+      const operation = session.operation;
+      if (
+        session.sessionId !== run.sessionId
+        || session.generation !== run.generation
+        || operation.run !== run.run
+        || operation.direction !== run.direction
+      ) return null;
+    }
+    const operation = session.operation;
     return {
       authorityId: snapshot.authorityId,
       sessionId: session.sessionId,
       generation: session.generation,
-      leg: session.operation.legIndex,
-      direction: session.operation.direction
+      leg: operation.legIndex,
+      direction: operation.direction
     };
   };
   const owns = (run: ManagedPhoneActiveRun) => identityFor(run) !== null;
@@ -251,10 +246,8 @@ export function createPhoneOrchestratedSessionController(
     if (snapshot.status !== 'transaction' || snapshot.session.phase !== names.measuring) {
       return;
     }
-    const target = mode === 'forward'
-      ? run.direction === 1 ? phoneRun(run.run).to : phoneRun(run.run).from
-      : run.direction === 1 ? phoneRun(run.run).from : phoneRun(run.run).to;
-    const landing = options.resolveLanding(target, run.anchorY);
+    const target = mode === 'forward' ? run.target : run.source;
+    const landing = options.resolveLanding(target, run.anchorY, mode);
     run.anchorY = landing;
     if (!emit(run, names.measured, {
       targetY: landing,
@@ -277,97 +270,96 @@ export function createPhoneOrchestratedSessionController(
     }
     if (emit(run, 'LAYOUT_RELEASED')) measure(run, lease, 'forward');
   };
+  const sessionFor = (
+    run: ManagedPhoneActiveRun,
+    initialLeg: number,
+    fallbackAuthorityId: string
+  ): PhoneOrchestratedRunSession => ({
+    get authorityId() {
+      return identityFor(run)?.authorityId ?? fallbackAuthorityId;
+    },
+    sessionId: run.sessionId,
+    generation: run.generation,
+    get leg() {
+      return identityFor(run)?.leg ?? initialLeg;
+    },
+    direction: run.direction,
+    valid: () => owns(run),
+    reportPresentedFrame: () => { emit(run, 'PRESENTED_FRAME'); },
+    reportProgress: (progress) => { emit(run, 'PROGRESS_REPORTED', { progress }); },
+    animate: (start, end, durationMs, render, complete) => {
+      if (!owns(run)) return;
+      cancelAnimation?.();
+      const cancel = runPhoneProgressClock(
+        { valid: () => owns(run) },
+        start,
+        end,
+        durationMs,
+        (progress) => {
+          if (owns(run)) {
+            emit(run, 'PROGRESS_REPORTED', { progress });
+            render(progress);
+          }
+        },
+        () => {
+          if (cancelAnimation === cancel) cancelAnimation = undefined;
+          if (owns(run)) complete();
+        }
+      );
+      cancelAnimation = cancel;
+    },
+    reportEndpoints: (source, receiver) => {
+      const identity = identityFor(run);
+      if (identity) options.registerEndpoints({
+        source,
+        receiver,
+        sessionId: identity.sessionId,
+        generation: identity.generation
+      });
+    },
+    reportEndpointCommit: (endpoint) => {
+      if (endpoint === 'receiver') emit(run, 'LEG_COMPLETED');
+    },
+    reportTargetPresented: () => settleTarget(run),
+    reportEndpointRelease: () => {
+      if (owns(run)) options.clearEndpoints();
+    },
+    provideRelease: (lease) => {
+      if (owns(run)) {
+        releaseLease = lease;
+        geometryReleased = false;
+      }
+    },
+    reportAnimationComplete: () => { emit(run, 'LEG_COMPLETED'); },
+    reportFailure: () => fail(run)
+  });
 
   return {
     active: () => active,
-    activate(definition, direction, anchorY, legIndex, directScene, inputEpoch = null) {
+    resume() {
+      const snapshot = options.getSnapshot();
+      if (options.disposed() || snapshot.status !== 'transaction') return null;
+      const { session } = snapshot;
+      const operation = session.operation;
+      if (active && owns(active)) {
+        return active.sessionId === session.sessionId
+          && active.generation === session.generation
+          ? sessionFor(active, operation.legIndex, snapshot.authorityId)
+          : null;
+      }
       const run: ManagedPhoneActiveRun = {
-        sessionId: `phone-session-${++sequence}`,
-        generation: ++generation,
-        run: definition.id,
-        direction,
-        anchorY,
-        ...(directScene ? { directScene } : {})
+        sessionId: session.sessionId,
+        generation: session.generation,
+        run: operation.run,
+        direction: operation.direction,
+        source: operation.from,
+        target: operation.to,
+        anchorY: session.anchor.y ?? options.scrollY()
       };
       active = run;
       releaseLease = undefined;
       geometryReleased = false;
-      const snapshot = options.getSnapshot();
-      const initialLeg = legIndex ?? (direction === 1 ? 0 : definition.legs.length - 1);
-      options.dispatch({
-        authorityId: snapshot.authorityId,
-        sessionId: run.sessionId,
-        generation: run.generation,
-        leg: initialLeg,
-        direction,
-        type: 'RUN_STARTED',
-        run: definition.id,
-        anchorY,
-        inputEpoch,
-        ...(legIndex === undefined ? {} : { legIndex }),
-        trigger: inputEpoch === null ? 'auto' : 'input'
-      });
-      if (!owns(run)) active = null;
-
-      return {
-        get authorityId() {
-          return identityFor(run)?.authorityId ?? snapshot.authorityId;
-        },
-        sessionId: run.sessionId,
-        generation: run.generation,
-        get leg() {
-          return identityFor(run)?.leg ?? initialLeg;
-        },
-        direction,
-        valid: () => owns(run),
-        reportPresentedFrame: () => { emit(run, 'PRESENTED_FRAME'); },
-        reportProgress: (progress) => { emit(run, 'PROGRESS_REPORTED', { progress }); },
-        animate: (start, end, durationMs, render, complete) => {
-          if (!owns(run)) return;
-          cancelAnimation?.();
-          const cancel = runPhoneProgressClock(
-            { valid: () => owns(run) },
-            start,
-            end,
-            durationMs,
-            (progress) => {
-              if (owns(run)) {
-                emit(run, 'PROGRESS_REPORTED', { progress });
-                render(progress);
-              }
-            },
-            () => {
-              if (cancelAnimation === cancel) cancelAnimation = undefined;
-              if (owns(run)) complete();
-            }
-          );
-          cancelAnimation = cancel;
-        },
-        reportEndpoints: (source, receiver) => {
-          const identity = identityFor(run);
-          if (identity) options.registerEndpoints({
-            source,
-            receiver,
-            sessionId: identity.sessionId,
-            generation: identity.generation
-          });
-        },
-        reportEndpointCommit: (endpoint) => {
-          if (endpoint === 'receiver') emit(run, 'LEG_COMPLETED');
-        },
-        reportTargetPresented: () => settleTarget(run),
-        reportEndpointRelease: () => {
-          if (owns(run)) options.clearEndpoints();
-        },
-        provideRelease: (lease) => {
-          if (owns(run)) {
-            releaseLease = lease;
-            geometryReleased = false;
-          }
-        },
-        reportAnimationComplete: () => { emit(run, 'LEG_COMPLETED'); },
-        reportFailure: () => fail(run)
-      };
+      return sessionFor(run, operation.legIndex, snapshot.authorityId);
     },
     dispose() {
       cancelAnimation?.();

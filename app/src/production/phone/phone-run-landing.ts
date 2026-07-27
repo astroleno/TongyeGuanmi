@@ -1,14 +1,39 @@
+import type { PhoneRunAnchorPolicy } from './phone-story-runs';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
+import type { PhoneLandingReason } from './phone-scroll-corridor-registry';
+
+export type PhoneRunLandingRequest = Readonly<{
+  policy: PhoneRunAnchorPolicy;
+  direction: PhoneTransitionDirection;
+  reason: PhoneLandingReason;
+  currentY: number;
+  boundaryY: number;
+  compositeY?: number | undefined;
+}>;
+
+function exhaustivePolicy(policy: never): never {
+  throw new Error(`Unknown phone anchor policy: ${policy}`);
+}
 
 /**
- * Landing policy belongs to the one story orchestrator. Adapters report only
- * their natural boundary coordinate; a reverse run preserves any already
- * presented overshoot while a forward run lands on the target boundary.
+ * Converts a corridor measurement into a committed landing without allowing a
+ * generic target-top fallback to erase authored semantic/composite anchors.
  */
-export function resolvePhoneRunLanding(
-  currentY: number,
-  boundaryY: number,
-  direction: PhoneTransitionDirection
-): number {
-  return Math.max(0, direction === 1 ? boundaryY : Math.min(currentY, boundaryY));
+export function resolvePhoneRunLanding({
+  policy,
+  direction,
+  currentY,
+  boundaryY,
+  compositeY
+}: PhoneRunLandingRequest): number {
+  switch (policy) {
+    case 'aod-semantic-edge':
+      return Math.max(0, boundaryY);
+    case 'authored-boundary':
+      return Math.max(0, direction === 1 ? boundaryY : Math.min(currentY, boundaryY));
+    case 'preserve-composite':
+      return Math.max(0, compositeY ?? currentY);
+    default:
+      return exhaustivePolicy(policy);
+  }
 }

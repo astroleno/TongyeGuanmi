@@ -12,6 +12,7 @@ import {
   phoneStoryPresentation,
   type PhonePresentationProjection
 } from './phone-story-presentation';
+import type { PhoneIntentDisposition } from './phone-transition-coordinator';
 
 /** Legacy cursor phases remain readable until the Task 9 compatibility removal. */
 export type PhoneTransitionPhase =
@@ -49,24 +50,6 @@ export type PhoneStoryTransition = Readonly<{
 
 /** @deprecated Read this derived model with selectPhoneStoryCursor(). */
 export type PhoneStoryCursor = PhoneStoryHold | PhoneStoryTransition;
-
-type PhoneLegacyStoryHold = PhoneStoryHold & Readonly<{
-  revision: number;
-}>;
-
-type PhoneLegacyStoryTransition = PhoneStoryTransition & Readonly<{
-  revision: number;
-  generation: number;
-  runTarget: SceneId;
-}>;
-
-/** @deprecated Test-only cursor reducer compatibility. */
-export type PhoneStoryLegacyCursor = PhoneLegacyStoryHold | PhoneLegacyStoryTransition;
-
-export type PhoneStorySessionIdentity = Readonly<{
-  sessionId: string;
-  generation: number;
-}>;
 
 export type PhoneFailureReason =
   | 'dependency-timeout'
@@ -107,36 +90,21 @@ export type PhoneAlignmentAttempt = Readonly<{
   visualViewportOffsetTop: number;
 }>;
 
-export type PhoneStoryRunOperation = Readonly<{
-  kind: 'run';
-  trigger: 'input' | 'auto';
-  run: PhoneRunId;
+/** One compact execution record covers input runs and direct entries alike. */
+export type PhoneStoryOperation = Readonly<{
+  trigger: 'input' | 'auto' | 'entry';
+  run: PhoneRunId | null;
   direction: 1 | -1;
   legIndex: number;
+  from: SceneId;
+  to: SceneId;
 }>;
-
-export type PhoneStoryEntryOperation = Readonly<{
-  kind: 'entry';
-  target: SceneId;
-  source: 'initial' | 'hash' | 'menu' | 'history';
-  fallbackScene: SceneId;
-  cinematic: Readonly<{
-    run: PhoneRunId;
-    direction: 1;
-    legIndex: number;
-  }> | null;
-}>;
-
-export type PhoneStoryOperation =
-  | PhoneStoryRunOperation
-  | PhoneStoryEntryOperation;
 
 export type PhoneSnapshotSession = Readonly<{
   sessionId: string;
   generation: number;
   inputEpoch: number | null;
-  /** Entry operations are introduced with the route-local factory in Task 2. */
-  operation: PhoneStoryRunOperation;
+  operation: PhoneStoryOperation;
   phase: PhoneTransactionPhase;
   progress: number;
   anchor: Readonly<{
@@ -152,7 +120,7 @@ type PhoneSnapshotBase = Readonly<{
   revision: number;
   diagnostics: Readonly<{
     lastRollback: Readonly<{
-      run: PhoneRunId;
+      run: PhoneRunId | null;
       reason: PhoneFailureReason;
       generation: number;
     }> | null;
@@ -240,6 +208,39 @@ export type PhoneStoryEvent =
     }>)
   | PhoneSnapshotIdentityEvent
   | Readonly<{
+      type: 'INTENT_RESOLVED';
+      authorityId: string;
+      inputEpoch: number;
+      direction: 1 | -1;
+      run: PhoneRunId | null;
+      anchorY: number | null;
+      boundaryKnown: boolean;
+      crossedBoundary: boolean;
+    }>
+  | Readonly<{
+      type: 'DIRECT_ENTRY_REQUESTED';
+      authorityId: string;
+      target: SceneId;
+      source: 'initial' | 'hash' | 'menu' | 'history';
+      fallbackScene: SceneId;
+      cinematic: Readonly<{
+        run: PhoneRunId;
+        direction: 1;
+        legIndex: number;
+      }> | null;
+    }>
+  | Readonly<{
+      type: 'BOOTSTRAP_REQUESTED';
+      authorityId: string;
+      target: SceneId;
+      fallbackScene: SceneId;
+      cinematic: Readonly<{
+        run: PhoneRunId;
+        direction: 1;
+        legIndex: number;
+      }> | null;
+    }>
+  | Readonly<{
       type: 'HOLD_RECONCILED';
       authorityId: string;
       scene: SceneId;
@@ -265,8 +266,8 @@ export type PhoneStoryEvent =
       authorityId: string;
       actualY: number;
       corridor?: PhoneScrollCorridorId | null;
-      progress?: number;
-      direction?: -1 | 0 | 1;
+      progress?: number | undefined;
+      direction?: -1 | 0 | 1 | undefined;
     }>;
 
 export type PhoneStoryEffect = never;
@@ -274,6 +275,7 @@ export type PhoneStoryEffect = never;
 export type PhoneStoryReduction = Readonly<{
   snapshot: PhoneStorySnapshot;
   effects: readonly PhoneStoryEffect[];
+  inputDisposition?: PhoneIntentDisposition;
 }>;
 
 const noEffects: readonly PhoneStoryEffect[] = [];
@@ -327,25 +329,26 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function runForOperation(operation: PhoneStoryRunOperation): PhoneRunDefinition {
-  return phoneRun(operation.run);
+function runForOperation(operation: PhoneStoryOperation): PhoneRunDefinition | null {
+  return operation.run ? phoneRun(operation.run) : null;
 }
 
-function transactionCursor(snapshot: PhoneTransactionSnapshot): PhoneStoryTransition {
-  const run = runForOperation(snapshot.session.operation);
-  const { legIndex } = snapshot.session.operation;
-  const leg = run.legs[legIndex]!;
-  const { direction } = snapshot.session.operation;
+function transactionCursor(snapshot: PhoneTransactionSnapshot): PhoneStoryTransition | null {
+  const operation = snapshot.session.operation;
+  const run = operation.run ? phoneRun(operation.run) : null;
+  if (!run) return null;
+  const leg = run.legs[operation.legIndex]!;
+  if (!leg) return null;
   return {
     kind: 'transition',
     sessionId: snapshot.session.sessionId,
     run: run.id,
-    legIndex,
-    runSource: direction === 1 ? run.from : run.to,
+    legIndex: operation.legIndex,
+    runSource: operation.from,
     segment: leg.segment,
     from: leg.from,
     to: leg.to,
-    direction,
+    direction: operation.direction,
     phase: snapshot.session.phase,
     progress: snapshot.session.progress
   };
@@ -355,6 +358,13 @@ function projectionForTransaction(
   snapshot: PhoneTransactionSnapshot
 ): PhonePresentationProjection {
   const { phase, operation } = snapshot.session;
+  if (
+    operation.trigger === 'entry'
+    && operation.run === null
+    && phase === 'verifying-target'
+  ) {
+    return phoneStableProjection(operationTarget(operation), 'candidate');
+  }
   if (
     phase === 'releasing-layout'
     || phase === 'measuring-landing'
@@ -366,8 +376,10 @@ function projectionForTransaction(
   if (phase.startsWith('rollback-')) {
     return phoneStableProjection(operationSource(operation), 'candidate');
   }
-  const projection = phoneStoryPresentation(transactionCursor(snapshot));
-  return projection;
+  const cursor = transactionCursor(snapshot);
+  return cursor
+    ? phoneStoryPresentation(cursor)
+    : phoneStableProjection(operationSource(operation), 'candidate');
 }
 
 function scrollRunCursor(snapshot: PhoneScrollRunSnapshot): PhoneStoryTransition {
@@ -394,7 +406,8 @@ export function selectPhoneStoryCursor(snapshot: PhoneStorySnapshot): PhoneStory
     return { kind: 'hold', scene: snapshot.scene };
   }
   if (snapshot.status === 'scroll-run') return scrollRunCursor(snapshot);
-  return transactionCursor(snapshot);
+  const cursor = transactionCursor(snapshot);
+  return cursor ?? { kind: 'hold', scene: operationSource(snapshot.session.operation) };
 }
 
 function nextStable(
@@ -468,18 +481,17 @@ function eventOwnsTransaction(
     && snapshot.session.operation.direction === event.direction;
 }
 
-function operationTarget(operation: PhoneStoryRunOperation): SceneId {
-  const run = phoneRun(operation.run);
-  return operation.direction === 1 ? run.to : run.from;
+function operationTarget(operation: PhoneStoryOperation): SceneId {
+  return operation.to;
 }
 
-function operationSource(operation: PhoneStoryRunOperation): SceneId {
-  const run = phoneRun(operation.run);
-  return operation.direction === 1 ? run.from : run.to;
+function operationSource(operation: PhoneStoryOperation): SceneId {
+  return operation.from;
 }
 
-function isTerminalLeg(operation: PhoneStoryRunOperation): boolean {
+function isTerminalLeg(operation: PhoneStoryOperation): boolean {
   const run = runForOperation(operation);
+  if (!run) return true;
   return operation.direction === 1
     ? operation.legIndex === run.legs.length - 1
     : operation.legIndex === 0;
@@ -597,8 +609,15 @@ function reduceStablePresentationVerified(
   return reduced(nextStable(snapshot, scene, actualY));
 }
 
-function reduced(snapshot: PhoneStorySnapshot): PhoneStoryReduction {
-  return { snapshot, effects: noEffects };
+function reduced(
+  snapshot: PhoneStorySnapshot,
+  inputDisposition?: PhoneIntentDisposition
+): PhoneStoryReduction {
+  return {
+    snapshot,
+    effects: noEffects,
+    ...(inputDisposition ? { inputDisposition } : {})
+  };
 }
 
 function startedRun(
@@ -619,11 +638,12 @@ function startedRun(
     generation: event.generation,
     inputEpoch: event.inputEpoch,
     operation: {
-      kind: 'run',
       trigger: event.trigger ?? (event.inputEpoch === null ? 'auto' : 'input'),
       run: event.run,
       direction: event.direction,
-      legIndex
+      legIndex,
+      from: endpoints.source,
+      to: endpoints.target
     },
     phase: 'preparing',
     progress: event.direction === 1 ? 0 : 1,
@@ -657,6 +677,93 @@ function startedRun(
   });
 }
 
+function nextGeneratedIdentity(snapshot: PhoneStorySnapshot): Readonly<{
+  sessionId: string;
+  generation: number;
+}> {
+  const generation = snapshot.revision + 1;
+  return {
+    sessionId: `phone-session-${generation}`,
+    generation
+  };
+}
+
+function startedInputRun(
+  snapshot: PhoneStableSnapshot,
+  event: Extract<PhoneStoryEvent, { type: 'INTENT_RESOLVED' }>
+): PhoneStoryReduction {
+  if (
+    !event.boundaryKnown
+    || !event.crossedBoundary
+    || !event.run
+    || event.anchorY === null
+  ) return reduced(snapshot, 'pass-native');
+  const identity = nextGeneratedIdentity(snapshot);
+  const reduction = startedRun(snapshot, {
+    type: 'RUN_STARTED',
+    authorityId: event.authorityId,
+    ...identity,
+    leg: event.direction === 1 ? 0 : phoneRun(event.run).legs.length - 1,
+    direction: event.direction,
+    run: event.run,
+    anchorY: event.anchorY,
+    inputEpoch: event.inputEpoch,
+    trigger: 'input'
+  });
+  return reduction.snapshot === snapshot
+    ? reduced(snapshot, 'pass-native')
+    : { ...reduction, inputDisposition: 'claim-boundary' };
+}
+
+function startedEntry(
+  snapshot: Exclude<PhoneStorySnapshot, PhoneTransactionSnapshot>,
+  event: Extract<PhoneStoryEvent, { type: 'DIRECT_ENTRY_REQUESTED' }>
+): PhoneStoryReduction {
+  const identity = nextGeneratedIdentity(snapshot);
+  const cinematicRun = event.cinematic ? phoneRun(event.cinematic.run) : null;
+  const direction = event.cinematic?.direction ?? 1;
+  const terminal = cinematicRun
+    ? directionalEndpoints(cinematicRun, direction).target
+    : event.target;
+  const session: PhoneSnapshotSession = {
+    ...identity,
+    inputEpoch: null,
+    operation: {
+      trigger: 'entry',
+      run: event.cinematic?.run ?? null,
+      direction,
+      legIndex: event.cinematic?.legIndex ?? 0,
+      from: event.fallbackScene,
+      to: terminal
+    },
+    phase: event.cinematic ? 'preparing' : 'verifying-target',
+    progress: event.cinematic ? 0 : 1,
+    anchor: {
+      policy: 'entry-target',
+      y: null,
+      geometryRevision: null
+    },
+    alignment: null
+  };
+  const provisional: PhoneTransactionSnapshot = {
+    authorityId: snapshot.authorityId,
+    revision: snapshot.revision + 1,
+    diagnostics: { lastRollback: null },
+    scroll: snapshot.scroll,
+    input: {
+      completedEpoch: null,
+      completedEpochUntil: null
+    },
+    projection: phoneStableProjection(event.fallbackScene, 'candidate'),
+    status: 'transaction',
+    session
+  };
+  return reduced({
+    ...provisional,
+    projection: projectionForTransaction(provisional)
+  });
+}
+
 export function reducePhoneStorySnapshot(
   snapshot: PhoneStorySnapshot,
   event: PhoneStoryEvent
@@ -665,6 +772,37 @@ export function reducePhoneStorySnapshot(
     return snapshot.status === 'stable' ? startedRun(snapshot, event) : reduced(snapshot);
   }
   if (event.authorityId !== snapshot.authorityId) return reduced(snapshot);
+
+  if (event.type === 'INTENT_RESOLVED') {
+    if (snapshot.status === 'transaction') {
+      return reduced(snapshot, 'block-active-session');
+    }
+    if (snapshot.input.completedEpoch === event.inputEpoch) {
+      return reduced(snapshot, 'consume-completed-epoch-tail');
+    }
+    return snapshot.status === 'stable'
+      ? startedInputRun(snapshot, event)
+      : reduced(snapshot, 'pass-native');
+  }
+
+  if (event.type === 'BOOTSTRAP_REQUESTED') {
+    return snapshot.status === 'transaction'
+      ? reduced(snapshot)
+      : startedEntry(snapshot, {
+        type: 'DIRECT_ENTRY_REQUESTED',
+        authorityId: event.authorityId,
+        target: event.target,
+        source: 'initial',
+        fallbackScene: event.fallbackScene,
+        cinematic: event.cinematic
+      });
+  }
+
+  if (event.type === 'DIRECT_ENTRY_REQUESTED') {
+    return snapshot.status === 'transaction'
+      ? reduced(snapshot)
+      : startedEntry(snapshot, event);
+  }
 
   if (event.type === 'HOLD_RECONCILED') {
     if (snapshot.status === 'transaction') return reduced(snapshot);
@@ -686,8 +824,9 @@ export function reducePhoneStorySnapshot(
   }
 
   if (event.type === 'NAVIGATE_REQUESTED') {
-    if (snapshot.status === 'transaction') return reduced(snapshot);
-    return reduced(nextStable(snapshot, event.scene));
+    // The runtime normalizer converts navigation to DIRECT_ENTRY_REQUESTED so
+    // a menu/hash/history seek cannot publish a fake stable hold here.
+    return reduced(snapshot);
   }
 
   if (event.type === 'SCROLL_RUN_RECONCILED') {
@@ -765,6 +904,7 @@ export function reducePhoneStorySnapshot(
         return reduced(nextTransaction(snapshot, { ...session, phase: 'verifying-target' }));
       }
       const run = runForOperation(operation);
+      if (!run) return reduced(snapshot);
       const legIndex = operation.legIndex + operation.direction;
       return !run.legs[legIndex]
         ? reduced(snapshot)
@@ -831,163 +971,4 @@ export function reducePhoneStorySnapshot(
     default:
       return reduced(snapshot);
   }
-}
-
-/**
- * Legacy cursor-only reducer retained for tests and unconverted callers. It is
- * deliberately not used by the orchestrator publication path after Task 1.
- */
-export type PhoneStoryCursorEvent =
-  | (PhoneStorySessionIdentity & Readonly<{
-      type: 'PHASE';
-      phase: PhoneAdapterTransitionPhase;
-    }>)
-  | (PhoneStorySessionIdentity & Readonly<{
-      type: 'PROGRESS';
-      progress: number;
-    }>)
-  | (PhoneStorySessionIdentity & Readonly<{ type: 'ADVANCE_LEG' }>)
-  | (PhoneStorySessionIdentity & Readonly<{ type: 'COMMIT' }>)
-  | (PhoneStorySessionIdentity & Readonly<{ type: 'LAND' }>)
-  | (PhoneStorySessionIdentity & Readonly<{ type: 'RELEASE' }>)
-  | (PhoneStorySessionIdentity & Readonly<{ type: 'SETTLE' }>)
-  | (PhoneStorySessionIdentity & Readonly<{ type: 'FAIL' }>)
-  | (PhoneStorySessionIdentity & Readonly<{ type: 'ROLLBACK_COMMITTED' }>);
-
-export function createPhoneStoryHold(
-  scene: SceneId,
-  revision = 0
-): PhoneLegacyStoryHold {
-  return { kind: 'hold', scene, revision };
-}
-
-function legacyTransitionAtLeg(
-  run: PhoneRunDefinition,
-  legIndex: number,
-  direction: 1 | -1,
-  identity: PhoneStorySessionIdentity,
-  revision: number
-): PhoneLegacyStoryTransition {
-  const leg = run.legs[legIndex];
-  if (!leg) throw new Error(`Phone run ${run.id} has no leg ${legIndex}`);
-  const endpoints = directionalEndpoints(run, direction);
-  return {
-    kind: 'transition',
-    revision,
-    sessionId: identity.sessionId,
-    generation: identity.generation,
-    run: run.id,
-    legIndex,
-    runSource: endpoints.source,
-    runTarget: endpoints.target,
-    segment: leg.segment,
-    from: leg.from,
-    to: leg.to,
-    direction,
-    phase: 'preparing',
-    progress: direction === 1 ? 0 : 1
-  };
-}
-
-export function startPhoneStoryRun(
-  cursor: PhoneStoryLegacyCursor,
-  runId: PhoneRunId,
-  direction: 1 | -1,
-  identity: PhoneStorySessionIdentity,
-  legIndex?: number
-): PhoneLegacyStoryTransition {
-  if (cursor.kind !== 'hold') {
-    throw new Error('Cannot start a phone run outside a stable hold');
-  }
-  const run = phoneRun(runId);
-  const endpoints = directionalEndpoints(run, direction);
-  if (cursor.scene !== endpoints.source) {
-    throw new Error(
-      `Phone run ${runId} cannot start from ${cursor.scene} in direction ${direction}`
-    );
-  }
-  return legacyTransitionAtLeg(
-    run,
-    legIndex ?? (direction === 1 ? 0 : run.legs.length - 1),
-    direction,
-    identity,
-    cursor.revision
-  );
-}
-
-function legacyEventOwnsCursor(
-  cursor: PhoneLegacyStoryTransition,
-  event: PhoneStoryCursorEvent
-): boolean {
-  return cursor.sessionId === event.sessionId && cursor.generation === event.generation;
-}
-
-function legacyTerminalLeg(cursor: PhoneLegacyStoryTransition): boolean {
-  if (cursor.run.endsWith('-scroll')) return true;
-  const run = phoneRun(cursor.run as PhoneRunId);
-  return cursor.direction === 1
-    ? cursor.legIndex === run.legs.length - 1
-    : cursor.legIndex === 0;
-}
-
-export function reducePhoneStoryCursor(
-  cursor: PhoneStoryLegacyCursor,
-  event: PhoneStoryCursorEvent
-): PhoneStoryLegacyCursor {
-  if (cursor.kind !== 'transition' || !legacyEventOwnsCursor(cursor, event)) {
-    return cursor;
-  }
-  if (event.type === 'FAIL') {
-    return cursor.phase === 'rolling-back' ? cursor : { ...cursor, phase: 'rolling-back' };
-  }
-  if (event.type === 'ROLLBACK_COMMITTED') {
-    return cursor.phase === 'rolling-back'
-      ? createPhoneStoryHold(cursor.runSource, cursor.revision + 1)
-      : cursor;
-  }
-  if (cursor.phase === 'rolling-back') return cursor;
-  if (event.type === 'PHASE') {
-    const legal = (
-      (cursor.phase === 'preparing' && event.phase === 'presented-frame-ready')
-      || (cursor.phase === 'presented-frame-ready' && event.phase === 'animating')
-    );
-    return legal ? { ...cursor, phase: event.phase } : cursor;
-  }
-  if (event.type === 'PROGRESS') {
-    const progress = clamp(event.progress);
-    const monotonic = cursor.direction === 1
-      ? progress >= cursor.progress
-      : progress <= cursor.progress;
-    if (!monotonic || progress === cursor.progress) return cursor;
-    return cursor.phase === 'preparing'
-      ? { ...cursor, phase: 'animating', progress }
-      : { ...cursor, progress };
-  }
-  if (event.type === 'ADVANCE_LEG') {
-    if (legacyTerminalLeg(cursor) || cursor.phase !== 'animating') return cursor;
-    return legacyTransitionAtLeg(
-      phoneRun(cursor.run as PhoneRunId),
-      cursor.legIndex + cursor.direction,
-      cursor.direction,
-      cursor,
-      cursor.revision
-    );
-  }
-  if (event.type === 'COMMIT') {
-    return legacyTerminalLeg(cursor) && cursor.phase === 'animating'
-      ? { ...cursor, phase: 'committing' }
-      : cursor;
-  }
-  if (event.type === 'LAND') {
-    return cursor.phase === 'committing' ? { ...cursor, phase: 'landing' } : cursor;
-  }
-  if (event.type === 'RELEASE') {
-    return cursor.phase === 'landing' ? { ...cursor, phase: 'releasing' } : cursor;
-  }
-  if (event.type === 'SETTLE') {
-    return cursor.phase === 'releasing'
-      ? createPhoneStoryHold(cursor.runTarget, cursor.revision + 1)
-      : cursor;
-  }
-  return cursor;
 }

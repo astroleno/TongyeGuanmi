@@ -7,7 +7,7 @@ import {
   createPhoneStoryHold,
   reducePhoneStoryCursor,
   startPhoneStoryRun
-} from './phone-story-state';
+} from './phone-story-cursor-test-support';
 import {
   phoneStoryPresentation
 } from './phone-story-presentation';

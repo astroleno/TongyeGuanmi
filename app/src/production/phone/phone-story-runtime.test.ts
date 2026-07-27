@@ -109,6 +109,44 @@ describe('phone story runtime factory', () => {
     qa.dispose();
   });
 
+  it('can receive a direct-entry transaction before attach without publishing a fake hold', () => {
+    const routeRoot = root();
+    const runtime = createPhoneStoryRuntime({
+      scope: 'formal',
+      initialScene: 'figure3-animation',
+      root: () => routeRoot,
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+
+    runtime.port.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: runtime.authorityId,
+      target: 'figure3-animation',
+      source: 'initial',
+      fallbackScene: 'brand',
+      cinematic: { run: 'brand-services', direction: 1, legIndex: 1 }
+    });
+
+    runtime.attach();
+
+    expect(runtime.port.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        phase: 'preparing',
+        operation: {
+          trigger: 'entry',
+          run: 'brand-services',
+          direction: 1,
+          legIndex: 1,
+          from: 'brand',
+          to: 'services'
+        }
+      }
+    });
+    runtime.dispose();
+  });
+
   it('cleans every attach-owned listener during a mount/probe/remount cycle', () => {
     const added: string[] = [];
     const removed: string[] = [];
@@ -149,10 +187,18 @@ describe('phone story runtime factory', () => {
       'root:touchcancel',
       'root:wheel',
       'window:scroll',
+      'window:resize',
+      'window:orientationchange',
       'window:pageshow',
-      'document:visibilitychange'
+      'document:visibilitychange',
+      'document:resize'
     ]));
     expect(added.filter((entry) => entry === 'root:wheel')).toHaveLength(1);
+    expect(added.filter((entry) => entry === 'window:resize')).toHaveLength(1);
+    expect(added.filter((entry) => entry === 'window:orientationchange')).toHaveLength(1);
+    // One scroll listener belongs to the input coordinator and one to the
+    // authority-scoped document sampler; no route child owns another.
+    expect(added.filter((entry) => entry === 'window:scroll')).toHaveLength(2);
     runtime.dispose();
 
     expect(removed).toEqual(expect.arrayContaining([
@@ -162,8 +208,11 @@ describe('phone story runtime factory', () => {
       'root:touchcancel',
       'root:wheel',
       'window:scroll',
+      'window:resize',
+      'window:orientationchange',
       'window:pageshow',
-      'document:visibilitychange'
+      'document:visibilitychange',
+      'document:resize'
     ]));
 
     const remount = createPhoneStoryRuntime({

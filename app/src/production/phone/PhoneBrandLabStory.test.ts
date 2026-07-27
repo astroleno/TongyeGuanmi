@@ -35,6 +35,7 @@ describe('PhoneBrandLabStory', () => {
     expect(source).not.toContain('usePhoneEdgeSurface');
     expect(source).not.toContain('onPresentation: publishPresentation');
     expect(source).toContain("scope: 'brand-lab'");
-    expect(source).toContain('usePhoneStoryNavigationRuntime(authority.port, true)');
+    expect(source).toContain('usePhoneStoryNavigationRuntime(\n    authority.port');
+    expect(source).not.toContain("window.addEventListener('hashchange'");
   });
 });

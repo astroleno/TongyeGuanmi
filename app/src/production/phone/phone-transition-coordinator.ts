@@ -11,6 +11,12 @@ export type PhoneIntent = Readonly<{
   projectedY: number;
 }>;
 
+export type PhoneIntentDisposition =
+  | 'pass-native'
+  | 'claim-boundary'
+  | 'block-active-session'
+  | 'consume-completed-epoch-tail';
+
 export type PhoneIntentCoordinator = Readonly<{
   dispose(): void;
 }>;
@@ -19,6 +25,10 @@ export type PhoneIntentCoordinatorOptions = Readonly<{
   now?: () => number;
   scrollY?: () => number;
   scrollTo?: (y: number) => void;
+  requestFrame?: (callback: () => void) => number;
+  cancelFrame?: (frame: number) => void;
+  scrollState?: () => Readonly<{ revision: number; corridor: string | null }>;
+  onNativeScrollCorrection?: () => void;
   wheelQuietMs?: number;
   momentumWindowMs?: number;
 }>;
@@ -45,12 +55,22 @@ const PHONE_TOUCH_MOMENTUM_WINDOW_MS = 1200;
  */
 export function createPhoneIntentCoordinator(
   root: HTMLElement,
-  onIntent: (intent: PhoneIntent) => boolean,
+  onIntent: (intent: PhoneIntent) => PhoneIntentDisposition,
   options: PhoneIntentCoordinatorOptions = {}
 ): PhoneIntentCoordinator {
   const now = options.now ?? (() => performance.now());
   const scrollY = options.scrollY ?? (() => window.scrollY);
   const scrollTo = options.scrollTo ?? ((y: number) => window.scrollTo(0, y));
+  const requestFrame = options.requestFrame
+    ?? (typeof window !== 'undefined'
+      && typeof window.requestAnimationFrame === 'function'
+      ? (callback: () => void) => window.requestAnimationFrame(callback)
+      : undefined);
+  const cancelFrame = options.cancelFrame
+    ?? (typeof window !== 'undefined'
+      && typeof window.cancelAnimationFrame === 'function'
+      ? (frame: number) => window.cancelAnimationFrame(frame)
+      : undefined);
   const wheelQuietMs = options.wheelQuietMs ?? PHONE_WHEEL_GESTURE_QUIET_MS;
   const momentumWindowMs = options.momentumWindowMs
     ?? PHONE_TOUCH_MOMENTUM_WINDOW_MS;
@@ -69,13 +89,14 @@ export function createPhoneIntentCoordinator(
     inputEpoch: number;
     until: number;
   }> | null = null;
+  let lastNativeProbeEpoch = 0;
+  const nativeProbeFrames = new Map<number, number>();
 
   const nextIdentity = () => {
     sequence += 1;
     return { inputEpoch: sequence };
   };
-  const blockIfClaimed = (event: Event, claimed: boolean) => {
-    if (!claimed) return;
+  const block = (event: Event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
   };
@@ -84,13 +105,41 @@ export function createPhoneIntentCoordinator(
     startY: number,
     projectedY: number
   ) => {
-    if (Math.abs(projectedY - startY) < 0.5) return false;
+    if (Math.abs(projectedY - startY) < 0.5) return 'pass-native';
     return onIntent({
       ...identity,
       direction: projectedY > startY ? 1 : -1,
       startY,
       projectedY
     });
+  };
+  const scheduleNativeScrollProbe = (
+    identity: Readonly<{ inputEpoch: number }>,
+    startY: number,
+    projectedY: number
+  ) => {
+    if (
+      !requestFrame
+      || !options.scrollState
+      || lastNativeProbeEpoch === identity.inputEpoch
+    ) return;
+    lastNativeProbeEpoch = identity.inputEpoch;
+    const expected = options.scrollState();
+    const frame = requestFrame(() => {
+      nativeProbeFrames.delete(identity.inputEpoch);
+      const current = options.scrollState?.();
+      if (
+        !current
+        || current.revision !== expected.revision
+        || current.corridor !== expected.corridor
+        || Math.abs(scrollY() - startY) >= .5
+      ) return;
+      const correctedY = Math.max(0, projectedY);
+      if (Math.abs(correctedY - startY) < .5) return;
+      scrollTo(correctedY);
+      options.onNativeScrollCorrection?.();
+    });
+    nativeProbeFrames.set(identity.inputEpoch, frame);
   };
 
   const onTouchStart = (event: TouchEvent) => {
@@ -122,10 +171,12 @@ export function createPhoneIntentCoordinator(
       inputEpoch: touch.inputEpoch,
       until: occurredAt + momentumWindowMs
     };
-    blockIfClaimed(
-      event,
-      emit(touch, touch.startY, projectedY)
-    );
+    const disposition = emit(touch, touch.startY, projectedY);
+    if (disposition === 'pass-native') {
+      scheduleNativeScrollProbe(touch, touch.startY, projectedY);
+    } else {
+      block(event);
+    }
   };
   const onTouchEnd = (event: TouchEvent) => {
     if (!event.touches.length) touch = null;
@@ -141,17 +192,14 @@ export function createPhoneIntentCoordinator(
     const startY = scrollY();
     const projectedY = startY
       + event.deltaY * (event.deltaMode ? 16 : 1);
-    const claimed = emit(wheel, startY, projectedY);
-    if (claimed) {
-      blockIfClaimed(event, true);
+    const disposition = emit(wheel, startY, projectedY);
+    if (disposition === 'pass-native') {
+      // A native wheel remains entirely native. The one-frame WebKit probe is
+      // asynchronous and only corrects a proven stalled native scroll.
+      scheduleNativeScrollProbe(wheel, startY, projectedY);
       return;
     }
-    // WebKit can dispatch an uncancelled wheel event without advancing the
-    // root scroller after a fixed-stage handoff. Keep all phone wheel movement
-    // under this one coordinator so an unclaimed sample cannot strand a hold.
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    scrollTo(projectedY);
+    block(event);
   };
   const onScroll = () => {
     const currentY = scrollY();
@@ -178,6 +226,10 @@ export function createPhoneIntentCoordinator(
       root.removeEventListener('touchcancel', onTouchEnd, true);
       root.removeEventListener('wheel', onWheel, blocking);
       window.removeEventListener('scroll', onScroll);
+      if (cancelFrame) {
+        for (const frame of nativeProbeFrames.values()) cancelFrame(frame);
+      }
+      nativeProbeFrames.clear();
     }
   };
 }

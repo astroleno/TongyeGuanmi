@@ -39,13 +39,20 @@ describe('phone presentation transaction', () => {
         session = activeSession;
       }
     });
+    orchestrator.registerScrollCorridor({
+      id: 'presentation',
+      scenes: ['brand', 'services'],
+      sample: () => null,
+      boundary: () => 100,
+      landing: () => 100
+    });
 
-    orchestrator.handleIntent({
+    expect(orchestrator.resolveIntent({
       inputEpoch: 1,
       direction: 1,
       startY: 0,
       projectedY: 120
-    });
+    })).toBe('claim-boundary');
     session?.reportPresentedFrame();
     session?.reportEndpointCommit('receiver');
     session?.reportPresentedFrame();

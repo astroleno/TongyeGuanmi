@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createPhoneIntentCoordinator,
   PHONE_INK_AUTOPLAY_MS,
+  type PhoneIntentDisposition,
   phoneTimedTransitionProgress,
   phoneTransitionCrossesBoundary
 } from './phone-transition-coordinator';
@@ -42,6 +43,17 @@ function installCoordinatorEnvironment() {
   return { root, testWindow };
 }
 
+function wheelEvent(overrides: Record<string, unknown> = {}) {
+  return {
+    target: null,
+    deltaY: 200,
+    deltaMode: 0,
+    preventDefault: vi.fn(),
+    stopImmediatePropagation: vi.fn(),
+    ...overrides
+  };
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -71,7 +83,7 @@ describe('phone transition coordinator', () => {
       root as unknown as HTMLElement,
       (intent) => {
         intents.push(intent);
-        return true;
+        return 'claim-boundary';
       },
       {
         now: () => now,
@@ -109,7 +121,7 @@ describe('phone transition coordinator', () => {
       root as unknown as HTMLElement,
       (intent) => {
         intents.push(intent);
-        return true;
+        return 'claim-boundary';
       },
       { scrollY: () => testWindow.scrollY }
     );
@@ -130,13 +142,13 @@ describe('phone transition coordinator', () => {
     expect(preventDefault).toHaveBeenCalledOnce();
   });
 
-  it.fails('[Task 3] leaves unclaimed wheel displacement fully native', () => {
+  it('leaves unclaimed wheel displacement fully native', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
     testWindow.scrollY = 400;
     const preventDefault = vi.fn();
     createPhoneIntentCoordinator(
       root as unknown as HTMLElement,
-      () => false,
+      () => 'pass-native',
       {
         scrollY: () => testWindow.scrollY,
         scrollTo: (y) => testWindow.scrollTo(0, y)
@@ -165,7 +177,7 @@ describe('phone transition coordinator', () => {
       root as unknown as HTMLElement,
       (intent) => {
         intents.push(intent);
-        return false;
+        return 'pass-native';
       },
       {
         now: () => now,
@@ -190,5 +202,98 @@ describe('phone transition coordinator', () => {
       { inputEpoch: 1 },
       { inputEpoch: 1 }
     ]);
+  });
+
+  it.each([
+    ['pass-native', false],
+    ['claim-boundary', true],
+    ['block-active-session', true],
+    ['consume-completed-epoch-tail', true]
+  ] as const)('uses the correct DOM ownership for %s', (
+    disposition: PhoneIntentDisposition,
+    shouldBlock
+  ) => {
+    const { root, testWindow } = installCoordinatorEnvironment();
+    const event = wheelEvent();
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      () => disposition,
+      { scrollY: () => testWindow.scrollY }
+    );
+
+    root.dispatch('wheel', event);
+
+    expect(event.preventDefault).toHaveBeenCalledTimes(shouldBlock ? 1 : 0);
+    expect(event.stopImmediatePropagation).toHaveBeenCalledTimes(shouldBlock ? 1 : 0);
+    expect(testWindow.scrollY).toBe(0);
+  });
+
+  it('probes only pass-native wheel input and corrects a stalled WebKit scroll once', () => {
+    const { root, testWindow } = installCoordinatorEnvironment();
+    const frames = new Map<number, () => void>();
+    let frameId = 0;
+    const sample = vi.fn();
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      () => 'pass-native',
+      {
+        scrollY: () => testWindow.scrollY,
+        scrollTo: (y) => testWindow.scrollTo(0, y),
+        requestFrame: (callback) => {
+          const id = ++frameId;
+          frames.set(id, callback);
+          return id;
+        },
+        cancelFrame: (id) => frames.delete(id),
+        scrollState: () => ({ revision: 7, corridor: 'front-rail' }),
+        onNativeScrollCorrection: sample
+      }
+    );
+
+    const first = wheelEvent({ deltaY: 120 });
+    root.dispatch('wheel', first);
+    const second = wheelEvent({ deltaY: 120 });
+    root.dispatch('wheel', second);
+    expect(first.preventDefault).not.toHaveBeenCalled();
+    expect(second.preventDefault).not.toHaveBeenCalled();
+    expect(testWindow.scrollY).toBe(0);
+
+    const queued = frames.entries().next().value as [number, () => void];
+    frames.delete(queued[0]);
+    queued[1]();
+
+    expect(testWindow.scrollY).toBe(120);
+    expect(sample).toHaveBeenCalledOnce();
+    expect(frames).toHaveLength(0);
+  });
+
+  it('does not correct a pass-native gesture after the browser already moved', () => {
+    const { root, testWindow } = installCoordinatorEnvironment();
+    const frames = new Map<number, () => void>();
+    let frameId = 0;
+    const correction = vi.fn();
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      () => 'pass-native',
+      {
+        scrollY: () => testWindow.scrollY,
+        requestFrame: (callback) => {
+          const id = ++frameId;
+          frames.set(id, callback);
+          return id;
+        },
+        cancelFrame: (id) => frames.delete(id),
+        scrollState: () => ({ revision: 1, corridor: 'front-rail' }),
+        onNativeScrollCorrection: correction
+      }
+    );
+
+    root.dispatch('wheel', wheelEvent({ deltaY: 120 }));
+    testWindow.scrollY = 80;
+    const queued = frames.entries().next().value as [number, () => void];
+    queued[1]();
+
+    expect(correction).not.toHaveBeenCalled();
+    expect(testWindow.scrollY).toBe(80);
   });
 });

@@ -3,8 +3,6 @@ import {
   phoneEntryPlan,
   phoneRun,
   phoneRunForHold,
-  type PhoneEntryPlan,
-  type PhoneRunDefinition,
   type PhoneRunId
 } from './phone-story-runs';
 import {
@@ -16,20 +14,20 @@ import {
   type PhoneStoryReduction,
   type PhoneStorySnapshot
 } from './phone-story-state';
-import {
-  createPhoneStoryProjector
-} from './phone-story-projector';
-import {
-  createPhoneOrchestratedSessionController
-} from './phone-orchestrated-session';
+import { createPhoneStoryProjector } from './phone-story-projector';
+import { createPhoneOrchestratedSessionController } from './phone-orchestrated-session';
 import {
   phoneTransitionCrossesBoundary,
-  type PhoneIntent
+  type PhoneIntent,
+  type PhoneIntentDisposition
 } from './phone-transition-coordinator';
 import { createPhoneRunCapabilityRegistry } from './phone-run-capability-registry';
 import { resolvePhoneRunLanding } from './phone-run-landing';
+import {
+  createPhoneScrollCorridorRegistry,
+  type PhoneLandingReason
+} from './phone-scroll-corridor-registry';
 import type {
-  PhoneRunCapability,
   PhoneStoryOrchestrator,
   PhoneStoryOrchestratorOptions
 } from './phone-story-orchestrator.types';
@@ -45,26 +43,55 @@ export type {
   PhoneStoryRuntimePort
 } from './phone-story-orchestrator.types';
 export type { PhoneSurfaceRegistration } from './phone-story-projector';
+export type {
+  PhoneScrollCorridor,
+  PhoneScrollCorridorLease
+} from './phone-scroll-corridor-registry';
 
 let authoritySequence = 0;
 
 function projectFailureEvent(snapshot: PhoneStorySnapshot): PhoneStoryEvent | null {
   if (snapshot.status !== 'transaction') return null;
   const { session } = snapshot;
+  const operation = session.operation;
   const identity: PhoneExecutionIdentity = {
     authorityId: snapshot.authorityId,
     sessionId: session.sessionId,
     generation: session.generation,
-    leg: session.operation.legIndex,
-    direction: session.operation.direction
+    leg: operation.legIndex,
+    direction: operation.direction
   };
   return { ...identity, type: 'FAILED', reason: 'projector-failed' };
 }
 
+function fallbackScene(snapshot: PhoneStorySnapshot): SceneId {
+  return snapshot.status === 'stable'
+    ? snapshot.scene
+    : snapshot.projection.semanticScene;
+}
+
+function directEntryEvent(
+  authorityId: string,
+  target: SceneId,
+  source: 'initial' | 'hash' | 'menu' | 'history',
+  fallback: SceneId
+): Extract<PhoneStoryEvent, { type: 'DIRECT_ENTRY_REQUESTED' }> {
+  const plan = phoneEntryPlan(target);
+  return {
+    type: 'DIRECT_ENTRY_REQUESTED',
+    authorityId,
+    target,
+    source,
+    fallbackScene: fallback,
+    cinematic: plan.kind === 'cinematic'
+      ? { run: plan.run, direction: plan.direction, legIndex: plan.legIndex }
+      : null
+  };
+}
+
 /**
  * Internal execution engine. Route components construct it only through
- * createPhoneStoryRuntime(); this export remains for focused reducer tests
- * until the Task 9 compatibility removal.
+ * createPhoneStoryRuntime(); production descendants receive RuntimePort.
  */
 export function createPhoneStoryOrchestrator(
   options: PhoneStoryOrchestratorOptions
@@ -79,21 +106,18 @@ export function createPhoneStoryOrchestrator(
     root: routeRoot
   });
   const capabilities = createPhoneRunCapabilityRegistry();
-  let consumedInputEpoch = 0;
-  const entryPlan = phoneEntryPlan(options.initialScene);
-  let pendingDirectEntry: Extract<PhoneEntryPlan, { kind: 'cinematic' }> | null =
-    entryPlan.kind === 'cinematic' ? entryPlan : null;
-  let directEntryActivated = pendingDirectEntry === null;
+  const scrollCorridors = createPhoneScrollCorridorRegistry();
+  const initialPlan = phoneEntryPlan(options.initialScene);
   let currentSnapshot: PhoneStorySnapshot = createPhoneStorySnapshot({
     authorityId,
-    scene: entryPlan.kind === 'cinematic'
-      ? phoneRun(entryPlan.run).from
-      : entryPlan.scene,
+    scene: initialPlan.kind === 'cinematic'
+      ? phoneRun(initialPlan.run).from
+      : initialPlan.scene,
     actualY: options.scrollY()
   });
-  let pendingIntent: PhoneIntent | null = null;
   let disposed = false;
   let applyingFailure = false;
+  let startedCapabilitySession: string | null = null;
   const subscribers = new Set<() => void>();
 
   const notify = () => {
@@ -127,21 +151,60 @@ export function createPhoneStoryOrchestrator(
     applySnapshot(recovery, true);
     applyingFailure = false;
   };
-  const dispatch = (event: PhoneStoryEvent): PhoneStoryReduction => {
+  const normalize = (event: PhoneStoryEvent): PhoneStoryEvent => {
+    if (event.type !== 'NAVIGATE_REQUESTED') return event;
+    if (currentSnapshot.status === 'stable' && currentSnapshot.scene === event.scene) {
+      return event;
+    }
+    return directEntryEvent(
+      event.authorityId,
+      event.scene,
+      event.source,
+      fallbackScene(currentSnapshot)
+    );
+  };
+  let afterDispatch: () => void = () => undefined;
+  const dispatch = (rawEvent: PhoneStoryEvent): PhoneStoryReduction => {
     if (disposed) return { snapshot: currentSnapshot, effects: [] };
+    const event = normalize(rawEvent);
     const reduction = reducePhoneStorySnapshot(currentSnapshot, event);
     if (reduction.snapshot === currentSnapshot) return reduction;
     if (!applySnapshot(reduction.snapshot, true)) {
       recoverProjectFailure();
       return { snapshot: currentSnapshot, effects: [] };
     }
+    if (currentSnapshot.status !== 'transaction') startedCapabilitySession = null;
+    afterDispatch();
     return reduction;
   };
-  const resolveLanding = (scene: SceneId, fallbackY: number) => {
-    const root = projector.rootForScene(scene);
-    return root
-      ? Math.max(0, options.scrollY() + root.getBoundingClientRect().top)
-      : fallbackY;
+  const resolveLanding = (
+    scene: SceneId,
+    fallbackY: number,
+    mode: 'forward' | 'rollback'
+  ) => {
+    const snapshot = currentSnapshot;
+    if (snapshot.status !== 'transaction') return fallbackY;
+    const operation = snapshot.session.operation;
+    const reason: PhoneLandingReason = mode === 'rollback'
+      ? 'rollback'
+      : operation.trigger === 'entry'
+        ? 'direct-entry'
+        : operation.direction === 1 ? 'forward' : 'reverse';
+    const corridorLanding = scrollCorridors.landing(
+      snapshot,
+      scene,
+      reason,
+      operation.direction
+    );
+    if (!operation.run) return corridorLanding ?? fallbackY;
+    return resolvePhoneRunLanding({
+      policy: phoneRun(operation.run).anchor,
+      direction: operation.direction,
+      reason,
+      currentY: options.scrollY(),
+      boundaryY: snapshot.session.anchor.y ?? fallbackY,
+      ...(corridorLanding === null ? {} : { compositeY: corridorLanding })
+    });
   };
   const syncDiagnostics = () => {
     if (disposed) return;
@@ -165,219 +228,142 @@ export function createPhoneStoryOrchestrator(
     disposed: () => disposed
   });
 
-  const cursor = () => selectPhoneStoryCursor(currentSnapshot);
-  const scrollMayReconcile = () => {
-    if (disposed || sessions.active()) return false;
-    const current = cursor();
-    if (current.kind === 'transition') return current.run.endsWith('-scroll');
-    return current.scene === 'hero'
-      || current.scene === 'pattern'
-      || current.scene === 'star-map'
-      || current.scene === 'aod-animation';
+  const transactionKey = () => {
+    if (currentSnapshot.status !== 'transaction') return null;
+    const operation = currentSnapshot.session.operation;
+    return [
+      currentSnapshot.session.sessionId,
+      currentSnapshot.session.generation,
+      operation.run ?? 'entry'
+    ].join(':');
   };
-  const startAdjacentRun = (
-    definition: PhoneRunDefinition,
-    capability: PhoneRunCapability,
-    direction: 1 | -1,
-    position: number,
-    inputEpoch: number | null
-  ): boolean => {
-    if (!capability.canStart(direction)) return false;
-    const session = sessions.activate(
-      definition,
-      direction,
-      position,
-      undefined,
-      undefined,
-      inputEpoch
-    );
-    if (!session.valid()) return false;
-    options.scrollTo(position);
+  const startPreparedOperation = (onlyRun?: PhoneRunId) => {
+    if (disposed || currentSnapshot.status !== 'transaction') return;
+    const { session } = currentSnapshot;
+    const operation = session.operation;
+    if (onlyRun && operation.run !== onlyRun) return;
+
+    if (!operation.run) {
+      if (session.phase !== 'verifying-target') return;
+      const landing = scrollCorridors.landing(
+        currentSnapshot,
+        operation.to,
+        'direct-entry',
+        operation.direction
+      );
+      // A stable direct entry must wait for its route-owned geometry instead
+      // of publishing a target hold before the document target exists.
+      if (landing === null || !projector.hasPresentedSurface(operation.to)) {
+        return;
+      }
+      sessions.resume()?.reportTargetPresented();
+      return;
+    }
+    if (session.phase !== 'preparing') return;
+    const key = transactionKey();
+    if (!key || startedCapabilitySession === key) return;
+    const capability = capabilities.get(operation.run);
+    if (!capability || !capability.canStart(operation.direction)) return;
+    const activeSession = sessions.resume();
+    if (!activeSession?.valid()) return;
+    startedCapabilitySession = key;
     try {
-      if (capability.start(direction, session) === false) {
-        session.reportFailure();
-        return false;
+      const started = operation.trigger === 'entry'
+        ? capability.startAtLeg?.(operation.legIndex, activeSession)
+        : capability.start(operation.direction, activeSession);
+      if (started === false || (operation.trigger === 'entry' && started === undefined
+        && !capability.startAtLeg)) {
+        activeSession.reportFailure();
       }
     } catch {
-      session.reportFailure();
-      return false;
+      activeSession.reportFailure();
     }
-    return true;
   };
-  const beginIntent = (intent: PhoneIntent): boolean => {
-    if (
-      disposed
-      || sessions.active()
-      || intent.inputEpoch <= consumedInputEpoch
-      || currentSnapshot.status !== 'stable'
-    ) return false;
-    const definition = phoneRunForHold(currentSnapshot.scene, intent.direction);
-    if (!definition) return false;
-    const capability = capabilities.get(definition.id);
-    if (!capability) return false;
-    const position = capability.position(intent.direction);
-    if (
-      position === null
-      || !phoneTransitionCrossesBoundary(
-        intent.startY,
-        intent.projectedY,
-        position,
-        intent.direction
-      )
-    ) return false;
-    const anchorY = resolvePhoneRunLanding(
-      options.scrollY(),
-      position,
+  afterDispatch = () => startPreparedOperation();
+
+  const resolveIntent = (intent: PhoneIntent): PhoneIntentDisposition => {
+    if (disposed) return 'pass-native';
+    const snapshot = currentSnapshot;
+    if (snapshot.status === 'transaction') {
+      return dispatch({
+        type: 'INTENT_RESOLVED',
+        authorityId: snapshot.authorityId,
+        inputEpoch: intent.inputEpoch,
+        direction: intent.direction,
+        run: null,
+        anchorY: null,
+        boundaryKnown: false,
+        crossedBoundary: false
+      }).inputDisposition ?? 'block-active-session';
+    }
+    if (snapshot.status !== 'stable') return 'pass-native';
+    const definition = phoneRunForHold(snapshot.scene, intent.direction);
+    const boundaryY = definition
+      ? scrollCorridors.boundary(snapshot, definition.id, intent.direction)
+      : null;
+    const boundaryKnown = boundaryY !== null;
+    const crossedBoundary = boundaryY !== null && phoneTransitionCrossesBoundary(
+      intent.startY,
+      intent.projectedY,
+      boundaryY,
       intent.direction
     );
-    if (!startAdjacentRun(
-      definition,
-      capability,
-      intent.direction,
+    const reason: PhoneLandingReason = intent.direction === 1 ? 'forward' : 'reverse';
+    const compositeY = definition
+      ? scrollCorridors.landing(snapshot, snapshot.scene, reason, intent.direction)
+      : null;
+    const anchorY = definition && boundaryY !== null && crossedBoundary
+      ? resolvePhoneRunLanding({
+          policy: definition.anchor,
+          direction: intent.direction,
+          reason,
+          currentY: options.scrollY(),
+          boundaryY,
+          ...(compositeY === null ? {} : { compositeY })
+        })
+      : null;
+    const disposition = dispatch({
+      type: 'INTENT_RESOLVED',
+      authorityId: snapshot.authorityId,
+      inputEpoch: intent.inputEpoch,
+      direction: intent.direction,
+      run: definition?.id ?? null,
       anchorY,
-      intent.inputEpoch
-    )) return false;
-    consumedInputEpoch = intent.inputEpoch;
-    pendingIntent = null;
-    return true;
-  };
-  const startDirectEntry = (
-    registeredRun: PhoneRunId,
-    capability: PhoneRunCapability
-  ) => {
-    const plan = pendingDirectEntry;
-    if (
-      !plan
-      || !directEntryActivated
-      || plan.run !== registeredRun
-      || sessions.active()
-      || !capability.startAtLeg
-      || !capability.canStart(plan.direction)
-    ) return;
-    const definition = phoneRun(plan.run);
-    const session = sessions.activate(
-      definition,
-      plan.direction,
-      options.scrollY(),
-      plan.legIndex,
-      plan.scene
-    );
-    if (!session.valid()) return;
-    pendingDirectEntry = null;
-    try {
-      if (capability.startAtLeg(plan.legIndex, session) === false) {
-        session.reportFailure();
-      }
-    } catch {
-      session.reportFailure();
-    }
-  };
-  const retainPendingIntent = (intent: PhoneIntent) => {
-    if (intent.inputEpoch <= consumedInputEpoch) return;
-    if (!pendingIntent || intent.inputEpoch >= pendingIntent.inputEpoch) {
-      pendingIntent = intent;
-    }
-  };
-  const startPendingIntent = () => {
-    const pending = pendingIntent;
-    if (!pending || beginIntent(pending)) return;
-    if (pending.inputEpoch <= consumedInputEpoch) pendingIntent = null;
+      boundaryKnown,
+      crossedBoundary
+    }).inputDisposition ?? 'pass-native';
+    if (disposition === 'claim-boundary') startPreparedOperation(definition?.id);
+    return disposition;
   };
 
   return {
     getSnapshot: () => currentSnapshot,
     dispatch,
-    cursor,
+    cursor: () => selectPhoneStoryCursor(currentSnapshot),
     subscribe(listener) {
       subscribers.add(listener);
       return { dispose: () => subscribers.delete(listener) };
     },
     syncDiagnostics,
-    activateDirectEntry() {
-      if (disposed) return;
-      directEntryActivated = true;
-      const plan = pendingDirectEntry;
-      if (!plan) return;
-      const capability = capabilities.get(plan.run);
-      if (capability) startDirectEntry(plan.run, capability);
-    },
-    requestRun(direction) {
-      if (disposed || sessions.active() || currentSnapshot.status !== 'stable') {
-        return false;
-      }
-      const definition = phoneRunForHold(currentSnapshot.scene, direction);
-      if (!definition) return false;
-      const capability = capabilities.get(definition.id);
-      const position = capability?.position(direction) ?? null;
-      const anchorY = position === null
-        ? null
-        : resolvePhoneRunLanding(options.scrollY(), position, direction);
-      return Boolean(
-        capability
-        && anchorY !== null
-        && startAdjacentRun(definition, capability, direction, anchorY, null)
-      );
-    },
-    handleIntent(intent) {
-      if (disposed) return false;
-      const active = sessions.active();
-      if (active) {
-        options.scrollTo(active.anchorY);
-        return true;
-      }
-      if (intent.inputEpoch <= consumedInputEpoch) return true;
-      const candidate = pendingIntent?.inputEpoch === intent.inputEpoch
-        && pendingIntent.direction === intent.direction
-        ? { ...intent, startY: pendingIntent.startY }
-        : intent;
-      if (beginIntent(candidate)) return true;
-      retainPendingIntent(candidate);
-      return false;
-    },
-    reconcileHold(scene) {
-      if (disposed || sessions.active() || currentSnapshot.status !== 'stable') return;
-      const before = currentSnapshot;
-      dispatch({
-        type: 'HOLD_RECONCILED',
-        authorityId: currentSnapshot.authorityId,
-        scene,
-        actualY: options.scrollY()
-      });
-      if (currentSnapshot === before) syncDiagnostics();
-      startPendingIntent();
-    },
-    reconcileScrollHold(scene) {
-      if (!scrollMayReconcile()) return;
-      dispatch({
-        type: 'HOLD_RECONCILED',
-        authorityId: currentSnapshot.authorityId,
-        scene,
-        actualY: options.scrollY()
-      });
-      startPendingIntent();
-    },
-    reconcileScrollRun(runId, direction, rawProgress) {
-      if (!scrollMayReconcile()) return;
-      dispatch({
-        type: 'SCROLL_RUN_RECONCILED',
-        authorityId: currentSnapshot.authorityId,
-        run: runId,
-        direction,
-        progress: Math.min(1, Math.max(0, rawProgress)),
-        actualY: options.scrollY()
-      });
-    },
+    resolveIntent,
+    scrollCorridors,
     registerRunCapability(run, ownerId, capability) {
       if (disposed) throw new Error('Disposed phone story');
       const registration = capabilities.register(run, ownerId, capability);
-      startDirectEntry(run, capability);
-      startPendingIntent();
+      startPreparedOperation(run);
       return registration;
     },
     registerSurface(registration) {
       if (disposed) throw new Error('Disposed phone story');
       const lease = projector.registerSurface(registration);
       syncDiagnostics();
+      startPreparedOperation();
+      return lease;
+    },
+    registerScrollCorridor(corridor) {
+      if (disposed) throw new Error('Disposed phone story');
+      const lease = scrollCorridors.register(corridor);
+      startPreparedOperation();
       return lease;
     },
     dispose() {
@@ -385,7 +371,7 @@ export function createPhoneStoryOrchestrator(
       disposed = true;
       capabilities.clear();
       sessions.dispose();
-      pendingIntent = null;
+      scrollCorridors.clear();
       subscribers.clear();
       projector.dispose();
     }
