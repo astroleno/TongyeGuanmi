@@ -55,6 +55,20 @@ function registerCorridor(
 }
 
 describe('single phone story projector transaction', () => {
+  it('[Task 9] exposes snapshots without the deprecated cursor compatibility API', () => {
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'brand'
+    });
+    expect(orchestrator).not.toHaveProperty('cursor');
+  });
+
   it('projects the next revision before notifying external-store subscribers', () => {
     const root = element();
     const orchestrator = createPhoneStoryOrchestrator({

@@ -164,13 +164,20 @@ describe('Route B proven front-half migration contract', () => {
     expect(viewportGeometrySource).not.toContain('phoneStageCoverageHeight');
     expect(viewportGeometrySource).not.toContain('phoneViewportCoverageBottom');
     expect(viewportGeometrySource).not.toContain('--portrait-stage-coverage-height');
+    expect(viewportGeometrySource).not.toContain('delete root.dataset.portraitCheckpoint');
+    expect(viewportGeometrySource).not.toContain(
+      'delete root.dataset.portraitCheckpointTrace'
+    );
+    expect(viewportGeometrySource).not.toContain(
+      'delete documentElement.dataset.portraitCheckpoint'
+    );
     expect(shellCss).not.toContain('--portrait-stage-coverage-height');
     expect(shellSource).not.toContain('viewport?.pageTop');
   });
 
   it('publishes the frozen checkpoint timeline in both rail and AOD clocks', () => {
     expect(runtimeSource).toContain("from './phone-stage-timeline'");
-    expect(runtimeSource).toContain('phoneStageFrame(progress');
+    expect(runtimeSource).toContain('phoneStageFrame(stageProgress, options.reducedMotion)');
     expect(runtimeSource).not.toContain('phoneAodCheckpointForMethodProgress');
     expect(runtimeSource).not.toContain('phoneAodCompletionCheckpoint');
     expect(phonePresentationSource).toContain(
@@ -238,13 +245,10 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__pattern-bloom\s*\{[^}]*inset:\s*0[^}]*height:\s*100%/s
     );
     expect(patternCss).not.toContain('stage-backplate');
-    expect(patternCss).toContain('--portrait-pattern-edge-surface: #8f7f61');
-    expect(patternCss).toMatch(
-      /\.portrait-scroll-spike\s*\{[^}]*portrait-pattern-edge-surface:[^}]*8f7f61/s
-    );
-    expect(patternCss).toMatch(
-      /\.portrait-scroll-spike__pattern-motion::after\s*\{[^}]*height:\s*clamp\(48px,\s*6\.5svh,\s*60px\)[^}]*background:\s*linear-gradient\([^}]*var\(--portrait-pattern-edge-surface\)\s*100%/s
-    );
+    expect(patternCss).toContain('background: #d9c08f');
+    expect(patternCss).not.toContain('--portrait-pattern-edge-surface');
+    expect(patternCss).not.toContain('linear-gradient(180deg');
+    expect(patternCss).not.toContain('portrait-scroll-spike__pattern-motion::after');
     expect(patternCss).not.toContain('data-phone-validation-mode="v47"');
     expect(edgeSurfaceSource).toContain(
       "PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#8f7f61'"
@@ -309,9 +313,8 @@ describe('Route B proven front-half migration contract', () => {
     expect(methodCss).toMatch(
       /portrait-scroll-spike__reading::before\s*\{[^}]*background:\s*transparent/s
     );
-    expect(methodCss).toMatch(
-      /data-phone-method-figure2-ink-active="true"[^}]*\{[^}]*background:\s*transparent/s
-    );
+    expect(methodCss).toContain('data-phone-surface-role="transition-receiver"');
+    expect(methodCss).not.toContain('data-phone-method-figure2-ink-active');
   });
 
   it('keeps product media helpers presentation-local and imports no spike code', () => {
@@ -346,7 +349,7 @@ describe('Route B Grade A migration contract', () => {
       'proofReady && brandRoot && proofBrandReady'
     );
     expect(gradeAStorySource).toContain(
-      'const runtimeReady = methodBoundaryReady && figure2ProofBoundaryReady'
+      'boundaryReadyRef.current = (methodBoundaryReady ? 1 : 0)'
     );
     expect(gradeAStorySource).toContain('createPortal(surfaces, stageHost)');
     expect(methodSource).toContain('stageHost={stageHost}');
@@ -374,7 +377,8 @@ describe('Route B Grade A migration contract', () => {
   it('uses document progress without creating a nested Proof scroll owner', () => {
     expect(gradeAStorySource).toContain('phoneGradeAProofProgress');
     expect(gradeAStorySource).not.toContain('window.scrollTo(');
-    expect(directEntryPositionSource).toContain('targetOffset(element)');
+    expect(directEntryPositionSource).toContain('rectTop + panelOffset');
+    expect(directEntryPositionSource).not.toContain('window.scrollTo(');
     expect(gradeAProofSource).toContain("'--phone-proof-translate-y'");
     expect(gradeAProofCss).toMatch(
       /r4-proof-compound\s*\{[^}]*overflow:\s*visible/s
@@ -424,11 +428,9 @@ describe('Route B Grade A migration contract', () => {
       /phone-grade-a__method-ink\s*\{[^}]*z-index:\s*96/s
     );
     expect(gradeAStoryCss).toMatch(
-      /phone-grade-a__surfaces\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0/s
+      /phone-grade-a__surfaces\s*\{[^}]*overflow:\s*visible[^}]*pointer-events:\s*none/s
     );
-    expect(gradeAStoryCss).toMatch(
-      /data-phone-grade-a-active="true"\]\s*\{[^}]*visibility:\s*visible;[^}]*opacity:\s*1/s
-    );
+    expect(gradeAStoryCss).not.toContain('data-phone-grade-a-active');
     expect(gradeAArchSource).toContain("'figure2-foreground-arch'");
     expect(gradeAArchSource).toContain('RetainedFigure2Arch');
     expect(gradeAArchSource).toContain('motion="fixed"');
@@ -443,7 +445,11 @@ describe('Route B Grade A migration contract', () => {
 
   it('settles the upstream AOD before a direct Figure2 or Proof entry', () => {
     expect(storyEntrySource).toContain('directStoryEntry');
-    expect(shellSource).toContain('&& !directStoryEntry');
+    expect(shellSource).toContain("usePhoneStoryOrchestratorRuntime(\n    'formal'");
+    expect(shellSource).toContain(
+      'usePhoneStoryEntryLifecycle(entryScene, loaderHidden, orchestrator)'
+    );
+    expect(shellSource).not.toContain('window.scrollTo(');
     expect(methodSource).toContain('phoneDirectEntryCompletesAod');
     expect(stageTimelineSource).toContain("'figure2-animation'");
     expect(stageTimelineSource).toContain("'figure2-proof'");

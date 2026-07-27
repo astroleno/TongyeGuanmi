@@ -1,7 +1,6 @@
 import type { SceneId } from '../../story/types';
 import type { PhoneRunId } from './phone-story-runs';
 import type {
-  PhoneStoryCursor,
   PhoneStoryEvent,
   PhoneStoryReduction,
   PhoneStorySnapshot,
@@ -93,8 +92,6 @@ export type PhoneStoryRuntimePort = Readonly<{
    * normalized to PhoneStoryEvent before they reach this method.
    */
   dispatch(event: PhoneStoryEvent): PhoneStoryReduction;
-  /** @deprecated Use getSnapshot() plus selectors instead. */
-  cursor(): PhoneStoryCursor;
   subscribe(listener: () => void): PhoneCapabilityLease;
   syncDiagnostics(): void;
   registerRunCapability(

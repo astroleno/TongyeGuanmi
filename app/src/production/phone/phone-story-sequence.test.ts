@@ -3,6 +3,7 @@ import {
   createPhoneStoryOrchestrator,
   type PhoneOrchestratedRunSession
 } from './phone-story-orchestrator';
+import { resolvePhoneRunLanding } from './phone-run-landing';
 import { phoneStoryRuns } from './phone-story-runs';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 
@@ -112,5 +113,25 @@ describe('canonical phone story sequence', () => {
       leg,
       direction: 1
     });
+  });
+
+  it('[Task 9] resolves every declared run-anchor policy through the one exhaustive resolver', () => {
+    expect(new Set(phoneStoryRuns.map((run) => run.anchor))).toEqual(new Set([
+      'aod-semantic-edge',
+      'authored-boundary',
+      'preserve-composite'
+    ]));
+
+    for (const definition of phoneStoryRuns) {
+      expect(() => resolvePhoneRunLanding({
+        policy: definition.anchor,
+        direction: 1,
+        reason: 'forward',
+        currentY: 120,
+        boundaryY: 160,
+        targetY: 180,
+        compositeY: 140
+      })).not.toThrow();
+    }
   });
 });

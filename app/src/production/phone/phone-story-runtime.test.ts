@@ -107,7 +107,7 @@ describe('phone story runtime factory', () => {
     runtime.dispose();
   });
 
-  it('keeps one live authority per connected root and invalidates old evidence', () => {
+  it('keeps one live authority per root, clears it on dispose, and creates a new remount identity', () => {
     const routeRoot = root();
     const first = createPhoneStoryRuntime({
       scope: 'formal',
@@ -117,7 +117,7 @@ describe('phone story runtime factory', () => {
       scrollTo: () => undefined
     });
     const second = createPhoneStoryRuntime({
-      scope: 'brand-lab',
+      scope: 'formal',
       initialScene: 'services',
       root: () => routeRoot,
       scrollY: () => 0,
@@ -125,6 +125,10 @@ describe('phone story runtime factory', () => {
     });
 
     first.attach();
+    expect(routeRoot.dataset.phoneAuthorityId).toBe(first.authorityId);
+    first.dispose();
+    expect(routeRoot.dataset.phoneAuthorityId).toBeUndefined();
+
     second.attach();
     const beforeOldEvidence = second.port.getSnapshot();
     first.port.dispatch({
@@ -136,7 +140,7 @@ describe('phone story runtime factory', () => {
     expect(first.authorityId).not.toBe(second.authorityId);
     expect(routeRoot.dataset).toMatchObject({
       phoneAuthorityId: second.authorityId,
-      phoneAuthorityScope: 'brand-lab',
+      phoneAuthorityScope: 'formal',
       phoneCursor: 'hold:services'
     });
     expect(second.port.getSnapshot()).toBe(beforeOldEvidence);

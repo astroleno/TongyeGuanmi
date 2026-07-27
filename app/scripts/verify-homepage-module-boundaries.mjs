@@ -16,6 +16,31 @@ const phoneShellPath = path.join(phoneDir, 'PhoneStoryShell.tsx');
 const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
 const phoneProjectorPath = path.join(phoneDir, 'phone-story-projector.ts');
 const phoneRuntimePath = path.join(phoneDir, 'phone-story-runtime.ts');
+const phoneBootstrapPath = path.join(phoneDir, 'PhoneStoryBootstrap.tsx');
+const phoneBrandLabStoryPath = path.join(phoneDir, 'PhoneBrandLabStory.tsx');
+const phoneBrandLabScopePath = path.join(
+  phoneDir,
+  'scenes',
+  'PhoneBrandLabScope.tsx'
+);
+const phoneLabContactShellPath = path.join(phoneDir, 'PhoneLabContactShell.tsx');
+const phoneReactRuntimeAdapterPath = path.join(
+  phoneDir,
+  'usePhoneStoryOrchestratorRuntime.ts'
+);
+const phoneDocumentScrollRuntimePath = path.join(
+  phoneDir,
+  'usePhoneDocumentScrollRuntime.ts'
+);
+const phoneIntentCoordinatorPath = path.join(
+  phoneDir,
+  'phone-transition-coordinator.ts'
+);
+const phoneRunLandingPath = path.join(phoneDir, 'phone-run-landing.ts');
+const phoneRunDefinitionsPath = path.join(phoneDir, 'phone-story-runs.ts');
+const phoneRouteScopePath = path.join(phoneDir, 'phone-route-scope.ts');
+const phoneContextPath = path.join(phoneDir, 'PhoneStoryOrchestratorContext.tsx');
+const mainPath = path.join(sourceDir, 'main.tsx');
 const formalPhoneOwnershipPaths = [
   phoneShellPath,
   path.join(phoneDir, 'PhoneGradeAStory.tsx'),
@@ -99,6 +124,88 @@ function importSpecifiers(source) {
 function relativeTarget(file, specifier) {
   if (!specifier.startsWith('.')) return null;
   return path.normalize(path.resolve(path.dirname(file), specifier));
+}
+
+async function sourceModuleFile(candidate) {
+  const paths = sourceExtensions.has(path.extname(candidate))
+    ? [candidate]
+    : [
+        ...[...sourceExtensions].map((extension) => `${candidate}${extension}`),
+        ...[...sourceExtensions].map((extension) => path.join(candidate, `index${extension}`))
+      ];
+  for (const target of paths) {
+    try {
+      if ((await stat(target)).isFile()) return target;
+    } catch {
+      // A CSS/asset/external import intentionally does not belong to this graph.
+    }
+  }
+  return null;
+}
+
+/** Recurses through both static and literal dynamic imports. */
+export async function literalModuleGraph(entries) {
+  const graph = new Map();
+  const pending = [...entries];
+  while (pending.length > 0) {
+    const candidate = pending.pop();
+    if (!candidate) continue;
+    const file = await sourceModuleFile(candidate);
+    if (!file || graph.has(file)) continue;
+    const source = await readFile(file, 'utf8');
+    graph.set(file, source);
+    for (const specifier of importSpecifiers(source)) {
+      const target = relativeTarget(file, specifier);
+      if (target) pending.push(target);
+    }
+  }
+  return graph;
+}
+
+function graphEntries(graph) {
+  return graph instanceof Map ? [...graph.entries()] : graph;
+}
+
+function hasFile(entries, target) {
+  return entries.some(([file]) => path.normalize(file) === path.normalize(target));
+}
+
+function relativeFile(file) {
+  return path.isAbsolute(file) ? display(file) : file.split(path.sep).join('/');
+}
+
+function sourceFor(entries, target) {
+  return entries.find(([file]) => path.normalize(file) === path.normalize(target))?.[1];
+}
+
+function functionBody(source, name) {
+  const declaration = source.indexOf(`function ${name}(`);
+  if (declaration < 0) return '';
+  const openingBrace = source.indexOf('{', declaration);
+  if (openingBrace < 0) return '';
+  let depth = 0;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === '{') depth += 1;
+    if (character !== '}') continue;
+    depth -= 1;
+    if (depth === 0) return source.slice(openingBrace + 1, index);
+  }
+  return '';
+}
+
+function invocationCount(source, name) {
+  const executable = source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+  const pattern = new RegExp(`\\b${name}\\s*\\(`, 'g');
+  let count = 0;
+  for (const match of executable.matchAll(pattern)) {
+    const before = executable.slice(0, match.index);
+    if (/\bfunction\s+$/.test(before)) continue;
+    count += 1;
+  }
+  return count;
 }
 
 function display(file) {
@@ -268,6 +375,204 @@ export function formalPhoneOwnershipViolations(files) {
   return found;
 }
 
+/** Formal `/` may share executors, but must never load a QA or legacy shell. */
+export function formalPhoneRouteGraphViolations(graph) {
+  const entries = graphEntries(graph);
+  const found = [];
+  for (const target of [
+    phoneBrandLabStoryPath,
+    phoneBrandLabScopePath,
+    phoneLabContactShellPath
+  ]) {
+    if (hasFile(entries, target)) {
+      found.push(`formal phone graph must exclude ${relativeFile(target)}`);
+    }
+  }
+  for (const target of [
+    phoneRuntimePath,
+    path.join(phoneDir, 'PhoneBrandLabContinuation.tsx'),
+    path.join(phoneDir, 'PhoneLabContactContinuation.tsx')
+  ]) {
+    if (!hasFile(entries, target)) {
+      found.push(`formal phone graph must retain shared executor ${relativeFile(target)}`);
+    }
+  }
+  return found;
+}
+
+/** Only the normalized pathname may select the QA route owner. */
+export function phoneRouteScopeSelectorViolations({
+  mainSource,
+  routeScopeSource,
+  formalShellSource,
+  qaShellSource
+}) {
+  const found = [];
+  const selector = functionBody(mainSource, 'phoneBrandLabScopeRequested');
+  if (!selector.includes('phoneRouteScopeForPathname(window.location.pathname)')) {
+    found.push('main.tsx: QA scope must be selected only through normalized pathname');
+  }
+  if (/window\.location\.(?:hash|search)/.test(selector)) {
+    found.push('main.tsx: formal query/hash must not select the QA authority');
+  }
+  if (!routeScopeSource.includes("normalized === '/brand-lab'")) {
+    found.push('phone-route-scope.ts: only /brand-lab may resolve to QA scope');
+  }
+  if (!/usePhoneStoryOrchestratorRuntime\(\s*'formal'/.test(formalShellSource)) {
+    found.push('PhoneStoryShell.tsx: formal shell must inject literal scope: formal');
+  }
+  if (!/usePhoneStoryOrchestratorRuntime\(\s*'brand-lab'/.test(qaShellSource)) {
+    found.push('PhoneBrandLabStory.tsx: QA shell must inject literal scope: brand-lab');
+  }
+  if (/PhoneLabContactShell/.test(qaShellSource)) {
+    found.push('PhoneBrandLabStory.tsx: QA scope must not implement legacy PhoneLabContactShell');
+  }
+  return found;
+}
+
+/** QA may read the shared snapshot port but must not recreate formal owners. */
+export function qaPhoneOwnershipViolations(source) {
+  const found = [];
+  const forbidden = [
+    [
+      /from\s+['"][^'"]*(?:phone-story-orchestrator|phone-story-projector|phone-transition-coordinator|usePhoneDocumentScrollRuntime)['"]/,
+      'import a low-level execution owner'
+    ],
+    [
+      /\b(?:createPhoneStoryOrchestrator|createPhoneStoryProjector|createPhoneStoryRuntime(?:ForReact)?|createPhoneIntentCoordinator|createPhoneDocumentScrollRuntime)\s*\(/,
+      'construct a low-level execution owner'
+    ],
+    [/\b(?:usePhoneEdgeSurface|usePhoneCheckpointPublisher|createPhoneOrchestratorPublisher)\b/, 'publish edge/checkpoint state'],
+    [/\b(?:publishScene|publishCheckpoint|publishEdgeScene|reportPresentation)\b/, 'publish presentation state'],
+    [/\b(?:onPresentation|onRetryable)\b/, 'receive presentation callbacks'],
+    [/\b(?:activeRunRef|currentRunRef|runView|sessionRef|lockRef)\b/, 'retain run/session/lock presentation state'],
+    [
+      /\buseState\s*<[^>\n]*(?:SceneId|StageScene|CurrentScene)[^>\n]*>|\b(?:const|let|var)\s+(?:currentScene|stageScene|activeScene)Ref\b|\bset(?:Current|Stage|Active)Scene\b/,
+      'own current/stage scene state'
+    ],
+    [/\b\w+\.scroll(?:To|By)\s*\(|\.scrollIntoView\s*\(/, 'own document scroll'],
+    [/(?:\.|\?\.)addEventListener\(\s*['"](?:wheel|touchstart|touchmove|touchend|touchcancel|scroll)['"]/, 'own a document scroll listener']
+  ];
+  for (const [pattern, action] of forbidden) {
+    if (pattern.test(source)) {
+      found.push(`PhoneBrandLabStory.tsx: QA scope must not ${action}`);
+    }
+  }
+  return found;
+}
+
+/** Context hands descendants a read/write port, never the route lifecycle. */
+export function phoneRuntimePortBoundaryViolations(contextSource) {
+  const found = [];
+  if (!contextSource.includes('createContext<PhoneStoryRuntimePort | null>(null)')) {
+    found.push('PhoneStoryOrchestratorContext.tsx: Context must be typed as PhoneStoryRuntimePort');
+  }
+  if (!contextSource.includes('value={authority.port}')) {
+    found.push('PhoneStoryOrchestratorContext.tsx: Context must expose authority.port only');
+  }
+  if (contextSource.includes('value={authority}')) {
+    found.push('PhoneStoryOrchestratorContext.tsx: Context must not expose route lifecycle authority');
+  }
+  return found;
+}
+
+function isFile(file, expected) {
+  return path.normalize(file) === path.normalize(expected)
+    || path.basename(file) === path.basename(expected);
+}
+
+const formalChildBypassAllowlist = [
+  phoneRuntimePath,
+  phoneReactRuntimeAdapterPath,
+  path.join(phoneDir, 'usePhoneStoryEntry.ts'),
+  phoneIntentCoordinatorPath,
+  phoneDocumentScrollRuntimePath,
+  path.join(phoneDir, 'usePhoneViewportGeometry.ts'),
+  // This shared physical-gesture helper only unlocks already-mounted media;
+  // it cannot create navigation, scroll, or a story transaction.
+  path.join(productionDir, 'mobile-media-unlock.ts')
+];
+
+/**
+ * Rejects alternate runtime factories, scroll/input owners, and durable
+ * presentation state anywhere reachable from the formal route.
+ */
+export function phoneExecutionOwnershipViolations(files) {
+  const entries = graphEntries(files);
+  const found = [];
+  const factories = [
+    ['createPhoneStoryOrchestrator', phoneRuntimePath],
+    ['createPhoneStoryRuntime', phoneRuntimePath],
+    ['createPhoneStoryRuntimeForReact', phoneReactRuntimeAdapterPath],
+    ['createPhoneIntentCoordinator', phoneRuntimePath],
+    ['createPhoneDocumentScrollRuntime', phoneRuntimePath]
+  ];
+  for (const [name, owner] of factories) {
+    let count = 0;
+    for (const [file, source] of entries) {
+      const calls = invocationCount(source, name);
+      count += calls;
+      if (calls > 0 && !isFile(file, owner)) {
+        found.push(
+          `${relativeFile(file)}: ${name} may only be assembled by ${relativeFile(owner)}`
+        );
+      }
+    }
+    if (count !== 1) {
+      found.push(`formal phone graph must have exactly one ${name} invocation (found ${count})`);
+    }
+  }
+
+  for (const [file, source] of entries) {
+    if (/^(?:export\s+)?(?:const|let|var)\s+\w*(?:authority|store)\w*\s*=\s*createPhoneStory(?:Runtime(?:ForReact)?|Orchestrator)\s*\(/mi.test(source)) {
+      found.push(`${relativeFile(file)}: module-scope authority/store singleton is forbidden`);
+    }
+    const allowedChildOwner = formalChildBypassAllowlist.some((owner) => (
+      isFile(file, owner)
+    ));
+    if (!allowedChildOwner && /\bwindow\.scroll(?:To|By)\s*\(|\.scrollIntoView\s*\(/.test(source)) {
+      found.push(`${relativeFile(file)}: child-owned scroll command is forbidden`);
+    }
+    if (!allowedChildOwner && /(?:\.|\?\.)addEventListener\(\s*['"](?:wheel|touchstart|touchmove|touchend|touchcancel|scroll)['"]/.test(source)) {
+      found.push(`${relativeFile(file)}: child-owned wheel/touch/document-scroll listener is forbidden`);
+    }
+    if (/\buseState\s*<[^>\n]*(?:SceneId|StageScene|CurrentScene)/.test(source)) {
+      found.push(`${relativeFile(file)}: component-owned SceneId presentation state is forbidden`);
+    }
+    if (/\b(?:activeRunRef|runView)\b/.test(source)) {
+      found.push(`${relativeFile(file)}: component-owned run presentation state is forbidden`);
+    }
+    if (/\.cursor\s*\(/.test(source)) {
+      found.push(`${relativeFile(file)}: cursor() compatibility access is forbidden`);
+    }
+    if (/\bPhoneStableSceneAdapter\b/.test(source)) {
+      found.push(`${relativeFile(file)}: PhoneStableSceneAdapter compatibility API is forbidden`);
+    }
+  }
+  return found;
+}
+
+/** Keeps every declared run-anchor policy on the one exhaustive resolver. */
+export function phoneRunAnchorResolverViolations({
+  definitionsSource,
+  resolverSource
+}) {
+  const found = [];
+  const policyBlock = definitionsSource.match(
+    /export type PhoneRunAnchorPolicy\s*=([\s\S]*?);/
+  )?.[1] ?? '';
+  const policies = [...policyBlock.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+  for (const policy of policies) {
+    if (!resolverSource.includes(`case '${policy}':`)) {
+      found.push(`phone-run-landing.ts: missing ${policy} anchor resolver case`);
+    }
+  }
+  if (!/default:\s*return exhaustivePolicy\(policy\);/s.test(resolverSource)) {
+    found.push('phone-run-landing.ts: anchor resolver must reject unknown policies exhaustively');
+  }
+  return found;
+}
+
 const violations = [];
 
 for (const file of await filesBelow(productionDir)) {
@@ -346,6 +651,34 @@ const formalPhoneOwnershipSources = await Promise.all(
   }))
 );
 violations.push(...formalPhoneOwnershipViolations(formalPhoneOwnershipSources));
+
+const formalPhoneGraph = await literalModuleGraph([
+  phoneBootstrapPath,
+  phoneShellPath
+]);
+const formalPhoneGraphEntries = graphEntries(formalPhoneGraph);
+violations.push(...formalPhoneRouteGraphViolations(formalPhoneGraph));
+violations.push(...phoneExecutionOwnershipViolations(formalPhoneGraph));
+violations.push(...phoneRouteScopeSelectorViolations({
+  mainSource: await readFile(mainPath, 'utf8'),
+  routeScopeSource: await readFile(phoneRouteScopePath, 'utf8'),
+  formalShellSource: await readFile(phoneShellPath, 'utf8'),
+  qaShellSource: await readFile(phoneBrandLabStoryPath, 'utf8')
+}));
+violations.push(...qaPhoneOwnershipViolations(
+  await readFile(phoneBrandLabStoryPath, 'utf8')
+));
+violations.push(...phoneRuntimePortBoundaryViolations(
+  await readFile(phoneContextPath, 'utf8')
+));
+violations.push(...phoneRunAnchorResolverViolations({
+  definitionsSource: await readFile(phoneRunDefinitionsPath, 'utf8'),
+  resolverSource: await readFile(phoneRunLandingPath, 'utf8')
+}));
+
+if (!formalPhoneGraphEntries.some(([file]) => isFile(file, phoneRuntimePath))) {
+  violations.push(`${display(phoneRuntimePath)}: formal graph must use the route-local runtime factory`);
+}
 
 const projectorSource = await readFile(phoneProjectorPath, 'utf8');
 for (const token of [

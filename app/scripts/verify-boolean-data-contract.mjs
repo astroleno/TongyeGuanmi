@@ -4,6 +4,127 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const APP_ROOT = path.resolve(path.dirname(SCRIPT_PATH), '..');
+const PROJECTOR_FILE = 'src/production/phone/phone-story-projector.ts';
+const LEGACY_ISOLATED_FILE = 'src/production/phone/PhoneLabContactShell.tsx';
+
+export const globalPresentationDatasetKeys = Object.freeze([
+  'phoneAuthorityId',
+  'phoneAuthorityScope',
+  'phoneCursor',
+  'phoneRevision',
+  'phoneSession',
+  'phoneSegment',
+  'phoneTransitionPhase',
+  'phoneTransitionLock',
+  'phoneInputState',
+  'phoneScrollCorridor',
+  'phoneScrollProgress',
+  'phoneStageOwner',
+  'phoneStageScene',
+  'phoneProjectionState',
+  'phoneStableScene',
+  'phoneAnchorY',
+  'phoneRetryableRun',
+  'portraitCheckpoint',
+  'portraitCheckpointTrace',
+  'portraitEdgeScene',
+  'portraitEdgeSurface'
+]);
+
+function dataAttributeForProperty(property) {
+  return `data-${property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
+}
+
+function escaped(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function writesDataAttribute(source, property) {
+  const attribute = dataAttributeForProperty(property);
+  const propertyPattern = escaped(property);
+  const attributePattern = escaped(attribute);
+  return [
+    new RegExp(`\\.dataset\\.${propertyPattern}\\s*=`),
+    new RegExp(`\\.dataset\\[['"]${propertyPattern}['"]\\]\\s*=`),
+    new RegExp(`delete\\s+[^;\\n]*\\.dataset\\.${propertyPattern}`),
+    new RegExp(`delete\\s+[^;\\n]*\\.dataset\\[['"]${propertyPattern}['"]\\]`),
+    new RegExp(`\\.setAttribute\\(\\s*['"]${attributePattern}['"]`),
+    new RegExp(`\\.removeAttribute\\(\\s*['"]${attributePattern}['"]`),
+    new RegExp(`<[^>]*\\b${attributePattern}\\s*=`),
+    new RegExp(`\\bdata\\s*\\([^;\\n]*['"]${propertyPattern}['"]`),
+    new RegExp(`Object\\.assign\\(\\s*[^,\\n]*\\.dataset\\s*,\\s*\\{[^}]*\\b${propertyPattern}\\s*:`),
+    new RegExp(`Reflect\\.set\\(\\s*[^,\\n]*\\.dataset\\s*,\\s*['"]${propertyPattern}['"]`)
+  ].some((pattern) => pattern.test(source));
+}
+
+function isProjector(file) {
+  return file.endsWith(PROJECTOR_FILE);
+}
+
+function isLegacyIsolatedValidation(file) {
+  return file.endsWith(LEGACY_ISOLATED_FILE);
+}
+
+function groupVisibilityAttributes(source) {
+  const attributes = new Set(source.match(
+    /data-phone-(?:grade-a|group45|group67)-(?:stage(?:-[a-z0-9-]+)?|snap(?:-[a-z0-9-]+)?|scene(?:-[a-z0-9-]+)?|active|layer(?:-[a-z0-9-]+)?)/g
+  ) ?? []);
+  const propertyPattern = '(phone(?:GradeA|Group45|Group67)(?:Stage[A-Z][A-Za-z0-9]*|Stage|Snap[A-Z][A-Za-z0-9]*|Snap|Scene[A-Z][A-Za-z0-9]*|Scene|Active|Layer[A-Z][A-Za-z0-9]*|Layer))';
+  const properties = [
+    ...source.matchAll(new RegExp(`\\.dataset\\.${propertyPattern}\\s*=`, 'g')),
+    ...source.matchAll(new RegExp(`\\.dataset\\[['"]${propertyPattern}['"]\\]\\s*=`, 'g')),
+    ...source.matchAll(new RegExp(`delete\\s+[^;\\n]*\\.dataset\\.${propertyPattern}`, 'g')),
+    ...source.matchAll(new RegExp(`delete\\s+[^;\\n]*\\.dataset\\[['"]${propertyPattern}['"]\\]`, 'g')),
+    ...source.matchAll(new RegExp(`\\bdata\\s*\\([^;\\n]*['"]${propertyPattern}['"]`, 'g'))
+  ].map((match) => match[1]);
+  for (const property of properties) {
+    attributes.add(dataAttributeForProperty(property));
+  }
+  return attributes;
+}
+
+/**
+ * Presentation diagnostics are a write-only projection of the immutable
+ * snapshot. Children may read them only through selectors, never publish or
+ * clear them themselves. The isolated legacy shell is explicitly excluded
+ * from the formal route by the module-graph verifier.
+ */
+export function phonePresentationOwnershipViolations({
+  cssSources,
+  runtimeSources
+}) {
+  const violations = [];
+  for (const { file, source } of cssSources) {
+    if (/data-phone-authority-(?:id|scope)/.test(source)) {
+      violations.push(`${file}: CSS must not read phone authority diagnostics`);
+    }
+  }
+  for (const { file, source } of runtimeSources) {
+    for (const property of globalPresentationDatasetKeys) {
+      if (!writesDataAttribute(source, property)) continue;
+      if (isProjector(file) || isLegacyIsolatedValidation(file)) continue;
+      violations.push(
+        `${file}: ${dataAttributeForProperty(property)} may only be written by phone-story-projector`
+      );
+    }
+    if (writesDataAttribute(source, 'phoneSurfaceRole')
+      && !isProjector(file)
+      && !file.endsWith('src/production/phone/phone-surface-roles.ts')) {
+      violations.push(
+        `${file}: data-phone-surface-role may only be written by surface/projector code`
+      );
+    }
+    for (const attribute of groupVisibilityAttributes(source)) {
+      violations.push(`${file}: group-local visibility attribute is forbidden (${attribute})`);
+    }
+  }
+  for (const { file, source } of cssSources) {
+    for (const attribute of groupVisibilityAttributes(source)) {
+      violations.push(`${file}: group-local visibility attribute is forbidden (${attribute})`);
+    }
+  }
+  return violations;
+}
 
 function collectFiles(root, extensions, files = []) {
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
@@ -71,6 +192,10 @@ export function booleanDataContractViolations({
       }
     }
   }
+  violations.push(...phonePresentationOwnershipViolations({
+    cssSources,
+    runtimeSources
+  }));
   return violations;
 }
 

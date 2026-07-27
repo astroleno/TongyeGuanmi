@@ -8,7 +8,6 @@ import {
 import {
   createPhoneStorySnapshot,
   reducePhoneStorySnapshot,
-  selectPhoneStoryCursor,
   type PhoneExecutionIdentity,
   type PhoneStoryEvent,
   type PhoneStoryReduction,
@@ -358,7 +357,6 @@ export function createPhoneStoryOrchestrator(
   return {
     getSnapshot: () => currentSnapshot,
     dispatch,
-    cursor: () => selectPhoneStoryCursor(currentSnapshot),
     subscribe(listener) {
       subscribers.add(listener);
       return { dispose: () => subscribers.delete(listener) };

@@ -129,11 +129,8 @@ export function usePhoneViewportGeometry(
         delete root.dataset.portraitViewportBottom;
         delete root.dataset.portraitTransientViewport;
       }
-      delete root.dataset.portraitCheckpoint;
-      delete root.dataset.portraitCheckpointTrace;
       delete documentElement.dataset.portraitSpike;
       delete documentElement.dataset.portraitSpikeMotion;
-      delete documentElement.dataset.portraitCheckpoint;
     };
   }, [motionEnabled, rootRef]);
 }

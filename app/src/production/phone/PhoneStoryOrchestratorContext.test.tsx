@@ -8,9 +8,10 @@ import {
 } from './PhoneStoryOrchestratorContext';
 import { createPhoneStoryRuntime } from './phone-story-runtime';
 
-function CursorProbe() {
+function SnapshotKindProbe() {
   const orchestrator = usePhoneStoryOrchestrator();
-  return <span>{orchestrator.cursor().kind}</span>;
+  const snapshot = orchestrator.getSnapshot();
+  return <span>{snapshot.status === 'stable' ? 'hold' : 'transition'}</span>;
 }
 
 function SnapshotProbe() {
@@ -32,7 +33,7 @@ describe('PhoneStoryOrchestratorContext', () => {
     });
     expect(renderToStaticMarkup(
       <PhoneStoryOrchestratorProvider authority={authority}>
-        <CursorProbe />
+        <SnapshotKindProbe />
       </PhoneStoryOrchestratorProvider>
     )).toContain('<span>hold</span>');
   });
@@ -53,7 +54,7 @@ describe('PhoneStoryOrchestratorContext', () => {
   });
 
   it('rejects capability registration outside the formal shell provider', () => {
-    expect(() => renderToStaticMarkup(<CursorProbe />)).toThrow(
+    expect(() => renderToStaticMarkup(<SnapshotKindProbe />)).toThrow(
       'Phone story orchestrator is unavailable'
     );
   });

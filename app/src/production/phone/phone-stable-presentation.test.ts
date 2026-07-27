@@ -91,8 +91,7 @@ describe('phone stable presentation contract', () => {
       landing: () => 100
     });
     orchestrator.subscribe(() => {
-      const cursor = orchestrator.cursor();
-      if (cursor.kind !== 'hold') return;
+      if (orchestrator.getSnapshot().status !== 'stable') return;
       observed.push({
         lock: root.dataset.phoneTransitionLock,
         anchor: root.dataset.phoneAnchorY

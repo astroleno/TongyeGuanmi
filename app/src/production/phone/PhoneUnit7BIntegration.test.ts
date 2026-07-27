@@ -15,6 +15,10 @@ const continuationSource = readFileSync(
   new URL('./PhoneLabContactContinuation.tsx', import.meta.url),
   'utf8'
 );
+const continuationBundleSource = readFileSync(
+  new URL('./PhoneContinuationBundle.tsx', import.meta.url),
+  'utf8'
+);
 const compositeRunnerSource = readFileSync(
   new URL('./phone-composite-runner.ts', import.meta.url),
   'utf8'
@@ -58,8 +62,11 @@ const aodSource = readFileSync(
 
 describe('formal Unit7-B phone integration', () => {
   it('embeds the continuation without nesting the Unit6 acceptance shell', () => {
-    expect(gradeASource).toContain('<PhoneLabContactContinuation');
+    expect(gradeASource).toContain('<PhoneStoryTailBundle');
+    expect(continuationBundleSource).toContain('<PhoneBrandLabContinuation');
+    expect(continuationBundleSource).toContain('<PhoneLabContactContinuation');
     expect(gradeASource).not.toContain('PhoneLabContactShell');
+    expect(continuationBundleSource).not.toContain('PhoneLabContactShell');
     expect(continuationSource).not.toMatch(/<main\b/);
     expect(continuationSource).not.toContain('StoryNav');
     expect(continuationSource).not.toContain('usePhoneViewportGeometry');
@@ -80,10 +87,10 @@ describe('formal Unit7-B phone integration', () => {
   });
 
   it('reuses the exact Unit7-A Lab root and adapter for Lab → PH', () => {
-    expect(gradeASource).toContain(
+    expect(continuationBundleSource).toContain(
       'onLabBoundaryChange={setLabBoundary}'
     );
-    expect(gradeASource).toContain('labBoundary={labBoundary}');
+    expect(continuationBundleSource).toContain('labBoundary={labBoundary}');
     expect(continuationSource).toContain('from={labBoundary.root}');
     expect(continuationSource).toContain(
       'labBoundaryRef.current?.adapter'
@@ -128,19 +135,20 @@ describe('formal Unit7-B phone integration', () => {
 
   it('uses the same completion latch for reduced motion and stable Contact', () => {
     expect(compositeRunnerSource).toContain(
-      'if (options.reducedMotion) settleReduced(run, config)'
+      'if (options.reducedMotion) settleReduced(resource, config)'
     );
     expect(labContactRuntimeSource).toContain('phoneGroup67RunSource');
-    expect(continuationSource).toContain(
-      "data-phone-group67-run=\"idle\""
-    );
+    expect(continuationSource).toContain('phoneLabContactVisualProjection');
+    expect(continuationSource).not.toContain('data-phone-group67-run');
   });
 
   it('leaves all semantic publication to the shell orchestrator', () => {
     expect(continuationSource).not.toMatch(
       /if \(fromLabBoundary\) \{\s*publishScene\('lab'\)/
     );
-    expect(compositeRunnerSource).toContain('if (active) rollback(active)');
+    expect(compositeRunnerSource).toMatch(/catch\s*\{\s*rollback\(resource\);\s*\}/);
+    expect(compositeRunnerSource).not.toContain('publishScene');
+    expect(compositeRunnerSource).not.toContain('reportPresentation');
     expect(gradeASource).not.toContain('orchestrator.reportPresentation');
     expect(continuationSource).not.toContain(
       'orchestrator.reportPresentation'
@@ -171,6 +179,15 @@ describe('formal Unit7-B phone integration', () => {
     expect(continuationSource).not.toContain('onCheckpoint?:');
     expect(continuationSource).not.toContain('onEdgeScene?:');
     expect(continuationSource).not.toContain('onSceneChange?:');
+    for (const source of [
+      gradeASource,
+      continuationBundleSource,
+      continuationSource
+    ]) {
+      expect(source).not.toMatch(
+        /data-phone-(?:grade-a|group45|group67)-(?:stage|snap|scene|active|layer)/
+      );
+    }
   });
 
   it('uses global surface roles while scene active props remain resource-only', () => {
