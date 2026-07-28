@@ -643,6 +643,166 @@ async function phoneRuntimeProbe(page: Page) {
   });
 }
 
+type HeroEntranceSample = Readonly<{
+  loaderReady: string | null;
+  progress: number | null;
+}>;
+
+async function installHeroEntranceProbe(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const samples: HeroEntranceSample[] = [];
+    const record = () => {
+      const root = document.querySelector<HTMLElement>('.portrait-scroll-spike');
+      const hero = document.querySelector<HTMLElement>(
+        '.portrait-scroll-spike__scene--hero'
+      );
+      const rawProgress = hero?.dataset.heroProgress
+        ?? (hero ? getComputedStyle(hero).getPropertyValue('--r4-hero-progress') : '');
+      const parsed = Number.parseFloat(rawProgress);
+      const sample: HeroEntranceSample = {
+        loaderReady: root?.dataset.portraitLoaderReady ?? null,
+        progress: Number.isFinite(parsed) ? parsed : null
+      };
+      const previous = samples.at(-1);
+      if (
+        !previous
+        || previous.loaderReady !== sample.loaderReady
+        || previous.progress === null
+        || sample.progress === null
+        || Math.abs(previous.progress - sample.progress) >= .001
+      ) {
+        samples.push(sample);
+        if (samples.length > 800) samples.shift();
+      }
+      window.requestAnimationFrame(record);
+    };
+    window.requestAnimationFrame(record);
+    (window as typeof window & {
+      __phoneHeroEntranceProbe?: Readonly<{ samples: HeroEntranceSample[] }>;
+    }).__phoneHeroEntranceProbe = { samples };
+  });
+}
+
+async function heroEntranceSamples(page: Page): Promise<HeroEntranceSample[]> {
+  return page.evaluate(() => (
+    (window as typeof window & {
+      __phoneHeroEntranceProbe?: Readonly<{ samples: HeroEntranceSample[] }>;
+    }).__phoneHeroEntranceProbe?.samples ?? []
+  ));
+}
+
+async function installAodClockWithoutCompositorFrame(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const target = window as typeof window & {
+      __phoneAodNoFrameProbe?: {
+        clockAdvanced: boolean;
+        playCalls: number;
+      };
+    };
+    const probe = { clockAdvanced: false, playCalls: 0 };
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function getContext(
+      contextId: string,
+      ...args: unknown[]
+    ) {
+      if (
+        (contextId === 'webgl' || contextId === 'webgl2')
+        && this.hasAttribute('data-aod-figure-canvas')
+      ) {
+        return null;
+      }
+      return Reflect.apply(originalGetContext, this, [contextId, ...args]);
+    } as typeof HTMLCanvasElement.prototype.getContext;
+    const originalPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function play() {
+      if (!this.matches('[data-aod-figure-video]')) {
+        return Reflect.apply(originalPlay, this, []);
+      }
+      probe.playCalls += 1;
+      window.queueMicrotask(() => {
+        try {
+          this.currentTime = Math.max(.1, this.currentTime);
+        } catch {
+          // The liveness signal below is still the condition under test.
+        }
+        probe.clockAdvanced = true;
+        this.dispatchEvent(new Event('timeupdate'));
+      });
+      return Promise.resolve();
+    };
+    target.__phoneAodNoFrameProbe = probe;
+  });
+}
+
+async function aodNoFrameProbe(page: Page) {
+  return page.evaluate(() => (
+    (window as typeof window & {
+      __phoneAodNoFrameProbe?: {
+        clockAdvanced: boolean;
+        playCalls: number;
+      };
+    }).__phoneAodNoFrameProbe
+  ));
+}
+
+async function installLiveVisualViewportProbe(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    type ViewportState = {
+      offsetLeft: number;
+      offsetTop: number;
+      width: number;
+      height: number;
+    };
+    const state: ViewportState = {
+      offsetLeft: 0,
+      offsetTop: 0,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+    const viewport = new EventTarget() as EventTarget & ViewportState;
+    for (const key of Object.keys(state) as Array<keyof ViewportState>) {
+      Object.defineProperty(viewport, key, {
+        configurable: true,
+        get: () => state[key]
+      });
+    }
+    Object.defineProperty(viewport, 'scale', {
+      configurable: true,
+      get: () => 1
+    });
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      get: () => viewport
+    });
+    (window as typeof window & {
+      __phoneLiveViewportProbe?: {
+        update(next: Partial<ViewportState>): void;
+      };
+    }).__phoneLiveViewportProbe = {
+      update(next) {
+        Object.assign(state, next);
+        viewport.dispatchEvent(new Event('resize'));
+        viewport.dispatchEvent(new Event('scroll'));
+      }
+    };
+  });
+}
+
+async function setLiveVisualViewport(
+  page: Page,
+  next: Readonly<{ offsetLeft?: number; offsetTop?: number; width?: number; height?: number }>
+): Promise<void> {
+  await page.evaluate((value) => {
+    const probe = (window as typeof window & {
+      __phoneLiveViewportProbe?: {
+        update(next: typeof value): void;
+      };
+    }).__phoneLiveViewportProbe;
+    if (!probe) throw new Error('Live visual viewport probe is unavailable');
+    probe.update(value);
+  }, next);
+}
+
 async function cssBooleanContractViolations(page: Page) {
   return page.evaluate(() => {
     const contractNames = new Set<string>();
@@ -1246,6 +1406,119 @@ async function visitFormal(
   await page.goto(path, { waitUntil: 'domcontentloaded' });
   await assertStablePhoneHold(page, scene);
 }
+
+test('Task 0 rejects a visible Hero completed-to-zero reset on cold WebKit load', async ({
+  page,
+  browserName
+}) => {
+  test.skip(browserName !== 'webkit', 'the confirmed flash is sampled on WebKit');
+  test.setTimeout(45_000);
+  await installHeroEntranceProbe(page);
+  await visitFormal(page, '/?v=47', 'hero');
+  await expect.poll(async () => page.locator(LIVE_PHONE_ROOT).getAttribute(
+    'data-portrait-hero-entrance'
+  )).toBe('complete');
+
+  const exposed = (await heroEntranceSamples(page)).filter((sample) => (
+    sample.loaderReady === 'true' && sample.progress !== null
+  ));
+  expect(exposed.length).toBeGreaterThan(1);
+  expect(exposed[0]?.progress).toBeLessThanOrEqual(.001);
+
+  const resetIndex = exposed.findIndex((sample, index) => (
+    index > 0
+    && sample.progress !== null
+    && sample.progress <= .001
+    && exposed.slice(0, index).some((prior) => (
+      prior.progress !== null && prior.progress >= .999
+    ))
+  ));
+  expect(resetIndex).toBe(-1);
+});
+
+test('Task 0 does not animate AOD when media liveness has no compositor frame', async ({
+  page
+}) => {
+  test.setTimeout(90_000);
+  await installAodClockWithoutCompositorFrame(page);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/?v=47', 'hero');
+  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
+  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
+  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await waitForNewWheelEpoch(page);
+
+  for (let pulse = 0; pulse < 8; pulse += 1) {
+    await inputPhoneDelta(page, 250);
+    await page.waitForTimeout(100);
+    const trace = await phoneRuntimeProbe(page);
+    if (trace.stateEvents.some((state) => (
+      state.cursor === 'transition:aod-method:0'
+    ))) break;
+  }
+
+  await expect.poll(async () => (
+    (await phoneRuntimeProbe(page)).stateEvents.some((state) => (
+      state.cursor === 'transition:aod-method:0'
+    ))
+  )).toBe(true);
+  await page.waitForTimeout(500);
+
+  const liveness = await aodNoFrameProbe(page);
+  expect(liveness?.playCalls).toBeGreaterThan(0);
+  expect(liveness?.clockAdvanced).toBe(true);
+  const trace = await phoneRuntimeProbe(page);
+  expect(trace.stateEvents.some((state) => (
+    state.cursor === 'transition:aod-method:0'
+    && state.phase === 'animating'
+  ))).toBe(false);
+});
+
+test('Task 0 keeps the coverage plane over a non-zero live visual viewport offset', async ({
+  page
+}) => {
+  test.setTimeout(30_000);
+  await installLiveVisualViewportProbe(page);
+  await page.goto('/?v=47', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator(LIVE_STORY_LOADER)).toBeHidden();
+  await expect.poll(async () => page.locator(LIVE_PHONE_ROOT).getAttribute(
+    'data-phone-cursor'
+  )).toBe('hold:hero');
+  await setLiveVisualViewport(page, {
+    offsetTop: 160,
+    height: 844
+  });
+  await page.waitForTimeout(300);
+
+  const coverage = await page.evaluate(() => {
+    const viewport = window.visualViewport;
+    const stage = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__stage-canvas'
+    );
+    if (!viewport || !stage) throw new Error('Missing live viewport or coverage plane');
+    const rect = stage.getBoundingClientRect();
+    return {
+      viewport: {
+        left: viewport.offsetLeft,
+        top: viewport.offsetTop,
+        right: viewport.offsetLeft + viewport.width,
+        bottom: viewport.offsetTop + viewport.height
+      },
+      coverage: {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom
+      }
+    };
+  });
+  expect(coverage.coverage.left).toBeLessThanOrEqual(coverage.viewport.left + 1);
+  expect(coverage.coverage.top).toBeLessThanOrEqual(coverage.viewport.top + 1);
+  expect(coverage.coverage.right).toBeGreaterThanOrEqual(coverage.viewport.right - 1);
+  expect(coverage.coverage.bottom).toBeGreaterThanOrEqual(
+    coverage.viewport.bottom - 1
+  );
+});
 
 test('Task 10 gates a cold production formal Hero → Contact journey', async ({ page }) => {
   test.setTimeout(120_000);
