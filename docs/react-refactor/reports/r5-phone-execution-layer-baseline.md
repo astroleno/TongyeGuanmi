@@ -81,3 +81,23 @@ is below the recommended 4 KiB headroom; no budget was changed.
 The lint failure is deliberately not treated as a Task 0 success. It must be
 removed before the final Task 10 full-lint acceptance; it is recorded here so
 the later Task 1 session migration cannot mistake it for a new regression.
+
+## Task 10 replacement status — 2026-07-28
+
+Task 10 implementation evidence now lives in
+`docs/react-refactor/reports/r5-phone-state-machine-acceptance.md`. The former
+Task 0 browser/device absence is no longer the implementation baseline:
+
+- source-time cross-chunk contract and mangle-reserve gates pass before Vite;
+- production Chromium and WebKit each pass all seven R5 phone journeys,
+  including cold start, reverse, direct entries, history, reduced motion, and
+  two complete rounds within one authority;
+- production build, media-master verification, typecheck, and frozen-path diff
+  pass, while the phone bundle remains below its immutable hard cap.
+
+Release DoD is still open, not because of a generated-bundle-only diagnosis,
+but because no physical iPhone is attached and Simulator Safari cannot complete
+the prescribed gesture/toolbar/orientation/background matrix with the available
+Computer Use bridge. The acceptance report also records the separate baseline
+font-test failure and preserved temporary-script lint errors without changing
+their out-of-scope source.
