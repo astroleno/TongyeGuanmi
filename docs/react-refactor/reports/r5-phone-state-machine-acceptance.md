@@ -1,6 +1,6 @@
 # R5 Phone State-Machine Acceptance
 
-**Evidence session:** 2026-07-28 21:00 CST
+**Evidence session:** 2026-07-28 21:18 CST
 **Worktree:** `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-unit7b`
 **Branch:** `codex/r5-phone-unit7b`
 **Plan:** `docs/superpowers/plans/2026-07-26-r5-phone-execution-layer-transaction-closure.md`
@@ -72,7 +72,7 @@ intentionally a source control, not a post-minification grep.
 | `pnpm run verify:media:phone-masters` | 0 | All three packed-alpha masters and first-frame hashes passed. |
 | frozen-path diff against `d4d29bc` | 0 | No diff in `assets/`, media contract, timings, or copy. |
 | scoped ESLint excluding preserved `.tmp-r5-*.mjs` user scripts | 0 | All managed source, tests, and build scripts passed. |
-| `pnpm test` | 1 | 214/215 files and 1252/1253 tests passed; the sole failure is the pre-existing, out-of-scope font-order mismatch described below. |
+| `pnpm test` | 0 | 215/215 files and 1253/1253 tests passed after the stale font-order assertion was aligned with the existing iOS CJK font contract. |
 | `pnpm lint` | 1 | The only 26 errors are in four preserved untracked `.tmp-r5-*.mjs` browser-debug scripts; no managed file fails. |
 
 The current production artifact passes the immutable hard cap:
@@ -119,7 +119,7 @@ Safari or physical Safari.
 | Runtime OS | iOS 26.3.1 |
 | MobileSafari bundle version | 26.3 |
 | Production URL | Local `pnpm preview --host 0.0.0.0 --port 4175` endpoint |
-| Evidence session | 2026-07-28 CST |
+| Evidence session | 2026-07-28 21:18 CST |
 
 | Required Simulator check | Result | Evidence / limitation |
 | --- | --- | --- |
@@ -141,7 +141,7 @@ failure. It must not be promoted to a complete Simulator pass.
 
 ## Physical iPhone release gate
 
-Fresh at 2026-07-28 21:00 CST, `xcrun xctrace list devices` lists the Mac plus
+Fresh at 2026-07-28 21:18 CST, `xcrun xctrace list devices` lists the Mac plus
 simulators only; no physical iPhone is attached. The following release-only
 checks remain pending on real Safari: rapid swipe, slow drag, momentum tail,
 expanded/collapsed address bar, background/lock recovery, all stable-edge seams,
@@ -151,18 +151,19 @@ momentum.
 Accordingly, the permitted status is **“implementation and automated gates
 complete”**, not **“release DoD complete.”**
 
-## Non-R5 blockers recorded without scope expansion
+## Workspace qualification caveat
 
-1. `pnpm test` has one pre-existing failure in
-   `src/production/global-assets.test.ts`. The exact `d4d29bc` baseline already
-   contains the same assertion expecting SF Pro-first font order while its
-   `src/styles.css` uses PingFang/Songti-first order. Neither file is in the R5
-   phone task scope, and no source or test was changed to conceal it.
+1. The prior `pnpm test` mismatch in
+   `src/production/global-assets.test.ts` is now resolved. Commit `82a4e68`
+   intentionally changed the baseline CSS to put PingFang/Songti first for iOS
+   CJK rendering, while the test retained the superseded SF Pro-first
+   expectation. This follow-up changes only the stale assertion; it does not
+   change production CSS, media, timing, copy, or the phone runtime.
 2. `pnpm lint` reaches only the four user-preserved untracked
    `app/.tmp-r5-*.mjs` debug scripts (26 `no-undef` errors). They were not
    deleted, rewritten, or globally ignored. Managed-source ESLint passes when
    those temporary files are excluded explicitly.
 
-Neither blocker weakens the source-level cross-chunk contract gate; both must be
-resolved separately before a literal all-green repository acceptance can be
-claimed.
+The remaining local lint caveat and the unavailable Simulator/physical-device
+gestures do not weaken the source-level cross-chunk contract gate. Release DoD
+remains pending the two device matrices.
