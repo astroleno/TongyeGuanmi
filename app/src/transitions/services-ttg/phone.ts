@@ -1,12 +1,15 @@
 import {
   createPhoneInkAdapter
 } from '../../production/phone/transitions/PhoneInkTransition';
+import type { PhoneInkFieldRequest } from '../../production/phone/phone-ink';
 
-export const PHONE_SERVICES_TTG_FIELD = {
-  kind: 'horizontal',
-  direction: 'bottom-to-top',
-  seed: 'services-ttg-phone-r5'
-} as const;
+export const PHONE_SERVICES_TTG_FIELD = [
+  'horizontal',
+  'services-ttg-phone-r5',
+  'bottom-to-top',
+  null,
+  null
+] as const satisfies PhoneInkFieldRequest;
 
 export const PHONE_SERVICES_TTG_DECISION = {
   strategy: 'validated-phone-ink',
@@ -40,14 +43,16 @@ export function phoneServicesTtgFrame(
   return { progress, fromOpacity: 1 - progress, toOpacity: progress };
 }
 
-export const PhoneServicesTtgTransition = createPhoneInkAdapter({
-  id: 'phone-services-ttg',
-  field: PHONE_SERVICES_TTG_FIELD,
-  grade: 'edge-bright',
-  canvasClassName: 'portrait-scroll-spike__ink phone-services-ttg__ink',
-  portraitInk: 'services-ttg',
-  maskSource: false,
-  renderFrame(from, to, progress, reducedMotion, direction, host) {
+export const PhoneServicesTtgTransition = createPhoneInkAdapter([
+  'phone-services-ttg',
+  PHONE_SERVICES_TTG_FIELD,
+  'edge-bright',
+  'portrait-scroll-spike__ink phone-services-ttg__ink',
+  'services-ttg',
+  null,
+  false,
+  null,
+  (from, to, progress, reducedMotion, direction, host) => {
     const frame = phoneServicesTtgFrame(
       progress,
       reducedMotion,
@@ -71,6 +76,6 @@ export const PhoneServicesTtgTransition = createPhoneInkAdapter({
     }
     return frame.progress;
   }
-});
+]);
 
 export default PhoneServicesTtgTransition;

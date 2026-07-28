@@ -122,24 +122,25 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const canvas = figureCanvasRef.current;
       if (!root || !video || !container || !canvas) return null;
       if (!packedSurfaceRef.current) {
-        packedSurfaceRef.current = createPhonePackedAlphaSurface({
+        packedSurfaceRef.current = createPhonePackedAlphaSurface([
           root,
           container,
           canvas,
           video,
-          packedSourceUrl: PHONE_PH_PACKED_VIDEO,
-          endpointSeconds: PHONE_PH_FIGURE_END_SECONDS,
-          statusDataset: 'phonePhAlpha',
-          layerName: 'ph-figure',
-          canvasClassName: 'ph-layer ph-layer--figure phone-ph__figure-canvas',
-          onFrame: () => {
+          PHONE_PH_PACKED_VIDEO,
+          PHONE_PH_FIGURE_END_SECONDS,
+          'phonePhAlpha',
+          'ph-figure',
+          'ph-layer ph-layer--figure phone-ph__figure-canvas',
+          null,
+          () => {
             video.dataset.timelineVideoFrameReady = 'true';
             root.dataset.phonePhMedia = video.paused ? 'ready' : 'playing';
             beginPreparedReverseRef.current?.();
           }
-        });
+        ]);
       }
-      packedSurfaceRef.current.activate(mode);
+      packedSurfaceRef.current(['activate', mode]);
       return packedSurfaceRef.current;
     }, []);
 
@@ -172,21 +173,31 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const root = rootRef.current;
       root?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')?.pause();
     }, []);
-    const run = usePhoneCinematicRun({
-      scene: 'ph-animation',
+    const [
+      requestedRef,
+      beginPreparedReverse,
+      completeRun,
+      failRun,
+      publishPlaying,
+      renderProgress,
+      startRun,
+      stopRun,
+      disposeRun
+    ] = usePhoneCinematicRun([
+      'ph-animation',
       rootRef,
-      forwardRef: nativeAutoplayRef,
-      reverseRef: reversePlaybackRef,
+      nativeAutoplayRef,
+      reversePlaybackRef,
       reducedMotion,
-      terminalProgress: 1,
-      reverseTimeoutMs: PHONE_PH_REVERSE_READY_TIMEOUT_MS,
+      1,
+      PHONE_PH_REVERSE_READY_TIMEOUT_MS,
       reverseReady,
-      activateSurface: ensurePackedSurface,
-      render: renderPresentation,
+      ensurePackedSurface,
+      renderPresentation,
       beforeForward,
       beforeReverse
-    });
-    beginPreparedReverseRef.current = run.beginPreparedReverse;
+    ]);
+    beginPreparedReverseRef.current = beginPreparedReverse;
 
     useEffect(() => {
       const root = rootRef.current;
@@ -204,41 +215,41 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const nativeAutoplay = createPhoneNativeAutoplay(video, {
         runIdPrefix: 'phone-ph-figure',
         durationSeconds: PHONE_PH_FIGURE_END_SECONDS,
-        onProgress: (progress) => run.renderProgress(
+        onProgress: (progress) => renderProgress(
           phonePhTimelineProgressForMediaProgress(progress),
           1
         ),
-        onComplete: () => run.completeRun(1),
+        onComplete: () => completeRun(1),
         onFailure: () => {
           root.dataset.phonePhMedia = 'retryable-failure';
-          run.failRun(1);
+          failRun(1);
         },
         onFrameReady: () => {
           root.dataset.phonePhMedia = 'decoding';
-          run.publishPlaying();
+          publishPlaying();
         }
       });
       const reversePlayback = createPhonePhPresentedReverse(
         root,
-        run.renderProgress,
-        () => run.completeRun(-1),
+        renderProgress,
+        () => completeRun(-1),
         () => {
           root.dataset.phonePhMedia = 'retryable-failure';
-          run.failRun(-1);
+          failRun(-1);
         }
       );
       nativeAutoplayRef.current = nativeAutoplay;
       reversePlaybackRef.current = reversePlayback;
       if (import.meta.env.DEV) root.dataset.phonePhLifecycle = 'ready';
-      const requestedDirection = run.requestedRef.current;
-      if (requestedDirection !== null) run.startRun(requestedDirection);
+      const requestedDirection = requestedRef.current;
+      if (requestedDirection !== null) startRun(requestedDirection);
       onReady?.();
 
       return () => {
         nativeAutoplay.dispose();
         reversePlayback?.dispose();
-        run.stopRun();
-        packedSurfaceRef.current?.dispose();
+        stopRun();
+        packedSurfaceRef.current?.(['dispose']);
         packedSurfaceRef.current = null;
         if (nativeAutoplayRef.current === nativeAutoplay) nativeAutoplayRef.current = null;
         if (reversePlaybackRef.current === reversePlayback) reversePlaybackRef.current = null;
@@ -252,7 +263,13 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       figureCanvasHost,
       onReady,
       renderPresentation,
-      run
+      requestedRef,
+      completeRun,
+      failRun,
+      publishPlaying,
+      renderProgress,
+      startRun,
+      stopRun
     ]);
 
     useEffect(() => {
@@ -281,7 +298,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const surface = ensurePackedSurface(mode);
       if (!surface) throw new Error('PH packed-alpha surface unavailable');
       try {
-        await surface.prepare(mode, request.signal);
+        await surface(['prepare', mode, request.signal]);
       } catch (error) {
         root.dataset.phonePhMedia = 'retryable-failure';
         throw error;
@@ -296,29 +313,36 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
       update(progress) {
-        run.stopRun();
+        stopRun();
         renderPresentation(progress);
       },
       enter(request?: PhoneCinematicRequest) {
         rootRef.current?.removeAttribute('aria-hidden');
-        run.startRun(1, request?.identity ?? null);
+        startRun(1, request ?? null);
       },
       leave() {
-        run.stopRun();
+        stopRun();
         parkPhonePhMedia(rootRef.current);
-        packedSurfaceRef.current?.release();
+        packedSurfaceRef.current?.(['release']);
       },
       reverse(request?: PhoneCinematicRequest) {
-        run.startRun(-1, request?.identity ?? null);
+        startRun(-1, request ?? null);
       },
       prepareTargetPresentation,
       dispose() {
-        run.disposeRun();
-        packedSurfaceRef.current?.dispose();
+        disposeRun();
+        packedSurfaceRef.current?.(['dispose']);
         packedSurfaceRef.current = null;
         parkPhonePhMedia(rootRef.current);
       }
-    }), [ensurePackedSurface, prepareTargetPresentation, renderPresentation, run]);
+    }), [
+      ensurePackedSurface,
+      prepareTargetPresentation,
+      renderPresentation,
+      startRun,
+      stopRun,
+      disposeRun
+    ]);
 
     return (
       <>

@@ -228,6 +228,18 @@ export type PhoneExecutionIdentity = Readonly<{
   direction: 1 | -1;
 }>;
 
+/**
+ * Cross-chunk execution token. Lazy adapters must carry this positional form
+ * rather than reading a property-mangled authority identity object.
+ */
+export type PhoneExecutionToken = readonly [
+  authorityId: string,
+  sessionId: string,
+  generation: number,
+  leg: number,
+  direction: 1 | -1
+];
+
 type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
   type:
     | 'PRESENTED_FRAME'

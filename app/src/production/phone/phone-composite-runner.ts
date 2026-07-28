@@ -10,9 +10,7 @@ import {
   registerPhoneCompositeRunCapability,
   type PhoneCompositeSession
 } from './phone-story-runtime';
-import type {
-  PhoneExecutionIdentity
-} from './phone-story-state';
+import type { PhoneExecutionToken } from './phone-story-state';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 import type {
   PhoneCapabilityRegistry,
@@ -46,7 +44,7 @@ type MediaStartContext<
   Visual extends string
 > = Readonly<{
   scene: Visual;
-  identity: PhoneExecutionIdentity;
+  identity: PhoneExecutionToken;
   config: PhoneCompositeDirectConfig;
   animate(
     start: number,
@@ -81,44 +79,41 @@ export type PhoneCompositeRunnerOptions<
    */
   startMedia?(context: MediaStartContext<Visual>): void;
   acquireReverseEntry?(
-    identity: PhoneExecutionIdentity,
+    identity: PhoneExecutionToken,
     config: PhoneCompositeRuntimeConfig
   ): Readonly<{ releaseGeometry(): void }> | undefined;
 }>;
 
 export type PhoneCompositeRunner<Visual extends string> = Readonly<{
   /** Snapshot-matching media identity for legacy event bridges. */
-  execution(scene: Visual): PhoneExecutionIdentity | null;
-  heartbeat(scene: Visual, identity: PhoneExecutionIdentity): void;
+  execution(scene: Visual): PhoneExecutionToken | null;
+  heartbeat(scene: Visual, identity: PhoneExecutionToken): void;
   progressMedia(
     scene: Visual,
-    identity: PhoneExecutionIdentity,
+    identity: PhoneExecutionToken,
     progress: number
   ): void;
   animateMedia(
     scene: Visual,
-    identity: PhoneExecutionIdentity,
+    identity: PhoneExecutionToken,
     start: number,
     end: number,
     durationMs: number,
     complete: () => void
   ): void;
-  completeMedia(scene: Visual, identity: PhoneExecutionIdentity): void;
-  failMedia(scene: Visual, identity: PhoneExecutionIdentity): void;
+  completeMedia(scene: Visual, identity: PhoneExecutionToken): void;
+  failMedia(scene: Visual, identity: PhoneExecutionToken): void;
   dispose(): void;
 }>;
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
-function identitiesMatch(
-  left: PhoneExecutionIdentity,
-  right: PhoneExecutionIdentity
-): boolean {
-  return left.authorityId === right.authorityId
-    && left.sessionId === right.sessionId
-    && left.generation === right.generation
-    && left.leg === right.leg
-    && left.direction === right.direction;
+function identitiesMatch(left: PhoneExecutionToken, right: PhoneExecutionToken): boolean {
+  return left[0] === right[0]
+    && left[1] === right[1]
+    && left[2] === right[2]
+    && left[3] === right[3]
+    && left[4] === right[4];
 }
 
 export function createPhoneCompositeRunner<
@@ -138,13 +133,13 @@ export function createPhoneCompositeRunner<
 
   const identityFor = (
     resource: ExecutionResources<Visual>
-  ): PhoneExecutionIdentity => ({
-    authorityId: resource.session[0],
-    sessionId: resource.session[1],
-    generation: resource.session[2],
-    leg: resource.session[3](),
-    direction: resource.direction
-  });
+  ): PhoneExecutionToken => [
+    resource.session[0],
+    resource.session[1],
+    resource.session[2],
+    resource.session[3](),
+    resource.direction
+  ];
   const configFor = (
     resource: ExecutionResources<Visual>
   ): DirectConfig | null => (
@@ -199,6 +194,9 @@ export function createPhoneCompositeRunner<
       config.media.commitEndpoint(endpoint);
       releaseRoles(resource, 'source');
       config.visual.update(endpoint);
+      // Visual adapters are transient bridge owners, never durable endpoint
+      // owners. A rollback must release a prepared decoder/compositor too.
+      config.visual.leave?.();
       releaseGeometry(resource, config);
     } else {
       releaseRoles(resource, 'source');
@@ -260,7 +258,7 @@ export function createPhoneCompositeRunner<
       const receiver = config.final.root();
       if (!source || !receiver) return rollback(resource);
       claimRoles(resource, source, receiver);
-      config.media.begin({ identity: identityFor(resource) });
+      config.media.begin(identityFor(resource));
       config.media.commitEndpoint(0);
     }
     resource.session[5]();
@@ -302,6 +300,7 @@ export function createPhoneCompositeRunner<
         config.entry.commitEndpoint(endpoint);
         if (resource.direction === -1) {
           config.visual.update(0);
+          config.visual.leave?.();
           commitTerminalEndpoint(resource, config);
           return;
         }
@@ -338,7 +337,7 @@ export function createPhoneCompositeRunner<
       const extra = options.acquireReverseEntry?.(identityFor(resource), full);
       if (extra) resource.releaseExtra = () => extra.releaseGeometry();
       claimRoles(resource, source, receiver);
-      full.entry.begin({ identity: identityFor(resource) });
+      full.entry.begin(identityFor(resource));
       full.entry.commitEndpoint(1);
       startEntry(resource, full);
     });
@@ -364,7 +363,7 @@ export function createPhoneCompositeRunner<
       const receiver = full.final.root();
       if (!source || !receiver) return rollback(resource);
       claimRoles(resource, source, receiver);
-      full.media.begin({ identity: identityFor(resource) });
+      full.media.begin(identityFor(resource));
       full.media.commitEndpoint(1);
       full.visual.update(1);
       full.visual.leave?.();
@@ -380,9 +379,10 @@ export function createPhoneCompositeRunner<
       const extra = options.acquireReverseEntry?.(identityFor(resource), full);
       if (extra) resource.releaseExtra = () => extra.releaseGeometry();
       claimRoles(resource, source, receiver);
-      full.entry.begin({ identity: identityFor(resource) });
+      full.entry.begin(identityFor(resource));
       full.entry.commitEndpoint(0);
       full.visual.update(0);
+      full.visual.leave?.();
       commitTerminalEndpoint(resource, full);
     }
   };
@@ -410,7 +410,7 @@ export function createPhoneCompositeRunner<
       const transition = resource.direct || resource.direction === -1
         ? config.media
         : full.entry;
-      transition.begin({ identity: identityFor(resource) });
+      transition.begin(identityFor(resource));
       transition.commitEndpoint(resource.direction === 1 ? 0 : 1);
       const prepareTarget = config.visual.prepareTargetPresentation;
       if (!prepareTarget) return rollback(resource);
@@ -465,7 +465,7 @@ export function createPhoneCompositeRunner<
   };
   const mediaIdentity = (
     scene: Visual
-  ): PhoneExecutionIdentity | null => {
+  ): PhoneExecutionToken | null => {
     const resource = resources;
     if (
       !resource
@@ -477,7 +477,7 @@ export function createPhoneCompositeRunner<
   };
   const resourcesForMedia = (
     scene: Visual,
-    identity: PhoneExecutionIdentity
+    identity: PhoneExecutionToken
   ): ExecutionResources<Visual> | null => {
     const resource = resources;
     const current = mediaIdentity(scene);

@@ -50,6 +50,17 @@ function identity(snapshot: PhoneStorySnapshot) {
   } as const;
 }
 
+function executionToken(snapshot: PhoneStorySnapshot) {
+  const value = identity(snapshot);
+  return [
+    value.authorityId,
+    value.sessionId,
+    value.generation,
+    value.leg,
+    value.direction
+  ] as const;
+}
+
 function presented(snapshot: PhoneStorySnapshot): PhoneStorySnapshot {
   return reducePhoneStorySnapshot(snapshot, {
     ...identity(snapshot),
@@ -138,12 +149,12 @@ describe('canonical Brand through Lab snapshot projection', () => {
       cinematic(media),
       'figure3-animation'
     )).toEqual(
-      identity(media)
+      executionToken(media)
     );
     expect(phoneBrandLabVisualProjection(
       cinematic(media),
       'figure3-animation'
-    )).toEqual([identity(media), true, .4]);
+    )).toEqual([executionToken(media), true, .4]);
   });
 
   it('projects reverse media without a legacy cursor', () => {

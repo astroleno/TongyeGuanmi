@@ -21,14 +21,14 @@ export type PhoneFigure3PaperCompositor = Readonly<{
   dispose(): void;
 }>;
 
-type PhoneFigure3PaperCompositorOptions = Readonly<{
-  video: HTMLVideoElement;
-  canvas: HTMLCanvasElement;
-  paperColor?: string;
-  onFrame?: () => void;
+export type PhoneFigure3PaperCompositorRequest = readonly [
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+  paperColor: string | null,
+  onFrame: (() => void) | null,
   /** Fires after every successful canvas draw, including paused Safari seeks. */
-  onPresentedFrame?: () => void;
-}>;
+  onPresentedFrame: (() => void) | null
+];
 
 /**
  * Figure3's authored plate is 16:9 and uses a left-edge portrait crop.
@@ -132,13 +132,10 @@ export function releasePhoneFigure3PaperCanvas(
  * Reverse playback is seek-driven, so seeked/timeupdate repaint the same
  * canvas without creating a second media owner.
  */
-export function createPhoneFigure3PaperCompositor({
-  video,
-  canvas,
-  paperColor = PHONE_FIGURE3_PAPER_COLOR,
-  onFrame,
-  onPresentedFrame
-}: PhoneFigure3PaperCompositorOptions): PhoneFigure3PaperCompositor {
+export function createPhoneFigure3PaperCompositor(
+  [video, canvas, paperColor, onFrame, onPresentedFrame]: PhoneFigure3PaperCompositorRequest
+): PhoneFigure3PaperCompositor {
+  const resolvedPaperColor = paperColor ?? PHONE_FIGURE3_PAPER_COLOR;
   const frameVideo = video as VideoWithFrameCallbacks;
   let disposed = false;
   let frameReported = false;
@@ -147,7 +144,7 @@ export function createPhoneFigure3PaperCompositor({
 
   const paint = () => {
     if (disposed) return false;
-    const painted = paintPhoneFigure3PaperFrame(video, canvas, paperColor);
+    const painted = paintPhoneFigure3PaperFrame(video, canvas, resolvedPaperColor);
     if (painted && !frameReported) {
       frameReported = true;
       onFrame?.();

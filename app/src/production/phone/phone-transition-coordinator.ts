@@ -4,12 +4,17 @@ export const PHONE_INK_AUTOPLAY_MS = 600;
 
 export type PhoneTransitionDirection = 1 | -1;
 
-export type PhoneIntent = Readonly<{
-  inputEpoch: number;
-  direction: PhoneTransitionDirection;
-  startY: number;
-  projectedY: number;
-}>;
+/**
+ * Positional input bridge from the DOM gesture coordinator to the authority
+ * runtime. This callback can cross independently minified execution chunks,
+ * so it must not rely on an object-field protocol.
+ */
+export type PhoneIntent = readonly [
+  inputEpoch: number,
+  direction: PhoneTransitionDirection,
+  startY: number,
+  projectedY: number
+];
 
 export type PhoneIntentDisposition =
   | 'pass-native'
@@ -106,12 +111,12 @@ export function createPhoneIntentCoordinator(
     projectedY: number
   ) => {
     if (Math.abs(projectedY - startY) < 0.5) return 'pass-native';
-    return onIntent({
-      ...identity,
-      direction: projectedY > startY ? 1 : -1,
+    return onIntent([
+      identity.inputEpoch,
+      projectedY > startY ? 1 : -1,
       startY,
       projectedY
-    });
+    ]);
   };
   const scheduleNativeScrollProbe = (
     identity: Readonly<{ inputEpoch: number }>,

@@ -208,7 +208,8 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('INTRA_CHAPTER_DISSOLVE_MS');
     expect(shellSource).toContain('runPhEducationDissolve');
     expect(shellSource).toContain('handoffVisual');
-    expect(shellSource).toContain("detail.phase === 'progress'");
+    expect(shellSource).toContain('const [scene, phase, direction, , progress] = detail ?? []');
+    expect(shellSource).toContain("phase === 'progress'");
     expect(shellSource).toContain('latestPhEducationRef.current?.reverse?.()');
     expect(shellSource).toContain('labPhRef.current?.reverse?.()');
     expect(shellSource).toContain('latestCraneContactRef.current?.render');
@@ -216,7 +217,7 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('setStageActive(phStageRef.current, false)');
     expect(shellSource).not.toContain("window.scrollTo({ top: educationTop");
     expect(shellSource).not.toContain("window.scrollTo({ top: contactTop");
-    expect(shellSource).toContain('armRunTimeout(detail.scene)');
+    expect(shellSource).toContain('armRunTimeout(scene)');
     expect(shellSource).toContain("window.history.scrollRestoration = 'manual'");
     expect(shellSource).toContain("scene === 'education'");
     expect(shellSource).toContain("root?.setAttribute('aria-hidden', 'true')");

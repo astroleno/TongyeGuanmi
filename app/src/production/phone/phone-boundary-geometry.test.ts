@@ -8,12 +8,12 @@ describe('phone boundary geometry leases', () => {
     const clear = (element: HTMLElement) => cleared.push(element);
     const stale = acquirePhoneBoundaryGeometryLease(
       [endpoint],
-      { sessionId: 'phone-session-1', generation: 1 },
+      ['phone-session-1', 1],
       clear
     );
     const current = acquirePhoneBoundaryGeometryLease(
       [endpoint],
-      { sessionId: 'phone-session-2', generation: 2 },
+      ['phone-session-2', 2],
       clear
     );
 
@@ -30,7 +30,7 @@ describe('phone boundary geometry leases', () => {
     const cleared: HTMLElement[] = [];
     const lease = acquirePhoneBoundaryGeometryLease(
       [source, source, null, receiver],
-      { sessionId: 'phone-session-3', generation: 4 },
+      ['phone-session-3', 4],
       (element) => cleared.push(element)
     );
 

@@ -51,6 +51,17 @@ function identity(snapshot: PhoneStorySnapshot) {
   } as const;
 }
 
+function executionToken(snapshot: PhoneStorySnapshot) {
+  const value = identity(snapshot);
+  return [
+    value.authorityId,
+    value.sessionId,
+    value.generation,
+    value.leg,
+    value.direction
+  ] as const;
+}
+
 function presented(snapshot: PhoneStorySnapshot): PhoneStorySnapshot {
   return reducePhoneStorySnapshot(snapshot, {
     ...identity(snapshot),
@@ -117,10 +128,10 @@ describe('canonical Lab through Contact runtime projection', () => {
     expect(phoneLabContactVisualExecution(
       cinematic(media),
       'ph-animation'
-    )).toEqual(identity(media));
+    )).toEqual(executionToken(media));
     expect(phoneLabContactVisualProjection(
       cinematic(media),
       'ph-animation'
-    )).toEqual([identity(media), true, .4]);
+    )).toEqual([executionToken(media), true, .4]);
   });
 });

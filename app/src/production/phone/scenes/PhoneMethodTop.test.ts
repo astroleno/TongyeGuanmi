@@ -10,16 +10,18 @@ describe('PhoneMethodTop direct entry', () => {
     '#figure3-animation',
     '#services',
     '#ttg-animation',
-    '#lab'
+    '#lab',
+    '#ph-animation',
+    '#education',
+    '#crane-animation',
+    '#contact'
   ])('requests Grade A during the first mount for %s', (hash) => {
     expect(phoneMethodRequestsGradeAAtMount(hash)).toBe(true);
   });
 
   it.each([
     '#home',
-    '#aod-animation',
-    '#crane-animation',
-    '#contact'
+    '#aod-animation'
   ])('keeps Grade A lazy for non-Grade-A entry %s', (hash) => {
     expect(phoneMethodRequestsGradeAAtMount(hash)).toBe(false);
   });

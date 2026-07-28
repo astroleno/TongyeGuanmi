@@ -7,29 +7,30 @@ import {
 
 export type PhonePackedAlphaSurfaceMode = 'forward' | 'endpoint';
 
-export type PhonePackedAlphaSurface = Readonly<{
-  activate(mode?: PhonePackedAlphaSurfaceMode): void;
-  prepare(
-    mode?: PhonePackedAlphaSurfaceMode,
-    signal?: AbortSignal
-  ): Promise<void>;
-  release(): void;
-  dispose(): void;
-}>;
+export type PhonePackedAlphaSurfaceRequest = readonly [
+  root: HTMLElement,
+  container: HTMLElement,
+  canvas: HTMLCanvasElement | null,
+  video: HTMLVideoElement,
+  packedSourceUrl: string,
+  endpointSeconds: number,
+  statusDataset: string,
+  layerName: string,
+  canvasClassName: string,
+  frameTimeoutMs: number | null,
+  onFrame: (() => void) | null
+];
 
-type PhonePackedAlphaSurfaceOptions = Readonly<{
-  root: HTMLElement;
-  container: HTMLElement;
-  canvas?: HTMLCanvasElement;
-  video: HTMLVideoElement;
-  packedSourceUrl: string;
-  endpointSeconds: number;
-  statusDataset: string;
-  layerName: string;
-  canvasClassName: string;
-  frameTimeoutMs?: number;
-  onFrame?: () => void;
-}>;
+export type PhonePackedAlphaSurfaceCommand =
+  | readonly ['activate', mode: PhonePackedAlphaSurfaceMode]
+  | readonly ['prepare', mode: PhonePackedAlphaSurfaceMode, signal: AbortSignal | null]
+  | readonly ['release']
+  | readonly ['dispose'];
+
+/** Callable bridge keeps the mutable decoder/compositor in its owner chunk. */
+export type PhonePackedAlphaSurface = (
+  command: PhonePackedAlphaSurfaceCommand
+) => Promise<void> | void;
 
 type Preparation = Readonly<{
   resolve(): void;
@@ -62,15 +63,33 @@ function releaseVideoSource(video: HTMLVideoElement): void {
  * preparation still waits for the authored terminal frame.
  */
 export function createPhonePackedAlphaSurface(
-  options: PhonePackedAlphaSurfaceOptions
+  [
+    root,
+    container,
+    requestCanvas,
+    video,
+    packedSourceUrl,
+    endpointSeconds,
+    statusDataset,
+    layerName,
+    canvasClassName,
+    frameTimeoutMs,
+    onFrame
+  ]: PhonePackedAlphaSurfaceRequest
 ): PhonePackedAlphaSurface {
-  const {
+  const options = {
     root,
     container,
     video,
     statusDataset,
-    layerName
-  } = options;
+    layerName,
+    canvas: requestCanvas ?? undefined,
+    packedSourceUrl,
+    endpointSeconds,
+    canvasClassName,
+    frameTimeoutMs: frameTimeoutMs ?? undefined,
+    onFrame: onFrame ?? undefined
+  };
   const ownsCanvas = !options.canvas;
   const preparations = new Set<Preparation>();
   let disposed = false;
@@ -195,9 +214,10 @@ export function createPhonePackedAlphaSurface(
     }
   };
 
-  return {
-    activate,
-    prepare(nextMode = 'forward', signal) {
+  const prepare = (
+    nextMode: PhonePackedAlphaSurfaceMode,
+    signal: AbortSignal | null
+  ): Promise<void> => {
       if (disposed) {
         return Promise.reject(new Error(
           `${layerName} packed-alpha surface is disposed`
@@ -237,12 +257,25 @@ export function createPhonePackedAlphaSurface(
         preparations.add(preparation);
         signal?.addEventListener('abort', preparation.abort, { once: true });
       });
-    },
-    release,
-    dispose() {
-      if (disposed) return;
-      release();
-      disposed = true;
+  };
+  const dispose = () => {
+    if (disposed) return;
+    release();
+    disposed = true;
+  };
+
+  return (command) => {
+    switch (command[0]) {
+      case 'activate':
+        activate(command[1]);
+        return;
+      case 'prepare':
+        return prepare(command[1], command[2]);
+      case 'release':
+        release();
+        return;
+      case 'dispose':
+        dispose();
     }
   };
 }

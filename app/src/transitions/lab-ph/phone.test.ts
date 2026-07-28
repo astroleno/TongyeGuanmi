@@ -28,11 +28,13 @@ describe('Phone Lab → PH transition', () => {
     });
     expect(source).not.toMatch(/from ['"].*PhoneLab/);
     expect(source).not.toMatch(/from ['"].*scenes\/lab/);
-    expect(source).toContain('createPhoneInkAdapter');
-    expect(source).toContain("direction: 'bottom-to-top'");
-    expect(source).toContain("grade: 'edge-bright'");
-    expect(source).toContain('maskSource: false');
-    expect(source).toContain('releaseOnLeave: true');
+    expect(source).toMatch(
+      /const field = \[\s*'horizontal',\s*'phone-lab-ph-r5',\s*'bottom-to-top',\s*null,\s*null\s*\] as const satisfies PhoneInkFieldRequest;/s
+    );
+    expect(source).toMatch(
+      /createPhoneInkAdapter\(\[\s*'phone-lab-ph-ink',\s*field,\s*'edge-bright',\s*'phone-lab-ph__ink',\s*null,\s*null,\s*false,\s*null,/s
+    );
+    expect(source).not.toMatch(/\b(?:direction|grade|maskSource|releaseOnLeave)\s*:/);
     expect(source).not.toContain('reverseProgress');
     expect(source).toContain('renderPhonePhPresentation');
     expect(stylesheet).toContain('phone-group67__stage--ph');

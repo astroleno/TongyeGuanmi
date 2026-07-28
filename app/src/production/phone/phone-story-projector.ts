@@ -82,6 +82,10 @@ const rootDataKeys = [
   'phoneCursor',
   'phoneRevision',
   'phoneSession',
+  'phoneTransitionGeneration',
+  'phoneTransitionLeg',
+  'phoneTransitionDirection',
+  'phoneTransitionProgress',
   'phoneSegment',
   'phoneTransitionPhase',
   'phoneTransitionLock',
@@ -189,6 +193,7 @@ export function createPhoneStoryProjector({
   const token = {};
   const registrations = new Map<string, PhoneSurfaceRegistration>();
   const ownedRoots = new Set<HTMLElement>();
+  const decoratedEndpoints = new Set<HTMLElement>();
   let attached = false;
   let disposed = false;
   let endpoints: PhoneTransitionEndpoints | null = null;
@@ -206,6 +211,20 @@ export function createPhoneStoryProjector({
         token,
         before: existing?.before ?? captureDocument(documentRef)
       });
+    }
+  };
+  const clearEndpointDecorations = (next: readonly HTMLElement[] = []) => {
+    for (const element of decoratedEndpoints) {
+      if (next.includes(element)) continue;
+      decoratedEndpoints.delete(element);
+      if (rootOwners.get(element) !== token) continue;
+      data(element, 'phoneBoundarySession', undefined);
+      data(element, 'phoneBoundaryGeneration', undefined);
+      data(element, 'phoneBoundaryEndpoint', undefined);
+      if (element.dataset.phoneSurfaceRole?.startsWith('transition-')) {
+        data(element, 'phoneSurfaceRole', undefined);
+      }
+      if (!ownedRoots.has(element)) rootOwners.delete(element);
     }
   };
   const nextTrace = (checkpoint: PhoneCheckpointId): readonly PhoneCheckpointId[] => {
@@ -254,6 +273,10 @@ export function createPhoneStoryProjector({
     apply(plan) {
       if (disposed) return;
       const { snapshot, root: routeRoot, surfaces } = plan;
+      const nextEndpoints = plan.endpoints
+        ? [plan.endpoints.source, plan.endpoints.receiver]
+        : [];
+      clearEndpointDecorations(nextEndpoints);
       const projection = snapshot.projection;
       if (routeRoot) {
         ownRoot(routeRoot);
@@ -272,6 +295,18 @@ export function createPhoneStoryProjector({
         data(routeRoot, 'phoneCursor', cursor);
         data(routeRoot, 'phoneRevision', String(snapshot.revision));
         data(routeRoot, 'phoneSession', session?.sessionId);
+        data(routeRoot, 'phoneTransitionGeneration', session
+          ? String(session.generation)
+          : undefined);
+        data(routeRoot, 'phoneTransitionLeg', session
+          ? String(session.operation.legIndex)
+          : undefined);
+        data(routeRoot, 'phoneTransitionDirection', session
+          ? String(session.operation.direction)
+          : undefined);
+        data(routeRoot, 'phoneTransitionProgress', session
+          ? session.progress.toFixed(4)
+          : undefined);
         data(routeRoot, 'phoneSegment', snapshot.status === 'transaction'
           ? snapshot.projection.checkpoint
           : undefined);
@@ -331,6 +366,8 @@ export function createPhoneStoryProjector({
           data(element, 'phoneBoundarySession', sessionId);
           data(element, 'phoneBoundaryGeneration', String(generation));
           data(element, 'phoneBoundaryEndpoint', endpoint);
+          rootOwners.set(element, token);
+          decoratedEndpoints.add(element);
         }
       }
       checkpointTrace = plan.checkpointTrace;
@@ -376,6 +413,7 @@ export function createPhoneStoryProjector({
     },
     dispose() {
       if (disposed) return;
+      clearEndpointDecorations();
       disposed = true;
       endpoints = null;
       registrations.clear();

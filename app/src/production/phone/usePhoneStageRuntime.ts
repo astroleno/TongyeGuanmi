@@ -7,19 +7,23 @@ import {
 import { gsap } from 'gsap/gsap-core';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type {
-  PhoneOrchestratedRunSession,
   PhoneStoryRuntimePort
 } from './phone-story-orchestrator';
 import {
+  registerPhoneCompositeRunCapability,
+  registerPhoneRuntimeSampledScrollCorridor,
+  registerPhoneRuntimeSurface,
+  syncPhoneRuntimeDiagnostics,
+  type PhoneCinematicSnapshot,
+  type PhoneCompositeSession
+} from './phone-story-runtime';
+import {
   PHONE_STAGE_STOPS,
-  phoneFrontRailSample,
+  phoneFrontRailSampleTuple,
   phoneStageFrame
 } from './phone-stage-timeline';
 import { renderPhoneStageTransitions } from './phone-transition-stage';
-import type {
-  PhoneExecutionIdentity,
-  PhoneStorySnapshot
-} from './phone-story-state';
+import type { PhoneExecutionToken } from './phone-story-state';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -64,9 +68,9 @@ const PHONE_AOD_RUN_TIMEOUT_MS = 6000;
 const FRONT_AOD_SURFACE = 'front:aod';
 
 /** Resource activity is derived from the same projection that owns root roles. */
-export function phoneSnapshotOwnsAod(snapshot: PhoneStorySnapshot): boolean {
-  return snapshot.projection.sourceSurface === FRONT_AOD_SURFACE
-    || snapshot.projection.receiverSurface === FRONT_AOD_SURFACE;
+export function phoneSnapshotOwnsAod(snapshot: PhoneCinematicSnapshot): boolean {
+  return snapshot[1] === FRONT_AOD_SURFACE
+    || snapshot[2] === FRONT_AOD_SURFACE;
 }
 
 function clamp(value: number): number {
@@ -87,87 +91,92 @@ function frontHoldProgress(scene: string): number | null {
   }
 }
 
-function frontProgressForSnapshot(snapshot: PhoneStorySnapshot): number | null {
-  if (snapshot.status === 'scroll-run') {
-    switch (snapshot.run) {
+function frontProgressForSnapshot(snapshot: PhoneCinematicSnapshot): number | null {
+  const [
+    semanticScene,
+    ,
+    ,
+    ,
+    ,
+    ,
+    transactionRun,
+    ,
+    ,
+    ,
+    ,
+    status,
+    ,
+    stageOwner,
+    ,
+    ,
+    scrollProgress,
+    scrollRun
+  ] = snapshot;
+  if (status === 'scroll-run') {
+    switch (scrollRun) {
       case 'hero-pattern-scroll':
         return interpolate(
           PHONE_STAGE_STOPS.heroMotionEnd,
           PHONE_STAGE_STOPS.heroPatternEnd,
-          snapshot.scroll.progress
+          scrollProgress
         );
       case 'pattern-star-scroll':
         return interpolate(
           PHONE_STAGE_STOPS.patternStarStart,
           PHONE_STAGE_STOPS.patternStarEnd,
-          snapshot.scroll.progress
+          scrollProgress
         );
       case 'star-aod-scroll':
         return interpolate(
           PHONE_STAGE_STOPS.starAodStart,
           PHONE_STAGE_STOPS.starAodEnd,
-          snapshot.scroll.progress
+          scrollProgress
         );
     }
   }
-  if (
-    snapshot.status === 'transaction'
-    && snapshot.session.operation.run === 'aod-method'
-  ) return PHONE_STAGE_STOPS.aodAutoplayStart;
-  if (snapshot.projection.stageOwner !== 'front') return null;
-  const scene = snapshot.projection.semanticScene;
-  return snapshot.scroll.progress > 0 || scene === 'hero'
-    ? snapshot.scroll.progress
-    : frontHoldProgress(scene);
+  if (status === 'transaction' && transactionRun === 'aod-method') {
+    return PHONE_STAGE_STOPS.aodAutoplayStart;
+  }
+  if (stageOwner !== 'front') return null;
+  return scrollProgress > 0 || semanticScene === 'hero'
+    ? scrollProgress
+    : frontHoldProgress(semanticScene);
 }
 
-function identityForAod(
-  snapshot: PhoneStorySnapshot,
+function tokenForAod(
+  snapshot: PhoneCinematicSnapshot,
   direction: 1 | -1
-): PhoneExecutionIdentity | null {
+): PhoneExecutionToken | null {
+  const [
+    ,
+    ,
+    ,
+    authorityId,
+    sessionId,
+    generation,
+    run,
+    transactionDirection,
+    leg,
+    ,
+    ,
+    status
+  ] = snapshot;
   if (
-    snapshot.status !== 'transaction'
-    || snapshot.session.operation.run !== 'aod-method'
-    || snapshot.session.operation.direction !== direction
+    status !== 'transaction'
+    || run !== 'aod-method'
+    || transactionDirection !== direction
+    || sessionId === null
+    || generation === null
+    || leg === null
   ) return null;
-  return {
-    authorityId: snapshot.authorityId,
-    sessionId: snapshot.session.sessionId,
-    generation: snapshot.session.generation,
-    leg: snapshot.session.operation.legIndex,
-    direction
-  };
+  return [authorityId, sessionId, generation, leg, direction];
 }
 
-function identityForAodSession(
-  session: Pick<
-    PhoneOrchestratedRunSession,
-    'authorityId' | 'sessionId' | 'generation' | 'leg' | 'direction'
-  >
-): PhoneExecutionIdentity {
-  return {
-    authorityId: session.authorityId,
-    sessionId: session.sessionId,
-    generation: session.generation,
-    leg: session.leg,
-    direction: session.direction
-  };
-}
-
-function snapshotMatchesAodIdentity(
-  snapshot: PhoneStorySnapshot,
-  identity: PhoneExecutionIdentity
-): boolean {
-  if (
-    snapshot.status !== 'transaction'
-    || snapshot.session.operation.run !== 'aod-method'
-  ) return false;
-  const { session } = snapshot;
-  return snapshot.authorityId === identity.authorityId
-    && session.sessionId === identity.sessionId
-    && session.generation === identity.generation
-    && session.operation.legIndex === identity.leg
-    && session.operation.direction === identity.direction;
+function tokenForAodSession(
+  session: PhoneCompositeSession,
+  direction: 1 | -1
+): PhoneExecutionToken {
+  return [session[0], session[1], session[2], session[3](), direction];
 }
 
 type FullscreenElement = HTMLElement & {
@@ -199,7 +208,7 @@ export type PhoneStageRuntimeOptions = Readonly<{
   patternStarMapRef: RefObject<PhoneTransitionAdapterHandle | null>;
   starMapAodRef: RefObject<PhoneTransitionAdapterHandle | null>;
   orchestrator: PhoneStoryRuntimePort;
-  snapshot: PhoneStorySnapshot;
+  snapshot: PhoneCinematicSnapshot;
   enabled: boolean;
   reducedMotion: boolean;
   adapterRevision: number;
@@ -210,9 +219,9 @@ export type PhoneStageRuntime = Readonly<{
   onAodProgress(
     progress: number,
     direction: 1 | -1,
-    identity: PhoneExecutionIdentity
+    identity: PhoneExecutionToken
   ): void;
-  onAodComplete(direction: 1 | -1, identity: PhoneExecutionIdentity): void;
+  onAodComplete(direction: 1 | -1, identity: PhoneExecutionToken): void;
 }>;
 
 /**
@@ -225,35 +234,42 @@ export function usePhoneStageRuntime(
 ): PhoneStageRuntime {
   const snapshotRef = useRef(options.snapshot);
   snapshotRef.current = options.snapshot;
-  const renderSnapshotRef = useRef<((snapshot: PhoneStorySnapshot) => void) | undefined>(undefined);
+  const renderSnapshotRef = useRef<
+    ((snapshot: PhoneCinematicSnapshot) => void) | undefined
+  >(undefined);
   const progressHandlerRef = useRef<
     (
       progress: number,
       direction: 1 | -1,
-      identity: PhoneExecutionIdentity
+      identity: PhoneExecutionToken
     ) => void
   >(undefined);
   const completeHandlerRef = useRef<
-    ((direction: 1 | -1, identity: PhoneExecutionIdentity) => void) | undefined
+    ((direction: 1 | -1, identity: PhoneExecutionToken) => void) | undefined
   >(undefined);
 
   const onAodProgress = useCallback((
     progress: number,
     direction: 1 | -1,
-    identity: PhoneExecutionIdentity
+    identity: PhoneExecutionToken
   ) => {
     progressHandlerRef.current?.(progress, direction, identity);
   }, []);
   const onAodComplete = useCallback((
     direction: 1 | -1,
-    identity: PhoneExecutionIdentity
+    identity: PhoneExecutionToken
   ) => {
     completeHandlerRef.current?.(direction, identity);
   }, []);
 
   useLayoutEffect(() => {
     renderSnapshotRef.current?.(options.snapshot);
-  }, [options.snapshot]);
+    // Input dispatch starts synchronously before React refreshes snapshotRef.
+    // Retry after this layout pass so the capability sees the new session.
+    if (options.enabled && options.snapshot[9] === 'preparing') {
+      syncPhoneRuntimeDiagnostics(options.orchestrator);
+    }
+  }, [options.enabled, options.orchestrator, options.snapshot]);
 
   useLayoutEffect(() => {
     if (!options.enabled) return;
@@ -293,13 +309,19 @@ export function usePhoneStageRuntime(
     let active = true;
     let stageScrollStart = 0;
     let stageScrollEnd = 1;
-    let lastRailY = snapshotRef.current.scroll.actualY;
+    let lastRailY = snapshotRef.current[14];
     let completedHeroEntrance = false;
     let observedAodSession: string | null = null;
+    let activeAodSession: PhoneCompositeSession | null = null;
+    let activeAodIdentity: PhoneExecutionToken | null = null;
     const aodTimers = new Set<number>();
     const clearAodTimers = () => {
       for (const timer of aodTimers) window.clearTimeout(timer);
       aodTimers.clear();
+    };
+    const clearActiveAod = () => {
+      activeAodSession = null;
+      activeAodIdentity = null;
     };
     const stagePosition = (progress: number) => stageScrollStart
       + (stageScrollEnd - stageScrollStart) * progress;
@@ -315,15 +337,16 @@ export function usePhoneStageRuntime(
         ? configuredDistance
         : Math.max(1, stageRail.offsetHeight - stage.offsetHeight);
     };
-    const renderSnapshot = (snapshot: PhoneStorySnapshot) => {
+    const renderSnapshot = (snapshot: PhoneCinematicSnapshot) => {
       if (!active) return;
-      const aodIdentity = identityForAod(snapshot, 1)
-        ?? identityForAod(snapshot, -1);
-      const aodSession = aodIdentity
-        ? `${aodIdentity.sessionId}:${aodIdentity.generation}`
+      const aodToken = tokenForAod(snapshot, 1)
+        ?? tokenForAod(snapshot, -1);
+      const aodSession = aodToken
+        ? `${aodToken[1]}:${aodToken[2]}`
         : null;
-      if (observedAodSession && !aodSession) {
+      if (observedAodSession && observedAodSession !== aodSession) {
         clearAodTimers();
+        clearActiveAod();
         aodAdapter.resetAutoplay();
       }
       observedAodSession = aodSession;
@@ -331,12 +354,13 @@ export function usePhoneStageRuntime(
       const stageProgress = frontProgressForSnapshot(snapshot);
       if (stageProgress !== null) {
         const frame = phoneStageFrame(stageProgress, options.reducedMotion);
+        const [, , , heroProgress, patternProgress, starProgress] = frame;
         if (import.meta.env.DEV) {
           root.dataset.portraitStageProgress = stageProgress.toFixed(4);
         }
-        heroAdapter.update(frame.heroProgress);
-        patternAdapter.update(frame.patternProgress);
-        starAdapter.update(frame.starProgress);
+        heroAdapter.update(heroProgress);
+        patternAdapter.update(patternProgress);
+        starAdapter.update(starProgress);
         renderPhoneStageTransitions(frame, {
           heroPattern: heroPatternAdapter,
           patternStar: patternStarAdapter,
@@ -351,11 +375,25 @@ export function usePhoneStageRuntime(
         }
       }
 
-      if (snapshot.status === 'transaction' && snapshot.session.operation.run === 'aod-method') {
-        const { session } = snapshot;
-        aodAdapter.update(session.progress);
-        methodAdapter.update(options.mapAodToMethod(session.progress));
-        if (session.phase.startsWith('rollback-')) aodAdapter.resetAutoplay();
+      const [
+        ,
+        ,
+        ,
+        ,
+        ,
+        ,
+        run,
+        ,
+        ,
+        phase,
+        sessionProgress,
+        status
+      ] = snapshot;
+      if (status === 'transaction' && run === 'aod-method') {
+        const progress = sessionProgress ?? 0;
+        aodAdapter.update(progress);
+        methodAdapter.update(options.mapAodToMethod(progress));
+        if (phase?.startsWith('rollback-')) aodAdapter.resetAutoplay();
       }
     };
 
@@ -376,126 +414,157 @@ export function usePhoneStageRuntime(
     updateStageGeometry(stageTrigger);
 
     const surfaceLeases = [
-      options.orchestrator.registerSurface({
-        id: 'front:hero', scene: 'hero', kind: 'fixed', root: () => heroAdapter.root()
-      }),
-      options.orchestrator.registerSurface({
-        id: 'front:pattern', scene: 'pattern', kind: 'fixed', root: () => patternAdapter.root()
-      }),
-      options.orchestrator.registerSurface({
-        id: 'front:star', scene: 'star-map', kind: 'fixed', root: () => starAdapter.root()
-      }),
-      options.orchestrator.registerSurface({
-        id: FRONT_AOD_SURFACE, scene: 'aod-animation', kind: 'fixed', root: () => aodAdapter.root()
-      }),
-      options.orchestrator.registerSurface({
-        id: 'native:method',
-        scene: 'method-top',
-        kind: 'native',
-        root: () => methodAdapter.root(),
-        coverageRoot: () => methodAdapter.root(),
-        presented: () => true
-      })
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        'front:hero',
+        'hero',
+        'fixed',
+        () => heroAdapter.root(),
+        () => stage,
+        () => true
+      ),
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        'front:pattern',
+        'pattern',
+        'fixed',
+        () => patternAdapter.root(),
+        () => stage,
+        () => true
+      ),
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        'front:star-map',
+        'star-map',
+        'fixed',
+        () => starAdapter.root(),
+        () => stage,
+        () => true
+      ),
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        FRONT_AOD_SURFACE,
+        'aod-animation',
+        'fixed',
+        () => aodAdapter.root(),
+        () => stage,
+        () => true
+      ),
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        'native:method',
+        'method-top',
+        'native',
+        () => methodAdapter.root(),
+        () => stage,
+        () => true
+      )
     ];
-    const corridorLease = options.orchestrator.registerScrollCorridor({
-      id: 'front-rail',
-      scenes: ['hero', 'pattern', 'star-map', 'aod-animation'],
-      sample(viewport) {
-        const delta = viewport.actualY - lastRailY;
-        lastRailY = viewport.actualY;
+    const corridorLease = registerPhoneRuntimeSampledScrollCorridor(
+      options.orchestrator,
+      'front-rail',
+      ['hero', 'pattern', 'star-map', 'aod-animation'],
+      (actualY) => {
+        const delta = actualY - lastRailY;
+        lastRailY = actualY;
         const direction = delta > .5 ? 1 : delta < -.5 ? -1 : 0;
         const progress = clamp(
-          (viewport.actualY - stageScrollStart) / Math.max(1, stageScrollEnd - stageScrollStart)
+          (actualY - stageScrollStart) / Math.max(1, stageScrollEnd - stageScrollStart)
         );
-        return {
-          actualY: viewport.actualY,
-          ...phoneFrontRailSample(progress, direction, options.reducedMotion)
-        };
+        const [scene, run, sampledDirection, sampledProgress] = phoneFrontRailSampleTuple(
+          progress,
+          direction,
+          options.reducedMotion
+        );
+        return [
+          actualY,
+          scene,
+          run,
+          sampledDirection,
+          sampledProgress
+        ];
       },
-      boundary(run, direction) {
+      (run, direction) => {
         if (run !== 'aod-method') return null;
         return direction === 1
           ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
           : Math.max(stageScrollStart, stageScrollEnd - 1);
       },
-      landing(scene) {
+      (scene) => {
         const progress = frontHoldProgress(scene);
         return progress === null ? null : stagePosition(progress);
       }
-    });
-    const aodRegistration = options.orchestrator.registerRunCapability(
+    );
+    const aodRegistration = registerPhoneCompositeRunCapability(
+      options.orchestrator,
       'aod-method',
       'aod:method',
-      {
-        position(direction) {
-          return direction === 1
-            ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
-            : Math.max(stageScrollStart, stageScrollEnd - 1);
-        },
-        canStart(direction) {
-          const snapshot = snapshotRef.current;
-          return snapshot.status === 'transaction'
-            && snapshot.session.operation.run === 'aod-method'
-            && snapshot.session.operation.direction === direction
-            && snapshot.session.phase === 'preparing';
-        },
-        start(direction, session) {
-          if (!session.valid()) return false;
-          const identity = identityForAodSession(session);
-          // The packed-alpha poster is already projected; publish its frame
-          // before an adapter's reduced-motion completion can fire synchronously.
-          session.reportPresentedFrame();
-          const timer = window.setTimeout(() => {
+      (direction) => direction === 1
+        ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
+        : Math.max(stageScrollStart, stageScrollEnd - 1),
+      (direction) => {
+        const snapshot = snapshotRef.current;
+        return snapshot[11] === 'transaction'
+          && snapshot[6] === 'aod-method'
+          && snapshot[7] === direction
+          && snapshot[9] === 'preparing';
+      },
+      (direction, session) => {
+        if (!session[4]()) return false;
+        const identity = tokenForAodSession(session, direction);
+        activeAodSession = session;
+        activeAodIdentity = identity;
+        // The packed-alpha poster is already projected; publish its frame
+        // before an adapter's reduced-motion completion can fire synchronously.
+        session[5]();
+        const timer = window.setTimeout(() => {
+          aodTimers.delete(timer);
+          if (activeAodSession === session) clearActiveAod();
+          if (session[4]()) session[13]();
+        }, PHONE_AOD_RUN_TIMEOUT_MS);
+        aodTimers.add(timer);
+        void aodAdapter.startAutoplay(direction, identity).then(
+          (result) => {
+            if (result === 'playing' || !session[4]()) return;
+            window.clearTimeout(timer);
             aodTimers.delete(timer);
-            if (session.valid()) session.reportFailure();
-          }, PHONE_AOD_RUN_TIMEOUT_MS);
-          aodTimers.add(timer);
-          void aodAdapter.startAutoplay(direction, identity).then(
-            (result) => {
-              if (result === 'playing' || !session.valid()) return;
-              window.clearTimeout(timer);
-              aodTimers.delete(timer);
-              session.reportFailure();
-            },
-            () => {
-              window.clearTimeout(timer);
-              aodTimers.delete(timer);
-              if (session.valid()) session.reportFailure();
-            }
-          );
-          return true;
-        }
-      }
+            if (activeAodSession === session) clearActiveAod();
+            session[13]();
+          },
+          () => {
+            window.clearTimeout(timer);
+            aodTimers.delete(timer);
+            if (activeAodSession === session) clearActiveAod();
+            if (session[4]()) session[13]();
+          }
+        );
+        return true;
+      },
+      () => false
     );
 
     const emitAodProgress = (
       progress: number,
       _direction: 1 | -1,
-      identity: PhoneExecutionIdentity
+      identity: PhoneExecutionToken
     ) => {
-      options.orchestrator.dispatch({
-        ...identity,
-        type: 'PROGRESS_REPORTED',
-        progress
-      });
+      const session = activeAodSession;
+      if (!session || identity !== activeAodIdentity || !session[4]()) return;
+      session[6](progress);
     };
-    const completeAod = (identity: PhoneExecutionIdentity) => {
+    const completeAod = (
+      _direction: 1 | -1,
+      identity: PhoneExecutionToken
+    ) => {
+      const session = activeAodSession;
+      if (!session || identity !== activeAodIdentity || !session[4]()) return;
+      clearActiveAod();
       clearAodTimers();
-      options.orchestrator.dispatch({ ...identity, type: 'LEG_COMPLETED' });
-      const after = options.orchestrator.getSnapshot();
-      if (
-        after.status === 'transaction'
-        && snapshotMatchesAodIdentity(after, identity)
-        && after.session.phase === 'verifying-target'
-      ) {
-        options.orchestrator.dispatch({ ...identity, type: 'TARGET_PRESENTED' });
-      }
+      session[9]('receiver');
+      session[10]();
     };
     progressHandlerRef.current = emitAodProgress;
-    const deliverAodComplete = (direction: 1 | -1, identity: PhoneExecutionIdentity) => {
-      if (direction === identity.direction) completeAod(identity);
-    };
-    completeHandlerRef.current = deliverAodComplete;
+    completeHandlerRef.current = completeAod;
 
     const pointerTargetIsPermissionButton = (event: Event) => (
       event.target instanceof Element
@@ -533,8 +602,9 @@ export function usePhoneStageRuntime(
       active = false;
       if (renderSnapshotRef.current === renderSnapshot) renderSnapshotRef.current = undefined;
       if (progressHandlerRef.current === emitAodProgress) progressHandlerRef.current = undefined;
-      if (completeHandlerRef.current === deliverAodComplete) completeHandlerRef.current = undefined;
+      if (completeHandlerRef.current === completeAod) completeHandlerRef.current = undefined;
       clearAodTimers();
+      clearActiveAod();
       heroAdapter.cancelEntrance();
       window.cancelAnimationFrame(refreshFrame);
       window.removeEventListener('load', refresh);

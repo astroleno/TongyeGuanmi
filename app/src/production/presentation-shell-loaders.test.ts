@@ -67,7 +67,7 @@ describe('presentation shell loaders', () => {
       'finishLoader(props.startupLoaderExitReason)'
     );
     expect(phoneShellSource).toContain(
-      'if (directContinuationEntry || ready || failed)'
+      'if (directStoryEntry || ready || failed)'
     );
   });
 });

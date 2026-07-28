@@ -1,11 +1,16 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import ts from 'typescript';
 
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sourceDir = path.join(appDir, 'src');
 const productionDir = path.join(sourceDir, 'production');
 const phoneDir = path.join(productionDir, 'phone');
+const phoneCrossChunkContractPolicy = JSON.parse(await readFile(
+  path.join(appDir, 'build', 'phone-cross-chunk-contract.json'),
+  'utf8'
+));
 const phoneSceneAdapterDir = path.join(phoneDir, 'scenes');
 const phoneTransitionAdapterDir = path.join(phoneDir, 'transitions');
 const desktopDir = path.join(productionDir, 'desktop');
@@ -40,6 +45,12 @@ const phoneRunLandingPath = path.join(phoneDir, 'phone-run-landing.ts');
 const phoneRunDefinitionsPath = path.join(phoneDir, 'phone-story-runs.ts');
 const phoneRouteScopePath = path.join(phoneDir, 'phone-route-scope.ts');
 const phoneContextPath = path.join(phoneDir, 'PhoneStoryOrchestratorContext.tsx');
+const phoneLazyExecutionPaths = [
+  path.join(sourceDir, 'scenes', 'figure3-animation', 'phone', 'PhoneFigure3.tsx'),
+  path.join(sourceDir, 'scenes', 'ttg-animation', 'phone', 'PhoneTtg.tsx'),
+  path.join(sourceDir, 'scenes', 'ph-animation', 'phone', 'PhonePh.tsx'),
+  path.join(sourceDir, 'scenes', 'crane-animation', 'phone', 'PhoneCrane.tsx')
+];
 const mainPath = path.join(sourceDir, 'main.tsx');
 const formalPhoneOwnershipPaths = [
   phoneShellPath,
@@ -63,7 +74,9 @@ export const phoneShellDebt = Object.freeze({
     'aod-autoplay.ts::../../scenes/aod-animation/progress',
     'phone-ink.ts::../../transitions/shared/inkField',
     'phone-ink.ts::../../transitions/shared/inkOwnership',
+    'phone-ink.ts::../../transitions/shared/phone-ink-runtime',
     'phone-ink.ts::../../transitions/shared/sceneInk',
+    'phone-timeline-runtime.ts::../../media/timeline-video-driver',
     'module-loaders.ts::../../scenes/brand/phone/PhoneBrand',
     'module-loaders.ts::../../scenes/figure3-animation/phone/PhoneFigure3',
     'module-loaders.ts::../../scenes/services/phone/PhoneServices',
@@ -166,16 +179,404 @@ function graphEntries(graph) {
   return graph instanceof Map ? [...graph.entries()] : graph;
 }
 
+/**
+ * Compression protection is source policy, not a post-build observation.
+ * Every permitted raw runtime object must name every retained property here.
+ */
+export function phoneCrossChunkCompressionPolicyViolations(
+  policy = phoneCrossChunkContractPolicy
+) {
+  const found = [];
+  if (policy.schemaVersion !== 2) {
+    found.push(`unsupported Phone cross-chunk contract schema: ${policy.schemaVersion}`);
+    return found;
+  }
+  const reserved = new Set(policy.reservedPropertyNames);
+  for (const contract of policy.retainedObjectContracts ?? []) {
+    if (!contract.name || !Array.isArray(contract.callees) || contract.callees.length === 0) {
+      found.push('Phone cross-chunk retained object contract requires a name and callee');
+      continue;
+    }
+    if (!Array.isArray(contract.sourceSuffixes) || contract.sourceSuffixes.length === 0) {
+      found.push(`${contract.name}: retained object contract requires source paths`);
+    }
+    for (const property of contract.propertyNames ?? []) {
+      if (!reserved.has(property)) {
+        found.push(`${contract.name}: retained object field is missing from mangle reserve (${property})`);
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * React lazy components also exchange an object-shaped props/imperative-handle
+ * contract. It is valid only because every executable field is retained from
+ * property mangling; adding a field without declaring that protection fails
+ * before Rollup can split caller and callee into independent chunks.
+ */
+export function phoneLazyAdapterPropReserveViolations(
+  source,
+  policy = phoneCrossChunkContractPolicy
+) {
+  const found = [];
+  const reserved = new Set(policy.reservedPropertyNames);
+  const parsed = ts.createSourceFile(
+    'types.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const aliases = new Map();
+  for (const statement of parsed.statements) {
+    if (ts.isTypeAliasDeclaration(statement)) aliases.set(statement.name.text, statement);
+  }
+  const adapterAlias = /^Phone[A-Za-z0-9]*Adapter(?:Props|Handle)$/;
+  const fieldsFor = (type) => {
+    const fields = new Set();
+    const inspect = (candidate) => {
+      if (ts.isIntersectionTypeNode(candidate)) {
+        for (const child of candidate.types) inspect(child);
+        return;
+      }
+      if (ts.isTypeReferenceNode(candidate)) {
+        for (const argument of candidate.typeArguments ?? []) inspect(argument);
+        return;
+      }
+      if (!ts.isTypeLiteralNode(candidate)) return;
+      for (const member of candidate.members) {
+        if (!ts.isPropertySignature(member) && !ts.isMethodSignature(member)) continue;
+        if (!member.name) continue;
+        if (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) {
+          fields.add(member.name.text);
+        }
+      }
+    };
+    inspect(type);
+    return fields;
+  };
+  for (const [name, alias] of aliases) {
+    if (!adapterAlias.test(name)) continue;
+    for (const field of fieldsFor(alias.type)) {
+      if (!reserved.has(field)) {
+        found.push(`${name}: cross-chunk adapter field is missing from mangle reserve (${field})`);
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * Finds object literals passed into a lazy execution call. Parsing TS/TSX
+ * keeps JSX, CSS templates, and return literals out of this boundary check;
+ * only an actual CallExpression/NewExpression can enter the policy below.
+ */
+function unwrappedExpression(expression) {
+  let candidate = expression;
+  while (
+    ts.isParenthesizedExpression(candidate)
+    || ts.isAsExpression(candidate)
+    || ts.isTypeAssertionExpression(candidate)
+    || ts.isSatisfiesExpression(candidate)
+    || ts.isNonNullExpression(candidate)
+  ) {
+    candidate = candidate.expression;
+  }
+  return candidate;
+}
+
+function objectLiteralExpression(expression) {
+  const candidate = unwrappedExpression(expression);
+  return ts.isObjectLiteralExpression(candidate) ? candidate : null;
+}
+
+/**
+ * A raw boundary object cannot evade the policy merely by being named before
+ * the call (`const options = { ... }; createAdapter(options)`). Keep the
+ * nearest earlier literal binding so the same contract/field checks apply to
+ * direct and one-hop local-object invocations.
+ */
+function objectLiteralBindings(parsed) {
+  const bindings = new Map();
+  const visit = (node) => {
+    if (
+      ts.isVariableDeclaration(node)
+      && ts.isIdentifier(node.name)
+      && node.initializer
+    ) {
+      const object = objectLiteralExpression(node.initializer);
+      if (object || ts.isIdentifier(unwrappedExpression(node.initializer))) {
+        const declarations = bindings.get(node.name.text) ?? [];
+        declarations.push({
+          start: node.getStart(parsed),
+          initializer: node.initializer
+        });
+        bindings.set(node.name.text, declarations);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  return bindings;
+}
+
+function objectLiteralForExpression(expression, bindings, parsed, before, seen = new Set()) {
+  const direct = objectLiteralExpression(expression);
+  if (direct) return direct;
+  const candidate = unwrappedExpression(expression);
+  if (!ts.isIdentifier(candidate) || seen.has(candidate.text)) return null;
+  const declaration = (bindings.get(candidate.text) ?? [])
+    .filter((binding) => binding.start < before)
+    .at(-1);
+  if (!declaration) return null;
+  seen.add(candidate.text);
+  return objectLiteralForExpression(
+    declaration.initializer,
+    bindings,
+    parsed,
+    declaration.start,
+    seen
+  );
+}
+
+function callableName(node, parsed) {
+  return node.expression.getText(parsed).replaceAll('?.', '.');
+}
+
+/**
+ * A local bridge function is still a cross-chunk boundary if it forwards its
+ * parameter into an imported/runtime callable. Resolve those simple, named
+ * forwarding paths so `bridge({ ... })` cannot hide the object contract from
+ * the same gate that rejects a direct `runtime({ ... })` call.
+ */
+function localCallableForwardingTargets(parsed) {
+  const callables = new Map();
+  const collect = (node) => {
+    if (ts.isFunctionDeclaration(node) && node.name && node.body) {
+      callables.set(node.name.text, {
+        parameters: node.parameters,
+        body: node.body
+      });
+    }
+    if (
+      ts.isVariableDeclaration(node)
+      && ts.isIdentifier(node.name)
+      && node.initializer
+      && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+    ) {
+      callables.set(node.name.text, {
+        parameters: node.initializer.parameters,
+        body: node.initializer.body
+      });
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(parsed);
+
+  const forwarded = new Map();
+  for (const [name, callable] of callables) {
+    const parameterIndex = new Map();
+    callable.parameters.forEach((parameter, index) => {
+      if (ts.isIdentifier(parameter.name)) parameterIndex.set(parameter.name.text, index);
+    });
+    const edges = new Map();
+    const visit = (node) => {
+      if (
+        node !== callable.body
+        && (ts.isFunctionDeclaration(node)
+          || ts.isFunctionExpression(node)
+          || ts.isArrowFunction(node))
+      ) {
+        return;
+      }
+      if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+        const callee = callableName(node, parsed);
+        node.arguments.forEach((argument, argumentIndex) => {
+          const candidate = unwrappedExpression(argument);
+          if (!ts.isIdentifier(candidate)) return;
+          const sourceIndex = parameterIndex.get(candidate.text);
+          if (sourceIndex === undefined) return;
+          const targets = edges.get(sourceIndex) ?? [];
+          targets.push({ callee, argumentIndex });
+          edges.set(sourceIndex, targets);
+        });
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(callable.body);
+    forwarded.set(name, edges);
+  }
+
+  const resolve = (name, parameter, seen = new Set()) => {
+    const key = `${name}:${parameter}`;
+    if (seen.has(key)) return new Set();
+    seen.add(key);
+    const targets = new Set();
+    for (const edge of forwarded.get(name)?.get(parameter) ?? []) {
+      if (callables.has(edge.callee)) {
+        for (const nested of resolve(edge.callee, edge.argumentIndex, new Set(seen))) {
+          targets.add(nested);
+        }
+      } else {
+        targets.add(edge.callee);
+      }
+    }
+    return targets;
+  };
+
+  return { callables, resolve };
+}
+
+function rawObjectInvocations(source, file = 'phone.tsx') {
+  const parsed = ts.createSourceFile(
+    file,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  );
+  const bindings = objectLiteralBindings(parsed);
+  const forwarding = localCallableForwardingTargets(parsed);
+  const invocations = [];
+  const visit = (node) => {
+    if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+      const callee = callableName(node, parsed);
+      node.arguments.forEach((argument, argumentIndex) => {
+        const object = objectLiteralForExpression(
+          argument,
+          bindings,
+          parsed,
+          node.getStart(parsed)
+        );
+        if (!object) return;
+        invocations.push({ callee, object });
+        for (const target of forwarding.resolve(callee, argumentIndex)) {
+          invocations.push({ callee: target, object });
+        }
+      });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  return invocations;
+}
+
+function rawObjectInvocationCallees(source, file = 'phone.tsx') {
+  return new Set(rawObjectInvocations(source, file).map(({ callee }) => callee));
+}
+
+function localCallableNames(source, file = 'phone.tsx') {
+  const found = new Set();
+  const parsed = ts.createSourceFile(
+    file,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  );
+  const visit = (node) => {
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      found.add(node.name.text);
+    }
+    if (
+      ts.isVariableDeclaration(node)
+      && ts.isIdentifier(node.name)
+      && node.initializer
+      && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+    ) {
+      found.add(node.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  return found;
+}
+
+/** Object values may be stored in a local Set/Map without crossing a chunk. */
+function localCollectionMethodCallees(source, file = 'phone.tsx') {
+  const found = new Set();
+  const parsed = ts.createSourceFile(
+    file,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  );
+  const visit = (node) => {
+    if (
+      ts.isVariableDeclaration(node)
+      && ts.isIdentifier(node.name)
+      && node.initializer
+      && ts.isNewExpression(node.initializer)
+      && ts.isIdentifier(node.initializer.expression)
+      && ['Set', 'Map', 'WeakSet', 'WeakMap'].includes(node.initializer.expression.text)
+    ) {
+      for (const method of ['add', 'delete', 'set']) {
+        found.add(`${node.name.text}.${method}`);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  return found;
+}
+
+function rawObjectInvocationFields(source, callee, file = 'phone.tsx') {
+  const fields = new Set();
+  let hasSpread = false;
+  const collectValue = (value) => {
+    if (ts.isObjectLiteralExpression(value)) {
+      collectObject(value);
+    } else if (ts.isArrayLiteralExpression(value)) {
+      for (const item of value.elements) collectValue(item);
+    }
+  };
+  const collectObject = (object) => {
+    for (const property of object.properties) {
+      if (ts.isSpreadAssignment(property)) {
+        hasSpread = true;
+        continue;
+      }
+      if (!('name' in property) || !property.name) continue;
+      const name = ts.isIdentifier(property.name)
+        || ts.isStringLiteral(property.name)
+        || ts.isNumericLiteral(property.name)
+        ? property.name.text
+        : null;
+      if (!name) {
+        hasSpread = true;
+        continue;
+      }
+      fields.add(name);
+      if (ts.isPropertyAssignment(property)) collectValue(property.initializer);
+    }
+  };
+  for (const invocation of rawObjectInvocations(source, file)) {
+    if (invocation.callee === callee) collectObject(invocation.object);
+  }
+  return { fields, hasSpread };
+}
+
+const nonContractRawObjectCallees = new Set([
+  'Array.from',
+  'IntersectionObserver',
+  'Object.freeze',
+  'canvas.getContext',
+  'document.addEventListener',
+  'eventTarget.addEventListener',
+  'request.signal.addEventListener',
+  'signal.addEventListener',
+  'video.addEventListener',
+  'window.addEventListener'
+]);
+
 function hasFile(entries, target) {
   return entries.some(([file]) => path.normalize(file) === path.normalize(target));
 }
 
 function relativeFile(file) {
   return path.isAbsolute(file) ? display(file) : file.split(path.sep).join('/');
-}
-
-function sourceFor(entries, target) {
-  return entries.find(([file]) => path.normalize(file) === path.normalize(target))?.[1];
 }
 
 function functionBody(source, name) {
@@ -476,6 +877,195 @@ export function phoneRuntimePortBoundaryViolations(contextSource) {
   return found;
 }
 
+/**
+ * Terser applies the configured private-property mangling independently to
+ * emitted chunks. The authority core may build named reducer events locally,
+ * but every lazy execution boundary must use an ordered tuple or a runtime
+ * bridge instead of an object whose property names can diverge per chunk.
+ */
+export function phoneCrossChunkExecutionContractViolations(files) {
+  const entries = graphEntries(files).map((entry) => (
+    Array.isArray(entry) ? entry : [entry.file, entry.source]
+  ));
+  const found = phoneCrossChunkCompressionPolicyViolations();
+  const sourceForSuffix = (suffix) => entries.find(([file]) => (
+    file.split(path.sep).join('/').endsWith(suffix)
+  ))?.[1];
+  const adapterTypes = sourceForSuffix('src/production/phone/types.ts');
+  if (adapterTypes) {
+    found.push(...phoneLazyAdapterPropReserveViolations(adapterTypes));
+  }
+  const tupleContracts = [
+    ['src/production/phone/phone-story-state.ts', 'export type PhoneExecutionToken = readonly ['],
+    ['src/production/phone/phone-transition-coordinator.ts', 'export type PhoneIntent = readonly ['],
+    ['src/production/phone/phone-story-runtime.ts', 'export type PhoneCinematicSnapshot = readonly ['],
+    ['src/production/phone/phone-story-runtime.ts', 'export type PhoneCompositeSession = readonly ['],
+    ['src/production/phone/phone-story-runtime.ts', 'export type PhoneRuntimeScrollSample = readonly ['],
+    ['src/production/phone/types.ts', 'export type PhoneCinematicRequest = PhoneExecutionToken;'],
+    ['src/production/phone/usePhoneDocumentScrollRuntime.ts', 'export type PhoneDocumentScrollSample = readonly ['],
+    ['src/production/phone/phone-stage-timeline.ts', 'export type PhoneStageFrame = readonly ['],
+    ['src/production/phone/phone-composite-snapshot.ts', 'export type PhoneCompositeVisualProjection = readonly ['],
+    ['src/production/phone/phone-boundary-geometry.ts', 'export type PhoneBoundaryGeometryOwner = readonly ['],
+    ['src/production/phone/phone-lab-contact-timeline.ts', 'export type PhoneLabContactAutoplayEvent = readonly [']
+  ];
+  for (const [suffix, signature] of tupleContracts) {
+    const source = sourceForSuffix(suffix);
+    if (!source?.includes(signature)) {
+      found.push(`${path.basename(suffix)}: cross-chunk transport must remain positional (${signature})`);
+    }
+  }
+
+  const bridgeContracts = [
+    ['src/transitions/figure2-distance-expand/index.ts', 'export type PhoneFigure2DistanceExpandBridgeRequest = readonly ['],
+    ['src/transitions/shared/phone-ink-runtime.ts', 'export type PhoneInkRuntimeRequest = readonly ['],
+    ['src/transitions/shared/phone-ink-runtime.ts', 'export type PhoneFigure2DepthInkRuntimeRequest = readonly ['],
+    ['src/transitions/shared/phone-ink-runtime.ts', 'export type PhoneHeroRadialInkRequest = readonly ['],
+    ['src/production/phone/phone-timeline-runtime.ts', 'export type PhoneTimelineVideoInput = readonly ['],
+    ['src/production/phone/phone-ink.ts', 'export type PhoneInkTransitionRequest = readonly ['],
+    ['src/production/phone/transitions/PhoneInkTransition.tsx', 'export type PhoneInkAdapterRequest = readonly ['],
+    ['src/production/phone/scenes/usePhoneCinematicRun.ts', 'export type PhoneCinematicRunRequest = readonly ['],
+    ['src/production/phone/scenes/phone-packed-alpha-surface.ts', 'export type PhonePackedAlphaSurfaceRequest = readonly ['],
+    ['src/production/phone/phone-presented-reverse-playback.ts', 'export type PhonePresentedReversePlaybackRequest = readonly ['],
+    ['src/production/phone/transitions/PhoneEndpointTransition.ts', 'export type PhoneEndpointAdapterRequest = readonly ['],
+    ['src/scenes/figure3-animation/phone/paper-compositor.ts', 'export type PhoneFigure3PaperCompositorRequest = readonly ['],
+    ['src/scenes/figure3-animation/phone/reverse-playback.ts', 'export type PhoneFigure3ReversePlaybackRequest = readonly [']
+  ];
+  for (const [suffix, signature] of bridgeContracts) {
+    const source = sourceForSuffix(suffix);
+    if (source && !source.includes(signature)) {
+      found.push(`${suffix}: cross-chunk bridge must remain positional (${signature})`);
+    }
+  }
+
+  const rawIdentityCore = new Set([
+    'phone-story-state.ts',
+    'phone-story-orchestrator.ts',
+    'phone-orchestrated-session.ts'
+  ]);
+  const rawEventCore = new Set([
+    'phone-story-runtime.ts',
+    'phone-orchestrated-session.ts'
+  ]);
+  const phoneTimelineAdapterSuffixes = [
+    '/src/production/phone/scenes/PhoneHero.motion.ts',
+    '/src/production/phone/scenes/PhoneAod.tsx',
+    '/src/scenes/ttg-animation/phone/PhoneTtg.tsx',
+    '/src/scenes/ph-animation/phone/PhonePh.reverse.ts',
+    '/src/scenes/crane-animation/phone/PhoneCrane.autoplay.ts',
+    '/src/scenes/figure3-animation/phone/PhoneFigure3.tsx'
+  ];
+  for (const [file, source] of entries) {
+    const name = path.basename(file);
+    const normalized = file.split(path.sep).join('/');
+    const rawObjectCallees = rawObjectInvocationCallees(source, file);
+    const lazyExecutionAdapter = normalized.includes('/src/production/phone/transitions/')
+      || normalized.includes('/src/production/phone/scenes/')
+      || /\/src\/scenes\/[^/]+\/phone\//.test(normalized)
+      || /\/src\/transitions\/[^/]+\/phone\.(?:ts|tsx)$/.test(normalized);
+    if (
+      normalized.endsWith('/src/production/phone/phone-transition-coordinator.ts')
+      && rawObjectCallees.has('onIntent')
+    ) {
+      found.push(
+        `${name}: input bridge must use the PhoneIntent positional tuple, not a raw object`
+      );
+    }
+    if (!rawIdentityCore.has(name) && /\bPhoneExecutionIdentity\b/.test(source)) {
+      found.push(`${name}: raw PhoneExecutionIdentity is forbidden outside authority core`);
+    }
+    if (
+      !rawEventCore.has(name)
+      && [...rawObjectCallees].some((callee) => callee.endsWith('.dispatch'))
+    ) {
+      found.push(`${name}: raw dispatch object is forbidden outside runtime event core`);
+    }
+    if (
+      !rawEventCore.has(name)
+      && [...rawObjectCallees].some((callee) => /\.(?:begin|enter|reverse)$/.test(callee))
+    ) {
+      found.push(`${name}: raw cinematic request object is forbidden at execution boundary`);
+    }
+    if (lazyExecutionAdapter && /\b(?:create|use)Phone[A-Za-z0-9_]*\s*\(\s*\{/.test(source)) {
+      found.push(`${name}: raw create/usePhone object contract is forbidden at lazy execution boundary`);
+    }
+    if (lazyExecutionAdapter && /\bcreateFigure2DistanceExpandTransition\s*\(\s*\{/.test(source)) {
+      found.push(`${name}: raw Figure2 transition builder object is forbidden at lazy execution boundary`);
+    }
+    if (lazyExecutionAdapter && /\.buildTimeline\s*\(\s*\{/.test(source)) {
+      found.push(`${name}: raw timeline context object is forbidden at lazy execution boundary`);
+    }
+    if (
+      normalized.endsWith('/src/production/phone/phone-ink.ts')
+      && /\b(?:createInkFieldRenderer|mountTransitionInkCanvas|createInkFieldFrame|applyConcealBoundary|applyRevealBoundary)\s*\(/.test(source)
+    ) {
+      found.push(`${name}: Phone ink must delegate renderer objects through phone-ink-runtime`);
+    }
+    if (
+      normalized.endsWith('/src/transitions/figure2-distance-expand/index.ts')
+      && /\b(?:createInkFieldRenderer|mountTransitionInkCanvas|createInkFieldFrame)\s*\(/.test(source)
+    ) {
+      found.push(`${name}: Figure2 depth ink must delegate renderer objects through phone-ink-runtime`);
+    }
+    if (
+      normalized.endsWith('/src/production/phone/scenes/PhoneHero.tsx')
+      && /\bcreateRadialInkIntroController\s*\(\s*\{/.test(source)
+    ) {
+      found.push(`${name}: Hero radial ink must delegate field objects through phone-ink-runtime`);
+    }
+    if (
+      phoneTimelineAdapterSuffixes.some((suffix) => normalized.endsWith(suffix))
+      && /\b(?:driveTimelineVideo|prepareTimelineVideoFrame|disposeTimelineVideoDriver|timelineVideoDriverFor|TimelineVideoDriveInput)\b/.test(source)
+    ) {
+      found.push(`${name}: Timeline driver data must use phone-timeline-runtime tuples`);
+    }
+    if (lazyExecutionAdapter) {
+      const localCallables = localCallableNames(source, file);
+      const localCollectionCalls = localCollectionMethodCallees(source, file);
+      for (const callee of rawObjectCallees) {
+        if (
+          localCallables.has(callee)
+          || localCollectionCalls.has(callee)
+          || nonContractRawObjectCallees.has(callee)
+        ) {
+          continue;
+        }
+        const matchingPolicies = phoneCrossChunkContractPolicy.retainedObjectContracts.filter(
+          (contract) => contract.callees.includes(callee)
+        );
+        const allowedPolicies = matchingPolicies.filter((contract) => (
+          contract.sourceSuffixes.some((suffix) => normalized.endsWith(`/${suffix}`))
+        ));
+        if (allowedPolicies.length === 0) {
+          const policyPhrase = matchingPolicies.length > 0
+            ? 'without a retained policy or tuple bridge'
+            : 'without a tuple bridge or retained policy';
+          found.push(
+            `${name}: raw ${callee} object contract is forbidden ${policyPhrase}`
+          );
+          continue;
+        }
+        const retainedFields = new Set(allowedPolicies.flatMap(
+          (contract) => contract.propertyNames
+        ));
+        const invocation = rawObjectInvocationFields(source, callee, file);
+        if (invocation.hasSpread) {
+          found.push(
+            `${name}: raw ${callee} object contract must not use object spread; use explicit retained fields or a tuple bridge`
+          );
+        }
+        for (const field of invocation.fields) {
+          if (!retainedFields.has(field)) {
+            found.push(
+              `${name}: raw ${callee} field ${field} is missing from retained policy`
+            );
+          }
+        }
+      }
+    }
+  }
+  return found;
+}
+
 function isFile(file, expected) {
   return path.normalize(file) === path.normalize(expected)
     || path.basename(file) === path.basename(expected);
@@ -675,6 +1265,15 @@ violations.push(...phoneRunAnchorResolverViolations({
   definitionsSource: await readFile(phoneRunDefinitionsPath, 'utf8'),
   resolverSource: await readFile(phoneRunLandingPath, 'utf8')
 }));
+
+const crossChunkExecutionFiles = [
+  ...(await filesBelow(phoneDir)).filter((file) => !/\.(?:test|spec)\.(?:ts|tsx)$/.test(file)),
+  ...phoneLazyExecutionPaths
+];
+const crossChunkExecutionGraph = await literalModuleGraph(crossChunkExecutionFiles);
+violations.push(...phoneCrossChunkExecutionContractViolations(
+  graphEntries(crossChunkExecutionGraph).map(([file, source]) => ({ file, source }))
+));
 
 if (!formalPhoneGraphEntries.some(([file]) => isFile(file, phoneRuntimePath))) {
   violations.push(`${display(phoneRuntimePath)}: formal graph must use the route-local runtime factory`);

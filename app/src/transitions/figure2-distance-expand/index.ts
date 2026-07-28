@@ -15,8 +15,13 @@ import { figure2ProofPanelElement } from '../../scenes/figure2-proof';
 import { applyLayerVisibility, hiddenVisibility, holdVisibility, range01, smoothStep } from '../../pilot/visibility';
 import type {
   Direction,
+  LayerHandle,
   LayerVisibilityState,
+  PrepareToken,
+  SceneId,
+  SegmentRunId,
   SegmentTimelineHandle,
+  StageHandle,
   StagedLegPreparation,
   TransitionContext,
   TransitionModule
@@ -30,18 +35,14 @@ import {
   type DepthThresholdMask
 } from '../shared/depthThresholdMask';
 import {
-  createInkFieldFrame,
   inkOwnershipGateProgress,
   type InkDepthTransform
 } from '../shared/inkField';
 import {
-  createInkFieldRenderer,
-  InkRendererRunError,
-  mountTransitionInkCanvas,
-  productionInkRendererRequired,
-  type InkRendererFailure,
-  type InkFieldRenderer
-} from '../shared/sceneInk';
+  createPhoneFigure2DepthInkRuntimeBridge,
+  type PhoneFigure2DepthInkRuntimeBridge,
+  type PhoneFigure2DepthTransformRequest
+} from '../shared/phone-ink-runtime';
 
 const FIGURE2_DEPTH_IMAGE = new URL('../../../../assets/figure2-middle-depth.webp', import.meta.url).href;
 const FIGURE2_DEPTH_MASK_ATLAS = new URL(
@@ -56,8 +57,69 @@ type Figure2ProofSample = {
   to: LayerVisibilityState;
 };
 
+/**
+ * Positional construction request for the Phone-only bridge. The Phone
+ * adapter is a lazy chunk while this authored timeline is a shared chunk, so
+ * neither a TransitionContext nor its Layer/Stage handles may cross here.
+ */
+export type PhoneFigure2DistanceExpandBridgeRequest = readonly [
+  from: HTMLElement,
+  to: HTMLElement,
+  direction: Direction,
+  runId: SegmentRunId,
+  prepareToken: PrepareToken,
+  prefersReducedMotion: boolean,
+  inkCanvas: HTMLCanvasElement
+];
+
+export type PhoneFigure2DistanceExpandBridgeCommand =
+  | readonly ['render', progress: number]
+  | readonly [
+      'prepare',
+      runId: SegmentRunId,
+      direction: Direction,
+      legIndex: number,
+      from: number,
+      to: number,
+      durationMs: number,
+      signal: AbortSignal
+    ]
+  | readonly [
+      'commit',
+      runId: SegmentRunId,
+      direction: Direction,
+      legIndex: number,
+      from: number,
+      to: number,
+      durationMs: number,
+      signal: AbortSignal
+    ]
+  | readonly ['dispose'];
+
+export type PhoneFigure2DistanceExpandBridge = (
+  command: PhoneFigure2DistanceExpandBridgeCommand
+) => Promise<void> | void;
+
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function phoneFigure2DepthTransformRequest(
+  transform: InkDepthTransform
+): PhoneFigure2DepthTransformRequest {
+  return [
+    transform.viewport.width,
+    transform.viewport.height,
+    transform.cover.x,
+    transform.cover.y,
+    transform.cover.width,
+    transform.cover.height,
+    transform.camera.scale,
+    transform.camera.translateX,
+    transform.camera.translateY,
+    transform.camera.originX,
+    transform.camera.originY
+  ];
 }
 
 function sceneRoot(element: HTMLElement | null | undefined, scene: string): HTMLElement | null {
@@ -98,6 +160,112 @@ function clearTransitionAttrs(element: HTMLElement | null | undefined): void {
   element.removeAttribute('data-figure2-proof-transition-progress');
   element.removeAttribute('data-figure2-proof-reveal-progress');
   element.removeAttribute('data-figure2-proof-mask-values');
+}
+
+function phoneFigure2Layer(scene: SceneId, element: HTMLElement): LayerHandle {
+  const layer: LayerHandle = {
+    scene,
+    role: 'current',
+    element,
+    visibility: {
+      mounted: true,
+      visible: scene === 'figure2-animation',
+      inert: true,
+      opacity: scene === 'figure2-animation' ? 1 : 0,
+      pointerEvents: 'none'
+    },
+    setVisibility(state) {
+      layer.visibility = state;
+    },
+    dispose() {}
+  };
+  return layer;
+}
+
+function phoneFigure2Stage(layers: readonly LayerHandle[]): StageHandle {
+  const getLayer = (scene: SceneId) => layers.find((layer) => layer.scene === scene);
+  return {
+    getLayer,
+    ensureLayer(scene) {
+      const layer = getLayer(scene);
+      if (!layer) throw new Error(scene);
+      return layer;
+    },
+    releaseLayer() {},
+    snapshot: () => layers
+  };
+}
+
+function phoneFigure2Leg(
+  [, runId, direction, legIndex, from, to, durationMs, signal]: Extract<
+    PhoneFigure2DistanceExpandBridgeCommand,
+    readonly ['prepare' | 'commit', ...unknown[]]
+  >
+): StagedLegPreparation {
+  return {
+    runId,
+    segment: 'figure2-distance-expand',
+    direction,
+    legIndex,
+    from,
+    to,
+    durationMs,
+    signal
+  };
+}
+
+/**
+ * Runtime bridge for the lazily loaded Phone adapter. The returned callable
+ * exposes only ordered commands; all named timeline data is assembled and
+ * consumed inside this shared chunk.
+ */
+export async function createPhoneFigure2DistanceExpandBridge(
+  [
+    fromElement,
+    toElement,
+    direction,
+    runId,
+    prepareToken,
+    prefersReducedMotion,
+    inkCanvas
+  ]: PhoneFigure2DistanceExpandBridgeRequest
+): Promise<PhoneFigure2DistanceExpandBridge> {
+  const from = phoneFigure2Layer('figure2-animation', fromElement);
+  const to = phoneFigure2Layer('figure2-proof', toElement);
+  const timeline = await createFigure2DistanceExpandTransition({
+    ownsMedia: false,
+    inkCanvas
+  }).buildTimeline({
+    segment: FIGURE2_DISTANCE_EXPAND_SEGMENT,
+    stage: phoneFigure2Stage([from, to]),
+    from,
+    to,
+    direction,
+    runId,
+    prepareToken,
+    prefersReducedMotion,
+    reportMilestone() {}
+  });
+  let disposed = false;
+  return (command) => {
+    if (command[0] === 'dispose') {
+      if (!disposed) {
+        disposed = true;
+        timeline.dispose();
+      }
+      return;
+    }
+    if (disposed) return;
+    if (command[0] === 'render') {
+      timeline.progress(command[1]);
+      return;
+    }
+    const leg = phoneFigure2Leg(command);
+    if (command[0] === 'prepare') {
+      return timeline.prepareLeg?.(leg);
+    }
+    timeline.commitLeg?.(leg);
+  };
 }
 
 export function figure2ProofRevealProgress(progress: number): number {
@@ -141,11 +309,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   private readonly elevation: TransitionLayerElevation;
   private readonly depthMask: DepthThresholdMask | null;
   private readonly inkCanvas: HTMLCanvasElement | null;
-  private readonly inkRenderer: InkFieldRenderer | null;
-  private readonly inkGeneration: string;
-  private readonly inkRendererRequired: boolean;
-  private readonly ownsInkCanvas: boolean;
-  private inkRendererFailure: InkRendererFailure | null = null;
+  private readonly inkRuntime: PhoneFigure2DepthInkRuntimeBridge;
   private mediaRun: Figure2MediaPreparation | undefined;
 
   constructor(
@@ -154,12 +318,10 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     inkCanvas?: HTMLCanvasElement
   ) {
     const generation = `${context.runId}:${context.prepareToken}`;
-    this.inkGeneration = generation;
     this.pauses = context.segment.policy.kind === 'stagedSnap'
       && context.segment.policy.advance[0]?.kind === 'gesture'
       ? ['stage:0']
       : [];
-    this.inkRendererRequired = productionInkRendererRequired(context.prefersReducedMotion);
     this.playbackDirection = context.direction;
     const fromRoot = sceneRoot(context.from.element, 'figure2-animation');
     const stage = sharedStageHost(context);
@@ -191,31 +353,29 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       runId: context.runId,
       transform: terminalTransform
     });
-    this.ownsInkCanvas = !inkCanvas;
-    this.inkCanvas = mountTransitionInkCanvas(stage, 'figure2-distance-expand', {
-      renderer: 'field',
-      grade: 'edge-only',
+    this.inkRuntime = createPhoneFigure2DepthInkRuntimeBridge([
+      stage,
+      inkCanvas ?? null,
+      'figure2-distance-expand',
       generation,
-      className: 'r4-figure2-proof-ink-canvas'
-    }, inkCanvas);
-    this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.inkCanvas, {
-      fieldKind: 'depth',
-      grade: 'edge-only',
-      generation,
-      removeCanvasOnDestroy: this.ownsInkCanvas,
-      loseContextOnDestroy: this.ownsInkCanvas,
-      onInvalidated: (failure) => {
-        this.inkRendererFailure = failure;
-      }
-    });
-    if (this.inkRendererRequired && !this.inkRenderer) {
+      context.prefersReducedMotion,
+      FIGURE2_DEPTH_IMAGE,
+      'figure2-distance-expand',
+      'r4-figure2-proof-ink-canvas'
+    ]);
+    this.inkCanvas = this.inkRuntime(['canvas']) as HTMLCanvasElement | null;
+    try {
+      this.inkRuntime(['assert']);
+      this.inkRuntime([
+        'prewarm',
+        0.003,
+        phoneFigure2DepthTransformRequest(terminalTransform)
+      ]);
+    } catch (error) {
       this.depthMask?.dispose();
       this.elevation.restore();
-      if (this.ownsInkCanvas) this.inkCanvas?.remove();
-      throw this.inkRendererError();
+      throw error;
     }
-    this.assertInkRendererReady();
-    this.inkRenderer?.prewarm(this.depthFrame(0.003, terminalTransform));
     renderProofOpeningHold(figure2ProofPanelElement(sceneRoot(context.to.element, 'figure2-proof'), 'opening'));
     this.progress(context.direction === 1 ? 0 : 1);
   }
@@ -232,7 +392,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     if (this.disposed) {
       throw new Error('Figure2 timeline was disposed during leg preparation');
     }
-    this.assertInkRendererReady();
+    this.inkRuntime(['assert']);
     const lower = Math.min(leg.from, leg.to);
     const upper = Math.max(leg.from, leg.to);
     const epsilon = 0.001;
@@ -322,7 +482,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     if (this.disposed) {
       return;
     }
-    this.assertInkRendererReady();
+    this.inkRuntime(['assert']);
     const clamped = clamp(value);
     if (clamped > this.progressValue + 0.0001) {
       this.playbackDirection = 1;
@@ -350,32 +510,12 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       }
     });
     const depthOwnership = inkOwnershipGateProgress(reveal);
-    const fieldVisible = reveal > 0.002 && reveal < 0.999;
     this.depthMask?.render(depthOwnership, figureState.depthTransform);
-    const inkFrame = this.depthFrame(reveal, figureState.depthTransform);
-    if (this.inkCanvas) {
-      const active = fieldVisible && Boolean(this.inkRenderer?.isActive());
-      if (fieldVisible) {
-        if (active) {
-          this.inkCanvas.dataset.r4InkActive = 'true';
-        } else {
-          delete this.inkCanvas.dataset.r4InkActive;
-        }
-        this.inkCanvas.dataset.r4InkProgress = reveal.toFixed(4);
-        this.inkCanvas.dataset.r4InkBoundaryKind = 'depth';
-        this.inkCanvas.dataset.r4InkBoundaryOrigin = '0.5000,0.5000';
-        this.inkCanvas.dataset.r4InkBoundaryProgress = reveal.toFixed(4);
-        this.inkCanvas.dataset.r4InkFieldSeed = String(inkFrame.seed);
-      } else {
-        delete this.inkCanvas.dataset.r4InkActive;
-        delete this.inkCanvas.dataset.r4InkProgress;
-        delete this.inkCanvas.dataset.r4InkBoundaryKind;
-        delete this.inkCanvas.dataset.r4InkBoundaryOrigin;
-        delete this.inkCanvas.dataset.r4InkBoundaryProgress;
-        delete this.inkCanvas.dataset.r4InkFieldSeed;
-      }
-    }
-    this.inkRenderer?.render(inkFrame);
+    this.inkRuntime([
+      'render',
+      reveal,
+      phoneFigure2DepthTransformRequest(figureState.depthTransform)
+    ]);
     const valueDomain = depthOwnership <= 0 ? '0' : depthOwnership >= 1 ? '1' : '1,0';
 
     this.context.to.element?.setAttribute('data-r4-transition', 'figure2-proof-binary-depth');
@@ -417,8 +557,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
-    this.inkRenderer?.destroy();
-    if (this.ownsInkCanvas) this.inkCanvas?.remove();
+    this.inkRuntime(['dispose']);
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     renderFigure2AnimationProgress(
       fromRoot,
@@ -443,29 +582,13 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     clearTransitionAttrs(sceneRoot(this.context.to.element, 'figure2-proof'));
   }
 
-  private depthFrame(
-    progress: number,
-    transform: InkDepthTransform
-  ) {
-    return createInkFieldFrame(
-      {
-        kind: 'depth',
-        depthSrc: FIGURE2_DEPTH_IMAGE,
-        seed: 'figure2-distance-expand',
-        transform
-      },
-      progress,
-      transform.viewport
-    );
-  }
-
   private async armDepthMask(): Promise<void> {
     if (this.depthMask && !this.depthMask.committed()) {
       await this.depthMask.ready;
       if (this.disposed) {
         throw new Error('Figure2 depth mask became stale before commit');
       }
-      this.assertInkRendererReady();
+      this.inkRuntime(['assert']);
       this.depthMask.commit();
     }
     if (!this.reportedTimelineReady) {
@@ -477,24 +600,6 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
         direction: this.context.direction,
         progress: this.progressValue
       });
-    }
-  }
-
-  private inkRendererError(): InkRendererRunError {
-    return new InkRendererRunError('figure2-distance-expand', this.inkRendererFailure ?? {
-      generation: this.inkGeneration,
-      reason: 'unavailable'
-    });
-  }
-
-  private assertInkRendererReady(): void {
-    if (!this.inkRendererRequired) {
-      return;
-    }
-    const active = this.inkRenderer?.isActive() ?? false;
-    this.inkRendererFailure ??= this.inkRenderer?.getFailure() ?? null;
-    if (!active || this.inkRendererFailure) {
-      throw this.inkRendererError();
     }
   }
 

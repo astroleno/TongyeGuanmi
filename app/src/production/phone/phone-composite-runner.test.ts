@@ -110,13 +110,13 @@ function session(
   };
   return Object.assign(value, {
     identity() {
-      return {
-        authorityId: value.authorityId,
-        sessionId: value.sessionId,
-        generation: value.generation,
-        leg: value.leg,
-        direction: value.direction
-      } as const;
+      return [
+        value.authorityId,
+        value.sessionId,
+        value.generation,
+        value.leg,
+        value.direction
+      ] as const;
     },
     flushRelease() {
       active.value = false;
@@ -307,9 +307,7 @@ describe('phone composite runner snapshot execution', () => {
 
     expect(runtime.registered.capability().start(1, activeSession)).toBe(true);
     await vi.waitFor(() => {
-      expect(runtime.entry.begin).toHaveBeenCalledWith({
-        identity: activeSession.identity()
-      });
+      expect(runtime.entry.begin).toHaveBeenCalledWith(activeSession.identity());
     });
     clock.flush(0);
     clock.flush(700);
@@ -344,6 +342,21 @@ describe('phone composite runner snapshot execution', () => {
     clock.flush(1);
     clock.flush(701);
     expect(runtime.visual.update).toHaveBeenLastCalledWith(0);
+    expect(runtime.visual.leave).toHaveBeenCalledOnce();
+    activeSession.flushRelease();
+    expect(runtime.capabilities.retained()).toEqual([]);
+  });
+
+  it('releases a reverse-prepared visual at the reduced-motion terminal endpoint', async () => {
+    installWindow();
+    const runtime = fullRunner(true);
+    const activeSession = session(-1, 1);
+
+    expect(runtime.registered.capability().start(-1, activeSession)).toBe(true);
+    await vi.waitFor(() => {
+      expect(runtime.visual.leave).toHaveBeenCalledOnce();
+    });
+    expect(runtime.visual.update).toHaveBeenLastCalledWith(0);
     activeSession.flushRelease();
     expect(runtime.capabilities.retained()).toEqual([]);
   });
@@ -358,14 +371,15 @@ describe('phone composite runner snapshot execution', () => {
     });
     const identity = runtime.runner.execution('ph-animation');
     expect(identity).not.toBeNull();
-    runtime.runner.progressMedia('ph-animation', {
-      ...identity!,
-      generation: identity!.generation + 1
-    }, .8);
-    runtime.runner.completeMedia('ph-animation', {
-      ...identity!,
-      generation: identity!.generation + 1
-    });
+    const stale = [
+      identity![0],
+      identity![1],
+      identity![2] + 1,
+      identity![3],
+      identity![4]
+    ] as const;
+    runtime.runner.progressMedia('ph-animation', stale, .8);
+    runtime.runner.completeMedia('ph-animation', stale);
 
     expect(activeSession.reportProgress).not.toHaveBeenCalledWith(.8);
     expect(activeSession.reportEndpointCommit).not.toHaveBeenCalledWith('receiver');

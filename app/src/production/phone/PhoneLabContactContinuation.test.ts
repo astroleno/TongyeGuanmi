@@ -64,6 +64,26 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).toContain("'group67:crane'");
   });
 
+  it('resolves Group67 canonical boundaries from route-owned DOM markers when a lazy ref is unavailable', () => {
+    expect(source).toContain("root.querySelector<HTMLElement>('#ph-animation')");
+    expect(source).toContain("root.querySelector<HTMLElement>('#crane-animation')");
+  });
+
+  it('keeps direct Group67 landing behind the full upstream document geometry gate', () => {
+    expect(source).toContain("data-phone-group45-document-geometry=\"ready\"");
+    expect(source).toContain('phoneDirectEntryGeometryReady([');
+    expect(source).toContain('if (!directEntryGeometryReady()) return null;');
+  });
+
+  it('uses the persistent stage canvas as coverage root for every Group 67 surface', () => {
+    expect(source).toMatch(
+      /`native:\$\{scene\}`,[\s\S]*?\(\) => rootForScene\(scene\),\s*\(\) => stageHost,/
+    );
+    expect(source).toMatch(
+      /id,[\s\S]*?\(\) => ref\.current\?\.root\(\) \?\? null,\s*\(\) => stageHost,/
+    );
+  });
+
   it('asks the orchestrator to recommit stable roles when lazy adapters bind', () => {
     expect(source).toContain('syncPhoneRuntimeDiagnostics(orchestrator)');
     expect(source).not.toContain('publishStableRoles(currentSceneRef.current)');
@@ -75,8 +95,8 @@ describe('PhoneLabContactContinuation recovery contract', () => {
       'const prepareTarget = config.visual.prepareTargetPresentation'
     );
     expect(compositeRunnerSource).toContain('await prepareTarget({');
-    expect(source).toContain("detail.phase === 'failed'");
-    expect(source).toContain('runner.failMedia(detail.scene, identity)');
+    expect(source).toContain("if (phase === 'failed')");
+    expect(source).toContain('runner.failMedia(scene, identity)');
     expect(compositeRunnerSource).toContain('rollback(resource)');
     expect(compositeRunnerSource).toContain('resource.session[13]()');
     expect(source).toContain('phoneLabContactVisualProjection(');
@@ -88,7 +108,8 @@ describe('PhoneLabContactContinuation recovery contract', () => {
   });
 
   it('rejects nullable or current-session media labels instead of relabeling stale events', () => {
-    expect(source).toContain('phoneLabContactAutoplayIdentity(detail)');
+    expect(source).toContain('phoneLabContactAutoplayToken(detail)');
+    expect(source).toContain('const [scene, phase, direction, , progress] = detail;');
     expect(source).not.toContain('runner.execution(detail.scene)');
   });
 

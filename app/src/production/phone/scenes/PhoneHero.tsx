@@ -13,16 +13,16 @@ import {
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
 import {
-  HERO_RADIAL_INK_FIELD,
+  HERO_RADIAL_INK_REQUEST,
   renderHeroProgress,
   sampleHeroIntro,
   startHeroIntro
 } from '../../../scenes/hero/motion';
 import { HOME_COPY } from '../../../story/copy';
 import {
-  createRadialInkIntroController,
-  type RadialInkIntroController
-} from '../../../transitions/shared/radialInkIntro';
+  createPhoneHeroRadialInkBridge,
+  type PhoneHeroRadialInkBridge
+} from '../../../transitions/shared/phone-ink-runtime';
 import {
   attachPhoneDeviceParallax,
   createPhoneFigurePlayback,
@@ -73,7 +73,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     const playbackRef = useRef<PhoneFigurePlayback | undefined>(undefined);
     const compositorRef = useRef<PackedAlphaVideoCompositor | undefined>(undefined);
     const parallaxRef = useRef<PhoneDeviceParallax | undefined>(undefined);
-    const introInkRef = useRef<RadialInkIntroController | undefined>(undefined);
+    const introInkRef = useRef<PhoneHeroRadialInkBridge | undefined>(undefined);
     const disposeEntranceRef = useRef<(() => void) | undefined>(undefined);
     const textRevealFrameRef = useRef<number | undefined>(undefined);
     const sceneActiveRef = useRef(false);
@@ -111,6 +111,28 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     const storyRoot = useCallback(() => (
       rootRef.current?.closest<HTMLElement>('.portrait-scroll-spike') ?? rootRef.current
     ), []);
+    // Mounting the full reversible graph for a direct downstream entry must
+    // not claim Hero's two WebGL contexts. The adapter is always present for
+    // reverse travel, while its GPU owners remain cold until Hero is active.
+    const ensureIntroInk = useCallback(() => {
+      if (reducedMotion || introInkRef.current) return introInkRef.current;
+      const root = rootRef.current;
+      const backImage = backImageRef.current;
+      const introInkCanvas = introInkCanvasRef.current;
+      if (!root || !backImage || !introInkCanvas) return undefined;
+      const introInk = createPhoneHeroRadialInkBridge([
+        introInkCanvas,
+        backImage,
+        backImage,
+        HERO_RADIAL_INK_REQUEST[0],
+        HERO_RADIAL_INK_REQUEST[1],
+        HERO_RADIAL_INK_REQUEST[2],
+        'portrait-spike:hero-intro',
+        root
+      ]);
+      introInkRef.current = introInk;
+      return introInk;
+    }, [reducedMotion]);
     const cancelTextRevealFrame = useCallback(() => {
       if (textRevealFrameRef.current === undefined) return;
       window.cancelAnimationFrame(textRevealFrameRef.current);
@@ -128,7 +150,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       const sample = sampleHeroIntro(rawProgress);
       const owner = storyRoot();
       renderHeroProgress(root, sample.progress);
-      introInkRef.current?.render(sample.progress);
+      ensureIntroInk()?.(['render', sample.progress]);
       if (owner) {
         owner.dataset.portraitHeroEntrance = sample.complete ? 'complete' : 'playing';
         if (sample.complete) {
@@ -140,7 +162,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       if (sample.titleActive) {
         setTitleActive(true);
       }
-    }, [motionDriver, storyRoot]);
+    }, [ensureIntroInk, motionDriver, storyRoot]);
     const completeEntrance = useCallback(() => {
       cancelEntrance();
       renderEntrance(1);
@@ -175,8 +197,6 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
 
     useLayoutEffect(() => {
       const root = rootRef.current;
-      const backImage = backImageRef.current;
-      const introInkCanvas = introInkCanvasRef.current;
       const backParallax = backParallaxRef.current;
       const middleParallax = middleParallaxRef.current;
       const figureParallax = figureParallaxRef.current;
@@ -184,8 +204,6 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       const figureCanvas = figureCanvasRef.current;
       if (
         !root
-        || !backImage
-        || !introInkCanvas
         || !backParallax
         || !middleParallax
         || !figureParallax
@@ -202,9 +220,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           cancelEntrance();
         };
       }
-
       const owner = storyRoot() ?? root;
-      ensureCompositor();
       const playback = createPhoneFigurePlayback(
         figureVideo,
         HERO_FIGURE_PACKED_ALPHA_VIDEO
@@ -218,26 +234,8 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           { element: figureParallax, x: 22, y: 16 }
         ]
       });
-      const introInk = createRadialInkIntroController({
-        canvas: introInkCanvas,
-        revealSurface: backImage,
-        targetImage: backImage,
-        field: HERO_RADIAL_INK_FIELD,
-        generation: 'portrait-spike:hero-intro',
-        viewport: () => ({
-          width: root.clientWidth || window.innerWidth,
-          height: root.clientHeight || window.innerHeight
-        })
-      });
-
       playbackRef.current = playback;
       parallaxRef.current = parallax;
-      introInkRef.current = introInk;
-      introInk.prewarm();
-      // The fixed stage deliberately primes for two visible frames before its
-      // runtime registers. Prime Hero at the authored ink origin now so those
-      // frames cannot expose the completed scene before startEntrance().
-      renderEntrance(0);
       onReady?.();
 
       return () => {
@@ -247,27 +245,30 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         parallax.dispose();
         playback.dispose();
         releaseCompositor();
-        introInk.dispose();
+        introInkRef.current?.(['dispose']);
         if (parallaxRef.current === parallax) parallaxRef.current = undefined;
         if (playbackRef.current === playback) playbackRef.current = undefined;
-        if (introInkRef.current === introInk) introInkRef.current = undefined;
+        introInkRef.current = undefined;
       };
     }, [
       cancelEntrance,
       motionDriver,
       onReady,
       reducedMotion,
-      ensureCompositor,
       releaseCompositor,
-      renderEntrance,
       storyRoot
     ]);
 
     useLayoutEffect(() => {
       sceneActiveRef.current = active;
-      compositorRef.current?.setActive(active && !reducedMotion);
+      if (active && !reducedMotion) {
+        ensureCompositor()?.setActive(true);
+        ensureIntroInk()?.(['prewarm']);
+      } else {
+        compositorRef.current?.setActive(false);
+      }
       playbackRef.current?.setActive(active && !reducedMotion);
-    }, [active, reducedMotion]);
+    }, [active, ensureCompositor, ensureIntroInk, reducedMotion]);
 
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,

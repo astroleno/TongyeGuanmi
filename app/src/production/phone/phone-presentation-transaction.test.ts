@@ -47,12 +47,7 @@ describe('phone presentation transaction', () => {
       landing: () => 100
     });
 
-    expect(orchestrator.resolveIntent({
-      inputEpoch: 1,
-      direction: 1,
-      startY: 0,
-      projectedY: 120
-    })).toBe('claim-boundary');
+    expect(orchestrator.resolveIntent([1, 1, 0, 120])).toBe('claim-boundary');
     session?.reportPresentedFrame();
     session?.reportEndpointCommit('receiver');
     session?.reportPresentedFrame();

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FRONT_HALF_CHECKPOINT_IDS } from '../../story/semantic-checkpoints';
+import * as phoneStageTimeline from './phone-stage-timeline';
 import {
   PHONE_STAGE_STOPS,
   frontHalfCheckpointIndex,
@@ -13,14 +14,14 @@ import {
 describe('phone stage timeline', () => {
   it('maps the accepted forward Route B stops to named checkpoints', () => {
     const trace = [
-      phoneStageFrame(0).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.heroMotionEnd + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.heroPatternEnd + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.patternStarStart + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.patternStarEnd + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.starAodStart + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.starAodEnd + 0.01).checkpoint,
-      phoneStageFrame(1).checkpoint
+      phoneStageFrame(0)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.heroMotionEnd + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.heroPatternEnd + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.patternStarStart + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.patternStarEnd + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.starAodStart + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.starAodEnd + 0.01)[1],
+      phoneStageFrame(1)[1]
     ];
     expect(trace).toEqual([
       'hero-entered',
@@ -38,20 +39,31 @@ describe('phone stage timeline', () => {
     const stops = Object.values(PHONE_STAGE_STOPS);
     expect(stops).toEqual([...stops].sort((left, right) => left - right));
     const reverse = [1, 0.8, 0.7, 0.6, 0.5, 0.2, 0]
-      .map((progress) => phoneStageFrame(progress).checkpoint)
+      .map((progress) => phoneStageFrame(progress)[1])
       .map(frontHalfCheckpointIndex);
     expect(reverse).toEqual([...reverse].sort((left, right) => right - left));
     expect(frontHalfCheckpointIndex('method-intro')).toBe(FRONT_HALF_CHECKPOINT_IDS.length - 1);
   });
 
   it('uses static endpoints for reduced motion without changing semantic order', () => {
-    expect(phoneStageFrame(0.3, true)).toMatchObject({
-      checkpoint: 'pattern-complete',
-      ownership: { visible: ['pattern'] }
-    });
-    expect(phoneStageFrame(0.9, true)).toMatchObject({
-      checkpoint: 'aod-stage',
-      ownership: { visible: ['aod-animation'] }
+    expect(phoneStageFrame(0.3, true).slice(1, 3)).toEqual([
+      'pattern-complete',
+      'pattern'
+    ]);
+    expect(phoneStageFrame(0.3, true)[10]).toBe('hold-pattern');
+    expect(phoneStageFrame(0.9, true).slice(1, 3)).toEqual([
+      'aod-stage',
+      'aod-animation'
+    ]);
+    expect(phoneStageFrame(0.9, true)[10]).toBe('hold-aod');
+    expect(phoneFrontRailSample(
+      (PHONE_STAGE_STOPS.heroMotionEnd + PHONE_STAGE_STOPS.heroPatternEnd) / 2,
+      1,
+      true
+    )).toEqual({
+      scene: 'hero',
+      progress: (PHONE_STAGE_STOPS.heroMotionEnd + PHONE_STAGE_STOPS.heroPatternEnd) / 2,
+      direction: 1
     });
   });
 
@@ -63,7 +75,11 @@ describe('phone stage timeline', () => {
       'figure3-animation',
       'services',
       'ttg-animation',
-      'lab'
+      'lab',
+      'ph-animation',
+      'education',
+      'crane-animation',
+      'contact'
     ] as const) {
       expect(phoneDirectEntryCompletesAod(scene)).toBe(true);
     }
@@ -103,17 +119,40 @@ describe('phone stage timeline', () => {
     expect(starAod.progress).toBeCloseTo(0.5);
   });
 
+  it('serializes front-rail samples positionally across lazy chunk boundaries', () => {
+    const positionalSample = Reflect.get(
+      phoneStageTimeline,
+      'phoneFrontRailSampleTuple'
+    ) as unknown;
+    expect(positionalSample).toBeTypeOf('function');
+    if (typeof positionalSample !== 'function') return;
+
+    const heroPattern = positionalSample(
+      (PHONE_STAGE_STOPS.heroMotionEnd + PHONE_STAGE_STOPS.heroPatternEnd) / 2,
+      1
+    ) as readonly unknown[];
+    expect(heroPattern.slice(0, 3)).toEqual([null, 'hero-pattern-scroll', 1]);
+    expect(heroPattern[3]).toBeCloseTo(0.5);
+
+    const pattern = positionalSample(
+      PHONE_STAGE_STOPS.patternMotionStart + 0.01,
+      -1
+    ) as readonly unknown[];
+    expect(pattern.slice(0, 3)).toEqual(['pattern', null, -1]);
+    expect(pattern[3]).toBeCloseTo(PHONE_STAGE_STOPS.patternMotionStart + 0.01);
+  });
+
   it('completes the full named front-half trace without relying on scroll after AOD starts', () => {
     const trace = [
       'loader',
-      phoneStageFrame(0).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.heroMotionEnd + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.heroPatternEnd + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.patternStarStart + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.patternStarEnd + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.starAodStart + 0.01).checkpoint,
-      phoneStageFrame(PHONE_STAGE_STOPS.starAodEnd + 0.01).checkpoint,
-      phoneStageFrame(1).checkpoint,
+      phoneStageFrame(0)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.heroMotionEnd + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.heroPatternEnd + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.patternStarStart + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.patternStarEnd + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.starAodStart + 0.01)[1],
+      phoneStageFrame(PHONE_STAGE_STOPS.starAodEnd + 0.01)[1],
+      phoneStageFrame(1)[1],
       phoneAodCheckpointForMethodProgress(0.5),
       phoneAodCompletionCheckpoint(1)
     ];

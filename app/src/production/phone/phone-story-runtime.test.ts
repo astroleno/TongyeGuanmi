@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createPhoneStoryRuntime,
   phoneRuntimeRunDependencies,
+  registerPhoneRuntimeSampledScrollCorridor,
   requestPhoneRuntimeDirectEntry,
   selectPhoneCinematicSnapshot
 } from './phone-story-runtime';
+import type { PhoneStoryOrchestrator } from './phone-story-orchestrator';
 
 function root() {
   return {
@@ -30,7 +32,8 @@ describe('phone story runtime factory', () => {
       scrollY: () => 0,
       scrollTo: () => undefined
     });
-    expect(selectPhoneCinematicSnapshot(runtime.port.getSnapshot())).toEqual([
+    const stable = selectPhoneCinematicSnapshot(runtime.port.getSnapshot());
+    expect(stable.slice(0, 11)).toEqual([
       'brand',
       null,
       'native:brand',
@@ -41,6 +44,15 @@ describe('phone story runtime factory', () => {
       null,
       null,
       null,
+      null
+    ]);
+    expect(stable.slice(11)).toEqual([
+      'stable',
+      'brand',
+      'native',
+      0,
+      null,
+      0,
       null
     ]);
 
@@ -55,7 +67,8 @@ describe('phone story runtime factory', () => {
       anchorY: 120,
       inputEpoch: 2
     });
-    expect(selectPhoneCinematicSnapshot(runtime.port.getSnapshot())).toEqual([
+    const transaction = selectPhoneCinematicSnapshot(runtime.port.getSnapshot());
+    expect(transaction.slice(0, 11)).toEqual([
       'brand',
       'native:brand',
       'group45:figure3',
@@ -68,6 +81,14 @@ describe('phone story runtime factory', () => {
       'preparing',
       0
     ]);
+    expect(transaction).toMatchObject({
+      11: 'transaction',
+      12: 'brand',
+      14: 120,
+      15: null,
+      16: 0,
+      17: null
+    });
     runtime.dispose();
   });
 
@@ -84,6 +105,52 @@ describe('phone story runtime factory', () => {
       'lab-ph',
       'ph-education'
     ]);
+  });
+
+  it('adapts a lazy scroll sample tuple beside the runtime port', () => {
+    const runtime = createPhoneStoryRuntime({
+      scope: 'formal',
+      initialScene: 'brand',
+      root: () => root(),
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+    const lease = registerPhoneRuntimeSampledScrollCorridor(
+      runtime.port,
+      'runtime-tuple-corridor',
+      ['brand'],
+      (actualY, width, height, offsetTop, snapshot) => {
+        expect([width, height, offsetTop, snapshot[0]]).toEqual([
+          390,
+          844,
+          12,
+          'brand'
+        ]);
+        return [actualY, 'brand', 'hero-pattern-scroll', 1, 0.75];
+      },
+      () => 120,
+      () => 180
+    );
+    const engine = runtime.port as unknown as PhoneStoryOrchestrator;
+
+    expect(engine.scrollCorridors.sample(runtime.port.getSnapshot(), {
+      actualY: 96,
+      viewportWidth: 390,
+      viewportHeight: 844,
+      visualViewportOffsetTop: 12
+    })).toEqual({
+      corridor: 'runtime-tuple-corridor',
+      sample: {
+        actualY: 96,
+        scene: 'brand',
+        run: 'hero-pattern-scroll',
+        direction: 1,
+        progress: 0.75
+      }
+    });
+
+    lease.dispose();
+    runtime.dispose();
   });
 
   it('constructs side-effect free and attaches one route-local authority', () => {
@@ -174,6 +241,8 @@ describe('phone story runtime factory', () => {
     }
     const comparable = (authority: typeof formal) => {
       const { authorityId, diagnostics, ...snapshot } = authority.port.getSnapshot();
+      void authorityId;
+      void diagnostics;
       return snapshot;
     };
 
@@ -198,7 +267,7 @@ describe('phone story runtime factory', () => {
       target: 'figure3-animation',
       source: 'initial',
       fallbackScene: 'brand',
-      cinematic: { run: 'brand-services', direction: 1, legIndex: 1 }
+      cinematic: null
     });
 
     runtime.attach();
@@ -206,21 +275,21 @@ describe('phone story runtime factory', () => {
     expect(runtime.port.getSnapshot()).toMatchObject({
       status: 'transaction',
       session: {
-        phase: 'preparing',
+        phase: 'verifying-target',
         operation: {
           trigger: 'entry',
-          run: 'brand-services',
+          run: null,
           direction: 1,
-          legIndex: 1,
+          legIndex: 0,
           from: 'brand',
-          to: 'services'
+          to: 'figure3-animation'
         }
       }
     });
     runtime.dispose();
   });
 
-  it('builds a cinematic direct-entry event beside the runtime port', () => {
+  it('builds a stable canonical direct-entry event beside the runtime port', () => {
     let receivedLeg: number | undefined;
     const runtime = createPhoneStoryRuntime({
       scope: 'formal',
@@ -240,15 +309,15 @@ describe('phone story runtime factory', () => {
 
     requestPhoneRuntimeDirectEntry(runtime.port, 'ph-animation', 'initial');
 
-    expect(receivedLeg).toBe(1);
+    expect(receivedLeg).toBeUndefined();
     expect(runtime.port.getSnapshot()).toMatchObject({
       status: 'transaction',
       session: {
         operation: {
-          run: 'lab-education',
-          legIndex: 1,
-          from: 'lab',
-          to: 'education'
+          run: null,
+          legIndex: 0,
+          from: 'ph-animation',
+          to: 'ph-animation'
         }
       }
     });

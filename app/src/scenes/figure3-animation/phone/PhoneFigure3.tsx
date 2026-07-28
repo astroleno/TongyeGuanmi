@@ -8,13 +8,13 @@ import {
 } from 'react';
 import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
 import {
-  disposeTimelineVideoDriver,
-  prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
-} from '../../../media/timeline-video-driver';
+  disposePhoneTimelineVideo,
+  preparePhoneTimelineVideoFrame,
+  type PhoneTimelineVideoInput
+} from '../../../production/phone/phone-timeline-runtime';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
 import type {
-  PhoneExecutionIdentity
+  PhoneExecutionToken
 } from '../../../production/phone/phone-story-state';
 import {
   waitForPhonePresentationEvidence
@@ -52,14 +52,14 @@ function clamp(value: number): number {
 }
 
 function sameExecution(
-  left: PhoneExecutionIdentity | null,
-  right: PhoneExecutionIdentity | null
+  left: PhoneExecutionToken | null,
+  right: PhoneExecutionToken | null
 ): boolean {
-  return left?.authorityId === right?.authorityId
-    && left?.sessionId === right?.sessionId
-    && left?.generation === right?.generation
-    && left?.leg === right?.leg
-    && left?.direction === right?.direction;
+  return left?.[0] === right?.[0]
+    && left?.[1] === right?.[1]
+    && left?.[2] === right?.[2]
+    && left?.[3] === right?.[3]
+    && left?.[4] === right?.[4];
 }
 
 export type PhoneFigure3Frame = Readonly<{
@@ -127,7 +127,7 @@ export function phoneFigure3MediaAction(
 /** Release the video element before its scene retires from the phone rail. */
 export function releasePhoneFigure3Video(video: HTMLVideoElement | null): void {
   if (!video) return;
-  disposeTimelineVideoDriver(video);
+  disposePhoneTimelineVideo(video);
   video.pause();
   video.removeAttribute('src');
   for (const source of video.querySelectorAll('source')) {
@@ -212,19 +212,21 @@ function figure3TimelineMediaInput(
   runId: string,
   direction: Group45NativeAutoplayDirection,
   progress: number
-): TimelineVideoDriveInput {
-  return {
+): PhoneTimelineVideoInput {
+  return [
     runId,
     direction,
-    progress: clamp(progress),
-    durationFallbackSeconds: 2.6,
-    startSeconds: 0,
-    endSeconds: FIGURE3_END_SECONDS,
-    timelineDurationMs: FIGURE3_END_SECONDS * 1000,
-    mode: 'timeline',
-    nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha()
-  };
+    clamp(progress),
+    2.6,
+    0,
+    FIGURE3_END_SECONDS,
+    null,
+    FIGURE3_END_SECONDS * 1000,
+    'timeline',
+    1,
+    browserPrefersHevcAlpha(),
+    null
+  ];
 }
 
 /**
@@ -259,8 +261,8 @@ export const PhoneFigure3 = forwardRef<
   const paperCompositorRef = useRef<PhoneFigure3PaperCompositor | null>(null);
   const activeRef = useRef(active);
   const directionRef = useRef<1 | -1>(direction);
-  const executionRef = useRef<PhoneExecutionIdentity | null>(execution);
-  const runIdentityRef = useRef<PhoneExecutionIdentity | null>(execution);
+  const executionRef = useRef<PhoneExecutionToken | null>(execution);
+  const runIdentityRef = useRef<PhoneExecutionToken | null>(execution);
   const prewarmRef = useRef(prewarm);
   const reducedMotionRef = useRef(reducedMotion);
   const mediaMountedRef = useRef((active || prewarm) && !reducedMotion);
@@ -268,7 +270,7 @@ export const PhoneFigure3 = forwardRef<
   const mediaRetiringRef = useRef(false);
   const hasForwardRunRef = useRef(false);
   const pendingRunDirectionRef = useRef<1 | -1 | null>(
-    execution && !reducedMotion ? execution.direction : null
+    execution && !reducedMotion ? execution[4] : null
   );
   const requestedEndpointRef = useRef<PhoneFigure3Endpoint | null>(null);
   const targetPreparationRef = useRef<Readonly<{
@@ -410,7 +412,7 @@ export const PhoneFigure3 = forwardRef<
     if (runDirection === 1) {
       // A completed reverse leaves a shared seek driver on this element.
       // Retire it before native forward playback takes sole ownership again.
-      if (videoRef.current) disposeTimelineVideoDriver(videoRef.current);
+      if (videoRef.current) disposePhoneTimelineVideo(videoRef.current);
       hasForwardRunRef.current = true;
       reversePlaybackRef.current?.stop();
       playback.start(1);
@@ -545,13 +547,13 @@ export const PhoneFigure3 = forwardRef<
       );
     }, PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS);
 
-    void prepareTimelineVideoFrame(
+    void preparePhoneTimelineVideoFrame(
       video,
       figure3TimelineMediaInput(runId, preparationDirection, endpoint)
-    ).then((result) => {
+    ).then(([status]) => {
       const preparation = endpointPreparationRef.current;
       if (
-        result?.status !== 'ready'
+        status !== 'ready'
         || preparation?.generation !== generation
         || preparation.endpoint !== endpoint
         || preparation.runId !== runId
@@ -583,7 +585,7 @@ export const PhoneFigure3 = forwardRef<
 
   const completeRun = useCallback((playbackDirection: 1 | -1) => {
     const identity = runIdentityRef.current;
-    if (!identity || identity.direction !== playbackDirection) return;
+    if (!identity || identity[4] !== playbackDirection) return;
     const completionGeneration = runGenerationRef.current;
     hasForwardRunRef.current = playbackDirection === 1;
     pendingRunDirectionRef.current = null;
@@ -611,11 +613,11 @@ export const PhoneFigure3 = forwardRef<
 
   const startRun = useCallback((
     runDirection: 1 | -1,
-    identity: PhoneExecutionIdentity | null = executionRef.current
+    identity: PhoneExecutionToken | null = executionRef.current
   ) => {
     if (
       !identity
-      || identity.direction !== runDirection
+      || identity[4] !== runDirection
       || reducedMotionRef.current
       || mediaFailedRef.current
     ) return;
@@ -721,15 +723,16 @@ export const PhoneFigure3 = forwardRef<
     const canvas = canvasRef.current;
     if (!root || !video || !canvas) return;
     root.dataset.phoneFigure3PaperCompositor = 'preparing';
-    const compositor = createPhoneFigure3PaperCompositor({
+    const compositor = createPhoneFigure3PaperCompositor([
       video,
       canvas,
-      onFrame: () => {
+      null,
+      () => {
         if (!mediaRetiringRef.current) {
           root.dataset.phoneFigure3PaperCompositor = 'ready';
         }
       },
-      onPresentedFrame: () => {
+      () => {
         const preparation = endpointPreparationRef.current;
         const activeCompositor = paperCompositorRef.current;
         if (!preparation || !activeCompositor) return;
@@ -741,7 +744,7 @@ export const PhoneFigure3 = forwardRef<
           true
         );
       }
-    });
+    ]);
     paperCompositorRef.current = compositor;
     return () => {
       compositor.dispose();
@@ -757,13 +760,13 @@ export const PhoneFigure3 = forwardRef<
     const video = videoRef.current;
     if (!video) return;
     mediaRetiringRef.current = false;
-    disposeTimelineVideoDriver(video);
+    disposePhoneTimelineVideo(video);
     const playback = createGroup45NativeAutoplay(video, {
       durationSeconds: FIGURE3_END_SECONDS,
       onProgress: (progress, playbackDirection) => {
         renderFrame(progress);
         const identity = runIdentityRef.current;
-        if (identity && identity.direction === playbackDirection) {
+        if (identity && identity[4] === playbackDirection) {
           progressListenerRef.current?.(
             'figure3-animation',
             identity,
@@ -789,10 +792,10 @@ export const PhoneFigure3 = forwardRef<
       failMedia();
       return;
     }
-    const reversePlayback = createPhoneFigure3ReversePlayback({
-      durationMs: FIGURE3_END_SECONDS * 1000,
-      prepare: async (progress) => {
-        const result = await prepareTimelineVideoFrame(
+    const reversePlayback = createPhoneFigure3ReversePlayback([
+      FIGURE3_END_SECONDS * 1000,
+      async (progress) => {
+        const [status] = await preparePhoneTimelineVideoFrame(
           video,
           figure3TimelineMediaInput(
             reverseRunIdRef.current,
@@ -800,12 +803,12 @@ export const PhoneFigure3 = forwardRef<
             progress
           )
         );
-        return result?.status === 'ready' && compositor.paint();
+        return status === 'ready' && compositor.paint();
       },
-      render: (progress) => {
+      (progress) => {
         renderFrame(progress);
         const identity = runIdentityRef.current;
-        if (identity?.direction === -1) {
+        if (identity?.[4] === -1) {
           progressListenerRef.current?.(
             'figure3-animation',
             identity,
@@ -813,7 +816,9 @@ export const PhoneFigure3 = forwardRef<
           );
         }
       },
-      onStatus: (status) => {
+      () => completeRunRef.current(-1),
+      failMedia,
+      (status) => {
         if (rootRef.current) {
           rootRef.current.dataset.phoneFigure3Playback = status === 'complete'
             ? 'complete-reverse'
@@ -826,9 +831,10 @@ export const PhoneFigure3 = forwardRef<
                   : `${status}-reverse`;
         }
       },
-      onComplete: () => completeRunRef.current(-1),
-      onError: failMedia
-    });
+      null,
+      null,
+      null
+    ]);
     playbackRef.current = playback;
     reversePlaybackRef.current = reversePlayback;
     video.preload = 'auto';
@@ -857,14 +863,14 @@ export const PhoneFigure3 = forwardRef<
     propsReconciledRef.current = true;
     executionRef.current = execution;
     activeRef.current = execution !== null;
-    directionRef.current = execution?.direction ?? direction;
+    directionRef.current = execution?.[4] ?? direction;
     prewarmRef.current = prewarm;
     reducedMotionRef.current = reducedMotion;
     if (
       execution
       && (firstReconcile || !sameExecution(previousExecution, execution))
     ) {
-      startRun(execution.direction, execution);
+      startRun(execution[4], execution);
       return;
     }
     if (!execution) {

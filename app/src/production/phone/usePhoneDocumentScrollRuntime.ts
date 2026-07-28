@@ -1,12 +1,33 @@
-import type { PhoneStoryEvent, PhoneStorySnapshot } from './phone-story-state';
-import type { PhoneScrollCorridorRegistry } from './phone-scroll-corridor-registry';
+import type { SceneId } from '../../story/types';
+import type { PhoneScrollRunId } from './phone-story-runs';
+import type {
+  PhoneScrollCorridorId,
+  PhoneStorySnapshot
+} from './phone-story-state';
+import type {
+  PhoneScrollCorridorRegistry
+} from './phone-scroll-corridor-registry';
 
 type EventTargetLike = Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
 
 type PhoneDocumentScrollPort = Readonly<{
   getSnapshot(): PhoneStorySnapshot;
-  dispatch(event: PhoneStoryEvent): unknown;
+  reportSample(sample: PhoneDocumentScrollSample): unknown;
 }>;
+
+/**
+ * The document sampler may be split from the reducer by Vite. It therefore
+ * reports positional facts only; the runtime bridge owns the named reducer
+ * event object and derives the current authority identity locally.
+ */
+export type PhoneDocumentScrollSample = readonly [
+  actualY: number,
+  corridor: PhoneScrollCorridorId | null,
+  scene: SceneId | null,
+  run: PhoneScrollRunId | null,
+  progress: number | undefined,
+  direction: -1 | 0 | 1 | undefined
+];
 
 export type PhoneDocumentScrollRuntime = Readonly<{
   sampleNow(): void;
@@ -23,7 +44,7 @@ export type CreatePhoneDocumentScrollRuntimeOptions = Readonly<{
   visualViewport: (EventTargetLike & Readonly<{ offsetTop: number }>) | null;
   registry: PhoneScrollCorridorRegistry;
   getSnapshot: PhoneDocumentScrollPort['getSnapshot'];
-  dispatch: PhoneDocumentScrollPort['dispatch'];
+  reportSample: PhoneDocumentScrollPort['reportSample'];
   requestFrame(callback: () => void): number;
   cancelFrame(frame: number): void;
 }>;
@@ -56,16 +77,14 @@ export function createPhoneDocumentScrollRuntime(
       visualViewportOffsetTop: visualViewport?.offsetTop ?? 0
     });
     const sample = selected?.sample;
-    options.dispatch({
-      type: 'SCROLL_SAMPLED',
-      authorityId: snapshot.authorityId,
-      actualY: sample?.actualY ?? actualY,
-      corridor: selected?.corridor ?? null,
-      ...(sample?.scene ? { scene: sample.scene } : {}),
-      ...(sample?.run ? { run: sample.run } : {}),
-      progress: sample?.progress,
-      direction: sample?.direction
-    });
+    options.reportSample([
+      sample?.actualY ?? actualY,
+      selected?.corridor ?? null,
+      sample?.scene ?? null,
+      sample?.run ?? null,
+      sample?.progress,
+      sample?.direction
+    ]);
   };
   const schedule = () => {
     if (disposed || frame) return;

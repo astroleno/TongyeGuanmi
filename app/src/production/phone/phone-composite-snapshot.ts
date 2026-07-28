@@ -1,7 +1,7 @@
 import { canonicalSceneIds } from '../../story/canonical-spine';
 import type { SceneId } from '../../story/types';
 import type { PhoneRunId } from './phone-story-runs';
-import type { PhoneExecutionIdentity } from './phone-story-state';
+import type { PhoneExecutionToken } from './phone-story-state';
 import type { PhoneCinematicSnapshot } from './phone-story-runtime';
 
 function sceneIndex(scene: SceneId): number {
@@ -37,7 +37,7 @@ export function phoneCompositeAdapterScene<Scene extends SceneId>(
 export function phoneCompositeVisualExecution(
   snapshot: PhoneCinematicSnapshot,
   run: PhoneRunId
-): PhoneExecutionIdentity | null {
+): PhoneExecutionToken | null {
   const [
     ,
     ,
@@ -58,7 +58,7 @@ export function phoneCompositeVisualExecution(
     || generation === null
     || direction === null
   ) return null;
-  return { authorityId, sessionId, generation, leg: legIndex, direction };
+  return [authorityId, sessionId, generation, legIndex, direction];
 }
 
 /** Decoder warm-up follows the same dependency closure as the active run. */
@@ -91,7 +91,7 @@ export function phoneCompositeMediaProgress(
 }
 
 export type PhoneCompositeVisualProjection = readonly [
-  execution: PhoneExecutionIdentity | null,
+  execution: PhoneExecutionToken | null,
   prewarm: boolean,
   mediaProgress: number
 ];

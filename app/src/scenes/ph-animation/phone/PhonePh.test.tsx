@@ -89,11 +89,12 @@ describe('PhonePh', () => {
     expect(source).toContain('createPortal');
     expect(source).toContain('figureCanvasRef');
     expect(source).toContain("phoneMediaUrlFor('ph-figure-packed'");
-    expect(source).toContain('activateSurface: ensurePackedSurface');
+    expect(source).toContain('usePhoneCinematicRun([');
+    expect(source).toContain('ensurePackedSurface,');
     expect(source).toContain('prepareTargetPresentation');
-    expect(source).toContain('surface.prepare(mode, request.signal)');
-    expect(source).toContain('run.failRun(1)');
-    expect(source).toContain('run.failRun(-1)');
+    expect(source).toContain("surface(['prepare', mode, request.signal])");
+    expect(source).toContain('failRun(1)');
+    expect(source).toContain('failRun(-1)');
     expect(source).not.toContain('phonePresentedFrameOwner');
     expect(source).not.toContain('PH_FIGURE_OPENING_SRC');
     expect(source).not.toContain('beginRun');
@@ -109,15 +110,16 @@ describe('PhonePh', () => {
     expect(source).toContain('createPhonePhPresentedReverse');
     expect(source).toContain('beginPreparedReverse');
     expect(cinematicRunSource).toContain("publish('progress', direction, progress)");
-    expect(source).toContain('run.renderProgress');
-    expect(source).toContain('run.startRun(1, request?.identity ?? null)');
-    expect(source).toContain('run.startRun(-1, request?.identity ?? null)');
+    expect(source).toContain('renderProgress,');
+    expect(source).toContain('startRun(1, request ?? null)');
+    expect(source).toContain('startRun(-1, request ?? null)');
     expect(cinematicRunSource).toContain('options.reverseReady()');
     expect(motionSource).toContain("'presented-frame-reverse'");
     expect(reverseSource).toContain('createPhonePresentedReversePlayback');
-    expect(reverseSource).toContain('prepareTimelineVideoFrame');
+    expect(reverseSource).toContain('preparePhoneTimelineVideoFrame');
     expect(reverseSource).toContain('phPlaybackProgress(progress)');
-    expect(reverseSource).toContain('allowSeekedFrameFallback: true');
+    expect(reverseSource).toContain("'timeline'");
+    expect(reverseSource).not.toContain('TimelineVideoDriveInput');
     expect(motionSource).toContain('phonePhForegroundParallaxY');
     expect(nativeClockSource).toContain('video.currentTime / duration');
     expect(nativeClockSource).toContain("video.addEventListener('timeupdate'");
@@ -125,7 +127,7 @@ describe('PhonePh', () => {
     expect(nativeClockSource).not.toContain("addEventListener('touchstart'");
     expect(source).not.toContain('driveTimelineVideo');
     expect(source).not.toContain("mode: 'timeline'");
-    expect(reverseSource).toContain("mode: 'timeline'");
+    expect(reverseSource).toContain("'timeline'");
     expect(reverseSource).not.toContain('endpoint-dissolve');
   });
 

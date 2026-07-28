@@ -6,7 +6,7 @@ import {
   mapAodMediaToTimelineProgress,
   mapAodTimelineToMediaProgress
 } from '../../scenes/aod-animation/progress';
-import type { PhoneExecutionIdentity } from './phone-story-state';
+import type { PhoneExecutionToken } from './phone-story-state';
 
 export const PHONE_AOD_METHOD_START_PROGRESS = 0.8;
 
@@ -36,11 +36,11 @@ type PhoneAodAutoplayOptions = Readonly<{
   onProgress(
     progress: number,
     direction: PhoneAodPlaybackDirection,
-    identity: PhoneExecutionIdentity | null
+    identity: PhoneExecutionToken | null
   ): void;
   onComplete?(
     direction: PhoneAodPlaybackDirection,
-    identity: PhoneExecutionIdentity | null
+    identity: PhoneExecutionToken | null
   ): void;
   visibilityDocument?: VisibilityDocument;
   requestFrame?: (callback: FrameRequestCallback) => number;
@@ -50,7 +50,7 @@ type PhoneAodAutoplayOptions = Readonly<{
 export type PhoneAodAutoplay = Readonly<{
   start(
     direction?: PhoneAodPlaybackDirection,
-    identity?: PhoneExecutionIdentity | null
+    identity?: PhoneExecutionToken | null
   ): Promise<PhoneAodStartResult>;
   reset(): void;
   dispose(): void;
@@ -147,7 +147,7 @@ export function createPhoneAodAutoplay(
   let reverseProgress = 1;
   let reverseAnchorProgress = 1;
   let reverseStartedAt: number | undefined;
-  let executionIdentity: PhoneExecutionIdentity | null = null;
+  let executionIdentity: PhoneExecutionToken | null = null;
   let resolveStart: ((result: PhoneAodStartResult) => void) | undefined;
 
   const beginStartResult = () => (

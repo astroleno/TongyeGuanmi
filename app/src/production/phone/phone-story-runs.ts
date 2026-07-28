@@ -220,55 +220,16 @@ export function phoneRunForHold(
   ));
 }
 
-export type PhoneEntryPlan =
-  | Readonly<{
-      kind: 'hold';
-      scene: SceneId;
-    }>
-  | Readonly<{
-      kind: 'cinematic';
-      scene: SceneId;
-      run: PhoneRunId;
-      legIndex: number;
-      direction: 1;
-      target: SceneId;
-    }>;
-
-const cinematicEntryPlans = new Map<SceneId, PhoneEntryPlan>([
-  ['figure3-animation', {
-    kind: 'cinematic',
-    scene: 'figure3-animation',
-    run: 'brand-services',
-    legIndex: 1,
-    direction: 1,
-    target: 'services'
-  }],
-  ['ttg-animation', {
-    kind: 'cinematic',
-    scene: 'ttg-animation',
-    run: 'services-lab',
-    legIndex: 1,
-    direction: 1,
-    target: 'lab'
-  }],
-  ['ph-animation', {
-    kind: 'cinematic',
-    scene: 'ph-animation',
-    run: 'lab-education',
-    legIndex: 1,
-    direction: 1,
-    target: 'education'
-  }],
-  ['crane-animation', {
-    kind: 'cinematic',
-    scene: 'crane-animation',
-    run: 'education-contact',
-    legIndex: 1,
-    direction: 1,
-    target: 'contact'
-  }]
-]);
+/**
+ * A hash always names a canonical stable scene. Animated scenes are stable
+ * projections in their own right; they must not silently play into the next
+ * document chapter during a cold entry.
+ */
+export type PhoneEntryPlan = Readonly<{
+  kind: 'hold';
+  scene: SceneId;
+}>;
 
 export function phoneEntryPlan(scene: SceneId): PhoneEntryPlan {
-  return cinematicEntryPlans.get(scene) ?? { kind: 'hold', scene };
+  return { kind: 'hold', scene };
 }

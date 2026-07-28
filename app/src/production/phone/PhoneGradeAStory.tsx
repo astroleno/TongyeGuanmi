@@ -2,6 +2,7 @@ import {
   useCallback,
   lazy,
   useLayoutEffect,
+  useMemo,
   useRef,
   Suspense,
   useState
@@ -23,6 +24,12 @@ import {
   usePhoneStoryOrchestrator,
   usePhoneStorySnapshot
 } from './PhoneStoryOrchestratorContext';
+import {
+  registerPhoneRuntimeSampledScrollCorridor,
+  registerPhoneRuntimeSurface,
+  selectPhoneCinematicSnapshot,
+  syncPhoneRuntimeDiagnostics
+} from './phone-story-runtime';
 import type {
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
@@ -31,7 +38,7 @@ import { PhoneFigure2Arch } from './scenes/PhoneFigure2Arch';
 import './PhoneGradeAStory.css';
 
 const PhoneStoryTailBundle = lazy(() => (
-  import('./PhoneContinuationBundle').then((module) => ({
+  import('./PhoneStoryTailBundle').then((module) => ({
     default: module.PhoneStoryTailBundle
   }))
 ));
@@ -130,7 +137,30 @@ export function PhoneGradeAStory({
   methodCopySource = null
 }: PhoneGradeAStoryProps) {
   const orchestrator = usePhoneStoryOrchestrator();
-  const snapshot = usePhoneStorySnapshot();
+  const storySnapshot = usePhoneStorySnapshot();
+  const cinematicSnapshot = useMemo(
+    () => selectPhoneCinematicSnapshot(storySnapshot),
+    [storySnapshot]
+  );
+  const [
+    semanticScene,
+    sourceSurface,
+    receiverSurface,
+    ,
+    ,
+    ,
+    run,
+    direction,
+    ,
+    phase,
+    sessionProgress,
+    status,
+    ,
+    ,
+    ,
+    scrollCorridor,
+    scrollProgress
+  ] = cinematicSnapshot;
   const adapters = usePhoneGradeAAdapters();
   const {
     Figure2,
@@ -240,7 +270,7 @@ export function PhoneGradeAStory({
     const rail = railRef.current;
     const proofTrack = proofTrackRef.current;
     const surfaces = surfacesRef.current;
-    if (!root || !rail || !proofTrack || !surfaces) return;
+    if (!root || !rail || !proofTrack || !surfaces || !stageHost) return;
     const elementDocumentTop = (element: HTMLElement) => (
       window.scrollY + element.getBoundingClientRect().top
     );
@@ -271,78 +301,83 @@ export function PhoneGradeAStory({
       return direction === 1 ? brandTop - height : brandTop;
     };
     const surfaceLeases = [
-      orchestrator.registerSurface({
-        id: 'grade-a:figure2',
-        scene: 'figure2-animation',
-        kind: 'fixed',
-        root: () => figure2Ref.current?.root() ?? null,
-        coverageRoot: () => figure2Ref.current?.root() ?? null,
-        presented: () => true
-      }),
-      orchestrator.registerSurface({
-        id: 'grade-a:proof',
-        scene: 'figure2-proof',
-        kind: 'fixed',
-        root: () => proofRef.current?.root() ?? null,
-        coverageRoot: () => proofRef.current?.root() ?? null,
-        presented: () => true
-      })
+      registerPhoneRuntimeSurface(
+        orchestrator,
+        'grade-a:figure2',
+        'figure2-animation',
+        'fixed',
+        () => figure2Ref.current?.root() ?? null,
+        () => stageHost,
+        () => true
+      ),
+      registerPhoneRuntimeSurface(
+        orchestrator,
+        'grade-a:proof',
+        'figure2-proof',
+        'fixed',
+        () => proofRef.current?.root() ?? null,
+        () => stageHost,
+        () => true
+      )
     ];
-    const corridorLease = orchestrator.registerScrollCorridor({
-      id: 'method-grade-a',
-      scenes: ['method-top', 'figure2-animation', 'figure2-proof'],
-      sample(viewport) {
-        const current = orchestrator.getSnapshot();
-        const delta = viewport.actualY - current.scroll.actualY;
+    const corridorLease = registerPhoneRuntimeSampledScrollCorridor(
+      orchestrator,
+      'method-grade-a',
+      ['method-top', 'figure2-animation', 'figure2-proof'],
+      (actualY, _viewportWidth, viewportHeight) => {
+        const current = selectPhoneCinematicSnapshot(
+          orchestrator.getSnapshot()
+        );
+        const delta = actualY - current[14];
         const direction = delta > .5 ? 1 : delta < -.5 ? -1 : 0;
-        if (current.status === 'transaction') {
-          return { actualY: viewport.actualY, direction };
+        if (current[11] === 'transaction') {
+          return [actualY, null, null, direction, null];
         }
-        const height = stageHeight(viewport.viewportHeight);
-        const semanticScene = current.projection.semanticScene;
-        if (semanticScene === 'method-top') {
-          return {
-            actualY: viewport.actualY,
-            scene: 'method-top',
-            progress: phoneGradeAHandoffProgress(
-              rail.getBoundingClientRect().top,
-              height
-            ),
-            direction
-          };
+        const height = stageHeight(viewportHeight);
+        const sampledScene = current[0];
+        if (sampledScene === 'method-top') {
+          return [
+            actualY,
+            'method-top',
+            null,
+            direction,
+            phoneGradeAHandoffProgress(rail.getBoundingClientRect().top, height)
+          ];
         }
-        if (semanticScene === 'figure2-animation') {
-          return {
-            actualY: viewport.actualY,
-            scene: 'figure2-animation',
-            progress: phoneGradeAFigureProgress(
+        if (sampledScene === 'figure2-animation') {
+          return [
+            actualY,
+            'figure2-animation',
+            null,
+            direction,
+            phoneGradeAFigureProgress(
               rail.getBoundingClientRect().top,
               rail.getBoundingClientRect().height
-            ),
-            direction
-          };
+            )
+          ];
         }
-        if (semanticScene === 'figure2-proof') {
-          return {
-            actualY: viewport.actualY,
-            scene: 'figure2-proof',
-            progress: phoneGradeAProofProgress(
+        if (sampledScene === 'figure2-proof') {
+          return [
+            actualY,
+            'figure2-proof',
+            null,
+            direction,
+            phoneGradeAProofProgress(
               proofTrack.getBoundingClientRect().top,
               proofTrack.getBoundingClientRect().height,
               height
-            ),
-            direction
-          };
+            )
+          ];
         }
-        return { actualY: viewport.actualY, direction };
+        return [actualY, null, null, direction, null];
       },
-      boundary(run, direction) {
+      (run, direction) => {
         if (run === 'method-figure2') return boundaryPosition(0, direction);
         if (run === 'figure2-proof') return boundaryPosition(1, direction);
         if (run === 'proof-brand') return boundaryPosition(2, direction);
         return null;
       },
-      landing(scene, reason, direction) {
+      (scene, reason, direction) => {
         if (scene === 'method-top') {
           const method = document.getElementById('method');
           return method ? elementDocumentTop(method) : null;
@@ -358,7 +393,7 @@ export function PhoneGradeAStory({
         }
         return null;
       }
-    });
+    );
     const runner = createPhoneGradeARunner({
       orchestrator,
       boundaries: GRADE_A_INK_BOUNDARIES.map((id) => ({
@@ -421,7 +456,7 @@ export function PhoneGradeAStory({
    */
   useLayoutEffect(() => {
     for (const listener of boundaryReadyListenersRef.current) listener();
-    orchestrator.syncDiagnostics();
+    syncPhoneRuntimeDiagnostics(orchestrator);
   }, [
     adapterRevision,
     figure2ProofBoundaryReady,
@@ -488,8 +523,8 @@ export function PhoneGradeAStory({
       setRetainedArchProgress(0, 0);
     };
     const renderStableFigure2 = () => {
-      const figureProgress = snapshot.scroll.corridor === 'method-grade-a'
-        ? snapshot.scroll.progress
+      const figureProgress = scrollCorridor === 'method-grade-a'
+        ? scrollProgress
         : 0;
       methodPaper?.style.setProperty('visibility', 'hidden');
       setMethodInkProgress(1);
@@ -505,8 +540,8 @@ export function PhoneGradeAStory({
       setRetainedArchProgress(1, figureProgress);
     };
     const renderStableProof = () => {
-      const proofProgress = snapshot.scroll.corridor === 'method-grade-a'
-        ? snapshot.scroll.progress
+      const proofProgress = scrollCorridor === 'method-grade-a'
+        ? scrollProgress
         : 0;
       methodPaper?.style.setProperty('visibility', 'hidden');
       setMethodInkProgress(1);
@@ -530,13 +565,12 @@ export function PhoneGradeAStory({
       setRetainedArchProgress(1, 1);
     };
 
-    if (snapshot.status === 'transaction') {
-      const { operation, phase } = snapshot.session;
-      const sourceProgress = operation.direction === 1 ? 0 : 1;
-      const progress = phase.startsWith('rollback-')
+    if (status === 'transaction') {
+      const sourceProgress = direction === 1 ? 0 : 1;
+      const progress = phase?.startsWith('rollback-')
         ? sourceProgress
-        : snapshot.session.progress;
-      switch (operation.run) {
+        : sessionProgress ?? 0;
+      switch (run) {
         case 'method-figure2':
           setMethodInkProgress(progress);
           figure2Ref.current?.enter?.();
@@ -580,7 +614,7 @@ export function PhoneGradeAStory({
       }
     }
 
-    switch (snapshot.projection.semanticScene) {
+    switch (semanticScene) {
       case 'method-top':
         renderStableMethod();
         return;
@@ -596,16 +630,16 @@ export function PhoneGradeAStory({
       default:
         return;
     }
-  }, [adapterRevision, snapshot]);
+  }, [adapterRevision, cinematicSnapshot]);
 
   const figure2Active = surfaceIsProjected(
-    snapshot.projection.sourceSurface,
-    snapshot.projection.receiverSurface,
+    sourceSurface,
+    receiverSurface,
     'grade-a:figure2'
   );
   const proofActive = surfaceIsProjected(
-    snapshot.projection.sourceSurface,
-    snapshot.projection.receiverSurface,
+    sourceSurface,
+    receiverSurface,
     'grade-a:proof'
   );
   const surfaces = (

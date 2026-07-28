@@ -51,6 +51,9 @@ const gradeAProofCss = source('../phone/scenes/PhoneFigure2Proof.css');
 const gradeADistanceSource = source(
   '../phone/transitions/figure2-distance-expand.tsx'
 );
+const gradeADistanceBridgeSource = source(
+  '../../transitions/figure2-distance-expand/index.ts'
+);
 const gradeAGroupSource = source('../phone/adapter-groups/grade-a.ts');
 const phonePresentationSource = source(
   '../phone/phone-story-presentation.ts'
@@ -195,14 +198,21 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain('<HeroPatternTransition');
     expect(shellSource).toContain('<PatternStarMapTransition');
     expect(shellSource).toContain('<StarMapAodTransition');
-    expect(heroPatternSource).toContain("id: 'portrait-hero-pattern-ink'");
-    expect(heroPatternSource).toContain("seed: 'portrait-hero-pattern-r5'");
-    expect(patternStarSource).toContain("id: 'portrait-pattern-star-ink'");
-    expect(patternStarSource).toContain("seed: 'portrait-pattern-star-r5'");
-    expect(patternStarSource).toContain("portraitInk: 'pattern-star'");
-    expect(starAodSource).toContain("id: 'portrait-star-aod-ink'");
-    expect(starAodSource).toContain("seed: 'portrait-star-aod-r5'");
-    expect(starAodSource).toContain("portraitInk: 'star-aod'");
+    for (const sourceText of [heroPatternSource, patternStarSource, starAodSource]) {
+      expect(sourceText).toContain('createPhoneInkAdapter([');
+      expect(sourceText).not.toMatch(/\b(?:id|seed|portraitInk)\s*:/);
+    }
+    expect(heroPatternSource).toContain(
+      "['radial', 'portrait-hero-pattern-r5', null, 0.5, 0.44]"
+    );
+    expect(patternStarSource).toContain(
+      "['radial', 'portrait-pattern-star-r5', null, 0.5, 0.28]"
+    );
+    expect(patternStarSource).toContain("'pattern-star'");
+    expect(starAodSource).toContain(
+      "['horizontal', 'portrait-star-aod-r5', 'bottom-to-top', null, null]"
+    );
+    expect(starAodSource).toContain("'star-aod'");
     expect(aodMethodSource).toContain('phoneAodMethodProgress');
   });
 
@@ -214,14 +224,12 @@ describe('Route B proven front-half migration contract', () => {
     expect(heroSource).toContain(
       "owner.dataset.portraitHeroTextEntrance = 'playing'"
     );
-    const heroPrewarmIndex = heroSource.indexOf('introInk.prewarm();');
-    const heroPrimeIndex = heroSource.indexOf(
-      'renderEntrance(0);',
-      heroPrewarmIndex
-    );
+    expect(heroSource).toContain('const ensureIntroInk = useCallback(() => {');
+    expect(heroSource).toContain("ensureIntroInk()?.(['render', sample.progress]);");
+    expect(heroSource).toContain("ensureIntroInk()?.(['prewarm']);");
+    const heroPrimeIndex = heroSource.indexOf('renderEntrance(0);');
     const heroReadyIndex = heroSource.indexOf('onReady?.();', heroPrimeIndex);
-    expect(heroPrewarmIndex).toBeGreaterThan(0);
-    expect(heroPrimeIndex).toBeGreaterThan(heroPrewarmIndex);
+    expect(heroPrimeIndex).toBeGreaterThan(0);
     expect(heroReadyIndex).toBeGreaterThan(heroPrimeIndex);
     expect(runtimeSource).toContain('heroAdapter.startEntrance()');
     for (const css of [heroCss, patternCss, starCss]) {
@@ -278,7 +286,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(aodSource).toContain("'aod-figure-packed'");
     expect(aodSource).not.toContain('packed-reverse');
     expect(aodSource).toContain('driveReverseFrame');
-    expect(aodSource).toContain('driveTimelineVideo');
+    expect(aodSource).toContain('drivePhoneTimelineVideo');
     expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_START');
     expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_END');
     expect(aodSource).toContain('alphaEndProgress: PHONE_AOD_ALPHA_END_PROGRESS');
@@ -390,13 +398,18 @@ describe('Route B Grade A migration contract', () => {
 
   it('reuses the canonical depth timeline with deterministic phone seeking', () => {
     expect(gradeADistanceSource).toContain(
-      'createFigure2DistanceExpandTransition'
+      'createPhoneFigure2DistanceExpandBridge(['
     );
-    expect(gradeADistanceSource).toContain('ownsMedia: false');
-    expect(gradeADistanceSource).toContain('inkCanvas: lease.canvas');
+    expect(gradeADistanceSource).not.toContain('createFigure2DistanceExpandTransition');
+    expect(gradeADistanceSource).toContain('lease.canvas');
     expect(gradeADistanceSource).toContain('phoneFigure2ProofTimelineProgress');
-    expect(gradeADistanceSource).toContain('await timeline.prepareLeg?.(leg)');
-    expect(gradeADistanceSource).toContain('timeline.commitLeg?.(leg)');
+    expect(gradeADistanceSource).toContain("await timeline(['prepare', ...leg]);");
+    expect(gradeADistanceSource).toContain("timeline(['commit', ...leg]);");
+    expect(gradeADistanceBridgeSource).toContain(
+      'createFigure2DistanceExpandTransition({'
+    );
+    expect(gradeADistanceBridgeSource).toContain('ownsMedia: false');
+    expect(gradeADistanceBridgeSource).toContain('inkCanvas');
     expect(gradeAGroupSource).toContain("'method-bottom-figure2'");
     expect(gradeAGroupSource).toContain("'figure2-distance-expand'");
     expect(gradeAGroupSource).toContain("'figure2-proof-brand'");

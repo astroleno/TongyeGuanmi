@@ -106,7 +106,13 @@ export function createPhoneScrollCorridorRegistry(): PhoneScrollCorridorRegistry
       return sample ? { corridor: corridor.id, sample } : null;
     },
     boundary(snapshot, run, direction) {
-      return selected(snapshot)?.boundary(run, direction) ?? null;
+      let boundary = selected(snapshot)?.boundary(run, direction);
+      if (boundary == null) {
+        corridors.forEach((corridor) => {
+          boundary ??= corridor.boundary(run, direction);
+        });
+      }
+      return boundary ?? null;
     },
     landing(snapshot, scene, reason, direction) {
       const corridor = firstForScenes(corridors.values(), [scene]) ?? selected(snapshot);

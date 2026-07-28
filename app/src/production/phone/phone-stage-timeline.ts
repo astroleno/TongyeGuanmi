@@ -18,25 +18,33 @@ export const PHONE_STAGE_STOPS = Object.freeze({
   aodAutoplayStart: 0.985
 });
 
-export type PhoneStageOwnership = Readonly<{
-  key: string;
-  visible: readonly PhoneStageSceneId[];
-  stack: readonly PhoneStageSceneId[];
-}>;
+export type PhoneStageOwnershipKey =
+  | 'hold-hero'
+  | 'handoff-hero-pattern'
+  | 'hold-pattern'
+  | 'handoff-pattern-star'
+  | 'hold-star'
+  | 'handoff-star-aod'
+  | 'hold-aod';
 
-export type PhoneStageFrame = Readonly<{
-  progress: number;
-  checkpoint: FrontHalfCheckpointId;
-  navigationScene: PhoneStageSceneId;
-  heroProgress: number;
-  patternProgress: number;
-  starProgress: number;
-  heroPatternProgress: number;
-  patternStarProgress: number;
-  starAodProgress: number;
-  shouldStartAodAutoplay: boolean;
-  ownership: PhoneStageOwnership;
-}>;
+/**
+ * This timeline is emitted as a shared production chunk. Keep its frame
+ * positional so the shell and every lazy consumer cannot disagree on mangled
+ * object-property names.
+ */
+export type PhoneStageFrame = readonly [
+  progress: number,
+  checkpoint: FrontHalfCheckpointId,
+  navigationScene: PhoneStageSceneId,
+  heroProgress: number,
+  patternProgress: number,
+  starProgress: number,
+  heroPatternProgress: number,
+  patternStarProgress: number,
+  starAodProgress: number,
+  shouldStartAodAutoplay: boolean,
+  ownershipKey: PhoneStageOwnershipKey
+];
 
 export type PhoneFrontRailSample = Readonly<{
   scene?: PhoneStageSceneId;
@@ -44,6 +52,17 @@ export type PhoneFrontRailSample = Readonly<{
   progress: number;
   direction: -1 | 0 | 1;
 }>;
+
+/**
+ * Positional transport for the independently minified timeline and lazy
+ * stage chunks. Keep the named object entirely inside this module.
+ */
+export type PhoneFrontRailSampleTuple = readonly [
+  scene: PhoneStageSceneId | null,
+  run: PhoneScrollRunId | null,
+  direction: -1 | 0 | 1,
+  progress: number
+];
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -56,7 +75,11 @@ const PHONE_POST_METHOD_DIRECT_ENTRY_SCENES = new Set<SceneId>([
   'figure3-animation',
   'services',
   'ttg-animation',
-  'lab'
+  'lab',
+  'ph-animation',
+  'education',
+  'crane-animation',
+  'contact'
 ]);
 
 /** A downstream hash starts at its requested chapter, not inside AOD autoplay. */
@@ -89,98 +112,79 @@ export function phoneStageFrame(rawProgress: number, reducedMotion = false): Pho
 
   if (reducedMotion) {
     if (progress < stops.heroPatternEnd) {
-      return {
-        progress, checkpoint: 'hero-entered', navigationScene: 'hero', heroProgress: 1,
-        patternProgress: 0, starProgress: 0, heroPatternProgress: 0, patternStarProgress: 0,
-        starAodProgress: 0, shouldStartAodAutoplay: false,
-        ownership: { key: 'hold-hero', visible: ['hero'], stack: ['hero'] }
-      };
+      return [progress, 'hero-entered', 'hero', 1, 0, 0, 0, 0, 0, false, 'hold-hero'];
     }
     if (progress < stops.patternStarEnd) {
-      return {
-        progress, checkpoint: 'pattern-complete', navigationScene: 'pattern', heroProgress: 1,
-        patternProgress: 1, starProgress: 0, heroPatternProgress: 1, patternStarProgress: 0,
-        starAodProgress: 0, shouldStartAodAutoplay: false,
-        ownership: { key: 'hold-pattern', visible: ['pattern'], stack: ['pattern'] }
-      };
+      return [progress, 'pattern-complete', 'pattern', 1, 1, 0, 1, 0, 0, false, 'hold-pattern'];
     }
     if (progress < stops.starAodEnd) {
-      return {
-        progress, checkpoint: 'star-map-reading', navigationScene: 'star-map', heroProgress: 1,
-        patternProgress: 1, starProgress: 1, heroPatternProgress: 1, patternStarProgress: 1,
-        starAodProgress: 0, shouldStartAodAutoplay: false,
-        ownership: { key: 'hold-star', visible: ['star-map'], stack: ['star-map'] }
-      };
+      return [progress, 'star-map-reading', 'star-map', 1, 1, 1, 1, 1, 0, false, 'hold-star'];
     }
-    return {
-      progress, checkpoint: 'aod-stage', navigationScene: 'aod-animation', heroProgress: 1,
-      patternProgress: 1, starProgress: 1, heroPatternProgress: 1, patternStarProgress: 1,
-      starAodProgress: 1, shouldStartAodAutoplay: false,
-      ownership: { key: 'hold-aod', visible: ['aod-animation'], stack: ['aod-animation'] }
-    };
+    return [progress, 'aod-stage', 'aod-animation', 1, 1, 1, 1, 1, 1, false, 'hold-aod'];
   }
 
   if (progress < stops.heroMotionEnd) {
-    return {
-      progress, checkpoint: 'hero-entered', navigationScene: 'hero', heroProgress, patternProgress: 0,
-      starProgress: 0, heroPatternProgress: 0, patternStarProgress: 0, starAodProgress: 0,
-      shouldStartAodAutoplay: false,
-      ownership: { key: 'hold-hero', visible: ['hero'], stack: ['hero'] }
-    };
+    return [progress, 'hero-entered', 'hero', heroProgress, 0, 0, 0, 0, 0, false, 'hold-hero'];
   }
   if (progress < stops.heroPatternEnd) {
-    return {
-      progress, checkpoint: 'hero-to-pattern', navigationScene: 'hero', heroProgress: 1, patternProgress: 0,
-      starProgress: 0, heroPatternProgress, patternStarProgress: 0, starAodProgress: 0,
-      shouldStartAodAutoplay: false,
-      ownership: { key: 'handoff-hero-pattern', visible: ['hero', 'pattern'], stack: ['pattern', 'hero'] }
-    };
+    return [
+      progress, 'hero-to-pattern', 'hero', 1, 0, 0,
+      heroPatternProgress, 0, 0, false, 'handoff-hero-pattern'
+    ];
   }
   if (progress < stops.patternStarStart) {
-    return {
-      progress, checkpoint: 'pattern-complete', navigationScene: 'pattern', heroProgress: 1,
-      patternProgress, starProgress: 0, heroPatternProgress: 1, patternStarProgress: 0, starAodProgress: 0,
-      shouldStartAodAutoplay: false,
-      ownership: { key: 'hold-pattern', visible: ['pattern'], stack: ['pattern'] }
-    };
+    return [progress, 'pattern-complete', 'pattern', 1, patternProgress, 0, 1, 0, 0, false, 'hold-pattern'];
   }
   if (progress < stops.patternStarEnd) {
-    return {
-      progress, checkpoint: 'pattern-to-star-map', navigationScene: 'pattern', heroProgress: 1,
-      patternProgress: 1, starProgress, heroPatternProgress: 1, patternStarProgress, starAodProgress: 0,
-      shouldStartAodAutoplay: false,
-      ownership: { key: 'handoff-pattern-star', visible: ['pattern', 'star-map'], stack: ['star-map', 'pattern'] }
-    };
+    return [
+      progress, 'pattern-to-star-map', 'pattern', 1, 1, starProgress,
+      1, patternStarProgress, 0, false, 'handoff-pattern-star'
+    ];
   }
   if (progress < stops.starAodStart) {
-    return {
-      progress, checkpoint: 'star-map-reading', navigationScene: 'star-map', heroProgress: 1,
-      patternProgress: 1, starProgress, heroPatternProgress: 1, patternStarProgress: 1, starAodProgress: 0,
-      shouldStartAodAutoplay: false,
-      ownership: { key: 'hold-star', visible: ['star-map'], stack: ['star-map'] }
-    };
+    return [progress, 'star-map-reading', 'star-map', 1, 1, starProgress, 1, 1, 0, false, 'hold-star'];
   }
   if (progress < stops.starAodEnd) {
-    return {
-      progress, checkpoint: 'star-map-to-aod', navigationScene: 'star-map', heroProgress: 1,
-      patternProgress: 1, starProgress, heroPatternProgress: 1, patternStarProgress: 1, starAodProgress,
-      shouldStartAodAutoplay: false,
-      ownership: { key: 'handoff-star-aod', visible: ['star-map', 'aod-animation'], stack: ['star-map', 'aod-animation'] }
-    };
+    return [
+      progress, 'star-map-to-aod', 'star-map', 1, 1, starProgress,
+      1, 1, starAodProgress, false, 'handoff-star-aod'
+    ];
   }
-  return {
+  return [
     progress,
-    checkpoint: progress >= stops.aodAutoplayStart ? 'aod-autoplay' : 'aod-stage',
-    navigationScene: 'aod-animation',
-    heroProgress: 1,
-    patternProgress: 1,
+    progress >= stops.aodAutoplayStart ? 'aod-autoplay' : 'aod-stage',
+    'aod-animation',
+    1,
+    1,
     starProgress,
-    heroPatternProgress: 1,
-    patternStarProgress: 1,
-    starAodProgress: 1,
-    shouldStartAodAutoplay: progress >= stops.aodAutoplayStart,
-    ownership: { key: 'hold-aod', visible: ['aod-animation'], stack: ['aod-animation'] }
-  };
+    1,
+    1,
+    1,
+    progress >= stops.aodAutoplayStart,
+    'hold-aod'
+  ];
+}
+
+/**
+ * Positional transport for the independently minified timeline and lazy
+ * stage chunks. Keep the named sample object out of the production boundary.
+ */
+export function phoneFrontRailSampleTuple(
+  rawProgress: number,
+  direction: -1 | 0 | 1,
+  reducedMotion = false
+): PhoneFrontRailSampleTuple {
+  const frame = phoneStageFrame(rawProgress, reducedMotion);
+  switch (frame[10]) {
+    case 'handoff-hero-pattern':
+      return [null, 'hero-pattern-scroll', direction, frame[6]];
+    case 'handoff-pattern-star':
+      return [null, 'pattern-star-scroll', direction, frame[7]];
+    case 'handoff-star-aod':
+      return [null, 'star-aod-scroll', direction, frame[8]];
+    default:
+      return [frame[2], null, direction, frame[0]];
+  }
 }
 
 /** Converts front rail geometry into the one semantic sample the authority consumes. */
@@ -189,33 +193,17 @@ export function phoneFrontRailSample(
   direction: -1 | 0 | 1,
   reducedMotion = false
 ): PhoneFrontRailSample {
-  const frame = phoneStageFrame(rawProgress, reducedMotion);
-  switch (frame.ownership.key) {
-    case 'handoff-hero-pattern':
-      return {
-        run: 'hero-pattern-scroll',
-        progress: frame.heroPatternProgress,
-        direction
-      };
-    case 'handoff-pattern-star':
-      return {
-        run: 'pattern-star-scroll',
-        progress: frame.patternStarProgress,
-        direction
-      };
-    case 'handoff-star-aod':
-      return {
-        run: 'star-aod-scroll',
-        progress: frame.starAodProgress,
-        direction
-      };
-    default:
-      return {
-        scene: frame.navigationScene,
-        progress: frame.progress,
-        direction
-      };
-  }
+  const [scene, run, sampledDirection, progress] = phoneFrontRailSampleTuple(
+    rawProgress,
+    direction,
+    reducedMotion
+  );
+  return {
+    ...(scene === null ? {} : { scene }),
+    ...(run === null ? {} : { run }),
+    direction: sampledDirection,
+    progress
+  };
 }
 
 export function frontHalfCheckpointIndex(id: FrontHalfCheckpointId): number {

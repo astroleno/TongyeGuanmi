@@ -59,7 +59,7 @@ describe('authority-scoped document scroll runtime', () => {
       landing: () => 200
     });
     const snapshot = createPhoneStorySnapshot({ authorityId: 'a', scene: 'hero' });
-    const dispatch = vi.fn();
+    const reportSample = vi.fn();
     let nextFrame = 0;
     const runtime = createPhoneDocumentScrollRuntime({
       page: page as unknown as Window,
@@ -67,7 +67,7 @@ describe('authority-scoped document scroll runtime', () => {
       visualViewport: visualViewport as unknown as VisualViewport,
       registry,
       getSnapshot: () => snapshot,
-      dispatch,
+      reportSample,
       requestFrame: (callback) => {
         const id = ++nextFrame;
         frames.set(id, callback);
@@ -88,15 +88,14 @@ describe('authority-scoped document scroll runtime', () => {
 
     expect(heroSample).toHaveBeenCalledOnce();
     expect(brandSample).not.toHaveBeenCalled();
-    expect(dispatch).toHaveBeenCalledWith({
-      type: 'SCROLL_SAMPLED',
-      authorityId: 'a',
-      actualY: 240,
-      corridor: 'front',
-      run: 'hero-pattern-scroll',
-      progress: .4,
-      direction: 1
-    });
+    expect(reportSample).toHaveBeenCalledWith([
+      240,
+      'front',
+      null,
+      'hero-pattern-scroll',
+      .4,
+      1
+    ]);
     runtime.dispose();
   });
 
@@ -114,26 +113,29 @@ describe('authority-scoped document scroll runtime', () => {
       boundary: () => 100,
       landing: () => 100
     });
-    const dispatch = vi.fn();
+    const reportSample = vi.fn();
     const runtime = createPhoneDocumentScrollRuntime({
       page: page as unknown as Window,
       document: new EventTargetStub() as unknown as Document,
       visualViewport: null,
       registry,
       getSnapshot: () => createPhoneStorySnapshot({ authorityId: 'a', scene: 'hero' }),
-      dispatch,
+      reportSample,
       requestFrame: () => 1,
       cancelFrame: () => undefined
     });
 
     runtime.sampleNow();
 
-    expect(dispatch).toHaveBeenCalledTimes(1);
-    expect(dispatch.mock.calls[0]?.[0]).toMatchObject({
-      type: 'SCROLL_SAMPLED',
-      actualY: 88,
-      corridor: 'front'
-    });
+    expect(reportSample).toHaveBeenCalledTimes(1);
+    expect(reportSample.mock.calls[0]?.[0]).toEqual([
+      88,
+      'front',
+      null,
+      null,
+      .1,
+      1
+    ]);
     runtime.dispose();
   });
 });

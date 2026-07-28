@@ -8,13 +8,14 @@ const source = readFileSync(
   'utf8'
 );
 
-describe('usePhoneCinematicRun execution identity contract', () => {
-  it('captures the identity injected at adapter start and emits it with every media event', () => {
+describe('usePhoneCinematicRun execution token contract', () => {
+  it('captures the token injected at adapter start and emits it with every media event', () => {
     expect(source).toContain('activeIdentityRef');
-    expect(source).toContain('authorityId: identity?.authorityId ?? null');
-    expect(source).toContain('sessionId: identity?.sessionId ?? null');
-    expect(source).toContain('generation: identity?.generation ?? null');
-    expect(source).toContain('leg: identity?.leg ?? null');
+    expect(source).toContain("import type { PhoneExecutionToken }");
+    expect(source).toMatch(
+      /dispatchPhoneLabContactAutoplay\(options\.rootRef\.current, \[\s*options\.scene,\s*phase,\s*direction,\s*identity,\s*progress \?\? null\s*\]\)/
+    );
+    expect(source).not.toContain('identity?.authorityId');
     expect(source).toContain('renderProgress');
     expect(source).toContain('startRun = useCallback((');
   });

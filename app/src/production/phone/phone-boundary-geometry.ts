@@ -1,9 +1,9 @@
-export type PhoneBoundaryGeometryOwner = Readonly<{
-  sessionId: string;
-  generation: number;
-}>;
+export type PhoneBoundaryGeometryOwner = readonly [
+  sessionId: string,
+  generation: number
+];
 
-export type PhoneBoundaryGeometryLease = PhoneBoundaryGeometryOwner & Readonly<{
+export type PhoneBoundaryGeometryLease = Readonly<{
   owns(element: HTMLElement): boolean;
   releaseGeometry(): void;
 }>;
@@ -17,6 +17,10 @@ export function acquirePhoneBoundaryGeometryLease(
   owner: PhoneBoundaryGeometryOwner,
   clear: (element: HTMLElement) => void
 ): PhoneBoundaryGeometryLease {
+  // The caller supplies an opaque execution owner at the lazy boundary. The
+  // lease itself deliberately retains only a private token, so a stale chunk
+  // cannot clear geometry acquired by a newer execution.
+  void owner;
   const elements = [...new Set(candidates.filter(
     (element): element is HTMLElement => Boolean(element)
   ))];
@@ -26,7 +30,6 @@ export function acquirePhoneBoundaryGeometryLease(
   for (const element of elements) geometryOwner.set(element, token);
 
   return {
-    ...owner,
     owns: (element) => active && geometryOwner.get(element) === token,
     releaseGeometry() {
       if (!active) return;

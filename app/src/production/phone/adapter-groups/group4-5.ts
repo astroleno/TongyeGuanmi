@@ -5,7 +5,7 @@ import type {
 import type {
   ScenePresentationAdapterHandle
 } from '../../../story/presentation';
-import type { PhoneExecutionIdentity } from '../phone-story-state';
+import type { PhoneExecutionToken } from '../phone-story-state';
 import type { PhoneTransitionAdapterHandle } from '../types';
 
 /**
@@ -36,7 +36,7 @@ export type Group45PhoneSceneProps = Readonly<{
    * Visuals capture this value when they start and return it with every async
    * callback so a retired decoder cannot report into a newer transaction.
    */
-  execution?: PhoneExecutionIdentity | null;
+  execution?: PhoneExecutionToken | null;
   /** Decode only the immediately upcoming visual; playback still waits for entry. */
   prewarm?: boolean;
   reducedMotion: boolean;
@@ -44,12 +44,12 @@ export type Group45PhoneSceneProps = Readonly<{
   /** Lets the shell settle the affected bridge at its declared endpoint. */
   onMediaError?: (
     scene: Group45PhoneSceneId,
-    execution: PhoneExecutionIdentity
+    execution: PhoneExecutionToken
   ) => void;
   /** Canonical media progress drives adjacent copy/transition cues. */
   onProgress?: (
     scene: Group45PhoneSceneId,
-    execution: PhoneExecutionIdentity,
+    execution: PhoneExecutionToken,
     progress: number,
   ) => void;
   /**
@@ -59,7 +59,7 @@ export type Group45PhoneSceneProps = Readonly<{
    */
   onComplete?: (
     scene: Group45PhoneSceneId,
-    execution: PhoneExecutionIdentity
+    execution: PhoneExecutionToken
   ) => void;
 }>;
 

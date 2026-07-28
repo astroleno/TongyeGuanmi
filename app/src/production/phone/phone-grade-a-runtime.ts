@@ -7,7 +7,7 @@ import {
 } from './phone-story-runtime';
 import type { PhoneRunId } from './phone-story-runs';
 import type {
-  PhoneExecutionIdentity,
+  PhoneExecutionToken,
   PhoneStorySnapshot
 } from './phone-story-state';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
@@ -87,14 +87,8 @@ type TargetPresentationRequest = Readonly<{
 function identityFor(
   session: PhoneCompositeSession,
   direction: PhoneTransitionDirection
-): PhoneExecutionIdentity {
-  return {
-    authorityId: session[0],
-    sessionId: session[1],
-    generation: session[2],
-    leg: session[3](),
-    direction
-  };
+): PhoneExecutionToken {
+  return [session[0], session[1], session[2], session[3](), direction];
 }
 
 function waitForBoundaryReady(
@@ -234,7 +228,7 @@ export function createPhoneGradeARunner({
         const source = direction === 1 ? from : to;
         const receiver = direction === 1 ? to : from;
         session[8](source, receiver);
-        transition.begin({ identity: identityFor(session, direction) });
+        transition.begin(identityFor(session, direction));
         transition.commitEndpoint(direction === 1 ? 0 : 1);
         if (boundary.prepareReceiver) {
           await boundary.prepareReceiver({

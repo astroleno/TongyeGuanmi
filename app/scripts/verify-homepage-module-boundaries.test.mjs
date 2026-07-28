@@ -5,6 +5,9 @@ import {
   formalPhoneOwnershipViolations,
   formalPhoneRouteGraphViolations,
   literalModuleGraph,
+  phoneCrossChunkCompressionPolicyViolations,
+  phoneCrossChunkExecutionContractViolations,
+  phoneLazyAdapterPropReserveViolations,
   phoneExecutionOwnershipViolations,
   phoneRuntimePortBoundaryViolations,
   phoneRouteScopeSelectorViolations,
@@ -44,6 +47,10 @@ const contextSource = readFileSync(
   new URL('../src/production/phone/PhoneStoryOrchestratorContext.tsx', import.meta.url),
   'utf8'
 );
+const phoneTypesSource = readFileSync(
+  new URL('../src/production/phone/types.ts', import.meta.url),
+  'utf8'
+);
 const runDefinitionsSource = readFileSync(
   new URL('../src/production/phone/phone-story-runs.ts', import.meta.url),
   'utf8'
@@ -52,6 +59,33 @@ const runLandingSource = readFileSync(
   new URL('../src/production/phone/phone-run-landing.ts', import.meta.url),
   'utf8'
 );
+const crossChunkExecutionSources = [
+  'phone-story-state.ts',
+  'phone-transition-coordinator.ts',
+  'phone-story-runtime.ts',
+  'phone-story-orchestrator.ts',
+  'phone-orchestrated-session.ts',
+  'types.ts',
+  'usePhoneDocumentScrollRuntime.ts',
+  'phone-stage-timeline.ts',
+  'phone-composite-snapshot.ts',
+  'phone-boundary-geometry.ts',
+  'phone-lab-contact-timeline.ts',
+  'usePhoneStageRuntime.ts',
+  'phone-composite-runner.ts',
+  'phone-grade-a-runtime.ts'
+].map((file) => {
+  const url = new URL(`../src/production/phone/${file}`, import.meta.url);
+  return { file: fileURLToPath(url), source: readFileSync(url, 'utf8') };
+}).concat([
+  '../src/scenes/figure3-animation/phone/PhoneFigure3.tsx',
+  '../src/scenes/ttg-animation/phone/PhoneTtg.tsx',
+  '../src/scenes/ph-animation/phone/PhonePh.tsx',
+  '../src/scenes/crane-animation/phone/PhoneCrane.tsx'
+].map((relative) => {
+  const url = new URL(relative, import.meta.url);
+  return { file: fileURLToPath(url), source: readFileSync(url, 'utf8') };
+}));
 
 function violationsFor(source) {
   return phoneShellDebtViolations(scanPhoneShellDebt(source));
@@ -312,5 +346,290 @@ describe('homepage phone-shell debt ratchet', () => {
       'PhoneStoryOrchestratorContext.tsx: Context must expose authority.port only',
       'PhoneStoryOrchestratorContext.tsx: Context must not expose route lifecycle authority'
     ]));
+  });
+
+  it('rejects new raw execution objects at independently minified boundaries', () => {
+    expect(phoneCrossChunkCompressionPolicyViolations()).toEqual([]);
+    expect(phoneLazyAdapterPropReserveViolations(phoneTypesSource)).toEqual([]);
+    expect(phoneLazyAdapterPropReserveViolations(
+      'export type PhoneFutureAdapterProps = Readonly<{ futureField: string; }>;'
+    )).toContain(
+      'PhoneFutureAdapterProps: cross-chunk adapter field is missing from mangle reserve (futureField)'
+    );
+    expect(phoneCrossChunkExecutionContractViolations(
+      crossChunkExecutionSources
+    )).toEqual([]);
+    const rawIdentity = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/PhoneFutureLazyScene.tsx',
+        source: 'import type { PhoneExecutionIdentity } from "./phone-story-state";'
+      }
+    ]);
+    expect(rawIdentity).toContain(
+      'PhoneFutureLazyScene.tsx: raw PhoneExecutionIdentity is forbidden outside authority core'
+    );
+    const rawEvent = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/usePhoneDocumentScrollRuntime.ts',
+        source: 'options.dispatch({ type: "sample" });'
+      }
+    ]);
+    expect(rawEvent).toContain(
+      'usePhoneDocumentScrollRuntime.ts: raw dispatch object is forbidden outside runtime event core'
+    );
+    const rawIntentBridge = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/phone-transition-coordinator.ts',
+        source: [
+          'export type PhoneIntent = readonly [inputEpoch: number];',
+          'onIntent({ inputEpoch: 1 });'
+        ].join('\n')
+      }
+    ]);
+    expect(rawIntentBridge).toContain(
+      'phone-transition-coordinator.ts: input bridge must use the PhoneIntent positional tuple, not a raw object'
+    );
+    const indirectRawIntentBridge = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/phone-transition-coordinator.ts',
+        source: [
+          'export type PhoneIntent = readonly [inputEpoch: number];',
+          'const intent = { inputEpoch: 1 };',
+          'onIntent(intent);'
+        ].join('\n')
+      }
+    ]);
+    expect(indirectRawIntentBridge).toContain(
+      'phone-transition-coordinator.ts: input bridge must use the PhoneIntent positional tuple, not a raw object'
+    );
+    const wrappedRawIntentBridge = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/phone-transition-coordinator.ts',
+        source: [
+          'export type PhoneIntent = readonly [inputEpoch: number];',
+          'function forwardIntent(intent) { onIntent(intent); }',
+          'forwardIntent({ inputEpoch: 1 });'
+        ].join('\n')
+      }
+    ]);
+    expect(wrappedRawIntentBridge).toContain(
+      'phone-transition-coordinator.ts: input bridge must use the PhoneIntent positional tuple, not a raw object'
+    );
+    const indirectRawEvent = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/usePhoneDocumentScrollRuntime.ts',
+        source: [
+          'const event = { type: "sample" };',
+          'options.dispatch(event);'
+        ].join('\n')
+      }
+    ]);
+    expect(indirectRawEvent).toContain(
+      'usePhoneDocumentScrollRuntime.ts: raw dispatch object is forbidden outside runtime event core'
+    );
+    const wrappedRawEvent = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/usePhoneDocumentScrollRuntime.ts',
+        source: [
+          'function reportEvent(event) { options.dispatch(event); }',
+          'reportEvent({ type: "sample" });'
+        ].join('\n')
+      }
+    ]);
+    expect(wrappedRawEvent).toContain(
+      'usePhoneDocumentScrollRuntime.ts: raw dispatch object is forbidden outside runtime event core'
+    );
+    const indirectRawCinematic = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/phone-composite-runner.ts',
+        source: [
+          'const request = { generation: 1, direction: 1 };',
+          'runner.begin(request);'
+        ].join('\n')
+      }
+    ]);
+    expect(indirectRawCinematic).toContain(
+      'phone-composite-runner.ts: raw cinematic request object is forbidden at execution boundary'
+    );
+    const rawFactory = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/scenes/future/phone/PhoneFuture.tsx',
+        source: 'const adapter = createPhoneFutureAdapter({ direction: 1 });'
+      }
+    ]);
+    expect(rawFactory).toContain(
+      'PhoneFuture.tsx: raw create/usePhone object contract is forbidden at lazy execution boundary'
+    );
+    const rawTimeline = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/transitions/future.tsx',
+        source: 'const timeline = transition.buildTimeline({ runId: "future:1" });'
+      }
+    ]);
+    expect(rawTimeline).toContain(
+      'future.tsx: raw timeline context object is forbidden at lazy execution boundary'
+    );
+    const rawPhoneInkRuntime = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/phone-ink.ts',
+        source: 'const renderer = createInkFieldRenderer(canvas, {});'
+      }
+    ]);
+    expect(rawPhoneInkRuntime).toContain(
+      'phone-ink.ts: Phone ink must delegate renderer objects through phone-ink-runtime'
+    );
+    const rawTimelineRuntime = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/scenes/ttg-animation/phone/PhoneTtg.tsx',
+        source: 'driveTimelineVideo(video, { runId: "future:1" });'
+      }
+    ]);
+    expect(rawTimelineRuntime).toContain(
+      'PhoneTtg.tsx: Timeline driver data must use phone-timeline-runtime tuples'
+    );
+    const rawHeroRadialInk = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/scenes/PhoneHero.tsx',
+        source: 'createRadialInkIntroController({ generation: "future" });'
+      }
+    ]);
+    expect(rawHeroRadialInk).toContain(
+      'PhoneHero.tsx: Hero radial ink must delegate field objects through phone-ink-runtime'
+    );
+    const unreservedFactory = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/scenes/PhoneHero.tsx',
+        source: 'createPhoneNativeAutoplay(video, { durationSeconds: 1 });'
+      }
+    ]);
+    expect(unreservedFactory).toContain(
+      'PhoneHero.tsx: raw createPhoneNativeAutoplay object contract is forbidden without a retained policy or tuple bridge'
+    );
+    const unknownRawFactory = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/scenes/PhoneFuture.tsx',
+        source: 'const runtime = createFutureRuntime({ generation: 1 });'
+      }
+    ]);
+    expect(unknownRawFactory).toContain(
+      'PhoneFuture.tsx: raw createFutureRuntime object contract is forbidden without a tuple bridge or retained policy'
+    );
+    const indirectRawFactory = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/scenes/PhoneFuture.tsx',
+        source: [
+          'const futureOptions = { generation: 1 };',
+          'const runtime = createFutureRuntime(futureOptions);'
+        ].join('\n')
+      }
+    ]);
+    expect(indirectRawFactory).toContain(
+      'PhoneFuture.tsx: raw createFutureRuntime object contract is forbidden without a tuple bridge or retained policy'
+    );
+    const aliasedRawFactory = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/scenes/PhoneFuture.tsx',
+        source: [
+          'const futureOptions = { generation: 1 };',
+          'const forwardedOptions = futureOptions;',
+          'const runtime = createFutureRuntime(forwardedOptions);'
+        ].join('\n')
+      }
+    ]);
+    expect(aliasedRawFactory).toContain(
+      'PhoneFuture.tsx: raw createFutureRuntime object contract is forbidden without a tuple bridge or retained policy'
+    );
+    const wrappedRawFactory = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/scenes/PhoneFuture.tsx',
+        source: [
+          'function startFutureRuntime(options) {',
+          '  return createFutureRuntime(options);',
+          '}',
+          'startFutureRuntime({ generation: 1 });'
+        ].join('\n')
+      }
+    ]);
+    expect(wrappedRawFactory).toContain(
+      'PhoneFuture.tsx: raw createFutureRuntime object contract is forbidden without a tuple bridge or retained policy'
+    );
+    const unknownRawMember = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/scenes/PhoneFuture.tsx',
+        source: 'futureRuntime.render({ generation: 1 });'
+      }
+    ]);
+    expect(unknownRawMember).toContain(
+      'PhoneFuture.tsx: raw futureRuntime.render object contract is forbidden without a tuple bridge or retained policy'
+    );
+    const unretainedField = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/scenes/ph-animation/phone/PhonePh.tsx',
+        source: 'createPhoneNativeAutoplay({ durationSeconds: 1, futureField: true });'
+      }
+    ]);
+    expect(unretainedField).toContain(
+      'PhonePh.tsx: raw createPhoneNativeAutoplay field futureField is missing from retained policy'
+    );
+    const indirectUnretainedField = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/scenes/ph-animation/phone/PhonePh.tsx',
+        source: [
+          'const autoplayOptions = { durationSeconds: 1, futureField: true };',
+          'createPhoneNativeAutoplay(autoplayOptions);'
+        ].join('\n')
+      }
+    ]);
+    expect(indirectUnretainedField).toContain(
+      'PhonePh.tsx: raw createPhoneNativeAutoplay field futureField is missing from retained policy'
+    );
+    const wrappedUnretainedField = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/scenes/ph-animation/phone/PhonePh.tsx',
+        source: [
+          'function startNativeAutoplay(options) {',
+          '  return createPhoneNativeAutoplay(options);',
+          '}',
+          'startNativeAutoplay({ durationSeconds: 1, futureField: true });'
+        ].join('\n')
+      }
+    ]);
+    expect(wrappedUnretainedField).toContain(
+      'PhonePh.tsx: raw createPhoneNativeAutoplay field futureField is missing from retained policy'
+    );
+    expect(phoneCrossChunkCompressionPolicyViolations({
+      schemaVersion: 2,
+      reservedPropertyNames: [],
+      retainedObjectContracts: [{
+        name: 'future-contract',
+        callees: ['createFutureRuntime'],
+        sourceSuffixes: ['src/future.ts'],
+        propertyNames: ['generation']
+      }]
+    })).toContain(
+      'future-contract: retained object field is missing from mangle reserve (generation)'
+    );
   });
 });

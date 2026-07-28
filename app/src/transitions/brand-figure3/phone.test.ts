@@ -14,11 +14,15 @@ describe('Phone Brand → Figure3 transition', () => {
       forwardEndpoint: 'figure3-animation:stable-initial-frame',
       reverseEndpoint: 'brand:readable-hold'
     });
-    expect(PHONE_BRAND_FIGURE3_FIELD).toEqual({
-      kind: 'horizontal',
-      direction: 'bottom-to-top',
-      seed: 'brand-figure3'
-    });
+    // This crosses independently-minified lazy chunks. Keep the field
+    // positional rather than reintroducing a property-name protocol.
+    expect(PHONE_BRAND_FIGURE3_FIELD).toEqual([
+      'horizontal',
+      'brand-figure3',
+      'bottom-to-top',
+      null,
+      null
+    ]);
   });
 
   it('returns exact forward and reverse semantic endpoints', () => {

@@ -104,12 +104,13 @@ describe('Figure3 phone paper compositor', () => {
     const onFrame = vi.fn();
     const onPresentedFrame = vi.fn();
 
-    const compositor = createPhoneFigure3PaperCompositor({
+    const compositor = createPhoneFigure3PaperCompositor([
       video,
       canvas,
+      null,
       onFrame,
       onPresentedFrame
-    });
+    ]);
     expect(onFrame).toHaveBeenCalledOnce();
     expect(onPresentedFrame).toHaveBeenCalledOnce();
 

@@ -6,21 +6,23 @@ describe('Figure3 presented-frame reverse playback', () => {
     const frames: FrameRequestCallback[] = [];
     const events: string[] = [];
     const complete = vi.fn();
-    const playback = createPhoneFigure3ReversePlayback({
-      durationMs: 2600,
-      prepare: async (progress) => {
+    const playback = createPhoneFigure3ReversePlayback([
+      2600,
+      async (progress) => {
         events.push(`prepare:${progress.toFixed(2)}`);
         return true;
       },
-      render: (progress) => events.push(`render:${progress.toFixed(2)}`),
-      onComplete: complete,
-      onError: vi.fn(),
-      requestFrame: (callback) => {
+      (progress) => events.push(`render:${progress.toFixed(2)}`),
+      complete,
+      vi.fn(),
+      null,
+      null,
+      (callback) => {
         frames.push(callback);
         return frames.length;
       },
-      cancelFrame: vi.fn()
-    });
+      vi.fn()
+    ]);
 
     playback.start();
     frames.shift()?.(0);
@@ -46,20 +48,22 @@ describe('Figure3 presented-frame reverse playback', () => {
     const frames: FrameRequestCallback[] = [];
     let resolvePreparation: ((ready: boolean) => void) | undefined;
     const render = vi.fn();
-    const playback = createPhoneFigure3ReversePlayback({
-      durationMs: 2600,
-      prepare: () => new Promise((resolve) => {
+    const playback = createPhoneFigure3ReversePlayback([
+      2600,
+      () => new Promise((resolve) => {
         resolvePreparation = resolve;
       }),
       render,
-      onComplete: vi.fn(),
-      onError: vi.fn(),
-      requestFrame: (callback) => {
+      vi.fn(),
+      vi.fn(),
+      null,
+      null,
+      (callback) => {
         frames.push(callback);
         return frames.length;
       },
-      cancelFrame: vi.fn()
-    });
+      vi.fn()
+    ]);
 
     playback.start();
     frames.shift()?.(0);
@@ -79,21 +83,22 @@ describe('Figure3 presented-frame reverse playback', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     };
-    const playback = createPhoneFigure3ReversePlayback({
-      durationMs: 2600,
-      prepare: async () => {
+    const playback = createPhoneFigure3ReversePlayback([
+      2600,
+      async () => {
         throw new Error('decoder failed');
       },
-      render: vi.fn(),
-      onComplete: vi.fn(),
+      vi.fn(),
+      vi.fn(),
       onError,
+      null,
       visibilityDocument,
-      requestFrame: (callback) => {
+      (callback) => {
         frames.push(callback);
         return frames.length;
       },
-      cancelFrame: vi.fn()
-    });
+      vi.fn()
+    ]);
 
     playback.start();
     frames.shift()?.(0);

@@ -1,6 +1,5 @@
 import type { SceneId } from '../../story/types';
 import {
-  phoneEntryPlan,
   phoneRun,
   phoneRunForHold,
   type PhoneRunId
@@ -75,16 +74,13 @@ function directEntryEvent(
   source: 'initial' | 'hash' | 'menu' | 'history',
   fallback: SceneId
 ): Extract<PhoneStoryEvent, { type: 'DIRECT_ENTRY_REQUESTED' }> {
-  const plan = phoneEntryPlan(target);
   return {
     type: 'DIRECT_ENTRY_REQUESTED',
     authorityId,
     target,
     source,
     fallbackScene: fallback,
-    cinematic: plan.kind === 'cinematic'
-      ? { run: plan.run, direction: plan.direction, legIndex: plan.legIndex }
-      : null
+    cinematic: null
   };
 }
 
@@ -106,12 +102,9 @@ export function createPhoneStoryOrchestrator(
   });
   const capabilities = createPhoneRunCapabilityRegistry();
   const scrollCorridors = createPhoneScrollCorridorRegistry();
-  const initialPlan = phoneEntryPlan(options.initialScene);
   let currentSnapshot: PhoneStorySnapshot = createPhoneStorySnapshot({
     authorityId,
-    scene: initialPlan.kind === 'cinematic'
-      ? phoneRun(initialPlan.run).from
-      : initialPlan.scene,
+    scene: options.initialScene,
     actualY: options.scrollY()
   });
   let disposed = false;
@@ -227,6 +220,11 @@ export function createPhoneStoryOrchestrator(
     if (disposed) return;
     if (!applySnapshot(currentSnapshot, false)) recoverProjectFailure();
     replayPendingDirectEntry();
+    // Route-owned geometry and lazy surface handles may become ready after a
+    // direct-entry candidate has already been projected. Re-evaluate the
+    // immutable transaction here so cold deep links do not require a later
+    // browser scroll sample to enter the normal landing/verification path.
+    startPreparedOperation();
   };
   const sessions = createPhoneOrchestratedSessionController({
     getSnapshot: () => currentSnapshot,
@@ -299,15 +297,20 @@ export function createPhoneStoryOrchestrator(
   };
   afterDispatch = () => startPreparedOperation();
 
-  const resolveIntent = (intent: PhoneIntent): PhoneIntentDisposition => {
+  const resolveIntent = ([
+    inputEpoch,
+    direction,
+    startY,
+    projectedY
+  ]: PhoneIntent): PhoneIntentDisposition => {
     if (disposed) return 'pass-native';
     const snapshot = currentSnapshot;
     if (snapshot.status === 'transaction') {
       return dispatch({
         type: 'INTENT_RESOLVED',
         authorityId: snapshot.authorityId,
-        inputEpoch: intent.inputEpoch,
-        direction: intent.direction,
+        inputEpoch,
+        direction,
         run: null,
         anchorY: null,
         boundaryKnown: false,
@@ -315,25 +318,25 @@ export function createPhoneStoryOrchestrator(
       }).inputDisposition ?? 'block-active-session';
     }
     if (snapshot.status !== 'stable') return 'pass-native';
-    const definition = phoneRunForHold(snapshot.scene, intent.direction);
+    const definition = phoneRunForHold(snapshot.scene, direction);
     const boundaryY = definition
-      ? scrollCorridors.boundary(snapshot, definition.id, intent.direction)
+      ? scrollCorridors.boundary(snapshot, definition.id, direction)
       : null;
     const boundaryKnown = boundaryY !== null;
     const crossedBoundary = boundaryY !== null && phoneTransitionCrossesBoundary(
-      intent.startY,
-      intent.projectedY,
+      startY,
+      projectedY,
       boundaryY,
-      intent.direction
+      direction
     );
-    const reason: PhoneLandingReason = intent.direction === 1 ? 'forward' : 'reverse';
+    const reason: PhoneLandingReason = direction === 1 ? 'forward' : 'reverse';
     const compositeY = definition
-      ? scrollCorridors.landing(snapshot, snapshot.scene, reason, intent.direction)
+      ? scrollCorridors.landing(snapshot, snapshot.scene, reason, direction)
       : null;
     const anchorY = definition && boundaryY !== null && crossedBoundary
       ? resolvePhoneRunLanding({
           policy: definition.anchor,
-          direction: intent.direction,
+          direction,
           reason,
           currentY: options.scrollY(),
           boundaryY,
@@ -343,8 +346,8 @@ export function createPhoneStoryOrchestrator(
     const disposition = dispatch({
       type: 'INTENT_RESOLVED',
       authorityId: snapshot.authorityId,
-      inputEpoch: intent.inputEpoch,
-      direction: intent.direction,
+      inputEpoch,
+      direction,
       run: definition?.id ?? null,
       anchorY,
       boundaryKnown,

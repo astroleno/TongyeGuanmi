@@ -16,7 +16,11 @@ describe('PhoneHeroPatternTransition Route B adapter', () => {
     );
 
     expect(markup).toBe('');
-    expect(source).toContain("canvasClassName: 'portrait-scroll-spike__ink'");
-    expect(source).toContain("portraitInk: 'hero-pattern'");
+    expect(source).toContain('createPhoneInkAdapter([');
+    expect(source).toContain(
+      "['radial', 'portrait-hero-pattern-r5', null, 0.5, 0.44]"
+    );
+    expect(source).toContain("'portrait-scroll-spike__ink'");
+    expect(source).toContain("'hero-pattern'");
   });
 });

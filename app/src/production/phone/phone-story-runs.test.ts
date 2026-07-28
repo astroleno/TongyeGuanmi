@@ -96,42 +96,15 @@ describe('canonical phone story runs', () => {
     });
   });
 
-  it('initializes cinematic direct entries at their real media leg', () => {
-    expect(phoneEntryPlan('figure3-animation')).toEqual({
-      kind: 'cinematic',
-      scene: 'figure3-animation',
-      run: 'brand-services',
-      legIndex: 1,
-      direction: 1,
-      target: 'services'
-    });
-    expect(phoneEntryPlan('ttg-animation')).toEqual({
-      kind: 'cinematic',
-      scene: 'ttg-animation',
-      run: 'services-lab',
-      legIndex: 1,
-      direction: 1,
-      target: 'lab'
-    });
-    expect(phoneEntryPlan('ph-animation')).toEqual({
-      kind: 'cinematic',
-      scene: 'ph-animation',
-      run: 'lab-education',
-      legIndex: 1,
-      direction: 1,
-      target: 'education'
-    });
-    expect(phoneEntryPlan('crane-animation')).toEqual({
-      kind: 'cinematic',
-      scene: 'crane-animation',
-      run: 'education-contact',
-      legIndex: 1,
-      direction: 1,
-      target: 'contact'
-    });
-    expect(phoneEntryPlan('brand')).toEqual({
-      kind: 'hold',
-      scene: 'brand'
-    });
+  it('treats every canonical hash as a stable direct-entry target', () => {
+    for (const scene of [
+      'figure3-animation',
+      'ttg-animation',
+      'ph-animation',
+      'crane-animation',
+      'brand'
+    ] as const) {
+      expect(phoneEntryPlan(scene)).toEqual({ kind: 'hold', scene });
+    }
   });
 });

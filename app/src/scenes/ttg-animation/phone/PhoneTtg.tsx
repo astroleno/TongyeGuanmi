@@ -8,15 +8,15 @@ import {
 } from 'react';
 import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
 import {
-  disposeTimelineVideoDriver,
-  driveTimelineVideo,
-  prepareTimelineVideoFrame,
-  timelineVideoDriverFor,
-  type TimelineVideoDriveInput
-} from '../../../media/timeline-video-driver';
+  disposePhoneTimelineVideo,
+  drivePhoneTimelineVideo,
+  phoneTimelineVideoSnapshot,
+  preparePhoneTimelineVideoFrame,
+  type PhoneTimelineVideoInput
+} from '../../../production/phone/phone-timeline-runtime';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
 import type {
-  PhoneExecutionIdentity
+  PhoneExecutionToken
 } from '../../../production/phone/phone-story-state';
 import {
   waitForPhonePresentationEvidence
@@ -91,14 +91,14 @@ export type PhoneTtgMediaAction =
 type PhoneTtgProps = Group45PhoneSceneProps;
 
 function sameExecution(
-  left: PhoneExecutionIdentity | null,
-  right: PhoneExecutionIdentity | null
+  left: PhoneExecutionToken | null,
+  right: PhoneExecutionToken | null
 ): boolean {
-  return left?.authorityId === right?.authorityId
-    && left?.sessionId === right?.sessionId
-    && left?.generation === right?.generation
-    && left?.leg === right?.leg
-    && left?.direction === right?.direction;
+  return left?.[0] === right?.[0]
+    && left?.[1] === right?.[1]
+    && left?.[2] === right?.[2]
+    && left?.[3] === right?.[3]
+    && left?.[4] === right?.[4];
 }
 
 /** Desktop-authored TTG motion sampled inside the portrait crop. */
@@ -151,7 +151,7 @@ export function phoneTtgHeldEndpoint(
 /** Release the sole video owner and its decoder before TTG retires. */
 export function releasePhoneTtgVideo(video: HTMLVideoElement | null): void {
   if (!video) return;
-  disposeTimelineVideoDriver(video);
+  disposePhoneTimelineVideo(video);
   video.pause();
   delete video.dataset.phoneTtgEndpointReady;
   video.removeAttribute('src');
@@ -185,30 +185,44 @@ function playbackLabel(
 function ttgReverseMediaInput(
   runId: string,
   progress: number
-): TimelineVideoDriveInput {
-  return {
+): PhoneTimelineVideoInput {
+  return [
     runId,
-    direction: -1,
-    progress: phoneTtgReverseFrameProgress(progress),
-    durationFallbackSeconds: 2.5,
-    startSeconds: 0,
-    endSeconds: TTG_FIGURE_END_SECONDS,
-    timelineDurationMs: TTG_FIGURE_END_SECONDS * 1000,
-    mode: 'timeline',
-    nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha()
-  };
+    -1,
+    phoneTtgReverseFrameProgress(progress),
+    2.5,
+    0,
+    TTG_FIGURE_END_SECONDS,
+    null,
+    TTG_FIGURE_END_SECONDS * 1000,
+    'timeline',
+    1,
+    browserPrefersHevcAlpha(),
+    null
+  ];
 }
 
 function ttgEndpointMediaInput(
   runId: string,
   endpoint: 0 | 1,
-  direction: 1 | -1
-): TimelineVideoDriveInput {
-  return {
-    ...ttgReverseMediaInput(runId, endpoint),
-    direction
-  };
+  direction: 1 | -1,
+  allowSeekedFrameFallback = browserPrefersHevcAlpha(),
+  signal: AbortSignal | null = null
+): PhoneTimelineVideoInput {
+  return [
+    runId,
+    direction,
+    phoneTtgReverseFrameProgress(endpoint),
+    2.5,
+    0,
+    TTG_FIGURE_END_SECONDS,
+    null,
+    TTG_FIGURE_END_SECONDS * 1000,
+    'timeline',
+    1,
+    allowSeekedFrameFallback,
+    signal
+  ];
 }
 
 type PhoneTtgEndpointVideo = Pick<
@@ -276,11 +290,12 @@ function waitForPhoneTtgReverseEndpoint(
   runId: string
 ): Promise<boolean> {
   return waitForPhoneTtgEndpoint(() => {
-    const snapshot = timelineVideoDriverFor(video).snapshot();
-    return snapshot.runId === runId
-      && snapshot.direction === -1
-      && (snapshot.desiredProgress ?? 1) <= .001
-      && snapshot.frameReady
+    const [snapshotRunId, snapshotDirection, desiredProgress, frameReady] =
+      phoneTimelineVideoSnapshot(video);
+    return snapshotRunId === runId
+      && snapshotDirection === -1
+      && (desiredProgress ?? 1) <= .001
+      && frameReady
       && video.currentTime <= .04;
   });
 }
@@ -351,8 +366,8 @@ export const PhoneTtg = forwardRef<
   const playbackRef = useRef<Group45NativeAutoplay | null>(null);
   const activeRef = useRef(active);
   const directionRef = useRef<1 | -1>(direction);
-  const executionRef = useRef<PhoneExecutionIdentity | null>(execution);
-  const runIdentityRef = useRef<PhoneExecutionIdentity | null>(execution);
+  const executionRef = useRef<PhoneExecutionToken | null>(execution);
+  const runIdentityRef = useRef<PhoneExecutionToken | null>(execution);
   const prewarmRef = useRef(prewarm);
   const reducedMotionRef = useRef(reducedMotion);
   const mediaMountedRef = useRef((active || prewarm) && !reducedMotion);
@@ -360,7 +375,7 @@ export const PhoneTtg = forwardRef<
   const mediaRetiringRef = useRef(false);
   const hasForwardRunRef = useRef(false);
   const forwardRequestedRef = useRef(
-    Boolean(execution && execution.direction === 1 && !reducedMotion)
+    Boolean(execution && execution[4] === 1 && !reducedMotion)
   );
   const targetPreparationRef = useRef<Readonly<{
     endpoint: 0 | 1;
@@ -426,7 +441,7 @@ export const PhoneTtg = forwardRef<
     }
     const video = videoRef.current;
     if (playbackDirection === -1 && video) {
-      driveTimelineVideo(
+      drivePhoneTimelineVideo(
         video,
         ttgReverseMediaInput(reverseRunIdRef.current, frame.progress)
       );
@@ -444,7 +459,7 @@ export const PhoneTtg = forwardRef<
     playbackDirection: Group45NativeAutoplayDirection
   ) => {
     const identity = runIdentityRef.current;
-    if (identity?.direction !== playbackDirection) return;
+    if (identity?.[4] !== playbackDirection) return;
     progressListenerRef.current?.(
       'ttg-animation',
       identity,
@@ -498,7 +513,7 @@ export const PhoneTtg = forwardRef<
       || generation !== runGenerationRef.current
       || completionReportedRef.current
       || !identity
-      || identity.direction !== playbackDirection
+      || identity[4] !== playbackDirection
     ) return;
     completionReportedRef.current = true;
     completionListenerRef.current?.('ttg-animation', identity);
@@ -575,21 +590,19 @@ export const PhoneTtg = forwardRef<
         || mediaRetiringRef.current
         || preparationGeneration !== initialFrameGenerationRef.current
       ) return null;
-      return prepareTimelineVideoFrame(
+      return preparePhoneTimelineVideoFrame(
         video,
-        {
-          ...ttgEndpointMediaInput(
-            `phone-ttg-initial-${preparationGeneration}`,
-            0,
-            1
-          ),
-          // The prewarmed stage is intentionally visibility-hidden. Chromium
-          // can withhold rVFC there, while iOS HEVC already needs the same
-          // decoded-current-data fallback. A settled seek plus 120 ms of stable
-          // current data is sufficient before the ink contour exposes video.
-          allowSeekedFrameFallback: true,
-          signal: preparationController.signal
-        }
+        // The prewarmed stage is intentionally visibility-hidden. Chromium
+        // can withhold rVFC there, while iOS HEVC already needs the same
+        // decoded-current-data fallback. A settled seek plus 120 ms of stable
+        // current data is sufficient before the ink contour exposes video.
+        ttgEndpointMediaInput(
+          `phone-ttg-initial-${preparationGeneration}`,
+          0,
+          1,
+          true,
+          preparationController.signal
+        )
       );
     }).then((result) => {
       if (
@@ -597,7 +610,7 @@ export const PhoneTtg = forwardRef<
         || preparationGeneration !== initialFrameGenerationRef.current
         || videoRef.current !== video
       ) return false;
-      if (result?.status !== 'ready') return false;
+      if (result?.[0] !== 'ready') return false;
       video.dataset.phoneGroup45FrameReady = 'true';
       video.dataset.phoneTtgEndpointReady = 'initial';
       setMediaReady(true);
@@ -628,11 +641,11 @@ export const PhoneTtg = forwardRef<
 
   const startRun = useCallback((
     runDirection: 1 | -1,
-    identity: PhoneExecutionIdentity | null = executionRef.current
+    identity: PhoneExecutionToken | null = executionRef.current
   ) => {
     if (
       !identity
-      || identity.direction !== runDirection
+      || identity[4] !== runDirection
       || reducedMotionRef.current
       || mediaFailedRef.current
     ) return;
@@ -665,7 +678,7 @@ export const PhoneTtg = forwardRef<
         ) return;
         // The exact initial frame is now physically present. Retire its seek
         // driver before native playback takes sole ownership of the video.
-        disposeTimelineVideoDriver(video);
+        disposePhoneTimelineVideo(video);
         playback.start(1);
       };
       if (phoneTtgHasReusableEndpointFrame(video, 0)) {
@@ -710,15 +723,15 @@ export const PhoneTtg = forwardRef<
       return;
     }
     playback.reset(1);
-    void prepareTimelineVideoFrame(
+    void preparePhoneTimelineVideoFrame(
       video,
       ttgReverseMediaInput(reverseRunIdRef.current, 1)
-    ).then((result) => {
+    ).then(([status]) => {
       if (
         mediaRetiringRef.current
         || generation !== runGenerationRef.current
       ) return;
-      if (result?.status !== 'ready') {
+      if (status !== 'ready') {
         failMedia();
         return;
       }
@@ -824,7 +837,7 @@ export const PhoneTtg = forwardRef<
     const ownershipFrame = window.requestAnimationFrame(() => {
       if (disposed) return;
       disposeTtgMedia(root);
-      disposeTimelineVideoDriver(video);
+      disposePhoneTimelineVideo(video);
       const playback = createGroup45NativeAutoplay(video, {
         durationSeconds: TTG_FIGURE_END_SECONDS,
         onProgress: (progress, playbackDirection) => {
@@ -930,7 +943,7 @@ export const PhoneTtg = forwardRef<
     const previousExecution = executionRef.current;
     executionRef.current = execution;
     activeRef.current = execution !== null;
-    directionRef.current = execution?.direction ?? direction;
+    directionRef.current = execution?.[4] ?? direction;
     prewarmRef.current = prewarm;
     reducedMotionRef.current = reducedMotion;
     if (execution && !sameExecution(previousExecution, execution)) {
@@ -1009,15 +1022,18 @@ export const PhoneTtg = forwardRef<
           void ensureInitialFrame(video);
         } else if (!terminalRequested) {
           terminalRequested = true;
-          void prepareTimelineVideoFrame(
+          void preparePhoneTimelineVideoFrame(
             video,
-            {
-              ...ttgEndpointMediaInput(request.runId, 1, request.direction),
-              signal: request.signal
-            }
-          ).then((result) => {
+            ttgEndpointMediaInput(
+              request.runId,
+              1,
+              request.direction,
+              browserPrefersHevcAlpha(),
+              request.signal
+            )
+          ).then(([status]) => {
             if (
-              result?.status !== 'ready'
+              status !== 'ready'
               || request.signal.aborted
               || targetPreparationRef.current !== target
             ) return;

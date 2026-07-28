@@ -18,28 +18,41 @@ export function renderPhoneStageTransitions(
   frame: PhoneStageFrame,
   transitions: PhoneStageTransitionRenderers
 ): void {
-  if (frame.ownership.key === 'handoff-hero-pattern') {
-    transitions.patternStar.render(frame.patternStarProgress);
-    transitions.starAod.render(frame.starAodProgress);
-    transitions.heroPattern.render(frame.heroPatternProgress);
+  const [
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    heroPatternProgress,
+    patternStarProgress,
+    starAodProgress,
+    ,
+    ownershipKey
+  ] = frame;
+  if (ownershipKey === 'handoff-hero-pattern') {
+    transitions.patternStar.render(patternStarProgress);
+    transitions.starAod.render(starAodProgress);
+    transitions.heroPattern.render(heroPatternProgress);
     return;
   }
 
-  if (frame.ownership.key === 'handoff-pattern-star') {
-    transitions.heroPattern.render(frame.heroPatternProgress);
-    transitions.starAod.render(frame.starAodProgress);
-    transitions.patternStar.render(frame.patternStarProgress);
+  if (ownershipKey === 'handoff-pattern-star') {
+    transitions.heroPattern.render(heroPatternProgress);
+    transitions.starAod.render(starAodProgress);
+    transitions.patternStar.render(patternStarProgress);
     return;
   }
 
-  if (frame.ownership.key === 'handoff-star-aod') {
-    transitions.heroPattern.render(frame.heroPatternProgress);
-    transitions.patternStar.render(frame.patternStarProgress);
-    transitions.starAod.render(frame.starAodProgress);
+  if (ownershipKey === 'handoff-star-aod') {
+    transitions.heroPattern.render(heroPatternProgress);
+    transitions.patternStar.render(patternStarProgress);
+    transitions.starAod.render(starAodProgress);
     return;
   }
 
-  transitions.heroPattern.render(frame.heroPatternProgress);
-  transitions.patternStar.render(frame.patternStarProgress);
-  transitions.starAod.render(frame.starAodProgress);
+  transitions.heroPattern.render(heroPatternProgress);
+  transitions.patternStar.render(patternStarProgress);
+  transitions.starAod.render(starAodProgress);
 }

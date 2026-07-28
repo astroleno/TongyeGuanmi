@@ -38,37 +38,6 @@ export function PhoneContinuationBundle({
   );
 }
 
-export type PhoneStoryTailBundleProps = Readonly<{
-  motionReduced: boolean;
-  stageHost: HTMLElement | null;
-  onBrandRootChange?: (root: HTMLElement | null) => void;
-}>;
-
-/** Shared full-story tail used after Grade A and by direct continuation entry. */
-export function PhoneStoryTailBundle({
-  motionReduced,
-  stageHost,
-  onBrandRootChange
-}: PhoneStoryTailBundleProps) {
-  const [labBoundary, setLabBoundary] = useState<PhoneLabBoundary | null>(null);
-  return (
-    <>
-      <PhoneBrandLabContinuation
-        reducedMotion={motionReduced}
-        stageHost={stageHost}
-        {...(onBrandRootChange ? { onBrandRootChange } : {})}
-        onLabBoundaryChange={setLabBoundary}
-      />
-      <PhoneLabContactContinuation
-        reducedMotion={motionReduced}
-        stageHost={stageHost}
-        fromLabBoundary={true}
-        labBoundary={labBoundary}
-      />
-    </>
-  );
-}
-
 export type PhoneBrandLabBundleProps = Readonly<{
   motionReduced: boolean;
   stageHost: HTMLElement | null;

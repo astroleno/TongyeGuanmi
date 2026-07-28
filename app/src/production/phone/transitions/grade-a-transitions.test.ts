@@ -104,14 +104,20 @@ class FakeDocument {
 
 describe('phone Grade A transition contracts', () => {
   it('keeps both chapter boundaries on the canonical bottom-up field', () => {
-    expect(PHONE_METHOD_FIGURE2_FIELD).toMatchObject({
-      kind: 'horizontal',
-      direction: 'bottom-to-top'
-    });
-    expect(PHONE_PROOF_BRAND_FIELD).toMatchObject({
-      kind: 'horizontal',
-      direction: 'bottom-to-top'
-    });
+    expect(PHONE_METHOD_FIGURE2_FIELD).toEqual([
+      'horizontal',
+      expect.any(String),
+      'bottom-to-top',
+      null,
+      null
+    ]);
+    expect(PHONE_PROOF_BRAND_FIELD).toEqual([
+      'horizontal',
+      expect.any(String),
+      'bottom-to-top',
+      null,
+      null
+    ]);
   });
 
   it('keeps the authored Figure2 media/depth split', () => {

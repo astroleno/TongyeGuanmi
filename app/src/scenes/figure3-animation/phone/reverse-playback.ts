@@ -19,17 +19,17 @@ export type PhoneFigure3ReversePlayback = Readonly<{
   dispose(): void;
 }>;
 
-type PhoneFigure3ReversePlaybackOptions = Readonly<{
-  durationMs: number;
-  prepare(progress: number): Promise<boolean>;
-  render(progress: number): void;
-  onComplete(): void;
-  onError(): void;
-  onStatus?(status: PhoneFigure3ReversePlaybackStatus): void;
-  visibilityDocument?: VisibilityDocument;
-  requestFrame?: (callback: FrameRequestCallback) => number;
-  cancelFrame?: (frame: number) => void;
-}>;
+export type PhoneFigure3ReversePlaybackRequest = readonly [
+  durationMs: number,
+  prepare: (progress: number) => Promise<boolean>,
+  render: (progress: number) => void,
+  onComplete: () => void,
+  onError: () => void,
+  onStatus: ((status: PhoneFigure3ReversePlaybackStatus) => void) | null,
+  visibilityDocument: VisibilityDocument | null,
+  requestFrame: ((callback: FrameRequestCallback) => number) | null,
+  cancelFrame: ((frame: number) => void) | null
+];
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -43,8 +43,29 @@ function clamp(value: number): number {
  * never replace the visible animation with a frozen terminal canvas.
  */
 export function createPhoneFigure3ReversePlayback(
-  options: PhoneFigure3ReversePlaybackOptions
+  [
+    requestDurationMs,
+    requestPrepare,
+    requestRender,
+    requestOnComplete,
+    requestOnError,
+    requestOnStatus,
+    requestVisibilityDocument,
+    requestScheduleFrame,
+    requestCancelFrame
+  ]: PhoneFigure3ReversePlaybackRequest
 ): PhoneFigure3ReversePlayback {
+  const options = {
+    durationMs: requestDurationMs,
+    prepare: requestPrepare,
+    render: requestRender,
+    onComplete: requestOnComplete,
+    onError: requestOnError,
+    onStatus: requestOnStatus ?? undefined,
+    visibilityDocument: requestVisibilityDocument ?? undefined,
+    requestFrame: requestScheduleFrame ?? undefined,
+    cancelFrame: requestCancelFrame ?? undefined
+  };
   const durationMs = Math.max(1, options.durationMs);
   const visibilityDocument = options.visibilityDocument
     ?? (typeof document === 'undefined' ? undefined : document);
@@ -191,4 +212,3 @@ export function createPhoneFigure3ReversePlayback(
     }
   };
 }
-

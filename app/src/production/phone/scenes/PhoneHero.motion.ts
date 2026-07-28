@@ -1,8 +1,8 @@
 import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
 import {
-  disposeTimelineVideoDriver,
-  driveTimelineVideo
-} from '../../../media/timeline-video-driver';
+  disposePhoneTimelineVideo,
+  drivePhoneTimelineVideo
+} from '../phone-timeline-runtime';
 import { setPackedAlphaVideoSource } from '../../../media/packed-alpha-video';
 import type { PhoneMotionDriver } from '../types';
 
@@ -212,16 +212,20 @@ export function createPhoneFigurePlayback(
           video.pause();
           video.loop = false;
           video.playbackRate = 1;
-          driveTimelineVideo(video, {
-            runId: PHONE_FIGURE_RUN_ID,
+          drivePhoneTimelineVideo(video, [
+            PHONE_FIGURE_RUN_ID,
             direction,
-            progress: PHONE_FIGURE_AUTOPLAY_START_PROGRESS,
-            durationFallbackSeconds: PHONE_FIGURE_DURATION_SECONDS,
-            startSeconds: 0,
-            endSeconds: PHONE_FIGURE_DURATION_SECONDS - PHONE_FIGURE_END_EPSILON_SECONDS,
-            mode: 'timeline',
-            allowSeekedFrameFallback: true
-          });
+            PHONE_FIGURE_AUTOPLAY_START_PROGRESS,
+            PHONE_FIGURE_DURATION_SECONDS,
+            0,
+            PHONE_FIGURE_DURATION_SECONDS - PHONE_FIGURE_END_EPSILON_SECONDS,
+            null,
+            null,
+            'timeline',
+            null,
+            true,
+            null
+          ]);
           playAmbient();
         }
         return;
@@ -232,16 +236,20 @@ export function createPhoneFigurePlayback(
       video.loop = false;
       video.playbackRate = 1;
       video.dataset.phoneFigurePlayback = 'scrubbing';
-      driveTimelineVideo(video, {
-        runId: PHONE_FIGURE_RUN_ID,
+      drivePhoneTimelineVideo(video, [
+        PHONE_FIGURE_RUN_ID,
         direction,
         progress,
-        durationFallbackSeconds: PHONE_FIGURE_DURATION_SECONDS,
-        startSeconds: 0,
-        endSeconds: PHONE_FIGURE_DURATION_SECONDS - PHONE_FIGURE_END_EPSILON_SECONDS,
-        mode: 'timeline',
-        allowSeekedFrameFallback: true
-      });
+        PHONE_FIGURE_DURATION_SECONDS,
+        0,
+        PHONE_FIGURE_DURATION_SECONDS - PHONE_FIGURE_END_EPSILON_SECONDS,
+        null,
+        null,
+        'timeline',
+        null,
+        true,
+        null
+      ]);
     },
     settle() {
       if (lastProgress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS) {
@@ -262,7 +270,7 @@ export function createPhoneFigurePlayback(
       video.pause();
       video.removeEventListener('loadeddata', onLoadedData);
       video.removeEventListener('error', onError);
-      disposeTimelineVideoDriver(video);
+      disposePhoneTimelineVideo(video);
       delete video.dataset.phoneFigurePlayback;
       delete video.dataset.phoneFigureFrame;
       delete video.dataset.phoneFigureSource;

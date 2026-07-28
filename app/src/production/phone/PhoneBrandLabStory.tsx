@@ -43,7 +43,7 @@ export type PhoneBrandLabStoryProps = Readonly<{
 
 const GROUP45_SCENES = new Set<Group45PhoneSceneId>(group45PhoneSceneIds);
 const GROUP45_NAV_ITEMS = publicMenuItems.filter(
-  (item) => item.scene === 'services'
+  (item) => item.hash === '#services'
 );
 
 function isGroup45Scene(scene: SceneId): scene is Group45PhoneSceneId {
@@ -166,7 +166,7 @@ export function PhoneBrandLabStory({
           />
         </Suspense>
         <StoryNav
-          currentScene={navigation.scene}
+          currentScene={navigation.cinematicSnapshot[12]}
           visible
           menuOpen={menuOpen}
           menuItems={GROUP45_NAV_ITEMS}

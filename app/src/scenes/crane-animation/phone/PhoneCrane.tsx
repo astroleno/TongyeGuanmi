@@ -164,41 +164,43 @@ export const PhoneCrane = forwardRef<
       || !flockCanvas
     ) return null;
     if (!packedSurfacesRef.current) {
-      const figureSurface = createPhonePackedAlphaSurface({
+      const figureSurface = createPhonePackedAlphaSurface([
         root,
-        container: figureContainer,
-        canvas: figureCanvas,
-        video: figure,
-        packedSourceUrl: PHONE_CRANE_FIGURE_PACKED,
-        endpointSeconds: PHONE_CRANE_FIGURE_ENDPOINT_SECONDS,
-        statusDataset: 'phoneCraneFigureAlpha',
-        layerName: 'crane-figure',
-        canvasClassName: 'crane-figure-video phone-crane__figure-canvas',
-        onFrame: () => {
+        figureContainer,
+        figureCanvas,
+        figure,
+        PHONE_CRANE_FIGURE_PACKED,
+        PHONE_CRANE_FIGURE_ENDPOINT_SECONDS,
+        'phoneCraneFigureAlpha',
+        'crane-figure',
+        'crane-figure-video phone-crane__figure-canvas',
+        null,
+        () => {
           figure.dataset.timelineVideoFrameReady = 'true';
           root.dataset.phoneCraneMedia = figure.paused ? 'ready' : 'playing';
           beginPreparedReverseRef.current?.();
         }
-      });
-      const flockSurface = createPhonePackedAlphaSurface({
+      ]);
+      const flockSurface = createPhonePackedAlphaSurface([
         root,
-        container: flockContainer,
-        canvas: flockCanvas,
-        video: flock,
-        packedSourceUrl: PHONE_CRANE_FLOCK_PACKED,
-        endpointSeconds: PHONE_CRANE_FLOCK_ENDPOINT_SECONDS,
-        statusDataset: 'phoneCraneFlockAlpha',
-        layerName: 'crane-flock',
-        canvasClassName: 'crane-figure-video crane-figure-video--front phone-crane__flock-canvas',
-        onFrame: () => {
+        flockContainer,
+        flockCanvas,
+        flock,
+        PHONE_CRANE_FLOCK_PACKED,
+        PHONE_CRANE_FLOCK_ENDPOINT_SECONDS,
+        'phoneCraneFlockAlpha',
+        'crane-flock',
+        'crane-figure-video crane-figure-video--front phone-crane__flock-canvas',
+        null,
+        () => {
           flock.dataset.timelineVideoFrameReady = 'true';
           root.dataset.phoneCraneMedia = flock.paused ? 'ready' : 'playing';
           beginPreparedReverseRef.current?.();
         }
-      });
+      ]);
       packedSurfacesRef.current = [figureSurface, flockSurface];
     }
-    for (const surface of packedSurfacesRef.current) surface.activate(mode);
+    for (const surface of packedSurfacesRef.current) surface(['activate', mode]);
     return packedSurfacesRef.current;
   }, []);
 
@@ -221,19 +223,31 @@ export const PhoneCrane = forwardRef<
       && figureCanvasRef.current?.dataset.packedAlphaFrameReady === 'true'
       && flockCanvasRef.current?.dataset.packedAlphaFrameReady === 'true';
   }, []);
-  const run = usePhoneCinematicRun({
-    scene: 'crane-animation',
+  const [
+    requestedRef,
+    beginPreparedReverse,
+    completeRun,
+    failRun,
+    publishPlaying,
+    renderProgress,
+    startRun,
+    stopRun,
+    disposeRun
+  ] = usePhoneCinematicRun([
+    'crane-animation',
     rootRef,
-    forwardRef: forwardRunRef,
-    reverseRef: reversePlaybackRef,
+    forwardRunRef,
+    reversePlaybackRef,
     reducedMotion,
-    terminalProgress: PHONE_CRANE_STABLE_HOLD_PROGRESS,
-    reverseTimeoutMs: PHONE_CRANE_REVERSE_READY_TIMEOUT_MS,
+    PHONE_CRANE_STABLE_HOLD_PROGRESS,
+    PHONE_CRANE_REVERSE_READY_TIMEOUT_MS,
     reverseReady,
-    activateSurface: ensurePackedSurfaces,
-    render: renderPresentation
-  });
-  beginPreparedReverseRef.current = run.beginPreparedReverse;
+    ensurePackedSurfaces,
+    renderPresentation,
+    null,
+    null
+  ]);
+  beginPreparedReverseRef.current = beginPreparedReverse;
 
   useEffect(() => {
     const root = rootRef.current;
@@ -241,20 +255,20 @@ export const PhoneCrane = forwardRef<
     renderPresentation(0);
     const forwardRun = createPhoneCraneForwardRun(
       root,
-      run.renderProgress,
+      renderProgress,
       () => {
         // AOD leaves its persistent Canvas on the last decoded frame. Keep
         // the same decoder/WebGL pair alive until the stage is fully hidden;
         // replacing it with a newly sought endpoint can freeze physical iOS.
-        run.renderProgress(PHONE_CRANE_STABLE_HOLD_PROGRESS, 1);
+        renderProgress(PHONE_CRANE_STABLE_HOLD_PROGRESS, 1);
         root.dataset.phoneCraneMedia = 'stable-endpoint';
-        run.completeRun(1);
+        completeRun(1);
       },
       () => {
         root.dataset.phoneCraneMedia = 'retryable-failure';
-        run.failRun(1);
+        failRun(1);
       },
-      run.publishPlaying
+      publishPlaying
     );
     if (!forwardRun) {
       applyPhoneCraneMediaFallback(root);
@@ -263,25 +277,25 @@ export const PhoneCrane = forwardRef<
     }
     const reversePlayback = createPhoneCranePresentedReverse(
       root,
-      run.renderProgress,
-      () => run.completeRun(-1),
+      renderProgress,
+      () => completeRun(-1),
       () => {
         root.dataset.phoneCraneMedia = 'retryable-failure';
-        run.failRun(-1);
+        failRun(-1);
       }
     );
     forwardRunRef.current = forwardRun;
     reversePlaybackRef.current = reversePlayback;
     if (import.meta.env.DEV) root.dataset.phoneCraneLifecycle = 'ready';
-    const requestedDirection = run.requestedRef.current;
-    if (requestedDirection !== null) run.startRun(requestedDirection);
+    const requestedDirection = requestedRef.current;
+    if (requestedDirection !== null) startRun(requestedDirection);
     onReady?.();
 
     return () => {
       forwardRun.dispose();
       reversePlayback.dispose();
-      run.stopRun();
-      for (const surface of packedSurfacesRef.current ?? []) surface.dispose();
+      stopRun();
+      for (const surface of packedSurfacesRef.current ?? []) surface(['dispose']);
       packedSurfacesRef.current = null;
       if (forwardRunRef.current === forwardRun) forwardRunRef.current = null;
       if (reversePlaybackRef.current === reversePlayback) reversePlaybackRef.current = null;
@@ -295,7 +309,13 @@ export const PhoneCrane = forwardRef<
     onReady,
     reducedMotion,
     renderPresentation,
-    run
+    requestedRef,
+    completeRun,
+    failRun,
+    publishPlaying,
+    renderProgress,
+    startRun,
+    stopRun
   ]);
 
   const prepareTargetPresentation = useCallback(async (
@@ -319,7 +339,7 @@ export const PhoneCrane = forwardRef<
     if (!surfaces) throw new Error('Crane packed-alpha surfaces unavailable');
     try {
       await Promise.all(
-        surfaces.map((surface) => surface.prepare(mode, request.signal))
+        surfaces.map((surface) => surface(['prepare', mode, request.signal]))
       );
     } catch (error) {
       root.dataset.phoneCraneMedia = 'retryable-failure';
@@ -335,31 +355,38 @@ export const PhoneCrane = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     update(progress) {
-      run.stopRun();
+      stopRun();
       renderPresentation(
         progress >= 0.999 ? PHONE_CRANE_STABLE_HOLD_PROGRESS : progress
       );
     },
     enter(request?: PhoneCinematicRequest) {
       rootRef.current?.removeAttribute('aria-hidden');
-      run.startRun(1, request?.identity ?? null);
+      startRun(1, request ?? null);
     },
     leave() {
-      run.stopRun();
+      stopRun();
       parkPhoneCraneMedia(rootRef.current);
-      for (const surface of packedSurfacesRef.current ?? []) surface.release();
+      for (const surface of packedSurfacesRef.current ?? []) surface(['release']);
     },
     reverse(request?: PhoneCinematicRequest) {
-      run.startRun(-1, request?.identity ?? null);
+      startRun(-1, request ?? null);
     },
     prepareTargetPresentation,
     dispose() {
-      run.disposeRun();
-      for (const surface of packedSurfacesRef.current ?? []) surface.dispose();
+      disposeRun();
+      for (const surface of packedSurfacesRef.current ?? []) surface(['dispose']);
       packedSurfacesRef.current = null;
       parkPhoneCraneMedia(rootRef.current);
     }
-  }), [ensurePackedSurfaces, prepareTargetPresentation, renderPresentation, run]);
+  }), [
+    ensurePackedSurfaces,
+    prepareTargetPresentation,
+    renderPresentation,
+    startRun,
+    stopRun,
+    disposeRun
+  ]);
 
   return (
     <>

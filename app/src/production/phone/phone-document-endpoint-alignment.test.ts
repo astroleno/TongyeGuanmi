@@ -34,7 +34,7 @@ describe('phone native document endpoint alignment', () => {
     const element = endpoint(812.5);
     const lease = acquirePhoneDocumentEndpointAlignment(
       element,
-      { sessionId: 'session-1', generation: 2 },
+      ['session-1', 2],
       844
     );
 
@@ -55,12 +55,12 @@ describe('phone native document endpoint alignment', () => {
     const element = endpoint(844);
     const stale = acquirePhoneDocumentEndpointAlignment(
       element,
-      { sessionId: 'session-1', generation: 1 },
+      ['session-1', 1],
       844
     );
     const current = acquirePhoneDocumentEndpointAlignment(
       element,
-      { sessionId: 'session-2', generation: 2 },
+      ['session-2', 2],
       844
     );
 

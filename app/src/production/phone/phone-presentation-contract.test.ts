@@ -9,7 +9,7 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
-import type { PhoneExecutionIdentity } from './phone-story-state';
+import type { PhoneExecutionToken } from './phone-story-state';
 import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
 
 const contextSource = readFileSync(
@@ -34,8 +34,8 @@ describe('phone presentation adapter contract', () => {
       .toBeFunction();
     expectTypeOf<Parameters<PhoneTransitionAdapterHandle['begin']>[0]>()
       .toEqualTypeOf<PhoneCinematicRequest>();
-    expectTypeOf<PhoneCinematicRequest['identity']>()
-      .toEqualTypeOf<PhoneExecutionIdentity>();
+    expectTypeOf<PhoneCinematicRequest>()
+      .toEqualTypeOf<PhoneExecutionToken>();
   });
 
   it('[Task 9] exposes only the snapshot runtime port through Context', () => {

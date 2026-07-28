@@ -1,15 +1,18 @@
 import { createPhoneInkAdapter } from '../../production/phone/transitions/PhoneInkTransition';
+import type { PhoneInkFieldRequest } from '../../production/phone/phone-ink';
 import { renderPhoneCranePresentation } from '../../scenes/crane-animation/phone/PhoneCrane.motion';
 import {
   renderPhoneEducationHold
 } from '../../scenes/education/phone/presentation';
 import './phone.css';
 
-const field = {
-  kind: 'horizontal',
-  direction: 'bottom-to-top',
-  seed: 'phone-education-crane-r5'
-} as const;
+const field = [
+  'horizontal',
+  'phone-education-crane-r5',
+  'bottom-to-top',
+  null,
+  null
+] as const satisfies PhoneInkFieldRequest;
 
 function renderEndpoint(
   element: HTMLElement | null,
@@ -23,14 +26,16 @@ function renderEndpoint(
   element.setAttribute('aria-hidden', String(!interactive));
 }
 
-export const PhoneEducationCraneTransition = createPhoneInkAdapter({
-  id: 'phone-education-crane-ink',
+export const PhoneEducationCraneTransition = createPhoneInkAdapter([
+  'phone-education-crane-ink',
   field,
-  grade: 'edge-bright',
-  canvasClassName: 'phone-education-crane__ink',
-  maskSource: false,
-  releaseOnLeave: true,
-  renderFrame(from, to, rawProgress, reducedMotion) {
+  'edge-bright',
+  'phone-education-crane__ink',
+  null,
+  null,
+  false,
+  null,
+  (from, to, rawProgress, reducedMotion) => {
     const progress = reducedMotion ? (rawProgress < 0.5 ? 0 : 1) : rawProgress;
     renderPhoneEducationHold(from);
     if (!to?.dataset.phoneCraneProgress) {
@@ -40,6 +45,6 @@ export const PhoneEducationCraneTransition = createPhoneInkAdapter({
     renderEndpoint(to, false);
     return progress;
   }
-});
+]);
 
 export default PhoneEducationCraneTransition;

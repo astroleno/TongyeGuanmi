@@ -40,9 +40,11 @@ function startupLoaderMode(): 'cold-hero' | 'reduced' {
 function releaseResumePreboot(): void {
   const documentElement = document.documentElement;
   document.getElementById('story-loader-static')?.remove();
-  delete documentElement.dataset.portraitSpike;
+  // A direct continuation mounts the formal shell in the same commit. Its
+  // child layout effect claims `portraitSpike` and the document surface first;
+  // clearing those here (the parent layout effect) ran afterwards and left
+  // Contact/Group 6–7 deep links on the static paper background.
   delete documentElement.dataset.portraitSpikePreboot;
-  documentElement.style.removeProperty('--portrait-document-surface');
 }
 
 /**

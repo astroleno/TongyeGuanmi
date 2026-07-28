@@ -15,7 +15,7 @@ export type PortraitCheckpointTrace = Readonly<{
 
 export function portraitCheckpointAt(progress: number): PortraitCheckpointTrace {
   const frame = phoneStageFrame(progress);
-  return { checkpoint: frame.checkpoint, progress: frame.progress };
+  return { checkpoint: frame[1], progress: frame[0] };
 }
 
 export function portraitCheckpointTrace(progresses: readonly number[]): readonly PortraitCheckpointTrace[] {

@@ -1,12 +1,17 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   useSyncExternalStore
 } from 'react';
 import type { SceneId } from '../../story/types';
 import { hashForScene, sceneFromHash } from '../navigation';
 import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
+import {
+  requestPhoneRuntimeNavigation,
+  selectPhoneCinematicSnapshot
+} from './phone-story-runtime';
 
 /** Navigation has only menu UI state; its canonical scene is a snapshot selector. */
 export function usePhoneStoryNavigationRuntime(
@@ -22,7 +27,11 @@ export function usePhoneStoryNavigationRuntime(
     port.getSnapshot,
     port.getSnapshot
   );
-  const scene = snapshot.projection.navigationScene;
+  const cinematicSnapshot = useMemo(
+    () => selectPhoneCinematicSnapshot(snapshot),
+    [snapshot]
+  );
+  const scene = cinematicSnapshot[12];
   const [menuOpen, setMenuOpen] = useState(false);
   const visible = loaderHidden && scene !== 'hero' && scene !== 'pattern';
   useEffect(() => {
@@ -37,12 +46,7 @@ export function usePhoneStoryNavigationRuntime(
         `${window.location.pathname}${window.location.search}${hashForScene(target)}`
       );
     }
-    port.dispatch({
-      type: 'NAVIGATE_REQUESTED',
-      authorityId: port.getSnapshot().authorityId,
-      scene: target,
-      source
-    });
+    requestPhoneRuntimeNavigation(port, target, source);
   }, [port]);
   useEffect(() => {
     const navigateFromLocation = (source: 'hash' | 'history') => {
@@ -58,5 +62,11 @@ export function usePhoneStoryNavigationRuntime(
       window.removeEventListener('popstate', onPopState);
     };
   }, [navigate, resolveLocationTarget]);
-  return { snapshot, scene, visible, menuOpen, setMenuOpen, navigate };
+  return {
+    cinematicSnapshot,
+    visible,
+    menuOpen,
+    setMenuOpen,
+    navigate
+  };
 }

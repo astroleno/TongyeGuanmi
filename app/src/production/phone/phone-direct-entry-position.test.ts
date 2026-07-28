@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePhoneDirectEntryOffset } from './phone-direct-entry-position';
+import {
+  phoneDirectEntryGeometryReady,
+  resolvePhoneDirectEntryOffset
+} from './phone-direct-entry-position';
 
 describe('phone direct-entry landing resolver', () => {
   it('derives a stable document offset without scheduling or commanding scroll', () => {
@@ -26,5 +29,11 @@ describe('phone direct-entry landing resolver', () => {
       viewportHeight: 500,
       proofPanelIndex: 1
     })).toBe(0);
+  });
+
+  it('accepts a direct-entry landing only after local and upstream geometry settle', () => {
+    expect(phoneDirectEntryGeometryReady([true, true])).toBe(true);
+    expect(phoneDirectEntryGeometryReady([false, true])).toBe(false);
+    expect(phoneDirectEntryGeometryReady([true, false])).toBe(false);
   });
 });

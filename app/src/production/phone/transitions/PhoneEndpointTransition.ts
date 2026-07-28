@@ -35,21 +35,30 @@ export function clearPhoneEndpoint(element: HTMLElement | null): void {
   element.removeAttribute('aria-hidden');
 }
 
-export function createPhoneEndpointAdapter(options: Readonly<{
-  renderFrame: (
+type PhoneEndpointRenderFrame = (
     from: HTMLElement | null,
     to: HTMLElement | null,
     progress: number,
     direction: Direction,
     reducedMotion: boolean
   ) => void;
-  settle: (from: HTMLElement | null, to: HTMLElement | null) => void;
-  reset?: (
+
+type PhoneEndpointReset = (
     from: HTMLElement | null,
     to: HTMLElement | null,
     progress: number
   ) => void;
-}>): PhoneTransitionAdapterComponent {
+
+export type PhoneEndpointAdapterRequest = readonly [
+  renderFrame: PhoneEndpointRenderFrame,
+  settle: (from: HTMLElement | null, to: HTMLElement | null) => void,
+  reset: PhoneEndpointReset | null
+];
+
+export function createPhoneEndpointAdapter(
+  [renderFrame, settle, reset]: PhoneEndpointAdapterRequest
+): PhoneTransitionAdapterComponent {
+  const options = { renderFrame, settle, reset: reset ?? undefined };
   return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(
     function PhoneEndpointTransition(
       { from, onReady, reducedMotion, to },

@@ -147,21 +147,22 @@ describe('Phone Brand → Lab visual contracts', () => {
       "usePhoneStoryOrchestratorRuntime(\n    'formal',"
     );
     expect(stageRuntimeSource).toContain(
-      "if (snapshot.projection.stageOwner !== 'front') return null"
+      "if (stageOwner !== 'front') return null"
     );
     expect(stageRuntimeSource).toContain('phoneFrontRailSample');
   });
 
   it('keeps AOD media-owned without converting the front rail to timed ink', () => {
     expect(stageRuntimeSource).toContain(
-      "snapshot.session.operation.run === 'aod-method'"
+      "run === 'aod-method'"
     );
     expect(stageRuntimeSource).toContain(
       'aodAdapter.startAutoplay(direction, identity)'
     );
-    expect(stageRuntimeSource).toContain('session.reportPresentedFrame()');
-    expect(stageRuntimeSource).toContain("type: 'PROGRESS_REPORTED'");
-    expect(stageRuntimeSource).toContain("type: 'LEG_COMPLETED'");
+    expect(stageRuntimeSource).toContain('session[5]();');
+    expect(stageRuntimeSource).toContain('session[6](progress)');
+    expect(stageRuntimeSource).toContain("session[9]('receiver')");
+    expect(stageRuntimeSource).toContain('session[10]();');
     expect(stageRuntimeSource).toContain("'aod:method'");
     expect(stageRuntimeSource).not.toContain(
       "'phone-stage-runtime:aod-method'"
@@ -196,9 +197,9 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(compositeRunnerSource).toContain('resource.session[12](');
     expect(compositeRunnerSource).not.toContain('options.onSettled(');
     expect(gradeAStorySource).toContain('usePhoneStorySnapshot');
-    expect(gradeAStorySource).toContain("id: 'method-grade-a'");
+    expect(gradeAStorySource).toContain("'method-grade-a',");
     expect(gradeAStorySource).toContain(
-      "snapshot.status === 'transaction'"
+      "status === 'transaction'"
     );
     expect(gradeAStorySource).not.toContain('activeInk?.id');
   });
@@ -275,7 +276,8 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(figure3Styles).toContain(
       'assets/figure3-terminal-paper.webp'
     );
-    expect(figure3Scene).toContain('prepareTimelineVideoFrame');
+    expect(figure3Scene).toContain('preparePhoneTimelineVideoFrame');
+    expect(figure3Scene).toContain('PhoneTimelineVideoInput');
     expect(figure3Scene).toContain('phoneFigure3CanStartPreparedRun');
   });
 
@@ -291,8 +293,11 @@ describe('Phone Brand → Lab visual contracts', () => {
 
   it('uses one complementary ink boundary from Brand into Figure3', () => {
     expect(brandFigure3Transition).toContain('createPhoneInkAdapter');
-    expect(brandFigure3Transition).toContain("direction: 'bottom-to-top'");
-    expect(brandFigure3Transition).toContain("seed: 'brand-figure3'");
+    expect(brandFigure3Transition).toContain('PHONE_BRAND_FIGURE3_FIELD');
+    expect(brandFigure3Transition).toContain("'bottom-to-top'");
+    expect(brandFigure3Transition).toContain("'brand-figure3'");
+    expect(brandFigure3Transition).not.toMatch(/direction:\s*['"]bottom-to-top['"]/);
+    expect(brandFigure3Transition).not.toMatch(/seed:\s*['"]brand-figure3['"]/);
     expect(brandFigure3Transition).not.toContain('maskSource: false');
     expect(brandFigure3Transition).not.toContain("strategy: 'endpoint-dissolve'");
   });

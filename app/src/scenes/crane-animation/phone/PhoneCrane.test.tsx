@@ -64,7 +64,7 @@ describe('PhoneCrane', () => {
   });
 
   it('uses the formal packed flock media on every route', () => {
-    expect(source).toContain('packedSourceUrl: PHONE_CRANE_FLOCK_PACKED');
+    expect(source).toContain('PHONE_CRANE_FLOCK_PACKED,');
     expect(source).not.toContain('qa-media');
     expect(source).not.toContain('phoneCraneFlockPackedUrlFor');
   });
@@ -79,9 +79,9 @@ describe('PhoneCrane', () => {
     expect(autoplaySource).toContain('createPhoneNativeAutoplay');
     expect(source).toContain('createPhonePackedAlphaSurface');
     expect(source).toContain('prepareTargetPresentation');
-    expect(source).toContain('surfaces.map((surface) => surface.prepare');
-    expect(source).toContain('run.failRun(1)');
-    expect(source).toContain('run.failRun(-1)');
+    expect(source).toContain("surfaces.map((surface) => surface(['prepare', mode, request.signal]))");
+    expect(source).toContain('failRun(1)');
+    expect(source).toContain('failRun(-1)');
     expect(source).toContain('createPortal');
     expect(source).toContain('figureCanvasRef');
     expect(source).toContain('flockCanvasRef');
@@ -106,9 +106,9 @@ describe('PhoneCrane', () => {
     expect(source).toContain('beginPreparedReverse');
     expect(cinematicRunSource).toContain('options.reverseReady()');
     expect(cinematicRunSource).toContain("publish('progress', direction, progress)");
-    expect(source).toContain('run.renderProgress');
-    expect(source).toContain('run.startRun(1, request?.identity ?? null)');
-    expect(source).toContain('run.startRun(-1, request?.identity ?? null)');
+    expect(source).toContain('renderProgress,');
+    expect(source).toContain('startRun(1, request ?? null)');
+    expect(source).toContain('startRun(-1, request ?? null)');
     expect(autoplaySource).toContain('figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE');
     expect(autoplaySource).toContain('figure.currentTime = CRANE_VIDEO_END_SECONDS');
     expect(autoplaySource).toContain("root.dataset.phoneCraneFigurePreroll = 'released'");

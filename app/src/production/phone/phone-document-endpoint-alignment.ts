@@ -47,8 +47,8 @@ export function acquirePhoneDocumentEndpointAlignment(
   documentState.set(element, state);
   const delta = viewportHeight - element.getBoundingClientRect().bottom;
   dataset.phoneDocumentEndpointAligned = 'true';
-  dataset.phoneBoundarySession = owner.sessionId;
-  dataset.phoneBoundaryGeneration = String(owner.generation);
+  dataset.phoneBoundarySession = owner[0];
+  dataset.phoneBoundaryGeneration = String(owner[1]);
   style.setProperty(documentTranslate, `${delta.toFixed(3)}px`);
 
   return {

@@ -1,4 +1,4 @@
-import type { PhoneExecutionIdentity } from './phone-story-state';
+import type { PhoneExecutionToken } from './phone-story-state';
 
 const EPSILON = 0.001;
 
@@ -9,32 +9,23 @@ const EPSILON = 0.001;
  */
 export const PHONE_LAB_CONTACT_AUTOPLAY_EVENT = 'phone-lab-contact-autoplay';
 
-export type PhoneLabContactAutoplayEventDetail = Readonly<{
-  scene: 'ph-animation' | 'crane-animation';
-  phase: 'playing' | 'progress' | 'complete' | 'failed';
-  direction: 1 | -1;
-  authorityId: string | null;
-  sessionId: string | null;
-  generation: number | null;
-  leg: number | null;
-  progress?: number | undefined;
-}>;
+export type PhoneLabContactAutoplayEvent = readonly [
+  scene: 'ph-animation' | 'crane-animation',
+  phase: 'playing' | 'progress' | 'complete' | 'failed',
+  direction: 1 | -1,
+  execution: PhoneExecutionToken | null,
+  progress: number | null
+];
 
 /**
  * Formal continuations accept only evidence labelled when its scene adapter
  * started. The isolated legacy shell may still emit the explicit all-null
  * form, which formal runtime code rejects instead of re-labelling it.
  */
-export function phoneLabContactAutoplayIdentity(
-  detail: PhoneLabContactAutoplayEventDetail
-): PhoneExecutionIdentity | null {
-  if (
-    detail.authorityId === null
-    || detail.sessionId === null
-    || detail.generation === null
-    || detail.leg === null
-  ) return null;
-  return detail as PhoneExecutionIdentity;
+export function phoneLabContactAutoplayToken(
+  detail: PhoneLabContactAutoplayEvent
+): PhoneExecutionToken | null {
+  return detail[3];
 }
 
 export type PhoneLabContactCinematicRunState =
@@ -49,10 +40,10 @@ export type PhoneLabContactCinematicScene =
 
 export function dispatchPhoneLabContactAutoplay(
   target: EventTarget | null | undefined,
-  detail: PhoneLabContactAutoplayEventDetail
+  detail: PhoneLabContactAutoplayEvent
 ): void {
   if (!target || typeof CustomEvent === 'undefined') return;
-  target.dispatchEvent(new CustomEvent<PhoneLabContactAutoplayEventDetail>(
+  target.dispatchEvent(new CustomEvent<PhoneLabContactAutoplayEvent>(
     PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
     { bubbles: true, detail }
   ));

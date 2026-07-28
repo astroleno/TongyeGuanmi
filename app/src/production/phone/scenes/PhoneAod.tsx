@@ -18,9 +18,9 @@ import {
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
 import {
-  disposeTimelineVideoDriver,
-  driveTimelineVideo
-} from '../../../media/timeline-video-driver';
+  disposePhoneTimelineVideo,
+  drivePhoneTimelineVideo
+} from '../phone-timeline-runtime';
 import {
   createPhoneAodAutoplay,
   phoneAodBackdropPresentation,
@@ -29,7 +29,7 @@ import {
   type PhoneAodPlaybackDirection
 } from '../aod-autoplay';
 import { phoneMediaUrlFor } from '../phone-media';
-import type { PhoneExecutionIdentity } from '../phone-story-state';
+import type { PhoneExecutionToken } from '../phone-story-state';
 import type { PhoneAodAdapterHandle, PhoneSceneAdapterProps } from '../types';
 import './PhoneAod.css';
 
@@ -63,10 +63,10 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       (
         progress: number,
         direction?: PhoneAodPlaybackDirection,
-        identity?: PhoneExecutionIdentity | null
+        identity?: PhoneExecutionToken | null
       ) => void
     >(undefined);
-    const autoplayIdentityRef = useRef<PhoneExecutionIdentity | null>(null);
+    const autoplayIdentityRef = useRef<PhoneExecutionToken | null>(null);
     const progressListenerRef = useRef(onAodProgress);
     const completeListenerRef = useRef(onAodComplete);
     const releaseCompositor = useCallback(() => {
@@ -108,7 +108,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       const render = (
         rawProgress: number,
         direction: PhoneAodPlaybackDirection = 1,
-        identity: PhoneExecutionIdentity | null = null
+        identity: PhoneExecutionToken | null = null
       ) => {
         const progress = clamp(rawProgress);
         root.dataset.portraitAodAlpha = progress < PHONE_AOD_ALPHA_END_PROGRESS
@@ -182,19 +182,22 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         alphaEndProgress: PHONE_AOD_ALPHA_END_PROGRESS,
         sourceUrl: AOD_FIGURE_PACKED_ALPHA_VIDEO,
         driveReverseFrame: (mediaProgress, runId) => {
-          driveTimelineVideo(video, {
+          drivePhoneTimelineVideo(video, [
             runId,
-            direction: -1,
-            progress: mediaProgress,
-            durationFallbackSeconds: AOD_FIGURE_END_SECONDS,
-            startSeconds: 0,
-            endSeconds: AOD_FIGURE_END_SECONDS,
-            endEpsilonSeconds: 0,
-            mode: 'timeline',
-            allowSeekedFrameFallback: true
-          });
+            -1,
+            mediaProgress,
+            AOD_FIGURE_END_SECONDS,
+            0,
+            AOD_FIGURE_END_SECONDS,
+            0,
+            null,
+            'timeline',
+            null,
+            true,
+            null
+          ]);
         },
-        disposeReverseDriver: () => disposeTimelineVideoDriver(video),
+        disposeReverseDriver: () => disposePhoneTimelineVideo(video),
         onProgress: render,
         onComplete: (direction, identity) => {
           if (!identity) return;

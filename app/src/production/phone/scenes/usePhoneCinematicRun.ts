@@ -8,32 +8,79 @@ import {
   dispatchPhoneLabContactAutoplay,
   type PhoneLabContactCinematicScene
 } from '../phone-lab-contact-timeline';
-import type { PhoneExecutionIdentity } from '../phone-story-state';
+import type { PhoneExecutionToken } from '../phone-story-state';
 
 export type PhoneCinematicDirection = 1 | -1;
 
-type Player = {
+export type PhoneCinematicPlayer = {
   start(): void;
   stop(): void;
   dispose(): void;
 };
 
-export function usePhoneCinematicRun(options: Readonly<{
-  scene: PhoneLabContactCinematicScene;
-  rootRef: RefObject<HTMLElement | null>;
-  forwardRef: RefObject<Player | null>;
-  reverseRef: RefObject<Player | null>;
-  reducedMotion: boolean;
-  terminalProgress: number;
-  reverseTimeoutMs: number;
-  reverseReady: () => boolean;
-  activateSurface: (mode: 'forward' | 'endpoint') => void;
-  render: (progress: number, direction?: PhoneCinematicDirection) => void;
-  beforeForward?: () => void;
-  beforeReverse?: () => void;
-}>) {
+/** Ordered inputs for the shared cinematic hook used by lazy scene chunks. */
+export type PhoneCinematicRunRequest = readonly [
+  scene: PhoneLabContactCinematicScene,
+  rootRef: RefObject<HTMLElement | null>,
+  forwardRef: RefObject<PhoneCinematicPlayer | null>,
+  reverseRef: RefObject<PhoneCinematicPlayer | null>,
+  reducedMotion: boolean,
+  terminalProgress: number,
+  reverseTimeoutMs: number,
+  reverseReady: () => boolean,
+  activateSurface: (mode: 'forward' | 'endpoint') => void,
+  render: (progress: number, direction?: PhoneCinematicDirection) => void,
+  beforeForward: (() => void) | null,
+  beforeReverse: (() => void) | null
+];
+
+export type PhoneCinematicRun = readonly [
+  requestedRef: { current: PhoneCinematicDirection | null },
+  beginPreparedReverse: (force?: boolean) => void,
+  completeRun: (direction: PhoneCinematicDirection) => void,
+  failRun: (direction: PhoneCinematicDirection) => void,
+  publishPlaying: () => void,
+  renderProgress: (progress: number, direction: PhoneCinematicDirection) => void,
+  startRun: (
+    direction: PhoneCinematicDirection,
+    identity?: PhoneExecutionToken | null
+  ) => void,
+  stopRun: () => void,
+  disposeRun: () => void
+];
+
+export function usePhoneCinematicRun(
+  [
+    scene,
+    rootRef,
+    forwardRef,
+    reverseRef,
+    reducedMotion,
+    terminalProgress,
+    reverseTimeoutMs,
+    reverseReady,
+    activateSurface,
+    render,
+    beforeForward,
+    beforeReverse
+  ]: PhoneCinematicRunRequest
+): PhoneCinematicRun {
+  const options = {
+    scene,
+    rootRef,
+    forwardRef,
+    reverseRef,
+    reducedMotion,
+    terminalProgress,
+    reverseTimeoutMs,
+    reverseReady,
+    activateSurface,
+    render,
+    beforeForward,
+    beforeReverse
+  };
   const requestedRef = useRef<PhoneCinematicDirection | null>(null);
-  const activeIdentityRef = useRef<PhoneExecutionIdentity | null>(null);
+  const activeIdentityRef = useRef<PhoneExecutionToken | null>(null);
   const reverseStartedRef = useRef(false);
   const timerRef = useRef(0);
   const clearTimer = useCallback(() => {
@@ -47,16 +94,13 @@ export function usePhoneCinematicRun(options: Readonly<{
     progress?: number
   ) => {
     const identity = activeIdentityRef.current;
-    dispatchPhoneLabContactAutoplay(options.rootRef.current, {
-      scene: options.scene,
+    dispatchPhoneLabContactAutoplay(options.rootRef.current, [
+      options.scene,
       phase,
       direction,
-      authorityId: identity?.authorityId ?? null,
-      sessionId: identity?.sessionId ?? null,
-      generation: identity?.generation ?? null,
-      leg: identity?.leg ?? null,
-      progress
-    });
+      identity,
+      progress ?? null
+    ]);
   }, [options.rootRef, options.scene]);
   const renderProgress = useCallback((
     progress: number,
@@ -108,7 +152,7 @@ export function usePhoneCinematicRun(options: Readonly<{
   }, [clearTimer, options.forwardRef, options.reverseRef]);
   const startRun = useCallback((
     direction: PhoneCinematicDirection,
-    identity?: PhoneExecutionIdentity | null
+    identity?: PhoneExecutionToken | null
   ) => {
     if (!options.rootRef.current) return;
     if (identity !== undefined) activeIdentityRef.current = identity;
@@ -168,7 +212,7 @@ export function usePhoneCinematicRun(options: Readonly<{
   }, [options.forwardRef, options.reverseRef, stopRun]);
   const publishPlaying = useCallback(() => publish('playing', 1), [publish]);
 
-  return useMemo(() => ({
+  return useMemo(() => [
     requestedRef,
     beginPreparedReverse,
     completeRun,
@@ -178,7 +222,7 @@ export function usePhoneCinematicRun(options: Readonly<{
     startRun,
     stopRun,
     disposeRun
-  } as const), [
+  ] as const, [
     beginPreparedReverse,
     completeRun,
     disposeRun,

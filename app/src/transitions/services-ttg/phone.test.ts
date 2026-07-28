@@ -14,10 +14,13 @@ describe('Phone Services → TTG transition', () => {
       forwardEndpoint: 'ttg-animation:stable-initial-frame',
       reverseEndpoint: 'services:reading-end'
     });
-    expect(PHONE_SERVICES_TTG_FIELD).toMatchObject({
-      kind: 'horizontal',
-      direction: 'bottom-to-top'
-    });
+    expect(PHONE_SERVICES_TTG_FIELD).toEqual([
+      'horizontal',
+      'services-ttg-phone-r5',
+      'bottom-to-top',
+      null,
+      null
+    ]);
   });
 
   it('returns exact forward and reverse semantic endpoints', () => {

@@ -9,25 +9,30 @@ describe('Group6–7 adjacent adapter planning', () => {
     });
   });
 
-  it('keeps the complete remaining composite closure in each active plan', () => {
+  it('prepares every immediate inbound and outbound composite closure', () => {
     expect(group67AdapterPlanForFocus('ph-animation')).toEqual({
       scenes: ['ph-animation', 'education'],
-      transitions: ['ph-education']
+      transitions: ['lab-ph', 'ph-education']
     });
     expect(group67AdapterPlanForFocus('education')).toEqual({
+      scenes: ['ph-animation', 'education', 'crane-animation', 'contact'],
+      transitions: [
+        'lab-ph',
+        'ph-education',
+        'education-crane',
+        'crane-contact'
+      ]
+    });
+    expect(group67AdapterPlanForFocus('crane-animation')).toEqual({
       scenes: ['education', 'crane-animation', 'contact'],
       transitions: ['education-crane', 'crane-contact']
     });
-    expect(group67AdapterPlanForFocus('crane-animation')).toEqual({
-      scenes: ['crane-animation', 'contact'],
-      transitions: ['crane-contact']
-    });
   });
 
-  it('keeps direct Contact cold and terminal', () => {
+  it('keeps a direct Contact reverse-ready before its first user input', () => {
     expect(group67AdapterPlanForFocus('contact')).toEqual({
-      scenes: ['contact'],
-      transitions: []
+      scenes: ['education', 'crane-animation', 'contact'],
+      transitions: ['education-crane', 'crane-contact']
     });
   });
 });

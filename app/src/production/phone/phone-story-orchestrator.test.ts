@@ -37,7 +37,7 @@ function capability(
 }
 
 function intent() {
-  return { inputEpoch: 1, direction: 1 as const, startY: 0, projectedY: 240 };
+  return [1, 1, 0, 240] as const;
 }
 
 function registerCorridor(
@@ -337,12 +337,12 @@ describe('single phone story projector transaction', () => {
       landing: (scene) => scene === 'method-top' ? 4_051 : 5_042
     });
 
-    expect(orchestrator.resolveIntent({
-      inputEpoch: 1,
-      direction: -1,
-      startY: actualY,
-      projectedY: actualY - 100
-    })).toBe('claim-boundary');
+    expect(orchestrator.resolveIntent([
+      1,
+      -1,
+      actualY,
+      actualY - 100
+    ])).toBe('claim-boundary');
     session?.reportPresentedFrame();
     session?.provideRelease({
       releaseGeometry: () => undefined,
@@ -358,6 +358,43 @@ describe('single phone story projector transaction', () => {
       status: 'stable',
       scene: 'method-top',
       scroll: { actualY: 4_051 }
+    });
+  });
+
+  it('claims a direct Contact reverse input at the canonical Group67 boundary', () => {
+    const canonicalBoundary = 6_435.6875;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'contact',
+      scrollY: () => canonicalBoundary + 1,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerScrollCorridor({
+      id: 'group67-direct-contact',
+      scenes: ['education', 'crane-animation', 'contact'],
+      sample: () => null,
+      boundary: (run) => run === 'education-contact'
+        ? canonicalBoundary
+        : null,
+      landing: (scene) => scene === 'contact' ? canonicalBoundary : null
+    });
+
+    expect(orchestrator.resolveIntent([
+      1,
+      -1,
+      canonicalBoundary + 1,
+      canonicalBoundary - 120
+    ])).toBe('claim-boundary');
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        operation: {
+          run: 'education-contact',
+          from: 'contact',
+          to: 'education',
+          direction: -1
+        },
+        anchor: { y: canonicalBoundary }
+      }
     });
   });
 
@@ -387,18 +424,11 @@ describe('single phone story projector transaction', () => {
     expect(observed).not.toHaveBeenCalled();
   });
 
-  it('captures immutable direct-entry execution identity at the cinematic leg', () => {
-    let session: PhoneOrchestratedRunSession | undefined;
+  it('keeps a canonical direct entry on its own candidate stable surface', () => {
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'ph-animation',
       scrollY: () => 0,
       scrollTo: () => undefined
-    });
-    orchestrator.registerRunCapability('lab-education', 'test', {
-      ...capability(0, () => undefined),
-      startAtLeg: (_leg, activeSession) => {
-        session = activeSession;
-      }
     });
 
     orchestrator.dispatch({
@@ -407,33 +437,32 @@ describe('single phone story projector transaction', () => {
       target: 'ph-animation',
       source: 'initial',
       fallbackScene: 'lab',
-      cinematic: { run: 'lab-education', direction: 1, legIndex: 1 }
+      cinematic: null
     });
 
-    expect(session).toMatchObject({
-      authorityId: expect.any(String),
-      sessionId: expect.any(String),
-      generation: expect.any(Number),
-      leg: 1,
-      direction: 1
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        phase: 'verifying-target',
+        operation: {
+          trigger: 'entry',
+          run: null,
+          from: 'lab',
+          to: 'ph-animation'
+        }
+      },
+      projection: { semanticScene: 'ph-animation', commitState: 'candidate' }
     });
   });
 
-  it('replays a cinematic direct entry after its route root becomes projectable', () => {
+  it('replays a stable direct entry after its route root becomes projectable', () => {
     const routeRoot = Object.assign(element(), { isConnected: false });
-    let session: PhoneOrchestratedRunSession | undefined;
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'ph-animation',
       root: routeRoot,
       scrollY: () => 0,
       scrollTo: () => undefined
     });
-    orchestrator.registerRunCapability('lab-education', 'late-root', {
-      ...capability(0, () => undefined),
-      startAtLeg: (_leg, activeSession) => {
-        session = activeSession;
-      }
-    });
 
     orchestrator.dispatch({
       type: 'DIRECT_ENTRY_REQUESTED',
@@ -441,20 +470,22 @@ describe('single phone story projector transaction', () => {
       target: 'ph-animation',
       source: 'initial',
       fallbackScene: 'lab',
-      cinematic: { run: 'lab-education', direction: 1, legIndex: 1 }
+      cinematic: null
     });
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'stable',
-      scene: 'lab'
+      scene: 'ph-animation'
     });
 
     routeRoot.isConnected = true;
     orchestrator.syncDiagnostics();
 
-    expect(session).toMatchObject({ leg: 1, direction: 1 });
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'transaction',
-      session: { operation: { run: 'lab-education', legIndex: 1 } }
+      session: {
+        phase: 'verifying-target',
+        operation: { run: null, legIndex: 0, to: 'ph-animation' }
+      }
     });
   });
 
@@ -556,6 +587,72 @@ describe('single phone story projector transaction', () => {
       root: () => element(),
       presented: () => true
     });
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'measuring-landing' }
+    });
+    frames.shift()?.();
+    frames.shift()?.();
+
+    expect(commands).toEqual([220]);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'services',
+      session: null
+    });
+  });
+
+  it('retries a direct entry when route geometry becomes ready after its candidate frame', () => {
+    const frames: Array<() => void> = [];
+    let actualY = 0;
+    let landingReady = false;
+    const commands: number[] = [];
+    const root = element();
+    const services = element();
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      root,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => {
+        commands.push(nextY);
+        actualY = nextY;
+      },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+
+    orchestrator.registerScrollCorridor({
+      id: 'direct-services-delayed-geometry',
+      scenes: ['brand', 'services'],
+      sample: () => null,
+      boundary: () => 100,
+      landing: (scene) => (
+        landingReady && scene === 'services' ? 220 : null
+      )
+    });
+    orchestrator.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => services,
+      presented: () => true
+    });
+
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: 'services',
+      source: 'initial',
+      fallbackScene: 'brand',
+      cinematic: null
+    });
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target' }
+    });
+
+    landingReady = true;
+    orchestrator.syncDiagnostics();
+
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'transaction',
       session: { phase: 'measuring-landing' }

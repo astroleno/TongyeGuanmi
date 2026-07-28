@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createPhoneIntentCoordinator,
   PHONE_INK_AUTOPLAY_MS,
+  type PhoneIntent,
   type PhoneIntentDisposition,
   phoneTimedTransitionProgress,
   phoneTransitionCrossesBoundary
@@ -83,7 +84,7 @@ describe('phone transition coordinator', () => {
   it('keeps a wheel burst in one gesture epoch until its quiet rearm', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
     let now = 0;
-    const intents: unknown[] = [];
+    const intents: PhoneIntent[] = [];
     const coordinator = createPhoneIntentCoordinator(
       root as unknown as HTMLElement,
       (intent) => {
@@ -110,17 +111,13 @@ describe('phone transition coordinator', () => {
     now = 1_501;
     wheel();
 
-    expect(intents).toMatchObject([
-      { inputEpoch: 1 },
-      { inputEpoch: 1 },
-      { inputEpoch: 2 }
-    ]);
+    expect(intents.map(([inputEpoch]) => inputEpoch)).toEqual([1, 1, 2]);
     coordinator.dispose();
   });
 
   it('preserves reverse intent at the document start', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
-    const intents: unknown[] = [];
+    const intents: PhoneIntent[] = [];
     const preventDefault = vi.fn();
     createPhoneIntentCoordinator(
       root as unknown as HTMLElement,
@@ -139,11 +136,7 @@ describe('phone transition coordinator', () => {
       stopImmediatePropagation: vi.fn()
     });
 
-    expect(intents).toMatchObject([{
-      direction: -1,
-      startY: 0,
-      projectedY: -100
-    }]);
+    expect(intents).toEqual([[1, -1, 0, -100]]);
     expect(preventDefault).toHaveBeenCalledOnce();
   });
 
@@ -177,7 +170,7 @@ describe('phone transition coordinator', () => {
   it('reuses the touch gesture identity for promoted Safari momentum', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
     let now = 0;
-    const intents: unknown[] = [];
+    const intents: PhoneIntent[] = [];
     createPhoneIntentCoordinator(
       root as unknown as HTMLElement,
       (intent) => {
@@ -203,10 +196,7 @@ describe('phone transition coordinator', () => {
     testWindow.scrollY = 120;
     testWindow.dispatch('scroll', {});
 
-    expect(intents).toMatchObject([
-      { inputEpoch: 1 },
-      { inputEpoch: 1 }
-    ]);
+    expect(intents.map(([inputEpoch]) => inputEpoch)).toEqual([1, 1]);
   });
 
   it.each([

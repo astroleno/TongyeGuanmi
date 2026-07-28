@@ -33,7 +33,7 @@ import {
   PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
   type PhoneLabContactCinematicRunState,
   type PhoneLabContactCinematicScene,
-  type PhoneLabContactAutoplayEventDetail,
+  type PhoneLabContactAutoplayEvent,
   phoneLabContactApproachProgress,
   phoneLabContactAtOrPastVisualBoundary,
   phoneLabContactCanBeginVisualRun,
@@ -343,9 +343,10 @@ function isLabContactScene(scene: SceneId | undefined): scene is LabContactScene
  * but do not expose Grade A / Brand destinations that this shell deliberately
  * does not mount.
  */
-const labContactMenuItems = publicMenuItems.filter((item) =>
-  isLabContactScene(item.scene)
-);
+const labContactMenuItems = publicMenuItems.filter((item) => {
+  const scene = sceneFromHash(item.hash);
+  return scene !== undefined && isLabContactScene(scene);
+});
 
 export function phoneLabContactEntryScene(hash: string): LabContactSceneId {
   const scene = sceneFromHash(hash);
@@ -1131,45 +1132,46 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
 
     const onAutoplay = (event: Event) => {
       const detail = (
-        event as CustomEvent<PhoneLabContactAutoplayEventDetail>
+        event as CustomEvent<PhoneLabContactAutoplayEvent>
       ).detail;
+      const [scene, phase, direction, , progress] = detail ?? [];
       if (
         !detail
-        || visualRunRef.current !== detail.scene
-        || visualRunDirectionRef.current !== detail.direction
+        || visualRunRef.current !== scene
+        || visualRunDirectionRef.current !== direction
       ) return;
-      if (detail.phase === 'playing') {
-        armRunTimeout(detail.scene);
+      if (phase === 'playing') {
+        armRunTimeout(scene);
         return;
       }
       if (
-        detail.phase === 'progress'
-        && typeof detail.progress === 'number'
-        && Number.isFinite(detail.progress)
+        phase === 'progress'
+        && typeof progress === 'number'
+        && Number.isFinite(progress)
       ) {
-        const progress = Math.min(1, Math.max(0, detail.progress));
+        const sampled = Math.min(1, Math.max(0, progress));
         root.dataset.phoneLabContactVisualProgress =
-          `${detail.scene}:${detail.direction}:${progress.toFixed(4)}`;
-        if (detail.scene === 'crane-animation') {
-          latestCraneContactRef.current?.render(progress);
+          `${scene}:${direction}:${sampled.toFixed(4)}`;
+        if (scene === 'crane-animation') {
+          latestCraneContactRef.current?.render(sampled);
         }
         return;
       }
-      if (detail.phase !== 'complete') return;
-      cinematicRunStates.current[detail.scene] =
-        phoneLabContactPhaseAfterVisualCompletion(detail.direction);
-      if (detail.scene === 'ph-animation' && detail.direction === 1) {
+      if (phase !== 'complete') return;
+      cinematicRunStates.current[scene] =
+        phoneLabContactPhaseAfterVisualCompletion(direction);
+      if (scene === 'ph-animation' && direction === 1) {
         runPhEducationDissolve(1, () => {
           handoffVisual('ph-animation', 1, 'complete');
         });
         return;
       }
-      if (detail.scene === 'crane-animation') {
+      if (scene === 'crane-animation') {
         latestCraneContactRef.current?.render(
-          detail.direction === 1 ? 1 : 0
+          direction === 1 ? 1 : 0
         );
       }
-      handoffVisual(detail.scene, detail.direction, 'complete');
+      handoffVisual(scene, direction, 'complete');
     };
 
     const render = () => {

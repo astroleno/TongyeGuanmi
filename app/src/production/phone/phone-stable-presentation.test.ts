@@ -98,12 +98,7 @@ describe('phone stable presentation contract', () => {
       });
     });
 
-    expect(orchestrator.resolveIntent({
-      inputEpoch: 1,
-      direction: 1,
-      startY: 0,
-      projectedY: 200
-    })).toBe('claim-boundary');
+    expect(orchestrator.resolveIntent([1, 1, 0, 200])).toBe('claim-boundary');
     if (!session) throw new Error('Expected a claimed brand-services session');
     session.reportPresentedFrame();
     session.reportEndpointCommit('receiver');
@@ -129,7 +124,7 @@ describe('phone stable presentation contract', () => {
     );
     expect(gradeASource).toContain('usePhoneStorySnapshot');
     expect(gradeASource).toContain(
-      "snapshot.scroll.corridor === 'method-grade-a'"
+      "scrollCorridor === 'method-grade-a'"
     );
     expect(gradeASource).not.toContain('stableGradeAHold');
   });

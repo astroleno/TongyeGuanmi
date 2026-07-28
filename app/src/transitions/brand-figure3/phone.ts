@@ -1,12 +1,15 @@
 import {
   createPhoneInkAdapter
 } from '../../production/phone/transitions/PhoneInkTransition';
+import type { PhoneInkFieldRequest } from '../../production/phone/phone-ink';
 
-export const PHONE_BRAND_FIGURE3_FIELD = {
-  kind: 'horizontal',
-  direction: 'bottom-to-top',
-  seed: 'brand-figure3'
-} as const;
+export const PHONE_BRAND_FIGURE3_FIELD = [
+  'horizontal',
+  'brand-figure3',
+  'bottom-to-top',
+  null,
+  null
+] as const satisfies PhoneInkFieldRequest;
 
 export const PHONE_BRAND_FIGURE3_DECISION = {
   strategy: 'validated-phone-ink',
@@ -40,13 +43,16 @@ export function phoneBrandFigure3Frame(
   return { progress, fromOpacity: 1 - progress, toOpacity: progress };
 }
 
-export const PhoneBrandFigure3Transition = createPhoneInkAdapter({
-  id: 'phone-brand-figure3',
-  field: PHONE_BRAND_FIGURE3_FIELD,
-  grade: 'edge-bright',
-  canvasClassName: 'portrait-scroll-spike__ink phone-brand-figure3__ink',
-  portraitInk: 'brand-figure3',
-  renderFrame(from, to, progress, reducedMotion, direction, host) {
+export const PhoneBrandFigure3Transition = createPhoneInkAdapter([
+  'phone-brand-figure3',
+  PHONE_BRAND_FIGURE3_FIELD,
+  'edge-bright',
+  'portrait-scroll-spike__ink phone-brand-figure3__ink',
+  'brand-figure3',
+  null,
+  null,
+  null,
+  (from, to, progress, reducedMotion, direction, host) => {
     const frame = phoneBrandFigure3Frame(
       progress,
       reducedMotion,
@@ -70,6 +76,6 @@ export const PhoneBrandFigure3Transition = createPhoneInkAdapter({
     }
     return frame.progress;
   }
-});
+]);
 
 export default PhoneBrandFigure3Transition;

@@ -1,4 +1,4 @@
-import { publicMenuItems } from './navigation';
+import { publicMenuItems, sceneFromHash } from './navigation';
 import { semanticBoolean } from '../runtime/semantic-data-attribute';
 import type { SceneId } from '../story/types';
 import './StoryNav.css';
@@ -47,7 +47,6 @@ export function StoryNav({
 }: StoryNavProps) {
   const chrome = chromeForScene(currentScene);
   const linkTabIndex = visible ? undefined : -1;
-  const items = menuItems.filter((item) => item.scene !== 'hero');
 
   return (
     <>
@@ -85,21 +84,25 @@ export function StoryNav({
             菜单
           </button>
           <div id="story-menu" className="nav-links" aria-label="页面章节">
-            {items.map((item) => (
-              <a
-                key={item.hash}
-                href={item.hash}
-                aria-current={currentScene === item.scene ? 'page' : undefined}
-                className={currentScene === item.scene ? 'is-active' : undefined}
-                tabIndex={linkTabIndex}
-                onClick={(event) => {
-                  event.preventDefault();
-                  onNavigate(item.scene);
-                }}
-              >
-                {item.label}
-              </a>
-            ))}
+            {menuItems.map((item) => {
+              const itemScene = sceneFromHash(item.hash);
+              if (!itemScene || itemScene === 'hero') return null;
+              return (
+                <a
+                  key={item.hash}
+                  href={item.hash}
+                  aria-current={currentScene === itemScene ? 'page' : undefined}
+                  className={currentScene === itemScene ? 'is-active' : undefined}
+                  tabIndex={linkTabIndex}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    onNavigate(itemScene);
+                  }}
+                >
+                  {item.label}
+                </a>
+              );
+            })}
           </div>
           {showCta ? (
             <a

@@ -34,9 +34,8 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(value).toContain(
       'claimPhoneInkSurface'
     );
-    expect(value).toContain(
-      'createFigure2DistanceExpandTransition({ ownsMedia: false, inkCanvas: lease.canvas })'
-    );
+    expect(value).toContain('createPhoneFigure2DistanceExpandBridge([');
+    expect(value).not.toContain('createFigure2DistanceExpandTransition({');
     expect(value).toContain('leaseRef.current?.release()');
     expect(figure2).toContain('prepareTargetPresentation');
     expect(figure2).toContain('sceneActiveRef.current === active');
@@ -64,18 +63,21 @@ describe('phone WebGL allocation lifecycle', () => {
       "ensurePackedSurfaces(reducedMotion ? 'endpoint' : 'forward');"
     );
     expect(ph).toMatch(
-      /leave\(\) \{[\s\S]*?packedSurfaceRef\.current\?\.release\(\);/
+      /leave\(\) \{[\s\S]*?packedSurfaceRef\.current\?\.\(\['release'\]\);/
     );
     expect(crane).toMatch(
-      /leave\(\) \{[\s\S]*?surface\.release\(\);/
+      /leave\(\) \{[\s\S]*?surface\(\['release'\]\);/
     );
     expect(
-      ph.slice(ph.indexOf('update(progress)'), ph.indexOf('enter()', ph.indexOf('update(progress)')))
+      ph.slice(
+        ph.indexOf('update(progress)'),
+        ph.indexOf('enter(request?: PhoneCinematicRequest)', ph.indexOf('update(progress)'))
+      )
     ).not.toContain('ensurePackedSurface');
     expect(
       crane.slice(
         crane.indexOf('update(progress)'),
-        crane.indexOf('enter()', crane.indexOf('update(progress)'))
+        crane.indexOf('enter(request?: PhoneCinematicRequest)', crane.indexOf('update(progress)'))
       )
     ).not.toContain('ensurePackedSurfaces');
   });
@@ -91,7 +93,22 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(aod).toContain('const ensureCompositor = useCallback(');
     expect(aod).toContain('renewPackedAlphaCanvas');
     expect(aod).toMatch(/leave\(\) \{[\s\S]*?releaseCompositor\(\);/);
-    expect(aod).toMatch(/startAutoplay\(direction\) \{[\s\S]*?ensureCompositor\(\)/);
+    expect(aod).toMatch(/startAutoplay\(direction, identity\) \{[\s\S]*?ensureCompositor\(\)/);
+  });
+
+  it('keeps Hero GPU owners cold while a direct downstream route mounts the reversible graph', () => {
+    const hero = source('./scenes/PhoneHero.tsx');
+    const mountEffect = hero.slice(
+      hero.indexOf('useLayoutEffect(() => {\n      const root = rootRef.current;'),
+      hero.indexOf('\n    useLayoutEffect(() => {\n      sceneActiveRef.current = active;')
+    );
+
+    expect(hero).toContain('const ensureIntroInk = useCallback(() =>');
+    expect(mountEffect).not.toContain('ensureCompositor();');
+    expect(mountEffect).not.toContain("introInk(['prewarm']);");
+    expect(hero).toContain('if (active && !reducedMotion) {');
+    expect(hero).toContain('ensureCompositor()?.setActive(true);');
+    expect(hero).toContain("ensureIntroInk()?.(['prewarm']);");
   });
 
   it('renews hard-released packed canvases before reverse reacquires WebGL', () => {

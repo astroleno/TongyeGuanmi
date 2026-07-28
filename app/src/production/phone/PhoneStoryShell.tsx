@@ -9,7 +9,6 @@ import { usePhoneStageRuntime } from './usePhoneStageRuntime';
 import { usePhoneFrontHalfAdapters } from './usePhoneFrontHalfAdapters';
 import { usePhoneFixedStageRegistration } from './usePhoneFixedStageRegistration';
 import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
-import { PhoneGroup67DirectEntry } from './PhoneGroup67DirectEntry';
 import { usePhoneStoryEntry, usePhoneStoryEntryLifecycle } from './usePhoneStoryEntry';
 import {
   usePhoneStoryNavigationRuntime
@@ -49,15 +48,12 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const {
     entryScene,
     directStoryEntry,
-    directContinuationEntry,
-    continuationEntry,
     loaderHidden,
     setLoaderHidden
   } = entry;
   const frontHalf = usePhoneFrontHalfAdapters(
     loaderHidden,
-    setLoaderHidden,
-    !directContinuationEntry
+    setLoaderHidden
   );
   const {
     Hero,
@@ -80,10 +76,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     finishLoader
   } = frontHalf;
   useEffect(() => {
-    if (directContinuationEntry || ready || failed) {
+    if (directStoryEntry || ready || failed) {
       props.onStartupPrepared?.(failed);
     }
-  }, [directContinuationEntry, failed, props.onStartupPrepared, ready]);
+  }, [directStoryEntry, failed, props.onStartupPrepared, ready]);
   useEffect(() => {
     if (loaderHidden || props.startupLoaderExitReason === undefined) return;
     finishLoader(props.startupLoaderExitReason);
@@ -128,9 +124,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   );
   const orchestrator = authority.port;
   const navigation = usePhoneStoryNavigationRuntime(orchestrator, loaderHidden);
-  const activeFrontSurface = (id: 'front:hero' | 'front:pattern' | 'front:star' | 'front:aod') => (
-    navigation.snapshot.projection.sourceSurface === id
-    || navigation.snapshot.projection.receiverSurface === id
+  const activeFrontSurface = (id: 'front:hero' | 'front:pattern' | 'front:star-map' | 'front:aod') => (
+    navigation.cinematicSnapshot[1] === id
+    || navigation.cinematicSnapshot[2] === id
   );
 
   usePhoneViewportGeometry(rootRef, motionEnabled);
@@ -151,9 +147,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     patternStarMapRef: patternStarMapAdapterRef,
     starMapAodRef: starMapAodAdapterRef,
     orchestrator,
-    snapshot: navigation.snapshot,
+    snapshot: navigation.cinematicSnapshot,
     enabled: fixedStageRegistered && loaderHidden
-      && !directContinuationEntry
       && ready
       && aodAlphaEndProgress !== undefined
       && !staticFallback,
@@ -168,8 +163,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       ref={rootRef}
       className="portrait-scroll-spike"
       data-portrait-spike-route="b"
-      data-portrait-spike-media={directContinuationEntry
-        ? 'continuation-adjacent-autoplay'
+      data-portrait-spike-media={directStoryEntry
+        ? 'direct-entry-full-route-runtime'
         : 'figure1-packed-alpha-pattern-bloom-star-perlin-aod-packed-alpha-autoplay'}
       data-portrait-spike-animation="gsap-scrolltrigger-native-fixed-stage"
       data-portrait-spike-motion={motionEnabled ? 'force' : 'reduce'}
@@ -178,9 +173,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-phone-validation-mode={props.validationMode}
       data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}
       data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}
-      data-phone-direct-entry={directContinuationEntry
-        ? 'continuation'
-        : directStoryEntry ? 'story' : undefined}
+      data-phone-direct-entry={directStoryEntry ? 'story' : undefined}
       data-phone-direct-entry-scene={entryScene ?? undefined}
       hidden={staticFallback}
     >
@@ -189,7 +182,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         viewportRef={stageViewportRef}
         stageRef={bindStageHost}
       >
-        {!directContinuationEntry && Hero && (
+        {Hero && (
           <Hero
             ref={bindHeroAdapter}
             active={loaderHidden && activeFrontSurface('front:hero')}
@@ -198,7 +191,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onReady={markHeroReady}
           />
         )}
-        {!directContinuationEntry && Pattern && (
+        {Pattern && (
           <Pattern
             ref={bindPatternAdapter}
             active={loaderHidden && activeFrontSurface('front:pattern')}
@@ -207,15 +200,15 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onReady={markPatternReady}
           />
         )}
-        {!directContinuationEntry && StarMap && (
+        {StarMap && (
           <StarMap
             ref={bindStarMapAdapter}
-            active={loaderHidden && activeFrontSurface('front:star')}
+            active={loaderHidden && activeFrontSurface('front:star-map')}
             reducedMotion={!motionEnabled}
             motionDriver={phoneMotionDriver}
           />
         )}
-        {!directContinuationEntry && Aod && (
+        {Aod && (
           <Aod
             ref={bindAodAdapter}
             active={loaderHidden && activeFrontSurface('front:aod')}
@@ -224,7 +217,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onAodComplete={runtime.onAodComplete}
           />
         )}
-        {!directContinuationEntry && HeroPatternTransition && (
+        {HeroPatternTransition && (
           <HeroPatternTransition
             ref={bindHeroPatternAdapter}
             host={stageRef.current}
@@ -234,7 +227,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onReady={markHeroPatternReady}
           />
         )}
-        {!directContinuationEntry && PatternStarMapTransition && (
+        {PatternStarMapTransition && (
           <PatternStarMapTransition
             ref={bindPatternStarMapAdapter}
             host={stageRef.current}
@@ -243,7 +236,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             reducedMotion={!motionEnabled}
           />
         )}
-        {!directContinuationEntry && StarMapAodTransition && (
+        {StarMapAodTransition && (
           <StarMapAodTransition
             ref={bindStarMapAodAdapter}
             host={stageRef.current}
@@ -253,7 +246,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           />
         )}
       </PhoneStageRail>
-      {!directContinuationEntry && MethodTop && (
+      {MethodTop && (
         <MethodTop
           ref={bindMethodAdapter}
           active={loaderHidden && modulesReady}
@@ -262,13 +255,8 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           stageHost={stageHost}
         />
       )}
-      <PhoneGroup67DirectEntry
-        plan={continuationEntry}
-        reducedMotion={!motionEnabled}
-        stageHost={stageHost}
-      />
       <StoryNav
-        currentScene={navigation.scene}
+        currentScene={navigation.cinematicSnapshot[12]}
         visible={navigation.visible}
         menuOpen={navigation.menuOpen}
         onToggleMenu={() => navigation.setMenuOpen((open) => !open)}

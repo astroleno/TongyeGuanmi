@@ -8,12 +8,12 @@ import { phoneStoryRuns } from './phone-story-runs';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 
 function intent(inputEpoch: number, direction: PhoneTransitionDirection) {
-  return {
+  return [
     inputEpoch,
     direction,
-    startY: direction === 1 ? 0 : 300,
-    projectedY: direction === 1 ? 300 : 0
-  };
+    direction === 1 ? 0 : 300,
+    direction === 1 ? 300 : 0
+  ] as const;
 }
 
 describe('canonical phone story sequence', () => {
@@ -73,28 +73,18 @@ describe('canonical phone story sequence', () => {
   });
 
   it.each([
-    ['figure3-animation', 'brand-services', 1],
-    ['ttg-animation', 'services-lab', 1],
-    ['ph-animation', 'lab-education', 1],
-    ['crane-animation', 'education-contact', 1]
-  ] as const)('captures immutable execution identity for direct %s entry', (
+    ['figure3-animation', 'brand'],
+    ['ttg-animation', 'services'],
+    ['ph-animation', 'lab'],
+    ['crane-animation', 'education']
+  ] as const)('keeps direct %s entry on its canonical stable target', (
     scene,
-    run,
-    leg
+    fallbackScene
   ) => {
-    let session: PhoneOrchestratedRunSession | undefined;
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: scene,
       scrollY: () => 100,
       scrollTo: () => undefined
-    });
-    orchestrator.registerRunCapability(run, `direct:${run}`, {
-      position: () => 100,
-      canStart: () => true,
-      start: () => undefined,
-      startAtLeg: (_leg, activeSession) => {
-        session = activeSession;
-      }
     });
 
     orchestrator.dispatch({
@@ -102,16 +92,22 @@ describe('canonical phone story sequence', () => {
       authorityId: orchestrator.getSnapshot().authorityId,
       target: scene,
       source: 'initial',
-      fallbackScene: phoneStoryRuns.find((candidate) => candidate.id === run)!.from,
-      cinematic: { run, direction: 1, legIndex: leg }
+      fallbackScene,
+      cinematic: null
     });
 
-    expect(session).toMatchObject({
-      authorityId: expect.any(String),
-      sessionId: expect.any(String),
-      generation: expect.any(Number),
-      leg,
-      direction: 1
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        phase: 'verifying-target',
+        operation: {
+          trigger: 'entry',
+          run: null,
+          from: fallbackScene,
+          to: scene
+        }
+      },
+      projection: { semanticScene: scene, commitState: 'candidate' }
     });
   });
 

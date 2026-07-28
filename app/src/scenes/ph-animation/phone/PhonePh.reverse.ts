@@ -1,7 +1,7 @@
 import {
-  prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
-} from '../../../media/timeline-video-driver';
+  preparePhoneTimelineVideoFrame,
+  type PhoneTimelineVideoInput
+} from '../../../production/phone/phone-timeline-runtime';
 import {
   createPhonePresentedReversePlayback,
   type PhonePresentedReversePlayback
@@ -20,19 +20,21 @@ export type PhonePhPresentedReverse = PhonePresentedReversePlayback;
 function reverseFrameInput(
   runId: string,
   progress: number
-): TimelineVideoDriveInput {
-  return {
+): PhoneTimelineVideoInput {
+  return [
     runId,
-    direction: -1,
-    progress: phPlaybackProgress(progress),
-    durationFallbackSeconds: PH_DURATION_FALLBACK_SECONDS,
-    startSeconds: 0,
-    endSeconds: PHONE_PH_FIGURE_END_SECONDS,
-    timelineDurationMs: PH_PLAYBACK_MS,
-    mode: 'timeline',
-    nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: true
-  };
+    -1,
+    phPlaybackProgress(progress),
+    PH_DURATION_FALLBACK_SECONDS,
+    0,
+    PHONE_PH_FIGURE_END_SECONDS,
+    null,
+    PH_PLAYBACK_MS,
+    'timeline',
+    1,
+    true,
+    null
+  ];
 }
 
 /**
@@ -55,22 +57,25 @@ export function createPhonePhPresentedReverse(
   let runSequence = 0;
   let runId = 'phone-ph-reverse-0';
 
-  const playback = createPhonePresentedReversePlayback({
-    durationMs: PH_PLAYBACK_MS,
-    prepare: async (progress) => {
-      const result = await prepareTimelineVideoFrame(
+  const playback = createPhonePresentedReversePlayback([
+    PH_PLAYBACK_MS,
+    async (progress) => {
+      const [status, resultRunId] = await preparePhoneTimelineVideoFrame(
         video,
         reverseFrameInput(runId, progress)
       );
-      return result?.status === 'ready' && result.runId === runId;
+      return status === 'ready' && resultRunId === runId;
     },
-    render: (progress) => render(progress, -1),
+    (progress) => render(progress, -1),
     onComplete,
-    onError: onFailure,
-    onStatus: (status) => {
+    onFailure,
+    (status) => {
       if (import.meta.env.DEV) root.dataset.phonePhReverse = status;
-    }
-  });
+    },
+    null,
+    null,
+    null
+  ]);
 
   return {
     get active() {

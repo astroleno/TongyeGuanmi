@@ -23,10 +23,13 @@ describe('Phone Education → Crane transition', () => {
       kind: 'horizontal',
       direction: 'bottom-to-top'
     });
-    expect(source).toContain('createPhoneInkAdapter');
-    expect(source).toContain('maskSource: false');
-    expect(source).toContain("grade: 'edge-bright'");
-    expect(source).toContain('releaseOnLeave: true');
+    expect(source).toMatch(
+      /const field = \[\s*'horizontal',\s*'phone-education-crane-r5',\s*'bottom-to-top',\s*null,\s*null\s*\] as const satisfies PhoneInkFieldRequest;/s
+    );
+    expect(source).toMatch(
+      /createPhoneInkAdapter\(\[\s*'phone-education-crane-ink',\s*field,\s*'edge-bright',\s*'phone-education-crane__ink',\s*null,\s*null,\s*false,\s*null,/s
+    );
+    expect(source).not.toMatch(/\b(?:direction|grade|maskSource|releaseOnLeave)\s*:/);
     expect(source).not.toContain('reverseProgress');
     expect(source).toContain('renderPhoneCranePresentation');
     expect(stylesheet).toContain('phone-education-crane__ink');

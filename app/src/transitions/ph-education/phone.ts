@@ -31,8 +31,8 @@ function settle(
   presentPhoneEndpoint(to, 1, true);
 }
 
-export const PhonePhEducationTransition = createPhoneEndpointAdapter({
-  renderFrame(from, to, rawProgress, direction, reducedMotion) {
+export const PhonePhEducationTransition = createPhoneEndpointAdapter([
+  (from, to, rawProgress, direction, reducedMotion) => {
     const progress = reducedMotion ? (rawProgress < 0.5 ? 0 : 1) : rawProgress;
     if (direction === -1) {
       renderEducation(to, progress);
@@ -43,10 +43,10 @@ export const PhonePhEducationTransition = createPhoneEndpointAdapter({
     renderEducation(to, progress);
   },
   settle,
-  reset(from, to) {
+  (from, to) => {
     clearPhoneEndpoint(from);
     clearPhoneEndpoint(to);
   }
-});
+]);
 
 export default PhonePhEducationTransition;

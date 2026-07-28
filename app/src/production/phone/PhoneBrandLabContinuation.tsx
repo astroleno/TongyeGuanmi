@@ -35,12 +35,13 @@ import {
   phoneSnapshotProjectsSurface
 } from './phone-composite-snapshot';
 import {
+  phoneDirectEntryGeometryReady
+} from './phone-direct-entry-position';
+import {
   createPhoneCompositeRunner,
   type PhoneCompositeRuntimeConfig
 } from './phone-composite-runner';
-import type {
-  PhoneExecutionIdentity
-} from './phone-story-state';
+import type { PhoneExecutionToken } from './phone-story-state';
 import type {
   PhoneTransitionDirection
 } from './phone-transition-coordinator';
@@ -145,16 +146,16 @@ export const PhoneBrandLabContinuation = forwardRef<
   const ttgLabRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const mediaProgressRef = useRef<(
     scene: Group45VisualScene,
-    identity: PhoneExecutionIdentity,
+    identity: PhoneExecutionToken,
     progress: number
   ) => void>(() => undefined);
   const mediaCompleteRef = useRef<(
     scene: Group45VisualScene,
-    identity: PhoneExecutionIdentity
+    identity: PhoneExecutionToken
   ) => void>(() => undefined);
   const mediaErrorRef = useRef<(
     scene: Group45VisualScene,
-    identity: PhoneExecutionIdentity
+    identity: PhoneExecutionToken
   ) => void>(() => undefined);
 
   useImperativeHandle(forwardedRef, () => ({
@@ -219,7 +220,7 @@ export const PhoneBrandLabContinuation = forwardRef<
 
   const onVisualProgress = useCallback((
     scene: Group45PhoneSceneId,
-    identity: PhoneExecutionIdentity,
+    identity: PhoneExecutionToken,
     progress: number
   ) => {
     if (scene === 'figure3-animation' || scene === 'ttg-animation') {
@@ -228,7 +229,7 @@ export const PhoneBrandLabContinuation = forwardRef<
   }, []);
   const onVisualComplete = useCallback((
     scene: Group45PhoneSceneId,
-    identity: PhoneExecutionIdentity
+    identity: PhoneExecutionToken
   ) => {
     if (scene === 'figure3-animation' || scene === 'ttg-animation') {
       mediaCompleteRef.current(scene, identity);
@@ -236,7 +237,7 @@ export const PhoneBrandLabContinuation = forwardRef<
   }, []);
   const onMediaError = useCallback((
     scene: Group45PhoneSceneId,
-    identity: PhoneExecutionIdentity
+    identity: PhoneExecutionToken
   ) => {
     if (scene === 'figure3-animation' || scene === 'ttg-animation') {
       mediaErrorRef.current(scene, identity);
@@ -245,7 +246,11 @@ export const PhoneBrandLabContinuation = forwardRef<
 
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || !stageHost) return;
+    const directEntryGeometryReady = () => phoneDirectEntryGeometryReady([
+      adapters.entryReady,
+      true
+    ]);
 
     const configFor = (
       scene: Group45VisualScene
@@ -315,7 +320,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       // Media transition adapters still own their authored opacity endpoints.
       // Figure3/TTG decoder start is instead a snapshot-driven effect below.
       startMedia({ identity, config }) {
-        if (identity.direction === 1) config.media.enter?.();
+        if (identity[4] === 1) config.media.enter?.();
         else config.media.reverse?.();
       }
     });
@@ -327,7 +332,7 @@ export const PhoneBrandLabContinuation = forwardRef<
           scene,
           'native',
           () => rootForScene(scene),
-          () => rootForScene(scene),
+          () => stageHost,
           () => true
         )
       )),
@@ -341,7 +346,7 @@ export const PhoneBrandLabContinuation = forwardRef<
           scene,
           'fixed',
           () => ref.current?.root() ?? null,
-          () => ref.current?.root() ?? null,
+          () => stageHost,
           () => true
         )
       ))
@@ -367,6 +372,7 @@ export const PhoneBrandLabContinuation = forwardRef<
         const directNativeEntry = reason === 'direct-entry'
           && run === null;
         if (directNativeEntry) {
+          if (!directEntryGeometryReady()) return null;
           return phoneDocumentTop(rootForScene(scene as Group45PhoneSceneId));
         }
         if (scene === 'brand' || scene === 'figure3-animation' || scene === 'services') {
@@ -396,7 +402,14 @@ export const PhoneBrandLabContinuation = forwardRef<
       for (const lease of surfaceLeases) lease.dispose();
       runner.dispose();
     };
-  }, [adapters.rootReady, capabilities, orchestrator, reducedMotion]);
+  }, [
+    adapters.entryReady,
+    adapters.rootReady,
+    capabilities,
+    orchestrator,
+    reducedMotion,
+    stageHost
+  ]);
 
   /*
    * Snapshot -> adapter bridge. Geometry is sampled by the route's one
@@ -464,7 +477,7 @@ export const PhoneBrandLabContinuation = forwardRef<
         <Figure3
           ref={bindFigure3}
           active={figure3Execution !== null}
-          direction={figure3Execution?.direction ?? 1}
+          direction={figure3Execution?.[4] ?? 1}
           execution={figure3Execution}
           prewarm={figure3Prewarm}
           reducedMotion={reducedMotion}
@@ -477,7 +490,7 @@ export const PhoneBrandLabContinuation = forwardRef<
         <Ttg
           ref={bindTtg}
           active={ttgExecution !== null}
-          direction={ttgExecution?.direction ?? 1}
+          direction={ttgExecution?.[4] ?? 1}
           execution={ttgExecution}
           prewarm={ttgPrewarm}
           reducedMotion={reducedMotion}
@@ -497,6 +510,9 @@ export const PhoneBrandLabContinuation = forwardRef<
       data-phone-continuation="brand-lab"
       data-phone-validation-mode={validationMode}
       data-phone-group45-state="ready"
+      data-phone-group45-document-geometry={adapters.entryReady
+        ? 'ready'
+        : 'pending'}
       data-phone-group45-layout="shared-boundary-stage"
       data-phone-proof-brand-input="stable-receiver"
       data-phone-motion={reducedMotion ? 'reduce' : 'full'}

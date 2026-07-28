@@ -49,7 +49,8 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
       'resource.session[8]'
     );
     expect(compositeRunnerSource).not.toContain('beginPhoneSurfaceRoleTransaction');
-    expect(compositeRunnerSource).toContain('PhoneExecutionIdentity');
+    expect(compositeRunnerSource).toContain('PhoneExecutionToken');
+    expect(compositeRunnerSource).not.toContain('PhoneExecutionIdentity');
     expect(compositeRunnerSource).toContain('identitiesMatch');
     expect(compositeRunnerSource).not.toContain('PhoneCompositeRunStep');
     expect(source).not.toContain("'media-failure'");
@@ -62,8 +63,16 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
 
   it('registers the composite runner after the lazy document root mounts', () => {
     expect(source).toMatch(
-      /\}, \[\s*adapters\.rootReady,\s*capabilities,\s*orchestrator,\s*reducedMotion\s*\]\);/
+      /\}, \[\s*adapters\.entryReady,\s*adapters\.rootReady,\s*capabilities,\s*orchestrator,\s*reducedMotion,\s*stageHost\s*\]\);/
     );
+  });
+
+  it('holds a direct landing until its complete lazy document geometry is ready', () => {
+    expect(source).toMatch(
+      /phoneDirectEntryGeometryReady\(\[\s*adapters\.entryReady,\s*true\s*\]\)/
+    );
+    expect(source).toContain('if (!directEntryGeometryReady()) return null;');
+    expect(source).toContain('data-phone-group45-document-geometry=');
   });
 
   it('does not overwrite a neighbouring transition surface owner', () => {
@@ -74,6 +83,15 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     );
     expect(source).not.toContain(': currentSceneRef.current;');
     expect(source).not.toContain('commit: () =>');
+  });
+
+  it('uses the persistent stage canvas as coverage root for every Group 45 surface', () => {
+    expect(source).toMatch(
+      /'native:' \+ scene,[\s\S]*?\(\) => rootForScene\(scene\),\s*\(\) => stageHost,/
+    );
+    expect(source).toMatch(
+      /id,[\s\S]*?\(\) => ref\.current\?\.root\(\) \?\? null,\s*\(\) => stageHost,/
+    );
   });
 
   it('[Task 6] projects Group 45 execution from one authority snapshot', () => {

@@ -1,12 +1,15 @@
 import { createPhoneInkAdapter } from '../../production/phone/transitions/PhoneInkTransition';
+import type { PhoneInkFieldRequest } from '../../production/phone/phone-ink';
 import { renderPhonePhPresentation } from '../../scenes/ph-animation/phone/PhonePh.motion';
 import './phone.css';
 
-const field = {
-  kind: 'horizontal',
-  direction: 'bottom-to-top',
-  seed: 'phone-lab-ph-r5'
-} as const;
+const field = [
+  'horizontal',
+  'phone-lab-ph-r5',
+  'bottom-to-top',
+  null,
+  null
+] as const satisfies PhoneInkFieldRequest;
 
 function renderEndpoint(
   element: HTMLElement | null,
@@ -20,14 +23,16 @@ function renderEndpoint(
   element.setAttribute('aria-hidden', String(!interactive));
 }
 
-export const PhoneLabPhTransition = createPhoneInkAdapter({
-  id: 'phone-lab-ph-ink',
+export const PhoneLabPhTransition = createPhoneInkAdapter([
+  'phone-lab-ph-ink',
   field,
-  grade: 'edge-bright',
-  canvasClassName: 'phone-lab-ph__ink',
-  maskSource: false,
-  releaseOnLeave: true,
-  renderFrame(from, to, rawProgress, reducedMotion) {
+  'edge-bright',
+  'phone-lab-ph__ink',
+  null,
+  null,
+  false,
+  null,
+  (from, to, rawProgress, reducedMotion) => {
     const progress = reducedMotion ? (rawProgress < 0.5 ? 0 : 1) : rawProgress;
     if (!to?.dataset.phonePhProgress) {
       renderPhonePhPresentation(to, 0, 1, reducedMotion);
@@ -36,6 +41,6 @@ export const PhoneLabPhTransition = createPhoneInkAdapter({
     renderEndpoint(to, false);
     return progress;
   }
-});
+]);
 
 export default PhoneLabPhTransition;

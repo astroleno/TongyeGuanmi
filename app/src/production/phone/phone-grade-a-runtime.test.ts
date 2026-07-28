@@ -22,13 +22,13 @@ function element(): HTMLElement {
   return { dataset: {} } as HTMLElement;
 }
 
-const gradeAExecutionIdentity = {
-  authorityId: 'phone-authority-grade-a',
-  sessionId: 'phone-session-grade-a',
-  generation: 9,
-  leg: 0,
-  direction: 1
-} as const;
+const gradeAExecutionToken = [
+  'phone-authority-grade-a',
+  'phone-session-grade-a',
+  9,
+  0,
+  1
+] as const;
 
 function transition(
   prepare = vi.fn(async () => undefined)
@@ -235,9 +235,7 @@ describe('canonical Grade A run lifecycle', () => {
       expect(activeSession.provideRelease).toHaveBeenCalledTimes(1);
     });
 
-    expect(adapter.begin).toHaveBeenCalledWith({
-      identity: gradeAExecutionIdentity
-    });
+    expect(adapter.begin).toHaveBeenCalledWith(gradeAExecutionToken);
     expect(adapter.prepare).toHaveBeenCalledWith(1, expect.any(AbortSignal));
     expect(adapter.enter).toHaveBeenCalledTimes(1);
     expect(adapter.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
@@ -295,9 +293,7 @@ describe('canonical Grade A run lifecycle', () => {
     await vi.waitFor(() => {
       expect(activeSession.provideRelease).toHaveBeenCalledTimes(1);
     });
-    expect(adapter.begin).toHaveBeenCalledWith({
-      identity: gradeAExecutionIdentity
-    });
+    expect(adapter.begin).toHaveBeenCalledWith(gradeAExecutionToken);
     expect(adapter.prepare).toHaveBeenCalledWith(1, expect.any(AbortSignal));
   });
 

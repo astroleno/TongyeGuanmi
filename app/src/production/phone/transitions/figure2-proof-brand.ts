@@ -1,10 +1,13 @@
 import { createPhoneInkAdapter } from './PhoneInkTransition';
+import type { PhoneInkFieldRequest } from '../phone-ink';
 
-export const PHONE_PROOF_BRAND_FIELD = {
-  kind: 'horizontal',
-  direction: 'bottom-to-top',
-  seed: 'figure2-proof-brand-phone'
-} as const;
+export const PHONE_PROOF_BRAND_FIELD = [
+  'horizontal',
+  'figure2-proof-brand-phone',
+  'bottom-to-top',
+  null,
+  null
+] as const satisfies PhoneInkFieldRequest;
 
 export function alignPhoneProofBrandReceiver(
   host: HTMLElement,
@@ -29,14 +32,16 @@ export function alignPhoneProofBrandReceiver(
 }
 
 /** Aligns the one canonical document receiver while the fixed ink owns it. */
-export const PhoneFigure2ProofBrandTransition = createPhoneInkAdapter({
-  id: 'phone-figure2-proof-brand',
-  field: PHONE_PROOF_BRAND_FIELD,
-  canvasClassName: 'phone-grade-a__proof-brand-ink',
-  portraitInk: 'proof-brand',
-  grade: 'dark',
-  reducedMotionStrategy: 'boundary',
-  alignReceiver: alignPhoneProofBrandReceiver
-});
+export const PhoneFigure2ProofBrandTransition = createPhoneInkAdapter([
+  'phone-figure2-proof-brand',
+  PHONE_PROOF_BRAND_FIELD,
+  'dark',
+  'phone-grade-a__proof-brand-ink',
+  'proof-brand',
+  'boundary',
+  null,
+  alignPhoneProofBrandReceiver,
+  null
+]);
 
 export default PhoneFigure2ProofBrandTransition;

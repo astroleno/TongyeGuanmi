@@ -1,9 +1,16 @@
 export const HERO_INTRO_DURATION_MS = 2_700;
 export const HERO_TITLE_START_PROGRESS = 0.78;
+/** Ordered Hero Ink geometry is safe to share with the lazy Phone adapter. */
+export const HERO_RADIAL_INK_REQUEST = [0.5, 0.5, 'hero-pattern'] as const;
+
+/** Desktop's co-located authored renderer retains its existing field shape. */
 export const HERO_RADIAL_INK_FIELD = {
   kind: 'radial' as const,
-  origin: { x: 0.5, y: 0.5 },
-  seed: 'hero-pattern'
+  origin: {
+    x: HERO_RADIAL_INK_REQUEST[0],
+    y: HERO_RADIAL_INK_REQUEST[1]
+  },
+  seed: HERO_RADIAL_INK_REQUEST[2]
 };
 
 export type HeroIntroSample = Readonly<{

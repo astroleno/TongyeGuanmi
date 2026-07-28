@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  group45NextAdapterByScene,
   group45PhoneSceneIds,
   group45PhoneTransitionIds,
   type Group45PhoneSceneAdapterComponent,
@@ -41,10 +40,42 @@ function unique<Type>(values: readonly Type[]): Type[] {
   return [...new Set(values)];
 }
 
+type Group45ExecutionRun = 'brand-services' | 'services-lab';
+
+/**
+ * Direct stable holds are bidirectional input boundaries. Each plan therefore
+ * retains the complete renderer/transition closure for every composite run
+ * incident to either the direct-entry scene or the current projected scene.
+ */
+const group45RunClosures: Readonly<Record<
+  Group45ExecutionRun,
+  Group45AdapterPlan
+>> = {
+  'brand-services': {
+    scenes: ['brand', 'figure3-animation', 'services'],
+    transitions: ['brand-figure3', 'figure3-services']
+  },
+  'services-lab': {
+    scenes: ['services', 'ttg-animation', 'lab'],
+    transitions: ['services-ttg', 'ttg-lab']
+  }
+};
+
+function runsForScene(
+  scene: Group45PhoneSceneId
+): readonly Group45ExecutionRun[] {
+  if (scene === 'brand' || scene === 'figure3-animation') {
+    return ['brand-services'];
+  }
+  if (scene === 'services') return ['brand-services', 'services-lab'];
+  return ['services-lab'];
+}
+
 /**
  * Reading roots establish the complete native document geometry for a direct
- * entry. Only the current chapter and its one adjacent visual lifecycle are
- * prewarmed; Lab deliberately has no Lab → PH plan in Unit7-A.
+ * entry. Its immediate inbound and outbound execution closures are loaded
+ * before the stable hold is allowed to receive a physical boundary input.
+ * Lab deliberately has no Lab → PH plan in Unit7-A.
  */
 export function group45AdapterPlanForEntry(
   entryScene: Group45PhoneSceneId,
@@ -54,42 +85,16 @@ export function group45AdapterPlanForEntry(
   const readingScenes = GROUP45_READING_SCENES.filter(
     (scene) => sceneIndex(scene) >= entryIndex
   );
-  const next = group45NextAdapterByScene[activeScene];
-  const nextScene = next?.[0];
-  const nextTransition = next?.[1];
-  const nextVisualExit = next
-    && (
-      nextScene === 'figure3-animation'
-      || nextScene === 'ttg-animation'
-    )
-    ? group45NextAdapterByScene[nextScene]
-    : undefined;
-  const activeVisualSource: Group45PhoneSceneId | undefined =
-    activeScene === 'figure3-animation'
-      ? 'brand'
-      : activeScene === 'ttg-animation'
-        ? 'services'
-        : undefined;
-  const activeVisualEntry: Group45PhoneTransitionId | undefined =
-    activeScene === 'figure3-animation'
-    ? 'brand-figure3'
-    : activeScene === 'ttg-animation'
-      ? 'services-ttg'
-      : undefined;
+  const runs = unique([
+    ...runsForScene(entryScene),
+    ...runsForScene(activeScene)
+  ]);
   return {
     scenes: unique([
       ...readingScenes,
-      ...(activeVisualSource ? [activeVisualSource] : []),
-      ...(activeScene === 'figure3-animation' || activeScene === 'ttg-animation'
-        ? [activeScene]
-        : []),
-      ...(nextScene ? [nextScene] : [])
+      ...runs.flatMap((run) => group45RunClosures[run].scenes)
     ]),
-    transitions: unique([
-      ...(activeVisualEntry ? [activeVisualEntry] : []),
-      ...(nextTransition ? [nextTransition] : []),
-      ...(nextVisualExit ? [nextVisualExit[1]] : [])
-    ])
+    transitions: unique(runs.flatMap((run) => group45RunClosures[run].transitions))
   };
 }
 

@@ -47,13 +47,13 @@ describe('phone AOD autoplay lifecycle', () => {
     const video = new FakeVideo();
     const onProgress = vi.fn();
     const onComplete = vi.fn();
-    const identity = {
-      authorityId: 'authority-a',
-      sessionId: 'session-a',
-      generation: 7,
-      leg: 0,
-      direction: 1 as const
-    };
+    const identity = [
+      'authority-a',
+      'session-a',
+      7,
+      0,
+      1
+    ] as const;
     const controller = createPhoneAodAutoplay(
       video as unknown as HTMLVideoElement,
       {

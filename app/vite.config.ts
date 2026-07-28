@@ -15,9 +15,23 @@ type CdnReleasePolicy = Readonly<{
   mediaExtensions: readonly string[];
 }>;
 
+type PhoneCrossChunkContractPolicy = Readonly<{
+  schemaVersion: number;
+  reservedPropertyNames: readonly string[];
+  retainedObjectContracts: readonly Readonly<{
+    name: string;
+    callees: readonly string[];
+    sourceSuffixes: readonly string[];
+    propertyNames: readonly string[];
+  }>[];
+}>;
+
 const cdnReleasePolicy = JSON.parse(
   readFileSync(new URL('./build/cdn-release-policy.json', import.meta.url), 'utf8')
 ) as CdnReleasePolicy;
+const phoneCrossChunkContractPolicy = JSON.parse(
+  readFileSync(new URL('./build/phone-cross-chunk-contract.json', import.meta.url), 'utf8')
+) as PhoneCrossChunkContractPolicy;
 const releaseId = process.env.R5_RELEASE_ID?.trim() ?? '';
 const requireCdn = process.env.R5_REQUIRE_CDN === '1';
 const phoneStoryPrebootEnabled = process.env.VITE_ENABLE_PHONE_STORY === '1';
@@ -30,6 +44,27 @@ const mediaExtensions = new Set(cdnReleasePolicy.mediaExtensions);
 
 if (cdnReleasePolicy.schemaVersion !== 1) {
   throw new Error(`unsupported CDN release policy schema: ${cdnReleasePolicy.schemaVersion}`);
+}
+if (phoneCrossChunkContractPolicy.schemaVersion !== 2) {
+  throw new Error(
+    `unsupported Phone cross-chunk contract schema: ${phoneCrossChunkContractPolicy.schemaVersion}`
+  );
+}
+const phoneCrossChunkReservedProperties = new Set(
+  phoneCrossChunkContractPolicy.reservedPropertyNames
+);
+for (const contract of phoneCrossChunkContractPolicy.retainedObjectContracts) {
+  if (!contract.name || contract.callees.length === 0 || contract.sourceSuffixes.length === 0) {
+    throw new Error('Phone cross-chunk retained object contract is incomplete');
+  }
+  const missing = contract.propertyNames.filter(
+    (property) => !phoneCrossChunkReservedProperties.has(property)
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `Phone cross-chunk contract ${contract.name} has unreserved fields: ${missing.join(', ')}`
+    );
+  }
 }
 if (requireCdn && !releaseId) {
   throw new Error('R5_REQUIRE_CDN=1 requires R5_RELEASE_ID');
@@ -164,7 +199,8 @@ export default defineConfig({
           // These fields are private to React Fiber or to the internally
           // compiled phone snapshot graph. Keeping the allow-list explicit
           // leaves DOM and externally observable adapter contracts untouched.
-          regex: /^(?:memoizedState|flags|stateNode|sibling|alternate|lanes|updateQueue|memoizedProps|pendingProps|subtreeFlags|childLanes|authorityId|diagnostics|lastRollback|completedEpoch|completedEpochUntil|sampleRevision|projection|operation|inputEpoch|anchor|alignment|geometryRevision|targetY|commandId|correctionCount|confirmedY|visualViewportOffsetTop|fallbackScene|cinematic|policy|corridor|status|revision|scroll|input|sessionId|generation|legIndex|direction|phase|progress|actualY|run|scene|from|to|segment|runSource|runTarget|trigger|anchorY|commitState|checkpoint|edge|stageOwner|stageScene|sourceSurface|receiverSurface|effects|inputDisposition|boundaryKnown|crossedBoundary|scrollCorridors|hasPresentedSurface|sampleNow|scenes|sample|boundary|landing|viewportWidth|viewportHeight|reason|kind|source|directScene|disposed|resolveIntent|syncDiagnostics|registerRunCapability|registerSurface|registerScrollCorridor|registerTransitionEndpoints|clearTransitionEndpoints|reapplyCurrent|preflight|rootForScene|canStart|startAtLeg|reportPresentedFrame|reportProgress|reportEndpoints|reportEndpointCommit|reportTargetPresented|reportEndpointRelease|provideRelease|reportAnimationComplete|reportFailure|releaseGeometry|releaseResources|onNativeScrollCorrection|scrollState|wheelQuietMs|momentumWindowMs|requestFrame|cancelFrame|coverageRoot|presented|attach|coverageSurface|landingResolver|semanticScene|navigationScene|initialScene|scheduleFrame|ownerId|capability|dependencies|resume|valid|endpoints|checkpointTrace|retention|abortController|visualScenes|capabilities|reducedMotion|timeoutMs|directLegIndex|runId|preparation|boundaries|documentSurface)$/,
+          regex: /^(?:memoizedState|flags|stateNode|sibling|alternate|lanes|updateQueue|memoizedProps|pendingProps|subtreeFlags|childLanes|authorityId|diagnostics|lastRollback|completedEpoch|completedEpochUntil|sampleRevision|projection|operation|inputEpoch|anchor|alignment|geometryRevision|targetY|commandId|correctionCount|confirmedY|visualViewportOffsetTop|fallbackScene|cinematic|corridor|status|revision|scroll|input|sessionId|generation|legIndex|direction|phase|progress|actualY|run|scene|from|to|segment|runSource|runTarget|trigger|anchorY|commitState|checkpoint|edge|stageOwner|stageScene|sourceSurface|receiverSurface|effects|inputDisposition|boundaryKnown|crossedBoundary|scrollCorridors|hasPresentedSurface|sampleNow|scenes|sample|boundary|landing|viewportWidth|viewportHeight|reason|kind|source|directScene|disposed|resolveIntent|syncDiagnostics|registerRunCapability|registerSurface|registerScrollCorridor|registerTransitionEndpoints|clearTransitionEndpoints|reapplyCurrent|preflight|rootForScene|canStart|startAtLeg|reportPresentedFrame|reportProgress|reportEndpoints|reportEndpointCommit|reportTargetPresented|reportEndpointRelease|provideRelease|reportAnimationComplete|reportFailure|releaseGeometry|releaseResources|onNativeScrollCorrection|scrollState|wheelQuietMs|momentumWindowMs|requestFrame|cancelFrame|coverageRoot|presented|attach|coverageSurface|landingResolver|semanticScene|navigationScene|initialScene|scheduleFrame|ownerId|capability|dependencies|resume|valid|endpoints|checkpointTrace|retention|abortController|visualScenes|capabilities|reducedMotion|timeoutMs|directLegIndex|runId|preparation|boundaries|documentSurface)$/,
+          reserved: [...phoneCrossChunkContractPolicy.reservedPropertyNames]
         }
       }
     },
@@ -181,10 +217,23 @@ export default defineConfig({
           if (id.includes('/src/transitions/shared/stagedMediaHandoff.ts')) {
             return 'staged-media-runtime';
           }
+          // Keep the packed-alpha owner and its raw compositor configuration in
+          // one dedicated lazy runtime. This is deliberately separate from the
+          // timeline/Ink runtime: the bridge remains intra-chunk while neither
+          // lazy runtime is allowed to grow past the release chunk budget.
+          if ([
+            '/src/production/phone/scenes/phone-packed-alpha-surface.ts',
+            '/src/media/packed-alpha-video.ts'
+          ].some((moduleId) => id.includes(moduleId))) {
+            return 'phone-media-runtime';
+          }
           if ([
             '/src/transitions/shared/ink.ts',
             '/src/transitions/shared/inkOwnership.ts',
             '/src/transitions/shared/sceneInk.ts',
+            '/src/transitions/shared/phone-ink-runtime.ts',
+            '/src/transitions/shared/radialInkIntro.ts',
+            '/src/production/phone/phone-timeline-runtime.ts',
             '/src/media/timeline-video-driver.ts',
             '/src/pilot/progress-timeline.ts',
             '/src/transitions/shared/sectionHandoff.ts'

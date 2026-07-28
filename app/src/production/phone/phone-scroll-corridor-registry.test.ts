@@ -51,6 +51,38 @@ describe('phone scroll corridor registry', () => {
     expect(registry.boundary(hero, 'brand-services', 1)).toBe(120);
   });
 
+  it('uses the run owner for a reverse boundary without replacing the stable sampling corridor', () => {
+    const registry = createPhoneScrollCorridorRegistry();
+    const brand = createPhoneStorySnapshot({ authorityId: 'a', scene: 'brand' });
+    registry.register({
+      id: 'group45',
+      scenes: ['brand', 'services'],
+      sample: (viewport) => ({
+        actualY: viewport.actualY,
+        scene: 'brand',
+        direction: -1,
+        progress: .5
+      }),
+      boundary: (run) => run === 'brand-services' ? 4_800 : null,
+      landing: () => 4_800
+    });
+    registry.register({
+      id: 'method-grade-a',
+      scenes: ['method-top', 'figure2-animation', 'figure2-proof'],
+      sample: () => null,
+      boundary: (run) => run === 'proof-brand' ? 3_900 : null,
+      landing: () => null
+    });
+
+    expect(registry.sample(brand, {
+      actualY: 4_000,
+      viewportHeight: 844,
+      viewportWidth: 390,
+      visualViewportOffsetTop: 0
+    })).toMatchObject({ corridor: 'group45' });
+    expect(registry.boundary(brand, 'proof-brand', -1)).toBe(3_900);
+  });
+
   it('removes a corridor synchronously without leaving a stale selection', () => {
     const registry = createPhoneScrollCorridorRegistry();
     const lease = registry.register(corridor('hero', ['hero']));

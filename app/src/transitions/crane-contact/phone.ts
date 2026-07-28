@@ -22,8 +22,8 @@ function settle(
   renderPhoneContactHold(to);
 }
 
-export const PhoneCraneContactTransition = createPhoneEndpointAdapter({
-  renderFrame(from, to, rawProgress, _direction, reducedMotion) {
+export const PhoneCraneContactTransition = createPhoneEndpointAdapter([
+  (from, to, rawProgress, _direction, reducedMotion) => {
     const progress = reducedMotion ? (rawProgress < 0.5 ? 0 : 1) : rawProgress;
     const contact = clamp(
       (progress - CRANE_CONTACT_COPY_CUE.atProgress)
@@ -34,13 +34,13 @@ export const PhoneCraneContactTransition = createPhoneEndpointAdapter({
     presentPhoneEndpoint(to, contact > 0.001 ? 1 : 0, false);
   },
   settle,
-  reset(from, to, progress) {
+  (from, to, progress) => {
     const endpoint = progress >= 0.999 ? 1 : 0;
     releasePhoneContactEntrance(to, owner, endpoint);
     if (endpoint === 1) renderPhoneContactHold(to);
     clearPhoneEndpoint(from);
     clearPhoneEndpoint(to);
   }
-});
+]);
 
 export default PhoneCraneContactTransition;

@@ -1,8 +1,8 @@
 import {
-  disposeTimelineVideoDriver,
-  prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
-} from '../../../media/timeline-video-driver';
+  disposePhoneTimelineVideo,
+  preparePhoneTimelineVideoFrame,
+  type PhoneTimelineVideoInput
+} from '../../../production/phone/phone-timeline-runtime';
 import { CRANE_CONTACT_DURATION_MS } from '../../../story/timings';
 import {
   createPhoneNativeAutoplay,
@@ -81,19 +81,21 @@ function range01(value: number, start: number, end: number): number {
 function reverseFrameInput(
   runId: string,
   progress: number
-): TimelineVideoDriveInput {
-  return {
+): PhoneTimelineVideoInput {
+  return [
     runId,
-    direction: -1,
+    -1,
     progress,
-    durationFallbackSeconds: VIDEO_DURATION_FALLBACK,
-    startSeconds: 0,
-    endSeconds: CRANE_VIDEO_END_SECONDS,
-    timelineDurationMs: 2500,
-    mode: 'timeline',
-    nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: true
-  };
+    VIDEO_DURATION_FALLBACK,
+    0,
+    CRANE_VIDEO_END_SECONDS,
+    null,
+    2500,
+    'timeline',
+    1,
+    true,
+    null
+  ];
 }
 
 async function prepareCraneAnimationFrame(
@@ -105,19 +107,19 @@ async function prepareCraneAnimationFrame(
   if (!figure || !flock) throw new Error('Crane media unavailable');
   const time = clamp(progress) * CRANE_TIMELINE_DURATION_SECONDS;
   const frames = await Promise.all([
-    prepareTimelineVideoFrame(
+    preparePhoneTimelineVideoFrame(
       figure,
       reverseFrameInput(
         runId,
         range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS)
       )
     ),
-    prepareTimelineVideoFrame(
+    preparePhoneTimelineVideoFrame(
       flock,
       reverseFrameInput(runId, range01(time, 0, FLOCK_END_SECONDS))
     )
   ]);
-  if (frames.some((frame) => frame?.status !== 'ready')) {
+  if (frames.some(([status]) => status !== 'ready')) {
     throw new Error('Crane media stale');
   }
 }
@@ -247,8 +249,8 @@ export function createPhoneCraneForwardRun(
       if (disposed) return;
       flockClock.stop();
       figureClock.stop();
-      disposeTimelineVideoDriver(flock);
-      disposeTimelineVideoDriver(figure);
+      disposePhoneTimelineVideo(flock);
+      disposePhoneTimelineVideo(figure);
       active = true;
       failed = false;
       figureStarted = false;
@@ -295,19 +297,22 @@ export function createPhoneCranePresentedReverse(
 ): PhoneCranePresentedReverse {
   let runSequence = 0;
   let runId = 'phone-crane-reverse-0';
-  const playback = createPhonePresentedReversePlayback({
-    durationMs: CRANE_PLAYBACK_MS,
-    prepare: async (progress) => {
+  const playback = createPhonePresentedReversePlayback([
+    CRANE_PLAYBACK_MS,
+    async (progress) => {
       await prepareCraneAnimationFrame(root, progress, runId);
       return true;
     },
-    render: (progress) => render(progress, -1),
+    (progress) => render(progress, -1),
     onComplete,
-    onError: onFailure,
-    onStatus: (status) => {
+    onFailure,
+    (status) => {
       if (import.meta.env.DEV) root.dataset.phoneCraneReverse = status;
-    }
-  });
+    },
+    null,
+    null,
+    null
+  ]);
 
   return {
     get active() {

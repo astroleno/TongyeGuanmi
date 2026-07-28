@@ -12,21 +12,20 @@ import {
   phoneLoaderCompletedInDocument
 } from './phone-loader-lifecycle';
 import {
-  phoneContinuationGroupForScene,
-  phoneStoryEntrySceneFromHash,
-  type PhoneContinuationEntryTuple
+  phoneStoryEntrySceneFromHash
 } from './phone-entry-plan';
 import type { PhoneEdgeScene } from './phone-edge-surface';
 import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
 import { phoneStablePresentationTuple } from './phone-story-presentation';
-import { requestPhoneRuntimeDirectEntry } from './phone-story-runtime';
+import {
+  requestPhoneRuntimeBootstrap,
+  requestPhoneRuntimeDirectEntry
+} from './phone-story-runtime';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
 export type PhoneStoryEntryState = Readonly<{
   entryScene: SceneId | null;
-  continuationEntry: PhoneContinuationEntryTuple | undefined;
   directStoryEntry: boolean;
-  directContinuationEntry: boolean;
   loaderHidden: boolean;
   setLoaderHidden: Dispatch<SetStateAction<boolean>>;
   initialScene: SceneId;
@@ -35,33 +34,20 @@ export type PhoneStoryEntryState = Readonly<{
 }>;
 
 export function usePhoneStoryEntry(): PhoneStoryEntryState {
-  const [entry] = useState(() => (
-    (() => {
-      const hash = typeof window === 'undefined' ? '' : window.location.hash;
-      const scene = phoneStoryEntrySceneFromHash(hash);
-      return [
-        scene,
-        scene ? phoneContinuationGroupForScene(scene) : null
-      ] as const;
-    })()
-  ));
-  const [entryScene, continuationGroup] = entry;
+  const [entryScene] = useState(() => {
+    const hash = typeof window === 'undefined' ? '' : window.location.hash;
+    return phoneStoryEntrySceneFromHash(hash);
+  });
   const [entryCheckpoint, entryEdgeScene] = entryScene
     ? phoneStablePresentationTuple(entryScene)
     : [null, null] as const;
-  const continuationEntry: PhoneContinuationEntryTuple | undefined =
-    continuationGroup === null ? undefined
-      : [continuationGroup, entryScene!] as PhoneContinuationEntryTuple;
   const directStoryEntry = entryScene !== null;
-  const directContinuationEntry = continuationEntry !== undefined;
   const [loaderHidden, setLoaderHidden] = useState(
     () => directStoryEntry || phoneLoaderCompletedInDocument()
   );
   return {
     entryScene,
-    continuationEntry,
     directStoryEntry,
-    directContinuationEntry,
     loaderHidden,
     setLoaderHidden,
     initialScene: entryScene ?? 'hero',
@@ -98,14 +84,7 @@ export function usePhoneStoryEntryLifecycle(
       document.getElementById('story-loader-static')?.remove();
     } else {
       if (loaderHidden) {
-        const snapshot = orchestrator.getSnapshot();
-        orchestrator.dispatch({
-          type: 'BOOTSTRAP_REQUESTED',
-          authorityId: snapshot.authorityId,
-          target: 'hero',
-          fallbackScene: 'hero',
-          cinematic: null
-        });
+        requestPhoneRuntimeBootstrap(orchestrator);
       }
       else window.scrollTo(0, 0);
     }

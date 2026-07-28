@@ -1,5 +1,9 @@
 import type { SceneId } from '../../story/types';
-import { phoneEntryPlan, phoneRun, type PhoneRunId } from './phone-story-runs';
+import {
+  phoneRun,
+  type PhoneRunId,
+  type PhoneScrollRunId
+} from './phone-story-runs';
 import { createPhoneStoryOrchestrator } from './phone-story-orchestrator';
 import type {
   PhoneCapabilityLease,
@@ -20,6 +24,7 @@ import type {
 import {
   createPhoneDocumentScrollRuntime
 } from './usePhoneDocumentScrollRuntime';
+import type { PhoneDocumentScrollSample } from './usePhoneDocumentScrollRuntime';
 import type {
   PhoneStorySnapshot,
   PhoneTransactionPhase
@@ -64,7 +69,6 @@ export function requestPhoneRuntimeDirectEntry(
   source: 'initial' | 'hash' | 'menu' | 'history'
 ): void {
   const snapshot = port.getSnapshot();
-  const plan = phoneEntryPlan(target);
   port.dispatch({
     type: 'DIRECT_ENTRY_REQUESTED',
     authorityId: snapshot.authorityId,
@@ -73,9 +77,53 @@ export function requestPhoneRuntimeDirectEntry(
     fallbackScene: snapshot.status === 'stable'
       ? snapshot.scene
       : snapshot.projection.semanticScene,
-    cinematic: plan.kind === 'cinematic'
-      ? { run: plan.run, direction: plan.direction, legIndex: plan.legIndex }
-      : null
+    cinematic: null
+  });
+}
+
+/** Builds navigation events beside the runtime-owned snapshot graph. */
+export function requestPhoneRuntimeNavigation(
+  port: PhoneStoryRuntimePort,
+  scene: SceneId,
+  source: 'hash' | 'menu' | 'history'
+): void {
+  port.dispatch({
+    type: 'NAVIGATE_REQUESTED',
+    authorityId: port.getSnapshot().authorityId,
+    scene,
+    source
+  });
+}
+
+/** Bootstrap remains a runtime event so lazy shells never read authorityId. */
+export function requestPhoneRuntimeBootstrap(port: PhoneStoryRuntimePort): void {
+  port.dispatch({
+    type: 'BOOTSTRAP_REQUESTED',
+    authorityId: port.getSnapshot().authorityId,
+    target: 'hero',
+    fallbackScene: 'hero',
+    cinematic: null
+  });
+}
+
+/**
+ * Own the reducer event shape beside the runtime port. Lazy samplers cross
+ * this boundary with a positional sample, so property mangling cannot split
+ * `SCROLL_SAMPLED` between independently minified chunks.
+ */
+export function reportPhoneRuntimeScrollSample(
+  port: PhoneStoryRuntimePort,
+  [actualY, corridor, scene, run, progress, direction]: PhoneDocumentScrollSample
+): void {
+  port.dispatch({
+    type: 'SCROLL_SAMPLED',
+    authorityId: port.getSnapshot().authorityId,
+    actualY,
+    corridor,
+    ...(scene === null ? {} : { scene }),
+    ...(run === null ? {} : { run }),
+    progress,
+    direction
   });
 }
 
@@ -107,7 +155,14 @@ export type PhoneCinematicSnapshot = readonly [
   direction: 1 | -1 | null,
   legIndex: number | null,
   phase: PhoneTransactionPhase | null,
-  progress: number | null
+  progress: number | null,
+  status: PhoneStorySnapshot['status'],
+  navigationScene: SceneId,
+  stageOwner: PhoneStorySnapshot['projection']['stageOwner'],
+  scrollActualY: number,
+  scrollCorridor: PhoneStorySnapshot['scroll']['corridor'],
+  scrollProgress: number,
+  scrollRun: PhoneScrollRunId | null
 ];
 
 export function selectPhoneCinematicSnapshot(
@@ -116,36 +171,31 @@ export function selectPhoneCinematicSnapshot(
   const {
     semanticScene,
     sourceSurface,
-    receiverSurface
+    receiverSurface,
+    navigationScene,
+    stageOwner
   } = snapshot.projection;
-  if (snapshot.status !== 'transaction') {
-    return [
-      semanticScene,
-      sourceSurface,
-      receiverSurface,
-      snapshot.authorityId,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null
-    ];
-  }
-  const { operation } = snapshot.session;
+  const session = snapshot.status === 'transaction' ? snapshot.session : null;
+  const operation = session?.operation;
   return [
     semanticScene,
     sourceSurface,
     receiverSurface,
     snapshot.authorityId,
-    snapshot.session.sessionId,
-    snapshot.session.generation,
-    operation.run,
-    operation.direction,
-    operation.legIndex,
-    snapshot.session.phase,
-    snapshot.session.progress
+    session?.sessionId ?? null,
+    session?.generation ?? null,
+    operation?.run ?? null,
+    operation?.direction ?? null,
+    operation?.legIndex ?? null,
+    session?.phase ?? null,
+    session?.progress ?? null,
+    snapshot.status,
+    navigationScene,
+    stageOwner,
+    snapshot.scroll.actualY,
+    snapshot.scroll.corridor,
+    snapshot.scroll.progress,
+    snapshot.status === 'scroll-run' ? snapshot.run : null
   ];
 }
 
@@ -202,7 +252,7 @@ export function registerPhoneCompositeRunCapability(
   run: PhoneRunId,
   ownerId: string,
   position: (direction: PhoneTransitionDirection) => number | null,
-  canStart: () => boolean,
+  canStart: (direction: PhoneTransitionDirection) => boolean,
   start: (
     direction: PhoneTransitionDirection,
     session: PhoneCompositeSession
@@ -214,7 +264,7 @@ export function registerPhoneCompositeRunCapability(
 ): PhoneCapabilityLease {
   return port.registerRunCapability(run, ownerId, {
     position,
-    canStart,
+    canStart: (direction) => canStart(direction),
     start: (direction, session) => start(direction, compositeSession(session)),
     startAtLeg: (legIndex, session) => startAtLeg(
       legIndex,
@@ -284,6 +334,70 @@ export function registerPhoneRuntimeScrollCorridor(
   });
 }
 
+/**
+ * Primitive-only scroll transport for lazy modules whose sampler needs more
+ * than a direction. The named corridor object is assembled in this runtime
+ * chunk so property mangling cannot split the protocol across chunks.
+ */
+export type PhoneRuntimeScrollSample = readonly [
+  actualY: number,
+  scene: SceneId | null,
+  run: PhoneScrollRunId | null,
+  direction: -1 | 0 | 1,
+  progress: number | null
+];
+
+export function registerPhoneRuntimeSampledScrollCorridor(
+  port: PhoneStoryRuntimePort,
+  id: string,
+  scenes: readonly SceneId[],
+  sample: (
+    actualY: number,
+    viewportWidth: number,
+    viewportHeight: number,
+    visualViewportOffsetTop: number,
+    snapshot: PhoneCinematicSnapshot
+  ) => PhoneRuntimeScrollSample,
+  boundary: (
+    run: PhoneRunId,
+    direction: PhoneTransitionDirection
+  ) => number | null,
+  landing: (
+    scene: SceneId,
+    reason: PhoneLandingReason,
+    direction: PhoneTransitionDirection,
+    snapshot: PhoneCinematicSnapshot
+  ) => number | null
+): PhoneScrollCorridorLease {
+  return port.registerScrollCorridor({
+    id,
+    scenes,
+    sample(viewport) {
+      const [actualY, scene, run, direction, progress] = sample(
+        viewport.actualY,
+        viewport.viewportWidth,
+        viewport.viewportHeight,
+        viewport.visualViewportOffsetTop,
+        selectPhoneCinematicSnapshot(port.getSnapshot())
+      );
+      return {
+        actualY,
+        ...(scene === null ? {} : { scene }),
+        ...(run === null ? {} : { run }),
+        direction,
+        ...(progress === null ? {} : { progress })
+      };
+    },
+    boundary,
+    landing: (scene, reason, direction) => landing(
+      scene,
+      reason,
+      direction,
+      selectPhoneCinematicSnapshot(port.getSnapshot())
+    )
+  });
+}
+
 let authoritySequence = 0;
 // This is a lifetime guard, not a shared runtime: each value is a distinct
 // route-local authority and the weak key vanishes with its mounted root.
@@ -319,8 +433,7 @@ export function createPhoneStoryRuntime(
   let disposeDocumentScrollRuntime: (() => void) | undefined;
   let disposeBrowserReapply: (() => void) | undefined;
 
-  let authority: PhoneStoryAuthority;
-  authority = {
+  const authority: PhoneStoryAuthority = {
     authorityId,
     scope: options.scope,
     port,
@@ -352,7 +465,7 @@ export function createPhoneStoryRuntime(
           visualViewport: pageWindow.visualViewport,
           registry: engine.scrollCorridors,
           getSnapshot: port.getSnapshot,
-          dispatch: port.dispatch,
+          reportSample: (sample) => reportPhoneRuntimeScrollSample(port, sample),
           requestFrame: pageWindow.requestAnimationFrame.bind(pageWindow),
           cancelFrame: pageWindow.cancelAnimationFrame.bind(pageWindow)
         });

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { phoneGroup67RunSource } from './phone-lab-contact-runtime';
 import { phoneRun } from './phone-story-runs';
+import { createPhoneStorySnapshot } from './phone-story-state';
 
 const shellSource = readFileSync(
   new URL('./PhoneStoryShell.tsx', import.meta.url),
@@ -15,8 +16,16 @@ const continuationSource = readFileSync(
   new URL('./PhoneLabContactContinuation.tsx', import.meta.url),
   'utf8'
 );
+const brandContinuationSource = readFileSync(
+  new URL('./PhoneBrandLabContinuation.tsx', import.meta.url),
+  'utf8'
+);
 const continuationBundleSource = readFileSync(
   new URL('./PhoneContinuationBundle.tsx', import.meta.url),
+  'utf8'
+);
+const tailBundleSource = readFileSync(
+  new URL('./PhoneStoryTailBundle.tsx', import.meta.url),
   'utf8'
 );
 const compositeRunnerSource = readFileSync(
@@ -33,6 +42,26 @@ const stageRailSource = readFileSync(
 );
 const stageRuntimeSource = readFileSync(
   new URL('./usePhoneStageRuntime.ts', import.meta.url),
+  'utf8'
+);
+const navigationRuntimeSource = readFileSync(
+  new URL('./usePhoneStoryNavigationRuntime.ts', import.meta.url),
+  'utf8'
+);
+const storyNavSource = readFileSync(
+  new URL('../StoryNav.tsx', import.meta.url),
+  'utf8'
+);
+const brandLabStorySource = readFileSync(
+  new URL('./PhoneBrandLabStory.tsx', import.meta.url),
+  'utf8'
+);
+const labContactShellSource = readFileSync(
+  new URL('./PhoneLabContactShell.tsx', import.meta.url),
+  'utf8'
+);
+const entryRuntimeSource = readFileSync(
+  new URL('./usePhoneStoryEntry.ts', import.meta.url),
   'utf8'
 );
 const methodSource = readFileSync(
@@ -63,10 +92,10 @@ const aodSource = readFileSync(
 describe('formal Unit7-B phone integration', () => {
   it('embeds the continuation without nesting the Unit6 acceptance shell', () => {
     expect(gradeASource).toContain('<PhoneStoryTailBundle');
-    expect(continuationBundleSource).toContain('<PhoneBrandLabContinuation');
-    expect(continuationBundleSource).toContain('<PhoneLabContactContinuation');
+    expect(tailBundleSource).toContain('<PhoneBrandLabContinuation');
+    expect(tailBundleSource).toContain('<PhoneLabContactContinuation');
     expect(gradeASource).not.toContain('PhoneLabContactShell');
-    expect(continuationBundleSource).not.toContain('PhoneLabContactShell');
+    expect(tailBundleSource).not.toContain('PhoneLabContactShell');
     expect(continuationSource).not.toMatch(/<main\b/);
     expect(continuationSource).not.toContain('StoryNav');
     expect(continuationSource).not.toContain('usePhoneViewportGeometry');
@@ -84,6 +113,29 @@ describe('formal Unit7-B phone integration', () => {
     expect(continuationSource).toContain(
       'createPortal(stageSurfaces, stageHost)'
     );
+  });
+
+  it('keeps every direct entry inside the full reversible formal execution graph', () => {
+    expect(shellSource).not.toContain('!directStoryEntry &&');
+    expect(shellSource).not.toContain('<PhoneGroup67DirectEntry');
+    expect(shellSource).toContain('{MethodTop && (');
+    expect(methodSource).toContain('phoneMethodRequestsGradeAAtMount');
+  });
+
+  it('registers the persistent canvas as the one coverage owner for every phone surface', () => {
+    expect(stageRuntimeSource.match(/\(\) => stage,/g)).toHaveLength(5);
+    expect(gradeASource.match(/\(\) => stageHost,/g)).toHaveLength(2);
+    expect(brandContinuationSource.match(/\(\) => stageHost,/g)).toHaveLength(2);
+    expect(continuationSource.match(/\(\) => stageHost,/g)).toHaveLength(2);
+  });
+
+  it('registers the StarMap surface with its projection-owned ID', () => {
+    expect(createPhoneStorySnapshot({
+      authorityId: 'front-star-contract',
+      scene: 'star-map'
+    }).projection.receiverSurface).toBe('front:star-map');
+    expect(stageRuntimeSource).toContain("'front:star-map'");
+    expect(shellSource).toContain("'front:star-map'");
   });
 
   it('reuses the exact Unit7-A Lab root and adapter for Lab → PH', () => {
@@ -156,12 +208,50 @@ describe('formal Unit7-B phone integration', () => {
     expect(stageRuntimeSource).not.toContain(
       'orchestrator.reportPresentation'
     );
-    expect(stageRuntimeSource).toContain('registerScrollCorridor');
+    expect(stageRuntimeSource).toContain(
+      'registerPhoneRuntimeSampledScrollCorridor('
+    );
+    expect(stageRuntimeSource).toContain('registerPhoneRuntimeSurface(');
+    expect(stageRuntimeSource).toContain('registerPhoneCompositeRunCapability(');
+    expect(stageRuntimeSource).toContain('PhoneCinematicSnapshot');
     expect(stageRuntimeSource).toContain('phoneFrontRailSample');
-    expect(stageRuntimeSource).toContain("id: 'front:hero'");
-    expect(stageRuntimeSource).toContain("id: 'front:pattern'");
-    expect(stageRuntimeSource).toContain("id: 'front:star'");
-    expect(stageRuntimeSource).toContain("id: FRONT_AOD_SURFACE");
+    expect(stageRuntimeSource).toContain("'front:hero'");
+    expect(stageRuntimeSource).toContain("'front:pattern'");
+    expect(stageRuntimeSource).toContain("'front:star-map'");
+    expect(stageRuntimeSource).toContain('FRONT_AOD_SURFACE,');
+    for (const unsafePortAccess of [
+      'options.orchestrator.registerSurface(',
+      'options.orchestrator.registerScrollCorridor(',
+      'options.orchestrator.registerRunCapability('
+    ]) {
+      expect(stageRuntimeSource).not.toContain(unsafePortAccess);
+    }
+    for (const unsafePortAccess of [
+      'orchestrator.registerSurface(',
+      'orchestrator.registerScrollCorridor(',
+      'orchestrator.syncDiagnostics()'
+    ]) {
+      expect(gradeASource).not.toContain(unsafePortAccess);
+    }
+    expect(shellSource).toContain('navigation.cinematicSnapshot');
+    expect(shellSource).not.toContain('navigation.snapshot.');
+    expect(navigationRuntimeSource).toContain(
+      'selectPhoneCinematicSnapshot(snapshot)'
+    );
+    expect(navigationRuntimeSource).toContain('requestPhoneRuntimeNavigation(');
+    expect(navigationRuntimeSource).not.toContain('port.getSnapshot().authorityId');
+    expect(entryRuntimeSource).toContain('requestPhoneRuntimeBootstrap(');
+    expect(entryRuntimeSource).not.toContain(
+      'orchestrator.getSnapshot().authorityId'
+    );
+    expect(gradeASource).toContain(
+      'selectPhoneCinematicSnapshot(storySnapshot)'
+    );
+    for (const source of [stageRuntimeSource, gradeASource]) {
+      expect(source).not.toMatch(
+        /\bsnapshot\.(?:projection|session|scroll|status|run|authorityId)\b/
+      );
+    }
     for (const legacyOwner of [
       'requestRun',
       'reconcileHold',
@@ -190,6 +280,20 @@ describe('formal Unit7-B phone integration', () => {
     }
   });
 
+  it('keeps navigation scenes on tuple/hash boundaries across lazy chunks', () => {
+    expect(shellSource).toContain('currentScene={navigation.cinematicSnapshot[12]}');
+    expect(shellSource).not.toContain('navigation.scene');
+    expect(brandLabStorySource).toContain(
+      'currentScene={navigation.cinematicSnapshot[12]}'
+    );
+    expect(brandLabStorySource).not.toContain('navigation.scene');
+    expect(navigationRuntimeSource).not.toMatch(/\bscene,\s*visible,/);
+    expect(storyNavSource).toContain('sceneFromHash(item.hash)');
+    expect(storyNavSource).not.toContain('item.scene');
+    expect(brandLabStorySource).toContain("item.hash === '#services'");
+    expect(labContactShellSource).toContain('sceneFromHash(item.hash)');
+  });
+
   it('uses global surface roles while scene active props remain resource-only', () => {
     for (const source of [heroSource, starMapSource, aodSource]) {
       expect(source).not.toContain('data-phone-surface-role');
@@ -197,7 +301,7 @@ describe('formal Unit7-B phone integration', () => {
     }
     expect(starMapSource).toContain('__phoneStarActive');
     expect(aodSource).toContain('`active` is strictly a decoder/compositor lease');
-    expect(aodSource).toContain('const autoplayIdentityRef = useRef<PhoneExecutionIdentity | null>(null)');
+    expect(aodSource).toContain('const autoplayIdentityRef = useRef<PhoneExecutionToken | null>(null)');
     expect(aodSource).toContain('startAutoplay(direction, identity)');
     expect(aodSource).toContain('progressListenerRef.current?.(progress, direction, identity)');
     expect(aodSource).toContain('completeListenerRef.current?.(direction, identity)');

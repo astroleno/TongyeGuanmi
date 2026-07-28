@@ -15,16 +15,27 @@ describe('Unit 5 phone adapter loading plan', () => {
       transitions: ['brand-figure3', 'figure3-services']
     });
     expect(group45AdapterPlanForEntry('services')).toEqual({
-      scenes: ['services', 'lab', 'ttg-animation'],
-      transitions: ['services-ttg', 'ttg-lab']
+      scenes: [
+        'services',
+        'lab',
+        'brand',
+        'figure3-animation',
+        'ttg-animation'
+      ],
+      transitions: [
+        'brand-figure3',
+        'figure3-services',
+        'services-ttg',
+        'ttg-lab'
+      ]
     });
     expect(group45AdapterPlanForEntry('ttg-animation')).toEqual({
       scenes: ['lab', 'services', 'ttg-animation'],
       transitions: ['services-ttg', 'ttg-lab']
     });
     expect(group45AdapterPlanForEntry('lab')).toEqual({
-      scenes: ['lab'],
-      transitions: []
+      scenes: ['lab', 'services', 'ttg-animation'],
+      transitions: ['services-ttg', 'ttg-lab']
     });
   });
 
@@ -33,8 +44,19 @@ describe('Unit 5 phone adapter loading plan', () => {
       'services',
       'figure3-animation'
     )).toEqual({
-      scenes: ['services', 'lab', 'brand', 'figure3-animation'],
-      transitions: ['brand-figure3', 'figure3-services']
+      scenes: [
+        'services',
+        'lab',
+        'brand',
+        'figure3-animation',
+        'ttg-animation'
+      ],
+      transitions: [
+        'brand-figure3',
+        'figure3-services',
+        'services-ttg',
+        'ttg-lab'
+      ]
     });
     expect(group45AdapterPlanForEntry('lab', 'ttg-animation')).toEqual({
       scenes: ['lab', 'services', 'ttg-animation'],
@@ -48,19 +70,34 @@ describe('Unit 5 phone adapter loading plan', () => {
       transitions: ['brand-figure3', 'figure3-services']
     });
     expect(group45AdapterPlanForEntry('brand', 'services')).toEqual({
-      scenes: ['brand', 'services', 'lab', 'ttg-animation'],
-      transitions: ['services-ttg', 'ttg-lab']
+      scenes: ['brand', 'services', 'lab', 'figure3-animation', 'ttg-animation'],
+      transitions: [
+        'brand-figure3',
+        'figure3-services',
+        'services-ttg',
+        'ttg-lab'
+      ]
     });
     expect(group45AdapterPlanForEntry('brand', 'ttg-animation')).toEqual({
-      scenes: ['brand', 'services', 'lab', 'ttg-animation'],
-      transitions: ['services-ttg', 'ttg-lab']
+      scenes: ['brand', 'services', 'lab', 'figure3-animation', 'ttg-animation'],
+      transitions: [
+        'brand-figure3',
+        'figure3-services',
+        'services-ttg',
+        'ttg-lab'
+      ]
     });
   });
 
-  it('stops at Lab without adding the Unit 6 Lab to PH boundary', () => {
+  it('keeps direct Lab reverse-ready without adding the Unit 6 Lab to PH boundary', () => {
     expect(group45AdapterPlanForEntry('brand', 'lab')).toEqual({
-      scenes: ['brand', 'services', 'lab'],
-      transitions: []
+      scenes: ['brand', 'services', 'lab', 'figure3-animation', 'ttg-animation'],
+      transitions: [
+        'brand-figure3',
+        'figure3-services',
+        'services-ttg',
+        'ttg-lab'
+      ]
     });
   });
 });

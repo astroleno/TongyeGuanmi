@@ -5,9 +5,12 @@ import {
   useLayoutEffect,
   useRef
 } from 'react';
-import type { InkFieldSpec } from '../../../transitions/shared/inkField';
 import type { InkGradePreset } from '../../../transitions/shared/sceneInk';
-import { createPhoneInkTransition, type PhoneInkTransition } from '../phone-ink';
+import {
+  createPhoneInkTransition,
+  type PhoneInkFieldRequest,
+  type PhoneInkTransitionBridge
+} from '../phone-ink';
 import {
   claimPhoneInkSurface,
   type PhoneInkSurfaceLease
@@ -27,33 +30,65 @@ export function phoneInkAdapterProgress(
   return strategy === 'boundary' && progress <= 0 ? 0 : 1;
 }
 
-export function createPhoneInkAdapter(options: Readonly<{
-  id: string;
-  field: InkFieldSpec;
-  grade?: InkGradePreset;
-  canvasClassName?: string;
-  portraitInk?: string;
-  reducedMotionStrategy?: 'receiver' | 'boundary';
-  maskSource?: boolean;
-  releaseOnLeave?: boolean;
-  alignReceiver?: (
-    host: HTMLElement,
-    receiver: HTMLElement
-  ) => () => void;
-  renderFrame?: (
-    from: HTMLElement | null,
-    to: HTMLElement | null,
-    progress: number,
-    reducedMotion: boolean,
-    direction: 1 | -1,
-    host: HTMLElement | null
-  ) => number;
-}>): PhoneTransitionAdapterComponent {
+type PhoneInkReceiverAlignment = (
+  host: HTMLElement,
+  receiver: HTMLElement
+) => () => void;
+
+type PhoneInkFrameRenderer = (
+  from: HTMLElement | null,
+  to: HTMLElement | null,
+  progress: number,
+  reducedMotion: boolean,
+  direction: 1 | -1,
+  host: HTMLElement | null
+) => number;
+
+/**
+ * Shared PhoneInkTransition is emitted independently from every lazy adapter.
+ * Keep descriptor fields positional so Terser cannot split their property map.
+ */
+export type PhoneInkAdapterRequest = readonly [
+  id: string,
+  field: PhoneInkFieldRequest,
+  grade: InkGradePreset | null,
+  canvasClassName: string | null,
+  portraitInk: string | null,
+  reducedMotionStrategy: 'receiver' | 'boundary' | null,
+  maskSource: boolean | null,
+  alignReceiver: PhoneInkReceiverAlignment | null,
+  renderFrame: PhoneInkFrameRenderer | null
+];
+
+export function createPhoneInkAdapter(
+  [
+    id,
+    field,
+    grade,
+    canvasClassName,
+    portraitInk,
+    reducedMotionStrategy,
+    maskSource,
+    alignReceiver,
+    renderFrame
+  ]: PhoneInkAdapterRequest
+): PhoneTransitionAdapterComponent {
+  const options = {
+    id,
+    field,
+    grade,
+    canvasClassName,
+    portraitInk,
+    reducedMotionStrategy,
+    maskSource,
+    alignReceiver,
+    renderFrame
+  };
   return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(function PhoneInkTransition(
     { host, from, additionalFrom, to, reducedMotion, onReady },
     forwardedRef
   ) {
-    const transitionRef = useRef<PhoneInkTransition | undefined>(undefined);
+    const transitionRef = useRef<PhoneInkTransitionBridge | undefined>(undefined);
     const progressRef = useRef(0);
     const directionRef = useRef<1 | -1>(1);
     const leaseRef = useRef<PhoneInkSurfaceLease | undefined>(undefined);
@@ -64,14 +99,14 @@ export function createPhoneInkAdapter(options: Readonly<{
       receiverAlignmentRef.current = null;
     }, []);
     const revoke = useCallback(() => {
-      transitionRef.current?.dispose();
+      transitionRef.current?.(['dispose']);
       transitionRef.current = undefined;
       leaseRef.current = undefined;
       explicitOwnershipRef.current = false;
       releaseReceiver();
     }, [releaseReceiver]);
     const releaseEndpoint = useCallback(() => {
-      transitionRef.current?.releaseEndpoint();
+      transitionRef.current?.(['releaseEndpoint']);
       leaseRef.current?.release();
       leaseRef.current = undefined;
       explicitOwnershipRef.current = false;
@@ -94,22 +129,20 @@ export function createPhoneInkAdapter(options: Readonly<{
       const lease = claimPhoneInkSurface(host.ownerDocument, {
         host,
         className: options.canvasClassName ?? 'phone-story-shell__ink',
-        ...(options.portraitInk ? { portraitInk: options.portraitInk } : {}),
+        portraitInk: options.portraitInk ?? '',
         onRevoke: revoke
       });
       leaseRef.current = lease;
-      const transition = createPhoneInkTransition({
+      const transition = createPhoneInkTransition([
         host,
-        canvas: lease.canvas,
-        id: options.id,
-        from: options.maskSource === false ? null : from,
-        additionalFrom: options.maskSource === false
-          ? null
-          : additionalFrom ?? null,
+        lease.canvas,
+        options.id,
+        options.maskSource === false ? null : from,
+        options.maskSource === false ? null : additionalFrom ?? null,
         to,
-        field: options.field,
-        ...(options.grade ? { grade: options.grade } : {})
-      });
+        options.field,
+        options.grade
+      ]);
       transitionRef.current = transition;
       return transition;
     }, [additionalFrom, from, host, revoke, to]);
@@ -128,8 +161,8 @@ export function createPhoneInkAdapter(options: Readonly<{
           )
         : phoneInkAdapterProgress(
             progress,
-          reducedMotion,
-          options.reducedMotionStrategy
+            reducedMotion,
+            options.reducedMotionStrategy ?? undefined
         );
       (
         transitionRef.current
@@ -138,7 +171,7 @@ export function createPhoneInkAdapter(options: Readonly<{
             ? ensure()
             : undefined
         )
-      )?.render(sampled);
+      )?.(['render', sampled]);
       const alignment = receiverAlignmentRef.current;
       if (
         !explicitOwnershipRef.current
@@ -157,10 +190,10 @@ export function createPhoneInkAdapter(options: Readonly<{
       render,
       begin(owner) {
         explicitOwnershipRef.current = true;
-        ensure()?.begin(owner);
+        ensure()?.(['begin', owner]);
       },
       commitEndpoint(endpoint) {
-        ensure()?.commitEndpoint(endpoint);
+        ensure()?.(['commitEndpoint', endpoint]);
         // Endpoint alignment is only a transition-time visual aid. It must
         // be gone before the Orchestrator measures and lands the receiver's
         // natural document coordinate; canvas/resource release still waits

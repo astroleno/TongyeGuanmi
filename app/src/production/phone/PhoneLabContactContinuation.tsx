@@ -33,8 +33,8 @@ import {
 } from './phone-document-endpoint-alignment';
 import {
   PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
-  phoneLabContactAutoplayIdentity,
-  type PhoneLabContactAutoplayEventDetail
+  phoneLabContactAutoplayToken,
+  type PhoneLabContactAutoplayEvent
 } from './phone-lab-contact-timeline';
 import {
   phoneLabContactAdapterScene,
@@ -47,6 +47,9 @@ import {
   phoneDocumentTop,
   phoneSnapshotProjectsSurface
 } from './phone-composite-snapshot';
+import {
+  phoneDirectEntryGeometryReady
+} from './phone-direct-entry-position';
 import {
   createPhoneCompositeRunner,
   type PhoneCompositeRuntimeConfig
@@ -212,10 +215,19 @@ export function PhoneLabContactContinuation({
 
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || !stageHost) return;
     const inputOwner = root.closest<HTMLElement>(
       'main.portrait-scroll-spike'
     ) ?? root;
+    const upstreamDocumentGeometryReady = () => (
+      inputOwner.querySelector(
+        '[data-phone-group45-document-geometry="ready"]'
+      ) !== null
+    );
+    const directEntryGeometryReady = () => phoneDirectEntryGeometryReady([
+      adapters.ready,
+      upstreamDocumentGeometryReady()
+    ]);
 
     const configFor = (scene: VisualScene): VisualRuntimeConfig | null => {
       const ph = scene === 'ph-animation';
@@ -268,7 +280,9 @@ export function PhoneLabContactContinuation({
     ): number | null => {
       const track = scene === 'ph-animation'
         ? phTrackRef.current
-        : craneTrackRef.current;
+          ?? root.querySelector<HTMLElement>('#ph-animation')
+        : craneTrackRef.current
+          ?? root.querySelector<HTMLElement>('#crane-animation');
       const media = phoneDocumentTop(track);
       if (media === null) return null;
       const viewportHeight = Math.max(1, window.innerHeight);
@@ -294,9 +308,9 @@ export function PhoneLabContactContinuation({
       directConfig: directConfigFor,
       position: boundaryPosition,
       startMedia({ scene, identity, config, animate }) {
-        if (identity.direction === 1) {
+        if (identity[4] === 1) {
           config.media.enter?.();
-          (config.visual as PhoneCinematicSceneAdapterHandle).enter?.({ identity });
+          (config.visual as PhoneCinematicSceneAdapterHandle).enter?.(identity);
           return;
         }
         config.media.reverse?.();
@@ -307,16 +321,19 @@ export function PhoneLabContactContinuation({
             INTRA_CHAPTER_DISSOLVE_MS,
             () => (
               config.visual as PhoneCinematicSceneAdapterHandle
-            ).reverse?.({ identity })
+            ).reverse?.(identity)
           );
         } else {
-          (config.visual as PhoneCinematicSceneAdapterHandle).reverse?.({ identity });
+          (config.visual as PhoneCinematicSceneAdapterHandle).reverse?.(identity);
         }
       },
       acquireReverseEntry(identity, config) {
         const priorRoot = config.prior.root();
         return priorRoot
-          ? acquirePhoneDocumentEndpointAlignment(priorRoot, identity)
+          ? acquirePhoneDocumentEndpointAlignment(
+            priorRoot,
+            [identity[1], identity[2]]
+          )
           : undefined;
       }
     });
@@ -329,7 +346,7 @@ export function PhoneLabContactContinuation({
           scene,
           'native',
           () => rootForScene(scene),
-          () => rootForScene(scene),
+          () => stageHost,
           () => true
         )
       )),
@@ -343,7 +360,7 @@ export function PhoneLabContactContinuation({
           scene,
           'fixed',
           () => ref.current?.root() ?? null,
-          () => ref.current?.root() ?? null,
+          () => stageHost,
           () => true
         )
       ))
@@ -368,6 +385,7 @@ export function PhoneLabContactContinuation({
       (scene, reason, direction, [, , , , , , run]) => {
         const directNativeEntry = reason === 'direct-entry' && run === null;
         if (directNativeEntry) {
+          if (!directEntryGeometryReady()) return null;
           return phoneDocumentTop(rootForScene(scene as ContinuationScene));
         }
         if (
@@ -384,52 +402,53 @@ export function PhoneLabContactContinuation({
 
     const onMediaEvent = (event: Event) => {
       const detail = (
-        event as CustomEvent<PhoneLabContactAutoplayEventDetail>
+        event as CustomEvent<PhoneLabContactAutoplayEvent>
       ).detail;
       const identity = detail
-        ? phoneLabContactAutoplayIdentity(detail)
+        ? phoneLabContactAutoplayToken(detail)
         : null;
       if (
         !detail
         || !identity
       ) return;
-      if (detail.phase === 'playing') {
-        runner.heartbeat(detail.scene, identity);
+      const [scene, phase, direction, , progress] = detail;
+      if (phase === 'playing') {
+        runner.heartbeat(scene, identity);
         return;
       }
-      if (detail.phase === 'failed') {
-        runner.failMedia(detail.scene, identity);
+      if (phase === 'failed') {
+        runner.failMedia(scene, identity);
         return;
       }
       if (
-        detail.phase === 'progress'
-        && typeof detail.progress === 'number'
-        && Number.isFinite(detail.progress)
+        phase === 'progress'
+        && typeof progress === 'number'
+        && Number.isFinite(progress)
       ) {
-        const progress = phoneClampProgress(detail.progress);
-        const canonical = detail.scene === 'ph-animation'
-          ? progress * PHONE_PH_EDUCATION_ANIMATION_STOP
-          : progress;
-        runner.progressMedia(detail.scene, identity, canonical);
+        const sampled = phoneClampProgress(progress);
+        const canonical = scene === 'ph-animation'
+          ? sampled * PHONE_PH_EDUCATION_ANIMATION_STOP
+          : sampled;
+        runner.progressMedia(scene, identity, canonical);
         if (import.meta.env.DEV) {
           root.dataset.phoneGroup67Progress =
-            `${detail.scene}:${detail.direction}:${canonical.toFixed(4)}`;
+            `${scene}:${direction}:${canonical.toFixed(4)}`;
         }
         return;
       }
-      if (detail.phase !== 'complete') return;
-      if (identity.direction === 1 && detail.scene === 'ph-animation') {
+      if (phase !== 'complete') return;
+      if (identity[4] === 1 && scene === 'ph-animation') {
         runner.animateMedia(
-          detail.scene,
+          scene,
           identity,
           PHONE_PH_EDUCATION_ANIMATION_STOP,
           1,
           INTRA_CHAPTER_DISSOLVE_MS,
-          () => runner.completeMedia(detail.scene, identity)
+          () => runner.completeMedia(scene, identity)
         );
         return;
       }
-      runner.completeMedia(detail.scene, identity);
+      runner.completeMedia(scene, identity);
     };
 
     inputOwner.addEventListener(PHONE_LAB_CONTACT_AUTOPLAY_EVENT, onMediaEvent);
@@ -443,7 +462,7 @@ export function PhoneLabContactContinuation({
       for (const lease of surfaceLeases) lease.dispose();
       runner.dispose();
     };
-  }, [capabilities, orchestrator, reducedMotion]);
+  }, [adapters.ready, capabilities, orchestrator, reducedMotion, stageHost]);
 
   /*
    * The route's document sampler owns geometry. This bridge only renders the

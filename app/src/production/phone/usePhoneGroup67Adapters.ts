@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  group67NextAdapterByScene,
   group67PhoneSceneIds,
   group67PhoneTransitionIds,
   type Group67PhoneSceneId,
@@ -31,26 +30,46 @@ export type Group67AdapterPlan = Readonly<{
   transitions: readonly Group67PhoneTransitionId[];
 }>;
 
-/** Complete composite closures; a focus change may not drop the exit leg. */
+type Group67ExecutionRun = 'lab-education' | 'education-contact';
+
+/**
+ * A stable direct entry must be able to take its first physical input in
+ * either direction. Keep the full composite closure for every run incident
+ * to the focused scene, rather than treating a terminal native chapter as a
+ * one-way cold endpoint.
+ */
+const group67RunClosures: Readonly<Record<
+  Group67ExecutionRun,
+  Group67AdapterPlan
+>> = {
+  'lab-education': {
+    scenes: ['ph-animation', 'education'],
+    transitions: ['lab-ph', 'ph-education']
+  },
+  'education-contact': {
+    scenes: ['education', 'crane-animation', 'contact'],
+    transitions: ['education-crane', 'crane-contact']
+  }
+};
+
+function runsForFocus(focus: Group67AdapterFocus): readonly Group67ExecutionRun[] {
+  if (focus === 'lab' || focus === 'ph-animation') return ['lab-education'];
+  if (focus === 'education') return ['lab-education', 'education-contact'];
+  return ['education-contact'];
+}
+
+function unique<Type>(values: readonly Type[]): Type[] {
+  return [...new Set(values)];
+}
+
+/** Complete bidirectional composite closures for the focused stable scene. */
 export function group67AdapterPlanForFocus(
   focus: Group67AdapterFocus
 ): Group67AdapterPlan {
-  if (focus === 'lab') {
-    return {
-      scenes: ['ph-animation', 'education'],
-      transitions: ['lab-ph', 'ph-education']
-    };
-  }
-  if (focus === 'education') {
-    return {
-      scenes: ['education', 'crane-animation', 'contact'],
-      transitions: ['education-crane', 'crane-contact']
-    };
-  }
-  const next = group67NextAdapterByScene[focus];
+  const runs = runsForFocus(focus);
   return {
-    scenes: next ? [focus, next[0]] : [focus],
-    transitions: next ? [next[1]] : []
+    scenes: unique(runs.flatMap((run) => group67RunClosures[run].scenes)),
+    transitions: unique(runs.flatMap((run) => group67RunClosures[run].transitions))
   };
 }
 

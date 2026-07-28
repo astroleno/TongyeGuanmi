@@ -137,16 +137,19 @@ function fixture() {
   const video = ownerDocument.createElement('video') as FakeVideo;
   root.append(container);
   container.append(video);
-  const surface = createPhonePackedAlphaSurface({
-    root: root as unknown as HTMLElement,
-    container: container as unknown as HTMLElement,
-    video: video as unknown as HTMLVideoElement,
-    packedSourceUrl: '/packed.mp4',
-    endpointSeconds: 1.25,
-    statusDataset: 'phoneTestAlpha',
-    layerName: 'test',
-    canvasClassName: 'test-canvas'
-  });
+  const surface = createPhonePackedAlphaSurface([
+    root as unknown as HTMLElement,
+    container as unknown as HTMLElement,
+    null,
+    video as unknown as HTMLVideoElement,
+    '/packed.mp4',
+    1.25,
+    'phoneTestAlpha',
+    'test',
+    'test-canvas',
+    null,
+    null
+  ]);
   return { root, container, video, surface };
 }
 
@@ -160,27 +163,27 @@ describe('phone packed-alpha surface', () => {
   it('seeks the packed Canvas owner to the stable endpoint', () => {
     const { root, container, video, surface } = fixture();
 
-    surface.activate('endpoint');
+    surface(['activate', 'endpoint']);
 
     expect(container.querySelector('canvas')).not.toBeNull();
     expect(video.querySelector('source')?.src).toBe('/packed.mp4');
     expect(video.currentTime).toBe(1.25);
     expect(root.dataset.phoneTestAlpha).toBe('probing');
-    surface.dispose();
+    surface(['dispose']);
   });
 
   it('mounts a packed decoder/Canvas pair and removes both on release', () => {
     const { container, video, surface } = fixture();
 
-    surface.activate();
+    surface(['activate', 'forward']);
 
     expect(container.querySelector('canvas')).not.toBeNull();
     expect(video.querySelector('source')?.src).toBe('/packed.mp4');
     expect(video.dataset.packedAlphaSource).toBe('rgb-alpha-side-by-side');
-    surface.release();
+    surface(['release']);
     expect(container.querySelector('canvas')).toBeNull();
     expect(video.querySelector('source')).toBeNull();
-    surface.dispose();
+    surface(['dispose']);
   });
 
   it('renews a React-owned Canvas after hard release before reacquiring WebGL', () => {
@@ -192,20 +195,22 @@ describe('phone packed-alpha surface', () => {
     root.append(container);
     container.append(video);
     container.append(canvas);
-    const surface = createPhonePackedAlphaSurface({
-      root: root as unknown as HTMLElement,
-      container: container as unknown as HTMLElement,
-      canvas: canvas as unknown as HTMLCanvasElement,
-      video: video as unknown as HTMLVideoElement,
-      packedSourceUrl: '/packed.mp4',
-      endpointSeconds: 1.25,
-      statusDataset: 'phoneTestAlpha',
-      layerName: 'test',
-      canvasClassName: 'test-canvas'
-    });
+    const surface = createPhonePackedAlphaSurface([
+      root as unknown as HTMLElement,
+      container as unknown as HTMLElement,
+      canvas as unknown as HTMLCanvasElement,
+      video as unknown as HTMLVideoElement,
+      '/packed.mp4',
+      1.25,
+      'phoneTestAlpha',
+      'test',
+      'test-canvas',
+      null,
+      null
+    ]);
 
-    surface.activate();
-    surface.release();
+    surface(['activate', 'forward']);
+    surface(['release']);
 
     const renewed = container.querySelector('canvas');
     expect(renewed).not.toBe(canvas);
@@ -213,9 +218,9 @@ describe('phone packed-alpha surface', () => {
     expect(renewed?.height).toBe(1);
     expect(video.querySelector('source')).toBeNull();
 
-    surface.activate('endpoint');
+    surface(['activate', 'endpoint']);
     expect(compositorProbe.canvases).toEqual([canvas, renewed]);
-    surface.dispose();
+    surface(['dispose']);
   });
 
   it('retains the forward decoder and Canvas while Safari waits for a gesture frame', () => {
@@ -227,25 +232,27 @@ describe('phone packed-alpha surface', () => {
       const video = ownerDocument.createElement('video') as FakeVideo;
       root.append(container);
       container.append(video);
-      const surface = createPhonePackedAlphaSurface({
-        root: root as unknown as HTMLElement,
-        container: container as unknown as HTMLElement,
-        video: video as unknown as HTMLVideoElement,
-        packedSourceUrl: '/packed.mp4',
-        endpointSeconds: 1.25,
-        statusDataset: 'phoneTestAlpha',
-        layerName: 'test',
-        canvasClassName: 'test-canvas',
-        frameTimeoutMs: 20
-      });
+      const surface = createPhonePackedAlphaSurface([
+        root as unknown as HTMLElement,
+        container as unknown as HTMLElement,
+        null,
+        video as unknown as HTMLVideoElement,
+        '/packed.mp4',
+        1.25,
+        'phoneTestAlpha',
+        'test',
+        'test-canvas',
+        20,
+        null
+      ]);
 
-      surface.activate('forward');
+      surface(['activate', 'forward']);
       vi.advanceTimersByTime(20);
 
       expect(root.dataset.phoneTestAlpha).toBe('awaiting-native-playback');
       expect(container.querySelector('canvas')).not.toBeNull();
       expect(video.querySelector('source')?.src).toBe('/packed.mp4');
-      surface.dispose();
+      surface(['dispose']);
     } finally {
       vi.useRealTimers();
     }
@@ -253,16 +260,18 @@ describe('phone packed-alpha surface', () => {
 
   it('prepares forward topology without hidden playback or a frame-zero gate', async () => {
     const { root, video, surface } = fixture();
-    await expect(surface.prepare('forward')).resolves.toBeUndefined();
+    await expect(surface(['prepare', 'forward', null])).resolves.toBeUndefined();
     expect(video.play).not.toHaveBeenCalled();
     expect(root.dataset.phoneTestAlpha).toBe('awaiting-native-playback');
-    surface.dispose();
+    surface(['dispose']);
   });
 
   it('waits for the authored endpoint frame during reverse preparation', async () => {
     const { root, surface } = fixture();
     let resolved = false;
-    const preparation = surface.prepare('endpoint').then(() => {
+    const preparation = Promise.resolve(
+      surface(['prepare', 'endpoint', null])
+    ).then(() => {
       resolved = true;
     });
 
@@ -273,14 +282,14 @@ describe('phone packed-alpha surface', () => {
 
     await expect(preparation).resolves.toBeUndefined();
     expect(root.dataset.phoneTestAlpha).toBe('verified');
-    surface.dispose();
+    surface(['dispose']);
   });
 
   it('does not start hidden playback when endpoint preparation is retired', async () => {
     const { video, surface } = fixture();
     const controller = new AbortController();
     const preparation = expect(
-      surface.prepare('endpoint', controller.signal)
+      surface(['prepare', 'endpoint', controller.signal])
     ).rejects.toMatchObject({ name: 'AbortError' });
 
     await Promise.resolve();
@@ -289,7 +298,7 @@ describe('phone packed-alpha surface', () => {
 
     await preparation;
     expect(video.play).not.toHaveBeenCalled();
-    surface.dispose();
+    surface(['dispose']);
   });
 
 });

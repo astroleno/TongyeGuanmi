@@ -1,17 +1,24 @@
 import { createPhoneInkAdapter } from './PhoneInkTransition';
+import type { PhoneInkFieldRequest } from '../phone-ink';
 
-export const PHONE_METHOD_FIGURE2_FIELD = {
-  kind: 'horizontal',
-  direction: 'bottom-to-top',
-  seed: 'method-bottom-figure2-phone'
-} as const;
+export const PHONE_METHOD_FIGURE2_FIELD = [
+  'horizontal',
+  'method-bottom-figure2-phone',
+  'bottom-to-top',
+  null,
+  null
+] as const satisfies PhoneInkFieldRequest;
 
-export const PhoneMethodBottomFigure2Transition = createPhoneInkAdapter({
-  id: 'phone-method-bottom-figure2',
-  field: PHONE_METHOD_FIGURE2_FIELD,
-  canvasClassName: 'phone-grade-a__method-ink',
-  portraitInk: 'method-figure2',
-  grade: 'dark'
-});
+export const PhoneMethodBottomFigure2Transition = createPhoneInkAdapter([
+  'phone-method-bottom-figure2',
+  PHONE_METHOD_FIGURE2_FIELD,
+  'dark',
+  'phone-grade-a__method-ink',
+  'method-figure2',
+  null,
+  null,
+  null,
+  null
+]);
 
 export default PhoneMethodBottomFigure2Transition;

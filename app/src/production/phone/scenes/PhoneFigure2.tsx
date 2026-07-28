@@ -50,7 +50,7 @@ export const PhoneFigure2 = forwardRef<
     const root = rootRef.current;
     mediaControllerRef.current?.abort();
     mediaControllerRef.current = undefined;
-    packedSurfaceRef.current?.release();
+    packedSurfaceRef.current?.(['release']);
     if (root) parkFigure2Media(root);
   }, []);
   const ensurePackedSurface = useCallback((
@@ -68,23 +68,24 @@ export const PhoneFigure2 = forwardRef<
     const controller = new AbortController();
     mediaControllerRef.current?.abort();
     mediaControllerRef.current = controller;
-    const surface = packedSurfaceRef.current ?? createPhonePackedAlphaSurface({
+    const surface = packedSurfaceRef.current ?? createPhonePackedAlphaSurface([
       root,
       container,
       canvas,
       video,
-      packedSourceUrl: FIGURE2_PACKED_ALPHA_VIDEO,
-      endpointSeconds: FIGURE2_ENDPOINT_SECONDS,
-      statusDataset: 'phoneFigure2Alpha',
-      layerName: 'figure2-pair',
-      canvasClassName: 'r4-figure2__packed-alpha-canvas',
-      onFrame() {
+      FIGURE2_PACKED_ALPHA_VIDEO,
+      FIGURE2_ENDPOINT_SECONDS,
+      'phoneFigure2Alpha',
+      'figure2-pair',
+      'r4-figure2__packed-alpha-canvas',
+      null,
+      () => {
         video.dataset.phoneFigure2Alpha = 'verified';
         canvas.dataset.phoneFigure2Alpha = 'verified';
       }
-    });
+    ]);
     packedSurfaceRef.current = surface;
-    surface.activate(mode);
+    surface(['activate', mode]);
     if (root.dataset.phoneFigure2Alpha === 'awaiting-native-playback') {
       root.dataset.phoneFigure2Alpha = 'probing';
       video.dataset.phoneFigure2Alpha = 'probing';
@@ -136,7 +137,7 @@ export const PhoneFigure2 = forwardRef<
     onReady?.();
     return () => {
       releasePackedSurface();
-      packedSurfaceRef.current?.dispose();
+      packedSurfaceRef.current?.(['dispose']);
       packedSurfaceRef.current = undefined;
       disposeFigure2Media(root);
       root.style.removeProperty('--phone-figure2-poster-image');
@@ -167,7 +168,7 @@ export const PhoneFigure2 = forwardRef<
       if (!surface) {
         throw new Error('Figure2 presentation unavailable');
       }
-      await surface.prepare(mode, signal);
+      await surface(['prepare', mode, signal]);
     },
     update(progress) {
       if (progress > scrollProgressRef.current) {
@@ -199,7 +200,7 @@ export const PhoneFigure2 = forwardRef<
     },
     dispose() {
       releasePackedSurface();
-      packedSurfaceRef.current?.dispose();
+      packedSurfaceRef.current?.(['dispose']);
       packedSurfaceRef.current = undefined;
       disposeFigure2Media(rootRef.current);
     }

@@ -37,7 +37,7 @@ describe('PhoneContact', () => {
     });
     expect(source).not.toMatch(/addEventListener\(/);
     expect(stylesheet).toMatch(
-      /\.phone-contact\s*>\s*\.r4-contact\s*\{[^}]*min-height:\s*var\(--phone-cinematic-stage-height,\s*100lvh\)/s
+      /\.phone-contact\s*>\s*\.r4-contact\s*\{[^}]*min-block-size:\s*100svh[^}]*min-block-size:\s*100dvh/s
     );
   });
 
