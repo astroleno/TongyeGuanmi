@@ -5,7 +5,11 @@ import {
   registerPhoneCompositeRunCapability,
   type PhoneCompositeSession
 } from './phone-story-runtime';
-import type { PhoneRunId } from './phone-story-runs';
+import {
+  phoneRun,
+  type PhoneRunId
+} from './phone-story-runs';
+import { phoneSegmentPresentationTuple } from './phone-presentation-contract';
 import type {
   PhoneExecutionToken,
   PhoneStorySnapshot
@@ -127,6 +131,19 @@ function waitForBoundaryReady(
   });
 }
 
+function reportRenderedBoundaryFrame(
+  boundary: PhoneGradeABoundaryCapability,
+  session: PhoneCompositeSession
+): void {
+  const run = phoneRun(phoneGradeARunForBoundary(boundary.id));
+  const leg = run.legs[session[3]()];
+  const requirement = leg
+    ? phoneSegmentPresentationTuple(leg.segment)
+    : undefined;
+  if (!requirement) return;
+  session[5](requirement[8], requirement[9]);
+}
+
 /**
  * Registers Grade A's adapter effects with the shared session controller.
  * The controller owns phases, progress, and the active session; this module
@@ -157,6 +174,7 @@ export function createPhoneGradeARunner({
     let transition: PhoneTransitionAdapterHandle | null = null;
     let terminal = false;
     let released = false;
+    let firstFrameReported = false;
 
     const clearTimeoutResource = () => {
       if (timeout === undefined) return;
@@ -215,6 +233,22 @@ export function createPhoneGradeARunner({
         complete
       );
     };
+    const startRenderedTransition = () => {
+      if (
+        firstFrameReported
+        || terminal
+        || !transition
+        || !session[4]()
+      ) return;
+      firstFrameReported = true;
+      reportRenderedBoundaryFrame(boundary, session);
+      if (!session[4]()) return;
+      clearTimeoutResource();
+      if (direction === 1) transition.enter?.();
+      else transition.reverse?.();
+      if (reducedMotion) complete();
+      else animate();
+    };
     const prepare = async () => {
       try {
         await waitForBoundaryReady(boundary, preparation.signal);
@@ -228,7 +262,10 @@ export function createPhoneGradeARunner({
         const source = direction === 1 ? from : to;
         const receiver = direction === 1 ? to : from;
         session[8](source, receiver);
-        transition.begin(identityFor(session, direction));
+        transition.begin(
+          identityFor(session, direction),
+          startRenderedTransition
+        );
         transition.commitEndpoint(direction === 1 ? 0 : 1);
         if (boundary.prepareReceiver) {
           await boundary.prepareReceiver({
@@ -240,12 +277,12 @@ export function createPhoneGradeARunner({
         }
         await transition.prepare?.(direction, preparation.signal);
         if (preparation.signal.aborted || !session[4]() || terminal) return;
-        session[5]();
-        clearTimeoutResource();
-        if (direction === 1) transition.enter?.();
-        else transition.reverse?.();
-        if (reducedMotion) complete();
-        else animate();
+        // The reducer remains in prepare until the adapter confirms a real
+        // in-between Ink frame for this exact execution token.
+        transition.prepareFirstFrame?.(direction);
+        if (!transition.prepareFirstFrame) {
+          transition.render(direction === 1 ? .003 : .997);
+        }
       } catch {
         rollback();
       }

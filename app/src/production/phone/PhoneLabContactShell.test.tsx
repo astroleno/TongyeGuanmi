@@ -151,8 +151,10 @@ describe('PhoneLabContactShell', () => {
       /\.phone-lab-contact__phase\s*\{[^}]*height: var\(--phone-cinematic-stage-height\);[^}]*min-height: var\(--phone-cinematic-stage-height\);/s
     );
     expect(shellCss).not.toContain('var(--phone-cinematic-stage-height) * 2');
-    expect(shellCss).toContain('--phone-cinematic-stage-height: max(var(--portrait-live-height), 100lvh)');
-    expect(shellCss).toContain('var(--portrait-stage-coverage-height)');
+    expect(shellCss).toMatch(
+      /--phone-cinematic-stage-height:\s*max\(\s*var\(--portrait-live-height\),\s*var\(--portrait-coverage-height\),\s*100lvh\s*\)/s
+    );
+    expect(shellCss).toContain('var(--portrait-coverage-height)');
     expect(shellCss).toContain('--phone-cinematic-vh');
     expect(shellCss).toContain('--phone-lab-contact-edge-surface');
     expect(shellCss).toMatch(
@@ -175,7 +177,7 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('usePhoneLabContactFixedStageRegistration');
     expect(shellSource).toContain("fixedStageRegistered ? 'registered' : 'priming'");
     expect(shellSource).toContain('usePhoneLabContactViewportGeometry(rootRef, motionEnabled)');
-    expect(shellSource).toContain('widthChanged || forceRetainedGeometry');
+    expect(shellSource).toContain('usePhoneViewportCoverage(rootRef, applyLayout)');
     expect(shellSource).not.toContain("from './usePhoneViewportGeometry'");
     expect(shellCss).toContain('data-phone-lab-contact-snap="locked"');
     expect(shellCss).not.toContain('phone-lab-contact-arrival-overlap');

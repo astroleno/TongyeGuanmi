@@ -144,6 +144,9 @@ export const PhoneCrane = forwardRef<
   const beginPreparedReverseRef = useRef<(force?: boolean) => void>(
     () => undefined
   );
+  const presentedFrameRef = useRef<() => void>(
+    () => undefined
+  );
 
   const ensurePackedSurfaces = useCallback((
     mode: PhonePackedAlphaSurfaceMode
@@ -179,6 +182,7 @@ export const PhoneCrane = forwardRef<
           figure.dataset.timelineVideoFrameReady = 'true';
           root.dataset.phoneCraneMedia = figure.paused ? 'ready' : 'playing';
           beginPreparedReverseRef.current?.();
+          presentedFrameRef.current?.();
         }
       ]);
       const flockSurface = createPhonePackedAlphaSurface([
@@ -196,6 +200,7 @@ export const PhoneCrane = forwardRef<
           flock.dataset.timelineVideoFrameReady = 'true';
           root.dataset.phoneCraneMedia = flock.paused ? 'ready' : 'playing';
           beginPreparedReverseRef.current?.();
+          presentedFrameRef.current?.();
         }
       ]);
       packedSurfacesRef.current = [figureSurface, flockSurface];
@@ -229,6 +234,7 @@ export const PhoneCrane = forwardRef<
     completeRun,
     failRun,
     publishPlaying,
+    publishPresentedFrame,
     renderProgress,
     startRun,
     stopRun,
@@ -248,6 +254,7 @@ export const PhoneCrane = forwardRef<
     null
   ]);
   beginPreparedReverseRef.current = beginPreparedReverse;
+  presentedFrameRef.current = publishPresentedFrame;
 
   useEffect(() => {
     const root = rootRef.current;
@@ -339,7 +346,12 @@ export const PhoneCrane = forwardRef<
     if (!surfaces) throw new Error('Crane packed-alpha surfaces unavailable');
     try {
       await Promise.all(
-        surfaces.map((surface) => surface(['prepare', mode, request.signal]))
+        surfaces.map((surface) => surface([
+          'prepare',
+          mode,
+          request.signal,
+          request.directEntry === true
+        ]))
       );
     } catch (error) {
       root.dataset.phoneCraneMedia = 'retryable-failure';

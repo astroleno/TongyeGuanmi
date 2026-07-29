@@ -57,6 +57,10 @@ import {
 } from './phone-lab-contact-snap-lock';
 import { usePhoneAdapterHandleRef } from './phone-adapter-binding';
 import { usePhoneLabContactFixedStageRegistration } from './usePhoneLabContactFixedStageRegistration';
+import {
+  usePhoneViewportCoverage,
+  type PhoneLayoutViewport
+} from './phone-viewport-coverage';
 import type {
   PhoneSceneAdapterComponent,
   PhoneSceneAdapterHandle,
@@ -243,90 +247,27 @@ function usePhoneLabContactEdgeSurface(
   return commit;
 }
 
-/**
- * The isolated Lab → Contact acceptance route has no GSAP/ScrollTrigger
- * stage. Keep Safari's stable viewport coverage locally so importing this
- * shell cannot pull the production phone stage runtime into a shared chunk.
- */
+/** Same live coverage primitive as the formal/brand-lab route, no GSAP clock. */
 function usePhoneLabContactViewportGeometry(
   rootRef: RefObject<HTMLElement | null>,
   motionEnabled: boolean
 ): void {
+  const applyLayout = useCallback((root: HTMLElement, viewport: PhoneLayoutViewport) => {
+    root.style.setProperty('--portrait-live-height', `${viewport.height}px`);
+    root.style.setProperty('--portrait-live-width', `${viewport.width}px`);
+  }, []);
+  usePhoneViewportCoverage(rootRef, applyLayout);
+
   useLayoutEffect(() => {
     const root = rootRef.current;
     const documentElement = document.documentElement;
     documentElement.dataset.portraitSpike = 'b';
     documentElement.dataset.portraitSpikeMotion = motionEnabled ? 'force' : 'reduce';
-    if (!root) return;
-
-    let frame = 0;
-    let coverageHeight = 0;
-    let retainedWidth = 0;
-    let forceRetainedGeometry = true;
-    const sync = () => {
-      frame = 0;
-      const viewport = window.visualViewport;
-      const height = Math.max(1, Math.round(viewport?.height || window.innerHeight || 1));
-      const width = Math.max(1, Math.round(viewport?.width || window.innerWidth || 1));
-      const offsetTop = Math.max(0, viewport?.offsetTop || 0);
-      const viewportBottom = Math.max(1, Math.ceil(height + offsetTop));
-      const widthChanged = !retainedWidth || Math.abs(width - retainedWidth) > 1;
-      if (widthChanged) {
-        coverageHeight = viewportBottom;
-      } else {
-        coverageHeight = Math.max(coverageHeight, viewportBottom);
-      }
-      // Match the accepted Safari stage: toolbar motion may grow paint
-      // coverage, but only a real width/orientation change may replace the
-      // retained layout camera.
-      if (widthChanged || forceRetainedGeometry) {
-        retainedWidth = width;
-        forceRetainedGeometry = false;
-        root.style.setProperty('--portrait-live-height', `${height}px`);
-        root.style.setProperty('--portrait-live-width', `${width}px`);
-        if (import.meta.env.DEV) {
-          root.dataset.portraitLayoutViewport = `${width}x${height}`;
-        }
-      }
-      root.style.setProperty('--portrait-stage-coverage-height', `${coverageHeight}px`);
-      if (import.meta.env.DEV) {
-        root.dataset.portraitLiveViewport = `${width}x${height}`;
-        root.dataset.portraitStageCoverage = `${coverageHeight}px`;
-        root.dataset.portraitViewportOffsetTop = `${Math.ceil(offsetTop)}px`;
-        root.dataset.portraitViewportBottom = `${viewportBottom}px`;
-      }
-    };
-    const schedule = () => {
-      if (!frame) frame = window.requestAnimationFrame(sync);
-    };
-    const forceGeometry = () => {
-      forceRetainedGeometry = true;
-      retainedWidth = 0;
-      schedule();
-    };
-
-    sync();
-    window.visualViewport?.addEventListener('resize', schedule);
-    window.visualViewport?.addEventListener('scroll', schedule);
-    window.addEventListener('resize', schedule);
-    window.addEventListener('orientationchange', forceGeometry);
-    document.addEventListener('fullscreenchange', forceGeometry);
     return () => {
-      if (frame) window.cancelAnimationFrame(frame);
-      window.visualViewport?.removeEventListener('resize', schedule);
-      window.visualViewport?.removeEventListener('scroll', schedule);
-      window.removeEventListener('resize', schedule);
-      window.removeEventListener('orientationchange', forceGeometry);
-      document.removeEventListener('fullscreenchange', forceGeometry);
-      root.style.removeProperty('--portrait-live-height');
-      root.style.removeProperty('--portrait-live-width');
-      root.style.removeProperty('--portrait-stage-coverage-height');
+      root?.style.removeProperty('--portrait-live-height');
+      root?.style.removeProperty('--portrait-live-width');
       if (import.meta.env.DEV) {
-        delete root.dataset.portraitLiveViewport;
-        delete root.dataset.portraitLayoutViewport;
-        delete root.dataset.portraitStageCoverage;
-        delete root.dataset.portraitViewportOffsetTop;
-        delete root.dataset.portraitViewportBottom;
+        delete root?.dataset.portraitLayoutViewport;
       }
       delete documentElement.dataset.portraitSpike;
       delete documentElement.dataset.portraitSpikeMotion;

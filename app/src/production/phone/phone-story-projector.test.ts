@@ -262,4 +262,97 @@ describe('phone story projector', () => {
     expect(hero.dataset.phoneSurfaceRole).toBe('fixed-current');
     expect(pattern.dataset.phoneSurfaceRole).toBe('retired');
   });
+
+  it('[R5] rejects a selected surface whose evidence reader says it is hidden or lacks live coverage', () => {
+    const root = element();
+    const hero = element();
+    const projector = createPhoneStoryProjector({
+      authorityId: 'phone-authority-test',
+      scope: 'formal',
+      root: () => root
+    });
+    projector.registerSurface({
+      id: 'front:hero',
+      scene: 'hero',
+      kind: 'fixed',
+      root: () => hero,
+      coverageRoot: () => hero,
+      presentation: () => [true, false, false, true, null]
+    } as never);
+
+    expect(projector.preflight(createPhoneStorySnapshot({
+      authorityId: 'phone-authority-test',
+      scene: 'hero'
+    }))).toBeNull();
+  });
+
+  it('[R5] permits a projector-dormant receiver only during preflight', () => {
+    const root = element();
+    const method = element();
+    const modes: string[] = [];
+    const projector = createPhoneStoryProjector({
+      authorityId: 'phone-authority-test',
+      scope: 'formal',
+      root: () => root
+    });
+    projector.registerSurface({
+      id: 'native:method',
+      scene: 'method-top',
+      kind: 'native',
+      root: () => method,
+      coverageRoot: () => method,
+      presentation: (mode) => {
+        modes.push(mode);
+        return [true, mode === 'preflight', true, true, 'static-poster'];
+      }
+    });
+
+    const plan = projector.preflight(createPhoneStorySnapshot({
+      authorityId: 'phone-authority-test',
+      scene: 'method-top'
+    }));
+    expect(plan).not.toBeNull();
+    if (!plan) throw new Error('Expected a preflight plan for the dormant receiver');
+    projector.apply(plan);
+
+    expect(method.dataset.phoneSurfaceRole).toBe('stable');
+    expect(projector.hasPresentedSurface('method-top')).toBe(false);
+    expect(modes).toEqual(['preflight', 'committed']);
+  });
+
+  it('[R5] prepares only the manifest receiver for a visual direct entry', async () => {
+    const root = element();
+    const stalePrepare = vi.fn();
+    const receiverPrepare = vi.fn();
+    const projector = createPhoneStoryProjector({
+      authorityId: 'phone-authority-test',
+      scope: 'formal',
+      root: () => root
+    });
+    projector.registerSurface({
+      id: 'stale:figure3',
+      scene: 'figure3-animation',
+      kind: 'fixed',
+      root: () => element(),
+      prepareDirectEntry: stalePrepare
+    });
+    projector.registerSurface({
+      id: 'group45:figure3',
+      scene: 'figure3-animation',
+      kind: 'fixed',
+      root: () => element(),
+      prepareDirectEntry: receiverPrepare
+    });
+    const controller = new AbortController();
+
+    await projector.prepareDirectEntry('figure3-animation', {
+      scene: 'figure3-animation',
+      sessionId: 'phone-session-test',
+      generation: 7,
+      signal: controller.signal
+    });
+
+    expect(receiverPrepare).toHaveBeenCalledTimes(1);
+    expect(stalePrepare).not.toHaveBeenCalled();
+  });
 });

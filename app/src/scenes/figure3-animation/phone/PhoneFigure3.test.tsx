@@ -7,6 +7,7 @@ import {
   phoneFigure3CanStartPreparedRun,
   phoneFigure3EndpointIsPresented,
   phoneFigure3Frame,
+  phoneFigure3HasPresentedPaperFrame,
   phoneFigure3HeldEndpoint,
   phoneFigure3MediaAction,
   phoneFigure3RunStartEndpoint,
@@ -90,6 +91,16 @@ describe('PhoneFigure3', () => {
     expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, false)).toBe(true);
     expect(phoneFigure3EndpointIsPresented(1, 2.567, 1, false)).toBe(false);
     expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, true)).toBe(false);
+  });
+
+  it('requires a painted paper canvas before a direct Figure3 hold is presentable', () => {
+    const canvas = {
+      dataset: {} as DOMStringMap
+    } as HTMLCanvasElement;
+
+    expect(phoneFigure3HasPresentedPaperFrame(canvas)).toBe(false);
+    canvas.dataset.phoneFigure3PaperFrame = 'ready';
+    expect(phoneFigure3HasPresentedPaperFrame(canvas)).toBe(true);
   });
 
   it('disposes the retired video source and decoder', () => {

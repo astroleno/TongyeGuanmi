@@ -1,7 +1,7 @@
 .portrait-scroll-spike__scene--hero {
-  --r4-hero-progress: 1;
-  --r4-hero-middle-intro: 1;
-  --r4-hero-figure-intro: 1;
+  --r4-hero-progress: 0;
+  --r4-hero-middle-intro: 0;
+  --r4-hero-figure-intro: 0;
   z-index: 2;
   visibility: visible;
   background: #07110e;

@@ -84,6 +84,8 @@ export type TargetPresentationRequest = Readonly<{
   direction: 1 | -1;
   runId: string;
   signal: AbortSignal;
+  /** A cold/hash/menu entry must settle an actual receiver presentation. */
+  directEntry?: boolean;
 }>;
 
 export type ScenePresentationAdapterHandle = PresentationAdapterLifecycle & {

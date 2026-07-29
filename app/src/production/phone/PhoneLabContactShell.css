@@ -65,11 +65,21 @@ html[data-phone-lab-contact-acceptance="true"] .site-nav-track {
 
 .phone-lab-contact {
   --portrait-live-height: 100dvh;
-  --portrait-stage-coverage-height: var(--portrait-live-height);
-  --phone-cinematic-stage-height: max(var(--portrait-live-height), 100lvh);
+  --portrait-live-width: 100vw;
+  --portrait-coverage-left: 0px;
+  --portrait-coverage-top: 0px;
+  --portrait-coverage-right: 100vw;
+  --portrait-coverage-bottom: var(--portrait-live-height);
+  --portrait-coverage-width: 100vw;
+  --portrait-coverage-height: var(--portrait-live-height);
+  --phone-cinematic-stage-height: max(
+    var(--portrait-live-height),
+    var(--portrait-coverage-height),
+    100lvh
+  );
   --phone-cinematic-stage-canvas-height: max(
     var(--phone-cinematic-stage-height),
-    var(--portrait-stage-coverage-height)
+    var(--portrait-coverage-height)
   );
   /* Every phone camera uses this retained lvh-derived unit. */
   --phone-cinematic-vh: calc(var(--phone-cinematic-stage-height) / 100);
@@ -148,13 +158,13 @@ html[data-phone-lab-contact-acceptance="true"]
  */
 .phone-lab-contact__stage-host {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  top: var(--portrait-coverage-top);
+  right: auto;
+  bottom: auto;
+  left: var(--portrait-coverage-left);
   z-index: 3;
-  width: 100%;
-  height: auto;
+  width: var(--portrait-coverage-width);
+  height: var(--portrait-coverage-height);
   min-height: 0;
   overflow: visible;
   isolation: auto;
@@ -214,8 +224,8 @@ html[data-phone-lab-contact-acceptance="true"]
   position: absolute;
   inset: 0;
   width: 100%;
-  height: var(--phone-cinematic-stage-canvas-height);
-  min-height: var(--phone-cinematic-stage-canvas-height);
+  height: max(100%, var(--phone-cinematic-stage-canvas-height));
+  min-height: max(100%, var(--phone-cinematic-stage-canvas-height));
   overflow: clip;
   contain: none;
   isolation: auto;

@@ -93,6 +93,7 @@ export function createPhoneInkAdapter(
     const directionRef = useRef<1 | -1>(1);
     const leaseRef = useRef<PhoneInkSurfaceLease | undefined>(undefined);
     const explicitOwnershipRef = useRef(false);
+    const presentedFrameRef = useRef<(() => void) | undefined>(undefined);
     const receiverAlignmentRef = useRef<readonly [() => void, 0 | 1] | null>(null);
     const releaseReceiver = useCallback(() => {
       receiverAlignmentRef.current?.[0]();
@@ -103,6 +104,7 @@ export function createPhoneInkAdapter(
       transitionRef.current = undefined;
       leaseRef.current = undefined;
       explicitOwnershipRef.current = false;
+      presentedFrameRef.current = undefined;
       releaseReceiver();
     }, [releaseReceiver]);
     const releaseEndpoint = useCallback(() => {
@@ -110,6 +112,7 @@ export function createPhoneInkAdapter(
       leaseRef.current?.release();
       leaseRef.current = undefined;
       explicitOwnershipRef.current = false;
+      presentedFrameRef.current = undefined;
       releaseReceiver();
     }, [releaseReceiver]);
     const release = useCallback(() => {
@@ -164,14 +167,20 @@ export function createPhoneInkAdapter(
             reducedMotion,
             options.reducedMotionStrategy ?? undefined
         );
-      (
+      const bridge = (
         transitionRef.current
         ?? (
           (sampled > 0 && sampled < 1) || explicitOwnershipRef.current
             ? ensure()
             : undefined
         )
-      )?.(['render', sampled]);
+      );
+      const rendered = bridge?.(['render', sampled]) === true;
+      if (rendered) {
+        const report = presentedFrameRef.current;
+        presentedFrameRef.current = undefined;
+        report?.();
+      }
       const alignment = receiverAlignmentRef.current;
       if (
         !explicitOwnershipRef.current
@@ -188,9 +197,14 @@ export function createPhoneInkAdapter(
     }, [host, onReady, release, to]);
     useImperativeHandle(forwardedRef, () => ({
       render,
-      begin(owner) {
+      begin(owner, onPresentedFrame) {
         explicitOwnershipRef.current = true;
+        presentedFrameRef.current = onPresentedFrame;
         ensure()?.(['begin', owner]);
+      },
+      prepareFirstFrame(direction) {
+        directionRef.current = direction;
+        render(direction === 1 ? .003 : .997);
       },
       commitEndpoint(endpoint) {
         ensure()?.(['commitEndpoint', endpoint]);

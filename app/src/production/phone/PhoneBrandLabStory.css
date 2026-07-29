@@ -8,10 +8,15 @@
   --portrait-live-height: 100svh;
   --portrait-live-height: 100dvh;
   --portrait-live-width: 100vw;
-  --portrait-stage-coverage-height: var(--portrait-live-height);
+  --portrait-coverage-left: 0px;
+  --portrait-coverage-top: 0px;
+  --portrait-coverage-right: 100vw;
+  --portrait-coverage-bottom: var(--portrait-live-height);
+  --portrait-coverage-width: 100vw;
+  --portrait-coverage-height: var(--portrait-live-height);
   --portrait-stage-height: max(
     var(--portrait-live-height),
-    var(--portrait-stage-coverage-height),
+    var(--portrait-coverage-height),
     100lvh
   );
   /* The reusable stage rail occupies no extra document chapter here: the

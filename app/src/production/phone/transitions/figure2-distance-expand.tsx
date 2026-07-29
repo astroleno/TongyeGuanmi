@@ -78,12 +78,14 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     typeof timelineRef.current
   >> | null>(null);
   const leaseRef = useRef<PhoneInkSurfaceLease | undefined>(undefined);
+  const presentedFrameRef = useRef<(() => void) | undefined>(undefined);
   const retireTimeline = useCallback(() => {
     buildRevisionRef.current += 1;
     timelineRef.current?.(['dispose']);
     timelineRef.current = null;
     buildRef.current = null;
     leaseRef.current = undefined;
+    presentedFrameRef.current = undefined;
   }, []);
   const releaseTimeline = useCallback(() => {
     leaseRef.current?.release();
@@ -159,6 +161,11 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
       return;
     }
     timeline(['render', sampled]);
+    if (leaseRef.current?.canvas.dataset.phonePresentationEffectFrame === 'ready') {
+      const report = presentedFrameRef.current;
+      presentedFrameRef.current = undefined;
+      report?.();
+    }
   };
 
   useLayoutEffect(() => {
@@ -170,7 +177,13 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     render,
     prepare,
-    begin() {},
+    begin(_owner, onPresentedFrame) {
+      presentedFrameRef.current = onPresentedFrame;
+    },
+    prepareFirstFrame() {
+      // Figure2 owns its depth field only after the authored intro interval.
+      render(.5);
+    },
     commitEndpoint(endpoint) { render(endpoint); },
     releaseEndpoint() {
       releaseTimeline();

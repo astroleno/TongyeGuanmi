@@ -25,6 +25,8 @@ import {
   createPhoneScrollCorridorRegistry,
   type PhoneLandingReason
 } from './phone-scroll-corridor-registry';
+import { phoneScenePresentationTuple } from './phone-presentation-contract';
+import { phoneSurfaceSupportsEvidence } from './phone-presentation-evidence';
 import type {
   PhoneStoryOrchestrator,
   PhoneStoryOrchestratorOptions
@@ -47,6 +49,15 @@ export type {
 } from './phone-scroll-corridor-registry';
 
 let authoritySequence = 0;
+const DIRECT_ENTRY_PREPARATION_TIMEOUT_MS = 8_000;
+
+type DirectEntryPreparation = {
+  key: string;
+  controller: AbortController;
+  timeout: ReturnType<typeof globalThis.setTimeout>;
+  ready: boolean;
+  publishing: boolean;
+};
 
 function projectFailureEvent(snapshot: PhoneStorySnapshot): PhoneStoryEvent | null {
   if (snapshot.status !== 'transaction') return null;
@@ -115,6 +126,35 @@ export function createPhoneStoryOrchestrator(
     { type: 'DIRECT_ENTRY_REQUESTED' }
   > | null = null;
   const subscribers = new Set<() => void>();
+  let directEntryPreparation: DirectEntryPreparation | null = null;
+
+  const directEntryPreparationKey = (
+    snapshot: PhoneStorySnapshot
+  ): string | null => {
+    if (
+      snapshot.status !== 'transaction'
+      || snapshot.session.operation.run !== null
+      || !(
+        snapshot.session.phase === 'verifying-target'
+        || snapshot.session.phase === 'releasing-layout'
+        || snapshot.session.phase === 'measuring-landing'
+        || snapshot.session.phase === 'aligning-scroll'
+        || snapshot.session.phase === 'verifying-stable'
+      )
+    ) return null;
+    return [
+      snapshot.session.sessionId,
+      snapshot.session.generation,
+      snapshot.session.operation.to
+    ].join(':');
+  };
+  const clearDirectEntryPreparation = () => {
+    const preparation = directEntryPreparation;
+    if (!preparation) return;
+    globalThis.clearTimeout(preparation.timeout);
+    preparation.controller.abort();
+    directEntryPreparation = null;
+  };
 
   const notify = () => {
     for (const subscriber of subscribers) subscriber();
@@ -254,25 +294,115 @@ export function createPhoneStoryOrchestrator(
     ].join(':');
   };
   const startPreparedOperation = (onlyRun?: PhoneRunId) => {
+    const directKey = directEntryPreparationKey(currentSnapshot);
+    if (
+      directEntryPreparation
+      && directEntryPreparation.key !== directKey
+    ) clearDirectEntryPreparation();
     if (disposed || currentSnapshot.status !== 'transaction') return;
     const { session } = currentSnapshot;
     const operation = session.operation;
     if (onlyRun && operation.run !== onlyRun) return;
 
     if (!operation.run) {
-      if (session.phase !== 'verifying-target') return;
+      if (
+        session.phase !== 'verifying-target'
+        && session.phase !== 'verifying-stable'
+      ) return;
       const landing = scrollCorridors.landing(
         currentSnapshot,
         operation.to,
         'direct-entry',
         operation.direction
       );
-      // A stable direct entry must wait for its route-owned geometry instead
-      // of publishing a target hold before the document target exists.
-      if (landing === null || !projector.hasPresentedSurface(operation.to)) {
+      const existingPresentation = projector.readSurfacePresentation(operation.to);
+      // A stable direct entry must wait for route-owned geometry and the
+      // selected receiver root before its scene-local preparation can run.
+      if (
+        landing === null
+        || !existingPresentation?.[0]
+        || !existingPresentation[1]
+        || !existingPresentation[2]
+      ) {
         return;
       }
-      sessions.resume()?.reportTargetPresented();
+      const activeSession = sessions.resume();
+      if (!activeSession?.valid()) return;
+      const key = directEntryPreparationKey(currentSnapshot);
+      if (!key) return;
+      let preparation = directEntryPreparation;
+      if (!preparation) {
+        const controller = new AbortController();
+        const prepared: DirectEntryPreparation = {
+          key,
+          controller,
+          timeout: globalThis.setTimeout(() => {
+            if (directEntryPreparation !== prepared) return;
+            directEntryPreparation = null;
+            controller.abort();
+            activeSession.reportFailure();
+          }, DIRECT_ENTRY_PREPARATION_TIMEOUT_MS),
+          ready: false,
+          publishing: false
+        };
+        directEntryPreparation = prepared;
+        const finishPreparation = () => {
+          if (
+            directEntryPreparation !== prepared
+            || controller.signal.aborted
+          ) return;
+          prepared.ready = true;
+          startPreparedOperation();
+        };
+        const failPreparation = () => {
+          if (
+            directEntryPreparation !== prepared
+            || controller.signal.aborted
+          ) return;
+          directEntryPreparation = null;
+          globalThis.clearTimeout(prepared.timeout);
+          activeSession.reportFailure();
+        };
+        try {
+          const result = projector.prepareDirectEntry(operation.to, {
+            scene: operation.to,
+            sessionId: session.sessionId,
+            generation: session.generation,
+            signal: controller.signal
+          });
+          if (result === undefined) finishPreparation();
+          else void Promise.resolve(result).then(finishPreparation).catch(failPreparation);
+        } catch {
+          failPreparation();
+        }
+        return;
+      }
+      if (!preparation.ready || preparation.publishing) return;
+      const presentation = projector.readSurfacePresentation(operation.to);
+      if (!presentation) return;
+      const contract = phoneScenePresentationTuple(operation.to);
+      const visual = contract[6] === 'visual';
+      const coverage = phoneSurfaceSupportsEvidence(presentation, 'coverage');
+      const complete = phoneSurfaceSupportsEvidence(presentation, 'direct-entry');
+      const needsComplete = session.phase !== 'verifying-target' || visual;
+      preparation.publishing = true;
+      try {
+        if (coverage) {
+          activeSession.reportPresentationEvidence('coverage', contract[4]);
+        }
+        if (needsComplete && complete) {
+          activeSession.reportPresentationEvidence('direct-entry', contract[4]);
+        }
+        const evidenceSatisfied = needsComplete ? complete : coverage;
+        if (!evidenceSatisfied) return;
+        if (session.phase === 'verifying-target') {
+          activeSession.reportTargetPresented();
+        } else {
+          activeSession.reportStablePresentationVerified();
+        }
+      } finally {
+        if (directEntryPreparation === preparation) preparation.publishing = false;
+      }
       return;
     }
     if (session.phase !== 'preparing') return;
@@ -391,6 +521,7 @@ export function createPhoneStoryOrchestrator(
     dispose() {
       if (disposed) return;
       disposed = true;
+      clearDirectEntryPreparation();
       pendingDirectEntry = null;
       capabilities.clear();
       sessions.dispose();

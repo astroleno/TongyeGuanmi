@@ -42,7 +42,7 @@ export type PhoneInkRuntimeCommand =
   | readonly ['render', progress: number]
   | readonly ['dispose'];
 
-export type PhoneInkRuntimeBridge = (command: PhoneInkRuntimeCommand) => void;
+export type PhoneInkRuntimeBridge = (command: PhoneInkRuntimeCommand) => boolean | void;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -131,6 +131,7 @@ export function createPhoneInkRuntimeBridge([
       surface.dataset.phoneInkProgress = progress.toFixed(4);
     }
     const fieldActive = progress > 0.001 && progress < 0.999;
+    let rendered = false;
     surface.style.visibility = fieldActive ? 'visible' : 'hidden';
     surface.style.opacity = fieldActive ? '1' : '0';
     const frame = createInkFieldFrame(field, progress, viewportFor(surface, host));
@@ -150,14 +151,19 @@ export function createPhoneInkRuntimeBridge([
       applyRevealBoundary(to, frame);
     }
     if (rendererNeedsFrame) {
-      renderer?.render(frame);
+      rendered = fieldActive && (renderer?.render(frame) ?? false);
     }
+    if (rendered) {
+      surface.dataset.phonePresentationEffectFrame = 'ready';
+    } else if (!fieldActive) {
+      delete surface.dataset.phonePresentationEffectFrame;
+    }
+    return rendered;
   };
 
   return (command) => {
     if (command[0] === 'render') {
-      render(command[1]);
-      return;
+      return render(command[1]);
     }
     renderer?.destroy();
     surface.style.removeProperty('visibility');
@@ -166,6 +172,7 @@ export function createPhoneInkRuntimeBridge([
       delete surface.dataset.phoneInkRenderer;
       delete surface.dataset.phoneInkProgress;
     }
+    delete surface.dataset.phonePresentationEffectFrame;
     mountedCanvas?.remove();
   };
 }
@@ -386,7 +393,12 @@ export function createPhoneFigure2DepthInkRuntimeBridge([
         delete canvas.dataset.r4InkFieldSeed;
       }
     }
-    renderer?.render(frame);
+    const rendered = visible && (renderer?.render(frame) ?? false);
+    if (canvas && rendered) {
+      canvas.dataset.phonePresentationEffectFrame = 'ready';
+    } else if (canvas && !visible) {
+      delete canvas.dataset.phonePresentationEffectFrame;
+    }
   };
 
   return (command) => {

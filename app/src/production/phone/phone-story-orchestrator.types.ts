@@ -16,6 +16,10 @@ import type {
   PhoneSurfaceRegistration
 } from './phone-story-projector';
 import type {
+  PhonePresentationEvidenceKind,
+  PhoneSurfaceId
+} from './phone-presentation-contract';
+import type {
   PhoneScrollCorridor,
   PhoneScrollCorridorLease,
   PhoneScrollCorridorRegistry
@@ -36,7 +40,20 @@ export type PhoneOrchestratedRunSession = PhoneTransitionSession & Readonly<{
   generation: number;
   leg: number;
   direction: PhoneTransitionDirection;
-  reportPresentedFrame(): void;
+  /**
+   * Only a renderer/compositor may publish this transition gate. The evidence
+   * travels with the same event, so prepare cannot inherit a stale frame.
+   */
+  reportPresentedFrame(
+    kind?: PhonePresentationEvidenceKind,
+    subject?: PhoneSurfaceId
+  ): void;
+  /** Reports a typed frame/coverage/content fact for the active generation. */
+  reportPresentationEvidence(
+    kind: PhonePresentationEvidenceKind,
+    subject: PhoneSurfaceId,
+    observedAt?: number
+  ): void;
   reportProgress(progress: number): void;
   /** Controller-owned clock: invokes the adapter's passive render callback. */
   animate(
@@ -50,6 +67,8 @@ export type PhoneOrchestratedRunSession = PhoneTransitionSession & Readonly<{
   reportEndpointCommit(endpoint: 'source' | 'receiver'): void;
   /** Confirms that the terminal receiver is connected and visibly presented. */
   reportTargetPresented(): void;
+  /** Commits a direct-entry receiver only after its post-alignment proof. */
+  reportStablePresentationVerified(): void;
   reportEndpointRelease(): void;
   /** Supplies lifecycle-separated cleanup; the controller chooses each phase. */
   provideRelease(lease: PhoneReleaseLease): void;

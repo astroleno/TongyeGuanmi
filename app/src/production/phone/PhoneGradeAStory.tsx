@@ -308,7 +308,19 @@ export function PhoneGradeAStory({
         'fixed',
         () => figure2Ref.current?.root() ?? null,
         () => stageHost,
-        () => true
+        (request) => {
+          const prepare = figure2Ref.current?.prepareTargetPresentation;
+          if (!prepare) {
+            throw new Error('Figure2 direct-entry receiver unavailable');
+          }
+          return prepare({
+            progress: 0,
+            direction: 1,
+            runId: `${request.sessionId}:${request.generation}:direct`,
+            signal: request.signal,
+            directEntry: true
+          });
+        }
       ),
       registerPhoneRuntimeSurface(
         orchestrator,
@@ -316,8 +328,7 @@ export function PhoneGradeAStory({
         'figure2-proof',
         'fixed',
         () => proofRef.current?.root() ?? null,
-        () => stageHost,
-        () => true
+        () => stageHost
       )
     ];
     const corridorLease = registerPhoneRuntimeSampledScrollCorridor(

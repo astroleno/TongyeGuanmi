@@ -79,7 +79,9 @@ describe('PhoneCrane', () => {
     expect(autoplaySource).toContain('createPhoneNativeAutoplay');
     expect(source).toContain('createPhonePackedAlphaSurface');
     expect(source).toContain('prepareTargetPresentation');
-    expect(source).toContain("surfaces.map((surface) => surface(['prepare', mode, request.signal]))");
+    expect(source).toMatch(
+      /surfaces\.map\(\(surface\) => surface\(\[\s*'prepare',\s*mode,\s*request\.signal,\s*request\.directEntry === true\s*\]\)\)/s
+    );
     expect(source).toContain('failRun(1)');
     expect(source).toContain('failRun(-1)');
     expect(source).toContain('createPortal');

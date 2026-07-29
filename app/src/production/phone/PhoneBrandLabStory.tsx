@@ -28,6 +28,10 @@ import {
   usePhoneStoryNavigationRuntime
 } from './usePhoneStoryNavigationRuntime';
 import { requestPhoneRuntimeDirectEntry } from './phone-story-runtime';
+import {
+  usePhoneViewportCoverage,
+  type PhoneLayoutViewport
+} from './phone-viewport-coverage';
 import './PhoneBrandLabStory.css';
 
 const PhoneBrandLabBundle = lazy(() => (
@@ -84,6 +88,11 @@ export function PhoneBrandLabStory({
   const stageViewportRef = useRef<HTMLElement | null>(null);
   const stageCanvasRef = useRef<HTMLDivElement | null>(null);
   const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
+  const applyLayoutViewport = useCallback((root: HTMLElement, viewport: PhoneLayoutViewport) => {
+    root.style.setProperty('--portrait-live-height', `${viewport.height}px`);
+    root.style.setProperty('--portrait-live-width', `${viewport.width}px`);
+  }, []);
+  usePhoneViewportCoverage(rootRef, applyLayoutViewport);
   const authority = usePhoneStoryOrchestratorRuntime(
     'brand-lab',
     initialScene,

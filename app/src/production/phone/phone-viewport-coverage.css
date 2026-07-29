@@ -1,0 +1,12 @@
+html[data-portrait-spike="b"] .portrait-scroll-spike {
+  --portrait-coverage-left: 0px;
+  --portrait-coverage-top: 0px;
+  --portrait-coverage-right: 100vw;
+  --portrait-coverage-bottom: var(--portrait-live-height);
+  --portrait-coverage-width: 100vw;
+  --portrait-coverage-height: var(--portrait-live-height);
+  --portrait-stage-canvas-height: max(
+    var(--portrait-stage-height),
+    var(--portrait-coverage-height)
+  );
+}

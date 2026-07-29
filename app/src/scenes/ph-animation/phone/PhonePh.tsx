@@ -112,6 +112,9 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     const beginPreparedReverseRef = useRef<(force?: boolean) => void>(
       () => undefined
     );
+    const presentedFrameRef = useRef<() => void>(
+      () => undefined
+    );
 
     const ensurePackedSurface = useCallback((
       mode: PhonePackedAlphaSurfaceMode
@@ -137,6 +140,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
             video.dataset.timelineVideoFrameReady = 'true';
             root.dataset.phonePhMedia = video.paused ? 'ready' : 'playing';
             beginPreparedReverseRef.current?.();
+            presentedFrameRef.current?.();
           }
         ]);
       }
@@ -179,6 +183,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       completeRun,
       failRun,
       publishPlaying,
+      publishPresentedFrame,
       renderProgress,
       startRun,
       stopRun,
@@ -198,6 +203,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       beforeReverse
     ]);
     beginPreparedReverseRef.current = beginPreparedReverse;
+    presentedFrameRef.current = publishPresentedFrame;
 
     useEffect(() => {
       const root = rootRef.current;
@@ -298,7 +304,12 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       const surface = ensurePackedSurface(mode);
       if (!surface) throw new Error('PH packed-alpha surface unavailable');
       try {
-        await surface(['prepare', mode, request.signal]);
+        await surface([
+          'prepare',
+          mode,
+          request.signal,
+          request.directEntry === true
+        ]);
       } catch (error) {
         root.dataset.phonePhMedia = 'retryable-failure';
         throw error;

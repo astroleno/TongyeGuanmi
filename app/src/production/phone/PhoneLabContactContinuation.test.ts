@@ -77,10 +77,10 @@ describe('PhoneLabContactContinuation recovery contract', () => {
 
   it('uses the persistent stage canvas as coverage root for every Group 67 surface', () => {
     expect(source).toMatch(
-      /`native:\$\{scene\}`,[\s\S]*?\(\) => rootForScene\(scene\),\s*\(\) => stageHost,/
+      /`native:\$\{scene\}`,[\s\S]*?\(\) => rootForScene\(scene\),\s*\(\) => stageHost\s*\)/
     );
     expect(source).toMatch(
-      /id,[\s\S]*?\(\) => ref\.current\?\.root\(\) \?\? null,\s*\(\) => stageHost,/
+      /id,[\s\S]*?\(\) => ref\.current\?\.root\(\) \?\? null,\s*\(\) => stageHost\s*,/
     );
   });
 

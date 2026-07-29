@@ -9,7 +9,8 @@ import {
   startPhoneStoryRun
 } from './phone-story-cursor-test-support';
 import {
-  phoneStoryPresentation
+  phoneStoryPresentation,
+  phoneTransitionPresentationTuple
 } from './phone-story-presentation';
 
 const identity = {
@@ -50,6 +51,25 @@ describe('canonical phone presentation projection', () => {
         expect(projection).toHaveProperty(field);
       }
     }
+  });
+
+  it('[R5] transports transition evidence as a positional tuple across lazy chunks', () => {
+    expect(phoneTransitionPresentationTuple([
+      'hero',
+      'pattern',
+      'hero-pattern',
+      1,
+      .5
+    ])).toEqual([
+      'pattern',
+      'hero-to-pattern',
+      'hero',
+      'front',
+      'pattern',
+      'front:hero',
+      'front:pattern',
+      'front-corridor'
+    ]);
   });
 
   it('keeps every forward run on its source edge until endpoint coverage', () => {

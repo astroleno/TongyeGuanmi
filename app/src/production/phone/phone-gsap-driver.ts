@@ -74,24 +74,34 @@ export const phoneMotionDriver: PhoneMotionDriver = Object.freeze({
       });
     };
     paint();
-    const tween = gsap.to(states, {
-      y: 0,
-      opacity: 1,
-      duration: 0.5,
-      ease: 'power2.out',
-      stagger: 0.11,
-      onUpdate: paint,
-      scrollTrigger: {
-        id: 'portrait-spike-reading-steps',
-        trigger: target,
-        start: 'top 84%',
-        toggleActions: 'play none none reverse',
-        invalidateOnRefresh: true
+    let tween: gsap.core.Tween | null = null;
+    const animate = (shown: boolean) => {
+      tween?.kill();
+      tween = gsap.to(states, {
+        y: shown ? 0 : 34,
+        opacity: shown ? 1 : 0,
+        duration: 0.5,
+        ease: 'power2.out',
+        stagger: shown ? 0.11 : 0,
+        onUpdate: paint
+      });
+    };
+    if (typeof IntersectionObserver === 'undefined') {
+      animate(true);
+      return () => tween?.kill();
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry) return;
+      if (entry.isIntersecting) {
+        animate(true);
+      } else if (entry.boundingClientRect.top > window.innerHeight * .84) {
+        animate(false);
       }
-    });
+    }, { rootMargin: '0px 0px -16%' });
+    observer.observe(target);
     return () => {
-      tween.scrollTrigger?.kill();
-      tween.kill();
+      observer.disconnect();
+      tween?.kill();
     };
   }
 });

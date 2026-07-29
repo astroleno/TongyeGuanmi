@@ -53,7 +53,7 @@ export function phoneCompositeVisualExecution(
   if (
     activeRun !== run
     || legIndex !== 1
-    || phase !== 'animating'
+    || (phase !== 'preparing' && phase !== 'animating')
     || sessionId === null
     || generation === null
     || direction === null

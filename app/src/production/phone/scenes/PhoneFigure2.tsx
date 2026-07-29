@@ -162,13 +162,13 @@ export const PhoneFigure2 = forwardRef<
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
-    async prepareTargetPresentation({ progress, signal }) {
+    async prepareTargetPresentation({ progress, signal, directEntry }) {
       const mode = progress >= 0.999 ? 'endpoint' : 'forward';
       const surface = ensurePackedSurface(mode);
       if (!surface) {
         throw new Error('Figure2 presentation unavailable');
       }
-      await surface(['prepare', mode, signal]);
+      await surface(['prepare', mode, signal, directEntry === true]);
     },
     update(progress) {
       if (progress > scrollProgressRef.current) {

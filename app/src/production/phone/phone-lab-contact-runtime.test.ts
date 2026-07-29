@@ -12,6 +12,8 @@ import {
   reducePhoneStorySnapshot,
   type PhoneStorySnapshot
 } from './phone-story-state';
+import { phoneSegmentPresentationContract } from './phone-presentation-contract';
+import { phoneRun } from './phone-story-runs';
 import { selectPhoneCinematicSnapshot } from './phone-story-runtime';
 
 const cinematic = (snapshot: PhoneStorySnapshot) => (
@@ -63,9 +65,20 @@ function executionToken(snapshot: PhoneStorySnapshot) {
 }
 
 function presented(snapshot: PhoneStorySnapshot): PhoneStorySnapshot {
+  if (snapshot.status !== 'transaction' || !snapshot.session.operation.run) {
+    throw new Error('Expected an active cinematic transaction');
+  }
+  const leg = phoneRun(snapshot.session.operation.run)
+    .legs[snapshot.session.operation.legIndex];
+  if (!leg) throw new Error('Expected an active cinematic leg');
+  const frame = phoneSegmentPresentationContract(leg.segment).firstFrame;
   return reducePhoneStorySnapshot(snapshot, {
     ...identity(snapshot),
-    type: 'PRESENTED_FRAME'
+    type: 'PRESENTED_FRAME',
+    kind: frame.kind,
+    subject: frame.subject,
+    revision: snapshot.session.presentation[0],
+    observedAt: snapshot.session.presentation[0]
   }).snapshot;
 }
 

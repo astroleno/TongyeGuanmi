@@ -16,7 +16,14 @@ import {
   createPhoneIntentCoordinator,
   type PhoneTransitionDirection
 } from './phone-transition-coordinator';
-import type { PhoneSurfaceKind } from './phone-story-projector';
+import type {
+  PhoneDirectEntryPresentationRequest,
+  PhoneSurfaceKind
+} from './phone-story-projector';
+import type {
+  PhonePresentationEvidenceKind,
+  PhoneSurfaceId
+} from './phone-presentation-contract';
 import type {
   PhoneLandingReason,
   PhoneScrollCorridorLease
@@ -209,7 +216,10 @@ export type PhoneCompositeSession = readonly [
   generation: number,
   leg: () => number,
   valid: () => boolean,
-  reportPresentedFrame: () => void,
+  reportPresentedFrame: (
+    kind?: PhonePresentationEvidenceKind,
+    subject?: PhoneSurfaceId
+  ) => void,
   reportProgress: (progress: number) => void,
   animate: PhoneOrchestratedRunSession['animate'],
   reportEndpoints: (source: HTMLElement, receiver: HTMLElement) => void,
@@ -284,7 +294,9 @@ export function registerPhoneRuntimeSurface(
   kind: PhoneSurfaceKind,
   root: () => HTMLElement | null,
   coverageRoot: () => HTMLElement | null,
-  presented: () => boolean
+  prepareDirectEntry?: (
+    request: PhoneDirectEntryPresentationRequest
+  ) => Promise<void> | void
 ): PhoneCapabilityLease {
   return port.registerSurface({
     id,
@@ -292,7 +304,7 @@ export function registerPhoneRuntimeSurface(
     kind,
     root,
     coverageRoot,
-    presented
+    ...(prepareDirectEntry ? { prepareDirectEntry } : {})
   });
 }
 

@@ -23,7 +23,12 @@ export type PhonePackedAlphaSurfaceRequest = readonly [
 
 export type PhonePackedAlphaSurfaceCommand =
   | readonly ['activate', mode: PhonePackedAlphaSurfaceMode]
-  | readonly ['prepare', mode: PhonePackedAlphaSurfaceMode, signal: AbortSignal | null]
+  | readonly [
+    'prepare',
+    mode: PhonePackedAlphaSurfaceMode,
+    signal: AbortSignal | null,
+    requirePresentedFrame?: boolean
+  ]
   | readonly ['release']
   | readonly ['dispose'];
 
@@ -216,7 +221,8 @@ export function createPhonePackedAlphaSurface(
 
   const prepare = (
     nextMode: PhonePackedAlphaSurfaceMode,
-    signal: AbortSignal | null
+    signal: AbortSignal | null,
+    requirePresentedFrame = false
   ): Promise<void> => {
       if (disposed) {
         return Promise.reject(new Error(
@@ -234,13 +240,20 @@ export function createPhonePackedAlphaSurface(
         && root.dataset[statusDataset] === 'static-fallback'
       ) release();
       activate(nextMode);
-      if (nextMode === 'forward') return Promise.resolve();
+      if (nextMode === 'forward' && !requirePresentedFrame) {
+        return Promise.resolve();
+      }
       if (root.dataset[statusDataset] === 'verified') return Promise.resolve();
       if (root.dataset[statusDataset] === 'static-fallback') {
         return Promise.reject(new Error(
           `${layerName} packed-alpha presentation failed`
         ));
       }
+      if (timeout !== undefined) globalThis.clearTimeout(timeout);
+      timeout = globalThis.setTimeout(
+        failEndpoint,
+        options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS
+      );
       return new Promise<void>((resolve, reject) => {
         const preparation: Preparation = {
           resolve,
@@ -270,7 +283,7 @@ export function createPhonePackedAlphaSurface(
         activate(command[1]);
         return;
       case 'prepare':
-        return prepare(command[1], command[2]);
+        return prepare(command[1], command[2], command[3] ?? false);
       case 'release':
         release();
         return;

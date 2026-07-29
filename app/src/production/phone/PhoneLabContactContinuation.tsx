@@ -346,8 +346,7 @@ export function PhoneLabContactContinuation({
           scene,
           'native',
           () => rootForScene(scene),
-          () => stageHost,
-          () => true
+          () => stageHost
         )
       )),
       ...([
@@ -361,7 +360,19 @@ export function PhoneLabContactContinuation({
           'fixed',
           () => ref.current?.root() ?? null,
           () => stageHost,
-          () => true
+          (request) => {
+            const prepare = ref.current?.prepareTargetPresentation;
+            if (!prepare) {
+              throw new Error(`${scene} direct-entry receiver unavailable`);
+            }
+            return prepare({
+              progress: 0,
+              direction: 1,
+              runId: `${request.sessionId}:${request.generation}:direct`,
+              signal: request.signal,
+              directEntry: true
+            });
+          }
         )
       ))
     ];
@@ -414,6 +425,10 @@ export function PhoneLabContactContinuation({
       const [scene, phase, direction, , progress] = detail;
       if (phase === 'playing') {
         runner.heartbeat(scene, identity);
+        return;
+      }
+      if (phase === 'presented') {
+        runner.reportMediaFrame(scene, identity);
         return;
       }
       if (phase === 'failed') {

@@ -123,10 +123,10 @@ describe('formal Unit7-B phone integration', () => {
   });
 
   it('registers the persistent canvas as the one coverage owner for every phone surface', () => {
-    expect(stageRuntimeSource.match(/\(\) => stage,/g)).toHaveLength(5);
-    expect(gradeASource.match(/\(\) => stageHost,/g)).toHaveLength(2);
-    expect(brandContinuationSource.match(/\(\) => stageHost,/g)).toHaveLength(2);
-    expect(continuationSource.match(/\(\) => stageHost,/g)).toHaveLength(2);
+    expect(stageRuntimeSource.match(/\(\) => stage\b/g)).toHaveLength(5);
+    expect(gradeASource.match(/\(\) => stageHost\b/g)).toHaveLength(2);
+    expect(brandContinuationSource.match(/\(\) => stageHost\b/g)).toHaveLength(2);
+    expect(continuationSource.match(/\(\) => stageHost\b/g)).toHaveLength(2);
   });
 
   it('registers the StarMap surface with its projection-owned ID', () => {
@@ -186,8 +186,8 @@ describe('formal Unit7-B phone integration', () => {
   });
 
   it('uses the same completion latch for reduced motion and stable Contact', () => {
-    expect(compositeRunnerSource).toContain(
-      'if (options.reducedMotion) settleReduced(resource, config)'
+    expect(compositeRunnerSource).toMatch(
+      /if \(options\.reducedMotion\) \{[\s\S]*?settleReduced\(resource, config\);/
     );
     expect(labContactRuntimeSource).toContain('phoneGroup67RunSource');
     expect(continuationSource).toContain('phoneLabContactVisualProjection');

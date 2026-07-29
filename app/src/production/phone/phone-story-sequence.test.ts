@@ -4,8 +4,9 @@ import {
   type PhoneOrchestratedRunSession
 } from './phone-story-orchestrator';
 import { resolvePhoneRunLanding } from './phone-run-landing';
-import { phoneStoryRuns } from './phone-story-runs';
+import { phoneRun, phoneStoryRuns } from './phone-story-runs';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
+import { phoneSegmentPresentationContract } from './phone-presentation-contract';
 
 function intent(inputEpoch: number, direction: PhoneTransitionDirection) {
   return [
@@ -14,6 +15,22 @@ function intent(inputEpoch: number, direction: PhoneTransitionDirection) {
     direction === 1 ? 0 : 300,
     direction === 1 ? 300 : 0
   ] as const;
+}
+
+function reportCurrentLegFrame(
+  orchestrator: ReturnType<typeof createPhoneStoryOrchestrator>,
+  session: PhoneOrchestratedRunSession
+): void {
+  const snapshot = orchestrator.getSnapshot();
+  if (snapshot.status !== 'transaction' || !snapshot.session.operation.run) {
+    throw new Error('Expected an active cinematic leg');
+  }
+  const leg = phoneRun(snapshot.session.operation.run).legs[
+    snapshot.session.operation.legIndex
+  ];
+  if (!leg) throw new Error('Expected an active run leg');
+  const requirement = phoneSegmentPresentationContract(leg.segment).firstFrame;
+  session.reportPresentedFrame(requirement.kind, requirement.subject);
 }
 
 describe('canonical phone story sequence', () => {
@@ -50,10 +67,12 @@ describe('canonical phone story sequence', () => {
           .toBe('claim-boundary');
         const session = sessions.at(-1);
         if (!session) throw new Error('Expected a phone transaction session');
-        session.reportPresentedFrame();
+        reportCurrentLegFrame(orchestrator, session);
         for (let index = 0; index < run.legs.length; index += 1) {
           session.reportEndpointCommit('receiver');
-          if (index < run.legs.length - 1) session.reportPresentedFrame();
+          if (index < run.legs.length - 1) {
+            reportCurrentLegFrame(orchestrator, session);
+          }
         }
         session.reportTargetPresented();
         expect(orchestrator.getSnapshot()).toMatchObject({

@@ -266,6 +266,25 @@ describe('phone packed-alpha surface', () => {
     surface(['dispose']);
   });
 
+  it('waits for a physical forward canvas draw when a direct entry requires it', async () => {
+    const { root, surface } = fixture();
+    let resolved = false;
+    const preparation = Promise.resolve(
+      surface(['prepare', 'forward', null, true])
+    ).then(() => {
+      resolved = true;
+    });
+
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+    expect(root.dataset.phoneTestAlpha).toBe('awaiting-native-playback');
+    compositorProbe.onFrame?.();
+
+    await expect(preparation).resolves.toBeUndefined();
+    expect(root.dataset.phoneTestAlpha).toBe('verified');
+    surface(['dispose']);
+  });
+
   it('waits for the authored endpoint frame during reverse preparation', async () => {
     const { root, surface } = fixture();
     let resolved = false;

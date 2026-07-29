@@ -210,6 +210,7 @@ export function createPackedAlphaVideoCompositor(
   let frameCallback = 0;
   let animationFrame = 0;
   let renderedFrames = 0;
+  let contextLost = false;
 
   gl.useProgram(program);
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -234,6 +235,7 @@ export function createPackedAlphaVideoCompositor(
     if (
       disposed
       || !active
+      || contextLost
       || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
       || video.videoWidth < 2
       || video.videoHeight < 1
@@ -278,7 +280,7 @@ export function createPackedAlphaVideoCompositor(
   };
 
   const schedule = () => {
-    if (disposed || !active || frameCallback || animationFrame) {
+    if (disposed || !active || contextLost || frameCallback || animationFrame) {
       return;
     }
     if (typeof managedVideo.requestVideoFrameCallback === 'function') {
@@ -301,7 +303,7 @@ export function createPackedAlphaVideoCompositor(
   };
 
   const renderAndSchedule = () => {
-    if (!active) return;
+    if (!active || contextLost) return;
     render();
     if (!video.paused && !video.ended) {
       schedule();
@@ -309,6 +311,7 @@ export function createPackedAlphaVideoCompositor(
   };
   const onContextLost = (event: Event) => {
     event.preventDefault();
+    contextLost = true;
     canvas.dataset.packedAlphaStatus = 'context-lost';
   };
 
@@ -353,6 +356,10 @@ export function createPackedAlphaVideoCompositor(
         cancelScheduledFrame();
         clearPresentedFrame();
         canvas.dataset.packedAlphaStatus = 'suspended';
+        return;
+      }
+      if (contextLost) {
+        canvas.dataset.packedAlphaStatus = 'context-lost';
         return;
       }
       canvas.dataset.packedAlphaStatus = 'waiting';

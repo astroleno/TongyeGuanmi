@@ -3,6 +3,7 @@ import {
   phoneRun,
   type PhoneRunId
 } from '../src/production/phone/phone-story-runs';
+import { phoneScenePresentationContract } from '../src/production/phone/phone-presentation-contract';
 
 const LIVE_PHONE_ROOT = 'main[data-phone-authority-id]';
 const LIVE_STORY_LOADER = '.story-loader[data-story-loader="true"]';
@@ -1114,7 +1115,10 @@ async function driveFrontScrollRun(
   let sawTransition = false;
   let reachedTarget = false;
   for (let pulse = 0; pulse < 64; pulse += 1) {
-    await inputPhoneDelta(page, direction * 250);
+    // Keep every synthetic input below the narrowest Front handoff span.
+    // The contract must observe an actual transition sample, not merely land
+    // in the following hold after a browser-coalesced wheel jump.
+    await inputPhoneDelta(page, direction * 50);
     await page.waitForTimeout(100);
     const cursor = await shell.getAttribute('data-phone-cursor');
     sawTransition ||= cursor === `transition:${run.id}:0`;
@@ -1161,7 +1165,10 @@ async function driveFrontScrollRun(
       stateEvents: probe?.stateEvents.slice(-24)
     };
   });
-  expect(sawTransition, `front wheel input did not enter ${run.id}`).toBe(true);
+  expect(
+    sawTransition,
+    `front wheel input did not enter ${run.id}: ${JSON.stringify(inputDiagnostics)}`
+  ).toBe(true);
   expect(
     reachedTarget,
     `front wheel input did not settle hold:${to}: ${JSON.stringify(inputDiagnostics)}`
@@ -1407,6 +1414,64 @@ async function visitFormal(
   await assertStablePhoneHold(page, scene);
 }
 
+/**
+ * A stable cursor alone is not evidence that a cold deep link rendered its
+ * selected hold. Verify the manifest's own copy/frame probes are visible in
+ * the live visual viewport after every direct navigation form.
+ */
+async function assertDirectEntryPresentation(
+  page: Page,
+  scene: PhoneStableScene
+): Promise<void> {
+  const probe = phoneScenePresentationContract(scene).contentProbe;
+  const result = await page.evaluate(({ contentProbe }) => {
+    const viewport = window.visualViewport;
+    const left = viewport?.offsetLeft ?? 0;
+    const top = viewport?.offsetTop ?? 0;
+    const right = left + (viewport?.width ?? window.innerWidth);
+    const bottom = top + (viewport?.height ?? window.innerHeight);
+    const visible = (element: HTMLElement) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return element.isConnected
+        && !element.hidden
+        && !element.inert
+        && !element.hasAttribute('inert')
+        && style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && style.visibility !== 'collapse'
+        && Number.parseFloat(style.opacity || '1') > .01
+        && rect.width > 0
+        && rect.height > 0
+        && rect.right > left
+        && rect.left < right
+        && rect.bottom > top
+        && rect.top < bottom;
+    };
+    const inspect = (selector: string, requireText: boolean) => {
+      const candidate = Array.from(
+        document.querySelectorAll<HTMLElement>(selector)
+      ).find((element) => visible(element));
+      return {
+        selector,
+        visible: Boolean(candidate),
+        text: candidate?.textContent?.trim() ?? '',
+        satisfied: Boolean(candidate) && (!requireText || Boolean(candidate.textContent?.trim()))
+      };
+    };
+    const text = contentProbe.textSelectors.map((selector) => inspect(selector, true));
+    const frame = contentProbe.frameSelectors.map((selector) => inspect(selector, false));
+    return {
+      text,
+      frame,
+      missing: [...text, ...frame]
+        .filter((entry) => !entry.satisfied)
+        .map((entry) => entry.selector)
+    };
+  }, { contentProbe: probe });
+  expect(result.missing, `direct ${scene} content/frame proof`).toEqual([]);
+}
+
 test('Task 0 rejects a visible Hero completed-to-zero reset on cold WebKit load', async ({
   page,
   browserName
@@ -1602,10 +1667,11 @@ test('Task 10 repeats the complete reduced-motion production round trip', async 
 });
 
 test('Task 10 verifies every formal direct entry plus hash, menu, and history', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   await installColdPhoneRuntimeProbe(page);
   for (const [hash, scene] of FORMAL_DIRECT_ENTRIES) {
     await visitFormal(page, '/?v=47' + hash, scene);
+    await assertDirectEntryPresentation(page, scene);
   }
 
   await visitFormal(page, '/?v=47#method', 'method-top');
@@ -1614,10 +1680,13 @@ test('Task 10 verifies every formal direct entry plus hash, menu, and history', 
   await expect(services).toBeVisible();
   await services.click();
   await assertStablePhoneHold(page, 'services');
+  await assertDirectEntryPresentation(page, 'services');
   await page.goBack({ waitUntil: 'domcontentloaded' });
   await assertStablePhoneHold(page, 'method-top');
+  await assertDirectEntryPresentation(page, 'method-top');
   await page.goForward({ waitUntil: 'domcontentloaded' });
   await assertStablePhoneHold(page, 'services');
+  await assertDirectEntryPresentation(page, 'services');
 });
 
 test('Task 10 preserves formal scope and validates the Brand–Lab QA route', async ({ page }) => {

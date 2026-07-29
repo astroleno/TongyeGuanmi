@@ -100,9 +100,9 @@ describe('phone stable presentation contract', () => {
 
     expect(orchestrator.resolveIntent([1, 1, 0, 200])).toBe('claim-boundary');
     if (!session) throw new Error('Expected a claimed brand-services session');
-    session.reportPresentedFrame();
+    session.reportPresentedFrame('effect-frame', 'group45:effect');
     session.reportEndpointCommit('receiver');
-    session.reportPresentedFrame();
+    session.reportPresentedFrame('packed-canvas-frame', 'group45:figure3');
     session.provideRelease({
       releaseGeometry: () => undefined,
       releaseResources: () => undefined

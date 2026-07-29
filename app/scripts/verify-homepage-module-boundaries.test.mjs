@@ -348,6 +348,8 @@ describe('homepage phone-shell debt ratchet', () => {
     ]));
   });
 
+  // This recursively parses the full phone graph; parallel release-manifest
+  // tests can otherwise exceed Vitest's default 5s despite a valid result.
   it('rejects new raw execution objects at independently minified boundaries', () => {
     expect(phoneCrossChunkCompressionPolicyViolations()).toEqual([]);
     expect(phoneLazyAdapterPropReserveViolations(phoneTypesSource)).toEqual([]);
@@ -631,5 +633,5 @@ describe('homepage phone-shell debt ratchet', () => {
     })).toContain(
       'future-contract: retained object field is missing from mangle reserve (generation)'
     );
-  });
+  }, 15_000);
 });

@@ -21,7 +21,6 @@
 
 .phone-grade-a__surfaces {
   position: absolute;
-  z-index: 18;
   inset: 0;
   /* The stable stage canvas owns clipping for every portaled Grade A surface. */
   overflow: visible;
@@ -40,7 +39,10 @@
 .phone-grade-a__surfaces > .phone-grade-a__method-ink,
 .phone-grade-a__surfaces > .phone-grade-a__proof-brand-ink {
   position: absolute;
-  z-index: 80;
+  z-index: var(
+    --phone-presentation-z,
+    var(--phone-layer-transition-effect-above)
+  );
   inset: 0;
   display: block;
   width: 100%;
@@ -49,12 +51,18 @@
 }
 
 .phone-grade-a__surfaces > .r4-figure2-proof-ink-canvas {
-  z-index: 81;
+  z-index: var(
+    --phone-presentation-z,
+    var(--phone-layer-transition-effect-above)
+  );
 }
 
 .phone-grade-a__surfaces > .phone-grade-a__method-paper {
   position: absolute;
-  z-index: 95;
+  z-index: var(
+    --phone-presentation-z,
+    var(--phone-layer-transition-source)
+  );
   inset: 0;
   background: var(--portrait-reading-paper);
   visibility: hidden;
@@ -62,14 +70,17 @@
 }
 
 .phone-grade-a__surfaces > .phone-grade-a__method-ink {
-  z-index: 96;
+  z-index: var(
+    --phone-presentation-z,
+    var(--phone-layer-transition-effect-above)
+  );
 }
 
 .phone-grade-a__proof-brand-source > .phone-grade-a__foreground-arch {
   --phone-figure2-arch-opacity: 0;
   --phone-figure2-arch-scale: 1.025;
   --phone-figure2-arch-blur: 0px;
-  z-index: 90;
+  z-index: var(--phone-presentation-z, var(--phone-layer-stable));
   width: 100%;
   height: 100%;
   object-fit: cover;

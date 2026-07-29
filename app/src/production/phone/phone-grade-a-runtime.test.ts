@@ -33,8 +33,12 @@ const gradeAExecutionToken = [
 function transition(
   prepare = vi.fn(async () => undefined)
 ): PhoneTransitionAdapterHandle {
+  let onPresentedFrame: (() => void) | undefined;
   return {
-    begin: vi.fn(),
+    begin: vi.fn((_request, reportFrame) => {
+      onPresentedFrame = reportFrame;
+    }),
+    prepareFirstFrame: vi.fn(() => onPresentedFrame?.()),
     prepare,
     render: vi.fn(),
     commitEndpoint: vi.fn(),
@@ -55,6 +59,7 @@ function session(onCommit?: () => void, onAbort?: () => void) {
     direction: 1,
     valid: () => active.value,
     reportPresentedFrame: vi.fn(),
+    reportPresentationEvidence: vi.fn(),
     reportProgress: vi.fn(),
     animate: vi.fn((start, end, durationMs, render, complete) => {
       let startedAt = -1;
@@ -74,6 +79,7 @@ function session(onCommit?: () => void, onAbort?: () => void) {
     reportEndpoints: vi.fn(),
     reportEndpointCommit: vi.fn(),
     reportTargetPresented: vi.fn(),
+    reportStablePresentationVerified: vi.fn(),
     reportEndpointRelease: vi.fn(),
     provideRelease: vi.fn((nextRelease) => { release = nextRelease; }),
     reportAnimationComplete: vi.fn(),
@@ -235,7 +241,10 @@ describe('canonical Grade A run lifecycle', () => {
       expect(activeSession.provideRelease).toHaveBeenCalledTimes(1);
     });
 
-    expect(adapter.begin).toHaveBeenCalledWith(gradeAExecutionToken);
+    expect(adapter.begin).toHaveBeenCalledWith(
+      gradeAExecutionToken,
+      expect.any(Function)
+    );
     expect(adapter.prepare).toHaveBeenCalledWith(1, expect.any(AbortSignal));
     expect(adapter.enter).toHaveBeenCalledTimes(1);
     expect(adapter.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
@@ -293,7 +302,10 @@ describe('canonical Grade A run lifecycle', () => {
     await vi.waitFor(() => {
       expect(activeSession.provideRelease).toHaveBeenCalledTimes(1);
     });
-    expect(adapter.begin).toHaveBeenCalledWith(gradeAExecutionToken);
+    expect(adapter.begin).toHaveBeenCalledWith(
+      gradeAExecutionToken,
+      expect.any(Function)
+    );
     expect(adapter.prepare).toHaveBeenCalledWith(1, expect.any(AbortSignal));
   });
 

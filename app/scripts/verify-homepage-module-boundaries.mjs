@@ -1078,6 +1078,9 @@ const formalChildBypassAllowlist = [
   phoneIntentCoordinatorPath,
   phoneDocumentScrollRuntimePath,
   path.join(phoneDir, 'usePhoneViewportGeometry.ts'),
+  // This route-level geometry service observes only visual viewport movement
+  // to publish the physical coverage plane; it cannot command story scroll.
+  path.join(phoneDir, 'phone-viewport-coverage.ts'),
   // This shared physical-gesture helper only unlocks already-mounted media;
   // it cannot create navigation, scroll, or a story transaction.
   path.join(productionDir, 'mobile-media-unlock.ts')

@@ -46,6 +46,11 @@ export type Group45PhoneSceneProps = Readonly<{
     scene: Group45PhoneSceneId,
     execution: PhoneExecutionToken
   ) => void;
+  /** A canvas/native frame was actually presented for the active media token. */
+  onPresentedFrame?: (
+    scene: Group45PhoneSceneId,
+    execution: PhoneExecutionToken
+  ) => void;
   /** Canonical media progress drives adjacent copy/transition cues. */
   onProgress?: (
     scene: Group45PhoneSceneId,

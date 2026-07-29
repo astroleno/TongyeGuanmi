@@ -204,6 +204,13 @@ export function phoneFigure3EndpointIsPresented(
       <= PHONE_FIGURE3_ENDPOINT_TOLERANCE_SECONDS;
 }
 
+/** Direct entry needs a physical paper-canvas paint, not decoder readiness. */
+export function phoneFigure3HasPresentedPaperFrame(
+  canvas: HTMLCanvasElement | null
+): boolean {
+  return canvas?.dataset.phoneFigure3PaperFrame === 'ready';
+}
+
 function endpointLabel(endpoint: PhoneFigure3Endpoint): 'initial' | 'terminal' {
   return endpoint === 0 ? 'initial' : 'terminal';
 }
@@ -249,6 +256,7 @@ export const PhoneFigure3 = forwardRef<
     onComplete,
     onMediaError,
     onProgress,
+    onPresentedFrame,
     onReady
   },
   forwardedRef
@@ -297,12 +305,14 @@ export const PhoneFigure3 = forwardRef<
   const completeRunRef = useRef<(direction: 1 | -1) => void>(() => undefined);
   const mediaErrorListenerRef = useRef(onMediaError);
   const progressListenerRef = useRef(onProgress);
+  const presentedFrameListenerRef = useRef(onPresentedFrame);
   const [mediaMounted, setMediaMounted] = useState(mediaMountedRef.current);
   const [mediaReady, setMediaReady] = useState(false);
   const [mediaFailed, setMediaFailed] = useState(false);
   completionListenerRef.current = onComplete;
   mediaErrorListenerRef.current = onMediaError;
   progressListenerRef.current = onProgress;
+  presentedFrameListenerRef.current = onPresentedFrame;
 
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name !== 'figure3-video') return;
@@ -346,6 +356,7 @@ export const PhoneFigure3 = forwardRef<
     if (root) {
       delete root.dataset.phoneFigure3EndpointReady;
     }
+    delete canvasRef.current?.dataset.phoneFigure3PaperFrame;
   }, []);
 
   const releaseMedia = useCallback(() => {
@@ -733,6 +744,14 @@ export const PhoneFigure3 = forwardRef<
         }
       },
       () => {
+        const identity = runIdentityRef.current;
+        if (
+          identity
+          && activeRef.current
+          && !mediaRetiringRef.current
+        ) {
+          presentedFrameListenerRef.current?.('figure3-animation', identity);
+        }
         const preparation = endpointPreparationRef.current;
         const activeCompositor = paperCompositorRef.current;
         if (!preparation || !activeCompositor) return;
@@ -952,6 +971,12 @@ export const PhoneFigure3 = forwardRef<
           return 'retryable-failure';
         }
         if (root.dataset.phoneFigure3EndpointReady !== endpointLabel(endpoint)) {
+          return null;
+        }
+        if (
+          request.directEntry
+          && !phoneFigure3HasPresentedPaperFrame(canvasRef.current)
+        ) {
           return null;
         }
         return true;

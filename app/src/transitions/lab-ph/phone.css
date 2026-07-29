@@ -6,7 +6,10 @@
 .phone-lab-contact__stage--ph > .r4-ink-transition-canvas.phone-lab-ph__ink,
 .phone-group67__stage--ph > .r4-ink-transition-canvas.phone-lab-ph__ink {
   position: absolute;
-  z-index: 8;
+  z-index: var(
+    --phone-presentation-z,
+    var(--phone-layer-transition-effect-above, 700)
+  );
   inset: 0;
   display: block;
   width: 100%;

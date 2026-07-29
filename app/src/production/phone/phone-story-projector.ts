@@ -6,17 +6,29 @@ import {
 import type { PhoneRouteScope } from './phone-route-scope';
 import type { PhonePresentationProjection } from './phone-story-presentation';
 import type { PhoneStorySnapshot } from './phone-story-state';
+import { phoneRun, phoneScrollRun } from './phone-story-runs';
+import {
+  readPhoneScenePresentation,
+  readPhoneSurfacePresentation,
+  type PhoneSurfacePresentation,
+  type PhoneSurfacePresentationReadMode
+} from './phone-presentation-evidence';
+import {
+  phoneScenePresentationTuple,
+  phoneSegmentPresentationTuple
+} from './phone-presentation-contract';
+import {
+  canonicalPhoneEffectSegment,
+  phoneLayerForSurfaceRole,
+  phoneTransitionLayerPlan,
+  type PhonePresentationLayer,
+  type PhoneSurfaceRole,
+  type PhoneTransitionLayerPlan
+} from './phone-presentation-layers';
 
 export type PhoneSurfaceKind = 'native' | 'fixed' | 'transition';
 
-export type PhoneSurfaceRole =
-  | 'stable'
-  | 'candidate-stable'
-  | 'fixed-current'
-  | 'transition-source'
-  | 'transition-receiver'
-  | 'retained-under-stage'
-  | 'retired';
+export type { PhoneSurfaceRole } from './phone-presentation-layers';
 
 export type PhoneSurfaceRegistration = Readonly<{
   id: string;
@@ -24,10 +36,20 @@ export type PhoneSurfaceRegistration = Readonly<{
   kind: PhoneSurfaceKind;
   root(): HTMLElement | null;
   coverageRoot?(): HTMLElement | null;
-  presented?(): boolean;
+  /** Concrete DOM/media facts; boolean placeholders are intentionally absent. */
+  presentation?(mode: PhoneSurfacePresentationReadMode): PhoneSurfacePresentation;
+  /** Optional scene-local compositor preparation for a direct target hold. */
+  prepareDirectEntry?(request: PhoneDirectEntryPresentationRequest): Promise<void> | void;
 }>;
 
 export type PhoneSurfaceLease = Readonly<{ dispose(): void }>;
+
+export type PhoneDirectEntryPresentationRequest = Readonly<{
+  scene: SceneId;
+  sessionId: string;
+  generation: number;
+  signal: AbortSignal;
+}>;
 
 export type PhoneTransitionEndpoints = Readonly<{
   source: HTMLElement;
@@ -48,6 +70,7 @@ export type PhoneStoryProjectionPlan = Readonly<{
   root: HTMLElement | null;
   surfaces: readonly ResolvedSurface[];
   endpoints: PhoneTransitionEndpoints | null;
+  layerPlan: PhoneTransitionLayerPlan | null;
   checkpointTrace: readonly PhoneCheckpointId[];
 }>;
 
@@ -57,8 +80,13 @@ export type PhoneStoryProjector = Readonly<{
   apply(plan: PhoneStoryProjectionPlan): void;
   reapplyCurrent(): void;
   registerSurface(registration: PhoneSurfaceRegistration): PhoneSurfaceLease;
-  /** True only when a registered scene surface is connected and presented. */
+  /** True only when a registered scene surface is connected, visible, and covered. */
   hasPresentedSurface(scene: SceneId): boolean;
+  readSurfacePresentation(scene: SceneId): PhoneSurfacePresentation | null;
+  prepareDirectEntry(
+    scene: SceneId,
+    request: PhoneDirectEntryPresentationRequest
+  ): Promise<void> | void;
   registerTransitionEndpoints(endpoints: PhoneTransitionEndpoints): void;
   clearTransitionEndpoints(): void;
   rootForScene(scene: SceneId): HTMLElement | null;
@@ -76,11 +104,13 @@ type OwnedDocument = Readonly<{ token: object; before: DocumentSnapshot }>;
 
 const rootOwners = new WeakMap<HTMLElement, object>();
 const documentOwners = new WeakMap<Document, OwnedDocument>();
+const layerOwners = new WeakMap<HTMLElement, object>();
 const rootDataKeys = [
   'phoneAuthorityId',
   'phoneAuthorityScope',
   'phoneCursor',
   'phoneRevision',
+  'phonePresentationRevision',
   'phoneSession',
   'phoneTransitionGeneration',
   'phoneTransitionLeg',
@@ -98,6 +128,7 @@ const rootDataKeys = [
   'phoneStableScene',
   'phoneAnchorY',
   'phoneRetryableRun',
+  'phoneLayerSegment',
   'portraitCheckpoint',
   'portraitCheckpointTrace',
   'portraitEdgeScene',
@@ -116,6 +147,16 @@ function data(
 function connected(element: HTMLElement | null): element is HTMLElement {
   if (!element) return false;
   return !('isConnected' in element) || element.isConnected !== false;
+}
+
+function presentationFor(
+  registration: PhoneSurfaceRegistration,
+  surfaceRoot: HTMLElement,
+  coverageRoot: HTMLElement,
+  mode: PhoneSurfacePresentationReadMode
+): PhoneSurfacePresentation {
+  return registration.presentation?.(mode)
+    ?? readPhoneSurfacePresentation(surfaceRoot, coverageRoot, mode);
 }
 
 function themeMeta(documentRef: Document): HTMLMetaElement | null {
@@ -155,8 +196,17 @@ function restoreDocument(documentRef: Document, before: DocumentSnapshot): void 
 function roleFor(
   snapshot: PhoneStorySnapshot,
   projection: PhonePresentationProjection,
-  registration: PhoneSurfaceRegistration
+  registration: PhoneSurfaceRegistration,
+  layerPlan: PhoneTransitionLayerPlan | null
 ): PhoneSurfaceRole {
+  if (layerPlan) {
+    if (registration.id === layerPlan.receiver.surface) {
+      return 'transition-receiver';
+    }
+    if (registration.id === layerPlan.source.surface) {
+      return 'transition-source';
+    }
+  }
   if (registration.id === projection.receiverSurface) {
     if (snapshot.status === 'stable') {
       return registration.kind === 'fixed' ? 'fixed-current' : 'stable';
@@ -172,6 +222,30 @@ function roleFor(
       : snapshot.status === 'stable' ? 'retired' : 'retained-under-stage';
   }
   return snapshot.status === 'stable' ? 'retired' : 'retained-under-stage';
+}
+
+function transitionLayerPlanFor(
+  snapshot: PhoneStorySnapshot
+): PhoneTransitionLayerPlan | null {
+  if (snapshot.projection.commitState !== 'transition') return null;
+  if (snapshot.status === 'scroll-run') {
+    const run = phoneScrollRun(snapshot.run);
+    return phoneTransitionLayerPlan(
+      phoneSegmentPresentationTuple(run.segment),
+      snapshot.scroll.direction === -1 ? -1 : 1,
+      snapshot.scroll.progress
+    );
+  }
+  if (snapshot.status !== 'transaction') return null;
+  const operation = snapshot.session.operation;
+  if (!operation.run) return null;
+  const leg = phoneRun(operation.run).legs[operation.legIndex];
+  if (!leg) return null;
+  return phoneTransitionLayerPlan(
+    phoneSegmentPresentationTuple(leg.segment),
+    operation.direction,
+    snapshot.session.progress
+  );
 }
 
 function executionEndpoints(
@@ -194,11 +268,15 @@ export function createPhoneStoryProjector({
   const registrations = new Map<string, PhoneSurfaceRegistration>();
   const ownedRoots = new Set<HTMLElement>();
   const decoratedEndpoints = new Set<HTMLElement>();
+  const decoratedLayers = new Set<HTMLElement>();
+  const decoratedEffects = new Set<HTMLElement>();
   let attached = false;
   let disposed = false;
   let endpoints: PhoneTransitionEndpoints | null = null;
   let checkpointTrace: readonly PhoneCheckpointId[] = [];
   let latestPlan: PhoneStoryProjectionPlan | null = null;
+  let observedEffectRoot: HTMLElement | null = null;
+  let effectObserver: MutationObserver | null = null;
 
   const ownRoot = (element: HTMLElement) => {
     rootOwners.set(element, token);
@@ -213,6 +291,60 @@ export function createPhoneStoryProjector({
       });
     }
   };
+  const clearLayer = (element: HTMLElement) => {
+    if (layerOwners.get(element) !== token) return;
+    data(element, 'phoneLayerRole', undefined);
+    layerOwners.delete(element);
+    decoratedLayers.delete(element);
+  };
+  const decorateLayer = (
+    element: HTMLElement,
+    role: PhonePresentationLayer
+  ) => {
+    layerOwners.set(element, token);
+    decoratedLayers.add(element);
+    data(element, 'phoneLayerRole', role);
+  };
+  const clearEffectDecorations = () => {
+    for (const element of decoratedEffects) clearLayer(element);
+    decoratedEffects.clear();
+  };
+  const decorateEffects = (
+    routeRoot: HTMLElement,
+    layerPlan: PhoneTransitionLayerPlan | null
+  ) => {
+    clearEffectDecorations();
+    if (!layerPlan) return;
+    const effectNodes = routeRoot.querySelectorAll?.('[data-r4-ink-segment]');
+    if (!effectNodes) return;
+    for (const node of effectNodes) {
+      const effectNode = node as HTMLElement;
+      if (
+        canonicalPhoneEffectSegment(effectNode.dataset.r4InkSegment)
+        !== layerPlan.segment
+      ) {
+        continue;
+      }
+      decorateLayer(
+        effectNode,
+        layerPlan.effect.role
+      );
+      decoratedEffects.add(effectNode);
+    }
+  };
+  const observeEffectMounts = (routeRoot: HTMLElement | null) => {
+    if (observedEffectRoot === routeRoot) return;
+    effectObserver?.disconnect();
+    effectObserver = null;
+    observedEffectRoot = routeRoot;
+    if (!routeRoot || typeof MutationObserver === 'undefined') return;
+    effectObserver = new MutationObserver(() => {
+      const plan = latestPlan;
+      if (!plan || plan.root !== routeRoot) return;
+      decorateEffects(routeRoot, plan.layerPlan);
+    });
+    effectObserver.observe(routeRoot, { childList: true, subtree: true });
+  };
   const clearEndpointDecorations = (next: readonly HTMLElement[] = []) => {
     for (const element of decoratedEndpoints) {
       if (next.includes(element)) continue;
@@ -221,6 +353,7 @@ export function createPhoneStoryProjector({
       data(element, 'phoneBoundarySession', undefined);
       data(element, 'phoneBoundaryGeneration', undefined);
       data(element, 'phoneBoundaryEndpoint', undefined);
+      clearLayer(element);
       if (element.dataset.phoneSurfaceRole?.startsWith('transition-')) {
         data(element, 'phoneSurfaceRole', undefined);
       }
@@ -244,6 +377,7 @@ export function createPhoneStoryProjector({
         return null;
       }
       const projection = snapshot.projection;
+      const layerPlan = transitionLayerPlanFor(snapshot);
       const surfaces: ResolvedSurface[] = [];
       for (const registration of registrations.values()) {
         const selected = registration.id === projection.receiverSurface
@@ -254,12 +388,21 @@ export function createPhoneStoryProjector({
           return null;
         }
         if (!connected(surfaceRoot) || !connected(coverageRoot)) continue;
-        if (selected && registration.presented && !registration.presented()) return null;
+        const presentation = presentationFor(
+          registration,
+          surfaceRoot,
+          coverageRoot,
+          'preflight'
+        );
+        if (
+          selected
+          && (!presentation[0] || !presentation[1] || !presentation[2])
+        ) return null;
         surfaces.push({
           registration,
           root: surfaceRoot,
           coverageRoot,
-          role: roleFor(snapshot, projection, registration)
+          role: roleFor(snapshot, projection, registration, layerPlan)
         });
       }
       return {
@@ -267,12 +410,13 @@ export function createPhoneStoryProjector({
         root: routeRoot,
         surfaces,
         endpoints: executionEndpoints(snapshot, endpoints),
+        layerPlan,
         checkpointTrace: nextTrace(projection.checkpoint)
       };
     },
     apply(plan) {
       if (disposed) return;
-      const { snapshot, root: routeRoot, surfaces } = plan;
+      const { snapshot, root: routeRoot, surfaces, layerPlan } = plan;
       const nextEndpoints = plan.endpoints
         ? [plan.endpoints.source, plan.endpoints.receiver]
         : [];
@@ -294,6 +438,7 @@ export function createPhoneStoryProjector({
         data(routeRoot, 'phoneAuthorityScope', scope);
         data(routeRoot, 'phoneCursor', cursor);
         data(routeRoot, 'phoneRevision', String(snapshot.revision));
+        data(routeRoot, 'phonePresentationRevision', String(projection.revision));
         data(routeRoot, 'phoneSession', session?.sessionId);
         data(routeRoot, 'phoneTransitionGeneration', session
           ? String(session.generation)
@@ -325,6 +470,7 @@ export function createPhoneStoryProjector({
           ? undefined
           : String(Math.round(session.anchor.y)));
         data(routeRoot, 'phoneRetryableRun', snapshot.diagnostics.lastRollback?.run ?? undefined);
+        data(routeRoot, 'phoneLayerSegment', layerPlan?.segment);
         data(routeRoot, 'portraitCheckpoint', projection.checkpoint);
         data(routeRoot, 'portraitCheckpointTrace', plan.checkpointTrace.join('>'));
         data(routeRoot, 'portraitEdgeScene', projection.edge);
@@ -354,6 +500,12 @@ export function createPhoneStoryProjector({
       }
       for (const surface of surfaces) {
         data(surface.root, 'phoneSurfaceRole', surface.role);
+        const layer = layerPlan && surface.registration.id === layerPlan.source.surface
+          ? layerPlan.source.role
+          : layerPlan && surface.registration.id === layerPlan.receiver.surface
+            ? layerPlan.receiver.role
+            : phoneLayerForSurfaceRole(surface.role);
+        decorateLayer(surface.root, layer);
         delete surface.root.dataset.phoneBoundarySession;
         delete surface.root.dataset.phoneBoundaryGeneration;
         delete surface.root.dataset.phoneBoundaryEndpoint;
@@ -362,6 +514,14 @@ export function createPhoneStoryProjector({
         const { source, receiver, sessionId, generation } = plan.endpoints;
         data(source, 'phoneSurfaceRole', 'transition-source');
         data(receiver, 'phoneSurfaceRole', 'transition-receiver');
+        decorateLayer(
+          source,
+          layerPlan?.source.role ?? phoneLayerForSurfaceRole('transition-source')
+        );
+        decorateLayer(
+          receiver,
+          layerPlan?.receiver.role ?? phoneLayerForSurfaceRole('transition-receiver')
+        );
         for (const [element, endpoint] of [[source, 'source'], [receiver, 'receiver']] as const) {
           data(element, 'phoneBoundarySession', sessionId);
           data(element, 'phoneBoundaryGeneration', String(generation));
@@ -370,8 +530,10 @@ export function createPhoneStoryProjector({
           decoratedEndpoints.add(element);
         }
       }
+      if (routeRoot) decorateEffects(routeRoot, layerPlan);
       checkpointTrace = plan.checkpointTrace;
       latestPlan = plan;
+      observeEffectMounts(routeRoot);
     },
     reapplyCurrent() {
       if (latestPlan) this.apply(latestPlan);
@@ -387,17 +549,39 @@ export function createPhoneStoryProjector({
       };
     },
     hasPresentedSurface(scene) {
-      for (const registration of registrations.values()) {
-        if (registration.scene !== scene) continue;
-        const surfaceRoot = registration.root();
-        const coverageRoot = registration.coverageRoot?.() ?? surfaceRoot;
-        if (
-          connected(surfaceRoot)
-          && connected(coverageRoot)
-          && (registration.presented?.() ?? true)
-        ) return true;
+      const presentation = this.readSurfacePresentation(scene);
+      return Boolean(
+        presentation?.[0]
+        && presentation[1]
+        && presentation[2]
+      );
+    },
+    readSurfacePresentation(scene) {
+      const receiver = phoneScenePresentationTuple(scene)[4];
+      const registration = registrations.get(receiver);
+      if (!registration) return null;
+      const surfaceRoot = registration.root();
+      const coverageRoot = registration.coverageRoot?.() ?? surfaceRoot;
+      if (!connected(surfaceRoot) || !connected(coverageRoot)) return null;
+      // A direct target is proven by its manifest-scoped content contract.
+      // Custom readers remain only for tests that deliberately inject facts.
+      return registration.presentation?.('committed')
+        ?? readPhoneScenePresentation(scene, surfaceRoot, coverageRoot, 'committed');
+    },
+    prepareDirectEntry(scene, request) {
+      const contract = phoneScenePresentationTuple(scene);
+      const receiver = contract[4];
+      const registration = registrations.get(receiver);
+      if (!registration) {
+        throw new Error('No phone surface registration for direct entry: ' + scene);
       }
-      return false;
+      if (!registration.prepareDirectEntry) {
+        if (contract[6] === 'visual') {
+          throw new Error('Visual phone surface has no direct-entry preparation: ' + scene);
+        }
+        return;
+      }
+      return registration.prepareDirectEntry(request);
     },
     registerTransitionEndpoints(next) {
       endpoints = next;
@@ -414,6 +598,11 @@ export function createPhoneStoryProjector({
     dispose() {
       if (disposed) return;
       clearEndpointDecorations();
+      effectObserver?.disconnect();
+      effectObserver = null;
+      observedEffectRoot = null;
+      clearEffectDecorations();
+      for (const element of [...decoratedLayers]) clearLayer(element);
       disposed = true;
       endpoints = null;
       registrations.clear();

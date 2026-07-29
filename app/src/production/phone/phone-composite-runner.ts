@@ -1,7 +1,11 @@
 import type {
   ScenePresentationAdapterHandle
 } from '../../story/presentation';
-import type { PhoneRunId } from './phone-story-runs';
+import {
+  phoneRun,
+  type PhoneRunId
+} from './phone-story-runs';
+import { phoneSegmentPresentationTuple } from './phone-presentation-contract';
 import type {
   PhoneStoryRuntimePort
 } from './phone-story-orchestrator';
@@ -88,6 +92,7 @@ export type PhoneCompositeRunner<Visual extends string> = Readonly<{
   /** Snapshot-matching media identity for legacy event bridges. */
   execution(scene: Visual): PhoneExecutionToken | null;
   heartbeat(scene: Visual, identity: PhoneExecutionToken): void;
+  reportMediaFrame(scene: Visual, identity: PhoneExecutionToken): void;
   progressMedia(
     scene: Visual,
     identity: PhoneExecutionToken,
@@ -147,6 +152,26 @@ export function createPhoneCompositeRunner<
       ? options.directConfig(resource.scene)
       : options.config(resource.scene)
   );
+  const firstFrameRequirement = (resource: ExecutionResources<Visual>) => {
+    const run = phoneRun(options.runForVisual(resource.scene));
+    const leg = run.legs[resource.session[3]()];
+    return leg
+      ? (() => {
+          const contract = phoneSegmentPresentationTuple(leg.segment);
+          return [contract[8], contract[9]] as const;
+        })()
+      : null;
+  };
+  const firstFrameUsesEffect = (resource: ExecutionResources<Visual>) => (
+    firstFrameRequirement(resource)?.[0] === 'effect-frame'
+  );
+  const reportPresentedFrame = (resource: ExecutionResources<Visual>) => {
+    if (resources !== resource || !resource.session[4]()) return false;
+    const requirement = firstFrameRequirement(resource);
+    if (!requirement) return false;
+    resource.session[5](requirement[0], requirement[1]);
+    return true;
+  };
   const clearTimer = (resource: ExecutionResources<Visual>) => {
     if (!resource.timeout) return;
     window.clearTimeout(resource.timeout);
@@ -247,6 +272,29 @@ export function createPhoneCompositeRunner<
     );
     armTimeout(resource);
   };
+  const startEffectTransition = (
+    resource: ExecutionResources<Visual>,
+    transition: PhoneTransitionAdapterHandle,
+    afterPresented: () => void
+  ) => {
+    let reported = false;
+    transition.begin(identityFor(resource), () => {
+      if (reported || resources !== resource || !resource.session[4]()) return;
+      reported = true;
+      if (!reportPresentedFrame(resource)) {
+        rollback(resource);
+        return;
+      }
+      afterPresented();
+    });
+    transition.commitEndpoint(resource.direction === 1 ? 0 : 1);
+    // An Ink adapter must draw an actual in-between frame before it can
+    // advance the reducer. Endpoint/mask setup by itself is not evidence.
+    transition.prepareFirstFrame?.(resource.direction);
+    if (!transition.prepareFirstFrame) {
+      transition.render(resource.direction === 1 ? .003 : .997);
+    }
+  };
   const startMedia = (
     resource: ExecutionResources<Visual>,
     config: DirectConfig,
@@ -261,7 +309,6 @@ export function createPhoneCompositeRunner<
       config.media.begin(identityFor(resource));
       config.media.commitEndpoint(0);
     }
-    resource.session[5]();
     if (options.startMedia) {
       options.startMedia({
         scene: resource.scene,
@@ -285,7 +332,6 @@ export function createPhoneCompositeRunner<
     config: FullConfig
   ) => {
     if (resources !== resource || !resource.session[4]()) return;
-    resource.session[5]();
     if (resource.direction === 1) config.entry.enter?.();
     else config.entry.reverse?.();
     const endpoint = resource.direction === 1 ? 1 : 0;
@@ -337,9 +383,9 @@ export function createPhoneCompositeRunner<
       const extra = options.acquireReverseEntry?.(identityFor(resource), full);
       if (extra) resource.releaseExtra = () => extra.releaseGeometry();
       claimRoles(resource, source, receiver);
-      full.entry.begin(identityFor(resource));
-      full.entry.commitEndpoint(1);
-      startEntry(resource, full);
+      startEffectTransition(resource, full.entry, () => {
+        startEntry(resource, full);
+      });
     });
   };
   const settleReduced = (
@@ -357,7 +403,7 @@ export function createPhoneCompositeRunner<
     if (resource.direction === 1) {
       full.entry.commitEndpoint(1);
       releaseRoles(resource, 'receiver');
-      resource.session[5]();
+      if (!reportPresentedFrame(resource)) return rollback(resource);
       resource.session[6](1);
       const source = full.visual.root();
       const receiver = full.final.root();
@@ -371,7 +417,7 @@ export function createPhoneCompositeRunner<
     } else {
       full.media.commitEndpoint(0);
       releaseRoles(resource, 'receiver');
-      resource.session[5]();
+      if (!reportPresentedFrame(resource)) return rollback(resource);
       resource.session[6](0);
       const source = full.visual.root();
       const receiver = full.prior.root();
@@ -410,26 +456,44 @@ export function createPhoneCompositeRunner<
       const transition = resource.direct || resource.direction === -1
         ? config.media
         : full.entry;
-      transition.begin(identityFor(resource));
-      transition.commitEndpoint(resource.direction === 1 ? 0 : 1);
       const prepareTarget = config.visual.prepareTargetPresentation;
       if (!prepareTarget) return rollback(resource);
       await prepareTarget({
         progress: resource.direction === 1 ? 0 : 1,
         direction: resource.direction,
-        runId: `${resource.session[1]}:${resource.session[2]}`,
-        signal: resource.abortController.signal
+        runId: resource.session[1] + ':' + resource.session[2],
+        signal: resource.abortController.signal,
+        directEntry: resource.direct
       });
       if (
         resource.abortController.signal.aborted
         || resources !== resource
         || !resource.session[4]()
       ) return;
-      resource.session[5]();
-      clearTimer(resource);
-      if (options.reducedMotion) settleReduced(resource, config);
-      else if (!resource.direct && resource.direction === 1) startEntry(resource, full);
-      else startMedia(resource, config, true);
+      const continueAfterPresented = () => {
+        if (resources !== resource || !resource.session[4]()) return;
+        if (!resource.direct && resource.direction === 1) {
+          startEntry(resource, full);
+        } else {
+          startMedia(resource, config, true);
+        }
+      };
+      if (options.reducedMotion) {
+        transition.begin(identityFor(resource));
+        transition.commitEndpoint(resource.direction === 1 ? 0 : 1);
+        // Reduced motion settles through an authored static endpoint; it still
+        // reports the manifest requirement in the same authority revision.
+        if (!reportPresentedFrame(resource)) return rollback(resource);
+        clearTimer(resource);
+        settleReduced(resource, config);
+      } else if (firstFrameUsesEffect(resource)) {
+        startEffectTransition(resource, transition, continueAfterPresented);
+      } else {
+        transition.begin(identityFor(resource));
+        transition.commitEndpoint(resource.direction === 1 ? 0 : 1);
+        // Packed/native media must call reportMediaFrame after a physical draw.
+        startMedia(resource, config, true);
+      }
     } catch {
       rollback(resource);
     }
@@ -503,6 +567,11 @@ export function createPhoneCompositeRunner<
     heartbeat(scene, identity) {
       const resource = resourcesForMedia(scene, identity);
       if (resource) armTimeout(resource);
+    },
+    reportMediaFrame(scene, identity) {
+      const resource = resourcesForMedia(scene, identity);
+      if (!resource || !reportPresentedFrame(resource)) return;
+      armTimeout(resource);
     },
     progressMedia(scene, identity, progress) {
       const resource = resourcesForMedia(scene, identity);

@@ -90,6 +90,13 @@ export type PhoneTtgMediaAction =
 
 type PhoneTtgProps = Group45PhoneSceneProps;
 
+type VideoWithFrameCallbacks = HTMLVideoElement & Readonly<{
+  requestVideoFrameCallback?: (
+    callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+  ) => number;
+  cancelVideoFrameCallback?: (handle: number) => void;
+}>;
+
 function sameExecution(
   left: PhoneExecutionToken | null,
   right: PhoneExecutionToken | null
@@ -99,6 +106,29 @@ function sameExecution(
     && left?.[2] === right?.[2]
     && left?.[3] === right?.[3]
     && left?.[4] === right?.[4];
+}
+
+function waitForPhoneTtgPresentedFrame(
+  video: HTMLVideoElement,
+  signal: AbortSignal
+): Promise<boolean> {
+  const frameVideo = video as VideoWithFrameCallbacks;
+  if (!frameVideo.requestVideoFrameCallback) return Promise.resolve(false);
+  if (signal.aborted) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    let frame = 0;
+    let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const finish = (presented: boolean) => {
+      if (timeout !== undefined) globalThis.clearTimeout(timeout);
+      if (frame) frameVideo.cancelVideoFrameCallback?.(frame);
+      signal.removeEventListener('abort', onAbort);
+      resolve(presented);
+    };
+    const onAbort = () => finish(false);
+    signal.addEventListener('abort', onAbort, { once: true });
+    frame = frameVideo.requestVideoFrameCallback(() => finish(true));
+    timeout = globalThis.setTimeout(() => finish(false), 1_500);
+  });
 }
 
 /** Desktop-authored TTG motion sampled inside the portrait crop. */
@@ -154,6 +184,7 @@ export function releasePhoneTtgVideo(video: HTMLVideoElement | null): void {
   disposePhoneTimelineVideo(video);
   video.pause();
   delete video.dataset.phoneTtgEndpointReady;
+  delete video.dataset.phonePresentationFrame;
   video.removeAttribute('src');
   for (const source of video.querySelectorAll('source')) {
     source.removeAttribute('src');
@@ -357,6 +388,7 @@ export const PhoneTtg = forwardRef<
     onComplete,
     onMediaError,
     onProgress,
+    onPresentedFrame,
     onReady
   },
   forwardedRef
@@ -392,12 +424,14 @@ export const PhoneTtg = forwardRef<
   const completionListenerRef = useRef(onComplete);
   const mediaErrorListenerRef = useRef(onMediaError);
   const progressListenerRef = useRef(onProgress);
+  const presentedFrameListenerRef = useRef(onPresentedFrame);
   const [mediaMounted, setMediaMounted] = useState(mediaMountedRef.current);
   const [mediaReady, setMediaReady] = useState(false);
   const [mediaFailed, setMediaFailed] = useState(false);
   completionListenerRef.current = onComplete;
   mediaErrorListenerRef.current = onMediaError;
   progressListenerRef.current = onProgress;
+  presentedFrameListenerRef.current = onPresentedFrame;
 
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name !== 'figure-video') return;
@@ -540,6 +574,7 @@ export const PhoneTtg = forwardRef<
     playbackRef.current?.dispose();
     playbackRef.current = null;
     disposeTtgMedia(rootRef.current);
+    delete rootRef.current?.dataset.phonePresentationFrame;
     releasePhoneTtgVideo(videoRef.current);
     mediaMountedRef.current = false;
     setMediaReady(false);
@@ -857,6 +892,16 @@ export const PhoneTtg = forwardRef<
         },
         onPresentedFrame: (mediaTime) => {
           markPhoneTtgPresentedEndpoint(video, mediaTime);
+          video.dataset.phonePresentationFrame = 'ready';
+          rootRef.current?.setAttribute('data-phone-presentation-frame', 'ready');
+          const identity = runIdentityRef.current;
+          if (
+            identity
+            && activeRef.current
+            && !mediaRetiringRef.current
+          ) {
+            presentedFrameListenerRef.current?.('ttg-animation', identity);
+          }
         },
         onComplete: (playbackDirection) => {
           const completionGeneration = runGenerationRef.current;
@@ -1002,6 +1047,7 @@ export const PhoneTtg = forwardRef<
       initialFramePreparationRef.current = null;
     }
     let terminalRequested = false;
+    let directFrameRequested = false;
     const abandon = () => {
       if (targetPreparationRef.current !== target) return;
       targetPreparationRef.current = null;
@@ -1015,8 +1061,32 @@ export const PhoneTtg = forwardRef<
         }
         const video = videoRef.current;
         if (!video || !playbackRef.current) return null;
-        if (phoneTtgHasReusableEndpointFrame(video, endpoint)) {
+        if (
+          phoneTtgHasReusableEndpointFrame(video, endpoint)
+          && (!request.directEntry
+            || video.dataset.phonePresentationFrame === 'ready')
+        ) {
           return true;
+        }
+        if (
+          request.directEntry
+          && phoneTtgHasReusableEndpointFrame(video, endpoint)
+          && !directFrameRequested
+        ) {
+          directFrameRequested = true;
+          void waitForPhoneTtgPresentedFrame(video, request.signal).then((presented) => {
+            if (
+              !presented
+              || request.signal.aborted
+              || targetPreparationRef.current !== target
+            ) {
+              if (!request.signal.aborted) failMedia();
+              return;
+            }
+            video.dataset.phonePresentationFrame = 'ready';
+            root.dataset.phonePresentationFrame = 'ready';
+            renderFrame(endpoint);
+          });
         }
         if (endpoint === 0) {
           void ensureInitialFrame(video);

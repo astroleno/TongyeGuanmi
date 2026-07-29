@@ -45,6 +45,13 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+function sameToken(
+  left: PhoneExecutionToken,
+  right: PhoneExecutionToken
+): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 /**
  * Owns AOD's single-source packed-alpha compositor, forward native playback,
  * reverse timeline playback, and every AOD-local visual track. The stage
@@ -53,7 +60,14 @@ function clamp(value: number): number {
  */
 export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps>(
   function PhoneAod(
-    { active, reducedMotion, onReady, onAodProgress, onAodComplete },
+    {
+      active,
+      reducedMotion,
+      onReady,
+      onAodProgress,
+      onAodComplete,
+      onAodFrame
+    },
     forwardedRef
   ) {
     const rootRef = useRef<HTMLDivElement | null>(null);
@@ -67,19 +81,29 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       ) => void
     >(undefined);
     const autoplayIdentityRef = useRef<PhoneExecutionToken | null>(null);
+    const compositorEpochRef = useRef(0);
+    const renderedFrameRef = useRef<Readonly<{
+      progress: number;
+      direction: PhoneAodPlaybackDirection;
+      identity: PhoneExecutionToken;
+    }> | null>(null);
     const progressListenerRef = useRef(onAodProgress);
     const completeListenerRef = useRef(onAodComplete);
+    const frameListenerRef = useRef(onAodFrame);
     const releaseCompositor = useCallback(() => {
+      compositorEpochRef.current += 1;
       const compositor = compositorRef.current;
       const canvas = rootRef.current?.querySelector<HTMLCanvasElement>(
         '[data-aod-figure-canvas]'
       );
+      delete rootRef.current?.dataset.phonePresentationFrame;
+      canvas?.removeAttribute('data-phone-presentation-frame');
       if (!compositor) return;
       compositor.dispose();
       compositorRef.current = undefined;
       if (canvas) renewPackedAlphaCanvas(canvas);
     }, []);
-    const ensureCompositor = useCallback(() => {
+    const ensureCompositor = useCallback((identity: PhoneExecutionToken | null) => {
       if (reducedMotion) return undefined;
       if (compositorRef.current) return compositorRef.current;
       const root = rootRef.current;
@@ -89,13 +113,37 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       const canvas = root?.querySelector<HTMLCanvasElement>(
         '[data-aod-figure-canvas]'
       );
-      if (!video || !canvas) return undefined;
-      const compositor = createPackedAlphaVideoCompositor({ video, canvas });
+      if (!root || !video || !canvas) return undefined;
+      const epoch = ++compositorEpochRef.current;
+      const compositor = createPackedAlphaVideoCompositor({
+        video,
+        canvas,
+        onFrame: () => {
+          const rendered = renderedFrameRef.current;
+          if (
+            !identity
+            || !rendered
+            || rootRef.current !== root
+            || compositorEpochRef.current !== epoch
+            || autoplayIdentityRef.current === null
+            || !sameToken(autoplayIdentityRef.current, identity)
+            || !sameToken(rendered.identity, identity)
+          ) return;
+          root.dataset.phonePresentationFrame = 'ready';
+          canvas.dataset.phonePresentationFrame = 'ready';
+          frameListenerRef.current?.(
+            rendered.progress,
+            rendered.direction,
+            identity
+          );
+        }
+      });
       compositorRef.current = compositor;
       return compositor;
     }, [reducedMotion]);
     progressListenerRef.current = onAodProgress;
     completeListenerRef.current = onAodComplete;
+    frameListenerRef.current = onAodFrame;
 
     useEffect(() => {
       const root = rootRef.current;
@@ -161,6 +209,11 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           transition.setAttribute('data-aod-exit-active', 'true');
         }
         if (identity) {
+          // Render immediately after the current execution publishes its
+          // canonical progress. The compositor callback is therefore a real
+          // texImage2D + drawArrays proof for this exact progress sample.
+          renderedFrameRef.current = { progress, direction, identity };
+          compositorRef.current?.render();
           progressListenerRef.current?.(progress, direction, identity);
         }
       };
@@ -225,7 +278,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     // assigned synchronously by the story projector's surface role.
     useEffect(() => {
       if (active) {
-        ensureCompositor()?.setActive(!reducedMotion);
+        ensureCompositor(null)?.setActive(!reducedMotion);
         return;
       }
       compositorRef.current?.setActive(false);
@@ -239,17 +292,30 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       },
       startAutoplay(direction, identity) {
         autoplayIdentityRef.current = identity;
+        renderedFrameRef.current = null;
         if (reducedMotion) {
+          const root = rootRef.current;
+          if (root) root.dataset.phonePresentationFrame = 'ready';
+          frameListenerRef.current?.(direction === 1 ? 1 : 0, direction, identity);
           renderRef.current?.(direction === 1 ? 1 : 0, direction, identity);
           autoplayIdentityRef.current = null;
           completeListenerRef.current?.(direction, identity);
           return Promise.resolve('playing');
         }
-        ensureCompositor()?.setActive(true);
+        delete rootRef.current?.dataset.phonePresentationFrame;
+        rootRef.current?.querySelector<HTMLElement>(
+          '[data-aod-figure-canvas]'
+        )?.removeAttribute('data-phone-presentation-frame');
+        // A retired compositor callback must never become evidence for the
+        // next generation. Reacquire a canvas whose frame closure captures
+        // only this immutable execution token.
+        releaseCompositor();
+        ensureCompositor(identity)?.setActive(true);
         return autoplayRef.current?.start(direction, identity) ?? Promise.resolve('error');
       },
       resetAutoplay() {
         autoplayIdentityRef.current = null;
+        renderedFrameRef.current = null;
         if (reducedMotion) {
           renderRef.current?.(0);
         } else {
@@ -257,15 +323,17 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         }
       },
       enter() {
-        ensureCompositor()?.setActive(true);
+        ensureCompositor(null)?.setActive(true);
       },
       leave() {
         autoplayIdentityRef.current = null;
+        renderedFrameRef.current = null;
         releaseCompositor();
       },
       reverse() {},
       dispose() {
         autoplayIdentityRef.current = null;
+        renderedFrameRef.current = null;
         autoplayRef.current?.dispose();
         releaseCompositor();
       }

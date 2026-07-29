@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { phoneMotionDriver } from './phone-gsap-driver';
-import { phoneGsapCheckPrefix } from './usePhoneStageRuntime';
+import { phoneStageScrollBounds } from './usePhoneStageRuntime';
 
 const driverSource = readFileSync(
   new URL('./phone-gsap-driver.ts', import.meta.url),
@@ -50,24 +50,14 @@ describe('phone GSAP runtime and core driver', () => {
     expect(target.style.opacity).toBe('0.4');
   });
 
-  it('registers ScrollTrigger on the same lightweight core as the style driver', () => {
+  it('keeps GSAP local to motion and derives stage ranges from native geometry', () => {
     expect(driverSource).toContain("from 'gsap/gsap-core'");
-    expect(runtimeSource).toContain("from 'gsap/gsap-core'");
-    expect(runtimeSource).toContain("from 'gsap/ScrollTrigger'");
-    expect(runtimeSource).toContain('gsap.registerPlugin(ScrollTrigger)');
-    expect(runtimeSource.indexOf('if (!phoneGsapUtils.checkPrefix)'))
-      .toBeLessThan(runtimeSource.indexOf('gsap.registerPlugin(ScrollTrigger)'));
-    expect(runtimeSource).not.toContain('phoneGsapUtils.checkPrefix ??=');
     expect(driverSource).not.toContain("from 'gsap'");
+    expect(driverSource).not.toContain('scrollTrigger:');
+    expect(runtimeSource).not.toContain("from 'gsap/ScrollTrigger'");
+    expect(phoneStageScrollBounds(1200, -200, 2400)).toEqual([1000, 3400]);
+    expect(phoneStageScrollBounds(0, 80, 0)).toEqual([80, 81]);
     expect(runtimeSource).not.toContain('@gsap/react');
     expect(driverSource).toContain("gsap.quickTo(state, 'value'");
-  });
-
-  it('supplies the CSS prefix lookup ScrollTrigger expects from full GSAP', () => {
-    expect(phoneGsapCheckPrefix('transform', { transform: '' }))
-      .toBe('transform');
-    expect(phoneGsapCheckPrefix('transform', { WebkitTransform: '' }))
-      .toBe('WebkitTransform');
-    expect(phoneGsapCheckPrefix('transform', {})).toBe('transform');
   });
 });

@@ -43,7 +43,7 @@ export type PhoneInkTransitionCommand =
 /** A callable bridge keeps the mutable ink handle inside its owner chunk. */
 export type PhoneInkTransitionBridge = (
   command: PhoneInkTransitionCommand
-) => void;
+) => boolean | void;
 
 /** @deprecated v=16 characterization alias for the callable ink bridge. */
 export type PhoneInkTransition = PhoneInkTransitionBridge;
@@ -110,7 +110,7 @@ export function createPhoneInkTransition(
     );
   };
 
-  const render = (rawProgress: number) => {
+  const render = (rawProgress: number): boolean => {
     if (!geometryLease) {
       begin([
         `phone-ink:${options.id}`,
@@ -120,7 +120,7 @@ export function createPhoneInkTransition(
         1
       ]);
     }
-    runtime(['render', rawProgress]);
+    return runtime(['render', rawProgress]) === true;
   };
 
   const releaseEndpoint = () => {
@@ -134,8 +134,7 @@ export function createPhoneInkTransition(
         begin(command[1]);
         return;
       case 'render':
-        render(command[1]);
-        return;
+        return render(command[1]);
       case 'commitEndpoint':
         render(command[1]);
         return;

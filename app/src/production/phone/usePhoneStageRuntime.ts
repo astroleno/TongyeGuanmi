@@ -4,8 +4,6 @@ import {
   useRef,
   type RefObject
 } from 'react';
-import { gsap } from 'gsap/gsap-core';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type {
   PhoneStoryRuntimePort
 } from './phone-story-orchestrator';
@@ -30,41 +28,25 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
+import { createPhoneAodPresentationGate } from './phone-aod-presentation-gate';
+import { attachPhoneMediaGestureLease } from './phone-media-gesture-lease';
 
-type PhonePrefixStyle = object;
-
-export function phoneGsapCheckPrefix(
-  property: string,
-  style?: PhonePrefixStyle
-): string {
-  const targetStyle = style ?? (
-    typeof document === 'undefined'
-      ? undefined
-      : document.createElement('div').style
-  );
-  if (!targetStyle || property in targetStyle) return property;
-
-  const capitalized = property.charAt(0).toUpperCase() + property.slice(1);
-  for (const prefix of ['Webkit', 'Moz', 'ms', 'O'] as const) {
-    const candidate = `${prefix}${capitalized}`;
-    if (candidate in targetStyle) return candidate;
-  }
-  return property;
-}
-
-const phoneGsapUtils = gsap.utils as typeof gsap.utils & {
-  checkPrefix?: (property: string) => string;
-};
-if (!phoneGsapUtils.checkPrefix) {
-  phoneGsapUtils.checkPrefix = phoneGsapCheckPrefix;
-}
-gsap.registerPlugin(ScrollTrigger);
+const phoneStageRefreshers = new Set<() => void>();
 
 export function refreshPhoneScrollStage(): void {
-  ScrollTrigger.refresh();
+  for (const refresh of phoneStageRefreshers) refresh();
 }
 
-const PHONE_AOD_RUN_TIMEOUT_MS = 6000;
+/** Native document-coordinate replacement for ScrollTrigger's top/top range. */
+export function phoneStageScrollBounds(
+  scrollY: number,
+  railTop: number,
+  scrollDistance: number
+): readonly [start: number, end: number] {
+  const start = scrollY + railTop;
+  return [start, start + Math.max(1, scrollDistance)];
+}
+
 const FRONT_AOD_SURFACE = 'front:aod';
 
 /** Resource activity is derived from the same projection that owns root roles. */
@@ -222,6 +204,11 @@ export type PhoneStageRuntime = Readonly<{
     identity: PhoneExecutionToken
   ): void;
   onAodComplete(direction: 1 | -1, identity: PhoneExecutionToken): void;
+  onAodFrame(
+    progress: number,
+    direction: 1 | -1,
+    identity: PhoneExecutionToken
+  ): void;
 }>;
 
 /**
@@ -247,6 +234,13 @@ export function usePhoneStageRuntime(
   const completeHandlerRef = useRef<
     ((direction: 1 | -1, identity: PhoneExecutionToken) => void) | undefined
   >(undefined);
+  const frameHandlerRef = useRef<
+    ((
+      progress: number,
+      direction: 1 | -1,
+      identity: PhoneExecutionToken
+    ) => void) | undefined
+  >(undefined);
 
   const onAodProgress = useCallback((
     progress: number,
@@ -260,6 +254,13 @@ export function usePhoneStageRuntime(
     identity: PhoneExecutionToken
   ) => {
     completeHandlerRef.current?.(direction, identity);
+  }, []);
+  const onAodFrame = useCallback((
+    progress: number,
+    direction: 1 | -1,
+    identity: PhoneExecutionToken
+  ) => {
+    frameHandlerRef.current?.(progress, direction, identity);
   }, []);
 
   useLayoutEffect(() => {
@@ -312,23 +313,33 @@ export function usePhoneStageRuntime(
     let lastRailY = snapshotRef.current[14];
     let completedHeroEntrance = false;
     let observedAodSession: string | null = null;
-    let activeAodSession: PhoneCompositeSession | null = null;
-    let activeAodIdentity: PhoneExecutionToken | null = null;
-    const aodTimers = new Set<number>();
-    const clearAodTimers = () => {
-      for (const timer of aodTimers) window.clearTimeout(timer);
-      aodTimers.clear();
-    };
-    const clearActiveAod = () => {
-      activeAodSession = null;
-      activeAodIdentity = null;
-    };
+    const aodGate = createPhoneAodPresentationGate({
+      startAutoplay: (direction, identity) => aodAdapter.startAutoplay(
+        direction,
+        identity
+      ),
+      onReset: () => aodAdapter.resetAutoplay()
+    });
+    const aodGateSession = (
+      session: PhoneCompositeSession,
+      direction: 1 | -1
+    ) => ({
+      identity: tokenForAodSession(session, direction),
+      valid: session[4],
+      // The compositor callback is the only first-frame source. Keep the
+      // proof and the prepare->animate event in one authority transaction.
+      reportFrame: () => session[5]('packed-canvas-frame', FRONT_AOD_SURFACE),
+      reportEvidence: () => undefined,
+      reportProgress: session[6],
+      complete: () => {
+        if (!session[4]()) return;
+        session[9]('receiver');
+        session[10]();
+      },
+      fail: session[13]
+    });
     const stagePosition = (progress: number) => stageScrollStart
       + (stageScrollEnd - stageScrollStart) * progress;
-    const updateStageGeometry = (trigger: ScrollTrigger) => {
-      stageScrollStart = trigger.start;
-      stageScrollEnd = trigger.end;
-    };
     const readStageScrollDistance = () => {
       const configuredDistance = Number.parseFloat(
         root.style.getPropertyValue('--portrait-stage-scroll-distance')
@@ -336,6 +347,15 @@ export function usePhoneStageRuntime(
       return Number.isFinite(configuredDistance) && configuredDistance > 0
         ? configuredDistance
         : Math.max(1, stageRail.offsetHeight - stage.offsetHeight);
+    };
+    const refreshStageGeometry = () => {
+      const [start, end] = phoneStageScrollBounds(
+        window.scrollY,
+        stageRail.getBoundingClientRect().top,
+        readStageScrollDistance()
+      );
+      stageScrollStart = start;
+      stageScrollEnd = end;
     };
     const renderSnapshot = (snapshot: PhoneCinematicSnapshot) => {
       if (!active) return;
@@ -345,8 +365,7 @@ export function usePhoneStageRuntime(
         ? `${aodToken[1]}:${aodToken[2]}`
         : null;
       if (observedAodSession && observedAodSession !== aodSession) {
-        clearAodTimers();
-        clearActiveAod();
+        aodGate.reset();
         aodAdapter.resetAutoplay();
       }
       observedAodSession = aodSession;
@@ -397,21 +416,16 @@ export function usePhoneStageRuntime(
       }
     };
 
-    const stageTrigger = ScrollTrigger.create({
-      id: 'portrait-spike-stage',
-      trigger: stageRail,
-      start: 'top top',
-      end: () => `+=${readStageScrollDistance()}`,
-      invalidateOnRefresh: true,
-      // ScrollTrigger is geometry-only. The document sampler is the sole
-      // publisher of a front-rail sample into the authority.
-      onUpdate: updateStageGeometry,
-      onRefresh: updateStageGeometry,
-      onEnter: () => undefined,
-      onEnterBack: () => undefined,
-      onLeave: () => undefined
-    });
-    updateStageGeometry(stageTrigger);
+    // The document sampler is the sole publisher of progress. Native bounds
+    // keep Safari toolbar coverage changes from importing ScrollTrigger.
+    refreshStageGeometry();
+    phoneStageRefreshers.add(refreshStageGeometry);
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(refreshStageGeometry);
+    resizeObserver?.observe(stageRail);
+    window.addEventListener('resize', refreshStageGeometry);
+    window.addEventListener('orientationchange', refreshStageGeometry);
 
     const surfaceLeases = [
       registerPhoneRuntimeSurface(
@@ -420,8 +434,7 @@ export function usePhoneStageRuntime(
         'hero',
         'fixed',
         () => heroAdapter.root(),
-        () => stage,
-        () => true
+        () => stage
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -429,8 +442,7 @@ export function usePhoneStageRuntime(
         'pattern',
         'fixed',
         () => patternAdapter.root(),
-        () => stage,
-        () => true
+        () => stage
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -438,8 +450,7 @@ export function usePhoneStageRuntime(
         'star-map',
         'fixed',
         () => starAdapter.root(),
-        () => stage,
-        () => true
+        () => stage
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -447,8 +458,7 @@ export function usePhoneStageRuntime(
         'aod-animation',
         'fixed',
         () => aodAdapter.root(),
-        () => stage,
-        () => true
+        () => stage
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -456,8 +466,7 @@ export function usePhoneStageRuntime(
         'method-top',
         'native',
         () => methodAdapter.root(),
-        () => stage,
-        () => true
+        () => stage
       )
     ];
     const corridorLease = registerPhoneRuntimeSampledScrollCorridor(
@@ -511,60 +520,34 @@ export function usePhoneStageRuntime(
       },
       (direction, session) => {
         if (!session[4]()) return false;
-        const identity = tokenForAodSession(session, direction);
-        activeAodSession = session;
-        activeAodIdentity = identity;
-        // The packed-alpha poster is already projected; publish its frame
-        // before an adapter's reduced-motion completion can fire synchronously.
-        session[5]();
-        const timer = window.setTimeout(() => {
-          aodTimers.delete(timer);
-          if (activeAodSession === session) clearActiveAod();
-          if (session[4]()) session[13]();
-        }, PHONE_AOD_RUN_TIMEOUT_MS);
-        aodTimers.add(timer);
-        void aodAdapter.startAutoplay(direction, identity).then(
-          (result) => {
-            if (result === 'playing' || !session[4]()) return;
-            window.clearTimeout(timer);
-            aodTimers.delete(timer);
-            if (activeAodSession === session) clearActiveAod();
-            session[13]();
-          },
-          () => {
-            window.clearTimeout(timer);
-            aodTimers.delete(timer);
-            if (activeAodSession === session) clearActiveAod();
-            if (session[4]()) session[13]();
-          }
-        );
-        return true;
+        return aodGate.start(aodGateSession(session, direction));
       },
       () => false
     );
 
     const emitAodProgress = (
       progress: number,
-      _direction: 1 | -1,
+      direction: 1 | -1,
       identity: PhoneExecutionToken
     ) => {
-      const session = activeAodSession;
-      if (!session || identity !== activeAodIdentity || !session[4]()) return;
-      session[6](progress);
+      aodGate.observeMediaProgress(progress, direction, identity);
+    };
+    const emitAodFrame = (
+      progress: number,
+      direction: 1 | -1,
+      identity: PhoneExecutionToken
+    ) => {
+      aodGate.reportCompositorFrame(progress, direction, identity);
     };
     const completeAod = (
-      _direction: 1 | -1,
+      direction: 1 | -1,
       identity: PhoneExecutionToken
     ) => {
-      const session = activeAodSession;
-      if (!session || identity !== activeAodIdentity || !session[4]()) return;
-      clearActiveAod();
-      clearAodTimers();
-      session[9]('receiver');
-      session[10]();
+      aodGate.complete(direction, identity);
     };
     progressHandlerRef.current = emitAodProgress;
     completeHandlerRef.current = completeAod;
+    frameHandlerRef.current = emitAodFrame;
 
     const pointerTargetIsPermissionButton = (event: Event) => (
       event.target instanceof Element
@@ -579,9 +562,13 @@ export function usePhoneStageRuntime(
     };
     root.addEventListener('pointerdown', onHeroPointerDown, { passive: true });
     root.addEventListener('click', onHeroClick);
+    const releaseMediaGestureLease = attachPhoneMediaGestureLease(
+      root,
+      () => aodGate.retryFromGesture()
+    );
 
     const refresh = () => {
-      if (active) ScrollTrigger.refresh();
+      if (active) refreshStageGeometry();
     };
     const refreshFrame = window.requestAnimationFrame(refresh);
     void document.fonts?.ready.then(refresh).catch(() => undefined);
@@ -591,7 +578,6 @@ export function usePhoneStageRuntime(
       root.dataset.portraitSpikeMotionState = options.reducedMotion ? 'reduced' : 'running';
       root.dataset.portraitStagePin = 'native-fixed-composite';
     }
-    ScrollTrigger.config({ ignoreMobileResize: true });
     renderSnapshotRef.current = renderSnapshot;
     renderSnapshot(snapshotRef.current);
     if (frontProgressForSnapshot(snapshotRef.current) === 0) {
@@ -603,24 +589,27 @@ export function usePhoneStageRuntime(
       if (renderSnapshotRef.current === renderSnapshot) renderSnapshotRef.current = undefined;
       if (progressHandlerRef.current === emitAodProgress) progressHandlerRef.current = undefined;
       if (completeHandlerRef.current === completeAod) completeHandlerRef.current = undefined;
-      clearAodTimers();
-      clearActiveAod();
+      if (frameHandlerRef.current === emitAodFrame) frameHandlerRef.current = undefined;
+      aodGate.reset();
       heroAdapter.cancelEntrance();
       window.cancelAnimationFrame(refreshFrame);
       window.removeEventListener('load', refresh);
+      window.removeEventListener('resize', refreshStageGeometry);
+      window.removeEventListener('orientationchange', refreshStageGeometry);
+      resizeObserver?.disconnect();
+      phoneStageRefreshers.delete(refreshStageGeometry);
       root.removeEventListener('pointerdown', onHeroPointerDown);
       root.removeEventListener('click', onHeroClick);
+      releaseMediaGestureLease();
       corridorLease.dispose();
       aodRegistration.dispose();
       for (const lease of surfaceLeases) lease.dispose();
-      stageTrigger.kill();
       aodAdapter.resetAutoplay();
       if (import.meta.env.DEV) {
         delete root.dataset.portraitSpikeMotionState;
         delete root.dataset.portraitStagePin;
         delete root.dataset.portraitStageProgress;
       }
-      ScrollTrigger.config({ ignoreMobileResize: false });
     };
   }, [
     options.adapterRevision,
@@ -630,5 +619,5 @@ export function usePhoneStageRuntime(
     options.reducedMotion
   ]);
 
-  return { onAodProgress, onAodComplete };
+  return { onAodProgress, onAodComplete, onAodFrame };
 }

@@ -97,6 +97,12 @@ export type PhoneSceneAdapterProps = Readonly<{
     direction: 1 | -1,
     identity: PhoneExecutionToken
   ) => void;
+  /** Successful packed-canvas draw for the active AOD execution only. */
+  onAodFrame?: (
+    progress: number,
+    direction: 1 | -1,
+    identity: PhoneExecutionToken
+  ) => void;
 }>;
 
 export type PhoneHeroAdapterProps = PhoneSceneAdapterProps & Readonly<{
@@ -133,10 +139,17 @@ export type PhoneAodAdapterComponent = ForwardRefExoticComponent<
 >;
 
 export type PhoneTransitionAdapterHandle = TransitionPresentationAdapterHandle & {
-  begin(request: PhoneCinematicRequest): void;
+  begin(
+    request: PhoneCinematicRequest,
+    onPresentedFrame?: PhonePresentedFrameReporter
+  ): void;
+  /** Renders one physical in-between frame before the reducer leaves prepare. */
+  prepareFirstFrame?(direction: 1 | -1): void;
   commitEndpoint(endpoint: 0 | 1): void;
   releaseEndpoint(): void;
 };
+
+export type PhonePresentedFrameReporter = () => void;
 
 /** Immutable positional execution token captured at cinematic adapter start. */
 export type PhoneCinematicRequest = PhoneExecutionToken;

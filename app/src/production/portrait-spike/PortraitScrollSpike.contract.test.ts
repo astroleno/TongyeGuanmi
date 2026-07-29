@@ -1,5 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { phoneSegmentPresentationContract } from '../phone/phone-presentation-contract';
+import {
+  phoneTransitionPresentationTuple
+} from '../phone/phone-story-presentation';
+import { phonePresentationLayerZIndex } from '../phone/phone-presentation-layers';
+import { phoneStageScrollBounds } from '../phone/usePhoneStageRuntime';
 
 const source = (relative: string) => readFileSync(
   new URL(relative, import.meta.url),
@@ -55,9 +61,6 @@ const gradeADistanceBridgeSource = source(
   '../../transitions/figure2-distance-expand/index.ts'
 );
 const gradeAGroupSource = source('../phone/adapter-groups/grade-a.ts');
-const phonePresentationSource = source(
-  '../phone/phone-story-presentation.ts'
-);
 const directEntryPositionSource = source(
   '../phone/phone-direct-entry-position.ts'
 );
@@ -97,7 +100,8 @@ describe('Route B proven front-half migration contract', () => {
     expect(railSource).toContain('portrait-scroll-spike__stage-canvas');
     expect(railSource).toContain('data-portrait-stage-host="persistent"');
     expect(railSource).not.toContain('stage-backplate');
-    expect(runtimeSource).toContain("id: 'portrait-spike-stage'");
+    expect(phoneStageScrollBounds(400, 80, 1200)).toEqual([480, 1680]);
+    expect(runtimeSource).not.toContain("from 'gsap/ScrollTrigger'");
     expect(runtimeSource).toContain(
       "root.style.getPropertyValue('--portrait-stage-scroll-distance')"
     );
@@ -127,17 +131,17 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*visible[^}]*background:\s*transparent/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*8[^}]*inset:\s*0[^}]*background:\s*var\(--portrait-edge-surface\)/s
+      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-layer-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
+    );
+    expect(phonePresentationLayerZIndex('coverage')).toBeLessThan(
+      phonePresentationLayerZIndex('transition-receiver')
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*inset:\s*0[^}]*overflow:\s*visible/s
-    );
-    expect(railCss).not.toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*(?:width|height|min-height):/s
+      /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*top:\s*var\(--portrait-coverage-top\)[^}]*left:\s*var\(--portrait-coverage-left\)[^}]*width:\s*var\(--portrait-coverage-width\)[^}]*height:\s*var\(--portrait-coverage-height\)[^}]*overflow:\s*visible/s
     );
     expect(railCss).not.toContain('.portrait-scroll-spike__stage::after');
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage-canvas\s*\{[^}]*top:\s*0[^}]*right:\s*0[^}]*left:\s*0[^}]*height:\s*var\(--portrait-stage-canvas-height\)[^}]*overflow:\s*clip/s
+      /portrait-scroll-spike__stage-canvas\s*\{[^}]*top:\s*0[^}]*right:\s*0[^}]*left:\s*0[^}]*height:\s*max\(100%,\s*var\(--portrait-stage-canvas-height\)\)[^}]*overflow:\s*clip/s
     );
     expect(railCss).toMatch(
       /portrait-scroll-spike__scene\s*\{[^}]*overflow:\s*visible[^}]*contain:\s*layout;/s
@@ -159,11 +163,12 @@ describe('Route B proven front-half migration contract', () => {
       /--portrait-readable-bottom-offset:\s*max\(\s*0px,\s*calc\(var\(--portrait-stage-height\) - var\(--portrait-readable-height\)\)\s*\)/s
     );
     expect(viewportGeometrySource).toContain(
-      "window.visualViewport?.addEventListener('scroll', scheduleViewportSync)"
+      "from './phone-viewport-coverage'"
     );
-    expect(viewportGeometrySource).toMatch(
-      /const syncViewport = \(forceHeight = false\) => \{[\s\S]*?if \(!forceHeight && !widthChanged\) \{[\s\S]*?return;\s*\}/s
+    expect(viewportGeometrySource).toContain(
+      'usePhoneViewportCoverage(rootRef, applyLayout)'
     );
+    expect(viewportGeometrySource).toContain('refreshPhoneScrollStage()');
     expect(viewportGeometrySource).not.toContain('phoneStageCoverageHeight');
     expect(viewportGeometrySource).not.toContain('phoneViewportCoverageBottom');
     expect(viewportGeometrySource).not.toContain('--portrait-stage-coverage-height');
@@ -183,9 +188,13 @@ describe('Route B proven front-half migration contract', () => {
     expect(runtimeSource).toContain('phoneStageFrame(stageProgress, options.reducedMotion)');
     expect(runtimeSource).not.toContain('phoneAodCheckpointForMethodProgress');
     expect(runtimeSource).not.toContain('phoneAodCompletionCheckpoint');
-    expect(phonePresentationSource).toContain(
-      "cursor.segment === 'aod-method-top'"
-    );
+    expect(phoneTransitionPresentationTuple([
+      'aod-animation',
+      'method-top',
+      'aod-method-top',
+      1,
+      0
+    ])[1]).toBe('aod-autoplay');
     expect(storyProjectorSource).toContain(
       "data(routeRoot, 'portraitCheckpoint', projection.checkpoint)"
     );
@@ -269,7 +278,7 @@ describe('Route B proven front-half migration contract', () => {
       /data-portrait-edge-scene="aod"[^}]*stage-rail\s*\{[^}]*background:\s*#ede4d2/s
     );
     expect(aodCss).toContain('html[data-portrait-spike="b"][data-portrait-edge-scene="aod"]');
-    expect(shellSource).toContain('attachStoryMediaUnlock(rootRef.current)');
+    expect(runtimeSource).toContain('attachPhoneMediaGestureLease');
     expect(shellCss).toMatch(
       /site-nav\.has-scroll-edge-blur::before\s*\{[^}]*backdrop-filter:\s*blur\(20px\)/s
     );
@@ -434,11 +443,10 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAStorySource).toContain('<PhoneFigure2Arch />');
     expect(gradeAStorySource).toContain('data-phone-grade-a-method-paper="true"');
     expect(gradeAStorySource).toContain('from={methodPaperRef.current}');
-    expect(gradeAStoryCss).toMatch(
-      /phone-grade-a__method-paper\s*\{[^}]*z-index:\s*95/s
-    );
-    expect(gradeAStoryCss).toMatch(
-      /phone-grade-a__method-ink\s*\{[^}]*z-index:\s*96/s
+    expect(gradeAStoryCss).toContain('--phone-layer-transition-source');
+    expect(gradeAStoryCss).toContain('--phone-layer-transition-effect-above');
+    expect(phonePresentationLayerZIndex('transition-source')).toBeLessThan(
+      phonePresentationLayerZIndex('transition-effect-above')
     );
     expect(gradeAStoryCss).toMatch(
       /phone-grade-a__surfaces\s*\{[^}]*overflow:\s*visible[^}]*pointer-events:\s*none/s
@@ -447,9 +455,11 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAArchSource).toContain("'figure2-foreground-arch'");
     expect(gradeAArchSource).toContain('RetainedFigure2Arch');
     expect(gradeAArchSource).toContain('motion="fixed"');
-    expect(phonePresentationSource).toContain(
-      "'method-bottom-figure2': 'method-to-figure2'"
-    );
+    expect(phoneSegmentPresentationContract('method-bottom-figure2')).toMatchObject({
+      checkpoint: 'method-to-figure2',
+      sourceSurface: 'native:method',
+      receiverSurface: 'grade-a:figure2'
+    });
     expect(gradeAFigureCss).not.toContain('--portrait-browser-edge-reserve');
     expect(gradeAStoryCss).toContain('--phone-figure2-arch-scale');
     expect(gradeAStoryCss).toContain('--phone-figure2-arch-blur');

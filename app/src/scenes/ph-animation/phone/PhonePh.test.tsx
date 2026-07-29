@@ -92,13 +92,15 @@ describe('PhonePh', () => {
     expect(source).toContain('usePhoneCinematicRun([');
     expect(source).toContain('ensurePackedSurface,');
     expect(source).toContain('prepareTargetPresentation');
-    expect(source).toContain("surface(['prepare', mode, request.signal])");
+    expect(source).toMatch(
+      /surface\(\[\s*'prepare',\s*mode,\s*request\.signal,\s*request\.directEntry === true\s*\]\)/s
+    );
     expect(source).toContain('failRun(1)');
     expect(source).toContain('failRun(-1)');
     expect(source).not.toContain('phonePresentedFrameOwner');
     expect(source).not.toContain('PH_FIGURE_OPENING_SRC');
     expect(source).not.toContain('beginRun');
-    expect(source).not.toContain('presentedFrame');
+    expect(source).toContain('presentedFrameRef.current?.();');
     expect(cinematicRunSource).toContain("options.activateSurface('endpoint')");
     expect(source).not.toContain(
       "ensurePackedSurface(reducedMotion ? 'endpoint' : 'forward')"

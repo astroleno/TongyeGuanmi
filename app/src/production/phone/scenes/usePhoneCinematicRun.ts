@@ -40,6 +40,7 @@ export type PhoneCinematicRun = readonly [
   completeRun: (direction: PhoneCinematicDirection) => void,
   failRun: (direction: PhoneCinematicDirection) => void,
   publishPlaying: () => void,
+  publishPresentedFrame: () => void,
   renderProgress: (progress: number, direction: PhoneCinematicDirection) => void,
   startRun: (
     direction: PhoneCinematicDirection,
@@ -81,6 +82,7 @@ export function usePhoneCinematicRun(
   };
   const requestedRef = useRef<PhoneCinematicDirection | null>(null);
   const activeIdentityRef = useRef<PhoneExecutionToken | null>(null);
+  const presentedFrameReportedRef = useRef(false);
   const reverseStartedRef = useRef(false);
   const timerRef = useRef(0);
   const clearTimer = useCallback(() => {
@@ -144,6 +146,7 @@ export function usePhoneCinematicRun(
   ]);
   const stopRun = useCallback(() => {
     requestedRef.current = null;
+    presentedFrameReportedRef.current = false;
     activeIdentityRef.current = null;
     reverseStartedRef.current = false;
     clearTimer();
@@ -156,6 +159,7 @@ export function usePhoneCinematicRun(
   ) => {
     if (!options.rootRef.current) return;
     if (identity !== undefined) activeIdentityRef.current = identity;
+    presentedFrameReportedRef.current = false;
     requestedRef.current = direction;
     if (options.reducedMotion) {
       renderProgress(
@@ -211,6 +215,23 @@ export function usePhoneCinematicRun(
     options.reverseRef.current?.dispose();
   }, [options.forwardRef, options.reverseRef, stopRun]);
   const publishPlaying = useCallback(() => publish('playing', 1), [publish]);
+  const publishPresentedFrame = useCallback(() => {
+    const direction = requestedRef.current;
+    const identity = activeIdentityRef.current;
+    if (
+      direction === null
+      || !identity
+      || presentedFrameReportedRef.current
+    ) return;
+    presentedFrameReportedRef.current = true;
+    dispatchPhoneLabContactAutoplay(options.rootRef.current, [
+      options.scene,
+      'presented',
+      direction,
+      identity,
+      null
+    ]);
+  }, [options.rootRef, options.scene]);
 
   return useMemo(() => [
     requestedRef,
@@ -218,6 +239,7 @@ export function usePhoneCinematicRun(
     completeRun,
     failRun,
     publishPlaying,
+    publishPresentedFrame,
     renderProgress,
     startRun,
     stopRun,
@@ -228,6 +250,7 @@ export function usePhoneCinematicRun(
     disposeRun,
     failRun,
     publishPlaying,
+    publishPresentedFrame,
     renderProgress,
     startRun,
     stopRun

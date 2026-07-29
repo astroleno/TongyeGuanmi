@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { phonePresentationLayerZIndex } from './phone-presentation-layers';
 
 const storySource = readFileSync(
   new URL('./PhoneBrandLabContinuation.tsx', import.meta.url),
@@ -156,11 +157,10 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(stageRuntimeSource).toContain(
       "run === 'aod-method'"
     );
-    expect(stageRuntimeSource).toContain(
-      'aodAdapter.startAutoplay(direction, identity)'
-    );
-    expect(stageRuntimeSource).toContain('session[5]();');
-    expect(stageRuntimeSource).toContain('session[6](progress)');
+    expect(stageRuntimeSource).toContain('createPhoneAodPresentationGate');
+    expect(stageRuntimeSource).toContain('aodAdapter.startAutoplay(');
+    expect(stageRuntimeSource).toContain('session[5](');
+    expect(stageRuntimeSource).toContain('reportProgress: session[6]');
     expect(stageRuntimeSource).toContain("session[9]('receiver')");
     expect(stageRuntimeSource).toContain('session[10]();');
     expect(stageRuntimeSource).toContain("'aod:method'");
@@ -174,10 +174,13 @@ describe('Phone Brand → Lab visual contracts', () => {
 
   it('keeps one opaque edge owner behind every fixed-stage boundary', () => {
     expect(stageStyles).toMatch(
-      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*8[^}]*background:\s*var\(--portrait-edge-surface\)/s
+      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-layer-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
     expect(stageStyles).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*z-index:\s*10[^}]*background:\s*transparent/s
+      /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*background:\s*transparent/s
+    );
+    expect(phonePresentationLayerZIndex('coverage')).toBeLessThan(
+      phonePresentationLayerZIndex('transition-receiver')
     );
     expect(stageStyles).toMatch(
       /\.portrait-scroll-spike\s*\{[^}]*overflow-anchor:\s*none/s

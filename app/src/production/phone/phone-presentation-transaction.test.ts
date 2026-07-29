@@ -48,9 +48,9 @@ describe('phone presentation transaction', () => {
     });
 
     expect(orchestrator.resolveIntent([1, 1, 0, 120])).toBe('claim-boundary');
-    session?.reportPresentedFrame();
+    session?.reportPresentedFrame('effect-frame', 'group45:effect');
     session?.reportEndpointCommit('receiver');
-    session?.reportPresentedFrame();
+    session?.reportPresentedFrame('packed-canvas-frame', 'group45:figure3');
     session?.reportAnimationComplete();
 
     expect(element.dataset).toMatchObject({

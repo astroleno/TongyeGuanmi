@@ -4,7 +4,6 @@ import { StoryNav } from '../StoryNav';
 import { PhoneStageRail } from './PhoneStageRail';
 import { usePhoneAdapterHandleRef } from './phone-adapter-binding';
 import { phoneMotionDriver } from './phone-gsap-driver';
-import { attachStoryMediaUnlock } from '../mobile-media-unlock';
 import { usePhoneStageRuntime } from './usePhoneStageRuntime';
 import { usePhoneFrontHalfAdapters } from './usePhoneFrontHalfAdapters';
 import { usePhoneFixedStageRegistration } from './usePhoneFixedStageRegistration';
@@ -131,7 +130,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
 
   usePhoneViewportGeometry(rootRef, motionEnabled);
 
-  useEffect(() => attachStoryMediaUnlock(rootRef.current), []);
   usePhoneStoryEntryLifecycle(entryScene, loaderHidden, orchestrator);
 
   const runtime = usePhoneStageRuntime({
@@ -215,6 +213,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             reducedMotion={!motionEnabled}
             onAodProgress={runtime.onAodProgress}
             onAodComplete={runtime.onAodComplete}
+            onAodFrame={runtime.onAodFrame}
           />
         )}
         {HeroPatternTransition && (

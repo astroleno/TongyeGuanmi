@@ -2,6 +2,16 @@
 .portrait-scroll-spike {
   --portrait-live-height: 100svh;
   --portrait-live-height: 100dvh;
+  /* One projector-issued ladder spans fixed stages and native document roots. */
+  --phone-layer-coverage: 100;
+  --phone-layer-retained: 200;
+  --phone-layer-fixed: 300;
+  --phone-layer-stable: 400;
+  --phone-layer-transition-source: 500;
+  --phone-layer-transition-effect-inside: 525;
+  --phone-layer-transition-effect-between: 550;
+  --phone-layer-transition-receiver: 600;
+  --phone-layer-transition-effect-above: 700;
   /* The orchestration transaction, not browser scroll anchoring, owns landing. */
   overflow-anchor: none;
 }
@@ -17,8 +27,11 @@
 
 .portrait-scroll-spike__stage {
   position: fixed;
-  z-index: 10;
-  inset: 0;
+  inset: auto;
+  top: var(--portrait-coverage-top);
+  left: var(--portrait-coverage-left);
+  width: var(--portrait-coverage-width);
+  height: var(--portrait-coverage-height);
   /* This dynamic-height host positions the stage; it must not clip its lvh child. */
   overflow: visible;
   background: transparent;
@@ -28,8 +41,12 @@
 .portrait-scroll-spike__stage-rail::before {
   content: "";
   position: fixed;
-  z-index: 8;
-  inset: 0;
+  z-index: var(--phone-layer-coverage);
+  inset: auto;
+  top: var(--portrait-coverage-top);
+  left: var(--portrait-coverage-left);
+  width: var(--portrait-coverage-width);
+  height: var(--portrait-coverage-height);
   background: var(--portrait-edge-surface);
   pointer-events: none;
 }
@@ -61,8 +78,8 @@
   right: 0;
   left: 0;
   width: 100%;
-  height: var(--portrait-stage-canvas-height);
-  min-height: var(--portrait-stage-canvas-height);
+  height: max(100%, var(--portrait-stage-canvas-height));
+  min-height: max(100%, var(--portrait-stage-canvas-height));
   overflow: clip;
 }
 
@@ -85,7 +102,10 @@
 
 .portrait-scroll-spike__stage-canvas > .r4-ink-transition-canvas.portrait-scroll-spike__ink {
   position: absolute;
-  z-index: 8;
+  z-index: var(
+    --phone-presentation-z,
+    var(--phone-layer-transition-effect-above)
+  );
   inset: 0;
   display: block;
   width: 100%;
@@ -95,24 +115,46 @@
   pointer-events: none;
 }
 
-/* The projector publishes the only surface role transaction. */
-.portrait-scroll-spike [data-phone-surface-role="retained-under-stage"],
-.portrait-scroll-spike [data-phone-surface-role="retired"] {
-  z-index: 9 !important;
+/* The projector publishes both the semantic role and its global layer. */
+.portrait-scroll-spike [data-phone-layer-role] {
+  z-index: var(--phone-presentation-z, auto) !important;
 }
 
-.portrait-scroll-spike [data-phone-surface-role="fixed-current"] {
-  z-index: 10 !important;
+/* Numeric planes live in CSS so JS publishes only semantic roles. */
+.portrait-scroll-spike [data-phone-layer-role="coverage"] {
+  --phone-presentation-z: var(--phone-layer-coverage);
 }
 
-.portrait-scroll-spike [data-phone-surface-role="stable"],
-.portrait-scroll-spike [data-phone-surface-role="candidate-stable"] {
-  z-index: 11 !important;
+.portrait-scroll-spike [data-phone-layer-role="retained"] {
+  --phone-presentation-z: var(--phone-layer-retained);
 }
 
-.portrait-scroll-spike [data-phone-surface-role="transition-source"],
-.portrait-scroll-spike [data-phone-surface-role="transition-receiver"] {
-  z-index: 12 !important;
+.portrait-scroll-spike [data-phone-layer-role="fixed"] {
+  --phone-presentation-z: var(--phone-layer-fixed);
+}
+
+.portrait-scroll-spike [data-phone-layer-role="stable"] {
+  --phone-presentation-z: var(--phone-layer-stable);
+}
+
+.portrait-scroll-spike [data-phone-layer-role="transition-source"] {
+  --phone-presentation-z: var(--phone-layer-transition-source);
+}
+
+.portrait-scroll-spike [data-phone-layer-role="transition-effect-inside"] {
+  --phone-presentation-z: var(--phone-layer-transition-effect-inside);
+}
+
+.portrait-scroll-spike [data-phone-layer-role="transition-effect-between"] {
+  --phone-presentation-z: var(--phone-layer-transition-effect-between);
+}
+
+.portrait-scroll-spike [data-phone-layer-role="transition-receiver"] {
+  --phone-presentation-z: var(--phone-layer-transition-receiver);
+}
+
+.portrait-scroll-spike [data-phone-layer-role="transition-effect-above"] {
+  --phone-presentation-z: var(--phone-layer-transition-effect-above);
 }
 
 /* The projector is the only visibility authority for fixed scene roots. */

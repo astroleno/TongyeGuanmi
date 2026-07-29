@@ -11,7 +11,7 @@ import {
 } from './inkField';
 
 export type InkFieldRenderer = {
-  render(frame: InkFieldFrame): void;
+  render(frame: InkFieldFrame): boolean;
   prewarm(frame: InkFieldFrame): void;
   rebindGeneration(generation: string): boolean;
   isActive(): boolean;
@@ -251,7 +251,7 @@ export function createInkFieldRenderer(
   return {
     render(frame: InkFieldFrame) {
       if (!isActive()) {
-        return;
+        return false;
       }
       if (frame.progress <= 0.002 || frame.progress >= 0.999) {
         clearBoundaryFrameMark(canvas);
@@ -259,6 +259,7 @@ export function createInkFieldRenderer(
         markBoundaryFrame(canvas, frame);
       }
       transition?.render(frame, 0, 0);
+      return isActive();
     },
     prewarm(frame: InkFieldFrame) {
       if (!isActive()) {

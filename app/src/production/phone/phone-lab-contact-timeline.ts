@@ -11,7 +11,7 @@ export const PHONE_LAB_CONTACT_AUTOPLAY_EVENT = 'phone-lab-contact-autoplay';
 
 export type PhoneLabContactAutoplayEvent = readonly [
   scene: 'ph-animation' | 'crane-animation',
-  phase: 'playing' | 'progress' | 'complete' | 'failed',
+  phase: 'playing' | 'presented' | 'progress' | 'complete' | 'failed',
   direction: 1 | -1,
   execution: PhoneExecutionToken | null,
   progress: number | null

@@ -1,4 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import {
+  phoneSegmentPresentationContract
+} from './phone-presentation-contract';
+import {
+  phoneRun,
+  type PhoneRunId
+} from './phone-story-runs';
 import type { PhoneStoryCursor } from './phone-story-state';
 import {
   createPhoneStoryHold,
@@ -28,6 +35,7 @@ type SnapshotView = Readonly<{
     progress: number;
     anchor: Readonly<{ y: number | null }>;
     alignment: unknown;
+    presentation: readonly [number, number | null, number | null, number | null];
   }> | null;
   input: Readonly<{ completedEpoch: number | null }>;
   diagnostics: Readonly<{
@@ -68,6 +76,29 @@ const snapshotIdentity = {
   leg: 0,
   direction: 1
 } as const;
+
+/** Build the exact manifest-scoped physical-frame fact for the active leg. */
+function presentedFrame(
+  snapshot: SnapshotView,
+  identity: Readonly<Record<string, unknown>>
+) {
+  const session = snapshot.session;
+  if (!session?.operation.run) {
+    throw new Error('Expected an active cinematic session');
+  }
+  const leg = phoneRun(session.operation.run as PhoneRunId)
+    .legs[session.operation.legIndex];
+  if (!leg) throw new Error('Expected an active cinematic leg');
+  const frame = phoneSegmentPresentationContract(leg.segment).firstFrame;
+  return {
+    type: 'PRESENTED_FRAME',
+    ...identity,
+    kind: frame.kind,
+    subject: frame.subject,
+    revision: session.presentation[0],
+    observedAt: session.presentation[0]
+  };
+}
 
 const activeRun = () => startPhoneStoryRun(
   createPhoneStoryHold('brand'),
@@ -344,20 +375,20 @@ describe('PhoneStorySnapshot reducer', () => {
     expect(illegal.snapshot).toBe(current);
     expect(illegal.effects).toEqual([]);
 
-    current = api.reducePhoneStorySnapshot(current, {
-      type: 'PRESENTED_FRAME',
-      ...snapshotIdentity
-    }).snapshot;
+    current = api.reducePhoneStorySnapshot(
+      current,
+      presentedFrame(current, snapshotIdentity)
+    ).snapshot;
     current = api.reducePhoneStorySnapshot(current, {
       type: 'LEG_COMPLETED',
       ...snapshotIdentity
     }).snapshot;
     const terminalIdentity = { ...snapshotIdentity, leg: 1 } as const;
 
-    current = api.reducePhoneStorySnapshot(current, {
-      type: 'PRESENTED_FRAME',
-      ...terminalIdentity
-    }).snapshot;
+    current = api.reducePhoneStorySnapshot(
+      current,
+      presentedFrame(current, terminalIdentity)
+    ).snapshot;
     const prematureTarget = api.reducePhoneStorySnapshot(current, {
       type: 'TARGET_PRESENTED',
       ...terminalIdentity
@@ -442,19 +473,19 @@ describe('PhoneStorySnapshot reducer', () => {
       anchorY: 100,
       inputEpoch: 1
     }).snapshot;
-    current = api.reducePhoneStorySnapshot(current, {
-      type: 'PRESENTED_FRAME',
-      ...snapshotIdentity
-    }).snapshot;
+    current = api.reducePhoneStorySnapshot(
+      current,
+      presentedFrame(current, snapshotIdentity)
+    ).snapshot;
     current = api.reducePhoneStorySnapshot(current, {
       type: 'LEG_COMPLETED',
       ...snapshotIdentity
     }).snapshot;
     const terminalIdentity = { ...snapshotIdentity, leg: 1 } as const;
-    current = api.reducePhoneStorySnapshot(current, {
-      type: 'PRESENTED_FRAME',
-      ...terminalIdentity
-    }).snapshot;
+    current = api.reducePhoneStorySnapshot(
+      current,
+      presentedFrame(current, terminalIdentity)
+    ).snapshot;
     current = api.reducePhoneStorySnapshot(current, {
       type: 'LEG_COMPLETED',
       ...terminalIdentity
@@ -540,10 +571,10 @@ describe('PhoneStorySnapshot reducer', () => {
       anchorY: 100,
       inputEpoch: 1
     }).snapshot;
-    current = api.reducePhoneStorySnapshot(current, {
-      type: 'PRESENTED_FRAME',
-      ...snapshotIdentity
-    }).snapshot;
+    current = api.reducePhoneStorySnapshot(
+      current,
+      presentedFrame(current, snapshotIdentity)
+    ).snapshot;
     current = api.reducePhoneStorySnapshot(current, {
       type: 'PROGRESS_REPORTED',
       ...snapshotIdentity,
@@ -722,16 +753,49 @@ describe('PhoneStorySnapshot reducer', () => {
       leg: 0,
       direction: 1
     } as const;
-    for (const event of [
-      { type: 'TARGET_PRESENTED' },
-      { type: 'LAYOUT_RELEASED' },
-      { type: 'LANDING_MEASURED', targetY: 720, geometryRevision: 2 },
-      { type: 'SCROLL_COMMANDED', commandId: 1 },
-      { type: 'SCROLL_CONFIRMED', commandId: 1, actualY: 720 },
-      { type: 'STABLE_PRESENTATION_VERIFIED' }
-    ]) {
-      current = api.reducePhoneStorySnapshot(current, { ...identity, ...event }).snapshot;
-    }
+    const reportDirectEvidence = (kind: 'coverage' | 'direct-entry', observedAt: number) => {
+      if (current.status !== 'transaction') throw new Error('Expected direct transaction');
+      const active = current as typeof current & Readonly<{ session: typeof session }>;
+      current = api.reducePhoneStorySnapshot(current, {
+        type: 'PRESENTATION_EVIDENCE_REPORTED',
+        ...identity,
+        kind,
+        subject: 'native:services',
+        revision: active.session.presentation[0],
+        observedAt
+      }).snapshot;
+    };
+    reportDirectEvidence('coverage', 1);
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'TARGET_PRESENTED',
+      ...identity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LAYOUT_RELEASED',
+      ...identity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LANDING_MEASURED',
+      ...identity,
+      targetY: 720,
+      geometryRevision: 2
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'SCROLL_COMMANDED',
+      ...identity,
+      commandId: 1
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'SCROLL_CONFIRMED',
+      ...identity,
+      commandId: 1,
+      actualY: 720
+    }).snapshot;
+    reportDirectEvidence('direct-entry', 2);
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'STABLE_PRESENTATION_VERIFIED',
+      ...identity
+    }).snapshot;
 
     expect(current).toMatchObject({
       status: 'stable',
@@ -820,6 +884,42 @@ describe('PhoneStorySnapshot reducer', () => {
       status: 'transaction',
       session: { operation: { run: 'aod-method' } },
       scroll: { actualY: 760, corridor: 'front-rail' }
+    });
+  });
+
+  it('[R5] keeps a cinematic AOD transaction in preparing until matching compositor evidence arrives', async () => {
+    const api = await snapshotApi();
+    const stable = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'aod-animation',
+      actualY: 480
+    });
+    let current = api.reducePhoneStorySnapshot(stable, {
+      type: 'RUN_STARTED',
+      ...snapshotIdentity,
+      run: 'aod-method',
+      direction: 1,
+      anchorY: 480,
+      inputEpoch: 4
+    }).snapshot;
+
+    const withoutFrame = api.reducePhoneStorySnapshot(current, {
+      type: 'PRESENTED_FRAME',
+      ...snapshotIdentity
+    });
+    expect(withoutFrame.snapshot).toBe(current);
+
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'PRESENTED_FRAME',
+      ...snapshotIdentity,
+      kind: 'packed-canvas-frame',
+      subject: 'front:aod',
+      revision: current.revision,
+      observedAt: 10
+    }).snapshot;
+
+    expect(current).toMatchObject({
+      session: { phase: 'animating' }
     });
   });
 });

@@ -93,7 +93,7 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(aod).toContain('const ensureCompositor = useCallback(');
     expect(aod).toContain('renewPackedAlphaCanvas');
     expect(aod).toMatch(/leave\(\) \{[\s\S]*?releaseCompositor\(\);/);
-    expect(aod).toMatch(/startAutoplay\(direction, identity\) \{[\s\S]*?ensureCompositor\(\)/);
+    expect(aod).toMatch(/startAutoplay\(direction, identity\) \{[\s\S]*?ensureCompositor\(identity\)/);
   });
 
   it('keeps Hero GPU owners cold while a direct downstream route mounts the reversible graph', () => {

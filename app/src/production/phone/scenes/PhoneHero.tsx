@@ -163,6 +163,24 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         setTitleActive(true);
       }
     }, [ensureIntroInk, motionDriver, storyRoot]);
+    /**
+     * Cold-load priming is intentionally pure DOM/CSS. It must precede loader
+     * readiness without acquiring Hero's compositor, ink bridge, or decoder.
+     */
+    const primeEntrance = useCallback(() => {
+      const root = rootRef.current;
+      const cue = cueRef.current;
+      if (!root || !cue) return;
+      renderHeroProgress(root, 0);
+      const owner = storyRoot();
+      if (owner) {
+        owner.dataset.portraitHeroEntrance = 'primed';
+        owner.dataset.portraitHeroTextEntrance = 'idle';
+      }
+      root.dataset.portraitHeroTitleActive = 'false';
+      motionDriver.set(cue, { opacity: 0 });
+      setTitleActive(false);
+    }, [motionDriver, storyRoot]);
     const completeEntrance = useCallback(() => {
       cancelEntrance();
       renderEntrance(1);
@@ -213,13 +231,17 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         return;
       }
       adapterReadyRef.current = true;
+      primeEntrance();
       if (reducedMotion) {
+        renderHeroProgress(root, 1);
         onReady?.();
         return () => {
           adapterReadyRef.current = false;
           cancelEntrance();
         };
       }
+      // Publish only after the root has a deterministic zero-progress frame.
+      onReady?.();
       const owner = storyRoot() ?? root;
       const playback = createPhoneFigurePlayback(
         figureVideo,
@@ -236,7 +258,6 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       });
       playbackRef.current = playback;
       parallaxRef.current = parallax;
-      onReady?.();
 
       return () => {
         adapterReadyRef.current = false;
@@ -254,6 +275,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       cancelEntrance,
       motionDriver,
       onReady,
+      primeEntrance,
       reducedMotion,
       releaseCompositor,
       storyRoot

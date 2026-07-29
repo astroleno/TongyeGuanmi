@@ -115,6 +115,11 @@ export function createPhoneOrchestratedSessionController(
     if (typeof window !== 'undefined') return window.requestAnimationFrame(callback);
     callback();
   };
+  const observationTime = () => (
+    typeof performance === 'undefined' || typeof performance.now !== 'function'
+      ? 0
+      : performance.now()
+  );
   const releaseGeometry = () => {
     const lease = releaseLease;
     if (!lease || geometryReleased) return lease;
@@ -232,6 +237,10 @@ export function createPhoneOrchestratedSessionController(
         && next.session.alignment?.correctionCount === 1
       ) return align(run, lease, landing, mode);
       if (next.status === 'transaction' && next.session.phase === names.verifying) {
+        // A direct entry has no adapter completion callback to prove the
+        // scrolled landing. Leave it in the same transaction until the
+        // orchestrator observes its manifest-scoped content/frame in place.
+        if (mode === 'forward' && run.run === null) return;
         finish(run, lease, mode);
       }
     });
@@ -285,7 +294,26 @@ export function createPhoneOrchestratedSessionController(
     },
     direction: run.direction,
     valid: () => owns(run),
-    reportPresentedFrame: () => { emit(run, 'PRESENTED_FRAME'); },
+    reportPresentedFrame: (kind, subject) => {
+      const snapshot = options.getSnapshot();
+      if (snapshot.status !== 'transaction') return;
+      emit(run, 'PRESENTED_FRAME', {
+        ...(kind === undefined ? {} : { kind }),
+        ...(subject === undefined ? {} : { subject }),
+        revision: snapshot.session.presentation[0],
+        observedAt: observationTime()
+      });
+    },
+    reportPresentationEvidence: (kind, subject, observedAt = observationTime()) => {
+      const snapshot = options.getSnapshot();
+      if (snapshot.status !== 'transaction') return;
+      emit(run, 'PRESENTATION_EVIDENCE_REPORTED', {
+        kind,
+        subject,
+        revision: snapshot.session.presentation[0],
+        observedAt
+      });
+    },
     reportProgress: (progress) => { emit(run, 'PROGRESS_REPORTED', { progress }); },
     animate: (start, end, durationMs, render, complete) => {
       if (!owns(run)) return;
@@ -321,6 +349,15 @@ export function createPhoneOrchestratedSessionController(
       if (endpoint === 'receiver') emit(run, 'LEG_COMPLETED');
     },
     reportTargetPresented: () => settleTarget(run),
+    reportStablePresentationVerified: () => {
+      const snapshot = options.getSnapshot();
+      if (
+        !owns(run)
+        || snapshot.status !== 'transaction'
+        || snapshot.session.phase !== 'verifying-stable'
+      ) return;
+      finish(run, releaseLease, 'forward');
+    },
     reportEndpointRelease: () => {
       if (owns(run)) options.clearEndpoints();
     },

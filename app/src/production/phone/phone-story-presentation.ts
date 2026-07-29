@@ -1,31 +1,26 @@
-import { canonicalSceneIds } from '../../story/canonical-spine';
 import type { PhoneCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId, SegmentId } from '../../story/types';
 import type { PhoneEdgeScene } from './phone-edge-surface';
+import {
+  phoneScenePresentationTuple,
+  phoneSegmentPresentationTuple,
+  type PhoneLandingResolverId,
+  type PhonePresentationCommitState,
+  type PhoneStageOwner,
+  type PhoneSurfaceId
+} from './phone-presentation-contract';
 import type { PhoneStoryCursor } from './phone-story-state';
 
-export type PhonePresentationCommitState =
-  | 'transition'
-  | 'candidate'
-  | 'stable';
-
-export type PhoneStageOwner =
-  | 'front'
-  | 'grade-a'
-  | 'group45'
-  | 'group67'
-  | 'native';
-
-export type PhoneSurfaceId = string;
-
-export type PhoneLandingResolverId =
-  | 'front-corridor'
-  | 'aod-semantic-edge'
-  | 'authored-boundary'
-  | 'preserve-composite'
-  | 'native-reading';
+export type {
+  PhoneLandingResolverId,
+  PhonePresentationCommitState,
+  PhoneStageOwner,
+  PhoneSurfaceId
+} from './phone-presentation-contract';
 
 export type PhonePresentationProjection = Readonly<{
+  /** Monotonic reducer revision for the accepted surface/coverage tuple. */
+  revision: number;
   /** Legacy publication name retained until the projector migration. */
   scene: SceneId;
   checkpoint: PhoneCheckpointId;
@@ -41,6 +36,7 @@ export type PhonePresentationProjection = Readonly<{
   landingResolver: PhoneLandingResolverId;
 }>;
 
+/** @deprecated Evidence records live in phone-presentation-evidence.ts. */
 export type PhonePresentationEvidence = Readonly<
   Partial<PhonePresentationProjection>
 >;
@@ -66,100 +62,19 @@ export type PhoneStoryPresentationTuple = readonly [
   landingResolver: PhoneLandingResolverId
 ];
 
+/**
+ * Cross-chunk transition transport. Array slots are stable through Vite's
+ * independent property mangling; a raw cursor object is not.
+ */
+export type PhoneTransitionPresentationInput = readonly [
+  from: SceneId,
+  to: SceneId,
+  segment: SegmentId,
+  direction: 1 | -1,
+  progress: number
+];
+
 type StablePresentation = readonly [PhoneCheckpointId, PhoneEdgeScene];
-type CanonicalPhoneScene = (typeof canonicalSceneIds)[number];
-
-// This compact tuple table is intentionally exhaustive for all canonical
-// scenes. The remaining projection fields are deterministic functions of the
-// canonical edge and therefore cannot drift independently per scene.
-const stablePresentation = {
-  hero: ['hero-entered', 'hero'],
-  pattern: ['pattern-complete', 'pattern'],
-  'star-map': ['star-map-reading', 'star'],
-  'aod-animation': ['aod-stage', 'aod'],
-  'method-top': ['method-intro', 'method'],
-  'figure2-animation': ['figure2-stage', 'figure2'],
-  'figure2-proof': ['figure2-proof-opening', 'proof'],
-  brand: ['brand-reading', 'brand'],
-  'figure3-animation': ['figure3-stage', 'figure3'],
-  services: ['services-reading', 'services'],
-  'ttg-animation': ['ttg-stage', 'ttg'],
-  lab: ['lab-stable', 'lab'],
-  'ph-animation': ['ph-stage', 'ph'],
-  education: ['education-reading', 'education'],
-  'crane-animation': ['crane-stage', 'crane'],
-  contact: ['contact-stable', 'contact'],
-  'method-bottom': ['method-to-figure2', 'method'],
-  'figure2-proof-opening': ['figure2-proof-opening', 'proof'],
-  'figure2-proof-cards': ['figure2-proof-cards', 'proof'],
-  'figure2-proof-closing': ['figure2-proof-closing', 'proof']
-} as const satisfies Readonly<
-  Record<CanonicalPhoneScene, StablePresentation>
-  & Record<SceneId, StablePresentation>
->;
-
-const segmentCheckpoint: Readonly<Record<SegmentId, PhoneCheckpointId>> = {
-  'hero-pattern': 'hero-to-pattern',
-  'pattern-star-map': 'pattern-to-star-map',
-  'star-map-aod': 'star-map-to-aod',
-  'aod-method-top': 'aod-to-method',
-  'method-top-method-bottom': 'method-to-figure2',
-  'method-bottom-figure2': 'method-to-figure2',
-  'figure2-distance-expand': 'figure2-to-proof',
-  'figure2-proof-opening-cards': 'figure2-proof-cards',
-  'figure2-proof-cards-closing': 'figure2-proof-closing',
-  'figure2-proof-brand': 'proof-to-brand',
-  'brand-figure3': 'brand-to-figure3',
-  'figure3-services': 'figure3-to-services',
-  'services-ttg': 'services-to-ttg',
-  'ttg-lab': 'ttg-to-lab',
-  'lab-ph': 'lab-to-ph',
-  'ph-education': 'ph-to-education',
-  'education-crane': 'education-to-crane',
-  'crane-contact': 'crane-to-contact'
-};
-
-function ownerFor(edge: PhoneEdgeScene): PhoneStageOwner {
-  if (edge === 'hero' || edge === 'pattern' || edge === 'star' || edge === 'aod') {
-    return 'front';
-  }
-  if (edge === 'figure2' || edge === 'proof') return 'grade-a';
-  if (edge === 'figure3' || edge === 'ttg') return 'group45';
-  if (edge === 'ph' || edge === 'crane') return 'group67';
-  return 'native';
-}
-
-function projectionDetails(scene: SceneId): Readonly<{
-  checkpoint: PhoneCheckpointId;
-  edge: PhoneEdgeScene;
-  stageOwner: PhoneStageOwner;
-  stageScene: SceneId | null;
-  surface: PhoneSurfaceId;
-  landingResolver: PhoneLandingResolverId;
-}> {
-  const [checkpoint, edge] = stablePresentation[scene];
-  const stageOwner = ownerFor(edge);
-  const stageScene = stageOwner === 'native'
-    ? null
-    : edge === 'proof' ? 'figure2-proof' : scene;
-  const surfaceToken = edge === 'star' ? 'star-map' : edge;
-  const landingResolver = stageOwner === 'front'
-    ? edge === 'aod' ? 'aod-semantic-edge' : 'front-corridor'
-    : stageOwner === 'grade-a' || scene === 'brand'
-      ? 'authored-boundary'
-      : stageOwner === 'group45' || stageOwner === 'group67'
-        || scene === 'services' || scene === 'lab' || scene === 'education'
-        ? 'preserve-composite'
-        : 'native-reading';
-  return {
-    checkpoint,
-    edge,
-    stageOwner,
-    stageScene,
-    surface: `${stageOwner}:${surfaceToken}`,
-    landingResolver
-  };
-}
 
 export function phoneStablePresentation(
   scene: SceneId
@@ -172,20 +87,21 @@ export function phoneStablePresentation(
 export function phoneStablePresentationTuple(
   scene: SceneId
 ): StablePresentation {
-  return stablePresentation[scene];
+  const contract = phoneScenePresentationTuple(scene);
+  return [contract[0], contract[1]];
 }
 
 export function phoneStableProjectionTuple(
   scene: SceneId
 ): PhoneStableProjectionTuple {
-  const details = projectionDetails(scene);
+  const contract = phoneScenePresentationTuple(scene);
   return [
-    details.checkpoint,
-    details.edge,
-    details.stageOwner,
-    details.stageScene,
-    details.surface,
-    details.landingResolver
+    contract[0],
+    contract[1],
+    contract[2],
+    contract[3],
+    contract[4],
+    contract[5]
   ];
 }
 
@@ -193,27 +109,21 @@ export function phoneStableProjection(
   scene: SceneId,
   commitState: Extract<PhonePresentationCommitState, 'candidate' | 'stable'> = 'stable'
 ): PhonePresentationProjection {
-  const [
-    checkpoint,
-    edge,
-    stageOwner,
-    stageScene,
-    surface,
-    landingResolver
-  ] = phoneStableProjectionTuple(scene);
+  const contract = phoneScenePresentationTuple(scene);
   return {
+    revision: 0,
     scene,
-    checkpoint,
-    edge,
+    checkpoint: contract[0],
+    edge: contract[1],
     commitState,
     semanticScene: scene,
     navigationScene: scene,
-    stageOwner,
-    stageScene,
+    stageOwner: contract[2],
+    stageScene: contract[3],
     sourceSurface: null,
-    receiverSurface: surface,
-    coverageSurface: surface,
-    landingResolver
+    receiverSurface: contract[4],
+    coverageSurface: contract[4],
+    landingResolver: contract[5]
   };
 }
 
@@ -221,44 +131,53 @@ export function phoneStoryPresentationTuple(
   cursor: PhoneStoryCursor
 ): PhoneStoryPresentationTuple {
   if (cursor.kind === 'hold') {
-    const [
-      checkpoint,
-      edge,
-      stageOwner,
-      stageScene,
-      surface,
-      landingResolver
-    ] = phoneStableProjectionTuple(cursor.scene);
+    const contract = phoneScenePresentationTuple(cursor.scene);
     return [
       cursor.scene,
-      checkpoint,
-      edge,
-      stageOwner,
-      stageScene,
+      contract[0],
+      contract[1],
+      contract[2],
+      contract[3],
       null,
-      surface,
-      landingResolver
+      contract[4],
+      contract[5]
     ];
   }
-  const scene = cursor.progress > 0.001 ? cursor.to : cursor.from;
-  const edgeScene = cursor.direction === 1
-    ? cursor.progress === 1 ? cursor.to : cursor.from
-    : cursor.progress === 0 ? cursor.from : cursor.to;
-  const [, , stageOwner, stageScene, , landingResolver] =
-    phoneStableProjectionTuple(scene);
-  const source = projectionDetails(cursor.from).surface;
-  const receiver = projectionDetails(cursor.to).surface;
+  return phoneTransitionPresentationTuple([
+    cursor.from,
+    cursor.to,
+    cursor.segment,
+    cursor.direction,
+    cursor.progress
+  ]);
+}
+
+/**
+ * The reducer calls this instead of passing a named cursor object into the
+ * shared presentation chunk. This protects `segment` from cross-chunk
+ * property mangling and keeps the contract runtime transport positional.
+ */
+export function phoneTransitionPresentationTuple(
+  [from, to, segmentId, direction, progress]: PhoneTransitionPresentationInput
+): PhoneStoryPresentationTuple {
+  const semanticScene = progress > 0.001 ? to : from;
+  const edgeScene = direction === 1
+    ? progress === 1 ? to : from
+    : progress === 0 ? from : to;
+  const sceneContract = phoneScenePresentationTuple(semanticScene);
+  const edgeContract = phoneScenePresentationTuple(edgeScene);
+  const segment = phoneSegmentPresentationTuple(segmentId);
   return [
-    scene,
-    cursor.segment === 'aod-method-top' && cursor.progress <= 0.001
+    semanticScene,
+    segmentId === 'aod-method-top' && progress <= 0.001
       ? 'aod-autoplay'
-      : segmentCheckpoint[cursor.segment],
-    projectionDetails(edgeScene).edge,
-    stageOwner,
-    stageScene,
-    source,
-    receiver,
-    landingResolver
+      : segment[0],
+    edgeContract[1],
+    sceneContract[2],
+    sceneContract[3],
+    segment[4],
+    segment[5],
+    sceneContract[5]
   ];
 }
 
@@ -275,7 +194,11 @@ export function phoneStoryPresentation(
     receiverSurface,
     landingResolver
   ] = phoneStoryPresentationTuple(cursor);
+  const coverageSurface = cursor.kind === 'hold'
+    ? receiverSurface
+    : cursor.direction === 1 ? sourceSurface! : receiverSurface;
   return {
+    revision: 0,
     scene,
     checkpoint,
     edge,
@@ -286,9 +209,7 @@ export function phoneStoryPresentation(
     stageScene,
     sourceSurface,
     receiverSurface,
-    coverageSurface: cursor.kind === 'hold'
-      ? receiverSurface
-      : cursor.direction === 1 ? sourceSurface! : receiverSurface,
+    coverageSurface,
     landingResolver
   };
 }

@@ -144,6 +144,10 @@ export const PhoneBrandLabContinuation = forwardRef<
   const figure3ServicesRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const servicesTtgRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const ttgLabRef = useRef<PhoneTransitionAdapterHandle | null>(null);
+  const mediaFrameRef = useRef<(
+    scene: Group45VisualScene,
+    identity: PhoneExecutionToken
+  ) => void>(() => undefined);
   const mediaProgressRef = useRef<(
     scene: Group45VisualScene,
     identity: PhoneExecutionToken,
@@ -225,6 +229,14 @@ export const PhoneBrandLabContinuation = forwardRef<
   ) => {
     if (scene === 'figure3-animation' || scene === 'ttg-animation') {
       mediaProgressRef.current(scene, identity, progress);
+    }
+  }, []);
+  const onVisualFrame = useCallback((
+    scene: Group45PhoneSceneId,
+    identity: PhoneExecutionToken
+  ) => {
+    if (scene === 'figure3-animation' || scene === 'ttg-animation') {
+      mediaFrameRef.current(scene, identity);
     }
   }, []);
   const onVisualComplete = useCallback((
@@ -332,8 +344,7 @@ export const PhoneBrandLabContinuation = forwardRef<
           scene,
           'native',
           () => rootForScene(scene),
-          () => stageHost,
-          () => true
+          () => stageHost
         )
       )),
       ...([
@@ -347,7 +358,19 @@ export const PhoneBrandLabContinuation = forwardRef<
           'fixed',
           () => ref.current?.root() ?? null,
           () => stageHost,
-          () => true
+          (request) => {
+            const prepare = ref.current?.prepareTargetPresentation;
+            if (!prepare) {
+              throw new Error(`${scene} direct-entry receiver unavailable`);
+            }
+            return prepare({
+              progress: 0,
+              direction: 1,
+              runId: `${request.sessionId}:${request.generation}:direct`,
+              signal: request.signal,
+              directEntry: true
+            });
+          }
         )
       ))
     ];
@@ -385,6 +408,9 @@ export const PhoneBrandLabContinuation = forwardRef<
       }
     );
 
+    mediaFrameRef.current = (scene, identity) => {
+      runner.reportMediaFrame(scene, identity);
+    };
     mediaProgressRef.current = (scene, identity, progress) => {
       runner.progressMedia(scene, identity, phoneClampProgress(progress));
     };
@@ -395,6 +421,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       runner.failMedia(scene, identity);
     };
     return () => {
+      mediaFrameRef.current = () => undefined;
       mediaProgressRef.current = () => undefined;
       mediaCompleteRef.current = () => undefined;
       mediaErrorRef.current = () => undefined;
@@ -482,6 +509,7 @@ export const PhoneBrandLabContinuation = forwardRef<
           prewarm={figure3Prewarm}
           reducedMotion={reducedMotion}
           onMediaError={onMediaError}
+          onPresentedFrame={onVisualFrame}
           onProgress={onVisualProgress}
           onComplete={onVisualComplete}
         />
@@ -495,6 +523,7 @@ export const PhoneBrandLabContinuation = forwardRef<
           prewarm={ttgPrewarm}
           reducedMotion={reducedMotion}
           onMediaError={onMediaError}
+          onPresentedFrame={onVisualFrame}
           onProgress={onVisualProgress}
           onComplete={onVisualComplete}
         />

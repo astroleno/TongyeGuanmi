@@ -111,14 +111,14 @@ describe('single phone story projector transaction', () => {
       scene: 'brand',
       kind: 'native',
       root: () => brand,
-      presented: () => true
+      presentation: () => [true, true, true, true, 'static-poster']
     });
     orchestrator.registerSurface({
       id: 'native:services',
       scene: 'services',
       kind: 'native',
       root: () => services,
-      presented: () => true
+      presentation: () => [true, true, true, true, 'static-poster']
     });
 
     expect(brand.dataset.phoneSurfaceRole).toBe('stable');
@@ -150,9 +150,9 @@ describe('single phone story projector transaction', () => {
     registerCorridor(orchestrator);
 
     expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
-    session?.reportPresentedFrame();
+    session?.reportPresentedFrame('effect-frame', 'group45:effect');
     session?.reportEndpointCommit('receiver');
-    session?.reportPresentedFrame();
+    session?.reportPresentedFrame('packed-canvas-frame', 'group45:figure3');
     session?.reportAnimationComplete();
 
     expect(orchestrator.getSnapshot()).toMatchObject({
@@ -190,9 +190,9 @@ describe('single phone story projector transaction', () => {
     });
 
     expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
-    session?.reportPresentedFrame();
+    session?.reportPresentedFrame('effect-frame', 'group45:effect');
     session?.reportEndpointCommit('receiver');
-    session?.reportPresentedFrame();
+    session?.reportPresentedFrame('packed-canvas-frame', 'group45:figure3');
     session?.provideRelease({
       releaseGeometry: () => events.push('geometry'),
       releaseResources: () => events.push('resources')
@@ -285,9 +285,9 @@ describe('single phone story projector transaction', () => {
     registerCorridor(orchestrator);
 
     expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
-    session?.reportPresentedFrame();
+    session?.reportPresentedFrame('effect-frame', 'group45:effect');
     session?.reportEndpointCommit('receiver');
-    session?.reportPresentedFrame();
+    session?.reportPresentedFrame('packed-canvas-frame', 'group45:figure3');
     session?.reportEndpointCommit('receiver');
     session?.reportTargetPresented();
     frames.shift()?.();
@@ -343,7 +343,7 @@ describe('single phone story projector transaction', () => {
       actualY,
       actualY - 100
     ])).toBe('claim-boundary');
-    session?.reportPresentedFrame();
+    session?.reportPresentedFrame('effect-frame', 'grade-a:ink');
     session?.provideRelease({
       releaseGeometry: () => undefined,
       releaseResources: () => undefined
@@ -489,6 +489,89 @@ describe('single phone story projector transaction', () => {
     });
   });
 
+  it('[R5] keeps a visual direct entry in verification until its registered receiver presents a frame', async () => {
+    const root = element();
+    const frames: Array<() => void> = [];
+    const commands: number[] = [];
+    let actualY = 0;
+    let framePresented = false;
+    let resolvePreparation: () => void = () => undefined;
+    const preparation = new Promise<void>((resolve) => {
+      resolvePreparation = () => {
+        framePresented = true;
+        resolve();
+      };
+    });
+    const requestedScenes: string[] = [];
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      root,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => {
+        commands.push(nextY);
+        actualY = nextY;
+      },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+    orchestrator.registerScrollCorridor({
+      id: 'direct-figure3',
+      scenes: ['brand', 'figure3-animation', 'services'],
+      sample: () => null,
+      boundary: () => 320,
+      landing: (scene) => scene === 'figure3-animation' ? 420 : null
+    });
+    orchestrator.registerSurface({
+      id: 'group45:figure3',
+      scene: 'figure3-animation',
+      kind: 'fixed',
+      root: () => element(),
+      presentation: () => [
+        true,
+        true,
+        true,
+        framePresented,
+        framePresented ? 'packed-canvas-frame' : null
+      ],
+      prepareDirectEntry: ({ scene }) => {
+        requestedScenes.push(scene);
+        return preparation;
+      }
+    });
+
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: 'figure3-animation',
+      source: 'hash',
+      fallbackScene: 'brand',
+      cinematic: null
+    });
+
+    expect(requestedScenes).toEqual(['figure3-animation']);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target' }
+    });
+
+    resolvePreparation();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'measuring-landing' }
+    });
+    while (frames.length > 0) frames.shift()?.();
+    expect(commands).toEqual([420]);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'figure3-animation',
+      session: null
+    });
+  });
+
   it('waits for a matching late capability without reviving an old stable input', () => {
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
@@ -585,7 +668,7 @@ describe('single phone story projector transaction', () => {
       scene: 'services',
       kind: 'native',
       root: () => element(),
-      presented: () => true
+      presentation: () => [true, true, true, true, 'static-poster']
     });
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'transaction',
@@ -595,6 +678,77 @@ describe('single phone story projector transaction', () => {
     frames.shift()?.();
 
     expect(commands).toEqual([220]);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'services',
+      session: null
+    });
+  });
+
+  it('[R5] keeps reading direct-entry content uncommitted until it is visible after alignment', () => {
+    const frames: Array<() => void> = [];
+    let actualY = 0;
+    let contentVisible = false;
+    const commands: number[] = [];
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      scrollY: () => actualY,
+      scrollTo: (nextY) => {
+        commands.push(nextY);
+        actualY = nextY;
+      },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+    orchestrator.registerScrollCorridor({
+      id: 'direct-services-post-scroll-content',
+      scenes: ['brand', 'services'],
+      sample: () => null,
+      boundary: () => 100,
+      landing: (scene) => scene === 'services' ? 220 : null
+    });
+    orchestrator.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => element(),
+      presentation: () => [
+        true,
+        true,
+        true,
+        contentVisible,
+        contentVisible ? 'static-poster' : null
+      ]
+    });
+
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: 'services',
+      source: 'history',
+      fallbackScene: 'brand',
+      cinematic: null
+    });
+    const directSnapshot = orchestrator.getSnapshot();
+    const sessionId = directSnapshot.status === 'transaction'
+      ? directSnapshot.session.sessionId
+      : null;
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'measuring-landing', sessionId }
+    });
+    frames.shift()?.();
+    frames.shift()?.();
+
+    expect(commands).toEqual([220]);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-stable', sessionId }
+    });
+
+    contentVisible = true;
+    orchestrator.syncDiagnostics();
+
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'stable',
       scene: 'services',
@@ -634,7 +788,7 @@ describe('single phone story projector transaction', () => {
       scene: 'services',
       kind: 'native',
       root: () => services,
-      presented: () => true
+      presentation: () => [true, true, true, true, 'static-poster']
     });
 
     orchestrator.dispatch({

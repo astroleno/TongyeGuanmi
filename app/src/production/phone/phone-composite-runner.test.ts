@@ -49,9 +49,14 @@ function scene(
 }
 
 function transition(): PhoneTransitionAdapterHandle {
+  let onPresentedFrame: (() => void) | undefined;
+  const present = () => onPresentedFrame?.();
   return {
-    begin: vi.fn(),
-    render: vi.fn(),
+    begin: vi.fn((_request, reportFrame) => {
+      onPresentedFrame = reportFrame;
+    }),
+    prepareFirstFrame: vi.fn(() => present()),
+    render: vi.fn(() => present()),
     commitEndpoint: vi.fn(),
     releaseEndpoint: vi.fn(),
     enter: vi.fn(),
@@ -76,6 +81,7 @@ function session(
     direction,
     valid: () => active.value,
     reportPresentedFrame: vi.fn(),
+    reportPresentationEvidence: vi.fn(),
     reportProgress: vi.fn(),
     animate: vi.fn((start, end, durationMs, render, complete) => {
       let startedAt = -1;
@@ -99,6 +105,7 @@ function session(
       else if (direction === -1 && leg === 1) leg = 0;
     }),
     reportTargetPresented: vi.fn(),
+    reportStablePresentationVerified: vi.fn(),
     reportEndpointRelease: vi.fn(),
     provideRelease: vi.fn((nextRelease) => {
       release = nextRelease;
@@ -307,7 +314,10 @@ describe('phone composite runner snapshot execution', () => {
 
     expect(runtime.registered.capability().start(1, activeSession)).toBe(true);
     await vi.waitFor(() => {
-      expect(runtime.entry.begin).toHaveBeenCalledWith(activeSession.identity());
+      expect(runtime.entry.begin).toHaveBeenCalledWith(
+        activeSession.identity(),
+        expect.any(Function)
+      );
     });
     clock.flush(0);
     clock.flush(700);
