@@ -1,5 +1,10 @@
 # R5 Phone Global Presentation Contract Recovery Implementation Plan
 
+> **Status: superseded on 2026-07-29.** Do not append implementation tasks to
+> this plan. The checkpoint 14af18a preserves its WIP, while
+> [the state-machine convergence plan](2026-07-29-r5-phone-presentation-state-machine-convergence.md)
+> replaces its split reducer/orchestrator/projector/evidence ownership model.
+
 > **For agentic workers:** Execute inline in this recovery worktree. Do not dispatch subagents unless the user explicitly authorizes it. Keep each task test-first and commit only coherent, verified slices.
 
 **Goal:** Extend the existing route-local phone reducer authority into one presentation transaction that commits every canonical hold and segment only after correct surface layering, live visual-viewport coverage, real media/compositor frame evidence, and target-content visibility are all true.
