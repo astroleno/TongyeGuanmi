@@ -95,15 +95,17 @@ be proven before old orchestration is deleted in the cutover commit.
 ### ADR-1: One route-local authority, not one cross-route singleton
 
 - Formal `/` may create exactly one authority, and only
-  `PhoneStoryShell` may create it.
-- `/brand-lab` is a QA-only route. `PhoneBrandLabStory` creates its own
-  route-local authority by calling the same `createPhoneStoryRuntime()` factory
-  with `scope: 'brand-lab'`.
+  `PhoneStoryShell` may call `createPhoneStoryRuntime()`.
+- `/brand-lab` is a QA-only route. `PhoneBrandLabStory` is a thin outer shell
+  that renders the same `PhoneStoryShell` with `scope: 'brand-lab'`, an
+  explicit initial entry, and QA diagnostics. The mounted `PhoneStoryShell`
+  creates that route-local authority; `PhoneBrandLabStory` owns no runtime.
 - Route changes dispose the previous object. The two routes do not share an
   in-memory store.
-- The QA shell may choose an initial scene, mount a reduced subtree, and expose
-  diagnostics. It may not define a reducer, projector, input policy, timing,
-  media policy, or lifecycle callback.
+- The QA shell may choose an initial scene and expose diagnostics. It uses the
+  same active-window mounting policy as formal `/`; it may not define a
+  reduced lifecycle, reducer, projector, input policy, timing, media policy,
+  or lifecycle callback.
 - The formal module graph must not import `PhoneBrandLabStory`.
 
 ### ADR-2: One durable snapshot and one reducer
@@ -118,6 +120,7 @@ type PhoneStorySnapshot =
       revision: number;
       entry: PhoneEntryRequest;
       committed: null;
+      viewport: PhoneViewportSnapshot;
     }>
   | Readonly<{
       status: 'stable';
@@ -126,6 +129,7 @@ type PhoneStorySnapshot =
       committed: PhoneCommittedPresentation;
       transaction: null;
       scroll: PhoneScrollSample;
+      viewport: PhoneViewportSnapshot;
     }>
   | Readonly<{
       status: 'transaction';
@@ -134,6 +138,7 @@ type PhoneStorySnapshot =
       committed: PhoneCommittedPresentation;
       transaction: PhoneTransaction;
       scroll: PhoneScrollSample;
+      viewport: PhoneViewportSnapshot;
     }>;
 ```
 
@@ -146,10 +151,16 @@ or selectors over the snapshot.
 
 - reduces events;
 - mints authority/transaction/generation identity;
-- owns timers, RAFs, listeners, gesture epochs, and AbortControllers;
+- owns story-lifecycle timers and progress RAFs, global input/history/viewport
+  subscriptions, gesture epochs, and AbortControllers;
 - executes prepare/play/render/measure/scroll/release effects;
 - handles initial/hash/menu/history entry;
 - publishes snapshots.
+
+Visual leaves may own strictly local render resources such as a Canvas
+context, a video-frame callback, or a paused GSAP renderer. Those resources
+may draw and report evidence for the active identity; they cannot advance the
+story, choose a stable scene, or outlive leaf disposal.
 
 ### ADR-3: Stable is a presentation transaction, not a cursor value
 
@@ -178,7 +189,8 @@ scene is never published as a stable scene.
 
 - explicit surface/effect registration;
 - the single persistent stage and coverage plane;
-- live visual-viewport measurement;
+- live visual-viewport sampling and measurement policy; runtime owns the
+  corresponding global subscriptions and schedules coalesced applications;
 - semantic layer-plan calculation;
 - DOM application of one complete presentation revision;
 - target-content and first-frame validation;
@@ -250,7 +262,7 @@ production budget. Genuine leaf components remain under canonical
 
 Final structural limits:
 
-- one runtime factory;
+- one runtime factory and one production call site;
 - one reducer;
 - one stable-commit path;
 - one input/listener owner;
@@ -291,7 +303,7 @@ The reducer accepts five event families:
 | entry | `ENTRY_REQUESTED`, `HISTORY_REQUESTED` | Initial/hash/menu/history use one path |
 | input | `GESTURE_STARTED`, `INTENT_CLAIMED`, `SCROLL_SAMPLED` | Only runtime attaches physical listeners |
 | preparation | `TARGET_MOUNTED`, `MEDIA_PREPARED`, `PREPARE_FAILED` | Readiness never commits presentation |
-| playback | `FIRST_FRAME`, `PROGRESS`, `PLAYBACK_COMPLETE`, `PLAYBACK_FAILED` | Every report carries current identity |
+| playback | `FIRST_FRAME`, `PROGRESS`, `STAGE_REACHED`, `DWELL_ELAPSED`, `PLAYBACK_COMPLETE`, `PLAYBACK_FAILED` | Every report carries current identity |
 | presentation | `PLANE_APPLIED`, `TARGET_PROVEN`, `SCROLL_CONFIRMED` | Stable commit requires the complete set |
 
 An animated transaction follows:
@@ -301,11 +313,18 @@ stable(source)
 → preparing
 → presenting-source
 → playing
+→ dwelling/awaiting-leg-intent when the canonical staged policy requires it
+→ playing the next leg
 → presenting-target
 → aligning
 → verifying
 → stable(target)
 ```
+
+A staged stop remains part of the same transaction and generation. Its
+manifest-declared delay or fresh gesture advances the next leg; neither creates
+a slice runtime or a stable target. A delay proves only dwell completion and
+can never substitute for frame or presentation evidence.
 
 Failure follows:
 
@@ -425,4 +444,3 @@ The design is complete only when:
 - a physical iPhone Safari matrix passes with toolbar movement, orientation,
   background/foreground, lock/unlock, slow media, reduced motion, rapid
   gesture, direct-entry, and two full round trips.
-
