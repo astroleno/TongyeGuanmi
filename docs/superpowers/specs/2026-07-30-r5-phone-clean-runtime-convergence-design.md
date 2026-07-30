@@ -1,10 +1,11 @@
 # R5 Phone Clean Runtime Convergence Design
 
-**Status:** Reviewed and accepted after conditional-review amendments. This
-document is architecture-ready; no production implementation has started.
-The user explicitly selected a clean convergence from the confirmed Unit 4–7A
-scene baseline instead of continuing to repair the current Unit 7B/recovery
-runtime.
+**Status:** Architecture and execution contracts frozen after final
+implementation-readiness review. Task 0 may start; no production
+implementation has started. Reopen broad architecture only when an explicit
+stop condition in the implementation plan is reached. The user explicitly
+selected a clean convergence from the confirmed Unit 4–7A scene baseline
+instead of continuing to repair the current Unit 7B/recovery runtime.
 
 **Decision date:** 2026-07-30
 
@@ -92,12 +93,12 @@ Rejected. This requires proving which of 190 changed files are authoritative
 while deleting compatibility paths around a state machine that already failed
 physical presentation. Reversal cost and regression ambiguity are too high.
 
-### C. Build one clean phone runtime from `9652fbe`, validate it in a
-development-only harness, then perform one production cutover
+### C. Build one clean runtime from `9652fbe`, then cut over once
 
 Accepted. This preserves the last integrated Unit 4–7A scene/media baseline,
-keeps the formal route on one runtime at all times, and lets the new authority
-be proven before old orchestration is deleted in the cutover commit.
+keeps the formal route on one runtime at all times, validates the clean runtime
+in a development-only harness, and lets the new authority be proven before old
+orchestration is deleted in the production cutover commit.
 
 ## 4. Architecture decisions
 
@@ -109,6 +110,8 @@ be proven before old orchestration is deleted in the cutover commit.
   that renders the same `PhoneStoryShell` with `scope: 'brand-lab'`, an
   explicit initial entry, and QA diagnostics. The mounted `PhoneStoryShell`
   creates that route-local authority; `PhoneBrandLabStory` owns no runtime.
+- The wrapper may pass through App's non-story `PhoneChunkRecoveryPort`; it
+  cannot inspect lineage or choose reload behavior.
 - Route changes dispose the previous object. The two routes do not share an
   in-memory store.
 - The QA shell may choose an initial scene and expose diagnostics. It uses the
@@ -182,13 +185,23 @@ The proof must bind the active stable commit's exact `commitSequence`.
 `PhoneStableCommit`; a stable scene settle atomically creates the matching
 proof and increments the sequence exactly once.
 
-Boot and direct entry are ordinary transactions with `stableCommit: null`,
-`presentationProof: null`, and `transaction.mode: 'boot'`. Their phase,
-identity, evidence, deadline, and retry state therefore remain in the reducer
-snapshot; the effect interpreter may not keep a hidden boot candidate. A
-failed rollback or failed Hero fallback enters the explicit `faulted` state
-with a proven stable commit/proof when one exists, otherwise an opaque safe
-cover and an accessible retry.
+Cold and warm entry are different transaction modes:
+
+- cold initial/hash/direct entry has no stable source, keeps Loader opaque,
+  uses `transaction.mode: 'boot'`, `stableCommit: null`, and
+  `presentationProof: null`;
+- warm menu/hash/popstate entry starts from an already stable page, uses
+  `transaction.mode: 'entry'`, and retains the exact prior
+  `PhoneStableCommit` plus proof as its rollback anchor until the target
+  commits.
+
+Their phase, identity, evidence, deadline, URL intent, fallback, and retry
+state remain in the reducer snapshot; the effect interpreter may not keep a
+hidden entry candidate. Warm entry failure re-proves the retained source,
+restores the source URL when browser history already changed it, and never
+clears the stable anchor. A failed rollback or failed Hero fallback enters the
+explicit `faulted` state with a proven stable commit/proof when one exists,
+otherwise an opaque safe cover and an accessible retry.
 
 There is no separately writable cursor, checkpoint, current scene, stage scene,
 edge scene, navigation scene, AOD phase, cinematic phase, lock, anchor, or
@@ -236,7 +249,7 @@ type PhoneAttemptKey = Readonly<{
   authorityId: string;
   transactionId: string;
   transactionGeneration: number;
-  mode: 'boot' | 'segment' | 'rollback' | 'recovery';
+  mode: 'boot' | 'entry' | 'segment' | 'rollback' | 'recovery';
   segmentId: PhoneSegmentId | null;
   direction: 'forward' | 'reverse' | null;
 }>;
@@ -289,6 +302,12 @@ the new stable commit and matching proof. Failure rolls back to the prior
 stable source and releases input. A candidate scene is never published as a
 stable scene.
 
+Successful rollback is not a semantic commit. It preserves the exact prior
+`PhoneStableCommit` object and `commitSequence`, uses the proof-only
+`reprojectCommittedPlane()` path to replace source presentation proof, and
+then releases input. It may not call `commitStableCandidate()`. A failed
+candidate therefore cannot inflate stable history.
+
 Evidence identity is runtime-owned. Runtime/projector creates a closed leaf
 port bound to attempt, stage, leg, allowed reports, and plane revision. Leaves
 report mounted roots and local decode/draw/progress/completion facts without
@@ -296,11 +315,36 @@ supplying an evidence slot. Only projector may derive content visibility from
 the registered root; a leaf cannot submit a content report or choose
 `stageIndex`, `leg`, evidence kind, or revision.
 
+The leaf boundary is explicitly bidirectional without giving a leaf runtime
+authority:
+
+- `PhoneLeafReportPort` is the closed leaf → runtime/projector report path;
+- `PhoneLeafCommandHandle` is the runtime → leaf imperative visual path.
+
+A mount registration contains one root, a stable leaf-local surface ID for
+each video/Canvas/DOM surface, and one command handle. This supports
+multi-surface leaves such as Crane without a scene-specific adapter. The
+command handle may synchronously activate registered closure media, render a
+runtime-supplied progress value, settle an endpoint, pause local resources,
+rebind to a newly closed report port/frame token without remounting, and
+dispose. It receives no reducer, dispatch function, snapshot, attempt key, or
+evidence-slot constructor.
+
+`activate()` is invoked synchronously from the physical gesture call stack; it
+must not defer invocation behind React rendering or a dynamic import. Promise
+settlement reports permission/failure through the bound report port and never
+proves a frame. Rebinding first invalidates the old report port/token, then
+installs the new closed port on the retained topology. Disposal invalidates
+reports, pauses/cancels callbacks, disposes the command handle, unregisters
+surfaces, then releases closure resource counts; every step is idempotent.
+
 ### ADR-4: One presentation implementation
 
 `presentation.ts` owns:
 
-- explicit surface/effect registration;
+- one explicit mount registry for scene and transition/effect roots/surfaces;
+- route-local mount leases that retain the registered command handle for the
+  effect interpreter without exposing that lease to the leaf;
 - the single persistent stage and coverage plane;
 - live visual-viewport sampling and measurement policy; runtime owns the
   corresponding global subscriptions and schedules coalesced applications;
@@ -310,6 +354,15 @@ the registered root; a leaf cannot submit a content report or choose
 - post-paint acknowledgement.
 
 It does not own story progression. It reports facts to `runtime.ts`.
+
+The report port's `registerMount()` closure is the only leaf-facing path into
+the mount registry. Registration validates manifest-declared surface IDs,
+root containment, uniqueness, and resource accounting. The runtime-side lease
+is addressed only by the runtime-created attempt/stage/leg binding, rebinds
+without remounting, and releases root, surfaces, command handle, and resource
+counts atomically and idempotently. No command handle is recovered from a DOM
+attribute or duplicated in a scene-specific adapter. There is no parallel
+leaf-facing surface/effect registry.
 
 The CSS topology is fixed before Loader release. No later
 `absolute → fixed` stage switch is allowed. The coverage plane and scene plane
@@ -339,8 +392,14 @@ acceptance evidence.
 - `PhoneStoryShell`, `protocol.ts`, `manifest.ts`, `machine.ts`, `runtime.ts`,
   and `presentation.ts` load as one phone execution core.
 - Only genuine scene and transition leaves are lazy.
-- Lazy leaves may receive a narrow render/report port. They may not import the
-  runtime, dispatch reducer events directly, retain the snapshot, or own input.
+- Lazy leaves may receive only the closed report port and visual command
+  handle. They may not import the runtime, dispatch reducer events directly,
+  retain the snapshot, or own input.
+- Build verification emits a deterministic audit-only
+  module-to-chunk report from Rollup `OutputChunk.modules`; the ordinary Vite
+  manifest alone is not accepted as proof of actual module placement,
+  duplicate core code, or accidental eager leaves. The report is excluded
+  from runtime imports and the deploy package.
 - Vite property-name mangling is forbidden. The clean implementation must not
   create a reserved-property registry or a generated cross-chunk policy file.
 - Existing ESM module exports and ordinary Terser compression remain the
@@ -392,6 +451,14 @@ Final structural limits:
   a God module;
 - no `runtime/`, `contracts/`, `registries/`, or `projectors/` subtrees under
   `phone-story/` without a new user-approved ADR.
+
+The 5,000-line total is authoritative over the sum of per-file maxima. The
+larger summed maxima provide local headroom; they are not a 6,020-line
+allowance. Manifest closure records must use named normalized profiles rather
+than duplicating 46 verbose objects. If the authoritative closure matrix still
+cannot fit honestly under the manifest and total limits, implementation stops
+for the documented ADR instead of compressing semantics or creating a God
+module.
 
 ### ADR-8: Desktop stability is matched through invariants, not object sharing
 
@@ -455,6 +522,11 @@ PH/Education, and Crane/Contact compositors retire only at their manifest
 boundary. Delayed, failed, or stale loads are retired by attempt identity.
 Runtime diagnostics and tests enforce the per-closure
 video/decoder/Canvas/WebGL maxima.
+
+The implementation plan's Appendix E freezes all scene surface IDs, content
+selectors, 16 cold-entry closures, 30 direction closures, resource maxima,
+and numeric readiness deadlines. `manifest.ts` normalizes that matrix; a leaf
+cannot redefine it by reporting whatever it happened to mount.
 
 ### ADR-10: Runtime owns iOS media activation; leaves own only decode clocks
 
@@ -535,17 +607,66 @@ does not make the browser retry the same module URL in that Document.
 `vite:preloadError` is intercepted and its default error path suppressed while
 recovery owns the surface.
 
+The phone execution core is itself lazy from the application entry. A reject
+before `PhoneStoryShell` loads cannot be handled by phone runtime. Therefore
+the eager application layer owns one narrowly scoped bootstrap recovery
+boundary in `presentation-shell-loaders.ts` plus the App error boundary. It
+may keep the static Loader visible, read build identity, record one recovery
+lineage, request one reload, and render accessible retry/fail-closed UI. It
+owns no scene, reducer, input, timing, presentation plane, or story
+transaction, so it is not a second story authority. After core load, runtime
+receives a narrow recovery port backed by the same bootstrap controller.
+
 Both a same-build native network rejection and an old-HTML/new-assets build
-mismatch recover through at most one session-guarded page reload per
-Document/build/chunk key. Runtime fetches the existing
-`/r5-release-manifest.json` with `cache: 'no-store'` and uses its build/source
-identity to classify the failure. If the rejection is observed while offline,
-the committed source or Loader stays visible and runtime waits for `online`
-before spending the one reload; it does not consume the guard against a
-known-offline fetch. A second rejection after the guarded reload enters
-fail-closed with an accessible retry/recovery action; it cannot loop. Delayed
-successful responses remain attempt/generation-bound and cannot satisfy a
-newer transaction.
+mismatch recover through at most one automatic reload for one persisted
+**recovery lineage**, not for a tuple whose values change after reload. The
+session record retains lineage ID, original entry URL, first/current document
+build IDs, failed module class/URL, automatic reload count, and terminal
+status across navigation reload. It is cleared only after the requested phone
+cold boot or warm entry reaches a proven stable commit. A second reject while
+the lineage is unresolved cannot mint a new key or automatically reload.
+When session storage is unavailable, automatic reload is disabled and the
+boundary fails closed.
+
+The controller fetches the existing `/r5-release-manifest.json` with
+`cache: 'no-store'` under the authoritative 3,000 ms active-foreground
+`manifestFetch` deadline. Timeout, parse failure, fetch failure, or missing
+identity keeps Loader/source visible and reaches accessible fail-closed UI;
+it cannot wait indefinitely. If the rejection is observed while offline, the
+committed source or Loader stays visible and recovery waits for `online`
+before spending its one reload. User-invoked reload remains explicit but does
+not reset the exhausted lineage. Delayed successful responses remain
+attempt/generation-bound and cannot satisfy a newer transaction.
+
+### ADR-13: Reducer input is one non-reentrant serial queue
+
+Every browser callback, leaf report, effect completion, deadline, and public
+entry request enqueues an event. `reducePhoneStory()` is never called
+recursively. Runtime drains one event at a time, publishes the resulting
+snapshot before interpreting its effects, and enqueues effect callbacks as
+later events. Events in the same priority lane remain FIFO; toolbar/scroll
+samples may coalesce only before reduction.
+
+Priority is fixed:
+
+1. disconnect and non-persisted page termination;
+2. persisted pagehide/hidden suspension, rollback failure, and
+   width/orientation/fullscreen invalidation;
+3. active rollback evidence and terminal fault;
+4. external warm entry;
+5. pageshow/foreground and toolbar-only plane reprojection;
+6. current-attempt preparation/playback/presentation evidence and deadlines;
+7. physical input and native scroll samples.
+
+An event never interrupts the reducer currently executing; priority applies
+to the next dequeue. While `rolling-back`, candidate evidence and ordinary
+input are rejected, and the newest external entry is retained as one
+coalesced pending request until source re-proof completes. During cold boot a
+newer URL entry supersedes boot with a new generation under Loader. During an
+ordinary transaction, hidden/layout invalidation preempts the attempt;
+toolbar-only samples reproject the current plane without resetting authored
+progress. The implementation plan contains the phase-by-phase table and
+executable queue tests.
 
 ## 5. Event and transaction model
 
@@ -553,7 +674,7 @@ The reducer accepts seven event families:
 
 | Family | Examples | Rule |
 | --- | --- | --- |
-| entry | `ENTRY_REQUESTED`, `HISTORY_REQUESTED` | Initial/hash/menu/history use one path |
+| entry | `ENTRY_REQUESTED`, `HISTORY_REQUESTED` | Cold requests use `boot`; requests with a stable source use `entry` and retain it |
 | input | `GESTURE_STARTED`, `INTENT_CLAIMED`, `SCROLL_SAMPLED` | Only runtime attaches physical listeners |
 | preparation | `TARGET_MOUNTED`, `MEDIA_PREPARED`, `PREPARE_FAILED` | Closed ports report prepared facts; readiness never commits presentation |
 | playback | `FIRST_FRAME`, `PROGRESS`, `STAGE_REACHED`, `DWELL_ELAPSED`, `PLAYBACK_COMPLETE`, `PLAYBACK_FAILED` | Every report carries current identity |
@@ -584,11 +705,11 @@ can never substitute for frame or presentation evidence.
 Failure follows:
 
 ```text
-any transaction phase
+any transaction phase with a prior stable source
 → rolling-back
 → source plane proven
 → source scroll confirmed
-→ stable(source), input free
+→ stable(source with identical PhoneStableCommit/commitSequence), input free
 
 rolling-back deadline/proof failure
 → faulted(proven source + retry, or opaque safe cover + retry)
@@ -674,14 +795,19 @@ z-index token comparison alone is insufficient.
 
 ## 8. Migration strategy
 
-1. Keep the old `9652fbe` production phone route unchanged while the clean
-   runtime is built in a DEV-only harness.
+1. Keep the old `9652fbe` formal authority and routing unchanged while the
+   clean runtime is built in a DEV-only harness. Genuine shared leaves may be
+   refactored in place behind the plan's stateless migration bridge; each such
+   slice must keep both old formal and clean-harness paths green.
 2. Before leaf work, create a per-file/per-hunk `c808e06` disposition ledger.
    Mark every visual, media, lifecycle, and test hunk `port`, `rewrite`, or
    `reject`; record the Unit 4–7A formal trace separately from the detached
    Unit 7B v36/R4 Group 6–7 donor trace.
-3. Add protocol, pure machine, dependency-closure, media-activation, and
-   real-browser contracts before connecting donor leaves.
+3. Add protocol, the bidirectional leaf interface contract, authoritative
+   dependency-closure matrix, pure machine, serial event queue,
+   media-activation, and real-browser contracts before connecting donor
+   leaves. The interface-only `presentation.ts` exists before runtime; the
+   projector implementation follows.
 4. Integrate Front/AOD, Grade A, Group 4–5, and Group 6–7 in canonical order
    using mandatory vertical slices with independent red tests, browser
    checkpoints, and commits.
@@ -708,6 +834,9 @@ The design is complete only when:
 - Front/AOD, Grade A, Group 4–5, and Group 6–7 share one runtime authority;
 - every stable commit has matching presentation, coverage, content, frame,
   edge, checkpoint, navigation, scroll, and input evidence;
+- cold entry has no stable source, while every warm menu/hash/popstate entry
+  retains and can re-prove its prior stable source and URL;
+- successful rollback preserves the exact stable-commit identity and sequence;
 - Hero has no Loader-to-stage flash;
 - AOD fails fast or displays a proven compositor frame and always releases
   input;
@@ -720,22 +849,40 @@ The design is complete only when:
 - every direction and direct entry has an executable dependency closure and
   resource budget;
 - iOS media activation is runtime-scoped, while leaves report only
-  identity-bound decode/render facts;
+  identity-bound decode/render facts through `PhoneLeafReportPort` and receive
+  visual commands only through `PhoneLeafCommandHandle`;
+- initial phone-core rejection is handled by the eager non-story bootstrap
+  boundary, and bootstrap/leaf failures share one cross-reload lineage that
+  cannot loop;
 - pagehide/pageshow persisted recovery cannot duplicate authority, reuse stale
   evidence, or expose unproven pixels;
+- real React StrictMode effect replay proves connection cleanup before a
+  replacement claims input/listeners, and every shared rendering-contract
+  port keeps desktop Chromium/WebKit regressions green;
+- each dual-service leaf slice passes both the unchanged formal-authority
+  browser gate and the clean-harness gate before the next slice starts;
 - phone JavaScript remains below the immutable 663,552-byte cap; `628,044`
   remains the clean-base target/warning, and the accepted cutover records the
   new stable baseline plus duplicate-core/eager-leaf/max-lazy-chunk checks;
   phone/total 4 KiB reserve remains a report metric rather than a second
   failure line;
 - no property-name mangling or generated reserved-field registry exists;
+- Rollup module provenance proves the core is not duplicated, no authority is
+  present in a lazy leaf, and undeclared leaves are not eager;
 - lazy leaves never import runtime/machine, receive dispatch, choose evidence
   identity, or submit content proof;
 - Chromium and WebKit engine gates pass;
+- the complete dispositioned R5 release suite, not only new phone specs,
+  passes before physical candidate identity is frozen;
 - iOS Simulator evidence is recorded;
 - a physical iPhone Safari matrix passes with toolbar movement, orientation,
   background/foreground, lock/unlock, slow media, reduced motion, rapid
   gesture, direct-entry, and two full round trips.
+
+When `Release-complete` refers to a deployed candidate, its primary JavaScript
+response must also prove real HTTP compression (`Content-Encoding: br` or
+`gzip` with `Vary: Accept-Encoding`). Local Terser/raw/gzip measurements do
+not prove the CDN/server response contract.
 
 Automated chunk/fault gates may earn `Chunk-contract-complete`; they cannot be
 called “chunk closed” and the branch cannot be called `Release-complete` until
