@@ -1127,7 +1127,7 @@ browser checkpoint.
   `docs/superpowers/plans/2026-07-30-r5-phone-clean-runtime-convergence.md`
   only to check completed boxes and record the resulting commit
 
-- [ ] **Step 0.1: Prove branch identity before any production edit**
+- [x] **Step 0.1: Prove branch identity before any production edit**
 
 Run from the clean worktree:
 
@@ -1149,7 +1149,7 @@ merge-base command exits 0
 no production changes
 ```
 
-- [ ] **Step 0.2: Record donor ancestry and immutable hashes**
+- [x] **Step 0.2: Record donor ancestry and immutable hashes**
 
 Run:
 
@@ -1174,7 +1174,7 @@ These are the canonical paths at `9652fbe`. If a command says a path is
 missing, stop and verify that the worktree is on the required base; do not
 substitute or rebuild media.
 
-- [ ] **Step 0.3: Run the executable baseline**
+- [x] **Step 0.3: Run the executable baseline**
 
 ```bash
 pnpm install --frozen-lockfile
@@ -1210,7 +1210,7 @@ phone leaves reached eagerly from formal entry
 This is a structural donor measurement. Do not compress or repartition the
 base to improve it.
 
-- [ ] **Step 0.4: Build the exhaustive `c808e06` disposition ledger**
+- [x] **Step 0.4: Build the exhaustive `c808e06` disposition ledger**
 
 First prove that `c808e06` is the direct Unit 7B delta:
 
@@ -1232,7 +1232,7 @@ Crane, Contact, their four transitions, or their media/render helpers as
 The ledger total must reconcile to `git diff --numstat`; an unclassified file
 or hunk blocks Task 1.
 
-- [ ] **Step 0.5: Capture the Unit 4–7A formal-route donor trace**
+- [x] **Step 0.5: Capture the Unit 4–7A formal-route donor trace**
 
 Use the existing old-route suite only as a visual donor recorder:
 
@@ -1257,7 +1257,7 @@ The report must explicitly state that `r5-phone-story.spec.ts` is unchanged
 between `9652fbe` and `c808e06` and does **not** prove the independent v36
 Lab–Contact shell. It may not be labeled a complete 16-hold donor trace.
 
-- [ ] **Step 0.6: Capture a separate detached Group 6–7 v36/R4 donor trace**
+- [x] **Step 0.6: Capture a separate detached Group 6–7 v36/R4 donor trace**
 
 Create a disposable detached evidence worktree at the exact Unit 7B commit;
 do not switch, merge, or cherry-pick it into the clean branch:
@@ -1326,7 +1326,7 @@ Record Unit 4–7A formal evidence and Unit 7B Group 6–7 evidence in separate
 report sections. Remove the disposable worktree only after hashes are
 recorded; its absence must not affect the clean worktree.
 
-- [ ] **Step 0.6A: Disposition the complete existing R5 release suite**
+- [x] **Step 0.6A: Disposition the complete existing R5 release suite**
 
 Before new phone specs are added, `playwright.release.config.ts` collects
 exactly these eight existing files:
@@ -1367,7 +1367,7 @@ diagnostic/pixel contract by Task 11; it may not be silently skipped. Record
 the expected Task 11 project-to-spec matrix. An undispositioned R5 spec or
 helper blocks Task 1.
 
-- [ ] **Step 0.7: Record the initial file/authority inventory**
+- [x] **Step 0.7: Record the initial file/authority inventory**
 
 ```bash
 find app/src/production/phone -type f | sort
@@ -1381,7 +1381,7 @@ The report must distinguish genuine visual leaves from lifecycle,
 compatibility, query-routing, and adapter files. It must state that this
 inventory is a deletion ledger, not a target architecture.
 
-- [ ] **Step 0.8: Add a frozen-input command to the report**
+- [x] **Step 0.8: Add a frozen-input command to the report**
 
 Use this exact review command after every task:
 
@@ -1397,7 +1397,7 @@ git diff --exit-code 9652fbe -- \
   app/src/story/media.ts
 ```
 
-- [ ] **Step 0.9: Commit the baseline report**
+- [x] **Step 0.9: Commit the baseline report**
 
 ```bash
 git add docs/react-refactor/reports/r5-phone-clean-runtime-baseline.md \
