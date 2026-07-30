@@ -1,7 +1,8 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** ready for execution; no production implementation in this plan is
-> marked complete.
+> **Status:** reviewed and amended after conditional architecture review;
+> ready to begin Task 0. No production implementation in this plan is marked
+> complete.
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
@@ -17,12 +18,15 @@ compositions, and reversible transition behavior.
 **Architecture:** Build the new implementation beside the unchanged
 `9652fbe` phone route in a development-only harness. `PhoneStoryShell` is the
 only runtime factory call site. The runtime reduces entry, input, preparation,
-playback, presentation, rollback, and disposal into one discriminated
-snapshot. Presentation reports evidence but cannot advance the story. Scene
-and transition leaves render through narrow ports and cannot import runtime
-authority. After all four donor groups pass, switch formal `/` atomically,
-delete the old orchestration in the same commit, and add `/brand-lab` as a thin
-QA wrapper around the same shell.
+playback, presentation, rollback, fault recovery, media activation, BFCache
+recovery, and disposal into one discriminated snapshot. One pure machine owns
+the reducer and stable commit; one route-local runtime interprets browser
+effects. Presentation reports evidence but cannot advance the story. Scene and
+transition leaves render through narrow ports and cannot import runtime
+authority. Every entry/direction has one dependency closure and bounded
+mounting window. After all four donor groups pass, switch formal `/`
+atomically, delete the old orchestration in the same commit, and add
+`/brand-lab` as a thin QA wrapper around the same shell.
 
 **Tech Stack:** React 19, TypeScript, Vite, Vitest, GSAP, Canvas 2D, WebGL
 packed-alpha compositing, Playwright Chromium/WebKit for critical browser
@@ -68,9 +72,10 @@ Rules for keeping the work independent:
 - A later commit may donate a reviewed test, a rendering hunk, or a reproduced
   failure only when the exact source commit and destination file are recorded.
 - Findings may move between worktrees; lifecycle implementations may not.
-- Keep one writer for `manifest.ts`, `runtime.ts`, `presentation.ts`, and
-  `PhoneStoryShell.tsx`. Group leaf work may proceed independently only after
-  the four core interfaces are frozen, and it may not edit those four files.
+- Keep one writer for `protocol.ts`, `manifest.ts`, `machine.ts`, `runtime.ts`,
+  `presentation.ts`, and `PhoneStoryShell.tsx`. Group leaf work may proceed
+  independently only after these core interfaces are frozen, and it may not
+  edit them.
 
 ### Evidence-only post-base donor ledger
 
@@ -79,6 +84,7 @@ use is listed here:
 
 | Commit | Allowed donation | Explicit exclusion |
 | --- | --- | --- |
+| `c808e06` | only PH/Education/Crane/Contact visual/media/transition hunks and v36/R4 evidence explicitly classified in the Task 0 disposition ledger | `PhoneLabContactContinuation`, shell/adapters/loaders, cinematic-run/endpoint lifecycle, Vite strategy, and every unclassified hunk |
 | `71e5ef9` | Grade A boundary readiness, Figure2 mask, Proof → Brand test cases | its phone lifecycle |
 | `7e3e124` | opaque viewport-edge, actual layer, and pixel failure cases | recovery CSS/topology as an implementation |
 | `19053c4` | decoded TTG terminal-frame and reverse behavioral hunks | its surrounding orchestration |
@@ -91,7 +97,7 @@ use is listed here:
 Never port or cherry-pick:
 
 ```text
-c808e06 and later slice-local lifecycle integrations
+c808e06 as a commit or any of its slice-local lifecycle integrations
 f129540 hidden pre-play behavior
 e4f7fe0, e2f9345, 17180d9, 18b6a7c runtime implementations
 d4d29bc..be9db27 as a production implementation range
@@ -101,18 +107,37 @@ the presentation-recovery runtime/core
 When a hunk is used, the commit body records source commit, source path,
 destination path, and why the hunk is independent of authority.
 
+`c808e06` is a mandatory exhaustive audit, not an optional donor. Before Task
+1, every changed file and every mixed-purpose hunk must be classified in the
+baseline report:
+
+```text
+kind = visual | media | lifecycle | test | build
+decision = port | rewrite | reject
+source path + hunk range
+destination task/file
+rationale and preserving test
+```
+
+The ledger must account for all 56 changed files and may split one file into
+multiple rows. Task 10 cannot start while any PH, Education, Crane, Contact,
+Lab → PH, PH → Education, Education → Crane, or Crane → Contact visual/media
+hunk is unclassified.
+
 ## 1. Non-negotiable outcome
 
 ### 1.1 The only production core
 
-At final cutover, `app/src/production/phone-story/` contains exactly eight
-production files:
+At final cutover, `app/src/production/phone-story/` contains exactly the
+following flat ten-file allowlist:
 
 ```text
 app/src/production/phone-story/
   PhoneStoryShell.tsx
   PhoneBrandLabStory.tsx
+  protocol.ts
   manifest.ts
+  machine.ts
   runtime.ts
   presentation.ts
   styles.css
@@ -136,13 +161,16 @@ be exceeded:
 
 | File | Maximum non-blank production lines |
 | --- | ---: |
-| `runtime.ts` | 1,400 |
+| `protocol.ts` | 450 |
 | `presentation.ts` | 900 |
-| `manifest.ts` | 500 |
+| `manifest.ts` | 550 |
+| `machine.ts` | 1,100 |
+| `runtime.ts` | 1,000 |
 | `PhoneStoryShell.tsx` | 500 |
 | `scenes.tsx` | 700 |
 | `transitions.tsx` | 700 |
-| Total TypeScript/TSX in the eight-file core | 4,500 |
+| `PhoneBrandLabStory.tsx` | 120 |
+| Total TypeScript/TSX in the ten-file core | 5,000 |
 
 `PhoneBrandLabStory.tsx` should be a thin wrapper, not a second shell. CSS does
 not count toward the TypeScript limit but must remain one coherent stylesheet;
@@ -151,6 +179,18 @@ scene-specific styling belongs with the scene leaf.
 No `runtime/`, `contracts/`, `registries/`, `projectors/`, `adapters/`, or
 `compat/` subtree may be created under `phone-story/` without a new
 user-approved ADR.
+
+The ten names are an allowlist, not permission for ten authorities:
+
+- `protocol.ts` is pure serializable types/events/effects; no DOM or React.
+- `manifest.ts` is pure canonical data and dependency-closure declarations.
+- `machine.ts` is the one pure reducer/selectors/stable-commit branch.
+- `runtime.ts` is the one browser effect interpreter/factory.
+- `presentation.ts` is the only DOM-bearing plane/viewport/proof module.
+
+The architecture gate enforces this direction and the total budget. It must
+reject both an eleventh file and an attempt to merge pure machine plus browser
+effects into an over-budget God file.
 
 ### 1.2 The only authority
 
@@ -189,8 +229,8 @@ presentation plane
 ```
 
 They are either fields of the one reducer snapshot/active transaction or pure
-selectors over it. DOM datasets mirror a published revision for diagnostics;
-they are never read back as authority.
+selectors over it. DOM datasets may mirror published state/commit/plane
+counters for diagnostics; they are never read back as authority.
 
 ### 1.4 What must not change
 
@@ -244,6 +284,8 @@ The following fail review even if tests are green:
 - `Suspense fallback={null}` on any direct-entry path;
 - Vite/Terser property-name mangling;
 - generated cross-chunk field registries or reserved-property manifests;
+- a lazy leaf importing `runtime.ts`/`machine.ts`, receiving reducer
+  `dispatch`, choosing an evidence slot, or submitting content proof;
 - `it.fails`, `.skip`, conditional skips, swallowed browser assertions, or
   `waitForTimeout()` used as readiness;
 - numbered production validation routes such as `?v=46`;
@@ -252,6 +294,14 @@ The following fail review even if tests are green:
   tests.
 - cloned/rasterized/screenshot scene substitutes; transitions must use the one
   canonical live source and receiver leaves.
+
+Three release invariants remain hard regardless of bundle pressure or schedule:
+
+1. property-name mangling is never re-enabled;
+2. lazy leaves never obtain runtime/dispatch authority;
+3. Task 12 alone may establish `Chunk-contract-complete`, but neither chunks
+   nor the release may be called closed until Task 13's physical iPhone matrix
+   passes against the exact candidate artifact.
 
 ## 2. Canonical story inventory
 
@@ -309,34 +359,103 @@ Durations, breakpoints, scroll distances, and authored progress thresholds
 must reference canonical exports from `app/src/story/timings.ts`; do not copy
 new numbers into `phone-story/manifest.ts`.
 
+### 2.3 Dependency closure and active mounting window
+
+Every scene direct entry and every segment direction declares the complete
+dependency closure:
+
+```ts
+type PhoneDependencyClosure = Readonly<{
+  load: readonly PhoneDependencyRef[];       // scene/transition/media/compositor
+  mount: readonly PhoneMountRole[];          // source/effect/receiver
+  prewarm: readonly PhoneDependencyRef[];    // load only; no hidden playback
+  retainUntil: PhoneProofBoundary;
+  exposeReceiverAfter: readonly PhonePreparedEvidenceKind[];
+  retireAfter: PhoneProofBoundary;
+  resourceBudget: Readonly<{
+    videos: number;
+    activeDecoders: number;
+    canvases: number;
+    webglContexts: number;
+  }>;
+}>;
+```
+
+Normative rules:
+
+- forward, reverse, and direct entry each have a non-empty explicit closure;
+- `load` names every required scene, transition, media, and compositor;
+- `mount` derives from committed source plus active closure, never a
+  slice-specific switch table;
+- prewarm can cache a module or metadata but cannot mount, play, consume a
+  decoder, allocate WebGL, expose pixels, or consume activation;
+- after the closure becomes the active transaction, `prepareMount` may mount
+  its already-loaded target root and media surface inert beneath the
+  source/Loader; this is active preparation, not prewarm;
+- source remains mounted and visibly covers the candidate through prepared
+  proof; it remains mounted as the rollback anchor after receiver exposure;
+- receiver exposure waits for prepared module/root/decode-or-draw/layout
+  facts, then runtime atomically applies one candidate plane;
+- post-paint content/frame/coverage/scroll visible proof happens only after
+  that candidate plane exists; those visible proofs cannot be prerequisites
+  for mounting or exposure;
+- Figure3/Services, TTG/Lab, PH/Education, and Crane/Contact terminal
+  compositors remain mounted until their declared reverse-safe boundary;
+- direct entry loads/mounts only its minimum closure, not earlier story scenes;
+- delayed or stale module/media responses retire by attempt key and cannot
+  expand the active window; a natively rejected dynamic import follows the
+  guarded reload contract in Sections 6 and 12 rather than retrying the same
+  module URL in the same Document;
+- runtime diagnostics enforce declared simultaneous video, active-decoder,
+  Canvas, and WebGL maxima.
+
+All 15 segments × two directions plus all 16 direct entries must pass a
+manifest completeness test. “Use adjacent scenes” is not an acceptable
+implicit closure.
+
 ## 3. Target dependency graph
 
 Allowed production dependency direction:
 
 ```text
-story/canonical inputs
-          ↓
-phone-story/manifest.ts
-   ├────────→ presentation.ts ───────┐
-   ├────────→ runtime.ts ────────────┤
-   ├────────→ scenes.tsx ────────────┼→ PhoneStoryShell.tsx
-   └────────→ transitions.tsx ───────┘           ↑
-                                      PhoneBrandLabStory.tsx
-                                            (QA only)
+Legend: A ─→ B means “B may import A”.
+
+story/canonical inputs ─→ manifest
+protocol ─┬→ manifest ─┬→ machine ─→ runtime
+          │            ├→ presentation ─→ runtime
+          │            └→ runtime
+          ├→ machine
+          ├→ presentation ─┬→ scenes
+          │                └→ transitions
+          ├→ runtime
+          ├→ scenes
+          └→ transitions
+
+runtime + presentation + scenes + transitions ─→ PhoneStoryShell
+PhoneStoryShell ─→ PhoneBrandLabStory (QA-only import direction)
 ```
 
 More precisely:
 
+- `protocol.ts`: pure serializable IDs, snapshots, events, effects, attempt
+  keys, evidence slots, and report values; no React, DOM, mutable state,
+  loader, runtime, or CSS import.
 - `manifest.ts`: canonical story imports only; no React, DOM, runtime, scene,
-  transition, or CSS import.
-- `presentation.ts`: may import `manifest.ts`; no React and no scene/transition
-  leaf import.
-- `runtime.ts`: may import `manifest.ts` and presentation types/functions; no
-  React, CSS, scene component, transition component, or QA import.
-- `scenes.tsx`: may import manifest port types and lazy scene leaves; no
-  runtime import.
-- `transitions.tsx`: may import manifest port types and lazy transition leaves;
-  no runtime import.
+  transition, machine, or CSS import. It may import pure types from
+  `protocol.ts`.
+- `machine.ts`: imports `protocol.ts` and `manifest.ts`; owns the only reducer,
+  selectors, identity guards, and stable-commit branch; no React, DOM,
+  presentation, browser global, leaf, or CSS import.
+- `presentation.ts`: may import `protocol.ts` and pure manifest values; no
+  React and no scene/transition leaf import. DOM-bearing leaf registration
+  port types live here, not in `manifest.ts`.
+- `runtime.ts`: may import `protocol.ts`, `manifest.ts`, `machine.ts`, and
+  presentation types/functions; no React, CSS, scene component, transition
+  component, or QA import.
+- `scenes.tsx`: may import pure protocol types and type-only presentation leaf
+  ports plus lazy scene leaves; no runtime or machine import.
+- `transitions.tsx`: may import pure protocol types and type-only presentation
+  leaf ports plus lazy transition leaves; no runtime or machine import.
 - `PhoneStoryShell.tsx`: wires the runtime, presentation, scene registry,
   transition registry, Loader, Nav, and the persistent visual planes.
 - `PhoneBrandLabStory.tsx`: imports only `PhoneStoryShell` and passes QA scope,
@@ -353,58 +472,105 @@ core/chunk graph.
 
 ### 4.1 Snapshot
 
-Implement one discriminated snapshot in `runtime.ts`:
+Define the one discriminated snapshot in `protocol.ts` and reduce it only in
+`machine.ts`:
 
 ```ts
 export type PhoneStorySnapshot =
   | Readonly<{
-      status: 'booting';
+      status: 'transaction';
       authorityId: string;
-      revision: number;
-      entry: PhoneEntryRequest;
-      committed: null;
-      bootFailure: PhoneFailure | null;
+      stateRevision: number;
+      stableCommit: PhoneStableCommit | null;
+      presentationProof: PhonePresentationProof | null;
+      transaction: PhoneTransaction;
+      scroll: PhoneScrollSample | null;
       viewport: PhoneViewportSnapshot;
     }>
   | Readonly<{
       status: 'stable';
       authorityId: string;
-      revision: number;
-      committed: PhoneCommittedPresentation;
+      stateRevision: number;
+      stableCommit: PhoneStableCommit;
+      presentationProof: PhonePresentationProof;
       transaction: null;
       scroll: PhoneScrollSample;
       viewport: PhoneViewportSnapshot;
     }>
   | Readonly<{
-      status: 'transaction';
+      status: 'faulted';
       authorityId: string;
-      revision: number;
-      committed: PhoneCommittedPresentation;
-      transaction: PhoneTransaction;
-      scroll: PhoneScrollSample;
+      stateRevision: number;
+      stableCommit: PhoneStableCommit | null;
+      presentationProof: PhonePresentationProof | null;
+      transaction: null;
+      fault: PhoneTerminalFault;
+      safeCover: PhoneSafeCover;
+      scroll: PhoneScrollSample | null;
       viewport: PhoneViewportSnapshot;
     }>;
 ```
+
+Boot/direct-entry is `status: 'transaction'`,
+`transaction.mode: 'boot'`, `stableCommit: null`, and
+`presentationProof: null`. Its candidate, phase, attempt key, evidence slots,
+deadlines, fallback, and retry remain reducer state. The effect interpreter
+may not own a hidden boot state. `faulted` retains a proven stable
+commit/presentation proof when available; otherwise it renders the opaque safe
+cover plus an accessible retry.
 
 `PhoneViewportSnapshot` contains the latest immutable layout/visual samples,
 their revisions, and a derived supported/blocked presentation state. It is
 written only by reducer viewport events; CSS variables and warning datasets
 mirror it and are never read back.
 
-`PhoneCommittedPresentation` contains the values that must move together:
+Semantic story commit and mutable presentation proof are distinct values in
+the same reducer snapshot:
 
 ```ts
-type PhoneCommittedPresentation = Readonly<{
+type PhoneStableCommit = Readonly<{
   sceneId: PhoneSceneId;
   landing: PhoneLanding;
+  commitSequence: number;
+}>;
+
+type PhonePresentationProof = Readonly<{
+  commitSequence: number;
   plane: PhonePresentationPlane;
-  presentationRevision: number;
+  planeRevision: number;
   frameEvidence: PhoneFrameEvidence;
   contentEvidence: PhoneContentEvidence;
   coverageEvidence: PhoneCoverageEvidence;
   scrollEvidence: PhoneScrollEvidence;
 }>;
 ```
+
+`PhonePresentationProof.commitSequence` must equal the active
+`PhoneStableCommit.commitSequence`. A scene settle atomically creates both and
+increments the sequence exactly once. `commitStableCandidate()` is the only
+branch that may create or replace `PhoneStableCommit`.
+
+Stable toolbar/orientation/BFCache recovery uses the separate reducer branch
+`reprojectCommittedPlane()`. It retains the exact `PhoneStableCommit`, enters
+a `mode: 'recovery'` transaction with input disabled, applies a new
+`planeRevision`, and replaces only `PhonePresentationProof` after the complete
+re-proof quorum. It cannot change scene, semantic landing, checkpoint,
+navigation, or `commitSequence`.
+
+Evidence inheritance is explicit:
+
+| Recovery trigger | May be reused only as preparation input | Must be invalidated and re-proven |
+| --- | --- | --- |
+| toolbar-only visual viewport change | decoded asset state and active media/draw token, only while the same registered surface remains connected | plane acknowledgement, content visibility, visible-frame proof, four-edge coverage, landing/scroll alignment |
+| width/orientation/fullscreen change | immutable module/decode cache only | layout, plane, content, frame, coverage, landing, scroll |
+| `pageshow.persisted=true` | immutable fulfilled module/decode cache only | generation/token, root connection, plane, content, frame, coverage, landing, scroll |
+
+No prior final evidence object is copied into the new proof. A retained
+decode/draw token merely avoids reloading bytes; projector still produces a
+fresh post-paint visible proof. If BFCache recovery has
+`stableCommit: null`, the Loader stays opaque and runtime restarts the original
+boot/direct-entry candidate with a new generation; it does not attempt to
+re-prove a nonexistent source.
 
 Edge surface, active checkpoint, and navigation selection are not stored a
 second time. They are pure selectors over the committed scene, immutable
@@ -433,23 +599,45 @@ type PhoneTransactionPhase =
   | 'presenting-target'
   | 'aligning'
   | 'verifying'
+  | 'awaiting-media-activation'
   | 'rolling-back';
 
-type PhoneTransactionIdentity = Readonly<{
+type PhoneAttemptKey = Readonly<{
   authorityId: string;
   transactionId: string;
-  generation: number;
-  candidateRevision: number;
-  segmentId: PhoneSegmentId;
-  direction: 'forward' | 'reverse';
+  transactionGeneration: number;
+  mode: 'boot' | 'segment' | 'rollback' | 'recovery';
+  segmentId: PhoneSegmentId | null;
+  direction: 'forward' | 'reverse' | null;
+}>;
+
+type PhoneEvidenceSlot = Readonly<{
+  attempt: PhoneAttemptKey;
   stageIndex: number;
   leg: 'source' | 'effect' | 'target' | 'rollback';
+  kind: PhoneEvidenceKind;
+  planeRevision: number | null;
 }>;
 ```
 
-Every asynchronous report carries the full active identity. A report with a
-stale authority, transaction, generation, candidate revision, direction, or
-leg is ignored and recorded as a diagnostic; it cannot mutate evidence.
+Every asynchronous report carries one attempt key plus one evidence slot. A
+report with a stale authority, transaction, generation, segment, or direction
+is ignored and recorded as a diagnostic. A correct attempt can collect
+different source/effect/target slots; `stageIndex` and `leg` do not make those
+slots different attempts.
+
+Revision semantics are fixed and non-overlapping:
+
+| Field | Increments when | Must not mean |
+| --- | --- | --- |
+| `stateRevision` | every reducer state change | stable scene commit |
+| `commitSequence` | exactly once in the new `PhoneStableCommit` created by `commitStableCandidate()` | viewport repaint |
+| `transactionGeneration` | new async attempt/retry/recovery | DOM application |
+| `planeRevision` | every complete DOM/viewport plane application | story progression |
+
+`candidateRevision`, generic `snapshot.revision`, and
+`presentationRevision` are prohibited aliases. Toolbar coverage changes may
+increase `stateRevision` and `planeRevision`, but never `commitSequence`.
 
 Canonical staged stops remain inside this transaction. `stageIndex` and the
 manifest policy select the current leg. A declared dwell timer may advance
@@ -494,9 +682,7 @@ No leaf receives the runtime. A leaf receives an identity-bound port:
 
 ```ts
 export type PhoneLeafPort = Readonly<{
-  identity: PhoneTransactionIdentity;
   reportMounted(root: HTMLElement): void;
-  reportContent(result: PhoneContentReport): void;
   reportFrame(result: PhoneFrameReport): void;
   reportProgress(progress: number): void;
   reportComplete(): void;
@@ -504,29 +690,67 @@ export type PhoneLeafPort = Readonly<{
 }>;
 ```
 
-The actual shared type may live in `manifest.ts` to preserve the allowed DAG.
+Runtime/projector creates this port from a closed binding:
+
+```ts
+createPhoneLeafPort({
+  attempt,
+  stageIndex,
+  leg,
+  allowedReports
+})
+```
+
+The binding supplies attempt, stage, leg, evidence kind, and active
+`planeRevision`; a leaf cannot choose or submit any of them. `reportMounted`
+registers the root but is not content evidence. Leaf `reportFrame` is a
+prepared decode/draw fact, not final visible-frame proof.
+
+`PhoneLeafPort` is DOM-bearing and lives in `presentation.ts`. Serializable
+attempt/slot/report values live in `protocol.ts`; only runtime/projector may
+construct `PhoneEvidenceSlot`. Content proof is generated exclusively by
+projector from the registered root and current plane. No leaf API accepts or
+returns `PhoneContentReport`.
 
 ### 4.4 Stable-commit quorum
 
-`stable(target)` is legal only when the same candidate identity has all
-applicable evidence:
+`stable(target)` is a two-stage transaction. Prepared proof happens while the
+source or Loader still covers an inert target:
 
 ```text
 module loaded
-target mounted and connected
-content predicate visible
-required image/video/Canvas/static frame proven
-source/receiver/effect layer roles applied
-live visual viewport covered on four edges
-target landing measured
-scroll command confirmed
-edge/checkpoint/navigation derived from target manifest record
-complete presentation plane applied
-post-paint presentation revision acknowledged
+target root/media surface mounted inert and connected
+required image/video/Canvas/static decode-or-draw ready
+target layout measurable
+active closure/resource budget valid
 ```
 
+Runtime then atomically applies the candidate receiver plane and mints a new
+`planeRevision`. The source remains mounted as rollback anchor but no longer
+occludes the receiver inside the story stack. Projector performs the
+post-paint visible quorum:
+
+```text
+source/receiver/effect layer roles applied
+target content visible in current candidate plane
+required frame visibly presented in that plane
+live visual viewport covered on four edges
+target landing measured and scroll command confirmed
+edge/checkpoint/navigation derived from target manifest record
+complete presentation plane applied
+post-paint plane revision acknowledged
+```
+
+For boot/direct entry, the registered opaque Loader is the sole permitted
+safety-cover exception to the occlusion check: target must be visible and
+unoccluded within the story stack beneath it; Loader is removed only after the
+post-paint quorum, so the first exposed frame is already proven. Other opaque
+ancestors/effects are not exempt.
+
 The reducer must have one `commitStableCandidate()` branch. No other branch may
-construct a new `PhoneCommittedPresentation`.
+construct a `PhoneStableCommit`. The only proof-only mutation is
+`reprojectCommittedPlane()`, which must retain the existing stable commit and
+sequence.
 
 Production quorum uses causal DOM geometry/computed-style checks and
 identity-bound media/compositor callbacks. Playwright screenshot pixels are an
@@ -542,12 +766,35 @@ sampling is not a production reducer event.
 - Rollback must prove the source plane and source landing before returning to
   `stable(source)`.
 - Input is released after the rollback commit, not on the first failure event.
-- Boot/direct-entry failure falls back to a newly proven Hero candidate.
+- Boot/direct-entry failure falls back to a newly identified/proven Hero boot
+  transaction whose state remains in the reducer.
 - After that Hero fallback is proven, one history `replaceState` effect
   canonicalizes the URL to Hero. It never leaves a target hash paired with a
   Hero stable snapshot.
-- If Hero itself cannot be proven, keep the static Loader/opaque preboot cover,
-  expose an accessible retry message, and do not publish a false stable scene.
+- If Hero itself cannot be proven, enter `faulted`, keep the static
+  Loader/opaque preboot safe cover, expose an accessible retry message, and do
+  not publish a false stable scene.
+- If source-plane, source-frame, source-module, Canvas, or scroll proof also
+  fails during rollback, enter `faulted` before the rollback deadline. Keep a
+  previously proven committed plane when still valid; otherwise use the
+  opaque safe cover. Retry starts a new transaction generation.
+- Every phase uses one named manifest deadline policy:
+
+  ```text
+  moduleLoad
+  mediaPrepare
+  firstFrame
+  planeApply
+  scrollConfirm
+  rollback
+  ```
+
+  Values are declared once in manifest/runtime policy and covered by
+  deterministic clock tests; leaves may not introduce untracked watchdogs.
+- Active deadlines pause while the document is hidden. Hiding invalidates
+  candidate evidence. Foreground/pageshow creates a new generation and fresh
+  bounded revalidation deadline; hidden wall-clock time can neither commit nor
+  leave a phase permanently pending.
 - Backgrounding, route disposal, or a superseding direct entry aborts all
   candidate effects and invalidates their generation.
 - A visual-viewport toolbar change updates/coalesces coverage only; it does
@@ -568,6 +815,63 @@ changed; rollback restores the committed source URL with `replaceState` after
 source presentation is re-proven. History is an effect of the same
 transaction, never a second current-scene store.
 
+### 4.6 iOS media activation and leaf clock ownership
+
+Runtime is the only consumer of physical gesture epochs. One claimed epoch can
+offer one single-use activation credit to media inside the current dependency
+closure. It may not unlock unrelated videos and may never perform a global
+`play() → pause()` sweep.
+
+If chunk preparation misses Safari's activation window:
+
+```text
+keep committed source visible (or Loader/safe cover during boot)
+finish native module loading
+mount the target root and media surface inert beneath the source/Loader
+retain the active closure and enter awaiting-media-activation
+release cinematic input while keeping only the runtime-owned CTA actionable
+show the CTA only after the exact media surface is registered and synchronously activatable
+wait for the next real physical gesture
+mint a new transaction generation/frame token without unmounting the prepared topology
+synchronously consume activation against that registered surface in the CTA event stack
+```
+
+The retained DOM/media registration is transaction topology, not evidence.
+When the second gesture renews generation, runtime retires old frame callbacks,
+ports, and tokens, rebinds the already-registered surface, and calls its
+activation method synchronously; it does not wait for another React render or
+dynamic import. If registration is lost, the CTA is disabled/hidden until a
+surface is registered again.
+
+Synthetic events and timers cannot spend activation. Cold direct entries to
+media holds attempt manifest-declared `muted` + `playsInline` autoplay.
+Rejection keeps the cover and enters the same prepared
+`awaiting-media-activation` state. A static fallback is valid only if the
+manifest declares it and it passes independent content/frame/coverage proof.
+
+`play()` resolution is permission evidence only. Video decode clocks and
+`requestVideoFrameCallback` may remain leaf-local, but they report
+attempt/slot-bound progress, frame, complete, and failure facts. They cannot
+schedule story completion, change phase, or commit stable.
+
+### 4.7 Page lifecycle and BFCache
+
+Runtime handles `visibilitychange`, `pagehide`, and `pageshow` through reducer
+events:
+
+- `pagehide.persisted=true`: suspend active deadlines, invalidate evidence,
+  pause leaf-local media/render callbacks, release claimed input, and preserve
+  BFCache eligibility; do not permanently tear down the cached DOM.
+- `pageshow.persisted=true` with a stable commit: mint a new recovery
+  generation and run `reprojectCommittedPlane()` to reapply/re-prove plane,
+  content, frame, coverage, landing, and scroll before enabling input.
+- `pageshow.persisted=true` with no stable commit: retain Loader and restart
+  the original boot/direct-entry candidate under a new generation.
+- `pagehide.persisted=false` or route unmount: perform normal complete
+  disconnect/disposal.
+- no restore path may duplicate listeners, authority, media token, Canvas, or
+  WebGL context.
+
 ## 5. Evidence levels and release language
 
 Use these labels in commits and reports:
@@ -576,10 +880,12 @@ Use these labels in commits and reports:
 | --- | --- | --- |
 | Contract-complete | Pure reducer, manifest, and static architecture gates pass | No |
 | Engine-complete | Chromium and Playwright WebKit transaction/pixel gates pass | No |
+| Chunk-contract-complete | Task 12 automated chunk/fault/size gates pass; physical closure is still pending | No |
 | Simulator-complete | iOS Simulator Safari matrix passes | No |
 | Release-complete | Physical iPhone Safari matrix and all automated gates pass | Yes |
 
-No automated browser result may be described as “physical iPhone verified.”
+No automated browser result may be described as “physical iPhone verified,”
+and `Chunk-contract-complete` may not be shortened to “chunk closed.”
 
 ## 6. Task ordering and commit discipline
 
@@ -587,6 +893,22 @@ Tasks 0–6 are strictly sequential because they define the core. Tasks 7–10
 integrate donor groups in canonical order; each group must reach its visual
 checkpoint before the next group edits shared leaf ports. Task 11 is one
 atomic formal cutover. Tasks 12–14 are release closure.
+
+The following large tasks are mandatory vertical slices, not batching
+suggestions:
+
+| Parent task | Mandatory slice and independent commit/checkpoint |
+| --- | --- |
+| Task 4 | 4A pure machine + boot/direct entry; 4B segment transaction + rollback/faulted; 4C input/history/viewport/BFCache; 4D effect interpreter + activation + disposal |
+| Task 7 | 7A harness/pixel helpers; 7B Hero/Loader; 7C Pattern/viewport; 7D AOD/media activation; 7E Star/front transitions and Front matrix |
+| Task 9 | 9A Brand → Figure3 → Services; 9B Services → TTG → Lab |
+| Task 10 | 10A Lab → PH → Education; 10B Education → Crane; 10C Crane → Contact + complete story |
+
+Each slice starts with its own red unit/browser failure, ends with its own
+narrow green command and frozen-input check, and receives its own commit.
+Starting a later slice before the prior browser checkpoint is green is
+forbidden. A parent task acceptance block is checked only after all its slice
+commits pass together.
 
 Every implementation task follows this loop:
 
@@ -597,7 +919,7 @@ Every implementation task follows this loop:
 5. Run `pnpm -C app test` and `pnpm -C app typecheck`.
 6. Run the frozen-input check.
 7. Review the diff for duplicate authority and unrelated changes.
-8. Commit with the exact task commit message.
+8. Commit with the exact task/slice commit message.
 
 Do not combine two task commits to save time. Do not amend a previously
 accepted group after starting the next group without reopening that group's
@@ -686,7 +1008,41 @@ Record actual output and tool versions. If the counts differ only because this
 plan/spec is present, record why. If production tests, typecheck, or build
 fails, stop; do not begin Task 1.
 
-- [ ] **Step 0.4: Capture a read-only Unit 4–7A visual donor trace**
+From the clean-base Vite/Rollup manifest, also record:
+
+```text
+donorMaxLazyLeafBytes
+largest ten phone JS chunks with entry/import ownership
+modules duplicated across emitted phone chunks
+phone leaves reached eagerly from formal entry
+```
+
+This is a structural donor measurement. Do not compress or repartition the
+base to improve it.
+
+- [ ] **Step 0.4: Build the exhaustive `c808e06` disposition ledger**
+
+First prove that `c808e06` is the direct Unit 7B delta:
+
+```bash
+git rev-parse c808e06^
+git diff --name-status 9652fbe c808e06
+git diff --numstat 9652fbe c808e06
+git show --stat --oneline c808e06
+```
+
+Expected parent: `9652fbec9aa18bfe989d6ed1b62d2c61f3a31f7f`.
+Record all 56 changed files. Review mixed files hunk-by-hunk and assign
+`visual | media | lifecycle | test | build` plus
+`port | rewrite | reject`, destination task/path, rationale, and preserving
+test. In particular, do not treat the substantial changes to PH, Education,
+Crane, Contact, their four transitions, or their media/render helpers as
+“lifecycle only.”
+
+The ledger total must reconcile to `git diff --numstat`; an unclassified file
+or hunk blocks Task 1.
+
+- [ ] **Step 0.5: Capture the Unit 4–7A formal-route donor trace**
 
 Use the existing old-route suite only as a visual donor recorder:
 
@@ -699,14 +1055,88 @@ pnpm -C app exec playwright test \
 ```
 
 Record the trace path and SHA-256 in the baseline report. Extract reference
-frames for the 16 holds, Figure2 staged endpoint, Figure3/TTG/PH/Crane initial
-and terminal endpoints, and Proof → Brand. Label known AOD/coverage/Hero
-failures rather than normalizing them into the target.
+frames only for the holds/segments actually exercised by this suite, including
+the accepted Unit 4–7A formal path, Figure2 staged endpoint, Figure3/TTG
+endpoints, and Proof → Brand. Label known AOD/coverage/Hero failures rather
+than normalizing them into the target.
 
 This trace answers “did the clean runtime change an accepted scene?” It is not
 release evidence and does not prove physical Safari stability.
 
-- [ ] **Step 0.5: Record the initial file/authority inventory**
+The report must explicitly state that `r5-phone-story.spec.ts` is unchanged
+between `9652fbe` and `c808e06` and does **not** prove the independent v36
+Lab–Contact shell. It may not be labeled a complete 16-hold donor trace.
+
+- [ ] **Step 0.6: Capture a separate detached Group 6–7 v36/R4 donor trace**
+
+Create a disposable detached evidence worktree at the exact Unit 7B commit;
+do not switch, merge, or cherry-pick it into the clean branch:
+
+```bash
+git worktree add --detach /private/tmp/r5-phone-c808-donor c808e06
+pnpm -C /private/tmp/r5-phone-c808-donor/app install --frozen-lockfile
+VITE_ENABLE_HARNESS=1 pnpm -C /private/tmp/r5-phone-c808-donor/app build
+```
+
+Do **not** use `playwright.release.config.ts`: at this base its
+`testMatch='**/r5-*.spec.ts'` silently excludes both R4 files, and preview also
+requires the preceding build. Create an untracked donor-only
+`app/playwright.donor.config.ts` in the detached worktree with:
+
+```ts
+import { defineConfig, devices } from '@playwright/test';
+
+const port = 4173;
+export default defineConfig({
+  testDir: './e2e',
+  testMatch: /r4-g[67]\.spec\.ts/,
+  timeout: 120_000,
+  workers: 1,
+  use: {
+    baseURL: `http://127.0.0.1:${port}`,
+    trace: 'on',
+    screenshot: 'off',
+    video: 'off'
+  },
+  webServer: {
+    command: `pnpm preview --host 127.0.0.1 --port ${port}`,
+    url: `http://127.0.0.1:${port}`,
+    reuseExistingServer: false,
+    timeout: 60_000
+  },
+  projects: [{
+    name: 'donor-mobile-webkit',
+    use: {
+      ...devices['iPhone 15 landscape'],
+      browserName: 'webkit'
+    }
+  }]
+});
+```
+
+Prove discovery before execution:
+
+```bash
+pnpm -C /private/tmp/r5-phone-c808-donor/app exec playwright test \
+  --config=playwright.donor.config.ts \
+  e2e/r4-g6.spec.ts e2e/r4-g7.spec.ts \
+  --project=donor-mobile-webkit --list
+```
+
+Expected: exactly 7 tests in the two files. `0 tests` blocks donor capture.
+Then run the same command without `--list` and with `--trace=on`.
+
+Separately capture `/?v=36#lab`, `#ph-animation`, `#education`,
+`#crane-animation`, and `#contact` from that same detached build through the
+existing v36 shell. Record the exact command/tool, build SHA, trace/video
+paths, and SHA-256. The v36 trace and R4 harness traces are evidence donors,
+not release evidence and not runtime donors.
+
+Record Unit 4–7A formal evidence and Unit 7B Group 6–7 evidence in separate
+report sections. Remove the disposable worktree only after hashes are
+recorded; its absence must not affect the clean worktree.
+
+- [ ] **Step 0.7: Record the initial file/authority inventory**
 
 ```bash
 find app/src/production/phone -type f | sort
@@ -720,7 +1150,7 @@ The report must distinguish genuine visual leaves from lifecycle,
 compatibility, query-routing, and adapter files. It must state that this
 inventory is a deletion ledger, not a target architecture.
 
-- [ ] **Step 0.6: Add a frozen-input command to the report**
+- [ ] **Step 0.8: Add a frozen-input command to the report**
 
 Use this exact review command after every task:
 
@@ -736,7 +1166,7 @@ git diff --exit-code 9652fbe -- \
   app/src/story/media.ts
 ```
 
-- [ ] **Step 0.7: Commit the baseline report**
+- [ ] **Step 0.9: Commit the baseline report**
 
 ```bash
 git add docs/react-refactor/reports/r5-phone-clean-runtime-baseline.md \
@@ -749,7 +1179,13 @@ git commit -m "docs(r5): lock clean phone convergence baseline"
 - branch and worktree match this plan;
 - all four donors are ancestors of `9652fbe`;
 - baseline tests/typecheck/build pass;
-- immutable hashes and phone bundle bytes are recorded;
+- immutable hashes, phone bundle bytes, donor lazy-chunk ceiling, eager-leaf
+  reachability, and duplication inventory are recorded;
+- all 56 `c808e06` files/hunks have a disposition;
+- Unit 4–7A formal and detached Unit 7B v36/R4 evidence are separate and
+  correctly scoped;
+- donor-only discovery finds and then executes exactly seven R4 Group 6–7
+  WebKit tests after building the detached harness;
 - no production source has changed.
 
 ---
@@ -949,6 +1385,7 @@ git commit -m "fix(r5): port clean rendering contracts"
 
 - `app/scripts/verify-phone-clean-architecture.mjs`
 - `app/scripts/verify-phone-clean-architecture.test.mjs`
+- `app/scripts/verify-performance-budgets.test.mjs`
 
 **Modify:**
 
@@ -967,22 +1404,28 @@ the gate rejects:
 3. a leaf importing `runtime.ts`;
 4. `runtime.ts` importing a scene or transition leaf;
 5. `manifest.ts` importing React or DOM-bearing modules;
-6. a dependency cycle in the eight-file core;
-7. a ninth production file under `phone-story/`;
+6. a dependency cycle in the ten-file core;
+7. an eleventh production file or a filename outside the flat allowlist under
+   `phone-story/`;
 8. a forbidden `runtime/` or `contracts/` subtree;
 9. property-name mangling in Vite/Terser config;
 10. a formal loader importing the QA shell;
 11. a numbered phone validation query or production query composition;
 12. core LOC over budget;
 13. old orchestration reachable in cutover mode;
-14. a dynamic phone chunk that imports its own lifecycle owner.
+14. a dynamic phone chunk that imports its own lifecycle owner;
 15. the clean phone core importing `useMobileLandscapeEntry` or mounting a
-    second orientation lifecycle owner.
+    second orientation lifecycle owner;
+16. `protocol.ts` or `machine.ts` importing DOM/React/browser globals;
+17. `manifest.ts` containing `HTMLElement` or importing a DOM-bearing port;
+18. more than one reducer/stable-commit branch or runtime factory;
+19. a pure-machine/browser-effect God file or total core LOC over budget.
 
 It must accept:
 
 - one factory call in `PhoneStoryShell`;
 - QA wrapper importing the same shell;
+- one `machine.ts` reducer imported by the one `runtime.ts` interpreter;
 - lazy leaf imports expressed through `scenes.tsx`/`transitions.tsx`;
 - ordinary ESM minification without property mangling.
 
@@ -1019,7 +1462,7 @@ Harness phase enforces:
 
 Cutover phase additionally enforces:
 
-- exact eight production core files;
+- exact flat ten-file production allowlist;
 - exactly one production factory call;
 - formal graph excludes QA;
 - `app/src/production/phone/` no longer exists;
@@ -1053,18 +1496,49 @@ another import graph.
 
 ```text
 phone JavaScript hard cap = 663,552 bytes
-clean target = no more than 628,044 bytes
+clean-base target/warning = 628,044 bytes
 ```
 
-The hard cap is a build failure. Until old orchestration is deleted, the clean
-target may be reported but not enforced against the temporary harness bundle.
-Cutover mode enforces both.
+Only `663,552` is an immediate size build failure. `628,044` remains visible
+as the clean-base optimization target/warning; it is not enforced as a second
+hard cap and may not motivate code golf, a God file, removed diagnostics, or
+property mangling.
+
+At `9652fbe`, `verify-performance-budgets.mjs` also calls
+`assertHeadroom()` for `phoneJsHeadroomBytes` and
+`totalJsHeadroomBytes` with 4 KiB, making the effective failure line
+659,456 bytes. Task 2 must remove those two assertions. Keep phone/total
+headroom in the JSON/report as an informational metric, and leave the
+pre-existing desktop headroom assertion unchanged. Add executable boundary
+tests proving:
+
+```text
+phone/total = 663,552 bytes     → pass
+phone/total = 663,553 bytes     → fail
+phone/total headroom < 4 KiB    → report only, pass
+desktop headroom < 4 KiB        → retain existing desktop failure
+```
+
+The build gate must independently fail on:
+
+- execution core duplicated across chunks;
+- a lazy leaf containing `machine`, runtime factory, stable commit, or input
+  ownership;
+- an undeclared scene/transition leaf becoming eager;
+- the same production module emitted into multiple phone chunks;
+- any lazy leaf chunk exceeding `donorMaxLazyLeafBytes` measured and recorded
+  in Task 0, unless a user-approved ADR names the intentional visual payload.
+
+Task 11 records the first fully functional clean-cutover size as
+`cleanCutoverBaselineBytes`. That value becomes the future regression baseline
+only after Task 12/13 acceptance; it does not alter the immutable 663,552 cap.
 
 - [ ] **Step 2.5: Verify and commit**
 
 ```bash
 node --test app/scripts/verify-phone-clean-architecture.test.mjs
 node --test app/scripts/verify-homepage-module-boundaries.test.mjs
+node --test app/scripts/verify-performance-budgets.test.mjs
 pnpm -C app run verify:phone-architecture
 pnpm -C app test
 pnpm -C app typecheck
@@ -1082,7 +1556,10 @@ git commit -m "test(r5): enforce clean phone architecture"
 - architecture failures are tested with fixtures;
 - the gate parses a real import/call graph;
 - harness and cutover modes have distinct, explicit rules;
-- the cap and no-property-mangle decision are executable.
+- the cap, warning target, duplicate/eager/max-lazy-chunk checks, and
+  no-property-mangle decision are executable;
+- `663,552` is the sole phone/total size failure line; phone/total 4 KiB
+  headroom remains reported but is no longer asserted.
 
 ---
 
@@ -1090,6 +1567,8 @@ git commit -m "test(r5): enforce clean phone architecture"
 
 **Create:**
 
+- `app/src/production/phone-story/protocol.ts`
+- `app/src/production/phone-story/protocol.test.ts`
 - `app/src/production/phone-story/manifest.ts`
 - `app/src/production/phone-story/manifest.test.ts`
 
@@ -1099,12 +1578,26 @@ Tests must assert:
 
 - exactly 16 unique scene IDs in canonical order;
 - exactly 15 unique segment IDs connecting every adjacent pair;
+- protocol exports only serializable IDs/events/effects/attempt/evidence/report
+  values and has no DOM/React/browser import;
 - every segment has forward and reverse descriptors;
 - every hold has checkpoint, edge surface, plane, landing, content proof,
   frame proof, navigation target, reduced-motion policy, and direct-entry
   policy;
 - every segment has source, target, timing reference, effect placement,
-  prepare policy, terminal evidence, rollback policy, and input boundary;
+  prepare policy, terminal evidence, rollback policy, input boundary, deadline
+  policy, media-activation policy, and dependency closure;
+- all 30 segment directions and all 16 direct entries explicitly declare
+  `load`, `mount`, `prewarm`, `retainUntil`, `exposeReceiverAfter`,
+  `retireAfter`, and numeric resource maxima;
+- `exposeReceiverAfter` accepts prepared module/root/decode-or-draw/layout
+  kinds only; final content/frame/coverage/scroll proof is rejected there as a
+  circular contract;
+- every dependency reference is owned by its closure and every retained
+  terminal compositor has a declared retirement proof;
+- no prewarm record may mount/play/activate/allocate a decoder or WebGL;
+- direct-entry closure is a minimal subset and cannot implicitly load earlier
+  story scenes;
 - all timing values come from named canonical timing exports;
 - all `between`/`above-both` placements match Section 2.2;
 - all opaque edge colors match Section 2.1;
@@ -1149,9 +1642,11 @@ export type PhoneSegmentManifest = Readonly<{
 ```
 
 Do not encode semantic fields as tuple positions or numbers. It is acceptable
-for IDs and common port/report types to live here because this is the
-dependency root; it is not acceptable for lifecycle functions or mutable
-registries to live here.
+for pure IDs, events, attempt keys, evidence slots, report values, and closure
+types to live in `protocol.ts`. DOM-bearing `PhoneLeafPort` and `HTMLElement`
+must not live in `protocol.ts` or `manifest.ts`; those belong to
+`presentation.ts`. Lifecycle functions and mutable registries are forbidden
+in both pure files.
 
 Use `canonicalSceneIds` and `canonicalSegments` from
 `app/src/story/canonical-spine.ts` as the authoritative order/adjacency seeds
@@ -1168,7 +1663,7 @@ type PhoneSceneId = (typeof canonicalSceneIds)[number];
 type PhoneSegmentId = (typeof canonicalSegments)[number]['id'];
 ```
 
-- [ ] **Step 3.3: Add direct-entry and adjacency selectors**
+- [ ] **Step 3.3: Add pure manifest lookup and closure selectors**
 
 Pure exports should include:
 
@@ -1177,14 +1672,18 @@ phoneSceneById(id)
 phoneSegmentBetween(source, target)
 phoneEntryForLocation(pathname, hash)
 phoneAdjacentTarget(scene, direction)
-selectPhoneEdgeSurface(snapshot, manifest)
-selectPhoneCheckpoint(snapshot, manifest)
-selectPhoneNavigationScene(snapshot, manifest)
+phoneDirectEntryClosure(scene)
+phoneSegmentClosure(segment, direction)
+phoneDeadlinePolicy(operation)
+phoneMediaActivationPolicy(sceneOrSegment)
 phoneManifestIntegrity()
 ```
 
 Hash parsing must normalize known historical aliases once. Runtime must never
 contain another scene switch table.
+
+Snapshot-derived edge/checkpoint/navigation selectors belong in `machine.ts`
+because `manifest.ts` may not import runtime snapshot state.
 
 - [ ] **Step 3.4: Verify no timing/media drift**
 
@@ -1209,239 +1708,255 @@ git commit -m "feat(r5): declare canonical phone story manifest"
 **Task 3 acceptance:**
 
 - one exhaustive manifest describes all holds, segments, directions, landings,
-  edge surfaces, proof rules, and entries;
+  edge surfaces, proof rules, entries, dependency closures, deadlines,
+  activation rules, and resource maxima;
 - runtime and leaves will not need their own story-order switch tables;
 - architecture gate remains green.
 
 ---
 
-## Task 4: Implement the pure reducer and one route-local runtime
+## Task 4: Implement one pure machine and one route-local effect runtime
 
 **Create:**
 
+- `app/src/production/phone-story/machine.ts`
+- `app/src/production/phone-story/machine.test.ts`
 - `app/src/production/phone-story/runtime.ts`
 - `app/src/production/phone-story/runtime.test.ts`
 
-No React, CSS, scene, transition, or QA file may be imported.
+No React, CSS, scene, transition, or QA file may be imported. `machine.ts` may
+not touch DOM/browser globals; `runtime.ts` may not construct stable state
+outside the machine.
 
-- [ ] **Step 4.1: Build a deterministic test environment**
+### Slice 4A — pure machine, boot, and direct entry
 
-In `runtime.test.ts`, create in-memory ports for:
+- [ ] **Step 4A.1: Build deterministic pure-machine fixtures**
+
+Create explicit attempt/slot builders and evidence queues. Tests dispatch
+events directly; they do not wait on wall-clock time. The fixture must make
+`stateRevision`, `commitSequence`, `transactionGeneration`, and
+`planeRevision` separately observable.
+
+- [ ] **Step 4A.2: Write the RED 16-entry matrix**
+
+For every scene and initial/hash/menu/history source:
+
+- initial state is a `mode: 'boot'` transaction with
+  `stableCommit/presentationProof: null`;
+- candidate/phase/attempt/evidence/deadline are in the snapshot, never an
+  effect-local side store;
+- withholding any manifest-required slot prevents stable/Loader release;
+- source/effect/target slots can differ while sharing one attempt key;
+- stale attempt/generation or wrong slot reports are ignored;
+- complete quorum invokes the sole `commitStableCandidate()` branch once;
+- `commitSequence` increments once; toolbar/plane changes cannot increment it.
+
+Also test unknown hash normalization, target failure → new Hero boot attempt,
+Hero failure → `faulted` safe cover, accessible retry, new-generation retry,
+history canonicalization, and rejection of old reports.
+
+- [ ] **Step 4A.3: Implement pure snapshot, selectors, and boot reduction**
+
+`machine.ts` owns:
 
 ```text
-clock and monotonic IDs
-timeout and RAF queues
-window/visualViewport event subscriptions
-scene and transition module loading
-presentation plane apply/verify
-scroll command and confirmation
-history/hash observation
-snapshot publication
-media/playback reports
+identity/slot guards
+reducePhoneStory()
+commitStableCandidate() — exactly one branch
+reprojectCommittedPlane() — proof-only recovery; never a semantic commit
+edge/checkpoint/navigation selectors
+boot/direct-entry transitions
+revision increment helpers with the four fixed meanings
 ```
 
-The fixture must expose explicit methods such as:
+It emits effect descriptions only. It cannot import `presentation.ts`,
+`runtime.ts`, React, DOM, timers, or lazy leaves.
 
-```ts
-clock.advance(ms)
-clock.flushAnimationFrames(count)
-ports.resolveScene(id)
-ports.rejectScene(id, error)
-ports.reportFrame(identity, frame)
-ports.reportPlaneApplied(identity, revision)
-ports.reportCoverage(identity, coverage)
-ports.reportScroll(identity, scroll)
-ports.dispatchPhysicalIntent(intent)
-```
-
-Do not make tests wait on wall-clock time.
-
-- [ ] **Step 4.2: Write the RED boot/direct-entry matrix**
-
-For every one of the 16 scene IDs:
-
-- request initial/hash/menu/history entry;
-- assert only that target module is prepared;
-- withhold each evidence item in turn and assert Loader release/stable commit
-  does not occur;
-- provide the complete same-identity quorum;
-- assert one stable commit whose scene/landing/plane/content/frame/coverage/
-  scroll evidence and derived edge/checkpoint/navigation all agree;
-- send a stale event from the prior generation and assert it is ignored.
-
-Also cover:
-
-- unknown hash normalizes through the manifest;
-- target boot failure starts a newly identified Hero fallback;
-- Hero fallback failure remains booting and exposes retry;
-- retry creates a new generation and cannot accept old reports;
-- successful entry changes history once at stable commit;
-- boot fallback canonicalizes to Hero;
-- failed `popstate`/hash entry restores the committed source URL only after
-  rollback proof.
-
-Run and confirm RED:
+- [ ] **Step 4A.4: Verify and commit Slice 4A**
 
 ```bash
-pnpm -C app exec vitest run src/production/phone-story/runtime.test.ts
+pnpm -C app exec vitest run src/production/phone-story/machine.test.ts \
+  --testNamePattern="boot|direct|revision"
+pnpm -C app run verify:phone-architecture
+pnpm -C app typecheck
+git diff --exit-code 9652fbe -- \
+  assets app/scripts/homepage-media-contract.mjs app/src/story/timings.ts \
+  app/src/story/copy.ts app/src/story/canonical-spine.ts \
+  app/src/story/manifest.ts app/src/story/spine.ts app/src/story/media.ts
+git add app/src/production/phone-story/protocol.ts \
+  app/src/production/phone-story/protocol.test.ts \
+  app/src/production/phone-story/machine.ts \
+  app/src/production/phone-story/machine.test.ts
+git commit -m "feat(r5): establish phone boot transaction machine"
 ```
 
-- [ ] **Step 4.3: Write the RED 15 × 2 transaction matrix**
+### Slice 4B — segment transactions, rollback, and terminal fault
 
-For every segment in both directions, assert:
+- [ ] **Step 4B.1: Write the RED 15 × 2 transaction/closure matrix**
+
+For every segment direction, visit every canonical staged stop:
 
 ```text
 stable(source)
 → preparing
 → presenting-source
-→ playing
-→ every declared staged stop/dwell or leg-intent boundary
+→ playing / dwelling / awaiting-leg-intent
 → presenting-target
 → aligning
 → verifying
 → stable(target)
 ```
 
-At every phase:
+Assert source retention, receiver exposure, terminal-compositor retention,
+retirement proof, resource maxima, no candidate selector leakage, monotonic
+directional progress, prepared-proof → atomic candidate-plane → projector
+visible-proof ordering, and no commit without all slots. Figure2 distance,
+TTG → Lab, and PH → Education must use canonical timing/gesture policies.
+Reduced motion skips sampling only, not proof or closure.
 
-- the source committed plane remains the rollback anchor;
-- the target is not published as stable;
-- candidate edge/checkpoint/navigation never leak to the committed snapshot;
-- a report from wrong authority/transaction/generation/revision/direction/leg
-  is rejected;
-- progress is monotonic within the active direction;
-- completion without target frame/content/coverage/scroll cannot commit.
+- [ ] **Step 4B.2: Write RED failure/deadline/fault tests**
 
-For Figure2 distance expansion, TTG → Lab, and PH → Education, visit every
-canonical stage stop in forward and reverse order, honor the exact delay/leg
-durations from `timings.ts`, and prove that a dwell timer never marks a frame
-or stable target. If a canonical policy declares gesture advancement, require
-a new physical epoch for that leg without creating a second transaction.
+Inject failure at scene/transition load, mount, content, media preparation,
+first frame, playback, plane, coverage, landing, scroll, post-paint, and every
+named deadline. Each ordinary failure rolls back, re-proves source
+plane/frame/landing, releases input once, and permits a new generation.
 
-Reduced motion must use the same transaction:
+Then independently fail source module, source frame/Canvas, source plane, and
+source scroll during rollback. Each must enter `faulted` by the rollback
+deadline with either a still-proven source or opaque safe cover plus retry.
+There may be no unbounded `rolling-back`. Rewrite `e883784` behavioral cases
+against this machine; do not copy its runtime.
 
-```text
-stable(source)
-→ preparing
-→ presenting-target
-→ target static frame proven
-→ aligning
-→ verifying
-→ stable(target)
-```
+- [ ] **Step 4B.3: Implement segment/rollback/faulted reduction**
 
-It skips animated sampling only; it does not skip proof.
+All transaction modes remain in the same reducer. Named deadline effects come
+from manifest policy. A dwell deadline proves only dwell; it cannot synthesize
+frame, content, plane, or stable evidence.
 
-- [ ] **Step 4.4: Write failure and rollback RED tests**
-
-Inject failure separately at:
-
-```text
-scene chunk load
-transition chunk load
-target mount
-content proof
-media preparation
-first frame
-playback
-plane application
-coverage verification
-landing measurement
-scroll confirmation
-post-paint acknowledgement
-watchdog expiration
-```
-
-For each failure:
-
-- enter `rolling-back`;
-- abort target effects;
-- reject late target reports;
-- reapply and prove the last committed source plane;
-- restore and confirm source landing;
-- return to `stable(source)`;
-- release claimed input exactly once;
-- allow a clean retry with a new generation.
-
-Add the `e883784` prepare-failure scenarios as behavioral donors only; rewrite
-them against the clean reducer rather than copying its runtime.
-
-- [ ] **Step 4.5: Write physical-input epoch RED tests**
-
-Cover wheel, touch, pointer, and keyboard:
-
-- one physical epoch can claim at most one adjacent cinematic segment;
-- threshold crossing starts one transaction;
-- momentum/tail input from that epoch cannot chain into the next segment;
-- opposite-direction input during a transaction cannot start a second run;
-- native reading corridors pass through without `preventDefault`;
-- a cinematic boundary claims input only when manifest adjacency matches;
-- Contact controls, links, focus, form interaction, and text selection remain
-  native;
-- visibility change, direct entry, stable commit, rollback, and disposal clear
-  pending intent;
-- a scroll event caused by the runtime's own scroll command cannot be
-  reinterpreted as user intent.
-
-Also cover viewport lifecycle:
-
-- visual-viewport toolbar samples update coverage without resetting progress;
-- orientation/width invalidation during playback rolls back against fresh
-  geometry;
-- unsupported geometry derives an input-disabled warning from the same
-  snapshot;
-- returning to supported geometry re-proves the committed plane before input;
-- no orientation hook or gate owns another current scene/lock.
-
-- [ ] **Step 4.6: Implement one reducer and one effect interpreter**
-
-Keep pure and impure responsibilities visibly separated inside `runtime.ts`:
-
-```text
-types and identity guards
-pure selectors
-reducePhoneStory()
-commitStableCandidate() — exactly one branch
-effect descriptions
-route-local effect interpreter/factory
-browser environment adapter
-```
-
-The active runtime connection owns:
-
-- physical input and history/hash/visibility/viewport subscriptions;
-- story transaction RAF/timeout scheduling;
-- AbortControllers and generation invalidation;
-- source/target module preparation;
-- progress sampling and terminal settle;
-- scroll commands and one bounded correction;
-- snapshot publication and disposal.
-
-Renderers may use local media callbacks only to draw and report. They may not
-schedule story completion or stable commit.
-
-- [ ] **Step 4.7: Prove deterministic disposal**
-
-Tests must assert:
-
-- every listener is removed;
-- every timer and RAF is canceled;
-- every AbortController is aborted;
-- prepared leaf resources receive `dispose`;
-- snapshot subscribers are released;
-- a disconnected authority ignores all subsequent callbacks;
-- React StrictMode connect → disconnect → reconnect leaves one active
-  authority, not a retained global object.
-
-The only allowed process-global caches are immutable ESM loader promises and a
-Document-keyed render-resource pool that has no story state. Module-level
-authority counters, refresher `Set`s, current-document state, and lifecycle
-`WeakMap`s are forbidden.
-
-- [ ] **Step 4.8: Run focused, mutation, and global checks**
+- [ ] **Step 4B.4: Verify and commit Slice 4B**
 
 ```bash
-pnpm -C app exec vitest run src/production/phone-story/runtime.test.ts
+pnpm -C app exec vitest run src/production/phone-story/machine.test.ts \
+  --testNamePattern="segment|rollback|fault|deadline"
+pnpm -C app run verify:phone-architecture
+pnpm -C app test
+pnpm -C app typecheck
+git diff --exit-code 9652fbe -- \
+  assets app/scripts/homepage-media-contract.mjs app/src/story/timings.ts \
+  app/src/story/copy.ts app/src/story/canonical-spine.ts \
+  app/src/story/manifest.ts app/src/story/spine.ts app/src/story/media.ts
+git add app/src/production/phone-story
+git commit -m "feat(r5): close phone segment rollback machine"
+```
+
+### Slice 4C — input, history, viewport, and BFCache
+
+- [ ] **Step 4C.1: Build a deterministic runtime environment**
+
+Provide controllable monotonic IDs, active-foreground clock, timeout/RAF
+queues, listener registration, visual viewport, history/hash, page lifecycle,
+scroll commands, and snapshot publication. Expose listener/resource counts.
+
+- [ ] **Step 4C.2: Write RED physical-input/history/viewport tests**
+
+Cover wheel, touch, pointer, keyboard, momentum tails, native corridors,
+Contact controls, runtime-originated scroll samples, menu/hash/popstate
+history, visual-toolbar reprojection, width/orientation invalidation, and
+unsupported geometry. One physical epoch may claim one adjacent segment only.
+Toolbar changes increase state/plane revisions, not commit sequence.
+Tests must prove `reprojectCommittedPlane()` retains scene, semantic landing,
+checkpoint, navigation, and stable-commit object identity while replacing all
+final presentation evidence under a new `planeRevision`.
+
+- [ ] **Step 4C.3: Write RED BFCache and hidden-deadline tests**
+
+Cover `pagehide/pageshow` with `persisted=true` and `false`:
+
+- hidden time pauses active deadlines and cannot commit;
+- persisted hide invalidates evidence without making the page BFCache-hostile;
+- persisted show with a stable commit creates a recovery generation and
+  re-proves plane/content/frame/coverage/landing/scroll before input;
+- persisted show without a stable commit keeps Loader opaque and restarts the
+  original boot/direct-entry candidate;
+- ordinary unload/disconnect fully disposes;
+- repeated back/forward restores one listener set, one authority, and no stale
+  media/Canvas token.
+
+- [ ] **Step 4C.4: Implement the sole input/history/page-lifecycle adapter and commit**
+
+```bash
+pnpm -C app exec vitest run src/production/phone-story/runtime.test.ts \
+  --testNamePattern="input|history|viewport|pagehide|pageshow|BFCache"
+pnpm -C app run verify:phone-architecture
+pnpm -C app test
+pnpm -C app typecheck
+git diff --exit-code 9652fbe -- \
+  assets app/scripts/homepage-media-contract.mjs app/src/story/timings.ts \
+  app/src/story/copy.ts app/src/story/canonical-spine.ts \
+  app/src/story/manifest.ts app/src/story/spine.ts app/src/story/media.ts
+git add app/src/production/phone-story/runtime.ts \
+  app/src/production/phone-story/runtime.test.ts \
+  app/src/production/phone-story/machine.ts \
+  app/src/production/phone-story/machine.test.ts
+git commit -m "feat(r5): unify phone input history and page lifecycle"
+```
+
+### Slice 4D — effect interpreter, media activation, and disposal
+
+- [ ] **Step 4D.1: Write RED effect and activation tests**
+
+The deterministic ports cover module loading, presentation application,
+scroll confirmation, history, media/playback, and closure resource counts.
+Assert:
+
+- only a claimed physical epoch offers one activation credit;
+- only current-closure media may spend it;
+- no global video unlock sweep exists;
+- chunk-not-ready loses the first activation but completes module load and
+  inert media-surface registration, retains the active closure in
+  `awaiting-media-activation`, and releases cinematic input;
+- CTA remains hidden/disabled until the registered media surface can be
+  activated synchronously;
+- the next real CTA gesture renews generation/frame token and calls `play()`
+  synchronously without another import, mount, or React commit;
+- old callbacks/ports/tokens retire while the prepared DOM/media topology
+  remains mounted;
+- direct media entry tries declared muted/playsInline autoplay, then remains
+  covered with accessible tap-to-continue on rejection;
+- `play()` success never fills a frame slot;
+- leaf progress/frame/complete callbacks cannot directly change phase/commit.
+
+- [ ] **Step 4D.2: Implement the one factory/effect interpreter**
+
+`runtime.ts` owns subscriptions, active-foreground deadlines, RAFs,
+AbortControllers, generation invalidation, closure load/mount/retire,
+activation credits, presentation/scroll/history commands, publication, and
+disconnect. It calls only `reducePhoneStory()` for state transitions.
+
+- [ ] **Step 4D.3: Prove deterministic disposal**
+
+Every listener, timer, RAF, AbortController, leaf resource, media token,
+subscriber, Canvas, and WebGL context is removed/retired. StrictMode
+connect A → disconnect A → connect B has distinct authority IDs and no
+overlap. A disconnected authority ignores all callbacks.
+
+Successful immutable module promises and a Document-keyed render-resource pool
+without story state are the only allowed shared caches. Application references
+to rejected promises are cleared for disposal/diagnostics, but runtime must
+never retry a natively rejected module URL in the same Document; guarded
+reload recovery is specified in Tasks 6/12.
+Module-level current-document/authority state and lifecycle WeakMaps/Sets are
+forbidden.
+
+- [ ] **Step 4D.4: Run mutation/global checks and commit**
+
+Deliberately invert one attempt guard, one evidence-slot quorum bit, and one
+activation-scope guard; confirm tests fail, then restore and record results.
+
+```bash
+pnpm -C app exec vitest run \
+  src/production/phone-story/machine.test.ts \
+  src/production/phone-story/runtime.test.ts
 pnpm -C app run verify:phone-architecture
 pnpm -C app test
 pnpm -C app typecheck
@@ -1450,34 +1965,26 @@ git diff --exit-code 9652fbe -- \
   assets app/scripts/homepage-media-contract.mjs app/src/story/timings.ts \
   app/src/story/copy.ts app/src/story/canonical-spine.ts \
   app/src/story/manifest.ts app/src/story/spine.ts app/src/story/media.ts
+git add app/src/production/phone-story
+git commit -m "feat(r5): centralize phone effects and media activation"
 ```
 
-Before committing, deliberately invert one identity check and one quorum bit
-in a local diff, confirm tests fail, then restore them. Record those two
-mutation checks in the commit body.
-
-- [ ] **Step 4.9: Commit**
-
-```bash
-git add app/src/production/phone-story/runtime.ts \
-  app/src/production/phone-story/runtime.test.ts
-git commit -m "feat(r5): centralize phone transaction authority"
-```
-
-`connect()` installs one active authority and returns its complete disconnect
-function. It must support React StrictMode effect replay as a strict sequence:
-connect A → disconnect A → connect B, with different authority IDs and no
-overlap. The route-local runtime value itself retains no listeners or render
-resources while disconnected. Each connection resets to a fresh `booting`
-snapshot for the same explicit entry before accepting reports.
+`connect()` installs one active authority and returns its complete disconnect.
+Each connection starts a fresh boot transaction for the explicit entry.
 
 **Task 4 acceptance:**
 
 - all 16 boot/direct entries and all 30 segment directions use one reducer;
-- one stable-commit branch requires the complete same-identity quorum;
-- all failure phases visibly roll back and unlock;
-- physical input and disposal have one owner;
-- no browser or visual leaf import entered `runtime.ts`.
+- boot candidate/evidence is reducer state, not effect-interpreter state;
+- one stable-commit branch requires one attempt's complete evidence slots;
+- one proof-only reproject branch retains the stable commit and refreshes all
+  final presentation evidence;
+- leaf ports close over attempt/slot identity and cannot submit content proof;
+- four revision meanings are separately tested;
+- all rollback failures reach stable or `faulted` within a deadline;
+- physical input, media activation, page lifecycle, and disposal have one
+  owner;
+- no browser global entered `machine.ts`; no visual leaf entered runtime.
 
 ---
 
@@ -1512,11 +2019,16 @@ The exact values may change together, but ordering may not. Tests must reject:
 - source/receiver/effect in different undocumented stacking contexts;
 - `between` rendered above the receiver;
 - `above-both` rendered below either endpoint;
-- a plane revision assembled from two transaction identities.
+- a plane revision assembled from two attempt keys.
 
 Visual transition planes must not duplicate the interactive/accessibility
 tree: non-committed visual endpoints are inert and `aria-hidden`, while the
 one stable native reading subtree owns focus and interaction.
+
+Tests must also prove the two-stage exposure order: source/Loader occludes the
+inert target during prepared proof; one atomic candidate-plane apply makes the
+receiver non-occluded inside the story stack while retaining source mounted as
+rollback anchor; interaction remains disabled until stable commit.
 
 - [ ] **Step 5.2: Write RED viewport and coverage tests**
 
@@ -1558,17 +2070,23 @@ Content proof must require:
 - each required element has a non-empty rect intersecting the live visual
   viewport;
 - computed visibility, display, opacity, clip, and occluding layer checks pass;
-- the proof belongs to the current presentation revision.
+- the proof belongs to the current plane revision.
 
-Frame proof policies:
+Only projector may generate this proof from its registered root. A leaf
+`reportMounted()` call is registration, not evidence, and no leaf-created
+`PhoneContentReport` is accepted. During direct-entry boot, the one registered
+Loader safety cover is excluded from story-stack occlusion calculation; every
+other source/effect/ancestor remains part of it.
 
-| Policy | Valid evidence |
-| --- | --- |
-| `static-post-paint` | required content/media ready, plane applied, runtime-scheduled post-paint verification |
-| `image-decode-paint` | every required image `decode()` resolved, then post-paint verification |
-| `canvas-draw` | successful draw callback for the active token, then plane verification |
-| `packed-canvas-draw` | compositor returned/delivered a real draw for active video frame and active token |
-| `decoded-composite-frame` | decoded source frame and successful compositor presentation for active token |
+Prepared leaf frame facts and final visible-frame proof are different:
+
+| Policy | Prepared fact beneath source/Loader | Final projector proof after candidate plane |
+| --- | --- | --- |
+| `static-post-paint` | registered content/layout ready | current-plane content/frame post-paint |
+| `image-decode-paint` | every required `decode()` resolved | decoded element visibly painted |
+| `canvas-draw` | successful draw callback for bound token | same registered Canvas visibly presented |
+| `packed-canvas-draw` | compositor delivered a real active-token draw | drawn surface visibly presented in current plane |
+| `decoded-composite-frame` | decoded source + successful bound compositor draw | composited surface visibly presented in current plane |
 
 Explicit invalid evidence:
 
@@ -1594,8 +2112,14 @@ export type PhonePresentation = Readonly<{
   registerEffect(registration: PhoneEffectRegistration): () => void;
   sampleLayoutViewport(): PhoneLayoutViewport;
   sampleVisualViewport(): PhoneVisualViewport;
+  verifyPrepared(request: PhonePreparedProofRequest): PhonePreparedProof;
   applyPlane(request: PhonePlaneRequest): PhonePlaneApplyResult;
-  verifyCandidate(request: PhoneCandidateProofRequest): PhoneCandidateProof;
+  verifyVisibleCandidate(
+    request: PhoneVisibleCandidateProofRequest
+  ): PhonePresentationProof;
+  verifyReproject(
+    request: PhoneReprojectProofRequest
+  ): PhonePresentationProof;
   verifyRollback(request: PhoneRollbackProofRequest): PhoneRollbackProof;
 }>;
 
@@ -1607,6 +2131,11 @@ export function createPhonePresentation(
 `presentation.ts` owns calculation, registration, DOM application, and
 verification policy. Runtime owns when sampling/application occurs and owns
 global subscriptions/RAF scheduling.
+
+`verifyReproject()` always creates fresh final content/frame/coverage/
+landing/scroll proof bound to the retained stable commit and new
+`planeRevision`; it may consume retained decode readiness as preparation but
+cannot copy a prior final proof object.
 
 The cleanup returned by `attachRoot()` clears the root and all registrations
 for that connection. A later StrictMode attach starts empty; no module-global
@@ -1715,14 +2244,17 @@ prove:
 - one mounted shell has one current runtime and one presentation object;
 - StrictMode's discarded mount is disposed before the live mount owns input;
 - rerendering a snapshot does not recreate runtime;
-- a keyed formal ↔ QA route remount disconnects the old authority before
-  constructing the next route-local object;
+- constructing a route-local runtime/projector object is side-effect free;
+- a keyed formal ↔ QA route remount disconnects the old connection before the
+  new connection may attach listeners, claim input, start clocks, or activate
+  media; React may construct the inert new object before old cleanup;
 - hash/menu/history entry inside one mounted route uses `requestEntry()` and
   does not recreate runtime;
 - unmount removes all listeners/resources;
 - shell uses `useSyncExternalStore` or equivalent immutable subscription and
   does not mirror machine fields into independent React state;
-- scenes/effects receive identity-bound leaf ports, not runtime dispatch;
+- scenes/effects receive runtime-created closed-binding leaf ports, not
+  attempt/slot constructors or runtime dispatch;
 - missing/rejected lazy leaves report prepare failure and roll back;
 - nested lazy boundaries always render an opaque Loader or the last committed
   plane, never `fallback={null}`.
@@ -1753,7 +2285,7 @@ phone target.
 
 - typed `import()` functions for genuine leaves;
 - rendering components that bind an active identity to the narrow port;
-- module-promise caching only;
+- successful module-promise caching only;
 - no reducer, listener, current scene, checkpoint, timer, or stable state.
 
 During Tasks 6–10 the registries may be typed
@@ -1765,12 +2297,41 @@ cutover gate rejects partial/incomplete registries.
 Chunk rule:
 
 ```text
-PhoneStoryShell + manifest + runtime + presentation = one execution core
+PhoneStoryShell + protocol + manifest + machine + runtime + presentation
+  = one execution core
 scene and transition implementations = lazy leaves
 ```
 
-Do not dynamically import `manifest.ts`, `runtime.ts`, `presentation.ts`, a
-port type, or an authority helper.
+Do not dynamically import `protocol.ts`, `manifest.ts`, `machine.ts`,
+`runtime.ts`, `presentation.ts`, a port type, or an authority helper.
+
+Chunk cache/recovery contract:
+
+- cache fulfilled module promises;
+- if runtime detects offline **before** invoking native `import()`, retain
+  Loader/source, wait for `online`, and perform the first import without a
+  reload;
+- once native `import()` or Vite preload has rejected, clear the application
+  promise reference for disposal/diagnostics but never retry the same module
+  URL in the same Document; browser module-fetch state is not an
+  application-controlled cache;
+- handle `vite:preloadError`, call `preventDefault()`, and route the payload
+  through the same runtime fault/reload policy rather than allowing an
+  unhandled blank-screen error;
+- stamp HTML/execution core with the document build ID and fetch the deployed
+  build identity from the existing `/r5-release-manifest.json` with
+  `cache: 'no-store'`; its `sourceCommit`/artifact identity is the canonical
+  comparison, so no second release manifest is created;
+- either same-build network rejection or build/version mismatch permits at
+  most one controlled page reload for
+  `{documentBuildId, deployedBuildId, failedModuleUrl}` using a session guard;
+- if the native rejection occurs while offline, keep the Loader/source and
+  wait for `online` before spending that one guarded reload; do not burn the
+  guard against a known-offline fetch;
+- after the guarded reload, a second rejection remains fail-closed under
+  Loader/source with an accessible retry/reload action; it never loops;
+- delayed module resolution from a superseded, non-rejected attempt remains
+  generation-bound and cannot populate the active closure.
 
 - [ ] **Step 6.4: Implement the shell topology**
 
@@ -1852,6 +2413,8 @@ git commit -m "feat(r5): wire one clean phone story shell"
 - exactly one production runtime factory call site exists;
 - Loader cannot time out into unproven pixels;
 - core modules are eager together and only visual leaves are lazy;
+- pre-import offline recovery stays in-document; any native import rejection
+  requires at most one session-guarded reload and can never loop;
 - clean shell remains unreachable from formal `/`;
 - absent leaves fail closed without creating a compatibility lifecycle.
 
@@ -1934,9 +2497,10 @@ lifecycle.
 - `app/package.json` and lockfile to add `pngjs` plus `@types/pngjs` as
   test-only dependencies
 
-- [ ] **Step 7.1: Move the accepted visuals, not their authority**
+- [ ] **Step 7.1: Prepare the per-slice visual disposition map**
 
-Use the `9652fbe` Front files as the visual donor. Preserve:
+Use the `9652fbe` Front files as the visual donor and map each source to Slice
+7B–7E before moving it. Preserve:
 
 ```text
 Hero composition and text
@@ -1947,7 +2511,7 @@ Hero → Pattern, Pattern → Star, Star → AOD ink direction/seeds
 AOD → Method effect placement
 ```
 
-Remove from genuine leaves:
+As each slice moves its own genuine leaves, remove:
 
 - imports of old phone runtime/types/adapters;
 - global document lifecycle dispatch;
@@ -1956,12 +2520,13 @@ Remove from genuine leaves:
 - scene-controlled stable or Loader state;
 - transition-controlled transaction timing.
 
-Move the existing pure `phoneMediaUrlFor()` ownership/URL resolver to
+Move the existing pure `phoneMediaUrlFor()` ownership/URL resolver during
+Slice 7D to
 `app/src/media/phone-media.ts`, retaining `app/src/story/media.ts` as the
 immutable identity/owner source. Update both migration and clean imports
 directly; do not leave a final re-export at the old path.
 
-Convert transitions to prepared, paused renderers:
+Convert each transition in Slice 7E to a prepared, paused renderer:
 
 ```ts
 type PhoneTransitionLeaf = Readonly<{
@@ -1974,7 +2539,9 @@ type PhoneTransitionLeaf = Readonly<{
 
 The runtime owns progress/time; the leaf owns only visual sampling.
 
-- [ ] **Step 7.2: Create the DEV-only clean harness**
+### Slice 7A — harness and real pixel helpers
+
+- [ ] **Step 7A.1: Create the DEV-only clean harness**
 
 Add:
 
@@ -1992,18 +2559,19 @@ the runtime factory, substitute a reducer, or import `runtime.ts`.
 The route remains behind the existing `HarnessRouter` DEV/release-harness
 guard. It is not a query alias for formal `/`.
 
-- [ ] **Step 7.3: Add real stacking-context and pixel helpers**
+- [ ] **Step 7A.2: Add real stacking-context and pixel helpers**
 
 `r5-phone-clean-assertions.ts` must provide:
 
 ```ts
 assertSinglePhoneAuthority(page)
-readPresentationRevision(page)
+readPlaneRevision(page)
+readCommitSequence(page)
 assertLayerOrderAtPoints(page, points, expectedRoles)
 assertOpaqueViewportEdges(page, expectedColor, tolerance)
 assertTargetContentVisible(page, selectors)
 assertNoIntermediateWhiteOrBlackFrame(frameSeries, policy)
-waitForStableRevision(page, sceneId, afterRevision)
+waitForCommitSequence(page, sceneId, afterSequence)
 ```
 
 Pixel assertions must decode actual Playwright screenshots. Sample at least:
@@ -2037,7 +2605,27 @@ phone-portrait-webkit = iPhone 15 portrait, WebKit
 The default `playwright.config.ts` ignores `r5-*.spec.ts`, so every R5 command
 in this plan must explicitly use `playwright.release.config.ts`.
 
-- [ ] **Step 7.4: Reproduce Hero flash before declaring the fix**
+- [ ] **Step 7A.3: Prove the empty harness fails closed and commit**
+
+Use deterministic placeholder leaves to prove one authority, opaque Loader,
+pixel helper failure on a one-pixel gap, and no production dependency on the
+harness:
+
+```bash
+pnpm -C app exec vitest run src/production/phone-story
+VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app exec playwright test \
+  --config=playwright.release.config.ts \
+  e2e/r5-phone-clean-runtime.spec.ts \
+  e2e/r5-phone-clean-presentation.spec.ts \
+  --project=phone-portrait-webkit --grep "harness contract"
+git add app
+git commit -m "test(r5): establish clean phone browser harness"
+```
+
+### Slice 7B — Hero and Loader
+
+- [ ] **Step 7B.1: Reproduce Hero flash before declaring the fix**
 
 Instrument screenshots from navigation start through Loader exit at every
 animation frame available to the test. The RED assertion must catch either:
@@ -2060,7 +2648,25 @@ Then enforce:
 Port the reviewed Hero font declaration from `82a4e68` into the new canonical
 Hero CSS, not the old path.
 
-- [ ] **Step 7.5: Reproduce Pattern bottom/right exposure**
+- [ ] **Step 7B.2: Run the Hero/Loader checkpoint and commit**
+
+```bash
+pnpm -C app exec vitest run \
+  src/production/StoryLoader.test.tsx \
+  src/scenes/hero/phone \
+  src/production/phone-story
+VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app exec playwright test \
+  --config=playwright.release.config.ts \
+  e2e/r5-phone-clean-presentation.spec.ts \
+  --project=phone-portrait-webkit --grep "Hero|Loader"
+git add app
+git commit -m "fix(r5): close phone Hero Loader handoff"
+```
+
+### Slice 7C — Pattern and dynamic viewport
+
+- [ ] **Step 7C.1: Reproduce Pattern bottom/right exposure**
 
 The RED test must fail on a one-pixel white/transparent strip while title/root
 datasets remain “ready.” Then make Pattern report:
@@ -2077,7 +2683,24 @@ Fix the global coverage/projector contract if it fails. Do not add a
 Pattern-only gradient, strip, negative bottom, overscan surface, or pseudo
 element.
 
-- [ ] **Step 7.6: Make AOD frame proof causal and fail fast**
+- [ ] **Step 7C.2: Run the Pattern/viewport checkpoint and commit**
+
+```bash
+pnpm -C app exec vitest run \
+  src/scenes/pattern/phone \
+  src/production/phone-story/presentation.test.ts
+VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app exec playwright test \
+  --config=playwright.release.config.ts \
+  e2e/r5-phone-clean-presentation.spec.ts \
+  --project=phone-portrait-webkit --grep "Pattern|viewport|coverage"
+git add app
+git commit -m "fix(r5): close global phone viewport coverage"
+```
+
+### Slice 7D — AOD and iOS media activation
+
+- [ ] **Step 7D.1: Make AOD frame proof causal and fail fast**
 
 Update the packed-alpha surface API so:
 
@@ -2092,10 +2715,38 @@ Update the packed-alpha surface API so:
 - retry uses a renewed Canvas/context and new generation;
 - a late frame from the retired Canvas is rejected.
 
-Remove any assertion where “still preparing after 500 ms” counts as success.
-Add tests that cross the old six-second watchdog boundary.
+Additionally prove AOD receives activation only through the runtime's current
+closure. When a delayed chunk misses the first activation window, the loaded
+AOD media surface mounts inert beneath source/Loader and remains in
+`awaiting-media-activation`; CTA appears only after registration, and the
+second real gesture renews token/generation and synchronously activates that
+same topology. Direct entry follows muted/playsInline → prepared accessible
+real-gesture retry, and `play()` success does not prove a Canvas frame. Remove
+any assertion where
+“still preparing after 500 ms” counts as success. Add tests that cross the old
+six-second watchdog boundary.
 
-- [ ] **Step 7.7: Enforce all four global gates on every Front hold/segment**
+- [ ] **Step 7D.2: Run the AOD/activation checkpoint and commit**
+
+```bash
+pnpm -C app exec vitest run \
+  src/scenes/aod-animation/phone \
+  src/media/phone-media.test.ts \
+  src/media/phone-packed-alpha-surface.test.ts \
+  src/production/phone-story/runtime.test.ts
+VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app exec playwright test \
+  --config=playwright.release.config.ts \
+  e2e/r5-phone-clean-runtime.spec.ts \
+  e2e/r5-phone-clean-presentation.spec.ts \
+  --project=phone-portrait-webkit --grep "AOD|activation"
+git add app
+git commit -m "fix(r5): make AOD activation and frame proof causal"
+```
+
+### Slice 7E — Star Map, front transitions, and Front matrix
+
+- [ ] **Step 7E.1: Enforce all four global gates on every Front hold/segment**
 
 For Hero, Pattern, Star Map, AOD and both directions of the first three
 complete segments, require:
@@ -2113,7 +2764,7 @@ rollback source proof
 `aod-method-top` may prepare in this task, but its target cannot pass until
 Method is integrated in Task 8.
 
-- [ ] **Step 7.8: Run Front unit and browser checkpoints**
+- [ ] **Step 7E.2: Run Front unit and browser checkpoints**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -2152,7 +2803,7 @@ Also run the existing formal phone story regression against the old route.
 Any old-route failure introduced by the temporary stateless bridge blocks the
 commit.
 
-- [ ] **Step 7.9: Freeze visual evidence and commit**
+- [ ] **Step 7E.3: Freeze visual evidence and commit**
 
 Store only intentional Playwright baselines/evidence in the repository's
 existing snapshot convention. Do not commit transient videos/traces unless
@@ -2160,7 +2811,7 @@ the report links them as required acceptance evidence.
 
 ```bash
 git add app
-git commit -m "feat(r5): converge Front and AOD on clean runtime"
+git commit -m "feat(r5): converge Front transitions on clean runtime"
 ```
 
 **Task 7 acceptance:**
@@ -2231,8 +2882,9 @@ Scene leaves:
 
 - render the accepted component;
 - register their root and media surfaces;
-- accept active identity/progress/media commands;
-- report mount/content/frame/failure;
+- accept runtime-bound progress/media commands without constructing identity;
+- register mount and report only prepared frame/progress/complete/failure
+  through the closed-binding port; projector alone proves visible content;
 - dispose local rendering resources.
 
 They may not:
@@ -2277,7 +2929,8 @@ extra opaque overlay above the scene
 
 For forward and reverse:
 
-- AOD remains visible until Method content/landing is proven;
+- AOD visibly covers Method through prepared proof, then remains mounted as
+  rollback anchor while projector proves the exposed Method candidate plane;
 - `aod-method-top` effect is between source and receiver;
 - Method native reading passes through;
 - Method boundary claims exactly one intent into Figure2;
@@ -2402,9 +3055,50 @@ Use `35b0aee`, `eca6bc2`, and the current base as visual donors. The
 `19053c4` decoded TTG terminal-frame behavior may be ported by reviewed hunk
 only.
 
-- [ ] **Step 9.2: Remove Group 4–5 lifecycle imports from genuine leaves**
+### Slice 9A — Brand → Figure3 → Services
 
-The following imports must be absent after refactor:
+- [ ] **Step 9A.1: Refactor only Brand/Figure3/Services and their two edges**
+
+Remove Group 4–5 lifecycle imports from these leaves only. Replace callbacks
+with manifest command/report ports. Preserve Figure3 initial/terminal paper,
+one persistent visible compositor, reverse from a proven terminal frame, and
+retirement only after the `figure3-services` closure boundary. No poster,
+screenshot, hidden pre-play, seek-only proof, or untracked decoder is allowed.
+
+- [ ] **Step 9A.2: Add vertical-slice direct/failure/browser tests**
+
+Test Brand → Figure3 → Services and reverse twice; direct entries for those
+three holds; delayed/rejected Figure3 chunk; withheld initial/terminal frame;
+hidden Services content; background/foreground; and immediate reverse.
+`commitSequence` increments once per stable hold, and resource counts do not
+grow.
+
+- [ ] **Step 9A.3: Verify and commit Slice 9A**
+
+```bash
+pnpm -C app exec vitest run \
+  src/production/phone-story \
+  src/scenes/brand/phone \
+  src/scenes/figure3-animation/phone \
+  src/scenes/services/phone \
+  src/transitions/brand-figure3/phone.test.ts \
+  src/transitions/figure3-services/phone.test.ts
+VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app exec playwright test \
+  --config=playwright.release.config.ts \
+  e2e/r5-phone-clean-runtime.spec.ts \
+  e2e/r5-phone-clean-presentation.spec.ts \
+  --project=phone-portrait-webkit --grep "Figure3 slice"
+git add app
+git commit -m "feat(r5): converge Figure3 vertical slice"
+```
+
+### Slice 9B — Services → TTG → Lab
+
+- [ ] **Step 9B.1: Refactor TTG/Lab and their two edges**
+
+After Slice 9A is green, remove these legacy imports from all Group 4–5
+genuine leaves:
 
 ```text
 production/phone/adapter-groups/group4-5
@@ -2414,28 +3108,12 @@ production/phone/phone-native-autoplay
 production/phone/phone-presented-reverse-playback
 ```
 
-Replace lifecycle callbacks with the manifest-defined command/report port.
-Media/compositor helpers may remain scene-local when they only draw and report
-the active token.
+Preserve TTG's decoded/composited initial/terminal frame, persistent closure,
+reverse endpoint, and identity-bound resource retirement.
 
-- [ ] **Step 9.3: Preserve persistent compositor semantics**
+- [ ] **Step 9B.2: Prove two full Group 4–5 cycles and recovery**
 
-For Figure3 and TTG:
-
-- prepare the target endpoint without exposing it;
-- runtime commands forward/reverse progress;
-- one visible compositor surface persists through its declared segment;
-- terminal settle is confirmed by decoded/composited frame evidence;
-- reverse starts from a proven terminal endpoint;
-- decoder/context retirement occurs only after committed plane retirement;
-- stale draw callbacks cannot prove a new generation.
-
-Do not replace the accepted compositor with a poster, screenshot, hidden
-pre-play, or seek-only proof.
-
-- [ ] **Step 9.4: Prove two full Group 4–5 cycles**
-
-Browser tests must execute:
+Browser tests execute:
 
 ```text
 Brand → Figure3 → Services → TTG → Lab
@@ -2443,41 +3121,14 @@ Lab → TTG → Services → Figure3 → Brand
 repeat both directions once more without reload
 ```
 
-At every hold assert:
+Test direct TTG/Lab entries, delayed/rejected TTG leaf, withheld decoded
+frame, visibility/BFCache restore, and reverse immediately after settle.
+Every failure rolls back or remains under Loader/safe cover. At every hold
+assert one authority, one `commitSequence` increment, matching
+frame/content/coverage/landing/edge, free input, and bounded decoder/Canvas
+counts.
 
-- one authority;
-- stable revision increments exactly once;
-- target frame/content/coverage/landing/edge agree;
-- input is free;
-- decoder/Canvas counts do not grow on the second cycle.
-
-- [ ] **Step 9.5: Test direct entries and failure recovery**
-
-Cold entries:
-
-```text
-#brand
-#figure3-animation
-#services
-#ttg-animation
-#lab
-```
-
-Faults:
-
-```text
-Figure3 chunk delayed/rejected
-Figure3 initial or terminal frame withheld
-Services content hidden
-TTG decoded frame withheld
-visibility background/foreground during Figure3 and TTG
-reverse requested immediately after terminal settle
-```
-
-Every failure rolls back or remains under Loader; none may publish paper-only
-or content-empty stable state.
-
-- [ ] **Step 9.6: Run Group 4–5 checkpoints**
+- [ ] **Step 9B.3: Run Group 4–5 checkpoints**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -2514,11 +3165,11 @@ pnpm -C app build
 
 Run the old formal route regression as well.
 
-- [ ] **Step 9.7: Commit**
+- [ ] **Step 9B.4: Commit Slice 9B**
 
 ```bash
 git add app
-git commit -m "feat(r5): converge Group 4-5 presentation lifecycle"
+git commit -m "feat(r5): converge TTG and Lab vertical slice"
 ```
 
 **Task 9 acceptance:**
@@ -2562,7 +3213,7 @@ git commit -m "feat(r5): converge Group 4-5 presentation lifecycle"
 - existing Group 6–7 adapter/module-loader files only for the stateless
   migration bridge
 
-- [ ] **Step 10.1: Freeze Unit 6 visual/media contracts**
+- [ ] **Step 10.1: Freeze Unit 6 contracts and close the `c808e06` preflight**
 
 Before refactor, assert:
 
@@ -2575,12 +3226,101 @@ Lab → PH, PH → Education, Education → Crane, Crane → Contact placement
 forward/reverse compositor behavior
 ```
 
-Use `ab7353e` and `9652fbe` as production donors. Later branches may donate
-tests/failure cases only.
+Use `ab7353e` and `9652fbe` as production donors. Then reconcile the Task 0
+ledger: every `c808e06` visual/media hunk affecting PH, Education, Crane,
+Contact, or their four edges must already be marked and evidenced as:
 
-- [ ] **Step 10.2: Remove Group 6–7 lifecycle imports from genuine leaves**
+```text
+port to the named 10A/10B/10C destination
+rewrite because the clean closure/port replaces the implementation
+reject because the 9652fbe/accepted donor is intentionally authoritative
+```
 
-The following imports must be absent:
+For each row, cite the preserving screenshot/unit/browser assertion. Any
+unclassified row, especially the substantial `PhonePh.tsx`,
+`PhoneEducation.tsx`, `PhoneCrane.tsx`, `PhoneContact.tsx`, autoplay/motion,
+or transition hunks, blocks Slice 10A. Later lifecycle files themselves remain
+rejected.
+
+### Slice 10A — Lab → PH → Education
+
+- [ ] **Step 10A.1: Refactor PH/Education and both edges**
+
+Move only the clean-port behavior for Lab → PH and PH → Education. PH reverse
+starts from a proven terminal frame; the packed Canvas draw reports an
+attempt-bound frame; Education stays native; terminal PH compositor retention
+and retirement follow the closure. Runtime owns activation and story clock.
+
+- [ ] **Step 10A.2: Add direct/reverse/fault/resource checkpoints**
+
+Test Lab → PH → Education and reverse twice, direct PH/Education entries,
+activation rejection/retry, background/foreground, BFCache restore, withheld
+draw, context loss, delayed chunks, rollback failure, and stale callbacks.
+No timeout/seek/play promise can prove PH.
+
+- [ ] **Step 10A.3: Verify and commit Slice 10A**
+
+```bash
+pnpm -C app exec vitest run \
+  src/production/phone-story \
+  src/scenes/ph-animation/phone \
+  src/scenes/education/phone \
+  src/transitions/lab-ph/phone.test.ts \
+  src/transitions/ph-education/phone.test.ts
+VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app exec playwright test \
+  --config=playwright.release.config.ts \
+  e2e/r5-phone-clean-runtime.spec.ts \
+  e2e/r5-phone-clean-presentation.spec.ts \
+  --project=phone-portrait-webkit --grep "PH slice"
+git add app
+git commit -m "feat(r5): converge PH and Education vertical slice"
+```
+
+### Slice 10B — Education → Crane
+
+- [ ] **Step 10B.1: Refactor Crane and its entry edge**
+
+Preserve distinct Crane figure/flock authored media layers, crop, initial and
+terminal frames, and reverse compositor. Both media resources belong to the
+declared closure/resource budget; unifying authority must not flatten them.
+No setTimeout fallback can mark an endpoint ready.
+
+- [ ] **Step 10B.2: Prove Crane activation/reverse/resource recovery**
+
+Test forward/reverse twice, direct Crane entry, figure/flock activation,
+withheld frame, context loss, lock/unlock, background/foreground, BFCache,
+orientation, chunk delay/rejection, and deterministic Canvas/decoder
+retirement.
+
+- [ ] **Step 10B.3: Verify and commit Slice 10B**
+
+```bash
+pnpm -C app exec vitest run \
+  src/production/phone-story \
+  src/scenes/education/phone \
+  src/scenes/crane-animation/phone \
+  src/transitions/education-crane/phone.test.ts
+VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app exec playwright test \
+  --config=playwright.release.config.ts \
+  e2e/r5-phone-clean-runtime.spec.ts \
+  e2e/r5-phone-clean-presentation.spec.ts \
+  --project=phone-portrait-webkit --grep "Crane slice"
+git add app
+git commit -m "feat(r5): converge Crane vertical slice"
+```
+
+### Slice 10C — Crane → Contact and complete story
+
+- [ ] **Step 10C.1: Refactor Contact/terminal edge and remove legacy imports**
+
+Education remains native until its boundary. Contact never receives cinematic
+`preventDefault`; links, focus, selection, and controls stay interactive.
+Reverse claims only the Crane edge. Direct `#contact` uses the minimal closure
+and exposes visible content on its first uncovered frame.
+
+After the refactor, these imports are absent from all Group 6–7 genuine leaves:
 
 ```text
 production/phone/types
@@ -2592,37 +3332,10 @@ production/phone/scenes/phone-packed-alpha-surface
 ```
 
 Use canonical media resolution and
-`app/src/media/phone-packed-alpha-surface.ts`. The leaf reports real draw,
-progress, complete, and failure through its active port.
+`app/src/media/phone-packed-alpha-surface.ts`; leaves report only active
+attempt/slot draw, progress, complete, and failure.
 
-- [ ] **Step 10.3: Preserve PH/Crane reverse compositors**
-
-For both PH and Crane:
-
-- reverse may start only from a proven terminal frame;
-- runtime commands reverse progression;
-- packed compositor draw proves each active endpoint;
-- no setTimeout fallback can mark the endpoint ready;
-- background/foreground and lock/unlock invalidate stale tokens;
-- Canvas/context retirement is deterministic;
-- a second full round trip has the same decoder/Canvas/resource count.
-
-Crane figure and flock remain separate authored media layers; unifying state
-authority does not flatten their visual composition.
-
-- [ ] **Step 10.4: Keep native corridors and Contact outside cinematic input**
-
-Education is native reading until its declared boundary. Contact:
-
-- never receives cinematic `preventDefault` for wheel/touch/key/pointer;
-- keeps links, focus, selection, and controls interactive;
-- is a real terminal stable commit with visible content and four-edge
-  coverage;
-- reverse from Contact claims only the declared Crane edge;
-- direct `#contact` mounts no unnecessary earlier media and reveals Contact
-  content on its first exposed frame.
-
-- [ ] **Step 10.5: Prove the complete 16-hold story twice**
+- [ ] **Step 10C.2: Prove the complete 16-hold story twice**
 
 In the clean harness:
 
@@ -2638,7 +3351,7 @@ For all 60 segment traversals (15 segments × two directions × two cycles),
 assert:
 
 - one authority and one active transaction maximum;
-- same-identity stable quorum;
+- same-attempt required-slot stable quorum;
 - correct effect placement;
 - real frame policy;
 - four-edge coverage;
@@ -2647,7 +3360,7 @@ assert:
 - input release;
 - no listener/timer/decoder/Canvas growth.
 
-- [ ] **Step 10.6: Run Group 6–7 and complete-story checkpoints**
+- [ ] **Step 10C.3: Run Group 6–7 and complete-story checkpoints**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -2684,11 +3397,11 @@ pnpm -C app build
 
 Run the old formal route regression one final time before cutover.
 
-- [ ] **Step 10.7: Commit**
+- [ ] **Step 10C.4: Commit Slice 10C**
 
 ```bash
 git add app
-git commit -m "feat(r5): converge Group 6-7 and Contact lifecycle"
+git commit -m "feat(r5): converge Contact and full phone story"
 ```
 
 **Task 10 acceptance:**
@@ -2897,8 +3610,8 @@ find app/src/production/phone-story -maxdepth 1 -type f \
   \( -name '*.ts' -o -name '*.tsx' -o -name '*.css' \) | sort
 ```
 
-The final command must list exactly the eight production files plus adjacent
-test files when the test-name filter is not applied.
+The final command must list exactly the ten allowlisted production files plus
+adjacent test files when the test-name filter is not applied.
 
 - [ ] **Step 11.6: Remove all final legacy imports from genuine leaves**
 
@@ -2938,6 +3651,12 @@ Test built output, not source strings only:
 - switching `/` → `/brand-lab` via a real navigation disposes the first route;
 - the two routes never coexist in one mounted React root;
 - no query string can select an obsolete shell.
+
+Also record the first fully functional cutover bundle as
+`cleanCutoverBaselineBytes`, the largest clean lazy leaf as
+`cleanCutoverMaxLazyLeafBytes`, and the module-to-chunk duplication report.
+`628,044` remains the clean-base warning target; only `663,552` is the
+immutable total hard cap.
 
 - [ ] **Step 11.9: Run the atomic cutover suite**
 
@@ -3001,12 +3720,12 @@ only one old shell.
 - `/brand-lab` is a thin QA wrapper over the same implementation;
 - route instances are separate and disposed normally;
 - old phone/portrait-spike orchestration is absent;
-- exact eight-file production core and no compatibility wrapper remain;
+- exact flat ten-file production allowlist and no compatibility wrapper remain;
 - desktop runtime behavior is unchanged.
 
 ---
 
-## Task 12: Close chunk, fault-injection, global presentation, and size gates
+## Task 12: Validate automated chunk, fault, presentation, and size gates
 
 **Modify:**
 
@@ -3014,6 +3733,7 @@ only one old shell.
 - `app/scripts/verify-phone-clean-architecture.test.mjs`
 - `app/scripts/verify-homepage-module-boundaries.mjs`
 - `app/scripts/verify-performance-budgets.mjs`
+- `app/scripts/verify-performance-budgets.test.mjs`
 - `app/scripts/verify-release-build.mjs`
 - `app/e2e/r5-phone-clean-runtime.spec.ts`
 - `app/e2e/r5-phone-clean-presentation.spec.ts`
@@ -3024,9 +3744,9 @@ only one old shell.
 
 Inspect the Vite/Rollup output manifest. Assert:
 
-- `PhoneStoryShell`, `manifest`, `runtime`, and `presentation` are in one
-  synchronously reachable phone execution closure;
-- none of those four is behind a runtime dynamic import;
+- `PhoneStoryShell`, `protocol`, `manifest`, `machine`, `runtime`, and
+  `presentation` are in one synchronously reachable phone execution closure;
+- none of those six is behind a runtime dynamic import;
 - each scene/transition lazy edge resolves through an ordinary ESM export;
 - no lazy leaf includes a second runtime/reducer/input owner;
 - formal entry has no static or eager QA dependency;
@@ -3046,18 +3766,45 @@ Use Playwright network routing to:
 - delay a target scene leaf;
 - reject a target scene leaf;
 - delay/reject a transition leaf;
-- complete an old delayed response after retry created a new generation.
+- complete an old delayed-but-not-rejected response after a superseding entry
+  created a new generation;
+- simulate offline then online recovery;
+- serve old HTML/build ID against removed new-deployment chunk URLs;
+- reject a same-build module request under poor network;
+- repeat both same-build and build-mismatch rejection after their one allowed
+  controlled reload.
 
 Assertions:
 
 - static/React Loader or committed source stays opaque/visible;
 - no black gap or target leak;
-- rejected preparation rolls back;
+- offline detected before import waits for `online`, then performs its first
+  native import in the same Document successfully;
+- a native import rejection clears only the application reference and never
+  retries that URL in the same Document;
+- `vite:preloadError` is prevented and handled by the same policy;
+- same-build network rejection and version mismatch each use one
+  session-guarded page reload;
+- a native rejection observed offline waits for `online` before consuming the
+  guarded reload;
+- the reloaded page reconstructs the direct-entry/committed route from URL and
+  proves it normally;
 - input unlocks after rollback;
-- retry succeeds;
-- stale late chunk cannot satisfy the new transaction.
+- a second post-reload rejection cannot loop and stays under Loader/source
+  with an accessible retry/reload action;
+- a stale late resolution from a superseded, non-rejected import cannot satisfy
+  the new transaction;
+- deployed build identity is fetched from `/r5-release-manifest.json` with
+  `cache: 'no-store'`.
 
 Do not add a production fault query parameter.
+
+This distinction follows Vite's native-import constraint: after poor-network
+dynamic import failure, the same module import cannot be retried in the same
+Document. See
+[Vite troubleshooting](https://vite.dev/guide/troubleshooting#failed-to-fetch-dynamically-imported-module-error)
+and
+[Vite load error handling](https://vite.dev/guide/build#load-error-handling).
 
 - [ ] **Step 12.3: Test media/compositor faults globally**
 
@@ -3080,7 +3827,28 @@ decoded-video policies, and Canvas/WebGL faults to Canvas/compositor policies;
 do not limit failure coverage to AOD.
 Assertions are rollback/fail-closed/retry, never “remained preparing.”
 
-- [ ] **Step 12.4: Run the global 16-hold/15-segment presentation matrix**
+- [ ] **Step 12.4: Automate BFCache and page-lifecycle recovery**
+
+Use real `pagehide/pageshow` event paths and a browser back/forward traversal.
+Cover `persisted=true` where the engine supports BFCache and deterministic
+runtime fixtures everywhere else. Assert:
+
+- no duplicate authority/listener/input owner after restore;
+- active transaction evidence/generation is invalidated on hide;
+- a stable commit uses `reprojectCommittedPlane()` and replaces every final
+  presentation proof before input;
+- a boot/direct entry with no stable commit keeps Loader and restarts its
+  candidate rather than re-proving a nonexistent source;
+- no stale media token, Canvas, decoder, or WebGL context completes restore;
+- active deadlines pause while hidden and resume as a fresh bounded
+  revalidation;
+- Loader continuity and direct-entry target visibility survive back/forward.
+
+An engine that does not grant BFCache must record the browser reason and still
+pass reducer/runtime persisted-event tests; physical Safari remains mandatory
+in Task 13.
+
+- [ ] **Step 12.5: Run the global 16-hold/15-segment presentation matrix**
 
 For every hold:
 
@@ -3098,7 +3866,8 @@ reduced-motion static proof
 For every segment in both directions:
 
 ```text
-source endpoint visible until candidate ready
+source endpoint visibly covers target through prepared proof
+source remains mounted as rollback anchor during candidate-plane visible proof
 effect in declared semantic layer
 receiver terminal endpoint visible at settle
 no uncovered edge during progress
@@ -3110,16 +3879,17 @@ Browser engine tests may programmatically vary viewport geometry to exercise
 logic, but those tests are labeled engine evidence, not real mobile Safari
 evidence.
 
-- [ ] **Step 12.5: Enforce final production complexity**
+- [ ] **Step 12.6: Enforce final production complexity**
 
 The cutover architecture gate must report:
 
 ```text
-production phone-story files = 8
+production phone-story files = 10 allowlisted names
 runtime factory definitions = 1
 runtime factory call sites = 1
 reducers = 1
 stable-commit branches = 1
+proof-only reproject branches = 1
 global input owner = 1
 viewport sampler = 1
 presentation registry = 1
@@ -3128,11 +3898,13 @@ slice runtimes = 0
 formal QA imports = 0
 ```
 
-Enforce the per-file and 4,500-line core limits from Section 1.1. If a file
+Enforce the per-file and 5,000-line core limits from Section 1.1. If a file
 exceeds budget, stop and review the abstraction; do not bypass the gate or
-create an unapproved ninth file.
+create an unapproved eleventh file. The gate must separately prove
+`machine.ts` has no browser effects and `runtime.ts` has no second reducer or
+stable-state constructor.
 
-- [ ] **Step 12.6: Enforce bundle size**
+- [ ] **Step 12.7: Enforce bundle size and chunk structure**
 
 Run:
 
@@ -3143,26 +3915,36 @@ pnpm -C app build
 Required:
 
 ```text
-phone JavaScript ≤ 628,044 bytes
 hard cap remains exactly 663,552 bytes
+phone/total 4 KiB headroom is reported but not asserted
+628,044-byte clean-base target is reported as pass/warning, not hard failure
+cleanCutoverBaselineBytes is recorded
+no duplicated execution core or module
+no undeclared eager leaf
+every lazy leaf ≤ donorMaxLazyLeafBytes (or approved ADR)
 ```
 
-If the clean output is larger than the clean baseline:
+If the clean output is larger than the 628,044-byte reference:
 
 1. inspect duplicate leaf/core code in the build manifest;
 2. remove legacy/dead orchestration and duplicate helpers;
 3. verify imports do not eagerly pull all leaves;
-4. preserve normal ESM names.
+4. preserve normal ESM names;
+5. record the justified clean-cutover baseline when functionality and all
+   structural gates are complete.
 
-Do not raise the cap, add property mangling, create a reserved-name registry,
-or weaken the measurement.
+Do not fail solely for exceeding 628,044 while remaining under 663,552 with
+clean structure. Do not raise the hard cap, add property mangling, create a
+reserved-name registry, code-golf diagnostics, collapse into a God file, or
+weaken measurement.
 
-- [ ] **Step 12.7: Run all automated closure gates**
+- [ ] **Step 12.8: Run all automated closure gates**
 
 ```bash
 node --test app/scripts/verify-phone-clean-architecture.test.mjs
 node --test app/scripts/verify-homepage-module-boundaries.test.mjs
 node --test app/scripts/verify-boolean-data-contract.test.mjs
+node --test app/scripts/verify-performance-budgets.test.mjs
 pnpm -C app run verify:boolean-data
 pnpm -C app run verify:phone-packed-alpha
 pnpm -C app run verify:phone-architecture:cutover
@@ -3188,20 +3970,28 @@ git diff --exit-code 9652fbe -- \
 git diff --check
 ```
 
-- [ ] **Step 12.8: Commit**
+- [ ] **Step 12.9: Commit**
 
 ```bash
 git add app
-git commit -m "test(r5): close phone runtime and presentation gates"
+git commit -m "test(r5): validate phone runtime and presentation gates"
 ```
 
 **Task 12 acceptance:**
 
 - chunk failures cannot create black gaps or stale commits;
+- pre-import offline recovery and post-rejection guarded reload behave as two
+  distinct paths without a reload loop;
+- BFCache/page lifecycle restores one re-proven authority;
 - all holds/segments share global content/frame/coverage/layer gates;
 - exact structural and LOC budgets pass;
-- phone JavaScript is no larger than clean baseline;
+- phone JavaScript stays below 663,552 bytes; the warning target and accepted
+  clean-cutover baseline are recorded;
 - Chromium/WebKit engine evidence is complete.
+
+This is `Chunk-contract-complete` automated evidence only. Do not describe
+chunks as “closed” and do not claim `Release-complete` until the physical
+chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
 
 ---
 
@@ -3224,8 +4014,10 @@ Record:
 
 ```text
 branch
-candidate commit SHA
+candidateCodeSha
+productionTreeHash
 build/release ID
+r5-release-manifest sourceCommit + artifactTreeSha256
 Node/pnpm versions
 Chromium/WebKit versions
 iOS Simulator model/runtime
@@ -3241,7 +4033,23 @@ Build once from a clean worktree and test that exact artifact:
 ```bash
 git status --short
 pnpm -C app build
+git rev-parse HEAD
+git ls-tree -r HEAD -- \
+  app assets package.json pnpm-lock.yaml pnpm-workspace.yaml | shasum -a 256
+shasum -a 256 dist/r5-release-manifest.json
 ```
+
+Definitions:
+
+- `candidateCodeSha` is this pre-evidence-report `HEAD`, containing all
+  production code/configuration tested by Tasks 12–13.
+- `productionTreeHash` is the SHA-256 of the canonical `git ls-tree` output
+  above, covering `app/`, `assets/`, root package/workspace files, and lockfile.
+- `buildId` and `artifactTreeSha256` identify the exact built artifact tested
+  on Simulator and physical iPhone.
+- `finalHandoffSha` is created later and may differ only by plan/report
+  bookkeeping. It is never substituted for `candidateCodeSha` in physical
+  evidence.
 
 - [ ] **Step 13.2: Run iOS Simulator as simulator evidence**
 
@@ -3296,6 +4104,9 @@ direct entries for all 16 holds
 ```
 
 Record a screen capture from navigation start through first interaction.
+For the back/forward row, record Safari's `pageshow.persisted` value and
+remote-inspector authority/listener/resource counters before hide and after
+restore.
 Required:
 
 - static Loader → React Loader → target is visually continuous;
@@ -3304,12 +4115,20 @@ Required:
 - no black/geometry-only gap;
 - direct entry never exposes Hero/prior scene before target;
 - Loader never exits on safety time without proof.
+- a persisted restore has one authority/listener set, a new transaction
+  generation, and re-proven plane/frame/scroll before input.
 
 - [ ] **Step 13.5: Run physical iPhone media/lock recovery**
 
 For AOD, Figure2, Figure3, TTG, PH, and Crane:
 
 - enter forward and reverse;
+- test a cold direct entry before any prior site gesture;
+- reject the first autoplay attempt, then use the visible tap-to-continue
+  action with one real physical gesture;
+- delay the leaf chunk until the original gesture activation window is gone,
+  verify the media surface mounts inert beneath source/Loader, then use the CTA
+  with a second real gesture without another import/mount;
 - background for more than six seconds;
 - foreground and continue;
 - lock and unlock the phone;
@@ -3321,6 +4140,12 @@ For AOD, Figure2, Figure3, TTG, PH, and Crane:
 Required:
 
 - real frame appears or transaction fails closed immediately/boundedly;
+- only current-closure media activates; unrelated videos never play/pause as
+  an unlock sweep;
+- play permission alone never releases Loader or commits stable;
+- CTA is absent until the registered media surface can synchronously activate;
+- second gesture renews generation/token, retains topology, and starts media
+  within that physical event stack;
 - no permanent `preparing`;
 - source rollback is visible;
 - input always unlocks;
@@ -3363,7 +4188,7 @@ Contact → Hero
 At each of 16 holds, record:
 
 ```text
-stable scene/revision
+stable scene/commitSequence/planeRevision
 edge/checkpoint/navigation agreement
 visible content
 media/frame status
@@ -3406,7 +4231,9 @@ git commit -m "docs(r5): record physical phone runtime acceptance"
 - physical iPhone matrix passes on the exact candidate artifact;
 - real toolbar, orientation, background, lock/unlock, slow media, reduced
   motion, direct entry, gesture, and two-round-trip evidence exists;
-- the candidate may now be called Release-complete.
+- the exact `candidateCodeSha`/`productionTreeHash`/build artifact may now be
+  called `Chunk-closed` and `Release-complete`; neither label is legal before
+  both Tasks 12 and 13 pass.
 
 ---
 
@@ -3415,7 +4242,7 @@ git commit -m "docs(r5): record physical phone runtime acceptance"
 **Modify:**
 
 - `docs/react-refactor/reports/r5-phone-clean-runtime-acceptance.md`
-- this plan only to check completed boxes and record final SHAs
+- this plan only to check completed boxes and record candidate identity
 
 - [ ] **Step 14.1: Run final architecture and source audit**
 
@@ -3434,7 +4261,7 @@ git diff --exit-code 9652fbe -- \
 Any legacy match must be either an explicitly historical document or a test
 fixture proving rejection. There may be no reachable production match.
 
-- [ ] **Step 14.2: Run the complete clean verification once more**
+- [ ] **Step 14.2: Reconcile complete verification to `candidateCodeSha`**
 
 ```bash
 node --test app/scripts/verify-phone-clean-architecture.test.mjs
@@ -3452,7 +4279,13 @@ git diff --check
 git status --short
 ```
 
-Record exact test counts and build bytes. Do not reuse counts from Task 0.
+Run these commands before changing report/plan again, and record exact test
+counts and build bytes. If current HEAD is already a docs-only descendant of
+`candidateCodeSha`, run the build/test commands in a disposable detached
+worktree at `candidateCodeSha` so the tested release manifest still names the
+physical candidate. Do not replace the durable candidate artifact with a
+build whose `sourceCommit` is a later documentation SHA. Do not reuse counts
+from Task 0.
 
 - [ ] **Step 14.3: Review final diff by authority and visuals**
 
@@ -3475,7 +4308,22 @@ The report must answer:
 9. What proves Hero/AOD/Pattern/Figure2 regressions are closed?
 10. What physical iPhone artifact was tested?
 
-- [ ] **Step 14.4: Ensure branch is handoff-ready**
+- [ ] **Step 14.4: Prove production identity is unchanged**
+
+Using the `candidateCodeSha` recorded by Task 13:
+
+```bash
+git diff --exit-code <candidateCodeSha>..HEAD -- \
+  app assets package.json pnpm-lock.yaml pnpm-workspace.yaml
+git ls-tree -r HEAD -- \
+  app assets package.json pnpm-lock.yaml pnpm-workspace.yaml | shasum -a 256
+```
+
+The hash must equal recorded `productionTreeHash`. Any production/config/lock
+difference invalidates physical evidence and requires a new Task 12/13
+candidate. Documentation-only changes are allowed.
+
+- [ ] **Step 14.5: Ensure branch is handoff-ready**
 
 ```bash
 git status --short
@@ -3491,7 +4339,7 @@ Required:
 - no untracked generated policy/runtime files;
 - every task commit is present and individually reviewable.
 
-- [ ] **Step 14.5: Commit final report bookkeeping if needed**
+- [ ] **Step 14.6: Commit final report bookkeeping if needed**
 
 ```bash
 git add docs/react-refactor/reports/r5-phone-clean-runtime-acceptance.md \
@@ -3499,12 +4347,25 @@ git add docs/react-refactor/reports/r5-phone-clean-runtime-acceptance.md \
 git commit -m "docs(r5): close clean phone runtime convergence"
 ```
 
+After this commit:
+
+```bash
+git rev-parse HEAD
+git diff --exit-code <candidateCodeSha>..HEAD -- \
+  app assets package.json pnpm-lock.yaml pnpm-workspace.yaml
+```
+
+The first value is `finalHandoffSha`; record it in the handoff message without
+editing/committing the report again. The second command must remain clean.
 Do not merge, push, delete another worktree, or change the neighboring branch
 without separate user authorization.
 
 **Task 14 acceptance:**
 
-- all automated and physical evidence is tied to final HEAD;
+- all automated/physical evidence is tied to `candidateCodeSha`,
+  `productionTreeHash`, and the exact build artifact;
+- `finalHandoffSha` differs only by documentation and passes the scoped
+  production diff gate;
 - final worktree is clean;
 - plan/report show exact completion state;
 - the branch is ready for human review and an explicitly authorized merge.
@@ -3552,8 +4413,16 @@ No item may be marked “kept for compatibility.”
 | --- | --- | --- |
 | “状态机各种都是收归统一” | one snapshot, reducer, factory call, stable commit | Tasks 2, 4, 11, 12 |
 | Front/Unit 4–7A must stay accepted | frozen inputs + group checkpoints | Tasks 0, 7–10, 13 |
+| Unit 7B leaf improvements get lost or lifecycle leaks in | exhaustive `c808e06` per-hunk disposition + separate donor trace | Tasks 0, 10, 14 |
 | `/brand-lab` cannot become another product runtime | thin wrapper, separate object, same shell | Tasks 2, 11 |
 | chunk/property-name failures | synchronous core closure, normal ESM, no property mangle | Tasks 1, 2, 6, 12 |
+| chunk retry loops/old deployment mismatch | offline-before-import first load; native reject uses existing release manifest + one session-guarded reload, never same-Document re-import | Tasks 6, 12 |
+| source/receiver disappears during preparation | per-direction/direct-entry closure + retain/expose/retire proof | Tasks 3, 4, 7–12 |
+| Safari activation expires or unlocks unrelated media | one runtime-scoped gesture credit + retained inert media topology + readiness-gated CTA | Tasks 3, 4, 7, 10, 12, 13 |
+| receiver proof depends on being exposed | prepared proof → candidate plane → projector-owned visible proof | Tasks 3–5, 7–12 |
+| viewport repaint is mistaken for stable commit | stable commit/proof split + four distinct revisions + proof-only reproject branch | Tasks 2, 4, 5, 12 |
+| back/forward revives stale authority/media | reducer-owned pagehide/pageshow persisted recovery | Tasks 4, 12, 13 |
+| rollback itself fails and remains stuck | named deadlines + explicit faulted/safe-cover terminal | Tasks 3, 4, 12 |
 | AOD locks | real compositor-draw proof, fail-fast rollback/retry | Tasks 4, 7, 12, 13 |
 | Pattern/Figure2 white strip | one live-viewport coverage projector + screenshot pixels | Tasks 5, 7, 8, 12, 13 |
 | Hero flashes/reset | synchronous zero + fixed topology + proven Loader handoff | Tasks 5, 7, 13 |
@@ -3561,22 +4430,30 @@ No item may be marked “kept for compatibility.”
 | direct route shows blank/prior scene | Loader holds until target content/frame/plane quorum | Tasks 4–12 |
 | momentum starts multiple transitions | one physical epoch/one intent owner | Tasks 4, 10, 13 |
 | reverse compositor regresses | real endpoint proof and two full cycles | Tasks 9, 10, 13 |
-| files keep multiplying | exact eight core files + LOC/dir gate | Tasks 2, 11, 12 |
+| files keep multiplying or become God modules | flat ten-file allowlist + dependency/LOC/authority gates | Tasks 2, 11, 12 |
 | unit tests pass but real iPhone fails | separate engine/simulator/physical claim levels | Tasks 5, 12, 13 |
 
 ## Appendix C: Stop conditions
 
 Stop execution and return for architecture review when any is true:
 
-- a ninth core production file appears necessary;
-- runtime/presentation/core LOC budget would be exceeded;
+- an eleventh or non-allowlisted core production file appears necessary;
+- any per-file or total core LOC budget would be exceeded;
+- `machine.ts` appears to need browser effects or `runtime.ts` appears to need
+  another reducer/stable-state constructor;
 - a scene needs to read runtime state instead of receiving a port;
+- a lazy leaf appears to need `runtime.ts`, `machine.ts`, reducer `dispatch`,
+  caller-selected evidence identity, or content-proof authority;
 - a transition needs its own clock/transaction state;
 - formal and QA appear to need different reducers/projectors;
 - a visual fix proposes changing frozen media/timings/camera composition;
 - a coverage fix is scene-specific;
 - a frame proof cannot be causally tied to a real render;
-- bundle target appears to require property mangling;
+- the 663,552-byte hard cap appears to require property mangling, code golf,
+  removed diagnostics, or a God module;
+- a phone/total 4 KiB reserve is reintroduced as a second bundle failure line;
+- an implementation proposes retrying a natively rejected module URL in the
+  same Document or permits a reload loop;
 - physical iPhone evidence contradicts automated gates;
 - a neighboring branch must be merged to continue.
 
@@ -3593,15 +4470,40 @@ This work is done only when all statements are true:
 - [ ] exactly 16 holds and 15 reversible segments are in one manifest;
 - [ ] exactly one route-local runtime is mounted per phone route;
 - [ ] only `PhoneStoryShell` calls the runtime factory;
-- [ ] one reducer and one branch commit stable presentation;
+- [ ] one reducer and one `commitStableCandidate()` branch create semantic
+  stable commits;
+- [ ] `PhoneStableCommit` is separate from its bound
+  `PhonePresentationProof`; `reprojectCommittedPlane()` is the only
+  proof-only recovery path and never changes scene, landing, checkpoint,
+  navigation, or `commitSequence`;
+- [ ] boot/direct-entry candidate, evidence, fallback, and retry are reducer
+  state, never effect-interpreter state;
+- [ ] `stateRevision`, `commitSequence`, `transactionGeneration`, and
+  `planeRevision` retain their four distinct meanings;
 - [ ] one projector owns viewport, layers, content, frame, and plane proof;
+- [ ] every candidate follows prepared proof → atomic candidate plane →
+  post-paint visible proof; content proof comes only from projector;
 - [ ] one runtime owns physical input, lifecycle time, rollback, and disposal;
-- [ ] lazy leaves contain visual behavior only;
+- [ ] all 30 segment directions and 16 direct entries declare and enforce
+  complete dependency closures and resource maxima;
+- [ ] runtime exclusively scopes iOS media activation to the current closure;
+  a missed activation retains the prepared inert media topology until a
+  readiness-gated physical CTA synchronously consumes a new token;
+- [ ] leaf decode clocks report facts but cannot commit; lazy leaves contain
+  visual behavior only and cannot receive runtime/dispatch, construct evidence
+  slots, or submit content proof;
 - [ ] formal and QA reuse implementation without sharing a live object;
 - [ ] old phone/portrait-spike orchestration is deleted;
-- [ ] clean production core contains exactly eight files and passes LOC limits;
+- [ ] clean production core contains exactly the ten allowlisted files and
+  passes dependency/per-file/total LOC limits;
 - [ ] no property mangling, generated cross-chunk policy, compatibility
   wrapper, or numbered validation route remains;
+- [ ] offline-before-import waits and performs a first load; once native
+  import/preload rejects, the same URL is never retried in the same Document,
+  the existing release manifest classifies recovery, one guarded reload cannot
+  loop, and stale responses cannot satisfy a newer generation;
+- [ ] pagehide/pageshow persisted recovery re-proves one authority without
+  duplicate listeners or stale media resources;
 - [ ] every hold/segment passes global layer, coverage, frame, content,
   endpoint, reduced-motion, direct-entry, and rollback gates;
 - [ ] toolbar-only viewport changes preserve progress, while orientation
@@ -3612,11 +4514,21 @@ This work is done only when all statements are true:
 - [ ] Figure3/TTG/PH/Crane preserve accepted forward/reverse compositors;
 - [ ] Contact remains native and interactive;
 - [ ] two complete forward/reverse round trips show no resource growth;
-- [ ] phone JS is at most 628,044 bytes and hard cap remains 663,552;
+- [ ] phone JS remains below the 663,552-byte hard cap; 628,044 is reported as
+  the clean-base warning target, and the accepted clean-cutover/chunk baseline
+  is recorded; phone/total 4 KiB headroom is reported but not asserted;
 - [ ] full Vitest, typecheck, build, Chromium, and WebKit suites pass;
 - [ ] iOS Simulator evidence is complete;
-- [ ] physical iPhone Safari matrix passes on final HEAD;
-- [ ] acceptance report records exact build, device, evidence, hashes, and
-  final commit;
+- [ ] Task 12 earns only `Chunk-contract-complete`; neither “chunk closed” nor
+  `Release-complete` is claimed before the Task 13 physical iPhone matrix
+  passes;
+- [ ] physical iPhone Safari matrix passes on the exact
+  `candidateCodeSha`/`productionTreeHash`/build artifact;
+- [ ] acceptance report records exact tested build, candidate code SHA,
+  production tree hash, device, evidence, and optional docs-only
+  `finalHandoffSha`;
+- [ ] a scoped diff/tree gate proves any final handoff commit changed no
+  `app/`, `assets/`, package manifest, build configuration, or lockfile after
+  the tested candidate;
 - [ ] worktree is clean and branch is handed off without an unauthorized
   merge.
