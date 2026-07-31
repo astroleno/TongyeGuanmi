@@ -11,6 +11,7 @@ import {
   phoneTtgHasReusableTerminalFrame,
   phoneTtgHeldEndpoint,
   phoneTtgMediaAction,
+  phoneTtgPresentationProbeTime,
   phoneTtgTargetPresentationLease,
   markPhoneTtgPresentedEndpoint,
   releasePhoneTtgVideo
@@ -302,6 +303,18 @@ describe('PhoneTtg', () => {
     expect(phoneTtgHasTokenBoundEndpointFrame(prepared, 0, key)).toBe(true);
     expect(phoneTtgHasTokenBoundEndpointFrame(prepared, 0, key + ':stale')).toBe(false);
     expect(phoneTtgHasTokenBoundEndpointFrame(prepared, 1, key)).toBe(false);
+  });
+
+  it('[WebKit direct-entry admission] nudges only an exact prepared initial endpoint to request a real video frame', () => {
+    const key = 'authority:session:7:0:42:group45:ttg:packed-canvas-frame';
+    const prepared = { endpoint: 0, presentationKey: key } as const;
+
+    expect(phoneTtgPresentationProbeTime(0, prepared, key)).toBeCloseTo(.0001);
+    expect(phoneTtgPresentationProbeTime(0, prepared, key + ':stale')).toBe(0);
+    expect(phoneTtgPresentationProbeTime(2.4, null, key)).toBeCloseTo(2.39999);
+    expect(phoneTtgSource).toContain(
+      'video.currentTime = phoneTtgPresentationProbeTime('
+    );
   });
 
   it('reuses the retained physical terminal frame for Lab → TTG reverse', () => {

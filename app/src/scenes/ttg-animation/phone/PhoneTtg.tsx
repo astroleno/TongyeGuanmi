@@ -51,6 +51,7 @@ import {
 const TtgSurface = ttgAnimationScene.Component;
 const PHONE_TTG_INITIAL_DATA_TIMEOUT_MS = 8000;
 const PHONE_TTG_ENDPOINT_EVIDENCE_TIMEOUT_MS = 1000;
+const PHONE_TTG_INITIAL_PRESENTATION_NUDGE_SECONDS = .0001;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -226,6 +227,23 @@ export function phoneTtgHasTokenBoundEndpointFrame(
 ): boolean {
   return prepared?.endpoint === endpoint
     && prepared.presentationKey === presentationKey;
+}
+
+/**
+ * WebKit treats a zero-to-zero assignment as no decoder presentation request.
+ * An exact, token-bound initial endpoint can move inside its first-frame
+ * tolerance to request a new `requestVideoFrameCallback`; stale/terminal
+ * endpoints retain the normal backward re-arm and can never prove this token.
+ */
+export function phoneTtgPresentationProbeTime(
+  currentTime: number,
+  prepared: PhoneTtgPreparedEndpoint | null,
+  presentationKey: string
+): number {
+  if (phoneTtgHasTokenBoundEndpointFrame(prepared, 0, presentationKey)) {
+    return PHONE_TTG_INITIAL_PRESENTATION_NUDGE_SECONDS;
+  }
+  return Math.max(0, currentTime - .00001);
 }
 
 export function phoneTtgHeldEndpoint(
@@ -1331,10 +1349,15 @@ export const PhoneTtg = forwardRef<
       const video = videoRef.current as VideoWithFrameCallbacks | null;
       if (!video?.requestVideoFrameCallback) return;
       // A retained native-video endpoint must produce a new browser-presented
-      // frame after this exact revision is armed. Do not reuse an old ready
-      // marker or endpoint dataset as proof.
+      // frame after this exact revision is armed. A WebKit initial endpoint
+      // needs a non-zero in-tolerance seek to request that decoder callback;
+      // only its exact prepared token is eligible for that re-arm.
       try {
-        video.currentTime = Math.max(0, video.currentTime - .00001);
+        video.currentTime = phoneTtgPresentationProbeTime(
+          video.currentTime,
+          preparedEndpointRef.current,
+          key
+        );
       } catch {
         // requestVideoFrameCallback below still validates a decoder frame.
       }
