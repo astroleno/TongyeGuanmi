@@ -74,7 +74,18 @@ describe('PhoneLabContactContinuation recovery contract', () => {
   it('keeps direct Group67 landing behind the full upstream document geometry gate', () => {
     expect(source).toContain("data-phone-group45-document-geometry=\"ready\"");
     expect(source).toContain('phoneDirectEntryGeometryReady([');
-    expect(source).toContain('if (!directEntryGeometryReady()) return null;');
+    expect(source).toContain('rootForScene(targetScene) !== null');
+    expect(source).toContain('if (!directEntryGeometryReady(targetScene)) return null;');
+  });
+
+  it('[direct-entry lifecycle cutover] retains the Group67 runtime owner while a target expands its lazy closure', () => {
+    expect(source).toContain(
+      'const directEntryGeometryReady = (targetScene: ContinuationScene)'
+    );
+    expect(source).toContain('}, [capabilities, orchestrator, reducedMotion, stageHost]);');
+    expect(source).not.toContain(
+      '}, [adapters.ready, capabilities, orchestrator, reducedMotion, stageHost]);'
+    );
   });
 
   it('[R5] resolves native-reading landings from the manifest content anchor', () => {

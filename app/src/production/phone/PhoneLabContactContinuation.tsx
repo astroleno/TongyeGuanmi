@@ -230,11 +230,6 @@ export function PhoneLabContactContinuation({
         '[data-phone-group45-document-geometry="ready"]'
       ) !== null
     );
-    const directEntryGeometryReady = () => phoneDirectEntryGeometryReady([
-      adapters.ready,
-      upstreamDocumentGeometryReady()
-    ]);
-
     const configFor = (scene: VisualScene): VisualRuntimeConfig | null => {
       const ph = scene === 'ph-animation';
       const prior = ph ? labBoundaryRef.current?.adapter : educationRef.current;
@@ -279,6 +274,15 @@ export function PhoneLabContactContinuation({
               : contactRef.current;
       return adapter?.root() ?? null;
     };
+    // A direct native target needs its own mounted leaf and the upstream
+    // document geometry.  It must not wait on (or tear down for) unrelated
+    // lazy adapters that expand the next input closure.
+    const directEntryGeometryReady = (targetScene: ContinuationScene) => (
+      phoneDirectEntryGeometryReady([
+        rootForScene(targetScene) !== null,
+        upstreamDocumentGeometryReady()
+      ])
+    );
     const nativeReadingLanding = (
       targetScene: ContinuationScene
     ): number | null => phoneDocumentTop(phoneReadingLandingTarget(
@@ -461,7 +465,7 @@ export function PhoneLabContactContinuation({
         const targetScene = scene as ContinuationScene;
         const directNativeEntry = reason === 'direct-entry' && run === null;
         if (directNativeEntry) {
-          if (!directEntryGeometryReady()) return null;
+          if (!directEntryGeometryReady(targetScene)) return null;
           return nativeReadingLanding(targetScene);
         }
         if (phoneScenePresentationTuple(targetScene)[5] === 'native-reading') {
@@ -547,7 +551,7 @@ export function PhoneLabContactContinuation({
       for (const lease of surfaceLeases) lease.dispose();
       runner.dispose();
     };
-  }, [adapters.ready, capabilities, orchestrator, reducedMotion, stageHost]);
+  }, [capabilities, orchestrator, reducedMotion, stageHost]);
 
   /*
    * The route's document sampler owns geometry. This bridge only renders the
