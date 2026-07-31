@@ -222,6 +222,23 @@ test('tracks runtime factory calls through aliases, namespaces, and assignments'
   includes(reexported, 'runtime factory call');
 });
 
+test('rejects runtime factory calls anywhere in non-test src', async () => {
+  for (const [relative, runtimeImport] of Object.entries({
+    'src/App.tsx': './production/phone-story/runtime',
+    'src/main.tsx': './production/phone-story/runtime',
+    'src/scenes/rogue-phone-entry.ts': '../production/phone-story/runtime',
+    'src/transitions/rogue-phone-entry.ts': '../production/phone-story/runtime'
+  })) {
+    const found = await violations({
+      [relative]: `
+        import { createPhoneStoryRuntime } from ${JSON.stringify(runtimeImport)};
+        createPhoneStoryRuntime(() => undefined);
+      `
+    });
+    includes(found, 'runtime factory call');
+  }
+});
+
 test('rejects every runtime factory value escape', async () => {
   const escapes = {
     'array-destructure': `
@@ -473,6 +490,42 @@ test('rejects a dynamic leaf that imports a lifecycle owner', async () => {
       export const PhoneHero = null;
     `
   }), 'dynamic leaf lifecycle owner');
+});
+
+test('fails closed on non-literal and CommonJS imports in leaf and formal graphs', async () => {
+  const cases = {
+    'computed dynamic import()': `
+      const target = './shared';
+      void import(target);
+    `,
+    'CommonJS require()': "require('./shared');\n",
+    'import = require()': `
+      import helper = require('./shared');
+      void helper;
+    `
+  };
+
+  for (const [expected, source] of Object.entries(cases)) {
+    includes(await violations({
+      'src/scenes/hero/phone/PhoneHero.ts': source
+    }), expected);
+    includes(await violations({
+      'src/App.tsx': source
+    }), expected);
+  }
+});
+
+test('rejects a transitive QA dependency in the formal graph', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': `
+      ${validRecoveryBoundary}
+      export { loadFormalBridge } from './formal-qa-bridge';
+    `,
+    'src/production/formal-qa-bridge.ts': `
+      import { PhoneBrandLabStory } from './phone-story/PhoneBrandLabStory';
+      export const loadFormalBridge = () => PhoneBrandLabStory;
+    `
+  }), 'formal graph must not import the QA shell');
 });
 
 test('rejects legacy mobile-landscape ownership and duplicate orientation listeners', async () => {

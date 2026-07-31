@@ -341,8 +341,8 @@ function unwrappedExpression(expression) {
   return current;
 }
 
-function runtimeFactoryUsage(productionFiles) {
-  const rootNames = productionFiles.map((file) => path.resolve(file));
+function runtimeFactoryUsage(rootSourceFiles) {
+  const rootNames = rootSourceFiles.map((file) => path.resolve(file));
   const rootSet = new Set(rootNames);
   const program = ts.createProgram({
     rootNames,
@@ -832,6 +832,21 @@ export async function phoneCleanArchitectureViolations({
   const coreRoot = path.join(productionRoot, 'phone-story');
   const vitePath = path.join(appRoot, 'vite.config.ts');
   const viteSource = await exists(vitePath) ? await readFile(vitePath, 'utf8') : '';
+  const allSourceFiles = (await filesBelow(srcRoot)).filter(isProductionSource);
+  const allSources = await readSources(allSourceFiles);
+  const allSourceByFile = new Map(
+    allSources.map((entry) => [path.resolve(entry.file), entry.source])
+  );
+  const allParsedByFile = new Map(allSources.map(({ file, source }) => [
+    path.resolve(file),
+    sourceFileFor(file, source)
+  ]));
+  const allSourceFilesByStem = new Map();
+  for (const file of allSourceFiles) {
+    const resolved = path.resolve(file);
+    allSourceFilesByStem.set(resolved, resolved);
+    allSourceFilesByStem.set(resolved.replace(/\.[^.]+$/, ''), resolved);
+  }
   const allowed = new Set(PHONE_CORE_PRODUCTION_ALLOWLIST);
   const allCoreFiles = await filesBelow(coreRoot);
   const coreProductionFiles = allCoreFiles.filter((file) => {
@@ -1055,14 +1070,12 @@ export async function phoneCleanArchitectureViolations({
     }
   }
 
-  const productionFiles = (await filesBelow(productionRoot)).filter(isProductionSource);
-  const productionSources = await readSources(productionFiles);
   const factoryDefinitions = [];
-  const factoryUsage = runtimeFactoryUsage(productionFiles);
+  const factoryUsage = runtimeFactoryUsage(allSourceFiles);
   const factoryCalls = factoryUsage.calls;
   const reducerDefinitions = [];
   const stableCommitDefinitions = [];
-  for (const { file, source } of productionSources) {
+  for (const { file, source } of allSources) {
     const parsed = sourceFileFor(file, source);
     for (const name of namedDefinitions(parsed, 'createPhoneStoryRuntime')) {
       factoryDefinitions.push({ file, name });
@@ -1132,6 +1145,13 @@ export async function phoneCleanArchitectureViolations({
       const source = await readFile(file, 'utf8');
       const parsed = sourceFileFor(file, source);
       for (const imported of moduleImports(parsed)) {
+        if (imported.syntaxViolation) {
+          violations.push(
+            `${slash(path.relative(appRoot, file))}: leaf import syntax is forbidden `
+              + `(${imported.syntaxViolation})`
+          );
+          continue;
+        }
         const normalized = slash(path.resolve(path.dirname(file), imported.specifier));
         if (
           normalized.includes('/production/phone-story/runtime')
@@ -1159,26 +1179,59 @@ export async function phoneCleanArchitectureViolations({
     path.join(srcRoot, 'main.tsx'),
     path.join(productionRoot, 'presentation-shell-loaders.ts')
   ];
-  const formalSources = [];
-  for (const file of formalFiles) {
-    if (!await exists(file)) continue;
-    const source = await readFile(file, 'utf8');
-    formalSources.push({ file, source });
-    const parsed = sourceFileFor(file, source);
-    if (
-      moduleImports(parsed).some((entry) => (
-        entry.specifier.includes('PhoneBrandLabStory')
-      ))
-    ) {
-      violations.push(
-        `${slash(path.relative(appRoot, file))}: formal loader must not import the QA shell`
-      );
-    }
+  const formalSources = formalFiles.flatMap((file) => {
+    const resolved = path.resolve(file);
+    const source = allSourceByFile.get(resolved);
+    return source === undefined ? [] : [{ file: resolved, source }];
+  });
+  const canonicalQaFile = path.resolve(
+    coreRoot,
+    'PhoneBrandLabStory.tsx'
+  );
+  for (const { file, source } of formalSources) {
+    const parsed = allParsedByFile.get(file) ?? sourceFileFor(file, source);
     if (phase === 'cutover' && productionQueryViolation(parsed)) {
       violations.push(
         `${slash(path.relative(appRoot, file))}: legacy production query composition remains`
       );
     }
+
+    const visited = new Set();
+    const visitFormalGraph = (currentFile, chain) => {
+      if (visited.has(currentFile)) return;
+      visited.add(currentFile);
+      const currentParsed = allParsedByFile.get(currentFile);
+      if (!currentParsed) return;
+      for (const imported of moduleImports(currentParsed)) {
+        const currentRelative = slash(path.relative(appRoot, currentFile));
+        if (imported.syntaxViolation) {
+          violations.push(
+            `${currentRelative}: formal graph import syntax is forbidden `
+              + `(${imported.syntaxViolation})`
+          );
+          continue;
+        }
+        if (imported.typeOnly) continue;
+        const target = coreTarget(
+          currentFile,
+          imported.specifier,
+          allSourceFilesByStem
+        );
+        if (!target) continue;
+        const nextChain = [...chain, target];
+        if (path.resolve(target) === canonicalQaFile) {
+          violations.push(
+            `${slash(path.relative(appRoot, file))}: formal loader closure violation; `
+              + `formal graph must not import the QA shell (${nextChain.map((entry) => (
+                slash(path.relative(appRoot, entry))
+              )).join(' -> ')})`
+          );
+          continue;
+        }
+        visitFormalGraph(target, nextChain);
+      }
+    };
+    visitFormalGraph(file, [file]);
   }
 
   if (propertyMangleViolation(viteSource)) {
