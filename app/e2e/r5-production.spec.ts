@@ -433,12 +433,9 @@ test('reduced motion keeps the same contract and settles without cinematic delay
   await expectLayerInvariants(page);
 });
 
-test('reading input absorbs the gesture that reaches an edge, then accepts one clear outward gesture', async ({ page }) => {
+test('consolidated Method reading absorbs its edge gesture and restores the reverse-entry edge', async ({ page }) => {
   await bootStory(page, '/#method');
-  await expect(page.locator('[data-stage-layer="method-top"] [data-reading-scrollport="true"]')).toHaveCount(0);
-  await page.keyboard.press('PageDown');
-  await waitForHold(page, 'method-bottom');
-  const scrollport = page.locator('[data-stage-layer="method-bottom"] [data-reading-scrollport="true"]');
+  const scrollport = page.locator('[data-stage-layer="method-top"] [data-reading-scrollport="true"]');
   await expect(scrollport).toBeVisible();
   await expect.poll(() => scrollport.evaluate((element) => element.scrollTop)).toBe(0);
   const methodReadingRange = await scrollport.evaluate((element) => element.scrollHeight - element.clientHeight);
@@ -451,7 +448,7 @@ test('reading input absorbs the gesture that reaches an edge, then accepts one c
     deltaY: 120
   });
   await expect.poll(() => scrollport.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-  expect(await storySnapshot(page)).toMatchObject({ current: 'method-bottom', phase: 'hold' });
+  expect(await storySnapshot(page)).toMatchObject({ current: 'method-top', phase: 'hold' });
   await reachReadingEdge(page, 1);
   await expect.poll(() => scrollport.evaluate((element) => (
     Math.abs(element.scrollTop + element.clientHeight - element.scrollHeight)
@@ -462,14 +459,13 @@ test('reading input absorbs the gesture that reaches an edge, then accepts one c
   await expectLayerInvariants(page);
 
   await page.keyboard.press('PageUp');
-  await waitForHold(page, 'method-bottom');
+  await waitForHold(page, 'method-top');
   await expect.poll(async () => scrollport.evaluate((element) => (
     element.scrollTop + element.clientHeight >= element.scrollHeight - 1
   ))).toBe(true);
   await expectLayerInvariants(page);
 
-  expect((await moveOneHold(page, -1)).current).toBe('method-top');
-  await expect(page.locator('[data-stage-layer="method-top"] [data-reading-scrollport="true"]')).toHaveCount(0);
+  expect((await moveOneHold(page, -1)).current).toBe('aod-animation');
   await expectLayerInvariants(page);
 });
 
@@ -527,12 +523,14 @@ test('Figure2 Proof owns one snap-free scrollport and accepts incremental wheel 
   // The remaining momentum belongs to this physical gesture: it may consume
   // the small budget remainder, but a following tail must be absorbed before
   // it can reach a reading edge or leave Proof.
-  await scrollport.dispatchEvent('wheel', {
-    bubbles: true,
-    cancelable: true,
-    deltaMode: 0,
-    deltaY: 500
-  });
+  for (let index = 0; index < 3; index += 1) {
+    await scrollport.dispatchEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaMode: 0,
+      deltaY: 500
+    });
+  }
   const budgetExhaustedScrollTop = await scrollport.evaluate((element) => element.scrollTop);
   await scrollport.dispatchEvent('wheel', {
     bubbles: true,
@@ -542,7 +540,7 @@ test('Figure2 Proof owns one snap-free scrollport and accepts incremental wheel 
   });
   const absorbedTailScrollTop = await scrollport.evaluate((element) => element.scrollTop);
   expect(absorbedTailScrollTop).toBeCloseTo(budgetExhaustedScrollTop, 0);
-  expect(absorbedTailScrollTop).toBeLessThanOrEqual(initial.viewportHeight * 0.65);
+  expect(absorbedTailScrollTop).toBeLessThanOrEqual(initial.viewportHeight * 1.05 + 1);
 
   // A pause creates a fresh gesture and restores the reading budget without
   // treating the previous momentum tail as a navigation intent.
@@ -622,19 +620,31 @@ test('Proof, Lab, Services, and Education share burst, tail, fresh-input, and re
     expect(burstDisplacement, `${scenario.scene} burst displacement`).toBeGreaterThan(initial.viewportHeight * 0.35);
     expect(burstDisplacement, `${scenario.scene} burst displacement`).toBeLessThan(initial.viewportHeight * 0.65);
 
-    const budgetExhaustedScrollTop = await wheel(scenario.scene, 500);
+    let budgetExhaustedScrollTop = 0;
+    for (let index = 0; index < 3; index += 1) {
+      budgetExhaustedScrollTop = await wheel(scenario.scene, 500);
+    }
     const absorbedTailScrollTop = await wheel(scenario.scene, 500);
     expect(absorbedTailScrollTop, `${scenario.scene} tail must be absorbed`).toBeCloseTo(budgetExhaustedScrollTop, 0);
     expect(absorbedTailScrollTop, `${scenario.scene} tail must remain inside the gesture budget`)
-      .toBeLessThanOrEqual(initial.viewportHeight * 0.65 + 1);
+      .toBeLessThanOrEqual(initial.viewportHeight * 1.05 + 1);
 
     await page.waitForTimeout(260);
-    const freshGestureScrollTop = await wheel(scenario.scene, 80);
-    expect(freshGestureScrollTop, `${scenario.scene} fresh gesture must resume reading`)
-      .toBeGreaterThan(absorbedTailScrollTop);
-    const reverseGestureScrollTop = await wheel(scenario.scene, -80);
-    expect(reverseGestureScrollTop, `${scenario.scene} reverse gesture must remain owned by reading`)
-      .toBeLessThan(freshGestureScrollTop);
+    const atReadingEnd = absorbedTailScrollTop >= initial.maxScrollTop - 1;
+    const freshGestureScrollTop = await wheel(scenario.scene, atReadingEnd ? -80 : 80);
+    if (atReadingEnd) {
+      expect(freshGestureScrollTop, `${scenario.scene} inward fresh gesture must resume reading`)
+        .toBeLessThan(absorbedTailScrollTop);
+      const returnGestureScrollTop = await wheel(scenario.scene, 80);
+      expect(returnGestureScrollTop, `${scenario.scene} return gesture must remain owned by reading`)
+        .toBeGreaterThan(freshGestureScrollTop);
+    } else {
+      expect(freshGestureScrollTop, `${scenario.scene} fresh gesture must resume reading`)
+        .toBeGreaterThan(absorbedTailScrollTop);
+      const reverseGestureScrollTop = await wheel(scenario.scene, -80);
+      expect(reverseGestureScrollTop, `${scenario.scene} reverse gesture must remain owned by reading`)
+        .toBeLessThan(freshGestureScrollTop);
+    }
     expect(await storySnapshot(page)).toMatchObject({ phase: 'hold', current: scenario.scene });
     await expectLayerInvariants(page);
 
@@ -711,35 +721,40 @@ test('long reading scenes have no residual horizontal rules and Lab omits retire
   }
 });
 
-test('Method split keeps an opaque receiver paper beneath the outgoing layout', async ({ page }) => {
+test('consolidated Method-to-Figure2 ink keeps an opaque receiver field beneath the outgoing layout', async ({ page }) => {
   await bootStory(page, '/#method');
+  await reachReadingEdge(page, 1);
   const samples = page.evaluate(() => new Promise<readonly {
     sourceOpacity: number;
     receiverOpacity: number;
     receiverVisible: boolean;
-    receiverPaper: string;
+    receiverPaperColor: string;
+    receiverPaperImage: string;
   }[]>((resolve, reject) => {
     const values: {
       sourceOpacity: number;
       receiverOpacity: number;
       receiverVisible: boolean;
-      receiverPaper: string;
+      receiverPaperColor: string;
+      receiverPaperImage: string;
     }[] = [];
-    const timeout = window.setTimeout(() => reject(new Error('Method split witness timed out')), 5_000);
+    const timeout = window.setTimeout(() => reject(new Error('Method-to-Figure2 witness timed out')), 5_000);
     const sample = () => {
       const snapshot = window.__storyApp?.snapshot();
       const source = document.querySelector<HTMLElement>('[data-stage-layer="method-top"]');
-      const receiver = document.querySelector<HTMLElement>('[data-stage-layer="method-bottom"]');
-      const paper = receiver?.querySelector<HTMLElement>('[data-r4-scene="method-bottom"]');
+      const receiver = document.querySelector<HTMLElement>('[data-stage-layer="figure2-animation"]');
+      const paper = receiver?.querySelector<HTMLElement>('.r4-figure2__depth-field');
       if (snapshot?.phase === 'playing' && source && receiver && paper) {
+        const paperStyle = getComputedStyle(paper);
         values.push({
           sourceOpacity: Number.parseFloat(getComputedStyle(source).opacity),
           receiverOpacity: Number.parseFloat(getComputedStyle(receiver).opacity),
           receiverVisible: getComputedStyle(receiver).visibility === 'visible',
-          receiverPaper: getComputedStyle(paper).backgroundColor
+          receiverPaperColor: paperStyle.backgroundColor,
+          receiverPaperImage: paperStyle.backgroundImage
         });
       }
-      if (snapshot?.phase === 'hold' && snapshot.current === 'method-bottom' && values.length > 0) {
+      if (snapshot?.phase === 'hold' && snapshot.current === 'figure2-animation' && values.length > 0) {
         window.clearTimeout(timeout);
         resolve(values);
         return;
@@ -751,10 +766,20 @@ test('Method split keeps an opaque receiver paper beneath the outgoing layout', 
 
   await page.keyboard.press('PageDown');
   const handoff = await samples;
-  expect(handoff.some((sample) => sample.sourceOpacity > 0.05 && sample.sourceOpacity < 0.95)).toBe(true);
-  expect(handoff.every((sample) => sample.receiverOpacity === 1 && sample.receiverVisible)).toBe(true);
-  expect(handoff.every((sample) => sample.receiverPaper !== 'rgba(0, 0, 0, 0)')).toBe(true);
-  await waitForHold(page, 'method-bottom');
+  expect(handoff.some((sample) => (
+    sample.sourceOpacity > 0.95
+    && sample.receiverOpacity === 1
+    && sample.receiverVisible
+  ))).toBe(true);
+  expect(handoff.every((sample) => (
+    sample.receiverOpacity === 0
+    || (sample.receiverOpacity === 1 && sample.receiverVisible)
+  ))).toBe(true);
+  expect(handoff.every((sample) => (
+    sample.receiverPaperColor !== 'rgba(0, 0, 0, 0)'
+    || sample.receiverPaperImage !== 'none'
+  ))).toBe(true);
+  await waitForHold(page, 'figure2-animation');
   await expectLayerInvariants(page);
 });
 

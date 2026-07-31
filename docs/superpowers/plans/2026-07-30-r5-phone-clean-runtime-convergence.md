@@ -1482,10 +1482,45 @@ node artifacts/react-refactor/r5-phone-clean-runtime-task0/verify-evidence.mjs
 
 Any missing raw artifact, source, manifest mapping, or hash blocks Task 1.
 
+- [x] **Step 1.0: Correct the four frozen desktop oracles in an independent test-only commit**
+
+The correctness review approved the baseline-oracle correction documented in
+`docs/react-refactor/decisions/r5-task1-desktop-browser-gate-contradiction.md`.
+Before applying the correction to the Task 1 worktree, apply the same
+`app/e2e/r5-production.spec.ts` patch to a detached `b557c3e` worktree and
+verify the untouched frozen production build there.
+
+The correction is limited to these four stale expectations:
+
+1. exercise the consolidated, reading-owned Method Top hold instead of the
+   retired Method Bottom hold;
+2. exhaust Figure2 Proof's frozen `1.05 × viewportHeight` wheel budget before
+   checking that a momentum tail is absorbed;
+3. apply the same `1.05 × viewportHeight` budget to the shared reading-scene
+   test, including scenes whose total reading range is shorter than the budget;
+4. witness the canonical Method Top → Figure2 ink handoff and its opaque
+   receiver field instead of the retired Method Top → Method Bottom split.
+
+Do not add a skip or retry, delete coverage, or change production behavior.
+Commit this correction before the Task 1 implementation and include only:
+
+- `app/e2e/r5-production.spec.ts`;
+- this authoritative plan;
+- `docs/react-refactor/decisions/r5-task1-desktop-browser-gate-contradiction.md`.
+
+Frozen `b557c3e` verification completed with no retries:
+
+```text
+desktop-chromium: 25 passed, 7 existing project-conditional skips, 0 failed
+desktop-webkit:    11 passed, 21 existing project-conditional skips, 0 failed
+```
+
 **Create:**
 
+- `app/e2e/r5-phone-rendering-lifecycle.spec.ts`
 - `app/src/runtime/semantic-data-attribute.ts`
 - `app/src/runtime/semantic-data-attribute.test.ts`
+- `app/src/production/phone/transitions/PhoneInkTransition.test.tsx`
 - `app/scripts/verify-boolean-data-contract.mjs`
 - `app/scripts/verify-boolean-data-contract.test.mjs`
 - `app/scripts/verify-phone-packed-alpha-masters.mjs`
@@ -1497,6 +1532,10 @@ Any missing raw artifact, source, manifest mapping, or hash blocks Task 1.
 - `app/src/media/packed-alpha-video.test.ts`
 - `app/src/production/StoryNav.tsx`
 - `app/src/production/global-assets.test.ts`
+- `app/src/production/phone/phone-ink.ts`
+- `app/src/production/phone/scenes/phone-packed-alpha-surface.ts`
+- `app/src/production/phone/scenes/phone-packed-alpha-surface.test.ts`
+- `app/src/production/phone/transitions/PhoneInkTransition.tsx`
 - `app/src/scenes/aod-animation/progress.ts`
 - `app/src/scenes/method-bottom/index.tsx`
 - `app/src/scenes/method-top/index.tsx`
@@ -1520,7 +1559,8 @@ Any missing raw artifact, source, manifest mapping, or hash blocks Task 1.
 
 - `app/vite.config.ts` for property mangling;
 - any file under the new `phone-story/` directory in this task;
-- any old phone lifecycle file;
+- any old phone lifecycle file except the four narrowly listed
+  packed-alpha/ink ownership files and their tests above;
 - frozen story/media inputs.
 
 - [ ] **Step 1.1: Audit the donor patch instead of applying it**
@@ -1555,7 +1595,9 @@ The script gate must fail on:
 
 ```tsx
 data-ready={ready}
+data-ready={ready || semanticBoolean(false)}
 element.dataset.ready = String(maybeUndefined)
+[data-ready=true]
 ```
 
 and pass on:
@@ -1563,7 +1605,18 @@ and pass on:
 ```tsx
 data-ready={semanticBoolean(ready)}
 element.dataset.ready = semanticBoolean(ready)
+[data-ready="true"]
 ```
+
+Parse TypeScript/TSX writers with the TypeScript compiler API. A semantic
+boolean writer passes only when the complete JSX initializer or dataset
+assignment right-hand side is one direct `semanticBoolean(...)` call. A
+matching comment, nested call, logical expression, conditional expression, or
+other wrapper does not satisfy the gate. Scan CSS selectors for both quoted
+and unquoted literal boolean values.
+
+Add RED fixtures for a mixed expression, a comment-only disguise, and an
+unquoted CSS selector before implementing the gate.
 
 Run:
 
@@ -1593,13 +1646,36 @@ Acceptance behavior:
 
 - compositor disposal cancels `requestVideoFrameCallback` and RAF;
 - GL texture, buffer, program, and shaders are deleted;
-- `WEBGL_lose_context` is requested when available;
+- terminal retirement requests `WEBGL_lose_context` when available;
 - a retired Canvas backing store is not silently reused as a valid frame;
-- reactivation uses a renewed Canvas/backing context;
+- reactivation never reuses a context that was hard-lost;
 - no failure path reports `onFrame`.
 
-Add a test for repeated activate → dispose → activate and context-loss
-cleanup.
+Define two explicit ownership paths:
+
+- **reactivatable release:** `PhonePackedAlphaSurface.release()` may keep a
+  React-owned Canvas node. It must cancel scheduling and delete compositor
+  resources without calling `WEBGL_lose_context`; the same node/context must
+  remain able to initialize and render on the next `activate()`;
+- **terminal hard retirement:** `PhonePackedAlphaSurface.dispose()`, or
+  retirement of a compositor-owned Canvas that is removed and replaced on the
+  next activation, must release the context exactly once. A compositor that
+  was softly released but never reactivated must still be hard-retirable at
+  terminal disposal.
+
+Make the compositor retirement API encode that distinction rather than
+inferring it from a call order. The surface must not hard-retire an old handle
+after a replacement compositor has begun sharing the retained context.
+
+Add:
+
+- focused resource-deletion/context-loss tests in
+  `packed-alpha-video.test.ts`;
+- a real `createPhonePackedAlphaSurface()` release → activate regression using
+  the persistent injected Canvas path, not two manually renewed fake Canvases;
+- a Chromium browser regression through the production phone PH/Crane surface
+  proving the same Canvas can release and reactivate without `setup-failed`,
+  and that hard context loss occurs only at terminal retirement.
 
 - [ ] **Step 1.5: Port shared rendering fixes by path/hunk**
 
@@ -1608,6 +1684,20 @@ staged handoff, vendor typing, global typography, and rendering corrections
 from `82a4e68`. Do not port its parent runtime behavior. Do not port a Hero CSS
 hunk into the old phone tree; apply that reviewed declaration when Hero moves
 to its canonical leaf in Task 7.
+
+Keep hard context loss as the terminal default for a Canvas that its renderer
+owns and removes. Every persistent Canvas owner must opt into reactivatable
+cleanup. In particular, `createPhoneInkTransition()` must pass
+`loseContextOnDestroy: false` when it receives the React-owned Canvas used by
+`PhoneInkTransition`; an internally created, terminally removed Canvas may
+still hard-retire.
+
+Add a `PhoneInkTransition` integration regression that mounts in React
+StrictMode, runs effect cleanup, and recreates the renderer on the exact same
+Canvas. Assert the cleanup uses `destroy(false)` and the replacement renderer
+is active. The Chromium lifecycle spec must also exercise a production phone
+ink Canvas across cleanup/recreation or endpoint rebinding and prove it is not
+context-lost.
 
 - [ ] **Step 1.6: Add packed-master verification**
 
@@ -1633,6 +1723,8 @@ Wire both into the existing build verification sequence before Vite build.
 pnpm -C app exec vitest run \
   src/runtime/semantic-data-attribute.test.ts \
   src/media/packed-alpha-video.test.ts \
+  src/production/phone/scenes/phone-packed-alpha-surface.test.ts \
+  src/production/phone/transitions/PhoneInkTransition.test.tsx \
   src/transitions/shared/radialInkIntro.test.ts \
   src/transitions/shared/sceneInk.lifecycle.test.ts
 node --test app/scripts/verify-boolean-data-contract.test.mjs
@@ -1649,6 +1741,10 @@ pnpm -C app exec playwright test \
   --config=playwright.release.config.ts \
   e2e/r5-production.spec.ts e2e/r5-matrix.spec.ts \
   --project=desktop-webkit
+pnpm -C app exec playwright test \
+  --config=playwright.release.config.ts \
+  e2e/r5-phone-rendering-lifecycle.spec.ts \
+  --project=mobile-chromium
 git diff --exit-code 9652fbe -- \
   assets app/scripts/homepage-media-contract.mjs app/src/story/timings.ts \
   app/src/story/copy.ts app/src/story/canonical-spine.ts \
@@ -1661,13 +1757,18 @@ git diff --exit-code 9652fbe -- \
 mangling, and no generated field registry.
 
 ```bash
-git add app/package.json app/scripts app/src
+git add \
+  app/e2e/r5-phone-rendering-lifecycle.spec.ts \
+  app/package.json app/scripts app/src
 git commit -m "fix(r5): port clean rendering contracts"
 ```
 
 **Task 1 acceptance:**
 
 - semantic boolean and packed-alpha lifecycle gates pass;
+- persistent packed-alpha and ink Canvases survive release/cleanup and
+  reactivate through their real production call paths;
+- hard WebGL context loss is reserved for terminally retired Canvas ownership;
 - later rendering fixes are traceable by exact source hunk;
 - the desktop Chromium/WebKit production and matrix browser regressions pass
   after shared Stage/LayerStore/transition/style edits;
