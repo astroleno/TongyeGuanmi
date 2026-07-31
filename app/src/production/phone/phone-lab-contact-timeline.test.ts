@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   phoneLabContactApproachProgress,
+  phoneLabContactAutoplayFrame,
   phoneLabContactAutoplayToken,
   phoneLabContactAtOrPastVisualBoundary,
   phoneLabContactCanArmReverseGesture,
@@ -131,17 +132,40 @@ describe('phone Lab → Contact shared-boundary timeline', () => {
   });
 
   it('requires formal media evidence to carry its captured execution identity', () => {
+    const frame = {
+      token: {
+        authorityId: 'phone-authority-9',
+        sessionId: 'session-4',
+        generation: 7,
+        leg: 1,
+        revision: 12,
+        subject: 'group67:ph',
+        kind: 'packed-canvas-frame' as const
+      },
+      frameSequence: 3,
+      observedAt: 48
+    };
     expect(phoneLabContactAutoplayToken([
       'ph-animation',
       'progress',
       1,
       ['phone-authority-9', 'session-4', 7, 1, 1],
-      .5
+      .5,
+      null
     ])).toEqual(['phone-authority-9', 'session-4', 7, 1, 1]);
+    expect(phoneLabContactAutoplayFrame([
+      'ph-animation',
+      'presented',
+      1,
+      ['phone-authority-9', 'session-4', 7, 1, 1, frame.token],
+      null,
+      frame
+    ])).toBe(frame);
     expect(phoneLabContactAutoplayToken([
       'crane-animation',
       'complete',
       -1,
+      null,
       null,
       null
     ])).toBeNull();

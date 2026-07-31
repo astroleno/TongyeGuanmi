@@ -9,20 +9,26 @@ const source = readFileSync(
 );
 
 describe('usePhoneCinematicRun execution token contract', () => {
-  it('captures the token injected at adapter start and emits it with every media event', () => {
+  it('captures the token injected at adapter start and emits a raw frame only from its physical presented callback', () => {
     expect(source).toContain('activeIdentityRef');
     expect(source).toContain("import type { PhoneExecutionToken }");
     expect(source).toMatch(
-      /dispatchPhoneLabContactAutoplay\(options\.rootRef\.current, \[\s*options\.scene,\s*phase,\s*direction,\s*identity,\s*progress \?\? null\s*\]\)/
+      /dispatchPhoneLabContactAutoplay\(options\.rootRef\.current, \[\s*options\.scene,\s*phase,\s*direction,\s*identity,\s*progress \?\? null,\s*frame\s*\]\)/
     );
+    expect(source).toMatch(/identity\?\.\[5\]/);
+    expect(source).toContain("phase === 'presented'");
+    expect(source).toContain('frameSequence');
+    expect(source).toContain('phoneRuntimePresentationTokenKey(identity[5])');
+    expect(source).toContain('presentationKey !== phoneRuntimePresentationTokenKey');
+    expect(source).toContain('presentPreparedFrame: (token: PresentationToken) => void');
     expect(source).not.toContain('identity?.authorityId');
     expect(source).toContain('renderProgress');
     expect(source).toContain('startRun = useCallback((');
   });
 
   it('[R5] redraws an already-prepared renderer only after its run token is active', () => {
-    expect(source).toMatch(/presentPreparedFrame:\s*\(\) => void,/);
-    expect(source).toContain('if (activeIdentityRef.current) {');
-    expect(source).toContain('options.presentPreparedFrame();');
+    expect(source).toMatch(/presentPreparedFrame:\s*\(token: PresentationToken\) => void,/);
+    expect(source).toContain('if (activeIdentity?.[5]) {');
+    expect(source).toContain('options.presentPreparedFrame(activeIdentity[5]);');
   });
 });

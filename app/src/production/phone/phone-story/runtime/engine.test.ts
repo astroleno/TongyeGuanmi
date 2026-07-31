@@ -7,6 +7,7 @@ import {
 import { PHONE_REDUCED_ADMISSION_TIMEOUT_MS } from './session';
 import type { PhoneStoryRuntimeEngine as PhoneStoryOrchestrator } from './engine';
 import {
+  phoneDirectEntryAdmissionTuple,
   phoneScenePresentationTuple,
   phoneSegmentPresentationTuple
 } from '../manifest';
@@ -74,16 +75,35 @@ function registerCorridor(
 /** Register a manifest-scoped target whose content and coverage are real facts. */
 function registerReadySurface(
   orchestrator: PhoneStoryOrchestrator,
-  scene: Parameters<typeof phoneScenePresentationTuple>[0]
+  scene: Parameters<typeof phoneScenePresentationTuple>[0],
+  scheduleLeafFrame?: (callback: () => void) => void
 ) {
   const root = element();
   const surface = phoneScenePresentationTuple(scene)[4];
+  const admission = phoneDirectEntryAdmissionTuple(scene);
   return orchestrator.registerSurface({
     id: surface,
     scene,
     kind: surface.startsWith('native:') ? 'native' : 'fixed',
     root: () => root,
-    presentation: () => [true, true, true, true, 'static-poster']
+    presentation: () => [true, true, true, true, 'static-poster'],
+    ...(admission[6] ? {
+      adapter: {
+        present(token: PresentationToken, report: (frame: PhoneRenderedPresentationFrame) => void) {
+          const publish = () => report({
+            token,
+            frameSequence: 1,
+            observedAt: typeof performance !== 'undefined'
+              && typeof performance.now === 'function'
+              ? performance.now()
+              : 0,
+            origin: 'leaf-static-poster'
+          });
+          if (scheduleLeafFrame) scheduleLeafFrame(publish);
+          else publish();
+        }
+      }
+    } : {})
   });
 }
 
@@ -648,7 +668,7 @@ describe('single phone story projector transaction', () => {
       session = activeSession;
     }));
     registerCorridor(orchestrator);
-    registerReadySurface(orchestrator, 'brand');
+    registerReadySurface(orchestrator, 'brand', (callback) => frames.push(callback));
 
     expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
     session?.reportFailure();
@@ -664,7 +684,7 @@ describe('single phone story projector transaction', () => {
       status: 'transaction',
       session: { phase: 'rollback-aligning-scroll' }
     });
-    frames.shift()?.();
+    while (frames.length > 0) frames.shift()?.();
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'stable',
       scene: 'brand',
@@ -699,7 +719,7 @@ describe('single phone story projector transaction', () => {
         }
       });
       registerCorridor(orchestrator);
-      registerReadySurface(orchestrator, 'brand');
+      registerReadySurface(orchestrator, 'brand', (callback) => frames.push(callback));
 
       expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
       expect(orchestrator.getSnapshot()).toMatchObject({
@@ -765,7 +785,7 @@ describe('single phone story projector transaction', () => {
         }
       });
       registerCorridor(orchestrator);
-      registerReadySurface(orchestrator, 'brand');
+      registerReadySurface(orchestrator, 'brand', (callback) => frames.push(callback));
 
       expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
       const first = sessions.at(0);

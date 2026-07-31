@@ -51,8 +51,8 @@ describe('PhonePh', () => {
   });
 
   it('[R5] redraws its prepared packed surface when an active media token starts', () => {
-    expect(source).toContain('const presentPreparedFrame = useCallback(() => {');
-    expect(source).toContain("surface?.(['present', null])");
+    expect(source).toContain('const presentPreparedFrame = useCallback((token: PresentationToken) => {');
+    expect(source).toContain("surface?.(['present', phoneRuntimePresentationTokenKey(token)])");
     expect(source).toContain('presentPreparedFrame,');
   });
 
@@ -106,7 +106,7 @@ describe('PhonePh', () => {
     expect(source).not.toContain('phonePresentedFrameOwner');
     expect(source).not.toContain('PH_FIGURE_OPENING_SRC');
     expect(source).not.toContain('beginRun');
-    expect(source).toContain('presentedFrameRef.current?.();');
+    expect(source).toContain('presentedFrameRef.current?.(presentationKey);');
     expect(cinematicRunSource).toContain("options.activateSurface('endpoint')");
     expect(source).not.toContain(
       "ensurePackedSurface(reducedMotion ? 'endpoint' : 'forward')"

@@ -1,4 +1,7 @@
-import type { PhoneExecutionToken } from './phone-story/runtime';
+import type {
+  PhoneExecutionToken,
+  PhoneRenderedPresentationFrame
+} from './phone-story/runtime';
 
 const EPSILON = 0.001;
 
@@ -14,7 +17,9 @@ export type PhoneLabContactAutoplayEvent = readonly [
   phase: 'playing' | 'presented' | 'progress' | 'complete' | 'failed',
   direction: 1 | -1,
   execution: PhoneExecutionToken | null,
-  progress: number | null
+  progress: number | null,
+  /** A physical leaf draw carries the exact raw token; no parent recreates it. */
+  frame: PhoneRenderedPresentationFrame | null
 ];
 
 /**
@@ -26,6 +31,13 @@ export function phoneLabContactAutoplayToken(
   detail: PhoneLabContactAutoplayEvent
 ): PhoneExecutionToken | null {
   return detail[3];
+}
+
+/** The runner may forward only this leaf-originated immutable frame. */
+export function phoneLabContactAutoplayFrame(
+  detail: PhoneLabContactAutoplayEvent
+): PhoneRenderedPresentationFrame | null {
+  return detail[5];
 }
 
 export type PhoneLabContactCinematicRunState =

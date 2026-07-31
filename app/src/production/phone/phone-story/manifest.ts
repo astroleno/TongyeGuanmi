@@ -4,6 +4,10 @@ import {
 } from '../../../story/canonical-spine';
 import type { PhoneCheckpointId } from '../../../story/semantic-checkpoints';
 import type { SceneId, SegmentId } from '../../../story/types';
+import {
+  phoneRunLegTuple,
+  type PhoneRunId
+} from '../phone-story-runs';
 import type { PhoneEdgeScene } from './presentation';
 
 export type CanonicalPhoneSceneId = (typeof canonicalSceneIds)[number];
@@ -88,6 +92,43 @@ export type PhoneSegmentPresentationContract = Readonly<{
   forward: Readonly<{ policy: 'fail-closed' }>;
   reverse: Readonly<{ policy: 'fail-closed' }>;
 }>;
+
+/** A run always declares both physical normal and reduced proof paths. */
+export type PhoneAdmissionMode = 'normal' | 'reduced';
+
+/** The only components permitted to originate a presentation frame. */
+export type PhoneAdmissionProofProducer =
+  | 'effect-leaf'
+  | 'media-leaf'
+  | 'static-leaf'
+  | 'dom-post-paint';
+
+export type PhoneAdmissionEffectRole = PhoneSegmentEffectPlacement | 'none';
+
+export type PhoneAdmissionStrategy = Readonly<{
+  producer: PhoneAdmissionProofProducer;
+  kind: PhonePresentationProofKind;
+  subject: PhoneSurfaceId;
+  targetScene: SceneId;
+  landingResolver: PhoneLandingResolverId;
+  effectRole: PhoneAdmissionEffectRole;
+  requiresLeafAdapter: boolean;
+}>;
+
+/**
+ * Positional strategy transport protects this cross-chunk contract from
+ * property mangling. Runners consume this tuple; object views are test/tooling
+ * only.
+ */
+export type PhoneAdmissionStrategyTuple = readonly [
+  producer: PhoneAdmissionProofProducer,
+  kind: PhonePresentationProofKind,
+  subject: PhoneSurfaceId,
+  targetScene: SceneId,
+  landingResolver: PhoneLandingResolverId,
+  effectRole: PhoneAdmissionEffectRole,
+  requiresLeafAdapter: boolean
+];
 
 /**
  * Runtime manifest transport. Slots avoid sharing a property-mangled contract
@@ -202,6 +243,261 @@ const segmentRows = [
   length: typeof canonicalSegments['length'];
 }>;
 
+type SegmentAdmissionRow = readonly [
+  forwardNormal: PhoneAdmissionStrategyTuple,
+  forwardReduced: PhoneAdmissionStrategyTuple,
+  reverseNormal: PhoneAdmissionStrategyTuple,
+  reverseReduced: PhoneAdmissionStrategyTuple
+];
+
+type PhoneDirectionalReducedAdmission = readonly [
+  forward: PhoneAdmissionStrategyTuple,
+  reverse: PhoneAdmissionStrategyTuple
+];
+
+type PhoneRunReducedAdmissionRows = Readonly<{
+  'aod-method': readonly [PhoneDirectionalReducedAdmission];
+  'method-figure2': readonly [PhoneDirectionalReducedAdmission];
+  'figure2-proof': readonly [PhoneDirectionalReducedAdmission];
+  'proof-brand': readonly [PhoneDirectionalReducedAdmission];
+  'brand-services': readonly [
+    PhoneDirectionalReducedAdmission,
+    PhoneDirectionalReducedAdmission
+  ];
+  'services-lab': readonly [
+    PhoneDirectionalReducedAdmission,
+    PhoneDirectionalReducedAdmission
+  ];
+  'lab-education': readonly [
+    PhoneDirectionalReducedAdmission,
+    PhoneDirectionalReducedAdmission
+  ];
+  'education-contact': readonly [
+    PhoneDirectionalReducedAdmission,
+    PhoneDirectionalReducedAdmission
+  ];
+}>;
+
+const admission = (
+  producer: PhoneAdmissionProofProducer,
+  kind: PhonePresentationProofKind,
+  subject: PhoneSurfaceId,
+  targetScene: SceneId,
+  landingResolver: PhoneLandingResolverId,
+  effectRole: PhoneAdmissionEffectRole,
+  requiresLeafAdapter: boolean
+): PhoneAdmissionStrategyTuple => [
+  producer,
+  kind,
+  subject,
+  targetScene,
+  landingResolver,
+  effectRole,
+  requiresLeafAdapter
+];
+
+const segmentAdmission = (
+  forwardNormal: PhoneAdmissionStrategyTuple,
+  forwardReduced: PhoneAdmissionStrategyTuple,
+  reverseNormal: PhoneAdmissionStrategyTuple,
+  reverseReduced: PhoneAdmissionStrategyTuple
+): SegmentAdmissionRow => [
+  forwardNormal,
+  forwardReduced,
+  reverseNormal,
+  reverseReduced
+];
+
+const directionalReduced = (
+  forward: PhoneAdmissionStrategyTuple,
+  reverse: PhoneAdmissionStrategyTuple
+): PhoneDirectionalReducedAdmission => [forward, reverse];
+
+/**
+ * This is intentionally a full Record rather than an inferred list. Omitting
+ * a canonical segment is a TypeScript error, rather than an opt-in fallback at
+ * runtime. Normal entries describe the physical first frame for that segment;
+ * reduced entries describe its static target when the segment is addressed
+ * directly. Composite run entries below may intentionally select their final
+ * native endpoint for a multi-leg reduced transaction.
+ */
+const segmentAdmissionRows = {
+  'hero-pattern': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'front:ink', 'pattern', 'front-corridor', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'front:ink', 'hero', 'front-corridor', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'front:hero', 'hero', 'front-corridor', 'none', true)
+  ),
+  'pattern-star-map': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'front:ink', 'star-map', 'front-corridor', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'front:star-map', 'star-map', 'front-corridor', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'front:ink', 'pattern', 'front-corridor', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true)
+  ),
+  'star-map-aod': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'front:ink', 'aod-animation', 'front-corridor', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'front:aod', 'aod-animation', 'front-corridor', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'front:ink', 'star-map', 'front-corridor', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'front:star-map', 'star-map', 'front-corridor', 'none', true)
+  ),
+  'aod-method-top': segmentAdmission(
+    admission('media-leaf', 'packed-canvas-frame', 'front:aod', 'method-top', 'aod-semantic-edge', 'none', true),
+    admission('static-leaf', 'static-poster', 'native:method', 'method-top', 'aod-semantic-edge', 'none', true),
+    admission('media-leaf', 'packed-canvas-frame', 'front:aod', 'aod-animation', 'aod-semantic-edge', 'none', true),
+    admission('static-leaf', 'static-poster', 'front:aod', 'aod-animation', 'aod-semantic-edge', 'none', true)
+  ),
+  'method-bottom-figure2': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'grade-a:ink', 'figure2-animation', 'authored-boundary', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'grade-a:figure2', 'figure2-animation', 'authored-boundary', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'grade-a:ink', 'method-top', 'authored-boundary', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'native:method', 'method-top', 'authored-boundary', 'none', true)
+  ),
+  'figure2-distance-expand': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'grade-a:ink', 'figure2-proof', 'authored-boundary', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'grade-a:proof', 'figure2-proof', 'authored-boundary', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'grade-a:ink', 'figure2-animation', 'authored-boundary', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'grade-a:figure2', 'figure2-animation', 'authored-boundary', 'none', true)
+  ),
+  'figure2-proof-brand': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'grade-a:ink', 'brand', 'authored-boundary', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'native:brand', 'brand', 'authored-boundary', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'grade-a:ink', 'figure2-proof', 'authored-boundary', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'grade-a:proof', 'figure2-proof', 'authored-boundary', 'none', true)
+  ),
+  'brand-figure3': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'group45:effect', 'figure3-animation', 'preserve-composite', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'group45:figure3', 'figure3-animation', 'preserve-composite', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'group45:effect', 'brand', 'preserve-composite', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'native:brand', 'brand', 'preserve-composite', 'none', true)
+  ),
+  'figure3-services': segmentAdmission(
+    admission('media-leaf', 'packed-canvas-frame', 'group45:figure3', 'services', 'preserve-composite', 'none', true),
+    admission('static-leaf', 'static-poster', 'native:services', 'services', 'native-reading', 'none', true),
+    admission('media-leaf', 'packed-canvas-frame', 'group45:figure3', 'figure3-animation', 'preserve-composite', 'none', true),
+    admission('static-leaf', 'static-poster', 'group45:figure3', 'figure3-animation', 'preserve-composite', 'none', true)
+  ),
+  'services-ttg': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'group45:effect', 'ttg-animation', 'preserve-composite', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'group45:ttg', 'ttg-animation', 'preserve-composite', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'group45:effect', 'services', 'preserve-composite', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'native:services', 'services', 'native-reading', 'none', true)
+  ),
+  'ttg-lab': segmentAdmission(
+    admission('media-leaf', 'packed-canvas-frame', 'group45:ttg', 'lab', 'preserve-composite', 'none', true),
+    admission('static-leaf', 'static-poster', 'native:lab', 'lab', 'native-reading', 'none', true),
+    admission('media-leaf', 'packed-canvas-frame', 'group45:ttg', 'ttg-animation', 'preserve-composite', 'none', true),
+    admission('static-leaf', 'static-poster', 'group45:ttg', 'ttg-animation', 'preserve-composite', 'none', true)
+  ),
+  'lab-ph': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'group67:effect', 'ph-animation', 'preserve-composite', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'group67:ph', 'ph-animation', 'preserve-composite', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'group67:effect', 'lab', 'preserve-composite', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'native:lab', 'lab', 'native-reading', 'none', true)
+  ),
+  'ph-education': segmentAdmission(
+    admission('media-leaf', 'packed-canvas-frame', 'group67:ph', 'education', 'preserve-composite', 'none', true),
+    admission('static-leaf', 'static-poster', 'native:education', 'education', 'native-reading', 'none', true),
+    admission('media-leaf', 'packed-canvas-frame', 'group67:ph', 'ph-animation', 'preserve-composite', 'none', true),
+    admission('static-leaf', 'static-poster', 'group67:ph', 'ph-animation', 'preserve-composite', 'none', true)
+  ),
+  'education-crane': segmentAdmission(
+    admission('effect-leaf', 'effect-frame', 'group67:effect', 'crane-animation', 'preserve-composite', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'group67:crane', 'crane-animation', 'preserve-composite', 'none', true),
+    admission('effect-leaf', 'effect-frame', 'group67:effect', 'education', 'preserve-composite', 'above-both', true),
+    admission('static-leaf', 'static-poster', 'native:education', 'education', 'native-reading', 'none', true)
+  ),
+  'crane-contact': segmentAdmission(
+    admission('media-leaf', 'packed-canvas-frame', 'group67:crane', 'contact', 'preserve-composite', 'none', true),
+    admission('static-leaf', 'static-poster', 'native:contact', 'contact', 'native-reading', 'none', true),
+    admission('media-leaf', 'packed-canvas-frame', 'group67:crane', 'crane-animation', 'preserve-composite', 'none', true),
+    admission('static-leaf', 'static-poster', 'group67:crane', 'crane-animation', 'preserve-composite', 'none', true)
+  )
+} as const satisfies Readonly<Record<CanonicalPhoneSegmentId, SegmentAdmissionRow>>;
+
+/**
+ * Multi-leg reduced transactions intentionally settle the run endpoint after
+ * their first candidate proof. Repeat the explicit strategy for every leg so
+ * an unavailable leg can never inherit a compatibility path.
+ */
+const runReducedAdmissionRows = {
+  'aod-method': [directionalReduced(
+    admission('static-leaf', 'static-poster', 'native:method', 'method-top', 'aod-semantic-edge', 'none', true),
+    admission('static-leaf', 'static-poster', 'front:aod', 'aod-animation', 'aod-semantic-edge', 'none', true)
+  )],
+  'method-figure2': [directionalReduced(
+    admission('static-leaf', 'static-poster', 'grade-a:figure2', 'figure2-animation', 'authored-boundary', 'none', true),
+    admission('static-leaf', 'static-poster', 'native:method', 'method-top', 'authored-boundary', 'none', true)
+  )],
+  'figure2-proof': [directionalReduced(
+    admission('static-leaf', 'static-poster', 'grade-a:proof', 'figure2-proof', 'authored-boundary', 'none', true),
+    admission('static-leaf', 'static-poster', 'grade-a:figure2', 'figure2-animation', 'authored-boundary', 'none', true)
+  )],
+  'proof-brand': [directionalReduced(
+    admission('static-leaf', 'static-poster', 'native:brand', 'brand', 'authored-boundary', 'none', true),
+    admission('static-leaf', 'static-poster', 'grade-a:proof', 'figure2-proof', 'authored-boundary', 'none', true)
+  )],
+  'brand-services': [
+    directionalReduced(
+      admission('static-leaf', 'static-poster', 'native:services', 'services', 'native-reading', 'none', true),
+      admission('static-leaf', 'static-poster', 'native:brand', 'brand', 'authored-boundary', 'none', true)
+    ),
+    directionalReduced(
+      admission('static-leaf', 'static-poster', 'native:services', 'services', 'native-reading', 'none', true),
+      admission('static-leaf', 'static-poster', 'native:brand', 'brand', 'authored-boundary', 'none', true)
+    )
+  ],
+  'services-lab': [
+    directionalReduced(
+      admission('static-leaf', 'static-poster', 'native:lab', 'lab', 'native-reading', 'none', true),
+      admission('static-leaf', 'static-poster', 'native:services', 'services', 'native-reading', 'none', true)
+    ),
+    directionalReduced(
+      admission('static-leaf', 'static-poster', 'native:lab', 'lab', 'native-reading', 'none', true),
+      admission('static-leaf', 'static-poster', 'native:services', 'services', 'native-reading', 'none', true)
+    )
+  ],
+  'lab-education': [
+    directionalReduced(
+      admission('static-leaf', 'static-poster', 'native:education', 'education', 'native-reading', 'none', true),
+      admission('static-leaf', 'static-poster', 'native:lab', 'lab', 'native-reading', 'none', true)
+    ),
+    directionalReduced(
+      admission('static-leaf', 'static-poster', 'native:education', 'education', 'native-reading', 'none', true),
+      admission('static-leaf', 'static-poster', 'native:lab', 'lab', 'native-reading', 'none', true)
+    )
+  ],
+  'education-contact': [
+    directionalReduced(
+      admission('static-leaf', 'static-poster', 'native:contact', 'contact', 'native-reading', 'none', true),
+      admission('static-leaf', 'static-poster', 'native:education', 'education', 'native-reading', 'none', true)
+    ),
+    directionalReduced(
+      admission('static-leaf', 'static-poster', 'native:contact', 'contact', 'native-reading', 'none', true),
+      admission('static-leaf', 'static-poster', 'native:education', 'education', 'native-reading', 'none', true)
+    )
+  ]
+} as const satisfies PhoneRunReducedAdmissionRows;
+
+/** Direct entry is a declared target admission, never an inferred scene case. */
+const directEntryAdmissionRows = {
+  hero: admission('static-leaf', 'static-poster', 'front:hero', 'hero', 'front-corridor', 'none', true),
+  pattern: admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true),
+  'star-map': admission('static-leaf', 'static-poster', 'front:star-map', 'star-map', 'front-corridor', 'none', true),
+  'aod-animation': admission('static-leaf', 'static-poster', 'front:aod', 'aod-animation', 'aod-semantic-edge', 'none', true),
+  'method-top': admission('dom-post-paint', 'dom-reading', 'native:method', 'method-top', 'authored-boundary', 'none', false),
+  'figure2-animation': admission('media-leaf', 'packed-canvas-frame', 'grade-a:figure2', 'figure2-animation', 'authored-boundary', 'none', true),
+  'figure2-proof': admission('dom-post-paint', 'dom-reading', 'grade-a:proof', 'figure2-proof', 'authored-boundary', 'none', false),
+  brand: admission('static-leaf', 'static-poster', 'native:brand', 'brand', 'authored-boundary', 'none', true),
+  'figure3-animation': admission('media-leaf', 'packed-canvas-frame', 'group45:figure3', 'figure3-animation', 'preserve-composite', 'none', true),
+  services: admission('dom-post-paint', 'dom-reading', 'native:services', 'services', 'native-reading', 'none', false),
+  'ttg-animation': admission('media-leaf', 'packed-canvas-frame', 'group45:ttg', 'ttg-animation', 'preserve-composite', 'none', true),
+  lab: admission('dom-post-paint', 'dom-reading', 'native:lab', 'lab', 'native-reading', 'none', false),
+  'ph-animation': admission('media-leaf', 'packed-canvas-frame', 'group67:ph', 'ph-animation', 'preserve-composite', 'none', true),
+  education: admission('static-leaf', 'static-poster', 'native:education', 'education', 'native-reading', 'none', true),
+  'crane-animation': admission('media-leaf', 'packed-canvas-frame', 'group67:crane', 'crane-animation', 'preserve-composite', 'none', true),
+  contact: admission('static-leaf', 'static-poster', 'native:contact', 'contact', 'native-reading', 'none', true)
+} as const satisfies Readonly<Record<CanonicalPhoneSceneId, PhoneAdmissionStrategyTuple>>;
+
 type SceneRowLookup = readonly [
   canonical: CanonicalPhoneSceneId,
   row: SceneRow,
@@ -244,6 +540,89 @@ function segmentRowFor(
   }
 }
 
+function admissionStrategy(
+  tuple: PhoneAdmissionStrategyTuple
+): PhoneAdmissionStrategy {
+  return {
+    producer: tuple[0],
+    kind: tuple[1],
+    subject: tuple[2],
+    targetScene: tuple[3],
+    landingResolver: tuple[4],
+    effectRole: tuple[5],
+    requiresLeafAdapter: tuple[6]
+  };
+}
+
+/**
+ * Canonical segment admission is total over direction and motion mode. A
+ * caller never receives an undefined value that it could treat as a legacy
+ * compatibility strategy.
+ */
+export function phoneSegmentAdmissionTuple(
+  segmentId: SegmentId,
+  direction: 1 | -1,
+  mode: PhoneAdmissionMode
+): PhoneAdmissionStrategyTuple {
+  const [definition] = segmentRowFor(segmentId);
+  const row = segmentAdmissionRows[definition.id];
+  return row[
+    direction === 1
+      ? mode === 'normal' ? 0 : 1
+      : mode === 'normal' ? 2 : 3
+  ];
+}
+
+export function phoneSegmentAdmissionStrategy(
+  segmentId: SegmentId,
+  direction: 1 | -1,
+  mode: PhoneAdmissionMode
+): PhoneAdmissionStrategy {
+  return admissionStrategy(phoneSegmentAdmissionTuple(segmentId, direction, mode));
+}
+
+/**
+ * A run leg's normal strategy is its canonical segment strategy. Reduced
+ * multi-leg runs instead declare their terminal target per leg above, so the
+ * skipped visual leg can never fall into a synthesized settle branch.
+ */
+export function phoneRunLegAdmissionTuple(
+  runId: PhoneRunId,
+  legIndex: number,
+  direction: 1 | -1,
+  mode: PhoneAdmissionMode
+): PhoneAdmissionStrategyTuple | null {
+  const leg = phoneRunLegTuple(runId, legIndex);
+  if (!leg) return null;
+  if (mode === 'normal') {
+    return phoneSegmentAdmissionTuple(leg[0], direction, mode);
+  }
+  return runReducedAdmissionRows[runId][legIndex]?.[direction === 1 ? 0 : 1] ?? null;
+}
+
+export function phoneRunLegAdmissionStrategy(
+  runId: PhoneRunId,
+  legIndex: number,
+  direction: 1 | -1,
+  mode: PhoneAdmissionMode
+): PhoneAdmissionStrategy | null {
+  const tuple = phoneRunLegAdmissionTuple(runId, legIndex, direction, mode);
+  return tuple ? admissionStrategy(tuple) : null;
+}
+
+export function phoneDirectEntryAdmissionTuple(
+  sceneId: SceneId
+): PhoneAdmissionStrategyTuple {
+  const [canonical] = sceneRowFor(sceneId);
+  return directEntryAdmissionRows[canonical];
+}
+
+export function phoneDirectEntryAdmissionStrategy(
+  sceneId: SceneId
+): PhoneAdmissionStrategy {
+  return admissionStrategy(phoneDirectEntryAdmissionTuple(sceneId));
+}
+
 export function phoneScenePresentationTuple(
   sceneId: SceneId
 ): PhoneScenePresentationTuple {
@@ -280,21 +659,17 @@ export function phoneScenePresentationProofKind(
   }
 }
 
-/**
- * A direct route normally keeps the scene's declared terminal proof kind.
- * Education is the one native leaf that has completed the exact post-paint
- * static binding: its direct candidate must use that same leaf contract rather
- * than fall back to the generic reading-frame scheduler.
- */
+/** Direct entry obtains its proof kind from the exhaustive admission table. */
 export function phoneDirectEntryPresentationProofKind(
   sceneId: SceneId
 ): Extract<
   PhonePresentationProofKind,
   'dom-reading' | 'static-poster' | 'packed-canvas-frame'
 > {
-  return sceneId === 'education'
-    ? 'static-poster'
-    : phoneScenePresentationProofKind(sceneId);
+  return phoneDirectEntryAdmissionTuple(sceneId)[1] as Extract<
+    PhonePresentationProofKind,
+    'dom-reading' | 'static-poster' | 'packed-canvas-frame'
+  >;
 }
 
 export function phoneSegmentPresentationTuple(

@@ -381,18 +381,10 @@ export const PhoneBrandLabContinuation = forwardRef<
       config: configFor,
       directConfig: directConfigFor,
       position: boundaryPosition,
-      rawFrameProof: true,
-      reducedStaticSubject: (scene, direction) => {
-        if (scene === 'figure3-animation') {
-          return direction === 1 ? 'native:services' : 'native:brand';
-        }
-        return direction === 1 ? 'native:lab' : 'native:services';
-      },
-      reducedAdmissionTargetPosition: (scene, direction) => {
-        const target = scene === 'figure3-animation'
-          ? direction === 1 ? servicesRef.current : brandRef.current
-          : direction === 1 ? labRef.current : servicesRef.current;
-        return phoneDocumentTop(target?.root() ?? null);
+      targetLanding(_scene, admission) {
+        return phoneDocumentTop(rootForScene(
+          admission[3] as Group45PhoneSceneId
+        ));
       },
       // The runner owns admission ordering. Leaf handles only record playback
       // intent and reconcile after the runner has reset endpoint roles.
@@ -414,7 +406,20 @@ export const PhoneBrandLabContinuation = forwardRef<
           scene,
           'native',
           () => rootForScene(scene),
-          () => stageHost
+          () => stageHost,
+          undefined,
+          scene === 'brand'
+            ? {
+                present(token, report) {
+                  const brand = brandRef.current as PhoneSceneAdapterHandle | null;
+                  brand?.presentPresentation?.(token, report);
+                },
+                dispose(token) {
+                  const brand = brandRef.current as PhoneSceneAdapterHandle | null;
+                  brand?.disposePresentation?.(token);
+                }
+              }
+            : undefined
         )
       )),
       ...([

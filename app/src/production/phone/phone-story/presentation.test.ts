@@ -149,7 +149,7 @@ describe('phone presentation proof reader', () => {
     expect(report).not.toHaveBeenCalled();
   });
 
-  it('[Task 5] derives static proof content from the scene manifest when no custom reader exists', () => {
+  it('[framework admission closure] fails a declared static leaf closed when its adapter is unavailable', () => {
     const title = {
       textContent: '同野观幂',
       getBoundingClientRect: () => ({
@@ -189,13 +189,8 @@ describe('phone presentation proof reader', () => {
     presentation.activatePresentationAdapter('hero', heroToken, report);
     scheduled?.();
 
-    expect(report).toHaveBeenCalledWith(expect.objectContaining({
-      token: heroToken,
-      edge: 'hero',
-      connected: true,
-      visible: true,
-      coverageComplete: true
-    }));
+    expect(scheduled).toBeUndefined();
+    expect(report).not.toHaveBeenCalled();
   });
 
   it('[Task 3] never fabricates a proof for a token owned by another surface', () => {

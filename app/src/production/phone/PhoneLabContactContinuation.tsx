@@ -34,6 +34,7 @@ import {
 } from './phone-document-endpoint-alignment';
 import {
   PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
+  phoneLabContactAutoplayFrame,
   phoneLabContactAutoplayToken,
   type PhoneLabContactAutoplayEvent
 } from './phone-lab-contact-timeline';
@@ -318,17 +319,12 @@ export function PhoneLabContactContinuation({
       config: configFor,
       directConfig: directConfigFor,
       position: boundaryPosition,
-      rawFrameProofFor: (scene) => scene === 'ph-animation',
-      reducedStaticSubject: (scene, direction) => (
-        scene === 'ph-animation'
-          ? direction === 1 ? 'native:education' : 'native:lab'
-          : null
-      ),
-      reducedAdmissionTargetPosition: (scene, direction) => (
-        scene === 'ph-animation'
-          ? nativeReadingLanding(direction === 1 ? 'education' : 'lab')
-          : null
-      ),
+      targetLanding(_scene, admission) {
+        const targetScene = admission[3] as ContinuationScene;
+        return admission[4] === 'native-reading'
+          ? nativeReadingLanding(targetScene)
+          : phoneDocumentTop(rootForScene(targetScene));
+      },
       startMedia({
         scene,
         identity,
@@ -376,13 +372,19 @@ export function PhoneLabContactContinuation({
           () => rootForScene(scene),
           () => stageHost,
           undefined,
-          scene === 'education'
+          scene === 'education' || scene === 'contact'
             ? {
                 present(token, report) {
-                  educationRef.current?.presentPresentation?.(token, report);
+                  const target = scene === 'education'
+                    ? educationRef.current
+                    : contactRef.current;
+                  target?.presentPresentation?.(token, report);
                 },
                 dispose(token) {
-                  educationRef.current?.disposePresentation?.(token);
+                  const target = scene === 'education'
+                    ? educationRef.current
+                    : contactRef.current;
+                  target?.disposePresentation?.(token);
                 }
               }
             : undefined
@@ -494,7 +496,8 @@ export function PhoneLabContactContinuation({
         return;
       }
       if (phase === 'presented') {
-        runner.reportMediaFrame(scene, identity);
+        const frame = phoneLabContactAutoplayFrame(detail);
+        if (frame) runner.reportMediaFrame(scene, frame);
         return;
       }
       if (phase === 'failed') {

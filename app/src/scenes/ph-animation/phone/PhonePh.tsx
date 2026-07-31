@@ -124,7 +124,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     const beginPreparedReverseRef = useRef<(force?: boolean) => void>(
       () => undefined
     );
-    const presentedFrameRef = useRef<() => void>(
+    const presentedFrameRef = useRef<(presentationKey: string | null) => void>(
       () => undefined
     );
     const reportPresentationFrame = useCallback((presentationKey: string | null) => {
@@ -169,7 +169,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
             video.dataset.timelineVideoFrameReady = 'true';
             root.dataset.phonePhMedia = video.paused ? 'ready' : 'playing';
             beginPreparedReverseRef.current?.();
-            presentedFrameRef.current?.();
+            presentedFrameRef.current?.(presentationKey);
             reportPresentationFrame(presentationKey);
           }
         ]);
@@ -190,11 +190,11 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       );
     }, [reducedMotion]);
 
-    const presentPreparedFrame = useCallback(() => {
+    const presentPreparedFrame = useCallback((token: PresentationToken) => {
       // A retained endpoint is not evidence for the newly active media token.
       // Ask its mounted compositor for one real draw after token installation.
       const surface = packedSurfaceRef.current;
-      surface?.(['present', null]);
+      surface?.(['present', phoneRuntimePresentationTokenKey(token)]);
     }, []);
 
     const reverseReady = useCallback(() => {

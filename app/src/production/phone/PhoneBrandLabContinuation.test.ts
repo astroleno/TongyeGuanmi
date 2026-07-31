@@ -80,7 +80,7 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
   it('[R5] stages reverse media before a decoder can report its first physical frame', () => {
     expect(source).toContain('prepareReverseMediaFirstFrame');
     expect(compositeRunnerSource).toContain(
-      'const PHONE_REVERSE_MEDIA_ADMISSION_PROGRESS = .998;'
+      'const PHONE_REVERSE_RAW_FRAME_ADMISSION_PROGRESS = .996;'
     );
   });
 
@@ -98,7 +98,10 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
   it('[Group45 hard cutover] keeps one runner owner and no Group45 generic-proof writer', () => {
     expect(source.match(/createPhoneCompositeRunner</g)).toHaveLength(1);
     expect(source).toContain("ownerId: 'phone-brand-lab'");
-    expect(source).toContain('rawFrameProof: true');
+    expect(source).toContain('targetLanding(_scene, admission)');
+    expect(source).not.toContain('rawFrameProof:');
+    expect(source).not.toContain('reducedStaticSubject:');
+    expect(source).not.toContain('reducedAdmissionTargetPosition:');
     for (const group45Source of [
       source,
       group45ContractSource,
@@ -158,7 +161,7 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
 
   it('uses the persistent stage canvas as coverage root for every Group 45 surface', () => {
     expect(source).toMatch(
-      /'native:' \+ scene,[\s\S]*?\(\) => rootForScene\(scene\),\s*\(\) => stageHost\s*\)/
+      /'native:' \+ scene,[\s\S]*?\(\) => rootForScene\(scene\),\s*\(\) => stageHost(?:\s*,|\s*\))/
     );
     expect(source).toMatch(
       /id,[\s\S]*?\(\) => ref\.current\?\.root\(\) \?\? null,\s*\(\) => stageHost\s*,/

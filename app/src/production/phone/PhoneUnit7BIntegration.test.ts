@@ -195,12 +195,14 @@ describe('formal Unit7-B phone integration', () => {
 
   it('keeps Group45 reduced motion inside a proof-gated candidate admission', () => {
     expect(compositeRunnerSource).toMatch(
-      /if \(options\.reducedMotion\) \{[\s\S]*?if \(usesRawFrameProof\(resource\)\) startReducedAdmission\(resource, config\);/
+      /if \(options\.reducedMotion\) \{[\s\S]*?startReducedAdmission\(resource, config\);/
     );
     expect(compositeRunnerSource).toMatch(
       /target\.presentPresentation!?\(binding\[0\]/
     );
     expect(compositeRunnerSource).not.toContain('settleReduced');
+    expect(compositeRunnerSource).not.toContain('usesRawFrameProof');
+    expect(compositeRunnerSource).toContain('phoneRunLegAdmissionTuple(');
     expect(labContactRuntimeSource).toContain('phoneGroup67RunSource');
     expect(continuationSource).toContain('phoneLabContactVisualProjection');
     expect(continuationSource).not.toContain('data-phone-group67-run');

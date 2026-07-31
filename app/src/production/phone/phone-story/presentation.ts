@@ -10,6 +10,7 @@ import {
 } from '../phone-story-runs';
 import {
   phoneSurfaceRenderedProofEdge,
+  phoneDirectEntryAdmissionTuple,
   phoneScenePresentationTuple,
   phoneSegmentPresentationTuple,
   type CanonicalPhoneSegmentId,
@@ -1820,10 +1821,12 @@ export function createPhoneStoryPresentation({
     },
     activatePresentationAdapter(scene, presentationToken, report) {
       const contract = phoneScenePresentationTuple(scene);
+      const admission = phoneDirectEntryAdmissionTuple(scene);
       const receiver = contract[4];
       if (
         presentationToken.authorityId !== authorityId
         || presentationToken.subject !== receiver
+        || presentationToken.kind !== admission[1]
       ) return;
       const registration = registrations.get(receiver);
       const active = activeAdapters.get(receiver);
@@ -1854,19 +1857,13 @@ export function createPhoneStoryPresentation({
         });
         return;
       }
-      // Static and reading holds have no media leaf, but they still cannot
-      // turn a DOM observation into a commit synchronously.  Once the
-      // candidate plane has been applied, observe one actual browser paint
-      // and submit that exact token as a renderer frame.
+      // Only a manifest-declared DOM post-paint target may use this fallback.
+      // Static/canvas/media targets require their leaf adapter and therefore
+      // fail closed when it is absent; no receiver-name exception is allowed.
       if (
         !registration
-        || contract[6] === 'visual'
-        || contract[6] === 'static-visual'
-        // Pattern and StarMap are canvas-backed static holds. A missing leaf
-        // adapter must fail closed into the machine's reduced-proof timeout;
-        // the generic post-paint fallback is not allowed to impersonate them.
-        || receiver === 'front:pattern'
-        || receiver === 'front:star-map'
+        || admission[0] !== 'dom-post-paint'
+        || admission[6]
       ) return;
       let cancel: () => void = () => undefined;
       let framePending = false;

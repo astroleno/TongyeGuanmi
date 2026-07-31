@@ -8,7 +8,10 @@ import {
   dispatchPhoneLabContactAutoplay,
   type PhoneLabContactCinematicScene
 } from '../phone-lab-contact-timeline';
+import { phoneRuntimePresentationTokenKey } from '../phone-story/runtime';
 import type { PhoneExecutionToken } from '../phone-story/runtime';
+import type { PhoneRenderedPresentationFrame } from '../phone-story/runtime';
+import type { PresentationToken } from '../phone-story/runtime';
 
 export type PhoneCinematicDirection = 1 | -1;
 
@@ -31,7 +34,7 @@ export type PhoneCinematicRunRequest = readonly [
   activateSurface: (mode: 'forward' | 'endpoint') => void,
   render: (progress: number, direction?: PhoneCinematicDirection) => void,
   /** Draw again only after an immutable media identity has been installed. */
-  presentPreparedFrame: () => void,
+  presentPreparedFrame: (token: PresentationToken) => void,
   beforeForward: (() => void) | null,
   beforeReverse: (() => void) | null
 ];
@@ -42,7 +45,7 @@ export type PhoneCinematicRun = readonly [
   completeRun: (direction: PhoneCinematicDirection) => void,
   failRun: (direction: PhoneCinematicDirection) => void,
   publishPlaying: () => void,
-  publishPresentedFrame: () => void,
+  publishPresentedFrame: (presentationKey: string | null) => void,
   renderProgress: (progress: number, direction: PhoneCinematicDirection) => void,
   startRun: (
     direction: PhoneCinematicDirection,
@@ -87,6 +90,7 @@ export function usePhoneCinematicRun(
   const requestedRef = useRef<PhoneCinematicDirection | null>(null);
   const activeIdentityRef = useRef<PhoneExecutionToken | null>(null);
   const presentedFrameReportedRef = useRef(false);
+  const frameSequenceRef = useRef(0);
   const reverseStartedRef = useRef(false);
   const timerRef = useRef(0);
   const clearTimer = useCallback(() => {
@@ -95,17 +99,30 @@ export function usePhoneCinematicRun(
     timerRef.current = 0;
   }, []);
   const publish = useCallback((
-    phase: 'playing' | 'progress' | 'complete' | 'failed',
+    phase: 'playing' | 'presented' | 'progress' | 'complete' | 'failed',
     direction: PhoneCinematicDirection,
     progress?: number
   ) => {
     const identity = activeIdentityRef.current;
+    const token = phase === 'presented' ? identity?.[5] ?? null : null;
+    const frame: PhoneRenderedPresentationFrame | null = token
+      ? {
+          token,
+          frameSequence: ++frameSequenceRef.current,
+          observedAt: typeof performance !== 'undefined'
+            && typeof performance.now === 'function'
+            ? performance.now()
+            : 0,
+          origin: 'segment-first-frame'
+        }
+      : null;
     dispatchPhoneLabContactAutoplay(options.rootRef.current, [
       options.scene,
       phase,
       direction,
       identity,
-      progress ?? null
+      progress ?? null,
+      frame
     ]);
   }, [options.rootRef, options.scene]);
   const renderProgress = useCallback((
@@ -162,7 +179,10 @@ export function usePhoneCinematicRun(
     identity?: PhoneExecutionToken | null
   ) => {
     if (!options.rootRef.current) return;
-    if (identity !== undefined) activeIdentityRef.current = identity;
+    if (identity !== undefined) {
+      activeIdentityRef.current = identity;
+      frameSequenceRef.current = 0;
+    }
     presentedFrameReportedRef.current = false;
     requestedRef.current = direction;
     if (options.reducedMotion) {
@@ -178,8 +198,9 @@ export function usePhoneCinematicRun(
       reverseStartedRef.current = false;
       options.reverseRef.current?.stop();
       options.activateSurface('forward');
-      if (activeIdentityRef.current) {
-        options.presentPreparedFrame();
+      const activeIdentity = activeIdentityRef.current;
+      if (activeIdentity?.[5]) {
+        options.presentPreparedFrame(activeIdentity[5]);
       }
       options.beforeForward?.();
       options.forwardRef.current?.start();
@@ -190,8 +211,9 @@ export function usePhoneCinematicRun(
     reverseStartedRef.current = false;
     options.beforeReverse?.();
     options.activateSurface('endpoint');
-    if (activeIdentityRef.current) {
-      options.presentPreparedFrame();
+    const activeIdentity = activeIdentityRef.current;
+    if (activeIdentity?.[5]) {
+      options.presentPreparedFrame(activeIdentity[5]);
     }
     if (options.reverseReady()) {
       beginPreparedReverse();
@@ -226,23 +248,19 @@ export function usePhoneCinematicRun(
     options.reverseRef.current?.dispose();
   }, [options.forwardRef, options.reverseRef, stopRun]);
   const publishPlaying = useCallback(() => publish('playing', 1), [publish]);
-  const publishPresentedFrame = useCallback(() => {
+  const publishPresentedFrame = useCallback((presentationKey: string | null) => {
     const direction = requestedRef.current;
     const identity = activeIdentityRef.current;
     if (
       direction === null
       || !identity
+      || !identity[5]
+      || presentationKey !== phoneRuntimePresentationTokenKey(identity[5])
       || presentedFrameReportedRef.current
     ) return;
     presentedFrameReportedRef.current = true;
-    dispatchPhoneLabContactAutoplay(options.rootRef.current, [
-      options.scene,
-      'presented',
-      direction,
-      identity,
-      null
-    ]);
-  }, [options.rootRef, options.scene]);
+    publish('presented', direction);
+  }, [publish]);
 
   return useMemo(() => [
     requestedRef,

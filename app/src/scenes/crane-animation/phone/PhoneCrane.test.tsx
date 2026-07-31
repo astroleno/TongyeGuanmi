@@ -70,9 +70,18 @@ describe('PhoneCrane', () => {
   });
 
   it('[R5] redraws prepared packed surfaces when an active media token starts', () => {
-    expect(source).toContain('const presentPreparedFrame = useCallback(() => {');
-    expect(source).toContain("surface(['present', null])");
+    expect(source).toContain('const presentPreparedFrame = useCallback((token: PresentationToken) => {');
+    expect(source).toContain('const key = phoneRuntimePresentationTokenKey(token);');
+    expect(source).toContain("surface(['present', key])");
     expect(source).toContain('presentPreparedFrame,');
+  });
+
+  it('[framework admission closure] forwards a Crane runner frame only after both current-token canvases draw', () => {
+    expect(source).toContain('cinematicPresentedFrameRef');
+    expect(source).toContain('if (!pending || pending.key !== presentationKey) return;');
+    expect(source).toContain('if (!next.figureDrawn || !next.flockDrawn) return;');
+    expect(source).toContain('presentedFrameRef.current?.(presentationKey);');
+    expect(source).toContain('cinematicPresentedFrameRef.current = {');
   });
 
   it('uses stable reduced-motion endpoints in canonical order', () => {

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ScenePresentationAdapterHandle } from '../../story/presentation';
 import {
@@ -10,6 +11,7 @@ import type {
 } from './phone-story/runtime/engine';
 import type { PhoneRenderedPresentationFrame } from './phone-story/presentation';
 import type { PhoneRunId } from './phone-story-runs';
+import type { PhoneExecutionToken } from './phone-story/runtime';
 import {
   createPhoneCapabilityRegistry
 } from './phone-transition-readiness';
@@ -17,6 +19,11 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
+
+const runnerSource = readFileSync(
+  new URL('./phone-composite-runner.ts', import.meta.url),
+  'utf8'
+);
 
 type CapabilityId =
   | 'lab'
@@ -57,12 +64,23 @@ function scene(
 function transition(options: Readonly<{
   reportFirstFrame?: boolean;
 }> = {}): PhoneTransitionAdapterHandle {
-  let onPresentedFrame: (() => void) | undefined;
+  let onPresentedFrame: ((frame?: PhoneRenderedPresentationFrame) => void)
+    | undefined;
+  let token: PhoneRenderedPresentationFrame['token'] | null = null;
+  let frameSequence = 0;
   const present = () => {
-    if (options.reportFirstFrame !== false) onPresentedFrame?.();
+    if (options.reportFirstFrame !== false && token) {
+      onPresentedFrame?.({
+        token,
+        frameSequence: ++frameSequence,
+        observedAt: 100,
+        origin: 'segment-first-frame'
+      });
+    }
   };
   return {
     begin: vi.fn((_request, reportFrame) => {
+      token = _request[5] ?? null;
       onPresentedFrame = reportFrame;
     }),
     prepareFirstFrame: vi.fn(() => present()),
@@ -287,7 +305,8 @@ function fullRunner(
     runForVisual: () => 'lab-education',
     config: () => ({ prior, visual, final, entry, media }),
     directConfig: () => ({ visual, final, media }),
-    position: (_scene, direction) => direction === 1 ? 120 : 100
+    position: (_scene, direction) => direction === 1 ? 120 : 100,
+    targetLanding: (_scene, _strategy, direction) => direction === 1 ? 260 : 80
   });
   return {
     prior,
@@ -340,12 +359,8 @@ function group45Runner(reducedMotion = false) {
     config: () => ({ prior, visual, final, entry, media }),
     directConfig: () => ({ visual, final, media }),
     position: (_scene, direction) => direction === 1 ? 120 : 100,
-    rawFrameProof: true,
-    reducedAdmissionTargetPosition: (_scene, direction) => (
+    targetLanding: (_scene, _strategy, direction) => (
       direction === 1 ? 260 : 80
-    ),
-    reducedStaticSubject: (_scene, direction) => (
-      direction === 1 ? 'native:services' : 'native:brand'
     )
   });
   return {
@@ -387,11 +402,7 @@ function group67ReducedRunner(
     config: () => ({ prior, visual, final, entry, media }),
     directConfig: () => ({ visual, final, media }),
     position: (_scene, direction) => direction === 1 ? 120 : 100,
-    rawFrameProofFor: () => true,
-    reducedAdmissionTargetPosition: (_scene, direction) => landingFor(direction),
-    reducedStaticSubject: (_scene, direction) => (
-      direction === 1 ? 'native:education' : 'native:lab'
-    )
+    targetLanding: (_scene, _strategy, direction) => landingFor(direction)
   });
   return {
     prior,
@@ -464,12 +475,44 @@ function group67StaticFrame(
   };
 }
 
+function rawFrame(
+  identity: PhoneExecutionToken,
+  frameSequence = 1
+): PhoneRenderedPresentationFrame {
+  const token = identity[5];
+  if (!token) throw new Error('Expected an exact leaf token');
+  return {
+    token,
+    frameSequence,
+    observedAt: 100,
+    origin: 'segment-first-frame'
+  };
+}
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe('phone composite runner snapshot execution', () => {
+  it('[framework admission closure] has one manifest-driven raw proof route and no compatibility settle writer', () => {
+    expect(runnerSource).toContain('phoneRunLegAdmissionTuple(');
+    expect(runnerSource).toContain('phoneDirectEntryAdmissionTuple(');
+    expect(runnerSource).toContain('options.targetLanding(');
+    expect(runnerSource).toContain('reportRawFrame(resource, frame)');
+    for (const forbidden of [
+      'rawFrameProof:',
+      'rawFrameProofFor',
+      'reducedStaticSubject',
+      'reducedAdmissionTargetPosition',
+      'settleFrozenCompatibility',
+      'reportRenderedFrame(',
+      'presentationProofToken('
+    ]) {
+      expect(runnerSource).not.toContain(forbidden);
+    }
+  });
+
   it('prepares a direct media leg under one captured identity', async () => {
     installWindow();
     const visual = scene(element());
@@ -497,7 +540,8 @@ describe('phone composite runner snapshot execution', () => {
       runForVisual: () => 'lab-education',
       config: () => null,
       directConfig: () => ({ visual, final, media }),
-      position: () => 240
+      position: () => 240,
+      targetLanding: () => 240
     });
     const activeSession = session(1, 1);
 
@@ -507,14 +551,15 @@ describe('phone composite runner snapshot execution', () => {
     });
 
     const identity = runner.execution('ph-animation');
-    expect(identity).toEqual(activeSession.identity());
+    if (!identity) throw new Error('Expected active direct-media identity');
+    expect(identity.slice(0, 5)).toEqual(activeSession.identity());
     expect(capabilities.retained()).toEqual([
       'ph-animation',
       'education',
       'ph-education'
     ]);
-    runner.reportMediaFrame('ph-animation', identity!);
-    runner.completeMedia('ph-animation', identity!);
+    runner.reportMediaFrame('ph-animation', rawFrame(identity));
+    runner.completeMedia('ph-animation', identity);
 
     expect(activeSession.provideRelease).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -914,7 +959,8 @@ describe('phone composite runner snapshot execution', () => {
       runForVisual: () => 'lab-education',
       config: () => null,
       directConfig: () => ({ visual, final, media }),
-      position: () => 240
+      position: () => 240,
+      targetLanding: () => 240
     });
     const activeSession = session(1, 1);
 
@@ -925,15 +971,13 @@ describe('phone composite runner snapshot execution', () => {
     const identity = runner.execution('ph-animation');
     if (!identity) throw new Error('Expected the active direct-media identity');
 
-    runner.reportMediaFrame('ph-animation', identity);
-    runner.reportMediaFrame('ph-animation', identity);
+    const frame = rawFrame(identity);
+    runner.reportMediaFrame('ph-animation', frame);
+    runner.reportMediaFrame('ph-animation', frame);
 
-    expect(activeSession.reportRenderedFrame).toHaveBeenCalledTimes(1);
-    expect(activeSession.reportRenderedFrame).toHaveBeenCalledWith(
-      'packed-canvas-frame',
-      'group67:ph',
-      'segment-first-frame'
-    );
+    expect(activeSession.reportPresentationFrame).toHaveBeenCalledTimes(1);
+    expect(activeSession.reportPresentationFrame).toHaveBeenCalledWith(frame);
+    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
   });
 
   it('keeps forward ink and media under the same authority session', async () => {
@@ -943,10 +987,9 @@ describe('phone composite runner snapshot execution', () => {
 
     expect(runtime.registered.capability().start(1, activeSession)).toBe(true);
     await vi.waitFor(() => {
-      expect(runtime.entry.begin).toHaveBeenCalledWith(
-        activeSession.identity(),
-        expect.any(Function)
-      );
+      const call = vi.mocked(runtime.entry.begin).mock.calls.at(0);
+      expect(call?.[0].slice(0, 5)).toEqual(activeSession.identity());
+      expect(call?.[1]).toEqual(expect.any(Function));
     });
     clock.flush(0);
     clock.flush(700);
@@ -955,9 +998,10 @@ describe('phone composite runner snapshot execution', () => {
     expect(runtime.media.enter).toHaveBeenCalledOnce();
 
     const identity = runtime.runner.execution('ph-animation');
-    expect(identity).toEqual(activeSession.identity());
-    runtime.runner.reportMediaFrame('ph-animation', identity!);
-    runtime.runner.completeMedia('ph-animation', identity!);
+    if (!identity) throw new Error('Expected forward media identity');
+    expect(identity.slice(0, 5)).toEqual(activeSession.identity());
+    runtime.runner.reportMediaFrame('ph-animation', rawFrame(identity));
+    runtime.runner.completeMedia('ph-animation', identity);
     expect(runtime.media.commitEndpoint).toHaveBeenLastCalledWith(1);
     activeSession.flushRelease();
     expect(runtime.capabilities.retained()).toEqual([]);
@@ -972,11 +1016,12 @@ describe('phone composite runner snapshot execution', () => {
     await vi.waitFor(() => {
       expect(runtime.media.reverse).toHaveBeenCalledOnce();
     });
-    expect(runtime.media.render).toHaveBeenCalledWith(.998);
+    expect(runtime.media.render).toHaveBeenCalledWith(.996);
     const identity = runtime.runner.execution('ph-animation');
-    expect(identity).toEqual(activeSession.identity());
-    runtime.runner.reportMediaFrame('ph-animation', identity!);
-    runtime.runner.completeMedia('ph-animation', identity!);
+    if (!identity) throw new Error('Expected reverse media identity');
+    expect(identity.slice(0, 5)).toEqual(activeSession.identity());
+    runtime.runner.reportMediaFrame('ph-animation', rawFrame(identity));
+    runtime.runner.completeMedia('ph-animation', identity);
 
     expect(activeSession.leg).toBe(0);
     clock.flush(0);
@@ -1002,7 +1047,7 @@ describe('phone composite runner snapshot execution', () => {
     });
     const identity = runtime.runner.execution('ph-animation');
     if (!identity) throw new Error('Expected reverse media identity');
-    runtime.runner.reportMediaFrame('ph-animation', identity);
+    runtime.runner.reportMediaFrame('ph-animation', rawFrame(identity));
     runtime.runner.completeMedia('ph-animation', identity);
 
     clock.flush(0);
@@ -1014,7 +1059,7 @@ describe('phone composite runner snapshot execution', () => {
     expect(runtime.capabilities.retained()).toEqual([]);
   });
 
-  it('[R5] rolls a media completion without token-bound physical proof back to its source', async () => {
+  it('[R5] drops media completion before its token-bound physical proof is accepted', async () => {
     installWindow();
     const runtime = fullRunner();
     const activeSession = session(-1, 1);
@@ -1028,23 +1073,35 @@ describe('phone composite runner snapshot execution', () => {
 
     runtime.runner.completeMedia('ph-animation', identity);
 
-    expect(activeSession.reportFailure).toHaveBeenCalledOnce();
-    expect(runtime.media.commitEndpoint).toHaveBeenLastCalledWith(1);
+    expect(activeSession.reportFailure).not.toHaveBeenCalled();
+    expect(runtime.media.commitEndpoint).toHaveBeenLastCalledWith(0);
     expect(runtime.entry.reverse).not.toHaveBeenCalled();
-    expect(runtime.capabilities.retained()).toEqual([]);
+    expect(runtime.runner.execution('ph-animation')).toEqual(identity);
+    expect(runtime.capabilities.retained()).not.toEqual([]);
+    runtime.runner.dispose();
   });
 
-  it('releases a reverse-prepared visual at the reduced-motion terminal endpoint', async () => {
-    installWindow();
+  it('holds a reduced reverse candidate until its manifest target leaf reports an exact post-paint frame', async () => {
+    const clock = installControlledWindow();
     const runtime = fullRunner(true);
     const activeSession = session(-1, 1);
 
     expect(runtime.registered.capability().start(-1, activeSession)).toBe(true);
     await vi.waitFor(() => {
-      expect(runtime.visual.leave).toHaveBeenCalledOnce();
+      expect(runtime.visual.prepareTargetPresentation).toHaveBeenCalledOnce();
     });
-    expect(runtime.visual.update).toHaveBeenLastCalledWith(0);
-    activeSession.flushRelease();
+    expect(runtime.visual.leave).not.toHaveBeenCalled();
+    clock.flush(100);
+    clock.flush(116);
+    const present = runtime.prior.presentPresentation;
+    if (!present) throw new Error('Expected Lab static target presenter');
+    const call = vi.mocked(present).mock.calls.at(0);
+    if (!call) throw new Error('Expected Lab static target binding');
+    const frame = group67StaticFrame(activeSession, 'native:lab');
+    call[1](frame);
+    expect(activeSession.reportPresentationFrame).toHaveBeenCalledWith(frame);
+    expect(activeSession.reportProgress).not.toHaveBeenCalled();
+    runtime.runner.dispose();
     expect(runtime.capabilities.retained()).toEqual([]);
   });
 
@@ -1104,7 +1161,8 @@ describe('phone composite runner snapshot execution', () => {
       runForVisual: () => 'lab-education',
       config: () => null,
       directConfig: () => ({ visual, final, media }),
-      position: () => 240
+      position: () => 240,
+      targetLanding: () => 240
     });
     const activeSession = session(1, 1);
     registered.capability().startAtLeg?.(1, activeSession);

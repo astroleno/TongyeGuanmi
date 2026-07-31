@@ -13,16 +13,24 @@ import type {
 import type { PhoneExecutionToken } from './phone-story/machine';
 import type { PhoneStoryRuntimePort } from './phone-story/runtime';
 import {
+  phoneDirectEntryAdmissionStrategy,
+  phoneRunLegAdmissionStrategy,
   phoneScenePresentationContract,
+  phoneSegmentAdmissionStrategy,
   phoneSegmentPresentationContract
 } from './phone-story/manifest';
 import {
   canonicalSceneIds,
   canonicalSegments
 } from '../../story/canonical-spine';
+import { phoneIntentRuns } from './phone-story-runs';
 
 const contextSource = readFileSync(
   new URL('./PhoneStoryRuntimeContext.tsx', import.meta.url),
+  'utf8'
+);
+const presentationSource = readFileSync(
+  new URL('./phone-story/presentation.ts', import.meta.url),
   'utf8'
 );
 
@@ -65,6 +73,72 @@ describe('phone presentation adapter contract', () => {
 });
 
 describe('R5 canonical presentation manifest', () => {
+  it('[framework admission closure] makes DOM post-paint fallback manifest-owned, never receiver-name-owned', () => {
+    expect(presentationSource).toContain('phoneDirectEntryAdmissionTuple(scene)');
+    expect(presentationSource).toContain("admission[0] !== 'dom-post-paint'");
+    expect(presentationSource).toContain('|| admission[6]');
+    expect(presentationSource).not.toContain("receiver === 'front:pattern'");
+    expect(presentationSource).not.toContain("receiver === 'front:star-map'");
+  });
+
+  it('[framework admission closure] declares every canonical segment direction and mode, plus every direct-entry target', () => {
+    for (const { id, from, to } of canonicalSegments) {
+      for (const direction of [1, -1] as const) {
+        for (const mode of ['normal', 'reduced'] as const) {
+          const admission = phoneSegmentAdmissionStrategy(id, direction, mode);
+          expect(admission.targetScene).toBe(direction === 1 ? to : from);
+          expect(admission.producer).toMatch(
+            /^(effect-leaf|media-leaf|static-leaf|dom-post-paint)$/
+          );
+          expect(admission.kind).toMatch(
+            /^(effect-frame|packed-canvas-frame|native-video-frame|static-poster|dom-reading)$/
+          );
+          expect(admission.subject).toMatch(/^[a-z0-9-]+:[a-z0-9-]+$/);
+          expect(admission.landingResolver).toMatch(
+            /^(front-corridor|aod-semantic-edge|authored-boundary|preserve-composite|native-reading)$/
+          );
+          expect(admission.effectRole).toMatch(/^(above-both|between|none)$/);
+          expect(admission.requiresLeafAdapter).toBeTypeOf('boolean');
+        }
+      }
+    }
+
+    for (const run of phoneIntentRuns) {
+      for (let legIndex = 0; legIndex < run.legs.length; legIndex += 1) {
+        const leg = run.legs[legIndex]!;
+        for (const direction of [1, -1] as const) {
+          for (const mode of ['normal', 'reduced'] as const) {
+            const admission = phoneRunLegAdmissionStrategy(
+              run.id,
+              legIndex,
+              direction,
+              mode
+            );
+            expect(admission).not.toBeNull();
+            expect(admission?.targetScene).toBe(
+              mode === 'normal'
+                ? direction === 1 ? leg.to : leg.from
+                : direction === 1 ? run.to : run.from
+            );
+          }
+        }
+      }
+    }
+
+    for (const scene of canonicalSceneIds) {
+      const admission = phoneDirectEntryAdmissionStrategy(scene);
+      expect(admission.targetScene).toBe(scene);
+      expect(admission.producer).toMatch(
+        /^(media-leaf|static-leaf|dom-post-paint)$/
+      );
+      expect(admission.kind).toMatch(
+        /^(packed-canvas-frame|static-poster|dom-reading)$/
+      );
+      expect(admission.subject).toBe(phoneScenePresentationContract(scene).receiverSurface);
+      expect(admission.effectRole).toBe('none');
+    }
+  });
+
   it('gives every canonical hold an explicit receiver, coverage owner, and real direct-entry probe', () => {
     for (const scene of canonicalSceneIds) {
       const contract = phoneScenePresentationContract(scene);

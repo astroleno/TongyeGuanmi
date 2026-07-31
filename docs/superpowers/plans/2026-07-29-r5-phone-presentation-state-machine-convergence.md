@@ -369,74 +369,113 @@ reduced cycles. It now fails separately at the frozen Group 6–7 edge
 entry. Neither failure reopens Proof ↔ Brand; WebKit remains blocked until
 Chromium is globally 7/7.
 
-### Active hard-cutover ledger: Lab ↔ PH ↔ Education reduced admission and Education direct entry
+### Active framework-closure ledger: manifest-owned admission and proof contracts
 
-This is the only active implementation scope. It covers the one canonical
-`lab-education` run in reduced motion and the formal `#education` direct
-target because both must commit the same native Education surface. It does not
-reopen Brand/Lab, TTG, Grade A, Pattern ↔ StarMap, AOD, `education-contact`,
-Crane/Contact, media bytes/hashes, or timings. Normal-motion `lab-education`
-remains frozen: its full two-round formal journey has already passed.
-
-`phone-lab-contact` currently hosts both Group 6 and Group 7 visual scenes,
-so the raw-proof strategy must be selected per visual scene: only
-`ph-animation` may opt into it in this ledger. A boolean switch that changes
-Crane's normal or reduced behavior would violate the frozen Group 7 boundary.
-
-The current Chromium facts identify two distinct old writers for the same
-target, not an animation defect:
-
-1. `PhoneLabContactContinuation` creates its Group 6–7 runner without
-   `rawFrameProof`, `reducedStaticSubject`, or a native target landing. Its
-   reduced branch therefore enters `settleFrozenCompatibility()`, reconstructs
-   a segment proof via `reportRenderedFrame()`, writes progress/endpoints, and
-   rolls the `lab-education` candidate back before Education can produce a
-   physical static frame.
-2. `native:education` is registered without a leaf presentation adapter.
-   Direct entry consequently depends on the presentation boundary's generic
-   scheduled proof fallback; the lazy continuation can instead retain the PH
-   focus while the requested Education receiver is unavailable, producing the
-   observed stable `hold:ph-animation` rather than `hold:education`.
-
-Both paths must use the same transaction/proof contract:
+The reduced Chromium production journey now clears the completed Group 6
+`Lab ↔ PH ↔ Education` cutover and fails immediately at the adjacent Group 7
+edge:
 
 ```text
-hold:source / input free
-→ candidate:education-or-lab / reduced or direct transaction / input locked
-→ exact target leaf post-paint static-poster proof
-→ hold:target / session null / input free
+hold:education
+→ transition:education-contact:0
+→ preparing
+→ proof rejected
+→ rollback
+→ hold:education
 ```
 
-| Canonical state / direction | Inputs and old writers to remove | Sole owner after cutover | Exact target proof and layout | Failure / disposal owner |
-| --- | --- | --- | --- | --- |
-| reduced `Lab → Education`, `lab-education` | Group 6–7 runner reaches `settleFrozenCompatibility()`, calls `reportRenderedFrame()`, performs synthetic progress/endpoint commit, while Education exposes no token-bound static binding | existing `phone-lab-contact` composite runner owns one reduced admission; it requests the existing native Education reading landing and forwards a raw frame unchanged | runner mints only `static-poster / native:education`; `PhoneEducation.presentPresentation()` applies the authored static hold, waits two paints, and returns the original token with `origin: 'leaf-static-poster'` | machine owns deadline, rollback, stable commit, token retirement, and input release; runner only cancels the exact Education binding and capability retention |
-| reduced `Education → Lab`, same run reversed | reverse may reuse an old Education/PH token, revive the frozen compatibility settle, or leave a prior Lab callback armed | same runner and one reverse candidate; no PH media, Ink, progress, endpoint commit, or completion before proof | runner mints `static-poster / native:lab`, requests Lab's native reading landing, and calls the already canonical `PhoneLab.presentPresentation()` with that exact token | same machine deadline/rollback; stale Education/Lab callbacks and retained runner resources cannot satisfy the next revision |
-| formal `#education` direct entry | lazy focus may publish/retain PH while Education is not registered; generic scheduled presentation fallback may manufacture a reading proof without leaf ownership | direct-entry engine remains the transaction owner; Group 6 continuation only exposes the registered target leaf adapter and route-owned landing | the direct candidate targets `native:education`, loads the Education closure, asks the exact leaf to paint after native landing, then accepts its raw `static-poster` token | machine owns direct-entry preparation timeout/rollback; active adapter disposal cancels the leaf binding; no generic fallback or PH endpoint may satisfy Education |
-| cancellation and repeat | old reduced binding, generic proof callback, runner retention, or direct-entry preparation can survive terminal/abort and re-label the next candidate | machine terminal event is the one release decision; runner/leaf own only abortable local resources | full token identity is preserved through leaf → runner → presentation; no callback reconstructs it | terminal, rollback, unmount, context loss, and token replacement cancel both paint callbacks, dispose the adapter, drop retention, and permit the next input |
+That repeat is a framework defect, not a Crane-specific defect. The current
+composite runner makes the real raw-frame path an opt-in
+(`rawFrameProof`/`rawFrameProofFor`) and silently selects
+`settleFrozenCompatibility()` when a scene has not opted in. That branch
+reconstructs a proof and writes progress/endpoints. It creates a second
+admission/proof authority beside the machine. Extending the Group 6 predicate
+from `ph-animation` to `crane-animation` would only move the same hole to the
+next undeclared edge.
 
-Required red-then-green gates before any browser rerun:
+This ledger supersedes the narrow Group 6 ledger. It activates the framework
+contract for all sixteen formal holds, all fifteen canonical segments, every
+normal and reduced run leg, and every direct-entry target. It preserves the
+existing route-local `PhoneStoryShell → machine/runtime/presentation → leaf`
+architecture. Normal AOD autoplay/gesture recovery remains the final
+implementation ledger, but its normal-motion strategy is declared here and
+must remain one machine transaction; it receives no compatibility escape path.
+Timings, media bytes/hashes, scene order, and authored donor behavior remain
+frozen.
 
-1. A deterministic Group 6 runner test proves forward/reverse reduced
-   candidate → exact target static frame → stable. It proves zero calls to
-   `reportRenderedFrame()`, `reportProgress()`, `reportEndpointCommit()`,
-   animation, or completion before proof; a cloned/stale token and a callback
-   after disposal are rejected, and a second same-authority run starts cleanly.
-2. Education leaf tests prove `presentPresentation()` retains the original
-   token object, applies the authored hold, reports only after the second
-   post-paint frame with `leaf-static-poster`, and cancels both pending frames
-   on dispose/re-arm/unmount. Existing Lab tests remain the reverse authority;
-   no new facade or second native registration is allowed.
-3. Static writer checks prove `lab-education` has one capability/runner owner,
-   only `ph-animation` enables raw proof forwarding, and its reduced path has zero compatibility
-   `reportRenderedFrame()` calls, and native Education has exactly one
-   presentation adapter. Group 4–5 and Group 7 stay unchanged.
-4. A direct-entry deterministic test starts from `#education` before lazy
-   bind, proves the adapter focus is Education, rejects a stale PH binding,
-   and commits only the exact Education leaf proof. Missing target/paint must
-   roll back rather than land at PH.
-5. Only after those gates, typecheck, the full unit suite, build/budget, and a
-   scoped Chromium test for both reduced directions plus `#education` may run.
-   Chromium Task 10 must then be 7/7 before WebKit.
+#### One exhaustive manifest contract
+
+`manifest.ts` is the only source of admission strategy. Its transport-safe
+tuple for each canonical segment leg and direct-entry hold declares all of:
+
+| Field | Required value |
+| --- | --- |
+| `producer` | exact physical source: `leaf-frame`, `leaf-dom-post-paint`, or declared effect leaf; never runtime reconstruction |
+| `kind` / `subject` | immutable token proof kind and the one semantic surface that may report it |
+| `landing` | canonical landing resolver and target scene; the runner requests geometry but does not infer it from a scene id |
+| `effectRole` | declared effect role/placement for normal motion, or `none` for reduced/direct admission |
+| `requiresLeafAdapter` | whether the target must expose `present(token, report)` and `dispose(token)` before admission starts |
+| `normal`, `reduced`, `directEntry` | separate complete strategy entries, including the canonical reverse target; no omitted mode is interpreted as success |
+
+The declaration must be type-exhaustive: a missing hold, segment, leg,
+direction, mode, producer, target surface, or landing is a TypeScript/build
+failure. Direct entry must be declared for every hold even when it shares the
+same target proof as its stable scene. `manifest.ts` owns the Education,
+Pattern, and StarMap distinctions; `presentation.ts`, runners, and
+continuations may not branch on those scene ids to decide proof validity.
+
+#### Cutover rules
+
+1. `phone-composite-runner` obtains its normal/reduced/direct strategy only
+   from the manifest using `(run, leg, direction, directEntry)`. Remove
+   `rawFrameProof`, `rawFrameProofFor`, `reducedStaticSubject`, and
+   `reducedAdmissionTargetPosition` from its options and every continuation.
+2. Delete `settleFrozenCompatibility()` and the runner's
+   `reportRenderedFrame(resource)` proof reconstruction. An absent manifest
+   contract, adapter, landing, or exact raw frame fails closed through the
+   existing machine rollback; it cannot synthesize progress, endpoint commit,
+   or stable state.
+3. Every media/Canvas leaf forwards the original immutable
+   `PhoneRenderedPresentationFrame`. A pure DOM reading leaf reports its
+   manifest-declared post-paint DOM proof with that original token. Runner
+   forwarding is byte-for-byte token preserving and does not create a proof.
+4. During candidate admission, runner drops source-restoring progress and
+   completion. Only after the machine accepts the declared exact proof may
+   normal playback regain control. Reduced motion has no playback clock and
+   commits directly to stable after that proof.
+5. Terminal, rollback, unmount, context loss, and replacement retire the one
+   token, abort the one local controller, dispose the declared leaf binding,
+   and release runner retention. A stale token/callback cannot satisfy a new
+   revision.
+
+#### Required red-then-green gates
+
+Before any browser rerun, add deterministic tests that prove:
+
+1. Manifest traversal covers 16 holds, 15 segments, every leg, forward and
+   reverse normal/reduced strategies, and every direct entry; a deliberately
+   incomplete declaration fails the validator/type gate.
+2. Group 6 and Group 7 use the same runner path. `Lab ↔ PH ↔ Education` and
+   `Education ↔ Crane ↔ Contact` each show candidate → declared landing →
+   exact target raw frame → stable, with stale/missing/wrong-token frames and
+   post-disposal callbacks rejected.
+3. Runner source and behavior contain zero calls to
+   `reportRenderedFrame()`, `presentationProofToken()`, or
+   `proofForRenderedFrame()`; `settleFrozenCompatibility()` and all four
+   opt-in switches are absent. Before admission proof, progress, completion,
+   synthetic endpoint commit, and generic proof ingress are inert.
+4. `presentation.ts` validates a declared token-bound leaf frame or a
+   declared DOM post-paint adapter only. It has no receiver-based Education,
+   Pattern, or StarMap proof exception.
+5. Direct entry resolves the same manifest contract as the target hold;
+   delayed mount, old callback, missing adapter, context loss, and retry all
+   fail closed and permit the next input.
+
+Only after all static gates, typecheck, full unit suite, and production
+build/budget pass may Chromium rerun the full 7/7 journey. WebKit 7/7 and
+physical iPhone remain blocked behind that Chromium gate. The closure commit
+must be a coherent framework-cutover commit; no new per-scene compatibility
+flag or facade is allowed.
 
 ### Frozen normal-motion hard-cutover ledger: AOD ↔ Method
 

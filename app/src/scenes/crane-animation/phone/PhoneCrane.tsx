@@ -158,9 +158,30 @@ export const PhoneCrane = forwardRef<
   const beginPreparedReverseRef = useRef<(force?: boolean) => void>(
     () => undefined
   );
-  const presentedFrameRef = useRef<() => void>(
+  const presentedFrameRef = useRef<(presentationKey: string | null) => void>(
     () => undefined
   );
+  const cinematicPresentedFrameRef = useRef<Readonly<{
+    key: string;
+    figureDrawn: boolean;
+    flockDrawn: boolean;
+  }> | null>(null);
+  const reportCinematicPresentedFrame = useCallback((
+    layer: 'figure' | 'flock',
+    presentationKey: string | null
+  ) => {
+    const pending = cinematicPresentedFrameRef.current;
+    if (!pending || pending.key !== presentationKey) return;
+    const next = {
+      ...pending,
+      figureDrawn: pending.figureDrawn || layer === 'figure',
+      flockDrawn: pending.flockDrawn || layer === 'flock'
+    };
+    cinematicPresentedFrameRef.current = next;
+    if (!next.figureDrawn || !next.flockDrawn) return;
+    cinematicPresentedFrameRef.current = null;
+    presentedFrameRef.current?.(presentationKey);
+  }, []);
   const reportPresentationFrame = useCallback((
     layer: 'figure' | 'flock',
     presentationKey: string | null
@@ -223,7 +244,7 @@ export const PhoneCrane = forwardRef<
           figure.dataset.timelineVideoFrameReady = 'true';
           root.dataset.phoneCraneMedia = figure.paused ? 'ready' : 'playing';
           beginPreparedReverseRef.current?.();
-          presentedFrameRef.current?.();
+          reportCinematicPresentedFrame('figure', presentationKey);
           reportPresentationFrame('figure', presentationKey);
         }
       ]);
@@ -242,7 +263,7 @@ export const PhoneCrane = forwardRef<
           flock.dataset.timelineVideoFrameReady = 'true';
           root.dataset.phoneCraneMedia = flock.paused ? 'ready' : 'playing';
           beginPreparedReverseRef.current?.();
-          presentedFrameRef.current?.();
+          reportCinematicPresentedFrame('flock', presentationKey);
           reportPresentationFrame('flock', presentationKey);
         }
       ]);
@@ -250,7 +271,7 @@ export const PhoneCrane = forwardRef<
     }
     for (const surface of packedSurfacesRef.current) surface(['activate', mode]);
     return packedSurfacesRef.current;
-  }, [reportPresentationFrame]);
+  }, [reportCinematicPresentedFrame, reportPresentationFrame]);
 
   const renderPresentation = useCallback((
     rawProgress: number,
@@ -264,12 +285,18 @@ export const PhoneCrane = forwardRef<
     );
   }, [reducedMotion]);
 
-  const presentPreparedFrame = useCallback(() => {
+  const presentPreparedFrame = useCallback((token: PresentationToken) => {
     // The endpoint can have been decoded before this media identity existed.
     // Repaint it now so the compositor's onFrame callback carries the active
     // token instead of relabelling a retained preflight frame as new proof.
+    const key = phoneRuntimePresentationTokenKey(token);
+    cinematicPresentedFrameRef.current = {
+      key,
+      figureDrawn: false,
+      flockDrawn: false
+    };
     for (const surface of packedSurfacesRef.current ?? []) {
-      surface(['present', null]);
+      surface(['present', key]);
     }
   }, []);
 
@@ -434,6 +461,7 @@ export const PhoneCrane = forwardRef<
     },
     leave() {
       stopRun();
+      cinematicPresentedFrameRef.current = null;
       presentationBindingRef.current = null;
       parkPhoneCraneMedia(rootRef.current);
       for (const surface of packedSurfacesRef.current ?? []) surface(['release']);
@@ -463,6 +491,7 @@ export const PhoneCrane = forwardRef<
     },
     prepareTargetPresentation,
     dispose() {
+      cinematicPresentedFrameRef.current = null;
       presentationBindingRef.current = null;
       disposeRun();
       for (const surface of packedSurfacesRef.current ?? []) surface(['dispose']);

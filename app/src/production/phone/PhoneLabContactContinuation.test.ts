@@ -123,13 +123,15 @@ describe('PhoneLabContactContinuation recovery contract', () => {
   it('[R5] stages a visible reverse media adapter frame before requesting canvas proof', () => {
     expect(source).toContain('prepareReverseMediaFirstFrame');
     expect(compositeRunnerSource).toContain(
-      'const PHONE_REVERSE_MEDIA_ADMISSION_PROGRESS = .998;'
+      'const PHONE_REVERSE_RAW_FRAME_ADMISSION_PROGRESS = .996;'
     );
   });
 
   it('rejects nullable or current-session media labels instead of relabeling stale events', () => {
     expect(source).toContain('phoneLabContactAutoplayToken(detail)');
+    expect(source).toContain('phoneLabContactAutoplayFrame(detail)');
     expect(source).toContain('const [scene, phase, direction, , progress] = detail;');
+    expect(source).toContain('runner.reportMediaFrame(scene, frame)');
     expect(source).not.toContain('runner.execution(detail.scene)');
   });
 
@@ -150,22 +152,20 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).not.toContain('data-phone-flow-endpoint');
   });
 
-  it('[Lab↔PH↔Education reduced cutover] gives the existing Group67 runner sole raw static-admission ownership', () => {
+  it('[framework admission closure] gives Group67 no scene opt-in or synthesized-proof configuration', () => {
     expect(source.match(/createPhoneCompositeRunner</g)).toHaveLength(1);
     expect(source).toContain("ownerId: 'phone-lab-contact'");
-    expect(source).toMatch(
-      /rawFrameProofFor:\s*\(scene\)\s*=>\s*scene === 'ph-animation'/
-    );
-    expect(source).toMatch(
-      /reducedStaticSubject:[\s\S]*?direction === 1 \? 'native:education' : 'native:lab'/
-    );
-    expect(source).toContain('reducedAdmissionTargetPosition:');
+    expect(source).toContain('targetLanding(');
+    expect(source).toContain('admission[3]');
+    expect(source).not.toContain('rawFrameProofFor:');
+    expect(source).not.toContain('reducedStaticSubject:');
+    expect(source).not.toContain('reducedAdmissionTargetPosition:');
     expect(source).not.toContain('runner.reportRenderedFrame(');
   });
 
-  it('[Education direct-entry cutover] registers the canonical native Education leaf as the only presentation adapter', () => {
+  it('[native direct-entry cutover] registers the manifest-required static leaves as presentation adapters', () => {
     expect(source).toMatch(
-      /scene === 'education'[\s\S]*?educationRef\.current\?\.presentPresentation\?\.\(token, report\)[\s\S]*?educationRef\.current\?\.disposePresentation\?\.\(token\)/
+      /scene === 'education' \|\| scene === 'contact'[\s\S]*?target\?\.presentPresentation\?\.\(token, report\)[\s\S]*?target\?\.disposePresentation\?\.\(token\)/
     );
   });
 });
