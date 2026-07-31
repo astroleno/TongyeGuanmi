@@ -102,7 +102,8 @@ export const PhoneMethodTop = forwardRef<
   motionDriver,
   onReady,
   stageHost,
-  reducedMotion
+  reducedMotion,
+  directEntryScene = null
 }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const bridgeRef = useRef<HTMLDivElement | null>(null);
@@ -283,6 +284,7 @@ export const PhoneMethodTop = forwardRef<
               stageHost={stageHost}
               methodCopySource={steps}
               methodPresentation={methodPresentation}
+              directEntryScene={directEntryScene}
             />
           </Suspense>
         )}

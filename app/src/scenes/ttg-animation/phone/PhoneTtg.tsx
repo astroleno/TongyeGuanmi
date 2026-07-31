@@ -107,6 +107,14 @@ export type PhoneTtgPreparedEndpoint = Readonly<{
   presentationKey: string;
 }>;
 
+type PhoneTtgPresentationBinding = Readonly<{
+  token: PresentationToken;
+  key: string;
+  frameSequence: number;
+  reported: boolean;
+  report: (frame: PhoneRenderedPresentationFrame) => void;
+}>;
+
 type PhoneTtgProps = Group45PhoneSceneProps;
 
 type VideoWithFrameCallbacks = HTMLVideoElement & Readonly<{
@@ -370,6 +378,49 @@ export function phoneTtgHasReusableTerminalFrame(
   return phoneTtgHasReusableEndpointFrame(video, 1);
 }
 
+/**
+ * The timeline driver may verify a paused WebKit endpoint through its strict
+ * seeked fallback when WebKit withholds a second rVFC. The leaf may forward
+ * that exact decoder frame only after the machine has released and painted
+ * its target layout; a stale token, stale endpoint, or unverified decoder
+ * state never becomes a presentation proof.
+ */
+export function phoneTtgPreparedPresentationFrame(
+  token: PresentationToken,
+  prepared: PhoneTtgPreparedEndpoint | null,
+  video: PhoneTtgEndpointVideo | null,
+  frameSequence: number,
+  observedAt: number
+): PhoneRenderedPresentationFrame | null {
+  const presentationKey = phoneRuntimePresentationTokenKey(token);
+  const evidence = video?.dataset.timelineVideoFrameEvidence;
+  if (
+    !video
+    || !prepared
+    || !Number.isInteger(frameSequence)
+    || frameSequence <= 0
+    || !Number.isFinite(observedAt)
+    || !phoneTtgHasTokenBoundEndpointFrame(
+      prepared,
+      prepared.endpoint,
+      presentationKey
+    )
+    || !phoneTtgHasReusableEndpointFrame(video, prepared.endpoint)
+    || video.dataset.timelineVideoFrameReady !== 'true'
+    || (
+      evidence !== 'video-frame-callback'
+      && evidence !== 'seeked-fallback'
+      && evidence !== 'playhead-reuse'
+    )
+  ) return null;
+  return {
+    token,
+    frameSequence,
+    observedAt,
+    origin: 'leaf-post-paint'
+  };
+}
+
 export function markPhoneTtgPresentedEndpoint(
   video: HTMLVideoElement,
   mediaTime: number
@@ -482,17 +533,13 @@ export const PhoneTtg = forwardRef<
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playbackRef = useRef<Group45NativeAutoplay | null>(null);
-  const presentationBindingRef = useRef<Readonly<{
-    token: PresentationToken;
-    key: string;
-    frameSequence: number;
-    report: (frame: PhoneRenderedPresentationFrame) => void;
-  }> | null>(null);
+  const presentationBindingRef = useRef<PhoneTtgPresentationBinding | null>(null);
   const executionFrameRef = useRef<Readonly<{
     key: string;
     frameSequence: number;
   }> | null>(null);
   const presentationFrameCallbackRef = useRef(0);
+  const presentationPaintFrameRef = useRef(0);
   const activeRef = useRef(active);
   const directionRef = useRef<1 | -1>(direction);
   const executionRef = useRef<PhoneExecutionToken | null>(execution);
@@ -533,24 +580,51 @@ export const PhoneTtg = forwardRef<
       video?.cancelVideoFrameCallback?.(presentationFrameCallbackRef.current);
       presentationFrameCallbackRef.current = 0;
     }
+    if (presentationPaintFrameRef.current && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(presentationPaintFrameRef.current);
+      presentationPaintFrameRef.current = 0;
+    }
   }, []);
   const reportPresentationFrame = useCallback((key: string) => {
     const binding = presentationBindingRef.current;
-    if (!binding || binding.key !== key) return;
-    const next = {
-      ...binding,
-      frameSequence: binding.frameSequence + 1
-    };
-    presentationBindingRef.current = next;
-    next.report({
-      token: next.token,
-      frameSequence: next.frameSequence,
-      observedAt: typeof performance !== 'undefined'
+    if (!binding || binding.key !== key || binding.reported) return false;
+    const frame = phoneTtgPreparedPresentationFrame(
+      binding.token,
+      preparedEndpointRef.current,
+      videoRef.current,
+      binding.frameSequence + 1,
+      typeof performance !== 'undefined'
         && typeof performance.now === 'function'
         ? performance.now()
         : 0
+    );
+    if (!frame) return false;
+    const next = {
+      ...binding,
+      frameSequence: frame.frameSequence,
+      reported: true
+    };
+    presentationBindingRef.current = next;
+    clearPresentationFrameCallback();
+    next.report(frame);
+    return true;
+  }, [clearPresentationFrameCallback]);
+  const armPreparedPresentationPostPaint = useCallback((key: string) => {
+    if (typeof window === 'undefined') return;
+    const attempt = () => {
+      presentationPaintFrameRef.current = 0;
+      const binding = presentationBindingRef.current;
+      if (!binding || binding.key !== key || binding.reported) return;
+      if (reportPresentationFrame(key)) return;
+      presentationPaintFrameRef.current = window.requestAnimationFrame(attempt);
+    };
+    // The runner has already completed machine-owned landing confirmation.
+    // Two browser frames establish that the exact verified decoder endpoint
+    // now occupies the candidate plane before the leaf forwards it.
+    presentationPaintFrameRef.current = window.requestAnimationFrame(() => {
+      presentationPaintFrameRef.current = window.requestAnimationFrame(attempt);
     });
-  }, []);
+  }, [reportPresentationFrame]);
   const reportExecutionFrame = useCallback(() => {
     const identity = runIdentityRef.current;
     const token = identity?.[5];
@@ -1344,9 +1418,15 @@ export const PhoneTtg = forwardRef<
         token,
         key,
         frameSequence: 0,
+        reported: false,
         report
       };
       const video = videoRef.current as VideoWithFrameCallbacks | null;
+      // The exact decoder endpoint was prepared under this token before the
+      // runner released target layout. WebKit can withhold this second rVFC;
+      // its leaf-owned post-paint path rechecks the same decoder evidence and
+      // never recreates a token or submits a synthetic runtime proof.
+      armPreparedPresentationPostPaint(key);
       if (!video?.requestVideoFrameCallback) return;
       // A retained native-video endpoint must produce a new browser-presented
       // frame after this exact revision is armed. A WebKit initial endpoint
@@ -1401,6 +1481,7 @@ export const PhoneTtg = forwardRef<
   }), [
     prepareTargetPresentation,
     clearPresentationFrameCallback,
+    armPreparedPresentationPostPaint,
     reconcileMedia,
     releaseMedia,
     renderFrame,

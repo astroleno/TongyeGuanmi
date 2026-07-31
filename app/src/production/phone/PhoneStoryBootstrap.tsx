@@ -23,6 +23,22 @@ const PhoneStoryShell = lazy(() => import('./PhoneStoryShell').then((module) => 
 
 const BOOTSTRAP_SAFETY_MS = STORY_LOADER_TIMINGS.safetyMs;
 
+/**
+ * The authored static preboot cover and live StoryLoader are both visual
+ * planes. A direct candidate must wait until neither can occlude its leaf.
+ */
+export function phoneStartupVisualPlaneActive(
+  needsColdLoader: boolean,
+  staticPrebootPresent: boolean
+): boolean {
+  return needsColdLoader || staticPrebootPresent;
+}
+
+function staticStartupPrebootPresent(): boolean {
+  return typeof document !== 'undefined'
+    && document.getElementById('story-loader-static') !== null;
+}
+
 function coldLoaderRequired(): boolean {
   if (typeof window === 'undefined') return false;
   return phoneGroup67EntryPlanFromHash(window.location.hash) === undefined
@@ -54,6 +70,12 @@ function releaseResumePreboot(): void {
  */
 export function PhoneStoryBootstrap(props: PhoneStoryShellProps = {}) {
   const [needsColdLoader] = useState(coldLoaderRequired);
+  const [startupVisualPlaneActive, setStartupVisualPlaneActive] = useState(() => (
+    phoneStartupVisualPlaneActive(
+      needsColdLoader,
+      staticStartupPrebootPresent()
+    )
+  ));
   const [loaderMode] = useState(startupLoaderMode);
   const [shellPrepared, setShellPrepared] = useState(false);
   const [shellFailed, setShellFailed] = useState(false);
@@ -69,10 +91,13 @@ export function PhoneStoryBootstrap(props: PhoneStoryShellProps = {}) {
   }, []);
   const markLoaderHidden = useCallback((reason: StoryLoaderExitReason) => {
     setLoaderExitReason(reason);
+    setStartupVisualPlaneActive(false);
   }, []);
 
   useLayoutEffect(() => {
-    if (!needsColdLoader) releaseResumePreboot();
+    if (needsColdLoader) return;
+    releaseResumePreboot();
+    setStartupVisualPlaneActive(false);
   }, [needsColdLoader]);
 
   useEffect(() => {
@@ -100,6 +125,7 @@ export function PhoneStoryBootstrap(props: PhoneStoryShellProps = {}) {
       <Suspense fallback={null}>
         <PhoneStoryShell
           {...props}
+          startupLoaderActive={startupVisualPlaneActive}
           {...(loaderExitReason === undefined
             ? {}
             : { startupLoaderExitReason: loaderExitReason })}

@@ -82,6 +82,20 @@ describe('phone story projector', () => {
       scene: 'brand',
       actualY: 120
     });
+    const brand = element();
+    const figure3 = element();
+    projector.registerSurface({
+      id: 'native:brand',
+      scene: 'brand',
+      kind: 'native',
+      root: () => brand
+    });
+    projector.registerSurface({
+      id: 'group45:figure3',
+      scene: 'figure3-animation',
+      kind: 'fixed',
+      root: () => figure3
+    });
     const transaction = reducePhoneStorySnapshot(initial, {
       type: 'DIRECT_ENTRY_REQUESTED',
       authorityId: 'phone-authority-test',
@@ -141,6 +155,12 @@ describe('phone story projector', () => {
       scene: 'services',
       kind: 'native',
       root: () => services
+    });
+    projector.registerSurface({
+      id: 'group45:figure3',
+      scene: 'figure3-animation',
+      kind: 'fixed',
+      root: () => element()
     });
     const initial = createPhoneStorySnapshot({
       authorityId: 'phone-authority-test',

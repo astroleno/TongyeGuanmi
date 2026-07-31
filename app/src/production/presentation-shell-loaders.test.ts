@@ -3,7 +3,12 @@ import {
   loadDesktopStoryShell,
   loadPhoneStoryShell
 } from './presentation-shell-loaders';
+import { phoneStartupVisualPlaneActive } from './phone/PhoneStoryBootstrap';
 import { loadedPhoneAdapters } from './phone/module-loaders';
+import {
+  PHONE_STORY_BOOTSTRAP_SCENE,
+  phoneDirectEntryAdmissionScene
+} from './phone/usePhoneStoryEntry';
 import { readFileSync } from 'node:fs';
 
 const phoneShellSource = readFileSync(
@@ -37,6 +42,21 @@ describe('presentation shell loaders', () => {
     expect(loadedPhoneAdapters()).toEqual(before);
   });
 
+  it('[direct admission] does not arm a candidate leaf until the bootstrap loader releases its visual plane', () => {
+    expect(PHONE_STORY_BOOTSTRAP_SCENE).toBe('hero');
+    expect(phoneDirectEntryAdmissionScene('ttg-animation', false)).toBeNull();
+    expect(phoneDirectEntryAdmissionScene('ttg-animation', true)).toBe(
+      'ttg-animation'
+    );
+    expect(phoneDirectEntryAdmissionScene(null, false)).toBeNull();
+  });
+
+  it('[direct admission] retains the gate for either the live Loader or static preboot plane', () => {
+    expect(phoneStartupVisualPlaneActive(true, false)).toBe(true);
+    expect(phoneStartupVisualPlaneActive(false, true)).toBe(true);
+    expect(phoneStartupVisualPlaneActive(false, false)).toBe(false);
+  });
+
   it('starts one lightweight Loader before the media-heavy formal shell', () => {
     expect(phoneBootstrapSource).toContain(
       "lazy(() => import('./PhoneStoryShell')"
@@ -55,6 +75,9 @@ describe('presentation shell loaders', () => {
     expect(phoneBootstrapSource).toContain(
       'onStartupPrepared={markShellPrepared}'
     );
+    expect(phoneBootstrapSource).toContain(
+      'startupLoaderActive={startupVisualPlaneActive}'
+    );
     expect(phoneBootstrapSource).toContain('mode={loaderMode}');
     expect(phoneBootstrapSource).toContain(
       "get('portrait-spike-motion') === 'reduce'"
@@ -66,6 +89,7 @@ describe('presentation shell loaders', () => {
     expect(phoneShellSource).toContain(
       'finishLoader(props.startupLoaderExitReason)'
     );
+    expect(phoneShellSource).toContain('directAdmissionOpen');
     expect(phoneShellSource).toContain(
       'if (directStoryEntry || ready || failed)'
     );

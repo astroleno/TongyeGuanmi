@@ -23,6 +23,13 @@ import {
 } from './phone-story/runtime';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
+/**
+ * A direct hash never starts as a fake target hold. The sole bootstrap hold
+ * remains Hero until the visual plane opens and the machine admits the target
+ * through its own transaction.
+ */
+export const PHONE_STORY_BOOTSTRAP_SCENE = 'hero' as const;
+
 export type PhoneStoryEntryState = Readonly<{
   entryScene: SceneId | null;
   directStoryEntry: boolean;
@@ -50,25 +57,43 @@ export function usePhoneStoryEntry(): PhoneStoryEntryState {
     directStoryEntry,
     loaderHidden,
     setLoaderHidden,
-    initialScene: entryScene ?? 'hero',
+    initialScene: PHONE_STORY_BOOTSTRAP_SCENE,
     initialCheckpoint: entryCheckpoint
       ?? (loaderHidden ? 'hero-entered' : 'loader'),
     initialEdgeScene: entryEdgeScene ?? 'hero'
   };
 }
 
+/**
+ * A leaf may mount behind the startup loader, but its transaction cannot be
+ * admitted until that visual plane is actually released. This keeps loader
+ * sequencing outside playback while preserving the runner as the sole
+ * admission owner.
+ */
+export function phoneDirectEntryAdmissionScene(
+  entryScene: SceneId | null,
+  directAdmissionOpen: boolean
+): SceneId | null {
+  return directAdmissionOpen ? entryScene : null;
+}
+
 export function usePhoneStoryEntryLifecycle(
   entryScene: SceneId | null,
   loaderHidden: boolean,
-  orchestrator: PhoneStoryRuntimePort
+  orchestrator: PhoneStoryRuntimePort,
+  directAdmissionOpen = true
 ): void {
   // This runs before the factory's passive attach effect. Direct entry therefore
   // enters the immutable transaction state before the route can project a
   // target stable hold, while the factory remains the sole listener owner.
   useLayoutEffect(() => {
-    if (!entryScene) return;
-    requestPhoneRuntimeDirectEntry(orchestrator, entryScene, 'initial');
-  }, [entryScene, orchestrator]);
+    const admissionScene = phoneDirectEntryAdmissionScene(
+      entryScene,
+      directAdmissionOpen
+    );
+    if (!admissionScene) return;
+    requestPhoneRuntimeDirectEntry(orchestrator, admissionScene, 'initial');
+  }, [directAdmissionOpen, entryScene, orchestrator]);
 
   useEffect(() => {
     if (entryScene) return;

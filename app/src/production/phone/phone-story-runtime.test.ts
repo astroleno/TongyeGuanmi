@@ -262,6 +262,13 @@ describe('phone story runtime factory', () => {
       scrollY: () => 0,
       scrollTo: () => undefined
     });
+    runtime.port.registerSurface({
+      id: 'group45:figure3',
+      scene: 'figure3-animation',
+      kind: 'fixed',
+      root: () => routeRoot,
+      presentation: () => [true, true, true, true, 'static-poster']
+    });
 
     runtime.port.dispatch({
       type: 'DIRECT_ENTRY_REQUESTED',
@@ -295,7 +302,9 @@ describe('phone story runtime factory', () => {
     let receivedLeg: number | undefined;
     const runtime = createPhoneStoryRuntime({
       scope: 'formal',
-      initialScene: 'ph-animation',
+      // The shell starts behind the loader on Hero; initial direct entry must
+      // still own its target fallback rather than publish that bootstrap hold.
+      initialScene: 'hero',
       root: () => root(),
       scrollY: () => 0,
       scrollTo: () => undefined
@@ -307,6 +316,13 @@ describe('phone story runtime factory', () => {
       startAtLeg(legIndex) {
         receivedLeg = legIndex;
       }
+    });
+    runtime.port.registerSurface({
+      id: 'group67:ph',
+      scene: 'ph-animation',
+      kind: 'fixed',
+      root: () => root(),
+      presentation: () => [true, true, true, true, 'static-poster']
     });
 
     requestPhoneRuntimeDirectEntry(runtime.port, 'ph-animation', 'initial');

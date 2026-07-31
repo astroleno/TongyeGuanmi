@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createPhoneStoryRuntimeEngine as createPhoneStoryOrchestrator,
@@ -16,6 +17,10 @@ import {
   type PhoneRenderedPresentationFrame
 } from '../presentation';
 import type { PresentationToken } from '../machine';
+
+const sessionSource = readFileSync(new URL('./session.ts', import.meta.url), 'utf8');
+const sessionTypesSource = readFileSync(new URL('./types.ts', import.meta.url), 'utf8');
+const engineSource = readFileSync(new URL('./engine.ts', import.meta.url), 'utf8');
 
 function element(top = 0): HTMLElement {
   const properties = new Map<string, string>();
@@ -126,6 +131,17 @@ function reportSegmentProof(
 }
 
 describe('single phone story projector transaction', () => {
+  it('[direct admission writer gate] keeps target layout out of leaf sessions', () => {
+    const leafSessionContract = sessionTypesSource.slice(
+      sessionTypesSource.indexOf('export type PhoneOrchestratedRunSession'),
+      sessionTypesSource.indexOf('export type PhoneAodRunSession')
+    );
+    expect(leafSessionContract).not.toContain('requestDirectEntryTargetLayout');
+    expect(sessionSource).toContain('requestDirectEntryTargetLayout() {');
+    expect(sessionSource).toContain("emit(run, 'TARGET_LAYOUT_REQUESTED')");
+    expect(engineSource).toContain('sessions.requestDirectEntryTargetLayout();');
+  });
+
   it('[Task 9] exposes snapshots without the deprecated cursor compatibility API', () => {
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
@@ -337,6 +353,7 @@ describe('single phone story projector transaction', () => {
   it('[Task 3] obtains a static direct-entry proof through the presentation boundary', () => {
     const root = element();
     const authorityId = 'proof-runtime-authority';
+    let actualY = 0;
     let scheduled: (() => void) | undefined;
     const basePresentation = createPhoneStoryPresentation({
       authorityId,
@@ -360,8 +377,8 @@ describe('single phone story projector transaction', () => {
       initialScene: 'brand',
       root,
       presentation,
-      scrollY: () => 0,
-      scrollTo: () => undefined
+      scrollY: () => actualY,
+      scrollTo: (target) => { actualY = target; }
     });
     registerCorridor(orchestrator);
     registerReadySurface(orchestrator, 'services');
@@ -375,6 +392,10 @@ describe('single phone story projector transaction', () => {
       cinematic: null
     });
 
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-stable' }
+    });
     expect(observedTokens).toContainEqual({
       scene: 'services',
       token: expect.objectContaining({
@@ -446,6 +467,8 @@ describe('single phone story projector transaction', () => {
       cinematic: null
     });
 
+    while (frames.length > 0) frames.shift()?.();
+
     const exact = bindings.at(0);
     if (!exact) throw new Error('Expected an Education leaf binding');
     expect(exact.token).toMatchObject({
@@ -460,7 +483,6 @@ describe('single phone story projector transaction', () => {
       observedAt: 42,
       origin: 'leaf-static-poster'
     });
-    while (frames.length > 0) frames.shift()?.();
 
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'stable',
@@ -988,9 +1010,11 @@ describe('single phone story projector transaction', () => {
     expect(observed).not.toHaveBeenCalled();
   });
 
-  it('keeps a canonical direct entry on its own candidate stable surface', () => {
+  it('[direct admission hard cutover] holds a direct request until its manifest receiver registers', () => {
+    const root = element();
     const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'ph-animation',
+      initialScene: 'hero',
+      root,
       scrollY: () => 0,
       scrollTo: () => undefined
     });
@@ -998,10 +1022,27 @@ describe('single phone story projector transaction', () => {
     orchestrator.dispatch({
       type: 'DIRECT_ENTRY_REQUESTED',
       authorityId: orchestrator.getSnapshot().authorityId,
-      target: 'ph-animation',
+      target: 'method-top',
       source: 'initial',
-      fallbackScene: 'lab',
+      fallbackScene: 'hero',
       cinematic: null
+    });
+
+    // A lazy target cannot be published as a candidate merely because the
+    // bootstrap source exists. The pending direct intent replays only once
+    // the manifest receiver has an actual registered leaf.
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'hero',
+      revision: 0
+    });
+
+    orchestrator.registerSurface({
+      id: 'native:method',
+      scene: 'method-top',
+      kind: 'native',
+      root: () => root,
+      presentation: () => [true, true, true, true, 'static-poster']
     });
 
     expect(orchestrator.getSnapshot()).toMatchObject({
@@ -1011,18 +1052,18 @@ describe('single phone story projector transaction', () => {
         operation: {
           trigger: 'entry',
           run: null,
-          from: 'lab',
-          to: 'ph-animation'
+          from: 'hero',
+          to: 'method-top'
         }
       },
-      projection: { semanticScene: 'ph-animation', commitState: 'candidate' }
+      projection: { semanticScene: 'method-top', commitState: 'candidate' }
     });
   });
 
   it('replays a stable direct entry after its route root becomes projectable', () => {
     const routeRoot = Object.assign(element(), { isConnected: false });
     const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'ph-animation',
+      initialScene: 'hero',
       root: routeRoot,
       scrollY: () => 0,
       scrollTo: () => undefined
@@ -1031,24 +1072,39 @@ describe('single phone story projector transaction', () => {
     orchestrator.dispatch({
       type: 'DIRECT_ENTRY_REQUESTED',
       authorityId: orchestrator.getSnapshot().authorityId,
-      target: 'ph-animation',
+      target: 'method-top',
       source: 'initial',
-      fallbackScene: 'lab',
+      fallbackScene: 'hero',
       cinematic: null
     });
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'stable',
-      scene: 'ph-animation'
+      scene: 'hero'
     });
 
     routeRoot.isConnected = true;
     orchestrator.syncDiagnostics();
 
+    // Restoring the route root alone is still not sufficient: direct
+    // admission waits for the manifest receiver rather than publishing a
+    // target candidate into an incomplete lazy graph.
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'hero'
+    });
+    orchestrator.registerSurface({
+      id: 'native:method',
+      scene: 'method-top',
+      kind: 'native',
+      root: () => routeRoot,
+      presentation: () => [true, true, true, true, 'static-poster']
+    });
+
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'transaction',
       session: {
         phase: 'verifying-target',
-        operation: { run: null, legIndex: 0, to: 'ph-animation' }
+        operation: { run: null, legIndex: 0, to: 'method-top' }
       }
     });
   });
@@ -1135,16 +1191,15 @@ describe('single phone story projector transaction', () => {
 
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'transaction',
-      session: { phase: 'verifying-target' }
-    });
-    publishFrame?.();
-
-    expect(orchestrator.getSnapshot()).toMatchObject({
-      status: 'transaction',
       session: { phase: 'measuring-landing' }
     });
     while (frames.length > 0) frames.shift()?.();
     expect(commands).toEqual([420]);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-stable' }
+    });
+    publishFrame?.();
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'stable',
       scene: 'figure3-animation',
@@ -1216,6 +1271,13 @@ describe('single phone story projector transaction', () => {
       },
       scheduleFrame: (callback) => frames.push(callback)
     });
+    orchestrator.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => element(),
+      presentation: () => [true, true, true, true, 'static-poster']
+    });
 
     orchestrator.dispatch({
       type: 'DIRECT_ENTRY_REQUESTED',
@@ -1238,17 +1300,6 @@ describe('single phone story projector transaction', () => {
       sample: () => null,
       boundary: () => 100,
       landing: (scene) => scene === 'services' ? 220 : 0
-    });
-    expect(orchestrator.getSnapshot()).toMatchObject({
-      status: 'transaction',
-      session: { phase: 'verifying-target' }
-    });
-    orchestrator.registerSurface({
-      id: 'native:services',
-      scene: 'services',
-      kind: 'native',
-      root: () => element(),
-      presentation: () => [true, true, true, true, 'static-poster']
     });
     expect(orchestrator.getSnapshot()).toMatchObject({
       status: 'transaction',
@@ -1336,6 +1387,91 @@ describe('single phone story projector transaction', () => {
     });
   });
 
+  it('[direct admission] aligns an offscreen target before requesting its leaf proof', () => {
+    const frames: Array<() => void> = [];
+    let actualY = 0;
+    let targetVisible = false;
+    const commands: number[] = [];
+    const presented: Array<Readonly<{
+      token: PresentationToken;
+      report: (frame: PhoneRenderedPresentationFrame) => void;
+    }>> = [];
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'brand',
+      scrollY: () => actualY,
+      scrollTo: (nextY) => {
+        commands.push(nextY);
+        actualY = nextY;
+        targetVisible = true;
+      },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+    orchestrator.registerScrollCorridor({
+      id: 'direct-services-offscreen-proof',
+      scenes: ['brand', 'services'],
+      sample: () => null,
+      boundary: () => 100,
+      landing: (scene) => scene === 'services' ? 220 : null
+    });
+    orchestrator.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => element(),
+      presentation: () => [
+        true,
+        targetVisible,
+        targetVisible,
+        targetVisible,
+        targetVisible ? 'static-poster' : null
+      ],
+      adapter: {
+        present(token, report) {
+          presented.push({ token, report });
+        }
+      }
+    });
+
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: 'services',
+      source: 'initial',
+      fallbackScene: 'brand',
+      cinematic: null
+    });
+
+    expect(presented).toEqual([]);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'measuring-landing' }
+    });
+    frames.shift()?.();
+    expect(commands).toEqual([220]);
+    expect(presented).toEqual([]);
+    frames.shift()?.();
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-stable' }
+    });
+    expect(presented).toHaveLength(1);
+
+    const target = presented[0];
+    if (!target) throw new Error('Expected target leaf proof binding');
+    target.report({
+      token: target.token,
+      frameSequence: 1,
+      observedAt: 1,
+      origin: 'leaf-static-poster'
+    });
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'services',
+      session: null
+    });
+  });
+
   it('retries a direct entry when route geometry becomes ready after its candidate frame', () => {
     const frames: Array<() => void> = [];
     let actualY = 0;
@@ -1409,6 +1545,13 @@ describe('single phone story projector transaction', () => {
         initialScene: 'brand',
         scrollY: () => 0,
         scrollTo: () => undefined
+      });
+      orchestrator.registerSurface({
+        id: 'native:services',
+        scene: 'services',
+        kind: 'native',
+        root: () => element(),
+        presentation: () => [true, true, true, true, 'static-poster']
       });
 
       orchestrator.dispatch({

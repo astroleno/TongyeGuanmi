@@ -14,6 +14,7 @@ import type {
 import type {
   PhoneCheckpointId
 } from '../../story/semantic-checkpoints';
+import type { SceneId } from '../../story/types';
 import type {
   Group45PhoneSceneId,
   Group45PhoneTransitionId
@@ -136,6 +137,8 @@ export type PhonePatternAdapterProps = PhoneSceneAdapterProps & Readonly<{
 
 export type PhoneMethodAdapterProps = PhonePatternAdapterProps & Readonly<{
   stageHost: HTMLElement | null;
+  /** Leaf-loading intent only; the runtime remains the direct-entry writer. */
+  directEntryScene?: SceneId | null;
 }>;
 
 export type PhoneSceneAdapterComponent = ForwardRefExoticComponent<

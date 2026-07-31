@@ -31,6 +31,7 @@ import {
   selectPhoneCinematicSnapshot,
   syncPhoneRuntimeDiagnostics
 } from './phone-story/runtime';
+import type { SceneId } from '../../story/types';
 import type {
   PhonePresentationAdapterHandle,
   PhoneSceneAdapterHandle,
@@ -158,6 +159,8 @@ export function phoneGradeAProofBrandProgress(
 export type PhoneGradeAStoryProps = Readonly<{
   reducedMotion: boolean;
   stageHost: HTMLElement | null;
+  /** Direct-entry leaf preload only; it cannot publish runtime state. */
+  directEntryScene?: SceneId | null;
   methodCopySource?: HTMLElement | null;
   /** Direct parent leaf for reverse reduced admission; not a global registry. */
   methodPresentation?: PhonePresentationAdapterHandle | null;
@@ -174,6 +177,7 @@ function surfaceIsProjected(
 export function PhoneGradeAStory({
   reducedMotion,
   stageHost,
+  directEntryScene = null,
   methodCopySource = null,
   methodPresentation = null
 }: PhoneGradeAStoryProps) {
@@ -916,6 +920,7 @@ export function PhoneGradeAStory({
         <PhoneStoryTailBundle
           motionReduced={reducedMotion}
           stageHost={stageHost}
+          directEntryScene={directEntryScene}
           onBrandRootChange={bindBrandRoot}
           onBrandPresentationChange={bindBrandPresentation}
         />

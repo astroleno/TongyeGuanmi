@@ -26,6 +26,7 @@
     "coverageRoot",
     "destroy",
     "direction",
+    "directEntryScene",
     "dispose",
     "disposePresentation",
     "disposeReverseDriver",

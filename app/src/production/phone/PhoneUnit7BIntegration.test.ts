@@ -130,6 +130,20 @@ describe('formal Unit7-B phone integration', () => {
     expect(methodSource).toContain('phoneMethodRequestsGradeAAtMount');
   });
 
+  it('[direct-entry preload] carries only leaf-loading intent through the formal tail', () => {
+    expect(shellSource).toContain('directEntryScene={entryScene}');
+    expect(methodSource).toContain('directEntryScene={directEntryScene}');
+    expect(gradeASource).toContain('directEntryScene={directEntryScene}');
+    expect(tailBundleSource).toContain('phoneContinuationGroupForScene');
+    expect(tailBundleSource).toContain('entryScene: group45EntryScene');
+    expect(tailBundleSource).toContain('entryScene: group67EntryScene');
+    expect(brandContinuationSource).toContain(
+      'useRef(entryScene ?? adapterScene)'
+    );
+    expect(tailBundleSource).not.toContain('usePhoneStoryRuntimePort');
+    expect(tailBundleSource).not.toContain('requestPhoneRuntimeDirectEntry');
+  });
+
   it('registers the persistent canvas as the one coverage owner for every phone surface', () => {
     expect(stageRuntimeSource.match(/\(\) => stage\b/g)).toHaveLength(5);
     expect(gradeASource.match(/\(\) => stageHost\b/g)).toHaveLength(2);

@@ -67,6 +67,8 @@ export type PhoneBrandLabContinuationHandle = Readonly<{
 export type PhoneBrandLabContinuationProps = Readonly<{
   reducedMotion: boolean;
   stageHost: HTMLElement | null;
+  /** Leaf-loading intent from the formal direct-entry route only. */
+  entryScene?: Group45PhoneSceneId;
   validationMode?: string | undefined;
   onBrandRootChange?: (root: HTMLElement | null) => void;
   onBrandPresentationChange?: (
@@ -120,6 +122,7 @@ export const PhoneBrandLabContinuation = forwardRef<
 >(function PhoneBrandLabContinuation({
   reducedMotion,
   stageHost,
+  entryScene,
   validationMode,
   onBrandRootChange,
   onBrandPresentationChange,
@@ -141,7 +144,7 @@ export const PhoneBrandLabContinuation = forwardRef<
   // Keep the direct-entry closure mounted while neighboring Group 6–7
   // snapshots select their own adapters. Otherwise a cold Lab entry changes
   // focus to Brand during Lab → Education and disconnects its source root.
-  const entryAdapterSceneRef = useRef(adapterScene);
+  const entryAdapterSceneRef = useRef(entryScene ?? adapterScene);
   const [figure3Run, figure3Surface, figure3Target] = phoneCompositeVisualSpec(
     'figure3-animation'
   );

@@ -130,7 +130,9 @@ export type PhonePresentationSessionSnapshot = readonly [
   direction: 1 | -1,
   phase: PhoneTransactionPhase,
   progress: number,
-  anchorY: number | null
+  anchorY: number | null,
+  /** Keeps direct-admission gating in the presentation boundary positional. */
+  trigger: 'input' | 'entry' | 'auto'
 ];
 
 /**
@@ -168,6 +170,7 @@ type PhonePresentationSnapshotView = Readonly<{
       run: PhoneRunId | null;
       legIndex: number;
       direction: 1 | -1;
+      trigger: 'input' | 'entry' | 'auto';
     }>;
     phase: PhoneTransactionPhase;
     progress: number;
@@ -213,7 +216,8 @@ function presentationSnapshotView(
         operation: {
           run: sessionSnapshot[2],
           legIndex: sessionSnapshot[3],
-          direction: sessionSnapshot[4]
+          direction: sessionSnapshot[4],
+          trigger: sessionSnapshot[8]
         },
         phase: sessionSnapshot[5],
         progress: sessionSnapshot[6],
@@ -969,7 +973,7 @@ export type PhoneRenderedPresentationFrame = Readonly<{
    * canvas that later proves a visual target. Keep that provenance explicit so
    * an active target adapter cannot reinterpret the frame as a target hold.
    */
-  origin?: 'segment-first-frame' | 'leaf-static-poster';
+  origin?: 'segment-first-frame' | 'leaf-static-poster' | 'leaf-post-paint';
 }>;
 
 /**
@@ -1558,12 +1562,25 @@ export function createPhoneStoryPresentation({
         && layerPlan !== null
         && phoneSegmentPresentationTuple(layerPlan.segment)[8]
           === 'packed-canvas-frame';
+      /*
+       * Lazy direct routes have already received their leaf-loading intent,
+       * but that is not equivalent to a live presentation receiver. Reject
+       * the candidate until the target has registered its real surface so the
+       * engine retains and replays the intent rather than locking input on an
+       * unobservable transaction.
+       */
+      const directEntryRequiresReceiver = presentationSnapshot.status === 'transaction'
+        && presentationSnapshot.session?.operation.trigger === 'entry';
+      let directEntryReceiverRegistered = !directEntryRequiresReceiver;
       let mediaHandoffHasLivePlane = false;
       let registeredMediaHandoffPlanes = 0;
       const surfaces: ResolvedSurface[] = [];
       for (const registration of registrations.values()) {
         const selected = registration.id === projection.receiverSurface
           || registration.id === projection.sourceSurface;
+        if (registration.id === projection.receiverSurface) {
+          directEntryReceiverRegistered = true;
+        }
         const surfaceRoot = registration.root();
         const coverageRoot = registration.coverageRoot?.() ?? surfaceRoot;
         if (selected && (!connected(surfaceRoot) || !connected(coverageRoot))) {
@@ -1628,6 +1645,7 @@ export function createPhoneStoryPresentation({
           role: roleFor(presentationSnapshot, projection, registration, layerPlan)
         });
       }
+      if (!directEntryReceiverRegistered) return null;
       if (
         sourceLedMediaHandoff
         && registeredMediaHandoffPlanes > 0

@@ -279,7 +279,8 @@ export function phonePresentationSnapshot(
           session.operation.direction,
           session.phase,
           session.progress,
-          session.anchor.y
+          session.anchor.y,
+          session.operation.trigger
         ],
     snapshot.diagnostics.lastRollback?.run ?? null
   ];
@@ -383,6 +384,8 @@ type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
     | 'AOD_AUTOPLAY_BLOCKED'
     | 'AOD_GESTURE_RETRY_REQUESTED'
     | 'AOD_WATCHDOG_EXPIRED'
+    /** Direct candidates must align their real target before leaf proof. */
+    | 'TARGET_LAYOUT_REQUESTED'
     | 'TARGET_PRESENTED'
     | 'LAYOUT_RELEASED'
     | 'LANDING_MEASURED'
@@ -1671,6 +1674,15 @@ export function reducePhoneStorySnapshot(
           aod: null
         }));
     }
+    case 'TARGET_LAYOUT_REQUESTED':
+      return session.phase !== 'verifying-target'
+        || session.operation.trigger !== 'entry'
+        || operation.run !== null
+        ? reduced(snapshot)
+        : reduced(nextTransaction(snapshot, {
+          ...session,
+          phase: 'releasing-layout'
+        }));
     case 'TARGET_PRESENTED':
       return session.phase !== 'verifying-target'
         || !isTerminalLeg(operation)

@@ -11,6 +11,7 @@ import {
   phoneTtgHasReusableTerminalFrame,
   phoneTtgHeldEndpoint,
   phoneTtgMediaAction,
+  phoneTtgPreparedPresentationFrame,
   phoneTtgPresentationProbeTime,
   phoneTtgTargetPresentationLease,
   markPhoneTtgPresentedEndpoint,
@@ -315,6 +316,54 @@ describe('PhoneTtg', () => {
     expect(phoneTtgSource).toContain(
       'video.currentTime = phoneTtgPresentationProbeTime('
     );
+  });
+
+  it('[WebKit direct-entry admission] forwards only an exact verified decoder endpoint after target post-paint', () => {
+    const token = ttgPresentationToken({
+      subject: 'group45:ttg',
+      kind: 'packed-canvas-frame'
+    });
+    const key = phoneRuntimePresentationTokenKey(token);
+    const video = {
+      currentTime: .0001,
+      duration: 2.5,
+      readyState: 4,
+      seeking: false,
+      dataset: {
+        phoneGroup45FrameReady: 'true',
+        phoneTtgEndpointReady: 'initial',
+        timelineVideoFrameReady: 'true',
+        timelineVideoFrameEvidence: 'seeked-fallback'
+      }
+    } as unknown as HTMLVideoElement;
+
+    expect(phoneTtgPreparedPresentationFrame(
+      token,
+      { endpoint: 0, presentationKey: key },
+      video,
+      3,
+      42
+    )).toEqual({
+      token,
+      frameSequence: 3,
+      observedAt: 42,
+      origin: 'leaf-post-paint'
+    });
+    expect(phoneTtgPreparedPresentationFrame(
+      token,
+      { endpoint: 0, presentationKey: key + ':stale' },
+      video,
+      3,
+      42
+    )).toBeNull();
+    video.dataset.timelineVideoFrameEvidence = 'unverified';
+    expect(phoneTtgPreparedPresentationFrame(
+      token,
+      { endpoint: 0, presentationKey: key },
+      video,
+      3,
+      42
+    )).toBeNull();
   });
 
   it('reuses the retained physical terminal frame for Lab → TTG reverse', () => {

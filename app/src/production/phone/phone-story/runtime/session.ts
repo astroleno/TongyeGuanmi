@@ -58,6 +58,8 @@ type SessionControllerOptions = Readonly<{
 export type PhoneOrchestratedSessionController = Readonly<{
   active(): PhoneActiveRun | null;
   resume(): PhoneOrchestratedRunSession | null;
+  /** The runtime, never a leaf, advances a direct candidate into layout. */
+  requestDirectEntryTargetLayout(): boolean;
   dispose(): void;
 }>;
 
@@ -337,6 +339,29 @@ export function createPhoneOrchestratedSessionController(
     }
     if (emit(run, 'LAYOUT_RELEASED')) measure(run, lease, 'forward');
   };
+  const requestDirectEntryTargetLayout = (
+    run: ManagedPhoneActiveRun
+  ): boolean => {
+    const snapshot = options.getSnapshot();
+    if (
+      !owns(run)
+      || snapshot.status !== 'transaction'
+      || snapshot.session.operation.run !== null
+      || snapshot.session.operation.trigger !== 'entry'
+      || snapshot.session.phase !== 'verifying-target'
+    ) return false;
+    if (!emit(run, 'TARGET_LAYOUT_REQUESTED')) return false;
+    let lease: PhoneReleaseLease | undefined;
+    try {
+      lease = releaseGeometry();
+    } catch {
+      fail(run);
+      return false;
+    }
+    if (!emit(run, 'LAYOUT_RELEASED')) return false;
+    measure(run, lease, 'forward');
+    return true;
+  };
   const sessionFor = (
     run: ManagedPhoneActiveRun,
     initialLeg: number,
@@ -521,6 +546,9 @@ export function createPhoneOrchestratedSessionController(
       const resumed = sessionFor(run, operation.legIndex, snapshot.authorityId);
       armReducedAdmissionTimeout(run);
       return resumed;
+    },
+    requestDirectEntryTargetLayout() {
+      return active ? requestDirectEntryTargetLayout(active) : false;
     },
     dispose() {
       cancelAnimation?.();

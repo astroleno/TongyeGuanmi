@@ -40,6 +40,21 @@ function intent(inputEpoch: number, direction: PhoneTransitionDirection) {
   ] as const;
 }
 
+/** Direct admission begins only after its manifest receiver has mounted. */
+function registerDirectReceiver(
+  orchestrator: ReturnType<typeof createPhoneStoryOrchestrator>,
+  scene: Parameters<typeof phoneScenePresentationTuple>[0]
+): void {
+  const receiver = phoneScenePresentationTuple(scene)[4];
+  orchestrator.registerSurface({
+    id: receiver,
+    scene,
+    kind: receiver.startsWith('native:') ? 'native' : 'fixed',
+    root: () => ({ dataset: {}, style: {} } as unknown as HTMLElement),
+    presentation: () => [true, true, true, true, 'static-poster']
+  });
+}
+
 function reportCurrentLegFrame(
   orchestrator: ReturnType<typeof createPhoneStoryOrchestrator>,
   session: PhoneOrchestratedRunSession
@@ -151,6 +166,7 @@ describe('canonical phone story sequence', () => {
       scrollY: () => 100,
       scrollTo: () => undefined
     });
+    registerDirectReceiver(orchestrator, scene);
 
     orchestrator.dispatch({
       type: 'DIRECT_ENTRY_REQUESTED',

@@ -111,9 +111,15 @@ export function requestPhoneRuntimeDirectEntry(
     authorityId: snapshot.authorityId,
     target,
     source,
-    fallbackScene: snapshot.status === 'stable'
-      ? snapshot.scene
-      : snapshot.projection.semanticScene,
+    // The formal shell deliberately starts its runtime on Hero while a
+    // direct-entry visual plane is still closed. Initial admission must not
+    // reinterpret that bootstrap hold as the target's visual source: the
+    // target owns its own candidate fallback until its exact proof commits.
+    fallbackScene: source === 'initial'
+      ? target
+      : snapshot.status === 'stable'
+        ? snapshot.scene
+        : snapshot.projection.semanticScene,
     cinematic: null
   });
 }

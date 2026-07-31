@@ -525,7 +525,21 @@ export function createPhoneStoryRuntimeEngine(
         }
         return;
       }
-      if (!preparation.ready || preparation.publishing) return;
+      if (!preparation.ready) return;
+      if (
+        operation.trigger === 'entry'
+        && session.phase === 'verifying-target'
+      ) {
+        // A direct target can be mounted below the browser's initial hash
+        // scroll attempt. Align its machine-owned landing before asking a
+        // leaf for a real proof frame; an offscreen frame is not admissible
+        // evidence and must never consume the leaf's one-shot callback.
+        // Do not hold `publishing` across this dispatch: deterministic
+        // schedulers may reach verifying-stable synchronously.
+        sessions.requestDirectEntryTargetLayout();
+        return;
+      }
+      if (preparation.publishing) return;
       preparation.publishing = true;
       try {
         reportTargetPresentation(activeSession, operation.to);

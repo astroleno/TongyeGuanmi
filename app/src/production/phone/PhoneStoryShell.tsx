@@ -36,6 +36,8 @@ function portraitSpikeMotionEnabled(): boolean {
 export type PhoneStoryShellProps = Readonly<{
   /** Short numbered routes remain physical-device comparison entries. */
   validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46' | 'v47';
+  /** Bootstrap owns the global visual plane until StoryLoader `onHidden`. */
+  startupLoaderActive?: boolean;
   startupLoaderExitReason?: StoryLoaderExitReason;
   onStartupPrepared?: (failed: boolean) => void;
 }>;
@@ -126,6 +128,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     rootRef
   );
   const orchestrator = authority.port;
+  const directAdmissionOpen = !props.startupLoaderActive;
   const navigation = usePhoneStoryNavigationRuntime(orchestrator, loaderHidden);
   const activeFrontSurface = (id: 'front:hero' | 'front:pattern' | 'front:star-map' | 'front:aod') => (
     navigation.cinematicSnapshot[1] === id
@@ -134,7 +137,12 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
 
   usePhoneViewportGeometry(rootRef, motionEnabled);
 
-  usePhoneStoryEntryLifecycle(entryScene, loaderHidden, orchestrator);
+  usePhoneStoryEntryLifecycle(
+    entryScene,
+    loaderHidden,
+    orchestrator,
+    directAdmissionOpen
+  );
 
   const runtime = usePhoneStageRuntime({
     rootRef,
@@ -259,6 +267,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
           reducedMotion={!motionEnabled}
           motionDriver={phoneMotionDriver}
           stageHost={stageHost}
+          directEntryScene={entryScene}
         />
       )}
       <StoryNav

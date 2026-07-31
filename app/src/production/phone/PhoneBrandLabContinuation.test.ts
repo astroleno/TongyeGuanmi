@@ -192,9 +192,9 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     expect(compositeRunnerSource).not.toContain('run.step');
   });
 
-  it('[R5] keeps the direct-entry root mounted while a neighboring group changes focus', () => {
+  it('[R5] retains the direct target closure while a neighboring group changes focus', () => {
     expect(source).toContain(
-      'const entryAdapterSceneRef = useRef(adapterScene);'
+      'const entryAdapterSceneRef = useRef(entryScene ?? adapterScene);'
     );
     expect(source).toMatch(
       /usePhoneGroup45Adapters\(\s*entryAdapterSceneRef\.current,\s*adapterScene\s*\)/

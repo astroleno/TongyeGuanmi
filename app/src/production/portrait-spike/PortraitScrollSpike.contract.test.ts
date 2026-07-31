@@ -470,7 +470,7 @@ describe('Route B Grade A migration contract', () => {
     expect(storyEntrySource).toContain('directStoryEntry');
     expect(shellSource).toContain("usePhoneStoryRuntime(\n    'formal'");
     expect(shellSource).toContain(
-      'usePhoneStoryEntryLifecycle(entryScene, loaderHidden, orchestrator)'
+      'usePhoneStoryEntryLifecycle(\n    entryScene,\n    loaderHidden,\n    orchestrator,\n    directAdmissionOpen\n  )'
     );
     expect(shellSource).not.toContain('window.scrollTo(');
     expect(methodSource).toContain('phoneDirectEntryCompletesAod');
