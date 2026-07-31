@@ -818,6 +818,36 @@ function presentationCursorForTransaction(
     : cursor;
 }
 
+/**
+ * A terminal normal-motion candidate still needs one physical stage in which
+ * its exact target leaf can paint.  The stable target may be a document
+ * reading surface below that stage, so projecting its stable owner before the
+ * leaf proof would make the candidate invisible/offscreen and deadlock
+ * admission.  Keep only the active leg's physical stage until the proof has
+ * been accepted; semantic scene, receiver, landing, and eventual stable
+ * owner remain the target's manifest contract.
+ */
+function terminalCandidateProjection(
+  snapshot: PhoneTransactionSnapshot
+): PhonePresentationProjection {
+  const { operation } = snapshot.session;
+  const target = phoneStableProjection(
+    operationTarget(operation),
+    'candidate',
+    snapshot.session.presentationRevision
+  );
+  const cursor = transactionCursor(snapshot);
+  if (!cursor) return target;
+  const physical = phoneStoryPresentation(
+    presentationCursorForTransaction(snapshot, cursor)
+  );
+  return {
+    ...target,
+    stageOwner: physical.stageOwner,
+    stageScene: physical.stageScene
+  };
+}
+
 function projectionForTransaction(
   snapshot: PhoneTransactionSnapshot
 ): PhonePresentationProjection {
@@ -833,16 +863,18 @@ function projectionForTransaction(
       edge: phoneStableProjection(operationSource(operation)).edge
     };
   }
+  if (phase === 'verifying-target' && isTerminalLeg(operation)) {
+    return terminalCandidateProjection(snapshot);
+  }
   if (
-    (phase === 'verifying-target' && isTerminalLeg(operation))
-    || phase === 'releasing-layout'
+    phase === 'releasing-layout'
     || phase === 'measuring-landing'
     || phase === 'aligning-scroll'
     || phase === 'verifying-stable'
   ) {
-    // A terminal media leg has released its source plane before asking the
-    // target to prove itself. Keeping the transition projection here would
-    // incorrectly require the intentionally retired source to stay visible.
+    // The target proof has already admitted the candidate. It may now release
+    // the physical stage, align its document landing, and verify the final
+    // stable paint under the target's own manifest owner.
     return phoneStableProjection(operationTarget(operation), 'candidate', revision);
   }
   if (phase.startsWith('rollback-')) {

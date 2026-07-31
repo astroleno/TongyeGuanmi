@@ -418,6 +418,51 @@ describe('token-bound phone presentation proofs', () => {
     expect(canCommitPresentation(aligned, 100)).toBe(false);
   });
 
+  it('[terminal native admission] retains the active leg stage until the target leaf proves its exact token', () => {
+    const initial = createPhoneStorySnapshot({
+      authorityId: 'method-reverse-admission',
+      scene: 'figure2-animation',
+      actualY: 5_038
+    });
+    let candidate = reducePhoneStorySnapshot(initial, {
+      type: 'RUN_STARTED',
+      authorityId: initial.authorityId,
+      sessionId: 'method-reverse-admission-session',
+      generation: 1,
+      leg: 0,
+      direction: -1,
+      run: 'method-figure2',
+      anchorY: 4_841,
+      inputEpoch: 1
+    }).snapshot;
+
+    candidate = reportProof(candidate, activeSegmentProof(candidate));
+    candidate = reduceOwned(candidate, 'PROGRESS_REPORTED', { progress: 0 });
+    candidate = reduceOwned(candidate, 'LEG_COMPLETED');
+
+    expect(candidate).toMatchObject({
+      status: 'transaction',
+      session: {
+        phase: 'verifying-target',
+        operation: {
+          run: 'method-figure2',
+          direction: -1,
+          to: 'method-top'
+        }
+      },
+      projection: {
+        commitState: 'candidate',
+        semanticScene: 'method-top',
+        navigationScene: 'method-top',
+        stageOwner: 'grade-a',
+        stageScene: 'figure2-animation',
+        sourceSurface: null,
+        receiverSurface: 'native:method',
+        coverageSurface: 'native:method'
+      }
+    });
+  });
+
   it.each(canonicalSceneIds)(
     '[Task 1] accepts a same-revision real proof for %s',
     (scene) => {
