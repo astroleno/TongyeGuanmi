@@ -1,12 +1,12 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** architecture and execution contracts are frozen. Tasks 0–3 and
-> their corrective Review 2 work are complete. On 2026-08-01 the user approved
-> uninterrupted execution through Slices 4A → 4B → 4C → 4D: there is no
-> separate pause after 4A. Task 4 stops only at its unified code/architecture
-> review of the complete machine/runtime, rollback, activation, queue, and
-> disposal; Task 5 must not begin before that review closes. The verification
-> cadence below removes redundant full-suite reruns without weakening any
+> **Status:** architecture and execution contracts are frozen. Tasks 0–4 and
+> their corrective reviews are complete. On 2026-08-01 the user approved and
+> the executor completed uninterrupted Slices 4A → 4B → 4C → 4D with no
+> separate pause after 4A. Task 4's unified code/architecture review of the
+> complete machine/runtime, rollback, activation, queue, and disposal is
+> closed. Task 5 remains unstarted pending the next authorized execution. The
+> verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
 >
@@ -1133,7 +1133,7 @@ self-review is not a user-approval pause. Mandatory review nodes are:
 | Review node | Reviewer and decision |
 | --- | --- |
 | Task 3 contract freeze | Code/architecture review of protocol, manifest, Appendix E, and dependency direction; completed for the current branch |
-| Task 4D closure | Code/architecture review of the complete machine, runtime, activation, queue, rollback, and disposal; no separate stop after 4A |
+| Task 4D closure | Completed on 2026-08-01: unified review of machine, runtime, activation, queue, rollback, and disposal; no separate stop occurred after 4A |
 | Task 6 closure | Code/integration review of projector, real React StrictMode ownership, Loader, and lazy boundaries |
 | After Task 10, before Task 11 | Cutover-readiness review: all clean and old-formal gates green, registries complete, deletion ledger ready |
 | Task 12 closure | Automated release-candidate review and `candidateCodeSha` freeze readiness |
@@ -2588,7 +2588,7 @@ git commit -m "feat(r5): unify phone input history and page lifecycle"
 
 ### Slice 4D — effect interpreter, media activation, and disposal
 
-- [ ] **Step 4D.1: Write RED effect and activation tests**
+- [x] **Step 4D.1: Write RED effect and activation tests**
 
 The deterministic ports cover module loading, presentation application,
 scroll confirmation, history, media/playback, and closure resource counts.
@@ -2620,7 +2620,7 @@ Assert:
 - `play()` success never fills a frame slot;
 - leaf progress/frame/complete callbacks cannot directly change phase/commit.
 
-- [ ] **Step 4D.2: Implement the one factory/effect interpreter**
+- [x] **Step 4D.2: Implement the one factory/effect interpreter**
 
 `runtime.ts` owns subscriptions, active-foreground deadlines, RAFs,
 AbortControllers, generation invalidation, closure load/mount/retire,
@@ -2643,7 +2643,7 @@ or reset lineage, call `location.reload()` directly, or classify builds
 itself. Harness tests inject a deterministic fake. Task 11 supplies the eager
 implementation.
 
-- [ ] **Step 4D.3: Prove deterministic disposal**
+- [x] **Step 4D.3: Prove deterministic disposal**
 
 Every listener, timer, RAF, AbortController, leaf resource, media token,
 subscriber, Canvas, and WebGL context is removed/retired. StrictMode
@@ -2658,7 +2658,7 @@ reload recovery is specified in Tasks 6/12.
 Module-level current-document/authority state and lifecycle WeakMaps/Sets are
 forbidden.
 
-- [ ] **Step 4D.4: Run mutation/global checks and commit**
+- [x] **Step 4D.4: Run mutation/global checks and commit**
 
 Deliberately invert one attempt guard, one evidence-slot quorum bit, and one
 activation-scope guard; confirm tests fail, then restore and record results.
@@ -2678,6 +2678,27 @@ git diff --exit-code 9652fbe -- \
 git add app/src/production/phone-story
 git commit -m "feat(r5): centralize phone effects and media activation"
 ```
+
+**Task 4D closure record (2026-08-01):**
+
+- Focused machine/runtime verification passed 54/54 tests; the complete suite
+  passed 181 files / 1139 tests, followed by TypeScript and the complete
+  production build.
+- Mutation proof was executed and restored: inverting the attempt-generation
+  guard failed stale/latest-attempt tests; changing complete quorum from
+  `every` to `some` failed the withheld-slot matrix; inverting activation
+  surface scope failed CTA/current-closure tests.
+- Unified review additionally closed active-toolbar proof restart without
+  losing attempt/stage/progress, inert `faulted` viewport/BFCache behavior,
+  rollback pending-entry retention across unsupported/layout recovery,
+  immutable report bindings/registration inventories, false readiness/frame
+  rejection, and non-media activation-rejection forgery.
+- Architecture and build gates passed at protocol 436/450, manifest 539/550,
+  presentation 100/900, machine 1099/1100, and runtime 1000/1000 non-blank
+  LOC. Phone JS is 628,833 B and the largest lazy chunk is 41,116 B. Frozen
+  donor inputs are unchanged; archived evidence verifies 44/44 report hashes
+  and 227/227 files (217,091,751 bytes).
+- The unified Task 4 review has no blocking finding. Task 5 was not started.
 
 `connect()` installs one active authority and returns its complete disconnect.
 Each connection starts a fresh boot transaction for the explicit entry.

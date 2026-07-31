@@ -99,6 +99,8 @@ export type PhoneFailure = Readonly<{
   detail?: PhoneSerializableValue;
 }>;
 
+export const PHONE_MEDIA_ACTIVATION_REJECTED = 'media-activation-rejected';
+
 export type PhoneActivationCredit =
   | 'physical-epoch'
   | 'direct-muted-autoplay';
@@ -126,6 +128,19 @@ export type PhoneLeafDisposeReason =
   | 'closure-retired'
   | 'faulted'
   | 'generation-replaced';
+
+export type PhoneRuntimeLifecycleStep =
+  | 'invalidate' | 'pause' | 'dispose' | 'unregister' | 'release';
+export type PhoneRuntimeResourceCounts = Readonly<{
+  videos: number; activeDecoders: number; canvases: number; webglContexts: number;
+}>;
+export type PhoneRejectedChunkFailure = Readonly<{
+  authorityId: string; transactionId: string; moduleUrl: string;
+  dependencies: readonly PhoneDependencyRef[]; reason: string;
+}>;
+export type PhoneStableRecoveryProof = Readonly<{
+  authorityId: string; sceneId: string; commitSequence: number;
+}>;
 
 export type PhoneDependencyRef =
   | `scene:${string}`
@@ -254,6 +269,7 @@ export type PhoneDeadlineOperation =
   | 'firstFrame'
   | 'planeApply'
   | 'scrollConfirm'
+  | 'dwell'
   | 'rollback';
 
 export type PhoneDeadlineState = Readonly<{
@@ -413,7 +429,7 @@ export type PhoneStoryEvent =
     }>
   | Readonly<{ type: 'scroll-sampled'; sample: PhoneScrollSample }>
   | Readonly<{ type: 'page-hidden'; persisted: boolean }>
-  | Readonly<{ type: 'page-shown'; persisted: boolean }>
+  | Readonly<{ type: 'page-shown'; persisted: boolean; viewport?: PhoneViewportSnapshot }>
   | Readonly<{ type: 'physical-intent'; direction: PhoneDirection; epoch: number }>
   | Readonly<{ type: 'activation-requested'; epoch: number }>
   | Readonly<{ type: 'activation-settled'; invoked: boolean; attempt: PhoneAttemptKey }>

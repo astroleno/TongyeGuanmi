@@ -82,6 +82,13 @@ function reportRequired(
     ? transaction(current.snapshot).transaction.requiredPrepared
     : transaction(current.snapshot).transaction.requiredFinal;
   for (const slot of slots) current = reportSlot(current.snapshot, slot);
+  if (current.snapshot.status === 'transaction'
+    && current.snapshot.transaction.phase === 'awaiting-media-activation') {
+    current = dispatch(current.snapshot, {
+      type: 'activation-settled', invoked: true,
+      attempt: current.snapshot.transaction.attempt
+    });
+  }
   return current;
 }
 
@@ -103,6 +110,8 @@ describe('phone story boot/direct-entry machine', () => {
       expect(current.transaction.requiredPrepared.map(({ kind }) => kind)).toEqual(
         scene.directEntry.closure.exposeReceiverAfter
       );
+      expect(new Set(current.transaction.requiredPrepared.map(({ stageIndex }) => stageIndex)))
+        .toEqual(new Set([0]));
       expect(initial.effects).toEqual(expect.arrayContaining([
         expect.objectContaining({
           type: 'load-dependencies',
@@ -118,8 +127,16 @@ describe('phone story boot/direct-entry machine', () => {
       }
       expect(transaction(partial.snapshot).transaction.phase).toBe('preparing');
 
-      const prepared = reportSlot(partial.snapshot, withheld);
+      let prepared = reportSlot(partial.snapshot, withheld);
+      if (transaction(prepared.snapshot).transaction.phase === 'awaiting-media-activation') {
+        prepared = dispatch(prepared.snapshot, {
+          type: 'activation-settled', invoked: true,
+          attempt: transaction(prepared.snapshot).transaction.attempt
+        });
+      }
       expect(transaction(prepared.snapshot).transaction.phase).toBe('presenting-target');
+      expect(new Set(transaction(prepared.snapshot).transaction.requiredFinal
+        .map(({ stageIndex }) => stageIndex))).toEqual(new Set([0]));
       expect(prepared.effects).toContainEqual(expect.objectContaining({
         type: 'apply-presentation-plane'
       }));
@@ -180,6 +197,21 @@ describe('phone story boot/direct-entry machine', () => {
     expect(wrong.effects).toEqual([]);
   });
 
+  it('deep-freezes nested inputs even when their outer object is already frozen', () => {
+    const layout = { width: 390, height: 844, orientation: 'portrait' as const };
+    const visual = { offsetLeft: 0, offsetTop: 0, width: 390, height: 844, scale: 1 };
+    const outerFrozenViewport = Object.freeze({
+      layout, visual, layoutRevision: 1, visualRevision: 1, supported: true
+    });
+    const result = createPhoneStoryBoot({
+      authorityId: 'authority:deep-freeze',
+      request: { pathname: '/', hash: '#home', origin: 'initial' },
+      viewport: outerFrozenViewport
+    });
+    expect(Object.isFrozen(result.snapshot.viewport.layout)).toBe(true);
+    expect(Object.isFrozen(result.snapshot.viewport.visual)).toBe(true);
+  });
+
   it('normalizes unknown direct hashes and bounds Hero fallback/fault/retry generations', () => {
     const unknown = createPhoneStoryBoot({
       authorityId: 'authority:unknown',
@@ -214,10 +246,38 @@ describe('phone story boot/direct-entry machine', () => {
     expect(heroFailure.snapshot.status).toBe('faulted');
     if (heroFailure.snapshot.status !== 'faulted') throw new Error('expected fault');
     expect(heroFailure.snapshot.safeCover).toEqual({ kind: 'loader', opaque: true });
+    expect(heroFailure.snapshot.fault.retryable).toBe(true);
 
     const retry = dispatch(heroFailure.snapshot, { type: 'retry-requested' });
     expect(transaction(retry.snapshot).transaction.attempt.transactionGeneration).toBe(3);
     expect(transaction(retry.snapshot).transaction.candidateSceneId).toBe('hero');
+  });
+
+  it('preserves Hero fallback URL intent across a media-activation renewal', () => {
+    const failedTarget = boot('crane-animation', 'authority:fallback-activation');
+    const failed = dispatch(failedTarget.snapshot, {
+      type: 'failure-reported',
+      slot: transaction(failedTarget.snapshot).transaction.requiredPrepared[0]!,
+      failure: { code: 'target-load', message: 'target failed', recoverable: true }
+    });
+    let waiting = failed;
+    for (const slot of transaction(waiting.snapshot).transaction.requiredPrepared) {
+      waiting = reportSlot(waiting.snapshot, slot);
+    }
+    expect(transaction(waiting.snapshot).transaction.phase).toBe('awaiting-media-activation');
+    const renewed = dispatch(waiting.snapshot, {
+      type: 'activation-requested', epoch: 1
+    });
+    expect(transaction(renewed.snapshot).transaction.fallbackFromSceneId)
+      .toBe('crane-animation');
+    const activated = dispatch(renewed.snapshot, {
+      type: 'activation-settled', invoked: true,
+      attempt: transaction(renewed.snapshot).transaction.attempt
+    });
+    const stable = prove(activated);
+    expect(stable.effects).toContainEqual({
+      type: 'replace-url', pathname: '/', hash: '#home'
+    });
   });
 });
 
@@ -230,7 +290,7 @@ describe('phone warm entry machine', () => {
       const sourceProof = sourceResult.snapshot.presentationProof;
       for (const target of phoneManifest.scenes) {
         if (source.id === target.id) continue;
-        for (const origin of ['menu', 'programmatic', 'popstate'] as const) {
+        for (const origin of ['menu', 'programmatic', 'hash', 'popstate'] as const) {
           const entry = dispatch(sourceResult.snapshot, {
             type: 'entry-requested',
             request: {
@@ -253,7 +313,7 @@ describe('phone warm entry machine', () => {
           const historyEffects = settled.effects.filter(({ type }) => (
             type === 'push-url' || type === 'replace-url'
           ));
-          if (origin === 'popstate') expect(historyEffects).toEqual([]);
+          if (origin === 'popstate' || origin === 'hash') expect(historyEffects).toEqual([]);
           else expect(historyEffects).toEqual([{
             type: 'push-url',
             pathname: '/',
@@ -293,7 +353,7 @@ describe('phone warm entry machine', () => {
       const sourceCommit = sourceResult.snapshot.stableCommit;
       for (const target of phoneManifest.scenes) {
         if (source.id === target.id) continue;
-        for (const origin of ['menu', 'programmatic', 'popstate'] as const) {
+        for (const origin of ['menu', 'programmatic', 'hash', 'popstate'] as const) {
           const entry = dispatch(sourceResult.snapshot, {
             type: 'entry-requested',
             request: {
@@ -316,7 +376,7 @@ describe('phone warm entry machine', () => {
           const urlWrites = restored.effects.filter(({ type }) => (
             type === 'push-url' || type === 'replace-url'
           ));
-          expect(urlWrites).toEqual(origin === 'popstate' ? [{
+          expect(urlWrites).toEqual(origin === 'popstate' || origin === 'hash' ? [{
             type: 'replace-url',
             pathname: '/',
             hash: source.directEntry.canonicalHash
@@ -384,6 +444,10 @@ describe('phone event queue and revision semantics', () => {
     expect(phoneEventPriority({ type: 'page-shown', persisted: true })).toBe(4);
     expect(phoneEventPriority({ type: 'deadline-fired', operation: 'moduleLoad', attempt: null })).toBe(5);
     expect(phoneEventPriority({ type: 'physical-intent', direction: 'forward', epoch: 1 })).toBe(6);
+    expect(phoneEventPriority({
+      type: 'leg-intent', attempt: transaction(boot('hero').snapshot).transaction.attempt,
+      physicalEpoch: 2
+    })).toBe(6);
   });
 
   it('keeps state, commit, generation, and plane revisions independent', () => {
@@ -482,15 +546,18 @@ describe('phone segment transaction machine', () => {
         expect(preparing.transaction.candidateSceneId).toBe(leg.target);
         expect(preparing.transaction.attempt.segmentId).toBe(segment.id);
         expect(preparing.transaction.attempt.direction).toBe(direction);
+        expect(preparing.transaction.progress).toBe(direction === 'reverse' ? 1 : 0);
         expect(preparing.transaction.closure).toBe(leg.closure);
         expect(new Set(preparing.transaction.requiredPrepared.map(({ leg: slotLeg }) => slotLeg)))
           .toEqual(new Set(['source', 'effect', 'target']));
+        expect(new Set(preparing.transaction.requiredPrepared.map(({ stageIndex }) => stageIndex)))
+          .toEqual(new Set([0]));
         expect(preparing.transaction.closure.resourceBudget).toEqual(leg.closure.resourceBudget);
 
         const targetPlane = reachTargetPresentation(initial);
         const presenting = transaction(targetPlane.snapshot);
         expect(presenting.transaction.phase).toBe('presenting-target');
-        expect(presenting.transaction.progress).toBe(1);
+        expect(presenting.transaction.progress).toBe(direction === 'reverse' ? 0 : 1);
         const finals = presenting.transaction.requiredFinal;
         let current = targetPlane;
         for (const slot of finals.slice(0, 4)) current = reportSlot(current.snapshot, slot);
@@ -519,11 +586,25 @@ describe('phone segment transaction machine', () => {
         type: 'transition-progressed', attempt, progress: 0.4
       });
       expect(current.snapshot).toBe(monotonic);
+      current = dispatch(current.snapshot, {
+        type: 'transition-progressed', attempt, progress: Number.NaN
+      });
+      expect(current.snapshot).toBe(monotonic);
 
       current = dispatch(current.snapshot, { type: 'transition-completed', attempt });
       const boundary = transaction(current.snapshot).transaction;
       expect(['dwelling', 'awaiting-leg-intent']).toContain(boundary.phase);
       expect(boundary.requiredFinal).toEqual([]);
+      if (boundary.phase === 'dwelling') {
+        expect(boundary.deadline?.operation).toBe('dwell');
+        expect(current.effects).toContainEqual(expect.objectContaining({
+          type: 'schedule-deadline', operation: 'dwell'
+        }));
+        const staleDeadline = dispatch(current.snapshot, {
+          type: 'deadline-fired', operation: 'moduleLoad', attempt
+        });
+        expect(staleDeadline.snapshot).toBe(current.snapshot);
+      }
       const advanced = boundary.phase === 'dwelling'
         ? dispatch(current.snapshot, { type: 'dwell-completed', attempt })
         : dispatch(current.snapshot, { type: 'leg-intent', attempt, physicalEpoch: 42 });
@@ -532,6 +613,14 @@ describe('phone segment transaction machine', () => {
         transaction(current.snapshot).transaction.evidence
       );
     }
+
+    const segment = phoneManifest.segments.find(({ id }) => id === 'pattern-star-map')!;
+    let reverse = reachPlaying(beginSegment(segment, 'reverse', 51));
+    const attempt = transaction(reverse.snapshot).transaction.attempt;
+    reverse = dispatch(reverse.snapshot, { type: 'transition-progressed', attempt, progress: 0.7 });
+    const monotonic = reverse.snapshot;
+    reverse = dispatch(reverse.snapshot, { type: 'transition-progressed', attempt, progress: 0.8 });
+    expect(reverse.snapshot).toBe(monotonic);
   });
 
   it('retains the full closure and proof quorum under reduced motion', () => {
@@ -544,7 +633,8 @@ describe('phone segment transaction machine', () => {
       expect(reducedTransaction.closure).toBe(ordinaryTransaction.closure);
       expect(reducedTransaction.requiredPrepared.map(({ kind, leg }) => ({ kind, leg })))
         .toEqual(ordinaryTransaction.requiredPrepared.map(({ kind, leg }) => ({ kind, leg })));
-      const target = reachTargetPresentation(reduced);
+      const target = reportRequired(reduced, 'prepared');
+      expect(transaction(target.snapshot).transaction.phase).toBe('presenting-target');
       expect(transaction(target.snapshot).transaction.requiredFinal.map(({ kind }) => kind))
         .toEqual([...PHONE_FINAL_EVIDENCE_KINDS]);
     }
@@ -578,7 +668,21 @@ describe('phone rollback, fault, and deadline machine', () => {
     for (const operation of [
       'moduleLoad', 'mediaPrepare', 'firstFrame', 'planeApply', 'scrollConfirm'
     ] as const) {
-      const active = beginSegment(segment, 'forward', operation.length);
+      let active = beginSegment(segment, 'forward', operation.length);
+      if (operation === 'mediaPrepare') {
+        for (const slot of transaction(active.snapshot).transaction.requiredPrepared
+          .filter(({ kind }) => kind === 'module-loaded')) {
+          active = reportSlot(active.snapshot, slot);
+        }
+      } else if (operation === 'planeApply') {
+        active = reachTargetPresentation(active);
+      } else if (operation === 'firstFrame' || operation === 'scrollConfirm') {
+        active = reachTargetPresentation(active);
+        const finals = transaction(active.snapshot).transaction.requiredFinal;
+        const count = operation === 'firstFrame' ? 1 : finals.length - 1;
+        for (const slot of finals.slice(0, count)) active = reportSlot(active.snapshot, slot);
+      }
+      expect(transaction(active.snapshot).transaction.deadline?.operation).toBe(operation);
       const source = transaction(active.snapshot).stableCommit;
       if (!source) throw new Error('missing rollback anchor');
       const failed = dispatch(active.snapshot, {
@@ -676,6 +780,27 @@ describe('phone rollback, fault, and deadline machine', () => {
       attempt: transaction(timed.snapshot).transaction.attempt
     });
     expect(deadlineFault.snapshot.status).toBe('faulted');
+  });
+
+  it('re-proves a retained media source during rollback without an unbounded activation wait', () => {
+    const source = prove(boot('crane-animation', 'authority:media-rollback'));
+    const entering = dispatch(source.snapshot, {
+      type: 'entry-requested',
+      request: { pathname: '/', hash: '#contact', origin: 'menu' }
+    });
+    const failed = dispatch(entering.snapshot, {
+      type: 'failure-reported',
+      slot: transaction(entering.snapshot).transaction.requiredPrepared[0]!,
+      failure: { code: 'candidate', message: 'candidate failed', recoverable: true }
+    });
+    let rollback = failed;
+    for (const slot of transaction(rollback.snapshot).transaction.requiredPrepared) {
+      rollback = reportSlot(rollback.snapshot, slot);
+    }
+    expect(transaction(rollback.snapshot).transaction.mode).toBe('rollback');
+    expect(transaction(rollback.snapshot).transaction.phase).toBe('rolling-back');
+    expect(transaction(rollback.snapshot).transaction.requiredFinal).not.toEqual([]);
+    expect(transaction(rollback.snapshot).transaction.deadline?.operation).toBe('rollback');
   });
 
   it('coalesces the newest warm entry until rollback source proof publishes', () => {
