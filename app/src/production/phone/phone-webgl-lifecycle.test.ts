@@ -88,7 +88,7 @@ describe('phone WebGL allocation lifecycle', () => {
 
     expect(hero).toContain('const releaseCompositor = useCallback(');
     expect(hero).toContain('renewPackedAlphaCanvas');
-    expect(hero).toMatch(/leave\(\) \{[\s\S]*?releaseCompositor\(\);/);
+    expect(hero).toMatch(/leave\(\) \{[\s\S]*?releaseGpuOwners\(\);/);
     expect(hero).toMatch(/reverse\(\) \{[\s\S]*?ensureCompositor\(\)/);
     expect(aod).toContain('const ensureCompositor = useCallback(');
     expect(aod).toContain('renewPackedAlphaCanvas');
@@ -120,6 +120,32 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(hero).toContain('if (active && !reducedMotion) {');
     expect(hero).toContain('ensureCompositor()?.setActive(true);');
     expect(hero).toContain("ensureIntroInk()?.(['prewarm']);");
+  });
+
+  it('retires both Hero GPU owners when direct-entry handoff makes Hero inactive', () => {
+    const hero = source('./scenes/PhoneHero.tsx');
+    const activeLease = hero.slice(
+      hero.indexOf('useLayoutEffect(() => {\n      sceneActiveRef.current = active;'),
+      hero.indexOf('\n    useImperativeHandle(', hero.indexOf(
+        'useLayoutEffect(() => {\n      sceneActiveRef.current = active;'
+      ))
+    );
+
+    // A deep link temporarily boots the Hero plane so Loader can obtain its
+    // opening poster, then transfers authority to a downstream scene. The
+    // inactive branch is the sole retirement point for both Hero contexts;
+    // merely deactivating a decoder leaves a dormant WebGL owner that can
+    // breach the global cap when a later Group67 ink field is admitted.
+    const releaseGpuOwners = hero.slice(
+      hero.indexOf('const releaseGpuOwners = useCallback('),
+      hero.indexOf('const ensureCompositor = useCallback(')
+    );
+
+    expect(activeLease).toContain('cancelEntrance();');
+    expect(activeLease).toContain('releaseGpuOwners();');
+    expect(releaseGpuOwners).toContain('releaseCompositor();');
+    expect(releaseGpuOwners).toContain("introInkRef.current?.(['dispose']);");
+    expect(releaseGpuOwners).toContain('introInkRef.current = undefined;');
   });
 
   it('renews hard-released packed canvases before reverse reacquires WebGL', () => {

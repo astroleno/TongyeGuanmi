@@ -155,6 +155,11 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       compositorRef.current = undefined;
       if (canvas) figureCanvasRef.current = renewPackedAlphaCanvas(canvas);
     }, []);
+    const releaseGpuOwners = useCallback(() => {
+      releaseCompositor();
+      introInkRef.current?.(['dispose']);
+      introInkRef.current = undefined;
+    }, [releaseCompositor]);
     const ensureCompositor = useCallback(() => {
       if (reducedMotion) return undefined;
       if (compositorRef.current) return compositorRef.current;
@@ -402,11 +407,9 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         sceneActiveRef.current = false;
         parallax.dispose();
         playback.dispose();
-        releaseCompositor();
-        introInkRef.current?.(['dispose']);
+        releaseGpuOwners();
         if (parallaxRef.current === parallax) parallaxRef.current = undefined;
         if (playbackRef.current === playback) playbackRef.current = undefined;
-        introInkRef.current = undefined;
       };
     }, [
       cancelEntrance,
@@ -416,7 +419,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       primeEntrance,
       requestPresentedHeroFrame,
       reducedMotion,
-      releaseCompositor,
+      releaseGpuOwners,
       storyRoot
     ]);
 
@@ -427,9 +430,20 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         ensureIntroInk()?.(['prewarm']);
       } else {
         compositorRef.current?.setActive(false);
+        if (!active) {
+          cancelEntrance();
+          releaseGpuOwners();
+        }
       }
       playbackRef.current?.setActive(active && !reducedMotion);
-    }, [active, ensureCompositor, ensureIntroInk, reducedMotion]);
+    }, [
+      active,
+      cancelEntrance,
+      ensureCompositor,
+      ensureIntroInk,
+      reducedMotion,
+      releaseGpuOwners
+    ]);
 
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
@@ -465,7 +479,8 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       },
       leave() {
         sceneActiveRef.current = false;
-        releaseCompositor();
+        cancelEntrance();
+        releaseGpuOwners();
         playbackRef.current?.setActive(false);
       },
       reverse() {
@@ -507,7 +522,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       dispose() {
         cancelEntrance();
         sceneActiveRef.current = false;
-        releaseCompositor();
+        releaseGpuOwners();
         playbackRef.current?.setActive(false);
       }
     }), [
@@ -516,7 +531,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       ensureCompositor,
       motionDriver,
       reducedMotion,
-      releaseCompositor,
+      releaseGpuOwners,
       requestPresentedHeroFrame,
       startEntrance
     ]);
