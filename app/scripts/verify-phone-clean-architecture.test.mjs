@@ -39,13 +39,25 @@ const validRecoveryBoundary = `
     lineageId: string;
     automaticReloadCount: 0 | 1;
   }>;
-  export function loadPhoneStoryShell() {
-    window.addEventListener('vite:preloadError', () => undefined);
+  function recoverPhoneChunk(event?: Event) {
+    event?.preventDefault();
+    const stored = sessionStorage.getItem(lineageStorageKey);
+    const lineage: PhoneChunkRecoveryLineage = stored
+      ? JSON.parse(stored)
+      : { lineageId: 'fixture-lineage', automaticReloadCount: 0 };
+    if (lineage.automaticReloadCount >= 1) return;
     sessionStorage.setItem(lineageStorageKey, JSON.stringify({
-      lineageId: 'fixture-lineage',
-      automaticReloadCount: 0
+      ...lineage,
+      automaticReloadCount: 1
     }));
-    return import('./phone-story/PhoneStoryShell');
+    window.location.reload();
+  }
+  window.addEventListener('vite:preloadError', recoverPhoneChunk);
+  export function loadPhoneStoryShell() {
+    return import('./phone-story/PhoneStoryShell').catch((error) => {
+      recoverPhoneChunk();
+      throw error;
+    });
   }
   export function markStable() {
     sessionStorage.removeItem(lineageStorageKey);
@@ -694,6 +706,217 @@ test('recovery lineage cannot be keyed by mutable build or module identity', asy
       export function markStable() {}
     `
   }, { phase: 'cutover' }), 'cross-reload lineage');
+});
+
+test('rejects comment-only recovery markers', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': `
+      /*
+        PhoneChunkRecoveryLineage automaticReloadCount vite:preloadError
+        markStable
+      */
+      const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';
+      sessionStorage.setItem(lineageStorageKey, JSON.stringify({
+        lineageId: 'fixture-lineage'
+      }));
+      export function loadPhoneStoryShell() {
+        return import('./phone-story/PhoneStoryShell');
+      }
+    `
+  }, { phase: 'cutover' }), 'register an executable vite:preloadError handler');
+});
+
+test('rejects a preload listener hidden in an uncalled function', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        "window.addEventListener('vite:preloadError', recoverPhoneChunk);",
+        `function neverRegisterRecovery() {
+      window.addEventListener('vite:preloadError', recoverPhoneChunk);
+    }
+    void neverRegisterRecovery;`
+      )
+  }, { phase: 'cutover' }), 'register an executable vite:preloadError handler');
+});
+
+test('rejects a no-op preload-error handler', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': `
+      const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';
+      export type PhoneChunkRecoveryLineage = Readonly<{
+        lineageId: string;
+        automaticReloadCount: 0 | 1;
+      }>;
+      function recoverPhoneChunk() {}
+      window.addEventListener('vite:preloadError', recoverPhoneChunk);
+      export function loadPhoneStoryShell() {
+        sessionStorage.setItem(lineageStorageKey, JSON.stringify({
+          lineageId: 'fixture-lineage',
+          automaticReloadCount: 0
+        }));
+        return import('./phone-story/PhoneStoryShell').catch((error) => {
+          recoverPhoneChunk();
+          throw error;
+        });
+      }
+      export function markStable() {
+        sessionStorage.removeItem(lineageStorageKey);
+      }
+    `
+  }, { phase: 'cutover' }), 'vite:preloadError handler must call preventDefault()');
+});
+
+test('rejects recovery work hidden in an uncalled nested function', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': `
+      const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';
+      export type PhoneChunkRecoveryLineage = Readonly<{
+        lineageId: string;
+        automaticReloadCount: 0 | 1;
+      }>;
+      function recoverPhoneChunk(event?: Event) {
+        function neverCalled() {
+          event?.preventDefault();
+          const stored = sessionStorage.getItem(lineageStorageKey);
+          const lineage: PhoneChunkRecoveryLineage = stored
+            ? JSON.parse(stored)
+            : { lineageId: 'fixture-lineage', automaticReloadCount: 0 };
+          if (lineage.automaticReloadCount >= 1) return;
+          sessionStorage.setItem(lineageStorageKey, JSON.stringify({
+            ...lineage,
+            automaticReloadCount: 1
+          }));
+          window.location.reload();
+        }
+        void neverCalled;
+      }
+      window.addEventListener('vite:preloadError', recoverPhoneChunk);
+      export function loadPhoneStoryShell() {
+        return import('./phone-story/PhoneStoryShell').catch((error) => {
+          recoverPhoneChunk();
+          throw error;
+        });
+      }
+      export function markStable() {
+        sessionStorage.removeItem(lineageStorageKey);
+      }
+    `
+  }, { phase: 'cutover' }), 'vite:preloadError handler must call preventDefault()');
+});
+
+test('rejects a reload bound that ignores the stored lineage', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': `
+      const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';
+      export type PhoneChunkRecoveryLineage = Readonly<{
+        lineageId: string;
+        automaticReloadCount: 0 | 1;
+      }>;
+      function recoverPhoneChunk(event?: Event) {
+        event?.preventDefault();
+        const ignored = sessionStorage.getItem(lineageStorageKey);
+        const lineage: PhoneChunkRecoveryLineage = {
+          lineageId: ignored ?? 'fixture-lineage',
+          automaticReloadCount: 0
+        };
+        if (lineage.automaticReloadCount >= 1) return;
+        sessionStorage.setItem(lineageStorageKey, JSON.stringify({
+          ...lineage,
+          automaticReloadCount: 1
+        }));
+        window.location.reload();
+      }
+      window.addEventListener('vite:preloadError', recoverPhoneChunk);
+      export function loadPhoneStoryShell() {
+        return import('./phone-story/PhoneStoryShell').catch((error) => {
+          recoverPhoneChunk();
+          throw error;
+        });
+      }
+      export function markStable() {
+        sessionStorage.removeItem(lineageStorageKey);
+      }
+    `
+  }, { phase: 'cutover' }), 'reload bound must derive from stored lineage');
+});
+
+test('rejects an unrelated reload method', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace('window.location.reload()', 'worker.reload()')
+  }, { phase: 'cutover' }), 'must perform exactly one window.location.reload()');
+});
+
+test('binds recovery to the canonical import rejection callback', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        "return import('./phone-story/PhoneStoryShell').catch((error) => {\n      recoverPhoneChunk();\n      throw error;\n    });",
+        "recoverPhoneChunk();\n    return import('./phone-story/PhoneStoryShell');"
+      )
+  }, { phase: 'cutover' }), 'phone-core import rejection must use');
+});
+
+test('rejects recovery without a bounded page reload', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': `
+      const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';
+      export type PhoneChunkRecoveryLineage = Readonly<{
+        lineageId: string;
+        automaticReloadCount: 0 | 1;
+      }>;
+      function recoverPhoneChunk(event?: Event) {
+        event?.preventDefault();
+        sessionStorage.setItem(lineageStorageKey, JSON.stringify({
+          lineageId: 'fixture-lineage',
+          automaticReloadCount: 0
+        }));
+        window.location.reload();
+      }
+      window.addEventListener('vite:preloadError', recoverPhoneChunk);
+      export function loadPhoneStoryShell() {
+        return import('./phone-story/PhoneStoryShell').catch((error) => {
+          recoverPhoneChunk();
+          throw error;
+        });
+      }
+      export function markStable() {
+        sessionStorage.removeItem(lineageStorageKey);
+      }
+    `
+  }, { phase: 'cutover' }), 'recovery must allow at most one automatic reload');
+});
+
+test('rejects same-document retry of the rejected phone-core URL', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': `
+      const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';
+      export type PhoneChunkRecoveryLineage = Readonly<{
+        lineageId: string;
+        automaticReloadCount: 0 | 1;
+      }>;
+      function recoverPhoneChunk(event?: Event) {
+        event?.preventDefault();
+        const automaticReloadCount = 0;
+        if (automaticReloadCount >= 1) return;
+        sessionStorage.setItem(lineageStorageKey, JSON.stringify({
+          lineageId: 'fixture-lineage',
+          automaticReloadCount: 1
+        }));
+        void import('./phone-story/PhoneStoryShell');
+      }
+      window.addEventListener('vite:preloadError', recoverPhoneChunk);
+      export function loadPhoneStoryShell() {
+        return import('./phone-story/PhoneStoryShell').catch((error) => {
+          recoverPhoneChunk();
+          throw error;
+        });
+      }
+      export function markStable() {
+        sessionStorage.removeItem(lineageStorageKey);
+      }
+    `
+  }, { phase: 'cutover' }), 'must not retry the phone core import in the same Document');
 });
 
 test('rejects a missing provenance plugin or runtime consumption of its audit JSON', async () => {

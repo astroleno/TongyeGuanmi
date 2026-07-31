@@ -811,6 +811,356 @@ function storageLineageViolations(sources) {
       ];
 }
 
+function recoveryBoundaryViolations(sources) {
+  if (sources.length === 0) {
+    return ['cutover is missing an eager phone-core recovery boundary'];
+  }
+  const sourceFiles = sources.map(({ file, source }) => ({
+    file,
+    sourceFile: sourceFileFor(file, source)
+  }));
+  const functionDefinitions = new Map();
+  const addFunction = (name, node) => {
+    const definitions = functionDefinitions.get(name) ?? [];
+    definitions.push(node);
+    functionDefinitions.set(name, definitions);
+  };
+  for (const { sourceFile } of sourceFiles) {
+    const visit = (node) => {
+      if (ts.isFunctionDeclaration(node) && node.name) {
+        addFunction(node.name.text, node);
+      } else if (
+        ts.isVariableDeclaration(node)
+        && ts.isIdentifier(node.name)
+        && node.initializer
+        && (
+          ts.isArrowFunction(node.initializer)
+          || ts.isFunctionExpression(node.initializer)
+        )
+      ) {
+        addFunction(node.name.text, node.initializer);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+
+  const descendants = (root, predicate) => {
+    const found = [];
+    const visit = (node) => {
+      if (predicate(node)) found.push(node);
+      ts.forEachChild(node, visit);
+    };
+    visit(root);
+    return found;
+  };
+  const isFunctionLike = (node) => (
+    ts.isFunctionDeclaration(node)
+    || ts.isFunctionExpression(node)
+    || ts.isArrowFunction(node)
+    || ts.isMethodDeclaration(node)
+  );
+  const directDescendants = (root, predicate) => {
+    const found = [];
+    const visit = (node) => {
+      if (node !== root && isFunctionLike(node)) return;
+      if (predicate(node)) found.push(node);
+      ts.forEachChild(node, visit);
+    };
+    visit(root);
+    return found;
+  };
+  const propertyCall = (node, name) => (
+    ts.isCallExpression(node)
+    && ts.isPropertyAccessExpression(node.expression)
+    && node.expression.name.text === name
+  );
+  const literalArgument = (call, index, value) => {
+    const argument = call.arguments[index];
+    return Boolean(argument && ts.isStringLiteralLike(argument) && argument.text === value);
+  };
+  const uniqueFunction = (name) => {
+    const definitions = functionDefinitions.get(name) ?? [];
+    return definitions.length === 1 ? definitions[0] : undefined;
+  };
+  const containsIdentifier = (root, name) => descendants(root, (node) => (
+    ts.isIdentifier(node) && node.text === name
+  )).length > 0;
+  const containsPropertyValue = (root, name, value) => descendants(root, (node) => {
+    if (!ts.isPropertyAssignment(node)) return false;
+    const propertyName = ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name)
+      ? node.name.text
+      : undefined;
+    return propertyName === name
+      && ts.isNumericLiteral(node.initializer)
+      && Number(node.initializer.text) === value;
+  }).length > 0;
+  const identifierOwnerCall = (node, owner, name) => (
+    propertyCall(node, name)
+    && ts.isIdentifier(node.expression.expression)
+    && node.expression.expression.text === owner
+  );
+  const windowLocationReload = (node) => (
+    propertyCall(node, 'reload')
+    && ts.isPropertyAccessExpression(node.expression.expression)
+    && node.expression.expression.name.text === 'location'
+    && ts.isIdentifier(node.expression.expression.expression)
+    && node.expression.expression.expression.text === 'window'
+  );
+  const nodeText = (node) => node?.getText(node.getSourceFile());
+  const directFunctionCalls = (root, name) => directDescendants(root, (node) => (
+    ts.isCallExpression(node)
+    && ts.isIdentifier(node.expression)
+    && node.expression.text === name
+  ));
+
+  const listenerCalls = sourceFiles.flatMap(({ sourceFile }) => descendants(
+    sourceFile,
+    (node) => identifierOwnerCall(node, 'window', 'addEventListener')
+      && literalArgument(node, 0, 'vite:preloadError')
+  ));
+  const listenerCandidate = listenerCalls.length === 1
+    ? listenerCalls[0]
+    : undefined;
+  const listener = listenerCandidate
+    && ts.isExpressionStatement(listenerCandidate.parent)
+    && ts.isSourceFile(listenerCandidate.parent.parent)
+    ? listenerCandidate
+    : undefined;
+  const handlerReference = listener?.arguments[1];
+  const handlerName = handlerReference && ts.isIdentifier(handlerReference)
+    ? handlerReference.text
+    : undefined;
+  const handler = handlerName ? uniqueFunction(handlerName) : undefined;
+  const violations = [];
+  if (!listener || !handlerName || !handler) {
+    violations.push(
+      'cutover recovery must register an executable vite:preloadError handler'
+    );
+  }
+
+  const loadPhoneStoryShell = uniqueFunction('loadPhoneStoryShell');
+  if (!loadPhoneStoryShell) {
+    violations.push('cutover recovery must define one loadPhoneStoryShell boundary');
+  }
+
+  const phoneCoreImports = sourceFiles.flatMap(({ sourceFile }) => descendants(
+    sourceFile,
+    (node) => (
+      ts.isCallExpression(node)
+      && node.expression.kind === ts.SyntaxKind.ImportKeyword
+      && node.arguments.length === 1
+      && ts.isStringLiteralLike(node.arguments[0])
+      && /(?:^|\/)phone-story\/PhoneStoryShell$/.test(node.arguments[0].text)
+    )
+  ));
+  if (phoneCoreImports.length > 1) {
+    violations.push(
+      'cutover recovery must not retry the phone core import in the same Document'
+    );
+  } else if (phoneCoreImports.length === 0) {
+    violations.push('cutover recovery has no canonical phone-core import');
+  }
+
+  const loadImports = loadPhoneStoryShell
+    ? directDescendants(loadPhoneStoryShell, (node) => phoneCoreImports.includes(node))
+    : [];
+  const importRecoveryCallbacks = loadImports.flatMap((phoneImport) => {
+    const property = phoneImport.parent;
+    const catchCall = property
+      && ts.isPropertyAccessExpression(property)
+      && property.expression === phoneImport
+      && property.name.text === 'catch'
+      && ts.isCallExpression(property.parent)
+      && property.parent.expression === property
+      ? property.parent
+      : undefined;
+    if (!catchCall) return [];
+    const callback = catchCall.arguments[0];
+    if (handlerName && callback && ts.isIdentifier(callback)) {
+      return callback.text === handlerName ? [callback] : [];
+    }
+    if (!handlerName || !callback || !isFunctionLike(callback)) return [];
+    return directFunctionCalls(callback, handlerName);
+  });
+  if (
+    loadPhoneStoryShell
+    && handlerName
+    && (loadImports.length !== 1 || importRecoveryCallbacks.length === 0)
+  ) {
+    violations.push(
+      'cutover phone-core import rejection must use the vite:preloadError '
+        + 'recovery handler'
+    );
+  }
+
+  if (handler) {
+    const parameter = handler.parameters[0];
+    const parameterName = parameter && ts.isIdentifier(parameter.name)
+      ? parameter.name.text
+      : undefined;
+    const preventsDefault = directDescendants(handler, (node) => (
+      propertyCall(node, 'preventDefault')
+      && parameterName
+      && containsIdentifier(node.expression.expression, parameterName)
+    )).length > 0;
+    if (!preventsDefault) {
+      violations.push(
+        'cutover vite:preloadError handler must call preventDefault()'
+      );
+    }
+
+    const reloadCalls = directDescendants(handler, windowLocationReload);
+    if (reloadCalls.length !== 1) {
+      violations.push(
+        'cutover recovery must perform exactly one window.location.reload()'
+      );
+    }
+
+    const boundedGuards = directDescendants(handler, (node) => {
+      if (!ts.isIfStatement(node) || !ts.isBinaryExpression(node.expression)) {
+        return false;
+      }
+      const { left, operatorToken, right } = node.expression;
+      return operatorToken.kind === ts.SyntaxKind.GreaterThanEqualsToken
+        && ts.isPropertyAccessExpression(left)
+        && left.name.text === 'automaticReloadCount'
+        && ts.isIdentifier(left.expression)
+        && ts.isNumericLiteral(right)
+        && Number(right.text) === 1
+        && directDescendants(
+          node.thenStatement,
+          (child) => ts.isReturnStatement(child)
+        ).length > 0;
+    });
+    const boundedGuard = boundedGuards.length === 1 ? boundedGuards[0] : undefined;
+    if (!boundedGuard) {
+      violations.push('cutover recovery must allow at most one automatic reload');
+    }
+
+    const storedReads = directDescendants(handler, (node) => (
+      identifierOwnerCall(node, 'sessionStorage', 'getItem')
+      && node.arguments.length === 1
+    ));
+    const storedRead = storedReads.length === 1 ? storedReads[0] : undefined;
+    const storedBinding = storedRead && directDescendants(handler, (node) => (
+      ts.isVariableDeclaration(node)
+      && ts.isIdentifier(node.name)
+      && node.initializer
+      && descendants(node.initializer, (child) => child === storedRead).length > 0
+    ))[0];
+    const lineageName = boundedGuard
+      && ts.isBinaryExpression(boundedGuard.expression)
+      && ts.isPropertyAccessExpression(boundedGuard.expression.left)
+      && ts.isIdentifier(boundedGuard.expression.left.expression)
+      ? boundedGuard.expression.left.expression.text
+      : undefined;
+    const lineageDeclaration = lineageName && directDescendants(handler, (node) => (
+      ts.isVariableDeclaration(node)
+      && ts.isIdentifier(node.name)
+      && node.name.text === lineageName
+      && Boolean(node.initializer)
+    ))[0];
+    const storedBindingName = storedBinding && ts.isIdentifier(storedBinding.name)
+      ? storedBinding.name.text
+      : undefined;
+    const parsesStoredLineage = Boolean(
+      storedRead
+      && lineageDeclaration?.initializer
+      && descendants(lineageDeclaration.initializer, (node) => (
+        propertyCall(node, 'parse')
+        && ts.isIdentifier(node.expression.expression)
+        && node.expression.expression.text === 'JSON'
+        && Boolean(node.arguments[0])
+        && (
+          descendants(node.arguments[0], (child) => child === storedRead).length > 0
+          || (
+            storedBindingName
+            && containsIdentifier(node.arguments[0], storedBindingName)
+          )
+        )
+      )).length > 0
+    );
+    if (!parsesStoredLineage) {
+      violations.push(
+        'cutover recovery reload bound must derive from stored lineage'
+      );
+    }
+
+    const persistedReloads = directDescendants(handler, (node) => (
+      identifierOwnerCall(node, 'sessionStorage', 'setItem')
+      && containsPropertyValue(node, 'automaticReloadCount', 1)
+    ));
+    const persistedReload = persistedReloads.length === 1
+      ? persistedReloads[0]
+      : undefined;
+    const storageKey = storedRead?.arguments[0];
+    const persistedKey = persistedReload?.arguments[0];
+    const persistsReloadCount = Boolean(
+      persistedReload
+      && storageKey
+      && persistedKey
+      && nodeText(storageKey) === nodeText(persistedKey)
+    );
+    if (!persistsReloadCount) {
+      violations.push(
+        'cutover recovery must persist automaticReloadCount: 1 before reloading'
+      );
+    }
+
+    if (
+      storedRead
+      && boundedGuard
+      && persistedReload
+      && reloadCalls.length === 1
+      && !(
+        storedRead.getStart() < boundedGuard.getStart()
+        && boundedGuard.getStart() < persistedReload.getStart()
+        && persistedReload.getStart() < reloadCalls[0].getStart()
+      )
+    ) {
+      violations.push(
+        'cutover recovery must read, guard, persist, then reload in order'
+      );
+    }
+  }
+
+  const markStable = uniqueFunction('markStable');
+  const recoveryStorageKey = handler
+    ? directDescendants(handler, (node) => (
+        identifierOwnerCall(node, 'sessionStorage', 'getItem')
+        && node.arguments.length === 1
+      ))[0]?.arguments[0]
+    : undefined;
+  const clearsLineage = markStable && directDescendants(markStable, (node) => (
+    identifierOwnerCall(node, 'sessionStorage', 'removeItem')
+    && Boolean(recoveryStorageKey)
+    && Boolean(node.arguments[0])
+    && nodeText(node.arguments[0]) === nodeText(recoveryStorageKey)
+  )).length > 0;
+  if (!clearsLineage) {
+    violations.push('cutover markStable must clear the recovery lineage');
+  }
+
+  const lineageTypes = sourceFiles.flatMap(({ sourceFile }) => descendants(
+    sourceFile,
+    (node) => ts.isTypeAliasDeclaration(node)
+      && node.name.text === 'PhoneChunkRecoveryLineage'
+  ));
+  const lineageType = lineageTypes.length === 1 ? lineageTypes[0] : undefined;
+  if (
+    !lineageType
+    || !containsIdentifier(lineageType, 'lineageId')
+    || !containsIdentifier(lineageType, 'automaticReloadCount')
+  ) {
+    violations.push(
+      'cutover recovery must declare executable PhoneChunkRecoveryLineage fields'
+    );
+  }
+
+  return violations;
+}
+
 async function readSources(files) {
   return Promise.all(files.map(async (file) => ({
     file,
@@ -1282,25 +1632,7 @@ export async function phoneCleanArchitectureViolations({
       }
     }
 
-    const recoveryText = formalSources.map(({ source }) => source).join('\n');
-    const recoveryMarkers = [
-      'PhoneChunkRecoveryLineage',
-      'automaticReloadCount',
-      'lineageId',
-      'loadPhoneStoryShell',
-      'markStable',
-      'sessionStorage',
-      'vite:preloadError'
-    ];
-    const missingRecovery = recoveryMarkers.filter(
-      (marker) => !recoveryText.includes(marker)
-    );
-    if (missingRecovery.length > 0) {
-      violations.push(
-        `cutover is missing an eager phone-core recovery boundary `
-          + `(${missingRecovery.join(', ')})`
-      );
-    }
+    violations.push(...recoveryBoundaryViolations(formalSources));
     violations.push(...storageLineageViolations(formalSources));
 
     const performancePath = path.join(

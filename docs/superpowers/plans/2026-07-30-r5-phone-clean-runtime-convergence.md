@@ -2043,6 +2043,25 @@ git add app/package.json app/scripts app/vite.config.ts
 git commit -m "test(r5): enforce clean phone architecture"
 ```
 
+- [x] **Step 2.7: Close the bootstrap-recovery false-positive gap**
+
+Replace marker-string recovery acceptance with a fail-closed TypeScript AST
+contract. Cutover requires exactly one executable named
+`vite:preloadError` handler and one canonical `PhoneStoryShell` import. That
+import's rejection callback must call the same handler. The handler must, in
+direct executable control flow, prevent the preload default, read a stable
+session lineage, derive `automaticReloadCount` from the stored record, guard
+`>= 1`, persist count `1`, and then perform exactly one
+`window.location.reload()`. `markStable()` must clear the same storage key.
+No same-Document import retry is allowed.
+
+Keep RED fixtures for comment-only markers, listener registration hidden in an
+uncalled function, a no-op handler, recovery hidden inside an uncalled nested
+function, an ignored stored lineage, an unbounded reload, an unrelated
+`.reload()` method, recovery outside the import rejection callback, and a
+second import of the same URL. These fixtures must exercise the AST
+relationships rather than merely repeat required strings.
+
 **Task 2 acceptance:**
 
 - architecture failures are tested with fixtures;
