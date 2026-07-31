@@ -239,6 +239,68 @@ test('rejects runtime factory calls anywhere in non-test src', async () => {
   }
 });
 
+test('rejects a factory call from the legacy same-named shell', async () => {
+  const found = await violations({
+    'src/production/phone-story/PhoneStoryShell.tsx': `
+      export function PhoneStoryShell() {
+        return null;
+      }
+    `,
+    'src/production/phone/PhoneStoryShell.tsx': `
+      import { createPhoneStoryRuntime } from '../phone-story/runtime';
+      export function PhoneStoryShell() {
+        return createPhoneStoryRuntime(() => undefined);
+      }
+    `
+  });
+  includes(
+    found,
+    'runtime factory call is allowed only in src/production/phone-story/PhoneStoryShell.tsx'
+  );
+});
+
+test('rejects a runtime factory definition outside the canonical runtime', async () => {
+  const found = await violations({
+    'src/production/phone-story/runtime.ts': 'export const runtimeMarker = true;\n',
+    'src/production/phone-story/PhoneStoryShell.tsx': `
+      export function PhoneStoryShell() {
+        return null;
+      }
+    `,
+    'src/production/phone/rogue-runtime.ts': `
+      export function createPhoneStoryRuntime() {
+        return {};
+      }
+    `
+  });
+  includes(
+    found,
+    'createPhoneStoryRuntime definition is allowed only in src/production/phone-story/runtime.ts'
+  );
+});
+
+test('rejects reducer authorities outside the canonical machine', async () => {
+  const found = await violations({
+    'src/production/phone-story/machine.ts': 'export const machineMarker = true;\n',
+    'src/production/phone/rogue-machine.ts': `
+      export function reducePhoneStory(state: unknown) {
+        return state;
+      }
+      export function commitStableCandidate(candidate: unknown) {
+        return candidate;
+      }
+    `
+  });
+  includes(
+    found,
+    'reducePhoneStory definition is allowed only in src/production/phone-story/machine.ts'
+  );
+  includes(
+    found,
+    'commitStableCandidate definition is allowed only in src/production/phone-story/machine.ts'
+  );
+});
+
 test('rejects every runtime factory value escape', async () => {
   const escapes = {
     'array-destructure': `

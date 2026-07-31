@@ -830,6 +830,9 @@ export async function phoneCleanArchitectureViolations({
   const srcRoot = path.join(appRoot, 'src');
   const productionRoot = path.join(srcRoot, 'production');
   const coreRoot = path.join(productionRoot, 'phone-story');
+  const canonicalRuntimeFile = path.resolve(coreRoot, 'runtime.ts');
+  const canonicalMachineFile = path.resolve(coreRoot, 'machine.ts');
+  const canonicalShellFile = path.resolve(coreRoot, 'PhoneStoryShell.tsx');
   const vitePath = path.join(appRoot, 'vite.config.ts');
   const viteSource = await exists(vitePath) ? await readFile(vitePath, 'utf8') : '';
   const allSourceFiles = (await filesBelow(srcRoot)).filter(isProductionSource);
@@ -1093,14 +1096,24 @@ export async function phoneCleanArchitectureViolations({
       `runtime factory definitions must be unique; found ${factoryDefinitions.length}`
     );
   }
+  for (const definition of factoryDefinitions) {
+    if (path.resolve(definition.file) !== canonicalRuntimeFile) {
+      violations.push(
+        `${slash(path.relative(appRoot, definition.file))}: `
+          + 'createPhoneStoryRuntime definition is allowed only in '
+          + 'src/production/phone-story/runtime.ts'
+      );
+    }
+  }
   if (factoryCalls.length > 1) {
     violations.push(`runtime factory call sites must be unique; found ${factoryCalls.length}`);
   }
   for (const call of factoryCalls) {
     const relative = slash(path.relative(appRoot, call.file));
-    if (path.basename(call.file) !== 'PhoneStoryShell.tsx') {
+    if (path.resolve(call.file) !== canonicalShellFile) {
       violations.push(
-        `${relative}: runtime factory call is allowed only in PhoneStoryShell`
+        `${relative}: runtime factory call is allowed only in `
+          + 'src/production/phone-story/PhoneStoryShell.tsx'
       );
     }
     if (path.basename(call.file) === 'PhoneBrandLabStory.tsx') {
@@ -1120,6 +1133,24 @@ export async function phoneCleanArchitectureViolations({
         + `${reducerDefinitions.length} reducers and `
         + `${stableCommitDefinitions.length} stable-commit branches`
     );
+  }
+  for (const definition of reducerDefinitions) {
+    if (path.resolve(definition.file) !== canonicalMachineFile) {
+      violations.push(
+        `${slash(path.relative(appRoot, definition.file))}: `
+          + 'reducePhoneStory definition is allowed only in '
+          + 'src/production/phone-story/machine.ts'
+      );
+    }
+  }
+  for (const definition of stableCommitDefinitions) {
+    if (path.resolve(definition.file) !== canonicalMachineFile) {
+      violations.push(
+        `${slash(path.relative(appRoot, definition.file))}: `
+          + 'commitStableCandidate definition is allowed only in '
+          + 'src/production/phone-story/machine.ts'
+      );
+    }
   }
 
   if (phase === 'cutover') {
