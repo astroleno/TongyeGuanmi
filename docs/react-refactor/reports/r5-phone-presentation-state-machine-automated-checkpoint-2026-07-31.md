@@ -2,8 +2,18 @@
 
 **Date:** 2026-07-31 (Asia/Shanghai)
 **Worktree:** `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-presentation-recovery`
-**Branch / source commit:** `codex/r5-phone-presentation-contract-recovery` / `39c1441`
-**Release verdict:** **NO-GO — automated convergence gates pass; physical-device and memory qualification remain pending.**
+**Branch / automated implementation source:** `codex/r5-phone-presentation-contract-recovery` / `39c1441`
+
+| Qualification layer | Status | Evidence / remaining gate |
+| --- | --- | --- |
+| State-machine and framework convergence | **GO** | Total manifest declarations are in force and compatibility fallbacks are removed. |
+| Automated acceptance | **GO** | Typecheck, 1,666 tests, production build, Chromium Task 10 7/7, and WebKit Task 10 7/7 pass. |
+| Release candidate | **PENDING** | An immutable annotated candidate tag and candidate-bound build have not yet been created. |
+| Memory qualification | **PENDING** | Two candidate-bound process-memory runs have not yet been recorded. |
+| Physical Safari | **PENDING** | No trusted physical iPhone was attached when this checkpoint ran. |
+| Formal release | **NO-GO** | It remains blocked only on the release-qualification gates above. |
+
+**Checkpoint classification:** **Implementation GO / Automated GO / Release qualification pending.**
 
 ## Scope closed by this checkpoint
 
@@ -74,23 +84,29 @@ warnings: []
 release-manifest qualification: pending-memory
 ```
 
-## Release blockers retained deliberately
+## Release-qualification gates retained deliberately
 
-`xcrun xctrace list devices` was checked on 2026-07-31. It reports the Mac and
-iOS simulators only; no physical iPhone is attached. Therefore this checkpoint
-does **not** claim real Safari/device acceptance.
+No annotated candidate identity existed when this automated checkpoint was
+recorded. `xcrun xctrace list devices` was also checked on 2026-07-31; it
+reported the Mac and iOS simulators only, with no physical iPhone attached.
+Therefore this checkpoint does **not** claim a qualified release or real
+Safari/device acceptance.
 
-Before release can become Go, the following must be evidenced on a physical
-iPhone Safari build:
+Before formal release can become GO, the following remain:
 
-1. Normal and reduced forward/reverse traversal, including two same-authority
+1. Freeze an annotated candidate tag and produce a matching
+   `release:prepare` manifest.
+2. Record two passing, candidate-bound process-memory qualification runs and
+   finalize the manifest as `qualified`.
+3. On a physical iPhone Safari build, evidence normal and reduced
+   forward/reverse traversal, including two same-authority
    cycles and direct entry.
-2. Autoplay-blocked gesture retry, missing compositor frame, context loss, and
+4. On that device, exercise autoplay-blocked gesture retry, missing compositor
+   frame, context loss, and
    background/foreground recovery.
-3. Expanded/collapsed address-bar geometry, native-reading navigation hit
+5. On that device, inspect expanded/collapsed address-bar geometry,
+   native-reading navigation hit
    testing, and final stable-edge inspection.
-4. Required memory qualification, which remains `pending-memory` in the
-   release manifest.
 
 The simulator and Playwright WebKit are useful engine gates but are not a
 substitute for this physical-device release matrix.
