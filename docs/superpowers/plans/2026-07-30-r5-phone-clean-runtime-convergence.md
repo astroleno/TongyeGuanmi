@@ -2383,7 +2383,7 @@ outside the machine.
 
 ### Slice 4A — pure machine, cold boot, and warm entry
 
-- [ ] **Step 4A.1: Build deterministic pure-machine fixtures**
+- [x] **Step 4A.1: Build deterministic pure-machine fixtures**
 
 Create explicit attempt/slot builders, the serial priority event queue, and
 evidence queues. Tests dispatch events directly; they do not wait on
@@ -2391,7 +2391,7 @@ wall-clock time. The fixture must make
 `stateRevision`, `commitSequence`, `transactionGeneration`, and
 `planeRevision` separately observable.
 
-- [ ] **Step 4A.2: Write RED cold and warm entry matrices**
+- [x] **Step 4A.2: Write RED cold and warm entry matrices**
 
 For all 16 cold initial/hash targets:
 
@@ -2425,7 +2425,7 @@ Also test unknown cold hash normalization, cold target failure → new Hero boot
 attempt, Hero failure → `faulted` safe cover, accessible retry,
 new-generation retry, history canonicalization, and rejection of old reports.
 
-- [ ] **Step 4A.3: Implement pure snapshot, selectors, and boot reduction**
+- [x] **Step 4A.3: Implement pure snapshot, selectors, and boot reduction**
 
 `machine.ts` owns:
 
@@ -2443,7 +2443,7 @@ revision increment helpers with the four fixed meanings
 It emits effect descriptions only. It cannot import `presentation.ts`,
 `runtime.ts`, React, DOM, timers, or lazy leaves.
 
-- [ ] **Step 4A.4: Verify and commit Slice 4A**
+- [x] **Step 4A.4: Verify and commit Slice 4A**
 
 ```bash
 pnpm -C app exec vitest run src/production/phone-story/machine.test.ts \

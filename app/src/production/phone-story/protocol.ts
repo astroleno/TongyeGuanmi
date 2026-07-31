@@ -179,9 +179,206 @@ export type PhoneEntryRequest = Readonly<{
   origin: PhoneEntryOrigin;
 }>;
 
+export type PhoneLayoutViewport = Readonly<{
+  width: number;
+  height: number;
+  orientation: 'portrait' | 'landscape';
+}>;
+
+export type PhoneVisualViewport = Readonly<{
+  offsetLeft: number;
+  offsetTop: number;
+  width: number;
+  height: number;
+  scale: number;
+}>;
+
+export type PhoneViewportSnapshot = Readonly<{
+  layout: PhoneLayoutViewport;
+  visual: PhoneVisualViewport;
+  layoutRevision: number;
+  visualRevision: number;
+  supported: boolean;
+}>;
+
+export type PhoneScrollSample = Readonly<{
+  x: number;
+  y: number;
+  sampledAt: number;
+  origin: 'native' | 'runtime';
+}>;
+
+export type PhoneStableCommit<SceneId extends string = string> = Readonly<{
+  sceneId: SceneId;
+  landing: Readonly<{ kind: string; anchor: string }>;
+  commitSequence: number;
+}>;
+
+export type PhoneEvidenceRecord = Readonly<{
+  slot: PhoneEvidenceSlot;
+  token: string;
+}>;
+
+export type PhonePresentationPlane<SceneId extends string = string> = Readonly<{
+  sceneId: SceneId;
+  role: 'candidate' | 'committed' | 'rollback';
+}>;
+
+export type PhonePresentationProof<SceneId extends string = string> = Readonly<{
+  commitSequence: number;
+  plane: PhonePresentationPlane<SceneId>;
+  planeRevision: number;
+  frameEvidence: PhoneEvidenceRecord;
+  contentEvidence: PhoneEvidenceRecord;
+  coverageEvidence: PhoneEvidenceRecord;
+  landingEvidence: PhoneEvidenceRecord;
+  scrollEvidence: PhoneEvidenceRecord;
+  planeEvidence: PhoneEvidenceRecord;
+}>;
+
+export type PhoneTransactionPhase =
+  | 'preparing'
+  | 'presenting-source'
+  | 'playing'
+  | 'dwelling'
+  | 'awaiting-leg-intent'
+  | 'presenting-target'
+  | 'aligning'
+  | 'verifying'
+  | 'awaiting-media-activation'
+  | 'rolling-back';
+
+export type PhoneDeadlineOperation =
+  | 'moduleLoad'
+  | 'mediaPrepare'
+  | 'firstFrame'
+  | 'planeApply'
+  | 'scrollConfirm'
+  | 'rollback';
+
+export type PhoneDeadlineState = Readonly<{
+  operation: PhoneDeadlineOperation;
+  remainingMs: number;
+  startedAtActiveMs: number;
+  suspended: boolean;
+}>;
+
+export type PhoneTransaction<
+  SceneId extends string = string,
+  SegmentId extends string = string
+> = Readonly<{
+  mode: PhoneTransactionMode;
+  phase: PhoneTransactionPhase;
+  attempt: PhoneAttemptKey<SceneId, SegmentId>;
+  sourceSceneId: SceneId | null;
+  candidateSceneId: SceneId;
+  stageIndex: number;
+  planeRevision: number | null;
+  requiredPrepared: readonly PhoneEvidenceSlot<SceneId, SegmentId>[];
+  requiredFinal: readonly PhoneEvidenceSlot<SceneId, SegmentId>[];
+  evidence: readonly PhoneEvidenceRecord[];
+  dependencies: readonly PhoneDependencyRef[];
+  requestedEntry: PhoneEntryRequest;
+  canonicalPathname: string;
+  canonicalHash: string;
+  urlEffect: 'none' | 'push' | 'replace';
+  restoreUrlOnRollback: boolean;
+  fallbackFromSceneId: SceneId | null;
+  commitIntent: 'semantic' | 'reproject' | 'rollback';
+  pendingEntry: PhoneEntryRequest | null;
+  deadline: PhoneDeadlineState | null;
+  progress: number;
+  claimedPhysicalEpoch: number | null;
+  activation: 'none' | 'offered' | 'spent' | 'awaiting';
+  retainedTopology: boolean;
+  failure: PhoneFailure | null;
+}>;
+
+export type PhoneTerminalFault = Readonly<{
+  code: string;
+  message: string;
+  retryable: boolean;
+}>;
+
+export type PhoneSafeCover = Readonly<{
+  kind: 'loader' | 'committed-plane' | 'opaque';
+  opaque: true;
+}>;
+
+export type PhoneInputSnapshot = Readonly<{
+  enabled: boolean;
+  claimedEpoch: number | null;
+  arrivingTailBlocked: boolean;
+}>;
+
+type PhoneSnapshotBase<SceneId extends string> = Readonly<{
+  authorityId: string;
+  stateRevision: number;
+  viewport: PhoneViewportSnapshot;
+  scroll: PhoneScrollSample | null;
+  input: PhoneInputSnapshot;
+  visibility: 'foreground' | 'hidden' | 'persisted';
+  lastTransactionGeneration: number;
+  lastPlaneRevision: number;
+  originalEntry: PhoneEntryRequest;
+  stableCommit: PhoneStableCommit<SceneId> | null;
+  presentationProof: PhonePresentationProof<SceneId> | null;
+}>;
+
+export type PhoneTransactionSnapshot<
+  SceneId extends string = string,
+  SegmentId extends string = string
+> = PhoneSnapshotBase<SceneId> & Readonly<{
+  status: 'transaction';
+  transaction: PhoneTransaction<SceneId, SegmentId>;
+}>;
+
+export type PhoneStableSnapshot<SceneId extends string = string> =
+  PhoneSnapshotBase<SceneId> & Readonly<{
+    status: 'stable';
+    stableCommit: PhoneStableCommit<SceneId>;
+    presentationProof: PhonePresentationProof<SceneId>;
+    transaction: null;
+    scroll: PhoneScrollSample;
+  }>;
+
+export type PhoneFaultedSnapshot<SceneId extends string = string> =
+  PhoneSnapshotBase<SceneId> & Readonly<{
+    status: 'faulted';
+    transaction: null;
+    fault: PhoneTerminalFault;
+    safeCover: PhoneSafeCover;
+  }>;
+
+export type PhoneStorySnapshot<
+  SceneId extends string = string,
+  SegmentId extends string = string
+> =
+  | PhoneTransactionSnapshot<SceneId, SegmentId>
+  | PhoneStableSnapshot<SceneId>
+  | PhoneFaultedSnapshot<SceneId>;
+
+export type PhoneEvidenceReport = Readonly<{
+  kind: PhoneEvidenceKind;
+  token: string;
+  accepted: true;
+  detail?: PhoneSerializableValue;
+}>;
+
 export type PhoneStoryEvent =
+  | Readonly<{ type: 'disconnect-requested' }>
   | Readonly<{ type: 'entry-requested'; request: PhoneEntryRequest }>
   | Readonly<{ type: 'retry-requested' }>
+  | Readonly<{
+      type: 'segment-requested';
+      direction: PhoneDirection;
+      physicalEpoch: number;
+    }>
+  | Readonly<{
+      type: 'evidence-reported';
+      slot: PhoneEvidenceSlot;
+      report: PhoneEvidenceReport;
+    }>
   | Readonly<{
       type: 'prepared-reported';
       slot: PhoneEvidenceSlot;
@@ -196,7 +393,28 @@ export type PhoneStoryEvent =
       type: 'failure-reported';
       slot: PhoneEvidenceSlot;
       failure: PhoneFailure;
-    }>;
+    }>
+  | Readonly<{ type: 'transition-progressed'; progress: number; attempt: PhoneAttemptKey }>
+  | Readonly<{ type: 'transition-completed'; attempt: PhoneAttemptKey }>
+  | Readonly<{ type: 'dwell-completed'; attempt: PhoneAttemptKey }>
+  | Readonly<{ type: 'leg-intent'; attempt: PhoneAttemptKey; physicalEpoch: number }>
+  | Readonly<{
+      type: 'deadline-fired';
+      operation: PhoneDeadlineOperation;
+      attempt: PhoneAttemptKey | null;
+    }>
+  | Readonly<{
+      type: 'viewport-sampled';
+      viewport: PhoneViewportSnapshot;
+      change: 'toolbar' | 'layout' | 'unsupported';
+    }>
+  | Readonly<{ type: 'scroll-sampled'; sample: PhoneScrollSample }>
+  | Readonly<{ type: 'page-hidden'; persisted: boolean }>
+  | Readonly<{ type: 'page-shown'; persisted: boolean }>
+  | Readonly<{ type: 'physical-intent'; direction: PhoneDirection; epoch: number }>
+  | Readonly<{ type: 'activation-requested'; epoch: number }>
+  | Readonly<{ type: 'activation-settled'; invoked: boolean; attempt: PhoneAttemptKey }>
+  | Readonly<{ type: 'terminal-fault'; code: string }>;
 
 export type PhoneStoryEffect =
   | Readonly<{
@@ -219,4 +437,30 @@ export type PhoneStoryEffect =
       type: 'release-dependencies';
       attempt: PhoneAttemptKey;
       dependencies: readonly PhoneDependencyRef[];
-    }>;
+    }>
+  | Readonly<{ type: 'invalidate-attempt'; attempt: PhoneAttemptKey }>
+  | Readonly<{ type: 'push-url'; pathname: string; hash: string }>
+  | Readonly<{ type: 'replace-url'; pathname: string; hash: string }>
+  | Readonly<{ type: 'cancel-deadline'; attempt: PhoneAttemptKey; operation: string }>
+  | Readonly<{ type: 'confirm-scroll'; attempt: PhoneAttemptKey; anchor: string }>
+  | Readonly<{ type: 'pause-closure'; attempt: PhoneAttemptKey; reason: PhoneLeafPauseReason }>
+  | Readonly<{
+      type: 'dispose-closure';
+      attempt: PhoneAttemptKey;
+      reason: PhoneLeafDisposeReason;
+    }>
+  | Readonly<{
+      type: 'activate-surfaces';
+      attempt: PhoneAttemptKey;
+      credit: PhoneActivationCredit;
+      surfaceIds: readonly PhoneSurfaceId[];
+    }>
+  | Readonly<{ type: 'show-activation-cta'; attempt: PhoneAttemptKey; enabled: boolean }>;
+
+export type PhoneReduceResult<
+  SceneId extends string = string,
+  SegmentId extends string = string
+> = Readonly<{
+  snapshot: PhoneStorySnapshot<SceneId, SegmentId>;
+  effects: readonly PhoneStoryEffect[];
+}>;
