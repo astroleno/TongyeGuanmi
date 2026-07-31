@@ -811,12 +811,13 @@ function storageLineageViolations(sources) {
       ];
 }
 
-function recoveryBoundaryViolations(sources) {
+function recoveryBoundaryViolations(sources, referenceSources = sources) {
   if (sources.length === 0) {
     return ['cutover is missing an eager phone-core recovery boundary'];
   }
-  const rootNames = sources.map(({ file }) => path.resolve(file));
-  const rootSet = new Set(rootNames);
+  const rootNames = referenceSources.map(({ file }) => path.resolve(file));
+  const boundaryRootSet = new Set(sources.map(({ file }) => path.resolve(file)));
+  const referenceRootSet = new Set(rootNames);
   const program = ts.createProgram({
     rootNames,
     options: {
@@ -832,11 +833,50 @@ function recoveryBoundaryViolations(sources) {
   });
   const checker = program.getTypeChecker();
   const sourceFiles = program.getSourceFiles()
-    .filter((sourceFile) => rootSet.has(path.resolve(sourceFile.fileName)))
+    .filter((sourceFile) => boundaryRootSet.has(path.resolve(sourceFile.fileName)))
     .map((sourceFile) => ({
       file: path.resolve(sourceFile.fileName),
       sourceFile
     }));
+  const programSourceFiles = program.getSourceFiles()
+    .filter((sourceFile) => referenceRootSet.has(path.resolve(sourceFile.fileName)))
+    .map((sourceFile) => ({
+      file: path.resolve(sourceFile.fileName),
+      sourceFile
+    }));
+  const programSourceByFile = new Map(
+    programSourceFiles.map((entry) => [entry.file, entry])
+  );
+  const programFilesByStem = new Map();
+  for (const { file } of programSourceFiles) {
+    programFilesByStem.set(file, file);
+    programFilesByStem.set(file.replace(/\.[^.]+$/, ''), file);
+  }
+  const eagerReferenceFiles = new Set();
+  const visitEagerReference = (file) => {
+    if (eagerReferenceFiles.has(file)) return;
+    const entry = programSourceByFile.get(file);
+    if (!entry) return;
+    eagerReferenceFiles.add(file);
+    for (const imported of moduleImports(entry.sourceFile)) {
+      if (
+        imported.syntaxViolation
+        || imported.typeOnly
+        || (
+          ts.isCallExpression(imported.node)
+          && imported.node.expression.kind === ts.SyntaxKind.ImportKeyword
+        )
+      ) {
+        continue;
+      }
+      const target = coreTarget(file, imported.specifier, programFilesByStem);
+      if (target) visitEagerReference(target);
+    }
+  };
+  for (const { file } of sourceFiles) visitEagerReference(file);
+  const referenceSourceFiles = [...eagerReferenceFiles]
+    .map((file) => programSourceByFile.get(file))
+    .filter(Boolean);
   const functionDefinitions = new Map();
   const addFunction = (name, node) => {
     const definitions = functionDefinitions.get(name) ?? [];
@@ -925,7 +965,11 @@ function recoveryBoundaryViolations(sources) {
     const rightSymbol = symbolAt(right);
     return Boolean(leftSymbol && rightSymbol && leftSymbol === rightSymbol);
   };
-  const symbolReferences = (symbol) => sourceFiles.flatMap(({ sourceFile }) => (
+  const isExported = (node) => Boolean(node?.modifiers?.some((modifier) => (
+    modifier.kind === ts.SyntaxKind.ExportKeyword
+    || modifier.kind === ts.SyntaxKind.DefaultKeyword
+  )));
+  const symbolReferences = (symbol) => referenceSourceFiles.flatMap(({ sourceFile }) => (
     descendants(sourceFile, (node) => (
       ts.isIdentifier(node) && symbolAt(node) === symbol
     ))
@@ -968,6 +1012,9 @@ function recoveryBoundaryViolations(sources) {
   const canonicalKeyIsImmutable = Boolean(
     canonicalKeySymbol && !symbolIsWritten(canonicalKeySymbol)
   );
+  const canonicalKeyIsPrivate = Boolean(
+    canonicalKeyEntry && !isExported(canonicalKeyEntry.statement)
+  );
   const listenerCalls = sourceFiles.flatMap(({ sourceFile }) => descendants(
     sourceFile,
     (node) => identifierOwnerCall(node, 'window', 'addEventListener')
@@ -995,6 +1042,7 @@ function recoveryBoundaryViolations(sources) {
   const handlerBindingIsImmutable = Boolean(
     handlerSymbol && !symbolIsWritten(handlerSymbol)
   );
+  const handlerIsPrivate = Boolean(handler && !isExported(handler));
   const listenerBindsCanonicalHandler = Boolean(
     handlerReference
     && handlerDeclarationName
@@ -1008,6 +1056,11 @@ function recoveryBoundaryViolations(sources) {
         + 'as a unique top-level const literal'
     );
   }
+  if (canonicalKeyEntry && !canonicalKeyIsPrivate) {
+    violations.push(
+      'cutover recovery storage key must remain private to the eager boundary'
+    );
+  }
   if (!listener || !handlerName || !handler || !listenerBindsCanonicalHandler) {
     violations.push(
       'cutover recovery must register an executable vite:preloadError handler'
@@ -1016,6 +1069,11 @@ function recoveryBoundaryViolations(sources) {
   if (handlerSymbol && !handlerBindingIsImmutable) {
     violations.push(
       'cutover registered recovery handler binding must be immutable'
+    );
+  }
+  if (handler && !handlerIsPrivate) {
+    violations.push(
+      'cutover recovery handler must remain private to the eager boundary'
     );
   }
 
@@ -1040,6 +1098,9 @@ function recoveryBoundaryViolations(sources) {
   const loaderBindingIsImmutable = Boolean(
     loaderDeclarationName
     && !symbolIsWritten(symbolAt(loaderDeclarationName))
+  );
+  const loaderIsExported = Boolean(
+    loadPhoneStoryShell && isExported(loadPhoneStoryShell)
   );
 
   const phoneCoreImports = sourceFiles.flatMap(({ sourceFile }) => descendants(
@@ -1110,6 +1171,29 @@ function recoveryBoundaryViolations(sources) {
         + 'recovery handler'
     );
   }
+  const canonicalDelegateReferences = importRecoveryCallbacks.flatMap((callback) => {
+    const statement = callback.body.statements[0];
+    return ts.isExpressionStatement(statement)
+      && ts.isCallExpression(statement.expression)
+      && ts.isIdentifier(statement.expression.expression)
+      ? [statement.expression.expression]
+      : [];
+  });
+  const allowedHandlerReferences = new Set([
+    handlerDeclarationName,
+    handlerReference,
+    ...canonicalDelegateReferences
+  ].filter(Boolean));
+  if (
+    handlerSymbol
+    && symbolReferences(handlerSymbol).some(
+      (reference) => !allowedHandlerReferences.has(reference)
+    )
+  ) {
+    violations.push(
+      'cutover recovery handler has non-canonical references'
+    );
+  }
   const returnedExpression = loaderReturn?.expression
     ? unwrappedExpression(loaderReturn.expression)
     : undefined;
@@ -1130,6 +1214,7 @@ function recoveryBoundaryViolations(sources) {
       !ts.isFunctionDeclaration(loadPhoneStoryShell)
       || !ts.isSourceFile(loadPhoneStoryShell.parent)
       || !loaderBindingIsImmutable
+      || !loaderIsExported
       || loadPhoneStoryShell.parameters.length !== 0
       || !loaderReturn
       || !returnedPhoneImport
@@ -1142,7 +1227,16 @@ function recoveryBoundaryViolations(sources) {
         + 'phone-core import catch boundary'
     );
   }
+  if (loadPhoneStoryShell && !loaderIsExported) {
+    violations.push(
+      'cutover loadPhoneStoryShell must be exported from the eager boundary'
+    );
+  }
 
+  let canonicalStoredRead;
+  let canonicalPersistedReload;
+  let canonicalStorageKeyReference;
+  let canonicalPersistedKeyReference;
   if (handler) {
     const handlerBody = handler.body && ts.isBlock(handler.body)
       ? handler.body
@@ -1448,6 +1542,10 @@ function recoveryBoundaryViolations(sources) {
       : undefined;
     const storageKey = storedRead?.arguments[0];
     const persistedKey = persistedReload?.arguments[0];
+    canonicalStoredRead = storedRead;
+    canonicalPersistedReload = persistedReload;
+    canonicalStorageKeyReference = storageKey;
+    canonicalPersistedKeyReference = persistedKey;
     const usesCanonicalKey = (argument) => Boolean(
       canonicalKeySymbol
       && argument
@@ -1528,6 +1626,7 @@ function recoveryBoundaryViolations(sources) {
       ts.isFunctionDeclaration(handler)
       && ts.isSourceFile(handler.parent)
       && handlerBindingIsImmutable
+      && handlerIsPrivate
       && handler.parameters.length === 1
       && handlerBody
       && handlerBody.statements.length === 6
@@ -1732,11 +1831,13 @@ function recoveryBoundaryViolations(sources) {
   const markStableBindingIsImmutable = Boolean(
     markStableName && !symbolIsWritten(symbolAt(markStableName))
   );
+  const markStableIsExported = Boolean(markStable && isExported(markStable));
   const clearsLineage = Boolean(
     markStable
     && ts.isFunctionDeclaration(markStable)
     && ts.isSourceFile(markStable.parent)
     && markStableBindingIsImmutable
+    && markStableIsExported
     && markStable.parameters.length === 0
     && canonicalKeySymbol
     && markStableKey
@@ -1745,6 +1846,64 @@ function recoveryBoundaryViolations(sources) {
   );
   if (!clearsLineage) {
     violations.push('cutover markStable must clear the recovery lineage');
+  }
+  if (markStable && !markStableIsExported) {
+    violations.push(
+      'cutover markStable must be exported as the recovery cleanup port'
+    );
+  }
+
+  const allowedKeyReferences = new Set([
+    canonicalKeyName,
+    canonicalStorageKeyReference,
+    canonicalPersistedKeyReference,
+    markStableKey
+  ].filter(Boolean));
+  if (
+    canonicalKeySymbol
+    && symbolReferences(canonicalKeySymbol).some(
+      (reference) => !allowedKeyReferences.has(reference)
+    )
+  ) {
+    violations.push(
+      'cutover recovery storage key has non-canonical references'
+    );
+  }
+
+  const sessionStorageOwner = (call) => {
+    if (!call || !ts.isCallExpression(call)) return undefined;
+    const target = unwrappedExpression(call.expression);
+    return ts.isPropertyAccessExpression(target)
+      && ts.isIdentifier(unwrappedExpression(target.expression))
+      && unwrappedExpression(target.expression).text === 'sessionStorage'
+      ? unwrappedExpression(target.expression)
+      : undefined;
+  };
+  const allowedSessionStorageReferences = new Set([
+    sessionStorageOwner(canonicalStoredRead),
+    sessionStorageOwner(canonicalPersistedReload),
+    sessionStorageOwner(markStableCall)
+  ].filter(Boolean));
+  const sessionStorageReferences = referenceSourceFiles.flatMap(({ sourceFile }) => (
+    descendants(sourceFile, (node) => (
+      (
+        ts.isIdentifier(node) && node.text === 'sessionStorage'
+      ) || (
+        ts.isStringLiteralLike(node)
+          && node.text === 'sessionStorage'
+          && ts.isElementAccessExpression(node.parent)
+          && node.parent.argumentExpression === node
+      )
+    ))
+  ));
+  if (
+    sessionStorageReferences.some(
+      (reference) => !allowedSessionStorageReferences.has(reference)
+    )
+  ) {
+    violations.push(
+      'cutover sessionStorage use outside the canonical recovery calls is forbidden'
+    );
   }
 
   const lineageTypes = sourceFiles.flatMap(({ sourceFile }) => descendants(
@@ -2237,7 +2396,7 @@ export async function phoneCleanArchitectureViolations({
       }
     }
 
-    violations.push(...recoveryBoundaryViolations(formalSources));
+    violations.push(...recoveryBoundaryViolations(formalSources, allSources));
     violations.push(...storageLineageViolations(formalSources));
 
     const performancePath = path.join(

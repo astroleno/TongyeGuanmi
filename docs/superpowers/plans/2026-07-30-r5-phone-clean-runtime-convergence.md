@@ -2118,15 +2118,20 @@ does not establish recovery reachability.
 Lock this bootstrap skeleton to one canonical micro-shape and verify bindings
 with a TypeScript `Program`/`TypeChecker`, not identifier text. There is one
 top-level single-binding `const` initialized by the stable lineage-key literal.
-`loadPhoneStoryShell()` is a zero-parameter top-level function whose only body
-statement directly returns the canonical import/catch chain. The registered
-handler, the catch delegate, and every `getItem`/`setItem`/`removeItem` key
-argument must resolve to their respective canonical symbols. The handler starts
-with the direct `preventDefault()` statement and contains only the ordered
-read/parse/guard/persist/reload micro-shape. `markStable()` is a zero-parameter
-top-level function whose only statement directly removes that same immutable
-key. Shadowing, reassignment, short-circuit/dead statements, and imports after a
-terminator fail closed.
+`loadPhoneStoryShell()` is an exported zero-parameter top-level function whose
+only body statement directly returns the canonical import/catch chain. The
+registered handler, the catch delegate, and every
+`getItem`/`setItem`/`removeItem` key argument must resolve to their respective
+canonical symbols. The handler starts with the direct `preventDefault()`
+statement and contains only the ordered read/parse/guard/persist/reload
+micro-shape. `markStable()` is an exported zero-parameter top-level function
+whose only statement directly removes that same immutable key. The handler and
+key remain private, non-exported boundary bindings. Close the handler symbol's
+references to its declaration, listener, and catch delegate; close the key
+symbol's references to declaration/read/persist/stable cleanup. No other eager
+formal-graph `sessionStorage` reference is allowed. Shadowing, reassignment,
+eager extra calls or storage mutation, short-circuit/dead statements, and
+imports after a terminator fail closed.
 
 Validate that sequence with statement-level control-flow paths, not source
 offsets. Every reachable reload path must be dominated, in order, by preload
@@ -2151,14 +2156,17 @@ second import of the same URL. Also keep early-return, throw-before-persist,
 clear-after-persist, overwrite-after-persist, and indirect-reset-before-reload
 fixtures. Catch fixtures cover `if (false)`, return-before-handler, and
 throw-before-handler, outer-parameter/local handler shadowing, handler-binding
-reassignment, and an import after a prior return. Stored-lineage fixtures cover
-parse-then-overwrite,
-discarded comma results, conditional fake parsing, same-named lineage shadow,
-a forged local `JSON` binding, key reassignment, and handler/`markStable` key
-shadowing. Direct-statement fixtures cover short-circuited `preventDefault()`
-and unreachable `markStable()` removal. These fixtures must exercise the
-AST/control-flow and checker-symbol relationships rather than merely repeat
-required strings.
+reassignment, exported-handler escape, an extra eager handler call, an import
+after a prior return, and a missing loader export. Stored-lineage fixtures
+cover parse-then-overwrite, discarded comma results, conditional fake parsing,
+same-named lineage shadow, a forged local `JSON` binding, key
+reassignment/export, and handler/`markStable` key shadowing. They also cover
+extra key deletion plus direct and computed eager formal-graph
+`sessionStorage.clear()`.
+Direct-statement fixtures cover short-circuited `preventDefault()`, unreachable
+`markStable()` removal, and a missing `markStable` export.
+These fixtures must exercise the AST/control-flow and checker-symbol
+relationships rather than merely repeat required strings.
 
 **Task 2 acceptance:**
 

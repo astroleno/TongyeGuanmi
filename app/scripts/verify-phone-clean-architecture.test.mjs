@@ -992,6 +992,27 @@ test('rejects reassignment of the registered recovery handler binding', async ()
   }, { phase: 'cutover' }), 'registered recovery handler binding must be immutable');
 });
 
+test('rejects extra calls to the canonical recovery handler', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        "window.addEventListener('vite:preloadError', recoverPhoneChunk);",
+        `recoverPhoneChunk();
+  window.addEventListener('vite:preloadError', recoverPhoneChunk);`
+      )
+  }, { phase: 'cutover' }), 'recovery handler has non-canonical references');
+});
+
+test('keeps the registered recovery handler private to the eager boundary', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'function recoverPhoneChunk(event?: Event) {',
+        'export function recoverPhoneChunk(event?: Event) {'
+      )
+  }, { phase: 'cutover' }), 'recovery handler must remain private');
+});
+
 test('requires one immutable recovery storage-key binding', async () => {
   includes(await violations({
     'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
@@ -1005,6 +1026,59 @@ test('requires one immutable recovery storage-key binding', async () => {
     lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v2';`
       )
   }, { phase: 'cutover' }), 'immutable recovery storage key');
+});
+
+test('keeps the recovery storage key private to the eager boundary', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        "const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';",
+        "export const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';"
+      )
+  }, { phase: 'cutover' }), 'recovery storage key must remain private');
+});
+
+test('rejects recovery-key use outside read, persist, and stable cleanup', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'export type PhoneChunkRecoveryLineage',
+        `sessionStorage.removeItem(lineageStorageKey);
+  export type PhoneChunkRecoveryLineage`
+      )
+  }, { phase: 'cutover' }), 'recovery storage key has non-canonical references');
+});
+
+test('rejects sessionStorage mutation outside the canonical recovery calls', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'export type PhoneChunkRecoveryLineage',
+        `sessionStorage.clear();
+  export type PhoneChunkRecoveryLineage`
+      )
+  }, { phase: 'cutover' }), 'sessionStorage use outside the canonical recovery calls');
+});
+
+test('rejects sessionStorage mutation in the transitive formal graph', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': `
+      import './recovery-lineage-reset';
+      ${validRecoveryBoundary}
+    `,
+    'src/production/recovery-lineage-reset.ts': 'sessionStorage.clear();\n'
+  }, { phase: 'cutover' }), 'sessionStorage use outside the canonical recovery calls');
+});
+
+test('rejects computed sessionStorage access in the eager formal graph', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': `
+      import './recovery-lineage-reset';
+      ${validRecoveryBoundary}
+    `,
+    'src/production/recovery-lineage-reset.ts':
+      "window['sessionStorage'].clear();\n"
+  }, { phase: 'cutover' }), 'sessionStorage use outside the canonical recovery calls');
 });
 
 test('binds handler storage access to the canonical recovery key symbol', async () => {
@@ -1061,6 +1135,26 @@ test('requires the loader to directly return the canonical phone-core import', a
     return undefined as never;`
       )
   }, { phase: 'cutover' }), 'loadPhoneStoryShell must directly return');
+});
+
+test('requires the canonical phone-core loader to remain exported', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'export function loadPhoneStoryShell() {',
+        'function loadPhoneStoryShell() {'
+      )
+  }, { phase: 'cutover' }), 'loadPhoneStoryShell must be exported');
+});
+
+test('requires markStable to remain an exported recovery port', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'export function markStable() {',
+        'function markStable() {'
+      )
+  }, { phase: 'cutover' }), 'markStable must be exported');
 });
 
 test('rejects recovery without a bounded page reload', async () => {
