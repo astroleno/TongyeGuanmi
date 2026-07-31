@@ -1,5 +1,13 @@
 # R5 Phone Presentation State-Machine Automated Checkpoint
 
+> **Superseded — 2026-08-01 P0 real-root review.** The checks in this report
+> forced `?v=47`, which selected the phone shell even though the production
+> root build selected the desktop shell. Their DOM/state assertions therefore
+> cannot establish production-phone acceptance. See
+> [`r5-phone-presentation-real-root-p0-2026-08-01.md`](./r5-phone-presentation-real-root-p0-2026-08-01.md).
+> The current decision is **Implementation NO-GO / Automated acceptance invalid /
+> Release NO-GO**.
+
 **Date:** 2026-07-31 (Asia/Shanghai)
 **Worktree:** `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi-r5-presentation-recovery`
 **Branch / automated implementation source:** `codex/r5-phone-presentation-contract-recovery` / `39c1441`
