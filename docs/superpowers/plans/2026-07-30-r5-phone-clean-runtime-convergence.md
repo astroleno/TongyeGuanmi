@@ -2034,7 +2034,7 @@ git commit -m "test(r5): enforce clean phone architecture"
 - `app/src/production/phone-story/presentation.ts`
 - `app/src/production/phone-story/presentation.contract.test.ts`
 
-- [ ] **Step 3.1: Write completeness and invariants tests**
+- [x] **Step 3.1: Write completeness and invariants tests**
 
 Tests must assert:
 
@@ -2078,7 +2078,7 @@ pnpm -C app exec vitest run \
   src/production/phone-story/presentation.contract.test.ts
 ```
 
-- [ ] **Step 3.2: Implement descriptive manifest records**
+- [x] **Step 3.2: Implement descriptive manifest records**
 
 Use records equivalent to:
 
@@ -2137,7 +2137,7 @@ type PhoneSceneId = (typeof canonicalSceneIds)[number];
 type PhoneSegmentId = (typeof canonicalSegments)[number]['id'];
 ```
 
-- [ ] **Step 3.3: Add pure manifest lookup and closure selectors**
+- [x] **Step 3.3: Add pure manifest lookup and closure selectors**
 
 Pure exports should include:
 
@@ -2172,7 +2172,7 @@ matrix is projected to exceed 550 manifest lines or the total ceiling, trigger
 Appendix C before writing compressed tuples or spilling policy into another
 file.
 
-- [ ] **Step 3.4: Verify no timing/media drift**
+- [x] **Step 3.4: Verify no timing/media drift**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -2187,7 +2187,7 @@ git diff --exit-code 9652fbe -- \
   app/src/story/manifest.ts app/src/story/spine.ts app/src/story/media.ts
 ```
 
-- [ ] **Step 3.5: Commit**
+- [x] **Step 3.5: Commit**
 
 ```bash
 git add app/src/production/phone-story
