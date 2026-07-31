@@ -25,11 +25,15 @@ import {
   createPhoneAodAutoplay,
   phoneAodBackdropPresentation,
   phoneAodPresentation,
-  type PhoneAodAutoplay,
-  type PhoneAodPlaybackDirection
+  type PhoneAodAutoplay
 } from '../aod-autoplay';
 import { phoneMediaUrlFor } from '../phone-media';
-import type { PhoneExecutionToken } from '../phone-story-state';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneAodExecution,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../phone-story/runtime';
 import type { PhoneAodAdapterHandle, PhoneSceneAdapterProps } from '../types';
 import './PhoneAod.css';
 
@@ -45,11 +49,36 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function sameToken(
-  left: PhoneExecutionToken,
-  right: PhoneExecutionToken
-): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+type PhoneAodPresentationBinding = {
+  token: PresentationToken;
+  key: string;
+  report: (frame: PhoneRenderedPresentationFrame) => void;
+  frameSequence: number;
+  reported: boolean;
+  paintFrame: number | null;
+  proofFrame: number | null;
+};
+
+function cancelAodPresentationFrames(binding: PhoneAodPresentationBinding): void {
+  if (typeof window === 'undefined') return;
+  if (binding.paintFrame !== null) window.cancelAnimationFrame(binding.paintFrame);
+  if (binding.proofFrame !== null) window.cancelAnimationFrame(binding.proofFrame);
+  binding.paintFrame = null;
+  binding.proofFrame = null;
+}
+
+/** The AOD leaf returns the runner's immutable static endpoint token unchanged. */
+export function phoneAodStaticPresentationFrame(
+  token: PresentationToken,
+  frameSequence: number,
+  observedAt: number
+): PhoneRenderedPresentationFrame {
+  return {
+    token,
+    frameSequence,
+    observedAt,
+    origin: 'leaf-static-poster'
+  };
 }
 
 /**
@@ -66,7 +95,8 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       onReady,
       onAodProgress,
       onAodComplete,
-      onAodFrame
+      onAodFrame,
+      onAodFailure
     },
     forwardedRef
   ) {
@@ -76,34 +106,84 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     const renderRef = useRef<
       (
         progress: number,
-        direction?: PhoneAodPlaybackDirection,
-        identity?: PhoneExecutionToken | null
+        execution?: PhoneAodExecution | null
       ) => void
     >(undefined);
-    const autoplayIdentityRef = useRef<PhoneExecutionToken | null>(null);
-    const compositorEpochRef = useRef(0);
-    const renderedFrameRef = useRef<Readonly<{
-      progress: number;
-      direction: PhoneAodPlaybackDirection;
-      identity: PhoneExecutionToken;
-    }> | null>(null);
+    const autoplayExecutionRef = useRef<PhoneAodExecution | null>(null);
+    const admissionRef = useRef<[latestProgress: number, pendingCompletion: boolean] | null>(null);
+    const executionFrameSequenceRef = useRef(0);
+    const presentationBindingRef = useRef<PhoneAodPresentationBinding | null>(null);
+    const renderedFrameRef = useRef(false);
     const progressListenerRef = useRef(onAodProgress);
     const completeListenerRef = useRef(onAodComplete);
     const frameListenerRef = useRef(onAodFrame);
+    const failureListenerRef = useRef(onAodFailure);
+    const clearAutoplayExecution = useCallback(() => {
+      autoplayExecutionRef.current = null;
+      admissionRef.current = null;
+      executionFrameSequenceRef.current = 0;
+      renderedFrameRef.current = false;
+    }, []);
+    const reportAodFrame = useCallback((execution: PhoneAodExecution) => {
+      frameListenerRef.current?.({
+        token: execution[0],
+        frameSequence: ++executionFrameSequenceRef.current,
+        observedAt: performance.now(),
+        origin: 'segment-first-frame'
+      }, execution);
+    }, []);
+    const requestBoundStaticPresentation = useCallback(() => {
+      const binding = presentationBindingRef.current;
+      if (
+        !binding
+        || binding.reported
+        || binding.paintFrame !== null
+        || binding.proofFrame !== null
+        || typeof window === 'undefined'
+      ) return;
+      // AOD's reduced endpoint is its already-mounted authored DOM scene. It
+      // is rendered in one frame under the exact target token and reported in
+      // the following frame; no autoplay result or dataset can stand in for
+      // this physical static paint.
+      binding.paintFrame = window.requestAnimationFrame(() => {
+        binding.paintFrame = null;
+        if (presentationBindingRef.current !== binding || binding.reported) return;
+        renderRef.current?.(1);
+        const staticSurface = rootRef.current?.querySelector<HTMLElement>(
+          '[data-aod-reveal-surface]'
+        );
+        if (!staticSurface || presentationBindingRef.current !== binding) return;
+        staticSurface.dataset.aodStaticPoster = binding.key;
+        binding.proofFrame = window.requestAnimationFrame(() => {
+          binding.proofFrame = null;
+          if (presentationBindingRef.current !== binding || binding.reported) return;
+          binding.reported = true;
+          binding.frameSequence += 1;
+          binding.report(phoneAodStaticPresentationFrame(
+            binding.token,
+            binding.frameSequence,
+            performance.now()
+          ));
+        });
+      });
+    }, []);
     const releaseCompositor = useCallback(() => {
-      compositorEpochRef.current += 1;
       const compositor = compositorRef.current;
       const canvas = rootRef.current?.querySelector<HTMLCanvasElement>(
         '[data-aod-figure-canvas]'
       );
+      const staticSurface = rootRef.current?.querySelector<HTMLElement>(
+        '[data-aod-reveal-surface]'
+      );
       delete rootRef.current?.dataset.phonePresentationFrame;
       canvas?.removeAttribute('data-phone-presentation-frame');
+      delete staticSurface?.dataset.aodStaticPoster;
       if (!compositor) return;
       compositor.dispose();
       compositorRef.current = undefined;
       if (canvas) renewPackedAlphaCanvas(canvas);
     }, []);
-    const ensureCompositor = useCallback((identity: PhoneExecutionToken | null) => {
+    const ensureCompositor = useCallback(() => {
       if (reducedMotion) return undefined;
       if (compositorRef.current) return compositorRef.current;
       const root = rootRef.current;
@@ -114,36 +194,37 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         '[data-aod-figure-canvas]'
       );
       if (!root || !video || !canvas) return undefined;
-      const epoch = ++compositorEpochRef.current;
-      const compositor = createPackedAlphaVideoCompositor({
+      let compositor: PackedAlphaVideoCompositor | undefined;
+      compositor = createPackedAlphaVideoCompositor({
         video,
         canvas,
         onFrame: () => {
+          const execution = autoplayExecutionRef.current;
           const rendered = renderedFrameRef.current;
           if (
-            !identity
+            !execution
             || !rendered
             || rootRef.current !== root
-            || compositorEpochRef.current !== epoch
-            || autoplayIdentityRef.current === null
-            || !sameToken(autoplayIdentityRef.current, identity)
-            || !sameToken(rendered.identity, identity)
-          ) return;
+            || compositorRef.current !== compositor
+          ) {
+            // AOD can also be the receiver of Star → AOD. That target uses
+            // the regular presentation-adapter binding; an AOD media run may
+            // never duplicate that proof path.
+            if (!execution) requestBoundStaticPresentation();
+            return;
+          }
           root.dataset.phonePresentationFrame = 'ready';
           canvas.dataset.phonePresentationFrame = 'ready';
-          frameListenerRef.current?.(
-            rendered.progress,
-            rendered.direction,
-            identity
-          );
+          reportAodFrame(execution);
         }
       });
       compositorRef.current = compositor;
       return compositor;
-    }, [reducedMotion]);
+    }, [reducedMotion, reportAodFrame, requestBoundStaticPresentation]);
     progressListenerRef.current = onAodProgress;
     completeListenerRef.current = onAodComplete;
     frameListenerRef.current = onAodFrame;
+    failureListenerRef.current = onAodFailure;
 
     useEffect(() => {
       const root = rootRef.current;
@@ -152,13 +233,33 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       const canvas = root?.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
       if (!root || !transition || !video || !canvas) return;
 
+      const reportAodFailure = (reason: 'aod-context-lost' | 'media-failed') => {
+        const execution = autoplayExecutionRef.current;
+        if (execution) failureListenerRef.current?.(execution, reason);
+      };
+      const onContextLost = () => reportAodFailure('aod-context-lost');
+      const onMediaError = () => reportAodFailure('media-failed');
+      canvas.addEventListener('webglcontextlost', onContextLost);
+      video.addEventListener('error', onMediaError);
+
       let lastProgress = Number.NaN;
       const render = (
         rawProgress: number,
-        direction: PhoneAodPlaybackDirection = 1,
-        identity: PhoneExecutionToken | null = null
+        execution: PhoneAodExecution | null = null
       ) => {
-        const progress = clamp(rawProgress);
+        if (execution && execution !== autoplayExecutionRef.current) return;
+        const latestProgress = clamp(rawProgress);
+        const admission = execution ? admissionRef.current : null;
+        const holdingAdmission = admission !== null;
+        // Reverse starts at an authored endpoint that can hide the source.
+        // Hold it one visible sample inside that endpoint until the exact
+        // packed-canvas frame has been accepted by the runner.
+        const progress = holdingAdmission
+          ? execution![1] === 1 ? 0 : .998
+          : latestProgress;
+        if (admission) {
+          admission[0] = latestProgress;
+        }
         root.dataset.portraitAodAlpha = progress < PHONE_AOD_ALPHA_END_PROGRESS
           ? 'transparent'
           : 'opaque';
@@ -208,13 +309,15 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           );
           transition.setAttribute('data-aod-exit-active', 'true');
         }
-        if (identity) {
-          // Render immediately after the current execution publishes its
-          // canonical progress. The compositor callback is therefore a real
-          // texImage2D + drawArrays proof for this exact progress sample.
-          renderedFrameRef.current = { progress, direction, identity };
+        if (execution) {
+          // The leaf reports only a real canvas draw. Before that draw is
+          // accepted, no playback progress may move the authored source back
+          // to an invisible endpoint or write transaction progress.
+          renderedFrameRef.current = true;
           compositorRef.current?.render();
-          progressListenerRef.current?.(progress, direction, identity);
+          if (!holdingAdmission) {
+            progressListenerRef.current?.(progress, execution);
+          }
         }
       };
       renderRef.current = render;
@@ -223,6 +326,15 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         render(0);
         onReady?.();
         return () => {
+          canvas.removeEventListener('webglcontextlost', onContextLost);
+          video.removeEventListener('error', onMediaError);
+          if (presentationBindingRef.current) {
+            cancelAodPresentationFrames(presentationBindingRef.current);
+          }
+          presentationBindingRef.current = null;
+          delete root.querySelector<HTMLElement>(
+            '[data-aod-reveal-surface]'
+          )?.dataset.aodStaticPoster;
           if (renderRef.current === render) renderRef.current = undefined;
           delete root.dataset.portraitAodAlpha;
           if (import.meta.env.DEV) delete root.dataset.portraitAodProgress;
@@ -252,10 +364,16 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         },
         disposeReverseDriver: () => disposePhoneTimelineVideo(video),
         onProgress: render,
-        onComplete: (direction, identity) => {
-          if (!identity) return;
-          autoplayIdentityRef.current = null;
-          completeListenerRef.current?.(direction, identity);
+        onComplete: (execution) => {
+          if (!execution || autoplayExecutionRef.current !== execution) return;
+          const admission = admissionRef.current;
+          if (admission) {
+            admission[1] = true;
+            return;
+          }
+          autoplayExecutionRef.current = null;
+          admissionRef.current = null;
+          completeListenerRef.current?.(execution);
         }
       });
       autoplayRef.current = autoplay;
@@ -263,7 +381,13 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       onReady?.();
 
       return () => {
-        autoplayIdentityRef.current = null;
+        canvas.removeEventListener('webglcontextlost', onContextLost);
+        video.removeEventListener('error', onMediaError);
+        clearAutoplayExecution();
+        if (presentationBindingRef.current) {
+          cancelAodPresentationFrames(presentationBindingRef.current);
+        }
+        presentationBindingRef.current = null;
         autoplay.dispose();
         releaseCompositor();
         if (autoplayRef.current === autoplay) autoplayRef.current = undefined;
@@ -272,13 +396,13 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         if (import.meta.env.DEV) delete root.dataset.portraitAodProgress;
         delete transition.dataset.portraitAodBackdropProgress;
       };
-    }, [onReady, reducedMotion, releaseCompositor]);
+    }, [clearAutoplayExecution, onReady, reducedMotion, releaseCompositor]);
 
     // `active` is strictly a decoder/compositor lease. Root visibility is
     // assigned synchronously by the story projector's surface role.
     useEffect(() => {
       if (active) {
-        ensureCompositor(null)?.setActive(!reducedMotion);
+        ensureCompositor()?.setActive(!reducedMotion);
         return;
       }
       compositorRef.current?.setActive(false);
@@ -287,35 +411,71 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
 
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
+      effectRoot: () => rootRef.current?.querySelector<HTMLCanvasElement>(
+        '[data-aod-figure-canvas]'
+      ) ?? null,
       update(progress) {
         renderRef.current?.(progress);
       },
-      startAutoplay(direction, identity) {
-        autoplayIdentityRef.current = identity;
-        renderedFrameRef.current = null;
-        if (reducedMotion) {
-          const root = rootRef.current;
-          if (root) root.dataset.phonePresentationFrame = 'ready';
-          frameListenerRef.current?.(direction === 1 ? 1 : 0, direction, identity);
-          renderRef.current?.(direction === 1 ? 1 : 0, direction, identity);
-          autoplayIdentityRef.current = null;
-          completeListenerRef.current?.(direction, identity);
-          return Promise.resolve('playing');
-        }
+      startAutoplay(execution) {
+        // Reduced motion never starts the media branch. Its sole endpoint
+        // evidence is supplied later by `presentPresentation()` under the
+        // target static token owned by the runner.
+        if (reducedMotion) return Promise.resolve('error');
+        const [, direction] = execution;
+        autoplayExecutionRef.current = execution;
+        renderedFrameRef.current = false;
+        admissionRef.current = [direction === 1 ? 0 : 1, false];
+        executionFrameSequenceRef.current = 0;
         delete rootRef.current?.dataset.phonePresentationFrame;
         rootRef.current?.querySelector<HTMLElement>(
           '[data-aod-figure-canvas]'
         )?.removeAttribute('data-phone-presentation-frame');
-        // A retired compositor callback must never become evidence for the
-        // next generation. Reacquire a canvas whose frame closure captures
-        // only this immutable execution token.
-        releaseCompositor();
-        ensureCompositor(identity)?.setActive(true);
-        return autoplayRef.current?.start(direction, identity) ?? Promise.resolve('error');
+        // The execution identity is read from the current runtime refs by
+        // the frame callback. Keeping this warmed context avoids Safari
+        // allocating a second WebGL canvas during the same AOD handoff.
+        ensureCompositor()?.setActive(true);
+        return autoplayRef.current?.start(execution) ?? Promise.resolve('error');
+      },
+      releaseAutoplayAdmission(execution) {
+        const admission = admissionRef.current;
+        if (!admission || autoplayExecutionRef.current !== execution) return;
+        admissionRef.current = null;
+        renderRef.current?.(admission[0], execution);
+        if (!admission[1]) return;
+        autoplayExecutionRef.current = null;
+        completeListenerRef.current?.(execution);
+      },
+      presentPresentation(token, report) {
+        const prior = presentationBindingRef.current;
+        if (prior) cancelAodPresentationFrames(prior);
+        presentationBindingRef.current = {
+          token,
+          key: phoneRuntimePresentationTokenKey(token),
+          report,
+          frameSequence: 0,
+          reported: false,
+          paintFrame: null,
+          proofFrame: null
+        };
+        requestBoundStaticPresentation();
+        if (reducedMotion) return;
+        const compositor = ensureCompositor();
+        compositor?.setActive(true);
+        compositor?.render();
+      },
+      disposePresentation(token) {
+        const binding = presentationBindingRef.current;
+        if (
+          binding
+          && binding.key === phoneRuntimePresentationTokenKey(token)
+        ) {
+          cancelAodPresentationFrames(binding);
+          presentationBindingRef.current = null;
+        }
       },
       resetAutoplay() {
-        autoplayIdentityRef.current = null;
-        renderedFrameRef.current = null;
+        clearAutoplayExecution();
         if (reducedMotion) {
           renderRef.current?.(0);
         } else {
@@ -323,21 +483,34 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         }
       },
       enter() {
-        ensureCompositor(null)?.setActive(true);
+        ensureCompositor()?.setActive(true);
       },
       leave() {
-        autoplayIdentityRef.current = null;
-        renderedFrameRef.current = null;
+        clearAutoplayExecution();
+        if (presentationBindingRef.current) {
+          cancelAodPresentationFrames(presentationBindingRef.current);
+        }
+        presentationBindingRef.current = null;
         releaseCompositor();
       },
       reverse() {},
       dispose() {
-        autoplayIdentityRef.current = null;
-        renderedFrameRef.current = null;
+        clearAutoplayExecution();
+        if (presentationBindingRef.current) {
+          cancelAodPresentationFrames(presentationBindingRef.current);
+        }
+        presentationBindingRef.current = null;
         autoplayRef.current?.dispose();
         releaseCompositor();
       }
-    }), [ensureCompositor, reducedMotion, releaseCompositor]);
+    }), [
+      ensureCompositor,
+      clearAutoplayExecution,
+      reducedMotion,
+      releaseCompositor,
+      reportAodFrame,
+      requestBoundStaticPresentation
+    ]);
 
     return (
       <div

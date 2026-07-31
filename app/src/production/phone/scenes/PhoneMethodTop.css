@@ -87,8 +87,13 @@
   inset: 0;
 }
 
-/* The projector's receiver role keeps the Method entrance mountable while
- * AOD owns the previous stage. Progress still controls its own opacity. */
+/* A candidate Method plane must render the authored bridge before it may
+ * return its token-bound proof. The same content remains visible once that
+ * candidate commits to the native reading hold. */
+.portrait-scroll-spike__reading[data-phone-surface-role="candidate-stable"]
+.portrait-scroll-spike__method-bridge,
+.portrait-scroll-spike__reading[data-phone-surface-role="stable"]
+.portrait-scroll-spike__method-bridge,
 .portrait-scroll-spike__reading[data-phone-surface-role="transition-receiver"]
 .portrait-scroll-spike__method-bridge {
   display: flex !important;

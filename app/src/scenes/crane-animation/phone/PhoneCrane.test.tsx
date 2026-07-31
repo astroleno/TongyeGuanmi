@@ -69,6 +69,12 @@ describe('PhoneCrane', () => {
     expect(source).not.toContain('phoneCraneFlockPackedUrlFor');
   });
 
+  it('[R5] redraws prepared packed surfaces when an active media token starts', () => {
+    expect(source).toContain('const presentPreparedFrame = useCallback(() => {');
+    expect(source).toContain("surface(['present', null])");
+    expect(source).toContain('presentPreparedFrame,');
+  });
+
   it('uses stable reduced-motion endpoints in canonical order', () => {
     expect(phoneCranePresentationProgress(0.49, true)).toBe(0);
     expect(phoneCranePresentationProgress(0.5, true)).toBe(1);
@@ -79,8 +85,8 @@ describe('PhoneCrane', () => {
     expect(autoplaySource).toContain('createPhoneNativeAutoplay');
     expect(source).toContain('createPhonePackedAlphaSurface');
     expect(source).toContain('prepareTargetPresentation');
-    expect(source).toMatch(
-      /surfaces\.map\(\(surface\) => surface\(\[\s*'prepare',\s*mode,\s*request\.signal,\s*request\.directEntry === true\s*\]\)\)/s
+    expect(source).toContain(
+      'phoneRuntimePresentationTokenKey(request.presentationToken as PresentationToken)'
     );
     expect(source).toContain('failRun(1)');
     expect(source).toContain('failRun(-1)');

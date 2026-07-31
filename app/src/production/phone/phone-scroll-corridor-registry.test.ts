@@ -3,7 +3,7 @@ import {
   createPhoneScrollCorridorRegistry,
   type PhoneScrollCorridor
 } from './phone-scroll-corridor-registry';
-import { createPhoneStorySnapshot } from './phone-story-state';
+import { createPhoneStorySnapshot } from './phone-story/machine';
 
 function corridor(
   id: string,
@@ -81,6 +81,40 @@ describe('phone scroll corridor registry', () => {
       visualViewportOffsetTop: 0
     })).toMatchObject({ corridor: 'group45' });
     expect(registry.boundary(brand, 'proof-brand', -1)).toBe(3_900);
+  });
+
+  it('[R5] resolves a shared Lab landing by run ownership, not effect registration order', () => {
+    const registry = createPhoneScrollCorridorRegistry();
+    const services = createPhoneStorySnapshot({ authorityId: 'a', scene: 'services' });
+    registry.register({
+      id: 'group67',
+      scenes: ['lab', 'education'],
+      sample: () => null,
+      boundary: (run) => run === 'lab-education' ? 13_136 : null,
+      landing: () => 13_136
+    });
+    registry.register({
+      id: 'group45',
+      scenes: ['services', 'lab'],
+      sample: () => null,
+      boundary: (run) => run === 'services-lab' ? 11_853 : null,
+      landing: () => 11_853
+    });
+
+    expect(registry.landing(
+      services,
+      'lab',
+      'forward',
+      1,
+      'services-lab'
+    )).toBe(11_853);
+    expect(registry.landing(
+      services,
+      'education',
+      'forward',
+      1,
+      'lab-education'
+    )).toBe(13_136);
   });
 
   it('removes a corridor synchronously without leaving a stale selection', () => {

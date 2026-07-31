@@ -90,6 +90,19 @@ describe('Phone TTG → Lab transition', () => {
     expect(to.style.opacity).toBe('');
   });
 
+  it('[R5] keeps a released endpoint against a late media progress sample', () => {
+    expect(phoneTtgLabFrame(0, false, false, 1, 1)).toMatchObject({
+      progress: 1,
+      fromOpacity: 1,
+      toOpacity: 1
+    });
+    expect(phoneTtgLabFrame(1, false, false, -1, 0)).toMatchObject({
+      progress: 0,
+      fromOpacity: 1,
+      toOpacity: 0
+    });
+  });
+
   it('settles media failure and reduced motion without a replay hold', () => {
     expect(phoneTtgLabFrame(.3, false, true, 1).progress).toBe(1);
     expect(phoneTtgLabFrame(.7, false, true, -1).progress).toBe(0);

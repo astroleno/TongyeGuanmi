@@ -1,52 +1,60 @@
-import type { SceneId } from '../../story/types';
+import type { SceneId } from '../../../../story/types';
 import {
-  phoneRun,
-  phoneRunForHold,
+  phoneRunForHoldTuple,
+  phoneRunTuple,
   type PhoneRunId
-} from './phone-story-runs';
+} from '../../phone-story-runs';
 import {
   createPhoneStorySnapshot,
+  phonePresentationSnapshot,
   reducePhoneStorySnapshot,
   type PhoneExecutionIdentity,
   type PhoneStoryEvent,
   type PhoneStoryReduction,
   type PhoneStorySnapshot
-} from './phone-story-state';
-import { createPhoneStoryProjector } from './phone-story-projector';
-import { createPhoneOrchestratedSessionController } from './phone-orchestrated-session';
+} from '../machine';
+import {
+  createPhoneStoryPresentation,
+  type PhonePresentationPreflightOptions
+} from '../presentation';
+import { createPhoneOrchestratedSessionController } from './session';
 import {
   phoneTransitionCrossesBoundary,
   type PhoneIntent,
   type PhoneIntentDisposition
-} from './phone-transition-coordinator';
-import { createPhoneRunCapabilityRegistry } from './phone-run-capability-registry';
-import { resolvePhoneRunLanding } from './phone-run-landing';
+} from '../../phone-transition-coordinator';
+import { createPhoneRunCapabilityRegistry } from '../../phone-run-capability-registry';
+import { resolvePhoneRunLanding } from '../../phone-run-landing';
 import {
   createPhoneScrollCorridorRegistry,
   type PhoneLandingReason
-} from './phone-scroll-corridor-registry';
-import { phoneScenePresentationTuple } from './phone-presentation-contract';
-import { phoneSurfaceSupportsEvidence } from './phone-presentation-evidence';
+} from '../../phone-scroll-corridor-registry';
+import {
+  phoneDirectEntryPresentationProofKind,
+  phoneScenePresentationProofKind,
+  phoneScenePresentationTuple
+} from '../manifest';
 import type {
-  PhoneStoryOrchestrator,
-  PhoneStoryOrchestratorOptions
-} from './phone-story-orchestrator.types';
+  PhoneOrchestratedRunSession,
+  PhoneStoryRuntimeEngine,
+  PhoneStoryRuntimeEngineOptions
+} from './types';
 
-export type { PhonePresentationEvidence } from './phone-story-presentation';
+export type { PhonePresentationEvidence } from '../presentation';
 export type {
   PhoneCapabilityLease,
   PhoneOrchestratedRunSession,
   PhoneReleaseLease,
   PhoneRunCapability,
-  PhoneStoryOrchestrator,
-  PhoneStoryOrchestratorOptions,
+  PhoneStoryRuntimeEngine,
+  PhoneStoryRuntimeEngineOptions,
   PhoneStoryRuntimePort
-} from './phone-story-orchestrator.types';
-export type { PhoneSurfaceRegistration } from './phone-story-projector';
+} from './types';
+export type { PhoneSurfaceRegistration } from '../presentation';
 export type {
   PhoneScrollCorridor,
   PhoneScrollCorridorLease
-} from './phone-scroll-corridor-registry';
+} from '../../phone-scroll-corridor-registry';
 
 let authoritySequence = 0;
 const DIRECT_ENTRY_PREPARATION_TIMEOUT_MS = 8_000;
@@ -71,6 +79,28 @@ function projectFailureEvent(snapshot: PhoneStorySnapshot): PhoneStoryEvent | nu
     direction: operation.direction
   };
   return { ...identity, type: 'FAILED', reason: 'projector-failed' };
+}
+
+/**
+ * The reducer has already validated the token-bound first-frame proof. Its
+ * synchronous projection must be allowed to activate a receiver whose React
+ * visibility update has not committed yet; later diagnostic passes stay
+ * strict because they do not carry this option.
+ */
+function firstFrameProjectionOptions(
+  before: PhoneStorySnapshot,
+  after: PhoneStorySnapshot,
+  event: PhoneStoryEvent
+): PhonePresentationPreflightOptions | undefined {
+  if (
+    event.type !== 'PRESENTATION_PROOF_REPORTED'
+    || before.status !== 'transaction'
+    || after.status !== 'transaction'
+    || before.session.phase !== 'preparing'
+    || after.session.phase !== 'animating'
+    || after.session.firstFrameProof === null
+  ) return undefined;
+  return { admitFirstFrameProjection: true };
 }
 
 function fallbackScene(snapshot: PhoneStorySnapshot): SceneId {
@@ -99,14 +129,14 @@ function directEntryEvent(
  * Internal execution engine. Route components construct it only through
  * createPhoneStoryRuntime(); production descendants receive RuntimePort.
  */
-export function createPhoneStoryOrchestrator(
-  options: PhoneStoryOrchestratorOptions
-): PhoneStoryOrchestrator {
+export function createPhoneStoryRuntimeEngine(
+  options: PhoneStoryRuntimeEngineOptions
+): PhoneStoryRuntimeEngine {
   const authorityId = options.authorityId ?? `phone-authority-${++authoritySequence}`;
   const routeRoot = () => typeof options.root === 'function'
     ? options.root()
     : options.root ?? null;
-  const projector = options.projector ?? createPhoneStoryProjector({
+  const presentation = options.presentation ?? createPhoneStoryPresentation({
     authorityId,
     scope: 'formal',
     root: routeRoot
@@ -127,6 +157,8 @@ export function createPhoneStoryOrchestrator(
   > | null = null;
   const subscribers = new Set<() => void>();
   let directEntryPreparation: DirectEntryPreparation | null = null;
+  /** Prevent synchronous proof dispatch from recursively re-observing it. */
+  let publishingTargetProof = false;
 
   const directEntryPreparationKey = (
     snapshot: PhoneStorySnapshot
@@ -161,19 +193,23 @@ export function createPhoneStoryOrchestrator(
   };
   const applySnapshot = (
     next: PhoneStorySnapshot,
-    notifySubscribers: boolean
+    notifySubscribers: boolean,
+    preflightOptions?: PhonePresentationPreflightOptions
   ): boolean => {
-    const plan = projector.preflight(next);
+    const plan = presentation.preflight(
+      phonePresentationSnapshot(next),
+      preflightOptions
+    );
     if (!plan) return false;
     try {
       // Project first. Subscribers cannot observe a snapshot whose root roles,
       // edge, checkpoint, lock, or anchor have not been synchronously applied.
-      projector.apply(plan);
+      presentation.apply(plan);
       currentSnapshot = next;
       if (notifySubscribers) notify();
       return true;
     } catch {
-      projector.reapplyCurrent();
+      presentation.reapplyCurrent();
       return false;
     }
   };
@@ -205,7 +241,12 @@ export function createPhoneStoryOrchestrator(
     const event = normalize(rawEvent);
     const reduction = reducePhoneStorySnapshot(currentSnapshot, event);
     if (reduction.snapshot === currentSnapshot) return reduction;
-    if (!applySnapshot(reduction.snapshot, true)) {
+    const preflightOptions = firstFrameProjectionOptions(
+      currentSnapshot,
+      reduction.snapshot,
+      event
+    );
+    if (!applySnapshot(reduction.snapshot, true, preflightOptions)) {
       if (
         event.type === 'DIRECT_ENTRY_REQUESTED'
         && currentSnapshot.status === 'stable'
@@ -241,11 +282,12 @@ export function createPhoneStoryOrchestrator(
       snapshot,
       scene,
       reason,
-      operation.direction
+      operation.direction,
+      operation.run
     );
     if (!operation.run) return corridorLanding ?? fallbackY;
     return resolvePhoneRunLanding({
-      policy: phoneRun(operation.run).anchor,
+      policy: phoneRunTuple(operation.run)[4],
       direction: operation.direction,
       reason,
       currentY: options.scrollY(),
@@ -273,12 +315,15 @@ export function createPhoneStoryOrchestrator(
     scrollTo: options.scrollTo,
     resolveLanding,
     registerEndpoints(endpoints) {
-      projector.registerTransitionEndpoints(endpoints);
+      presentation.registerTransitionEndpoints(endpoints);
       syncDiagnostics();
     },
     clearEndpoints() {
-      projector.clearTransitionEndpoints();
+      presentation.clearTransitionEndpoints();
       syncDiagnostics();
+    },
+    proofForRenderedFrame(frame) {
+      return presentation.proofForRenderedFrame(frame);
     },
     scheduleFrame: options.scheduleFrame,
     disposed: () => disposed
@@ -293,6 +338,85 @@ export function createPhoneStoryOrchestrator(
       operation.run ?? 'entry'
     ].join(':');
   };
+  /**
+   * Requests a token-bound fact from the registered presentation boundary.
+   * Engine owns reducer dispatch; presentation owns the concrete surface
+   * observation. Animated adapters that have no static proof return null and
+   * report their own frame proof through the active session.
+   */
+  const reportTargetPresentation = (
+    activeSession: PhoneOrchestratedRunSession,
+    scene: SceneId,
+    directEntry = false
+  ) => {
+    if (publishingTargetProof) return;
+    publishingTargetProof = true;
+    try {
+    const contract = phoneScenePresentationTuple(scene);
+    const token = activeSession.presentationProofToken(
+      directEntry
+        ? phoneDirectEntryPresentationProofKind(scene)
+        : phoneScenePresentationProofKind(scene),
+      contract[4]
+    );
+    if (!token) return;
+    // Visual leaves receive the immutable token after the candidate plane has
+    // been projected. Their next real draw reports back through this closure;
+    // no selector or dataset can manufacture that proof.
+    presentation.activatePresentationAdapter(scene, token, (proof) => {
+      activeSession.reportPresentationProof(proof);
+    });
+    const readiness = presentation.readPresentationReadiness(scene, token);
+    if (readiness) activeSession.reportPresentationReadiness(readiness);
+    const snapshot = currentSnapshot;
+    if (snapshot.status !== 'transaction') return;
+    const hasTargetReadiness = Boolean(
+      readiness || snapshot.session.readiness
+    );
+    const hasTargetProof = Boolean(snapshot.session.proof);
+    // Candidate coverage can release alignment/landing geometry, but only a
+    // token-bound renderer/post-paint proof may publish a stable scene.
+    if (snapshot.session.phase === 'verifying-target') {
+      if (hasTargetReadiness || hasTargetProof) {
+        activeSession.reportTargetPresented();
+      }
+      return;
+    }
+    if (
+      (snapshot.session.phase === 'verifying-stable'
+        || snapshot.session.phase === 'rollback-verifying-stable')
+      && hasTargetProof
+    ) activeSession.reportPresentationCommitted();
+    } finally {
+      publishingTargetProof = false;
+    }
+  };
+  /**
+   * Reduced front holds use the same machine session as every other reduced
+   * transaction, but they have no cinematic run or direct-entry lifecycle.
+   * The target leaf receives the raw immutable frame token; this branch never
+   * reads readiness, commands a landing, or manufactures a browser frame.
+   */
+  const reportReducedSampledTargetPresentation = (
+    activeSession: PhoneOrchestratedRunSession,
+    scene: SceneId
+  ) => {
+    if (publishingTargetProof) return;
+    publishingTargetProof = true;
+    try {
+      const contract = phoneScenePresentationTuple(scene);
+      const token = activeSession.presentationFrameToken(
+        'static-poster',
+        contract[4]
+      );
+      if (!token) return;
+      presentation.activatePresentationAdapter(scene, token, (proof) => {
+        activeSession.reportPresentationProof(proof);
+      });
+    } finally {
+      publishingTargetProof = false;
+    }
+  };
   const startPreparedOperation = (onlyRun?: PhoneRunId) => {
     const directKey = directEntryPreparationKey(currentSnapshot);
     if (
@@ -304,25 +428,44 @@ export function createPhoneStoryOrchestrator(
     const operation = session.operation;
     if (onlyRun && operation.run !== onlyRun) return;
 
+    if (
+      operation.run === null
+      && operation.trigger === 'auto'
+      && session.reducedMotion
+      && session.phase === 'preparing'
+    ) {
+      const activeSession = sessions.resume();
+      if (activeSession?.valid()) {
+        reportReducedSampledTargetPresentation(activeSession, operation.to);
+      }
+      return;
+    }
+
     if (!operation.run) {
-      if (
-        session.phase !== 'verifying-target'
-        && session.phase !== 'verifying-stable'
-      ) return;
+      const directVerification = session.phase === 'verifying-target'
+        || session.phase === 'verifying-stable';
+      const rollbackVerification = session.phase === 'rollback-verifying-stable';
+      if (!directVerification && !rollbackVerification) return;
+      if (rollbackVerification) {
+        const activeSession = sessions.resume();
+        if (activeSession?.valid()) {
+          reportTargetPresentation(activeSession, operation.from);
+        }
+        return;
+      }
       const landing = scrollCorridors.landing(
         currentSnapshot,
         operation.to,
         'direct-entry',
         operation.direction
       );
-      const existingPresentation = projector.readSurfacePresentation(operation.to);
-      // A stable direct entry must wait for route-owned geometry and the
-      // selected receiver root before its scene-local preparation can run.
+      const receiverRoot = presentation.rootForScene(operation.to);
+      // Candidate admission requires route geometry and a registered receiver
+      // root—not the receiver's already committed visibility. The atomic
+      // projection makes it eligible to produce its own proof afterwards.
       if (
         landing === null
-        || !existingPresentation?.[0]
-        || !existingPresentation[1]
-        || !existingPresentation[2]
+        || !receiverRoot
       ) {
         return;
       }
@@ -364,10 +507,19 @@ export function createPhoneStoryOrchestrator(
           activeSession.reportFailure();
         };
         try {
-          const result = projector.prepareDirectEntry(operation.to, {
+          const token = activeSession.presentationProofToken(
+            phoneDirectEntryPresentationProofKind(operation.to),
+            phoneScenePresentationTuple(operation.to)[4]
+          );
+          if (!token) {
+            failPreparation();
+            return;
+          }
+          const result = presentation.prepareDirectEntry(operation.to, {
             scene: operation.to,
             sessionId: session.sessionId,
             generation: session.generation,
+            token,
             signal: controller.signal
           });
           if (result === undefined) finishPreparation();
@@ -378,30 +530,27 @@ export function createPhoneStoryOrchestrator(
         return;
       }
       if (!preparation.ready || preparation.publishing) return;
-      const presentation = projector.readSurfacePresentation(operation.to);
-      if (!presentation) return;
-      const contract = phoneScenePresentationTuple(operation.to);
-      const visual = contract[6] === 'visual';
-      const coverage = phoneSurfaceSupportsEvidence(presentation, 'coverage');
-      const complete = phoneSurfaceSupportsEvidence(presentation, 'direct-entry');
-      const needsComplete = session.phase !== 'verifying-target' || visual;
       preparation.publishing = true;
       try {
-        if (coverage) {
-          activeSession.reportPresentationEvidence('coverage', contract[4]);
-        }
-        if (needsComplete && complete) {
-          activeSession.reportPresentationEvidence('direct-entry', contract[4]);
-        }
-        const evidenceSatisfied = needsComplete ? complete : coverage;
-        if (!evidenceSatisfied) return;
-        if (session.phase === 'verifying-target') {
-          activeSession.reportTargetPresented();
-        } else {
-          activeSession.reportStablePresentationVerified();
-        }
+        reportTargetPresentation(activeSession, operation.to, true);
       } finally {
         if (directEntryPreparation === preparation) preparation.publishing = false;
+      }
+      return;
+    }
+    if (
+      session.phase === 'verifying-target'
+      || session.phase === 'verifying-stable'
+      || session.phase === 'rollback-verifying-stable'
+    ) {
+      const activeSession = sessions.resume();
+      if (activeSession?.valid()) {
+        reportTargetPresentation(
+          activeSession,
+          session.phase === 'rollback-verifying-stable'
+            ? operation.from
+            : operation.to
+        );
       }
       return;
     }
@@ -448,9 +597,12 @@ export function createPhoneStoryOrchestrator(
       }).inputDisposition ?? 'block-active-session';
     }
     if (snapshot.status !== 'stable') return 'pass-native';
-    const definition = phoneRunForHold(snapshot.scene, direction);
+    const definition = phoneRunForHoldTuple(snapshot.scene, direction);
+    const reducedMotion = definition
+      ? capabilities.get(definition[0])?.reducedMotion === true
+      : false;
     const boundaryY = definition
-      ? scrollCorridors.boundary(snapshot, definition.id, direction)
+      ? scrollCorridors.boundary(snapshot, definition[0], direction)
       : null;
     const boundaryKnown = boundaryY !== null;
     const crossedBoundary = boundaryY !== null && phoneTransitionCrossesBoundary(
@@ -461,11 +613,17 @@ export function createPhoneStoryOrchestrator(
     );
     const reason: PhoneLandingReason = direction === 1 ? 'forward' : 'reverse';
     const compositeY = definition
-      ? scrollCorridors.landing(snapshot, snapshot.scene, reason, direction)
+      ? scrollCorridors.landing(
+          snapshot,
+          snapshot.scene,
+          reason,
+          direction,
+          definition[0]
+        )
       : null;
     const anchorY = definition && boundaryY !== null && crossedBoundary
       ? resolvePhoneRunLanding({
-          policy: definition.anchor,
+          policy: definition[4],
           direction,
           reason,
           currentY: options.scrollY(),
@@ -478,12 +636,13 @@ export function createPhoneStoryOrchestrator(
       authorityId: snapshot.authorityId,
       inputEpoch,
       direction,
-      run: definition?.id ?? null,
+      run: definition?.[0] ?? null,
       anchorY,
       boundaryKnown,
-      crossedBoundary
+      crossedBoundary,
+      reducedMotion
     }).inputDisposition ?? 'pass-native';
-    if (disposition === 'claim-boundary') startPreparedOperation(definition?.id);
+    if (disposition === 'claim-boundary') startPreparedOperation(definition?.[0]);
     return disposition;
   };
 
@@ -506,9 +665,15 @@ export function createPhoneStoryOrchestrator(
     },
     registerSurface(registration) {
       if (disposed) throw new Error('Disposed phone story');
-      const lease = projector.registerSurface(registration);
+      const lease = presentation.registerSurface(registration);
       syncDiagnostics();
       startPreparedOperation();
+      return lease;
+    },
+    registerEffect(registration) {
+      if (disposed) throw new Error('Disposed phone story');
+      const lease = presentation.registerEffect(registration);
+      syncDiagnostics();
       return lease;
     },
     registerScrollCorridor(corridor) {
@@ -527,7 +692,7 @@ export function createPhoneStoryOrchestrator(
       sessions.dispose();
       scrollCorridors.clear();
       subscribers.clear();
-      projector.dispose();
+      presentation.dispose();
     }
   };
 }

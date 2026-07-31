@@ -130,7 +130,7 @@ class FakeDocument {
   }
 }
 
-function fixture() {
+function fixture(onFrame: ((presentationToken: string | null) => void) | null = null) {
   const ownerDocument = new FakeDocument();
   const root = ownerDocument.createElement('section');
   const container = ownerDocument.createElement('div');
@@ -148,7 +148,7 @@ function fixture() {
     'test',
     'test-canvas',
     null,
-    null
+    onFrame
   ]);
   return { root, container, video, surface };
 }
@@ -282,6 +282,73 @@ describe('phone packed-alpha surface', () => {
 
     await expect(preparation).resolves.toBeUndefined();
     expect(root.dataset.phoneTestAlpha).toBe('verified');
+    surface(['dispose']);
+  });
+
+  it('[convergence] rejects a prior verified frame for a new presentation token', async () => {
+    const { root, surface } = fixture();
+    const prepare = (token: string) => surface([
+      'prepare',
+      'forward',
+      null,
+      true,
+      token
+    ] as unknown as Parameters<typeof surface>[0]);
+
+    const first = Promise.resolve(prepare('authority-a:1')).then(() => undefined);
+    compositorProbe.onFrame?.();
+    await expect(first).resolves.toBeUndefined();
+    expect(root.dataset.phoneTestAlpha).toBe('verified');
+
+    let secondResolved = false;
+    const second = Promise.resolve(prepare('authority-a:2')).then(() => {
+      secondResolved = true;
+    });
+    await Promise.resolve();
+
+    expect(secondResolved).toBe(false);
+    compositorProbe.onFrame?.();
+    await expect(second).resolves.toBeUndefined();
+    surface(['dispose']);
+  });
+
+  it('[convergence] rebinds a fresh proof token without allocating another WebGL canvas', async () => {
+    const { surface } = fixture();
+    const prepare = (token: string) => surface([
+      'prepare',
+      'forward',
+      null,
+      true,
+      token
+    ] as unknown as Parameters<typeof surface>[0]);
+
+    const first = Promise.resolve(prepare('authority-a:1'));
+    compositorProbe.onFrame?.();
+    await expect(first).resolves.toBeUndefined();
+    const firstCanvas = compositorProbe.canvases[0];
+
+    const second = Promise.resolve(prepare('authority-a:2'));
+    await Promise.resolve();
+    expect(compositorProbe.canvases).toEqual([firstCanvas]);
+    compositorProbe.onFrame?.();
+    await expect(second).resolves.toBeUndefined();
+    surface(['dispose']);
+  });
+
+  it('[Task 3] binds an active proof token only to a subsequent physical draw', () => {
+    const report = vi.fn();
+    const { surface } = fixture(report);
+
+    surface(['activate', 'forward']);
+    compositorProbe.onFrame?.();
+    expect(report).toHaveBeenLastCalledWith(null);
+
+    surface(['present', 'authority|session|3']);
+    // The mock compositor does not draw eagerly; this is the physical draw
+    // callback that a successful WebGL upload/draw would produce.
+    compositorProbe.onFrame?.();
+
+    expect(report).toHaveBeenLastCalledWith('authority|session|3');
     surface(['dispose']);
   });
 

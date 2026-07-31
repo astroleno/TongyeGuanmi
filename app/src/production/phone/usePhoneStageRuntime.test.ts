@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   createPhoneStorySnapshot,
   reducePhoneStorySnapshot
-} from './phone-story-state';
-import { selectPhoneCinematicSnapshot } from './phone-story-runtime';
+} from './phone-story/machine';
+import { selectPhoneCinematicSnapshot } from './phone-story/runtime';
 import { phoneSnapshotOwnsAod } from './usePhoneStageRuntime';
 
 describe('phone stage AOD resource selection', () => {

@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createPhoneStorySnapshot,
+  phonePresentationSnapshot,
   reducePhoneStorySnapshot
-} from './phone-story-state';
-import { createPhoneStoryProjector } from './phone-story-projector';
+} from './phone-story/machine';
+import { createPhoneStoryPresentation } from './phone-story/presentation';
 
 function element() {
   const styles = new Map<string, string>();
@@ -23,6 +24,13 @@ function element() {
   } as unknown as HTMLElement;
 }
 
+function preflight(
+  projector: ReturnType<typeof createPhoneStoryPresentation>,
+  snapshot: Parameters<typeof phonePresentationSnapshot>[0]
+) {
+  return projector.preflight(phonePresentationSnapshot(snapshot));
+}
+
 describe('phone story projector', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -30,7 +38,7 @@ describe('phone story projector', () => {
 
   it('applies the full stable projection synchronously to one route root', () => {
     const root = element();
-    const projector = createPhoneStoryProjector({
+    const projector = createPhoneStoryPresentation({
       authorityId: 'phone-authority-test',
       scope: 'formal',
       root: () => root
@@ -41,7 +49,7 @@ describe('phone story projector', () => {
       actualY: 120
     });
 
-    const plan = projector.preflight(snapshot);
+    const plan = preflight(projector, snapshot);
     expect(plan).not.toBeNull();
     if (!plan) throw new Error('Expected a stable projection plan');
     projector.apply(plan);
@@ -64,7 +72,7 @@ describe('phone story projector', () => {
 
   it('publishes one transaction identity and progress sample for browser acceptance', () => {
     const root = element();
-    const projector = createPhoneStoryProjector({
+    const projector = createPhoneStoryPresentation({
       authorityId: 'phone-authority-test',
       scope: 'formal',
       root: () => root
@@ -82,7 +90,7 @@ describe('phone story projector', () => {
       fallbackScene: 'brand',
       cinematic: { run: 'brand-services', direction: 1, legIndex: 0 }
     }).snapshot;
-    const plan = projector.preflight(transaction);
+    const plan = preflight(projector, transaction);
     expect(plan).not.toBeNull();
     if (!plan) throw new Error('Expected a transaction projection plan');
     projector.apply(plan);
@@ -98,7 +106,7 @@ describe('phone story projector', () => {
       phoneInputState: 'locked'
     });
 
-    const stablePlan = projector.preflight(createPhoneStorySnapshot({
+    const stablePlan = preflight(projector, createPhoneStorySnapshot({
       authorityId: 'phone-authority-test',
       scene: 'services',
       actualY: 220
@@ -117,7 +125,7 @@ describe('phone story projector', () => {
     const services = element();
     const transientSource = element();
     const transientReceiver = element();
-    const projector = createPhoneStoryProjector({
+    const projector = createPhoneStoryPresentation({
       authorityId: 'phone-authority-test',
       scope: 'formal',
       root: () => root
@@ -152,7 +160,7 @@ describe('phone story projector', () => {
       sessionId: 'phone-session-1',
       generation: 1
     });
-    const transactionPlan = projector.preflight(transaction);
+    const transactionPlan = preflight(projector, transaction);
     if (!transactionPlan) throw new Error('Expected a transaction projection plan');
     projector.apply(transactionPlan);
     expect(transientSource.dataset).toMatchObject({
@@ -163,7 +171,7 @@ describe('phone story projector', () => {
     });
 
     projector.clearTransitionEndpoints();
-    const stablePlan = projector.preflight(createPhoneStorySnapshot({
+    const stablePlan = preflight(projector, createPhoneStorySnapshot({
       authorityId: 'phone-authority-test',
       scene: 'services'
     }));
@@ -181,27 +189,35 @@ describe('phone story projector', () => {
   it('does not let a late old disposal clear the new root or document lease', () => {
     const routeRoot = element();
     const documentElement = element();
-    const theme = { content: '#010203' } as HTMLMetaElement;
+    const themeAttributes = new Map([['content', '#010203']]);
+    const theme = {
+      getAttribute(name: string) {
+        return themeAttributes.get(name) ?? null;
+      },
+      setAttribute(name: string, value: string) {
+        themeAttributes.set(name, value);
+      }
+    } as unknown as HTMLMetaElement;
     vi.stubGlobal('document', {
       documentElement,
       querySelector: () => theme
     } as unknown as Document);
-    const oldProjector = createPhoneStoryProjector({
+    const oldProjector = createPhoneStoryPresentation({
       authorityId: 'phone-authority-old',
       scope: 'formal',
       root: () => routeRoot
     });
-    const newProjector = createPhoneStoryProjector({
+    const newProjector = createPhoneStoryPresentation({
       authorityId: 'phone-authority-new',
       scope: 'brand-lab',
       root: () => routeRoot
     });
     const apply = (
-      projector: ReturnType<typeof createPhoneStoryProjector>,
+      projector: ReturnType<typeof createPhoneStoryPresentation>,
       authorityId: string,
       scene: 'brand' | 'services'
     ) => {
-      const plan = projector.preflight(createPhoneStorySnapshot({
+      const plan = preflight(projector, createPhoneStorySnapshot({
         authorityId,
         scene
       }));
@@ -223,19 +239,19 @@ describe('phone story projector', () => {
       portraitEdgeScene: 'services',
       portraitCheckpoint: 'services-reading'
     });
-    expect(theme.content).not.toBe('#010203');
+    expect(theme.getAttribute('content')).not.toBe('#010203');
 
     newProjector.dispose();
     expect(routeRoot.dataset.phoneAuthorityId).toBeUndefined();
     expect(documentElement.dataset.portraitEdgeScene).toBeUndefined();
-    expect(theme.content).toBe('#010203');
+    expect(theme.getAttribute('content')).toBe('#010203');
   });
 
   it('[Task 4] assigns one fixed front surface role and retires sibling roots', () => {
     const root = element();
     const hero = element();
     const pattern = element();
-    const projector = createPhoneStoryProjector({
+    const projector = createPhoneStoryPresentation({
       authorityId: 'phone-authority-test',
       scope: 'formal',
       root: () => root
@@ -252,7 +268,7 @@ describe('phone story projector', () => {
       kind: 'fixed',
       root: () => pattern
     });
-    const plan = projector.preflight(createPhoneStorySnapshot({
+    const plan = preflight(projector, createPhoneStorySnapshot({
       authorityId: 'phone-authority-test',
       scene: 'hero'
     }));
@@ -266,7 +282,7 @@ describe('phone story projector', () => {
   it('[R5] rejects a selected surface whose evidence reader says it is hidden or lacks live coverage', () => {
     const root = element();
     const hero = element();
-    const projector = createPhoneStoryProjector({
+    const projector = createPhoneStoryPresentation({
       authorityId: 'phone-authority-test',
       scope: 'formal',
       root: () => root
@@ -280,7 +296,7 @@ describe('phone story projector', () => {
       presentation: () => [true, false, false, true, null]
     } as never);
 
-    expect(projector.preflight(createPhoneStorySnapshot({
+    expect(preflight(projector, createPhoneStorySnapshot({
       authorityId: 'phone-authority-test',
       scene: 'hero'
     }))).toBeNull();
@@ -290,7 +306,7 @@ describe('phone story projector', () => {
     const root = element();
     const method = element();
     const modes: string[] = [];
-    const projector = createPhoneStoryProjector({
+    const projector = createPhoneStoryPresentation({
       authorityId: 'phone-authority-test',
       scope: 'formal',
       root: () => root
@@ -307,7 +323,7 @@ describe('phone story projector', () => {
       }
     });
 
-    const plan = projector.preflight(createPhoneStorySnapshot({
+    const plan = preflight(projector, createPhoneStorySnapshot({
       authorityId: 'phone-authority-test',
       scene: 'method-top'
     }));
@@ -320,11 +336,151 @@ describe('phone story projector', () => {
     expect(modes).toEqual(['preflight', 'committed']);
   });
 
+  it('[R5] admits a preparing transition before its inactive receiver becomes live', () => {
+    const root = element();
+    const figure2 = element();
+    const proof = element();
+    const projector = createPhoneStoryPresentation({
+      authorityId: 'phone-authority-test',
+      scope: 'formal',
+      root: () => root
+    });
+    projector.registerSurface({
+      id: 'grade-a:figure2',
+      scene: 'figure2-animation',
+      kind: 'fixed',
+      root: () => figure2,
+      coverageRoot: () => figure2,
+      presentation: () => [true, true, true, false, null]
+    });
+    projector.registerSurface({
+      id: 'grade-a:proof',
+      scene: 'figure2-proof',
+      kind: 'fixed',
+      root: () => proof,
+      coverageRoot: () => proof,
+      // The Figure2 → Proof receiver starts inert and is activated only after
+      // the authority applies this transaction's transition roles.
+      presentation: () => [true, false, false, false, null]
+    });
+    const transaction = reducePhoneStorySnapshot(createPhoneStorySnapshot({
+      authorityId: 'phone-authority-test',
+      scene: 'figure2-animation'
+    }), {
+      type: 'RUN_STARTED',
+      authorityId: 'phone-authority-test',
+      sessionId: 'phone-session-1',
+      generation: 1,
+      leg: 0,
+      direction: 1,
+      run: 'figure2-proof',
+      anchorY: 720,
+      inputEpoch: 1
+    }).snapshot;
+
+    const plan = preflight(projector, transaction);
+
+    expect(transaction).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'preparing' },
+      projection: { commitState: 'transition' }
+    });
+    expect(plan).not.toBeNull();
+    if (!plan) throw new Error('Expected preparing Figure2 → Proof transition plan');
+    projector.apply(plan);
+    expect(proof.dataset.phoneSurfaceRole).toBe('transition-receiver');
+  });
+
+  it('[R5] keeps one live physical plane through a source-led media handoff', () => {
+    const root = element();
+    const figure3 = element();
+    const services = element();
+    let receiverVisible = false;
+    const projector = createPhoneStoryPresentation({
+      authorityId: 'phone-authority-test',
+      scope: 'formal',
+      root: () => root
+    });
+    projector.registerSurface({
+      id: 'group45:figure3',
+      scene: 'figure3-animation',
+      kind: 'fixed',
+      root: () => figure3,
+      coverageRoot: () => figure3,
+      presentation: () => [true, true, true, false, null]
+    });
+    projector.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => services,
+      coverageRoot: () => services,
+      presentation: () => [true, receiverVisible, true, false, null]
+    });
+    const preparing = reducePhoneStorySnapshot(createPhoneStorySnapshot({
+      authorityId: 'phone-authority-test',
+      scene: 'brand'
+    }), {
+      type: 'RUN_STARTED',
+      authorityId: 'phone-authority-test',
+      sessionId: 'phone-session-1',
+      generation: 1,
+      leg: 1,
+      legIndex: 1,
+      direction: 1,
+      run: 'brand-services',
+      anchorY: 720,
+      inputEpoch: 1
+    }).snapshot;
+    if (preparing.status !== 'transaction') {
+      throw new Error('Expected a Figure3 → Services transaction');
+    }
+    const { session } = preparing;
+    const animating = reducePhoneStorySnapshot(preparing, {
+      type: 'PRESENTATION_PROOF_REPORTED',
+      authorityId: preparing.authorityId,
+      sessionId: session.sessionId,
+      generation: session.generation,
+      leg: session.operation.legIndex,
+      direction: session.operation.direction,
+      proof: {
+        token: {
+          authorityId: preparing.authorityId,
+          sessionId: session.sessionId,
+          generation: session.generation,
+          leg: session.operation.legIndex,
+          revision: session.presentationRevision,
+          subject: 'group45:figure3',
+          kind: 'packed-canvas-frame'
+        },
+        frameSequence: 1,
+        observedAt: 42,
+        connected: true,
+        visible: true,
+        coverageComplete: true,
+        edge: 'services'
+      }
+    }).snapshot;
+
+    expect(animating).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'animating', operation: { legIndex: 1 } }
+    });
+    expect(preflight(projector, animating)).not.toBeNull();
+
+    figure3.hidden = true;
+    receiverVisible = true;
+    expect(preflight(projector, animating)).not.toBeNull();
+
+    receiverVisible = false;
+    expect(preflight(projector, animating)).toBeNull();
+  });
+
   it('[R5] prepares only the manifest receiver for a visual direct entry', async () => {
     const root = element();
     const stalePrepare = vi.fn();
     const receiverPrepare = vi.fn();
-    const projector = createPhoneStoryProjector({
+    const projector = createPhoneStoryPresentation({
       authorityId: 'phone-authority-test',
       scope: 'formal',
       root: () => root
@@ -349,6 +505,15 @@ describe('phone story projector', () => {
       scene: 'figure3-animation',
       sessionId: 'phone-session-test',
       generation: 7,
+      token: {
+        authorityId: 'phone-authority-test',
+        sessionId: 'phone-session-test',
+        generation: 7,
+        leg: 0,
+        revision: 1,
+        subject: 'group45:figure3',
+        kind: 'packed-canvas-frame'
+      },
       signal: controller.signal
     });
 

@@ -1,6 +1,6 @@
 import type { SceneId } from '../../story/types';
 import type { PhoneRunId } from './phone-story-runs';
-import type { PhoneCinematicSnapshot } from './phone-story-runtime';
+import type { PhoneCinematicSnapshot } from './phone-story/runtime';
 import {
   phoneCompositeAdapterScene,
   phoneCompositeMediaProgress,

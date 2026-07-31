@@ -122,15 +122,23 @@ export function createGroup45NativeAutoplay(
     if (
       videoFrame
       || !active
-      || direction !== 1
       || typeof video.requestVideoFrameCallback !== 'function'
     ) return;
+    const frameDirection = direction;
     videoFrame = video.requestVideoFrameCallback((_now, metadata) => {
       videoFrame = 0;
-      if (disposed || direction !== 1) return;
+      if (disposed || direction !== frameDirection) return;
       markReady();
-      options.onPresentedFrame?.(metadata.mediaTime, direction);
-      if (active && !video.paused && !video.ended) watchPresentedFrame();
+      options.onPresentedFrame?.(metadata.mediaTime, frameDirection);
+      // Forward native playback keeps producing decoder frames; reverse is
+      // driven by the shared seek clock and needs only its first new physical
+      // presentation to admit the token-bound media leg.
+      if (
+        frameDirection === 1
+        && active
+        && !video.paused
+        && !video.ended
+      ) watchPresentedFrame();
     });
   };
 
@@ -372,10 +380,17 @@ export function createGroup45NativeAutoplay(
       publishStatus('starting');
       if (direction === 1) {
         play();
-      } else if (video.readyState >= 2) {
-        markReady();
-        publishStatus('playing');
-        schedule();
+      } else {
+        // A reverse stage is exposed only after its native receiver handoff.
+        // Arm rVFC at that point so the reducer receives a current physical
+        // decoder frame instead of treating retained endpoint metadata as
+        // first-frame proof.
+        watchPresentedFrame();
+        if (video.readyState >= 2) {
+          markReady();
+          publishStatus('playing');
+          schedule();
+        }
       }
     },
     retry() {

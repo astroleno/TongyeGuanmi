@@ -15,9 +15,13 @@ import {
   type PhoneTimelineVideoInput
 } from '../../../production/phone/phone-timeline-runtime';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import type {
-  PhoneExecutionToken
-} from '../../../production/phone/phone-story-state';
+import type { PhoneSceneAdapterHandle } from '../../../production/phone/types';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneExecutionToken,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
 import {
   waitForPhonePresentationEvidence
 } from '../../../production/phone/phone-transition-readiness';
@@ -28,7 +32,6 @@ import {
   type Group45NativeAutoplayStatus
 } from '../../../production/phone/adapter-groups/group4-5-native-autoplay';
 import type {
-  ScenePresentationAdapterHandle,
   TargetPresentationRequest
 } from '../../../story/presentation';
 import {
@@ -88,6 +91,21 @@ export type PhoneTtgMediaAction =
   | 'hold-initial'
   | 'hold-terminal';
 
+/** Immutable media preparation owned by one current machine revision. */
+export type PhoneTtgTargetPreparation = Readonly<{
+  endpoint: 0 | 1;
+  direction: 1 | -1;
+  /** The admission token that physically prepared this retained endpoint. */
+  token: PresentationToken;
+  signal: AbortSignal;
+}>;
+
+/** A physical endpoint is reusable only for the token that prepared it. */
+export type PhoneTtgPreparedEndpoint = Readonly<{
+  endpoint: 0 | 1;
+  presentationKey: string;
+}>;
+
 type PhoneTtgProps = Group45PhoneSceneProps;
 
 type VideoWithFrameCallbacks = HTMLVideoElement & Readonly<{
@@ -105,30 +123,13 @@ function sameExecution(
     && left?.[1] === right?.[1]
     && left?.[2] === right?.[2]
     && left?.[3] === right?.[3]
-    && left?.[4] === right?.[4];
-}
-
-function waitForPhoneTtgPresentedFrame(
-  video: HTMLVideoElement,
-  signal: AbortSignal
-): Promise<boolean> {
-  const frameVideo = video as VideoWithFrameCallbacks;
-  if (!frameVideo.requestVideoFrameCallback) return Promise.resolve(false);
-  if (signal.aborted) return Promise.resolve(false);
-  return new Promise((resolve) => {
-    let frame = 0;
-    let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
-    const finish = (presented: boolean) => {
-      if (timeout !== undefined) globalThis.clearTimeout(timeout);
-      if (frame) frameVideo.cancelVideoFrameCallback?.(frame);
-      signal.removeEventListener('abort', onAbort);
-      resolve(presented);
-    };
-    const onAbort = () => finish(false);
-    signal.addEventListener('abort', onAbort, { once: true });
-    frame = frameVideo.requestVideoFrameCallback(() => finish(true));
-    timeout = globalThis.setTimeout(() => finish(false), 1_500);
-  });
+    && left?.[4] === right?.[4]
+    && (
+      left?.[5] === undefined
+      || right?.[5] === undefined
+      || phoneRuntimePresentationTokenKey(left[5])
+        === phoneRuntimePresentationTokenKey(right[5])
+    );
 }
 
 /** Desktop-authored TTG motion sampled inside the portrait crop. */
@@ -169,6 +170,64 @@ export function phoneTtgMediaAction(
   return hasForwardRun ? 'hold-terminal' : 'hold-initial';
 }
 
+/**
+ * Snapshot projection may lag a direct candidate by one render. The candidate
+ * retains its media lease until abort, except when its real prepared endpoint
+ * belongs to the active runner token or its declared forward successor.
+ */
+export function phoneTtgTargetPresentationLease(
+  target: PhoneTtgTargetPreparation | null,
+  fallback: PhoneTtgMediaAction,
+  execution: PhoneExecutionToken | null = null,
+  prepared: PhoneTtgPreparedEndpoint | null = null
+): PhoneTtgMediaAction | 'retain-target-presentation' | 'discard-stale-target' {
+  if (!target) return fallback;
+  if (target.signal.aborted) return 'discard-stale-target';
+  const token = execution?.[5];
+  if (!token) return 'retain-target-presentation';
+  if (
+    token.authorityId !== execution?.[0]
+    || token.sessionId !== execution?.[1]
+    || token.generation !== execution?.[2]
+    || token.leg !== execution?.[3]
+    || target.direction !== execution?.[4]
+    || target.token.authorityId !== token.authorityId
+    || target.token.sessionId !== token.sessionId
+    || target.token.generation !== token.generation
+  ) return 'discard-stale-target';
+
+  const targetKey = phoneRuntimePresentationTokenKey(target.token);
+  if (!phoneTtgHasTokenBoundEndpointFrame(
+    prepared,
+    target.endpoint,
+    targetKey
+  )) return 'retain-target-presentation';
+
+  const sameLeg = target.token.leg === token.leg
+    && targetKey === phoneRuntimePresentationTokenKey(token);
+  const forwardMediaSuccessor = target.direction === 1
+    && target.token.leg === 0
+    && token.revision > target.token.revision
+    && target.token.subject === 'group45:effect'
+    && target.token.kind === 'effect-frame'
+    && token.leg === 1
+    && token.subject === 'group45:ttg'
+    && token.kind === 'packed-canvas-frame';
+  return sameLeg || forwardMediaSuccessor
+    ? fallback
+    : 'discard-stale-target';
+}
+
+/** Never let an old endpoint or diagnostic marker satisfy a new revision. */
+export function phoneTtgHasTokenBoundEndpointFrame(
+  prepared: PhoneTtgPreparedEndpoint | null,
+  endpoint: 0 | 1,
+  presentationKey: string
+): boolean {
+  return prepared?.endpoint === endpoint
+    && prepared.presentationKey === presentationKey;
+}
+
 export function phoneTtgHeldEndpoint(
   action: PhoneTtgMediaAction,
   orchestratorTarget: 0 | 1 | null
@@ -178,6 +237,13 @@ export function phoneTtgHeldEndpoint(
   return action === 'hold-terminal' ? 1 : 0;
 }
 
+/** A live admission owns the bootstrap endpoint until its exact proof lands. */
+export function phoneTtgBootstrapEndpoint(
+  target: PhoneTtgTargetPreparation | null
+): 0 | 1 {
+  return target && !target.signal.aborted ? target.endpoint : 0;
+}
+
 /** Release the sole video owner and its decoder before TTG retires. */
 export function releasePhoneTtgVideo(video: HTMLVideoElement | null): void {
   if (!video) return;
@@ -185,6 +251,8 @@ export function releasePhoneTtgVideo(video: HTMLVideoElement | null): void {
   video.pause();
   delete video.dataset.phoneTtgEndpointReady;
   delete video.dataset.phonePresentationFrame;
+  delete video.dataset.phoneTtgPresentationToken;
+  delete video.dataset.phoneTtgPresentationFrameToken;
   video.removeAttribute('src');
   for (const source of video.querySelectorAll('source')) {
     source.removeAttribute('src');
@@ -376,7 +444,7 @@ function waitForPhoneTtgCurrentData(
  * dissolve instead of hiding that handoff inside media playback.
  */
 export const PhoneTtg = forwardRef<
-  ScenePresentationAdapterHandle,
+  PhoneSceneAdapterHandle,
   PhoneTtgProps
 >(function PhoneTtg(
   {
@@ -396,6 +464,17 @@ export const PhoneTtg = forwardRef<
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playbackRef = useRef<Group45NativeAutoplay | null>(null);
+  const presentationBindingRef = useRef<Readonly<{
+    token: PresentationToken;
+    key: string;
+    frameSequence: number;
+    report: (frame: PhoneRenderedPresentationFrame) => void;
+  }> | null>(null);
+  const executionFrameRef = useRef<Readonly<{
+    key: string;
+    frameSequence: number;
+  }> | null>(null);
+  const presentationFrameCallbackRef = useRef(0);
   const activeRef = useRef(active);
   const directionRef = useRef<1 | -1>(direction);
   const executionRef = useRef<PhoneExecutionToken | null>(execution);
@@ -406,19 +485,16 @@ export const PhoneTtg = forwardRef<
   const mediaFailedRef = useRef(false);
   const mediaRetiringRef = useRef(false);
   const hasForwardRunRef = useRef(false);
-  const forwardRequestedRef = useRef(
-    Boolean(execution && execution[4] === 1 && !reducedMotion)
-  );
-  const targetPreparationRef = useRef<Readonly<{
-    endpoint: 0 | 1;
-    direction: 1 | -1;
-    runId: string;
-  }> | null>(null);
+  const forwardRequestedRef = useRef(false);
+  const targetPreparationRef = useRef<PhoneTtgTargetPreparation | null>(null);
+  const preparedEndpointRef = useRef<PhoneTtgPreparedEndpoint | null>(null);
   const completionReportedRef = useRef(false);
+  const propsReconciledRef = useRef(false);
   const runGenerationRef = useRef(0);
   const initialFrameGenerationRef = useRef(0);
   const initialFramePreparationRef = useRef<Promise<boolean> | null>(null);
   const initialFrameAbortRef = useRef<AbortController | null>(null);
+  const initialFrameTokenRef = useRef<string | null>(null);
   const reverseRunIdRef = useRef('phone-ttg-reverse-0');
   const chapterTransitionFrameRef = useRef(0);
   const completionListenerRef = useRef(onComplete);
@@ -432,6 +508,57 @@ export const PhoneTtg = forwardRef<
   mediaErrorListenerRef.current = onMediaError;
   progressListenerRef.current = onProgress;
   presentedFrameListenerRef.current = onPresentedFrame;
+
+  const clearPresentationFrameCallback = useCallback(() => {
+    const video = videoRef.current as VideoWithFrameCallbacks | null;
+    if (presentationFrameCallbackRef.current) {
+      video?.cancelVideoFrameCallback?.(presentationFrameCallbackRef.current);
+      presentationFrameCallbackRef.current = 0;
+    }
+  }, []);
+  const reportPresentationFrame = useCallback((key: string) => {
+    const binding = presentationBindingRef.current;
+    if (!binding || binding.key !== key) return;
+    const next = {
+      ...binding,
+      frameSequence: binding.frameSequence + 1
+    };
+    presentationBindingRef.current = next;
+    next.report({
+      token: next.token,
+      frameSequence: next.frameSequence,
+      observedAt: typeof performance !== 'undefined'
+        && typeof performance.now === 'function'
+        ? performance.now()
+        : 0
+    });
+  }, []);
+  const reportExecutionFrame = useCallback(() => {
+    const identity = runIdentityRef.current;
+    const token = identity?.[5];
+    if (
+      !identity
+      || !token
+      || !activeRef.current
+      || mediaRetiringRef.current
+    ) return;
+    const key = phoneRuntimePresentationTokenKey(token);
+    const prior = executionFrameRef.current;
+    const next = {
+      key,
+      frameSequence: prior?.key === key ? prior.frameSequence + 1 : 1
+    };
+    executionFrameRef.current = next;
+    presentedFrameListenerRef.current?.('ttg-animation', {
+      token,
+      frameSequence: next.frameSequence,
+      observedAt: typeof performance !== 'undefined'
+        && typeof performance.now === 'function'
+        ? performance.now()
+        : 0,
+      origin: 'segment-first-frame'
+    });
+  }, []);
 
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name !== 'figure-video') return;
@@ -570,7 +697,11 @@ export const PhoneTtg = forwardRef<
     mediaRetiringRef.current = true;
     forwardRequestedRef.current = false;
     targetPreparationRef.current = null;
+    preparedEndpointRef.current = null;
     runIdentityRef.current = null;
+    presentationBindingRef.current = null;
+    executionFrameRef.current = null;
+    clearPresentationFrameCallback();
     playbackRef.current?.dispose();
     playbackRef.current = null;
     disposeTtgMedia(rootRef.current);
@@ -579,7 +710,7 @@ export const PhoneTtg = forwardRef<
     mediaMountedRef.current = false;
     setMediaReady(false);
     setMediaMounted(false);
-  }, [cancelChapterTransition]);
+  }, [cancelChapterTransition, clearPresentationFrameCallback]);
 
   const failMedia = useCallback(() => {
     if (mediaRetiringRef.current || mediaFailedRef.current) return;
@@ -594,18 +725,30 @@ export const PhoneTtg = forwardRef<
     if (identity) mediaErrorListenerRef.current?.('ttg-animation', identity);
   }, [releaseMedia]);
 
-  const ensureInitialFrame = useCallback((video: HTMLVideoElement) => {
-    if (phoneTtgHasReusableEndpointFrame(video, 0)) {
+  const ensureInitialFrame = useCallback((
+    video: HTMLVideoElement,
+    presentationToken?: string
+  ) => {
+    const tokenMatches = presentationToken === undefined
+      || phoneTtgHasTokenBoundEndpointFrame(
+        preparedEndpointRef.current,
+        0,
+        presentationToken
+      );
+    if (phoneTtgHasReusableEndpointFrame(video, 0) && tokenMatches) {
       setMediaReady(true);
       return Promise.resolve(true);
     }
     const pending = initialFramePreparationRef.current;
-    if (pending) return pending;
+    if (pending && initialFrameTokenRef.current === (presentationToken ?? null)) {
+      return pending;
+    }
 
     const preparationGeneration = ++initialFrameGenerationRef.current;
     const preparationController = new AbortController();
     initialFrameAbortRef.current?.abort();
     initialFrameAbortRef.current = preparationController;
+    initialFrameTokenRef.current = presentationToken ?? null;
     video.preload = 'auto';
     try {
       if (video.readyState < 2) video.load();
@@ -632,7 +775,7 @@ export const PhoneTtg = forwardRef<
         // decoded-current-data fallback. A settled seek plus 120 ms of stable
         // current data is sufficient before the ink contour exposes video.
         ttgEndpointMediaInput(
-          `phone-ttg-initial-${preparationGeneration}`,
+          `phone-ttg-initial-${preparationGeneration}:${presentationToken ?? 'hold'}`,
           0,
           1,
           true,
@@ -648,6 +791,13 @@ export const PhoneTtg = forwardRef<
       if (result?.[0] !== 'ready') return false;
       video.dataset.phoneGroup45FrameReady = 'true';
       video.dataset.phoneTtgEndpointReady = 'initial';
+      if (presentationToken !== undefined) {
+        video.dataset.phoneTtgPresentationToken = presentationToken;
+        preparedEndpointRef.current = {
+          endpoint: 0,
+          presentationKey: presentationToken
+        };
+      }
       setMediaReady(true);
       renderFrame(0);
       rootRef.current?.setAttribute(
@@ -669,6 +819,9 @@ export const PhoneTtg = forwardRef<
       if (initialFramePreparationRef.current === preparation) {
         initialFramePreparationRef.current = null;
       }
+      if (initialFrameTokenRef.current === (presentationToken ?? null)) {
+        initialFrameTokenRef.current = null;
+      }
     });
     initialFramePreparationRef.current = preparation;
     return preparation;
@@ -686,7 +839,6 @@ export const PhoneTtg = forwardRef<
     ) return;
     activeRef.current = true;
     directionRef.current = runDirection;
-    targetPreparationRef.current = null;
     cancelChapterTransition();
     const generation = ++runGenerationRef.current;
     runIdentityRef.current = identity;
@@ -794,7 +946,8 @@ export const PhoneTtg = forwardRef<
     if (root && import.meta.env.DEV) {
       root.dataset.phoneTtgActive = String(activeRef.current);
     }
-    const action = phoneTtgMediaAction(
+    const target = targetPreparationRef.current;
+    const fallback = phoneTtgMediaAction(
       activeRef.current,
       prewarmRef.current,
       reducedMotionRef.current,
@@ -802,6 +955,31 @@ export const PhoneTtg = forwardRef<
       hasForwardRunRef.current,
       directionRef.current
     );
+    const targetAction = phoneTtgTargetPresentationLease(
+      target,
+      fallback,
+      executionRef.current,
+      preparedEndpointRef.current
+    );
+    if (targetAction === 'discard-stale-target') {
+      targetPreparationRef.current = null;
+      if (
+        preparedEndpointRef.current?.presentationKey
+          === phoneRuntimePresentationTokenKey(target!.token)
+      ) preparedEndpointRef.current = null;
+    }
+    const action = targetAction === 'discard-stale-target'
+      ? fallback
+      : targetAction;
+    if (target && (action === 'play-forward' || action === 'play-reverse')) {
+      targetPreparationRef.current = null;
+      preparedEndpointRef.current = null;
+    }
+    if (action === 'retain-target-presentation') {
+      mediaRetiringRef.current = false;
+      mountMedia();
+      return;
+    }
     if (action === 'static-fallback') {
       if (!mediaFailedRef.current) renderFrame(0);
       releaseMedia();
@@ -822,7 +1000,6 @@ export const PhoneTtg = forwardRef<
       return;
     }
     forwardRequestedRef.current = false;
-    const target = targetPreparationRef.current;
     const endpoint = phoneTtgHeldEndpoint(
       action,
       target?.endpoint ?? null
@@ -894,14 +1071,7 @@ export const PhoneTtg = forwardRef<
           markPhoneTtgPresentedEndpoint(video, mediaTime);
           video.dataset.phonePresentationFrame = 'ready';
           rootRef.current?.setAttribute('data-phone-presentation-frame', 'ready');
-          const identity = runIdentityRef.current;
-          if (
-            identity
-            && activeRef.current
-            && !mediaRetiringRef.current
-          ) {
-            presentedFrameListenerRef.current?.('ttg-animation', identity);
-          }
+          reportExecutionFrame();
         },
         onComplete: (playbackDirection) => {
           const completionGeneration = runGenerationRef.current;
@@ -958,7 +1128,7 @@ export const PhoneTtg = forwardRef<
         onError: failMedia
       });
       playbackRef.current = playback;
-      playback.reset(0);
+      playback.reset(phoneTtgBootstrapEndpoint(targetPreparationRef.current));
       reconcileMedia();
     });
 
@@ -980,22 +1150,29 @@ export const PhoneTtg = forwardRef<
     publishChapterProgress,
     reconcileMedia,
     renderFrame,
+    reportExecutionFrame,
     reportRunCompletion,
     runChapterDissolve
   ]);
 
   useEffect(() => {
     const previousExecution = executionRef.current;
+    const firstReconcile = !propsReconciledRef.current;
+    propsReconciledRef.current = true;
     executionRef.current = execution;
     activeRef.current = execution !== null;
     directionRef.current = execution?.[4] ?? direction;
     prewarmRef.current = prewarm;
     reducedMotionRef.current = reducedMotion;
-    if (execution && !sameExecution(previousExecution, execution)) {
+    if (execution && (firstReconcile || !sameExecution(previousExecution, execution))) {
+      // Only reconciliation may release a prepared target to playback. The
+      // forward admission proof is leg 0 and TTG media is leg 1, so the
+      // lineage predicate permits that one successor only after physical prep.
       forwardRequestedRef.current = true;
     } else if (!execution) {
       forwardRequestedRef.current = false;
       runIdentityRef.current = null;
+      executionFrameRef.current = null;
     }
     reconcileMedia();
   }, [direction, execution, prewarm, reconcileMedia, reducedMotion]);
@@ -1022,6 +1199,9 @@ export const PhoneTtg = forwardRef<
     if (!root) {
       return Promise.reject(new Error('TTG target root unavailable'));
     }
+    const presentationKey = phoneRuntimePresentationTokenKey(
+      request.presentationToken as PresentationToken
+    );
     if (reducedMotionRef.current) {
       renderFrame(request.progress);
       return Promise.resolve();
@@ -1037,9 +1217,12 @@ export const PhoneTtg = forwardRef<
     const target = {
       endpoint,
       direction: request.direction,
-      runId: request.runId
+      // A reused endpoint must never prove a new authority/revision token.
+      token: request.presentationToken as PresentationToken,
+      signal: request.signal
     } as const;
     targetPreparationRef.current = target;
+    preparedEndpointRef.current = null;
     if (endpoint === 1) {
       initialFrameGenerationRef.current += 1;
       initialFrameAbortRef.current?.abort();
@@ -1047,10 +1230,12 @@ export const PhoneTtg = forwardRef<
       initialFramePreparationRef.current = null;
     }
     let terminalRequested = false;
-    let directFrameRequested = false;
     const abandon = () => {
       if (targetPreparationRef.current !== target) return;
       targetPreparationRef.current = null;
+      if (preparedEndpointRef.current?.presentationKey === presentationKey) {
+        preparedEndpointRef.current = null;
+      }
       window.requestAnimationFrame(reconcileMedia);
     };
     request.signal.addEventListener('abort', abandon, { once: true });
@@ -1063,39 +1248,22 @@ export const PhoneTtg = forwardRef<
         if (!video || !playbackRef.current) return null;
         if (
           phoneTtgHasReusableEndpointFrame(video, endpoint)
-          && (!request.directEntry
-            || video.dataset.phonePresentationFrame === 'ready')
+          && phoneTtgHasTokenBoundEndpointFrame(
+            preparedEndpointRef.current,
+            endpoint,
+            presentationKey
+          )
         ) {
           return true;
         }
-        if (
-          request.directEntry
-          && phoneTtgHasReusableEndpointFrame(video, endpoint)
-          && !directFrameRequested
-        ) {
-          directFrameRequested = true;
-          void waitForPhoneTtgPresentedFrame(video, request.signal).then((presented) => {
-            if (
-              !presented
-              || request.signal.aborted
-              || targetPreparationRef.current !== target
-            ) {
-              if (!request.signal.aborted) failMedia();
-              return;
-            }
-            video.dataset.phonePresentationFrame = 'ready';
-            root.dataset.phonePresentationFrame = 'ready';
-            renderFrame(endpoint);
-          });
-        }
         if (endpoint === 0) {
-          void ensureInitialFrame(video);
+          void ensureInitialFrame(video, presentationKey);
         } else if (!terminalRequested) {
           terminalRequested = true;
           void preparePhoneTimelineVideoFrame(
             video,
             ttgEndpointMediaInput(
-              request.runId,
+              presentationKey,
               1,
               request.direction,
               browserPrefersHevcAlpha(),
@@ -1109,6 +1277,11 @@ export const PhoneTtg = forwardRef<
             ) return;
             video.dataset.phoneGroup45FrameReady = 'true';
             video.dataset.phoneTtgEndpointReady = 'terminal';
+            video.dataset.phoneTtgPresentationToken = presentationKey;
+            preparedEndpointRef.current = {
+              endpoint: 1,
+              presentationKey
+            };
             renderFrame(1);
           }).catch(() => {
             if (
@@ -1120,7 +1293,13 @@ export const PhoneTtg = forwardRef<
         return null;
       },
       request.signal
-    ).finally(() => {
+    ).then(() => {
+      // The runner can publish leg 1 before this physical endpoint finishes
+      // preparation. Reconcile on the next frame so this exact prepared
+      // token yields to the runner's pending playback instead of retaining a
+      // second admission owner until timeout.
+      window.requestAnimationFrame(reconcileMedia);
+    }).finally(() => {
       request.signal.removeEventListener('abort', abandon);
     });
   }, [
@@ -1133,22 +1312,46 @@ export const PhoneTtg = forwardRef<
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
+    effectRoot: () => videoRef.current,
     update,
-    enter() {
-      activeRef.current = true;
-      directionRef.current = 1;
-      startRun(1);
-    },
     leave() {
       activeRef.current = false;
       forwardRequestedRef.current = false;
       reconcileMedia();
     },
-    reverse() {
-      activeRef.current = true;
-      directionRef.current = -1;
-      forwardRequestedRef.current = true;
-      startRun(-1);
+    presentPresentation(token, report) {
+      clearPresentationFrameCallback();
+      const key = phoneRuntimePresentationTokenKey(token);
+      presentationBindingRef.current = {
+        token,
+        key,
+        frameSequence: 0,
+        report
+      };
+      const video = videoRef.current as VideoWithFrameCallbacks | null;
+      if (!video?.requestVideoFrameCallback) return;
+      // A retained native-video endpoint must produce a new browser-presented
+      // frame after this exact revision is armed. Do not reuse an old ready
+      // marker or endpoint dataset as proof.
+      try {
+        video.currentTime = Math.max(0, video.currentTime - .00001);
+      } catch {
+        // requestVideoFrameCallback below still validates a decoder frame.
+      }
+      presentationFrameCallbackRef.current = video.requestVideoFrameCallback(() => {
+        presentationFrameCallbackRef.current = 0;
+        reportPresentationFrame(key);
+      });
+    },
+    disposePresentation(token) {
+      const binding = presentationBindingRef.current;
+      if (
+        binding
+        && binding.key === phoneRuntimePresentationTokenKey(token)
+      ) {
+        presentationBindingRef.current = null;
+        clearPresentationFrameCallback();
+      }
     },
     prepareTargetPresentation,
     dispose() {
@@ -1174,10 +1377,12 @@ export const PhoneTtg = forwardRef<
     }
   }), [
     prepareTargetPresentation,
+    clearPresentationFrameCallback,
     reconcileMedia,
     releaseMedia,
     renderFrame,
     startRun,
+    reportPresentationFrame,
     update
   ]);
 

@@ -14,11 +14,11 @@ import {
 } from './usePhoneStoryNavigationRuntime';
 import type { StoryLoaderExitReason } from '../StoryLoader';
 import {
-  PhoneStoryOrchestratorProvider
-} from './PhoneStoryOrchestratorContext';
+  PhoneStoryRuntimeProvider
+} from './PhoneStoryRuntimeContext';
 import {
-  usePhoneStoryOrchestratorRuntime
-} from './usePhoneStoryOrchestratorRuntime';
+  usePhoneStoryRuntime
+} from './usePhoneStoryRuntime';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -85,6 +85,10 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   }, [finishLoader, loaderHidden, props.startupLoaderExitReason]);
   const mapAodToMethod = frontHalf.mapAodToMethod ?? ZERO_METHOD_PROGRESS;
   const [adapterRevision, setAdapterRevision] = useState(0);
+  const [heroFirstFramePrepared, setHeroFirstFramePrepared] = useState(false);
+  const markHeroFirstFramePrepared = useCallback(() => {
+    setHeroFirstFramePrepared(true);
+  }, []);
   const fixedStageRegistered = usePhoneFixedStageRegistration(loaderHidden && ready);
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
@@ -116,7 +120,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const [starMapAodAdapterRef, bindStarMapAodAdapter] =
     usePhoneAdapterHandleRef<PhoneTransitionAdapterHandle>(publishAdapterRevision);
 
-  const authority = usePhoneStoryOrchestratorRuntime(
+  const authority = usePhoneStoryRuntime(
     'formal',
     entry.initialScene,
     rootRef
@@ -156,7 +160,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   });
 
   return (
-    <PhoneStoryOrchestratorProvider authority={authority}>
+    <PhoneStoryRuntimeProvider authority={authority}>
       <main
       ref={rootRef}
       className="portrait-scroll-spike"
@@ -168,6 +172,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-portrait-spike-motion={motionEnabled ? 'force' : 'reduce'}
       data-portrait-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}
       data-portrait-loader-ready={semanticBoolean(loaderHidden)}
+      data-phone-hero-first-frame={heroFirstFramePrepared ? 'poster-decoded' : 'pending'}
       data-phone-validation-mode={props.validationMode}
       data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}
       data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}
@@ -186,6 +191,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             active={loaderHidden && activeFrontSurface('front:hero')}
             reducedMotion={!motionEnabled}
             motionDriver={phoneMotionDriver}
+            onFirstFramePrepared={markHeroFirstFramePrepared}
             onReady={markHeroReady}
           />
         )}
@@ -214,6 +220,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             onAodProgress={runtime.onAodProgress}
             onAodComplete={runtime.onAodComplete}
             onAodFrame={runtime.onAodFrame}
+            onAodFailure={runtime.onAodFailure}
           />
         )}
         {HeroPatternTransition && (
@@ -262,6 +269,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         onNavigate={navigation.navigate}
       />
       </main>
-    </PhoneStoryOrchestratorProvider>
+    </PhoneStoryRuntimeProvider>
   );
 }

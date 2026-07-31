@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { PhoneStarMap } from './PhoneStarMap';
+import {
+  PhoneStarMap,
+  phoneStarMapStaticPresentationFrame
+} from './PhoneStarMap';
 
 const motionDriver = {
   set: () => undefined,
@@ -19,5 +22,27 @@ describe('PhoneStarMap Route B adapter', () => {
     );
     expect(markup).toContain('data-portrait-star-perlin="true"');
     expect(markup).toContain('id="portrait-spike-star-title"');
+  });
+
+  it('[Pattern↔StarMap reduced cutover] returns the leaf\'s exact immutable static-poster token', () => {
+    const token = {
+      authorityId: 'star-authority',
+      sessionId: 'star-session',
+      generation: 3,
+      leg: 1,
+      revision: 8,
+      subject: 'front:star-map' as const,
+      kind: 'static-poster' as const
+    };
+
+    const frame = phoneStarMapStaticPresentationFrame(token, 2, 84);
+
+    expect(frame).toEqual({
+      token,
+      frameSequence: 2,
+      observedAt: 84,
+      origin: 'leaf-static-poster'
+    });
+    expect(frame.token).toBe(token);
   });
 });

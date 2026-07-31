@@ -15,24 +15,26 @@ import {
   type Group45PhoneTransitionId
 } from './adapter-groups/group4-5';
 import {
-  usePhoneStoryOrchestrator,
+  usePhoneStoryRuntimePort,
   usePhoneStorySnapshot
-} from './PhoneStoryOrchestratorContext';
+} from './PhoneStoryRuntimeContext';
 import {
   registerPhoneRuntimeScrollCorridor,
+  registerPhoneRuntimeEffect,
   registerPhoneRuntimeSurface,
   selectPhoneCinematicSnapshot,
-  syncPhoneRuntimeDiagnostics
-} from './phone-story-runtime';
+  syncPhoneRuntimeDiagnostics,
+  type PhoneExecutionToken,
+  type PhoneRenderedPresentationFrame
+} from './phone-story/runtime';
+import { phoneScenePresentationTuple } from './phone-story/manifest';
 import {
-  phoneBrandLabAdapterScene,
-  phoneBrandLabRunForVisual,
-  phoneBrandLabVisualProjection
-} from './phone-brand-lab-runtime';
-import {
+  phoneCompositeAdapterScene,
   phoneClampProgress,
   phoneDocumentTop,
-  phoneSnapshotProjectsSurface
+  phoneSnapshotProjectsSurface,
+  phoneCompositeVisualProjection,
+  phoneCompositeVisualSpec
 } from './phone-composite-snapshot';
 import {
   phoneDirectEntryGeometryReady
@@ -41,7 +43,6 @@ import {
   createPhoneCompositeRunner,
   type PhoneCompositeRuntimeConfig
 } from './phone-composite-runner';
-import type { PhoneExecutionToken } from './phone-story-state';
 import type {
   PhoneTransitionDirection
 } from './phone-transition-coordinator';
@@ -49,7 +50,11 @@ import {
   createPhoneCapabilityRegistry
 } from './phone-transition-readiness';
 import { usePhoneCapabilityBinding } from './phone-adapter-binding';
-import type { PhoneTransitionAdapterHandle } from './types';
+import type {
+  PhonePresentationAdapterHandle,
+  PhoneSceneAdapterHandle,
+  PhoneTransitionAdapterHandle
+} from './types';
 import { usePhoneGroup45Adapters } from './usePhoneGroup45Adapters';
 import './PhoneBrandLabStory.css';
 
@@ -64,6 +69,9 @@ export type PhoneBrandLabContinuationProps = Readonly<{
   stageHost: HTMLElement | null;
   validationMode?: string | undefined;
   onBrandRootChange?: (root: HTMLElement | null) => void;
+  onBrandPresentationChange?: (
+    handle: PhonePresentationAdapterHandle | null
+  ) => void;
   onLabBoundaryChange?: (
     boundary: Readonly<{
       root: HTMLElement;
@@ -97,6 +105,10 @@ type Group45CapabilityHandle =
   | PhoneTransitionAdapterHandle;
 type VisualRuntimeConfig = PhoneCompositeRuntimeConfig;
 
+function group45RunForVisual(scene: Group45VisualScene) {
+  return phoneCompositeVisualSpec(scene)[0];
+}
+
 /**
  * Unit 5 contributes geometry, presentation capabilities, and media evidence
  * only. The route-local PhoneStory authority owns scene, stage, lock, scroll,
@@ -110,23 +122,54 @@ export const PhoneBrandLabContinuation = forwardRef<
   stageHost,
   validationMode,
   onBrandRootChange,
+  onBrandPresentationChange,
   onLabBoundaryChange
 }, forwardedRef) {
-  const orchestrator = usePhoneStoryOrchestrator();
+  const orchestrator = usePhoneStoryRuntimePort();
   const storySnapshot = usePhoneStorySnapshot();
   const cinematicSnapshot = selectPhoneCinematicSnapshot(storySnapshot);
-  const adapterScene = phoneBrandLabAdapterScene(cinematicSnapshot);
+  const activeVisual = cinematicSnapshot[6] === 'brand-services'
+    ? 'figure3-animation'
+    : cinematicSnapshot[6] === 'services-lab' ? 'ttg-animation' : null;
+  const adapterScene = phoneCompositeAdapterScene(
+    cinematicSnapshot,
+    'brand',
+    'brand',
+    'lab',
+    activeVisual
+  );
+  // Keep the direct-entry closure mounted while neighboring Group 6–7
+  // snapshots select their own adapters. Otherwise a cold Lab entry changes
+  // focus to Brand during Lab → Education and disconnects its source root.
+  const entryAdapterSceneRef = useRef(adapterScene);
+  const [figure3Run, figure3Surface, figure3Target] = phoneCompositeVisualSpec(
+    'figure3-animation'
+  );
+  const [ttgRun, ttgSurface, ttgTarget] = phoneCompositeVisualSpec('ttg-animation');
   const [
     figure3Execution,
     figure3Prewarm,
     figure3Progress
-  ] = phoneBrandLabVisualProjection(cinematicSnapshot, 'figure3-animation');
+  ] = phoneCompositeVisualProjection(
+    cinematicSnapshot,
+    figure3Run,
+    figure3Surface,
+    figure3Target
+  );
   const [
     ttgExecution,
     ttgPrewarm,
     ttgProgress
-  ] = phoneBrandLabVisualProjection(cinematicSnapshot, 'ttg-animation');
-  const adapters = usePhoneGroup45Adapters(adapterScene, adapterScene);
+  ] = phoneCompositeVisualProjection(
+    cinematicSnapshot,
+    ttgRun,
+    ttgSurface,
+    ttgTarget
+  );
+  const adapters = usePhoneGroup45Adapters(
+    entryAdapterSceneRef.current,
+    adapterScene
+  );
   const [, setAdapterRevision] = useState(0);
   const [capabilities] = useState(() => createPhoneCapabilityRegistry<
     Group45CapabilityId,
@@ -139,14 +182,14 @@ export const PhoneBrandLabContinuation = forwardRef<
   const figure3Ref = useRef<ScenePresentationAdapterHandle | null>(null);
   const servicesRef = useRef<ScenePresentationAdapterHandle | null>(null);
   const ttgRef = useRef<ScenePresentationAdapterHandle | null>(null);
-  const labRef = useRef<ScenePresentationAdapterHandle | null>(null);
+  const labRef = useRef<PhoneSceneAdapterHandle | null>(null);
   const brandFigure3Ref = useRef<PhoneTransitionAdapterHandle | null>(null);
   const figure3ServicesRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const servicesTtgRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const ttgLabRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const mediaFrameRef = useRef<(
-    scene: Group45VisualScene,
-    identity: PhoneExecutionToken
+    scene: Group45PhoneSceneId,
+    frame: PhoneRenderedPresentationFrame
   ) => void>(() => undefined);
   const mediaProgressRef = useRef<(
     scene: Group45VisualScene,
@@ -193,6 +236,12 @@ export const PhoneBrandLabContinuation = forwardRef<
     bindBrand: (handle: ScenePresentationAdapterHandle | null) => {
       if (!bindCapability('brand', brandRef, handle)) return;
       onBrandRootChange?.(handle?.root() ?? null);
+      const presentation = handle as PhoneSceneAdapterHandle | null;
+      onBrandPresentationChange?.(
+        presentation?.presentPresentation
+          ? presentation as PhonePresentationAdapterHandle
+          : null
+      );
     },
     bindFigure3: (handle: ScenePresentationAdapterHandle | null) => {
       bindCapability('figure3-animation', figure3Ref, handle);
@@ -203,7 +252,7 @@ export const PhoneBrandLabContinuation = forwardRef<
     bindTtg: (handle: ScenePresentationAdapterHandle | null) => {
       bindCapability('ttg-animation', ttgRef, handle);
     },
-    bindLab: (handle: ScenePresentationAdapterHandle | null) => {
+    bindLab: (handle: PhoneSceneAdapterHandle | null) => {
       if (!bindCapability('lab', labRef, handle)) return;
       const root = handle?.root() ?? null;
       onLabBoundaryChange?.(root && handle ? { root, adapter: handle } : null);
@@ -220,7 +269,12 @@ export const PhoneBrandLabContinuation = forwardRef<
     bindTtgLab: (handle: PhoneTransitionAdapterHandle | null) => {
       bindCapability('ttg-lab', ttgLabRef, handle);
     }
-  }), [bindCapability, onBrandRootChange, onLabBoundaryChange]);
+  }), [
+    bindCapability,
+    onBrandPresentationChange,
+    onBrandRootChange,
+    onLabBoundaryChange
+  ]);
 
   const onVisualProgress = useCallback((
     scene: Group45PhoneSceneId,
@@ -233,11 +287,9 @@ export const PhoneBrandLabContinuation = forwardRef<
   }, []);
   const onVisualFrame = useCallback((
     scene: Group45PhoneSceneId,
-    identity: PhoneExecutionToken
+    frame: PhoneRenderedPresentationFrame
   ) => {
-    if (scene === 'figure3-animation' || scene === 'ttg-animation') {
-      mediaFrameRef.current(scene, identity);
-    }
+    mediaFrameRef.current(scene, frame);
   }, []);
   const onVisualComplete = useCallback((
     scene: Group45PhoneSceneId,
@@ -325,15 +377,33 @@ export const PhoneBrandLabContinuation = forwardRef<
       capabilities,
       reducedMotion,
       timeoutMs: GROUP45_READINESS_TIMEOUT_MS,
-      runForVisual: phoneBrandLabRunForVisual,
+      runForVisual: group45RunForVisual,
       config: configFor,
       directConfig: directConfigFor,
       position: boundaryPosition,
-      // Media transition adapters still own their authored opacity endpoints.
-      // Figure3/TTG decoder start is instead a snapshot-driven effect below.
-      startMedia({ identity, config }) {
-        if (identity[4] === 1) config.media.enter?.();
-        else config.media.reverse?.();
+      rawFrameProof: true,
+      reducedStaticSubject: (scene, direction) => {
+        if (scene === 'figure3-animation') {
+          return direction === 1 ? 'native:services' : 'native:brand';
+        }
+        return direction === 1 ? 'native:lab' : 'native:services';
+      },
+      reducedAdmissionTargetPosition: (scene, direction) => {
+        const target = scene === 'figure3-animation'
+          ? direction === 1 ? servicesRef.current : brandRef.current
+          : direction === 1 ? labRef.current : servicesRef.current;
+        return phoneDocumentTop(target?.root() ?? null);
+      },
+      // The runner owns admission ordering. Leaf handles only record playback
+      // intent and reconcile after the runner has reset endpoint roles.
+      startMedia({ identity, config, prepareReverseMediaFirstFrame }) {
+        if (identity[4] === 1) {
+          config.media.enter?.();
+          config.visual.enter?.();
+          return;
+        }
+        prepareReverseMediaFirstFrame();
+        config.visual.reverse?.();
       }
     });
     const surfaceLeases = [
@@ -367,12 +437,37 @@ export const PhoneBrandLabContinuation = forwardRef<
               progress: 0,
               direction: 1,
               runId: `${request.sessionId}:${request.generation}:direct`,
+              presentationToken: request.token,
               signal: request.signal,
               directEntry: true
             });
+          },
+          {
+            present(token, report) {
+              (ref.current as PhoneSceneAdapterHandle | null)
+                ?.presentPresentation?.(token, report);
+            },
+            dispose(token) {
+              (ref.current as PhoneSceneAdapterHandle | null)
+                ?.disposePresentation?.(token);
+            }
           }
         )
       ))
+    ];
+    const effectLeases = [
+      registerPhoneRuntimeEffect(
+        orchestrator,
+        'figure3-to-services',
+        () => figure3Ref.current?.root() ?? null,
+        () => figure3Ref.current?.effectRoot?.() ?? null
+      ),
+      registerPhoneRuntimeEffect(
+        orchestrator,
+        'ttg-to-lab',
+        () => ttgRef.current?.root() ?? null,
+        () => ttgRef.current?.effectRoot?.() ?? null
+      )
     ];
     const corridorLease = registerPhoneRuntimeScrollCorridor(
       orchestrator,
@@ -392,11 +487,19 @@ export const PhoneBrandLabContinuation = forwardRef<
         return null;
       },
       (scene, reason, direction, [, , , , , , run]) => {
+        const targetScene = scene as Group45PhoneSceneId;
         const directNativeEntry = reason === 'direct-entry'
           && run === null;
         if (directNativeEntry) {
           if (!directEntryGeometryReady()) return null;
-          return phoneDocumentTop(rootForScene(scene as Group45PhoneSceneId));
+          return phoneDocumentTop(rootForScene(targetScene));
+        }
+        // The manifest declares Services and Lab as native-reading holds.
+        // Their terminal proof is only meaningful once authored copy occupies
+        // the viewport, so do not leave their scroll landing at the previous
+        // media boundary after the fixed plane has retired.
+        if (phoneScenePresentationTuple(targetScene)[5] === 'native-reading') {
+          return phoneDocumentTop(rootForScene(targetScene));
         }
         if (scene === 'brand' || scene === 'figure3-animation' || scene === 'services') {
           return boundaryPosition('figure3-animation', direction);
@@ -408,8 +511,8 @@ export const PhoneBrandLabContinuation = forwardRef<
       }
     );
 
-    mediaFrameRef.current = (scene, identity) => {
-      runner.reportMediaFrame(scene, identity);
+    mediaFrameRef.current = (scene, frame) => {
+      runner.reportMediaFrame(scene, frame);
     };
     mediaProgressRef.current = (scene, identity, progress) => {
       runner.progressMedia(scene, identity, phoneClampProgress(progress));
@@ -426,6 +529,7 @@ export const PhoneBrandLabContinuation = forwardRef<
       mediaCompleteRef.current = () => undefined;
       mediaErrorRef.current = () => undefined;
       corridorLease.dispose();
+      for (const lease of effectLeases) lease.dispose();
       for (const lease of surfaceLeases) lease.dispose();
       runner.dispose();
     };

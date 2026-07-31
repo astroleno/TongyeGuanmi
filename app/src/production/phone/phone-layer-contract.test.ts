@@ -3,8 +3,8 @@ import {
   phonePresentationLayer,
   phonePresentationLayerZIndex,
   phoneTransitionLayerPlan
-} from './phone-presentation-layers';
-import { phoneSegmentPresentationTuple } from './phone-presentation-contract';
+} from './phone-story/presentation';
+import { phoneSegmentPresentationTuple } from './phone-story/manifest';
 
 describe('phone layer ownership contract', () => {
   it('keeps the coverage plane below every projector-owned surface', () => {
@@ -35,7 +35,7 @@ describe('phone layer ownership contract', () => {
     );
   });
 
-  it('places a media handoff source below its directional receiver', () => {
+  it('keeps a media handoff effect on its declared plane even when hosted by source', () => {
     const forward = phoneTransitionLayerPlan(
       phoneSegmentPresentationTuple('ph-education'),
       1,
@@ -48,7 +48,13 @@ describe('phone layer ownership contract', () => {
     );
 
     expect(forward.effect.host).toBe(forward.source.surface);
-    expect(forward.effect.role).toBe(forward.source.role);
+    expect(forward.effect.role).toBe('transition-effect-between');
+    expect(phonePresentationLayerZIndex(forward.effect.role)).toBeGreaterThan(
+      phonePresentationLayerZIndex(forward.source.role)
+    );
+    expect(phonePresentationLayerZIndex(forward.effect.role)).toBeLessThan(
+      phonePresentationLayerZIndex(forward.receiver.role)
+    );
     expect(reverse.source.surface).toBe(forward.receiver.surface);
     expect(reverse.receiver.surface).toBe(forward.source.surface);
   });

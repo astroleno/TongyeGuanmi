@@ -10,6 +10,11 @@ import type {
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
 import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
+import {
   renderPhoneEducationHold,
   renderPhoneEducationProgress
 } from './presentation';
@@ -18,6 +23,40 @@ export {
   renderPhoneEducationHold,
   renderPhoneEducationProgress
 } from './presentation';
+
+type PhoneEducationStaticPresentationBinding = {
+  token: PresentationToken;
+  key: string;
+  frameSequence: number;
+  report: (frame: PhoneRenderedPresentationFrame) => void;
+  reported: boolean;
+  paintFrame: number | null;
+  proofFrame: number | null;
+};
+
+function cancelPhoneEducationStaticPresentationFrames(
+  binding: PhoneEducationStaticPresentationBinding
+): void {
+  if (typeof window === 'undefined') return;
+  if (binding.paintFrame !== null) window.cancelAnimationFrame(binding.paintFrame);
+  if (binding.proofFrame !== null) window.cancelAnimationFrame(binding.proofFrame);
+  binding.paintFrame = null;
+  binding.proofFrame = null;
+}
+
+/** Education preserves the runner/direct-entry token unchanged after paint. */
+export function phoneEducationStaticPresentationFrame(
+  token: PresentationToken,
+  frameSequence: number,
+  observedAt: number
+): PhoneRenderedPresentationFrame {
+  return {
+    token,
+    frameSequence,
+    observedAt,
+    origin: 'leaf-static-poster'
+  };
+}
 
 const EDUCATION_COPY = [
   '你为生意请的这套 AI 打法，也能用在孩子身上。',
@@ -68,6 +107,73 @@ export const PhoneEducation = forwardRef<
   PhoneSceneAdapterProps
 >(function PhoneEducation({ onReady, reducedMotion }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const presentationBindingRef = useRef<
+    PhoneEducationStaticPresentationBinding | null
+  >(null);
+
+  const releaseStaticPresentation = useCallback((
+    token?: PresentationToken
+  ): boolean => {
+    const binding = presentationBindingRef.current;
+    if (
+      !binding
+      || (token && binding.key !== phoneRuntimePresentationTokenKey(token))
+    ) return false;
+    cancelPhoneEducationStaticPresentationFrames(binding);
+    const root = rootRef.current;
+    if (root?.dataset.phoneEducationStaticPoster === binding.key) {
+      delete root.dataset.phoneEducationStaticPoster;
+    }
+    if (presentationBindingRef.current === binding) {
+      presentationBindingRef.current = null;
+    }
+    return true;
+  }, []);
+  const requestBoundStaticPresentation = useCallback(() => {
+    const binding = presentationBindingRef.current;
+    if (
+      !binding
+      || binding.reported
+      || binding.paintFrame !== null
+      || binding.proofFrame !== null
+      || typeof window === 'undefined'
+    ) return;
+    // Candidate layout belongs to the route runtime. This leaf only paints the
+    // authored Education endpoint and then publishes its one immutable fact on
+    // the following browser frame.
+    binding.paintFrame = window.requestAnimationFrame(() => {
+      binding.paintFrame = null;
+      if (presentationBindingRef.current !== binding || binding.reported) {
+        return;
+      }
+      const root = rootRef.current;
+      if (!root) return;
+      renderPhoneEducationHold(root);
+      root.dataset.phoneEducationStaticPoster = binding.key;
+      if (
+        presentationBindingRef.current !== binding
+        || root.dataset.phoneEducationStaticPoster !== binding.key
+      ) return;
+      binding.proofFrame = window.requestAnimationFrame(() => {
+        binding.proofFrame = null;
+        if (
+          presentationBindingRef.current !== binding
+          || binding.reported
+          || root.dataset.phoneEducationStaticPoster !== binding.key
+        ) return;
+        binding.reported = true;
+        binding.frameSequence += 1;
+        binding.report(phoneEducationStaticPresentationFrame(
+          binding.token,
+          binding.frameSequence,
+          typeof performance !== 'undefined'
+            && typeof performance.now === 'function'
+            ? performance.now()
+            : 0
+        ));
+      });
+    });
+  }, []);
 
   const render = useCallback((rawProgress: number) => {
     const progress = Math.min(1, Math.max(0, rawProgress));
@@ -84,9 +190,10 @@ export const PhoneEducation = forwardRef<
     if (import.meta.env.DEV) root.dataset.phoneEducationScroll = 'native';
     onReady?.();
     return () => {
+      releaseStaticPresentation();
       if (import.meta.env.DEV) delete root.dataset.phoneEducationScroll;
     };
-  }, [onReady]);
+  }, [onReady, releaseStaticPresentation]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -110,8 +217,27 @@ export const PhoneEducation = forwardRef<
       root.inert = false;
       root.removeAttribute('aria-hidden');
     },
-    dispose() {}
-  }), [render]);
+    presentPresentation(token, report) {
+      releaseStaticPresentation();
+      if (token.kind !== 'static-poster') return;
+      presentationBindingRef.current = {
+        token,
+        key: phoneRuntimePresentationTokenKey(token),
+        frameSequence: 0,
+        report,
+        reported: false,
+        paintFrame: null,
+        proofFrame: null
+      };
+      requestBoundStaticPresentation();
+    },
+    disposePresentation(token) {
+      releaseStaticPresentation(token);
+    },
+    dispose() {
+      releaseStaticPresentation();
+    }
+  }), [releaseStaticPresentation, render, requestBoundStaticPresentation]);
 
   return (
     <div

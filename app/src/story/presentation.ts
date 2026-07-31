@@ -79,10 +79,18 @@ export type PresentationAdapterLifecycle = {
   dispose?(): void;
 };
 
+/**
+ * This is the phone's lazy receiver boundary. The shared story contract does
+ * not own phone runtime types, so it carries the runtime's immutable token as
+ * an opaque object. Renderer-local adapters may derive a key internally, but
+ * no direct entry may serialize its authority identity in transit.
+ */
 export type TargetPresentationRequest = Readonly<{
   progress: number;
   direction: 1 | -1;
   runId: string;
+  /** Full authority/session/revision/subject/kind identity for this proof. */
+  presentationToken: object;
   signal: AbortSignal;
   /** A cold/hash/menu entry must settle an actual receiver presentation. */
   directEntry?: boolean;
@@ -90,6 +98,12 @@ export type TargetPresentationRequest = Readonly<{
 
 export type ScenePresentationAdapterHandle = PresentationAdapterLifecycle & {
   root(): HTMLElement | null;
+  /**
+   * The concrete media/compositor element that must occupy the transition
+   * effect plane for a media handoff. This keeps layering explicit without
+   * asking the route presentation owner to discover children in the DOM.
+   */
+  effectRoot?(): HTMLElement | null;
   update(progress: number): void;
   /**
    * Resolves only after the receiver owns a physically presented frame or an

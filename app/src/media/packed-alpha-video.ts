@@ -78,6 +78,16 @@ export function packedAlphaFrameSize(
   };
 }
 
+/**
+ * A DOM/media marker is not a compositor proof. The frame is publishable only
+ * after the active context survives the draw and reports no GL error.
+ */
+export function packedAlphaFrameProofSatisfied(
+  gl: Pick<WebGLRenderingContext, 'NO_ERROR' | 'getError' | 'isContextLost'>
+): boolean {
+  return !gl.isContextLost() && gl.getError() === gl.NO_ERROR;
+}
+
 export function setPackedAlphaVideoSource(video: HTMLVideoElement, sourceUrl: string): void {
   const ownerDocument = video.ownerDocument
     ?? (typeof document === 'undefined' ? undefined : document);
@@ -252,6 +262,14 @@ export function createPackedAlphaVideoCompositor(
     }
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT);
+    if (!packedAlphaFrameProofSatisfied(gl)) {
+      contextLost = gl.isContextLost();
+      canvas.dataset.packedAlphaStatus = contextLost
+        ? 'context-lost'
+        : 'frame-upload-failed';
+      delete canvas.dataset.packedAlphaFrameReady;
+      return false;
+    }
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     try {
@@ -267,9 +285,25 @@ export function createPackedAlphaVideoCompositor(
       canvas.dataset.packedAlphaStatus = 'frame-upload-failed';
       return false;
     }
+    if (!packedAlphaFrameProofSatisfied(gl)) {
+      contextLost = gl.isContextLost();
+      canvas.dataset.packedAlphaStatus = contextLost
+        ? 'context-lost'
+        : 'frame-upload-failed';
+      delete canvas.dataset.packedAlphaFrameReady;
+      return false;
+    }
     gl.useProgram(program);
     gl.uniform1f(texelLocation, 1 / Math.max(2, video.videoWidth));
     gl.drawArrays(gl.TRIANGLES, 0, 6);
+    if (!packedAlphaFrameProofSatisfied(gl)) {
+      contextLost = gl.isContextLost();
+      canvas.dataset.packedAlphaStatus = contextLost
+        ? 'context-lost'
+        : 'frame-draw-failed';
+      delete canvas.dataset.packedAlphaFrameReady;
+      return false;
+    }
     renderedFrames += 1;
     canvas.dataset.packedAlphaStatus = 'ready';
     canvas.dataset.packedAlphaFrameReady = 'true';

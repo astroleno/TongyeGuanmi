@@ -23,7 +23,12 @@ import type {
   Group67PhoneTransitionId
 } from './adapter-groups/group6-7';
 import type { PhoneAodStartResult } from './aod-autoplay';
-import type { PhoneExecutionToken } from './phone-story-state';
+import type {
+  PhoneAodExecution,
+  PhoneExecutionToken,
+  PhoneRenderedPresentationFrame,
+  PresentationToken
+} from './phone-story/runtime';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
 export type PhoneSceneAdapterId =
@@ -44,7 +49,20 @@ export type PhoneTransitionAdapterId =
   | Group45PhoneTransitionId
   | Group67PhoneTransitionId;
 
-export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle;
+/**
+ * Token-bound bridge exposed to phone leaves.  The route runtime supplies the
+ * token; a leaf calls `report` only from its real renderer frame callback.
+ */
+export type PhonePresentationAdapterHandle = Readonly<{
+  presentPresentation(
+    token: PresentationToken,
+    report: (frame: PhoneRenderedPresentationFrame) => void
+  ): void;
+  disposePresentation?(token: PresentationToken): void;
+}>;
+
+export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle
+  & Partial<PhonePresentationAdapterHandle>;
 
 /**
  * A narrow runtime-only view used when a cinematic executor injects its
@@ -77,10 +95,9 @@ export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
 };
 
 export type PhoneAodAdapterHandle = PhoneSceneAdapterHandle & {
-  startAutoplay(
-    direction: 1 | -1,
-    identity: PhoneExecutionToken
-  ): Promise<PhoneAodStartResult>;
+  startAutoplay(execution: PhoneAodExecution): Promise<PhoneAodStartResult>;
+  /** The runner releases visual playback only after it accepted first proof. */
+  releaseAutoplayAdmission(execution: PhoneAodExecution): void;
   resetAutoplay(): void;
 };
 
@@ -90,23 +107,27 @@ export type PhoneSceneAdapterProps = Readonly<{
   onReady?: () => void;
   onAodProgress?: (
     progress: number,
-    direction: 1 | -1,
-    identity: PhoneExecutionToken
+    execution: PhoneAodExecution
   ) => void;
   onAodComplete?: (
-    direction: 1 | -1,
-    identity: PhoneExecutionToken
+    execution: PhoneAodExecution
   ) => void;
-  /** Successful packed-canvas draw for the active AOD execution only. */
+  /** Exact token-bound packed-canvas frame for the active AOD execution. */
   onAodFrame?: (
-    progress: number,
-    direction: 1 | -1,
-    identity: PhoneExecutionToken
+    frame: PhoneRenderedPresentationFrame,
+    execution: PhoneAodExecution
+  ) => void;
+  /** Leaf-only failure fact; the runner decides rollback. */
+  onAodFailure?: (
+    execution: PhoneAodExecution,
+    reason: 'aod-context-lost' | 'media-failed'
   ) => void;
 }>;
 
 export type PhoneHeroAdapterProps = PhoneSceneAdapterProps & Readonly<{
   motionDriver: PhoneMotionDriver;
+  /** Poster bytes are decoded before the shell exposes the fixed Hero stage. */
+  onFirstFramePrepared?: () => void;
 }>;
 
 export type PhonePatternAdapterProps = PhoneSceneAdapterProps & Readonly<{
@@ -149,7 +170,10 @@ export type PhoneTransitionAdapterHandle = TransitionPresentationAdapterHandle &
   releaseEndpoint(): void;
 };
 
-export type PhonePresentedFrameReporter = () => void;
+/** A renderer may carry its raw immutable frame; legacy adapters report void. */
+export type PhonePresentedFrameReporter = (
+  frame?: PhoneRenderedPresentationFrame
+) => void;
 
 /** Immutable positional execution token captured at cinematic adapter start. */
 export type PhoneCinematicRequest = PhoneExecutionToken;

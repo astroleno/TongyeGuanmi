@@ -1,8 +1,0 @@
-.portrait-scroll-spike[data-phone-direct-entry="continuation"] {
-  /*
-   * Keep the one persistent stage host without retaining the front-half
-   * 480dvh rail. The rail's negative margin makes this one-stage height
-   * net-zero so the selected Group6–7 receiver starts at the document origin.
-   */
-  --portrait-stage-rail-height: var(--portrait-stage-height);
-}

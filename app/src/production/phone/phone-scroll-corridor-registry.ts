@@ -1,8 +1,8 @@
 import type { SceneId } from '../../story/types';
-import type { PhoneRunId, PhoneScrollRunId } from './phone-story-runs';
+import { phoneRunTuple, type PhoneRunId, type PhoneScrollRunId } from './phone-story-runs';
 import type {
   PhoneStorySnapshot
-} from './phone-story-state';
+} from './phone-story/machine';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 
 export type PhoneScrollViewport = Readonly<{
@@ -18,6 +18,8 @@ export type PhoneScrollCorridorSample = Readonly<{
   run?: PhoneScrollRunId;
   direction?: -1 | 0 | 1;
   progress?: number;
+  /** Presentation strategy is a sampled fact, never a second controller. */
+  reducedMotion?: boolean;
 }>;
 
 export type PhoneLandingReason =
@@ -55,7 +57,8 @@ export type PhoneScrollCorridorRegistry = Readonly<{
     snapshot: PhoneStorySnapshot,
     scene: SceneId,
     reason: PhoneLandingReason,
-    direction: PhoneTransitionDirection
+    direction: PhoneTransitionDirection,
+    run?: PhoneRunId | null
   ): number | null;
   clear(): void;
 }>;
@@ -75,6 +78,19 @@ function firstForScenes(
 ): PhoneScrollCorridor | null {
   for (const corridor of corridors) {
     if (scenes.some((scene) => corridor.scenes.includes(scene))) return corridor;
+  }
+  return null;
+}
+
+function firstForRun(
+  corridors: Iterable<PhoneScrollCorridor>,
+  run: PhoneRunId
+): PhoneScrollCorridor | null {
+  const [, from, to] = phoneRunTuple(run);
+  for (const corridor of corridors) {
+    if (corridor.scenes.includes(from) && corridor.scenes.includes(to)) {
+      return corridor;
+    }
   }
   return null;
 }
@@ -114,8 +130,13 @@ export function createPhoneScrollCorridorRegistry(): PhoneScrollCorridorRegistry
       }
       return boundary ?? null;
     },
-    landing(snapshot, scene, reason, direction) {
-      const corridor = firstForScenes(corridors.values(), [scene]) ?? selected(snapshot);
+    landing(snapshot, scene, reason, direction, requestedRun) {
+      const run = requestedRun ?? (
+        snapshot.status === 'transaction' ? snapshot.session.operation.run : null
+      );
+      const corridor = run
+        ? firstForRun(corridors.values(), run)
+        : firstForScenes(corridors.values(), [scene]) ?? selected(snapshot);
       return corridor?.landing(scene, reason, direction) ?? null;
     },
     clear() {

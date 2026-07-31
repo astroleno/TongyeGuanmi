@@ -1,4 +1,4 @@
-import type { PhoneExecutionToken } from './phone-story-state';
+import type { PhoneExecutionToken } from './phone-story/runtime';
 
 const EPSILON = 0.001;
 

@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { phonePresentationLayerZIndex } from './phone-presentation-layers';
+import { phonePresentationLayerZIndex } from './phone-story/presentation';
 
 const storySource = readFileSync(
   new URL('./PhoneBrandLabContinuation.tsx', import.meta.url),
@@ -27,15 +27,15 @@ const formalShellSource = readFileSync(
   'utf8'
 );
 const edgeSurfaceSource = readFileSync(
-  new URL('./phone-edge-surface.ts', import.meta.url),
+  new URL('./phone-story/presentation.ts', import.meta.url),
   'utf8'
 );
 const storyRuntimeSource = readFileSync(
-  new URL('./phone-story-runtime.ts', import.meta.url),
+  new URL('./phone-story/runtime.ts', import.meta.url),
   'utf8'
 );
 const storyProjectorSource = readFileSync(
-  new URL('./phone-story-projector.ts', import.meta.url),
+  new URL('./phone-story/presentation.ts', import.meta.url),
   'utf8'
 );
 const stageRuntimeSource = readFileSync(
@@ -52,6 +52,10 @@ const stageStyles = readFileSync(
 );
 const aodStyles = readFileSync(
   new URL('./scenes/PhoneAod.css', import.meta.url),
+  'utf8'
+);
+const aodSceneSource = readFileSync(
+  new URL('./scenes/PhoneAod.tsx', import.meta.url),
   'utf8'
 );
 const methodStyles = readFileSync(
@@ -134,8 +138,9 @@ describe('Phone Brand → Lab visual contracts', () => {
       "addEventListener('visibilitychange', reapplyCurrentProjection)"
     );
     expect(storyProjectorSource).toContain(
-      'if (theme) theme.content = edgeSurface'
+      "if (theme) theme.setAttribute('content', edgeSurface)"
     );
+    expect(storyProjectorSource).not.toContain('theme.content');
     expect(storyProjectorSource).not.toContain('window.getComputedStyle(root)');
     expect(formalShellSource).not.toContain("'pattern-terminal'");
   });
@@ -145,7 +150,7 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(gradeAStorySource).not.toContain('orchestrator.reportPresentation');
     expect(formalShellSource).not.toContain('usePhoneEdgeSurface(');
     expect(formalShellSource).toContain(
-      "usePhoneStoryOrchestratorRuntime(\n    'formal',"
+      "usePhoneStoryRuntime(\n    'formal',"
     );
     expect(stageRuntimeSource).toContain(
       "if (stageOwner !== 'front') return null"
@@ -157,19 +162,76 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(stageRuntimeSource).toContain(
       "run === 'aod-method'"
     );
-    expect(stageRuntimeSource).toContain('createPhoneAodPresentationGate');
+    expect(stageRuntimeSource).toContain('registerPhoneRuntimeAodCapability(');
+    expect(stageRuntimeSource).not.toContain('createPhoneRuntimeAodDriver');
+    const aodRunnerSource = storyRuntimeSource.slice(
+      storyRuntimeSource.indexOf('export const PHONE_AOD_PREPARE_TIMEOUT_MS'),
+      storyRuntimeSource.indexOf('export function syncPhoneRuntimeDiagnostics')
+    );
+    expect(aodRunnerSource).toContain("port.registerRunCapability('aod-method', 'aod:method'");
+    expect(aodRunnerSource).toContain("aodSession.presentationProofToken('packed-canvas-frame', 'front:aod')");
+    expect(aodRunnerSource).toContain("aodSession.presentationFrameToken(\n            'static-poster'");
+    expect(aodRunnerSource).toContain('beginReducedAdmission(record)');
+    expect(aodRunnerSource).toContain('reportPresentationFrame(frame)');
+    expect(aodRunnerSource).not.toContain('reportRenderedFrame(');
+    expect(aodRunnerSource).not.toContain('proofForRenderedFrame(');
     expect(stageRuntimeSource).toContain('aodAdapter.startAutoplay(');
-    expect(stageRuntimeSource).toContain('session[5](');
-    expect(stageRuntimeSource).toContain('reportProgress: session[6]');
-    expect(stageRuntimeSource).toContain("session[9]('receiver')");
-    expect(stageRuntimeSource).toContain('session[10]();');
-    expect(stageRuntimeSource).toContain("'aod:method'");
+    expect(stageRuntimeSource).toContain('aodAdapter.releaseAutoplayAdmission(');
+    expect(stageRuntimeSource).toContain("'aod-method'");
     expect(stageRuntimeSource).not.toContain(
       "'phone-stage-runtime:aod-method'"
     );
-    expect(stageRuntimeSource).not.toContain('aodRun');
+    expect(stageRuntimeSource).not.toMatch(/\baodRun(?:Ref)?\b/);
     expect(stageRuntimeSource).not.toContain('FRONT_INK_BOUNDARIES');
     expect(stageRuntimeSource).not.toContain('runPhoneTimedTransition');
+  });
+
+  it('[AOD cutover static gate] has exactly one runner writer and no runtime proof reconstruction', () => {
+    const aodRunnerSource = storyRuntimeSource.slice(
+      storyRuntimeSource.indexOf('export const PHONE_AOD_PREPARE_TIMEOUT_MS'),
+      storyRuntimeSource.indexOf('export function syncPhoneRuntimeDiagnostics')
+    );
+    expect(
+      (aodRunnerSource.match(/registerRunCapability\('aod-method'/g) ?? []).length
+    ).toBe(1);
+    expect(existsSync(
+      new URL('./phone-story/runtime/aod.ts', import.meta.url)
+    )).toBe(false);
+    expect(aodRunnerSource).toContain('reportPresentationFrame(frame)');
+    expect(aodRunnerSource).not.toContain('reportRenderedFrame(');
+    expect(aodRunnerSource).not.toContain('proofForRenderedFrame(');
+    expect((aodRunnerSource.match(/\.reportProgress\(/g) ?? []).length).toBe(1);
+    expect(aodRunnerSource).toContain("reportAodAutoplayBlocked()");
+    expect(aodRunnerSource).toContain("requestAodGestureRetry()");
+    expect(aodRunnerSource).toContain("reportAodWatchdog(stage)");
+    expect(aodRunnerSource).toContain('reducedMotion,');
+    expect(aodRunnerSource).toContain("frame.origin !== 'leaf-static-poster'");
+    expect(stageRuntimeSource).not.toContain('aodRuntime.reset(');
+    expect(
+      (stageRuntimeSource.match(/aodAdapter\.resetAutoplay\(/g) ?? []).length
+    ).toBe(1);
+    expect(aodSceneSource).toContain("origin: 'segment-first-frame'");
+    expect(aodSceneSource).toContain("origin: 'leaf-static-poster'");
+    expect(aodSceneSource).not.toContain('reportRenderedFrame(');
+    expect(aodSceneSource).not.toContain('proofForRenderedFrame(');
+    expect(aodSceneSource).not.toContain('reportProgress(');
+    expect(aodSceneSource).not.toContain('reportPresentationProof(');
+    expect(aodSceneSource).not.toContain('reportEndpointCommit(');
+    const aodStaticTargetProof = aodSceneSource.slice(
+      aodSceneSource.indexOf('presentPresentation(token, report)'),
+      aodSceneSource.indexOf('disposePresentation(token)')
+    );
+    expect(aodStaticTargetProof).toContain('phoneRuntimePresentationTokenKey(token)');
+    expect(aodStaticTargetProof).toContain('requestBoundStaticPresentation()');
+    expect(aodSceneSource).toMatch(
+      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?renderRef\.current\?\.\(1\);[\s\S]*?staticSurface\.dataset\.aodStaticPoster\s*=\s*binding\.key;[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodStaticPresentationFrame\(/
+    );
+    const reducedAutoplay = aodSceneSource.slice(
+      aodSceneSource.indexOf('startAutoplay(execution)'),
+      aodSceneSource.indexOf('releaseAutoplayAdmission(execution)')
+    );
+    expect(reducedAutoplay).toContain("if (reducedMotion) return Promise.resolve('error')");
+    expect(reducedAutoplay).not.toContain('reportAodFrame(execution)');
   });
 
   it('keeps one opaque edge owner behind every fixed-stage boundary', () => {
@@ -217,6 +279,15 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
     expect(figure3Styles).toContain(
       'var(\n      --portrait-reading-paper-treatment'
+    );
+  });
+
+  it('[P0] keeps Method authored content visible while its proof token is a candidate', () => {
+    expect(methodStyles).toMatch(
+      /data-phone-surface-role="candidate-stable"\][\s\S]*portrait-scroll-spike__method-bridge/
+    );
+    expect(methodStyles).toMatch(
+      /data-phone-surface-role="stable"\][\s\S]*portrait-scroll-spike__method-bridge/
     );
   });
 

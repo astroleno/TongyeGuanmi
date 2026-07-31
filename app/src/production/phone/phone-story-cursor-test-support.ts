@@ -4,7 +4,7 @@ import type {
   PhoneAdapterTransitionPhase,
   PhoneStoryHold,
   PhoneStoryTransition
-} from './phone-story-state';
+} from './phone-story/machine';
 
 /** Test-only compatibility model for historical cursor fixtures. */
 export type PhoneStorySessionIdentity = Readonly<{

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPhoneScrollCorridorRegistry } from './phone-scroll-corridor-registry';
-import { createPhoneStorySnapshot } from './phone-story-state';
+import { createPhoneStorySnapshot } from './phone-story/machine';
 import { createPhoneDocumentScrollRuntime } from './usePhoneDocumentScrollRuntime';
 
 type Listener = () => void;

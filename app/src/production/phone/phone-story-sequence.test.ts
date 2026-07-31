@@ -1,12 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import {
-  createPhoneStoryOrchestrator,
+  createPhoneStoryRuntimeEngine as createPhoneStoryOrchestrator,
   type PhoneOrchestratedRunSession
-} from './phone-story-orchestrator';
+} from './phone-story/runtime/engine';
 import { resolvePhoneRunLanding } from './phone-run-landing';
 import { phoneRun, phoneStoryRuns } from './phone-story-runs';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
-import { phoneSegmentPresentationContract } from './phone-presentation-contract';
+import {
+  phoneScenePresentationTuple,
+  phoneScenePresentationProofKind,
+  phoneSegmentPresentationTuple
+} from './phone-story/manifest';
+
+function reportProof(
+  session: PhoneOrchestratedRunSession,
+  scene: Parameters<typeof phoneScenePresentationTuple>[0],
+  kind: Parameters<PhoneOrchestratedRunSession['presentationProofToken']>[0],
+  subject: string
+): void {
+  const token = session.presentationProofToken(kind, subject);
+  if (!token) throw new Error('Expected an active presentation token');
+  session.reportPresentationProof({
+    token,
+    frameSequence: 1,
+    observedAt: 1,
+    connected: true,
+    visible: true,
+    coverageComplete: true,
+    edge: phoneScenePresentationTuple(scene)[1]
+  });
+}
 
 function intent(inputEpoch: number, direction: PhoneTransitionDirection) {
   return [
@@ -29,8 +52,29 @@ function reportCurrentLegFrame(
     snapshot.session.operation.legIndex
   ];
   if (!leg) throw new Error('Expected an active run leg');
-  const requirement = phoneSegmentPresentationContract(leg.segment).firstFrame;
-  session.reportPresentedFrame(requirement.kind, requirement.subject);
+  reportProof(
+    session,
+    phoneSegmentPresentationTuple(leg.segment)[3],
+    phoneSegmentPresentationTuple(leg.segment)[8],
+    phoneSegmentPresentationTuple(leg.segment)[9]
+  );
+}
+
+function reportCurrentTargetProof(
+  orchestrator: ReturnType<typeof createPhoneStoryOrchestrator>,
+  session: PhoneOrchestratedRunSession
+): void {
+  const snapshot = orchestrator.getSnapshot();
+  if (snapshot.status !== 'transaction') {
+    throw new Error('Expected a candidate target presentation');
+  }
+  const target = snapshot.session.operation.to;
+  reportProof(
+    session,
+    target,
+    phoneScenePresentationProofKind(target),
+    phoneScenePresentationTuple(target)[4]
+  );
 }
 
 describe('canonical phone story sequence', () => {
@@ -74,7 +118,9 @@ describe('canonical phone story sequence', () => {
             reportCurrentLegFrame(orchestrator, session);
           }
         }
+        reportCurrentTargetProof(orchestrator, session);
         session.reportTargetPresented();
+        session.reportPresentationCommitted();
         expect(orchestrator.getSnapshot()).toMatchObject({
           status: 'stable',
           scene: target,

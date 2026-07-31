@@ -13,6 +13,22 @@ import {
   mapAodTimelineToMediaProgress
 } from '../../scenes/aod-animation/progress';
 import { unlockStoryMedia } from '../mobile-media-unlock';
+import type { PhoneAodExecution } from '../phone/phone-story/runtime';
+
+function execution(direction: 1 | -1): PhoneAodExecution {
+  return [
+    {
+      authorityId: 'portrait-test-authority',
+      sessionId: 'portrait-test-session',
+      generation: 1,
+      leg: 0,
+      revision: 1,
+      subject: 'front:aod',
+      kind: 'packed-canvas-frame'
+    },
+    direction
+  ];
+}
 
 class FakeVideo extends EventTarget {
   autoplay = true;
@@ -84,14 +100,14 @@ describe('portrait AOD autoplay', () => {
         sourceUrl: '/assets/aod-packed.mp4',
         driveReverseFrame: (value) => reverseMediaProgress.push(value),
         onProgress: (value) => progress.push(value),
-        onComplete: (direction) => completed.push(direction),
+        onComplete: (value) => completed.push(value?.[1] ?? 0),
         visibilityDocument: visibility as unknown as Document,
         requestFrame: frames.requestFrame,
         cancelFrame: frames.cancelFrame
       }
     );
 
-    controller.start();
+    controller.start(execution(1));
     await Promise.resolve();
     expect(video.play).toHaveBeenCalledOnce();
     expect(video.load).toHaveBeenCalledOnce();
@@ -129,7 +145,7 @@ describe('portrait AOD autoplay', () => {
 
     video.ended = false;
     video.play.mockClear();
-    controller.start(-1);
+    controller.start(execution(-1));
     expect(video.play).not.toHaveBeenCalled();
     expect(video.load).toHaveBeenCalledOnce();
     expect(progress.at(-1)).toBe(1);
@@ -239,7 +255,7 @@ describe('portrait AOD autoplay', () => {
       }
     );
 
-    controller.start(-1);
+    controller.start(execution(-1));
     frames.flush(1_000);
     frames.flush(1_500);
     expect(progress.at(-1)).toBeCloseTo(0.8);

@@ -4,7 +4,7 @@ import {
   PHONE_PATTERN_TERMINAL_EDGE_SURFACE,
   phoneEdgeSurfaceForScene,
   type PhoneEdgeScene
-} from './phone-edge-surface';
+} from './phone-story/presentation';
 
 describe('phone edge surface contract', () => {
   it('publishes the accepted terminal pixel for every Pattern route', () => {

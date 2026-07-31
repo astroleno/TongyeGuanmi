@@ -6,29 +6,32 @@ import type {
 } from '../../story/presentation';
 import type {
   PhoneCinematicRequest,
+  PhonePresentationAdapterHandle,
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
-import type { PhoneExecutionToken } from './phone-story-state';
-import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
+import type { PhoneExecutionToken } from './phone-story/machine';
+import type { PhoneStoryRuntimePort } from './phone-story/runtime';
 import {
   phoneScenePresentationContract,
   phoneSegmentPresentationContract
-} from './phone-presentation-contract';
+} from './phone-story/manifest';
 import {
   canonicalSceneIds,
   canonicalSegments
 } from '../../story/canonical-spine';
 
 const contextSource = readFileSync(
-  new URL('./PhoneStoryOrchestratorContext.tsx', import.meta.url),
+  new URL('./PhoneStoryRuntimeContext.tsx', import.meta.url),
   'utf8'
 );
 
 describe('phone presentation adapter contract', () => {
-  it('uses the shared scene lifecycle instead of declaring a second copy', () => {
+  it('extends the shared scene lifecycle only with the token-bound frame bridge', () => {
     expectTypeOf<PhoneSceneAdapterHandle>()
-      .toEqualTypeOf<ScenePresentationAdapterHandle>();
+      .toMatchTypeOf<ScenePresentationAdapterHandle>();
+    expectTypeOf<PhoneSceneAdapterHandle>()
+      .toMatchTypeOf<Partial<PhonePresentationAdapterHandle>>();
   });
 
   it('uses the shared transition lifecycle instead of declaring a second copy', () => {
@@ -67,12 +70,14 @@ describe('R5 canonical presentation manifest', () => {
       const contract = phoneScenePresentationContract(scene);
       expect(contract.receiverSurface).toMatch(/^[a-z0-9-]+:[a-z0-9-]+$/);
       expect(contract.coverageSurface).toMatch(/^[a-z0-9-]+:[a-z0-9-]+$/);
-      expect(['reading', 'static', 'visual']).toContain(contract.contentProbe.kind);
-      expect(
-        contract.contentProbe.kind === 'visual'
-          ? contract.contentProbe.frameSelectors.length
-          : contract.contentProbe.textSelectors.length
-      ).toBeGreaterThan(0);
+      expect(['reading', 'static', 'static-visual', 'visual']).toContain(contract.contentProbe.kind);
+      if (contract.contentProbe.kind === 'visual') {
+        expect(contract.contentProbe.frameSelectors).toEqual([]);
+      } else if (contract.contentProbe.kind === 'static-visual') {
+        expect(contract.contentProbe.frameSelectors.length).toBeGreaterThan(0);
+      } else {
+        expect(contract.contentProbe.textSelectors.length).toBeGreaterThan(0);
+      }
     }
   });
 
@@ -90,5 +95,14 @@ describe('R5 canonical presentation manifest', () => {
       expect(contract.forward.policy).toBe('fail-closed');
       expect(contract.reverse.policy).toBe('fail-closed');
     }
+  });
+
+  it('[R5] lands every post-composite reading hold on authored document content', () => {
+    expect(phoneScenePresentationContract('services').landingResolver)
+      .toBe('native-reading');
+    expect(phoneScenePresentationContract('lab').landingResolver)
+      .toBe('native-reading');
+    expect(phoneScenePresentationContract('education').landingResolver)
+      .toBe('native-reading');
   });
 });

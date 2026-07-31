@@ -7,11 +7,11 @@ import {
 } from 'react';
 import type { SceneId } from '../../story/types';
 import { hashForScene, sceneFromHash } from '../navigation';
-import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
+import type { PhoneStoryRuntimePort } from './phone-story/runtime';
 import {
   requestPhoneRuntimeNavigation,
   selectPhoneCinematicSnapshot
-} from './phone-story-runtime';
+} from './phone-story/runtime';
 
 /** Navigation has only menu UI state; its canonical scene is a snapshot selector. */
 export function usePhoneStoryNavigationRuntime(

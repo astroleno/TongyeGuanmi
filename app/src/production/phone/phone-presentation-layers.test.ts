@@ -5,8 +5,8 @@ import {
   phoneLayerForSurfaceRole,
   phonePresentationLayerZIndex,
   phoneTransitionLayerPlan
-} from './phone-presentation-layers';
-import { phoneSegmentPresentationTuple } from './phone-presentation-contract';
+} from './phone-story/presentation';
+import { phoneSegmentPresentationTuple } from './phone-story/manifest';
 
 describe('phone presentation layer contract', () => {
   it('keeps stable, retained, and endpoint planes in one global order', () => {
@@ -44,11 +44,7 @@ describe('phone presentation layer contract', () => {
             phonePresentationLayerZIndex(plan.receiver.role)
           );
 
-          if (plan.effect.host === plan.source.surface) {
-            expect(plan.effect.role).toBe(plan.source.role);
-          } else if (plan.effect.host === plan.receiver.surface) {
-            expect(plan.effect.role).toBe(plan.receiver.role);
-          } else if (contract[7] === 'above-both') {
+          if (contract[7] === 'above-both') {
             expect(phonePresentationLayerZIndex(plan.effect.role)).toBeGreaterThan(
               phonePresentationLayerZIndex(plan.receiver.role)
             );

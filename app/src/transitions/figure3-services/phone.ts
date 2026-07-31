@@ -40,15 +40,16 @@ export function phoneFigure3ServicesFrame(
   rawProgress: number,
   reducedMotion = false,
   mediaFailed = false,
-  direction: 1 | -1 = 1
+  direction: 1 | -1 = 1,
+  terminalEndpoint: 0 | 1 | null = null
 ): PhoneFigure3ServicesFrame {
-  const progress = mediaFailed
+  const progress = terminalEndpoint ?? (mediaFailed
     ? direction === 1 ? 1 : 0
     : reducedMotion ? rawProgress <= 0 ? 0 : 1
       : clamp(
         (clamp(rawProgress) - PHONE_FIGURE3_SERVICES_START_PROGRESS)
           / (1 - PHONE_FIGURE3_SERVICES_START_PROGRESS)
-      );
+      ));
   return { progress, fromOpacity: 1 - progress, toOpacity: progress };
 }
 
@@ -112,6 +113,10 @@ export const PhoneFigure3ServicesTransition = forwardRef<
 ) {
   const progressRef = useRef(0);
   const committedEndpointRef = useRef<0 | 1 | null>(null);
+  // Decoder/compositor callbacks can arrive one frame after the controller
+  // has released geometry. Keep the settled endpoint authoritative until the
+  // next begin(), so a late 0-progress sample cannot blank Services.
+  const releasedEndpointRef = useRef<0 | 1 | null>(null);
   const directionRef = useRef<1 | -1>(1);
   const render = useCallback((rawProgress: number) => {
     const progress = clamp(rawProgress);
@@ -124,7 +129,8 @@ export const PhoneFigure3ServicesTransition = forwardRef<
       progress,
       reducedMotion,
       mediaFailed,
-      directionRef.current
+      directionRef.current,
+      releasedEndpointRef.current
     );
     if (import.meta.env.DEV && host) {
       host.dataset.phoneTransition = 'figure3-services:endpoint-dissolve';
@@ -163,13 +169,16 @@ export const PhoneFigure3ServicesTransition = forwardRef<
     render,
     begin() {
       committedEndpointRef.current = null;
+      releasedEndpointRef.current = null;
     },
     commitEndpoint(endpoint) {
       committedEndpointRef.current = endpoint;
       render(endpoint);
     },
     releaseEndpoint() {
-      if (committedEndpointRef.current === 1 && documentFlow) {
+      const endpoint = committedEndpointRef.current;
+      if (endpoint !== null) releasedEndpointRef.current = endpoint;
+      if (endpoint === 1 && documentFlow) {
         settlePhoneFigure3ServicesDocumentFlow(from, to);
       }
       committedEndpointRef.current = null;
@@ -194,6 +203,7 @@ export const PhoneFigure3ServicesTransition = forwardRef<
     },
     dispose() {
       committedEndpointRef.current = null;
+      releasedEndpointRef.current = null;
       clearEndpoint(from, documentFlow);
       clearEndpoint(to, documentFlow);
     }

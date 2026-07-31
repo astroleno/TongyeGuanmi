@@ -7,7 +7,12 @@ import {
 } from 'react';
 import { LAB_COPY } from '../copy';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
+import type { PhoneSceneAdapterHandle } from '../../../production/phone/types';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
 import './PhoneLab.css';
 
 const LAB_ROW_OFFSETS = [11, 14, 17, 20, 23, 26] as const;
@@ -42,12 +47,32 @@ function applyLabFrame(
   }
 }
 
+/** A native leaf returns the machine token untouched after its static paint. */
+export function phoneLabStaticPresentationFrame(
+  token: PresentationToken,
+  frameSequence: number,
+  observedAt: number
+): PhoneRenderedPresentationFrame {
+  return {
+    token,
+    frameSequence,
+    observedAt,
+    origin: 'leaf-static-poster'
+  };
+}
+
 /** Native document-flow Lab chapter; its root is the stable Lab → PH input. */
 export const PhoneLab = forwardRef<
-  ScenePresentationAdapterHandle,
+  PhoneSceneAdapterHandle,
   Group45PhoneSceneProps
 >(function PhoneLab({ active, reducedMotion, onReady }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const presentationBindingRef = useRef<Readonly<{
+    token: PresentationToken;
+    key: string;
+    frameSequence: number;
+    report: (frame: PhoneRenderedPresentationFrame) => void;
+  }> | null>(null);
   const update = useCallback((progress: number) => {
     applyLabFrame(rootRef.current, progress, reducedMotion);
   }, [reducedMotion]);
@@ -62,6 +87,22 @@ export const PhoneLab = forwardRef<
     if (import.meta.env.DEV && rootRef.current) {
       rootRef.current.dataset.phoneLabActive = 'false';
     }
+  }, []);
+  const reportPresentedFrame = useCallback((key: string) => {
+    const binding = presentationBindingRef.current;
+    if (!binding || binding.key !== key) return;
+    const next = {
+      ...binding,
+      frameSequence: binding.frameSequence + 1
+    };
+    presentationBindingRef.current = next;
+    next.report(phoneLabStaticPresentationFrame(
+      next.token,
+      next.frameSequence,
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : 0
+    ));
   }, []);
 
   useEffect(() => {
@@ -79,7 +120,31 @@ export const PhoneLab = forwardRef<
     enter,
     leave,
     reverse: enter,
+    presentPresentation(token, report) {
+      const key = phoneRuntimePresentationTokenKey(token);
+      presentationBindingRef.current = {
+        token,
+        key,
+        frameSequence: 0,
+        report
+      };
+      update(1);
+      if (typeof window === 'undefined') return;
+      // One frame applies the endpoint and the next observes the browser's
+      // post-layout static paint. The key guard rejects retired callbacks.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => reportPresentedFrame(key));
+      });
+    },
+    disposePresentation(token) {
+      const binding = presentationBindingRef.current;
+      if (
+        binding
+        && binding.key === phoneRuntimePresentationTokenKey(token)
+      ) presentationBindingRef.current = null;
+    },
     dispose() {
+      presentationBindingRef.current = null;
       const root = rootRef.current;
       if (!root) return;
       if (import.meta.env.DEV) delete root.dataset.phoneLabActive;
@@ -88,7 +153,7 @@ export const PhoneLab = forwardRef<
       root.style.removeProperty('--phone-lab-opacity');
       root.style.removeProperty('--phone-lab-y');
     }
-  }), [enter, leave, update]);
+  }), [enter, leave, reportPresentedFrame, update]);
 
   return (
     <article

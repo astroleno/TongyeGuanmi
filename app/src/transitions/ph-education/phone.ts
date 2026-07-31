@@ -35,6 +35,10 @@ export const PhonePhEducationTransition = createPhoneEndpointAdapter([
   (from, to, rawProgress, direction, reducedMotion) => {
     const progress = reducedMotion ? (rawProgress < 0.5 ? 0 : 1) : rawProgress;
     if (direction === -1) {
+      // The terminal Education endpoint intentionally hides PH at exactly 1.
+      // Reverse media proof must instead observe the first authored
+      // non-terminal PH canvas frame before playback begins.
+      presentPhoneEndpoint(from, progress >= .999 ? 0 : 1, false);
       renderEducation(to, progress);
       return;
     }

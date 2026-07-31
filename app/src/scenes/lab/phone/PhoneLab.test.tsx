@@ -2,7 +2,11 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { LAB_COPY } from '..';
-import { PhoneLab, phoneLabFrame } from './PhoneLab';
+import {
+  PhoneLab,
+  phoneLabFrame,
+  phoneLabStaticPresentationFrame
+} from './PhoneLab';
 
 describe('PhoneLab', () => {
   it('is directly hash-addressable and exposes the stable Lab → PH input', () => {
@@ -34,5 +38,27 @@ describe('PhoneLab', () => {
       y: 0
     });
     expect(phoneLabFrame(0.2, true)).toEqual(phoneLabFrame(1));
+  });
+
+  it('[Services↔TTG hard cutover] returns a raw static poster with the leaf\'s original immutable token', () => {
+    const token = {
+      authorityId: 'brand-lab-authority',
+      sessionId: 'services-lab-reduced',
+      generation: 9,
+      leg: 1,
+      revision: 14,
+      subject: 'native:lab',
+      kind: 'static-poster'
+    } as const;
+
+    const frame = phoneLabStaticPresentationFrame(token, 1, 42);
+
+    expect(frame).toEqual({
+      token,
+      frameSequence: 1,
+      observedAt: 42,
+      origin: 'leaf-static-poster'
+    });
+    expect(frame.token).toBe(token);
   });
 });

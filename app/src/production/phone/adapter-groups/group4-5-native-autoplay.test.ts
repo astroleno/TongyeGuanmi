@@ -220,6 +220,30 @@ describe('Group 4–5 native autoplay', () => {
     controller.dispose();
   });
 
+  it('reports a physical decoder frame when reverse first exposes the media source', () => {
+    const video = new FakeVideo();
+    video.readyState = 2;
+    const presented = vi.fn();
+    const controller = createGroup45NativeAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 2.5,
+        onProgress: vi.fn(),
+        onPresentedFrame: presented,
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+
+    controller.start(-1);
+
+    expect(video.requestVideoFrameCallback).toHaveBeenCalledOnce();
+    video.presentFrame(2.5);
+    expect(presented).toHaveBeenCalledWith(2.5, -1);
+
+    controller.dispose();
+  });
+
   it('starts reverse from a retained terminal frame without rewriting currentTime', () => {
     const video = new FakeVideo();
     video.readyState = 2;

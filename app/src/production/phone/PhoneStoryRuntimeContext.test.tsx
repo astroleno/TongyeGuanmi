@@ -1,16 +1,16 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
-  PhoneStoryOrchestratorProvider,
-  usePhoneStoryOrchestrator,
+  PhoneStoryRuntimeProvider,
+  usePhoneStoryRuntimePort,
   usePhoneStorySelector,
   usePhoneStorySnapshot
-} from './PhoneStoryOrchestratorContext';
-import { createPhoneStoryRuntime } from './phone-story-runtime';
+} from './PhoneStoryRuntimeContext';
+import { createPhoneStoryRuntime } from './phone-story/runtime';
 
 function SnapshotKindProbe() {
-  const orchestrator = usePhoneStoryOrchestrator();
-  const snapshot = orchestrator.getSnapshot();
+  const runtime = usePhoneStoryRuntimePort();
+  const snapshot = runtime.getSnapshot();
   return <span>{snapshot.status === 'stable' ? 'hold' : 'transition'}</span>;
 }
 
@@ -22,7 +22,7 @@ function SnapshotProbe() {
   return <span>{`${snapshot.status}:${inputLocked}`}</span>;
 }
 
-describe('PhoneStoryOrchestratorContext', () => {
+describe('PhoneStoryRuntimeContext', () => {
   it('publishes one stable shell-owned runtime port without lifecycle methods', () => {
     const authority = createPhoneStoryRuntime({
       scope: 'formal',
@@ -32,9 +32,9 @@ describe('PhoneStoryOrchestratorContext', () => {
       scrollTo: () => undefined
     });
     expect(renderToStaticMarkup(
-      <PhoneStoryOrchestratorProvider authority={authority}>
+      <PhoneStoryRuntimeProvider authority={authority}>
         <SnapshotKindProbe />
-      </PhoneStoryOrchestratorProvider>
+      </PhoneStoryRuntimeProvider>
     )).toContain('<span>hold</span>');
   });
 
@@ -47,15 +47,15 @@ describe('PhoneStoryOrchestratorContext', () => {
       scrollTo: () => undefined
     });
     expect(renderToStaticMarkup(
-      <PhoneStoryOrchestratorProvider authority={authority}>
+      <PhoneStoryRuntimeProvider authority={authority}>
         <SnapshotProbe />
-      </PhoneStoryOrchestratorProvider>
+      </PhoneStoryRuntimeProvider>
     )).toContain('<span>stable:false</span>');
   });
 
   it('rejects capability registration outside the formal shell provider', () => {
     expect(() => renderToStaticMarkup(<SnapshotKindProbe />)).toThrow(
-      'Phone story orchestrator is unavailable'
+      'Phone story runtime is unavailable'
     );
   });
 });

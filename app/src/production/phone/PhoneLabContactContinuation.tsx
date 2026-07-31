@@ -19,15 +19,16 @@ import {
   type Group67PhoneTransitionId
 } from './adapter-groups/group6-7';
 import {
-  usePhoneStoryOrchestrator,
+  usePhoneStoryRuntimePort,
   usePhoneStorySnapshot
-} from './PhoneStoryOrchestratorContext';
+} from './PhoneStoryRuntimeContext';
 import {
   registerPhoneRuntimeScrollCorridor,
+  registerPhoneRuntimeEffect,
   registerPhoneRuntimeSurface,
   selectPhoneCinematicSnapshot,
   syncPhoneRuntimeDiagnostics
-} from './phone-story-runtime';
+} from './phone-story/runtime';
 import {
   acquirePhoneDocumentEndpointAlignment
 } from './phone-document-endpoint-alignment';
@@ -43,8 +44,12 @@ import {
   type PhoneLabContactVisualScene
 } from './phone-lab-contact-runtime';
 import {
+  phoneScenePresentationTuple
+} from './phone-story/manifest';
+import {
   phoneClampProgress,
   phoneDocumentTop,
+  phoneReadingLandingTarget,
   phoneSnapshotProjectsSurface
 } from './phone-composite-snapshot';
 import {
@@ -121,7 +126,7 @@ export function PhoneLabContactContinuation({
   fromLabBoundary = false,
   labBoundary = null
 }: PhoneLabContactContinuationProps) {
-  const orchestrator = usePhoneStoryOrchestrator();
+  const orchestrator = usePhoneStoryRuntimePort();
   const storySnapshot = usePhoneStorySnapshot();
   const cinematicSnapshot = selectPhoneCinematicSnapshot(storySnapshot);
   const initialScene: ContinuationScene = entryScene
@@ -273,6 +278,12 @@ export function PhoneLabContactContinuation({
               : contactRef.current;
       return adapter?.root() ?? null;
     };
+    const nativeReadingLanding = (
+      targetScene: ContinuationScene
+    ): number | null => phoneDocumentTop(phoneReadingLandingTarget(
+      rootForScene(targetScene),
+      phoneScenePresentationTuple(targetScene)[7]
+    ));
 
     const boundaryPosition = (
       scene: VisualScene,
@@ -307,13 +318,30 @@ export function PhoneLabContactContinuation({
       config: configFor,
       directConfig: directConfigFor,
       position: boundaryPosition,
-      startMedia({ scene, identity, config, animate }) {
+      rawFrameProofFor: (scene) => scene === 'ph-animation',
+      reducedStaticSubject: (scene, direction) => (
+        scene === 'ph-animation'
+          ? direction === 1 ? 'native:education' : 'native:lab'
+          : null
+      ),
+      reducedAdmissionTargetPosition: (scene, direction) => (
+        scene === 'ph-animation'
+          ? nativeReadingLanding(direction === 1 ? 'education' : 'lab')
+          : null
+      ),
+      startMedia({
+        scene,
+        identity,
+        config,
+        prepareReverseMediaFirstFrame,
+        animate
+      }) {
         if (identity[4] === 1) {
           config.media.enter?.();
           (config.visual as PhoneCinematicSceneAdapterHandle).enter?.(identity);
           return;
         }
-        config.media.reverse?.();
+        prepareReverseMediaFirstFrame();
         if (scene === 'ph-animation') {
           animate(
             1,
@@ -346,7 +374,18 @@ export function PhoneLabContactContinuation({
           scene,
           'native',
           () => rootForScene(scene),
-          () => stageHost
+          () => stageHost,
+          undefined,
+          scene === 'education'
+            ? {
+                present(token, report) {
+                  educationRef.current?.presentPresentation?.(token, report);
+                },
+                dispose(token) {
+                  educationRef.current?.disposePresentation?.(token);
+                }
+              }
+            : undefined
         )
       )),
       ...([
@@ -369,12 +408,35 @@ export function PhoneLabContactContinuation({
               progress: 0,
               direction: 1,
               runId: `${request.sessionId}:${request.generation}:direct`,
+              presentationToken: request.token,
               signal: request.signal,
               directEntry: true
             });
+          },
+          {
+            present(token, report) {
+              ref.current?.presentPresentation?.(token, report);
+            },
+            dispose(token) {
+              ref.current?.disposePresentation?.(token);
+            }
           }
         )
       ))
+    ];
+    const effectLeases = [
+      registerPhoneRuntimeEffect(
+        orchestrator,
+        'ph-to-education',
+        () => phRef.current?.root() ?? null,
+        () => phRef.current?.effectRoot?.() ?? null
+      ),
+      registerPhoneRuntimeEffect(
+        orchestrator,
+        'crane-to-contact',
+        () => craneRef.current?.root() ?? null,
+        () => craneRef.current?.effectRoot?.() ?? null
+      )
     ];
     const corridorLease = registerPhoneRuntimeScrollCorridor(
       orchestrator,
@@ -394,10 +456,14 @@ export function PhoneLabContactContinuation({
         return null;
       },
       (scene, reason, direction, [, , , , , , run]) => {
+        const targetScene = scene as ContinuationScene;
         const directNativeEntry = reason === 'direct-entry' && run === null;
         if (directNativeEntry) {
           if (!directEntryGeometryReady()) return null;
-          return phoneDocumentTop(rootForScene(scene as ContinuationScene));
+          return nativeReadingLanding(targetScene);
+        }
+        if (phoneScenePresentationTuple(targetScene)[5] === 'native-reading') {
+          return nativeReadingLanding(targetScene);
         }
         if (
           scene === 'lab'
@@ -474,6 +540,7 @@ export function PhoneLabContactContinuation({
         onMediaEvent
       );
       corridorLease.dispose();
+      for (const lease of effectLeases) lease.dispose();
       for (const lease of surfaceLeases) lease.dispose();
       runner.dispose();
     };

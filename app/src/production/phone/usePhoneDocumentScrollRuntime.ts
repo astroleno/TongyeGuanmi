@@ -3,7 +3,7 @@ import type { PhoneScrollRunId } from './phone-story-runs';
 import type {
   PhoneScrollCorridorId,
   PhoneStorySnapshot
-} from './phone-story-state';
+} from './phone-story/machine';
 import type {
   PhoneScrollCorridorRegistry
 } from './phone-scroll-corridor-registry';
@@ -26,7 +26,9 @@ export type PhoneDocumentScrollSample = readonly [
   scene: SceneId | null,
   run: PhoneScrollRunId | null,
   progress: number | undefined,
-  direction: -1 | 0 | 1 | undefined
+  direction: -1 | 0 | 1 | undefined,
+  /** Optional for frozen corridors that do not select a motion strategy. */
+  reducedMotion?: boolean
 ];
 
 export type PhoneDocumentScrollRuntime = Readonly<{
@@ -77,14 +79,25 @@ export function createPhoneDocumentScrollRuntime(
       visualViewportOffsetTop: visualViewport?.offsetTop ?? 0
     });
     const sample = selected?.sample;
-    options.reportSample([
-      sample?.actualY ?? actualY,
-      selected?.corridor ?? null,
-      sample?.scene ?? null,
-      sample?.run ?? null,
-      sample?.progress,
-      sample?.direction
-    ]);
+    const report = sample?.reducedMotion === undefined
+      ? [
+        sample?.actualY ?? actualY,
+        selected?.corridor ?? null,
+        sample?.scene ?? null,
+        sample?.run ?? null,
+        sample?.progress,
+        sample?.direction
+      ] as const satisfies PhoneDocumentScrollSample
+      : [
+        sample.actualY ?? actualY,
+        selected?.corridor ?? null,
+        sample.scene ?? null,
+        sample.run ?? null,
+        sample.progress,
+        sample.direction,
+        sample.reducedMotion
+      ] as const satisfies PhoneDocumentScrollSample;
+    options.reportSample(report);
   };
   const schedule = () => {
     if (disposed || frame) return;

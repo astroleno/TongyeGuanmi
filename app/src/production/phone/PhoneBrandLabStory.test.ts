@@ -34,7 +34,7 @@ describe('PhoneBrandLabStory', () => {
     expect(source).not.toContain('const [stageScene, setStageScene]');
     expect(source).not.toContain('usePhoneEdgeSurface');
     expect(source).not.toContain('onPresentation: publishPresentation');
-    expect(source).toContain("usePhoneStoryOrchestratorRuntime(\n    'brand-lab'");
+    expect(source).toContain("usePhoneStoryRuntime(\n    'brand-lab'");
     expect(source).toContain('usePhoneStoryNavigationRuntime(\n    authority.port');
     expect(source).not.toContain("window.addEventListener('hashchange'");
   });

@@ -9,10 +9,10 @@ import type { PhoneRouteScope } from './phone-route-scope';
 import {
   createPhoneStoryRuntimeForReact,
   type PhoneStoryAuthority
-} from './phone-story-runtime';
+} from './phone-story/runtime';
 
 /** Thin React lifetime adapter around the single route-local runtime factory. */
-export function usePhoneStoryOrchestratorRuntime(
+export function usePhoneStoryRuntime(
   scope: PhoneRouteScope,
   initialScene: SceneId,
   rootRef: RefObject<HTMLElement | null>

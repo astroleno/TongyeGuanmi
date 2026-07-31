@@ -9,7 +9,10 @@ import {
   phoneFigure2ProofTimelineProgress
 } from './figure2-distance-expand';
 import { PHONE_METHOD_FIGURE2_FIELD } from './method-bottom-figure2';
-import { phoneInkAdapterProgress } from './PhoneInkTransition';
+import {
+  phoneInkAdapterProgress,
+  phoneInkFirstPresentationProgress
+} from './PhoneInkTransition';
 
 const inkAdapterSource = readFileSync(
   new URL('./PhoneInkTransition.tsx', import.meta.url),
@@ -141,6 +144,25 @@ describe('phone Grade A transition contracts', () => {
     expect(phoneInkAdapterProgress(0.001, true, 'boundary')).toBe(1);
     expect(phoneInkAdapterProgress(0, true, 'receiver')).toBe(1);
     expect(phoneInkAdapterProgress(0.42, false, 'boundary')).toBe(0.42);
+  });
+
+  it('[R5] samples the first proof frame inside the visibly composited ink interval', () => {
+    // The WebGL field fades in through 0.06 and begins fading out at 0.94.
+    // A lifecycle callback at either endpoint is renderer activity, not an
+    // actual presentation proof.
+    expect(phoneInkFirstPresentationProgress(1)).toBe(0.02);
+    expect(phoneInkFirstPresentationProgress(-1)).toBe(0.92);
+  });
+
+  it('[R5] retries only an actual in-between renderer frame until its token can be proven', () => {
+    expect(inkAdapterSource).toContain('const scheduleFirstFrameRetry = useCallback');
+    expect(inkAdapterSource).toContain(
+      'render(progress, true) || !presentedFrameRef.current'
+    );
+    expect(inkAdapterSource).toContain(
+      'window.requestAnimationFrame(\n          renderUntilPresented\n        )'
+    );
+    expect(inkAdapterSource).toContain('scheduleFirstFrameRetry(direction);');
   });
 
   it('aligns only the forward receiver and preserves the reverse source', () => {

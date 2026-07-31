@@ -1,8 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import {
-  createPhoneStoryOrchestrator,
+  createPhoneStoryRuntimeEngine as createPhoneStoryOrchestrator,
   type PhoneOrchestratedRunSession
-} from './phone-story-orchestrator';
+} from './phone-story/runtime/engine';
+import {
+  phoneScenePresentationTuple,
+  phoneSegmentPresentationTuple
+} from './phone-story/manifest';
+
+function reportSegmentProof(
+  session: PhoneOrchestratedRunSession,
+  segment: Parameters<typeof phoneSegmentPresentationTuple>[0]
+): void {
+  const contract = phoneSegmentPresentationTuple(segment);
+  const token = session.presentationProofToken(contract[8], contract[9]);
+  if (!token) throw new Error('Expected an active segment proof token');
+  session.reportPresentationProof({
+    token,
+    frameSequence: 1,
+    observedAt: 1,
+    connected: true,
+    visible: true,
+    coverageComplete: true,
+    edge: phoneScenePresentationTuple(contract[3])[1]
+  });
+}
 
 function root(): HTMLElement {
   const styles = new Map<string, string>();
@@ -48,16 +70,16 @@ describe('phone presentation transaction', () => {
     });
 
     expect(orchestrator.resolveIntent([1, 1, 0, 120])).toBe('claim-boundary');
-    session?.reportPresentedFrame('effect-frame', 'group45:effect');
+    if (session) reportSegmentProof(session, 'brand-figure3');
     session?.reportEndpointCommit('receiver');
-    session?.reportPresentedFrame('packed-canvas-frame', 'group45:figure3');
+    if (session) reportSegmentProof(session, 'figure3-services');
     session?.reportAnimationComplete();
 
     expect(element.dataset).toMatchObject({
       phoneCursor: 'transition:brand-services:1',
       phoneTransitionPhase: 'verifying-target',
       phoneInputState: 'locked',
-      phoneProjectionState: 'transition'
+      phoneProjectionState: 'candidate'
     });
     expect(element.dataset.phoneStableScene).toBeUndefined();
   });

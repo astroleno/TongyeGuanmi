@@ -1,4 +1,4 @@
-import type { PhoneStorySnapshot } from './phone-story-state';
+import type { PhoneStorySnapshot } from './phone-story/runtime';
 
 /** Structural stable-hold guard used by runtime and regression contracts. */
 export function isStablePhonePresentation(

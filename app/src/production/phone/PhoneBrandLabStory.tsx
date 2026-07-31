@@ -19,19 +19,19 @@ import {
 } from './adapter-groups/group4-5';
 import { PhoneStageRail } from './PhoneStageRail';
 import {
-  PhoneStoryOrchestratorProvider
-} from './PhoneStoryOrchestratorContext';
+  PhoneStoryRuntimeProvider
+} from './PhoneStoryRuntimeContext';
 import {
-  usePhoneStoryOrchestratorRuntime
-} from './usePhoneStoryOrchestratorRuntime';
+  usePhoneStoryRuntime
+} from './usePhoneStoryRuntime';
 import {
   usePhoneStoryNavigationRuntime
 } from './usePhoneStoryNavigationRuntime';
-import { requestPhoneRuntimeDirectEntry } from './phone-story-runtime';
+import { requestPhoneRuntimeDirectEntry } from './phone-story/runtime';
 import {
   usePhoneViewportCoverage,
   type PhoneLayoutViewport
-} from './phone-viewport-coverage';
+} from './phone-story/presentation';
 import './PhoneBrandLabStory.css';
 
 const PhoneBrandLabBundle = lazy(() => (
@@ -93,7 +93,7 @@ export function PhoneBrandLabStory({
     root.style.setProperty('--portrait-live-width', `${viewport.width}px`);
   }, []);
   usePhoneViewportCoverage(rootRef, applyLayoutViewport);
-  const authority = usePhoneStoryOrchestratorRuntime(
+  const authority = usePhoneStoryRuntime(
     'brand-lab',
     initialScene,
     rootRef
@@ -150,7 +150,7 @@ export function PhoneBrandLabStory({
   }, [navigation]);
 
   return (
-    <PhoneStoryOrchestratorProvider authority={authority}>
+    <PhoneStoryRuntimeProvider authority={authority}>
       <main
         ref={rootRef}
         className="portrait-scroll-spike phone-brand-lab phone-brand-lab--shell"
@@ -184,7 +184,7 @@ export function PhoneBrandLabStory({
           onNavigate={navigate}
         />
       </main>
-    </PhoneStoryOrchestratorProvider>
+    </PhoneStoryRuntimeProvider>
   );
 }
 

@@ -1,4 +1,10 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef
+} from 'react';
 import { PatternBloomRenderer } from '../../../scenes/pattern/patternBloomRenderer';
 import { BELIEF_COPY } from '../../../story/copy';
 import { phoneMediaUrlFor } from '../phone-media';
@@ -6,10 +12,34 @@ import type {
   PhonePatternAdapterProps,
   PhoneSceneAdapterHandle
 } from '../types';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../phone-story/runtime';
 import './PhonePattern.css';
 
 const PATTERN_CENTER = Object.freeze({ x: 0.5, y: 0.28 });
 const PATTERN_BACKGROUND_IMAGE = phoneMediaUrlFor('pattern-background', 'pattern');
+
+type PhonePatternPresentationBinding = {
+  token: PresentationToken;
+  key: string;
+  report: (frame: PhoneRenderedPresentationFrame) => void;
+  frameSequence: number;
+  requested: boolean;
+  reported: boolean;
+  paintFrame: number | null;
+  proofFrame: number | null;
+};
+
+function cancelPatternPresentationFrames(binding: PhonePatternPresentationBinding): void {
+  if (typeof window === 'undefined') return;
+  if (binding.paintFrame !== null) window.cancelAnimationFrame(binding.paintFrame);
+  if (binding.proofFrame !== null) window.cancelAnimationFrame(binding.proofFrame);
+  binding.paintFrame = null;
+  binding.proofFrame = null;
+}
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -31,6 +61,20 @@ export function phonePatternFrame(rawProgress: number): Readonly<{
   };
 }
 
+/** Positional leaf inputs become one immutable raw frame at the module edge. */
+export function phonePatternStaticPresentationFrame(
+  token: PresentationToken,
+  frameSequence: number,
+  observedAt: number
+): PhoneRenderedPresentationFrame {
+  return {
+    token,
+    frameSequence,
+    observedAt,
+    origin: 'leaf-static-poster'
+  };
+}
+
 export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdapterProps>(function PhonePattern(
   { active, reducedMotion, motionDriver, onReady },
   forwardedRef
@@ -42,6 +86,55 @@ export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
   const rendererRef = useRef<PatternBloomRenderer | undefined>(undefined);
   const activeRef = useRef(active);
   const progressRef = useRef(0);
+  const presentationBindingRef = useRef<PhonePatternPresentationBinding | null>(null);
+
+  const requestBoundStaticPresentation = useCallback(() => {
+    const binding = presentationBindingRef.current;
+    const renderer = rendererRef.current;
+    if (!binding || !renderer || binding.requested || binding.reported) return;
+    binding.requested = true;
+    renderer.setFrameProgress(progressRef.current, progressRef.current);
+    // prepareStaticFrame waits for texture readiness; renderProgress then
+    // forces one concrete canvas draw after this immutable token was armed.
+    void renderer.prepareStaticFrame().then(() => {
+      if (
+        presentationBindingRef.current !== binding
+        || rendererRef.current !== renderer
+        || binding.reported
+      ) return;
+      if (typeof window === 'undefined') return;
+      // Draw in one frame, then report in the following frame. This keeps the
+      // machine candidate visible and proves a browser-composited endpoint,
+      // rather than a synchronous canvas method call.
+      binding.paintFrame = window.requestAnimationFrame(() => {
+        binding.paintFrame = null;
+        if (
+          presentationBindingRef.current !== binding
+          || rendererRef.current !== renderer
+          || binding.reported
+        ) return;
+        renderer.renderProgress(progressRef.current);
+        if (presentationBindingRef.current !== binding) return;
+        binding.proofFrame = window.requestAnimationFrame(() => {
+          binding.proofFrame = null;
+          if (
+            presentationBindingRef.current !== binding
+            || rendererRef.current !== renderer
+            || binding.reported
+          ) return;
+          binding.reported = true;
+          binding.frameSequence += 1;
+          binding.report(phonePatternStaticPresentationFrame(
+            binding.token,
+            binding.frameSequence,
+            performance.now()
+          ));
+        });
+      });
+    }).catch(() => {
+      // The machine-owned reduced-proof deadline performs rollback.
+    });
+  }, []);
 
   useEffect(() => {
     activeRef.current = active;
@@ -66,6 +159,7 @@ export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       if (!disposed) {
         canvas.dataset.portraitPatternRenderer = 'ready';
         onReady?.();
+        requestBoundStaticPresentation();
       }
     }).catch(() => {
       if (!disposed) canvas.dataset.portraitPatternRenderer = 'failed';
@@ -74,10 +168,14 @@ export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       disposed = true;
       renderer.destroy();
       if (rendererRef.current === renderer) rendererRef.current = undefined;
+      if (presentationBindingRef.current) {
+        cancelPatternPresentationFrames(presentationBindingRef.current);
+      }
+      presentationBindingRef.current = null;
       delete canvas.dataset.portraitPatternRenderer;
       delete canvas.dataset.portraitPatternCenter;
     };
-  }, [onReady, reducedMotion]);
+  }, [onReady, reducedMotion, requestBoundStaticPresentation]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -108,11 +206,41 @@ export const PhonePattern = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       activeRef.current = true;
       rendererRef.current?.setRenderActive(!reducedMotion, !reducedMotion);
     },
+    presentPresentation(token, report) {
+      if (presentationBindingRef.current) {
+        cancelPatternPresentationFrames(presentationBindingRef.current);
+      }
+      presentationBindingRef.current = {
+        token,
+        key: phoneRuntimePresentationTokenKey(token),
+        report,
+        frameSequence: 0,
+        requested: false,
+        reported: false,
+        paintFrame: null,
+        proofFrame: null
+      };
+      requestBoundStaticPresentation();
+    },
+    disposePresentation(token) {
+      const binding = presentationBindingRef.current;
+      if (
+        binding
+        && binding.key === phoneRuntimePresentationTokenKey(token)
+      ) {
+        cancelPatternPresentationFrames(binding);
+        presentationBindingRef.current = null;
+      }
+    },
     dispose() {
       activeRef.current = false;
+      if (presentationBindingRef.current) {
+        cancelPatternPresentationFrames(presentationBindingRef.current);
+      }
+      presentationBindingRef.current = null;
       rendererRef.current?.destroy();
     }
-  }), [motionDriver, reducedMotion]);
+  }), [motionDriver, reducedMotion, requestBoundStaticPresentation]);
 
   return (
     <section

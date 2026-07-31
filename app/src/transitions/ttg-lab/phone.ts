@@ -37,16 +37,17 @@ export function phoneTtgLabFrame(
   rawProgress: number,
   reducedMotion = false,
   mediaFailed = false,
-  direction: 1 | -1 = 1
+  direction: 1 | -1 = 1,
+  terminalEndpoint: 0 | 1 | null = null
 ): PhoneTtgLabFrame {
   const chapterProgress = clamp(rawProgress);
-  const progress = mediaFailed
+  const progress = terminalEndpoint ?? (mediaFailed
     ? direction === 1 ? 1 : 0
     : reducedMotion ? chapterProgress <= 0 ? 0 : 1
       : clamp(
         (chapterProgress - PHONE_TTG_LAB_ANIMATION_STOP)
           / (1 - PHONE_TTG_LAB_ANIMATION_STOP)
-      );
+      ));
   // TTG is the retained source plate. Lab alone owns the dissolve opacity:
   // fading the TTG ancestor makes Safari defer its alpha-video plane until
   // the ancestor returns to opacity 1, which hides the figure in reverse.
@@ -116,6 +117,10 @@ export const PhoneTtgLabTransition = forwardRef<
 ) {
   const progressRef = useRef(0);
   const committedEndpointRef = useRef<0 | 1 | null>(null);
+  // A media element may deliver one trailing timeline sample after the
+  // controller releases geometry. Latch the committed endpoint so that
+  // callback cannot erase the physical Lab (or rollback TTG) frame.
+  const releasedEndpointRef = useRef<0 | 1 | null>(null);
   const directionRef = useRef<1 | -1>(1);
   const render = useCallback((rawProgress: number) => {
     const progress = clamp(rawProgress);
@@ -128,7 +133,8 @@ export const PhoneTtgLabTransition = forwardRef<
       progress,
       reducedMotion,
       mediaFailed,
-      directionRef.current
+      directionRef.current,
+      releasedEndpointRef.current
     );
     if (import.meta.env.DEV && host) {
       host.dataset.phoneTransition = 'ttg-lab:desktop-overlay-dissolve';
@@ -167,13 +173,16 @@ export const PhoneTtgLabTransition = forwardRef<
     render,
     begin() {
       committedEndpointRef.current = null;
+      releasedEndpointRef.current = null;
     },
     commitEndpoint(endpoint) {
       committedEndpointRef.current = endpoint;
       render(endpoint);
     },
     releaseEndpoint() {
-      if (committedEndpointRef.current === 1 && documentFlow) {
+      const endpoint = committedEndpointRef.current;
+      if (endpoint !== null) releasedEndpointRef.current = endpoint;
+      if (endpoint === 1 && documentFlow) {
         settlePhoneTtgLabDocumentFlow(from, to);
       }
       committedEndpointRef.current = null;
@@ -201,6 +210,7 @@ export const PhoneTtgLabTransition = forwardRef<
     },
     dispose() {
       committedEndpointRef.current = null;
+      releasedEndpointRef.current = null;
       clearEndpoint(from, documentFlow);
       clearEndpoint(to, documentFlow);
     }

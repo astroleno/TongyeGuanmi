@@ -12,7 +12,7 @@ const compositeRunnerSource = readFileSync(
   'utf8'
 );
 const runtimeSource = readFileSync(
-  new URL('./phone-story-runtime.ts', import.meta.url),
+  new URL('./phone-story/runtime.ts', import.meta.url),
   'utf8'
 );
 
@@ -34,7 +34,9 @@ describe('PhoneLabContactContinuation recovery contract', () => {
       'retention: options.capabilities.retain(dependencies)'
     );
     expect(compositeRunnerSource).toContain('phoneRuntimeRunDependencies(');
-    expect(runtimeSource).toContain('...definition.dependencies.transitions');
+    expect(runtimeSource).toContain('phoneRunLegTuple(run, legIndex);');
+    expect(runtimeSource).toContain('phoneRunDependencies(run);');
+    expect(runtimeSource).not.toContain('definition.dependencies');
   });
 
   it('keeps the actual directional source rendered until the orchestrator settles', () => {
@@ -75,9 +77,20 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).toContain('if (!directEntryGeometryReady()) return null;');
   });
 
+  it('[R5] resolves native-reading landings from the manifest content anchor', () => {
+    expect(source).toContain('phoneReadingLandingTarget(');
+    expect(source).toContain('phoneScenePresentationTuple(targetScene)[7]');
+    expect(source).toMatch(
+      /if \(directNativeEntry\)[\s\S]*?nativeReadingLanding\(targetScene\)/
+    );
+    expect(source).toMatch(
+      /phoneScenePresentationTuple\(targetScene\)\[5\] === 'native-reading'[\s\S]*?nativeReadingLanding\(targetScene\)/
+    );
+  });
+
   it('uses the persistent stage canvas as coverage root for every Group 67 surface', () => {
     expect(source).toMatch(
-      /`native:\$\{scene\}`,[\s\S]*?\(\) => rootForScene\(scene\),\s*\(\) => stageHost\s*\)/
+      /`native:\$\{scene\}`,[\s\S]*?\(\) => rootForScene\(scene\),\s*\(\) => stageHost(?:\s*,|\s*\))/
     );
     expect(source).toMatch(
       /id,[\s\S]*?\(\) => ref\.current\?\.root\(\) \?\? null,\s*\(\) => stageHost\s*,/
@@ -107,6 +120,13 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).not.toContain('phoneGroup67MediaFallback');
   });
 
+  it('[R5] stages a visible reverse media adapter frame before requesting canvas proof', () => {
+    expect(source).toContain('prepareReverseMediaFirstFrame');
+    expect(compositeRunnerSource).toContain(
+      'const PHONE_REVERSE_MEDIA_ADMISSION_PROGRESS = .998;'
+    );
+  });
+
   it('rejects nullable or current-session media labels instead of relabeling stale events', () => {
     expect(source).toContain('phoneLabContactAutoplayToken(detail)');
     expect(source).toContain('const [scene, phase, direction, , progress] = detail;');
@@ -128,5 +148,24 @@ describe('PhoneLabContactContinuation recovery contract', () => {
       'acquirePhoneFlowEndpointAlignment'
     );
     expect(source).not.toContain('data-phone-flow-endpoint');
+  });
+
+  it('[Lab↔PH↔Education reduced cutover] gives the existing Group67 runner sole raw static-admission ownership', () => {
+    expect(source.match(/createPhoneCompositeRunner</g)).toHaveLength(1);
+    expect(source).toContain("ownerId: 'phone-lab-contact'");
+    expect(source).toMatch(
+      /rawFrameProofFor:\s*\(scene\)\s*=>\s*scene === 'ph-animation'/
+    );
+    expect(source).toMatch(
+      /reducedStaticSubject:[\s\S]*?direction === 1 \? 'native:education' : 'native:lab'/
+    );
+    expect(source).toContain('reducedAdmissionTargetPosition:');
+    expect(source).not.toContain('runner.reportRenderedFrame(');
+  });
+
+  it('[Education direct-entry cutover] registers the canonical native Education leaf as the only presentation adapter', () => {
+    expect(source).toMatch(
+      /scene === 'education'[\s\S]*?educationRef\.current\?\.presentPresentation\?\.\(token, report\)[\s\S]*?educationRef\.current\?\.disposePresentation\?\.\(token\)/
+    );
   });
 });

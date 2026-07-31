@@ -50,6 +50,12 @@ describe('PhonePh', () => {
     expect(markup).toContain('preload="auto"');
   });
 
+  it('[R5] redraws its prepared packed surface when an active media token starts', () => {
+    expect(source).toContain('const presentPreparedFrame = useCallback(() => {');
+    expect(source).toContain("surface?.(['present', null])");
+    expect(source).toContain('presentPreparedFrame,');
+  });
+
   it('uses stable reduced-motion endpoints in canonical order', () => {
     expect(phonePhPresentationProgress(0.49, true)).toBe(0);
     expect(phonePhPresentationProgress(0.5, true)).toBe(1);
@@ -92,8 +98,8 @@ describe('PhonePh', () => {
     expect(source).toContain('usePhoneCinematicRun([');
     expect(source).toContain('ensurePackedSurface,');
     expect(source).toContain('prepareTargetPresentation');
-    expect(source).toMatch(
-      /surface\(\[\s*'prepare',\s*mode,\s*request\.signal,\s*request\.directEntry === true\s*\]\)/s
+    expect(source).toContain(
+      'phoneRuntimePresentationTokenKey(request.presentationToken as PresentationToken)'
     );
     expect(source).toContain('failRun(1)');
     expect(source).toContain('failRun(-1)');

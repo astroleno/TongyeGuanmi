@@ -19,4 +19,10 @@ describe('usePhoneCinematicRun execution token contract', () => {
     expect(source).toContain('renderProgress');
     expect(source).toContain('startRun = useCallback((');
   });
+
+  it('[R5] redraws an already-prepared renderer only after its run token is active', () => {
+    expect(source).toMatch(/presentPreparedFrame:\s*\(\) => void,/);
+    expect(source).toContain('if (activeIdentityRef.current) {');
+    expect(source).toContain('options.presentPreparedFrame();');
+  });
 });

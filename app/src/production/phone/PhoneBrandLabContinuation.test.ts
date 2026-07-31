@@ -20,6 +20,22 @@ const ttgSource = readFileSync(
   new URL('../../scenes/ttg-animation/phone/PhoneTtg.tsx', import.meta.url),
   'utf8'
 );
+const labSource = readFileSync(
+  new URL('../../scenes/lab/phone/PhoneLab.tsx', import.meta.url),
+  'utf8'
+);
+const servicesSource = readFileSync(
+  new URL('../../scenes/services/phone/PhoneServices.tsx', import.meta.url),
+  'utf8'
+);
+const inkSource = readFileSync(
+  new URL('./transitions/PhoneInkTransition.tsx', import.meta.url),
+  'utf8'
+);
+const group45ContractSource = readFileSync(
+  new URL('./adapter-groups/group4-5.ts', import.meta.url),
+  'utf8'
+);
 
 describe('PhoneBrandLabContinuation direct entry presentation', () => {
   it.each([
@@ -61,6 +77,55 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     expect(source).not.toContain('orchestrator.reportPresentation');
   });
 
+  it('[R5] stages reverse media before a decoder can report its first physical frame', () => {
+    expect(source).toContain('prepareReverseMediaFirstFrame');
+    expect(compositeRunnerSource).toContain(
+      'const PHONE_REVERSE_MEDIA_ADMISSION_PROGRESS = .998;'
+    );
+  });
+
+  it('[Group45 cutover] routes only immutable raw leaf frames into the composite runner', () => {
+    expect(group45ContractSource).toMatch(
+      /onPresentedFrame\?: \(\s*scene: Group45PhoneSceneId,\s*frame: PhoneRenderedPresentationFrame\s*\) => void/
+    );
+    expect(source).toMatch(
+      /const onVisualFrame = useCallback\(\(\s*scene: Group45PhoneSceneId,\s*frame: PhoneRenderedPresentationFrame/
+    );
+    expect(source).toContain('runner.reportMediaFrame(scene, frame);');
+    expect(source).not.toContain('runner.reportMediaFrame(scene, identity);');
+  });
+
+  it('[Group45 hard cutover] keeps one runner owner and no Group45 generic-proof writer', () => {
+    expect(source.match(/createPhoneCompositeRunner</g)).toHaveLength(1);
+    expect(source).toContain("ownerId: 'phone-brand-lab'");
+    expect(source).toContain('rawFrameProof: true');
+    for (const group45Source of [
+      source,
+      group45ContractSource,
+      figure3Source,
+      ttgSource,
+      servicesSource,
+      labSource,
+      inkSource
+    ]) {
+      expect(group45Source).not.toContain('reportRenderedFrame(');
+      expect(group45Source).not.toContain('presentationProofToken(');
+      expect(group45Source).not.toContain('proofForRenderedFrame(');
+    }
+  });
+
+  it('[Services↔TTG hard cutover] keeps Lab a raw static leaf, not a second reduced-motion lifecycle', () => {
+    expect(source).toMatch(
+      /const labRef = useRef<PhoneSceneAdapterHandle \| null>\(null\);/
+    );
+    expect(labSource).toContain('PhoneSceneAdapterHandle');
+    expect(labSource).toContain('presentPresentation(token, report)');
+    expect(labSource).toContain("origin: 'leaf-static-poster'");
+    expect(labSource).not.toContain('reportRenderedFrame(');
+    expect(labSource).not.toContain('presentationProofToken(');
+    expect(labSource).not.toContain('proofForRenderedFrame(');
+  });
+
   it('registers the composite runner after the lazy document root mounts', () => {
     expect(source).toMatch(
       /\}, \[\s*adapters\.entryReady,\s*adapters\.rootReady,\s*capabilities,\s*orchestrator,\s*reducedMotion,\s*stageHost\s*\]\);/
@@ -73,6 +138,12 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     );
     expect(source).toContain('if (!directEntryGeometryReady()) return null;');
     expect(source).toContain('data-phone-group45-document-geometry=');
+  });
+
+  it('[R5] lands native-reading terminal holds on their target document root', () => {
+    expect(source).toMatch(
+      /phoneScenePresentationTuple\(targetScene\)\[5\] === 'native-reading'[\s\S]*?return phoneDocumentTop\(rootForScene\(targetScene\)\);/
+    );
   });
 
   it('does not overwrite a neighbouring transition surface owner', () => {
@@ -108,7 +179,7 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     expect(source).toContain("'group45',");
     expect(source).toContain("'group45:figure3'");
     expect(source).toContain("'group45:ttg'");
-    expect(source).toContain('phoneBrandLabVisualProjection(');
+    expect(source).toContain('phoneCompositeVisualProjection(');
     expect(source).toContain("'figure3-animation'");
     expect(compositeRunnerSource).not.toContain('type ActiveRun');
     expect(compositeRunnerSource).not.toContain('PhoneCompositeRunStep');
@@ -116,6 +187,15 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     expect(compositeRunnerSource).not.toContain('onRunBegin');
     expect(compositeRunnerSource).not.toContain('onMediaActive');
     expect(compositeRunnerSource).not.toContain('run.step');
+  });
+
+  it('[R5] keeps the direct-entry root mounted while a neighboring group changes focus', () => {
+    expect(source).toContain(
+      'const entryAdapterSceneRef = useRef(adapterScene);'
+    );
+    expect(source).toMatch(
+      /usePhoneGroup45Adapters\(\s*entryAdapterSceneRef\.current,\s*adapterScene\s*\)/
+    );
   });
 
   it('[Task 6] gives Figure3 and TTG a start-captured authority identity', () => {

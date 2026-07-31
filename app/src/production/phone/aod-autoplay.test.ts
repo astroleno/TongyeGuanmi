@@ -1,5 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createPhoneAodAutoplay } from './aod-autoplay';
+import type { PhoneAodExecution } from './phone-story/runtime';
+
+function execution(direction: 1 | -1 = 1): PhoneAodExecution {
+  return [
+    {
+      authorityId: 'authority-a',
+      sessionId: 'session-a',
+      generation: 7,
+      leg: 0,
+      revision: 11,
+      subject: 'front:aod',
+      kind: 'packed-canvas-frame'
+    },
+    direction
+  ];
+}
 
 class FakeVideo extends EventTarget {
   autoplay = true;
@@ -36,7 +52,7 @@ describe('phone AOD autoplay lifecycle', () => {
       }
     );
 
-    const result = await controller.start(1);
+    const result = await controller.start(execution());
 
     expect(result).toBe('blocked');
     expect(video.dataset.phoneAodAutoplay).toBe('blocked');
@@ -47,13 +63,7 @@ describe('phone AOD autoplay lifecycle', () => {
     const video = new FakeVideo();
     const onProgress = vi.fn();
     const onComplete = vi.fn();
-    const identity = [
-      'authority-a',
-      'session-a',
-      7,
-      0,
-      1
-    ] as const;
+    const value = execution();
     const controller = createPhoneAodAutoplay(
       video as unknown as HTMLVideoElement,
       {
@@ -65,13 +75,13 @@ describe('phone AOD autoplay lifecycle', () => {
       }
     );
 
-    await expect(controller.start(1, identity)).resolves.toBe('playing');
-    expect(onProgress).toHaveBeenCalledWith(0, 1, identity);
+    await expect(controller.start(value)).resolves.toBe('playing');
+    expect(onProgress).toHaveBeenCalledWith(0, value);
 
     video.currentTime = 1;
     video.dispatchEvent(new Event('timeupdate'));
 
-    expect(onComplete).toHaveBeenCalledWith(1, identity);
+    expect(onComplete).toHaveBeenCalledWith(value);
     controller.dispose();
   });
 });

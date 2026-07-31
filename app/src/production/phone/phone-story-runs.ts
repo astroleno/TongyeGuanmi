@@ -51,6 +51,31 @@ export type PhoneRunDefinition = Readonly<{
   anchor: PhoneRunAnchorPolicy;
 }>;
 
+/**
+ * Positional run views are the only production transport for definitions that
+ * may otherwise be emitted into a separately property-mangled chunk.
+ */
+export type PhoneScrollRunTuple = readonly [
+  from: SceneId,
+  to: SceneId,
+  segment: SegmentId
+];
+
+export type PhoneRunTuple = readonly [
+  id: PhoneRunId,
+  from: SceneId,
+  to: SceneId,
+  legCount: number,
+  anchor: PhoneRunAnchorPolicy
+];
+
+export type PhoneRunLegTuple = readonly [
+  segment: SegmentId,
+  from: SceneId,
+  to: SceneId,
+  kind: PhoneRunLegKind
+];
+
 function leg(
   segment: SegmentId,
   kind: PhoneRunLegKind
@@ -96,6 +121,16 @@ export function phoneScrollRun(id: PhoneScrollRunId) {
       ? 0
       : id === 'pattern-star-scroll' ? 1 : 2
   ];
+}
+
+export function phoneScrollRunTuple(id: PhoneScrollRunId): PhoneScrollRunTuple {
+  const run = phoneScrollRun(id);
+  return [run.from, run.to, run.segment];
+}
+
+/** Primitive bridge for consumers that may be emitted into another chunk. */
+export function phoneScrollSegment(id: PhoneScrollRunId): SegmentId {
+  return phoneScrollRunTuple(id)[2];
 }
 
 export const phoneIntentRuns = [
@@ -211,6 +246,36 @@ export function phoneRun(
   return run;
 }
 
+export function phoneRunTuple(id: PhoneRunId): PhoneRunTuple {
+  const run = phoneRun(id);
+  return [run.id, run.from, run.to, run.legs.length, run.anchor];
+}
+
+export function phoneRunLegTuple(
+  id: PhoneRunId,
+  legIndex: number
+): PhoneRunLegTuple | null {
+  const leg = phoneRun(id).legs[legIndex];
+  return leg ? [leg.segment, leg.from, leg.to, leg.kind] : null;
+}
+
+/** Primitive dependency list for lazy capability preloading. */
+export function phoneRunDependencies(id: PhoneRunId): readonly string[] {
+  const run = phoneRun(id);
+  return [...run.dependencies.scenes, ...run.dependencies.transitions];
+}
+
+/**
+ * Presentation only needs the canonical segment. Keep the run-definition
+ * object private to this module so property mangling cannot split it.
+ */
+export function phoneRunLegSegment(
+  id: PhoneRunId,
+  legIndex: number
+): SegmentId | null {
+  return phoneRunLegTuple(id, legIndex)?.[0] ?? null;
+}
+
 export function phoneRunForHold(
   scene: SceneId,
   direction: 1 | -1
@@ -218,6 +283,16 @@ export function phoneRunForHold(
   return phoneIntentRuns.find((run) => (
     direction === 1 ? run.from === scene : run.to === scene
   ));
+}
+
+export function phoneRunForHoldTuple(
+  scene: SceneId,
+  direction: 1 | -1
+): PhoneRunTuple | null {
+  const run = phoneRunForHold(scene, direction);
+  return run
+    ? [run.id, run.from, run.to, run.legs.length, run.anchor]
+    : null;
 }
 
 /**

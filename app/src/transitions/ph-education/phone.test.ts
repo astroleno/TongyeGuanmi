@@ -152,6 +152,12 @@ describe('Phone PH → Education transition', () => {
     expect(source).toContain('direction === -1');
   });
 
+  it('[R5] exposes a non-terminal PH source frame before reverse canvas proof', () => {
+    expect(source).toContain(
+      'presentPhoneEndpoint(from, progress >= .999 ? 0 : 1, false);'
+    );
+  });
+
   it('keeps the full ordered endpoint sequence under reduced motion', () => {
     expect(phonePhEducationFrame(0.49, true)).toMatchObject({
       phProgress: 0,

@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { PhonePattern, phonePatternFrame } from './PhonePattern';
+import {
+  PhonePattern,
+  phonePatternFrame,
+  phonePatternStaticPresentationFrame
+} from './PhonePattern';
 
 const motionDriver = {
   set: () => undefined,
@@ -47,6 +51,28 @@ describe('PhonePattern Route B adapter', () => {
       copyY: 0
     });
     expect(completed.washOpacity).toBeCloseTo(0.94, 8);
+  });
+
+  it("[Pattern↔StarMap reduced cutover] returns the leaf's exact immutable static-poster token", () => {
+    const token = {
+      authorityId: 'pattern-authority',
+      sessionId: 'pattern-session',
+      generation: 2,
+      leg: 0,
+      revision: 7,
+      subject: 'front:pattern' as const,
+      kind: 'static-poster' as const
+    };
+
+    const frame = phonePatternStaticPresentationFrame(token, 1, 42);
+
+    expect(frame).toEqual({
+      token,
+      frameSequence: 1,
+      observedAt: 42,
+      origin: 'leaf-static-poster'
+    });
+    expect(frame.token).toBe(token);
   });
 
 });

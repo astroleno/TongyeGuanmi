@@ -8,7 +8,7 @@ import {
   dispatchPhoneLabContactAutoplay,
   type PhoneLabContactCinematicScene
 } from '../phone-lab-contact-timeline';
-import type { PhoneExecutionToken } from '../phone-story-state';
+import type { PhoneExecutionToken } from '../phone-story/runtime';
 
 export type PhoneCinematicDirection = 1 | -1;
 
@@ -30,6 +30,8 @@ export type PhoneCinematicRunRequest = readonly [
   reverseReady: () => boolean,
   activateSurface: (mode: 'forward' | 'endpoint') => void,
   render: (progress: number, direction?: PhoneCinematicDirection) => void,
+  /** Draw again only after an immutable media identity has been installed. */
+  presentPreparedFrame: () => void,
   beforeForward: (() => void) | null,
   beforeReverse: (() => void) | null
 ];
@@ -62,6 +64,7 @@ export function usePhoneCinematicRun(
     reverseReady,
     activateSurface,
     render,
+    presentPreparedFrame,
     beforeForward,
     beforeReverse
   ]: PhoneCinematicRunRequest
@@ -77,6 +80,7 @@ export function usePhoneCinematicRun(
     reverseReady,
     activateSurface,
     render,
+    presentPreparedFrame,
     beforeForward,
     beforeReverse
   };
@@ -174,6 +178,9 @@ export function usePhoneCinematicRun(
       reverseStartedRef.current = false;
       options.reverseRef.current?.stop();
       options.activateSurface('forward');
+      if (activeIdentityRef.current) {
+        options.presentPreparedFrame();
+      }
       options.beforeForward?.();
       options.forwardRef.current?.start();
       return;
@@ -183,6 +190,9 @@ export function usePhoneCinematicRun(
     reverseStartedRef.current = false;
     options.beforeReverse?.();
     options.activateSurface('endpoint');
+    if (activeIdentityRef.current) {
+      options.presentPreparedFrame();
+    }
     if (options.reverseReady()) {
       beginPreparedReverse();
     } else {
@@ -199,6 +209,7 @@ export function usePhoneCinematicRun(
     options.beforeForward,
     options.beforeReverse,
     options.forwardRef,
+    options.presentPreparedFrame,
     options.reducedMotion,
     options.render,
     options.reverseReady,

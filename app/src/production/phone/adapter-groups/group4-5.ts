@@ -5,7 +5,10 @@ import type {
 import type {
   ScenePresentationAdapterHandle
 } from '../../../story/presentation';
-import type { PhoneExecutionToken } from '../phone-story-state';
+import type {
+  PhoneExecutionToken,
+  PhoneRenderedPresentationFrame
+} from '../phone-story/runtime';
 import type { PhoneTransitionAdapterHandle } from '../types';
 
 /**
@@ -49,7 +52,7 @@ export type Group45PhoneSceneProps = Readonly<{
   /** A canvas/native frame was actually presented for the active media token. */
   onPresentedFrame?: (
     scene: Group45PhoneSceneId,
-    execution: PhoneExecutionToken
+    frame: PhoneRenderedPresentationFrame
   ) => void;
   /** Canonical media progress drives adjacent copy/transition cues. */
   onProgress?: (

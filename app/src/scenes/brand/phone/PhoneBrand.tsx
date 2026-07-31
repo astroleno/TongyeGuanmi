@@ -7,8 +7,47 @@ import {
 } from 'react';
 import { BRAND_COPY } from '../copy';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
+import type { PhoneSceneAdapterHandle } from '../../../production/phone/types';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
 import './PhoneBrand.css';
+
+type PhoneBrandStaticPresentationBinding = {
+  token: PresentationToken;
+  key: string;
+  frameSequence: number;
+  report: (frame: PhoneRenderedPresentationFrame) => void;
+  reported: boolean;
+  paintFrame: number | null;
+  proofFrame: number | null;
+};
+
+function cancelPhoneBrandStaticPresentationFrames(
+  binding: PhoneBrandStaticPresentationBinding
+): void {
+  if (typeof window === 'undefined') return;
+  if (binding.paintFrame !== null) window.cancelAnimationFrame(binding.paintFrame);
+  if (binding.proofFrame !== null) window.cancelAnimationFrame(binding.proofFrame);
+  binding.paintFrame = null;
+  binding.proofFrame = null;
+}
+
+/** The Brand leaf preserves the runner-issued static token unchanged. */
+export function phoneBrandStaticPresentationFrame(
+  token: PresentationToken,
+  frameSequence: number,
+  observedAt: number
+): PhoneRenderedPresentationFrame {
+  return {
+    token,
+    frameSequence,
+    observedAt,
+    origin: 'leaf-static-poster'
+  };
+}
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -47,10 +86,13 @@ function applyBrandFrame(
 
 /** Native document-flow phone adapter for the canonical Brand chapter. */
 export const PhoneBrand = forwardRef<
-  ScenePresentationAdapterHandle,
+  PhoneSceneAdapterHandle,
   Group45PhoneSceneProps
 >(function PhoneBrand({ active, reducedMotion, onReady }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const presentationBindingRef = useRef<
+    PhoneBrandStaticPresentationBinding | null
+  >(null);
 
   const update = useCallback((progress: number) => {
     applyBrandFrame(rootRef.current, progress, reducedMotion);
@@ -68,11 +110,75 @@ export const PhoneBrand = forwardRef<
     // accessible story tree merely because its visual bridge has retired.
     if (import.meta.env.DEV) root.dataset.phoneBrandActive = 'false';
   }, []);
+  const releaseStaticPresentation = useCallback((
+    token?: PresentationToken
+  ): boolean => {
+    const binding = presentationBindingRef.current;
+    if (
+      !binding
+      || (token && binding.key !== phoneRuntimePresentationTokenKey(token))
+    ) return false;
+    cancelPhoneBrandStaticPresentationFrames(binding);
+    const root = rootRef.current;
+    if (root?.dataset.phoneBrandStaticPoster === binding.key) {
+      delete root.dataset.phoneBrandStaticPoster;
+    }
+    if (presentationBindingRef.current === binding) {
+      presentationBindingRef.current = null;
+    }
+    return true;
+  }, []);
+  const requestBoundStaticPresentation = useCallback(() => {
+    const binding = presentationBindingRef.current;
+    if (
+      !binding
+      || binding.reported
+      || binding.paintFrame !== null
+      || binding.proofFrame !== null
+      || typeof window === 'undefined'
+    ) return;
+    // The candidate has already been laid out by the authority. Paint the
+    // canonical Brand endpoint, then submit its immutable leaf fact only on
+    // the following browser frame.
+    binding.paintFrame = window.requestAnimationFrame(() => {
+      binding.paintFrame = null;
+      if (presentationBindingRef.current !== binding || binding.reported) {
+        return;
+      }
+      const root = rootRef.current;
+      if (!root) return;
+      update(1);
+      root.dataset.phoneBrandStaticPoster = binding.key;
+      if (
+        presentationBindingRef.current !== binding
+        || root.dataset.phoneBrandStaticPoster !== binding.key
+      ) return;
+      binding.proofFrame = window.requestAnimationFrame(() => {
+        binding.proofFrame = null;
+        if (
+          presentationBindingRef.current !== binding
+          || binding.reported
+          || root.dataset.phoneBrandStaticPoster !== binding.key
+        ) return;
+        binding.reported = true;
+        binding.frameSequence += 1;
+        binding.report(phoneBrandStaticPresentationFrame(
+          binding.token,
+          binding.frameSequence,
+          typeof performance !== 'undefined'
+            && typeof performance.now === 'function'
+            ? performance.now()
+            : 0
+        ));
+      });
+    });
+  }, [update]);
 
   useEffect(() => {
     update(1);
     onReady?.();
-  }, [onReady, update]);
+    return () => { releaseStaticPresentation(); };
+  }, [onReady, releaseStaticPresentation, update]);
 
   useEffect(() => {
     if (active) enter();
@@ -85,7 +191,25 @@ export const PhoneBrand = forwardRef<
     enter,
     leave,
     reverse: enter,
+    presentPresentation(token, report) {
+      releaseStaticPresentation();
+      if (token.kind !== 'static-poster') return;
+      presentationBindingRef.current = {
+        token,
+        key: phoneRuntimePresentationTokenKey(token),
+        frameSequence: 0,
+        report,
+        reported: false,
+        paintFrame: null,
+        proofFrame: null
+      };
+      requestBoundStaticPresentation();
+    },
+    disposePresentation(token) {
+      releaseStaticPresentation(token);
+    },
     dispose() {
+      releaseStaticPresentation();
       const root = rootRef.current;
       if (!root) return;
       if (import.meta.env.DEV) delete root.dataset.phoneBrandActive;
@@ -93,7 +217,7 @@ export const PhoneBrand = forwardRef<
       root.style.removeProperty('--phone-brand-opacity');
       root.style.removeProperty('--phone-brand-y');
     }
-  }), [enter, leave, update]);
+  }), [enter, leave, releaseStaticPresentation, requestBoundStaticPresentation, update]);
 
   return (
     <article

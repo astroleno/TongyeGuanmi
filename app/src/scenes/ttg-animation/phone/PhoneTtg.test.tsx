@@ -1,16 +1,24 @@
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   PhoneTtg,
+  phoneTtgBootstrapEndpoint,
   phoneTtgFrame,
+  phoneTtgHasTokenBoundEndpointFrame,
   phoneTtgHasReusableEndpointFrame,
   phoneTtgHasReusableTerminalFrame,
   phoneTtgHeldEndpoint,
   phoneTtgMediaAction,
+  phoneTtgTargetPresentationLease,
   markPhoneTtgPresentedEndpoint,
   releasePhoneTtgVideo
 } from './PhoneTtg';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
 import {
   PHONE_TTG_LAB_ANIMATION_STOP,
   phoneTtgDissolveChapterProgress,
@@ -18,7 +26,35 @@ import {
   phoneTtgReverseFrameProgress
 } from './motion';
 
+function ttgPresentationToken(
+  overrides: Partial<PresentationToken> = {}
+): PresentationToken {
+  return {
+    authorityId: 'authority',
+    sessionId: 'session',
+    generation: 42,
+    leg: 0,
+    revision: 41,
+    subject: 'group45:effect',
+    kind: 'effect-frame',
+    ...overrides
+  };
+}
+
+const phoneTtgSource = readFileSync(
+  new URL('./PhoneTtg.tsx', import.meta.url),
+  'utf8'
+);
+
 describe('PhoneTtg', () => {
+  it('[Services↔TTG hard cutover] starts playback only from reconciliation', () => {
+    expect([...phoneTtgSource.matchAll(/\bstartRun\(/g)]).toHaveLength(1);
+    expect(phoneTtgSource).not.toMatch(/^\s*(?:enter|reverse)\(\)/m);
+    const reconcileStart = phoneTtgSource.indexOf('const reconcileMedia');
+    const handleStart = phoneTtgSource.indexOf('useImperativeHandle(forwardedRef');
+    expect(phoneTtgSource.slice(reconcileStart, handleStart)).toContain('startRun(');
+  });
+
   it('owns only its one optional video and retains local static layers', () => {
     const motionMarkup = renderToStaticMarkup(createElement(PhoneTtg, {
       active: true,
@@ -89,6 +125,183 @@ describe('PhoneTtg', () => {
     expect(phoneTtgHeldEndpoint('hold-initial', null)).toBe(0);
     expect(phoneTtgHeldEndpoint('hold-terminal', null)).toBe(1);
     expect(phoneTtgHeldEndpoint('play-reverse', 1)).toBeNull();
+  });
+
+  it('[Services↔TTG hard cutover] does not reset a pending terminal admission to frame zero', () => {
+    const terminalTarget = {
+      endpoint: 1,
+      direction: -1,
+      token: ttgPresentationToken({
+        leg: 1,
+        revision: 42,
+        subject: 'group45:ttg',
+        kind: 'packed-canvas-frame'
+      }),
+      signal: new AbortController().signal
+    } as const;
+
+    expect(phoneTtgBootstrapEndpoint(terminalTarget)).toBe(1);
+    expect(phoneTtgBootstrapEndpoint(null)).toBe(0);
+    const aborted = new AbortController();
+    aborted.abort();
+    expect(phoneTtgBootstrapEndpoint({
+      ...terminalTarget,
+      signal: aborted.signal
+    })).toBe(0);
+    expect(phoneTtgSource).toContain(
+      'playback.reset(phoneTtgBootstrapEndpoint(targetPreparationRef.current));'
+    );
+  });
+
+  it('[Services↔TTG hard cutover] retains an immutable direct target through an inactive snapshot pass', () => {
+    const token = ttgPresentationToken();
+    const target = {
+      endpoint: 0,
+      direction: 1,
+      token,
+      signal: new AbortController().signal
+    } as const;
+
+    expect(phoneTtgTargetPresentationLease(target, 'release'))
+      .toBe('retain-target-presentation');
+    expect(phoneTtgTargetPresentationLease(null, 'hold-initial'))
+      .toBe('hold-initial');
+  });
+
+  it('[Services↔TTG hard cutover] hands a prepared leg-0 target to its legal leg-1 playback successor', () => {
+    const admission = ttgPresentationToken();
+    const playback = ttgPresentationToken({
+      leg: 1,
+      revision: 42,
+      subject: 'group45:ttg',
+      kind: 'packed-canvas-frame'
+    });
+    const key = phoneRuntimePresentationTokenKey(admission);
+    const target = {
+      endpoint: 0,
+      direction: 1,
+      token: admission,
+      signal: new AbortController().signal
+    } as const;
+    const execution = [
+      'authority',
+      'session',
+      42,
+      1,
+      1,
+      playback
+    ] as const;
+    const prepared = { endpoint: 0, presentationKey: key } as const;
+
+    expect(phoneTtgTargetPresentationLease(
+      target,
+      'play-forward',
+      execution,
+      prepared
+    )).toBe('play-forward');
+    expect(phoneTtgTargetPresentationLease(
+      target,
+      'play-forward',
+      execution,
+      { endpoint: 0, presentationKey: key + ':stale' }
+    )).toBe('retain-target-presentation');
+  });
+
+  it('[Services↔TTG hard cutover] rejects a cross-leg successor that does not advance revision', () => {
+    const admission = ttgPresentationToken({ revision: 42 });
+    const playback = ttgPresentationToken({
+      leg: 1,
+      revision: 42,
+      subject: 'group45:ttg',
+      kind: 'packed-canvas-frame'
+    });
+    const target = {
+      endpoint: 0,
+      direction: 1,
+      token: admission,
+      signal: new AbortController().signal
+    } as const;
+
+    expect(phoneTtgTargetPresentationLease(
+      target,
+      'play-forward',
+      ['authority', 'session', 42, 1, 1, playback],
+      {
+        endpoint: 0,
+        presentationKey: phoneRuntimePresentationTokenKey(admission)
+      }
+    )).toBe('discard-stale-target');
+  });
+
+  it('[Services↔TTG hard cutover] drops a stale prior-session target before a new execution can start', () => {
+    const stale = ttgPresentationToken({ sessionId: 'stale-session' });
+    const playback = ttgPresentationToken({
+      leg: 1,
+      revision: 42,
+      subject: 'group45:ttg',
+      kind: 'packed-canvas-frame'
+    });
+    const target = {
+      endpoint: 0,
+      direction: 1,
+      token: stale,
+      signal: new AbortController().signal
+    } as const;
+
+    expect(phoneTtgTargetPresentationLease(
+      target,
+      'play-forward',
+      ['authority', 'session', 42, 1, 1, playback],
+      { endpoint: 0, presentationKey: phoneRuntimePresentationTokenKey(stale) }
+    )).toBe('discard-stale-target');
+  });
+
+  it('[Services↔TTG hard cutover] discards an aborted target before it can retain the next reconciliation', () => {
+    const controller = new AbortController();
+    const token = ttgPresentationToken();
+    const target = {
+      endpoint: 0,
+      direction: 1,
+      token,
+      signal: controller.signal
+    } as const;
+
+    controller.abort();
+
+    expect(phoneTtgTargetPresentationLease(target, 'release'))
+      .toBe('discard-stale-target');
+  });
+
+  it('[Services↔TTG hard cutover] admits a same-leg reverse target only with its exact prepared token', () => {
+    const token = ttgPresentationToken({
+      leg: 1,
+      revision: 42,
+      subject: 'group45:ttg',
+      kind: 'packed-canvas-frame'
+    });
+    const key = phoneRuntimePresentationTokenKey(token);
+    const target = {
+      endpoint: 1,
+      direction: -1,
+      token,
+      signal: new AbortController().signal
+    } as const;
+
+    expect(phoneTtgTargetPresentationLease(
+      target,
+      'play-reverse',
+      ['authority', 'session', 42, 1, -1, token],
+      { endpoint: 1, presentationKey: key }
+    )).toBe('play-reverse');
+  });
+
+  it('[Services↔TTG hard cutover] accepts a direct endpoint only when its complete current token prepared it', () => {
+    const key = 'authority:session:7:0:42:group45:ttg:packed-canvas-frame';
+    const prepared = { endpoint: 0, presentationKey: key } as const;
+
+    expect(phoneTtgHasTokenBoundEndpointFrame(prepared, 0, key)).toBe(true);
+    expect(phoneTtgHasTokenBoundEndpointFrame(prepared, 0, key + ':stale')).toBe(false);
+    expect(phoneTtgHasTokenBoundEndpointFrame(prepared, 1, key)).toBe(false);
   });
 
   it('reuses the retained physical terminal frame for Lab → TTG reverse', () => {

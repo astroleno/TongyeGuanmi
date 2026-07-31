@@ -8,6 +8,8 @@ import {
   phoneCrossChunkCompressionPolicyViolations,
   phoneCrossChunkExecutionContractViolations,
   phoneLazyAdapterPropReserveViolations,
+  phonePresentationTokenReserveViolations,
+  phoneStoryPresentationFacadeReserveViolations,
   phoneExecutionOwnershipViolations,
   phoneRuntimePortBoundaryViolations,
   phoneRouteScopeSelectorViolations,
@@ -44,11 +46,19 @@ const qaShellSource = readFileSync(
   'utf8'
 );
 const contextSource = readFileSync(
-  new URL('../src/production/phone/PhoneStoryOrchestratorContext.tsx', import.meta.url),
+  new URL('../src/production/phone/PhoneStoryRuntimeContext.tsx', import.meta.url),
   'utf8'
 );
 const phoneTypesSource = readFileSync(
   new URL('../src/production/phone/types.ts', import.meta.url),
+  'utf8'
+);
+const phonePresentationSource = readFileSync(
+  new URL('../src/production/phone/phone-story/presentation.ts', import.meta.url),
+  'utf8'
+);
+const phoneMachineSource = readFileSync(
+  new URL('../src/production/phone/phone-story/machine.ts', import.meta.url),
   'utf8'
 );
 const runDefinitionsSource = readFileSync(
@@ -60,11 +70,13 @@ const runLandingSource = readFileSync(
   'utf8'
 );
 const crossChunkExecutionSources = [
-  'phone-story-state.ts',
+  'phone-story/machine.ts',
+  'phone-story-runs.ts',
   'phone-transition-coordinator.ts',
-  'phone-story-runtime.ts',
-  'phone-story-orchestrator.ts',
-  'phone-orchestrated-session.ts',
+  'phone-story/runtime.ts',
+  'phone-story/runtime/engine.ts',
+  'phone-story/runtime/session.ts',
+  'phone-story/presentation.ts',
   'types.ts',
   'usePhoneDocumentScrollRuntime.ts',
   'phone-stage-timeline.ts',
@@ -78,7 +90,9 @@ const crossChunkExecutionSources = [
   const url = new URL(`../src/production/phone/${file}`, import.meta.url);
   return { file: fileURLToPath(url), source: readFileSync(url, 'utf8') };
 }).concat([
+  '../src/scenes/brand/phone/PhoneBrand.tsx',
   '../src/scenes/figure3-animation/phone/PhoneFigure3.tsx',
+  '../src/scenes/services/phone/PhoneServices.tsx',
   '../src/scenes/ttg-animation/phone/PhoneTtg.tsx',
   '../src/scenes/ph-animation/phone/PhonePh.tsx',
   '../src/scenes/crane-animation/phone/PhoneCrane.tsx'
@@ -194,10 +208,10 @@ describe('homepage phone-shell debt ratchet', () => {
     const baseline = [
       {
         file: 'PhoneStoryShell.tsx',
-        source: 'const authority = usePhoneStoryOrchestratorRuntime(root);'
+        source: 'const authority = usePhoneStoryRuntime(root);'
       },
       {
-        file: 'usePhoneStoryOrchestratorRuntime.ts',
+        file: 'usePhoneStoryRuntime.ts',
         source: 'createPhoneIntentCoordinator(root, onIntent);'
       },
       {
@@ -231,7 +245,7 @@ describe('homepage phone-shell debt ratchet', () => {
     expect([...graph.keys()].map((file) => file.split('/').at(-1))).toEqual(
       expect.arrayContaining([
         'PhoneStoryShell.tsx',
-        'phone-story-runtime.ts',
+        'runtime.ts',
         'PhoneBrandLabContinuation.tsx',
         'PhoneLabContactContinuation.tsx'
       ])
@@ -247,13 +261,13 @@ describe('homepage phone-shell debt ratchet', () => {
 
   it('[Task 9] rejects alternate factory, input, scroll, and presentation owners', () => {
     const baseline = [
-      ['phone-story-runtime.ts', [
-        'createPhoneStoryOrchestrator({});',
+      ['phone-story/runtime.ts', [
         'createPhoneStoryRuntime({});',
+        'createPhoneStoryRuntimeEngine({});',
         'createPhoneIntentCoordinator();',
         'createPhoneDocumentScrollRuntime();'
       ].join('\n')],
-      ['usePhoneStoryOrchestratorRuntime.ts', 'createPhoneStoryRuntimeForReact();']
+      ['usePhoneStoryRuntime.ts', 'createPhoneStoryRuntimeForReact();']
     ];
     expect(phoneExecutionOwnershipViolations(baseline)).toEqual([]);
 
@@ -270,7 +284,7 @@ describe('homepage phone-shell debt ratchet', () => {
       ].join('\n')]
     ]);
     expect(violations).toEqual(expect.arrayContaining([
-      'PhoneBrandLabContinuation.tsx: createPhoneStoryRuntime may only be assembled by src/production/phone/phone-story-runtime.ts',
+      'PhoneBrandLabContinuation.tsx: createPhoneStoryRuntime may only be assembled by src/production/phone/phone-story/runtime.ts',
       'PhoneBrandLabContinuation.tsx: module-scope authority/store singleton is forbidden',
       'PhoneBrandLabContinuation.tsx: child-owned scroll command is forbidden',
       'PhoneBrandLabContinuation.tsx: child-owned wheel/touch/document-scroll listener is forbidden',
@@ -327,7 +341,7 @@ describe('homepage phone-shell debt ratchet', () => {
   it('[Task 9] keeps QA read-only and Context lifecycle-free', () => {
     expect(qaPhoneOwnershipViolations(qaShellSource)).toEqual([]);
     expect(qaPhoneOwnershipViolations([
-      "import { createPhoneStoryProjector } from './phone-story-projector';",
+      "import { createPhoneStoryRuntimeEngine } from './phone-story/runtime/engine';",
       'createPhoneStoryRuntime({});',
       'const [display] = useState<SceneId>();',
       'const currentSceneRef = useRef<SceneId>();',
@@ -342,17 +356,52 @@ describe('homepage phone-shell debt ratchet', () => {
     expect(phoneRuntimePortBoundaryViolations(
       'const Context = createContext<PhoneStoryAuthority | null>(null); value={authority};'
     )).toEqual(expect.arrayContaining([
-      'PhoneStoryOrchestratorContext.tsx: Context must be typed as PhoneStoryRuntimePort',
-      'PhoneStoryOrchestratorContext.tsx: Context must expose authority.port only',
-      'PhoneStoryOrchestratorContext.tsx: Context must not expose route lifecycle authority'
+      'PhoneStoryRuntimeContext.tsx: Context must be typed as PhoneStoryRuntimePort',
+      'PhoneStoryRuntimeContext.tsx: Context must expose authority.port only',
+      'PhoneStoryRuntimeContext.tsx: Context must not expose route lifecycle authority'
     ]));
   });
 
   // This recursively parses the full phone graph; parallel release-manifest
   // tests can otherwise exceed Vitest's default 5s despite a valid result.
   it('rejects new raw execution objects at independently minified boundaries', () => {
+    expect(phonePresentationSource).toContain(
+      'export type PhonePresentationSnapshot = readonly ['
+    );
+    expect(phoneMachineSource).toContain(
+      'export function phonePresentationSnapshot('
+    );
+    expect(phonePresentationSource).toContain('phoneScrollSegment(');
+    expect(phonePresentationSource).toContain('phoneRunLegSegment(');
+    expect(runDefinitionsSource).toContain('export type PhoneScrollRunTuple = readonly [');
+    expect(runDefinitionsSource).toContain('export type PhoneRunTuple = readonly [');
+    expect(runDefinitionsSource).toContain('export type PhoneRunLegTuple = readonly [');
+    expect(runDefinitionsSource).toContain('export function phoneScrollRunTuple(');
+    expect(runDefinitionsSource).toContain('export function phoneRunTuple(');
+    expect(runDefinitionsSource).toContain('export function phoneRunLegTuple(');
+    expect(runDefinitionsSource).toContain('export function phoneRunForHoldTuple(');
     expect(phoneCrossChunkCompressionPolicyViolations()).toEqual([]);
     expect(phoneLazyAdapterPropReserveViolations(phoneTypesSource)).toEqual([]);
+    expect(phoneStoryPresentationFacadeReserveViolations(phonePresentationSource)).toEqual([]);
+    expect(phonePresentationTokenReserveViolations(phoneMachineSource)).toEqual([]);
+    expect(phonePresentationTokenReserveViolations(
+      phoneMachineSource.replace('subject: PhoneSurfaceId | string;', 'futureToken: string;')
+    )).toContain(
+      'PresentationToken: field is missing from retained policy (futureToken)'
+    );
+    expect(phoneStoryPresentationFacadeReserveViolations(
+      phonePresentationSource.replace('attach(): void;', 'futureFacade(): void;')
+    )).toContain(
+      'PhoneStoryPresentation: facade field is missing from retained policy (futureFacade)'
+    );
+    expect(phoneStoryPresentationFacadeReserveViolations(
+      phonePresentationSource.replace(
+        'export type PhoneSurfaceRegistration = Readonly<{',
+        'export type PhoneSurfaceRegistration = Readonly<{\n  futureBoundary(): void;'
+      )
+    )).toContain(
+      'PhoneStoryPresentation: PhoneSurfaceRegistration field is missing from retained policy (futureBoundary)'
+    );
     expect(phoneLazyAdapterPropReserveViolations(
       'export type PhoneFutureAdapterProps = Readonly<{ futureField: string; }>;'
     )).toContain(
@@ -361,11 +410,22 @@ describe('homepage phone-shell debt ratchet', () => {
     expect(phoneCrossChunkExecutionContractViolations(
       crossChunkExecutionSources
     )).toEqual([]);
+    expect(phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources.filter((entry) => !entry.file.endsWith(
+        '/phone-story/machine.ts'
+      )),
+      {
+        file: '/tmp/src/production/phone/phone-story/machine.ts',
+        source: 'const definition = phoneRun("aod-method");'
+      }
+    ])).toContain(
+      'machine.ts: raw phone run definitions are forbidden across independently minified chunks'
+    );
     const rawIdentity = phoneCrossChunkExecutionContractViolations([
       ...crossChunkExecutionSources,
       {
         file: '/tmp/PhoneFutureLazyScene.tsx',
-        source: 'import type { PhoneExecutionIdentity } from "./phone-story-state";'
+        source: 'import type { PhoneExecutionIdentity } from "./phone-story/machine";'
       }
     ]);
     expect(rawIdentity).toContain(

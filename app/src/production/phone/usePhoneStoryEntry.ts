@@ -14,13 +14,13 @@ import {
 import {
   phoneStoryEntrySceneFromHash
 } from './phone-entry-plan';
-import type { PhoneEdgeScene } from './phone-edge-surface';
-import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
-import { phoneStablePresentationTuple } from './phone-story-presentation';
+import type { PhoneEdgeScene } from './phone-story/presentation';
+import type { PhoneStoryRuntimePort } from './phone-story/runtime';
+import { phoneStablePresentationTuple } from './phone-story/presentation';
 import {
   requestPhoneRuntimeBootstrap,
   requestPhoneRuntimeDirectEntry
-} from './phone-story-runtime';
+} from './phone-story/runtime';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
 export type PhoneStoryEntryState = Readonly<{

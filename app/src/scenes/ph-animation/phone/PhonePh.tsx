@@ -19,6 +19,11 @@ import {
   type PhoneNativeAutoplay
 } from '../../../production/phone/phone-native-autoplay';
 import { phoneMediaUrlFor } from '../../../production/phone/phone-media';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
 import type { TargetPresentationRequest } from '../../../story/presentation';
 import {
   createPhonePackedAlphaSurface,
@@ -103,18 +108,42 @@ export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
 export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProps>(
   function PhonePh({ active, onReady, reducedMotion }, forwardedRef) {
     const rootRef = useRef<HTMLElement | null>(null);
+    const layerStackRef = useRef<HTMLDivElement | null>(null);
     const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [figureCanvasHost, setFigureCanvasHost] =
       useState<HTMLElement | null>(null);
     const nativeAutoplayRef = useRef<PhoneNativeAutoplay | null>(null);
     const reversePlaybackRef = useRef<PhonePhPresentedReverse | null>(null);
     const packedSurfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
+    const presentationBindingRef = useRef<Readonly<{
+      token: PresentationToken;
+      key: string;
+      frameSequence: number;
+      report: (frame: PhoneRenderedPresentationFrame) => void;
+    }> | null>(null);
     const beginPreparedReverseRef = useRef<(force?: boolean) => void>(
       () => undefined
     );
     const presentedFrameRef = useRef<() => void>(
       () => undefined
     );
+    const reportPresentationFrame = useCallback((presentationKey: string | null) => {
+      const binding = presentationBindingRef.current;
+      if (!binding || binding.key !== presentationKey) return;
+      const next = {
+        ...binding,
+        frameSequence: binding.frameSequence + 1
+      };
+      presentationBindingRef.current = next;
+      next.report({
+        token: next.token,
+        frameSequence: next.frameSequence,
+        observedAt: typeof performance !== 'undefined'
+          && typeof performance.now === 'function'
+          ? performance.now()
+          : 0
+      });
+    }, []);
 
     const ensurePackedSurface = useCallback((
       mode: PhonePackedAlphaSurfaceMode
@@ -136,17 +165,18 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
           'ph-figure',
           'ph-layer ph-layer--figure phone-ph__figure-canvas',
           null,
-          () => {
+          (presentationKey) => {
             video.dataset.timelineVideoFrameReady = 'true';
             root.dataset.phonePhMedia = video.paused ? 'ready' : 'playing';
             beginPreparedReverseRef.current?.();
             presentedFrameRef.current?.();
+            reportPresentationFrame(presentationKey);
           }
         ]);
       }
       packedSurfaceRef.current(['activate', mode]);
       return packedSurfaceRef.current;
-    }, []);
+    }, [reportPresentationFrame]);
 
     const renderPresentation = useCallback((
       rawProgress: number,
@@ -159,6 +189,13 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         reducedMotion
       );
     }, [reducedMotion]);
+
+    const presentPreparedFrame = useCallback(() => {
+      // A retained endpoint is not evidence for the newly active media token.
+      // Ask its mounted compositor for one real draw after token installation.
+      const surface = packedSurfaceRef.current;
+      surface?.(['present', null]);
+    }, []);
 
     const reverseReady = useCallback(() => {
       const root = rootRef.current;
@@ -199,6 +236,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       reverseReady,
       ensurePackedSurface,
       renderPresentation,
+      presentPreparedFrame,
       beforeForward,
       beforeReverse
     ]);
@@ -266,6 +304,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       };
     }, [
       ensurePackedSurface,
+      presentPreparedFrame,
       figureCanvasHost,
       onReady,
       renderPresentation,
@@ -308,7 +347,8 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
           'prepare',
           mode,
           request.signal,
-          request.directEntry === true
+          request.directEntry === true,
+          phoneRuntimePresentationTokenKey(request.presentationToken as PresentationToken)
         ]);
       } catch (error) {
         root.dataset.phonePhMedia = 'retryable-failure';
@@ -323,6 +363,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
 
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
+      effectRoot: () => layerStackRef.current,
       update(progress) {
         stopRun();
         renderPresentation(progress);
@@ -333,14 +374,34 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       },
       leave() {
         stopRun();
+        presentationBindingRef.current = null;
         parkPhonePhMedia(rootRef.current);
         packedSurfaceRef.current?.(['release']);
       },
       reverse(request?: PhoneCinematicRequest) {
         startRun(-1, request ?? null);
       },
+      presentPresentation(token, report) {
+        const key = phoneRuntimePresentationTokenKey(token);
+        presentationBindingRef.current = {
+          token,
+          key,
+          frameSequence: 0,
+          report
+        };
+        const surface = packedSurfaceRef.current ?? ensurePackedSurface('forward');
+        surface?.(['present', key]);
+      },
+      disposePresentation(token) {
+        const binding = presentationBindingRef.current;
+        if (
+          binding
+          && binding.key === phoneRuntimePresentationTokenKey(token)
+        ) presentationBindingRef.current = null;
+      },
       prepareTargetPresentation,
       dispose() {
+        presentationBindingRef.current = null;
         disposeRun();
         packedSurfaceRef.current?.(['dispose']);
         packedSurfaceRef.current = null;
@@ -376,7 +437,11 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
                   <img className="ph-bg" src={PH_BG_SRC} alt="" aria-hidden="true" />
                   <div className="ph-paper" aria-hidden="true" />
                   <div className="ph-sun-wash" aria-hidden="true" />
-                  <div className="ph-layer-stack" aria-hidden="true">
+                  <div
+                    ref={layerStackRef}
+                    className="ph-layer-stack"
+                    aria-hidden="true"
+                  >
                     <img
                       className="ph-layer ph-layer--front"
                       src={PH_FRONT_SRC}

@@ -18,17 +18,25 @@ export type PhonePackedAlphaSurfaceRequest = readonly [
   layerName: string,
   canvasClassName: string,
   frameTimeoutMs: number | null,
-  onFrame: (() => void) | null
+  /** Called only after a successful WebGL draw for the currently armed token. */
+  onFrame: ((presentationToken: string | null) => void) | null
 ];
 
 export type PhonePackedAlphaSurfaceCommand =
-  | readonly ['activate', mode: PhonePackedAlphaSurfaceMode]
+  | readonly [
+    'activate',
+    mode: PhonePackedAlphaSurfaceMode,
+    presentationToken?: string | null
+  ]
   | readonly [
     'prepare',
     mode: PhonePackedAlphaSurfaceMode,
     signal: AbortSignal | null,
-    requirePresentedFrame?: boolean
+    requirePresentedFrame?: boolean,
+    presentationToken?: string | null
   ]
+  /** Rebind one already-mounted compositor to a fresh proof token and draw. */
+  | readonly ['present', presentationToken: string | null]
   | readonly ['release']
   | readonly ['dispose'];
 
@@ -38,10 +46,15 @@ export type PhonePackedAlphaSurface = (
 ) => Promise<void> | void;
 
 type Preparation = Readonly<{
+  presentationToken: string | null;
   resolve(): void;
   reject(error: Error | DOMException): void;
   signal?: AbortSignal;
   abort(): void;
+}>;
+
+type PreparationSettlement = 'all' | Readonly<{
+  presentationToken: string | null;
 }>;
 
 const DEFAULT_FRAME_TIMEOUT_MS = 3000;
@@ -104,14 +117,35 @@ export function createPhonePackedAlphaSurface(
   let compositor: PackedAlphaVideoCompositor | undefined;
   let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
   let endpointSeek: (() => void) | undefined;
+  let activePresentationToken: string | null = null;
+  let activeFrameToken: string | null = null;
+  let presentationGeneration = 0;
 
-  const settle = (error?: Error | DOMException) => {
+  const settle = (
+    target: PreparationSettlement,
+    error?: Error | DOMException
+  ) => {
     for (const preparation of preparations) {
+      if (
+        target !== 'all'
+        && preparation.presentationToken !== target.presentationToken
+      ) continue;
       preparation.signal?.removeEventListener('abort', preparation.abort);
       if (error) preparation.reject(error);
       else preparation.resolve();
+      preparations.delete(preparation);
     }
-    preparations.clear();
+  };
+  const rejectSupersededPreparations = (presentationToken: string | null) => {
+    for (const preparation of preparations) {
+      if (preparation.presentationToken === presentationToken) continue;
+      preparation.signal?.removeEventListener('abort', preparation.abort);
+      preparation.reject(new DOMException(
+        `${layerName} packed-alpha presentation superseded`,
+        'AbortError'
+      ));
+      preparations.delete(preparation);
+    }
   };
   const clearSeek = () => {
     if (!endpointSeek) return;
@@ -138,10 +172,16 @@ export function createPhonePackedAlphaSurface(
     if (timeout !== undefined) globalThis.clearTimeout(timeout);
     timeout = undefined;
     root.dataset[statusDataset] = 'static-fallback';
-    settle(new Error(`${layerName} packed-alpha presentation failed`));
+    settle(
+      { presentationToken: activePresentationToken },
+      new Error(`${layerName} packed-alpha presentation failed`)
+    );
   };
   const release = () => {
-    settle(new DOMException(
+    presentationGeneration += 1;
+    activePresentationToken = null;
+    activeFrameToken = null;
+    settle('all', new DOMException(
       `${layerName} packed-alpha presentation retired`,
       'AbortError'
     ));
@@ -149,10 +189,38 @@ export function createPhonePackedAlphaSurface(
     releaseVideoSource(video);
     mode = undefined;
   };
-  const activate = (nextMode: PhonePackedAlphaSurfaceMode = 'forward') => {
-    if (disposed || mode === nextMode) return;
+  const rebindPresentationToken = (presentationToken: string | null) => {
+    if (activePresentationToken === presentationToken) return;
+    activePresentationToken = presentationToken;
+    activeFrameToken = presentationToken;
+    rejectSupersededPreparations(presentationToken);
+    if (timeout !== undefined) globalThis.clearTimeout(timeout);
+    timeout = undefined;
+    if (root.dataset[statusDataset] === 'verified') {
+      root.dataset[statusDataset] = mode === 'forward'
+        ? 'awaiting-native-playback'
+        : 'probing';
+    }
+    // A fresh immutable token may reuse a warmed WebGL context, but only the
+    // physical draw after this rebind can settle its own preparation.
+    compositor?.render();
+  };
+  const activate = (
+    nextMode: PhonePackedAlphaSurfaceMode = 'forward',
+    presentationToken?: string | null
+  ) => {
+    if (disposed) return;
+    if (mode === nextMode) {
+      if (presentationToken !== undefined) {
+        rebindPresentationToken(presentationToken);
+      }
+      return;
+    }
     release();
     mode = nextMode;
+    activePresentationToken = presentationToken ?? null;
+    activeFrameToken = presentationToken ?? null;
+    const generation = ++presentationGeneration;
     canvas = externalCanvas ?? root.ownerDocument.createElement('canvas');
     canvas.className = options.canvasClassName;
     canvas.setAttribute('aria-hidden', 'true');
@@ -162,6 +230,9 @@ export function createPhonePackedAlphaSurface(
       video,
       canvas,
       onFrame: () => {
+        if (
+          generation !== presentationGeneration
+        ) return;
         if (video.dataset.packedAlphaSource !== 'rgb-alpha-side-by-side') return;
         if (
           mode === 'endpoint'
@@ -171,8 +242,8 @@ export function createPhonePackedAlphaSurface(
         if (timeout !== undefined) globalThis.clearTimeout(timeout);
         timeout = undefined;
         root.dataset[statusDataset] = 'verified';
-        options.onFrame?.();
-        settle();
+        options.onFrame?.(activeFrameToken);
+        settle({ presentationToken: activePresentationToken });
       }
     });
     const status = canvas.dataset.packedAlphaStatus;
@@ -222,7 +293,8 @@ export function createPhonePackedAlphaSurface(
   const prepare = (
     nextMode: PhonePackedAlphaSurfaceMode,
     signal: AbortSignal | null,
-    requirePresentedFrame = false
+    requirePresentedFrame = false,
+    presentationToken: string | null = null
   ): Promise<void> => {
       if (disposed) {
         return Promise.reject(new Error(
@@ -239,7 +311,7 @@ export function createPhonePackedAlphaSurface(
         mode === nextMode
         && root.dataset[statusDataset] === 'static-fallback'
       ) release();
-      activate(nextMode);
+      activate(nextMode, presentationToken);
       if (nextMode === 'forward' && !requirePresentedFrame) {
         return Promise.resolve();
       }
@@ -256,6 +328,7 @@ export function createPhonePackedAlphaSurface(
       );
       return new Promise<void>((resolve, reject) => {
         const preparation: Preparation = {
+          presentationToken,
           resolve,
           reject,
           ...(signal ? { signal } : {}),
@@ -276,14 +349,31 @@ export function createPhonePackedAlphaSurface(
     release();
     disposed = true;
   };
+  const present = (presentationToken: string | null) => {
+    if (disposed || !compositor) return;
+    // The token is armed before `render()` so a retained endpoint must draw
+    // again for the new immutable revision; an old successful frame cannot be
+    // relabelled as proof for a newer transaction.
+    rebindPresentationToken(presentationToken);
+    activeFrameToken = presentationToken;
+    compositor.render();
+  };
 
   return (command) => {
     switch (command[0]) {
       case 'activate':
-        activate(command[1]);
+        activate(command[1], command[2]);
         return;
       case 'prepare':
-        return prepare(command[1], command[2], command[3] ?? false);
+        return prepare(
+          command[1],
+          command[2],
+          command[3] ?? false,
+          command[4] ?? null
+        );
+      case 'present':
+        present(command[1]);
+        return;
       case 'release':
         release();
         return;

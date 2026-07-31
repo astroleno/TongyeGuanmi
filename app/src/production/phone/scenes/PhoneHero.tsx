@@ -34,6 +34,10 @@ import type {
   PhoneHeroAdapterHandle,
   PhoneHeroAdapterProps
 } from '../types';
+import type {
+  PhoneRenderedPresentationFrame,
+  PresentationToken
+} from '../phone-story/runtime';
 import './PhoneHero.css';
 const HERO_BACK_IMAGE = phoneMediaUrlFor('hero-back', 'hero');
 const HERO_MIDDLE_IMAGE = phoneMediaUrlFor('hero-middle', 'hero');
@@ -52,18 +56,74 @@ function clamp(value: number): number {
 function range01(value: number, start: number, end: number): number {
   return end <= start ? Number(value >= end) : clamp((value - start) / (end - start));
 }
+
+function decodeHeroImage(image: HTMLImageElement): Promise<void> {
+  if (typeof image.decode === 'function') {
+    return image.decode().catch(() => {
+      // Safari can reject decode() after an already usable image; successful
+      // dimensions remain a valid static-poster proof in that case.
+      if (image.complete && image.naturalWidth > 0) return;
+      throw new Error('Hero poster decode failed');
+    });
+  }
+  return image.complete && image.naturalWidth > 0
+    ? Promise.resolve()
+    : Promise.reject(new Error('Hero image decode is unavailable'));
+}
+
+function nextBrowserPresentation(): Promise<void> {
+  if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
+function visibleInViewport(element: HTMLElement): boolean {
+  if (!element.isConnected) return false;
+  if (typeof getComputedStyle === 'function') {
+    const style = getComputedStyle(element);
+    if (
+      style.getPropertyValue('display') === 'none'
+      || style.getPropertyValue('visibility') === 'hidden'
+      || Number(style.getPropertyValue('opacity')) === 0
+    ) {
+      return false;
+    }
+  }
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  // Non-layout test environments have no viewport to intersect; the browser
+  // path below always has real dimensions and therefore takes the strict path.
+  if (viewportWidth <= 0 || viewportHeight <= 0) return true;
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0
+    && rect.height > 0
+    && rect.right > 0
+    && rect.bottom > 0
+    && rect.left < viewportWidth
+    && rect.top < viewportHeight;
+}
 /** Owns Hero markup/media/local rendering; the fixed-stage parent owns timing. */
 export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProps>(
-  function PhoneHero({ active, reducedMotion, motionDriver, onReady }, forwardedRef) {
+  function PhoneHero(
+    { active, reducedMotion, motionDriver, onFirstFramePrepared, onReady },
+    forwardedRef
+  ) {
     const rootRef = useRef<HTMLElement | null>(null);
     const backMotionRef = useRef<HTMLDivElement | null>(null);
     const backParallaxRef = useRef<HTMLDivElement | null>(null);
     const backImageRef = useRef<HTMLImageElement | null>(null);
+    const middleImageRef = useRef<HTMLImageElement | null>(null);
     const introInkCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const middleMotionRef = useRef<HTMLDivElement | null>(null);
     const middleParallaxRef = useRef<HTMLDivElement | null>(null);
     const figureMotionRef = useRef<HTMLDivElement | null>(null);
     const figureParallaxRef = useRef<HTMLDivElement | null>(null);
+    const figurePosterRef = useRef<HTMLImageElement | null>(null);
     const figureVideoRef = useRef<HTMLVideoElement | null>(null);
     const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const copyRef = useRef<HTMLDivElement | null>(null);
@@ -78,6 +138,13 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     const textRevealFrameRef = useRef<number | undefined>(undefined);
     const sceneActiveRef = useRef(false);
     const adapterReadyRef = useRef(false);
+    const heroPosterPresentedRef = useRef(false);
+    const presentationBindingRef = useRef<Readonly<{
+      token: PresentationToken;
+      report: (frame: PhoneRenderedPresentationFrame) => void;
+      frameSequence: number;
+      scheduled: boolean;
+    }> | null>(null);
     const lastProgressRef = useRef(Number.NaN);
     const [titleActive, setTitleActive] = useState(reducedMotion);
     const releaseCompositor = useCallback(() => {
@@ -143,6 +210,39 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       disposeEntranceRef.current?.();
       disposeEntranceRef.current = undefined;
     }, [cancelTextRevealFrame]);
+    const requestPresentedHeroFrame = useCallback(() => {
+      const binding = presentationBindingRef.current;
+      if (!binding || binding.scheduled || !heroPosterPresentedRef.current) return;
+      const scheduled = { ...binding, scheduled: true } as const;
+      presentationBindingRef.current = scheduled;
+      void nextBrowserPresentation().then(() => {
+        if (presentationBindingRef.current !== scheduled) return;
+        const root = rootRef.current;
+        // The initial decoded poster is checked before loader readiness, but
+        // the active packed-alpha canvas may legitimately replace that image
+        // before the candidate token is armed. The token-bound proof is the
+        // new browser frame of the visible Hero root, not the continued DOM
+        // visibility of a retired poster element.
+        if (!root || !visibleInViewport(root)) {
+          presentationBindingRef.current = { ...scheduled, scheduled: false };
+          return;
+        }
+        const next = {
+          ...scheduled,
+          frameSequence: scheduled.frameSequence + 1,
+          scheduled: false
+        } as const;
+        presentationBindingRef.current = next;
+        next.report({
+          token: next.token,
+          frameSequence: next.frameSequence,
+          observedAt: typeof performance !== 'undefined'
+            && typeof performance.now === 'function'
+            ? performance.now()
+            : 0
+        });
+      });
+    }, []);
     const renderEntrance = useCallback((rawProgress: number) => {
       const root = rootRef.current;
       const cue = cueRef.current;
@@ -218,6 +318,9 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       const backParallax = backParallaxRef.current;
       const middleParallax = middleParallaxRef.current;
       const figureParallax = figureParallaxRef.current;
+      const backImage = backImageRef.current;
+      const middleImage = middleImageRef.current;
+      const figurePoster = figurePosterRef.current;
       const figureVideo = figureVideoRef.current;
       const figureCanvas = figureCanvasRef.current;
       if (
@@ -225,6 +328,9 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         || !backParallax
         || !middleParallax
         || !figureParallax
+        || !backImage
+        || !middleImage
+        || !figurePoster
         || !figureVideo
         || !figureCanvas
       ) {
@@ -232,16 +338,44 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       }
       adapterReadyRef.current = true;
       primeEntrance();
+      root.dataset.phoneHeroFirstFrame = 'decoding';
+      let cancelled = false;
+      void Promise.all([
+        decodeHeroImage(backImage),
+        decodeHeroImage(middleImage),
+        decodeHeroImage(figurePoster)
+      ]).then(async () => {
+        if (cancelled) return;
+        root.dataset.phoneHeroFirstFrame = 'poster-decoded';
+        onFirstFramePrepared?.();
+        // The shell exposes only the Hero while Loader still covers the route.
+        // Two frames let style/layout and compositor visibility settle before
+        // the loader's normal readiness transaction is allowed to continue.
+        await nextBrowserPresentation();
+        if (cancelled) return;
+        if (!visibleInViewport(root) || !visibleInViewport(figurePoster)) {
+          root.dataset.phoneHeroFirstFrame = 'not-presented';
+          return;
+        }
+        root.dataset.phoneHeroFirstFrame = 'presented';
+        heroPosterPresentedRef.current = true;
+        requestPresentedHeroFrame();
+        onReady?.();
+      }).catch(() => {
+        if (!cancelled) root.dataset.phoneHeroFirstFrame = 'failed';
+      });
       if (reducedMotion) {
         renderHeroProgress(root, 1);
-        onReady?.();
+      }
+      if (reducedMotion) {
         return () => {
+          cancelled = true;
           adapterReadyRef.current = false;
+          heroPosterPresentedRef.current = false;
+          presentationBindingRef.current = null;
           cancelEntrance();
         };
       }
-      // Publish only after the root has a deterministic zero-progress frame.
-      onReady?.();
       const owner = storyRoot() ?? root;
       const playback = createPhoneFigurePlayback(
         figureVideo,
@@ -260,7 +394,10 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       parallaxRef.current = parallax;
 
       return () => {
+        cancelled = true;
         adapterReadyRef.current = false;
+        heroPosterPresentedRef.current = false;
+        presentationBindingRef.current = null;
         cancelEntrance();
         sceneActiveRef.current = false;
         parallax.dispose();
@@ -274,8 +411,10 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     }, [
       cancelEntrance,
       motionDriver,
+      onFirstFramePrepared,
       onReady,
       primeEntrance,
+      requestPresentedHeroFrame,
       reducedMotion,
       releaseCompositor,
       storyRoot
@@ -334,6 +473,28 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         ensureCompositor()?.setActive(!reducedMotion);
         playbackRef.current?.setActive(!reducedMotion);
       },
+      presentPresentation(token, report) {
+        presentationBindingRef.current = {
+          token,
+          report,
+          frameSequence: 0,
+          scheduled: false
+        };
+        requestPresentedHeroFrame();
+      },
+      disposePresentation(token) {
+        const binding = presentationBindingRef.current;
+        if (
+          binding
+          && binding.token.authorityId === token.authorityId
+          && binding.token.sessionId === token.sessionId
+          && binding.token.generation === token.generation
+          && binding.token.leg === token.leg
+          && binding.token.revision === token.revision
+          && binding.token.subject === token.subject
+          && binding.token.kind === token.kind
+        ) presentationBindingRef.current = null;
+      },
       startEntrance,
       completeEntrance,
       cancelEntrance,
@@ -356,6 +517,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       motionDriver,
       reducedMotion,
       releaseCompositor,
+      requestPresentedHeroFrame,
       startEntrance
     ]);
 
@@ -386,7 +548,12 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         <div ref={middleMotionRef} className="portrait-scroll-spike__hero-middle-motion" aria-hidden="true">
           <div ref={middleParallaxRef} className="portrait-scroll-spike__hero-middle-parallax">
             <div className="portrait-scroll-spike__hero-middle-intro">
-              <img className="portrait-scroll-spike__hero-middle" src={HERO_MIDDLE_IMAGE} alt="" />
+              <img
+                ref={middleImageRef}
+                className="portrait-scroll-spike__hero-middle"
+                src={HERO_MIDDLE_IMAGE}
+                alt=""
+              />
             </div>
           </div>
         </div>
@@ -394,9 +561,11 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           <div ref={figureParallaxRef} className="portrait-scroll-spike__hero-figure-parallax">
             <div className="portrait-scroll-spike__hero-figure-intro">
               <img
+                ref={figurePosterRef}
                 className="portrait-scroll-spike__hero-figure-poster"
                 data-portrait-figure-poster
                 src={HERO_FIGURE_POSTER}
+                decoding="async"
                 alt=""
               />
               <canvas

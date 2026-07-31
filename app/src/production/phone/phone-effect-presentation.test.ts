@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createPhoneStorySnapshot,
+  phonePresentationSnapshot,
   reducePhoneStorySnapshot
-} from './phone-story-state';
-import { createPhoneStoryProjector } from './phone-story-projector';
+} from './phone-story/machine';
+import { createPhoneStoryPresentation } from './phone-story/presentation';
 
-function element(effectNodes: readonly HTMLElement[] = []): HTMLElement {
+function element(): HTMLElement {
   const styles = new Map<string, string>();
   return {
     dataset: {} as DOMStringMap,
@@ -19,9 +20,6 @@ function element(effectNodes: readonly HTMLElement[] = []): HTMLElement {
       getPropertyValue(name: string) {
         return styles.get(name) ?? '';
       }
-    },
-    querySelectorAll(selector: string) {
-      return selector === '[data-r4-ink-segment]' ? effectNodes : [];
     }
   } as unknown as HTMLElement;
 }
@@ -35,11 +33,10 @@ function transaction(
   effect: HTMLElement;
 }> {
   const effect = element();
-  effect.dataset.r4InkSegment = 'phone-method-bottom-figure2';
-  const root = element([effect]);
+  const root = element();
   const method = element();
   const figure2 = element();
-  const projector = createPhoneStoryProjector({
+  const projector = createPhoneStoryPresentation({
     authorityId: 'phone-authority-test',
     scope: 'formal',
     root: () => root
@@ -56,6 +53,11 @@ function transaction(
     kind: 'fixed',
     root: () => figure2
   });
+  projector.registerEffect({
+    id: 'phone-method-bottom-figure2',
+    host: () => root,
+    element: () => effect
+  });
   const initial = createPhoneStorySnapshot({
     authorityId: 'phone-authority-test',
     scene: direction === 1 ? 'method-top' : 'figure2-animation'
@@ -71,7 +73,7 @@ function transaction(
     anchorY: 0,
     inputEpoch: 1
   }).snapshot;
-  const plan = projector.preflight(next);
+  const plan = projector.preflight(phonePresentationSnapshot(next));
   if (!plan) throw new Error('Expected an effect projection plan');
   projector.apply(plan);
   return { root, method, figure2, effect };
@@ -82,8 +84,12 @@ describe('phone effect presentation', () => {
     vi.unstubAllGlobals();
   });
 
-  it('[R5] atomically publishes the forward endpoint/effect ladder', () => {
-    vi.stubGlobal('MutationObserver', undefined);
+  it('[R5] atomically publishes the forward endpoint/effect ladder without DOM scanning', () => {
+    vi.stubGlobal('MutationObserver', class {
+      constructor() {
+        throw new Error('MutationObserver must not be constructed by presentation');
+      }
+    });
     const { root, method, figure2, effect } = transaction(1);
 
     expect(root.dataset).toMatchObject({
@@ -99,13 +105,18 @@ describe('phone effect presentation', () => {
     });
     expect(effect.dataset).toMatchObject({
       phoneLayerRole: 'transition-effect-above',
-      r4InkSegment: 'phone-method-bottom-figure2'
+      phoneEffectSegment: 'method-bottom-figure2',
+      phoneEffectHost: 'grade-a:ink'
     });
     expect(method.style.getPropertyValue('--phone-presentation-z')).toBe('');
   });
 
   it('[R5] reverses source and receiver while keeping the effect above both', () => {
-    vi.stubGlobal('MutationObserver', undefined);
+    vi.stubGlobal('MutationObserver', class {
+      constructor() {
+        throw new Error('MutationObserver must not be constructed by presentation');
+      }
+    });
     const { method, figure2, effect } = transaction(-1);
 
     expect(figure2.dataset.phoneSurfaceRole).toBe('transition-source');

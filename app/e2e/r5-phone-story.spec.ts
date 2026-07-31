@@ -3,7 +3,7 @@ import {
   phoneRun,
   type PhoneRunId
 } from '../src/production/phone/phone-story-runs';
-import { phoneScenePresentationContract } from '../src/production/phone/phone-presentation-contract';
+import { phoneScenePresentationContract } from '../src/production/phone/phone-story/manifest';
 
 const LIVE_PHONE_ROOT = 'main[data-phone-authority-id]';
 const LIVE_STORY_LOADER = '.story-loader[data-story-loader="true"]';
@@ -352,7 +352,7 @@ async function inputPhoneDelta(page: Page, deltaY: number): Promise<void> {
     await touchPhone(page, deltaY);
     return;
   }
-  await page.mouse.move(195, 650);
+  await page.mouse.move(195, 180);
   await page.mouse.wheel(0, deltaY);
 }
 
@@ -923,16 +923,19 @@ function assertTransitionTrace(
     }
     for (const state of legStates) {
       if (state.progress === null) continue;
-      const terminal = direction === 1
-        ? state.progress >= .999
-        : state.progress <= .001;
       const legSource = direction === 1 ? definitionLeg.from : definitionLeg.to;
       const legTarget = direction === 1 ? definitionLeg.to : definitionLeg.from;
       if (state.projection === 'candidate') {
         expect(state.edge).toBe(targetEdge);
-      } else if (state.edge !== PHONE_HOLD_CONTRACTS[legSource].edge) {
-        expect(terminal).toBe(true);
-        expect(state.edge).toBe(PHONE_HOLD_CONTRACTS[legTarget].edge);
+      } else {
+        // A token-bound physical first frame can hand edge authority to the
+        // receiver before its scalar playback sample advances. During an
+        // active leg, either rendered endpoint is valid; a third scene is not.
+        const allowedEdges = new Set([
+          phoneScenePresentationContract(legSource).edge,
+          phoneScenePresentationContract(legTarget).edge
+        ]);
+        expect(allowedEdges).toContain(state.edge);
       }
     }
     if (options.reducedMotion) continue;
@@ -997,6 +1000,143 @@ function assertTransitionTrace(
   })));
   expect(prematureHolds, traceSummary).toEqual([]);
   expect(prematureUnlocks, traceSummary).toEqual([]);
+}
+
+/**
+ * AOD reduced motion still owns one machine candidate. It may not enter the
+ * media playback phase: only the target leaf's exact post-paint static frame
+ * can release this locked candidate into its stable hold.
+ */
+function assertAodReducedStaticAdmissionTrace(
+  states: readonly PhoneTransitionTraceState[],
+  direction: 1 | -1
+): void {
+  const candidates = states.filter((state) => (
+    state.cursor === 'transition:aod-method:0'
+    && state.session !== null
+ ));
+  expect(candidates, 'missing AOD reduced candidate').not.toEqual([]);
+  expect(new Set(candidates.map((state) => state.session)).size).toBe(1);
+  expect(candidates.every((state) => (
+    state.direction === String(direction)
+    && state.phase === 'preparing'
+    && state.projection === 'candidate'
+    && state.input === 'locked'
+    && state.progress !== null
+    && Math.abs(state.progress - (direction === 1 ? 0 : 1)) <= .05
+  ))).toBe(true);
+  expect(candidates.some((state) => state.phase === 'animating')).toBe(false);
+  expect(candidates.some((state) => state.projection === 'transition')).toBe(false);
+}
+
+/**
+ * Method ↔ Figure2 uses the same reduced candidate protocol: one immutable
+ * static token reaches the target leaf, and no rendered transition can start
+ * before that target fact is accepted by the authority.
+ */
+function assertMethodFigure2ReducedStaticAdmissionTrace(
+  states: readonly PhoneTransitionTraceState[],
+  direction: 1 | -1
+): void {
+  const candidates = states.filter((state) => (
+    state.cursor === 'transition:method-figure2:0'
+    && state.session !== null
+  ));
+  expect(candidates, 'missing Method↔Figure2 reduced candidate').not.toEqual([]);
+  expect(new Set(candidates.map((state) => state.session)).size).toBe(1);
+  expect(candidates.every((state) => (
+    state.direction === String(direction)
+    && state.phase === 'preparing'
+    && state.projection === 'candidate'
+    && state.input === 'locked'
+    && state.progress !== null
+    && Math.abs(state.progress - (direction === 1 ? 0 : 1)) <= .05
+  ))).toBe(true);
+  expect(candidates.some((state) => state.phase === 'animating')).toBe(false);
+  expect(candidates.some((state) => state.projection === 'transition')).toBe(false);
+}
+
+/**
+ * Figure2 ↔ Proof is likewise an admission-only reduced edge: no ink
+ * playback may bridge the static target leaf's raw token-bound poster proof.
+ */
+function assertFigure2ProofReducedStaticAdmissionTrace(
+  states: readonly PhoneTransitionTraceState[],
+  direction: 1 | -1
+): void {
+  const candidates = states.filter((state) => (
+    state.cursor === 'transition:figure2-proof:0'
+    && state.session !== null
+  ));
+  expect(candidates, 'missing Figure2↔Proof reduced candidate').not.toEqual([]);
+  expect(new Set(candidates.map((state) => state.session)).size).toBe(1);
+  expect(candidates.every((state) => (
+    state.direction === String(direction)
+    && state.phase === 'preparing'
+    && state.projection === 'candidate'
+    && state.input === 'locked'
+    && state.progress !== null
+    && Math.abs(state.progress - (direction === 1 ? 0 : 1)) <= .05
+  ))).toBe(true);
+  expect(candidates.some((state) => state.phase === 'animating')).toBe(false);
+  expect(candidates.some((state) => state.projection === 'transition')).toBe(false);
+}
+
+/**
+ * Proof ↔ Brand follows the same reduced admission contract, but its forward
+ * leaf is the canonical native Brand document surface rather than the Ink
+ * transition. The authority must remain a locked candidate until that leaf
+ * reports its exact post-paint static frame.
+ */
+function assertProofBrandReducedStaticAdmissionTrace(
+  states: readonly PhoneTransitionTraceState[],
+  direction: 1 | -1
+): void {
+  const candidates = states.filter((state) => (
+    state.cursor === 'transition:proof-brand:0'
+    && state.session !== null
+  ));
+  expect(candidates, 'missing Proof↔Brand reduced candidate').not.toEqual([]);
+  expect(new Set(candidates.map((state) => state.session)).size).toBe(1);
+  expect(candidates.every((state) => (
+    state.direction === String(direction)
+    && state.phase === 'preparing'
+    && state.projection === 'candidate'
+    && state.input === 'locked'
+    && state.progress !== null
+    && Math.abs(state.progress - (direction === 1 ? 0 : 1)) <= .05
+  ))).toBe(true);
+  expect(candidates.some((state) => state.phase === 'animating')).toBe(false);
+  expect(candidates.some((state) => state.projection === 'transition')).toBe(false);
+}
+
+/**
+ * Lab ↔ Education keeps PH as a capability dependency only in reduced motion.
+ * The candidate must settle through the native leaf's exact static fact, with
+ * no compositor playback phase or compatibility endpoint writer in between.
+ */
+function assertLabEducationReducedStaticAdmissionTrace(
+  states: readonly PhoneTransitionTraceState[],
+  direction: 1 | -1
+): void {
+  const admissionLeg = direction === 1 ? 0 : 1;
+  const candidates = states.filter((state) => (
+    state.cursor === `transition:lab-education:${admissionLeg}`
+    && state.session !== null
+  ));
+  expect(candidates, `missing Lab↔Education reduced candidate on leg ${admissionLeg}`)
+    .not.toEqual([]);
+  expect(new Set(candidates.map((state) => state.session)).size).toBe(1);
+  expect(candidates.every((state) => (
+    state.direction === String(direction)
+    && state.phase === 'preparing'
+    && state.projection === 'candidate'
+    && state.input === 'locked'
+    && state.progress !== null
+    && Math.abs(state.progress - (direction === 1 ? 0 : 1)) <= .05
+  ))).toBe(true);
+  expect(candidates.some((state) => state.phase === 'animating')).toBe(false);
+  expect(candidates.some((state) => state.projection === 'transition')).toBe(false);
 }
 
 const FRONT_SCROLL_RUNS = [
@@ -1180,7 +1320,8 @@ async function driveFrontScrollRun(
 function assertReducedFrontHoldTrace(
   states: readonly PhoneTransitionTraceState[],
   from: PhoneStableScene,
-  to: PhoneStableScene
+  to: PhoneStableScene,
+  direction: 1 | -1
 ): void {
   const run = frontScrollRun(from, to).id;
   const terminal = states.findIndex((state) => state.cursor === `hold:${to}`);
@@ -1188,7 +1329,23 @@ function assertReducedFrontHoldTrace(
   const trace = states.slice(0, terminal + 1);
   expect(trace.some((state) => state.cursor === `transition:${run}:0`)).toBe(false);
   expect(trace.some((state) => state.scrollCorridor === 'front-rail')).toBe(true);
-  expect(trace.every((state) => state.session === null && state.input === 'free')).toBe(true);
+  const candidates = trace.filter((state) => state.session !== null);
+  expect(candidates, `missing reduced candidate for ${from} → ${to}`).not.toEqual([]);
+  const candidateSession = candidates[0]!.session;
+  const candidateProgress = direction === 1 ? 0 : 1;
+  expect(candidates.every((state) => (
+    state.input === 'locked'
+    && state.projection === 'candidate'
+    && state.phase === 'preparing'
+    && state.session === candidateSession
+    && state.progress !== null
+    && Math.abs(state.progress - candidateProgress) <= .05
+  ))).toBe(true);
+  expect(candidates.at(-1)!.at - candidates[0]!.at).toBeLessThan(2_000);
+  expect(trace.every((state) => (
+    state.session === null ? state.input === 'free' : state.input === 'locked'
+  ))).toBe(true);
+  expect(trace.some((state) => state.projection === 'transition')).toBe(false);
   expect(new Set(trace.map((state) => state.authorityId)).size).toBe(1);
 }
 
@@ -1223,7 +1380,8 @@ async function driveReducedFrontHold(
   assertReducedFrontHoldTrace(
     (await phoneRuntimeProbe(page)).stateEvents,
     from,
-    to
+    to,
+    direction
   );
 }
 
@@ -1310,7 +1468,19 @@ async function driveAdjacentPhoneRun(
       JSON.stringify(inputDiagnostics)
     }`
   ).toBe(true);
-  await assertStablePhoneHold(page, to, { timeout: settleTimeout, scope });
+  try {
+    await assertStablePhoneHold(page, to, { timeout: settleTimeout, scope });
+  } catch (error) {
+    const failedProbe = await phoneRuntimeProbe(page);
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}\n`
+      + `transition trace: ${JSON.stringify({
+        wheels: failedProbe.wheelEvents.slice(-8),
+        cursors: failedProbe.cursorEvents.slice(-12),
+        states: failedProbe.stateEvents.slice(-32)
+      })}`
+    );
+  }
   await page.waitForTimeout(50);
   const probe = await phoneRuntimeProbe(page);
   assertTransitionTrace(probe.stateEvents, from, to, direction, options);
@@ -1666,6 +1836,214 @@ test('Task 10 repeats the complete reduced-motion production round trip', async 
   expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(4);
 });
 
+test('[AOD↔Method reduced cutover] commits both target static endpoints without media playback', async ({ page }) => {
+  test.setTimeout(120_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/?v=47&portrait-spike-motion=reduce', 'hero');
+  await driveReducedFrontHold(page, 'hero', 'pattern', 1);
+  await driveReducedFrontHold(page, 'pattern', 'star-map', 1);
+  await driveReducedFrontHold(page, 'star-map', 'aod-animation', 1);
+  const authorityId = await (await assertStablePhoneHold(page, 'aod-animation'))
+    .getAttribute('data-phone-authority-id');
+
+  await driveAdjacentPhoneRun(
+    page,
+    'aod-animation',
+    'method-top',
+    1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertAodReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    1
+  );
+
+  await driveAdjacentPhoneRun(
+    page,
+    'method-top',
+    'aod-animation',
+    -1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertAodReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    -1
+  );
+  await expect(await assertStablePhoneHold(page, 'aod-animation'))
+    .toHaveAttribute('data-phone-authority-id', authorityId!);
+  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(4);
+});
+
+test('[Method↔Figure2↔Proof↔Brand reduced cutover] commits all static endpoints without playback', async ({ page }) => {
+  test.setTimeout(180_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(
+    page,
+    '/?v=47&portrait-spike-motion=reduce#method',
+    'method-top'
+  );
+  const authorityId = await (await assertStablePhoneHold(page, 'method-top'))
+    .getAttribute('data-phone-authority-id');
+
+  await driveAdjacentPhoneRun(
+    page,
+    'method-top',
+    'figure2-animation',
+    1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertMethodFigure2ReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    1
+  );
+
+  await driveAdjacentPhoneRun(
+    page,
+    'figure2-animation',
+    'figure2-proof',
+    1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertFigure2ProofReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    1
+  );
+
+  await driveAdjacentPhoneRun(
+    page,
+    'figure2-proof',
+    'brand',
+    1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertProofBrandReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    1
+  );
+
+  await driveAdjacentPhoneRun(
+    page,
+    'brand',
+    'figure2-proof',
+    -1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertProofBrandReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    -1
+  );
+
+  await driveAdjacentPhoneRun(
+    page,
+    'figure2-proof',
+    'figure2-animation',
+    -1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertFigure2ProofReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    -1
+  );
+
+  await driveAdjacentPhoneRun(
+    page,
+    'figure2-animation',
+    'method-top',
+    -1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertMethodFigure2ReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    -1
+  );
+  await expect(await assertStablePhoneHold(page, 'method-top'))
+    .toHaveAttribute('data-phone-authority-id', authorityId!);
+  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(4);
+});
+
+test('[Lab↔PH↔Education reduced/direct cutover] commits native leaves without PH playback and renders #education directly', async ({ page }) => {
+  test.setTimeout(120_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(
+    page,
+    '/?v=47&portrait-spike-motion=reduce#lab',
+    'lab'
+  );
+  const authorityId = await (await assertStablePhoneHold(page, 'lab'))
+    .getAttribute('data-phone-authority-id');
+  expect(authorityId).toBeTruthy();
+
+  await driveAdjacentPhoneRun(
+    page,
+    'lab',
+    'education',
+    1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertLabEducationReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    1
+  );
+
+  await driveAdjacentPhoneRun(
+    page,
+    'education',
+    'lab',
+    -1,
+    45_000,
+    'formal',
+    { reducedMotion: true }
+  );
+  assertLabEducationReducedStaticAdmissionTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    -1
+  );
+  await expect(await assertStablePhoneHold(page, 'lab'))
+    .toHaveAttribute('data-phone-authority-id', authorityId!);
+
+  await visitFormal(page, '/?v=47#education', 'education');
+  await assertDirectEntryPresentation(page, 'education');
+});
+
+test('[Pattern↔StarMap reduced cutover] repeats two static-proof cycles in one authority', async ({ page }) => {
+  test.setTimeout(120_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/?v=47&portrait-spike-motion=reduce', 'hero');
+  await driveReducedFrontHold(page, 'hero', 'pattern', 1);
+  const authorityId = await (await assertStablePhoneHold(page, 'pattern'))
+    .getAttribute('data-phone-authority-id');
+  expect(authorityId).toBeTruthy();
+
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    await driveReducedFrontHold(page, 'pattern', 'star-map', 1);
+    await expect(await assertStablePhoneHold(page, 'star-map'))
+      .toHaveAttribute('data-phone-authority-id', authorityId!);
+    await driveReducedFrontHold(page, 'star-map', 'pattern', -1);
+    await expect(await assertStablePhoneHold(page, 'pattern'))
+      .toHaveAttribute('data-phone-authority-id', authorityId!);
+  }
+
+  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(4);
+});
+
 test('Task 10 verifies every formal direct entry plus hash, menu, and history', async ({ page }) => {
   test.setTimeout(180_000);
   await installColdPhoneRuntimeProbe(page);
@@ -1689,7 +2067,7 @@ test('Task 10 verifies every formal direct entry plus hash, menu, and history', 
   await assertDirectEntryPresentation(page, 'services');
 });
 
-test('Task 10 preserves formal scope and validates the Brand–Lab QA route', async ({ page }) => {
+test('Task 10 preserves formal scope and validates two Brand–Lab reduced-motion cycles', async ({ page }) => {
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/?v=47&scope=brand-lab#brand', 'brand');
@@ -1697,24 +2075,66 @@ test('Task 10 preserves formal scope and validates the Brand–Lab QA route', as
   await page.goto('/brand-lab?portrait-spike-motion=reduce#lab', {
     waitUntil: 'domcontentloaded'
   });
-  await assertStablePhoneHold(page, 'lab', { scope: 'brand-lab' });
-  await driveAdjacentPhoneRun(
-    page,
-    'lab',
-    'services',
-    -1,
-    45_000,
-    'brand-lab',
-    { reducedMotion: true }
-  );
-  await driveAdjacentPhoneRun(
-    page,
-    'services',
-    'lab',
-    1,
-    45_000,
-    'brand-lab',
-    { reducedMotion: true }
-  );
-  await assertStablePhoneHold(page, 'lab', { scope: 'brand-lab' });
+  const firstLab = await assertStablePhoneHold(page, 'lab', { scope: 'brand-lab' });
+  const authorityId = await firstLab.getAttribute('data-phone-authority-id');
+
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    await driveAdjacentPhoneRun(
+      page,
+      'lab',
+      'services',
+      -1,
+      45_000,
+      'brand-lab',
+      { reducedMotion: true }
+    );
+    await driveAdjacentPhoneRun(
+      page,
+      'services',
+      'lab',
+      1,
+      45_000,
+      'brand-lab',
+      { reducedMotion: true }
+    );
+    const lab = await assertStablePhoneHold(page, 'lab', { scope: 'brand-lab' });
+    await expect(lab).toHaveAttribute('data-phone-authority-id', authorityId!);
+  }
+});
+
+test('TTG hard cutover repeats two full-motion Brand–Lab cycles in one authority', async ({ page }) => {
+  test.setTimeout(240_000);
+  await installColdPhoneRuntimeProbe(page);
+  await page.goto('/brand-lab#lab', { waitUntil: 'domcontentloaded' });
+
+  const firstLab = await assertStablePhoneHold(page, 'lab', { scope: 'brand-lab' });
+  const authorityId = await firstLab.getAttribute('data-phone-authority-id');
+  expect(authorityId).toBeTruthy();
+
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    await driveAdjacentPhoneRun(
+      page,
+      'lab',
+      'services',
+      -1,
+      45_000,
+      'brand-lab'
+    );
+    await driveAdjacentPhoneRun(
+      page,
+      'services',
+      'lab',
+      1,
+      45_000,
+      'brand-lab'
+    );
+    const lab = await assertStablePhoneHold(page, 'lab', { scope: 'brand-lab' });
+    await expect(lab).toHaveAttribute('data-phone-authority-id', authorityId!);
+
+    // A retired decoder callback must not recreate a session after stable
+    // commit. The next complete same-authority cycle starts only after this
+    // post-settle quiescence check.
+    await page.waitForTimeout(150);
+    await assertStablePhoneHold(page, 'lab', { scope: 'brand-lab' });
+  }
 });

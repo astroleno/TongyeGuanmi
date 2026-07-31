@@ -19,8 +19,14 @@ const storyDir = path.join(sourceDir, 'story');
 const sourceExtensions = new Set(['.ts', '.tsx']);
 const phoneShellPath = path.join(phoneDir, 'PhoneStoryShell.tsx');
 const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
-const phoneProjectorPath = path.join(phoneDir, 'phone-story-projector.ts');
-const phoneRuntimePath = path.join(phoneDir, 'phone-story-runtime.ts');
+const phonePresentationPath = path.join(phoneDir, 'phone-story', 'presentation.ts');
+const phoneRuntimePath = path.join(phoneDir, 'phone-story', 'runtime.ts');
+const phoneRuntimeEnginePath = path.join(
+  phoneDir,
+  'phone-story',
+  'runtime',
+  'engine.ts'
+);
 const phoneBootstrapPath = path.join(phoneDir, 'PhoneStoryBootstrap.tsx');
 const phoneBrandLabStoryPath = path.join(phoneDir, 'PhoneBrandLabStory.tsx');
 const phoneBrandLabScopePath = path.join(
@@ -28,10 +34,9 @@ const phoneBrandLabScopePath = path.join(
   'scenes',
   'PhoneBrandLabScope.tsx'
 );
-const phoneLabContactShellPath = path.join(phoneDir, 'PhoneLabContactShell.tsx');
 const phoneReactRuntimeAdapterPath = path.join(
   phoneDir,
-  'usePhoneStoryOrchestratorRuntime.ts'
+  'usePhoneStoryRuntime.ts'
 );
 const phoneDocumentScrollRuntimePath = path.join(
   phoneDir,
@@ -44,7 +49,7 @@ const phoneIntentCoordinatorPath = path.join(
 const phoneRunLandingPath = path.join(phoneDir, 'phone-run-landing.ts');
 const phoneRunDefinitionsPath = path.join(phoneDir, 'phone-story-runs.ts');
 const phoneRouteScopePath = path.join(phoneDir, 'phone-route-scope.ts');
-const phoneContextPath = path.join(phoneDir, 'PhoneStoryOrchestratorContext.tsx');
+const phoneContextPath = path.join(phoneDir, 'PhoneStoryRuntimeContext.tsx');
 const phoneLazyExecutionPaths = [
   path.join(sourceDir, 'scenes', 'figure3-animation', 'phone', 'PhoneFigure3.tsx'),
   path.join(sourceDir, 'scenes', 'ttg-animation', 'phone', 'PhoneTtg.tsx'),
@@ -57,9 +62,8 @@ const formalPhoneOwnershipPaths = [
   path.join(phoneDir, 'PhoneGradeAStory.tsx'),
   path.join(phoneDir, 'PhoneBrandLabContinuation.tsx'),
   path.join(phoneDir, 'PhoneLabContactContinuation.tsx'),
-  path.join(phoneDir, 'PhoneGroup67DirectEntry.tsx'),
   path.join(phoneDir, 'usePhoneStageRuntime.ts'),
-  path.join(phoneDir, 'usePhoneStoryOrchestratorRuntime.ts'),
+  path.join(phoneDir, 'usePhoneStoryRuntime.ts'),
   phoneRuntimePath
 ];
 
@@ -262,6 +266,171 @@ export function phoneLazyAdapterPropReserveViolations(
       if (!reserved.has(field)) {
         found.push(`${name}: cross-chunk adapter field is missing from mangle reserve (${field})`);
       }
+    }
+  }
+  return found;
+}
+
+/**
+ * The public presentation facade crosses Rollup chunks into the authority
+ * runtime. Its factory options, methods, and the named registration/request
+ * objects exchanged through those methods need an explicit mangle reserve.
+ */
+export function phoneStoryPresentationFacadeReserveViolations(
+  source,
+  policy = phoneCrossChunkContractPolicy
+) {
+  const found = [];
+  const contract = (policy.retainedObjectContracts ?? []).find(
+    (candidate) => candidate.name === 'phone-story-presentation-facade'
+  );
+  if (!contract) {
+    return ['PhoneStoryPresentation: missing retained presentation facade policy'];
+  }
+  const retained = new Set(contract.propertyNames ?? []);
+  const reserved = new Set(policy.reservedPropertyNames ?? []);
+  const parsed = ts.createSourceFile(
+    'presentation.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const aliases = new Map();
+  for (const statement of parsed.statements) {
+    if (ts.isTypeAliasDeclaration(statement)) {
+      aliases.set(statement.name.text, statement);
+    }
+  }
+  const facade = aliases.get('PhoneStoryPresentation');
+  if (!facade) {
+    return ['PhoneStoryPresentation: public facade type is missing'];
+  }
+  const fieldsFor = (candidate) => {
+    const fields = new Set();
+    const inspect = (type) => {
+      if (ts.isIntersectionTypeNode(type)) {
+        for (const child of type.types) inspect(child);
+        return;
+      }
+      if (ts.isTypeReferenceNode(type)) {
+        for (const argument of type.typeArguments ?? []) inspect(argument);
+        return;
+      }
+      if (!ts.isTypeLiteralNode(type)) return;
+      for (const member of type.members) {
+        if (!ts.isPropertySignature(member) && !ts.isMethodSignature(member)) continue;
+        if (
+          member.name
+          && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))
+        ) {
+          fields.add(member.name.text);
+        }
+      }
+    };
+    inspect(candidate);
+    return fields;
+  };
+  const verify = (field, label) => {
+    if (!retained.has(field)) {
+      found.push(
+        `PhoneStoryPresentation: ${label} is missing from retained policy (${field})`
+      );
+    }
+    if (!reserved.has(field)) {
+      found.push(
+        `PhoneStoryPresentation: ${label} is missing from mangle reserve (${field})`
+      );
+    }
+  };
+  const facadeFields = new Set(['authorityId', 'scope', 'root']);
+  for (const field of fieldsFor(facade.type)) facadeFields.add(field);
+  for (const field of facadeFields) verify(field, 'facade field');
+
+  for (const name of [
+    'PhoneSurfaceRegistration',
+    'PhoneEffectRegistration',
+    'PhoneDirectEntryPresentationRequest',
+    'PhoneTransitionEndpoints',
+    'PhoneSurfaceLease'
+  ]) {
+    const boundary = aliases.get(name);
+    if (!boundary) {
+      found.push(`PhoneStoryPresentation: public ${name} boundary type is missing`);
+      continue;
+    }
+    for (const field of fieldsFor(boundary.type)) {
+      verify(field, `${name} field`);
+    }
+  }
+  return found;
+}
+
+/**
+ * Presentation tokens cross independently minified authority, projection,
+ * and lazy visual chunks. Keep the immutable token type and its explicit
+ * Terser contract in lock-step so a rendered frame can always return to the
+ * authority that requested it.
+ */
+export function phonePresentationTokenReserveViolations(
+  source,
+  policy = phoneCrossChunkContractPolicy
+) {
+  const found = [];
+  const contract = (policy.retainedObjectContracts ?? []).find(
+    (candidate) => candidate.name === 'phone-presentation-token'
+  );
+  if (!contract) {
+    return ['PresentationToken: missing retained token policy'];
+  }
+  const retained = new Set(contract.propertyNames ?? []);
+  const reserved = new Set(policy.reservedPropertyNames ?? []);
+  const parsed = ts.createSourceFile(
+    'machine.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const token = parsed.statements.find((statement) => (
+    ts.isTypeAliasDeclaration(statement)
+    && statement.name.text === 'PresentationToken'
+  ));
+  if (!token || !ts.isTypeAliasDeclaration(token)) {
+    return ['PresentationToken: public token type is missing'];
+  }
+  const tokenFields = new Set();
+  const inspect = (type) => {
+    if (ts.isTypeReferenceNode(type)) {
+      for (const argument of type.typeArguments ?? []) inspect(argument);
+      return;
+    }
+    if (!ts.isTypeLiteralNode(type)) return;
+    for (const member of type.members) {
+      if (!ts.isPropertySignature(member) || !member.name) continue;
+      if (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) {
+        tokenFields.add(member.name.text);
+      }
+    }
+  };
+  inspect(token.type);
+  for (const field of tokenFields) {
+    if (!retained.has(field)) {
+      found.push(
+        `PresentationToken: field is missing from retained policy (${field})`
+      );
+    }
+    if (!reserved.has(field)) {
+      found.push(
+        `PresentationToken: field is missing from mangle reserve (${field})`
+      );
+    }
+  }
+  for (const field of retained) {
+    if (!tokenFields.has(field)) {
+      found.push(
+        `PresentationToken: retained policy names an absent field (${field})`
+      );
     }
   }
   return found;
@@ -745,7 +914,7 @@ export function formalPhoneOwnershipViolations(files) {
       if (source.includes(token)) found.push(`${file}: ${token} is forbidden`);
     }
     const shellOwner = file.endsWith('PhoneStoryShell.tsx');
-    const runtimeOwner = file.endsWith('usePhoneStoryOrchestratorRuntime.ts');
+    const runtimeOwner = file.endsWith('usePhoneStoryRuntime.ts');
     if (
       !shellOwner
       && !runtimeOwner
@@ -782,8 +951,7 @@ export function formalPhoneRouteGraphViolations(graph) {
   const found = [];
   for (const target of [
     phoneBrandLabStoryPath,
-    phoneBrandLabScopePath,
-    phoneLabContactShellPath
+    phoneBrandLabScopePath
   ]) {
     if (hasFile(entries, target)) {
       found.push(`formal phone graph must exclude ${relativeFile(target)}`);
@@ -819,10 +987,10 @@ export function phoneRouteScopeSelectorViolations({
   if (!routeScopeSource.includes("normalized === '/brand-lab'")) {
     found.push('phone-route-scope.ts: only /brand-lab may resolve to QA scope');
   }
-  if (!/usePhoneStoryOrchestratorRuntime\(\s*'formal'/.test(formalShellSource)) {
+  if (!/usePhoneStoryRuntime\(\s*'formal'/.test(formalShellSource)) {
     found.push('PhoneStoryShell.tsx: formal shell must inject literal scope: formal');
   }
-  if (!/usePhoneStoryOrchestratorRuntime\(\s*'brand-lab'/.test(qaShellSource)) {
+  if (!/usePhoneStoryRuntime\(\s*'brand-lab'/.test(qaShellSource)) {
     found.push('PhoneBrandLabStory.tsx: QA shell must inject literal scope: brand-lab');
   }
   if (/PhoneLabContactShell/.test(qaShellSource)) {
@@ -836,11 +1004,11 @@ export function qaPhoneOwnershipViolations(source) {
   const found = [];
   const forbidden = [
     [
-      /from\s+['"][^'"]*(?:phone-story-orchestrator|phone-story-projector|phone-transition-coordinator|usePhoneDocumentScrollRuntime)['"]/,
+      /from\s+['"][^'"]*(?:phone-story\/runtime\/engine|phone-transition-coordinator|usePhoneDocumentScrollRuntime)['"]/,
       'import a low-level execution owner'
     ],
     [
-      /\b(?:createPhoneStoryOrchestrator|createPhoneStoryProjector|createPhoneStoryRuntime(?:ForReact)?|createPhoneIntentCoordinator|createPhoneDocumentScrollRuntime)\s*\(/,
+      /\b(?:createPhoneStoryRuntimeEngine|createPhoneStoryPresentation|createPhoneStoryRuntime(?:ForReact)?|createPhoneIntentCoordinator|createPhoneDocumentScrollRuntime)\s*\(/,
       'construct a low-level execution owner'
     ],
     [/\b(?:usePhoneEdgeSurface|usePhoneCheckpointPublisher|createPhoneOrchestratorPublisher)\b/, 'publish edge/checkpoint state'],
@@ -866,13 +1034,13 @@ export function qaPhoneOwnershipViolations(source) {
 export function phoneRuntimePortBoundaryViolations(contextSource) {
   const found = [];
   if (!contextSource.includes('createContext<PhoneStoryRuntimePort | null>(null)')) {
-    found.push('PhoneStoryOrchestratorContext.tsx: Context must be typed as PhoneStoryRuntimePort');
+    found.push('PhoneStoryRuntimeContext.tsx: Context must be typed as PhoneStoryRuntimePort');
   }
   if (!contextSource.includes('value={authority.port}')) {
-    found.push('PhoneStoryOrchestratorContext.tsx: Context must expose authority.port only');
+    found.push('PhoneStoryRuntimeContext.tsx: Context must expose authority.port only');
   }
   if (contextSource.includes('value={authority}')) {
-    found.push('PhoneStoryOrchestratorContext.tsx: Context must not expose route lifecycle authority');
+    found.push('PhoneStoryRuntimeContext.tsx: Context must not expose route lifecycle authority');
   }
   return found;
 }
@@ -895,12 +1063,77 @@ export function phoneCrossChunkExecutionContractViolations(files) {
   if (adapterTypes) {
     found.push(...phoneLazyAdapterPropReserveViolations(adapterTypes));
   }
+  const presentationFacade = sourceForSuffix(
+    'src/production/phone/phone-story/presentation.ts'
+  );
+  if (presentationFacade) {
+    found.push(...phoneStoryPresentationFacadeReserveViolations(presentationFacade));
+  }
+  const presentationToken = sourceForSuffix(
+    'src/production/phone/phone-story/machine.ts'
+  );
+  if (presentationToken) {
+    found.push(...phonePresentationTokenReserveViolations(presentationToken));
+  }
+  const runDefinitions = sourceForSuffix(
+    'src/production/phone/phone-story-runs.ts'
+  );
+  if (!runDefinitions?.includes('export function phoneScrollSegment(')) {
+    found.push('phone-story-runs.ts: scroll presentation segment bridge must remain primitive');
+  }
+  if (!runDefinitions?.includes('export function phoneRunLegSegment(')) {
+    found.push('phone-story-runs.ts: run-leg presentation segment bridge must remain primitive');
+  }
+  const runTupleContracts = [
+    'export type PhoneScrollRunTuple = readonly [',
+    'export type PhoneRunTuple = readonly [',
+    'export type PhoneRunLegTuple = readonly [',
+    'export function phoneScrollRunTuple(',
+    'export function phoneRunTuple(',
+    'export function phoneRunLegTuple(',
+    'export function phoneRunForHoldTuple('
+  ];
+  for (const signature of runTupleContracts) {
+    if (!runDefinitions?.includes(signature)) {
+      found.push(
+        `phone-story-runs.ts: raw run definitions require a positional bridge (${signature})`
+      );
+    }
+  }
+  if (presentationFacade && (
+    !presentationFacade.includes('phoneScrollSegment(')
+    || !presentationFacade.includes('phoneRunLegSegment(')
+    || /\bphoneScrollRun\s*\(/.test(presentationFacade)
+    || /\bphoneRun\s*\(/.test(presentationFacade)
+  )) {
+    found.push(
+      'presentation.ts: transition layer planning must use primitive run segment bridges'
+    );
+  }
+  const rawRunDefinitionConsumers = [
+    'src/production/phone/phone-story/machine.ts',
+    'src/production/phone/phone-story/runtime.ts',
+    'src/production/phone/phone-story/runtime/engine.ts',
+    'src/production/phone/phone-composite-runner.ts',
+    'src/production/phone/phone-grade-a-runtime.ts'
+  ];
+  for (const suffix of rawRunDefinitionConsumers) {
+    const source = sourceForSuffix(suffix);
+    if (!source) continue;
+    if (/\b(?:phoneRun|phoneScrollRun|phoneRunForHold)\s*\(/.test(source)) {
+      found.push(
+        `${path.basename(suffix)}: raw phone run definitions are forbidden across independently minified chunks`
+      );
+    }
+  }
   const tupleContracts = [
-    ['src/production/phone/phone-story-state.ts', 'export type PhoneExecutionToken = readonly ['],
+    ['src/production/phone/phone-story/machine.ts', 'export type PhoneExecutionToken = readonly ['],
+    ['src/production/phone/phone-story/machine.ts', 'export function phonePresentationSnapshot('],
+    ['src/production/phone/phone-story/presentation.ts', 'export type PhonePresentationSnapshot = readonly ['],
     ['src/production/phone/phone-transition-coordinator.ts', 'export type PhoneIntent = readonly ['],
-    ['src/production/phone/phone-story-runtime.ts', 'export type PhoneCinematicSnapshot = readonly ['],
-    ['src/production/phone/phone-story-runtime.ts', 'export type PhoneCompositeSession = readonly ['],
-    ['src/production/phone/phone-story-runtime.ts', 'export type PhoneRuntimeScrollSample = readonly ['],
+    ['src/production/phone/phone-story/runtime.ts', 'export type PhoneCinematicSnapshot = readonly ['],
+    ['src/production/phone/phone-story/runtime.ts', 'export type PhoneCompositeSession = readonly ['],
+    ['src/production/phone/phone-story/runtime.ts', 'export type PhoneRuntimeScrollSample = readonly ['],
     ['src/production/phone/types.ts', 'export type PhoneCinematicRequest = PhoneExecutionToken;'],
     ['src/production/phone/usePhoneDocumentScrollRuntime.ts', 'export type PhoneDocumentScrollSample = readonly ['],
     ['src/production/phone/phone-stage-timeline.ts', 'export type PhoneStageFrame = readonly ['],
@@ -938,13 +1171,14 @@ export function phoneCrossChunkExecutionContractViolations(files) {
   }
 
   const rawIdentityCore = new Set([
-    'phone-story-state.ts',
-    'phone-story-orchestrator.ts',
-    'phone-orchestrated-session.ts'
+    'machine.ts',
+    'engine.ts',
+    'session.ts'
   ]);
   const rawEventCore = new Set([
-    'phone-story-runtime.ts',
-    'phone-orchestrated-session.ts'
+    'runtime.ts',
+    'engine.ts',
+    'session.ts'
   ]);
   const phoneTimelineAdapterSuffixes = [
     '/src/production/phone/scenes/PhoneHero.motion.ts',
@@ -1073,14 +1307,12 @@ function isFile(file, expected) {
 
 const formalChildBypassAllowlist = [
   phoneRuntimePath,
+  phonePresentationPath,
   phoneReactRuntimeAdapterPath,
   path.join(phoneDir, 'usePhoneStoryEntry.ts'),
   phoneIntentCoordinatorPath,
   phoneDocumentScrollRuntimePath,
   path.join(phoneDir, 'usePhoneViewportGeometry.ts'),
-  // This route-level geometry service observes only visual viewport movement
-  // to publish the physical coverage plane; it cannot command story scroll.
-  path.join(phoneDir, 'phone-viewport-coverage.ts'),
   // This shared physical-gesture helper only unlocks already-mounted media;
   // it cannot create navigation, scroll, or a story transaction.
   path.join(productionDir, 'mobile-media-unlock.ts')
@@ -1094,7 +1326,7 @@ export function phoneExecutionOwnershipViolations(files) {
   const entries = graphEntries(files);
   const found = [];
   const factories = [
-    ['createPhoneStoryOrchestrator', phoneRuntimePath],
+    ['createPhoneStoryRuntimeEngine', phoneRuntimePath],
     ['createPhoneStoryRuntime', phoneRuntimePath],
     ['createPhoneStoryRuntimeForReact', phoneReactRuntimeAdapterPath],
     ['createPhoneIntentCoordinator', phoneRuntimePath],
@@ -1282,7 +1514,7 @@ if (!formalPhoneGraphEntries.some(([file]) => isFile(file, phoneRuntimePath))) {
   violations.push(`${display(phoneRuntimePath)}: formal graph must use the route-local runtime factory`);
 }
 
-const projectorSource = await readFile(phoneProjectorPath, 'utf8');
+const presentationSource = await readFile(phonePresentationPath, 'utf8');
 for (const token of [
   'phoneCursor',
   'phoneRevision',
@@ -1291,8 +1523,8 @@ for (const token of [
   'phoneEdgeSurfaceForScene',
   'theme-color'
 ]) {
-  if (!projectorSource.includes(token)) {
-    violations.push(`${display(phoneProjectorPath)}: projector must own ${token}`);
+  if (!presentationSource.includes(token)) {
+    violations.push(`${display(phonePresentationPath)}: presentation must own ${token}`);
   }
 }
 const runtimeSource = await readFile(phoneRuntimePath, 'utf8');

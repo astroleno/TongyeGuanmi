@@ -3,11 +3,13 @@ import { FRONT_HALF_CHECKPOINT_IDS } from '../../story/semantic-checkpoints';
 import * as phoneStageTimeline from './phone-stage-timeline';
 import {
   PHONE_STAGE_STOPS,
+  PHONE_STAGE_SETTLE_EPSILON,
   frontHalfCheckpointIndex,
   phoneAodCheckpointForMethodProgress,
   phoneAodCompletionCheckpoint,
   phoneDirectEntryCompletesAod,
   phoneFrontRailSample,
+  phoneFrontRailSampleTuple,
   phoneStageFrame
 } from './phone-stage-timeline';
 
@@ -67,6 +69,25 @@ describe('phone stage timeline', () => {
     });
   });
 
+  it('[Pattern↔StarMap reduced cutover] carries motion strategy only through the positional rail sample', () => {
+    expect(phoneFrontRailSampleTuple(
+      PHONE_STAGE_STOPS.patternStarEnd,
+      1,
+      true
+    )).toEqual([
+      'star-map',
+      null,
+      1,
+      PHONE_STAGE_STOPS.patternStarEnd,
+      true
+    ]);
+    expect(phoneFrontRailSampleTuple(
+      PHONE_STAGE_STOPS.patternStarStart,
+      -1,
+      false
+    ).at(-1)).toBe(false);
+  });
+
   it('skips AOD autoplay for every Grade A and continuation direct entry', () => {
     for (const scene of [
       'figure2-animation',
@@ -117,6 +138,37 @@ describe('phone stage timeline', () => {
       direction: -1
     });
     expect(starAod.progress).toBeCloseTo(0.5);
+  });
+
+  it('settles browser-rounded handoff endpoints into their stable presentation holds', () => {
+    const endpointDrift = 0.0002;
+
+    expect(phoneFrontRailSample(
+      PHONE_STAGE_STOPS.patternStarEnd - endpointDrift,
+      1
+    )).toEqual({
+      scene: 'star-map',
+      progress: PHONE_STAGE_STOPS.patternStarEnd,
+      direction: 1
+    });
+    // A direct-entry alignment can move the physical scroll coordinate back
+    // by a fraction of a pixel after the forward transition commits.
+    expect(phoneFrontRailSample(
+      PHONE_STAGE_STOPS.patternStarEnd - endpointDrift,
+      -1
+    )).toEqual({
+      scene: 'star-map',
+      progress: PHONE_STAGE_STOPS.patternStarEnd,
+      direction: -1
+    });
+    expect(phoneFrontRailSample(
+      PHONE_STAGE_STOPS.patternStarStart + endpointDrift,
+      -1
+    )).toEqual({
+      scene: 'pattern',
+      progress: PHONE_STAGE_STOPS.patternStarStart - PHONE_STAGE_SETTLE_EPSILON,
+      direction: -1
+    });
   });
 
   it('serializes front-rail samples positionally across lazy chunk boundaries', () => {

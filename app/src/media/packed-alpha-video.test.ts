@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   PACKED_ALPHA_SOURCE_TYPE,
+  packedAlphaFrameProofSatisfied,
   packedAlphaFrameSize,
   releasePackedAlphaWebGlContext
 } from './packed-alpha-video';
@@ -20,6 +21,28 @@ describe('packed alpha video', () => {
   it('uses an iPhone-compatible opaque decoder source', () => {
     expect(PACKED_ALPHA_SOURCE_TYPE).toContain('video/mp4');
     expect(PACKED_ALPHA_SOURCE_TYPE).toContain('avc1');
+  });
+
+  it('[convergence] accepts a packed frame only after a live no-error WebGL draw', () => {
+    const clean = {
+      NO_ERROR: 0,
+      getError: vi.fn(() => 0),
+      isContextLost: vi.fn(() => false)
+    } as unknown as WebGLRenderingContext;
+    const errored = {
+      NO_ERROR: 0,
+      getError: vi.fn(() => 0x0502),
+      isContextLost: vi.fn(() => false)
+    } as unknown as WebGLRenderingContext;
+    const lost = {
+      NO_ERROR: 0,
+      getError: vi.fn(() => 0),
+      isContextLost: vi.fn(() => true)
+    } as unknown as WebGLRenderingContext;
+
+    expect(packedAlphaFrameProofSatisfied(clean)).toBe(true);
+    expect(packedAlphaFrameProofSatisfied(errored)).toBe(false);
+    expect(packedAlphaFrameProofSatisfied(lost)).toBe(false);
   });
 
   it('hard-releases the compositor context when a packed surface retires', () => {

@@ -4,8 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const APP_ROOT = path.resolve(path.dirname(SCRIPT_PATH), '..');
-const PROJECTOR_FILE = 'src/production/phone/phone-story-projector.ts';
-const LEGACY_ISOLATED_FILE = 'src/production/phone/PhoneLabContactShell.tsx';
+const PRESENTATION_FILE = 'src/production/phone/phone-story/presentation.ts';
 
 export const globalPresentationDatasetKeys = Object.freeze([
   'phoneAuthorityId',
@@ -57,12 +56,8 @@ function writesDataAttribute(source, property) {
   ].some((pattern) => pattern.test(source));
 }
 
-function isProjector(file) {
-  return file.endsWith(PROJECTOR_FILE);
-}
-
-function isLegacyIsolatedValidation(file) {
-  return file.endsWith(LEGACY_ISOLATED_FILE);
+function isPresentation(file) {
+  return file.endsWith(PRESENTATION_FILE);
 }
 
 function groupVisibilityAttributes(source) {
@@ -86,8 +81,7 @@ function groupVisibilityAttributes(source) {
 /**
  * Presentation diagnostics are a write-only projection of the immutable
  * snapshot. Children may read them only through selectors, never publish or
- * clear them themselves. The isolated legacy shell is explicitly excluded
- * from the formal route by the module-graph verifier.
+ * clear them themselves.
  */
 export function phonePresentationOwnershipViolations({
   cssSources,
@@ -102,16 +96,15 @@ export function phonePresentationOwnershipViolations({
   for (const { file, source } of runtimeSources) {
     for (const property of globalPresentationDatasetKeys) {
       if (!writesDataAttribute(source, property)) continue;
-      if (isProjector(file) || isLegacyIsolatedValidation(file)) continue;
+      if (isPresentation(file)) continue;
       violations.push(
-        `${file}: ${dataAttributeForProperty(property)} may only be written by phone-story-projector`
+        `${file}: ${dataAttributeForProperty(property)} may only be written by phone-story/presentation`
       );
     }
     if (writesDataAttribute(source, 'phoneSurfaceRole')
-      && !isProjector(file)
-      && !file.endsWith('src/production/phone/phone-surface-roles.ts')) {
+      && !isPresentation(file)) {
       violations.push(
-        `${file}: data-phone-surface-role may only be written by surface/projector code`
+        `${file}: data-phone-surface-role may only be written by phone-story/presentation`
       );
     }
     for (const attribute of groupVisibilityAttributes(source)) {

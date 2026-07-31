@@ -15,12 +15,18 @@ import {
   ensureFigure2HoldFrame,
   figure2AnimationScene,
   parkFigure2Media,
-  renderFigure2AnimationProgress
+  renderFigure2AnimationProgress,
+  renderFigure2Hold
 } from '../../../scenes/figure2-animation';
 import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../types';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../phone-story/runtime';
 import { phoneMediaUrlFor } from '../phone-media';
 import './PhoneFigure2.css';
 
@@ -35,6 +41,40 @@ const FIGURE2_POSTER_IMAGE = phoneMediaUrlFor(
 );
 const FIGURE2_ENDPOINT_SECONDS = 2.6;
 
+type PhoneFigure2StaticPresentationBinding = {
+  token: PresentationToken;
+  key: string;
+  frameSequence: number;
+  report: (frame: PhoneRenderedPresentationFrame) => void;
+  reported: boolean;
+  paintFrame: number | null;
+  proofFrame: number | null;
+};
+
+function cancelFigure2StaticPresentationFrames(
+  binding: PhoneFigure2StaticPresentationBinding
+): void {
+  if (typeof window === 'undefined') return;
+  if (binding.paintFrame !== null) window.cancelAnimationFrame(binding.paintFrame);
+  if (binding.proofFrame !== null) window.cancelAnimationFrame(binding.proofFrame);
+  binding.paintFrame = null;
+  binding.proofFrame = null;
+}
+
+/** The Figure2 leaf preserves the runner-issued static token unchanged. */
+export function phoneFigure2StaticPresentationFrame(
+  token: PresentationToken,
+  frameSequence: number,
+  observedAt: number
+): PhoneRenderedPresentationFrame {
+  return {
+    token,
+    frameSequence,
+    observedAt,
+    origin: 'leaf-static-poster'
+  };
+}
+
 /** Phone composition for the canonical Figure2 media/camera owner. */
 export const PhoneFigure2 = forwardRef<
   PhoneSceneAdapterHandle,
@@ -46,10 +86,105 @@ export const PhoneFigure2 = forwardRef<
   const sceneActiveRef = useRef(false);
   const scrollProgressRef = useRef(0);
   const scrollDirectionRef = useRef<1 | -1>(1);
+  const presentationBindingRef = useRef<Readonly<{
+    token: PresentationToken;
+    key: string;
+    frameSequence: number;
+    report: (frame: PhoneRenderedPresentationFrame) => void;
+  }> | null>(null);
+  const staticPresentationBindingRef = useRef<
+    PhoneFigure2StaticPresentationBinding | null
+  >(null);
+  const reportRenderedFrame = useCallback((presentationKey: string | null) => {
+    const binding = presentationBindingRef.current;
+    if (!binding || binding.key !== presentationKey) return;
+    const next = {
+      ...binding,
+      frameSequence: binding.frameSequence + 1
+    };
+    presentationBindingRef.current = next;
+    next.report({
+      token: next.token,
+      frameSequence: next.frameSequence,
+      observedAt: typeof performance !== 'undefined'
+        && typeof performance.now === 'function'
+        ? performance.now()
+        : 0
+    });
+  }, []);
+  const releaseStaticPresentation = useCallback((
+    token?: PresentationToken
+  ): boolean => {
+    const binding = staticPresentationBindingRef.current;
+    if (
+      !binding
+      || (token && binding.key !== phoneRuntimePresentationTokenKey(token))
+    ) return false;
+    cancelFigure2StaticPresentationFrames(binding);
+    const stack = rootRef.current?.querySelector<HTMLElement>(
+      '.r4-figure2__media-stack--combined'
+    );
+    if (stack?.dataset.figure2StaticPoster === binding.key) {
+      delete stack.dataset.figure2StaticPoster;
+    }
+    if (staticPresentationBindingRef.current === binding) {
+      staticPresentationBindingRef.current = null;
+    }
+    return true;
+  }, []);
+  const requestBoundStaticPresentation = useCallback(() => {
+    const binding = staticPresentationBindingRef.current;
+    if (
+      !binding
+      || binding.reported
+      || binding.paintFrame !== null
+      || binding.proofFrame !== null
+      || typeof window === 'undefined'
+    ) return;
+    // Candidate projection has made Figure2 the physical receiver. Render the
+    // authored non-media hold, mark that exact endpoint, then report only
+    // after one further browser frame has had a chance to paint it.
+    binding.paintFrame = window.requestAnimationFrame(() => {
+      binding.paintFrame = null;
+      if (staticPresentationBindingRef.current !== binding || binding.reported) {
+        return;
+      }
+      const root = rootRef.current;
+      const stack = root?.querySelector<HTMLElement>(
+        '.r4-figure2__media-stack--combined'
+      );
+      if (!root || !stack) return;
+      renderFigure2Hold(root);
+      stack.dataset.figure2StaticPoster = binding.key;
+      if (
+        staticPresentationBindingRef.current !== binding
+        || stack.dataset.figure2StaticPoster !== binding.key
+      ) return;
+      binding.proofFrame = window.requestAnimationFrame(() => {
+        binding.proofFrame = null;
+        if (
+          staticPresentationBindingRef.current !== binding
+          || binding.reported
+          || stack.dataset.figure2StaticPoster !== binding.key
+        ) return;
+        binding.reported = true;
+        binding.frameSequence += 1;
+        binding.report(phoneFigure2StaticPresentationFrame(
+          binding.token,
+          binding.frameSequence,
+          typeof performance !== 'undefined'
+            && typeof performance.now === 'function'
+            ? performance.now()
+            : 0
+        ));
+      });
+    });
+  }, []);
   const releasePackedSurface = useCallback(() => {
     const root = rootRef.current;
     mediaControllerRef.current?.abort();
     mediaControllerRef.current = undefined;
+    presentationBindingRef.current = null;
     packedSurfaceRef.current?.(['release']);
     if (root) parkFigure2Media(root);
   }, []);
@@ -79,9 +214,10 @@ export const PhoneFigure2 = forwardRef<
       'figure2-pair',
       'r4-figure2__packed-alpha-canvas',
       null,
-      () => {
+      (presentationKey) => {
         video.dataset.phoneFigure2Alpha = 'verified';
         canvas.dataset.phoneFigure2Alpha = 'verified';
+        reportRenderedFrame(presentationKey);
       }
     ]);
     packedSurfaceRef.current = surface;
@@ -100,7 +236,7 @@ export const PhoneFigure2 = forwardRef<
         }
       }).catch(() => undefined);
     return surface;
-  }, []);
+  }, [reportRenderedFrame]);
   const setSceneActive = useCallback((active: boolean) => {
     const root = rootRef.current;
     if (!root || sceneActiveRef.current === active) return;
@@ -136,6 +272,7 @@ export const PhoneFigure2 = forwardRef<
     if (import.meta.env.DEV) root.dataset.phoneFigure2Ready = 'true';
     onReady?.();
     return () => {
+      releaseStaticPresentation();
       releasePackedSurface();
       packedSurfaceRef.current?.(['dispose']);
       packedSurfaceRef.current = undefined;
@@ -146,7 +283,7 @@ export const PhoneFigure2 = forwardRef<
       delete video.dataset.phoneFigure2Alpha;
       delete canvas.dataset.phoneFigure2Alpha;
     };
-  }, [onReady, releasePackedSurface]);
+  }, [onReady, releasePackedSurface, releaseStaticPresentation]);
 
   /*
    * Active is a decoder / packed-alpha resource lease only. The authority
@@ -162,15 +299,31 @@ export const PhoneFigure2 = forwardRef<
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
-    async prepareTargetPresentation({ progress, signal, directEntry }) {
+    async prepareTargetPresentation({
+      progress,
+      signal,
+      directEntry,
+      presentationToken
+    }) {
       const mode = progress >= 0.999 ? 'endpoint' : 'forward';
       const surface = ensurePackedSurface(mode);
       if (!surface) {
         throw new Error('Figure2 presentation unavailable');
       }
-      await surface(['prepare', mode, signal, directEntry === true]);
+      await surface([
+        'prepare',
+        mode,
+        signal,
+        directEntry === true,
+        phoneRuntimePresentationTokenKey(presentationToken as PresentationToken)
+      ]);
     },
     update(progress) {
+      if (staticPresentationBindingRef.current) {
+        scrollProgressRef.current = 0;
+        renderFigure2Hold(rootRef.current);
+        return;
+      }
       if (progress > scrollProgressRef.current) {
         scrollDirectionRef.current = 1;
       } else if (progress < scrollProgressRef.current) {
@@ -198,13 +351,53 @@ export const PhoneFigure2 = forwardRef<
       setSceneActive(true);
       rootRef.current?.removeAttribute('aria-hidden');
     },
+    presentPresentation(token, report) {
+      releaseStaticPresentation();
+      if (token.kind === 'static-poster') {
+        staticPresentationBindingRef.current = {
+          token,
+          key: phoneRuntimePresentationTokenKey(token),
+          frameSequence: 0,
+          report,
+          reported: false,
+          paintFrame: null,
+          proofFrame: null
+        };
+        requestBoundStaticPresentation();
+        return;
+      }
+      const key = phoneRuntimePresentationTokenKey(token);
+      presentationBindingRef.current = {
+        token,
+        key,
+        frameSequence: 0,
+        report
+      };
+      const surface = packedSurfaceRef.current ?? ensurePackedSurface();
+      surface?.(['present', key]);
+    },
+    disposePresentation(token) {
+      if (releaseStaticPresentation(token)) return;
+      const binding = presentationBindingRef.current;
+      if (
+        binding
+        && binding.key === phoneRuntimePresentationTokenKey(token)
+      ) presentationBindingRef.current = null;
+    },
     dispose() {
+      releaseStaticPresentation();
       releasePackedSurface();
       packedSurfaceRef.current?.(['dispose']);
       packedSurfaceRef.current = undefined;
       disposeFigure2Media(rootRef.current);
     }
-  }), [ensurePackedSurface, releasePackedSurface, setSceneActive]);
+  }), [
+    ensurePackedSurface,
+    releasePackedSurface,
+    releaseStaticPresentation,
+    requestBoundStaticPresentation,
+    setSceneActive
+  ]);
 
   return (
     <Figure2Surface

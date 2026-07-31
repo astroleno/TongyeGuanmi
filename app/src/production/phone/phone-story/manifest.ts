@@ -1,10 +1,10 @@
 import {
   canonicalSceneIds,
   canonicalSegments
-} from '../../story/canonical-spine';
-import type { PhoneCheckpointId } from '../../story/semantic-checkpoints';
-import type { SceneId, SegmentId } from '../../story/types';
-import type { PhoneEdgeScene } from './phone-edge-surface';
+} from '../../../story/canonical-spine';
+import type { PhoneCheckpointId } from '../../../story/semantic-checkpoints';
+import type { SceneId, SegmentId } from '../../../story/types';
+import type { PhoneEdgeScene } from './presentation';
 
 export type CanonicalPhoneSceneId = (typeof canonicalSceneIds)[number];
 export type CanonicalPhoneSegmentId = (typeof canonicalSegments)[number]['id'];
@@ -40,6 +40,12 @@ export type PhonePresentationEvidenceKind =
   | 'effect-frame'
   | 'direct-entry';
 
+/** Kinds that can identify one real, token-bound rendered presentation. */
+export type PhonePresentationProofKind = Exclude<
+  PhonePresentationEvidenceKind,
+  'coverage' | 'direct-entry'
+>;
+
 export type PhonePresentationEvidencePolicy = 'fail-open' | 'fail-closed';
 
 export type PhoneEvidenceRequirement = Readonly<{
@@ -48,7 +54,7 @@ export type PhoneEvidenceRequirement = Readonly<{
 }>;
 
 export type PhoneSceneContentProbe = Readonly<{
-  kind: 'reading' | 'static' | 'visual';
+  kind: 'reading' | 'static' | 'static-visual' | 'visual';
   textSelectors: readonly string[];
   frameSelectors: readonly string[];
 }>;
@@ -67,8 +73,7 @@ export type PhoneScenePresentationContract = Readonly<{
 
 export type PhoneSegmentEffectPlacement =
   | 'above-both'
-  | 'between'
-  | 'inside-owner';
+  | 'between';
 
 export type PhoneSegmentPresentationContract = Readonly<{
   id: CanonicalPhoneSegmentId;
@@ -149,25 +154,28 @@ type SegmentRow = readonly [
 ];
 
 /**
- * Ordered rows follow canonicalSceneIds. Each declares the checkpoint, edge,
- * owner/surface suffix, resolver, and actual content/frame selector.
+ * Ordered rows follow canonicalSceneIds. Textual holds keep an authored DOM
+ * probe. Dynamic visual holds deliberately expose no selector: only the
+ * leaf's real renderer callback may produce their PresentationProof. A
+ * static visual may expose a token-bound post-paint marker, but that marker
+ * is only physical evidence after its leaf supplies the matching raw frame.
  */
 const sceneRows = [
   ['hero-entered', 'hero', 0, 'hero', 0, 'static', ['#portrait-spike-home']],
   ['pattern-complete', 'pattern', 0, 'pattern', 0, 'static', ['#portrait-spike-pattern-title']],
   ['star-map-reading', 'star', 0, 'star-map', 0, 'static', ['#portrait-spike-star-title']],
-  ['aod-stage', 'aod', 0, 'aod', 1, 'visual', ['canvas[data-aod-figure-canvas][data-phone-presentation-frame="ready"]']],
+  ['aod-stage', 'aod', 0, 'aod', 1, 'static-visual', ['[data-aod-reveal-surface][data-aod-static-poster]']],
   ['method-intro', 'method', 4, 'method', 2, 'reading', ['#portrait-spike-method-title', '.portrait-scroll-spike__method-bridge-content > p']],
-  ['figure2-stage', 'figure2', 1, 'figure2', 2, 'visual', ['canvas[data-figure2-packed-alpha-canvas][data-packed-alpha-frame-ready="true"]']],
+  ['figure2-stage', 'figure2', 1, 'figure2', 2, 'visual', []],
   ['figure2-proof-opening', 'proof', 1, 'proof', 2, 'reading', ['#figure2-proof-opening .r4-proof-opening__title']],
   ['brand-reading', 'brand', 4, 'brand', 2, 'static', ['#phone-brand-title', '.phone-brand__definition > p']],
-  ['figure3-stage', 'figure3', 2, 'figure3', 3, 'visual', ['canvas[data-phone-figure3-paper-canvas][data-phone-figure3-paper-frame="ready"]']],
-  ['services-reading', 'services', 4, 'services', 3, 'reading', ['#phone-services-title', '.phone-services__hero > p']],
-  ['ttg-stage', 'ttg', 2, 'ttg', 3, 'visual', ['video[data-phone-ttg-video][data-phone-presentation-frame="ready"]']],
-  ['lab-stable', 'lab', 4, 'lab', 3, 'reading', ['#phone-lab-title', '.phone-lab__hero > p']],
-  ['ph-stage', 'ph', 3, 'ph', 3, 'visual', ['canvas[data-phone-packed-alpha-canvas="ph-figure"][data-packed-alpha-frame-ready="true"]']],
-  ['education-reading', 'education', 4, 'education', 3, 'reading', ['.r4-education__vertical h2', '.r4-education__lead p']],
-  ['crane-stage', 'crane', 3, 'crane', 3, 'visual', ['canvas[data-phone-packed-alpha-canvas="crane-figure"][data-packed-alpha-frame-ready="true"]', 'canvas[data-phone-packed-alpha-canvas="crane-flock"][data-packed-alpha-frame-ready="true"]']],
+  ['figure3-stage', 'figure3', 2, 'figure3', 3, 'visual', []],
+  ['services-reading', 'services', 4, 'services', 4, 'reading', ['#phone-services-title', '.phone-services__hero > p']],
+  ['ttg-stage', 'ttg', 2, 'ttg', 3, 'visual', []],
+  ['lab-stable', 'lab', 4, 'lab', 4, 'reading', ['#phone-lab-title', '.phone-lab__hero > p:not(.phone-lab__eyebrow)']],
+  ['ph-stage', 'ph', 3, 'ph', 3, 'visual', []],
+  ['education-reading', 'education', 4, 'education', 4, 'reading', ['.r4-education__vertical h2', '.r4-education__lead p']],
+  ['crane-stage', 'crane', 3, 'crane', 3, 'visual', []],
   ['contact-stable', 'contact', 4, 'contact', 4, 'static', ['.r4-contact h2', '.r4-contact__content > p']]
 ] as const satisfies readonly SceneRow[] & Readonly<{
   length: typeof canonicalSceneIds['length'];
@@ -254,6 +262,41 @@ export function phoneScenePresentationTuple(
   ];
 }
 
+/** The terminal proof kind is declared with the scene, never inferred from DOM. */
+export function phoneScenePresentationProofKind(
+  sceneId: SceneId
+): Extract<
+  PhonePresentationProofKind,
+  'dom-reading' | 'static-poster' | 'packed-canvas-frame'
+> {
+  switch (phoneScenePresentationTuple(sceneId)[6]) {
+    case 'reading':
+      return 'dom-reading';
+    case 'static':
+    case 'static-visual':
+      return 'static-poster';
+    case 'visual':
+      return 'packed-canvas-frame';
+  }
+}
+
+/**
+ * A direct route normally keeps the scene's declared terminal proof kind.
+ * Education is the one native leaf that has completed the exact post-paint
+ * static binding: its direct candidate must use that same leaf contract rather
+ * than fall back to the generic reading-frame scheduler.
+ */
+export function phoneDirectEntryPresentationProofKind(
+  sceneId: SceneId
+): Extract<
+  PhonePresentationProofKind,
+  'dom-reading' | 'static-poster' | 'packed-canvas-frame'
+> {
+  return sceneId === 'education'
+    ? 'static-poster'
+    : phoneScenePresentationProofKind(sceneId);
+}
+
 export function phoneSegmentPresentationTuple(
   segmentId: SegmentId
 ): PhoneSegmentPresentationTuple {
@@ -276,6 +319,39 @@ export function phoneSegmentPresentationTuple(
     mediaHandoff ? 'packed-canvas-frame' : 'effect-frame',
     mediaHandoff ? sourceSurface : effectHost
   ];
+}
+
+/**
+ * Maps a physical surface frame to the semantic edge its immutable token
+ * proves. A terminal scene frame keeps its own edge; a source frame that
+ * opens a declared transition carries the receiving edge required by that
+ * segment's first-frame contract.
+ */
+export function phoneSurfaceRenderedProofEdge(
+  sceneId: SceneId,
+  surface: PhoneSurfaceId,
+  kind: PhonePresentationProofKind,
+  preferTransitionTarget = false
+): PhoneEdgeScene | null {
+  const sourceTransitionEdge = () => {
+    for (const { id } of canonicalSegments) {
+      const segment = phoneSegmentPresentationTuple(id);
+      if (segment[2] === sceneId
+        && segment[4] === surface
+        && segment[8] === kind
+        && segment[9] === surface
+      ) return phoneScenePresentationTuple(segment[3])[1];
+    }
+    return null;
+  };
+  if (preferTransitionTarget) {
+    const edge = sourceTransitionEdge();
+    if (edge) return edge;
+  }
+  if (kind === phoneScenePresentationProofKind(sceneId)) {
+    return phoneScenePresentationTuple(sceneId)[1];
+  }
+  return sourceTransitionEdge();
 }
 
 /**
@@ -309,8 +385,12 @@ export function phoneScenePresentationContract(
     landingResolver,
     contentProbe: {
       kind,
-      textSelectors: kind === 'visual' ? emptySelectors : selectors,
-      frameSelectors: kind === 'visual' ? selectors : emptySelectors
+      textSelectors: kind === 'visual' || kind === 'static-visual'
+        ? emptySelectors
+        : selectors,
+      frameSelectors: kind === 'visual' || kind === 'static-visual'
+        ? selectors
+        : emptySelectors
     }
   };
 }

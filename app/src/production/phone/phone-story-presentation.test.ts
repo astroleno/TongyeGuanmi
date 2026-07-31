@@ -11,7 +11,7 @@ import {
 import {
   phoneStoryPresentation,
   phoneTransitionPresentationTuple
-} from './phone-story-presentation';
+} from './phone-story/presentation';
 
 const identity = {
   sessionId: 'phone-presentation-session',

@@ -7,7 +7,12 @@ import {
 } from 'react';
 import { SERVICES_COPY } from '../copy';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
+import type { PhoneSceneAdapterHandle } from '../../../production/phone/types';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
 import './PhoneServices.css';
 
 const SERVICE_ROW_OFFSETS = [4, 8, 12, 16] as const;
@@ -44,10 +49,16 @@ function applyServicesFrame(
 
 /** A semantic, native-scroll Services chapter with no internal scrollport. */
 export const PhoneServices = forwardRef<
-  ScenePresentationAdapterHandle,
+  PhoneSceneAdapterHandle,
   Group45PhoneSceneProps
 >(function PhoneServices({ active, reducedMotion, onReady }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const presentationBindingRef = useRef<Readonly<{
+    token: PresentationToken;
+    key: string;
+    frameSequence: number;
+    report: (frame: PhoneRenderedPresentationFrame) => void;
+  }> | null>(null);
   const update = useCallback((progress: number) => {
     applyServicesFrame(rootRef.current, progress, reducedMotion);
   }, [reducedMotion]);
@@ -61,6 +72,24 @@ export const PhoneServices = forwardRef<
     if (import.meta.env.DEV && rootRef.current) {
       rootRef.current.dataset.phoneServicesActive = 'false';
     }
+  }, []);
+  const reportPresentedFrame = useCallback((key: string) => {
+    const binding = presentationBindingRef.current;
+    if (!binding || binding.key !== key) return;
+    const next = {
+      ...binding,
+      frameSequence: binding.frameSequence + 1
+    };
+    presentationBindingRef.current = next;
+    next.report({
+      token: next.token,
+      frameSequence: next.frameSequence,
+      observedAt: typeof performance !== 'undefined'
+        && typeof performance.now === 'function'
+        ? performance.now()
+        : 0,
+      origin: 'leaf-static-poster'
+    });
   }, []);
 
   useEffect(() => {
@@ -78,7 +107,31 @@ export const PhoneServices = forwardRef<
     enter,
     leave,
     reverse: enter,
+    presentPresentation(token, report) {
+      const key = phoneRuntimePresentationTokenKey(token);
+      presentationBindingRef.current = {
+        token,
+        key,
+        frameSequence: 0,
+        report
+      };
+      update(1);
+      if (typeof window === 'undefined') return;
+      // The first frame applies the endpoint; the second is the leaf's
+      // post-layout static-poster observation for this immutable token.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => reportPresentedFrame(key));
+      });
+    },
+    disposePresentation(token) {
+      const binding = presentationBindingRef.current;
+      if (
+        binding
+        && binding.key === phoneRuntimePresentationTokenKey(token)
+      ) presentationBindingRef.current = null;
+    },
     dispose() {
+      presentationBindingRef.current = null;
       const root = rootRef.current;
       if (!root) return;
       if (import.meta.env.DEV) delete root.dataset.phoneServicesActive;
@@ -86,7 +139,7 @@ export const PhoneServices = forwardRef<
       root.style.removeProperty('--phone-services-opacity');
       root.style.removeProperty('--phone-services-y');
     }
-  }), [enter, leave, update]);
+  }), [enter, leave, reportPresentedFrame, update]);
 
   return (
     <article

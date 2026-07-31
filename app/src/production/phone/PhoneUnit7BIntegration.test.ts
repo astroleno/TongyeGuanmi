@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { phoneGroup67RunSource } from './phone-lab-contact-runtime';
 import { phoneRun } from './phone-story-runs';
-import { createPhoneStorySnapshot } from './phone-story-state';
+import { createPhoneStorySnapshot } from './phone-story/machine';
 
 const shellSource = readFileSync(
   new URL('./PhoneStoryShell.tsx', import.meta.url),
@@ -32,6 +32,14 @@ const compositeRunnerSource = readFileSync(
   new URL('./phone-composite-runner.ts', import.meta.url),
   'utf8'
 );
+const brandSceneSource = readFileSync(
+  new URL('../../scenes/brand/phone/PhoneBrand.tsx', import.meta.url),
+  'utf8'
+);
+const servicesSceneSource = readFileSync(
+  new URL('../../scenes/services/phone/PhoneServices.tsx', import.meta.url),
+  'utf8'
+);
 const labContactRuntimeSource = readFileSync(
   new URL('./phone-lab-contact-runtime.ts', import.meta.url),
   'utf8'
@@ -56,10 +64,6 @@ const brandLabStorySource = readFileSync(
   new URL('./PhoneBrandLabStory.tsx', import.meta.url),
   'utf8'
 );
-const labContactShellSource = readFileSync(
-  new URL('./PhoneLabContactShell.tsx', import.meta.url),
-  'utf8'
-);
 const entryRuntimeSource = readFileSync(
   new URL('./usePhoneStoryEntry.ts', import.meta.url),
   'utf8'
@@ -78,6 +82,10 @@ const heroSource = readFileSync(
 );
 const patternCss = readFileSync(
   new URL('./scenes/PhonePattern.css', import.meta.url),
+  'utf8'
+);
+const patternSource = readFileSync(
+  new URL('./scenes/PhonePattern.tsx', import.meta.url),
   'utf8'
 );
 const starMapSource = readFileSync(
@@ -185,16 +193,79 @@ describe('formal Unit7-B phone integration', () => {
     expect(continuationSource).not.toContain('media-failure');
   });
 
-  it('uses the same completion latch for reduced motion and stable Contact', () => {
+  it('keeps Group45 reduced motion inside a proof-gated candidate admission', () => {
     expect(compositeRunnerSource).toMatch(
-      /if \(options\.reducedMotion\) \{[\s\S]*?settleReduced\(resource, config\);/
+      /if \(options\.reducedMotion\) \{[\s\S]*?if \(usesRawFrameProof\(resource\)\) startReducedAdmission\(resource, config\);/
     );
+    expect(compositeRunnerSource).toMatch(
+      /target\.presentPresentation!?\(binding\[0\]/
+    );
+    expect(compositeRunnerSource).not.toContain('settleReduced');
     expect(labContactRuntimeSource).toContain('phoneGroup67RunSource');
     expect(continuationSource).toContain('phoneLabContactVisualProjection');
     expect(continuationSource).not.toContain('data-phone-group67-run');
   });
 
-  it('leaves all semantic publication to the shell orchestrator', () => {
+  it('[Group45 proof writer gate] requires native reduced targets to identify their own physical static frame', () => {
+    for (const source of [brandSceneSource, servicesSceneSource]) {
+      expect(source).toContain("origin: 'leaf-static-poster'");
+    }
+  });
+
+  it('[Pattern↔StarMap reduced cutover] keeps raw static proof ownership in the canvas leaves', () => {
+    for (const source of [patternSource, starMapSource]) {
+      expect(source).toContain('presentPresentation(token, report)');
+      expect(source).toContain("origin: 'leaf-static-poster'");
+      expect(source).not.toMatch(
+        /\b(?:reportRenderedFrame|presentationProofToken|proofForRenderedFrame|reportPresentationProof|reportPresentationFrame)\b/
+      );
+    }
+    expect(patternSource).toMatch(
+      /binding\.report\(phonePatternStaticPresentationFrame\(/
+    );
+    expect(starMapSource).toMatch(
+      /binding\.report\(phoneStarMapStaticPresentationFrame\(/
+    );
+    expect(patternSource).toMatch(
+      /binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.report\(phonePatternStaticPresentationFrame\(/
+    );
+    expect(starMapSource).toMatch(
+      /binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.report\(phoneStarMapStaticPresentationFrame\(/
+    );
+    for (const source of [patternSource, starMapSource]) {
+      expect(source).not.toMatch(/binding\.report\(\s*\{/);
+    }
+    expect(stageRuntimeSource).toMatch(
+      /'front:pattern'[\s\S]*?patternAdapter\.presentPresentation\?\.\(token, report\)/
+    );
+    expect(stageRuntimeSource).toMatch(
+      /'front:star-map'[\s\S]*?starAdapter\.presentPresentation\?\.\(token, report\)/
+    );
+  });
+
+  it('[AOD↔Method reduced cutover] binds only target leaves to one post-paint static proof', () => {
+    for (const source of [aodSource, methodSource]) {
+      expect(source).toContain('presentPresentation(token, report)');
+      expect(source).toContain("origin: 'leaf-static-poster'");
+      expect(source).not.toMatch(
+        /\b(?:reportRenderedFrame|presentationProofToken|proofForRenderedFrame|reportPresentationProof|reportPresentationFrame|reportEndpointCommit)\b/
+      );
+    }
+    expect(aodSource).toMatch(
+      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodStaticPresentationFrame\(/
+    );
+    expect(methodSource).toMatch(
+      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneMethodStaticPresentationFrame\(/
+    );
+    expect(stageRuntimeSource).toMatch(
+      /'native:method'[\s\S]*?methodAdapter\.presentPresentation\?\.\(token, report\)/
+    );
+    expect(stageRuntimeSource).toMatch(
+      /options\.reducedMotion,[\s\S]*?present\(execution, report\)[\s\S]*?execution\[1\] === 1 \? methodAdapter : aodAdapter/
+    );
+  });
+
+  it('leaves all semantic publication to the route-local runtime', () => {
     expect(continuationSource).not.toMatch(
       /if \(fromLabBoundary\) \{\s*publishScene\('lab'\)/
     );
@@ -212,7 +283,7 @@ describe('formal Unit7-B phone integration', () => {
       'registerPhoneRuntimeSampledScrollCorridor('
     );
     expect(stageRuntimeSource).toContain('registerPhoneRuntimeSurface(');
-    expect(stageRuntimeSource).toContain('registerPhoneCompositeRunCapability(');
+    expect(stageRuntimeSource).toContain('registerPhoneRuntimeAodCapability(');
     expect(stageRuntimeSource).toContain('PhoneCinematicSnapshot');
     expect(stageRuntimeSource).toContain('phoneFrontRailSample');
     expect(stageRuntimeSource).toContain("'front:hero'");
@@ -262,7 +333,7 @@ describe('formal Unit7-B phone integration', () => {
       'setPatternActive',
       'setStarVisible',
       'setAodFigureActive',
-      'aodRun'
+      'aodRunRef'
     ]) {
       expect(stageRuntimeSource).not.toContain(legacyOwner);
     }
@@ -291,7 +362,6 @@ describe('formal Unit7-B phone integration', () => {
     expect(storyNavSource).toContain('sceneFromHash(item.hash)');
     expect(storyNavSource).not.toContain('item.scene');
     expect(brandLabStorySource).toContain("item.hash === '#services'");
-    expect(labContactShellSource).toContain('sceneFromHash(item.hash)');
   });
 
   it('uses global surface roles while scene active props remain resource-only', () => {
@@ -301,10 +371,10 @@ describe('formal Unit7-B phone integration', () => {
     }
     expect(starMapSource).toContain('__phoneStarActive');
     expect(aodSource).toContain('`active` is strictly a decoder/compositor lease');
-    expect(aodSource).toContain('const autoplayIdentityRef = useRef<PhoneExecutionToken | null>(null)');
-    expect(aodSource).toContain('startAutoplay(direction, identity)');
-    expect(aodSource).toContain('progressListenerRef.current?.(progress, direction, identity)');
-    expect(aodSource).toContain('completeListenerRef.current?.(direction, identity)');
+    expect(aodSource).toContain('const autoplayExecutionRef = useRef<PhoneAodExecution | null>(null)');
+    expect(aodSource).toContain('startAutoplay(execution)');
+    expect(aodSource).toContain('progressListenerRef.current?.(progress, execution)');
+    expect(aodSource).toContain('completeListenerRef.current?.(execution)');
     expect(patternCss).not.toContain('.portrait-scroll-spike__pattern-motion::after');
     expect(patternCss).not.toContain('--portrait-pattern-edge-surface');
   });

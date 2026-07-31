@@ -11,10 +11,14 @@ import {
   createPhoneStorySnapshot,
   reducePhoneStorySnapshot,
   type PhoneStorySnapshot
-} from './phone-story-state';
-import { phoneSegmentPresentationContract } from './phone-presentation-contract';
-import { phoneRun } from './phone-story-runs';
-import { selectPhoneCinematicSnapshot } from './phone-story-runtime';
+} from './phone-story/machine';
+import {
+  phoneScenePresentationTuple,
+  phoneSegmentPresentationContract,
+  phoneSegmentPresentationTuple
+} from './phone-story/manifest';
+import { phoneRun, phoneRunLegTuple } from './phone-story-runs';
+import { selectPhoneCinematicSnapshot } from './phone-story/runtime';
 
 const cinematic = (snapshot: PhoneStorySnapshot) => (
   selectPhoneCinematicSnapshot(snapshot)
@@ -55,12 +59,30 @@ function identity(snapshot: PhoneStorySnapshot) {
 
 function executionToken(snapshot: PhoneStorySnapshot) {
   const value = identity(snapshot);
+  if (snapshot.status !== 'transaction' || !snapshot.session.operation.run) {
+    throw new Error('Expected an active cinematic transaction');
+  }
+  const leg = phoneRunLegTuple(
+    snapshot.session.operation.run,
+    snapshot.session.operation.legIndex
+  );
+  if (!leg) throw new Error('Expected an active cinematic leg');
+  const frame = phoneSegmentPresentationTuple(leg[0]);
   return [
     value.authorityId,
     value.sessionId,
     value.generation,
     value.leg,
-    value.direction
+    value.direction,
+    {
+      authorityId: value.authorityId,
+      sessionId: value.sessionId,
+      generation: value.generation,
+      leg: value.leg,
+      revision: snapshot.session.presentationRevision,
+      subject: frame[9],
+      kind: frame[8]
+    }
   ] as const;
 }
 
@@ -72,13 +94,27 @@ function presented(snapshot: PhoneStorySnapshot): PhoneStorySnapshot {
     .legs[snapshot.session.operation.legIndex];
   if (!leg) throw new Error('Expected an active cinematic leg');
   const frame = phoneSegmentPresentationContract(leg.segment).firstFrame;
+  const contract = phoneSegmentPresentationTuple(leg.segment);
   return reducePhoneStorySnapshot(snapshot, {
     ...identity(snapshot),
-    type: 'PRESENTED_FRAME',
-    kind: frame.kind,
-    subject: frame.subject,
-    revision: snapshot.session.presentation[0],
-    observedAt: snapshot.session.presentation[0]
+    type: 'PRESENTATION_PROOF_REPORTED',
+    proof: {
+      token: {
+        authorityId: snapshot.authorityId,
+        sessionId: snapshot.session.sessionId,
+        generation: snapshot.session.generation,
+        leg: snapshot.session.operation.legIndex,
+        revision: snapshot.session.presentationRevision,
+        subject: frame.subject,
+        kind: contract[8]
+      },
+      frameSequence: 1,
+      observedAt: 1,
+      connected: true,
+      visible: true,
+      coverageComplete: true,
+      edge: phoneScenePresentationTuple(contract[3])[1]
+    }
   }).snapshot;
 }
 
@@ -146,5 +182,23 @@ describe('canonical Lab through Contact runtime projection', () => {
       cinematic(media),
       'ph-animation'
     )).toEqual([executionToken(media), true, .4]);
+  });
+
+  it('[Education direct-entry cutover] retains Education as the lazy focus throughout its candidate', () => {
+    const stable = createPhoneStorySnapshot({
+      authorityId: 'phone-group67-entry',
+      scene: 'education'
+    });
+    const candidate = reducePhoneStorySnapshot(stable, {
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: stable.authorityId,
+      target: 'education',
+      source: 'initial',
+      fallbackScene: 'education',
+      cinematic: null
+    }).snapshot;
+
+    expect(candidate.status).toBe('transaction');
+    expect(phoneLabContactAdapterScene(cinematic(candidate))).toBe('education');
   });
 });

@@ -4,7 +4,7 @@ import {
   readPhoneCoverageViewport,
   readPhoneLayoutViewport,
   type PhoneViewportWindow
-} from './phone-viewport-coverage';
+} from './phone-story/presentation';
 
 function fixture() {
   const visualViewport = Object.assign(new EventTarget(), {

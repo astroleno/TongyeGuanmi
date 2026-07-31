@@ -87,6 +87,19 @@ describe('Phone Figure3 → Services transition', () => {
     expect(to.dataset.phoneDissolveOpacity).toBe('1.0000');
   });
 
+  it('[R5] keeps a released endpoint against a late media progress sample', () => {
+    expect(phoneFigure3ServicesFrame(0, false, false, 1, 1)).toMatchObject({
+      progress: 1,
+      fromOpacity: 0,
+      toOpacity: 1
+    });
+    expect(phoneFigure3ServicesFrame(1, false, false, -1, 0)).toMatchObject({
+      progress: 0,
+      fromOpacity: 1,
+      toOpacity: 0
+    });
+  });
+
   it('settles media failure and reduced motion without a replay hold', () => {
     expect(phoneFigure3ServicesFrame(.3, false, true, 1).progress).toBe(1);
     expect(phoneFigure3ServicesFrame(.7, false, true, -1).progress).toBe(0);

@@ -1,0 +1,25 @@
+/*
+ * The only global phone presentation ladder. Roles are applied atomically by
+ * presentation.ts; scene CSS must not redefine these stacking relationships.
+ */
+:where([data-phone-layer-role='coverage']) { z-index: 100 !important; }
+:where([data-phone-layer-role='retained']) { z-index: 200 !important; }
+:where([data-phone-layer-role='fixed']) { z-index: 300 !important; }
+:where([data-phone-layer-role='stable']) { z-index: 400 !important; }
+:where([data-phone-layer-role='transition-source']) { z-index: 500 !important; }
+:where([data-phone-layer-role='transition-effect-between']) { z-index: 550 !important; }
+:where([data-phone-layer-role='transition-receiver']) { z-index: 600 !important; }
+:where([data-phone-layer-role='transition-effect-above']) { z-index: 700 !important; }
+
+html[data-portrait-spike='b'] .portrait-scroll-spike {
+  --portrait-coverage-left: 0px;
+  --portrait-coverage-top: 0px;
+  --portrait-coverage-right: 100vw;
+  --portrait-coverage-bottom: var(--portrait-live-height);
+  --portrait-coverage-width: 100vw;
+  --portrait-coverage-height: var(--portrait-live-height);
+  --portrait-stage-canvas-height: max(
+    var(--portrait-stage-height),
+    var(--portrait-coverage-height)
+  );
+}

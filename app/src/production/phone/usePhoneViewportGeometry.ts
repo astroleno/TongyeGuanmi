@@ -3,7 +3,7 @@ import { PHONE_STAGE_SCROLL_VIEWPORTS } from './phone-viewport';
 import {
   usePhoneViewportCoverage,
   type PhoneLayoutViewport
-} from './phone-viewport-coverage';
+} from './phone-story/presentation';
 import { refreshPhoneScrollStage } from './usePhoneStageRuntime';
 
 /**

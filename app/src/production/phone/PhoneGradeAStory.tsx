@@ -21,16 +21,18 @@ import type {
 } from './phone-transition-coordinator';
 import type { PhoneLandingReason } from './phone-scroll-corridor-registry';
 import {
-  usePhoneStoryOrchestrator,
+  usePhoneStoryRuntimePort,
   usePhoneStorySnapshot
-} from './PhoneStoryOrchestratorContext';
+} from './PhoneStoryRuntimeContext';
 import {
+  phoneRuntimePresentationTokenKey,
   registerPhoneRuntimeSampledScrollCorridor,
   registerPhoneRuntimeSurface,
   selectPhoneCinematicSnapshot,
   syncPhoneRuntimeDiagnostics
-} from './phone-story-runtime';
+} from './phone-story/runtime';
 import type {
+  PhonePresentationAdapterHandle,
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
@@ -110,6 +112,42 @@ export function phoneGradeAProofProgress(
   return clamp(-trackTop / Math.max(1, trackHeight - stageHeight));
 }
 
+/**
+ * The Ink timeline owns the Figure2 → Proof transition endpoint.  Once it
+ * reaches target verification, the target surface must instead expose its
+ * canonical opening frame so the token-bound proof can be observed before
+ * document scrolling becomes the owner again.
+ */
+export function phoneGradeAProofTransitionProgress(
+  phase: string | null | undefined,
+  sessionProgress: number | null | undefined
+): number {
+  return phase === 'preparing' || phase === 'animating'
+    ? clamp(sessionProgress ?? 0)
+    : 0;
+}
+
+/**
+ * Proof → Brand normally retains the closing Proof panel. In the inverse
+ * Brand → Proof terminal verification, the candidate Proof surface instead
+ * needs its opening panel in the viewport before the token-bound proof can
+ * be accepted. Rollback still belongs to Brand and retains the closing panel.
+ */
+export function phoneGradeAProofBrandTransitionProgress(
+  phase: string | null | undefined,
+  direction: PhoneTransitionDirection
+): 0 | 1 {
+  return direction === -1 && (
+    phase === 'verifying-target'
+    || phase === 'releasing-layout'
+    || phase === 'measuring-landing'
+    || phase === 'aligning-scroll'
+    || phase === 'verifying-stable'
+  )
+    ? 0
+    : 1;
+}
+
 export function phoneGradeAProofBrandProgress(
   brandTop: number,
   stageHeight: number
@@ -121,6 +159,8 @@ export type PhoneGradeAStoryProps = Readonly<{
   reducedMotion: boolean;
   stageHost: HTMLElement | null;
   methodCopySource?: HTMLElement | null;
+  /** Direct parent leaf for reverse reduced admission; not a global registry. */
+  methodPresentation?: PhonePresentationAdapterHandle | null;
 }>;
 
 function surfaceIsProjected(
@@ -134,9 +174,10 @@ function surfaceIsProjected(
 export function PhoneGradeAStory({
   reducedMotion,
   stageHost,
-  methodCopySource = null
+  methodCopySource = null,
+  methodPresentation = null
 }: PhoneGradeAStoryProps) {
-  const orchestrator = usePhoneStoryOrchestrator();
+  const orchestrator = usePhoneStoryRuntimePort();
   const storySnapshot = usePhoneStorySnapshot();
   const cinematicSnapshot = useMemo(
     () => selectPhoneCinematicSnapshot(storySnapshot),
@@ -188,15 +229,19 @@ export function PhoneGradeAStory({
   const figure2ProofRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const proofBrandRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const brandRootRef = useRef<HTMLElement | null>(null);
+  const brandPresentationRef = useRef<PhonePresentationAdapterHandle | null>(null);
   const boundaryReadyRef = useRef(0);
   const boundaryReadyListenersRef = useRef(new Set<() => void>());
   const scenesReady = figure2Ready && proofReady;
   const methodBoundaryReady = Boolean(
     methodCopySource && figure2Ready && methodFigure2Ready
+    && (!reducedMotion || methodPresentation)
   );
   const figure2ProofBoundaryReady = scenesReady && figure2ProofReady;
   const proofBrandBoundaryReady = Boolean(
-    proofReady && brandRoot && proofBrandReady
+    proofReady
+      && brandRoot
+      && (reducedMotion ? brandPresentationRef.current : proofBrandReady)
   );
   brandRootRef.current = brandRoot;
   boundaryReadyRef.current = (methodBoundaryReady ? 1 : 0)
@@ -254,6 +299,13 @@ export function PhoneGradeAStory({
   const bindBrandRoot = useCallback((nextRoot: HTMLElement | null) => {
     brandRootRef.current = nextRoot;
     setBrandRoot(nextRoot);
+  }, []);
+  const bindBrandPresentation = useCallback((
+    handle: PhonePresentationAdapterHandle | null
+  ) => {
+    if (brandPresentationRef.current === handle) return;
+    brandPresentationRef.current = handle;
+    setAdapterRevision((revision) => revision + 1);
   }, []);
   const subscribeBoundaryReady = useCallback((listener: () => void) => {
     boundaryReadyListenersRef.current.add(listener);
@@ -317,9 +369,25 @@ export function PhoneGradeAStory({
             progress: 0,
             direction: 1,
             runId: `${request.sessionId}:${request.generation}:direct`,
+            presentationToken: request.token,
             signal: request.signal,
             directEntry: true
           });
+        },
+        {
+          present(token, report) {
+            figure2Ref.current?.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            figure2Ref.current?.disposePresentation?.(token);
+          }
+        },
+        (token) => {
+          const marker = figure2Ref.current?.root()
+            ?.querySelector<HTMLElement>(
+              '.r4-figure2__media-stack--combined'
+            )?.dataset.figure2StaticPoster;
+          return marker === phoneRuntimePresentationTokenKey(token);
         }
       ),
       registerPhoneRuntimeSurface(
@@ -328,7 +396,13 @@ export function PhoneGradeAStory({
         'figure2-proof',
         'fixed',
         () => proofRef.current?.root() ?? null,
-        () => stageHost
+        () => stageHost,
+        undefined,
+        undefined,
+        (token) => (
+          proofRef.current?.root()?.dataset.figure2ProofStaticPoster
+            === phoneRuntimePresentationTokenKey(token)
+        )
       )
     ];
     const corridorLease = registerPhoneRuntimeSampledScrollCorridor(
@@ -414,6 +488,55 @@ export function PhoneGradeAStory({
         position: (direction: PhoneTransitionDirection) => (
           boundaryPosition(id, direction)
         ),
+        ...(id === 0 ? {
+          reducedTargetPosition: (direction: PhoneTransitionDirection) => {
+            if (direction === 1) return boundaryPosition(0, direction);
+            const method = document.getElementById('method');
+            return method ? elementDocumentTop(method) : null;
+          },
+          reducedStaticSubject: (direction: PhoneTransitionDirection) => (
+            direction === 1 ? 'grade-a:figure2' : 'native:method'
+          ),
+          reducedStaticTarget: (direction: PhoneTransitionDirection) => {
+            if (direction === -1) return methodPresentation;
+            const figure2 = figure2Ref.current;
+            return figure2?.presentPresentation
+              ? figure2 as PhonePresentationAdapterHandle
+              : null;
+          }
+        } : id === 1 ? {
+          reducedTargetPosition: (direction: PhoneTransitionDirection) => (
+            boundaryPosition(1, direction)
+          ),
+          reducedStaticSubject: (direction: PhoneTransitionDirection) => (
+            direction === 1 ? 'grade-a:proof' : 'grade-a:figure2'
+          ),
+          reducedStaticTarget: (direction: PhoneTransitionDirection) => {
+            const target = direction === 1
+              ? proofRef.current
+              : figure2Ref.current;
+            return target?.presentPresentation
+              ? target as PhonePresentationAdapterHandle
+              : null;
+          }
+        } : id === 2 ? {
+          reducedTargetPosition: (direction: PhoneTransitionDirection) => (
+            direction === 1
+              ? boundaryPosition(2, direction)
+              : boundaryPosition(1, direction)
+          ),
+          reducedStaticSubject: (direction: PhoneTransitionDirection) => (
+            direction === 1 ? 'native:brand' : 'grade-a:proof'
+          ),
+          reducedStaticTarget: (direction: PhoneTransitionDirection) => {
+            const target = direction === 1
+              ? brandPresentationRef.current
+              : proofRef.current;
+            return target?.presentPresentation
+              ? target as PhonePresentationAdapterHandle
+              : null;
+          }
+        } : {}),
         ...(id === 1 ? {
           durationMs: FIGURE2_DISTANCE_EXPAND_SEGMENT.policy.playMs[1]
         } : {}),
@@ -454,6 +577,7 @@ export function PhoneGradeAStory({
     };
   }, [
     methodCopySource,
+    methodPresentation,
     orchestrator,
     reducedMotion,
     stageHost,
@@ -583,6 +707,18 @@ export function PhoneGradeAStory({
         : sessionProgress ?? 0;
       switch (run) {
         case 'method-figure2':
+          if (reducedMotion) {
+            const endpoint = phase?.startsWith('rollback-')
+              ? sourceProgress
+              : direction === 1 ? 1 : 0;
+            methodPaper?.style.setProperty('visibility', 'hidden');
+            setMethodInkProgress(endpoint);
+            if (endpoint === 1) figure2Ref.current?.enter?.();
+            else figure2Ref.current?.leave?.();
+            proofRef.current?.leave?.();
+            setRetainedArchProgress(endpoint, 0);
+            return;
+          }
           setMethodInkProgress(progress);
           figure2Ref.current?.enter?.();
           figure2Ref.current?.update(0);
@@ -594,6 +730,27 @@ export function PhoneGradeAStory({
           setRetainedArchProgress(progress, 0);
           return;
         case 'figure2-proof':
+          if (reducedMotion) {
+            const rollback = phase?.startsWith('rollback-') === true;
+            const targetIsProof = direction === 1 ? !rollback : rollback;
+            methodPaper?.style.setProperty('visibility', 'hidden');
+            setMethodInkProgress(1);
+            if (targetIsProof) {
+              figure2Ref.current?.leave?.();
+              proofRef.current?.enter?.();
+              proofRef.current?.update(0);
+              setRetainedArchProgress(1, 1);
+            } else {
+              figure2Ref.current?.enter?.();
+              proofRef.current?.leave?.();
+              setRetainedArchProgress(1, 0);
+            }
+            return;
+          }
+          const proofTransitionProgress = phoneGradeAProofTransitionProgress(
+            phase,
+            sessionProgress
+          );
           methodPaper?.style.setProperty('visibility', 'hidden');
           setMethodInkProgress(1);
           figure2Ref.current?.enter?.();
@@ -602,7 +759,7 @@ export function PhoneGradeAStory({
           methodFigure2Ref.current?.render(1);
           figure2ProofRef.current?.render(progress);
           proofBrandRef.current?.render(0);
-          proofRef.current?.update(progress);
+          proofRef.current?.update(proofTransitionProgress);
           setRetainedArchProgress(
             1,
             FIGURE2_PROOF_SPLIT
@@ -610,6 +767,25 @@ export function PhoneGradeAStory({
           );
           return;
         case 'proof-brand':
+          if (reducedMotion) {
+            const rollback = phase?.startsWith('rollback-') === true;
+            const targetIsBrand = direction === 1 ? !rollback : rollback;
+            methodPaper?.style.setProperty('visibility', 'hidden');
+            setMethodInkProgress(1);
+            figure2Ref.current?.leave?.();
+            if (targetIsBrand) {
+              proofRef.current?.leave?.();
+            } else {
+              proofRef.current?.enter?.();
+              proofRef.current?.update(0);
+            }
+            setRetainedArchProgress(1, 1);
+            return;
+          }
+          const proofBrandTransitionProgress = phoneGradeAProofBrandTransitionProgress(
+            phase,
+            direction ?? 1
+          );
           methodPaper?.style.setProperty('visibility', 'hidden');
           setMethodInkProgress(1);
           figure2Ref.current?.leave?.();
@@ -617,7 +793,7 @@ export function PhoneGradeAStory({
           methodFigure2Ref.current?.render(1);
           figure2ProofRef.current?.render(1);
           proofBrandRef.current?.render(progress);
-          proofRef.current?.update(1);
+          proofRef.current?.update(proofBrandTransitionProgress);
           setRetainedArchProgress(1, 1);
           return;
         default:
@@ -641,7 +817,7 @@ export function PhoneGradeAStory({
       default:
         return;
     }
-  }, [adapterRevision, cinematicSnapshot]);
+  }, [adapterRevision, cinematicSnapshot, reducedMotion]);
 
   const figure2Active = surfaceIsProjected(
     sourceSurface,
@@ -741,6 +917,7 @@ export function PhoneGradeAStory({
           motionReduced={reducedMotion}
           stageHost={stageHost}
           onBrandRootChange={bindBrandRoot}
+          onBrandPresentationChange={bindBrandPresentation}
         />
       </Suspense>
       {stageHost ? createPortal(surfaces, stageHost) : null}

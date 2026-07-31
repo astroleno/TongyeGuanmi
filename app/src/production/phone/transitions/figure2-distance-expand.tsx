@@ -25,6 +25,10 @@ import {
   claimPhoneInkSurface,
   type PhoneInkSurfaceLease
 } from '../phone-ink-surface-pool';
+import {
+  useOptionalPhoneStoryRuntimePort
+} from '../PhoneStoryRuntimeContext';
+import { registerPhoneRuntimeEffect } from '../phone-story/runtime';
 import type {
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
@@ -71,6 +75,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   { host, from, to, reducedMotion, onReady },
   forwardedRef
 ) {
+  const runtime = useOptionalPhoneStoryRuntimePort();
   const timelineRef = useRef<PhoneFigure2DistanceExpandBridge | null>(null);
   const runRevisionRef = useRef(0);
   const buildRevisionRef = useRef(0);
@@ -78,15 +83,21 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     typeof timelineRef.current
   >> | null>(null);
   const leaseRef = useRef<PhoneInkSurfaceLease | undefined>(undefined);
+  const effectRegistrationRef = useRef<{ dispose(): void } | undefined>(undefined);
   const presentedFrameRef = useRef<(() => void) | undefined>(undefined);
+  const releaseEffectRegistration = useCallback(() => {
+    effectRegistrationRef.current?.dispose();
+    effectRegistrationRef.current = undefined;
+  }, []);
   const retireTimeline = useCallback(() => {
     buildRevisionRef.current += 1;
+    releaseEffectRegistration();
     timelineRef.current?.(['dispose']);
     timelineRef.current = null;
     buildRef.current = null;
     leaseRef.current = undefined;
     presentedFrameRef.current = undefined;
-  }, []);
+  }, [releaseEffectRegistration]);
   const releaseTimeline = useCallback(() => {
     leaseRef.current?.release();
     retireTimeline();
@@ -105,6 +116,15 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
       onRevoke: retireTimeline
     });
     leaseRef.current = lease;
+    if (runtime) {
+      releaseEffectRegistration();
+      effectRegistrationRef.current = registerPhoneRuntimeEffect(
+        runtime,
+        'figure2-distance-expand',
+        () => host,
+        () => lease.canvas
+      );
+    }
     const buildRevision = buildRevisionRef.current;
     const build = createPhoneFigure2DistanceExpandBridge([
       from,
@@ -128,7 +148,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     } finally {
       if (buildRef.current === build) buildRef.current = null;
     }
-  }, [from, host, reducedMotion, retireTimeline, to]);
+  }, [from, host, reducedMotion, releaseEffectRegistration, retireTimeline, runtime, to]);
   const prepare = useCallback(async (
     direction: 1 | -1,
     signal: AbortSignal

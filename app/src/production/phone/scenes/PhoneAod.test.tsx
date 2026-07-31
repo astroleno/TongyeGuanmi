@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { PhoneAod } from './PhoneAod';
+import {
+  PhoneAod,
+  phoneAodStaticPresentationFrame
+} from './PhoneAod';
 
 describe('PhoneAod Route B adapter', () => {
   it('keeps its stable root mounted and reserves active for decoder resources', () => {
@@ -14,4 +17,24 @@ describe('PhoneAod Route B adapter', () => {
     expect(markup).toContain('data-aod-figure-canvas="true"');
     expect(markup).toContain('data-aod-figure-video="true"');
   });
+
+  it('returns the original immutable token only as a static leaf frame', () => {
+    const token = {
+      authorityId: 'aod-authority',
+      sessionId: 'aod-session',
+      generation: 4,
+      leg: 0,
+      revision: 9,
+      subject: 'front:aod',
+      kind: 'static-poster' as const
+    };
+
+    expect(phoneAodStaticPresentationFrame(token, 1, 48)).toEqual({
+      token,
+      frameSequence: 1,
+      observedAt: 48,
+      origin: 'leaf-static-poster'
+    });
+  });
+
 });

@@ -8,7 +8,6 @@
   --phone-layer-fixed: 300;
   --phone-layer-stable: 400;
   --phone-layer-transition-source: 500;
-  --phone-layer-transition-effect-inside: 525;
   --phone-layer-transition-effect-between: 550;
   --phone-layer-transition-receiver: 600;
   --phone-layer-transition-effect-above: 700;
@@ -89,6 +88,18 @@
   opacity: 0;
 }
 
+/* Loader may cover, but never replace, the first decoded Hero poster. This
+ * lets WebKit composite the real opening frame before the normal loader exit. */
+.portrait-scroll-spike[data-portrait-loader-ready="false"][data-phone-hero-first-frame="poster-decoded"] .portrait-scroll-spike__stage {
+  visibility: visible;
+  opacity: 1;
+}
+
+.portrait-scroll-spike[data-portrait-loader-ready="false"][data-phone-hero-first-frame="poster-decoded"] .portrait-scroll-spike__stage-rail::before {
+  visibility: hidden;
+  opacity: 0;
+}
+
 .portrait-scroll-spike__scene {
   position: absolute;
   inset: 0;
@@ -139,10 +150,6 @@
 
 .portrait-scroll-spike [data-phone-layer-role="transition-source"] {
   --phone-presentation-z: var(--phone-layer-transition-source);
-}
-
-.portrait-scroll-spike [data-phone-layer-role="transition-effect-inside"] {
-  --phone-presentation-z: var(--phone-layer-transition-effect-inside);
 }
 
 .portrait-scroll-spike [data-phone-layer-role="transition-effect-between"] {

@@ -6,29 +6,29 @@ import {
 } from 'react';
 import type {
   PhoneStoryRuntimePort
-} from './phone-story-orchestrator';
+} from './phone-story/runtime';
 import {
-  registerPhoneCompositeRunCapability,
+  registerPhoneRuntimeAodCapability,
+  registerPhoneRuntimeEffect,
   registerPhoneRuntimeSampledScrollCorridor,
   registerPhoneRuntimeSurface,
   syncPhoneRuntimeDiagnostics,
+  type PhoneAodExecution,
   type PhoneCinematicSnapshot,
-  type PhoneCompositeSession
-} from './phone-story-runtime';
+  type PhoneRenderedPresentationFrame
+} from './phone-story/runtime';
 import {
   PHONE_STAGE_STOPS,
   phoneFrontRailSampleTuple,
   phoneStageFrame
 } from './phone-stage-timeline';
 import { renderPhoneStageTransitions } from './phone-transition-stage';
-import type { PhoneExecutionToken } from './phone-story-state';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
-import { createPhoneAodPresentationGate } from './phone-aod-presentation-gate';
 import { attachPhoneMediaGestureLease } from './phone-media-gesture-lease';
 
 const phoneStageRefreshers = new Set<() => void>();
@@ -125,42 +125,6 @@ function frontProgressForSnapshot(snapshot: PhoneCinematicSnapshot): number | nu
     : frontHoldProgress(semanticScene);
 }
 
-function tokenForAod(
-  snapshot: PhoneCinematicSnapshot,
-  direction: 1 | -1
-): PhoneExecutionToken | null {
-  const [
-    ,
-    ,
-    ,
-    authorityId,
-    sessionId,
-    generation,
-    run,
-    transactionDirection,
-    leg,
-    ,
-    ,
-    status
-  ] = snapshot;
-  if (
-    status !== 'transaction'
-    || run !== 'aod-method'
-    || transactionDirection !== direction
-    || sessionId === null
-    || generation === null
-    || leg === null
-  ) return null;
-  return [authorityId, sessionId, generation, leg, direction];
-}
-
-function tokenForAodSession(
-  session: PhoneCompositeSession,
-  direction: 1 | -1
-): PhoneExecutionToken {
-  return [session[0], session[1], session[2], session[3](), direction];
-}
-
 type FullscreenElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
 };
@@ -200,14 +164,16 @@ export type PhoneStageRuntimeOptions = Readonly<{
 export type PhoneStageRuntime = Readonly<{
   onAodProgress(
     progress: number,
-    direction: 1 | -1,
-    identity: PhoneExecutionToken
+    execution: PhoneAodExecution
   ): void;
-  onAodComplete(direction: 1 | -1, identity: PhoneExecutionToken): void;
+  onAodComplete(execution: PhoneAodExecution): void;
   onAodFrame(
-    progress: number,
-    direction: 1 | -1,
-    identity: PhoneExecutionToken
+    frame: PhoneRenderedPresentationFrame,
+    execution: PhoneAodExecution
+  ): void;
+  onAodFailure(
+    execution: PhoneAodExecution,
+    reason: 'aod-context-lost' | 'media-failed'
   ): void;
 }>;
 
@@ -227,40 +193,47 @@ export function usePhoneStageRuntime(
   const progressHandlerRef = useRef<
     (
       progress: number,
-      direction: 1 | -1,
-      identity: PhoneExecutionToken
+      execution: PhoneAodExecution
     ) => void
   >(undefined);
   const completeHandlerRef = useRef<
-    ((direction: 1 | -1, identity: PhoneExecutionToken) => void) | undefined
+    ((execution: PhoneAodExecution) => void) | undefined
   >(undefined);
   const frameHandlerRef = useRef<
     ((
-      progress: number,
-      direction: 1 | -1,
-      identity: PhoneExecutionToken
+      frame: PhoneRenderedPresentationFrame,
+      execution: PhoneAodExecution
+    ) => void) | undefined
+  >(undefined);
+  const failureHandlerRef = useRef<
+    ((
+      execution: PhoneAodExecution,
+      reason: 'aod-context-lost' | 'media-failed'
     ) => void) | undefined
   >(undefined);
 
   const onAodProgress = useCallback((
     progress: number,
-    direction: 1 | -1,
-    identity: PhoneExecutionToken
+    execution: PhoneAodExecution
   ) => {
-    progressHandlerRef.current?.(progress, direction, identity);
+    progressHandlerRef.current?.(progress, execution);
   }, []);
   const onAodComplete = useCallback((
-    direction: 1 | -1,
-    identity: PhoneExecutionToken
+    execution: PhoneAodExecution
   ) => {
-    completeHandlerRef.current?.(direction, identity);
+    completeHandlerRef.current?.(execution);
   }, []);
   const onAodFrame = useCallback((
-    progress: number,
-    direction: 1 | -1,
-    identity: PhoneExecutionToken
+    frame: PhoneRenderedPresentationFrame,
+    execution: PhoneAodExecution
   ) => {
-    frameHandlerRef.current?.(progress, direction, identity);
+    frameHandlerRef.current?.(frame, execution);
+  }, []);
+  const onAodFailure = useCallback((
+    execution: PhoneAodExecution,
+    reason: 'aod-context-lost' | 'media-failed'
+  ) => {
+    failureHandlerRef.current?.(execution, reason);
   }, []);
 
   useLayoutEffect(() => {
@@ -312,32 +285,6 @@ export function usePhoneStageRuntime(
     let stageScrollEnd = 1;
     let lastRailY = snapshotRef.current[14];
     let completedHeroEntrance = false;
-    let observedAodSession: string | null = null;
-    const aodGate = createPhoneAodPresentationGate({
-      startAutoplay: (direction, identity) => aodAdapter.startAutoplay(
-        direction,
-        identity
-      ),
-      onReset: () => aodAdapter.resetAutoplay()
-    });
-    const aodGateSession = (
-      session: PhoneCompositeSession,
-      direction: 1 | -1
-    ) => ({
-      identity: tokenForAodSession(session, direction),
-      valid: session[4],
-      // The compositor callback is the only first-frame source. Keep the
-      // proof and the prepare->animate event in one authority transaction.
-      reportFrame: () => session[5]('packed-canvas-frame', FRONT_AOD_SURFACE),
-      reportEvidence: () => undefined,
-      reportProgress: session[6],
-      complete: () => {
-        if (!session[4]()) return;
-        session[9]('receiver');
-        session[10]();
-      },
-      fail: session[13]
-    });
     const stagePosition = (progress: number) => stageScrollStart
       + (stageScrollEnd - stageScrollStart) * progress;
     const readStageScrollDistance = () => {
@@ -359,16 +306,7 @@ export function usePhoneStageRuntime(
     };
     const renderSnapshot = (snapshot: PhoneCinematicSnapshot) => {
       if (!active) return;
-      const aodToken = tokenForAod(snapshot, 1)
-        ?? tokenForAod(snapshot, -1);
-      const aodSession = aodToken
-        ? `${aodToken[1]}:${aodToken[2]}`
-        : null;
-      if (observedAodSession && observedAodSession !== aodSession) {
-        aodGate.reset();
-        aodAdapter.resetAutoplay();
-      }
-      observedAodSession = aodSession;
+      syncAodRuntime();
 
       const stageProgress = frontProgressForSnapshot(snapshot);
       if (stageProgress !== null) {
@@ -404,15 +342,13 @@ export function usePhoneStageRuntime(
         run,
         ,
         ,
-        phase,
+        ,
         sessionProgress,
         status
       ] = snapshot;
       if (status === 'transaction' && run === 'aod-method') {
         const progress = sessionProgress ?? 0;
-        aodAdapter.update(progress);
         methodAdapter.update(options.mapAodToMethod(progress));
-        if (phase?.startsWith('rollback-')) aodAdapter.resetAutoplay();
       }
     };
 
@@ -434,7 +370,16 @@ export function usePhoneStageRuntime(
         'hero',
         'fixed',
         () => heroAdapter.root(),
-        () => stage
+        () => stage,
+        undefined,
+        {
+          present(token, report) {
+            heroAdapter.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            heroAdapter.disposePresentation?.(token);
+          }
+        }
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -442,7 +387,16 @@ export function usePhoneStageRuntime(
         'pattern',
         'fixed',
         () => patternAdapter.root(),
-        () => stage
+        () => stage,
+        undefined,
+        {
+          present(token, report) {
+            patternAdapter.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            patternAdapter.disposePresentation?.(token);
+          }
+        }
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -450,7 +404,16 @@ export function usePhoneStageRuntime(
         'star-map',
         'fixed',
         () => starAdapter.root(),
-        () => stage
+        () => stage,
+        undefined,
+        {
+          present(token, report) {
+            starAdapter.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            starAdapter.disposePresentation?.(token);
+          }
+        }
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -458,7 +421,16 @@ export function usePhoneStageRuntime(
         'aod-animation',
         'fixed',
         () => aodAdapter.root(),
-        () => stage
+        () => stage,
+        undefined,
+        {
+          present(token, report) {
+            aodAdapter.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            aodAdapter.disposePresentation?.(token);
+          }
+        }
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -466,7 +438,24 @@ export function usePhoneStageRuntime(
         'method-top',
         'native',
         () => methodAdapter.root(),
-        () => stage
+        () => stage,
+        undefined,
+        {
+          present(token, report) {
+            methodAdapter.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            methodAdapter.disposePresentation?.(token);
+          }
+        }
+      )
+    ];
+    const effectLeases = [
+      registerPhoneRuntimeEffect(
+        options.orchestrator,
+        'aod-to-method',
+        () => aodAdapter.root(),
+        () => aodAdapter.effectRoot?.() ?? null
       )
     ];
     const corridorLease = registerPhoneRuntimeSampledScrollCorridor(
@@ -480,7 +469,13 @@ export function usePhoneStageRuntime(
         const progress = clamp(
           (actualY - stageScrollStart) / Math.max(1, stageScrollEnd - stageScrollStart)
         );
-        const [scene, run, sampledDirection, sampledProgress] = phoneFrontRailSampleTuple(
+        const [
+          scene,
+          run,
+          sampledDirection,
+          sampledProgress,
+          sampledReducedMotion
+        ] = phoneFrontRailSampleTuple(
           progress,
           direction,
           options.reducedMotion
@@ -490,7 +485,8 @@ export function usePhoneStageRuntime(
           scene,
           run,
           sampledDirection,
-          sampledProgress
+          sampledProgress,
+          sampledReducedMotion
         ];
       },
       (run, direction) => {
@@ -504,10 +500,16 @@ export function usePhoneStageRuntime(
         return progress === null ? null : stagePosition(progress);
       }
     );
-    const aodRegistration = registerPhoneCompositeRunCapability(
+    const [
+      observeAodMediaProgress,
+      reportAodCompositorFrame,
+      completeAodRun,
+      failAodRun,
+      retryAodFromGesture,
+      syncAodRuntime,
+      disposeAodRuntime
+    ] = registerPhoneRuntimeAodCapability(
       options.orchestrator,
-      'aod-method',
-      'aod:method',
       (direction) => direction === 1
         ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
         : Math.max(stageScrollStart, stageScrollEnd - 1),
@@ -518,36 +520,51 @@ export function usePhoneStageRuntime(
           && snapshot[7] === direction
           && snapshot[9] === 'preparing';
       },
-      (direction, session) => {
-        if (!session[4]()) return false;
-        return aodGate.start(aodGateSession(session, direction));
-      },
-      () => false
+      (execution) => aodAdapter.startAutoplay(execution),
+      (execution) => aodAdapter.releaseAutoplayAdmission(execution),
+      () => aodAdapter.resetAutoplay(),
+      options.reducedMotion,
+      {
+        present(execution, report) {
+          const target = execution[1] === 1 ? methodAdapter : aodAdapter;
+          if (!target.presentPresentation) return false;
+          target.presentPresentation(execution[0], report);
+          return true;
+        },
+        dispose(execution) {
+          const target = execution[1] === 1 ? methodAdapter : aodAdapter;
+          target.disposePresentation?.(execution[0]);
+        }
+      }
     );
 
     const emitAodProgress = (
       progress: number,
-      direction: 1 | -1,
-      identity: PhoneExecutionToken
+      execution: PhoneAodExecution
     ) => {
-      aodGate.observeMediaProgress(progress, direction, identity);
+      observeAodMediaProgress(progress, execution);
     };
     const emitAodFrame = (
-      progress: number,
-      direction: 1 | -1,
-      identity: PhoneExecutionToken
+      frame: PhoneRenderedPresentationFrame,
+      execution: PhoneAodExecution
     ) => {
-      aodGate.reportCompositorFrame(progress, direction, identity);
+      reportAodCompositorFrame(frame, execution);
     };
     const completeAod = (
-      direction: 1 | -1,
-      identity: PhoneExecutionToken
+      execution: PhoneAodExecution
     ) => {
-      aodGate.complete(direction, identity);
+      completeAodRun(execution);
+    };
+    const failAod = (
+      execution: PhoneAodExecution,
+      reason: 'aod-context-lost' | 'media-failed'
+    ) => {
+      failAodRun(execution, reason);
     };
     progressHandlerRef.current = emitAodProgress;
     completeHandlerRef.current = completeAod;
     frameHandlerRef.current = emitAodFrame;
+    failureHandlerRef.current = failAod;
 
     const pointerTargetIsPermissionButton = (event: Event) => (
       event.target instanceof Element
@@ -564,7 +581,7 @@ export function usePhoneStageRuntime(
     root.addEventListener('click', onHeroClick);
     const releaseMediaGestureLease = attachPhoneMediaGestureLease(
       root,
-      () => aodGate.retryFromGesture()
+      () => retryAodFromGesture()
     );
 
     const refresh = () => {
@@ -590,7 +607,8 @@ export function usePhoneStageRuntime(
       if (progressHandlerRef.current === emitAodProgress) progressHandlerRef.current = undefined;
       if (completeHandlerRef.current === completeAod) completeHandlerRef.current = undefined;
       if (frameHandlerRef.current === emitAodFrame) frameHandlerRef.current = undefined;
-      aodGate.reset();
+      if (failureHandlerRef.current === failAod) failureHandlerRef.current = undefined;
+      disposeAodRuntime();
       heroAdapter.cancelEntrance();
       window.cancelAnimationFrame(refreshFrame);
       window.removeEventListener('load', refresh);
@@ -602,9 +620,8 @@ export function usePhoneStageRuntime(
       root.removeEventListener('click', onHeroClick);
       releaseMediaGestureLease();
       corridorLease.dispose();
-      aodRegistration.dispose();
+      for (const lease of effectLeases) lease.dispose();
       for (const lease of surfaceLeases) lease.dispose();
-      aodAdapter.resetAutoplay();
       if (import.meta.env.DEV) {
         delete root.dataset.portraitSpikeMotionState;
         delete root.dataset.portraitStagePin;
@@ -619,5 +636,5 @@ export function usePhoneStageRuntime(
     options.reducedMotion
   ]);
 
-  return { onAodProgress, onAodComplete, onAodFrame };
+  return { onAodProgress, onAodComplete, onAodFrame, onAodFailure };
 }

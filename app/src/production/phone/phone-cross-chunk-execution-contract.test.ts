@@ -18,9 +18,9 @@ const phoneSourceFiles = (directory: string): string[] => readdirSync(directory,
 });
 const phoneDirectory = new URL('./', import.meta.url).pathname;
 const coreIdentityOwners = new Set([
-  'phone-story-state.ts',
-  'phone-story-orchestrator.ts',
-  'phone-orchestrated-session.ts'
+  'phone-story/machine.ts',
+  'phone-story/runtime/engine.ts',
+  'phone-story/runtime/session.ts'
 ].map((file) => join(phoneDirectory, file)));
 const lazyExecutionSources = [
   '../../scenes/figure3-animation/phone/PhoneFigure3.tsx',
@@ -31,22 +31,28 @@ const lazyExecutionSources = [
 const bridgeSource = (relative: string) => source(relative);
 
 describe('phone cross-chunk execution contracts', () => {
-  it('defines execution identity, requests, samples, and DOM media evidence as positional protocols', () => {
-    expect(source('phone-story-state.ts')).toContain(
+  it('keeps execution transport positional while presentation proofs stay structured', () => {
+    expect(source('phone-story/machine.ts')).toContain(
       'export type PhoneExecutionToken = readonly ['
+    );
+    expect(source('phone-story/machine.ts')).toContain(
+      'export type PresentationToken = Readonly<{'
+    );
+    expect(source('phone-story/machine.ts')).not.toContain(
+      'export type PhonePresentationToken = readonly ['
     );
     expect(source('phone-transition-coordinator.ts')).toContain(
       'export type PhoneIntent = readonly ['
     );
     expect(source('phone-transition-coordinator.ts')).toContain('return onIntent([');
     expect(source('phone-transition-coordinator.ts')).not.toContain('onIntent({');
-    expect(source('phone-story-runtime.ts')).toContain(
+    expect(source('phone-story/runtime.ts')).toContain(
       'export type PhoneCinematicSnapshot = readonly ['
     );
-    expect(source('phone-story-runtime.ts')).toContain(
+    expect(source('phone-story/runtime.ts')).toContain(
       'export type PhoneCompositeSession = readonly ['
     );
-    expect(source('phone-story-runtime.ts')).toContain(
+    expect(source('phone-story/runtime.ts')).toContain(
       'export type PhoneRuntimeScrollSample = readonly ['
     );
     expect(source('usePhoneDocumentScrollRuntime.ts')).toContain(
@@ -55,7 +61,7 @@ describe('phone cross-chunk execution contracts', () => {
     expect(source('phone-stage-timeline.ts')).toContain(
       'export type PhoneStageFrame = readonly ['
     );
-    expect(source('phone-story-runtime.ts')).toContain(
+    expect(source('phone-story/runtime.ts')).toContain(
       'export function reportPhoneRuntimeScrollSample('
     );
     expect(source('types.ts')).toContain(
@@ -84,6 +90,28 @@ describe('phone cross-chunk execution contracts', () => {
     );
     expect(bridgeSource('../../transitions/shared/phone-ink-runtime.ts')).toContain(
       'export type PhoneHeroRadialInkRequest = readonly ['
+    );
+  });
+
+  it('[R5] keeps direct-entry proof identity as an object until a renderer derives its local key', () => {
+    const sharedPresentation = source('../../story/presentation.ts');
+    expect(sharedPresentation).toContain('presentationToken: object;');
+    expect(sharedPresentation).not.toContain('presentationToken: string;');
+
+    for (const relative of [
+      'PhoneGradeAStory.tsx',
+      'PhoneBrandLabContinuation.tsx',
+      'PhoneLabContactContinuation.tsx'
+    ]) {
+      const text = source(relative);
+      expect(text).toContain('presentationToken: request.token');
+      expect(text).not.toContain('phoneRuntimePresentationTokenKey(request.token)');
+    }
+    expect(source('phone-composite-runner.ts')).toContain(
+      'presentationToken: presentationIdentity'
+    );
+    expect(source('phone-grade-a-runtime.ts')).toContain(
+      'presentationToken: presentationIdentity'
     );
   });
 

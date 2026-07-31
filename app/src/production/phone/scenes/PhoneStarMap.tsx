@@ -1,4 +1,10 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef
+} from 'react';
 import { initStarFieldReveal, type StarFieldCamera } from '../../../scenes/star-map/starFieldReveal';
 import { BELIEF_COPY, STAR_MAP_TITLE } from '../../../story/copy';
 import { phoneMediaUrlFor } from '../phone-media';
@@ -6,14 +12,52 @@ import type {
   PhonePatternAdapterProps,
   PhoneSceneAdapterHandle
 } from '../types';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../phone-story/runtime';
 import './PhoneStarMap.css';
 
 const STAR_MAP_IMAGE = phoneMediaUrlFor('star-map-source', 'star-map');
 const FRAME_INTERVAL_MS = 1000 / 12;
 const PHONE_STAR_CAMERA: StarFieldCamera = Object.freeze({ rotationDegrees: -90, zoom: 1 });
 
+type PhoneStarMapPresentationBinding = {
+  token: PresentationToken;
+  key: string;
+  report: (frame: PhoneRenderedPresentationFrame) => void;
+  frameSequence: number;
+  requested: boolean;
+  reported: boolean;
+  paintFrame: number | null;
+  proofFrame: number | null;
+};
+
+function cancelStarMapPresentationFrames(binding: PhoneStarMapPresentationBinding): void {
+  if (typeof window === 'undefined') return;
+  if (binding.paintFrame !== null) window.cancelAnimationFrame(binding.paintFrame);
+  if (binding.proofFrame !== null) window.cancelAnimationFrame(binding.proofFrame);
+  binding.paintFrame = null;
+  binding.proofFrame = null;
+}
+
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+/** Positional leaf inputs become one immutable raw frame at the module edge. */
+export function phoneStarMapStaticPresentationFrame(
+  token: PresentationToken,
+  frameSequence: number,
+  observedAt: number
+): PhoneRenderedPresentationFrame {
+  return {
+    token,
+    frameSequence,
+    observedAt,
+    origin: 'leaf-static-poster'
+  };
 }
 
 export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdapterProps>(function PhoneStarMap(
@@ -26,6 +70,12 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
   const copyRef = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef(active);
   const progressRef = useRef(0);
+  const presentationBindingRef = useRef<PhoneStarMapPresentationBinding | null>(null);
+  const paintBoundPresentationRef = useRef<(() => void) | null>(null);
+
+  const requestBoundStaticPresentation = useCallback(() => {
+    paintBoundPresentationRef.current?.();
+  }, []);
 
   useEffect(() => {
     activeRef.current = active;
@@ -87,6 +137,38 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       canvas.dataset.portraitStarPerlinRevision = String(revision);
       return true;
     };
+    const paintBoundPresentation = () => {
+      const binding = presentationBindingRef.current;
+      if (!binding || binding.reported || binding.requested) return;
+      if (typeof window === 'undefined') return;
+      binding.requested = true;
+      binding.paintFrame = window.requestAnimationFrame(() => {
+        binding.paintFrame = null;
+        if (
+          presentationBindingRef.current !== binding
+          || binding.reported
+        ) return;
+        if (!paint(performance.now(), true)) {
+          // Mount readiness is still owned by this leaf. The machine's
+          // deadline remains the only rollback authority.
+          binding.requested = false;
+          return;
+        }
+        if (presentationBindingRef.current !== binding) return;
+        binding.proofFrame = window.requestAnimationFrame(() => {
+          binding.proofFrame = null;
+          if (presentationBindingRef.current !== binding || binding.reported) return;
+          binding.reported = true;
+          binding.frameSequence += 1;
+          binding.report(phoneStarMapStaticPresentationFrame(
+            binding.token,
+            binding.frameSequence,
+            performance.now()
+          ));
+        });
+      });
+    };
+    paintBoundPresentationRef.current = paintBoundPresentation;
     const tick = (time: number) => {
       liveFrame = 0;
       if (!motionActive || reducedMotion) return;
@@ -106,6 +188,9 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
         return;
       }
       paint(performance.now(), true);
+      // A prewarm paint cannot prove a later candidate. If a token was armed
+      // while StarMap was mounting, draw once more under that exact binding.
+      paintBoundPresentation();
       schedule();
       onReady?.();
     };
@@ -137,6 +222,13 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
         delete canvas.dataset.portraitStarPerlinProgress;
       }
       if (root) delete (root as HTMLElement & { __phoneStarActive?: unknown }).__phoneStarActive;
+      if (paintBoundPresentationRef.current === paintBoundPresentation) {
+        paintBoundPresentationRef.current = null;
+      }
+      if (presentationBindingRef.current) {
+        cancelStarMapPresentationFrames(presentationBindingRef.current);
+      }
+      presentationBindingRef.current = null;
     };
   }, [onReady, reducedMotion]);
 
@@ -168,9 +260,41 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       enter() { setActive(!reducedMotion); },
       leave() { setActive(false); },
       reverse() { setActive(!reducedMotion); },
-      dispose() { setActive(false); }
+      presentPresentation(token, report) {
+        if (presentationBindingRef.current) {
+          cancelStarMapPresentationFrames(presentationBindingRef.current);
+        }
+        presentationBindingRef.current = {
+          token,
+          key: phoneRuntimePresentationTokenKey(token),
+          report,
+          frameSequence: 0,
+          requested: false,
+          reported: false,
+          paintFrame: null,
+          proofFrame: null
+        };
+        requestBoundStaticPresentation();
+      },
+      disposePresentation(token) {
+        const binding = presentationBindingRef.current;
+        if (
+        binding
+        && binding.key === phoneRuntimePresentationTokenKey(token)
+      ) {
+        cancelStarMapPresentationFrames(binding);
+        presentationBindingRef.current = null;
+      }
+    },
+    dispose() {
+      setActive(false);
+      if (presentationBindingRef.current) {
+        cancelStarMapPresentationFrames(presentationBindingRef.current);
+      }
+      presentationBindingRef.current = null;
+      }
     };
-  }, [motionDriver, reducedMotion]);
+  }, [motionDriver, reducedMotion, requestBoundStaticPresentation]);
 
   return (
     <section

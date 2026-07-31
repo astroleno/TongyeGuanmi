@@ -6,7 +6,7 @@ import {
   mapAodMediaToTimelineProgress,
   mapAodTimelineToMediaProgress
 } from '../../scenes/aod-animation/progress';
-import type { PhoneExecutionToken } from './phone-story-state';
+import type { PhoneAodExecution } from './phone-story/runtime';
 
 export const PHONE_AOD_METHOD_START_PROGRESS = 0.8;
 
@@ -35,12 +35,10 @@ type PhoneAodAutoplayOptions = Readonly<{
   disposeReverseDriver?(): void;
   onProgress(
     progress: number,
-    direction: PhoneAodPlaybackDirection,
-    identity: PhoneExecutionToken | null
+    execution: PhoneAodExecution | null
   ): void;
   onComplete?(
-    direction: PhoneAodPlaybackDirection,
-    identity: PhoneExecutionToken | null
+    execution: PhoneAodExecution | null
   ): void;
   visibilityDocument?: VisibilityDocument;
   requestFrame?: (callback: FrameRequestCallback) => number;
@@ -48,16 +46,20 @@ type PhoneAodAutoplayOptions = Readonly<{
 }>;
 
 export type PhoneAodAutoplay = Readonly<{
-  start(
-    direction?: PhoneAodPlaybackDirection,
-    identity?: PhoneExecutionToken | null
-  ): Promise<PhoneAodStartResult>;
+  start(execution?: PhoneAodExecution | null): Promise<PhoneAodStartResult>;
   reset(): void;
   dispose(): void;
 }>;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function sameExecution(
+  left: PhoneAodExecution | null,
+  right: PhoneAodExecution | null
+): boolean {
+  return left === right;
 }
 
 function smoothstep(value: number): number {
@@ -147,7 +149,7 @@ export function createPhoneAodAutoplay(
   let reverseProgress = 1;
   let reverseAnchorProgress = 1;
   let reverseStartedAt: number | undefined;
-  let executionIdentity: PhoneExecutionToken | null = null;
+  let execution: PhoneAodExecution | null = null;
   let resolveStart: ((result: PhoneAodStartResult) => void) | undefined;
 
   const beginStartResult = () => (
@@ -201,7 +203,7 @@ export function createPhoneAodAutoplay(
         ? 'forward'
         : 'reverse';
     }
-    options.onProgress(progress, direction, executionIdentity);
+    options.onProgress(progress, execution);
     return progress;
   };
 
@@ -210,7 +212,7 @@ export function createPhoneAodAutoplay(
       return;
     }
     const completedDirection = direction;
-    const completedIdentity = executionIdentity;
+    const completedExecution = execution;
     active = false;
     playAttempt += 1;
     playPending = false;
@@ -225,8 +227,8 @@ export function createPhoneAodAutoplay(
       completedDirection === 1 ? 'complete-forward' : 'complete-reverse'
     );
     render(completedDirection === 1 ? 1 : 0, false);
-    options.onComplete?.(completedDirection, completedIdentity);
-    executionIdentity = null;
+    options.onComplete?.(completedExecution);
+    execution = null;
   };
 
   const renderForwardAndComplete = () => {
@@ -435,11 +437,12 @@ export function createPhoneAodAutoplay(
   };
 
   return {
-    start(nextDirection = 1, nextIdentity = null) {
+    start(nextExecution = null) {
       if (disposed) {
         return Promise.resolve('error');
       }
-      if (active && direction === nextDirection) {
+      const nextDirection = nextExecution?.[1] ?? 1;
+      if (active && sameExecution(execution, nextExecution)) {
         if (direction === -1) {
           schedule();
         } else {
@@ -450,7 +453,7 @@ export function createPhoneAodAutoplay(
       stopCurrentRun();
       const result = beginStartResult();
       direction = nextDirection;
-      executionIdentity = nextIdentity;
+      execution = nextExecution;
       selectSource();
       runRevision += 1;
       publishPlaybackOwnership(direction === 1 ? 'forward' : 'reverse');
@@ -488,7 +491,7 @@ export function createPhoneAodAutoplay(
         return;
       }
       stopCurrentRun();
-      executionIdentity = null;
+      execution = null;
       direction = 1;
       selectSource();
       runRevision += 1;
@@ -506,7 +509,7 @@ export function createPhoneAodAutoplay(
         return;
       }
       active = false;
-      executionIdentity = null;
+      execution = null;
       disposed = true;
       playAttempt += 1;
       playPending = false;

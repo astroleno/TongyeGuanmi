@@ -16,8 +16,8 @@ import {
   group67PhoneSceneIds,
   type Group67PhoneSceneId
 } from './adapter-groups/group6-7';
-import type { PhoneEdgeScene } from './phone-edge-surface';
-import { phoneStablePresentationTuple } from './phone-story-presentation';
+import type { PhoneEdgeScene } from './phone-story/presentation';
+import { phoneStablePresentationTuple } from './phone-story/presentation';
 
 const GROUP67_SCENES = new Set<Group67PhoneSceneId>(group67PhoneSceneIds);
 const GROUP45_SCENES = new Set<Group45PhoneSceneId>(group45PhoneSceneIds);

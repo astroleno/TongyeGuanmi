@@ -5,8 +5,8 @@ import {
   registerPhoneRuntimeSampledScrollCorridor,
   requestPhoneRuntimeDirectEntry,
   selectPhoneCinematicSnapshot
-} from './phone-story-runtime';
-import type { PhoneStoryOrchestrator } from './phone-story-orchestrator';
+} from './phone-story/runtime';
+import type { PhoneStoryRuntimeEngine as PhoneStoryOrchestrator } from './phone-story/runtime/engine';
 
 function root() {
   return {
@@ -53,6 +53,7 @@ describe('phone story runtime factory', () => {
       0,
       null,
       0,
+      null,
       null
     ]);
 
@@ -87,7 +88,8 @@ describe('phone story runtime factory', () => {
       14: 120,
       15: null,
       16: 0,
-      17: null
+      17: null,
+      18: 1
     });
     runtime.dispose();
   });

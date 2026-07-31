@@ -199,6 +199,7 @@ function AodAnimationScene({ registerHandle }: SceneComponentProps) {
               />
             </video>
             <canvas
+              ref={(element) => registerHandle?.('figure-canvas', element)}
               className="aod-transition__figure-canvas"
               data-aod-figure-canvas
               aria-hidden="true"

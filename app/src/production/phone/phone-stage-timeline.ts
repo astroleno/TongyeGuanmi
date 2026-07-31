@@ -18,6 +18,13 @@ export const PHONE_STAGE_STOPS = Object.freeze({
   aodAutoplayStart: 0.985
 });
 
+/**
+ * Browsers round a semantic rail position to device pixels. Keep a very small
+ * landing band around a transition endpoint so a committed presentation does
+ * not immediately resample as its preceding scroll run.
+ */
+export const PHONE_STAGE_SETTLE_EPSILON = 0.0005;
+
 export type PhoneStageOwnershipKey =
   | 'hold-hero'
   | 'handoff-hero-pattern'
@@ -61,11 +68,48 @@ export type PhoneFrontRailSampleTuple = readonly [
   scene: PhoneStageSceneId | null,
   run: PhoneScrollRunId | null,
   direction: -1 | 0 | 1,
-  progress: number
+  progress: number,
+  /** Kept positional so the runtime bridge owns the named event field. */
+  reducedMotion: boolean
 ];
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function settledFrontRailProgress(
+  rawProgress: number,
+  direction: -1 | 0 | 1
+): number {
+  const progress = clamp(rawProgress);
+  const stops = PHONE_STAGE_STOPS;
+  const forwardHandoffEnds = [
+    stops.heroPatternEnd,
+    stops.patternStarEnd,
+    stops.starAodEnd
+  ];
+  const terminalEnd = forwardHandoffEnds.find((end) => (
+    progress < end && end - progress <= PHONE_STAGE_SETTLE_EPSILON
+  ));
+  if (terminalEnd !== undefined) {
+    return terminalEnd;
+  }
+
+  if (direction !== -1) {
+    return progress;
+  }
+
+  const reverseHandoffStarts = [
+    stops.heroMotionEnd,
+    stops.patternStarStart,
+    stops.starAodStart
+  ];
+  const terminalStart = reverseHandoffStarts.find((start) => (
+    progress > start && progress - start <= PHONE_STAGE_SETTLE_EPSILON
+  ));
+  return terminalStart === undefined
+    ? progress
+    : Math.max(0, terminalStart - PHONE_STAGE_SETTLE_EPSILON);
 }
 
 const PHONE_POST_METHOD_DIRECT_ENTRY_SCENES = new Set<SceneId>([
@@ -174,16 +218,19 @@ export function phoneFrontRailSampleTuple(
   direction: -1 | 0 | 1,
   reducedMotion = false
 ): PhoneFrontRailSampleTuple {
-  const frame = phoneStageFrame(rawProgress, reducedMotion);
+  const frame = phoneStageFrame(
+    reducedMotion ? rawProgress : settledFrontRailProgress(rawProgress, direction),
+    reducedMotion
+  );
   switch (frame[10]) {
     case 'handoff-hero-pattern':
-      return [null, 'hero-pattern-scroll', direction, frame[6]];
+      return [null, 'hero-pattern-scroll', direction, frame[6], reducedMotion];
     case 'handoff-pattern-star':
-      return [null, 'pattern-star-scroll', direction, frame[7]];
+      return [null, 'pattern-star-scroll', direction, frame[7], reducedMotion];
     case 'handoff-star-aod':
-      return [null, 'star-aod-scroll', direction, frame[8]];
+      return [null, 'star-aod-scroll', direction, frame[8], reducedMotion];
     default:
-      return [frame[2], null, direction, frame[0]];
+      return [frame[2], null, direction, frame[0], reducedMotion];
   }
 }
 

@@ -1,21 +1,26 @@
 import { canonicalSceneIds } from '../../story/canonical-spine';
+import type { TargetPresentationRequest } from '../../story/presentation';
 import type { SceneId } from '../../story/types';
-import type { PhoneStoryRuntimePort } from './phone-story-orchestrator';
+import type { PhoneStoryRuntimePort } from './phone-story/runtime';
 import {
   registerPhoneCompositeRunCapability,
-  type PhoneCompositeSession
-} from './phone-story-runtime';
+  type PhoneCompositeSession,
+  type PhoneExecutionToken,
+  type PhoneStorySnapshot
+} from './phone-story/runtime';
 import {
-  phoneRun,
+  phoneRunLegTuple,
   type PhoneRunId
 } from './phone-story-runs';
-import { phoneSegmentPresentationTuple } from './phone-presentation-contract';
-import type {
-  PhoneExecutionToken,
-  PhoneStorySnapshot
-} from './phone-story-state';
+import {
+  phoneSegmentPresentationTuple,
+  type PhoneSurfaceId
+} from './phone-story/manifest';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
-import type { PhoneTransitionAdapterHandle } from './types';
+import type {
+  PhonePresentationAdapterHandle,
+  PhoneTransitionAdapterHandle
+} from './types';
 
 export type PhoneGradeABoundaryId = 0 | 1 | 2;
 
@@ -75,17 +80,20 @@ export type PhoneGradeABoundaryCapability = Readonly<{
   prepareReceiver?(
     request: TargetPresentationRequest
   ): Promise<void>;
+  /** The runner hands the exact static target token directly to this leaf. */
+  reducedStaticTarget?(
+    direction: PhoneTransitionDirection
+  ): PhonePresentationAdapterHandle | null;
+  /** The exact target surface for a reduced static token; never inferred. */
+  reducedStaticSubject?(
+    direction: PhoneTransitionDirection
+  ): PhoneSurfaceId | null;
+  /** Candidate-only target landing; route runtime owns the physical scroll. */
+  reducedTargetPosition?(direction: PhoneTransitionDirection): number | null;
 }>;
 
 export type PhoneGradeARunner = Readonly<{
   dispose(): void;
-}>;
-
-type TargetPresentationRequest = Readonly<{
-  progress: number;
-  direction: PhoneTransitionDirection;
-  runId: string;
-  signal: AbortSignal;
 }>;
 
 function identityFor(
@@ -134,14 +142,16 @@ function waitForBoundaryReady(
 function reportRenderedBoundaryFrame(
   boundary: PhoneGradeABoundaryCapability,
   session: PhoneCompositeSession
-): void {
-  const run = phoneRun(phoneGradeARunForBoundary(boundary.id));
-  const leg = run.legs[session[3]()];
+): boolean {
+  const leg = phoneRunLegTuple(
+    phoneGradeARunForBoundary(boundary.id),
+    session[3]()
+  );
   const requirement = leg
-    ? phoneSegmentPresentationTuple(leg.segment)
+    ? phoneSegmentPresentationTuple(leg[0])
     : undefined;
-  if (!requirement) return;
-  session[5](requirement[8], requirement[9]);
+  if (!requirement) return false;
+  return session[5](requirement[8], requirement[9]);
 }
 
 /**
@@ -162,12 +172,80 @@ export function createPhoneGradeARunner({
 }>): PhoneGradeARunner {
   const disposeResources = new Set<() => void>();
 
+  /*
+   * An explicitly migrated boundary is hard-cut to the shared reduced
+   * candidate contract. This branch owns admission only: it requests candidate
+   * layout, hands the exact raw token to one endpoint leaf, and forwards that
+   * leaf's post-paint fact. The shared machine owns timeout, rollback,
+   * settling, and input.
+   */
+  const beginReducedStaticAdmission = (
+    boundary: PhoneGradeABoundaryCapability,
+    direction: PhoneTransitionDirection,
+    session: PhoneCompositeSession
+  ) => {
+    const target = boundary.reducedStaticTarget?.(direction);
+    const subject = boundary.reducedStaticSubject?.(direction);
+    const targetY = boundary.reducedTargetPosition?.(direction);
+    const requestReducedTargetLayout = session[17];
+    const presentationFrameToken = session[15];
+    const reportPresentationFrame = session[16];
+    if (
+      !session[4]()
+      || !target
+      || !subject
+      || targetY === null
+      || targetY === undefined
+      || !Number.isFinite(targetY)
+      || !requestReducedTargetLayout(targetY)
+    ) return false;
+
+    const token = presentationFrameToken('static-poster', subject);
+    if (!token) return false;
+
+    let disposed = false;
+    let cancel = () => undefined;
+    const disposeTarget = () => {
+      if (disposed) return;
+      disposed = true;
+      target.disposePresentation?.(token);
+      disposeResources.delete(cancel);
+    };
+    cancel = () => {
+      disposeTarget();
+      if (session[4]()) session[13]();
+    };
+
+    try {
+      // Release follows the machine's stable/rollback decision, never a leaf
+      // callback. This retires the token before the next admission can start.
+      session[12](() => undefined, disposeTarget);
+      disposeResources.add(cancel);
+      target.presentPresentation(token, (frame) => {
+        if (
+          disposed
+          || !session[4]()
+          || frame.origin !== 'leaf-static-poster'
+          || frame.token !== token
+        ) return;
+        reportPresentationFrame(frame);
+      });
+      return true;
+    } catch {
+      disposeTarget();
+      return false;
+    }
+  };
+
   const begin = (
     boundary: PhoneGradeABoundaryCapability,
     direction: PhoneTransitionDirection,
     session: PhoneCompositeSession
   ) => {
     if (!session[4]()) return false;
+    if (reducedMotion && boundary.reducedStaticTarget) {
+      return beginReducedStaticAdmission(boundary, direction, session);
+    }
 
     const preparation = new AbortController();
     let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
@@ -240,14 +318,19 @@ export function createPhoneGradeARunner({
         || !transition
         || !session[4]()
       ) return;
+      if (!reportRenderedBoundaryFrame(boundary, session)) {
+        rollback();
+        return;
+      }
       firstFrameReported = true;
-      reportRenderedBoundaryFrame(boundary, session);
       if (!session[4]()) return;
       clearTimeoutResource();
       if (direction === 1) transition.enter?.();
       else transition.reverse?.();
-      if (reducedMotion) complete();
-      else animate();
+      // Boundaries without an explicit reduced static admission retain their
+      // authored media/Ink lifecycle, so this path is controller-clocked
+      // playback even when the global preference is reduced motion.
+      animate();
     };
     const prepare = async () => {
       try {
@@ -268,10 +351,21 @@ export function createPhoneGradeARunner({
         );
         transition.commitEndpoint(direction === 1 ? 0 : 1);
         if (boundary.prepareReceiver) {
+          const leg = phoneRunLegTuple(
+            phoneGradeARunForBoundary(boundary.id),
+            session[3]()
+          );
+          if (!leg) throw new Error('Phone Grade A leg is unavailable');
+          const contract = phoneSegmentPresentationTuple(leg[0]);
+          const presentationIdentity = session[14](contract[8], contract[9]);
+          if (!presentationIdentity) {
+            throw new Error('Phone Grade A presentation token is stale');
+          }
           await boundary.prepareReceiver({
             progress: direction === 1 ? 0 : 1,
             direction,
             runId: `${session[1]}:${session[2]}`,
+            presentationToken: presentationIdentity,
             signal: preparation.signal
           });
         }
@@ -302,9 +396,10 @@ export function createPhoneGradeARunner({
       boundary.position,
       () => true,
       (direction, session) => begin(boundary, direction, session),
-      () => false
+      () => false,
+      reducedMotion && Boolean(boundary.reducedStaticTarget)
     )
-));
+  ));
 
   return {
     dispose() {

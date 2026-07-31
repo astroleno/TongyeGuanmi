@@ -1,8 +1,14 @@
 import { canonicalSceneIds } from '../../story/canonical-spine';
 import type { SceneId } from '../../story/types';
-import type { PhoneRunId } from './phone-story-runs';
-import type { PhoneExecutionToken } from './phone-story-state';
-import type { PhoneCinematicSnapshot } from './phone-story-runtime';
+import {
+  phoneRunLegTuple,
+  type PhoneRunId
+} from './phone-story-runs';
+import type {
+  PhoneCinematicSnapshot,
+  PhoneExecutionToken
+} from './phone-story/runtime';
+import { phoneSegmentPresentationTuple } from './phone-story/manifest';
 
 function sceneIndex(scene: SceneId): number {
   return (canonicalSceneIds as readonly SceneId[]).indexOf(scene);
@@ -12,6 +18,31 @@ function rollbackEndpoint(
   [, , , , , , , direction]: PhoneCinematicSnapshot
 ): 0 | 1 {
   return direction === 1 ? 0 : 1;
+}
+
+/** Manifest-level description of a cinematic scene carried by a composite run. */
+export type PhoneCompositeVisualScene =
+  | 'figure3-animation'
+  | 'ttg-animation';
+
+export type PhoneCompositeVisualSpec = readonly [
+  run: PhoneRunId,
+  surface: string,
+  stableTarget: SceneId
+];
+
+const compositeVisualSpecs = {
+  'figure3-animation': ['brand-services', 'group45:figure3', 'services'],
+  'ttg-animation': ['services-lab', 'group45:ttg', 'lab']
+} as const satisfies Readonly<Record<
+  PhoneCompositeVisualScene,
+  PhoneCompositeVisualSpec
+>>;
+
+export function phoneCompositeVisualSpec(
+  scene: PhoneCompositeVisualScene
+): PhoneCompositeVisualSpec {
+  return compositeVisualSpecs[scene];
 }
 
 /**
@@ -48,7 +79,16 @@ export function phoneCompositeVisualExecution(
     activeRun,
     direction,
     legIndex,
-    phase
+    phase,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    presentationRevision
   ] = snapshot;
   if (
     activeRun !== run
@@ -57,8 +97,27 @@ export function phoneCompositeVisualExecution(
     || sessionId === null
     || generation === null
     || direction === null
+    || presentationRevision === null
   ) return null;
-  return [authorityId, sessionId, generation, legIndex, direction];
+  const leg = phoneRunLegTuple(run, legIndex);
+  if (!leg) return null;
+  const contract = phoneSegmentPresentationTuple(leg[0]);
+  return [
+    authorityId,
+    sessionId,
+    generation,
+    legIndex,
+    direction,
+    {
+      authorityId,
+      sessionId,
+      generation,
+      leg: legIndex,
+      revision: presentationRevision,
+      subject: contract[9],
+      kind: contract[8]
+    }
+  ];
 }
 
 /** Decoder warm-up follows the same dependency closure as the active run. */
@@ -110,9 +169,48 @@ export function phoneCompositeVisualProjection(
   ];
 }
 
+/** Keeps a measured document coordinate inside the browser's legal range. */
+export function phoneClampDocumentLanding(
+  documentTop: number,
+  scrollHeight: number,
+  viewportHeight: number
+): number {
+  const maxScrollY = Math.max(0, scrollHeight - Math.max(0, viewportHeight));
+  return Math.min(maxScrollY, Math.max(0, documentTop));
+}
+
 export function phoneDocumentTop(element: HTMLElement | null): number | null {
   if (!element) return null;
-  return Math.max(0, window.scrollY + element.getBoundingClientRect().top);
+  const rect = element.getBoundingClientRect();
+  const documentTop = window.scrollY + rect.top;
+  const scrollHeight = Math.max(
+    document.documentElement.scrollHeight,
+    document.body?.scrollHeight ?? 0,
+    window.scrollY + rect.bottom
+  );
+  return phoneClampDocumentLanding(
+    documentTop,
+    scrollHeight,
+    window.innerHeight
+  );
+}
+
+/**
+ * Native-reading holds land on the content anchor declared by the manifest.
+ * A document root remains the conservative fallback while a lazy branch is
+ * mounting, but it cannot replace an authored proof target that lives deeper
+ * in the same document subtree.
+ */
+export function phoneReadingLandingTarget(
+  root: HTMLElement | null,
+  selectors: readonly string[]
+): HTMLElement | null {
+  if (!root) return null;
+  for (const selector of selectors) {
+    const target = root.querySelector<HTMLElement>(selector);
+    if (target) return target;
+  }
+  return root;
 }
 
 export function phoneSnapshotProjectsSurface(

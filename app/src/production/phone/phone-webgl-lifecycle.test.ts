@@ -93,7 +93,18 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(aod).toContain('const ensureCompositor = useCallback(');
     expect(aod).toContain('renewPackedAlphaCanvas');
     expect(aod).toMatch(/leave\(\) \{[\s\S]*?releaseCompositor\(\);/);
-    expect(aod).toMatch(/startAutoplay\(direction, identity\) \{[\s\S]*?ensureCompositor\(identity\)/);
+    expect(aod).toMatch(/startAutoplay\(execution\) \{[\s\S]*?ensureCompositor\(\)/);
+  });
+
+  it("[convergence] keeps AOD's warmed compositor through a token rebind", () => {
+    const aod = source('./scenes/PhoneAod.tsx');
+    const startAutoplay = aod.slice(
+      aod.indexOf('startAutoplay(execution) {'),
+      aod.indexOf('presentPresentation(token, report) {')
+    );
+
+    expect(startAutoplay).not.toContain('releaseCompositor();');
+    expect(startAutoplay).toContain('ensureCompositor()?.setActive(true);');
   });
 
   it('keeps Hero GPU owners cold while a direct downstream route mounts the reversible graph', () => {

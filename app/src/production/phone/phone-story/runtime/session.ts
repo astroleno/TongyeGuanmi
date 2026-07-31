@@ -1,18 +1,23 @@
-import type { SceneId } from '../../story/types';
-import type { PhoneRunId } from './phone-story-runs';
-import { PHONE_SCROLL_ALIGNMENT_TOLERANCE_PX } from './phone-story-state';
+import type { SceneId } from '../../../../story/types';
+import type { PhoneRunId } from '../../phone-story-runs';
+import { PHONE_SCROLL_ALIGNMENT_TOLERANCE_PX } from '../machine';
 import type {
   PhoneExecutionIdentity,
+  PhoneFailureReason,
+  PresentationProof,
+  PresentationReadiness,
   PhoneStoryEvent,
   PhoneStorySnapshot
-} from './phone-story-state';
-import type { PhoneTransitionEndpoints } from './phone-story-projector';
-import type { PhoneTransitionDirection } from './phone-transition-coordinator';
-import { runPhoneProgressClock } from './phone-transition-coordinator';
+} from '../machine';
+import type { PhoneTransitionEndpoints } from '../presentation';
+import type { PhoneRenderedPresentationFrame } from '../presentation';
+import type { PhoneTransitionDirection } from '../../phone-transition-coordinator';
+import { runPhoneProgressClock } from '../../phone-transition-coordinator';
 import type {
+  PhoneAodRunSession,
   PhoneOrchestratedRunSession,
   PhoneReleaseLease
-} from './phone-story-orchestrator.types';
+} from './types';
 
 export type PhoneActiveRun = Readonly<{
   sessionId: string;
@@ -43,6 +48,9 @@ type SessionControllerOptions = Readonly<{
   ): number;
   registerEndpoints(endpoints: PhoneTransitionEndpoints): void;
   clearEndpoints(): void;
+  proofForRenderedFrame(
+    frame: PhoneRenderedPresentationFrame
+  ): PresentationProof | null;
   scheduleFrame?: ((callback: () => void) => void) | undefined;
   disposed(): boolean;
 }>;
@@ -55,6 +63,9 @@ export type PhoneOrchestratedSessionController = Readonly<{
 
 type CommitMode = 'forward' | 'rollback';
 
+/** The controller, never a leaf runner, owns reduced static-proof expiry. */
+export const PHONE_REDUCED_ADMISSION_TIMEOUT_MS = 6_000;
+
 /**
  * Owns one execution clock and translates adapter evidence into immutable
  * reducer events. The shared forward/rollback alignment path keeps both
@@ -66,8 +77,15 @@ export function createPhoneOrchestratedSessionController(
   let active: ManagedPhoneActiveRun | null = null;
   let cancelAnimation: (() => void) | undefined;
   let scrollCommand = 0;
+  let renderedFrameSequence = 0;
   let releaseLease: PhoneReleaseLease | undefined;
   let geometryReleased = false;
+  let reducedAdmissionTimeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+  const clearReducedAdmissionTimeout = () => {
+    if (reducedAdmissionTimeout === undefined) return;
+    globalThis.clearTimeout(reducedAdmissionTimeout);
+    reducedAdmissionTimeout = undefined;
+  };
 
   const identityFor = (
     run: ManagedPhoneActiveRun,
@@ -145,8 +163,7 @@ export function createPhoneOrchestratedSessionController(
         verifying: 'rollback-verifying-stable',
         measured: 'ROLLBACK_LANDING_MEASURED',
         commanded: 'ROLLBACK_SCROLL_COMMANDED',
-        confirmed: 'ROLLBACK_SCROLL_CONFIRMED',
-        settled: 'ROLLBACK_STABLE_PRESENTATION_VERIFIED'
+        confirmed: 'ROLLBACK_SCROLL_CONFIRMED'
       } as const
     : {
         measuring: 'measuring-landing',
@@ -154,8 +171,7 @@ export function createPhoneOrchestratedSessionController(
         verifying: 'verifying-stable',
         measured: 'LANDING_MEASURED',
         commanded: 'SCROLL_COMMANDED',
-        confirmed: 'SCROLL_CONFIRMED',
-        settled: 'STABLE_PRESENTATION_VERIFIED'
+        confirmed: 'SCROLL_CONFIRMED'
       } as const;
   const releaseAfterStable = (
     run: ManagedPhoneActiveRun,
@@ -173,17 +189,19 @@ export function createPhoneOrchestratedSessionController(
     lease: PhoneReleaseLease | undefined,
     mode: CommitMode
   ) => {
-    const names = namesFor(mode);
-    if (!emit(run, names.settled, {}, mode)) return;
+    if (!emit(run, 'PRESENTATION_COMMITTED', {
+      now: observationTime()
+    }, mode)) return;
     if (lease) schedule(() => releaseAfterStable(run, lease));
     else releaseAfterStable(run, lease);
   };
   const fail = (
     run: ManagedPhoneActiveRun,
-    reason: 'capability-failed' | 'scroll-confirmation-failed' = 'capability-failed'
+    reason: PhoneFailureReason = 'capability-failed'
   ) => {
     const identity = identityFor(run);
     if (!identity) return;
+    clearReducedAdmissionTimeout();
     cancelAnimation?.();
     cancelAnimation = undefined;
     const lease = releaseLease;
@@ -202,6 +220,49 @@ export function createPhoneOrchestratedSessionController(
       return;
     }
     measure(run, lease, 'rollback');
+  };
+  const armReducedAdmissionTimeout = (run: ManagedPhoneActiveRun) => {
+    clearReducedAdmissionTimeout();
+    const snapshot = options.getSnapshot();
+    if (
+      !owns(run)
+      || snapshot.status !== 'transaction'
+      || !snapshot.session.reducedMotion
+      || snapshot.session.phase !== 'preparing'
+    ) return;
+    reducedAdmissionTimeout = globalThis.setTimeout(() => {
+      reducedAdmissionTimeout = undefined;
+      const current = options.getSnapshot();
+      if (
+        !owns(run)
+        || current.status !== 'transaction'
+        || !current.session.reducedMotion
+        || current.session.phase !== 'preparing'
+      ) return;
+      fail(run, 'reduced-proof-timeout');
+    }, PHONE_REDUCED_ADMISSION_TIMEOUT_MS);
+  };
+  const requestReducedTargetLayout = (
+    run: ManagedPhoneActiveRun,
+    targetY: number
+  ) => {
+    const snapshot = options.getSnapshot();
+    if (
+      !Number.isFinite(targetY)
+      || !owns(run)
+      || snapshot.status !== 'transaction'
+      || !snapshot.session.reducedMotion
+      || snapshot.session.phase !== 'preparing'
+    ) return false;
+    try {
+      // Only the route runtime owns the physical scroll command. A runner can
+      // ask for this one candidate-layout fact, but it cannot commit, unlock,
+      // or change transaction phase by doing so.
+      options.scrollTo(targetY);
+      return true;
+    } catch {
+      return false;
+    }
   };
   const align = (
     run: ManagedPhoneActiveRun,
@@ -236,13 +297,10 @@ export function createPhoneOrchestratedSessionController(
         && next.session.phase === names.aligning
         && next.session.alignment?.correctionCount === 1
       ) return align(run, lease, landing, mode);
-      if (next.status === 'transaction' && next.session.phase === names.verifying) {
-        // A direct entry has no adapter completion callback to prove the
-        // scrolled landing. Leave it in the same transaction until the
-        // orchestrator observes its manifest-scoped content/frame in place.
-        if (mode === 'forward' && run.run === null) return;
-        finish(run, lease, mode);
-      }
+      // The runtime observes manifest-scoped target proof in this exact
+      // verifying phase, then calls reportPresentationCommitted(). No
+      // controller path may publish stable merely because scroll aligned.
+      if (next.status === 'transaction' && next.session.phase === names.verifying) return;
     });
   };
   const measure = (
@@ -283,7 +341,25 @@ export function createPhoneOrchestratedSessionController(
     run: ManagedPhoneActiveRun,
     initialLeg: number,
     fallbackAuthorityId: string
-  ): PhoneOrchestratedRunSession => ({
+  ): PhoneAodRunSession => {
+    const presentationFrameToken = (
+      kind: Parameters<PhoneOrchestratedRunSession['presentationFrameToken']>[0],
+      subject: Parameters<PhoneOrchestratedRunSession['presentationFrameToken']>[1]
+    ) => {
+      const snapshot = options.getSnapshot();
+      const identity = identityFor(run) ?? identityFor(run, 'rollback');
+      if (!identity || snapshot.status !== 'transaction') return null;
+      return {
+        authorityId: identity.authorityId,
+        sessionId: identity.sessionId,
+        generation: identity.generation,
+        leg: identity.leg,
+        revision: snapshot.session.presentationRevision,
+        subject,
+        kind
+      };
+    };
+    return {
     get authorityId() {
       return identityFor(run)?.authorityId ?? fallbackAuthorityId;
     },
@@ -294,27 +370,61 @@ export function createPhoneOrchestratedSessionController(
     },
     direction: run.direction,
     valid: () => owns(run),
-    reportPresentedFrame: (kind, subject) => {
+    reportRenderedFrame: (kind, subject, origin) => {
+      if (
+        kind === undefined
+        || subject === undefined
+      ) return false;
+      const token = presentationFrameToken(kind, subject);
+      if (!token) return false;
+      const proof = options.proofForRenderedFrame({
+        token,
+        frameSequence: ++renderedFrameSequence,
+        observedAt: observationTime(),
+        ...(origin === undefined ? {} : { origin })
+      });
+      if (!proof) return false;
+      emit(run, 'PRESENTATION_PROOF_REPORTED', { proof });
+      const after = options.getSnapshot();
+      return after.status === 'transaction'
+        && (
+          after.session.firstFrameProof === proof
+          || after.session.proof === proof
+        );
+    },
+    reportPresentationFrame: (frame: PhoneRenderedPresentationFrame) => {
+      const proof = options.proofForRenderedFrame(frame);
+      if (!proof) return false;
+      const accepted = emit(run, 'PRESENTATION_PROOF_REPORTED', { proof });
+      const after = options.getSnapshot();
+      if (
+        after.status !== 'transaction'
+        || !after.session.reducedMotion
+        || after.session.phase !== 'preparing'
+      ) clearReducedAdmissionTimeout();
+      return accepted;
+    },
+    reportPresentationProof: (proof: PresentationProof) => {
       const snapshot = options.getSnapshot();
       if (snapshot.status !== 'transaction') return;
-      emit(run, 'PRESENTED_FRAME', {
-        ...(kind === undefined ? {} : { kind }),
-        ...(subject === undefined ? {} : { subject }),
-        revision: snapshot.session.presentation[0],
-        observedAt: observationTime()
-      });
+      emit(run, 'PRESENTATION_PROOF_REPORTED', { proof });
     },
-    reportPresentationEvidence: (kind, subject, observedAt = observationTime()) => {
+    reportPresentationReadiness: (readiness: PresentationReadiness) => {
       const snapshot = options.getSnapshot();
       if (snapshot.status !== 'transaction') return;
-      emit(run, 'PRESENTATION_EVIDENCE_REPORTED', {
-        kind,
-        subject,
-        revision: snapshot.session.presentation[0],
-        observedAt
-      });
+      emit(run, 'PRESENTATION_READY_REPORTED', { readiness });
     },
+    presentationProofToken: presentationFrameToken,
+    presentationFrameToken,
+    requestReducedTargetLayout: (targetY) => (
+      requestReducedTargetLayout(run, targetY)
+    ),
     reportProgress: (progress) => { emit(run, 'PROGRESS_REPORTED', { progress }); },
+    reportAodAutoplayBlocked: () => emit(run, 'AOD_AUTOPLAY_BLOCKED'),
+    requestAodGestureRetry: () => emit(run, 'AOD_GESTURE_RETRY_REQUESTED'),
+    reportAodWatchdog: (stage) => {
+      emit(run, 'AOD_WATCHDOG_EXPIRED', { aodWatchdog: stage });
+    },
     animate: (start, end, durationMs, render, complete) => {
       if (!owns(run)) return;
       cancelAnimation?.();
@@ -349,14 +459,23 @@ export function createPhoneOrchestratedSessionController(
       if (endpoint === 'receiver') emit(run, 'LEG_COMPLETED');
     },
     reportTargetPresented: () => settleTarget(run),
-    reportStablePresentationVerified: () => {
+    reportPresentationCommitted: () => {
       const snapshot = options.getSnapshot();
       if (
         !owns(run)
         || snapshot.status !== 'transaction'
-        || snapshot.session.phase !== 'verifying-stable'
+        || (
+          snapshot.session.phase !== 'verifying-stable'
+          && snapshot.session.phase !== 'rollback-verifying-stable'
+        )
       ) return;
-      finish(run, releaseLease, 'forward');
+      finish(
+        run,
+        releaseLease,
+        snapshot.session.phase === 'rollback-verifying-stable'
+          ? 'rollback'
+          : 'forward'
+      );
     },
     reportEndpointRelease: () => {
       if (owns(run)) options.clearEndpoints();
@@ -368,8 +487,9 @@ export function createPhoneOrchestratedSessionController(
       }
     },
     reportAnimationComplete: () => { emit(run, 'LEG_COMPLETED'); },
-    reportFailure: () => fail(run)
-  });
+    reportFailure: (reason) => fail(run, reason)
+    };
+  };
 
   return {
     active: () => active,
@@ -379,10 +499,12 @@ export function createPhoneOrchestratedSessionController(
       const { session } = snapshot;
       const operation = session.operation;
       if (active && owns(active)) {
-        return active.sessionId === session.sessionId
+        const resumed = active.sessionId === session.sessionId
           && active.generation === session.generation
           ? sessionFor(active, operation.legIndex, snapshot.authorityId)
           : null;
+        if (resumed) armReducedAdmissionTimeout(active);
+        return resumed;
       }
       const run: ManagedPhoneActiveRun = {
         sessionId: session.sessionId,
@@ -396,11 +518,14 @@ export function createPhoneOrchestratedSessionController(
       active = run;
       releaseLease = undefined;
       geometryReleased = false;
-      return sessionFor(run, operation.legIndex, snapshot.authorityId);
+      const resumed = sessionFor(run, operation.legIndex, snapshot.authorityId);
+      armReducedAdmissionTimeout(run);
+      return resumed;
     },
     dispose() {
       cancelAnimation?.();
       cancelAnimation = undefined;
+      clearReducedAdmissionTimeout();
       try {
         releaseResources(releaseGeometry());
       } finally {

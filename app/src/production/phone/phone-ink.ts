@@ -35,7 +35,7 @@ export type PhoneInkTransitionRequest = readonly [
 
 export type PhoneInkTransitionCommand =
   | readonly ['begin', request: PhoneCinematicRequest]
-  | readonly ['render', progress: number]
+  | readonly ['render', progress: number, force?: boolean]
   | readonly ['commitEndpoint', endpoint: 0 | 1]
   | readonly ['releaseEndpoint']
   | readonly ['dispose'];
@@ -110,7 +110,7 @@ export function createPhoneInkTransition(
     );
   };
 
-  const render = (rawProgress: number): boolean => {
+  const render = (rawProgress: number, force = false): boolean => {
     if (!geometryLease) {
       begin([
         `phone-ink:${options.id}`,
@@ -120,7 +120,7 @@ export function createPhoneInkTransition(
         1
       ]);
     }
-    return runtime(['render', rawProgress]) === true;
+    return runtime(['render', rawProgress, force]) === true;
   };
 
   const releaseEndpoint = () => {
@@ -134,7 +134,7 @@ export function createPhoneInkTransition(
         begin(command[1]);
         return;
       case 'render':
-        return render(command[1]);
+        return render(command[1], command[2]);
       case 'commitEndpoint':
         render(command[1]);
         return;

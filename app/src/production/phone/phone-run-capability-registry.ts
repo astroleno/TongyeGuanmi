@@ -2,7 +2,7 @@ import type { PhoneRunId } from './phone-story-runs';
 import type {
   PhoneCapabilityLease,
   PhoneRunCapability
-} from './phone-story-orchestrator.types';
+} from './phone-story/runtime';
 
 type Registration = Readonly<{
   ownerId: string;

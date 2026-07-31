@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { phoneSegmentPresentationContract } from '../phone/phone-presentation-contract';
+import { phoneSegmentPresentationContract } from '../phone/phone-story/manifest';
 import {
   phoneTransitionPresentationTuple
-} from '../phone/phone-story-presentation';
-import { phonePresentationLayerZIndex } from '../phone/phone-presentation-layers';
+} from '../phone/phone-story/presentation';
+import { phonePresentationLayerZIndex } from '../phone/phone-story/presentation';
 import { phoneStageScrollBounds } from '../phone/usePhoneStageRuntime';
 
 const source = (relative: string) => readFileSync(
@@ -18,12 +18,12 @@ const shellCss = source('../phone/PhoneStoryShell.css');
 const railSource = source('../phone/PhoneStageRail.tsx');
 const railCss = source('../phone/PhoneStageRail.css');
 const runtimeSource = source('../phone/usePhoneStageRuntime.ts');
-const storyProjectorSource = source('../phone/phone-story-projector.ts');
+const storyPresentationSource = source('../phone/phone-story/presentation.ts');
 const stageTimelineSource = source('../phone/phone-stage-timeline.ts');
 const fixedStageRegistrationSource = source(
   '../phone/usePhoneFixedStageRegistration.ts'
 );
-const edgeSurfaceSource = source('../phone/phone-edge-surface.ts');
+const edgeSurfaceSource = storyPresentationSource;
 const viewportGeometrySource = source('../phone/usePhoneViewportGeometry.ts');
 const frontHalfSource = source('../phone/usePhoneFrontHalfAdapters.ts');
 const bootstrapSource = source('../phone/PhoneStoryBootstrap.tsx');
@@ -163,7 +163,7 @@ describe('Route B proven front-half migration contract', () => {
       /--portrait-readable-bottom-offset:\s*max\(\s*0px,\s*calc\(var\(--portrait-stage-height\) - var\(--portrait-readable-height\)\)\s*\)/s
     );
     expect(viewportGeometrySource).toContain(
-      "from './phone-viewport-coverage'"
+      "from './phone-story/presentation'"
     );
     expect(viewportGeometrySource).toContain(
       'usePhoneViewportCoverage(rootRef, applyLayout)'
@@ -195,10 +195,10 @@ describe('Route B proven front-half migration contract', () => {
       1,
       0
     ])[1]).toBe('aod-autoplay');
-    expect(storyProjectorSource).toContain(
+    expect(storyPresentationSource).toContain(
       "data(routeRoot, 'portraitCheckpoint', projection.checkpoint)"
     );
-    expect(storyProjectorSource).toContain(
+    expect(storyPresentationSource).toContain(
       "data(routeRoot, 'portraitCheckpointTrace', plan.checkpointTrace.join('>'))"
     );
   });
@@ -362,8 +362,8 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAStorySource).toContain(
       'methodCopySource && figure2Ready && methodFigure2Ready'
     );
-    expect(gradeAStorySource).toContain(
-      'proofReady && brandRoot && proofBrandReady'
+    expect(gradeAStorySource).toMatch(
+      /proofReady\s*&& brandRoot\s*&& \(reducedMotion \? brandPresentationRef\.current : proofBrandReady\)/
     );
     expect(gradeAStorySource).toContain(
       'boundaryReadyRef.current = (methodBoundaryReady ? 1 : 0)'
@@ -468,7 +468,7 @@ describe('Route B Grade A migration contract', () => {
 
   it('settles the upstream AOD before a direct Figure2 or Proof entry', () => {
     expect(storyEntrySource).toContain('directStoryEntry');
-    expect(shellSource).toContain("usePhoneStoryOrchestratorRuntime(\n    'formal'");
+    expect(shellSource).toContain("usePhoneStoryRuntime(\n    'formal'");
     expect(shellSource).toContain(
       'usePhoneStoryEntryLifecycle(entryScene, loaderHidden, orchestrator)'
     );

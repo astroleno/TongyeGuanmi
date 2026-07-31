@@ -1,35 +1,38 @@
-import type {
-  ScenePresentationAdapterHandle
-} from '../../story/presentation';
 import {
-  phoneRun,
+  phoneRunLegTuple,
   type PhoneRunId
 } from './phone-story-runs';
-import { phoneSegmentPresentationTuple } from './phone-presentation-contract';
+import {
+  phoneSegmentPresentationTuple,
+  type PhoneSurfaceId
+} from './phone-story/manifest';
 import type {
   PhoneStoryRuntimePort
-} from './phone-story-orchestrator';
+} from './phone-story/runtime';
 import {
   phoneRuntimeRunDependencies,
   registerPhoneCompositeRunCapability,
-  type PhoneCompositeSession
-} from './phone-story-runtime';
-import type { PhoneExecutionToken } from './phone-story-state';
+  type PhoneCompositeSession,
+  type PhoneExecutionToken,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from './phone-story/runtime';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 import type {
   PhoneCapabilityRegistry,
   PhoneCapabilityRetention
 } from './phone-transition-readiness';
 import type { PhoneTransitionAdapterHandle } from './types';
+import type { PhoneSceneAdapterHandle } from './types';
 
 export type PhoneCompositeDirectConfig = Readonly<{
-  visual: ScenePresentationAdapterHandle;
-  final: ScenePresentationAdapterHandle;
+  visual: PhoneSceneAdapterHandle;
+  final: PhoneSceneAdapterHandle;
   media: PhoneTransitionAdapterHandle;
 }>;
 
 export type PhoneCompositeRuntimeConfig = PhoneCompositeDirectConfig & Readonly<{
-  prior: ScenePresentationAdapterHandle;
+  prior: PhoneSceneAdapterHandle;
   entry: PhoneTransitionAdapterHandle;
 }>;
 
@@ -42,6 +45,15 @@ type ExecutionResources<Visual extends string> = {
   retention: PhoneCapabilityRetention;
   timeout: number;
   releaseExtra: (() => void) | undefined;
+  /** The physical first-frame gate is one accepted fact per immutable leg. */
+  presentedLeg: number | null;
+  /** Leaf-owned exact token and raw ingress for Group 4–5 hard cutover. */
+  rawFrame: readonly [
+    token: PresentationToken,
+    report: (frame: PhoneRenderedPresentationFrame) => boolean
+  ] | null;
+  /** Only reduced admission owns a one-paint static target binding. */
+  staticTarget: PhoneSceneAdapterHandle | null;
 };
 
 type MediaStartContext<
@@ -50,6 +62,11 @@ type MediaStartContext<
   scene: Visual;
   identity: PhoneExecutionToken;
   config: PhoneCompositeDirectConfig;
+  /**
+   * Stages an authored non-terminal reverse endpoint before a visual decoder
+   * can report the first physical frame for the active media leg.
+   */
+  prepareReverseMediaFirstFrame(): void;
   animate(
     start: number,
     end: number,
@@ -82,6 +99,26 @@ export type PhoneCompositeRunnerOptions<
    * presentation state; visual components may instead read that snapshot.
    */
   startMedia?(context: MediaStartContext<Visual>): void;
+  /**
+   * Enables raw, leaf-owned presentation evidence. The legacy generic proof
+   * path remains available only to frozen compatibility groups.
+   */
+  rawFrameProof?: boolean;
+  /**
+   * Narrows reduced-motion raw proof admission to selected visual scenes when
+   * a continuation owns more than one independently frozen canonical run.
+   */
+  rawFrameProofFor?(scene: Visual): boolean;
+  /** Exact static target surface for the reduced-motion candidate. */
+  reducedStaticSubject?(
+    scene: Visual,
+    direction: PhoneTransitionDirection
+  ): PhoneSurfaceId | null;
+  /** Native target landing required before a reduced static leaf may paint. */
+  reducedAdmissionTargetPosition?(
+    scene: Visual,
+    direction: PhoneTransitionDirection
+  ): number | null;
   acquireReverseEntry?(
     identity: PhoneExecutionToken,
     config: PhoneCompositeRuntimeConfig
@@ -92,7 +129,10 @@ export type PhoneCompositeRunner<Visual extends string> = Readonly<{
   /** Snapshot-matching media identity for legacy event bridges. */
   execution(scene: Visual): PhoneExecutionToken | null;
   heartbeat(scene: Visual, identity: PhoneExecutionToken): void;
-  reportMediaFrame(scene: Visual, identity: PhoneExecutionToken): void;
+  reportMediaFrame(
+    scene: string,
+    evidence: PhoneExecutionToken | PhoneRenderedPresentationFrame
+  ): void;
   progressMedia(
     scene: Visual,
     identity: PhoneExecutionToken,
@@ -112,6 +152,11 @@ export type PhoneCompositeRunner<Visual extends string> = Readonly<{
 }>;
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
+// Frozen compatibility groups retain their authored near-terminal reverse
+// endpoint. Group 4–5 raw-frame admission instead uses a visibly composited
+// in-between frame: opacity .01 is deliberately rejected by presentation.
+const PHONE_REVERSE_MEDIA_ADMISSION_PROGRESS = .998;
+const PHONE_REVERSE_RAW_FRAME_ADMISSION_PROGRESS = .996;
 
 function identitiesMatch(left: PhoneExecutionToken, right: PhoneExecutionToken): boolean {
   return left[0] === right[0]
@@ -119,6 +164,19 @@ function identitiesMatch(left: PhoneExecutionToken, right: PhoneExecutionToken):
     && left[2] === right[2]
     && left[3] === right[3]
     && left[4] === right[4];
+}
+
+function presentationTokensMatch(
+  left: PresentationToken,
+  right: PresentationToken
+): boolean {
+  return left.authorityId === right.authorityId
+    && left.sessionId === right.sessionId
+    && left.generation === right.generation
+    && left.leg === right.leg
+    && left.revision === right.revision
+    && left.subject === right.subject
+    && left.kind === right.kind;
 }
 
 export function createPhoneCompositeRunner<
@@ -135,16 +193,27 @@ export function createPhoneCompositeRunner<
   type DirectConfig = PhoneCompositeDirectConfig;
   type FullConfig = PhoneCompositeRuntimeConfig;
   let resources: ExecutionResources<Visual> | null = null;
-
+  const usesRawFrameProof = (resource: ExecutionResources<Visual>) => (
+    options.rawFrameProof === true
+    || (
+      options.reducedMotion
+      && options.rawFrameProofFor?.(resource.scene) === true
+    )
+  );
   const identityFor = (
     resource: ExecutionResources<Visual>
-  ): PhoneExecutionToken => [
-    resource.session[0],
-    resource.session[1],
-    resource.session[2],
-    resource.session[3](),
-    resource.direction
-  ];
+  ): PhoneExecutionToken => {
+    const identity = [
+      resource.session[0],
+      resource.session[1],
+      resource.session[2],
+      resource.session[3](),
+      resource.direction
+    ] as const;
+    return usesRawFrameProof(resource) && resource.rawFrame
+      ? [...identity, resource.rawFrame[0]]
+      : identity;
+  };
   const configFor = (
     resource: ExecutionResources<Visual>
   ): DirectConfig | null => (
@@ -153,11 +222,13 @@ export function createPhoneCompositeRunner<
       : options.config(resource.scene)
   );
   const firstFrameRequirement = (resource: ExecutionResources<Visual>) => {
-    const run = phoneRun(options.runForVisual(resource.scene));
-    const leg = run.legs[resource.session[3]()];
+    const leg = phoneRunLegTuple(
+      options.runForVisual(resource.scene),
+      resource.session[3]()
+    );
     return leg
       ? (() => {
-          const contract = phoneSegmentPresentationTuple(leg.segment);
+          const contract = phoneSegmentPresentationTuple(leg[0]);
           return [contract[8], contract[9]] as const;
         })()
       : null;
@@ -165,12 +236,65 @@ export function createPhoneCompositeRunner<
   const firstFrameUsesEffect = (resource: ExecutionResources<Visual>) => (
     firstFrameRequirement(resource)?.[0] === 'effect-frame'
   );
-  const reportPresentedFrame = (resource: ExecutionResources<Visual>) => {
-    if (resources !== resource || !resource.session[4]()) return false;
+  const bindRawFrame = (resource: ExecutionResources<Visual>) => {
+    if (!usesRawFrameProof(resource)) return null;
     const requirement = firstFrameRequirement(resource);
-    if (!requirement) return false;
-    resource.session[5](requirement[0], requirement[1]);
-    return true;
+    if (!requirement) return null;
+    const token = resource.session[15](requirement[0], requirement[1]);
+    if (!token) return null;
+    const binding = [token, resource.session[16]] as const;
+    resource.rawFrame = binding;
+    return binding;
+  };
+  const bindReducedStaticFrame = (resource: ExecutionResources<Visual>) => {
+    if (!usesRawFrameProof(resource) || !options.reducedStaticSubject) return null;
+    const subject = options.reducedStaticSubject(
+      resource.scene,
+      resource.direction
+    );
+    if (!subject) return null;
+    const token = resource.session[15]('static-poster', subject);
+    if (!token) return null;
+    const binding = [token, resource.session[16]] as const;
+    resource.rawFrame = binding;
+    return binding;
+  };
+  const reportRawFrame = (
+    resource: ExecutionResources<Visual>,
+    frame: PhoneRenderedPresentationFrame
+  ) => {
+    if (resources !== resource || !resource.session[4]()) return false;
+    const binding = resource.rawFrame;
+    const leg = resource.session[3]();
+    if (
+      !binding
+      || binding[0].leg !== leg
+      || !presentationTokensMatch(binding[0], frame.token)
+    ) return false;
+    if (resource.presentedLeg === leg) return true;
+    const accepted = binding[1](frame);
+    if (accepted) resource.presentedLeg = leg;
+    return accepted;
+  };
+  const reportRenderedFrame = (resource: ExecutionResources<Visual>) => {
+    if (resources !== resource || !resource.session[4]()) {
+      return false;
+    }
+    const leg = resource.session[3]();
+    if (resource.presentedLeg === leg) {
+      return true;
+    }
+    const requirement = firstFrameRequirement(resource);
+    if (!requirement) {
+      return false;
+    }
+    const accepted = resource.session[5](
+      requirement[0],
+      requirement[1],
+      'segment-first-frame'
+    );
+    if (accepted) resource.presentedLeg = leg;
+    return accepted;
   };
   const clearTimer = (resource: ExecutionResources<Visual>) => {
     if (!resource.timeout) return;
@@ -203,6 +327,10 @@ export function createPhoneCompositeRunner<
   const releaseResources = (resource: ExecutionResources<Visual>) => {
     clearTimer(resource);
     resource.abortController.abort();
+    if (resource.staticTarget && resource.rawFrame) {
+      resource.staticTarget.disposePresentation?.(resource.rawFrame[0]);
+    }
+    resource.staticTarget = null;
     resource.releaseExtra?.();
     resource.releaseExtra = undefined;
     resource.retention.dispose();
@@ -232,7 +360,9 @@ export function createPhoneCompositeRunner<
   const armTimeout = (resource: ExecutionResources<Visual>) => {
     clearTimer(resource);
     resource.timeout = window.setTimeout(
-      () => rollback(resource),
+      () => {
+        rollback(resource);
+      },
       options.timeoutMs
     );
   };
@@ -277,11 +407,20 @@ export function createPhoneCompositeRunner<
     transition: PhoneTransitionAdapterHandle,
     afterPresented: () => void
   ) => {
+    // A physical ink frame is the only admission evidence for this leg. Keep
+    // the run's bounded readiness timer armed while the renderer is trying to
+    // produce it; otherwise a lost first-frame callback leaves the authority
+    // permanently in `preparing` with no valid rollback path.
+    if (usesRawFrameProof(resource) && !bindRawFrame(resource)) return rollback(resource);
+    armTimeout(resource);
     let reported = false;
-    transition.begin(identityFor(resource), () => {
+    transition.begin(identityFor(resource), (frame) => {
       if (reported || resources !== resource || !resource.session[4]()) return;
       reported = true;
-      if (!reportPresentedFrame(resource)) {
+      const accepted = usesRawFrameProof(resource)
+        ? frame !== undefined && reportRawFrame(resource, frame)
+        : reportRenderedFrame(resource);
+      if (!accepted) {
         rollback(resource);
         return;
       }
@@ -301,6 +440,7 @@ export function createPhoneCompositeRunner<
     prepared = false
   ) => {
     if (resources !== resource || !resource.session[4]()) return;
+    if (usesRawFrameProof(resource) && !bindRawFrame(resource)) return rollback(resource);
     if (resource.direction === 1 && !prepared) {
       const source = config.visual.root();
       const receiver = config.final.root();
@@ -309,11 +449,35 @@ export function createPhoneCompositeRunner<
       config.media.begin(identityFor(resource));
       config.media.commitEndpoint(0);
     }
+    const prepareReverseMediaFirstFrame = () => {
+      if (usesRawFrameProof(resource)) {
+        const source = config.visual.root();
+        const receiver = config.final.root();
+        if (!source || !receiver) {
+          rollback(resource);
+          return;
+        }
+        // Clear the previous terminal endpoint and publish the incoming
+        // Figure3 surface as source before its leaf is allowed to seek/paint.
+        // The raw canvas callback below is therefore both token-exact and
+        // physically visible; no runtime-generated proof can bypass it.
+        config.media.begin(identityFor(resource));
+        claimRoles(resource, source, receiver);
+        config.media.commitEndpoint(0);
+      }
+      config.media.reverse?.();
+      config.media.render(
+        usesRawFrameProof(resource)
+          ? PHONE_REVERSE_RAW_FRAME_ADMISSION_PROGRESS
+          : PHONE_REVERSE_MEDIA_ADMISSION_PROGRESS
+      );
+    };
     if (options.startMedia) {
       options.startMedia({
         scene: resource.scene,
         identity: identityFor(resource),
         config,
+        prepareReverseMediaFirstFrame,
         animate: (start, end, durationMs, complete) => (
           runAnimation(resource, config.media, start, end, durationMs, complete)
         )
@@ -322,7 +486,7 @@ export function createPhoneCompositeRunner<
       config.media.enter?.();
       config.visual.enter?.();
     } else {
-      config.media.reverse?.();
+      prepareReverseMediaFirstFrame();
       config.visual.reverse?.();
     }
     armTimeout(resource);
@@ -364,6 +528,13 @@ export function createPhoneCompositeRunner<
     config: DirectConfig
   ) => {
     if (resources !== resource || !resource.session[4]()) return;
+    // Endpoint preparation can retain a decoded frame, but it is not proof for
+    // the active media leg. Completion is admissible only after that leg has
+    // reported a token-bound physical draw; otherwise a later effect frame
+    // could be misattributed to this still-preparing media leg.
+    if (resource.presentedLeg !== resource.session[3]()) {
+      return rollback(resource);
+    }
     clearTimer(resource);
     const endpoint = resource.direction === 1 ? 1 : 0;
     config.media.commitEndpoint(endpoint);
@@ -388,7 +559,110 @@ export function createPhoneCompositeRunner<
       });
     });
   };
-  const settleReduced = (
+  const releaseReducedAdmission = (resource: ExecutionResources<Visual>) => {
+    if (resources !== resource) return;
+    const config = configFor(resource);
+    config?.visual.leave?.();
+    releaseRoles(resource);
+    releaseResources(resource);
+  };
+  const startReducedAdmission = (
+    resource: ExecutionResources<Visual>,
+    config: DirectConfig
+  ) => {
+    const binding = bindReducedStaticFrame(resource);
+    const target = resource.direct || resource.direction === 1
+     ? config.final
+     : (config as FullConfig).prior;
+    if (!binding || !target.presentPresentation) return rollback(resource);
+    resource.staticTarget = target;
+    // Reduced motion has no playback clock, but its candidate may still wait
+    // for a real endpoint paint. Bound that admission exactly as a dynamic
+    // first-frame gate so a missing or rejected leaf callback reaches the
+    // machine rollback instead of permanently retaining input and resources.
+    armTimeout(resource);
+    let landedTargetY: number | null = null;
+    const targetLayout = () => {
+      const targetY = options.reducedAdmissionTargetPosition?.(
+        resource.scene,
+        resource.direction
+      );
+      return targetY !== null
+        && targetY !== undefined
+        && Number.isFinite(targetY)
+        ? targetY
+        : null;
+    };
+    const requestTargetLayout = () => {
+      const targetY = targetLayout();
+      if (targetY === null || !resource.session[17](targetY)) return false;
+      landedTargetY = targetY;
+      return true;
+    };
+    // Candidate layout remains part of runner admission, while the route
+    // runtime remains the sole physical scroll owner. The request cannot
+    // commit, unlock input, or change phase; it only makes the real endpoint
+    // eligible for its post-paint leaf proof.
+    if (!requestTargetLayout()) return rollback(resource);
+    window.requestAnimationFrame(() => {
+      if (
+        resource.abortController.signal.aborted
+        || resources !== resource
+        || !resource.session[4]()
+      ) return;
+      // Group 6 native-reading anchors can move when the candidate projection
+      // retires the preceding composite plane. Re-measure once on the actual
+      // post-layout frame; the runner still owns every scroll command and the
+      // leaf remains a pure exact-token paint reporter.
+      const remeasureNativeReading = options.reducedMotion
+        && options.rawFrameProofFor?.(resource.scene) === true;
+      let presentationAttempt = 0;
+      const present = () => {
+        if (
+          resource.abortController.signal.aborted
+          || resources !== resource
+          || !resource.session[4]()
+        ) return;
+        const attempt = ++presentationAttempt;
+        target.presentPresentation!(binding[0], (frame) => {
+          if (attempt !== presentationAttempt) return;
+          const accepted = reportRawFrame(resource, frame);
+          if (
+            accepted
+            || !remeasureNativeReading
+            || frame.token !== binding[0]
+            || resource.abortController.signal.aborted
+            || resources !== resource
+            || !resource.session[4]()
+          ) return;
+          const targetY = targetLayout();
+          if (
+            targetY === null
+            || landedTargetY === null
+            || Math.abs(targetY - landedTargetY) < .5
+            || !resource.session[17](targetY)
+          ) return;
+          // A candidate projection can settle a native reading rail after
+          // the first request. Re-arm only when its declared anchor actually
+          // moved; a malformed/stale proof never gains a retry path.
+          landedTargetY = targetY;
+          presentationAttempt += 1;
+          target.disposePresentation?.(binding[0]);
+          window.requestAnimationFrame(present);
+        });
+      };
+      if (!remeasureNativeReading) {
+        present();
+        return;
+      }
+      if (!requestTargetLayout()) return rollback(resource);
+      window.requestAnimationFrame(present);
+    });
+  };
+  // Group 6–7 remains frozen for this cutover. Keep its established endpoint
+  // behavior isolated behind the legacy branch until that group receives its
+  // own ledger; Group 4–5 never reaches this function.
+  const settleFrozenCompatibility = (
     resource: ExecutionResources<Visual>,
     config: DirectConfig
   ) => {
@@ -403,7 +677,7 @@ export function createPhoneCompositeRunner<
     if (resource.direction === 1) {
       full.entry.commitEndpoint(1);
       releaseRoles(resource, 'receiver');
-      if (!reportPresentedFrame(resource)) return rollback(resource);
+      if (!reportRenderedFrame(resource)) return rollback(resource);
       resource.session[6](1);
       const source = full.visual.root();
       const receiver = full.final.root();
@@ -414,23 +688,23 @@ export function createPhoneCompositeRunner<
       full.visual.update(1);
       full.visual.leave?.();
       commitTerminalEndpoint(resource, full);
-    } else {
-      full.media.commitEndpoint(0);
-      releaseRoles(resource, 'receiver');
-      if (!reportPresentedFrame(resource)) return rollback(resource);
-      resource.session[6](0);
-      const source = full.visual.root();
-      const receiver = full.prior.root();
-      if (!source || !receiver) return rollback(resource);
-      const extra = options.acquireReverseEntry?.(identityFor(resource), full);
-      if (extra) resource.releaseExtra = () => extra.releaseGeometry();
-      claimRoles(resource, source, receiver);
-      full.entry.begin(identityFor(resource));
-      full.entry.commitEndpoint(0);
-      full.visual.update(0);
-      full.visual.leave?.();
-      commitTerminalEndpoint(resource, full);
+      return;
     }
+    full.media.commitEndpoint(0);
+    releaseRoles(resource, 'receiver');
+    if (!reportRenderedFrame(resource)) return rollback(resource);
+    resource.session[6](0);
+    const source = full.visual.root();
+    const receiver = full.prior.root();
+    if (!source || !receiver) return rollback(resource);
+    const extra = options.acquireReverseEntry?.(identityFor(resource), full);
+    if (extra) resource.releaseExtra = () => extra.releaseGeometry();
+    claimRoles(resource, source, receiver);
+    full.entry.begin(identityFor(resource));
+    full.entry.commitEndpoint(0);
+    full.visual.update(0);
+    full.visual.leave?.();
+    commitTerminalEndpoint(resource, full);
   };
   const prepare = async (
     resource: ExecutionResources<Visual>,
@@ -458,10 +732,18 @@ export function createPhoneCompositeRunner<
         : full.entry;
       const prepareTarget = config.visual.prepareTargetPresentation;
       if (!prepareTarget) return rollback(resource);
+      const requirement = firstFrameRequirement(resource);
+      const presentationIdentity = usesRawFrameProof(resource)
+        ? bindRawFrame(resource)?.[0] ?? null
+        : requirement
+          ? resource.session[14](requirement[0], requirement[1])
+          : null;
+      if (!presentationIdentity) return rollback(resource);
       await prepareTarget({
         progress: resource.direction === 1 ? 0 : 1,
         direction: resource.direction,
         runId: resource.session[1] + ':' + resource.session[2],
+        presentationToken: presentationIdentity,
         signal: resource.abortController.signal,
         directEntry: resource.direct
       });
@@ -479,18 +761,21 @@ export function createPhoneCompositeRunner<
         }
       };
       if (options.reducedMotion) {
-        transition.begin(identityFor(resource));
-        transition.commitEndpoint(resource.direction === 1 ? 0 : 1);
-        // Reduced motion settles through an authored static endpoint; it still
-        // reports the manifest requirement in the same authority revision.
-        if (!reportPresentedFrame(resource)) return rollback(resource);
-        clearTimer(resource);
-        settleReduced(resource, config);
+        // A reduced run is still admitted by this runner, but its target leaf
+        // owns the one post-paint static proof. It never starts a media clock
+        // or manufactures progress/endpoint evidence.
+        if (usesRawFrameProof(resource)) startReducedAdmission(resource, config);
+        else settleFrozenCompatibility(resource, config);
       } else if (firstFrameUsesEffect(resource)) {
         startEffectTransition(resource, transition, continueAfterPresented);
       } else {
-        transition.begin(identityFor(resource));
-        transition.commitEndpoint(resource.direction === 1 ? 0 : 1);
+        // Group 4–5 reverse admission cannot let this generic setup expose a
+        // stale terminal endpoint. startMedia owns its one reset → role claim
+        // → visible raw-frame sequence below.
+        if (!(usesRawFrameProof(resource) && resource.direction === -1)) {
+          transition.begin(identityFor(resource));
+          transition.commitEndpoint(resource.direction === 1 ? 0 : 1);
+        }
         // Packed/native media must call reportMediaFrame after a physical draw.
         startMedia(resource, config, true);
       }
@@ -520,10 +805,13 @@ export function createPhoneCompositeRunner<
       abortController: new AbortController(),
       retention: options.capabilities.retain(dependencies),
       timeout: 0,
-      releaseExtra: undefined
+      releaseExtra: undefined,
+      presentedLeg: null,
+      rawFrame: null,
+      staticTarget: null
     };
     resources = resource;
-    armTimeout(resource);
+    if (!options.reducedMotion) armTimeout(resource);
     void prepare(resource, dependencies);
     return true;
   };
@@ -558,9 +846,18 @@ export function createPhoneCompositeRunner<
       (direction) => options.position(scene, direction),
       () => resources === null,
       (direction, session) => begin(scene, direction, session),
-      (legIndex, session) => begin(scene, 1, session, legIndex)
+      (legIndex, session) => begin(scene, 1, session, legIndex),
+      options.reducedMotion
     )
   ));
+  const runtimeSubscription = options.orchestrator.subscribe?.(() => {
+    const resource = resources;
+    if (
+      resource
+      && resource.staticTarget
+      && !resource.session[4]()
+    ) releaseReducedAdmission(resource);
+  });
 
   return {
     execution: mediaIdentity,
@@ -568,14 +865,39 @@ export function createPhoneCompositeRunner<
       const resource = resourcesForMedia(scene, identity);
       if (resource) armTimeout(resource);
     },
-    reportMediaFrame(scene, identity) {
-      const resource = resourcesForMedia(scene, identity);
-      if (!resource || !reportPresentedFrame(resource)) return;
+    reportMediaFrame(scene, evidence) {
+      const rawResource = resources;
+      if (rawResource && usesRawFrameProof(rawResource)) {
+        if (Array.isArray(evidence) || !rawResource.session[4]()) return;
+        const accepted = reportRawFrame(
+          rawResource,
+          evidence as PhoneRenderedPresentationFrame
+        );
+        if (!accepted) return;
+        if (options.reducedMotion && !rawResource.session[4]()) {
+          releaseReducedAdmission(rawResource);
+          return;
+        }
+        armTimeout(rawResource);
+        return;
+      }
+      if (!Array.isArray(evidence)) return;
+      const resource = resourcesForMedia(
+        scene as Visual,
+        evidence as PhoneExecutionToken
+      );
+      if (!resource) return;
+      const accepted = reportRenderedFrame(resource);
+      if (!accepted) return;
       armTimeout(resource);
     },
     progressMedia(scene, identity, progress) {
       const resource = resourcesForMedia(scene, identity);
       if (!resource) return;
+      if (
+        usesRawFrameProof(resource)
+        && resource.presentedLeg !== resource.session[3]()
+      ) return;
       const config = configFor(resource);
       if (!config) return rollback(resource);
       const sampled = clamp(progress);
@@ -585,6 +907,10 @@ export function createPhoneCompositeRunner<
     animateMedia(scene, identity, start, end, durationMs, complete) {
       const resource = resourcesForMedia(scene, identity);
       if (!resource) return;
+      if (
+        usesRawFrameProof(resource)
+        && resource.presentedLeg !== resource.session[3]()
+      ) return;
       const config = configFor(resource);
       if (!config) return rollback(resource);
       runAnimation(resource, config.media, start, end, durationMs, complete);
@@ -592,15 +918,22 @@ export function createPhoneCompositeRunner<
     completeMedia(scene, identity) {
       const resource = resourcesForMedia(scene, identity);
       if (!resource) return;
+      if (
+        usesRawFrameProof(resource)
+        && resource.presentedLeg !== resource.session[3]()
+      ) return;
       const config = configFor(resource);
       if (config) finishMedia(resource, config);
       else rollback(resource);
     },
     failMedia(scene, identity) {
       const resource = resourcesForMedia(scene, identity);
-      if (resource) rollback(resource);
+      if (resource) {
+        rollback(resource);
+      }
     },
     dispose() {
+      runtimeSubscription?.dispose();
       for (const registration of registrations) registration.dispose();
       if (resources) rollback(resources);
     }

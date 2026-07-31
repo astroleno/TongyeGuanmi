@@ -2,9 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { SceneId } from '../../story/types';
 import {
-  createPhoneStoryOrchestrator,
+  createPhoneStoryRuntimeEngine as createPhoneStoryOrchestrator,
   type PhoneOrchestratedRunSession
-} from './phone-story-orchestrator';
+} from './phone-story/runtime/engine';
+import {
+  phoneScenePresentationProofKind,
+  phoneScenePresentationTuple,
+  phoneSegmentPresentationTuple
+} from './phone-story/manifest';
 import { assertStablePhonePresentation } from './phone-stable-presentation';
 
 const normalStableHolds = [
@@ -36,6 +41,25 @@ function assertStablePhoneHold(root: HTMLElement, scene: SceneId): void {
   expect(root.dataset.phoneInputState).toBe('free');
   expect(root.dataset.phoneProjectionState).toBe('stable');
   expect(root.dataset.portraitStageActive).toBeUndefined();
+}
+
+function reportProof(
+  session: PhoneOrchestratedRunSession,
+  scene: SceneId,
+  kind: Parameters<PhoneOrchestratedRunSession['presentationProofToken']>[0],
+  subject: string
+): void {
+  const token = session.presentationProofToken(kind, subject);
+  if (!token) throw new Error('Expected an active presentation token');
+  session.reportPresentationProof({
+    token,
+    frameSequence: 1,
+    observedAt: 1,
+    connected: true,
+    visible: true,
+    coverageComplete: true,
+    edge: phoneScenePresentationTuple(scene)[1]
+  });
 }
 
 describe('phone stable presentation contract', () => {
@@ -100,17 +124,34 @@ describe('phone stable presentation contract', () => {
 
     expect(orchestrator.resolveIntent([1, 1, 0, 200])).toBe('claim-boundary');
     if (!session) throw new Error('Expected a claimed brand-services session');
-    session.reportPresentedFrame('effect-frame', 'group45:effect');
+    reportProof(
+      session,
+      phoneSegmentPresentationTuple('brand-figure3')[3],
+      'effect-frame',
+      'group45:effect'
+    );
     session.reportEndpointCommit('receiver');
-    session.reportPresentedFrame('packed-canvas-frame', 'group45:figure3');
+    reportProof(
+      session,
+      phoneSegmentPresentationTuple('figure3-services')[3],
+      'packed-canvas-frame',
+      'group45:figure3'
+    );
     session.provideRelease({
       releaseGeometry: () => undefined,
       releaseResources: () => undefined
     });
     session.reportEndpointCommit('receiver');
+    reportProof(
+      session,
+      'services',
+      phoneScenePresentationProofKind('services'),
+      phoneScenePresentationTuple('services')[4]
+    );
     session.reportTargetPresented();
     frames.shift()?.();
     frames.shift()?.();
+    session.reportPresentationCommitted();
 
     expect(observed).toEqual([{ lock: undefined, anchor: undefined }]);
   });

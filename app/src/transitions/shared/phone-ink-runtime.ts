@@ -39,7 +39,7 @@ export type PhoneInkRuntimeRequest = readonly [
 ];
 
 export type PhoneInkRuntimeCommand =
-  | readonly ['render', progress: number]
+  | readonly ['render', progress: number, force?: boolean]
   | readonly ['dispose'];
 
 export type PhoneInkRuntimeBridge = (command: PhoneInkRuntimeCommand) => boolean | void;
@@ -123,9 +123,11 @@ export function createPhoneInkRuntimeBridge([
     renderer.prewarm(createInkFieldFrame(field, 0.003, viewportFor(surface, host)));
   }
 
-  const render = (rawProgress: number) => {
+  const render = (rawProgress: number, force = false) => {
     const progress = clamp(rawProgress);
-    const rendererNeedsFrame = Math.abs(progress - lastProgress) >= 0.0005;
+    const rendererNeedsFrame = force
+      || !Number.isFinite(lastProgress)
+      || Math.abs(progress - lastProgress) >= 0.0005;
     lastProgress = progress;
     if (import.meta.env.DEV) {
       surface.dataset.phoneInkProgress = progress.toFixed(4);
@@ -163,7 +165,7 @@ export function createPhoneInkRuntimeBridge([
 
   return (command) => {
     if (command[0] === 'render') {
-      return render(command[1]);
+      return render(command[1], command[2]);
     }
     renderer?.destroy();
     surface.style.removeProperty('visibility');

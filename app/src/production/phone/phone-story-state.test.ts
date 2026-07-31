@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
-  phoneSegmentPresentationContract
-} from './phone-presentation-contract';
+  phoneScenePresentationTuple,
+  phoneScenePresentationProofKind,
+  phoneSegmentPresentationContract,
+  phoneSegmentPresentationTuple
+} from './phone-story/manifest';
+import { canonicalSceneIds } from '../../story/canonical-spine';
+import type { SceneId } from '../../story/types';
 import {
   phoneRun,
   type PhoneRunId
 } from './phone-story-runs';
-import type { PhoneStoryCursor } from './phone-story-state';
+import type { PhoneStoryCursor } from './phone-story/machine';
 import {
   createPhoneStoryHold,
   reducePhoneStoryCursor,
@@ -35,7 +40,7 @@ type SnapshotView = Readonly<{
     progress: number;
     anchor: Readonly<{ y: number | null }>;
     alignment: unknown;
-    presentation: readonly [number, number | null, number | null, number | null];
+    presentationRevision: number;
   }> | null;
   input: Readonly<{ completedEpoch: number | null }>;
   diagnostics: Readonly<{
@@ -51,7 +56,7 @@ type SnapshotView = Readonly<{
 type SnapshotApi = Readonly<{
   createPhoneStorySnapshot(input: Readonly<{
     authorityId: string;
-    scene: 'brand' | 'services' | 'hero' | 'pattern' | 'aod-animation';
+    scene: SceneId;
     actualY: number;
   }>): SnapshotView;
   reducePhoneStorySnapshot(
@@ -62,7 +67,7 @@ type SnapshotApi = Readonly<{
 }>;
 
 async function snapshotApi(): Promise<SnapshotApi> {
-  const state = await import('./phone-story-state') as unknown as Partial<SnapshotApi>;
+  const state = await import('./phone-story/machine') as unknown as Partial<SnapshotApi>;
   expect(state.createPhoneStorySnapshot).toBeTypeOf('function');
   expect(state.reducePhoneStorySnapshot).toBeTypeOf('function');
   expect(state.selectPhoneStoryCursor).toBeTypeOf('function');
@@ -90,13 +95,76 @@ function presentedFrame(
     .legs[session.operation.legIndex];
   if (!leg) throw new Error('Expected an active cinematic leg');
   const frame = phoneSegmentPresentationContract(leg.segment).firstFrame;
+  const contract = phoneSegmentPresentationTuple(leg.segment);
   return {
-    type: 'PRESENTED_FRAME',
+    type: 'PRESENTATION_PROOF_REPORTED',
     ...identity,
-    kind: frame.kind,
-    subject: frame.subject,
-    revision: session.presentation[0],
-    observedAt: session.presentation[0]
+    proof: {
+      token: {
+        authorityId: snapshot.authorityId,
+        sessionId: session.sessionId,
+        generation: session.generation,
+        leg: session.operation.legIndex,
+        revision: session.presentationRevision,
+        subject: frame.subject,
+        kind: frame.kind
+      },
+      frameSequence: 1,
+      observedAt: 1,
+      connected: true,
+      visible: true,
+      coverageComplete: true,
+      edge: phoneScenePresentationTuple(contract[3])[1]
+    }
+  };
+}
+
+/** Build current target coverage/content evidence for normal and rollback legs. */
+function targetEvidence(
+  snapshot: SnapshotView,
+  identity: Readonly<Record<string, unknown>>,
+  kind: 'coverage' | 'direct-entry',
+  observedAt: number
+) {
+  const session = snapshot.session;
+  if (!session) throw new Error('Expected an active presentation transaction');
+  const scene = session.phase.startsWith('rollback-')
+    ? session.operation.from
+    : session.operation.to;
+  const token = {
+    authorityId: snapshot.authorityId,
+    sessionId: session.sessionId,
+    generation: session.generation,
+    leg: session.operation.legIndex,
+    revision: session.presentationRevision,
+    subject: phoneScenePresentationTuple(scene as SceneId)[4],
+    kind: phoneScenePresentationProofKind(scene as SceneId)
+  } as const;
+  if (kind === 'coverage') {
+    return {
+      type: 'PRESENTATION_READY_REPORTED',
+      ...identity,
+      readiness: {
+        token,
+        observedAt,
+        connected: true,
+        visible: true,
+        coverageComplete: true
+      }
+    };
+  }
+  return {
+    type: 'PRESENTATION_PROOF_REPORTED',
+    ...identity,
+    proof: {
+      token,
+      frameSequence: 1,
+      observedAt,
+      connected: true,
+      visible: true,
+      coverageComplete: true,
+      edge: phoneScenePresentationTuple(scene as SceneId)[1]
+    }
   };
 }
 
@@ -106,6 +174,10 @@ const activeRun = () => startPhoneStoryRun(
   1,
   { sessionId: 'phone-session-1', generation: 1 }
 );
+
+function priorSceneFor(target: SceneId): SceneId {
+  return target === 'hero' ? 'pattern' : 'hero';
+}
 
 function readyToAnimate(
   cursor: PhoneStoryLegacyCursor,
@@ -369,8 +441,9 @@ describe('PhoneStorySnapshot reducer', () => {
     }).snapshot;
 
     const illegal = api.reducePhoneStorySnapshot(current, {
-      type: 'STABLE_PRESENTATION_VERIFIED',
-      ...snapshotIdentity
+      type: 'PRESENTATION_COMMITTED',
+      ...snapshotIdentity,
+      now: 1
     });
     expect(illegal.snapshot).toBe(current);
     expect(illegal.effects).toEqual([]);
@@ -396,27 +469,49 @@ describe('PhoneStorySnapshot reducer', () => {
     expect(prematureTarget.snapshot).toBe(current);
     expect(prematureTarget.effects).toEqual([]);
 
-    for (const type of [
-      'LEG_COMPLETED',
-      'TARGET_PRESENTED',
-      'LAYOUT_RELEASED',
-      'LANDING_MEASURED',
-      'SCROLL_COMMANDED',
-      'SCROLL_CONFIRMED',
-      'STABLE_PRESENTATION_VERIFIED'
-    ]) {
-      current = api.reducePhoneStorySnapshot(current, {
-        type,
-        ...terminalIdentity,
-        ...(type === 'LANDING_MEASURED'
-          ? { targetY: 100, geometryRevision: 1 }
-          : {}),
-        ...(type === 'SCROLL_COMMANDED' ? { commandId: 3 } : {}),
-        ...(type === 'SCROLL_CONFIRMED'
-          ? { commandId: 3, actualY: 100 }
-          : {})
-      }).snapshot;
-    }
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LEG_COMPLETED',
+      ...terminalIdentity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(
+      current,
+      targetEvidence(current, terminalIdentity, 'coverage', 10)
+    ).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'TARGET_PRESENTED',
+      ...terminalIdentity,
+      now: 10
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LAYOUT_RELEASED',
+      ...terminalIdentity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LANDING_MEASURED',
+      ...terminalIdentity,
+      targetY: 100,
+      geometryRevision: 1
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'SCROLL_COMMANDED',
+      ...terminalIdentity,
+      commandId: 3
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'SCROLL_CONFIRMED',
+      ...terminalIdentity,
+      commandId: 3,
+      actualY: 100
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(
+      current,
+      targetEvidence(current, terminalIdentity, 'direct-entry', 11)
+    ).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'PRESENTATION_COMMITTED',
+      ...terminalIdentity,
+      now: 11
+    }).snapshot;
 
     expect(current).toMatchObject({
       status: 'stable',
@@ -490,9 +585,14 @@ describe('PhoneStorySnapshot reducer', () => {
       type: 'LEG_COMPLETED',
       ...terminalIdentity
     }).snapshot;
+    current = api.reducePhoneStorySnapshot(
+      current,
+      targetEvidence(current, terminalIdentity, 'coverage', 10)
+    ).snapshot;
     current = api.reducePhoneStorySnapshot(current, {
       type: 'TARGET_PRESENTED',
-      ...terminalIdentity
+      ...terminalIdentity,
+      now: 10
     }).snapshot;
 
     expect(current).toMatchObject({
@@ -642,9 +742,18 @@ describe('PhoneStorySnapshot reducer', () => {
       commandId: 4,
       actualY: 0
     }).snapshot;
+    rollbackCurrent = api.reducePhoneStorySnapshot(
+      rollbackCurrent,
+      targetEvidence(rollbackCurrent, rollbackIdentity, 'coverage', 20)
+    ).snapshot;
+    rollbackCurrent = api.reducePhoneStorySnapshot(
+      rollbackCurrent,
+      targetEvidence(rollbackCurrent, rollbackIdentity, 'direct-entry', 21)
+    ).snapshot;
     const settled = api.reducePhoneStorySnapshot(rollbackCurrent, {
-      type: 'ROLLBACK_STABLE_PRESENTATION_VERIFIED',
-      ...rollbackIdentity
+      type: 'PRESENTATION_COMMITTED',
+      ...rollbackIdentity,
+      now: 21
     }).snapshot;
     expect(settled).toMatchObject({
       status: 'stable',
@@ -755,15 +864,10 @@ describe('PhoneStorySnapshot reducer', () => {
     } as const;
     const reportDirectEvidence = (kind: 'coverage' | 'direct-entry', observedAt: number) => {
       if (current.status !== 'transaction') throw new Error('Expected direct transaction');
-      const active = current as typeof current & Readonly<{ session: typeof session }>;
-      current = api.reducePhoneStorySnapshot(current, {
-        type: 'PRESENTATION_EVIDENCE_REPORTED',
-        ...identity,
-        kind,
-        subject: 'native:services',
-        revision: active.session.presentation[0],
-        observedAt
-      }).snapshot;
+      current = api.reducePhoneStorySnapshot(
+        current,
+        targetEvidence(current, identity, kind, observedAt)
+      ).snapshot;
     };
     reportDirectEvidence('coverage', 1);
     current = api.reducePhoneStorySnapshot(current, {
@@ -793,14 +897,218 @@ describe('PhoneStorySnapshot reducer', () => {
     }).snapshot;
     reportDirectEvidence('direct-entry', 2);
     current = api.reducePhoneStorySnapshot(current, {
-      type: 'STABLE_PRESENTATION_VERIFIED',
-      ...identity
+      type: 'PRESENTATION_COMMITTED',
+      ...identity,
+      now: 2
     }).snapshot;
 
     expect(current).toMatchObject({
       status: 'stable',
       scene: 'services',
       session: null
+    });
+  });
+
+  it('[convergence] never publishes a reading direct entry with coverage alone', async () => {
+    const api = await snapshotApi();
+    const initial = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'brand',
+      actualY: 64
+    });
+    let current = api.reducePhoneStorySnapshot(initial, {
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: snapshotIdentity.authorityId,
+      target: 'services',
+      source: 'menu',
+      fallbackScene: 'brand',
+      cinematic: null
+    }).snapshot;
+    const session = current.session;
+    if (!session) throw new Error('Expected direct entry session');
+    const identity = {
+      authorityId: snapshotIdentity.authorityId,
+      sessionId: session.sessionId,
+      generation: session.generation,
+      leg: 0,
+      direction: 1
+    } as const;
+    const reportCoverage = () => {
+      if (current.status !== 'transaction') throw new Error('Expected direct transaction');
+      current = api.reducePhoneStorySnapshot(
+        current,
+        targetEvidence(current, identity, 'coverage', 1)
+      ).snapshot;
+    };
+
+    reportCoverage();
+    for (const event of [
+      { type: 'TARGET_PRESENTED' },
+      { type: 'LAYOUT_RELEASED' },
+      { type: 'LANDING_MEASURED', targetY: 720, geometryRevision: 2 },
+      { type: 'SCROLL_COMMANDED', commandId: 1 },
+      { type: 'SCROLL_CONFIRMED', commandId: 1, actualY: 720 },
+      { type: 'PRESENTATION_COMMITTED', now: 1 }
+    ]) {
+      current = api.reducePhoneStorySnapshot(current, {
+        ...event,
+        ...identity
+      }).snapshot;
+    }
+
+    expect(current).toMatchObject({
+      status: 'transaction',
+      projection: { commitState: 'candidate' }
+    });
+  });
+
+  it('[convergence] publishes a proofed candidate only through PRESENTATION_COMMITTED', async () => {
+    const api = await snapshotApi();
+    const initial = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'brand',
+      actualY: 64
+    });
+    let current = api.reducePhoneStorySnapshot(initial, {
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: snapshotIdentity.authorityId,
+      target: 'services',
+      source: 'menu',
+      fallbackScene: 'brand',
+      cinematic: null
+    }).snapshot;
+    const session = current.session;
+    if (!session) throw new Error('Expected direct entry session');
+    const identity = {
+      authorityId: snapshotIdentity.authorityId,
+      sessionId: session.sessionId,
+      generation: session.generation,
+      leg: 0,
+      direction: 1
+    } as const;
+    const evidence = (kind: 'coverage' | 'direct-entry', observedAt: number) => {
+      if (current.status !== 'transaction') throw new Error('Expected direct transaction');
+      current = api.reducePhoneStorySnapshot(
+        current,
+        targetEvidence(current, identity, kind, observedAt)
+      ).snapshot;
+    };
+
+    evidence('coverage', 1);
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'TARGET_PRESENTED',
+      ...identity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LAYOUT_RELEASED',
+      ...identity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LANDING_MEASURED',
+      ...identity,
+      targetY: 720,
+      geometryRevision: 2
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'SCROLL_COMMANDED',
+      ...identity,
+      commandId: 1
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'SCROLL_CONFIRMED',
+      ...identity,
+      commandId: 1,
+      actualY: 720
+    }).snapshot;
+    evidence('direct-entry', 2);
+
+    const legacy = api.reducePhoneStorySnapshot(current, {
+      type: 'STABLE_PRESENTATION_VERIFIED',
+      ...identity,
+      now: 2
+    });
+    expect(legacy.snapshot).toBe(current);
+
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'PRESENTATION_COMMITTED',
+      ...identity,
+      now: 2
+    }).snapshot;
+    expect(current).toMatchObject({
+      status: 'stable',
+      scene: 'services',
+      session: null
+    });
+  });
+
+  it('[convergence] expires direct-entry proof against monotonic verification time', async () => {
+    const api = await snapshotApi();
+    const initial = api.createPhoneStorySnapshot({
+      authorityId: snapshotIdentity.authorityId,
+      scene: 'brand',
+      actualY: 64
+    });
+    let current = api.reducePhoneStorySnapshot(initial, {
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: snapshotIdentity.authorityId,
+      target: 'services',
+      source: 'menu',
+      fallbackScene: 'brand',
+      cinematic: null
+    }).snapshot;
+    const session = current.session;
+    if (!session) throw new Error('Expected direct entry session');
+    const identity = {
+      authorityId: snapshotIdentity.authorityId,
+      sessionId: session.sessionId,
+      generation: session.generation,
+      leg: 0,
+      direction: 1
+    } as const;
+    const reportEvidence = (kind: 'coverage' | 'direct-entry', observedAt: number) => {
+      if (current.status !== 'transaction') throw new Error('Expected direct transaction');
+      current = api.reducePhoneStorySnapshot(
+        current,
+        targetEvidence(current, identity, kind, observedAt)
+      ).snapshot;
+    };
+
+    reportEvidence('coverage', 1);
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'TARGET_PRESENTED',
+      ...identity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LAYOUT_RELEASED',
+      ...identity
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'LANDING_MEASURED',
+      ...identity,
+      targetY: 720,
+      geometryRevision: 2
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'SCROLL_COMMANDED',
+      ...identity,
+      commandId: 1
+    }).snapshot;
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'SCROLL_CONFIRMED',
+      ...identity,
+      commandId: 1,
+      actualY: 720
+    }).snapshot;
+    reportEvidence('direct-entry', 2);
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'PRESENTATION_COMMITTED',
+      ...identity,
+      now: 3_003
+    }).snapshot;
+
+    expect(current).toMatchObject({
+      status: 'transaction',
+      projection: { commitState: 'candidate' }
     });
   });
 
@@ -843,9 +1151,20 @@ describe('PhoneStorySnapshot reducer', () => {
       direction: 1
     }).snapshot;
     expect(settled).toMatchObject({
-      status: 'stable',
-      scene: 'pattern',
-      session: null,
+      status: 'transaction',
+      session: {
+        operation: {
+          trigger: 'auto',
+          run: null,
+          from: 'hero',
+          to: 'pattern'
+        },
+        phase: 'verifying-target'
+      },
+      projection: {
+        commitState: 'candidate',
+        edge: 'hero'
+      },
       scroll: {
         actualY: 240,
         corridor: 'front-rail',
@@ -853,6 +1172,67 @@ describe('PhoneStorySnapshot reducer', () => {
         direction: 1
       }
     });
+  });
+
+  it('[convergence] never makes an unproved scroll-sampled hold stable', async () => {
+    const api = await snapshotApi();
+
+    for (const [index, target] of canonicalSceneIds.entries()) {
+      const prior = priorSceneFor(target);
+      const sampled = api.reducePhoneStorySnapshot(
+        api.createPhoneStorySnapshot({
+          authorityId: snapshotIdentity.authorityId,
+          scene: prior,
+          actualY: index * 100
+        }),
+        {
+          type: 'SCROLL_SAMPLED',
+          authorityId: snapshotIdentity.authorityId,
+          actualY: (index + 1) * 100,
+          corridor: 'front-rail',
+          scene: target,
+          progress: 1,
+          direction: target === 'hero' ? -1 : 1
+        }
+      ).snapshot;
+
+      expect(sampled).toMatchObject({
+        status: 'transaction',
+        projection: {
+          commitState: 'candidate',
+          edge: phoneScenePresentationTuple(prior)[1]
+        }
+      });
+    }
+  });
+
+  it('[convergence] never makes an unproved reconciled hold stable', async () => {
+    const api = await snapshotApi();
+
+    for (const [index, target] of canonicalSceneIds.entries()) {
+      const prior = priorSceneFor(target);
+      const reconciled = api.reducePhoneStorySnapshot(
+        api.createPhoneStorySnapshot({
+          authorityId: snapshotIdentity.authorityId,
+          scene: prior,
+          actualY: index * 100
+        }),
+        {
+          type: 'HOLD_RECONCILED',
+          authorityId: snapshotIdentity.authorityId,
+          scene: target,
+          actualY: (index + 1) * 100
+        }
+      ).snapshot;
+
+      expect(reconciled).toMatchObject({
+        status: 'transaction',
+        projection: {
+          commitState: 'candidate',
+          edge: phoneScenePresentationTuple(prior)[1]
+        }
+      });
+    }
   });
 
   it('[Task 4] keeps an active transaction authoritative over later rail samples', async () => {
@@ -904,19 +1284,15 @@ describe('PhoneStorySnapshot reducer', () => {
     }).snapshot;
 
     const withoutFrame = api.reducePhoneStorySnapshot(current, {
-      type: 'PRESENTED_FRAME',
+      type: 'PRESENTATION_PROOF_REPORTED',
       ...snapshotIdentity
     });
     expect(withoutFrame.snapshot).toBe(current);
 
-    current = api.reducePhoneStorySnapshot(current, {
-      type: 'PRESENTED_FRAME',
-      ...snapshotIdentity,
-      kind: 'packed-canvas-frame',
-      subject: 'front:aod',
-      revision: current.revision,
-      observedAt: 10
-    }).snapshot;
+    current = api.reducePhoneStorySnapshot(
+      current,
+      presentedFrame(current, snapshotIdentity)
+    ).snapshot;
 
     expect(current).toMatchObject({
       session: { phase: 'animating' }

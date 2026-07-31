@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { phoneSurfaceRoleZIndex } from './phone-surface-roles';
+import { phoneSurfaceRoleZIndex } from './phone-story/presentation';
 
 describe('phone surface role contract', () => {
   it('keeps layer mapping pure so only the projector writes surface datasets', () => {

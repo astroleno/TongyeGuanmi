@@ -15,6 +15,11 @@ import type {
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
 import { phoneMediaUrlFor } from '../../../production/phone/phone-media';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
 import type { TargetPresentationRequest } from '../../../story/presentation';
 import {
   createPhonePackedAlphaSurface,
@@ -129,6 +134,7 @@ export const PhoneCrane = forwardRef<
   PhoneSceneAdapterProps
 >(function PhoneCrane({ onReady, reducedMotion }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const layerStackRef = useRef<HTMLDivElement | null>(null);
   const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const flockCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [figureCanvasHost, setFigureCanvasHost] =
@@ -141,12 +147,47 @@ export const PhoneCrane = forwardRef<
     PhonePackedAlphaSurface,
     PhonePackedAlphaSurface
   ] | null>(null);
+  const presentationBindingRef = useRef<Readonly<{
+    token: PresentationToken;
+    key: string;
+    frameSequence: number;
+    figureDrawn: boolean;
+    flockDrawn: boolean;
+    report: (frame: PhoneRenderedPresentationFrame) => void;
+  }> | null>(null);
   const beginPreparedReverseRef = useRef<(force?: boolean) => void>(
     () => undefined
   );
   const presentedFrameRef = useRef<() => void>(
     () => undefined
   );
+  const reportPresentationFrame = useCallback((
+    layer: 'figure' | 'flock',
+    presentationKey: string | null
+  ) => {
+    const binding = presentationBindingRef.current;
+    if (!binding || binding.key !== presentationKey) return;
+    const next = {
+      ...binding,
+      figureDrawn: binding.figureDrawn || layer === 'figure',
+      flockDrawn: binding.flockDrawn || layer === 'flock'
+    };
+    presentationBindingRef.current = next;
+    if (!next.figureDrawn || !next.flockDrawn) return;
+    const reported = {
+      ...next,
+      frameSequence: next.frameSequence + 1
+    };
+    presentationBindingRef.current = reported;
+    reported.report({
+      token: reported.token,
+      frameSequence: reported.frameSequence,
+      observedAt: typeof performance !== 'undefined'
+        && typeof performance.now === 'function'
+        ? performance.now()
+        : 0
+    });
+  }, []);
 
   const ensurePackedSurfaces = useCallback((
     mode: PhonePackedAlphaSurfaceMode
@@ -178,11 +219,12 @@ export const PhoneCrane = forwardRef<
         'crane-figure',
         'crane-figure-video phone-crane__figure-canvas',
         null,
-        () => {
+        (presentationKey) => {
           figure.dataset.timelineVideoFrameReady = 'true';
           root.dataset.phoneCraneMedia = figure.paused ? 'ready' : 'playing';
           beginPreparedReverseRef.current?.();
           presentedFrameRef.current?.();
+          reportPresentationFrame('figure', presentationKey);
         }
       ]);
       const flockSurface = createPhonePackedAlphaSurface([
@@ -196,18 +238,19 @@ export const PhoneCrane = forwardRef<
         'crane-flock',
         'crane-figure-video crane-figure-video--front phone-crane__flock-canvas',
         null,
-        () => {
+        (presentationKey) => {
           flock.dataset.timelineVideoFrameReady = 'true';
           root.dataset.phoneCraneMedia = flock.paused ? 'ready' : 'playing';
           beginPreparedReverseRef.current?.();
           presentedFrameRef.current?.();
+          reportPresentationFrame('flock', presentationKey);
         }
       ]);
       packedSurfacesRef.current = [figureSurface, flockSurface];
     }
     for (const surface of packedSurfacesRef.current) surface(['activate', mode]);
     return packedSurfacesRef.current;
-  }, []);
+  }, [reportPresentationFrame]);
 
   const renderPresentation = useCallback((
     rawProgress: number,
@@ -220,6 +263,15 @@ export const PhoneCrane = forwardRef<
       direction
     );
   }, [reducedMotion]);
+
+  const presentPreparedFrame = useCallback(() => {
+    // The endpoint can have been decoded before this media identity existed.
+    // Repaint it now so the compositor's onFrame callback carries the active
+    // token instead of relabelling a retained preflight frame as new proof.
+    for (const surface of packedSurfacesRef.current ?? []) {
+      surface(['present', null]);
+    }
+  }, []);
 
   const reverseReady = useCallback(() => {
     const root = rootRef.current;
@@ -250,6 +302,7 @@ export const PhoneCrane = forwardRef<
     reverseReady,
     ensurePackedSurfaces,
     renderPresentation,
+    presentPreparedFrame,
     null,
     null
   ]);
@@ -311,6 +364,7 @@ export const PhoneCrane = forwardRef<
     };
   }, [
     ensurePackedSurfaces,
+    presentPreparedFrame,
     figureCanvasHost,
     flockCanvasHost,
     onReady,
@@ -350,7 +404,8 @@ export const PhoneCrane = forwardRef<
           'prepare',
           mode,
           request.signal,
-          request.directEntry === true
+          request.directEntry === true,
+          phoneRuntimePresentationTokenKey(request.presentationToken as PresentationToken)
         ]))
       );
     } catch (error) {
@@ -366,6 +421,7 @@ export const PhoneCrane = forwardRef<
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
+    effectRoot: () => layerStackRef.current,
     update(progress) {
       stopRun();
       renderPresentation(
@@ -378,14 +434,36 @@ export const PhoneCrane = forwardRef<
     },
     leave() {
       stopRun();
+      presentationBindingRef.current = null;
       parkPhoneCraneMedia(rootRef.current);
       for (const surface of packedSurfacesRef.current ?? []) surface(['release']);
     },
     reverse(request?: PhoneCinematicRequest) {
       startRun(-1, request ?? null);
     },
+    presentPresentation(token, report) {
+      const key = phoneRuntimePresentationTokenKey(token);
+      presentationBindingRef.current = {
+        token,
+        key,
+        frameSequence: 0,
+        figureDrawn: false,
+        flockDrawn: false,
+        report
+      };
+      const surfaces = packedSurfacesRef.current ?? ensurePackedSurfaces('forward');
+      for (const surface of surfaces ?? []) surface(['present', key]);
+    },
+    disposePresentation(token) {
+      const binding = presentationBindingRef.current;
+      if (
+        binding
+        && binding.key === phoneRuntimePresentationTokenKey(token)
+      ) presentationBindingRef.current = null;
+    },
     prepareTargetPresentation,
     dispose() {
+      presentationBindingRef.current = null;
       disposeRun();
       for (const surface of packedSurfacesRef.current ?? []) surface(['dispose']);
       packedSurfacesRef.current = null;
@@ -423,6 +501,7 @@ export const PhoneCrane = forwardRef<
               >
                 <div className="crane-paper" aria-hidden="true" />
                 <div
+                  ref={layerStackRef}
                   className="crane-layer-stack"
                   data-transition-ghost="crane-motion"
                   aria-hidden="true"

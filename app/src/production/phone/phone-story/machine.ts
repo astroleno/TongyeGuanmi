@@ -1,24 +1,30 @@
-import type { SceneId, SegmentId } from '../../story/types';
+import { canonicalSceneIds } from '../../../story/canonical-spine';
+import type { SceneId, SegmentId } from '../../../story/types';
 import {
-  phoneRun,
-  phoneScrollRun,
+  phoneRunLegTuple,
+  phoneRunTuple,
+  phoneScrollRunTuple,
   type PhoneCursorRunId,
-  type PhoneRunDefinition,
   type PhoneRunId,
+  type PhoneRunTuple,
   type PhoneScrollRunId
-} from './phone-story-runs';
+} from '../phone-story-runs';
 import {
   phoneStableProjectionTuple,
   phoneTransitionPresentationTuple,
-  type PhonePresentationProjection
-} from './phone-story-presentation';
+  type PhoneEdgeScene,
+  type PhonePresentationProjection,
+  type PhonePresentationSnapshot
+} from './presentation';
 import {
+  phoneDirectEntryPresentationProofKind,
   phoneScenePresentationTuple,
+  phoneScenePresentationProofKind,
   phoneSegmentPresentationTuple,
-  type PhonePresentationEvidenceKind,
+  type PhonePresentationProofKind,
   type PhoneSurfaceId
-} from './phone-presentation-contract';
-import type { PhoneIntentDisposition } from './phone-transition-coordinator';
+} from './manifest';
+import type { PhoneIntentDisposition } from '../phone-transition-coordinator';
 
 /** Legacy cursor phases remain readable until the Task 9 compatibility removal. */
 export type PhoneTransitionPhase =
@@ -61,6 +67,10 @@ export type PhoneFailureReason =
   | 'dependency-timeout'
   | 'capability-failed'
   | 'media-failed'
+  | 'aod-prepare-timeout'
+  | 'aod-progress-timeout'
+  | 'aod-context-lost'
+  | 'reduced-proof-timeout'
   | 'projector-failed'
   | 'surface-disconnected'
   | 'registry-invalidated'
@@ -106,13 +116,54 @@ export type PhoneStoryOperation = Readonly<{
   to: SceneId;
 }>;
 
-/** [revision, exact-frame-at, coverage-at, direct-content-at] */
-export type PhonePresentationEvidenceState = readonly [
-  number,
-  number | null,
-  number | null,
-  number | null
-];
+/** Immutable identity for one requested presentation revision. */
+export type PresentationToken = Readonly<{
+  authorityId: string;
+  sessionId: string | null;
+  generation: number;
+  leg: number | null;
+  revision: number;
+  subject: PhoneSurfaceId | string;
+  kind: PhonePresentationProofKind;
+}>;
+
+/** A renderer-owned fact that concrete content was presented for its token. */
+export type PresentationProof = Readonly<{
+  token: PresentationToken;
+  frameSequence: number;
+  observedAt: number;
+  connected: boolean;
+  visible: boolean;
+  coverageComplete: boolean;
+  edge: PhoneEdgeScene;
+}>;
+
+/** Candidate-only coverage fact. It may release layout, never publish stable. */
+export type PresentationReadiness = Readonly<{
+  token: PresentationToken;
+  observedAt: number;
+  connected: boolean;
+  visible: boolean;
+  coverageComplete: boolean;
+}>;
+
+/** Durable AOD state: the runtime runner only performs effects for this state. */
+export type PhoneAodRunnerStage =
+  | 'admission'
+  | 'blocked'
+  | 'playback'
+  | 'settling';
+
+export type PhoneAodWatchdogStage = Extract<
+  PhoneAodRunnerStage,
+  'admission' | 'playback'
+>;
+
+export type PhoneAodLifecycle = Readonly<{
+  stage: PhoneAodRunnerStage;
+  retry: number;
+  watchdog: PhoneAodWatchdogStage | null;
+}>;
 
 export type PhoneSnapshotSession = Readonly<{
   sessionId: string;
@@ -127,8 +178,18 @@ export type PhoneSnapshotSession = Readonly<{
     geometryRevision: number | null;
   }>;
   alignment: PhoneAlignmentAttempt | null;
-  /** Reducer-owned proof for the current immutable projection revision. */
-  presentation: PhonePresentationEvidenceState;
+  /** Immutable projection revision carried by every renderer-owned proof. */
+  presentationRevision: number;
+  /** Physical first-frame proof for the active segment's current revision. */
+  firstFrameProof: PresentationProof | null;
+  /** Exact target proof; scalar compatibility evidence is removed in Task 3. */
+  proof: PresentationProof | null;
+  /** Token-bound target coverage used only to begin alignment. */
+  readiness: PresentationReadiness | null;
+  /** Present only for the canonical AOD ↔ Method segment. */
+  aod: PhoneAodLifecycle | null;
+  /** A short static admission still uses this same transaction lifecycle. */
+  reducedMotion: boolean;
 }>;
 
 type PhoneSnapshotBase = Readonly<{
@@ -176,6 +237,54 @@ export type PhoneStorySnapshot =
   | PhoneStableSnapshot
   | PhoneScrollRunSnapshot
   | PhoneTransactionSnapshot;
+
+/**
+ * Converts reducer-private state to the ordered presentation transport before
+ * it crosses into the independently minified presentation chunk.
+ */
+export function phonePresentationSnapshot(
+  snapshot: PhoneStorySnapshot
+): PhonePresentationSnapshot {
+  const projection = snapshot.projection;
+  const session = snapshot.status === 'transaction' ? snapshot.session : null;
+  return [
+    snapshot.status,
+    snapshot.revision,
+    snapshot.status === 'stable' ? snapshot.scene : null,
+    snapshot.status === 'scroll-run' ? snapshot.run : null,
+    snapshot.scroll.corridor,
+    snapshot.scroll.progress,
+    snapshot.scroll.direction,
+    [
+      projection.revision,
+      projection.scene,
+      projection.checkpoint,
+      projection.edge,
+      projection.commitState,
+      projection.semanticScene,
+      projection.navigationScene,
+      projection.stageOwner,
+      projection.stageScene,
+      projection.sourceSurface,
+      projection.receiverSurface,
+      projection.coverageSurface,
+      projection.landingResolver
+    ],
+    session === null
+      ? null
+      : [
+          session.sessionId,
+          session.generation,
+          session.operation.run,
+          session.operation.legIndex,
+          session.operation.direction,
+          session.phase,
+          session.progress,
+          session.anchor.y
+        ],
+    snapshot.diagnostics.lastRollback?.run ?? null
+  ];
+}
 
 function phoneStableProjection(
   scene: SceneId,
@@ -261,28 +370,33 @@ export type PhoneExecutionToken = readonly [
   sessionId: string,
   generation: number,
   leg: number,
-  direction: 1 | -1
+  direction: 1 | -1,
+  /** Exact raw presentation token carried by hard-cutover renderer leaves. */
+  presentationToken?: PresentationToken
 ];
 
 type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
   type:
-    | 'PRESENTED_FRAME'
-    | 'PRESENTATION_EVIDENCE_REPORTED'
+    | 'PRESENTATION_READY_REPORTED'
+    | 'PRESENTATION_PROOF_REPORTED'
     | 'PROGRESS_REPORTED'
     | 'LEG_COMPLETED'
+    | 'AOD_AUTOPLAY_BLOCKED'
+    | 'AOD_GESTURE_RETRY_REQUESTED'
+    | 'AOD_WATCHDOG_EXPIRED'
     | 'TARGET_PRESENTED'
     | 'LAYOUT_RELEASED'
     | 'LANDING_MEASURED'
     | 'SCROLL_COMMANDED'
     | 'SCROLL_CONFIRMED'
-    | 'STABLE_PRESENTATION_VERIFIED'
+    /** The sole event allowed to publish a candidate as stable. */
+    | 'PRESENTATION_COMMITTED'
     | 'FAILED'
     | 'ROLLBACK_RENDERED'
     | 'ROLLBACK_LAYOUT_RELEASED'
     | 'ROLLBACK_LANDING_MEASURED'
     | 'ROLLBACK_SCROLL_COMMANDED'
-    | 'ROLLBACK_SCROLL_CONFIRMED'
-    | 'ROLLBACK_STABLE_PRESENTATION_VERIFIED';
+    | 'ROLLBACK_SCROLL_CONFIRMED';
   progress?: number;
   reason?: PhoneFailureReason;
   targetY?: number;
@@ -290,12 +404,15 @@ type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
   commandId?: number;
   actualY?: number;
   visualViewportOffsetTop?: number;
-  kind?: PhonePresentationEvidenceKind;
-  subject?: PhoneSurfaceId;
-  revision?: number;
-  /** Monotonic authority-local time supplied by the observer, never Date.now(). */
-  observedAt?: number;
-}>; 
+  /** Monotonic time at which the reducer evaluates proof expiry. */
+  now?: number;
+  /** Immutable renderer-owned presentation fact for this exact transaction. */
+  proof?: PresentationProof;
+  /** Candidate-only connected/visible/covered fact for this exact token. */
+  readiness?: PresentationReadiness;
+  /** The durable AOD watchdog stage whose exact revision expired. */
+  aodWatchdog?: PhoneAodWatchdogStage;
+}>;
 
 export type PhoneStoryEvent =
   | (PhoneExecutionIdentity & Readonly<{
@@ -306,6 +423,7 @@ export type PhoneStoryEvent =
       inputEpoch: number | null;
       trigger?: 'input' | 'auto';
       legIndex?: number;
+      reducedMotion?: boolean;
     }>)
   | PhoneSnapshotIdentityEvent
   | Readonly<{
@@ -317,6 +435,7 @@ export type PhoneStoryEvent =
       anchorY: number | null;
       boundaryKnown: boolean;
       crossedBoundary: boolean;
+      reducedMotion?: boolean;
     }>
   | Readonly<{
       type: 'DIRECT_ENTRY_REQUESTED';
@@ -371,6 +490,8 @@ export type PhoneStoryEvent =
       direction?: -1 | 0 | 1 | undefined;
       scene?: SceneId | undefined;
       run?: PhoneScrollRunId | undefined;
+      /** Positional front-rail fact; only reduced samples enter static admission. */
+      reducedMotion?: boolean | undefined;
     }>;
 
 export type PhoneStoryEffect = never;
@@ -420,179 +541,312 @@ export function selectPhoneInputLocked(snapshot: PhoneStorySnapshot): boolean {
 }
 
 function directionalEndpoints(
-  run: PhoneRunDefinition,
+  run: PhoneRunTuple,
   direction: 1 | -1
 ): Readonly<{ source: SceneId; target: SceneId }> {
   return direction === 1
-    ? { source: run.from, target: run.to }
-    : { source: run.to, target: run.from };
+    ? { source: run[1], target: run[2] }
+    : { source: run[2], target: run[1] };
 }
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function runForOperation(operation: PhoneStoryOperation): PhoneRunDefinition | null {
-  return operation.run ? phoneRun(operation.run) : null;
+function runForOperation(operation: PhoneStoryOperation): PhoneRunTuple | null {
+  return operation.run ? phoneRunTuple(operation.run) : null;
 }
 
-function presentationAt(revision: number): PhoneSnapshotSession['presentation'] {
-  return [revision, null, null, null];
+function proofSceneFor(session: PhoneSnapshotSession): SceneId {
+  return session.phase.startsWith('rollback-')
+    ? operationSource(session.operation)
+    : operationTarget(session.operation);
+}
+
+function expectedPresentationToken(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession
+): PresentationToken {
+  const scene = proofSceneFor(session);
+  const reducedStaticTarget = session.reducedMotion
+    && !session.phase.startsWith('rollback-');
+  const directEntryProofKind = (
+    session.operation.trigger === 'entry'
+    && !session.phase.startsWith('rollback-')
+  )
+    ? phoneDirectEntryPresentationProofKind(scene)
+    : null;
+  return {
+    authorityId: snapshot.authorityId,
+    sessionId: session.sessionId,
+    generation: session.generation,
+    leg: session.operation.legIndex,
+    revision: session.presentationRevision,
+    subject: phoneScenePresentationTuple(scene)[4],
+    kind: reducedStaticTarget
+      ? 'static-poster'
+      : directEntryProofKind ?? phoneScenePresentationProofKind(scene)
+  };
+}
+
+function expectedFirstFrameToken(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession
+): PresentationToken | null {
+  const frame = activeSegmentFor(session.operation);
+  if (!frame) return null;
+  return {
+    authorityId: snapshot.authorityId,
+    sessionId: session.sessionId,
+    generation: session.generation,
+    leg: session.operation.legIndex,
+    revision: session.presentationRevision,
+    subject: frame[9],
+    kind: frame[8]
+  };
+}
+
+function samePresentationToken(
+  left: PresentationToken,
+  right: PresentationToken
+): boolean {
+  return left.authorityId === right.authorityId
+    && left.sessionId === right.sessionId
+    && left.generation === right.generation
+    && left.leg === right.leg
+    && left.revision === right.revision
+    && left.subject === right.subject
+    && left.kind === right.kind;
 }
 
 function activeSegmentFor(
   operation: PhoneStoryOperation
 ) {
-  const run = runForOperation(operation);
-  const leg = run?.legs[operation.legIndex];
-  return leg ? phoneSegmentPresentationTuple(leg.segment) : null;
+  const leg = operation.run
+    ? phoneRunLegTuple(operation.run, operation.legIndex)
+    : null;
+  return leg ? phoneSegmentPresentationTuple(leg[0]) : null;
 }
 
 const PHONE_PRESENTATION_EVIDENCE_TTL_MS = 3_000;
 
-function latestObservation(presentation: PhoneSnapshotSession['presentation']): number {
-  return Math.max(
-    presentation[1] ?? 0,
-    presentation[2] ?? 0,
-    presentation[3] ?? 0
+function recentObservation(
+  observedAt: number | null,
+  now: number
+): boolean {
+  return observedAt !== null
+    && Number.isFinite(now)
+    && observedAt <= now
+    && now - observedAt <= PHONE_PRESENTATION_EVIDENCE_TTL_MS;
+}
+
+function validPresentationProof(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession,
+  proof: PresentationProof | null,
+  now: number
+): boolean {
+  if (!proof) return false;
+  const scene = proofSceneFor(session);
+  return Number.isInteger(proof.frameSequence)
+    && proof.frameSequence > 0
+    && proof.connected
+    && proof.visible
+    && proof.coverageComplete
+    && proof.edge === phoneScenePresentationTuple(scene)[1]
+    && recentObservation(proof.observedAt, now)
+    && samePresentationToken(
+      proof.token,
+      expectedPresentationToken(snapshot, session)
+    );
+}
+
+function validFirstFrameProof(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession,
+  proof: PresentationProof | null,
+  now: number
+): boolean {
+  const expected = expectedFirstFrameToken(snapshot, session);
+  const frame = activeSegmentFor(session.operation);
+  if (!expected || !frame || !proof) return false;
+  return Number.isInteger(proof.frameSequence)
+    && proof.frameSequence > 0
+    && proof.connected
+    && proof.visible
+    && proof.coverageComplete
+    && proof.edge === phoneScenePresentationTuple(frame[3])[1]
+    && recentObservation(proof.observedAt, now)
+    && samePresentationToken(proof.token, expected);
+}
+
+function validPresentationReadiness(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession,
+  readiness: PresentationReadiness | null,
+  now: number
+): boolean {
+  if (!readiness) return false;
+  return readiness.connected
+    && readiness.visible
+    && readiness.coverageComplete
+    && recentObservation(readiness.observedAt, now)
+    && samePresentationToken(
+      readiness.token,
+      expectedPresentationToken(snapshot, session)
+    );
+}
+
+function eventNow(
+  event: PhoneSnapshotIdentityEvent,
+  proof: PresentationProof | null = null,
+  readiness: PresentationReadiness | null = null
+): number {
+  return event.now ?? Math.max(
+    proof?.observedAt ?? 0,
+    readiness?.observedAt ?? 0
   );
 }
 
-function recentObservation(
-  observedAt: number | null,
-  presentation: PhoneSnapshotSession['presentation']
-): boolean {
-  return observedAt !== null
-    && observedAt >= latestObservation(presentation) - PHONE_PRESENTATION_EVIDENCE_TTL_MS;
-}
-
-function reportDirectEntryEvidence(
+function reportPresentationProof(
+  snapshot: PhoneTransactionSnapshot,
   session: PhoneSnapshotSession,
   event: PhoneSnapshotIdentityEvent
 ): PhoneSnapshotSession | null {
-  if (
-    event.kind === undefined
-    || event.subject === undefined
-    || event.revision !== session.presentation[0]
-    || event.observedAt === undefined
-    || !Number.isFinite(event.observedAt)
-  ) return null;
-  if (
-    session.operation.trigger !== 'entry'
-    || session.operation.run !== null
-    || event.subject !== phoneScenePresentationTuple(session.operation.to)[4]
-  ) return null;
-  const previous = session.presentation;
-  const observedAt = event.observedAt;
-  if (event.kind === 'coverage') {
-    if (previous[2] === observedAt) return session;
-    return {
-      ...session,
-      presentation: [previous[0], previous[1], observedAt, previous[3]]
-    };
+  const proof = event.proof;
+  if (!proof) return null;
+  // Target and segment first-frame facts use the same immutable transport,
+  // but they are never interchangeable. A segment proof can leave prepare;
+  // only the target proof can publish a stable hold.
+  if (validPresentationProof(snapshot, session, proof, proof.observedAt)) {
+    return session.proof === proof ? session : { ...session, proof };
   }
-  if (event.kind !== 'direct-entry') return null;
-  if (!recentObservation(previous[2], previous)) return null;
-  if (previous[3] === observedAt) return session;
-  return {
-    ...session,
-    presentation: [previous[0], previous[1], previous[2], observedAt]
-  };
+  // Reduced motion has the same immutable candidate, but no playback leg.
+  // A source first-frame is therefore never admissible evidence: accepting it
+  // would switch the transaction to `animating` and recreate the parallel
+  // media lifecycle that this strategy intentionally removes.
+  if (session.reducedMotion) return null;
+  if (validFirstFrameProof(snapshot, session, proof, proof.observedAt)) {
+    return session.firstFrameProof === proof
+      ? session
+      : { ...session, firstFrameProof: proof };
+  }
+  return null;
 }
 
-function reportPresentedFrame(
+function reportPresentationReadiness(
+  snapshot: PhoneTransactionSnapshot,
   session: PhoneSnapshotSession,
   event: PhoneSnapshotIdentityEvent
 ): PhoneSnapshotSession | null {
-  const frame = activeSegmentFor(session.operation);
+  const readiness = event.readiness;
   if (
-    !frame
-    || event.kind !== frame[8]
-    || event.subject !== frame[9]
-    || event.revision !== session.presentation[0]
-    || event.observedAt === undefined
-    || !Number.isFinite(event.observedAt)
+    !readiness
+    || !validPresentationReadiness(snapshot, session, readiness, readiness.observedAt)
   ) return null;
-  if (session.presentation[1] === event.observedAt) return session;
-  return {
-    ...session,
-    presentation: [
-      session.presentation[0],
-      event.observedAt,
-      session.presentation[2],
-      session.presentation[3]
-    ]
-  };
-}
-
-function canLeavePreparing(session: PhoneSnapshotSession): boolean {
-  return recentObservation(session.presentation[1], session.presentation);
+  return session.readiness === readiness ? session : { ...session, readiness };
 }
 
 /**
- * Direct entries never inherit a scene's normal fail-open transition policy.
- * They must establish the exact manifest proof before publishing a stable
- * landing; reading/static routes defer their content half until after scroll.
+ * The only reducer-owned stable publication predicate. Every transaction
+ * needs current coverage and current target content. Segment first-frame
+ * proof gates animation separately; it can never stand in for a final hold
+ * proof, whether the transaction came from input, direct entry, or rollback.
  */
-function canPresentDirectEntryTarget(session: PhoneSnapshotSession): boolean {
-  const contract = phoneScenePresentationTuple(session.operation.to);
-  return recentObservation(
-    contract[6] === 'visual'
-      ? session.presentation[3]
-      : session.presentation[2],
-    session.presentation
-  );
+export function canCommitPresentation(
+  snapshot: PhoneStorySnapshot,
+  now: number
+): boolean {
+  if (snapshot.status !== 'transaction') return false;
+  const { session } = snapshot;
+  return validPresentationProof(snapshot, session, session.proof, now);
 }
 
-function canStartDirectEntryAlignment(session: PhoneSnapshotSession): boolean {
-  const contract = phoneScenePresentationTuple(session.operation.to);
-  return recentObservation(
-    contract[6] === 'visual'
-      ? session.presentation[3]
-      : session.presentation[2],
-    session.presentation
-  );
+function canStartTargetAlignment(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession,
+  now: number
+): boolean {
+  return validPresentationReadiness(snapshot, session, session.readiness, now)
+    || validPresentationProof(snapshot, session, session.proof, now);
 }
 
 function transactionCursor(snapshot: PhoneTransactionSnapshot): PhoneStoryTransition | null {
   const operation = snapshot.session.operation;
-  const run = operation.run ? phoneRun(operation.run) : null;
+  const run = operation.run ? phoneRunTuple(operation.run) : null;
   if (!run) return null;
-  const leg = run.legs[operation.legIndex]!;
+  const leg = phoneRunLegTuple(operation.run!, operation.legIndex);
   if (!leg) return null;
+  // Composite runs change their physical source/receiver at every leg. The
+  // run-level endpoints describe only the journey's final destination; using
+  // them here leaves reverse media on a hidden native plane and makes its
+  // token-bound first canvas frame impossible to admit.
+  const [from, to] = operation.direction === 1
+    ? [leg[1], leg[2]]
+    : [leg[2], leg[1]];
   return {
     kind: 'transition',
     sessionId: snapshot.session.sessionId,
-    run: run.id,
+    run: run[0],
     legIndex: operation.legIndex,
     runSource: operation.from,
-    segment: leg.segment,
-    from: leg.from,
-    to: leg.to,
+    segment: leg[0],
+    from,
+    to,
     direction: operation.direction,
     phase: snapshot.session.phase,
     progress: snapshot.session.progress
   };
 }
 
+/**
+ * An accepted forward first-frame proof has already drawn a non-endpoint
+ * receiver frame, even though the animation clock has not published its
+ * first sampled progress yet.  Give presentation selection the smallest
+ * non-zero value so the fixed-stage owner changes atomically with that proof.
+ * This prevents a strict diagnostic reapply from observing the old native
+ * stage while the proved receiver is still hidden underneath it.
+ */
+const PHONE_FIRST_FRAME_STAGE_EPSILON = .002;
+
+function presentationCursorForTransaction(
+  snapshot: PhoneTransactionSnapshot,
+  cursor: PhoneStoryTransition
+): PhoneStoryTransition {
+  const { session } = snapshot;
+  return session.operation.direction === 1
+    && session.phase === 'animating'
+    && session.firstFrameProof !== null
+    && session.progress <= .001
+    ? { ...cursor, progress: PHONE_FIRST_FRAME_STAGE_EPSILON }
+    : cursor;
+}
+
 function projectionForTransaction(
   snapshot: PhoneTransactionSnapshot
 ): PhonePresentationProjection {
   const { phase, operation } = snapshot.session;
-  const revision = snapshot.session.presentation[0];
-  if (
-    operation.trigger === 'entry'
-    && operation.run === null
-    && phase === 'verifying-target'
-  ) {
+  const revision = snapshot.session.presentationRevision;
+  if (snapshot.session.reducedMotion && !phase.startsWith('rollback-')) {
     return phoneStableProjection(operationTarget(operation), 'candidate', revision);
   }
+  if (operation.run === null && !phase.startsWith('rollback-')) {
+    const target = phoneStableProjection(operationTarget(operation), 'candidate', revision);
+    return {
+      ...target,
+      edge: phoneStableProjection(operationSource(operation)).edge
+    };
+  }
   if (
-    phase === 'releasing-layout'
+    (phase === 'verifying-target' && isTerminalLeg(operation))
+    || phase === 'releasing-layout'
     || phase === 'measuring-landing'
     || phase === 'aligning-scroll'
     || phase === 'verifying-stable'
   ) {
+    // A terminal media leg has released its source plane before asking the
+    // target to prove itself. Keeping the transition projection here would
+    // incorrectly require the intentionally retired source to stay visible.
     return phoneStableProjection(operationTarget(operation), 'candidate', revision);
   }
   if (phase.startsWith('rollback-')) {
@@ -600,22 +854,27 @@ function projectionForTransaction(
   }
   const cursor = transactionCursor(snapshot);
   return cursor
-    ? { ...phoneStoryPresentation(cursor), revision }
+    ? {
+        ...phoneStoryPresentation(
+          presentationCursorForTransaction(snapshot, cursor)
+        ),
+        revision
+      }
     : phoneStableProjection(operationSource(operation), 'candidate', revision);
 }
 
 function scrollRunCursor(snapshot: PhoneScrollRunSnapshot): PhoneStoryTransition {
-  const run = phoneScrollRun(snapshot.run);
+  const [from, to, segment] = phoneScrollRunTuple(snapshot.run);
   const direction = snapshot.scroll.direction === -1 ? -1 : 1;
   return {
     kind: 'transition',
     sessionId: `phone-scroll-${snapshot.scroll.sampleRevision}`,
     run: snapshot.run,
     legIndex: 0,
-    runSource: direction === 1 ? run.from : run.to,
-    segment: run.segment,
-    from: run.from,
-    to: run.to,
+    runSource: direction === 1 ? from : to,
+    segment,
+    from,
+    to,
     direction,
     phase: 'animating',
     progress: snapshot.scroll.progress
@@ -683,7 +942,7 @@ function nextScrollRun(
     },
     input: snapshot.input,
     projection: phoneStableProjection(
-      phoneScrollRun(evidence.run).from,
+      phoneScrollRunTuple(evidence.run)[0],
       'candidate',
       snapshot.revision + 1
     ),
@@ -766,7 +1025,13 @@ function nextRollback(
     ...session,
     generation: session.generation + 1,
     phase: 'rollback-rendering',
-    presentation: presentationAt(snapshot.revision + 1)
+    presentationRevision: snapshot.revision + 1,
+    firstFrameProof: null,
+    proof: null,
+    readiness: null,
+    aod: session.aod
+      ? { ...session.aod, stage: 'settling', watchdog: null }
+      : null
   });
 }
 
@@ -794,8 +1059,14 @@ function isTerminalLeg(operation: PhoneStoryOperation): boolean {
   const run = runForOperation(operation);
   if (!run) return true;
   return operation.direction === 1
-    ? operation.legIndex === run.legs.length - 1
+    ? operation.legIndex === run[3] - 1
     : operation.legIndex === 0;
+}
+
+function aodLifecycleFor(run: PhoneRunId | null): PhoneAodLifecycle | null {
+  return run === 'aod-method'
+    ? { stage: 'admission', retry: 0, watchdog: 'admission' }
+    : null;
 }
 
 type PhoneAlignmentPhases = readonly [
@@ -926,13 +1197,13 @@ function startedRun(
   event: Extract<PhoneStoryEvent, { type: 'RUN_STARTED' }>
 ): PhoneStoryReduction {
   if (snapshot.authorityId !== event.authorityId) return reduced(snapshot);
-  const run = phoneRun(event.run);
+  const run = phoneRunTuple(event.run);
   const endpoints = directionalEndpoints(run, event.direction);
   if (snapshot.scene !== endpoints.source) return reduced(snapshot);
   const legIndex = event.legIndex ?? (
-    event.direction === 1 ? 0 : run.legs.length - 1
+    event.direction === 1 ? 0 : run[3] - 1
   );
-  const leg = run.legs[legIndex];
+  const leg = phoneRunLegTuple(event.run, legIndex);
   if (!leg) return reduced(snapshot);
   const session: PhoneSnapshotSession = {
     sessionId: event.sessionId,
@@ -949,12 +1220,17 @@ function startedRun(
     phase: 'preparing',
     progress: event.direction === 1 ? 0 : 1,
     anchor: {
-      policy: run.anchor,
+      policy: run[4],
       y: event.anchorY,
       geometryRevision: null
     },
     alignment: null,
-    presentation: presentationAt(snapshot.revision + 1)
+    presentationRevision: snapshot.revision + 1,
+    firstFrameProof: null,
+    proof: null,
+    readiness: null,
+    aod: aodLifecycleFor(event.run),
+    reducedMotion: event.reducedMotion === true
   };
   const provisional: PhoneTransactionSnapshot = {
     authorityId: snapshot.authorityId,
@@ -969,7 +1245,7 @@ function startedRun(
       completedEpoch: event.inputEpoch,
       completedEpochUntil: event.inputEpoch
     },
-    projection: phoneStableProjection(leg.from, 'candidate'),
+    projection: phoneStableProjection(leg[1], 'candidate'),
     status: 'transaction',
     session
   };
@@ -1005,12 +1281,13 @@ function startedInputRun(
     type: 'RUN_STARTED',
     authorityId: event.authorityId,
     ...identity,
-    leg: event.direction === 1 ? 0 : phoneRun(event.run).legs.length - 1,
+    leg: event.direction === 1 ? 0 : phoneRunTuple(event.run)[3] - 1,
     direction: event.direction,
     run: event.run,
     anchorY: event.anchorY,
     inputEpoch: event.inputEpoch,
-    trigger: 'input'
+    trigger: 'input',
+    reducedMotion: event.reducedMotion === true
   });
   return reduction.snapshot === snapshot
     ? reduced(snapshot, 'pass-native')
@@ -1022,7 +1299,7 @@ function startedEntry(
   event: Extract<PhoneStoryEvent, { type: 'DIRECT_ENTRY_REQUESTED' }>
 ): PhoneStoryReduction {
   const identity = nextGeneratedIdentity(snapshot);
-  const cinematicRun = event.cinematic ? phoneRun(event.cinematic.run) : null;
+  const cinematicRun = event.cinematic ? phoneRunTuple(event.cinematic.run) : null;
   const direction = event.cinematic?.direction ?? 1;
   const terminal = cinematicRun
     ? directionalEndpoints(cinematicRun, direction).target
@@ -1046,7 +1323,12 @@ function startedEntry(
       geometryRevision: null
     },
     alignment: null,
-    presentation: presentationAt(snapshot.revision + 1)
+    presentationRevision: snapshot.revision + 1,
+    firstFrameProof: null,
+    proof: null,
+    readiness: null,
+    aod: aodLifecycleFor(event.cinematic?.run ?? null),
+    reducedMotion: false
   };
   const provisional: PhoneTransactionSnapshot = {
     authorityId: snapshot.authorityId,
@@ -1058,6 +1340,93 @@ function startedEntry(
       completedEpochUntil: null
     },
     projection: phoneStableProjection(event.fallbackScene, 'candidate'),
+    status: 'transaction',
+    session
+  };
+  return reduced({
+    ...provisional,
+    projection: projectionForTransaction(provisional)
+  });
+}
+
+type PhoneHoldCandidateSample = Readonly<{
+  actualY: number;
+  corridor: PhoneScrollCorridorId | null;
+  progress: number;
+  direction: -1 | 0 | 1;
+  reducedMotion: boolean;
+}>;
+
+function committedSceneFor(
+  snapshot: Exclude<PhoneStorySnapshot, PhoneTransactionSnapshot>
+): SceneId {
+  if (snapshot.status === 'stable') return snapshot.scene;
+  const [from, to] = phoneScrollRunTuple(snapshot.run);
+  return snapshot.scroll.direction === -1 ? to : from;
+}
+
+function directionForHoldCandidate(
+  from: SceneId,
+  to: SceneId,
+  sampledDirection: -1 | 0 | 1
+): 1 | -1 {
+  if (sampledDirection === 1 || sampledDirection === -1) return sampledDirection;
+  const fromIndex = (canonicalSceneIds as readonly SceneId[]).indexOf(from);
+  const toIndex = (canonicalSceneIds as readonly SceneId[]).indexOf(to);
+  return toIndex < fromIndex ? -1 : 1;
+}
+
+function startedHoldCandidate(
+  snapshot: Exclude<PhoneStorySnapshot, PhoneTransactionSnapshot>,
+  target: SceneId,
+  sample: PhoneHoldCandidateSample
+): PhoneStoryReduction {
+  const from = committedSceneFor(snapshot);
+  const identity = nextGeneratedIdentity(snapshot);
+  const direction = directionForHoldCandidate(from, target, sample.direction);
+  const session: PhoneSnapshotSession = {
+    ...identity,
+    inputEpoch: null,
+    operation: {
+      trigger: 'auto',
+      run: null,
+      direction,
+      legIndex: 0,
+      from,
+      to: target
+    },
+    // Reduced front motion still owns one ordinary machine transaction. Its
+    // proof is terminal static evidence, so it begins in admission and never
+    // borrows the run-null direct-entry settle path.
+    phase: sample.reducedMotion ? 'preparing' : 'verifying-target',
+    progress: sample.reducedMotion ? (direction === 1 ? 0 : 1) : 1,
+    anchor: {
+      policy: 'entry-target',
+      y: null,
+      geometryRevision: null
+    },
+    alignment: null,
+    presentationRevision: snapshot.revision + 1,
+    firstFrameProof: null,
+    proof: null,
+    readiness: null,
+    aod: null,
+    reducedMotion: sample.reducedMotion
+  };
+  const provisional: PhoneTransactionSnapshot = {
+    authorityId: snapshot.authorityId,
+    revision: snapshot.revision + 1,
+    diagnostics: { lastRollback: null },
+    scroll: {
+      ...snapshot.scroll,
+      actualY: sample.actualY,
+      corridor: sample.corridor,
+      progress: sample.progress,
+      direction: sample.direction,
+      sampleRevision: snapshot.scroll.sampleRevision + 1
+    },
+    input: snapshot.input,
+    projection: phoneStableProjection(from, 'candidate'),
     status: 'transaction',
     session
   };
@@ -1123,7 +1492,13 @@ export function reducePhoneStorySnapshot(
           }
         });
     }
-    return reduced(nextStable(snapshot, event.scene, event.actualY));
+    return startedHoldCandidate(snapshot, event.scene, {
+      actualY: event.actualY ?? snapshot.scroll.actualY,
+      corridor: snapshot.scroll.corridor,
+      progress: 1,
+      direction: 0,
+      reducedMotion: false
+    });
   }
 
   if (event.type === 'NAVIGATE_REQUESTED') {
@@ -1156,6 +1531,18 @@ export function reducePhoneStorySnapshot(
           }
         });
     }
+    if (
+      event.scene
+      && event.scene !== committedSceneFor(snapshot)
+    ) {
+      return startedHoldCandidate(snapshot, event.scene, {
+        actualY: event.actualY,
+        corridor: event.corridor ?? snapshot.scroll.corridor,
+        progress: event.progress === undefined ? snapshot.scroll.progress : clamp(event.progress),
+        direction: event.direction ?? snapshot.scroll.direction,
+        reducedMotion: event.reducedMotion === true
+      });
+    }
     return reduced(nextSampledScroll(snapshot, event));
   }
 
@@ -1164,22 +1551,90 @@ export function reducePhoneStorySnapshot(
   const operation = session.operation;
 
   switch (event.type) {
-    case 'PRESENTATION_EVIDENCE_REPORTED': {
-      const nextSession = reportDirectEntryEvidence(session, event);
+    case 'PRESENTATION_READY_REPORTED': {
+      const nextSession = reportPresentationReadiness(snapshot, session, event);
       return !nextSession || nextSession === session
         ? reduced(snapshot)
         : reduced(nextTransaction(snapshot, nextSession));
     }
-    case 'PRESENTED_FRAME': {
-      if (session.phase !== 'preparing') return reduced(snapshot);
-      const presented = reportPresentedFrame(session, event);
-      if (!presented) return reduced(snapshot);
-      return !canLeavePreparing(presented)
+    case 'PRESENTATION_PROOF_REPORTED': {
+      const nextSession = reportPresentationProof(snapshot, session, event);
+      if (!nextSession || nextSession === session) return reduced(snapshot);
+      // Reduced motion is still admitted by the same immutable transaction,
+      // but a real static target paint is its terminal evidence. No media
+      // clock, progress event, or synthetic endpoint commit participates.
+      if (
+        nextSession.reducedMotion
+        && nextSession.phase === 'preparing'
+        && validPresentationProof(
+          snapshot,
+          nextSession,
+          nextSession.proof,
+          eventNow(event, nextSession.proof)
+        )
+      ) return reduced(nextStable(snapshot, operationTarget(operation)));
+      return nextSession.phase === 'preparing'
+        && validFirstFrameProof(
+          snapshot,
+          nextSession,
+          nextSession.firstFrameProof,
+          eventNow(event, nextSession.firstFrameProof)
+        )
+        ? reduced(nextTransaction(snapshot, {
+          ...nextSession,
+          phase: 'animating',
+          aod: nextSession.aod
+            ? {
+                ...nextSession.aod,
+                stage: 'playback',
+                watchdog: 'playback'
+              }
+            : null
+        }))
+        : reduced(nextTransaction(snapshot, nextSession));
+    }
+    case 'AOD_AUTOPLAY_BLOCKED':
+      return !session.aod || session.aod.stage !== 'admission'
         ? reduced(snapshot)
-        : reduced(nextTransaction(snapshot, { ...presented, phase: 'animating' }));
+        : reduced(nextTransaction(snapshot, {
+          ...session,
+          aod: { ...session.aod, stage: 'blocked' }
+        }));
+    case 'AOD_GESTURE_RETRY_REQUESTED':
+      return !session.aod || session.aod.stage !== 'blocked'
+        ? reduced(snapshot)
+        : reduced(nextTransaction(snapshot, {
+          ...session,
+          aod: {
+            ...session.aod,
+            stage: 'admission',
+            retry: session.aod.retry + 1
+          }
+        }));
+    case 'AOD_WATCHDOG_EXPIRED': {
+      const watchdog = event.aodWatchdog;
+      return !session.aod
+        || watchdog === undefined
+        || session.aod.watchdog !== watchdog
+        || (watchdog === 'admission' && !(
+          session.aod.stage === 'admission' || session.aod.stage === 'blocked'
+        ))
+        || (watchdog === 'playback' && session.aod.stage !== 'playback')
+        ? reduced(snapshot)
+        : reduced(nextRollback(
+          snapshot,
+          session,
+          watchdog === 'admission'
+            ? 'aod-prepare-timeout'
+            : 'aod-progress-timeout'
+        ));
     }
     case 'PROGRESS_REPORTED': {
-      if (session.phase !== 'animating' || event.progress === undefined) return reduced(snapshot);
+      if (
+        session.phase !== 'animating'
+        || event.progress === undefined
+        || (session.aod !== null && session.aod.stage !== 'playback')
+      ) return reduced(snapshot);
       const progress = clamp(event.progress);
       const monotonic = operation.direction === 1
         ? progress >= session.progress
@@ -1189,33 +1644,48 @@ export function reducePhoneStorySnapshot(
         : reduced(nextTransaction(snapshot, { ...session, progress }));
     }
     case 'LEG_COMPLETED': {
-      if (session.phase !== 'animating') return reduced(snapshot);
+      if (
+        session.phase !== 'animating'
+        || (session.aod !== null && session.aod.stage !== 'playback')
+      ) return reduced(snapshot);
       if (isTerminalLeg(operation)) {
         return reduced(nextTransaction(snapshot, {
           ...session,
           phase: 'verifying-target',
-          presentation: presentationAt(snapshot.revision + 1)
+          presentationRevision: snapshot.revision + 1,
+          firstFrameProof: null,
+          proof: null,
+          readiness: null,
+          aod: session.aod
+            ? { ...session.aod, stage: 'settling', watchdog: null }
+            : null
         }));
       }
       const run = runForOperation(operation);
       if (!run) return reduced(snapshot);
       const legIndex = operation.legIndex + operation.direction;
-      return !run.legs[legIndex]
+      return legIndex < 0 || legIndex >= run[3]
         ? reduced(snapshot)
         : reduced(nextTransaction(snapshot, {
           ...session,
           operation: { ...operation, legIndex },
           phase: 'preparing',
           progress: operation.direction === 1 ? 0 : 1,
-          presentation: presentationAt(snapshot.revision + 1)
+          presentationRevision: snapshot.revision + 1,
+          firstFrameProof: null,
+          proof: null,
+          readiness: null,
+          aod: null
         }));
     }
     case 'TARGET_PRESENTED':
       return session.phase !== 'verifying-target'
         || !isTerminalLeg(operation)
-        || (operation.trigger === 'entry'
-          && operation.run === null
-          && !canStartDirectEntryAlignment(session))
+        || !canStartTargetAlignment(
+          snapshot,
+          session,
+          eventNow(event, session.proof, session.readiness)
+        )
         ? reduced(snapshot)
         : reduced(nextTransaction(snapshot, { ...session, phase: 'releasing-layout' }));
     case 'LAYOUT_RELEASED':
@@ -1228,17 +1698,17 @@ export function reducePhoneStorySnapshot(
       return reduceScrollCommanded(snapshot, session, event, forwardAlignmentPhases);
     case 'SCROLL_CONFIRMED':
       return reduceScrollConfirmed(snapshot, session, event, forwardAlignmentPhases, false);
-    case 'STABLE_PRESENTATION_VERIFIED':
-      return operation.trigger === 'entry'
-        && operation.run === null
-        && !canPresentDirectEntryTarget(session)
+    case 'PRESENTATION_COMMITTED': {
+      const rollback = session.phase === 'rollback-verifying-stable';
+      const phases = rollback ? rollbackAlignmentPhases : forwardAlignmentPhases;
+      const scene = rollback ? operationSource(operation) : operationTarget(operation);
+      return !canCommitPresentation(
+        snapshot,
+        eventNow(event, session.proof)
+      )
         ? reduced(snapshot)
-        : reduceStablePresentationVerified(
-          snapshot,
-          session,
-          forwardAlignmentPhases,
-          operationTarget(operation)
-        );
+        : reduceStablePresentationVerified(snapshot, session, phases, scene);
+    }
     case 'FAILED': {
       if (session.phase.startsWith('rollback-')) return reduced(snapshot);
       const reason = event.reason ?? 'capability-failed';
@@ -1264,13 +1734,6 @@ export function reducePhoneStorySnapshot(
       return reduceScrollCommanded(snapshot, session, event, rollbackAlignmentPhases);
     case 'ROLLBACK_SCROLL_CONFIRMED':
       return reduceScrollConfirmed(snapshot, session, event, rollbackAlignmentPhases, true);
-    case 'ROLLBACK_STABLE_PRESENTATION_VERIFIED':
-      return reduceStablePresentationVerified(
-        snapshot,
-        session,
-        rollbackAlignmentPhases,
-        operationSource(operation)
-      );
     default:
       return reduced(snapshot);
   }
