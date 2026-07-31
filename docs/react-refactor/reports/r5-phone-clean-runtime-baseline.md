@@ -58,6 +58,46 @@ Therefore Unit 4 `3deb717`, Unit 5 `35b0aee`, Unit 6 `ab7353e`, and Unit 7A
 | `assets/figure3-initial-paper.webp` | `98724a85700755b30d050746dc48764541704481c16a4c6ae91bc466eb1c1bdd` |
 | `assets/figure3-terminal-paper.webp` | `a546aa40592810cf99aa38674f201dee771e295c81fd6ee1458205f17d16fbb2` |
 
+### 1.4 Persistent evidence archive
+
+Review 1 found that the original formal traces lived in Playwright's ignored,
+auto-cleared `app/test-results/` and the remaining evidence lived under
+`/private/tmp`. Before any Task 1 browser command, all raw evidence was copied
+without rerunning either donor to this persistent root:
+
+```text
+/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime/
+  artifacts/react-refactor/r5-phone-clean-runtime-task0/
+```
+
+The archive contains **227 checksummed files / 217,091,751 bytes**. Its
+`manifest.json` records the original path and persistent archive path for all
+**44 report-referenced artifacts**, full identities for `e70fc984` and
+`c808e06`, the tool versions above, and the recovery provenance of each saved
+source. `SHA256SUMS` covers every raw artifact and preserved source. The local
+`raw/` directory is deliberately ignored by Git because it is about 200 MB;
+the manifest, checksum inventory, verifier, and reproduction sources are
+versioned.
+
+Preserved sources include:
+
+- `r5-baseline-provenance.mjs`;
+- the frozen `r5-phone-story.spec.ts` and release config;
+- the exact supplemental recorder/config;
+- the v36 recorder recovered byte-for-byte from all five traces and its
+  trace-context-derived config;
+- the exact `c808e06` R4 Group 6/7 specs, shared endpoint helper, and the
+  donor config listed by the authoritative plan.
+
+Verification command:
+
+```bash
+node artifacts/react-refactor/r5-phone-clean-runtime-task0/verify-evidence.mjs
+```
+
+Recorded result: `verified 44/44 report hashes; 227/227 inventory files;
+217091751 bytes`.
+
 ## 2. Executable clean-base result
 
 ### 2.1 Toolchain
@@ -385,19 +425,20 @@ Skipped by project conditions:
 
 ### 4.2 Formal trace hashes
 
-All paths are relative to the clean worktree.
+All paths in the evidence tables are relative to the persistent archive root
+defined in §1.4. The manifest retains each original path.
 
 | Test trace | SHA-256 |
 | --- | --- |
-| `app/test-results/r5-phone-story-v46-keeps-o-dea85-de-the-stable-visual-canvas-mobile-webkit/trace.zip` | `20b62fc930f56203bdcbe88975dd12459b0c6c9d12cd586de13968f15480bdb6` |
-| `app/test-results/r5-phone-story-v23-Route-B-55485-nt-trace-in-both-directions-mobile-webkit/trace.zip` | `7363ddb79f9708b718ad941bf3d755963b279d113e7e1f057841fd2556a91bee` |
-| `app/test-results/r5-phone-story-v46-Grade-A-6c07b-thod-in-the-persistent-host-mobile-webkit/trace.zip` | `a4fabd5ded1201eea6627ad6541ffc533104bf2d2d712b2ec0f473ca91275d1e` |
-| `app/test-results/r5-phone-story-brand-lab-Q-f7c4c--at-the-stable-Lab-boundary-mobile-webkit/trace.zip` | `be47f7db3d0e9e58a98ab55d8a2bf4f278d1e81b1b1de31351dc3c5bba7a2c23` |
-| `app/test-results/r5-phone-story-v47-Proof-h-e716c-de-the-one-persistent-stage-mobile-webkit/trace.zip` | `ae2a8454de5aa05b7ce5a48418c89abb1400cd4d6fd7805a28b0e0c2317eb370` |
-| `app/test-results/r5-phone-story-v47-full-mo-73de3--reverse-on-the-shared-host-mobile-webkit/trace.zip` | `d804f5ae03876c9516c78a58f94036b73b7169bbc0e7a95267cc1252fd0603ed` |
-| `app/test-results/r5-phone-story-v47-full-mo-448f6-ve-readings-without-Figure1-mobile-webkit/trace.zip` | `bf7378ea02c3435ee4d5dd7c620719031839eec12daa76ef83c78e0ee4be23f4` |
-| `app/test-results/r5-phone-story-v47-reduced-838ab-erses-without-another-stage-mobile-webkit/trace.zip` | `5961a2999c38cee8548ac3f07d9c2358707c32c378b9476476f812481e292ace` |
-| `app/test-results/r5-phone-story-v46-keeps-F-b3432-oduces-a-packed-video-frame-mobile-webkit/trace.zip` | `3fc74f5e2bb87c99f32a1e53dc5a63ab27cd7ed4bebc1da466042a60bd9dc68d` |
+| `raw/clean-worktree/app/test-results/r5-phone-story-v46-keeps-o-dea85-de-the-stable-visual-canvas-mobile-webkit/trace.zip` | `20b62fc930f56203bdcbe88975dd12459b0c6c9d12cd586de13968f15480bdb6` |
+| `raw/clean-worktree/app/test-results/r5-phone-story-v23-Route-B-55485-nt-trace-in-both-directions-mobile-webkit/trace.zip` | `7363ddb79f9708b718ad941bf3d755963b279d113e7e1f057841fd2556a91bee` |
+| `raw/clean-worktree/app/test-results/r5-phone-story-v46-Grade-A-6c07b-thod-in-the-persistent-host-mobile-webkit/trace.zip` | `a4fabd5ded1201eea6627ad6541ffc533104bf2d2d712b2ec0f473ca91275d1e` |
+| `raw/clean-worktree/app/test-results/r5-phone-story-brand-lab-Q-f7c4c--at-the-stable-Lab-boundary-mobile-webkit/trace.zip` | `be47f7db3d0e9e58a98ab55d8a2bf4f278d1e81b1b1de31351dc3c5bba7a2c23` |
+| `raw/clean-worktree/app/test-results/r5-phone-story-v47-Proof-h-e716c-de-the-one-persistent-stage-mobile-webkit/trace.zip` | `ae2a8454de5aa05b7ce5a48418c89abb1400cd4d6fd7805a28b0e0c2317eb370` |
+| `raw/clean-worktree/app/test-results/r5-phone-story-v47-full-mo-73de3--reverse-on-the-shared-host-mobile-webkit/trace.zip` | `d804f5ae03876c9516c78a58f94036b73b7169bbc0e7a95267cc1252fd0603ed` |
+| `raw/clean-worktree/app/test-results/r5-phone-story-v47-full-mo-448f6-ve-readings-without-Figure1-mobile-webkit/trace.zip` | `bf7378ea02c3435ee4d5dd7c620719031839eec12daa76ef83c78e0ee4be23f4` |
+| `raw/clean-worktree/app/test-results/r5-phone-story-v47-reduced-838ab-erses-without-another-stage-mobile-webkit/trace.zip` | `5961a2999c38cee8548ac3f07d9c2358707c32c378b9476476f812481e292ace` |
+| `raw/clean-worktree/app/test-results/r5-phone-story-v46-keeps-F-b3432-oduces-a-packed-video-frame-mobile-webkit/trace.zip` | `3fc74f5e2bb87c99f32a1e53dc5a63ab27cd7ed4bebc1da466042a60bd9dc68d` |
 
 ### 4.3 Extracted accepted reference frames
 
@@ -408,14 +449,14 @@ existing helper geometry after that stale assertion and captured the three
 Proof → Brand checkpoints without changing repository source. Its trace is:
 
 ```text
-/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/supplemental-results/
+raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/supplemental-results/
   formal-route-reference-rec-49830-t-its-stale-mount-assertion-supplemental-mobile-webkit/trace.zip
 SHA-256 1f28856cd1fa80649895a8f1ba157c21e9f9b1f4858f307d662f7d9f338f1299
 ```
 
 The recorder passed 1/1 in 11.6 s. It is reference capture, not a release
 test. Selected frames are under
-`/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/`:
+`raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/`:
 
 | Reached hold/segment | File | SHA-256 |
 | --- | --- | --- |
@@ -449,6 +490,7 @@ A disposable detached worktree was created at exact commit
 ```
 
 Dependencies installed with the frozen lockfile. The plan's literal command
+at the time of the capture,
 
 ```text
 VITE_ENABLE_HARNESS=1 pnpm -C /private/tmp/r5-phone-c808-donor/app build
@@ -465,6 +507,10 @@ VITE_ENABLE_HARNESS=1 pnpm -C /private/tmp/r5-phone-c808-donor/app exec vite bui
 ```
 
 Result: 308 modules, pass, 3.67 s. No donor production file was changed.
+The authoritative plan now names `pnpm ... typecheck` followed by this raw
+Vite command as the only donor-harness build path. It explicitly forbids the
+package `build` wrapper in harness mode, so a later executor cannot mistake
+the already-proved verifier rejection for a new baseline failure.
 
 ### 5.2 R4 WebKit discovery and execution
 
@@ -504,13 +550,13 @@ Donor failures, retained as RED requirements:
 
 | R4 trace | SHA-256 |
 | --- | --- |
-| `/private/tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-0936c-d-timeout-and-supports-seek-donor-mobile-webkit/trace.zip` | `894a1bb73af1ba63e7b7bb1103854458e89a366e276c2a2945647b1133b7b19e` |
-| `/private/tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-29fa7-ent-0-to-1-to-0-to-1-replay-donor-mobile-webkit/trace.zip` | `74f81cbe95cf816a3ec46b05549bd515f5882c4a27fd60412106fcd940483837` |
-| `/private/tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-a734a-then-hands-off-to-Education-donor-mobile-webkit/trace.zip` | `70fcdfed08562dff41662f8b0340e2af8e98c421ea020d8cb70debe045c04a76` |
-| `/private/tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-aea63-e-on-the-same-media-surface-donor-mobile-webkit/trace.zip` | `164be51d0e6e73cbd1fb737dc8c566f5927eda1cacd1dca39205994b4af53ab7` |
-| `/private/tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--242b5-and-0-to-1-to-0-to-1-replay-donor-mobile-webkit/trace.zip` | `eae1ee1914fca48a5f71c5a2159a465d0604c6b6841c057ac7361ae1a8314f1a` |
-| `/private/tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--2dea0-ith-nonblank-sampled-frames-donor-mobile-webkit/trace.zip` | `aa3c7e77dfb19c45edc88d772657461e101328c67bd2ce6ad56e26c5c55f4663` |
-| `/private/tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--c1a0f-d-timeout-and-supports-seek-donor-mobile-webkit/trace.zip` | `ad40c2b589bc59b16ee87c46e338c3a4c696404cec11d57cba6c466028bdb088` |
+| `raw/private-tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-0936c-d-timeout-and-supports-seek-donor-mobile-webkit/trace.zip` | `894a1bb73af1ba63e7b7bb1103854458e89a366e276c2a2945647b1133b7b19e` |
+| `raw/private-tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-29fa7-ent-0-to-1-to-0-to-1-replay-donor-mobile-webkit/trace.zip` | `74f81cbe95cf816a3ec46b05549bd515f5882c4a27fd60412106fcd940483837` |
+| `raw/private-tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-a734a-then-hands-off-to-Education-donor-mobile-webkit/trace.zip` | `70fcdfed08562dff41662f8b0340e2af8e98c421ea020d8cb70debe045c04a76` |
+| `raw/private-tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-aea63-e-on-the-same-media-surface-donor-mobile-webkit/trace.zip` | `164be51d0e6e73cbd1fb737dc8c566f5927eda1cacd1dca39205994b4af53ab7` |
+| `raw/private-tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--242b5-and-0-to-1-to-0-to-1-replay-donor-mobile-webkit/trace.zip` | `eae1ee1914fca48a5f71c5a2159a465d0604c6b6841c057ac7361ae1a8314f1a` |
+| `raw/private-tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--2dea0-ith-nonblank-sampled-frames-donor-mobile-webkit/trace.zip` | `aa3c7e77dfb19c45edc88d772657461e101328c67bd2ce6ad56e26c5c55f4663` |
+| `raw/private-tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--c1a0f-d-timeout-and-supports-seek-donor-mobile-webkit/trace.zip` | `ad40c2b589bc59b16ee87c46e338c3a4c696404cec11d57cba6c466028bdb088` |
 
 ### 5.3 Separate v36 hold captures
 
@@ -538,23 +584,23 @@ pnpm -C /private/tmp/r5-phone-c808-donor/app exec playwright test \
 Exact artifact directories:
 
 ```text
-/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-lab-donor-v36-mobile-webkit/
+raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-lab-donor-v36-mobile-webkit/
   lab.png
   trace.zip
   video.webm
-/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-ph-animation-donor-v36-mobile-webkit/
+raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-ph-animation-donor-v36-mobile-webkit/
   ph-animation.png
   trace.zip
   video.webm
-/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-education-donor-v36-mobile-webkit/
+raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-education-donor-v36-mobile-webkit/
   education.png
   trace.zip
   video.webm
-/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-crane-animation-donor-v36-mobile-webkit/
+raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-crane-animation-donor-v36-mobile-webkit/
   crane-animation.png
   trace.zip
   video.webm
-/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-contact-donor-v36-mobile-webkit/
+raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-contact-donor-v36-mobile-webkit/
   contact.png
   trace.zip
   video.webm
@@ -564,8 +610,8 @@ These v36 and R4 artifacts are independent evidence donors. They are neither
 formal-route evidence nor runtime donors.
 
 After all paths and hashes above were recorded, the disposable
-`/private/tmp/r5-phone-c808-donor` worktree was removed. The evidence directory
-remains separate and intact.
+`/private/tmp/r5-phone-c808-donor` worktree was removed. Its evidence is now
+preserved under the §1.4 archive and no longer depends on `/private/tmp`.
 
 ## 6. Existing R5 release-suite disposition
 
@@ -802,6 +848,9 @@ git diff --exit-code 9652fbe -- \
   project/cutover disposition.
 - Unit 4–7A formal evidence and detached Unit 7B v36/R4 evidence are separate
   and accurately scoped.
+- All 44 cited traces/frames/videos and their reproduction sources are
+  preserved outside Playwright output and `/private/tmp`; the unified archive
+  verifier passes 44/44 report hashes and 227/227 inventory files.
 - No production source has changed.
 
 Task 1 is not authorized by this report. Execution stops at Review 1.

@@ -25,6 +25,7 @@ assets/*.original.*
 /artifacts/pattern-scene-provider/
 /artifacts/pattern-scene-provider-v2/
 /artifacts/starmap-scene-harness/
+/artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/
 
 # Python-generated files
 __pycache__/

@@ -1,0 +1,412 @@
+{
+  "schemaVersion": 1,
+  "title": "R5 Phone Clean Runtime Task 0 Evidence Archive",
+  "archivedOn": "2026-07-31",
+  "persistentAbsoluteRoot": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime/artifacts/react-refactor/r5-phone-clean-runtime-task0",
+  "commits": {
+    "confirmedBaseline": "9652fbec9aa18bfe989d6ed1b62d2c61f3a31f7f",
+    "frozenDocuments": "e70fc984920996ce2c87d2d0486a1aa042c159c8",
+    "formalEvidenceCode": "e70fc984920996ce2c87d2d0486a1aa042c159c8",
+    "unit7BDonor": "c808e06144bd0368ce508001f313c801517dcdd0",
+    "initialTask0Report": "414a42d2a454f32d53eb012122a4ea60b282ffb0"
+  },
+  "tools": {
+    "node": "v25.6.1",
+    "pnpm": "8.15.1",
+    "git": "2.53.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7",
+    "vite": "7.3.6",
+    "playwright": "1.61.1"
+  },
+  "sourceRoots": {
+    "cleanWorktree": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime",
+    "privateTmp": "/private/tmp"
+  },
+  "reportEvidenceCount": 44,
+  "reportEvidence": [
+    {
+      "category": "unit-4-7a-formal-trace",
+      "label": "Pattern stable canvas",
+      "originalPath": "app/test-results/r5-phone-story-v46-keeps-o-dea85-de-the-stable-visual-canvas-mobile-webkit/trace.zip",
+      "archivePath": "raw/clean-worktree/app/test-results/r5-phone-story-v46-keeps-o-dea85-de-the-stable-visual-canvas-mobile-webkit/trace.zip",
+      "sha256": "20b62fc930f56203bdcbe88975dd12459b0c6c9d12cd586de13968f15480bdb6"
+    },
+    {
+      "category": "unit-4-7a-formal-trace",
+      "label": "Route B AOD reverse",
+      "originalPath": "app/test-results/r5-phone-story-v23-Route-B-55485-nt-trace-in-both-directions-mobile-webkit/trace.zip",
+      "archivePath": "raw/clean-worktree/app/test-results/r5-phone-story-v23-Route-B-55485-nt-trace-in-both-directions-mobile-webkit/trace.zip",
+      "sha256": "7363ddb79f9708b718ad941bf3d755963b279d113e7e1f057841fd2556a91bee"
+    },
+    {
+      "category": "unit-4-7a-formal-trace",
+      "label": "Grade A Figure2 host",
+      "originalPath": "app/test-results/r5-phone-story-v46-Grade-A-6c07b-thod-in-the-persistent-host-mobile-webkit/trace.zip",
+      "archivePath": "raw/clean-worktree/app/test-results/r5-phone-story-v46-Grade-A-6c07b-thod-in-the-persistent-host-mobile-webkit/trace.zip",
+      "sha256": "a4fabd5ded1201eea6627ad6541ffc533104bf2d2d712b2ec0f473ca91275d1e"
+    },
+    {
+      "category": "unit-4-7a-formal-trace",
+      "label": "Brand to Lab boundary",
+      "originalPath": "app/test-results/r5-phone-story-brand-lab-Q-f7c4c--at-the-stable-Lab-boundary-mobile-webkit/trace.zip",
+      "archivePath": "raw/clean-worktree/app/test-results/r5-phone-story-brand-lab-Q-f7c4c--at-the-stable-Lab-boundary-mobile-webkit/trace.zip",
+      "sha256": "be47f7db3d0e9e58a98ab55d8a2bf4f278d1e81b1b1de31351dc3c5bba7a2c23"
+    },
+    {
+      "category": "unit-4-7a-formal-trace",
+      "label": "Proof to Brand",
+      "originalPath": "app/test-results/r5-phone-story-v47-Proof-h-e716c-de-the-one-persistent-stage-mobile-webkit/trace.zip",
+      "archivePath": "raw/clean-worktree/app/test-results/r5-phone-story-v47-Proof-h-e716c-de-the-one-persistent-stage-mobile-webkit/trace.zip",
+      "sha256": "ae2a8454de5aa05b7ce5a48418c89abb1400cd4d6fd7805a28b0e0c2317eb370"
+    },
+    {
+      "category": "unit-4-7a-formal-trace",
+      "label": "Figure3 and TTG full motion",
+      "originalPath": "app/test-results/r5-phone-story-v47-full-mo-73de3--reverse-on-the-shared-host-mobile-webkit/trace.zip",
+      "archivePath": "raw/clean-worktree/app/test-results/r5-phone-story-v47-full-mo-73de3--reverse-on-the-shared-host-mobile-webkit/trace.zip",
+      "sha256": "d804f5ae03876c9516c78a58f94036b73b7169bbc0e7a95267cc1252fd0603ed"
+    },
+    {
+      "category": "unit-4-7a-formal-trace",
+      "label": "Services direct entry",
+      "originalPath": "app/test-results/r5-phone-story-v47-full-mo-448f6-ve-readings-without-Figure1-mobile-webkit/trace.zip",
+      "archivePath": "raw/clean-worktree/app/test-results/r5-phone-story-v47-full-mo-448f6-ve-readings-without-Figure1-mobile-webkit/trace.zip",
+      "sha256": "bf7378ea02c3435ee4d5dd7c620719031839eec12daa76ef83c78e0ee4be23f4"
+    },
+    {
+      "category": "unit-4-7a-formal-trace",
+      "label": "Reduced-motion Lab reverse",
+      "originalPath": "app/test-results/r5-phone-story-v47-reduced-838ab-erses-without-another-stage-mobile-webkit/trace.zip",
+      "archivePath": "raw/clean-worktree/app/test-results/r5-phone-story-v47-reduced-838ab-erses-without-another-stage-mobile-webkit/trace.zip",
+      "sha256": "5961a2999c38cee8548ac3f07d9c2358707c32c378b9476476f812481e292ace"
+    },
+    {
+      "category": "unit-4-7a-formal-trace",
+      "label": "Figure2 packed video frame",
+      "originalPath": "app/test-results/r5-phone-story-v46-keeps-F-b3432-oduces-a-packed-video-frame-mobile-webkit/trace.zip",
+      "archivePath": "raw/clean-worktree/app/test-results/r5-phone-story-v46-keeps-F-b3432-oduces-a-packed-video-frame-mobile-webkit/trace.zip",
+      "sha256": "3fc74f5e2bb87c99f32a1e53dc5a63ab27cd7ed4bebc1da466042a60bd9dc68d"
+    },
+    {
+      "category": "unit-4-7a-supplemental-trace",
+      "label": "Supplemental Proof to Brand recorder",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/supplemental-results/formal-route-reference-rec-49830-t-its-stale-mount-assertion-supplemental-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/supplemental-results/formal-route-reference-rec-49830-t-its-stale-mount-assertion-supplemental-mobile-webkit/trace.zip",
+      "sha256": "1f28856cd1fa80649895a8f1ba157c21e9f9b1f4858f307d662f7d9f338f1299"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Hero entered",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/hero-entered.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/hero-entered.jpeg",
+      "sha256": "f49a5782440b9d6a47b2582d7ba2bc50a99db52b010e5e428132878782daecdb"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Pattern complete",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/pattern-complete.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/pattern-complete.jpeg",
+      "sha256": "860e34274df11b561f8bb1722bb89f39fd4a9aaedf958b7b24136e1d8fd26492"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Pattern stable edge",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/pattern-stable-edge.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/pattern-stable-edge.jpeg",
+      "sha256": "59fa66f9f2655b97923bc09ee7124dbb382e7ef9cc0df336bd5080a5310919e6"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Star Map reading",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/star-map-reading.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/star-map-reading.jpeg",
+      "sha256": "38f99ab24957418912f55bca33dc73898acfb1d0a3aeb3a0d40bc773ba03a13d"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "AOD stage",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/aod-stage.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/aod-stage.jpeg",
+      "sha256": "02b605825ef8a3c2789d12de9a7c5673213688db66be575c2d846f1544e6fc3a"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Method intro",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/method-intro.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/method-intro.jpeg",
+      "sha256": "36a35d02d0a8505edc577d1304217fc1762b5a8e792766fd0a51b4af93584458"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Figure2 Proof closing",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/figure2-proof-closing.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/figure2-proof-closing.jpeg",
+      "sha256": "55991c58b47d273025cb17c5695b9fef4dbf802c855029b804468b9585b09d4e"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Proof to Brand midpoint",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/proof-to-brand-midpoint.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/proof-to-brand-midpoint.jpeg",
+      "sha256": "0409b1b02584b50ed13b8656c7cf79626a0f279a780aedf9eb4006b5aa675968"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Brand reading",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/brand-reading.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/brand-reading.jpeg",
+      "sha256": "d6832cf7c6183ada74e7098791f0227de5daf507a175e28a2e12eb5830cddaa5"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Figure3 reduced endpoint",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/figure3-reduced-endpoint.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/figure3-reduced-endpoint.jpeg",
+      "sha256": "e44a45228c3c9c7a3e96a15ceff4ae6038ad89abc5bea4ba8463c6179152bb6b"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "TTG reduced endpoint",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/ttg-reduced-endpoint.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/ttg-reduced-endpoint.jpeg",
+      "sha256": "4af7f740b80974997b077db1a45fba5b4f56ea4262612055e4b4cff6f3d28773"
+    },
+    {
+      "category": "unit-4-7a-reference-frame",
+      "label": "Lab stable",
+      "originalPath": "/private/tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/lab-stable.jpeg",
+      "archivePath": "raw/private-tmp/r5-phone-clean-runtime-task0-evidence/formal/reference-frames/selected/lab-stable.jpeg",
+      "sha256": "3b5e1be85fcc8c9c42db191020d6a74b6b2b7fbac03e0b371cf8ab0e1d3fce95"
+    },
+    {
+      "category": "unit-7b-r4-trace",
+      "label": "Group 6 forward",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-0936c-d-timeout-and-supports-seek-donor-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-0936c-d-timeout-and-supports-seek-donor-mobile-webkit/trace.zip",
+      "sha256": "894a1bb73af1ba63e7b7bb1103854458e89a366e276c2a2945647b1133b7b19e"
+    },
+    {
+      "category": "unit-7b-r4-trace",
+      "label": "Group 6 replay",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-29fa7-ent-0-to-1-to-0-to-1-replay-donor-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-29fa7-ent-0-to-1-to-0-to-1-replay-donor-mobile-webkit/trace.zip",
+      "sha256": "74f81cbe95cf816a3ec46b05549bd515f5882c4a27fd60412106fcd940483837"
+    },
+    {
+      "category": "unit-7b-r4-trace",
+      "label": "Group 6 handoff",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-a734a-then-hands-off-to-Education-donor-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-a734a-then-hands-off-to-Education-donor-mobile-webkit/trace.zip",
+      "sha256": "70fcdfed08562dff41662f8b0340e2af8e98c421ea020d8cb70debe045c04a76"
+    },
+    {
+      "category": "unit-7b-r4-trace",
+      "label": "Group 6 recovery",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-aea63-e-on-the-same-media-surface-donor-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/r4/r4-g6-R4-group6-Lab-PH-and-aea63-e-on-the-same-media-surface-donor-mobile-webkit/trace.zip",
+      "sha256": "164be51d0e6e73cbd1fb737dc8c566f5927eda1cacd1dca39205994b4af53ab7"
+    },
+    {
+      "category": "unit-7b-r4-trace",
+      "label": "Group 7 replay",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--242b5-and-0-to-1-to-0-to-1-replay-donor-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--242b5-and-0-to-1-to-0-to-1-replay-donor-mobile-webkit/trace.zip",
+      "sha256": "eae1ee1914fca48a5f71c5a2159a465d0604c6b6841c057ac7361ae1a8314f1a"
+    },
+    {
+      "category": "unit-7b-r4-trace",
+      "label": "Group 7 forward",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--2dea0-ith-nonblank-sampled-frames-donor-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--2dea0-ith-nonblank-sampled-frames-donor-mobile-webkit/trace.zip",
+      "sha256": "aa3c7e77dfb19c45edc88d772657461e101328c67bd2ce6ad56e26c5c55f4663"
+    },
+    {
+      "category": "unit-7b-r4-trace",
+      "label": "Group 7 recovery",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--c1a0f-d-timeout-and-supports-seek-donor-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/r4/r4-g7-R4-group7-education--c1a0f-d-timeout-and-supports-seek-donor-mobile-webkit/trace.zip",
+      "sha256": "ad40c2b589bc59b16ee87c46e338c3a4c696404cec11d57cba6c466028bdb088"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Lab PNG",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-lab-donor-v36-mobile-webkit/lab.png",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-lab-donor-v36-mobile-webkit/lab.png",
+      "sha256": "af5c4ee5f2ef96fe392997187a02893ff98b27cb8a5b95dacfaa3570e4969f1e"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Lab trace",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-lab-donor-v36-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-lab-donor-v36-mobile-webkit/trace.zip",
+      "sha256": "48b8efbf94ca0b55dbf80165791ebcbc6349a833c57f35055adda45b75deb145"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Lab video",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-lab-donor-v36-mobile-webkit/video.webm",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-lab-donor-v36-mobile-webkit/video.webm",
+      "sha256": "99a4bb8f09c560b836cd246288166522765b0cc91a192d758cdf3f2ca65534cf"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "PH PNG",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-ph-animation-donor-v36-mobile-webkit/ph-animation.png",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-ph-animation-donor-v36-mobile-webkit/ph-animation.png",
+      "sha256": "7a36814c3ad40fe358dac35dbb4cc99359966fdcadbdc314e99b1764f7b33b1e"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "PH trace",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-ph-animation-donor-v36-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-ph-animation-donor-v36-mobile-webkit/trace.zip",
+      "sha256": "4646a3677f4077c9fcb933b6afe9742704c692e1e4359fbe12e37b5b9d4403dc"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "PH video",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-ph-animation-donor-v36-mobile-webkit/video.webm",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-ph-animation-donor-v36-mobile-webkit/video.webm",
+      "sha256": "238d5c4b9cb7199ddfe6a35a15a34eb13ff655b78eb76cb9fdb15647455a8bc2"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Education PNG",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-education-donor-v36-mobile-webkit/education.png",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-education-donor-v36-mobile-webkit/education.png",
+      "sha256": "04ab6da828d6c9a20f26b224fd82e1c31dacfa6b93a17317c0b572d37b1f060f"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Education trace",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-education-donor-v36-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-education-donor-v36-mobile-webkit/trace.zip",
+      "sha256": "d760131eb0776440826d55c86b03645fd16674d29036916c17d38b0a5c9842aa"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Education video",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-education-donor-v36-mobile-webkit/video.webm",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-education-donor-v36-mobile-webkit/video.webm",
+      "sha256": "3d96eece0669835b2b2f3373d8a8506b49504f389478f0ddf9eb62a7b9b67807"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Crane PNG",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-crane-animation-donor-v36-mobile-webkit/crane-animation.png",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-crane-animation-donor-v36-mobile-webkit/crane-animation.png",
+      "sha256": "976719cafcf0869e89d7b8ea374eff0200e86023f27c4733615fb984ed20f438"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Crane trace",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-crane-animation-donor-v36-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-crane-animation-donor-v36-mobile-webkit/trace.zip",
+      "sha256": "9fbfb6ea19e9d6aa499d329c42dcfcab8774370103001bc1d7a7aea2868597f7"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Crane video",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-crane-animation-donor-v36-mobile-webkit/video.webm",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-crane-animation-donor-v36-mobile-webkit/video.webm",
+      "sha256": "15ee6e15f917b1b6da8704d28c1f2d5c42331ceb0d251c9d0db7d738737c2b70"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Contact PNG",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-contact-donor-v36-mobile-webkit/contact.png",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-contact-donor-v36-mobile-webkit/contact.png",
+      "sha256": "fa0eb72c8745764891a4d727b336e11d61d1a6e05df8002d4be3d06c10ec8983"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Contact trace",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-contact-donor-v36-mobile-webkit/trace.zip",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-contact-donor-v36-mobile-webkit/trace.zip",
+      "sha256": "9a9874878d816483bec0092faf6113d4ca153d14320c1a6362d5b81674fd93f6"
+    },
+    {
+      "category": "unit-7b-v36-capture",
+      "label": "Contact video",
+      "originalPath": "/private/tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-contact-donor-v36-mobile-webkit/video.webm",
+      "archivePath": "raw/private-tmp/r5-phone-c808-evidence/v36/v36-donor-capture-captures-v36-contact-donor-v36-mobile-webkit/video.webm",
+      "sha256": "0e2fded8f9e1c06cfd2b4698df0853f549d078ae8af57b80bfd4878454c2ad87"
+    }
+  ],
+  "sourceArtifacts": [
+    {
+      "archivePath": "sources/r5-baseline-provenance.mjs",
+      "origin": "/private/tmp/r5-baseline-provenance.mjs",
+      "preservation": "byte-copy",
+      "sha256": "807ee52dc6d0579aec43ca6cacf81e5b04b8a469c08edf37dd794a022eb3b1bc"
+    },
+    {
+      "archivePath": "sources/formal-route-reference.spec.ts",
+      "origin": "/private/tmp/r5-formal-capture/formal-route-reference.spec.ts",
+      "preservation": "byte-copy; matches trace resource src@19c2b1f1...",
+      "sha256": "06678e0a7f45ea685bd53da6e1b35e815a42885338d5c2dfbabe1d07339d7dab"
+    },
+    {
+      "archivePath": "sources/playwright.formal-reference.config.ts",
+      "origin": "/private/tmp/r5-formal-capture/playwright.config.ts",
+      "preservation": "byte-copy",
+      "sha256": "01eead4eed7f4d84414fc45323ad2bc9fa240657e33c886184714c304b4e364c"
+    },
+    {
+      "archivePath": "sources/v36-donor-capture.spec.ts",
+      "origin": "resources/src@21ec6a3e... in each of five v36 trace.zip files",
+      "preservation": "byte-recovered from trace; all five resources matched",
+      "sha256": "c1d8d1b4adeee268547161f9bfec1b5cb756eebc70fc5bf29a299ed1d86e7541"
+    },
+    {
+      "archivePath": "sources/playwright.v36-donor.config.ts",
+      "origin": "untracked donor config removed with detached worktree",
+      "preservation": "reconstructed from trace context, recorded command, port, device, and options",
+      "sha256": "b3d8e6fb451bddefb9b572d796d87ea6bb17b6ab6dddceaf76d02af2a83ef217"
+    },
+    {
+      "archivePath": "sources/playwright.donor.config.ts",
+      "origin": "authoritative Task 0 Step 0.6 config",
+      "preservation": "reconstructed byte-for-byte from the plan listing",
+      "sha256": "ccd44fee252903307b326c2ce194ef2bd23e0c8f3f286a75bfaaca69256b678c"
+    },
+    {
+      "archivePath": "sources/r4-g6.spec.ts",
+      "origin": "c808e06144bd0368ce508001f313c801517dcdd0:app/e2e/r4-g6.spec.ts",
+      "preservation": "git object byte-copy",
+      "sha256": "467be66c16504f0bae52c659176f8428061f016e7cba53d4f3e29ee03e4aab9e"
+    },
+    {
+      "archivePath": "sources/r4-g7.spec.ts",
+      "origin": "c808e06144bd0368ce508001f313c801517dcdd0:app/e2e/r4-g7.spec.ts",
+      "preservation": "git object byte-copy",
+      "sha256": "1c0a8c5b436e79ccf91e0d2639de7bb37b6f857f4e3af0358eb3fc65ab99250e"
+    },
+    {
+      "archivePath": "sources/endpoint-parity.ts",
+      "origin": "c808e06144bd0368ce508001f313c801517dcdd0:app/e2e/endpoint-parity.ts",
+      "preservation": "git object byte-copy",
+      "sha256": "b0b83bdffa2e4a4b223f26ff1b41ac6795e88f25af99e9e0a53f7fa730a9bb3a"
+    },
+    {
+      "archivePath": "sources/r5-phone-story.spec.ts",
+      "origin": "e70fc984920996ce2c87d2d0486a1aa042c159c8:app/e2e/r5-phone-story.spec.ts",
+      "preservation": "git object byte-copy",
+      "sha256": "646349f972ed0e97a0ea02170ffccc578af3eef934ca244e0f527a32c1246f4e"
+    },
+    {
+      "archivePath": "sources/playwright.release.config.ts",
+      "origin": "e70fc984920996ce2c87d2d0486a1aa042c159c8:app/playwright.release.config.ts",
+      "preservation": "git object byte-copy",
+      "sha256": "b308023e9bc4b1f00ca2ba8c57c50821d8a34359aff658be07461a8ffc5b0683"
+    }
+  ],
+  "archiveInventory": {
+    "sha256Sums": "SHA256SUMS",
+    "sha256SumsSha256": "4e9f18c27edf5a66a2ee3de4deee688db3089ab6f3093ad3db73ab9669c79437",
+    "fileCount": 227,
+    "totalBytes": 217091751,
+    "scope": "Every raw archived file, README, verifier, and preserved source; manifest.json and SHA256SUMS are excluded to avoid self-reference."
+  }
+}

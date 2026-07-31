@@ -1265,8 +1265,18 @@ do not switch, merge, or cherry-pick it into the clean branch:
 ```bash
 git worktree add --detach /private/tmp/r5-phone-c808-donor c808e06
 pnpm -C /private/tmp/r5-phone-c808-donor/app install --frozen-lockfile
-VITE_ENABLE_HARNESS=1 pnpm -C /private/tmp/r5-phone-c808-donor/app build
+pnpm -C /private/tmp/r5-phone-c808-donor/app typecheck
+VITE_ENABLE_HARNESS=1 \
+  pnpm -C /private/tmp/r5-phone-c808-donor/app exec vite build
 ```
+
+Do **not** run the package `build` wrapper with `VITE_ENABLE_HARNESS=1`.
+That wrapper successfully emits the Vite harness artifact and then
+deterministically fails `verify-release-build.mjs`, because the release
+verifier correctly rejects the donor-only `Group1Harness` marker. The raw
+Vite command above, after typecheck, is the only allowed donor-harness build
+path. A historical package-build log must record this verifier rejection as
+expected; it must not be retried or treated as a clean-base failure.
 
 Do **not** use `playwright.release.config.ts`: at this base its
 `testMatch='**/r5-*.spec.ts'` silently excludes both R4 files, and preview also
@@ -1326,7 +1336,26 @@ Record Unit 4–7A formal evidence and Unit 7B Group 6–7 evidence in separate
 report sections. Remove the disposable worktree only after hashes are
 recorded; its absence must not affect the clean worktree.
 
-- [x] **Step 0.6A: Disposition the complete existing R5 release suite**
+- [x] **Step 0.6A: Persist donor evidence outside mutable test output**
+
+Before any Task 1 Playwright command, copy all formal `app/test-results`
+artifacts and all Group 6–7 `/private/tmp` artifacts into:
+
+```text
+artifacts/react-refactor/r5-phone-clean-runtime-task0/
+```
+
+Large raw binaries may remain Git-ignored, but this directory must retain a
+versioned `manifest.json`, unified `SHA256SUMS`, and an executable verifier.
+The manifest must map every report artifact from its original path to its
+persistent archive path and record `e70fc984`, `c808e06`, tool versions, file
+sizes, and hashes. Preserve the provenance script, R4/v36 specs and configs,
+and supplemental recorder/config; a recorder source may be recovered
+byte-for-byte from its trace. The verifier must prove all **44** report hashes
+and the complete archive inventory without rerunning either donor. A missing
+raw archive, source, path mapping, or hash blocks Task 1.
+
+- [x] **Step 0.6B: Disposition the complete existing R5 release suite**
 
 Before new phone specs are added, `playwright.release.config.ts` collects
 exactly these eight existing files:
@@ -1405,6 +1434,21 @@ git add docs/react-refactor/reports/r5-phone-clean-runtime-baseline.md \
 git commit -m "docs(r5): lock clean phone convergence baseline"
 ```
 
+- [x] **Step 0.10: Close Review 1 evidence-durability findings**
+
+Archive the mutable Playwright and `/private/tmp` evidence per Step 0.6A,
+replace the contradictory donor package-build command with the successful
+typecheck/raw-Vite path, verify all hashes, and commit the review correction:
+
+```bash
+node artifacts/react-refactor/r5-phone-clean-runtime-task0/verify-evidence.mjs
+git add .gitignore \
+  artifacts/react-refactor/r5-phone-clean-runtime-task0 \
+  docs/react-refactor/reports/r5-phone-clean-runtime-baseline.md \
+  docs/superpowers/plans/2026-07-30-r5-phone-clean-runtime-convergence.md
+git commit -m "docs(r5): preserve clean runtime baseline evidence"
+```
+
 **Task 0 acceptance:**
 
 - branch and worktree match this plan;
@@ -1417,6 +1461,8 @@ git commit -m "docs(r5): lock clean phone convergence baseline"
   cutover/project disposition;
 - Unit 4–7A formal and detached Unit 7B v36/R4 evidence are separate and
   correctly scoped;
+- the persistent archive verifier proves all 44 report hashes and every
+  archived raw/source file without rerunning a donor;
 - donor-only discovery finds and then executes exactly seven R4 Group 6–7
   WebKit tests after building the detached harness;
 - no production source has changed.
@@ -1427,6 +1473,14 @@ git commit -m "docs(r5): lock clean phone convergence baseline"
 
 This task does not import a later runtime. It ports small, reviewed rendering
 and verification behavior into the clean base.
+
+Before Step 1.1, rerun:
+
+```bash
+node artifacts/react-refactor/r5-phone-clean-runtime-task0/verify-evidence.mjs
+```
+
+Any missing raw artifact, source, manifest mapping, or hash blocks Task 1.
 
 **Create:**
 
