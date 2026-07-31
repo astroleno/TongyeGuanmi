@@ -277,6 +277,7 @@ export type PhoneTransaction<
   requiredPrepared: readonly PhoneEvidenceSlot<SceneId, SegmentId>[];
   requiredFinal: readonly PhoneEvidenceSlot<SceneId, SegmentId>[];
   evidence: readonly PhoneEvidenceRecord[];
+  closure: PhoneDependencyClosure;
   dependencies: readonly PhoneDependencyRef[];
   requestedEntry: PhoneEntryRequest;
   canonicalPathname: string;
@@ -291,6 +292,7 @@ export type PhoneTransaction<
   claimedPhysicalEpoch: number | null;
   activation: 'none' | 'offered' | 'spent' | 'awaiting';
   retainedTopology: boolean;
+  reducedMotion: boolean;
   failure: PhoneFailure | null;
 }>;
 
@@ -373,6 +375,7 @@ export type PhoneStoryEvent =
       type: 'segment-requested';
       direction: PhoneDirection;
       physicalEpoch: number;
+      reducedMotion?: boolean;
     }>
   | Readonly<{
       type: 'evidence-reported';
@@ -455,7 +458,8 @@ export type PhoneStoryEffect =
       credit: PhoneActivationCredit;
       surfaceIds: readonly PhoneSurfaceId[];
     }>
-  | Readonly<{ type: 'show-activation-cta'; attempt: PhoneAttemptKey; enabled: boolean }>;
+  | Readonly<{ type: 'show-activation-cta'; attempt: PhoneAttemptKey; enabled: boolean }>
+  | Readonly<{ type: 'defer-entry'; request: PhoneEntryRequest }>;
 
 export type PhoneReduceResult<
   SceneId extends string = string,

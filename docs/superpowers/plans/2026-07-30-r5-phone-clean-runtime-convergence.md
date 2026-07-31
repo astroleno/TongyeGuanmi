@@ -2463,7 +2463,7 @@ git commit -m "feat(r5): establish phone entry transaction machine"
 
 ### Slice 4B — segment transactions, rollback, and terminal fault
 
-- [ ] **Step 4B.1: Write the RED 15 × 2 transaction/closure matrix**
+- [x] **Step 4B.1: Write the RED 15 × 2 transaction/closure matrix**
 
 For every segment direction, visit every canonical staged stop:
 
@@ -2485,7 +2485,7 @@ visible-proof ordering, and no commit without all slots. Figure2 distance,
 TTG → Lab, and PH → Education must use canonical timing/gesture policies.
 Reduced motion skips sampling only, not proof or closure.
 
-- [ ] **Step 4B.2: Write RED failure/deadline/fault tests**
+- [x] **Step 4B.2: Write RED failure/deadline/fault tests**
 
 Inject failure at scene/transition load, mount, content, media preparation,
 first frame, playback, plane, coverage, landing, scroll, post-paint, and every
@@ -2502,13 +2502,13 @@ deadline with either a still-proven source or opaque safe cover plus retry.
 There may be no unbounded `rolling-back`. Rewrite `e883784` behavioral cases
 against this machine; do not copy its runtime.
 
-- [ ] **Step 4B.3: Implement segment/rollback/faulted reduction**
+- [x] **Step 4B.3: Implement segment/rollback/faulted reduction**
 
 All transaction modes remain in the same reducer. Named deadline effects come
 from manifest policy. A dwell deadline proves only dwell; it cannot synthesize
 frame, content, plane, or stable evidence.
 
-- [ ] **Step 4B.4: Verify and commit Slice 4B**
+- [x] **Step 4B.4: Verify and commit Slice 4B**
 
 ```bash
 pnpm -C app exec vitest run src/production/phone-story/machine.test.ts \
