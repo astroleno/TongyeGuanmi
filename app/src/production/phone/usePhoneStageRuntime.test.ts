@@ -70,4 +70,27 @@ describe('phone stage AOD resource selection', () => {
       'options.methodRef.current?.presentPresentation?.(token, report);'
     );
   });
+
+  it('[Method↔AOD admission lease] keeps the front boundary and AOD runner out of renderer rebinds', () => {
+    const frontRailRegistration = stageRuntimeSource.indexOf(
+      "'front-rail'"
+    );
+    const effectStart = stageRuntimeSource.lastIndexOf(
+      '  useLayoutEffect(() => {',
+      frontRailRegistration
+    );
+    const dependencyStart = stageRuntimeSource.indexOf(
+      '\n  }, [',
+      frontRailRegistration
+    );
+    const dependencyEnd = stageRuntimeSource.indexOf(']);', dependencyStart) + 3;
+    const admissionEffect = stageRuntimeSource.slice(effectStart, dependencyEnd);
+
+    expect(effectStart).toBeGreaterThanOrEqual(0);
+    expect(admissionEffect).toContain('registerPhoneRuntimeSampledScrollCorridor(');
+    expect(admissionEffect).toContain('registerPhoneRuntimeAodCapability(');
+    // A leaf handle can temporarily disappear while React rebinds a renderer.
+    // That must never remove the Method → AOD input boundary or its one runner.
+    expect(admissionEffect).not.toContain('options.adapterRevision');
+  });
 });

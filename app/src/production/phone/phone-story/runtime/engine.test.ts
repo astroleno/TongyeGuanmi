@@ -1151,6 +1151,69 @@ describe('single phone story projector transaction', () => {
     });
   });
 
+  it('[Method↔AOD admission lifetime] keeps the front reverse boundary through a sibling corridor remount', () => {
+    const methodBoundary = 3_162;
+    let starts = 0;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'method-top',
+      scrollY: () => methodBoundary + 1,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerRunCapability('aod-method', 'aod:method', capability(
+      methodBoundary,
+      () => {
+        starts += 1;
+      }
+    ));
+    const frontLease = orchestrator.registerScrollCorridor({
+      id: 'front-rail',
+      scenes: ['hero', 'pattern', 'star-map', 'aod-animation'],
+      sample: () => null,
+      boundary: (run, direction) => (
+        run === 'aod-method' && direction === -1 ? methodBoundary : null
+      ),
+      landing: () => methodBoundary
+    });
+    const firstGradeALease = orchestrator.registerScrollCorridor({
+      id: 'method-grade-a',
+      scenes: ['method-top', 'figure2-animation', 'figure2-proof'],
+      sample: () => null,
+      boundary: () => null,
+      landing: () => methodBoundary
+    });
+
+    // Grade A can remount a renderer while Method is the stable selected
+    // corridor. The independent front admission lease must remain available.
+    firstGradeALease.dispose();
+    orchestrator.registerScrollCorridor({
+      id: 'method-grade-a',
+      scenes: ['method-top', 'figure2-animation', 'figure2-proof'],
+      sample: () => null,
+      boundary: () => null,
+      landing: () => methodBoundary
+    });
+
+    expect(orchestrator.resolveIntent([
+      1,
+      -1,
+      methodBoundary + 1,
+      methodBoundary - 249
+    ])).toBe('claim-boundary');
+    expect(starts).toBe(1);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        operation: {
+          run: 'aod-method',
+          direction: -1,
+          from: 'method-top',
+          to: 'aod-animation'
+        }
+      }
+    });
+    frontLease.dispose();
+  });
+
   it('does not publish a next snapshot when a connected root disconnects during preflight', () => {
     const root = Object.assign(element(), { isConnected: true });
     const orchestrator = createPhoneStoryOrchestrator({

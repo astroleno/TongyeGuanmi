@@ -243,7 +243,12 @@ export function usePhoneStageRuntime(
     if (options.enabled && options.snapshot[9] === 'preparing') {
       syncPhoneRuntimeDiagnostics(options.orchestrator);
     }
-  }, [options.enabled, options.orchestrator, options.snapshot]);
+  }, [
+    options.adapterRevision,
+    options.enabled,
+    options.orchestrator,
+    options.snapshot
+  ]);
 
   /**
    * Surface identity outlives renderer capabilities. React may clear and
@@ -349,43 +354,18 @@ export function usePhoneStageRuntime(
   }, [options.orchestrator]);
 
   useLayoutEffect(() => {
-    syncPhoneRuntimeDiagnostics(options.orchestrator);
-  }, [options.adapterRevision, options.orchestrator]);
-
-  useLayoutEffect(() => {
     if (!options.enabled) return;
     const root = options.rootRef.current;
     const stageRail = options.railRef.current;
     const stage = options.stageRef.current;
-    const heroAdapter = options.heroRef.current;
-    const patternAdapter = options.patternRef.current;
-    const starAdapter = options.starMapRef.current;
-    const aodAdapter = options.aodRef.current;
-    const methodAdapter = options.methodRef.current;
-    const heroPatternAdapter = options.heroPatternRef.current;
-    const patternStarAdapter = options.patternStarMapRef.current;
-    const starAodAdapter = options.starMapAodRef.current;
-    const heroScene = heroAdapter?.root();
-    const patternScene = patternAdapter?.root();
-    const starScene = starAdapter?.root();
-    const aodScene = aodAdapter?.root();
     if (
       !root
       || !stageRail
       || !stage
-      || !heroAdapter
-      || !patternAdapter
-      || !starAdapter
-      || !aodAdapter
-      || !methodAdapter
-      || !heroPatternAdapter
-      || !patternStarAdapter
-      || !starAodAdapter
-      || !heroScene
-      || !patternScene
-      || !starScene
-      || !aodScene
     ) return;
+    const heroRef = options.heroRef;
+    const aodRef = options.aodRef;
+    const methodRef = options.methodRef;
 
     let active = true;
     let stageScrollStart = 0;
@@ -415,8 +395,25 @@ export function usePhoneStageRuntime(
       if (!active) return;
       syncAodRuntime();
 
+      const heroAdapter = heroRef.current;
+      const patternAdapter = options.patternRef.current;
+      const starAdapter = options.starMapRef.current;
+      const aodAdapter = aodRef.current;
+      const methodAdapter = methodRef.current;
+      const heroPatternAdapter = options.heroPatternRef.current;
+      const patternStarAdapter = options.patternStarMapRef.current;
+      const starAodAdapter = options.starMapAodRef.current;
+
       const stageProgress = frontProgressForSnapshot(snapshot);
-      if (stageProgress !== null) {
+      if (
+        stageProgress !== null
+        && heroAdapter
+        && patternAdapter
+        && starAdapter
+        && heroPatternAdapter
+        && patternStarAdapter
+        && starAodAdapter
+      ) {
         const frame = phoneStageFrame(stageProgress, options.reducedMotion);
         const [, , , heroProgress, patternProgress, starProgress] = frame;
         if (import.meta.env.DEV) {
@@ -430,7 +427,11 @@ export function usePhoneStageRuntime(
           patternStar: patternStarAdapter,
           starAod: starAodAdapter
         });
-        if (options.reducedMotion && stageProgress >= PHONE_STAGE_STOPS.starAodEnd) {
+        if (
+          options.reducedMotion
+          && stageProgress >= PHONE_STAGE_STOPS.starAodEnd
+          && aodAdapter
+        ) {
           aodAdapter.update(1);
         }
         if (stageProgress > 0.003 && !completedHeroEntrance) {
@@ -453,7 +454,7 @@ export function usePhoneStageRuntime(
         sessionProgress,
         status
       ] = snapshot;
-      if (status === 'transaction' && run === 'aod-method') {
+      if (status === 'transaction' && run === 'aod-method' && methodAdapter) {
         const progress = sessionProgress ?? 0;
         methodAdapter.update(options.mapAodToMethod(progress));
       }
@@ -470,14 +471,12 @@ export function usePhoneStageRuntime(
     window.addEventListener('resize', refreshStageGeometry);
     window.addEventListener('orientationchange', refreshStageGeometry);
 
-    const effectLeases = [
-      registerPhoneRuntimeEffect(
-        options.orchestrator,
-        'aod-to-method',
-        () => aodAdapter.root(),
-        () => aodAdapter.effectRoot?.() ?? null
-      )
-    ];
+    const effectLease = registerPhoneRuntimeEffect(
+      options.orchestrator,
+      'aod-to-method',
+      () => aodRef.current?.root() ?? null,
+      () => aodRef.current?.effectRoot?.() ?? null
+    );
     const corridorLease = registerPhoneRuntimeSampledScrollCorridor(
       options.orchestrator,
       'front-rail',
@@ -540,61 +539,55 @@ export function usePhoneStageRuntime(
           && snapshot[7] === direction
           && snapshot[9] === 'preparing';
       },
-      (execution) => aodAdapter.startAutoplay(execution),
-      (execution) => aodAdapter.releaseAutoplayAdmission(execution),
-      () => aodAdapter.resetAutoplay(),
+      (execution) => {
+        const aodAdapter = aodRef.current;
+        return aodAdapter
+          ? aodAdapter.startAutoplay(execution)
+          : Promise.resolve('error');
+      },
+      (execution) => {
+        const aodAdapter = aodRef.current;
+        if (aodAdapter) aodAdapter.releaseAutoplayAdmission(execution);
+      },
+      () => {
+        const aodAdapter = aodRef.current;
+        if (aodAdapter) aodAdapter.resetAutoplay();
+      },
       options.reducedMotion,
       {
         present(execution, report) {
+          const methodAdapter = methodRef.current;
+          const aodAdapter = aodRef.current;
           const target = execution[1] === 1 ? methodAdapter : aodAdapter;
-          if (!target.presentPresentation) return false;
+          if (!target?.presentPresentation) return false;
           target.presentPresentation(execution[0], report);
           return true;
         },
         dispose(execution) {
+          const methodAdapter = methodRef.current;
+          const aodAdapter = aodRef.current;
           const target = execution[1] === 1 ? methodAdapter : aodAdapter;
-          target.disposePresentation?.(execution[0]);
+          target?.disposePresentation?.(execution[0]);
         }
       }
     );
 
-    const emitAodProgress = (
-      progress: number,
-      execution: PhoneAodExecution
-    ) => {
-      observeAodMediaProgress(progress, execution);
-    };
-    const emitAodFrame = (
-      frame: PhoneRenderedPresentationFrame,
-      execution: PhoneAodExecution
-    ) => {
-      reportAodCompositorFrame(frame, execution);
-    };
-    const completeAod = (
-      execution: PhoneAodExecution
-    ) => {
-      completeAodRun(execution);
-    };
-    const failAod = (
-      execution: PhoneAodExecution,
-      reason: 'aod-context-lost' | 'media-failed'
-    ) => {
-      failAodRun(execution, reason);
-    };
-    progressHandlerRef.current = emitAodProgress;
-    completeHandlerRef.current = completeAod;
-    frameHandlerRef.current = emitAodFrame;
-    failureHandlerRef.current = failAod;
+    progressHandlerRef.current = observeAodMediaProgress;
+    completeHandlerRef.current = completeAodRun;
+    frameHandlerRef.current = reportAodCompositorFrame;
+    failureHandlerRef.current = failAodRun;
 
     const pointerTargetIsPermissionButton = (event: Event) => (
       event.target instanceof Element
       && Boolean(event.target.closest('[data-portrait-gyro-permission]'))
     );
     const onHeroPointerDown = (event: PointerEvent) => {
-      if (!pointerTargetIsPermissionButton(event)) heroAdapter.unlockFromGesture();
+      if (!pointerTargetIsPermissionButton(event)) {
+        heroRef.current?.unlockFromGesture();
+      }
     };
     const onHeroClick = (event: Event) => {
-      heroAdapter.unlockFromGesture();
+      heroRef.current?.unlockFromGesture();
       if (pointerTargetIsPermissionButton(event)) requestPortraitFullscreen(root);
     };
     root.addEventListener('pointerdown', onHeroPointerDown, { passive: true });
@@ -618,18 +611,20 @@ export function usePhoneStageRuntime(
     renderSnapshotRef.current = renderSnapshot;
     renderSnapshot(snapshotRef.current);
     if (frontProgressForSnapshot(snapshotRef.current) === 0) {
-      heroAdapter.startEntrance();
+      const heroAdapter = heroRef.current;
+      if (heroAdapter) heroAdapter.startEntrance();
     }
 
     return () => {
       active = false;
       if (renderSnapshotRef.current === renderSnapshot) renderSnapshotRef.current = undefined;
-      if (progressHandlerRef.current === emitAodProgress) progressHandlerRef.current = undefined;
-      if (completeHandlerRef.current === completeAod) completeHandlerRef.current = undefined;
-      if (frameHandlerRef.current === emitAodFrame) frameHandlerRef.current = undefined;
-      if (failureHandlerRef.current === failAod) failureHandlerRef.current = undefined;
+      if (progressHandlerRef.current === observeAodMediaProgress) progressHandlerRef.current = undefined;
+      if (completeHandlerRef.current === completeAodRun) completeHandlerRef.current = undefined;
+      if (frameHandlerRef.current === reportAodCompositorFrame) frameHandlerRef.current = undefined;
+      if (failureHandlerRef.current === failAodRun) failureHandlerRef.current = undefined;
       disposeAodRuntime();
-      heroAdapter.cancelEntrance();
+      const heroAdapter = heroRef.current;
+      if (heroAdapter) heroAdapter.cancelEntrance();
       window.cancelAnimationFrame(refreshFrame);
       window.removeEventListener('load', refresh);
       window.removeEventListener('resize', refreshStageGeometry);
@@ -640,7 +635,7 @@ export function usePhoneStageRuntime(
       root.removeEventListener('click', onHeroClick);
       releaseMediaGestureLease();
       corridorLease.dispose();
-      for (const lease of effectLeases) lease.dispose();
+      effectLease.dispose();
       if (import.meta.env.DEV) {
         delete root.dataset.portraitSpikeMotionState;
         delete root.dataset.portraitStagePin;
@@ -648,9 +643,7 @@ export function usePhoneStageRuntime(
       }
     };
   }, [
-    options.adapterRevision,
     options.enabled,
-    options.mapAodToMethod,
     options.orchestrator,
     options.reducedMotion
   ]);
