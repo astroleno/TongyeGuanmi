@@ -329,6 +329,90 @@ describe('PhoneFigure3', () => {
     )).toBe('discard-stale-target');
   });
 
+  it('[Group45 reverse admission] forwards the exact prepared canvas token before playback owns the decoder', () => {
+    type Target = Readonly<{
+      endpoint: 0 | 1;
+      direction: 1 | -1;
+      generation: number;
+      runId: string;
+      token: PresentationToken;
+      signal: AbortSignal;
+    }>;
+    type Preparation = Readonly<{
+      endpoint: 0 | 1;
+      runId: string;
+    }>;
+
+    const controller = new AbortController();
+    const token: PresentationToken = {
+      authorityId: 'authority',
+      sessionId: 'session',
+      generation: 42,
+      leg: 1,
+      revision: 43,
+      subject: 'group45:figure3',
+      kind: 'packed-canvas-frame'
+    };
+    const execution: PhoneExecutionToken = [
+      token.authorityId,
+      token.sessionId!,
+      token.generation,
+      token.leg!,
+      -1,
+      token
+    ];
+    const target: Target = {
+      endpoint: 1,
+      direction: -1,
+      generation: token.generation,
+      runId: phoneRuntimePresentationTokenKey(token),
+      token,
+      signal: controller.signal
+    };
+    const preparation: Preparation = {
+      endpoint: target.endpoint,
+      runId: target.runId
+    };
+
+    // The runner has bound the raw leg token, but has not yet started reverse
+    // playback. The canvas paint that prepared the endpoint is the only fact
+    // allowed to admit this leg; waiting for a later reverse tick deadlocks
+    // WebKit after a released Figure3 resource.
+    expect(phoneFigure3TargetPresentationLease(
+      target,
+      'release',
+      execution,
+      {
+        endpoint: preparation.endpoint,
+        presentationKey: preparation.runId
+      }
+    )).toBe('play-reverse');
+    expect(phoneFigure3TargetPresentationLease(target, 'release', execution, {
+      ...preparation,
+      presentationKey: 'stale-endpoint'
+    })).not.toBe('play-reverse');
+    expect(phoneFigure3TargetPresentationLease({
+      ...target,
+      token: {
+        ...token,
+        leg: 0,
+        subject: 'group45:effect',
+        kind: 'effect-frame'
+      },
+      runId: 'authority|session|42|0|42|group45%3Aeffect|effect-frame'
+    }, 'release', execution, {
+      endpoint: 0,
+      presentationKey: 'authority|session|42|0|42|group45%3Aeffect|effect-frame'
+    })).not.toBe('play-reverse');
+    const reportExecution = phoneFigure3Source.slice(
+      phoneFigure3Source.indexOf('const reportExecutionFrame'),
+      phoneFigure3Source.indexOf('const registerHandle')
+    );
+    expect(reportExecution).toContain('phoneFigure3TargetPresentationLease(');
+    expect(reportExecution).toContain("=== 'play-reverse'");
+    expect(reportExecution).toContain('? target.token');
+  });
+
   it('[Group45 hard cutover] permits only the declared effect-to-canvas forward lineage', () => {
     type Target = Readonly<{
       endpoint: 0 | 1;

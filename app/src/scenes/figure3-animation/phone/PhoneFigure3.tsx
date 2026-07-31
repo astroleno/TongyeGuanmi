@@ -188,7 +188,6 @@ export type PhoneFigure3Endpoint = 0 | 1;
 export type PhoneFigure3TargetPreparation = Readonly<{
   endpoint: PhoneFigure3Endpoint;
   direction: 1 | -1;
-  generation: number;
   runId: string;
   /** Immutable proof identity that owns this physical endpoint preparation. */
   token: PresentationToken;
@@ -258,7 +257,6 @@ export function phoneFigure3TargetPreparationAction(
   if (!endpointRuntimeReady) return 'wait-for-runtime';
   return target?.endpoint === armed?.endpoint
     && target?.direction === armed?.direction
-    && target?.generation === armed?.generation
     && target?.runId === armed?.runId
     ? 'already-armed'
     : 'arm-current';
@@ -519,14 +517,24 @@ export const PhoneFigure3 = forwardRef<
     });
   }, []);
   const reportExecutionFrame = useCallback(() => {
-    const identity = runIdentityRef.current;
-    const token = identity?.[5];
-    if (
-      !identity
-      || !token
-      || !activeRef.current
-      || mediaRetiringRef.current
-    ) return;
+    const target = targetPreparationRef.current;
+    const preparation = endpointPreparationRef.current;
+    const token = runIdentityRef.current?.[5] || (
+      target
+      && preparation
+      && phoneFigure3TargetPresentationLease(
+        target,
+        'release',
+        executionRef.current,
+        {
+          endpoint: preparation.endpoint,
+          presentationKey: preparation.runId
+        }
+      ) === 'play-reverse'
+        ? target.token
+        : null
+    );
+    if (!token || !activeRef.current || mediaRetiringRef.current) return;
     const key = phoneRuntimePresentationTokenKey(token);
     const prior = executionFrameRef.current;
     const next = {
@@ -613,7 +621,7 @@ export const PhoneFigure3 = forwardRef<
     presentationBindingRef.current = null;
     executionFrameRef.current = null;
     if (endpointFallbackTimerRef.current) {
-      window.clearTimeout(endpointFallbackTimerRef.current);
+      clearTimeout(endpointFallbackTimerRef.current);
       endpointFallbackTimerRef.current = 0;
     }
     clearEndpointPresentation();
@@ -727,7 +735,7 @@ export const PhoneFigure3 = forwardRef<
     }
 
     if (endpointFallbackTimerRef.current) {
-      window.clearTimeout(endpointFallbackTimerRef.current);
+      clearTimeout(endpointFallbackTimerRef.current);
       endpointFallbackTimerRef.current = 0;
     }
     const onPresented = preparation.onPresented;
@@ -782,7 +790,7 @@ export const PhoneFigure3 = forwardRef<
 
     const generation = ++endpointGenerationRef.current;
     if (endpointFallbackTimerRef.current) {
-      window.clearTimeout(endpointFallbackTimerRef.current);
+      clearTimeout(endpointFallbackTimerRef.current);
       endpointFallbackTimerRef.current = 0;
     }
     const runId = preferredRunId ?? (
@@ -1010,7 +1018,7 @@ export const PhoneFigure3 = forwardRef<
         endpointPreparationRef.current = null;
         requestedEndpointRef.current = null;
         if (endpointFallbackTimerRef.current) {
-          window.clearTimeout(endpointFallbackTimerRef.current);
+          clearTimeout(endpointFallbackTimerRef.current);
           endpointFallbackTimerRef.current = 0;
         }
         clearEndpointPresentation();
@@ -1310,7 +1318,6 @@ export const PhoneFigure3 = forwardRef<
     const target: PhoneFigure3TargetPreparation = {
       endpoint,
       direction: request.direction,
-      generation: presentationToken.generation,
       // Endpoint preparation is a physical-frame operation. Its media run
       // must change whenever the presentation proof revision changes.
       runId: presentationKey,
@@ -1340,7 +1347,7 @@ export const PhoneFigure3 = forwardRef<
         endpointPreparationRef.current = null;
         requestedEndpointRef.current = null;
         if (endpointFallbackTimerRef.current) {
-          window.clearTimeout(endpointFallbackTimerRef.current);
+          clearTimeout(endpointFallbackTimerRef.current);
           endpointFallbackTimerRef.current = 0;
         }
         clearEndpointPresentation();
