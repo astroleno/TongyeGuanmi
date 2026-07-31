@@ -103,6 +103,58 @@ describe('PhoneFigure3', () => {
     expect(phoneFigure3CanStartPreparedRun(-1, 1)).toBe(true);
   });
 
+  it('[Group45 reverse admission] carries the immutable target key from endpoint paint into reverse decoder start', () => {
+    type Target = Readonly<{
+      runId: string;
+    }>;
+    type Plan = Readonly<{
+      endpoint: 0 | 1;
+      preparationDirection: 1 | -1;
+      preparationKey: string | undefined;
+      timelineRunId: string | undefined;
+    }>;
+    type Prepare = (
+      direction: 1 | -1,
+      target: Target
+    ) => Plan;
+    const prepare = (
+      PhoneFigure3Module as typeof PhoneFigure3Module & Readonly<{
+        phoneFigure3RunStartPreparation?: Prepare;
+      }>
+    ).phoneFigure3RunStartPreparation;
+
+    expect(prepare).toBeTypeOf('function');
+    if (!prepare) return;
+
+    const target = {
+      runId: 'authority|session|602|1|603|group45%3Afigure3|packed-canvas-frame'
+    } as const;
+    const reverse = prepare(-1, target);
+
+    expect(reverse).toEqual({
+      endpoint: 1,
+      preparationDirection: -1,
+      preparationKey: target.runId,
+      timelineRunId: target.runId
+    });
+    expect(phoneFigure3CanStartPreparedRun(
+      -1,
+      reverse.endpoint,
+      target.runId,
+      reverse.preparationKey ?? null
+    )).toBe(true);
+    // The former synthetic reverse key cannot satisfy this token-bound run.
+    expect(phoneFigure3CanStartPreparedRun(
+      -1,
+      reverse.endpoint,
+      target.runId,
+      'phone-figure3-reverse-0'
+    )).toBe(false);
+    expect(phoneFigure3Source).toContain(
+      'const preparation = phoneFigure3RunStartPreparation(runDirection, target);'
+    );
+  });
+
   it('accepts a decoded Safari endpoint without waiting for a frame callback', () => {
     expect(phoneFigure3EndpointIsPresented(0, 0, 2, false)).toBe(true);
     expect(phoneFigure3EndpointIsPresented(0, .04, 2, false)).toBe(true);

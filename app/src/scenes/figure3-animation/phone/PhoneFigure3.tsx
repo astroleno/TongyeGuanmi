@@ -325,11 +325,38 @@ export function phoneFigure3RunStartEndpoint(
   return direction === 1 ? 0 : 1;
 }
 
+/**
+ * A reverse decoder run inherits the immutable endpoint proof key. Replacing
+ * it with a local sequence key would strand the prepared canvas frame: the
+ * same transaction is then waiting for two incompatible endpoint identities.
+ */
+export function phoneFigure3RunStartPreparation(
+  direction: Group45NativeAutoplayDirection,
+  target: Pick<PhoneFigure3TargetPreparation, 'runId'>
+): Readonly<{
+  endpoint: PhoneFigure3Endpoint;
+  preparationDirection: 1 | -1;
+  preparationKey: string | undefined;
+  timelineRunId: string | undefined;
+}> {
+  const endpoint = phoneFigure3RunStartEndpoint(direction);
+  const reverseKey = direction === -1 ? target.runId : undefined;
+  return {
+    endpoint,
+    preparationDirection: direction === -1 ? -1 : 1,
+    preparationKey: reverseKey,
+    timelineRunId: reverseKey
+  };
+}
+
 export function phoneFigure3CanStartPreparedRun(
   direction: Group45NativeAutoplayDirection,
-  readyEndpoint: PhoneFigure3Endpoint | null
+  readyEndpoint: PhoneFigure3Endpoint | null,
+  targetRunId: string | null = null,
+  readyRunId: string | null = null
 ): boolean {
-  return readyEndpoint === phoneFigure3RunStartEndpoint(direction);
+  return readyEndpoint === phoneFigure3RunStartEndpoint(direction)
+    && (targetRunId === null || targetRunId === readyRunId);
 }
 
 const PHONE_FIGURE3_ENDPOINT_TOLERANCE_SECONDS = .05;
@@ -635,7 +662,9 @@ export const PhoneFigure3 = forwardRef<
       || readyEndpointRunIdRef.current !== targetKey
       || !phoneFigure3CanStartPreparedRun(
         runDirection,
-        readyEndpointRef.current
+        readyEndpointRef.current,
+        targetKey,
+        readyEndpointRunIdRef.current
       )
     ) {
       return;
@@ -910,7 +939,8 @@ export const PhoneFigure3 = forwardRef<
       playback.retry();
       return;
     }
-    const endpoint = phoneFigure3RunStartEndpoint(runDirection);
+    const preparation = phoneFigure3RunStartPreparation(runDirection, target);
+    const endpoint = preparation.endpoint;
     const alreadyPending = pendingRunDirectionRef.current === runDirection
       && requestedEndpointRef.current === endpoint
       && (
@@ -926,11 +956,14 @@ export const PhoneFigure3 = forwardRef<
     directionRef.current = runDirection;
     pendingRunDirectionRef.current = runDirection;
     pendingRunTargetKeyRef.current = target.runId;
+    if (preparation.timelineRunId) {
+      reverseRunIdRef.current = preparation.timelineRunId;
+    }
     mountMedia();
     prepareEndpoint(
       endpoint,
-      runDirection === -1 ? -1 : 1,
-      runDirection === -1 ? reverseRunIdRef.current : undefined
+      preparation.preparationDirection,
+      preparation.preparationKey
     );
   }, [mountMedia, prepareEndpoint]);
 
