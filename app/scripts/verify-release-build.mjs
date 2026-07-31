@@ -275,7 +275,6 @@ export function moduleProvenanceViolations(
     }
   }
   for (const root of phoneLeafRoots) {
-    const ancestorFiles = new Set();
     const synchronousClosure = (fileName) => {
       const closure = new Set();
       const visit = (currentFile) => {
@@ -288,21 +287,6 @@ export function moduleProvenanceViolations(
       visit(fileName);
       return closure;
     };
-    const addAncestors = (fileName, visited) => {
-      if (chunkByFile.get(fileName)?.isEntry) return;
-      const parents = [
-        ...(dynamicParents.get(fileName) ?? []),
-        ...(synchronousParents.get(fileName) ?? [])
-      ];
-      for (const parent of parents) {
-        if (visited.has(parent)) continue;
-        visited.add(parent);
-        ancestorFiles.add(parent);
-        addAncestors(parent, visited);
-      }
-    };
-    addAncestors(root.fileName, new Set([root.fileName]));
-
     const preloadPaths = (fileName, visited) => {
       if (chunkByFile.get(fileName)?.isEntry) {
         return [new Set()];
@@ -357,9 +341,7 @@ export function moduleProvenanceViolations(
       const label = fileName === root.fileName
         ? 'lazy phone leaf chunk'
         : 'lazy phone leaf closure chunk';
-      const authority = ancestorFiles.has(fileName)
-        ? undefined
-        : chunk.modules.find(lazyLifecycleOwner);
+      const authority = chunk.modules.find(lazyLifecycleOwner);
       if (authority) {
         violations.push(
           `${root.fileName} ${label} ${fileName} contains lifecycle authority `

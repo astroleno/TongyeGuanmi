@@ -196,6 +196,14 @@ test('still rejects preloaded synchronous authority reachable from a leaf', () =
   }), 'lifecycle authority');
 });
 
+test('rejects authority that is both a dynamic parent and a leaf dependency', () => {
+  const report = validProvenance();
+  report.chunks[0].imports.push('assets/PhoneStoryShell.js');
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes()
+  }), 'lifecycle authority');
+});
+
 test('does not classify a co-located stylesheet as lifecycle authority', () => {
   const report = validProvenance();
   report.chunks[0].modules.push(

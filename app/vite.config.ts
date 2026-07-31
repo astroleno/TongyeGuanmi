@@ -227,6 +227,9 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash:7].js',
         entryFileNames: 'assets/[name]-[hash:7].js',
         manualChunks(id) {
+          if (id.includes('/src/production/phone/phone-lab-contact-timeline.ts')) {
+            return 'phone-lab-contact-timeline';
+          }
           if (id.includes('/src/transitions/shared/stagedMediaHandoff.ts')) {
             return 'staged-media-runtime';
           }
