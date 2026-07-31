@@ -1063,16 +1063,16 @@ function nextRollback(
   });
 }
 
-function eventOwnsTransaction(
+export function phoneExecutionOwnsSnapshot(
   snapshot: PhoneStorySnapshot,
-  event: PhoneSnapshotIdentityEvent
+  execution: PhoneExecutionIdentity
 ): snapshot is PhoneTransactionSnapshot {
   if (snapshot.status !== 'transaction') return false;
-  return snapshot.authorityId === event.authorityId
-    && snapshot.session.sessionId === event.sessionId
-    && snapshot.session.generation === event.generation
-    && snapshot.session.operation.legIndex === event.leg
-    && snapshot.session.operation.direction === event.direction;
+  return snapshot.authorityId === execution.authorityId
+    && snapshot.session.sessionId === execution.sessionId
+    && snapshot.session.generation === execution.generation
+    && snapshot.session.operation.legIndex === execution.leg
+    && snapshot.session.operation.direction === execution.direction;
 }
 
 function operationTarget(operation: PhoneStoryOperation): SceneId {
@@ -1574,7 +1574,7 @@ export function reducePhoneStorySnapshot(
     return reduced(nextSampledScroll(snapshot, event));
   }
 
-  if (!eventOwnsTransaction(snapshot, event)) return reduced(snapshot);
+  if (!phoneExecutionOwnsSnapshot(snapshot, event)) return reduced(snapshot);
   const { session } = snapshot;
   const operation = session.operation;
 

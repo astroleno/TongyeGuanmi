@@ -4,6 +4,11 @@ import {
   phonePresentationSnapshot,
   reducePhoneStorySnapshot
 } from './phone-story/machine';
+import { phoneRunLegTuple } from './phone-story-runs';
+import {
+  phoneScenePresentationTuple,
+  phoneSegmentPresentationTuple
+} from './phone-story/manifest';
 import { createPhoneStoryPresentation } from './phone-story/presentation';
 
 function element() {
@@ -494,6 +499,118 @@ describe('phone story projector', () => {
 
     receiverVisible = false;
     expect(preflight(projector, animating)).toBeNull();
+  });
+
+  it('[normal terminal admission hard cutover] refuses a candidate whose manifest receiver is not registered', () => {
+    const root = element();
+    const figure2 = element();
+    const projector = createPhoneStoryPresentation({
+      authorityId: 'method-reverse-admission',
+      scope: 'formal',
+      root: () => root
+    });
+    projector.registerSurface({
+      id: 'grade-a:figure2',
+      scene: 'figure2-animation',
+      kind: 'fixed',
+      root: () => figure2,
+      coverageRoot: () => figure2,
+      presentation: () => [true, true, true, false, null]
+    });
+
+    const initial = createPhoneStorySnapshot({
+      authorityId: 'method-reverse-admission',
+      scene: 'figure2-animation',
+      actualY: 5_038
+    });
+    let candidate = reducePhoneStorySnapshot(initial, {
+      type: 'RUN_STARTED',
+      authorityId: initial.authorityId,
+      sessionId: 'method-reverse-admission-session',
+      generation: 1,
+      leg: 0,
+      direction: -1,
+      run: 'method-figure2',
+      anchorY: 4_841,
+      inputEpoch: 1
+    }).snapshot;
+    if (candidate.status !== 'transaction') {
+      throw new Error('Expected a Method reverse transaction');
+    }
+    const segment = phoneRunLegTuple('method-figure2', 0);
+    if (!segment) throw new Error('Expected the Method → Figure2 leg');
+    const frame = phoneSegmentPresentationTuple(segment[0]);
+    const active = candidate.session;
+    candidate = reducePhoneStorySnapshot(candidate, {
+      type: 'PRESENTATION_PROOF_REPORTED',
+      authorityId: candidate.authorityId,
+      sessionId: active.sessionId,
+      generation: active.generation,
+      leg: active.operation.legIndex,
+      direction: active.operation.direction,
+      proof: {
+        token: {
+          authorityId: candidate.authorityId,
+          sessionId: active.sessionId,
+          generation: active.generation,
+          leg: active.operation.legIndex,
+          revision: active.presentationRevision,
+          subject: frame[9],
+          kind: frame[8]
+        },
+        frameSequence: 1,
+        observedAt: 42,
+        connected: true,
+        visible: true,
+        coverageComplete: true,
+        edge: phoneScenePresentationTuple(frame[3])[1]
+      }
+    } as never).snapshot;
+    if (candidate.status !== 'transaction') {
+      throw new Error('Expected an animating Method reverse transaction');
+    }
+    const animating = candidate.session;
+    candidate = reducePhoneStorySnapshot(candidate, {
+      type: 'PROGRESS_REPORTED',
+      authorityId: candidate.authorityId,
+      sessionId: animating.sessionId,
+      generation: animating.generation,
+      leg: animating.operation.legIndex,
+      direction: animating.operation.direction,
+      progress: 0
+    } as never).snapshot;
+    if (candidate.status !== 'transaction') {
+      throw new Error('Expected a terminal Method reverse transaction');
+    }
+    const terminal = candidate.session;
+    candidate = reducePhoneStorySnapshot(candidate, {
+      type: 'LEG_COMPLETED',
+      authorityId: candidate.authorityId,
+      sessionId: terminal.sessionId,
+      generation: terminal.generation,
+      leg: terminal.operation.legIndex,
+      direction: terminal.operation.direction
+    } as never).snapshot;
+
+    expect(candidate).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target' },
+      projection: { receiverSurface: 'native:method', commitState: 'candidate' }
+    });
+    // No candidate plane may publish into a graph where its exact target leaf
+    // has no registered receiver capable of returning the immutable proof.
+    expect(preflight(projector, candidate)).toBeNull();
+
+    projector.registerSurface({
+      id: 'native:method',
+      scene: 'method-top',
+      kind: 'native',
+      root: () => element(),
+      // Registration, rather than already-visible content, is the candidate
+      // admission gate. The exact leaf proof remains required to settle.
+      presentation: () => [true, false, false, false, null]
+    });
+    expect(preflight(projector, candidate)).not.toBeNull();
   });
 
   it('[R5] prepares only the manifest receiver for a visual direct entry', async () => {

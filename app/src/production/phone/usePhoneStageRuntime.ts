@@ -245,6 +245,113 @@ export function usePhoneStageRuntime(
     }
   }, [options.enabled, options.orchestrator, options.snapshot]);
 
+  /**
+   * Surface identity outlives renderer capabilities. React may clear and
+   * rebind a forwarded adapter handle while a terminal transaction is still
+   * animating; retaining this manifest registration lets the engine replay
+  * its one pending completion when the exact leaf becomes available again.
+  */
+  useLayoutEffect(() => {
+    const surfaceLeases = [
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        'front:hero',
+        'hero',
+        'fixed',
+        () => options.heroRef.current?.root() ?? null,
+        () => options.stageRef.current,
+        undefined,
+        {
+          present(token, report) {
+            options.heroRef.current?.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            options.heroRef.current?.disposePresentation?.(token);
+          }
+        }
+      ),
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        'front:pattern',
+        'pattern',
+        'fixed',
+        () => options.patternRef.current?.root() ?? null,
+        () => options.stageRef.current,
+        undefined,
+        {
+          present(token, report) {
+            options.patternRef.current?.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            options.patternRef.current?.disposePresentation?.(token);
+          }
+        }
+      ),
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        'front:star-map',
+        'star-map',
+        'fixed',
+        () => options.starMapRef.current?.root() ?? null,
+        () => options.stageRef.current,
+        undefined,
+        {
+          present(token, report) {
+            options.starMapRef.current?.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            options.starMapRef.current?.disposePresentation?.(token);
+          }
+        }
+      ),
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        FRONT_AOD_SURFACE,
+        'aod-animation',
+        'fixed',
+        () => options.aodRef.current?.root() ?? null,
+        () => options.stageRef.current,
+        undefined,
+        {
+          present(token, report) {
+            options.aodRef.current?.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            options.aodRef.current?.disposePresentation?.(token);
+          }
+        }
+      ),
+      registerPhoneRuntimeSurface(
+        options.orchestrator,
+        'native:method',
+        'method-top',
+        'native',
+        () => options.methodRef.current?.root() ?? null,
+        () => options.stageRef.current,
+        undefined,
+        {
+          present(token, report) {
+            options.methodRef.current?.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            options.methodRef.current?.disposePresentation?.(token);
+          }
+        }
+      )
+    ];
+    // Registration may have happened before a lazy forwarded ref was bound.
+    // Re-evaluate the machine-owned pending terminal event with the current
+    // dynamic roots, never by asking a leaf to emit completion again.
+    syncPhoneRuntimeDiagnostics(options.orchestrator);
+    return () => {
+      for (const lease of surfaceLeases) lease.dispose();
+    };
+  }, [options.orchestrator]);
+
+  useLayoutEffect(() => {
+    syncPhoneRuntimeDiagnostics(options.orchestrator);
+  }, [options.adapterRevision, options.orchestrator]);
+
   useLayoutEffect(() => {
     if (!options.enabled) return;
     const root = options.rootRef.current;
@@ -363,93 +470,6 @@ export function usePhoneStageRuntime(
     window.addEventListener('resize', refreshStageGeometry);
     window.addEventListener('orientationchange', refreshStageGeometry);
 
-    const surfaceLeases = [
-      registerPhoneRuntimeSurface(
-        options.orchestrator,
-        'front:hero',
-        'hero',
-        'fixed',
-        () => heroAdapter.root(),
-        () => stage,
-        undefined,
-        {
-          present(token, report) {
-            heroAdapter.presentPresentation?.(token, report);
-          },
-          dispose(token) {
-            heroAdapter.disposePresentation?.(token);
-          }
-        }
-      ),
-      registerPhoneRuntimeSurface(
-        options.orchestrator,
-        'front:pattern',
-        'pattern',
-        'fixed',
-        () => patternAdapter.root(),
-        () => stage,
-        undefined,
-        {
-          present(token, report) {
-            patternAdapter.presentPresentation?.(token, report);
-          },
-          dispose(token) {
-            patternAdapter.disposePresentation?.(token);
-          }
-        }
-      ),
-      registerPhoneRuntimeSurface(
-        options.orchestrator,
-        'front:star-map',
-        'star-map',
-        'fixed',
-        () => starAdapter.root(),
-        () => stage,
-        undefined,
-        {
-          present(token, report) {
-            starAdapter.presentPresentation?.(token, report);
-          },
-          dispose(token) {
-            starAdapter.disposePresentation?.(token);
-          }
-        }
-      ),
-      registerPhoneRuntimeSurface(
-        options.orchestrator,
-        FRONT_AOD_SURFACE,
-        'aod-animation',
-        'fixed',
-        () => aodAdapter.root(),
-        () => stage,
-        undefined,
-        {
-          present(token, report) {
-            aodAdapter.presentPresentation?.(token, report);
-          },
-          dispose(token) {
-            aodAdapter.disposePresentation?.(token);
-          }
-        }
-      ),
-      registerPhoneRuntimeSurface(
-        options.orchestrator,
-        'native:method',
-        'method-top',
-        'native',
-        () => methodAdapter.root(),
-        () => stage,
-        undefined,
-        {
-          present(token, report) {
-            methodAdapter.presentPresentation?.(token, report);
-          },
-          dispose(token) {
-            methodAdapter.disposePresentation?.(token);
-          }
-        }
-      )
-    ];
     const effectLeases = [
       registerPhoneRuntimeEffect(
         options.orchestrator,
@@ -621,7 +641,6 @@ export function usePhoneStageRuntime(
       releaseMediaGestureLease();
       corridorLease.dispose();
       for (const lease of effectLeases) lease.dispose();
-      for (const lease of surfaceLeases) lease.dispose();
       if (import.meta.env.DEV) {
         delete root.dataset.portraitSpikeMotionState;
         delete root.dataset.portraitStagePin;

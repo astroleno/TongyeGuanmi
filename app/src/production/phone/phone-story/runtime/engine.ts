@@ -6,6 +6,7 @@ import {
 } from '../../phone-story-runs';
 import {
   createPhoneStorySnapshot,
+  phoneExecutionOwnsSnapshot,
   phonePresentationSnapshot,
   reducePhoneStorySnapshot,
   type PhoneExecutionIdentity,
@@ -56,7 +57,7 @@ export type {
 } from '../../phone-scroll-corridor-registry';
 
 let authoritySequence = 0;
-const DIRECT_ENTRY_PREPARATION_TIMEOUT_MS = 8_000;
+const ADMISSION_TIMEOUT_MS = 8_000;
 
 type DirectEntryPreparation = {
   key: string;
@@ -65,6 +66,29 @@ type DirectEntryPreparation = {
   ready: boolean;
   publishing: boolean;
 };
+
+/**
+ * A terminal leaf can complete in the same React commit that transiently
+ * unregisters its final receiver. Retain only this exact machine event until
+ * the receiver returns; runners never get a second completion writer.
+ */
+type PendingTerminalCompletion = PhoneExecutionIdentity & Readonly<{
+  type: 'LEG_COMPLETED';
+}>;
+
+function terminalCandidateCompletion(
+  snapshot: PhoneStorySnapshot,
+  event: PhoneStoryEvent
+): PendingTerminalCompletion | null {
+  if (
+    event.type !== 'LEG_COMPLETED'
+    || snapshot.status !== 'transaction'
+    || snapshot.session.operation.run === null
+    || snapshot.session.phase !== 'verifying-target'
+    || snapshot.projection.commitState !== 'candidate'
+  ) return null;
+  return event as PendingTerminalCompletion;
+}
 
 function projectFailureEvent(snapshot: PhoneStorySnapshot): PhoneStoryEvent | null {
   if (snapshot.status !== 'transaction') return null;
@@ -154,6 +178,10 @@ export function createPhoneStoryRuntimeEngine(
     PhoneStoryEvent,
     { type: 'DIRECT_ENTRY_REQUESTED' }
   > | null = null;
+  let pendingTerminalCompletion: PendingTerminalCompletion | null = null;
+  let pendingTerminalCompletionTimeout:
+    | ReturnType<typeof globalThis.setTimeout>
+    | undefined;
   const subscribers = new Set<() => void>();
   let directEntryPreparation: DirectEntryPreparation | null = null;
   /** Prevent synchronous proof dispatch from recursively re-observing it. */
@@ -185,6 +213,24 @@ export function createPhoneStoryRuntimeEngine(
     globalThis.clearTimeout(preparation.timeout);
     preparation.controller.abort();
     directEntryPreparation = null;
+  };
+  const clearPendingTerminalCompletion = () => {
+    if (pendingTerminalCompletionTimeout !== undefined) {
+      globalThis.clearTimeout(pendingTerminalCompletionTimeout);
+      pendingTerminalCompletionTimeout = undefined;
+    }
+    pendingTerminalCompletion = null;
+  };
+  const pendingTerminalCompletionIsCurrent = (
+    completion: PendingTerminalCompletion
+  ) => phoneExecutionOwnsSnapshot(currentSnapshot, completion)
+    && currentSnapshot.session.phase === 'animating'
+    && currentSnapshot.session.operation.run !== null;
+  const retireStaleTerminalCompletion = () => {
+    if (
+      pendingTerminalCompletion
+      && !pendingTerminalCompletionIsCurrent(pendingTerminalCompletion)
+    ) clearPendingTerminalCompletion();
   };
 
   const notify = () => {
@@ -246,6 +292,22 @@ export function createPhoneStoryRuntimeEngine(
       event
     );
     if (!applySnapshot(reduction.snapshot, true, preflightOptions)) {
+      const terminalCompletion = terminalCandidateCompletion(
+        reduction.snapshot,
+        event
+      );
+      if (terminalCompletion) {
+        clearPendingTerminalCompletion();
+        pendingTerminalCompletion = terminalCompletion;
+        pendingTerminalCompletionTimeout = globalThis.setTimeout(() => {
+          if (pendingTerminalCompletion !== terminalCompletion) return;
+          pendingTerminalCompletion = null;
+          pendingTerminalCompletionTimeout = undefined;
+          if (!pendingTerminalCompletionIsCurrent(terminalCompletion)) return;
+          sessions.resume()?.reportFailure('target-verification-failed');
+        }, ADMISSION_TIMEOUT_MS);
+        return { snapshot: currentSnapshot, effects: [] };
+      }
       if (
         event.type === 'DIRECT_ENTRY_REQUESTED'
         && currentSnapshot.status === 'stable'
@@ -254,6 +316,7 @@ export function createPhoneStoryRuntimeEngine(
       return { snapshot: currentSnapshot, effects: [] };
     }
     if (event.type === 'DIRECT_ENTRY_REQUESTED') pendingDirectEntry = null;
+    retireStaleTerminalCompletion();
     if (currentSnapshot.status !== 'transaction') startedCapabilitySession = null;
     afterDispatch();
     return reduction;
@@ -263,6 +326,16 @@ export function createPhoneStoryRuntimeEngine(
     if (disposed || !event || currentSnapshot.status !== 'stable') return;
     pendingDirectEntry = null;
     dispatch(event);
+  };
+  const replayPendingTerminalCompletion = () => {
+    const completion = pendingTerminalCompletion;
+    if (disposed || !completion) return;
+    if (!pendingTerminalCompletionIsCurrent(completion)) {
+      clearPendingTerminalCompletion();
+      return;
+    }
+    clearPendingTerminalCompletion();
+    dispatch(completion);
   };
   const resolveLanding = (
     scene: SceneId,
@@ -301,6 +374,7 @@ export function createPhoneStoryRuntimeEngine(
     if (disposed) return;
     if (!applySnapshot(currentSnapshot, false)) recoverProjectFailure();
     replayPendingDirectEntry();
+    replayPendingTerminalCompletion();
     // Route-owned geometry and lazy surface handles may become ready after a
     // direct-entry candidate has already been projected. Re-evaluate the
     // immutable transaction here so cold deep links do not require a later
@@ -480,7 +554,7 @@ export function createPhoneStoryRuntimeEngine(
             directEntryPreparation = null;
             controller.abort();
             activeSession.reportFailure();
-          }, DIRECT_ENTRY_PREPARATION_TIMEOUT_MS),
+          }, ADMISSION_TIMEOUT_MS),
           ready: false,
           publishing: false
         };
@@ -670,6 +744,7 @@ export function createPhoneStoryRuntimeEngine(
       if (disposed) throw new Error('Disposed phone story');
       const registration = capabilities.register(run, ownerId, capability);
       replayPendingDirectEntry();
+      replayPendingTerminalCompletion();
       startPreparedOperation(run);
       return registration;
     },
@@ -698,6 +773,7 @@ export function createPhoneStoryRuntimeEngine(
       disposed = true;
       clearDirectEntryPreparation();
       pendingDirectEntry = null;
+      clearPendingTerminalCompletion();
       capabilities.clear();
       sessions.dispose();
       scrollCorridors.clear();

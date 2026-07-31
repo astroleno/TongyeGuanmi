@@ -47,7 +47,9 @@ function root(): HTMLElement {
 describe('phone presentation transaction', () => {
   it('publishes the target as a locked candidate before the final stable hold', () => {
     const element = root();
+    const services = root();
     let session: PhoneOrchestratedRunSession | undefined;
+    let terminalCandidate = false;
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
       root: element,
@@ -68,11 +70,29 @@ describe('phone presentation transaction', () => {
       boundary: () => 100,
       landing: () => 100
     });
+    // Terminal admission is not allowed to manufacture a Services candidate
+    // into an unregistered leaf. Keep the registered leaf passive so this
+    // test can observe the locked candidate before its real proof arrives.
+    orchestrator.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => services,
+      presentation: () => [
+        true,
+        !terminalCandidate,
+        !terminalCandidate,
+        !terminalCandidate,
+        null
+      ],
+      adapter: { present() {} }
+    });
 
     expect(orchestrator.resolveIntent([1, 1, 0, 120])).toBe('claim-boundary');
     if (session) reportSegmentProof(session, 'brand-figure3');
     session?.reportEndpointCommit('receiver');
     if (session) reportSegmentProof(session, 'figure3-services');
+    terminalCandidate = true;
     session?.reportAnimationComplete();
 
     expect(element.dataset).toMatchObject({

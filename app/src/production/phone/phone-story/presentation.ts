@@ -1563,27 +1563,45 @@ export function createPhoneStoryPresentation({
         && phoneSegmentPresentationTuple(layerPlan.segment)[8]
           === 'packed-canvas-frame';
       /*
-       * Lazy direct routes have already received their leaf-loading intent,
-       * but that is not equivalent to a live presentation receiver. Reject
-       * the candidate until the target has registered its real surface so the
-       * engine retains and replays the intent rather than locking input on an
-       * unobservable transaction.
+       * A leaf-loading intent and a terminal runner completion are both
+       * insufficient to publish a candidate by themselves. In either case,
+       * the target's manifest receiver must already be registered so it can
+       * accept this revision's immutable token and return a real proof. The
+       * engine retains and replays the event while React is rebinding a leaf;
+       * no candidate may lock input in an unobservable graph.
        */
       const directEntryRequiresReceiver = presentationSnapshot.status === 'transaction'
         && presentationSnapshot.session?.operation.trigger === 'entry';
-      let directEntryReceiverRegistered = !directEntryRequiresReceiver;
+      const terminalCandidateRequiresReceiver = presentationSnapshot.status === 'transaction'
+        && presentationSnapshot.session?.operation.run !== null
+        && presentationSnapshot.session?.phase === 'verifying-target'
+        && projection.commitState === 'candidate';
+      const requiresRegisteredReceiver = directEntryRequiresReceiver
+        || terminalCandidateRequiresReceiver;
+      let receiverRegistered = !requiresRegisteredReceiver;
       let mediaHandoffHasLivePlane = false;
       let registeredMediaHandoffPlanes = 0;
       const surfaces: ResolvedSurface[] = [];
       for (const registration of registrations.values()) {
         const selected = registration.id === projection.receiverSurface
           || registration.id === projection.sourceSurface;
+        // Direction selects the one physical plane that must remain painted
+        // through a normal transition. The opposite semantic endpoint can be
+        // registered yet deliberately dormant/offscreen (for example Method
+        // during Figure2 → Method reverse admission); treating it as a live
+        // requirement makes a harmless React ref rebind roll the run back.
+        const ownsCoveragePlane = registration.id === projection.coverageSurface;
+        const ownsCandidateReceiver = projection.commitState === 'candidate'
+          && registration.id === projection.receiverSurface;
+        const mustParticipate = sourceLedMediaHandoff
+          ? selected
+          : ownsCoveragePlane || ownsCandidateReceiver;
         if (registration.id === projection.receiverSurface) {
-          directEntryReceiverRegistered = true;
+          receiverRegistered = true;
         }
         const surfaceRoot = registration.root();
         const coverageRoot = registration.coverageRoot?.() ?? surfaceRoot;
-        if (selected && (!connected(surfaceRoot) || !connected(coverageRoot))) {
+        if (mustParticipate && (!connected(surfaceRoot) || !connected(coverageRoot))) {
           return null;
         }
         if (!connected(surfaceRoot) || !connected(coverageRoot)) continue;
@@ -1618,7 +1636,7 @@ export function createPhoneStoryPresentation({
          * admit the atomic candidate plane. Its own token-bound frame and
          * coverage facts still gate PRESENTATION_COMMITTED in the machine.
         */
-        if (selected && !presentation[0]) {
+        if (mustParticipate && !presentation[0]) {
           return null;
         }
         if (selected && sourceLedMediaHandoff && physicalVisible && physicalCoverage) {
@@ -1631,7 +1649,7 @@ export function createPhoneStoryPresentation({
         // receiver, so it validates the pair after this loop rather than
         // requiring each participant to be visible at every frame.
         if (
-          selected
+          ownsCoveragePlane
           && !admitsDormantParticipants
           && !sourceLedMediaHandoff
           && (!presentation[1] || !presentation[2])
@@ -1645,7 +1663,7 @@ export function createPhoneStoryPresentation({
           role: roleFor(presentationSnapshot, projection, registration, layerPlan)
         });
       }
-      if (!directEntryReceiverRegistered) return null;
+      if (!receiverRegistered) return null;
       if (
         sourceLedMediaHandoff
         && registeredMediaHandoffPlanes > 0

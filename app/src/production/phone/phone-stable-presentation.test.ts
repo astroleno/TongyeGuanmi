@@ -85,6 +85,7 @@ describe('phone stable presentation contract', () => {
 
   it('[Task 2] never notifies an observable hold while its session lock or anchor remains', () => {
     const root = { dataset: {} } as HTMLElement;
+    const services = { dataset: {} } as HTMLElement;
     const frames: Array<() => void> = [];
     let actualY = 0;
     const observed: Array<Readonly<{
@@ -113,6 +114,16 @@ describe('phone stable presentation contract', () => {
       sample: () => null,
       boundary: () => 100,
       landing: () => 100
+    });
+    // A terminal candidate needs its manifest leaf, but this test retains
+    // proof control to verify that stable publication happens only afterward.
+    orchestrator.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => services,
+      presentation: () => [true, true, true, true, 'static-poster'],
+      adapter: { present() {} }
     });
     orchestrator.subscribe(() => {
       if (orchestrator.getSnapshot().status !== 'stable') return;

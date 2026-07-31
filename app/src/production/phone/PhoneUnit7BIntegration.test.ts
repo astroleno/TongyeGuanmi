@@ -145,7 +145,9 @@ describe('formal Unit7-B phone integration', () => {
   });
 
   it('registers the persistent canvas as the one coverage owner for every phone surface', () => {
-    expect(stageRuntimeSource.match(/\(\) => stage\b/g)).toHaveLength(5);
+    expect(
+      stageRuntimeSource.match(/\(\) => options\.stageRef\.current\b/g)
+    ).toHaveLength(5);
     expect(gradeASource.match(/\(\) => stageHost\b/g)).toHaveLength(2);
     expect(brandContinuationSource.match(/\(\) => stageHost\b/g)).toHaveLength(2);
     expect(continuationSource.match(/\(\) => stageHost\b/g)).toHaveLength(2);
@@ -252,10 +254,10 @@ describe('formal Unit7-B phone integration', () => {
       expect(source).not.toMatch(/binding\.report\(\s*\{/);
     }
     expect(stageRuntimeSource).toMatch(
-      /'front:pattern'[\s\S]*?patternAdapter\.presentPresentation\?\.\(token, report\)/
+      /'front:pattern'[\s\S]*?options\.patternRef\.current\?\.presentPresentation\?\.\(token, report\)/
     );
     expect(stageRuntimeSource).toMatch(
-      /'front:star-map'[\s\S]*?starAdapter\.presentPresentation\?\.\(token, report\)/
+      /'front:star-map'[\s\S]*?options\.starMapRef\.current\?\.presentPresentation\?\.\(token, report\)/
     );
   });
 
@@ -274,7 +276,7 @@ describe('formal Unit7-B phone integration', () => {
       /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneMethodStaticPresentationFrame\(/
     );
     expect(stageRuntimeSource).toMatch(
-      /'native:method'[\s\S]*?methodAdapter\.presentPresentation\?\.\(token, report\)/
+      /'native:method'[\s\S]*?options\.methodRef\.current\?\.presentPresentation\?\.\(token, report\)/
     );
     expect(stageRuntimeSource).toMatch(
       /options\.reducedMotion,[\s\S]*?present\(execution, report\)[\s\S]*?execution\[1\] === 1 \? methodAdapter : aodAdapter/

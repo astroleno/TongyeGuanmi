@@ -9,6 +9,7 @@ import { PHONE_REDUCED_ADMISSION_TIMEOUT_MS } from './session';
 import type { PhoneStoryRuntimeEngine as PhoneStoryOrchestrator } from './engine';
 import {
   phoneDirectEntryAdmissionTuple,
+  phoneScenePresentationProofKind,
   phoneScenePresentationTuple,
   phoneSegmentPresentationTuple
 } from '../manifest';
@@ -493,7 +494,9 @@ describe('single phone story projector transaction', () => {
 
   it('retires the terminal media source before target verification', () => {
     const root = element();
+    const services = element();
     let session: PhoneOrchestratedRunSession | undefined;
+    let verifyingTarget = false;
     const orchestrator = createPhoneStoryOrchestrator({
       initialScene: 'brand',
       root,
@@ -507,11 +510,26 @@ describe('single phone story projector transaction', () => {
       session = activeSession;
     }));
     registerCorridor(orchestrator);
+    orchestrator.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => services,
+      presentation: () => [
+        true,
+        !verifyingTarget,
+        !verifyingTarget,
+        !verifyingTarget,
+        null
+      ],
+      adapter: { present() {} }
+    });
 
     expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
     if (session) reportSegmentProof(session, 'brand-figure3');
     session?.reportEndpointCommit('receiver');
     if (session) reportSegmentProof(session, 'figure3-services');
+    verifyingTarget = true;
     session?.reportAnimationComplete();
 
     expect(orchestrator.getSnapshot()).toMatchObject({
@@ -945,6 +963,155 @@ describe('single phone story projector transaction', () => {
       scene: 'method-top',
       scroll: { actualY: 4_051 }
     });
+  });
+
+  it('[normal terminal admission hard cutover] retains one terminal completion until its manifest receiver re-registers', () => {
+    const root = element();
+    const figure2 = element();
+    const method = element();
+    let session: PhoneOrchestratedRunSession | undefined;
+    let starts = 0;
+    let targetToken: PresentationToken | null = null;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'figure2-animation',
+      root,
+      scrollY: () => 5_042,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerRunCapability('method-figure2', 'test', capability(5_886, (
+      _direction,
+      activeSession
+    ) => {
+      starts += 1;
+      session = activeSession;
+    }));
+    orchestrator.registerScrollCorridor({
+      id: 'method-grade-a',
+      scenes: ['method-top', 'figure2-animation'],
+      sample: () => null,
+      boundary: () => 5_886,
+      landing: () => 5_042
+    });
+    orchestrator.registerSurface({
+      id: 'grade-a:figure2',
+      scene: 'figure2-animation',
+      kind: 'fixed',
+      root: () => figure2,
+      presentation: () => [true, true, true, true, 'static-poster']
+    });
+
+    expect(orchestrator.resolveIntent([1, -1, 5_042, 4_942]))
+      .toBe('claim-boundary');
+    if (session) reportSegmentProof(session, 'method-bottom-figure2');
+    session?.reportEndpointCommit('receiver');
+
+    // The old leaf completion is retained by the authority, but no candidate
+    // may publish while `native:method` is absent. It must neither roll back
+    // nor restart the cinematic leg while React is rebinding that receiver.
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        phase: 'animating',
+        operation: { run: 'method-figure2', direction: -1 }
+      },
+      projection: { commitState: 'transition' }
+    });
+    expect(starts).toBe(1);
+
+    orchestrator.registerSurface({
+      id: 'native:method',
+      scene: 'method-top',
+      kind: 'native',
+      root: () => method,
+      // A re-bound logical source stays dormant until candidate projection
+      // promotes it to the terminal target plane.
+      presentation: () => [true, false, false, false, null],
+      adapter: {
+        present(token) {
+          targetToken = token;
+        }
+      }
+    });
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target' },
+      projection: {
+        commitState: 'candidate',
+        receiverSurface: 'native:method'
+      }
+    });
+    expect(targetToken).toMatchObject({
+      subject: 'native:method',
+      kind: phoneScenePresentationProofKind('method-top')
+    });
+    expect(starts).toBe(1);
+  });
+
+  it('[normal terminal admission hard cutover] rolls back when its receiver never re-registers', async () => {
+    vi.useFakeTimers();
+    try {
+      const root = element();
+      const figure2 = element();
+      const frames: Array<() => void> = [];
+      let session: PhoneOrchestratedRunSession | undefined;
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'figure2-animation',
+        root,
+        scrollY: () => 5_042,
+        scrollTo: () => undefined,
+        scheduleFrame: (callback) => frames.push(callback)
+      });
+      orchestrator.registerRunCapability('method-figure2', 'terminal-timeout', capability(5_886, (
+        _direction,
+        activeSession
+      ) => {
+        session = activeSession;
+      }));
+      orchestrator.registerScrollCorridor({
+        id: 'method-grade-a',
+        scenes: ['method-top', 'figure2-animation'],
+        sample: () => null,
+        boundary: () => 5_886,
+        landing: () => 5_042
+      });
+      orchestrator.registerSurface({
+        id: 'grade-a:figure2',
+        scene: 'figure2-animation',
+        kind: 'fixed',
+        root: () => figure2,
+        presentation: () => [true, true, true, true, 'static-poster']
+      });
+
+      expect(orchestrator.resolveIntent([1, -1, 5_042, 4_942]))
+        .toBe('claim-boundary');
+      if (session) reportSegmentProof(session, 'method-bottom-figure2');
+      session?.reportEndpointCommit('receiver');
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'animating' }
+      });
+
+      // The engine may defer exactly one completion during a React rebind,
+      // but a leaf that never returns must release the lock through the same
+      // machine rollback path rather than leave the authority at progress 0.
+      await vi.runAllTimersAsync();
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        diagnostics: {
+          lastRollback: { reason: 'target-verification-failed' }
+        },
+        session: { phase: 'rollback-measuring-landing' }
+      });
+      expect(root.dataset.phoneInputState).toBe('locked');
+      while (frames.length > 0) frames.shift()?.();
+      expect(orchestrator.getSnapshot()).not.toMatchObject({
+        status: 'transaction',
+        session: { phase: 'animating' }
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('claims a direct Contact reverse input at the canonical Group67 boundary', () => {

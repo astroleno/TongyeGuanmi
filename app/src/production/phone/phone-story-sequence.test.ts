@@ -40,7 +40,7 @@ function intent(inputEpoch: number, direction: PhoneTransitionDirection) {
   ] as const;
 }
 
-/** Direct admission begins only after its manifest receiver has mounted. */
+/** Every direct or terminal admission begins only after its leaf has mounted. */
 function registerDirectReceiver(
   orchestrator: ReturnType<typeof createPhoneStoryOrchestrator>,
   scene: Parameters<typeof phoneScenePresentationTuple>[0]
@@ -51,7 +51,10 @@ function registerDirectReceiver(
     scene,
     kind: receiver.startsWith('native:') ? 'native' : 'fixed',
     root: () => ({ dataset: {}, style: {} } as unknown as HTMLElement),
-    presentation: () => [true, true, true, true, 'static-poster']
+    presentation: () => [true, true, true, true, 'static-poster'],
+    // Keep proof timing under this deterministic driver; registration itself
+    // never manufactures the terminal proof.
+    adapter: { present() {} }
   });
 }
 
@@ -116,6 +119,12 @@ describe('canonical phone story sequence', () => {
       boundary: () => 100,
       landing: () => 100
     });
+    for (const scene of new Set(phoneStoryRuns.flatMap((run) => [
+      run.from,
+      run.to
+    ]))) {
+      registerDirectReceiver(orchestrator, scene);
+    }
 
     let epoch = 0;
     const drive = (direction: PhoneTransitionDirection) => {
