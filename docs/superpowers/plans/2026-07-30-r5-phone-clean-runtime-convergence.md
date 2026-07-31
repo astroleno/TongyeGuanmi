@@ -1,10 +1,12 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** architecture and execution contracts are frozen. Tasks 0–3 and
-> their corrective reviews are complete; Task 4 is next. The verification
-> cadence below removes redundant full-suite reruns without weakening any
-> authority, chunk, presentation, or physical-device release gate. Do not
-> reopen broad design review unless Appendix C is triggered.
+> **Status:** architecture and execution contracts are frozen. Task 0, Task 1,
+> and Task 3 are complete. The final Task 2 recovery-gate correction is
+> implemented, but Review 2 re-approval is still required; Task 4 remains
+> blocked until that explicit approval. The verification cadence below removes
+> redundant full-suite reruns without weakening any authority, chunk,
+> presentation, or physical-device release gate. Do not reopen broad design
+> review unless Appendix C is triggered.
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
@@ -2113,6 +2115,19 @@ statement is the direct handler call and whose second statement rethrows the
 same callback error. A conditional/dead call or a call after `return`/`throw`
 does not establish recovery reachability.
 
+Lock this bootstrap skeleton to one canonical micro-shape and verify bindings
+with a TypeScript `Program`/`TypeChecker`, not identifier text. There is one
+top-level single-binding `const` initialized by the stable lineage-key literal.
+`loadPhoneStoryShell()` is a zero-parameter top-level function whose only body
+statement directly returns the canonical import/catch chain. The registered
+handler, the catch delegate, and every `getItem`/`setItem`/`removeItem` key
+argument must resolve to their respective canonical symbols. The handler starts
+with the direct `preventDefault()` statement and contains only the ordered
+read/parse/guard/persist/reload micro-shape. `markStable()` is a zero-parameter
+top-level function whose only statement directly removes that same immutable
+key. Shadowing, reassignment, short-circuit/dead statements, and imports after a
+terminator fail closed.
+
 Validate that sequence with statement-level control-flow paths, not source
 offsets. Every reachable reload path must be dominated, in order, by preload
 prevention, the stored-lineage read/parse, the bounded guard, and persistence.
@@ -2135,10 +2150,15 @@ function, an ignored stored lineage, an unbounded reload, an unrelated
 second import of the same URL. Also keep early-return, throw-before-persist,
 clear-after-persist, overwrite-after-persist, and indirect-reset-before-reload
 fixtures. Catch fixtures cover `if (false)`, return-before-handler, and
-throw-before-handler. Stored-lineage fixtures cover parse-then-overwrite,
+throw-before-handler, outer-parameter/local handler shadowing, handler-binding
+reassignment, and an import after a prior return. Stored-lineage fixtures cover
+parse-then-overwrite,
 discarded comma results, conditional fake parsing, same-named lineage shadow,
-and a forged local `JSON` binding. These fixtures must exercise the
-AST/control-flow relationships rather than merely repeat required strings.
+a forged local `JSON` binding, key reassignment, and handler/`markStable` key
+shadowing. Direct-statement fixtures cover short-circuited `preventDefault()`
+and unreachable `markStable()` removal. These fixtures must exercise the
+AST/control-flow and checker-symbol relationships rather than merely repeat
+required strings.
 
 **Task 2 acceptance:**
 

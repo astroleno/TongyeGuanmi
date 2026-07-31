@@ -815,10 +815,28 @@ function recoveryBoundaryViolations(sources) {
   if (sources.length === 0) {
     return ['cutover is missing an eager phone-core recovery boundary'];
   }
-  const sourceFiles = sources.map(({ file, source }) => ({
-    file,
-    sourceFile: sourceFileFor(file, source)
-  }));
+  const rootNames = sources.map(({ file }) => path.resolve(file));
+  const rootSet = new Set(rootNames);
+  const program = ts.createProgram({
+    rootNames,
+    options: {
+      allowJs: true,
+      checkJs: false,
+      jsx: ts.JsxEmit.Preserve,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      noLib: true,
+      skipLibCheck: true,
+      target: ts.ScriptTarget.Latest
+    }
+  });
+  const checker = program.getTypeChecker();
+  const sourceFiles = program.getSourceFiles()
+    .filter((sourceFile) => rootSet.has(path.resolve(sourceFile.fileName)))
+    .map((sourceFile) => ({
+      file: path.resolve(sourceFile.fileName),
+      sourceFile
+    }));
   const functionDefinitions = new Map();
   const addFunction = (name, node) => {
     const definitions = functionDefinitions.get(name) ?? [];
@@ -898,7 +916,58 @@ function recoveryBoundaryViolations(sources) {
     && ts.isIdentifier(node.expression.expression.expression)
     && node.expression.expression.expression.text === 'window'
   );
-  const nodeText = (node) => node?.getText(node.getSourceFile());
+  const symbolAt = (node) => {
+    const symbol = node && checker.getSymbolAtLocation(node);
+    return symbol ? canonicalSymbol(checker, symbol) : undefined;
+  };
+  const hasSameSymbol = (left, right) => {
+    const leftSymbol = symbolAt(left);
+    const rightSymbol = symbolAt(right);
+    return Boolean(leftSymbol && rightSymbol && leftSymbol === rightSymbol);
+  };
+  const symbolReferences = (symbol) => sourceFiles.flatMap(({ sourceFile }) => (
+    descendants(sourceFile, (node) => (
+      ts.isIdentifier(node) && symbolAt(node) === symbol
+    ))
+  ));
+  const symbolIsWritten = (symbol) => Boolean(
+    symbol && symbolReferences(symbol).some((reference) => ts.isAssignmentTarget(reference))
+  );
+  const topLevelLiteralKeys = sourceFiles.flatMap(({ sourceFile }) => (
+    sourceFile.statements.flatMap((statement) => {
+      if (!ts.isVariableStatement(statement)) return [];
+      return statement.declarationList.declarations.flatMap((declaration) => {
+        const initializer = declaration.initializer
+          ? unwrappedExpression(declaration.initializer)
+          : undefined;
+        if (
+          !ts.isIdentifier(declaration.name)
+          || !initializer
+          || !ts.isStringLiteralLike(initializer)
+          || !/lineage/i.test(initializer.text)
+          || /(?:build|module|url)/i.test(initializer.text)
+        ) {
+          return [];
+        }
+        return [{ declaration, statement }];
+      });
+    })
+  ));
+  const canonicalKeyEntry = topLevelLiteralKeys.length === 1
+    && Boolean(
+      topLevelLiteralKeys[0].statement.declarationList.flags
+      & ts.NodeFlags.Const
+    )
+    && topLevelLiteralKeys[0].statement.declarationList.declarations.length === 1
+    ? topLevelLiteralKeys[0]
+    : undefined;
+  const canonicalKeyName = canonicalKeyEntry?.declaration.name;
+  const canonicalKeySymbol = canonicalKeyName && ts.isIdentifier(canonicalKeyName)
+    ? symbolAt(canonicalKeyName)
+    : undefined;
+  const canonicalKeyIsImmutable = Boolean(
+    canonicalKeySymbol && !symbolIsWritten(canonicalKeySymbol)
+  );
   const listenerCalls = sourceFiles.flatMap(({ sourceFile }) => descendants(
     sourceFile,
     (node) => identifierOwnerCall(node, 'window', 'addEventListener')
@@ -917,10 +986,36 @@ function recoveryBoundaryViolations(sources) {
     ? handlerReference.text
     : undefined;
   const handler = handlerName ? uniqueFunction(handlerName) : undefined;
+  const handlerDeclarationName = handler && ts.isFunctionDeclaration(handler)
+    ? handler.name
+    : undefined;
+  const handlerSymbol = handlerDeclarationName
+    ? symbolAt(handlerDeclarationName)
+    : undefined;
+  const handlerBindingIsImmutable = Boolean(
+    handlerSymbol && !symbolIsWritten(handlerSymbol)
+  );
+  const listenerBindsCanonicalHandler = Boolean(
+    handlerReference
+    && handlerDeclarationName
+    && hasSameSymbol(handlerReference, handlerDeclarationName)
+    && ts.isSourceFile(handler.parent)
+  );
   const violations = [];
-  if (!listener || !handlerName || !handler) {
+  if (!canonicalKeyEntry || !canonicalKeyIsImmutable) {
+    violations.push(
+      'cutover recovery must declare one immutable recovery storage key '
+        + 'as a unique top-level const literal'
+    );
+  }
+  if (!listener || !handlerName || !handler || !listenerBindsCanonicalHandler) {
     violations.push(
       'cutover recovery must register an executable vite:preloadError handler'
+    );
+  }
+  if (handlerSymbol && !handlerBindingIsImmutable) {
+    violations.push(
+      'cutover registered recovery handler binding must be immutable'
     );
   }
 
@@ -928,6 +1023,24 @@ function recoveryBoundaryViolations(sources) {
   if (!loadPhoneStoryShell) {
     violations.push('cutover recovery must define one loadPhoneStoryShell boundary');
   }
+
+  const loaderBody = loadPhoneStoryShell?.body
+    && ts.isBlock(loadPhoneStoryShell.body)
+    ? loadPhoneStoryShell.body
+    : undefined;
+  const loaderReturn = loaderBody?.statements.length === 1
+    && ts.isReturnStatement(loaderBody.statements[0])
+    && loaderBody.statements[0].expression
+    ? loaderBody.statements[0]
+    : undefined;
+  const loaderDeclarationName = loadPhoneStoryShell
+    && ts.isFunctionDeclaration(loadPhoneStoryShell)
+    ? loadPhoneStoryShell.name
+    : undefined;
+  const loaderBindingIsImmutable = Boolean(
+    loaderDeclarationName
+    && !symbolIsWritten(symbolAt(loaderDeclarationName))
+  );
 
   const phoneCoreImports = sourceFiles.flatMap(({ sourceFile }) => descendants(
     sourceFile,
@@ -970,22 +1083,21 @@ function recoveryBoundaryViolations(sources) {
       || !ts.isBlock(callback.body)
       || callback.parameters.length !== 1
       || !ts.isIdentifier(callback.parameters[0].name)
-      || callback.parameters[0].name.text === handlerName
       || callback.body.statements.length !== 2
     ) {
       return [];
     }
     const [delegate, rethrow] = callback.body.statements;
-    const errorName = callback.parameters[0].name.text;
     const delegatesDirectly = ts.isExpressionStatement(delegate)
       && ts.isCallExpression(delegate.expression)
       && ts.isIdentifier(delegate.expression.expression)
-      && delegate.expression.expression.text === handlerName
+      && Boolean(handlerDeclarationName)
+      && hasSameSymbol(delegate.expression.expression, handlerDeclarationName)
       && delegate.expression.arguments.length === 0;
     const rethrowsImportError = ts.isThrowStatement(rethrow)
       && Boolean(rethrow.expression)
       && ts.isIdentifier(rethrow.expression)
-      && rethrow.expression.text === errorName;
+      && hasSameSymbol(rethrow.expression, callback.parameters[0].name);
     return delegatesDirectly && rethrowsImportError ? [callback] : [];
   });
   if (
@@ -998,8 +1110,43 @@ function recoveryBoundaryViolations(sources) {
         + 'recovery handler'
     );
   }
+  const returnedExpression = loaderReturn?.expression
+    ? unwrappedExpression(loaderReturn.expression)
+    : undefined;
+  const returnedCatchProperty = returnedExpression
+    && ts.isCallExpression(returnedExpression)
+    && ts.isPropertyAccessExpression(returnedExpression.expression)
+    && returnedExpression.expression.name.text === 'catch'
+    ? returnedExpression.expression
+    : undefined;
+  const returnedPhoneImport = returnedCatchProperty
+    && ts.isCallExpression(returnedCatchProperty.expression)
+    && returnedCatchProperty.expression.expression.kind === ts.SyntaxKind.ImportKeyword
+    ? returnedCatchProperty.expression
+    : undefined;
+  if (
+    loadPhoneStoryShell
+    && (
+      !ts.isFunctionDeclaration(loadPhoneStoryShell)
+      || !ts.isSourceFile(loadPhoneStoryShell.parent)
+      || !loaderBindingIsImmutable
+      || loadPhoneStoryShell.parameters.length !== 0
+      || !loaderReturn
+      || !returnedPhoneImport
+      || loadImports.length !== 1
+      || loadImports[0] !== returnedPhoneImport
+    )
+  ) {
+    violations.push(
+      'cutover loadPhoneStoryShell must directly return the canonical '
+        + 'phone-core import catch boundary'
+    );
+  }
 
   if (handler) {
+    const handlerBody = handler.body && ts.isBlock(handler.body)
+      ? handler.body
+      : undefined;
     const parameter = handler.parameters[0];
     const parameterName = parameter && ts.isIdentifier(parameter.name)
       ? parameter.name.text
@@ -1012,6 +1159,27 @@ function recoveryBoundaryViolations(sources) {
     if (preventCalls.length === 0) {
       violations.push(
         'cutover vite:preloadError handler must call preventDefault()'
+      );
+    }
+    const firstHandlerStatement = handlerBody?.statements[0];
+    const directPreventCall = firstHandlerStatement
+      && ts.isExpressionStatement(firstHandlerStatement)
+      && ts.isCallExpression(firstHandlerStatement.expression)
+      && ts.isPropertyAccessExpression(firstHandlerStatement.expression.expression)
+      && firstHandlerStatement.expression.expression.name.text === 'preventDefault'
+      && firstHandlerStatement.expression.arguments.length === 0
+      && parameter
+      && ts.isIdentifier(parameter.name)
+      && ts.isIdentifier(firstHandlerStatement.expression.expression.expression)
+      && hasSameSymbol(
+        firstHandlerStatement.expression.expression.expression,
+        parameter.name
+      )
+      ? firstHandlerStatement.expression
+      : undefined;
+    if (!directPreventCall) {
+      violations.push(
+        'cutover vite:preloadError handler must directly call preventDefault()'
       );
     }
 
@@ -1280,15 +1448,27 @@ function recoveryBoundaryViolations(sources) {
       : undefined;
     const storageKey = storedRead?.arguments[0];
     const persistedKey = persistedReload?.arguments[0];
+    const usesCanonicalKey = (argument) => Boolean(
+      canonicalKeySymbol
+      && argument
+      && ts.isIdentifier(unwrappedExpression(argument))
+      && symbolAt(unwrappedExpression(argument)) === canonicalKeySymbol
+    );
     const persistsReloadCount = Boolean(
       persistedReload
-      && storageKey
-      && persistedKey
-      && nodeText(storageKey) === nodeText(persistedKey)
+      && usesCanonicalKey(storageKey)
+      && usesCanonicalKey(persistedKey)
     );
     if (!persistsReloadCount) {
       violations.push(
         'cutover recovery must persist automaticReloadCount: 1 before reloading'
+      );
+    }
+    const handlerUsesCanonicalKey = usesCanonicalKey(storageKey)
+      && usesCanonicalKey(persistedKey);
+    if (canonicalKeySymbol && !handlerUsesCanonicalKey) {
+      violations.push(
+        'cutover recovery getItem/setItem must use the canonical recovery storage key symbol'
       );
     }
 
@@ -1344,9 +1524,30 @@ function recoveryBoundaryViolations(sources) {
       );
     }
 
-    const handlerBody = handler.body && ts.isBlock(handler.body)
-      ? handler.body
-      : undefined;
+    const canonicalHandlerShape = Boolean(
+      ts.isFunctionDeclaration(handler)
+      && ts.isSourceFile(handler.parent)
+      && handlerBindingIsImmutable
+      && handler.parameters.length === 1
+      && handlerBody
+      && handlerBody.statements.length === 6
+      && directPreventCall
+      && storedStatement === handlerBody.statements[1]
+      && lineageStatement === handlerBody.statements[2]
+      && boundedGuard === handlerBody.statements[3]
+      && persistedStatement === handlerBody.statements[4]
+      && reloadStatement === handlerBody.statements[5]
+      && parsesStoredLineage
+      && persistsReloadCount
+      && handlerUsesCanonicalKey
+      && atomicReloadTail
+    );
+    if (!canonicalHandlerShape) {
+      violations.push(
+        'cutover recovery handler must match the complete canonical executable micro-shape'
+      );
+    }
+
     const reloadPaths = [];
     const copyStates = (states) => states.map((state) => ({ ...state }));
     const eventNodes = (root) => directDescendants(root, (node) => (
@@ -1510,18 +1711,38 @@ function recoveryBoundaryViolations(sources) {
   }
 
   const markStable = uniqueFunction('markStable');
-  const recoveryStorageKey = handler
-    ? directDescendants(handler, (node) => (
-        identifierOwnerCall(node, 'sessionStorage', 'getItem')
-        && node.arguments.length === 1
-      ))[0]?.arguments[0]
+  const markStableBody = markStable?.body && ts.isBlock(markStable.body)
+    ? markStable.body
     : undefined;
-  const clearsLineage = markStable && directDescendants(markStable, (node) => (
-    identifierOwnerCall(node, 'sessionStorage', 'removeItem')
-    && Boolean(recoveryStorageKey)
-    && Boolean(node.arguments[0])
-    && nodeText(node.arguments[0]) === nodeText(recoveryStorageKey)
-  )).length > 0;
+  const markStableStatement = markStableBody?.statements.length === 1
+    ? markStableBody.statements[0]
+    : undefined;
+  const markStableCall = markStableStatement
+    && ts.isExpressionStatement(markStableStatement)
+    && ts.isCallExpression(markStableStatement.expression)
+    && identifierOwnerCall(markStableStatement.expression, 'sessionStorage', 'removeItem')
+    ? markStableStatement.expression
+    : undefined;
+  const markStableKey = markStableCall?.arguments.length === 1
+    ? markStableCall.arguments[0]
+    : undefined;
+  const markStableName = markStable && ts.isFunctionDeclaration(markStable)
+    ? markStable.name
+    : undefined;
+  const markStableBindingIsImmutable = Boolean(
+    markStableName && !symbolIsWritten(symbolAt(markStableName))
+  );
+  const clearsLineage = Boolean(
+    markStable
+    && ts.isFunctionDeclaration(markStable)
+    && ts.isSourceFile(markStable.parent)
+    && markStableBindingIsImmutable
+    && markStable.parameters.length === 0
+    && canonicalKeySymbol
+    && markStableKey
+    && ts.isIdentifier(unwrappedExpression(markStableKey))
+    && symbolAt(unwrappedExpression(markStableKey)) === canonicalKeySymbol
+  );
   if (!clearsLineage) {
     violations.push('cutover markStable must clear the recovery lineage');
   }
