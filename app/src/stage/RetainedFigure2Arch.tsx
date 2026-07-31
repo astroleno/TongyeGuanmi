@@ -1,4 +1,5 @@
 import type { LayerVisibilityState, SceneId } from '../story/types';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 
 export const FIGURE2_NEAR_ARCH_SRC = new URL('../../../assets/figure2-near-arch.webp', import.meta.url).href;
 
@@ -49,7 +50,7 @@ export function RetainedFigure2Arch({
       className={`stage-proof-retained-arch ${className}`.trim()}
       data-stage-retained-figure2-arch="true"
       data-figure2-arch-motion={motion}
-      data-visible={String(visible)}
+      data-visible={semanticBoolean(visible)}
       src={src}
       alt=""
       aria-hidden="true"

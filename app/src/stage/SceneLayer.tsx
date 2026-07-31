@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { fromSyntheticVisibility } from '../story/visibility-predicate';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 import type { HandleRegistry } from '../story/registry';
 import type {
   LayerVisibilityState,
@@ -140,10 +141,10 @@ export function SceneLayer({ module, role, registry, visibility, reading = false
       className="stage-layer"
       data-stage-layer={module.id}
       data-role={role}
-      data-visible={String(state.visible && state.opacity > 0.001)}
+      data-visible={semanticBoolean(state.visible && state.opacity > 0.001)}
       data-interactable={String(!state.inert && state.pointerEvents === 'auto')}
-      data-reading={String(reading)}
-      data-copy-cue-active={String(copyCueActive)}
+      data-reading={semanticBoolean(reading)}
+      data-copy-cue-active={semanticBoolean(copyCueActive)}
       aria-hidden={state.inert ? 'true' : 'false'}
       inert={state.inert ? true : undefined}
       tabIndex={reading && !state.inert ? 0 : undefined}

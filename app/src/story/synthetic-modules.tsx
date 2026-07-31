@@ -1,4 +1,5 @@
 import { fromSyntheticVisibility } from './visibility-predicate';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 import type {
   CopyCue,
   Direction,
@@ -41,7 +42,10 @@ function SyntheticSceneComponent({ scene, hidden, copyCueActive = false, registe
   return (
     <div className="synthetic-scene" data-synthetic-scene={scene} data-hidden={hidden}>
       <p className="synthetic-scene__kicker">{label.kicker}</p>
-      <h2 ref={(element) => registerHandle?.('copy', element)} data-copy-cue={copyCueActive}>
+      <h2
+        ref={(element) => registerHandle?.('copy', element)}
+        data-copy-cue={semanticBoolean(copyCueActive)}
+      >
         {label.title}
       </h2>
       <div ref={(element) => registerHandle?.('media', element)} className="synthetic-scene__media" aria-hidden="true" />
@@ -109,7 +113,7 @@ function applyVisibility(layer: LayerHandle, state: LayerVisibilityState): void 
   element.style.pointerEvents = state.pointerEvents;
   element.inert = state.inert;
   element.setAttribute('aria-hidden', state.inert ? 'true' : 'false');
-  element.dataset.visible = String(state.visible);
+  element.dataset.visible = semanticBoolean(state.visible);
   element.dataset.interactable = String(!state.inert && state.pointerEvents === 'auto');
 }
 
@@ -210,7 +214,7 @@ export class SyntheticSegmentTimeline implements SegmentTimelineHandle {
     }
     this.copyCueActive = nextActive;
     if (this.to.element) {
-      this.to.element.dataset.copyCueActive = String(nextActive);
+      this.to.element.dataset.copyCueActive = semanticBoolean(nextActive);
       this.to.element.dataset.copyCueActivations = String(this.copyCueActivations);
     }
   }

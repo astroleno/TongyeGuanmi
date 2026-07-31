@@ -50,6 +50,7 @@ export type InkGradePreset = 'edge-only' | 'edge-bright' | 'dark';
 
 export type InkFieldRendererLifecycleOptions = Readonly<{
   removeCanvasOnDestroy?: boolean;
+  loseContextOnDestroy?: boolean;
   fieldKind?: InkFieldFrame['spec']['kind'];
   grade?: InkGradePreset | undefined;
   generation?: string;
@@ -204,14 +205,16 @@ export function createInkFieldRenderer(
   let transitionDestroyed = false;
   let failure: InkRendererFailure | null = null;
   const matchesGeneration = () => canvas.dataset[INK_GENERATION] === generation;
-  const releaseTransition = () => {
+  const releaseTransition = (
+    loseContext = lifecycle.loseContextOnDestroy ?? true
+  ) => {
     if (transitionDestroyed) {
       return;
     }
     transitionDestroyed = true;
     const activeTransition = transition;
     transition = null;
-    activeTransition?.destroy();
+    activeTransition?.destroy(loseContext);
   };
   const invalidate = (reason: Exclude<InkRendererFailureReason, 'unavailable'>) => {
     if (destroyed || invalidated) {
@@ -221,7 +224,7 @@ export function createInkFieldRenderer(
     failure = Object.freeze({ generation, reason });
     canvas.dataset[INK_RENDERER_ACTIVE] = 'false';
     canvas.dataset[INK_RENDERER_STATUS] = reason;
-    releaseTransition();
+    releaseTransition(false);
     lifecycle.onInvalidated?.(failure);
   };
   const isActive = () => {

@@ -23,7 +23,7 @@ export type InkBoundaryTransitionOptions = {
 export type InkBoundaryTransition = {
   render(frame: InkFieldFrame, pointerX?: number, pointerY?: number): void;
   prewarm(frame: InkFieldFrame): void;
-  destroy(): void;
+  destroy(loseContext?: boolean): void;
 };
 
 export function createInkBoundaryTransition(

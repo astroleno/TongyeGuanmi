@@ -1,4 +1,5 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 
 type RevealTag = 'div' | 'h1' | 'p' | 'span';
 
@@ -57,7 +58,7 @@ export function TextReveal({
     <Tag
       {...props}
       data-text-reveal={variant}
-      data-text-reveal-active={String(active)}
+      data-text-reveal-active={semanticBoolean(active)}
       data-text-reveal-effects={effects.join(' ')}
       style={revealStyle}
     >

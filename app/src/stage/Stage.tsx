@@ -10,6 +10,7 @@ import type {
   StageLayerRole
 } from '../story/types';
 import { canonicalSpine } from '../story/canonical-spine';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 import { RetainedFigure2Arch, retainedFigure2ArchState } from './RetainedFigure2Arch';
 
 const PROOF_SCENES = new Set<SceneId>([
@@ -113,7 +114,7 @@ export function Stage({ window, modules, registry, visibilityByScene = {}, copyC
               className="stage-proof-retained-ground"
               aria-hidden="true"
               data-figure2-retained-ground="true"
-              data-visible={String(proofGround.visible)}
+              data-visible={semanticBoolean(proofGround.visible)}
             />
           ) : null}
           {proofModule ? (

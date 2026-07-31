@@ -1,6 +1,7 @@
 import {
   createPackedAlphaVideoCompositor,
   setPackedAlphaVideoSource,
+  type PackedAlphaContextRetirement,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
 
@@ -9,7 +10,7 @@ export type PhonePackedAlphaSurfaceMode = 'forward' | 'endpoint';
 export type PhonePackedAlphaSurface = Readonly<{
   activate(mode?: PhonePackedAlphaSurfaceMode): void;
   release(): void;
-  dispose(): void;
+  dispose(retirement?: PackedAlphaContextRetirement): void;
 }>;
 
 type PhonePackedAlphaSurfaceOptions = Readonly<{
@@ -64,6 +65,7 @@ export function createPhonePackedAlphaSurface(
   let mode: PhonePackedAlphaSurfaceMode | undefined;
   let canvas: HTMLCanvasElement | undefined;
   let compositor: PackedAlphaVideoCompositor | undefined;
+  let dormantCompositor: PackedAlphaVideoCompositor | undefined;
   let frameTimeout: ReturnType<typeof globalThis.setTimeout> | undefined;
   let endpointSeek: (() => void) | undefined;
 
@@ -87,12 +89,24 @@ export function createPhonePackedAlphaSurface(
     canvas = undefined;
   };
 
-  const clearPresentation = () => {
+  const retireCompositor = (retirement: PackedAlphaContextRetirement) => {
+    if (compositor) {
+      compositor.dispose(retirement);
+      dormantCompositor = retirement === 'reactivatable' ? compositor : undefined;
+      compositor = undefined;
+      return;
+    }
+    if (retirement === 'terminal' && dormantCompositor) {
+      dormantCompositor.dispose('terminal');
+      dormantCompositor = undefined;
+    }
+  };
+
+  const clearPresentation = (retirement: PackedAlphaContextRetirement) => {
     if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
     frameTimeout = undefined;
     clearEndpointSeek();
-    compositor?.dispose();
-    compositor = undefined;
+    retireCompositor(retirement);
     retireCanvas();
     delete root.dataset[statusDataset];
   };
@@ -101,8 +115,7 @@ export function createPhonePackedAlphaSurface(
     if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
     frameTimeout = undefined;
     clearEndpointSeek();
-    compositor?.dispose();
-    compositor = undefined;
+    retireCompositor(ownsCanvas ? 'terminal' : 'reactivatable');
     retireCanvas();
     // Keep the decoder source alive. On physical Safari the first WebGL video
     // upload can legitimately wait for the gesture that starts native
@@ -122,7 +135,7 @@ export function createPhonePackedAlphaSurface(
   };
 
   const release = () => {
-    clearPresentation();
+    clearPresentation(ownsCanvas ? 'terminal' : 'reactivatable');
     releaseVideoSource(video);
     mode = undefined;
   };
@@ -133,6 +146,10 @@ export function createPhonePackedAlphaSurface(
       release();
       mode = nextMode;
 
+      // A softly retired handle has already deleted its resources. Once a new
+      // compositor starts on the retained context, only that new owner may
+      // perform the eventual terminal context loss.
+      dormantCompositor = undefined;
       canvas = options.canvas ?? root.ownerDocument.createElement('canvas');
       canvas.className = options.canvasClassName;
       canvas.setAttribute('aria-hidden', 'true');
@@ -210,9 +227,11 @@ export function createPhonePackedAlphaSurface(
       }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
     },
     release,
-    dispose() {
+    dispose(retirement = ownsCanvas ? 'terminal' : 'reactivatable') {
       if (disposed) return;
-      release();
+      clearPresentation(retirement);
+      releaseVideoSource(video);
+      mode = undefined;
       disposed = true;
     }
   };

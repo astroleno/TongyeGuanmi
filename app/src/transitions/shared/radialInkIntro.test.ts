@@ -56,6 +56,7 @@ describe('radial Ink intro controller', () => {
     controller.render(1);
     expect(revealSurface.style.clipPath).toBe('');
     expect(canvas.dataset.heroIntroInkActive).toBe('false');
+    expect(boundaryRenderer.destroy).toHaveBeenCalledWith(true);
 
     controller.dispose();
     expect(boundaryRenderer.destroy).toHaveBeenCalledOnce();

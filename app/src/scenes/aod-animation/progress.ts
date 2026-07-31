@@ -1,4 +1,5 @@
 import { range01, smoothStep } from '../../pilot/visibility';
+import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 
 type AodTransitionConfig = {
   durationSeconds: number;
@@ -161,7 +162,7 @@ export function renderAodTransitionProgress(
 
   section.style.setProperty('--aod-transition-progress', p.toFixed(4));
   section.setAttribute('data-aod-media-progress', mediaProgress.toFixed(4));
-  section.setAttribute('data-aod-alpha-composite', String(alphaComposite));
+  section.setAttribute('data-aod-alpha-composite', semanticBoolean(alphaComposite));
   section.style.setProperty('--aod-transition-sun-x', '0px');
   section.style.setProperty('--aod-transition-sun-y', formatPx(backdropExit * upExitY * 1.02));
   section.style.setProperty('--aod-transition-sun-opacity', (0.96 * backgroundFade).toFixed(4));

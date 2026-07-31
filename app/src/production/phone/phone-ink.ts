@@ -88,7 +88,12 @@ export function createPhoneInkTransition(
     fieldKind: spec.kind,
     grade: options.grade ?? 'dark',
     generation: `phone-story:${options.id}`,
-    removeCanvasOnDestroy: false
+    removeCanvasOnDestroy: false,
+    // React and the back-half transition adapters keep their injected Canvas
+    // across effect cleanup and endpoint rebinding. Delete the run resources,
+    // but hard-lose a context only when this transition created and removes
+    // the Canvas itself.
+    loseContextOnDestroy: !options.canvas
   });
   let lastProgress = Number.NaN;
   let ownsBoundaryGeometry = false;

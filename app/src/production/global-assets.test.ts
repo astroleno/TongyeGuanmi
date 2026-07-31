@@ -15,8 +15,8 @@ describe('production global assets', () => {
 
   it('keeps the main baseline order for sans and traditional-serif fallbacks', () => {
     expect(styles).toContain('--font-title: "Tongye Title", "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;');
-    expect(styles).toContain('--font-sans: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;');
-    expect(styles).toContain('--font-traditional: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;');
+    expect(styles).toContain('--font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;');
+    expect(styles).toContain('--font-traditional: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", ui-serif, serif;');
     expect(styles).toContain('--diagnosis-cta-border-active: rgba(37, 39, 25, .48);');
     expect(styles).toContain('font-synthesis: none');
     expect(styles).not.toMatch(/font-family:\s*\n?\s*Inter\b/);

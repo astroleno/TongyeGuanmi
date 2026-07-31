@@ -2,8 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../media/packed-alpha-video', () => ({
   createPackedAlphaVideoCompositor: vi.fn(({ canvas }) => {
-    canvas.dataset.packedAlphaStatus = 'waiting';
-    return { render: () => false, dispose: vi.fn() };
+    const contextLost = canvas.dataset.testPackedAlphaContextLost === 'true';
+    canvas.dataset.packedAlphaStatus = contextLost ? 'setup-failed' : 'waiting';
+    return {
+      render: () => false,
+      dispose: vi.fn((retirement = 'terminal') => {
+        if (retirement === 'terminal') {
+          canvas.dataset.testPackedAlphaContextLost = 'true';
+        }
+      })
+    };
   }),
   setPackedAlphaVideoSource: vi.fn((video, sourceUrl) => {
     const source = video.ownerDocument.createElement('source');
@@ -172,6 +180,44 @@ describe('phone packed-alpha surface', () => {
     expect(canvas.height).toBe(1);
     expect(video.querySelector('source')).toBeNull();
     surface.dispose();
+  });
+
+  it('reactivates the real surface call chain on the same React-owned Canvas before terminal retirement', () => {
+    const ownerDocument = new FakeDocument();
+    const root = ownerDocument.createElement('section');
+    const container = ownerDocument.createElement('div');
+    const video = ownerDocument.createElement('video') as FakeVideo;
+    const canvas = ownerDocument.createElement('canvas');
+    root.append(container);
+    container.append(video);
+    container.append(canvas);
+    const surface = createPhonePackedAlphaSurface({
+      root: root as unknown as HTMLElement,
+      container: container as unknown as HTMLElement,
+      canvas: canvas as unknown as HTMLCanvasElement,
+      video: video as unknown as HTMLVideoElement,
+      packedSourceUrl: '/packed.mp4',
+      endpointSeconds: 1.25,
+      statusDataset: 'phoneTestAlpha',
+      layerName: 'test',
+      canvasClassName: 'test-canvas'
+    });
+
+    surface.activate();
+    surface.release();
+
+    expect(container.querySelector('canvas')).toBe(canvas);
+    expect(canvas.dataset.testPackedAlphaContextLost).toBeUndefined();
+
+    surface.activate();
+
+    expect(container.querySelector('canvas')).toBe(canvas);
+    expect(canvas.dataset.packedAlphaStatus).toBe('waiting');
+    expect(root.dataset.phoneTestAlpha).toBe('probing');
+
+    surface.dispose('terminal');
+
+    expect(canvas.dataset.testPackedAlphaContextLost).toBe('true');
   });
 
   it('retains the forward decoder and Canvas while Safari waits for a gesture frame', () => {

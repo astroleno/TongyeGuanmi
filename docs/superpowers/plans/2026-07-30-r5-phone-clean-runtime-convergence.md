@@ -1563,7 +1563,7 @@ desktop-webkit:    11 passed, 21 existing project-conditional skips, 0 failed
   packed-alpha/ink ownership files and their tests above;
 - frozen story/media inputs.
 
-- [ ] **Step 1.1: Audit the donor patch instead of applying it**
+- [x] **Step 1.1: Audit the donor patch instead of applying it**
 
 ```bash
 git show --stat 82a4e68
@@ -1579,7 +1579,7 @@ git show d4d29bc -- app/scripts/verify-phone-packed-alpha-masters.mjs
 Record the source commit beside each manually ported hunk in the Task 1 commit
 body. Do not run `git cherry-pick`.
 
-- [ ] **Step 1.2: Write the semantic-boolean RED tests**
+- [x] **Step 1.2: Write the semantic-boolean RED tests**
 
 The helper contract is:
 
@@ -1627,13 +1627,13 @@ node --test app/scripts/verify-boolean-data-contract.test.mjs
 
 Expected: RED before helper/gate implementation.
 
-- [ ] **Step 1.3: Port semantic booleans to actual consumers**
+- [x] **Step 1.3: Port semantic booleans to actual consumers**
 
 Use `semanticBoolean()` only for semantic boolean attributes. Do not convert
 identifiers, phases, counts, or optional descriptive attributes. The gate must
 scan built production source, not merely a hand-maintained file list.
 
-- [ ] **Step 1.4: Port packed-alpha resource retirement**
+- [x] **Step 1.4: Port packed-alpha resource retirement**
 
 From `82a4e68`, port the behavior equivalent to:
 
@@ -1657,11 +1657,13 @@ Define two explicit ownership paths:
   React-owned Canvas node. It must cancel scheduling and delete compositor
   resources without calling `WEBGL_lose_context`; the same node/context must
   remain able to initialize and render on the next `activate()`;
-- **terminal hard retirement:** `PhonePackedAlphaSurface.dispose()`, or
-  retirement of a compositor-owned Canvas that is removed and replaced on the
-  next activation, must release the context exactly once. A compositor that
-  was softly released but never reactivated must still be hard-retirable at
-  terminal disposal.
+- **terminal hard retirement:** `PhonePackedAlphaSurface.dispose('terminal')`,
+  or the safe default for a compositor-owned Canvas that is removed and
+  replaced on the next activation, must release the context exactly once. An
+  injected React Canvas defaults to reactivatable cleanup unless its owner
+  explicitly confirms terminal retirement. A compositor that was softly
+  released but never reactivated must still be hard-retirable by that explicit
+  terminal call.
 
 Make the compositor retirement API encode that distinction rather than
 inferring it from a call order. The surface must not hard-retire an old handle
@@ -1674,10 +1676,11 @@ Add:
 - a real `createPhonePackedAlphaSurface()` release → activate regression using
   the persistent injected Canvas path, not two manually renewed fake Canvases;
 - a Chromium browser regression through the production phone PH/Crane surface
-  proving the same Canvas can release and reactivate without `setup-failed`,
-  and that hard context loss occurs only at terminal retirement.
+  proving the same Canvas can release and reactivate without `setup-failed` or
+  a context-loss event. Prove explicit terminal hard loss separately at the
+  compositor/surface unit boundary.
 
-- [ ] **Step 1.5: Port shared rendering fixes by path/hunk**
+- [x] **Step 1.5: Port shared rendering fixes by path/hunk**
 
 Port the applicable semantic data-attribute, ink lifecycle, radial intro,
 staged handoff, vendor typing, global typography, and rendering corrections
@@ -1692,14 +1695,13 @@ cleanup. In particular, `createPhoneInkTransition()` must pass
 `PhoneInkTransition`; an internally created, terminally removed Canvas may
 still hard-retire.
 
-Add a `PhoneInkTransition` integration regression that mounts in React
-StrictMode, runs effect cleanup, and recreates the renderer on the exact same
-Canvas. Assert the cleanup uses `destroy(false)` and the replacement renderer
-is active. The Chromium lifecycle spec must also exercise a production phone
-ink Canvas across cleanup/recreation or endpoint rebinding and prove it is not
-context-lost.
+Add a `PhoneInkTransition` StrictMode-style integration regression that runs
+cleanup and recreates the renderer on the exact same Canvas. Assert the cleanup
+uses `destroy(false)` and the replacement renderer is active. The Chromium
+lifecycle spec must also exercise a production phone ink Canvas across
+cleanup/recreation or endpoint rebinding and prove it is not context-lost.
 
-- [ ] **Step 1.6: Add packed-master verification**
+- [x] **Step 1.6: Add packed-master verification**
 
 Port the logic of
 `d4d29bc:app/scripts/verify-phone-packed-alpha-masters.mjs`, then make it read
@@ -1717,7 +1719,7 @@ Add package scripts:
 
 Wire both into the existing build verification sequence before Vite build.
 
-- [ ] **Step 1.7: Run focused and global verification**
+- [x] **Step 1.7: Run focused and global verification**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -1751,7 +1753,7 @@ git diff --exit-code 9652fbe -- \
   app/src/story/manifest.ts app/src/story/spine.ts app/src/story/media.ts
 ```
 
-- [ ] **Step 1.8: Review provenance and commit**
+- [x] **Step 1.8: Review provenance and commit**
 
 `git diff` must show no lifecycle code copied from `18b6a7c`, no Vite property
 mangling, and no generated field registry.
