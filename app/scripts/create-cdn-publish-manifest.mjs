@@ -57,6 +57,14 @@ async function filesBelow(directory) {
   return files;
 }
 
+function relativeDistPath(file) {
+  return path.relative(distDir, file).split(path.sep).join('/');
+}
+
+function isBuildAuditArtifact(file) {
+  return relativeDistPath(file).startsWith('audit/');
+}
+
 function normalizedOrigin(value, label) {
   const url = new URL(value);
   if (url.protocol !== 'https:' || url.pathname !== '/' || url.search || url.hash) {
@@ -91,8 +99,13 @@ if (releaseId && !/^[a-z0-9][a-z0-9._-]{2,79}$/.test(releaseId)) {
 const sourceCommit = await git('rev-parse', 'HEAD^{commit}');
 let files = [];
 if (releaseId) {
-  const emittedFiles = await filesBelow(path.join(distDir, 'assets'));
-  const textFiles = (await filesBelow(distDir))
+  const distFiles = await filesBelow(distDir);
+  const emittedFiles = distFiles.filter((file) => (
+    !isBuildAuditArtifact(file)
+    && relativeDistPath(file).startsWith('assets/')
+  ));
+  const textFiles = distFiles
+    .filter((file) => !isBuildAuditArtifact(file))
     .filter((file) => /\.(?:css|html|js)$/.test(file))
     .sort();
   const releaseText = (await Promise.all(textFiles.map((file) => readFile(file, 'utf8')))).join('\n');
@@ -107,7 +120,7 @@ if (releaseId) {
     if (!channel) {
       return null;
     }
-    const sourcePath = path.relative(distDir, file).split(path.sep).join('/');
+    const sourcePath = relativeDistPath(file);
     const objectKey = `releases/${releaseId}/${sourcePath}`;
     const origin = channel === 'media' ? mediaOrigin : assetOrigin;
     const url = `${origin}/${objectKey}`;

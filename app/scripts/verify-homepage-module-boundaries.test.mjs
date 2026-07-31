@@ -1,5 +1,5 @@
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
 import {
   phoneShellDebt,
   phoneShellCssDebt,
@@ -10,12 +10,20 @@ import {
   shellZoneRendererImportViolations
 } from './verify-homepage-module-boundaries.mjs';
 
+const { describe, it } = process.env.VITEST
+  ? await import('vitest')
+  : await import('node:test');
+
 const shellSource = readFileSync(
   new URL('../src/production/phone/PhoneStoryShell.tsx', import.meta.url),
   'utf8'
 );
 const shellCssSource = readFileSync(
   new URL('../src/production/phone/PhoneStoryShell.css', import.meta.url),
+  'utf8'
+);
+const boundaryGateSource = readFileSync(
+  new URL('./verify-homepage-module-boundaries.mjs', import.meta.url),
   'utf8'
 );
 
@@ -29,92 +37,105 @@ function cssViolationsFor(source) {
 
 describe('homepage phone-shell debt ratchet', () => {
   it('accepts the frozen Unit 3 baseline', () => {
-    expect(violationsFor(shellSource)).toEqual([]);
+    assert.deepEqual(violationsFor(shellSource), []);
   });
 
   it('rejects a new shell-owned product media key', () => {
     const violations = violationsFor(
       `${shellSource}\nconst NEXT_MEDIA = phoneMediaUrlFor('new-media', 'hero');`
     );
-    expect(violations).toContain('new shell-owned media key is forbidden (new-media)');
+    assert.ok(violations.includes('new shell-owned media key is forbidden (new-media)'));
   });
 
   it('rejects media ownership hidden behind a non-literal key', () => {
     const violations = violationsFor(
       `${shellSource}\nconst NEXT_MEDIA = phoneMediaUrlFor(mediaId, 'hero');`
     );
-    expect(violations).toContain(
+    assert.ok(violations.includes(
       'shell media ownership calls must use literal product media IDs'
-    );
+    ));
   });
 
   it('rejects a new scene progress threshold but permits tuning an existing value', () => {
     const added = violationsFor(`${shellSource}\nconst PATTERN_FADE_END = 0.5;`);
-    expect(added).toContain(
+    assert.ok(added.includes(
       'new shell-owned progress constant is forbidden (PATTERN_FADE_END)'
-    );
+    ));
 
     const tuned = shellSource.replace(
       'const PATTERN_MOTION_END = 0.47;',
       'const PATTERN_MOTION_END = 0.471;'
     );
-    expect(violationsFor(tuned)).toEqual([]);
+    assert.deepEqual(violationsFor(tuned), []);
   });
 
   it('rejects another scene root and permits a migrated root to disappear', () => {
     const added = violationsFor(
       `${shellSource}\n<section className="portrait-scroll-spike__scene--figure2" />`
     );
-    expect(added).toContain('new shell-owned scene root is forbidden (figure2)');
+    assert.ok(added.includes('new shell-owned scene root is forbidden (figure2)'));
 
     const migrated = shellSource.replace(
       'portrait-scroll-spike__scene--star',
       'phone-scene--star'
     );
-    expect(violationsFor(migrated)).toEqual([]);
+    assert.deepEqual(violationsFor(migrated), []);
   });
 
   it('rejects shell growth even when a new line avoids the named debt patterns', () => {
-    expect(violationsFor(`${shellSource.trimEnd()}\nvoid 0;\n`)).toContain(
+    assert.ok(violationsFor(`${shellSource.trimEnd()}\nvoid 0;\n`).includes(
       `Unit 3 shell debt grew to ${phoneShellDebt.maxLines + 1} lines `
         + `(ratchet ${phoneShellDebt.maxLines})`
-    );
+    ));
   });
 
   it('ratchets the shell CSS asset, scene, owner, and line debts', () => {
-    expect(cssViolationsFor(shellCssSource)).toEqual([]);
-    expect(cssViolationsFor(
+    assert.deepEqual(cssViolationsFor(shellCssSource), []);
+    const sceneViolations = cssViolationsFor(
       `${shellCssSource.trimEnd()}\n.portrait-scroll-spike__scene--figure2 {}\n`
-    )).toEqual(expect.arrayContaining([
+    );
+    for (const expected of [
       'new shell-owned CSS scene root is forbidden (figure2)',
       `Unit 3 shell CSS debt grew to ${phoneShellCssDebt.maxLines + 1} lines `
         + `(ratchet ${phoneShellCssDebt.maxLines})`
-    ]));
-    expect(cssViolationsFor(
+    ]) {
+      assert.ok(sceneViolations.includes(expected));
+    }
+    assert.ok(cssViolationsFor(
       `${shellCssSource}\n.extra { background: url("../../../../assets/new-scene.webp"); }\n`
-    )).toContain(
+    ).includes(
       'new shell-owned CSS asset URL is forbidden (../../../../assets/new-scene.webp)'
-    );
+    ));
   });
 
   it('rejects moving renderer ownership into a new top-level phone helper', () => {
-    expect(shellZoneRendererImportViolations(
+    assert.ok(shellZoneRendererImportViolations(
       'hero-runtime.ts',
       '../../scenes/hero/motion'
-    )).toContain(
+    ).includes(
       'new shell-zone renderer import is forbidden '
         + '(hero-runtime.ts -> ../../scenes/hero/motion)'
-    );
-    expect(shellZoneRendererImportViolations(
+    ));
+    assert.ok(shellZoneRendererImportViolations(
       'hero-motion.ts',
       '../../media/packed-alpha-video'
-    )).toContain(
+    ).includes(
       'new shell-zone renderer import is forbidden '
         + '(hero-motion.ts -> ../../media/packed-alpha-video)'
-    );
-    expect(shellZoneRendererImportViolations(
+    ));
+    assert.deepEqual(shellZoneRendererImportViolations(
       'phone-ink.ts',
       '../../transitions/shared/sceneInk'
-    )).toEqual([]);
+    ), []);
+  });
+
+  it('delegates the canonical phone graph to the clean architecture verifier', () => {
+    assert.ok(boundaryGateSource.includes(
+      "import { phoneCleanArchitectureViolations } "
+        + "from './verify-phone-clean-architecture.mjs';"
+    ));
+    assert.ok(boundaryGateSource.includes(
+      "phoneCleanArchitectureViolations({\n  appRoot: appDir,\n  phase: 'harness'"
+    ));
   });
 });

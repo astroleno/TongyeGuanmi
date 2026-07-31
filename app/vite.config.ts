@@ -1,10 +1,13 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import type { Plugin, Rollup } from 'vite';
 import { renderStaticStoryShell, type StaticCopyReference } from './build/static-shell';
 import { SITE_META } from './src/content/site-meta';
 
+const repoRoot = fileURLToPath(new URL('../', import.meta.url));
 const copyReference = JSON.parse(
   readFileSync(new URL('../docs/react-refactor/inventory/copy-reference.json', import.meta.url), 'utf8')
 ) as StaticCopyReference;
@@ -102,8 +105,77 @@ function staticStoryShellPlugin() {
   };
 }
 
+function normalizeR5ModuleId(moduleId: string): string {
+  if (moduleId.startsWith('\0')) {
+    return `virtual:${moduleId.slice(1).replaceAll('\\', '/')}`;
+  }
+  const queryIndex = moduleId.indexOf('?');
+  const filename = queryIndex === -1
+    ? moduleId
+    : moduleId.slice(0, queryIndex);
+  const query = queryIndex === -1 ? '' : moduleId.slice(queryIndex);
+  if (!path.isAbsolute(filename)) {
+    return `${filename.replaceAll('\\', '/')}${query}`;
+  }
+  const relative = path.relative(repoRoot, filename);
+  return relative.startsWith('..')
+    ? `external:${filename.replaceAll('\\', '/')}${query}`
+    : `${relative.split(path.sep).join('/')}${query}`;
+}
+
+function r5ModuleProvenancePlugin(): Plugin {
+  return {
+    name: 'r5-module-provenance',
+    generateBundle(_options, bundle: Rollup.OutputBundle) {
+      const outputChunks = Object.values(bundle)
+        .filter((output): output is Rollup.OutputChunk => output.type === 'chunk');
+      // Vite represents a CSS-only dynamic entry as an empty transient JS
+      // chunk during generateBundle, then emits only its CSS asset. Keep the
+      // audit graph aligned with files that actually survive in dist.
+      const auditableChunks = outputChunks.filter((chunk) => (
+        Object.keys(chunk.modules).some((moduleId) => (
+          !(moduleId.split('?', 1)[0] ?? moduleId).endsWith('.css')
+        ))
+      ));
+      const auditableFiles = new Set(
+        auditableChunks.map((chunk) => chunk.fileName)
+      );
+      const chunks = auditableChunks
+        .map((chunk) => ({
+          fileName: chunk.fileName,
+          isEntry: chunk.isEntry,
+          isDynamicEntry: chunk.isDynamicEntry,
+          facadeModuleId: chunk.facadeModuleId
+            ? normalizeR5ModuleId(chunk.facadeModuleId)
+            : null,
+          imports: [...new Set(
+            chunk.imports.filter((fileName) => auditableFiles.has(fileName))
+          )].sort(),
+          dynamicImports: [...new Set(
+            chunk.dynamicImports.filter((fileName) => auditableFiles.has(fileName))
+          )].sort(),
+          modules: [...new Set(
+            Object.keys(chunk.modules).map(normalizeR5ModuleId)
+          )].sort()
+        }))
+        .sort((left, right) => (
+          left.fileName < right.fileName
+            ? -1
+            : left.fileName > right.fileName
+              ? 1
+              : 0
+        ));
+      this.emitFile({
+        type: 'asset',
+        fileName: 'audit/r5-module-provenance.json',
+        source: `${JSON.stringify({ schemaVersion: 1, chunks }, null, 2)}\n`
+      });
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), staticStoryShellPlugin()],
+  plugins: [react(), staticStoryShellPlugin(), r5ModuleProvenancePlugin()],
   ...(releaseId
     ? {
         experimental: {

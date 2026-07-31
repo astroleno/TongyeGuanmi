@@ -1798,7 +1798,7 @@ git commit -m "fix(r5): port clean rendering contracts"
 - `app/scripts/create-cdn-publish-manifest.mjs`
 - `app/vite.config.ts`
 
-- [ ] **Step 2.1: Write fixture-driven RED tests**
+- [x] **Step 2.1: Write fixture-driven RED tests**
 
 Use Node's test runner and temporary fixture directories. The tests must prove
 the gate rejects:
@@ -1844,7 +1844,7 @@ Run and confirm RED:
 node --test app/scripts/verify-phone-clean-architecture.test.mjs
 ```
 
-- [ ] **Step 2.2: Implement the gate with the TypeScript compiler API**
+- [x] **Step 2.2: Implement the gate with the TypeScript compiler API**
 
 Use the installed `typescript` package to parse imports, calls, and production
 source. Do not rely on regex alone for module graph or factory-call counting.
@@ -1881,7 +1881,7 @@ Cutover phase additionally enforces:
 - no old phone orchestration import from a canonical leaf;
 - phone bundle cap remains unchanged.
 
-- [ ] **Step 2.3: Wire gates into scripts**
+- [x] **Step 2.3: Wire gates into scripts**
 
 Add:
 
@@ -1899,7 +1899,7 @@ Update the general module-boundary gate so the phone rules have one
 implementation: it should invoke or share the clean verifier, not duplicate
 another import graph.
 
-- [ ] **Step 2.4: Emit authoritative module-to-chunk provenance**
+- [x] **Step 2.4: Emit authoritative module-to-chunk provenance**
 
 Vite's ordinary manifest records entry/import edges but does not include
 Rollup `OutputChunk.modules`. Add one small local plugin in `vite.config.ts`
@@ -1947,7 +1947,7 @@ This JSON is build-audit evidence only:
 Ordinary Vite manifest traversal alone cannot satisfy the post-build
 duplicate/eager module gate.
 
-- [ ] **Step 2.5: Lock the immutable bundle cap**
+- [x] **Step 2.5: Lock the immutable bundle cap**
 
 `verify-performance-budgets.mjs` must retain:
 
@@ -1990,7 +1990,7 @@ Task 11 records the first fully functional clean-cutover size as
 `cleanCutoverBaselineBytes`. That value becomes the future regression baseline
 only after Task 12/13 acceptance; it does not alter the immutable 663,552 cap.
 
-- [ ] **Step 2.6: Verify and commit**
+- [x] **Step 2.6: Verify and commit**
 
 ```bash
 node --test app/scripts/verify-phone-clean-architecture.test.mjs

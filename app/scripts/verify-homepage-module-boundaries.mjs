@@ -1,6 +1,7 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { phoneCleanArchitectureViolations } from './verify-phone-clean-architecture.mjs';
 
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sourceDir = path.join(appDir, 'src');
@@ -284,6 +285,13 @@ for (const file of await filesBelow(path.join(phoneDir, 'scenes'))) {
   if (/new\s+URL\s*\(/.test(source)) {
     violations.push(`${display(file)}: scene adapters must resolve media through phone-media and product ownership contracts`);
   }
+}
+
+for (const violation of await phoneCleanArchitectureViolations({
+  appRoot: appDir,
+  phase: 'harness'
+})) {
+  violations.push(`clean phone architecture: ${violation}`);
 }
 
 if (violations.length > 0) {

@@ -3,7 +3,8 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const appDir = path.dirname(path.dirname(SCRIPT_PATH));
 const repoDir = path.dirname(appDir);
 const distDir = path.join(repoDir, 'dist');
 const indexPath = path.join(distDir, 'index.html');
@@ -19,6 +20,252 @@ const assetCdnOrigin = new URL(
 const mediaCdnOrigin = new URL(
   process.env.R5_MEDIA_CDN_BASE?.trim() || 'https://media.tongye.me'
 ).origin;
+
+export const DONOR_MAX_LAZY_LEAF_BYTES = 55_259;
+
+const phoneExecutionCoreNames = new Set([
+  'PhoneStoryShell.tsx',
+  'machine.ts',
+  'manifest.ts',
+  'presentation.ts',
+  'protocol.ts',
+  'runtime.ts'
+]);
+
+function sortedUnique(values) {
+  return [...new Set(values)].sort();
+}
+
+function sameArray(left, right) {
+  return left.length === right.length
+    && left.every((value, index) => value === right[index]);
+}
+
+function phoneStoryModule(moduleId) {
+  return moduleId.includes('/src/production/phone-story/');
+}
+
+function phoneExecutionCoreModule(moduleId) {
+  return phoneStoryModule(moduleId)
+    && phoneExecutionCoreNames.has(path.posix.basename(moduleId));
+}
+
+function phoneLeafModule(moduleId) {
+  return (
+    moduleId.includes('/src/scenes/')
+    && moduleId.includes('/phone/')
+  ) || (
+    moduleId.includes('/src/transitions/')
+    && (
+      moduleId.includes('/phone/')
+      || /\/phone\.[cm]?[jt]sx?(?:\?|$)/.test(moduleId)
+    )
+  );
+}
+
+function lazyLifecycleOwner(moduleId) {
+  return phoneExecutionCoreModule(moduleId)
+    || [
+      '/production/input-controller',
+      '/production/phone/PhoneBrandLabStory',
+      '/production/phone/PhoneLabContactShell',
+      '/production/phone/PhoneStoryShell',
+      '/production/phone/phone-loader-lifecycle',
+      '/production/phone/phone-stage-timeline',
+      '/production/phone/phone-transition-coordinator',
+      '/production/portrait-spike/'
+    ].some((marker) => moduleId.includes(marker));
+}
+
+export function moduleProvenanceViolations(
+  provenance,
+  {
+    chunkBytes = new Map(),
+    viteManifest
+  } = {}
+) {
+  const violations = [];
+  if (!provenance || typeof provenance !== 'object') {
+    return ['r5 module provenance report is missing'];
+  }
+  if (provenance.schemaVersion !== 1) {
+    violations.push(
+      `r5 module provenance schemaVersion must be 1 `
+        + `(received ${String(provenance.schemaVersion)})`
+    );
+  }
+  if (!Array.isArray(provenance.chunks)) {
+    violations.push('r5 module provenance chunks must be an array');
+    return violations;
+  }
+
+  const chunks = provenance.chunks;
+  const chunkByFile = new Map();
+  for (const chunk of chunks) {
+    if (
+      !chunk
+      || typeof chunk !== 'object'
+      || typeof chunk.fileName !== 'string'
+      || typeof chunk.isEntry !== 'boolean'
+      || typeof chunk.isDynamicEntry !== 'boolean'
+      || !(
+        chunk.facadeModuleId === null
+        || typeof chunk.facadeModuleId === 'string'
+      )
+      || !Array.isArray(chunk.imports)
+      || !Array.isArray(chunk.dynamicImports)
+      || !Array.isArray(chunk.modules)
+      || ![
+        ...chunk.imports,
+        ...chunk.dynamicImports,
+        ...chunk.modules
+      ].every((value) => typeof value === 'string')
+    ) {
+      violations.push('r5 module provenance contains a malformed chunk');
+      continue;
+    }
+    if (chunkByFile.has(chunk.fileName)) {
+      violations.push(`duplicate provenance chunk ${chunk.fileName}`);
+    }
+    chunkByFile.set(chunk.fileName, chunk);
+    for (const [label, values] of [
+      ['imports', chunk.imports],
+      ['dynamicImports', chunk.dynamicImports],
+      ['modules', chunk.modules]
+    ]) {
+      if (!sameArray(values, sortedUnique(values))) {
+        violations.push(
+          `${chunk.fileName} ${label} must be sorted and unique`
+        );
+      }
+    }
+    if (
+      chunk.facadeModuleId?.startsWith('/')
+      || chunk.modules.some((moduleId) => moduleId.startsWith('/'))
+    ) {
+      violations.push(
+        `${chunk.fileName} contains a non-normalized absolute module ID`
+      );
+    }
+  }
+  const fileNames = chunks
+    .filter((chunk) => chunk && typeof chunk.fileName === 'string')
+    .map((chunk) => chunk.fileName);
+  if (!sameArray(fileNames, [...fileNames].sort())) {
+    violations.push('provenance chunks must be sorted by fileName');
+  }
+
+  const ownersByModule = new Map();
+  for (const chunk of chunkByFile.values()) {
+    for (const moduleId of chunk.modules) {
+      const owners = ownersByModule.get(moduleId) ?? [];
+      owners.push(chunk.fileName);
+      ownersByModule.set(moduleId, owners);
+    }
+  }
+  for (const [moduleId, owners] of ownersByModule) {
+    if (owners.length > 1 && moduleId.includes('/src/production/')) {
+      violations.push(
+        `${moduleId} is emitted into multiple chunks: ${owners.sort().join(', ')}`
+      );
+    }
+  }
+
+  if (viteManifest && typeof viteManifest === 'object') {
+    const emittedManifestFiles = new Set(
+      Object.values(viteManifest)
+        .map((entry) => entry?.file)
+        .filter((file) => typeof file === 'string' && file.endsWith('.js'))
+    );
+    for (const fileName of chunkByFile.keys()) {
+      if (!emittedManifestFiles.has(fileName)) {
+        violations.push(
+          `${fileName} is absent from the Vite manifest module graph`
+        );
+      }
+    }
+  }
+
+  const shellChunks = [...chunkByFile.values()].filter((chunk) => (
+    chunk.modules.some((moduleId) => (
+      moduleId.endsWith(
+        '/src/production/phone-story/PhoneStoryShell.tsx'
+      )
+    ))
+  ));
+  if (shellChunks.length > 1) {
+    violations.push('PhoneStoryShell execution core is duplicated across chunks');
+  }
+  if (shellChunks.length === 1) {
+    const synchronousFiles = new Set();
+    const visit = (fileName) => {
+      if (synchronousFiles.has(fileName)) return;
+      synchronousFiles.add(fileName);
+      const chunk = chunkByFile.get(fileName);
+      if (!chunk) {
+        violations.push(
+          `phone execution closure imports missing chunk ${fileName}`
+        );
+        return;
+      }
+      for (const imported of chunk.imports) visit(imported);
+    };
+    visit(shellChunks[0].fileName);
+    const synchronousModules = new Set(
+      [...synchronousFiles]
+        .map((fileName) => chunkByFile.get(fileName))
+        .filter(Boolean)
+        .flatMap((chunk) => chunk.modules)
+    );
+    for (const coreName of phoneExecutionCoreNames) {
+      const suffix = `/src/production/phone-story/${coreName}`;
+      if (![...synchronousModules].some((moduleId) => moduleId.endsWith(suffix))) {
+        violations.push(
+          `phone execution core is missing synchronously reachable ${coreName}`
+        );
+      }
+    }
+    for (const moduleId of synchronousModules) {
+      if (phoneLeafModule(moduleId)) {
+        violations.push(
+          `eager phone leaf entered the synchronous execution core: ${moduleId}`
+        );
+      }
+      if (moduleId.endsWith('/phone-story/PhoneBrandLabStory.tsx')) {
+        violations.push(
+          'formal phone execution core eagerly contains PhoneBrandLabStory'
+        );
+      }
+    }
+  }
+
+  for (const chunk of chunkByFile.values()) {
+    const leafModules = chunk.modules.filter(phoneLeafModule);
+    if (leafModules.length === 0) continue;
+    const authority = chunk.modules.find(lazyLifecycleOwner);
+    if (authority) {
+      violations.push(
+        `${chunk.fileName} lazy phone leaf contains lifecycle authority ${authority}`
+      );
+    }
+    if (chunk.isDynamicEntry) {
+      const bytes = chunkBytes instanceof Map
+        ? chunkBytes.get(chunk.fileName)
+        : chunkBytes[chunk.fileName];
+      if (
+        typeof bytes === 'number'
+        && bytes > DONOR_MAX_LAZY_LEAF_BYTES
+      ) {
+        violations.push(
+          `${chunk.fileName} lazy phone leaf chunk exceeds donor maximum: `
+            + `${bytes} > ${DONOR_MAX_LAZY_LEAF_BYTES}`
+        );
+      }
+    }
+  }
+
+  return [...new Set(violations)].sort();
+}
 
 function assert(condition, message) {
   if (!condition) {
@@ -101,6 +348,7 @@ async function filesBelow(directory) {
   return files;
 }
 
+if (path.resolve(process.argv[1] ?? '') === SCRIPT_PATH) {
 const [html, copy, staticCopyOmissions] = await Promise.all([
   readFile(indexPath, 'utf8'),
   readFile(copyPath, 'utf8').then(JSON.parse),
@@ -226,6 +474,35 @@ for (const forbidden of [
 const distFiles = await filesBelow(distDir);
 const jsFiles = distFiles.filter((file) => file.endsWith('.js'));
 assert(jsFiles.length > 0, 'release build emitted no JavaScript');
+const provenancePath = path.join(
+  distDir,
+  'audit/r5-module-provenance.json'
+);
+const [moduleProvenance, viteManifest] = await Promise.all([
+  readFile(provenancePath, 'utf8').then(JSON.parse),
+  readFile(path.join(distDir, '.vite/manifest.json'), 'utf8').then(JSON.parse)
+]);
+const provenanceChunkBytes = new Map();
+for (const chunk of Array.isArray(moduleProvenance?.chunks)
+  ? moduleProvenance.chunks
+  : []) {
+  if (!chunk || typeof chunk.fileName !== 'string') continue;
+  const target = path.resolve(distDir, chunk.fileName);
+  assert(
+    target.startsWith(`${distDir}${path.sep}`),
+    `provenance chunk resolves outside dist: ${chunk.fileName}`
+  );
+  provenanceChunkBytes.set(chunk.fileName, (await stat(target)).size);
+}
+const provenanceViolations = moduleProvenanceViolations(moduleProvenance, {
+  chunkBytes: provenanceChunkBytes,
+  viteManifest
+});
+assert(
+  provenanceViolations.length === 0,
+  `release module provenance failed:\n`
+    + provenanceViolations.map((violation) => `- ${violation}`).join('\n')
+);
 const loaderInkChunks = jsFiles.filter((file) => /^loader-ink-reveal-[^.]+\.js$/.test(path.basename(file)));
 assert(loaderInkChunks.length === 1, 'release build must emit exactly one loader Ink lazy chunk');
 const initialScriptPath = distPathFromHref(initialScriptSrcs[0], 'release initial script');
@@ -245,6 +522,11 @@ for (const marker of ['uTextMask', 'poreInk', 'blobDrop']) {
   assert(!initialJsText.includes(marker), `initial JavaScript eagerly contains loader Ink marker ${marker}`);
 }
 const jsText = [initialJsText, loaderInkJsText, ...otherJsTexts].join('\n');
+assert(
+  !html.includes('r5-module-provenance')
+    && !jsText.includes('r5-module-provenance'),
+  'build-audit module provenance entered HTML or runtime JavaScript'
+);
 for (const forbidden of ['Group1Harness', '/harness/r4-g1', 'React R0 Scaffold']) {
   assert(!jsText.includes(forbidden), `production JavaScript contains harness/scaffold marker: ${forbidden}`);
 }
@@ -271,3 +553,4 @@ process.stdout.write(`${JSON.stringify({
     }
   }
 })}\n`);
+}
