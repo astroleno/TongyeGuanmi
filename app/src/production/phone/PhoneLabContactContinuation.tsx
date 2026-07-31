@@ -434,13 +434,13 @@ export function PhoneLabContactContinuation({
       registerPhoneRuntimeEffect(
         orchestrator,
         'ph-to-education',
-        () => phRef.current?.root() ?? null,
+        () => stageHost,
         () => phRef.current?.effectRoot?.() ?? null
       ),
       registerPhoneRuntimeEffect(
         orchestrator,
         'crane-to-contact',
-        () => craneRef.current?.root() ?? null,
+        () => stageHost,
         () => craneRef.current?.effectRoot?.() ?? null
       )
     ];
@@ -613,7 +613,7 @@ export function PhoneLabContactContinuation({
         {LabPh && labBoundary && phRef.current?.root() && (
           <LabPh
             ref={bindLabPh}
-            host={phStageRef.current}
+            host={stageHost}
             from={labBoundary.root}
             to={phRef.current.root()}
             reducedMotion={reducedMotion}
@@ -622,7 +622,7 @@ export function PhoneLabContactContinuation({
         {PhEducation && phRef.current?.root() && educationRef.current?.root() && (
           <PhEducation
             ref={bindPhEducation}
-            host={phStageRef.current}
+            host={stageHost}
             from={phRef.current.root()}
             to={educationRef.current.root()}
             reducedMotion={reducedMotion}
@@ -649,7 +649,7 @@ export function PhoneLabContactContinuation({
           && craneRef.current?.root() && (
             <EducationCrane
               ref={bindEducationCrane}
-              host={craneStageRef.current}
+              host={stageHost}
               from={educationRef.current.root()}
               to={craneRef.current.root()}
               reducedMotion={reducedMotion}
@@ -660,7 +660,7 @@ export function PhoneLabContactContinuation({
           && contactRef.current?.root() && (
             <CraneContact
               ref={bindCraneContact}
-              host={craneStageRef.current}
+              host={stageHost}
               from={craneRef.current.root()}
               to={contactRef.current.root()}
               reducedMotion={reducedMotion}

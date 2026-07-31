@@ -467,13 +467,13 @@ export const PhoneBrandLabContinuation = forwardRef<
       registerPhoneRuntimeEffect(
         orchestrator,
         'figure3-to-services',
-        () => figure3Ref.current?.root() ?? null,
+        () => stageHost,
         () => figure3Ref.current?.effectRoot?.() ?? null
       ),
       registerPhoneRuntimeEffect(
         orchestrator,
         'ttg-to-lab',
-        () => ttgRef.current?.root() ?? null,
+        () => stageHost,
         () => ttgRef.current?.effectRoot?.() ?? null
       )
     ];

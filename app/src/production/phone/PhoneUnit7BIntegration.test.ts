@@ -144,13 +144,21 @@ describe('formal Unit7-B phone integration', () => {
     expect(tailBundleSource).not.toContain('requestPhoneRuntimeDirectEntry');
   });
 
-  it('registers the persistent canvas as the one coverage owner for every phone surface', () => {
+  it('registers stage-owned surfaces and the content-host AOD effect on the persistent canvas', () => {
     expect(
       stageRuntimeSource.match(/\(\) => options\.stageRef\.current\b/g)
-    ).toHaveLength(5);
+    // Five stage-owned surfaces plus the AOD→Method effect, whose content-host
+    // registration keeps it below the route-overlay plane.
+    ).toHaveLength(6);
+    expect(stageRuntimeSource).toContain(
+      "'aod-to-method',\n      () => options.stageRef.current"
+    );
     expect(gradeASource.match(/\(\) => stageHost\b/g)).toHaveLength(2);
-    expect(brandContinuationSource.match(/\(\) => stageHost\b/g)).toHaveLength(2);
-    expect(continuationSource.match(/\(\) => stageHost\b/g)).toHaveLength(2);
+    // Each continuation owns two fixed surfaces and two content-host media
+    // registrations; above-both effects are separately routed through the
+    // explicit route overlay.
+    expect(brandContinuationSource.match(/\(\) => stageHost\b/g)).toHaveLength(4);
+    expect(continuationSource.match(/\(\) => stageHost\b/g)).toHaveLength(4);
   });
 
   it('registers the StarMap surface with its projection-owned ID', () => {

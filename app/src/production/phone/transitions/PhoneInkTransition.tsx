@@ -18,6 +18,7 @@ import {
 import {
   useOptionalPhoneStoryRuntimePort
 } from '../PhoneStoryRuntimeContext';
+import { phoneRouteOverlayHostFor } from '../PhoneStageRail';
 import { registerPhoneRuntimeEffect } from '../phone-story/runtime';
 import type {
   PhoneTransitionAdapterComponent,
@@ -60,8 +61,9 @@ type PhoneInkFrameRenderer = (
 ) => number;
 
 /**
- * Shared PhoneInkTransition is emitted independently from every lazy adapter.
- * Keep descriptor fields positional so Terser cannot split their property map.
+ * Shared PhoneInkTransition is the route-overlay renderer class. Every factory
+ * id is statically checked against an above-both manifest contract; local
+ * endpoint layers must use their own adapter instead.
  */
 export type PhoneInkAdapterRequest = readonly [
   id: string,
@@ -100,10 +102,11 @@ export function createPhoneInkAdapter(
     renderFrame
   };
   return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(function PhoneInkTransition(
-    { host, from, additionalFrom, to, reducedMotion, onReady },
+    { host: contentHost, from, additionalFrom, to, reducedMotion, onReady },
     forwardedRef
   ) {
     const runtime = useOptionalPhoneStoryRuntimePort();
+    const effectHost = phoneRouteOverlayHostFor(contentHost);
     const transitionRef = useRef<PhoneInkTransitionBridge | undefined>(undefined);
     const progressRef = useRef(0);
     const directionRef = useRef<1 | -1>(1);
@@ -159,17 +162,17 @@ export function createPhoneInkAdapter(
       revoke();
     }, [revoke]);
     const alignReceiver = useCallback((endpoint: 0 | 1) => {
-      if (!host || !to || !options.alignReceiver) return;
+      if (!contentHost || !to || !options.alignReceiver) return;
       receiverAlignmentRef.current = [
-        receiverAlignmentRef.current?.[0] ?? options.alignReceiver(host, to),
+        receiverAlignmentRef.current?.[0] ?? options.alignReceiver(contentHost, to),
         endpoint
       ];
-    }, [host, to]);
+    }, [contentHost, to]);
     const ensure = useCallback(() => {
       if (transitionRef.current) return transitionRef.current;
-      if (!host || !to) return undefined;
-      const lease = claimPhoneInkSurface(host.ownerDocument, {
-        host,
+      if (!effectHost || !to) return undefined;
+      const lease = claimPhoneInkSurface(effectHost.ownerDocument, {
+        host: effectHost,
         className: options.canvasClassName ?? 'phone-story-shell__ink',
         portraitInk: options.portraitInk ?? '',
         onRevoke: revoke
@@ -180,12 +183,12 @@ export function createPhoneInkAdapter(
         effectRegistrationRef.current = registerPhoneRuntimeEffect(
           runtime,
           options.id,
-          () => host,
+          () => effectHost,
           () => lease.canvas
         );
       }
       const transition = createPhoneInkTransition([
-        host,
+        effectHost,
         lease.canvas,
         options.id,
         options.maskSource === false ? null : from,
@@ -196,7 +199,7 @@ export function createPhoneInkAdapter(
       ]);
       transitionRef.current = transition;
       return transition;
-    }, [additionalFrom, from, host, releaseEffectRegistration, revoke, runtime, to]);
+    }, [additionalFrom, effectHost, from, releaseEffectRegistration, revoke, runtime, to]);
     const render = useCallback((progress: number, force = false): boolean => {
       if (progress > progressRef.current + 0.0001) directionRef.current = 1;
       if (progress < progressRef.current - 0.0001) directionRef.current = -1;
@@ -208,7 +211,7 @@ export function createPhoneInkAdapter(
             progress,
             reducedMotion,
             directionRef.current,
-            host
+            effectHost
           )
         : phoneInkAdapterProgress(
             progress,
@@ -248,7 +251,7 @@ export function createPhoneInkAdapter(
         releaseReceiver();
       }
       return rendered;
-    }, [ensure, from, host, reducedMotion, releaseReceiver, to]);
+    }, [effectHost, ensure, from, reducedMotion, releaseReceiver, to]);
     const scheduleFirstFrameRetry = useCallback((direction: 1 | -1) => {
       cancelFirstFrameRetry();
       directionRef.current = direction;
@@ -268,10 +271,10 @@ export function createPhoneInkAdapter(
       renderUntilPresented();
     }, [cancelFirstFrameRetry, render]);
     useLayoutEffect(() => {
-      if (!host || !to) return;
+      if (!effectHost || !to) return;
       onReady?.();
       return release;
-    }, [host, onReady, release, to]);
+    }, [effectHost, onReady, release, to]);
     useImperativeHandle(forwardedRef, () => ({
       render,
       begin(owner, onPresentedFrame) {

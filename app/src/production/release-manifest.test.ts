@@ -232,6 +232,9 @@ it('binds a release manifest to the explicitly supplied annotated candidate and 
     candidateTagObject,
     sourceCommit,
     sourceDirty: false,
+    buildProfile: {
+      phoneStoryPrebootEnabled: false
+    },
     artifactTreeSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     qualification: {
       status: 'pending-memory',
@@ -243,6 +246,40 @@ it('binds a release manifest to the explicitly supplied annotated candidate and 
     candidateTagObject,
     sourceCommit
   });
+});
+
+it('rejects a deployable candidate whose built root did not enable phone preboot', () => {
+  const { fixtureScript, repoDir, sourceCommit } = createFixture();
+
+  expect(() => runManifest(
+    fixtureScript,
+    repoDir,
+    'react-refactor-r5-candidate-v3',
+    sourceCommit,
+    { R5_REQUIRE_PHONE_STORY: '1' }
+  )).toThrow(/VITE_ENABLE_PHONE_STORY/);
+});
+
+it('records the built phone-root flag when the release gate accepts it', () => {
+  const { fixtureScript, repoDir } = createFixture();
+  writeFileSync(
+    path.join(repoDir, 'dist/index.html'),
+    "<!doctype html><script>const productionPhoneEntry = 'true' === 'true'</script>\n",
+    'utf8'
+  );
+
+  execFileSync(process.execPath, [fixtureScript], {
+    cwd: repoDir,
+    stdio: 'pipe',
+    env: {
+      ...process.env,
+      R5_REQUIRE_PHONE_STORY: '1'
+    }
+  });
+  const manifest = JSON.parse(
+    readFileSync(path.join(repoDir, 'dist/r5-release-manifest.json'), 'utf8')
+  );
+  expect(manifest.buildProfile).toEqual({ phoneStoryPrebootEnabled: true });
 });
 
 it('finalizes only passing memory evidence bound to the exact draft manifest identity', () => {
@@ -592,7 +629,10 @@ it('routes deploy builds through the strict release identity gate', () => {
   expect(rootPackage.scripts['deploy:build']).toContain('evidence:memory:release');
   expect(rootPackage.scripts['deploy:build']).toContain('deploy:finalize');
   expect(appPackage.scripts['release:prepare']).toContain('R5_REQUIRE_RELEASE_IDENTITY=1');
+  expect(appPackage.scripts['release:prepare']).toContain('VITE_ENABLE_PHONE_STORY=1');
+  expect(appPackage.scripts['release:prepare']).toContain('R5_REQUIRE_PHONE_STORY=1');
   expect(appPackage.scripts['release:finalize']).toContain('R5_REQUIRE_MEMORY_EVIDENCE=1');
+  expect(appPackage.scripts['release:finalize']).toContain('R5_REQUIRE_PHONE_STORY=1');
   expect(memoryRunner).toContain('index < R5_REQUIRED_MEMORY_RUNS');
   expect(memoryRunner).toContain('validateProcessMemoryQualification');
   expect(memoryRunner).toContain("path.join(repoDir, 'dist/r5-process-memory.json')");

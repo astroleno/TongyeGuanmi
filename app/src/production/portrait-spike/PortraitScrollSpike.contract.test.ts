@@ -4,7 +4,9 @@ import { phoneSegmentPresentationContract } from '../phone/phone-story/manifest'
 import {
   phoneTransitionPresentationTuple
 } from '../phone/phone-story/presentation';
-import { phonePresentationLayerZIndex } from '../phone/phone-story/presentation';
+import {
+  phonePresentationHostPlaneOrder
+} from '../phone/phone-story/presentation';
 import { phoneStageScrollBounds } from '../phone/usePhoneStageRuntime';
 
 const source = (relative: string) => readFileSync(
@@ -130,11 +132,13 @@ describe('Route B proven front-half migration contract', () => {
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*visible[^}]*background:\s*transparent/s
     );
+    expect(railSource).toContain('data-phone-presentation-host="content"');
+    expect(railSource).toContain('data-phone-presentation-host="route-overlay"');
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-layer-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
+      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-host-plane-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
-    expect(phonePresentationLayerZIndex('coverage')).toBeLessThan(
-      phonePresentationLayerZIndex('transition-receiver')
+    expect(phonePresentationHostPlaneOrder('coverage')).toBeLessThan(
+      phonePresentationHostPlaneOrder('content')
     );
     expect(railCss).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*top:\s*var\(--portrait-coverage-top\)[^}]*left:\s*var\(--portrait-coverage-left\)[^}]*width:\s*var\(--portrait-coverage-width\)[^}]*height:\s*var\(--portrait-coverage-height\)[^}]*overflow:\s*visible/s
@@ -443,10 +447,10 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAStorySource).toContain('<PhoneFigure2Arch />');
     expect(gradeAStorySource).toContain('data-phone-grade-a-method-paper="true"');
     expect(gradeAStorySource).toContain('from={methodPaperRef.current}');
-    expect(gradeAStoryCss).toContain('--phone-layer-transition-source');
-    expect(gradeAStoryCss).toContain('--phone-layer-transition-effect-above');
-    expect(phonePresentationLayerZIndex('transition-source')).toBeLessThan(
-      phonePresentationLayerZIndex('transition-effect-above')
+    expect(gradeAStoryCss).toContain('--phone-content-layer-transition-source');
+    expect(gradeAStoryCss).toContain('--phone-route-overlay-layer-effect');
+    expect(phonePresentationHostPlaneOrder('content')).toBeLessThan(
+      phonePresentationHostPlaneOrder('route-overlay')
     );
     expect(gradeAStoryCss).toMatch(
       /phone-grade-a__surfaces\s*\{[^}]*overflow:\s*visible[^}]*pointer-events:\s*none/s

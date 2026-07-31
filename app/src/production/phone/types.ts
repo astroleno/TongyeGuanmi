@@ -182,6 +182,7 @@ export type PhonePresentedFrameReporter = (
 export type PhoneCinematicRequest = PhoneExecutionToken;
 
 export type PhoneTransitionAdapterProps = Readonly<{
+  /** The content-plane host for source/receiver and between-endpoint effects. */
   host: HTMLElement | null;
   from: HTMLElement | null;
   /**

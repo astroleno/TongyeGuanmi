@@ -21,6 +21,8 @@ const HarnessRouter = harnessEnabled
 const DesktopStoryShell = lazy(loadDesktopStoryShell);
 const PhoneStoryShell = lazy(loadPhoneStoryShell);
 const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
+/** Numbered `?v=` routes are an opt-in diagnostics artifact, never release routing. */
+const phoneValidationEnabled = import.meta.env.VITE_ENABLE_PHONE_VALIDATION === '1';
 
 type PhoneStoryErrorBoundaryProps = Readonly<{ children: ReactNode }>;
 type PhoneStoryErrorBoundaryState = Readonly<{ failed: boolean }>;
@@ -47,20 +49,10 @@ class PhoneStoryErrorBoundary extends Component<
 type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46' | 'v47';
 
 function requestedPhoneValidationMode(): PhoneValidationMode | undefined {
-  if (!canUseDOM()) return undefined;
+  if (!phoneValidationEnabled || !canUseDOM()) return undefined;
   const version = new URLSearchParams(window.location.search).get('v');
-  return version === '16' || version === '17' || version === '18'
-    || version === '19' || version === '20' || version === '21'
-    || version === '22' || version === '23' || version === '24'
-    || version === '25' || version === '26' || version === '27'
-    || version === '28' || version === '29' || version === '30'
-    || version === '31' || version === '32' || version === '33'
-    || version === '34' || version === '35' || version === '36'
-    || version === '37' || version === '38' || version === '39'
-    || version === '40' || version === '42' || version === '43'
-    || version === '44' || version === '45' || version === '46'
-    || version === '47'
-      ? `v${version}`
+  return version && /^(?:1[6-9]|[23]\d|40|4[2-7])$/.test(version)
+      ? `v${version}` as PhoneValidationMode
     : undefined;
 }
 
@@ -68,7 +60,7 @@ function initialShellFamily(): PresentationFamily {
   if (!canUseDOM()) return 'desktop';
   // Unit 0–6 use this thin verification entry. Unit 7 removes the gate after
   // physical-device acceptance; an explicit release flag permits staged QA.
-  if (requestedPhoneValidationMode()) return 'phone';
+  if (phoneValidationEnabled && requestedPhoneValidationMode()) return 'phone';
   return phoneShellEnabled && initialPresentationFamily() === 'phone' ? 'phone' : 'desktop';
 }
 
@@ -84,7 +76,9 @@ function NotFound() {
 
 export function App() {
   const path = canUseDOM() ? window.location.pathname : '/';
-  const phoneValidationMode = requestedPhoneValidationMode();
+  const phoneValidationMode = phoneValidationEnabled
+    ? requestedPhoneValidationMode()
+    : undefined;
   // This state intentionally freezes the selected renderer. Rotating a phone
   // updates PhoneStoryShell geometry in place instead of remounting desktop.
   const [shellFamily] = useState(initialShellFamily);

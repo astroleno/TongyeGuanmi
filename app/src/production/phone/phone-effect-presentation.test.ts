@@ -34,6 +34,7 @@ function transaction(
 }> {
   const effect = element();
   const root = element();
+  root.dataset.phonePresentationHost = 'route-overlay';
   const method = element();
   const figure2 = element();
   const projector = createPhoneStoryPresentation({
@@ -53,11 +54,11 @@ function transaction(
     kind: 'fixed',
     root: () => figure2
   });
-  projector.registerEffect({
-    id: 'phone-method-bottom-figure2',
-    host: () => root,
-    element: () => effect
-  });
+  projector.registerEffect([
+    'phone-method-bottom-figure2',
+    () => root,
+    () => effect
+  ]);
   const initial = createPhoneStorySnapshot({
     authorityId: 'phone-authority-test',
     scene: direction === 1 ? 'method-top' : 'figure2-animation'
@@ -104,9 +105,7 @@ describe('phone effect presentation', () => {
       phoneLayerRole: 'transition-receiver'
     });
     expect(effect.dataset).toMatchObject({
-      phoneLayerRole: 'transition-effect-above',
-      phoneEffectSegment: 'method-bottom-figure2',
-      phoneEffectHost: 'grade-a:ink'
+      phoneLayerRole: 'transition-effect-above'
     });
     expect(method.style.getPropertyValue('--phone-presentation-z')).toBe('');
   });

@@ -28,6 +28,7 @@ import {
 import {
   useOptionalPhoneStoryRuntimePort
 } from '../PhoneStoryRuntimeContext';
+import { phoneRouteOverlayHostFor } from '../PhoneStageRail';
 import { registerPhoneRuntimeEffect } from '../phone-story/runtime';
 import type {
   PhoneTransitionAdapterHandle,
@@ -72,10 +73,11 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
 >(function PhoneFigure2DistanceExpandTransition(
-  { host, from, to, reducedMotion, onReady },
+  { host: contentHost, from, to, reducedMotion, onReady },
   forwardedRef
 ) {
   const runtime = useOptionalPhoneStoryRuntimePort();
+  const effectHost = phoneRouteOverlayHostFor(contentHost);
   const timelineRef = useRef<PhoneFigure2DistanceExpandBridge | null>(null);
   const runRevisionRef = useRef(0);
   const buildRevisionRef = useRef(0);
@@ -107,11 +109,11 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   ): Promise<NonNullable<typeof timelineRef.current>> => {
     if (timelineRef.current) return timelineRef.current;
     if (buildRef.current) return buildRef.current;
-    if (!host || !from || !to) {
+    if (!effectHost || !from || !to) {
       throw new Error();
     }
-    const lease = claimPhoneInkSurface(host.ownerDocument, {
-      host,
+    const lease = claimPhoneInkSurface(effectHost.ownerDocument, {
+      host: effectHost,
       className: 'r4-figure2-proof-ink-canvas',
       onRevoke: retireTimeline
     });
@@ -121,7 +123,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
       effectRegistrationRef.current = registerPhoneRuntimeEffect(
         runtime,
         'figure2-distance-expand',
-        () => host,
+        () => effectHost,
         () => lease.canvas
       );
     }
@@ -148,7 +150,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     } finally {
       if (buildRef.current === build) buildRef.current = null;
     }
-  }, [from, host, reducedMotion, releaseEffectRegistration, retireTimeline, runtime, to]);
+  }, [effectHost, from, reducedMotion, releaseEffectRegistration, retireTimeline, runtime, to]);
   const prepare = useCallback(async (
     direction: 1 | -1,
     signal: AbortSignal
@@ -189,10 +191,10 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   };
 
   useLayoutEffect(() => {
-    if (!host || !from || !to) return;
+    if (!effectHost || !from || !to) return;
     onReady?.();
     return releaseTimeline;
-  }, [from, host, onReady, releaseTimeline, to]);
+  }, [effectHost, from, onReady, releaseTimeline, to]);
 
   useImperativeHandle(forwardedRef, () => ({
     render,

@@ -474,7 +474,7 @@ export function usePhoneStageRuntime(
     const effectLease = registerPhoneRuntimeEffect(
       options.orchestrator,
       'aod-to-method',
-      () => aodRef.current?.root() ?? null,
+      () => options.stageRef.current,
       () => aodRef.current?.effectRoot?.() ?? null
     );
     const corridorLease = registerPhoneRuntimeSampledScrollCorridor(

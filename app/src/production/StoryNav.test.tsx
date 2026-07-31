@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { phonePresentationLayerZIndex } from './phone/phone-story/presentation';
+import { phonePresentationHostPlaneOrder } from './phone/phone-story/presentation';
 import { StoryNav, chromeForScene } from './StoryNav';
 
 const stylesheet = readFileSync(new URL('./StoryNav.css', import.meta.url), 'utf8');
@@ -57,10 +57,8 @@ describe('StoryNav', () => {
   });
 
   it('[phone chrome plane] keeps navigation hit targets above every presentation surface', () => {
-    const navigationPlane = 800;
-
-    expect(phonePresentationLayerZIndex('transition-effect-above')).toBeLessThan(
-      navigationPlane
+    expect(phonePresentationHostPlaneOrder('route-overlay')).toBeLessThan(
+      phonePresentationHostPlaneOrder('navigation')
     );
     expect(stylesheet).toMatch(
       /:root\s*\{[^}]*--story-navigation-layer:\s*800;[^}]*--story-navigation-backdrop-layer:\s*799;/s

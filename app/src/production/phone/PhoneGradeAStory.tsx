@@ -871,7 +871,7 @@ export function PhoneGradeAStory({
       {figure2Ready && methodCopySource && MethodFigure2 && (
         <MethodFigure2
           ref={bindMethodFigure2}
-          host={surfacesRef.current}
+          host={stageHost}
           from={methodPaperRef.current}
           additionalFrom={methodCopySource}
           to={figure2Ref.current?.root() ?? null}
@@ -882,7 +882,7 @@ export function PhoneGradeAStory({
       {scenesReady && Figure2Proof && (
         <Figure2Proof
           ref={bindFigure2Proof}
-          host={surfacesRef.current}
+          host={stageHost}
           from={figure2Ref.current?.root() ?? null}
           to={proofRef.current?.root() ?? null}
           reducedMotion={reducedMotion}
@@ -892,7 +892,7 @@ export function PhoneGradeAStory({
       {proofReady && brandRoot && ProofBrand && (
         <ProofBrand
           ref={bindProofBrand}
-          host={surfacesRef.current}
+          host={stageHost}
           from={proofBrandSourceRef.current}
           to={brandRoot}
           reducedMotion={reducedMotion}

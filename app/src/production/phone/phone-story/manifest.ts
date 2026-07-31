@@ -79,6 +79,9 @@ export type PhoneSegmentEffectPlacement =
   | 'above-both'
   | 'between';
 
+/** A placement is physical topology, not a numeric child z-index claim. */
+export type PhoneEffectHostPlane = 'content' | 'route-overlay';
+
 export type PhoneSegmentPresentationContract = Readonly<{
   id: CanonicalPhoneSegmentId;
   checkpoint: PhoneCheckpointId;
@@ -88,6 +91,7 @@ export type PhoneSegmentPresentationContract = Readonly<{
   receiverSurface: PhoneSurfaceId;
   effectHost: PhoneSurfaceId;
   effectPlacement: PhoneSegmentEffectPlacement;
+  effectHostPlane: PhoneEffectHostPlane;
   firstFrame: PhoneEvidenceRequirement;
   forward: Readonly<{ policy: 'fail-closed' }>;
   reverse: Readonly<{ policy: 'fail-closed' }>;
@@ -158,7 +162,8 @@ export type PhoneSegmentPresentationTuple = readonly [
     PhonePresentationEvidenceKind,
     'effect-frame' | 'packed-canvas-frame'
   >,
-  firstFrameSubject: PhoneSurfaceId
+  firstFrameSubject: PhoneSurfaceId,
+  effectHostPlane: PhoneEffectHostPlane
 ];
 
 const owners = ['front', 'grade-a', 'group45', 'group67', 'native'] as const;
@@ -176,6 +181,7 @@ const effectHosts = [
   'group67:effect'
 ] as const;
 const effectPlacements = ['above-both', 'between'] as const;
+const effectHostPlanes = ['route-overlay', 'content'] as const;
 
 type OwnerCode = 0 | 1 | 2 | 3 | 4;
 type ResolverCode = 0 | 1 | 2 | 3 | 4;
@@ -188,11 +194,15 @@ type SceneRow = readonly [
   PhoneSceneContentProbe['kind'],
   readonly string[]
 ];
-type SegmentRow = readonly [
-  PhoneCheckpointId,
-  0 | 1 | 2 | 3 | 4,
-  0 | 1
-];
+/**
+ * The placement and host-plane codes are intentionally coupled at the row
+ * type: an above-both effect must occupy the route overlay, while a between
+ * effect remains inside the content host.  This makes a missing or inverted
+ * declaration a static error instead of a runtime compatibility branch.
+ */
+type SegmentRow =
+  | readonly [PhoneCheckpointId, 0 | 1 | 2 | 3 | 4, 0, 0]
+  | readonly [PhoneCheckpointId, 0 | 1 | 2 | 3 | 4, 1, 1];
 
 /**
  * Ordered rows follow canonicalSceneIds. Textual holds keep an authored DOM
@@ -224,21 +234,21 @@ const sceneRows = [
 
 /** Ordered rows follow canonicalSegments and name their effect host/placement. */
 const segmentRows = [
-  ['hero-to-pattern', 0, 0],
-  ['pattern-to-star-map', 0, 0],
-  ['star-map-to-aod', 0, 0],
-  ['aod-to-method', 4, 1],
-  ['method-to-figure2', 1, 0],
-  ['figure2-to-proof', 1, 0],
-  ['proof-to-brand', 1, 0],
-  ['brand-to-figure3', 2, 0],
-  ['figure3-to-services', 4, 1],
-  ['services-to-ttg', 2, 0],
-  ['ttg-to-lab', 4, 1],
-  ['lab-to-ph', 3, 0],
-  ['ph-to-education', 4, 1],
-  ['education-to-crane', 3, 0],
-  ['crane-to-contact', 4, 1]
+  ['hero-to-pattern', 0, 0, 0],
+  ['pattern-to-star-map', 0, 0, 0],
+  ['star-map-to-aod', 0, 0, 0],
+  ['aod-to-method', 4, 1, 1],
+  ['method-to-figure2', 1, 0, 0],
+  ['figure2-to-proof', 1, 0, 0],
+  ['proof-to-brand', 1, 0, 0],
+  ['brand-to-figure3', 2, 0, 0],
+  ['figure3-to-services', 4, 1, 1],
+  ['services-to-ttg', 2, 0, 0],
+  ['ttg-to-lab', 4, 1, 1],
+  ['lab-to-ph', 3, 0, 0],
+  ['ph-to-education', 4, 1, 1],
+  ['education-to-crane', 3, 0, 0],
+  ['crane-to-contact', 4, 1, 1]
 ] as const satisfies readonly SegmentRow[] & Readonly<{
   length: typeof canonicalSegments['length'];
 }>;
@@ -670,7 +680,9 @@ export function phoneSegmentPresentationTuple(
   const effectHost = row[1] === 4
     ? sourceSurface
     : effectHosts[row[1]]!;
-  const mediaHandoff = row[2] === 1;
+  const effectPlacement = effectPlacements[row[2]]!;
+  const effectHostPlane = effectHostPlanes[row[3]]!;
+  const mediaHandoff = effectPlacement === 'between';
   return [
     row[0],
     definition.id,
@@ -679,9 +691,10 @@ export function phoneSegmentPresentationTuple(
     sourceSurface,
     receiverSurface,
     effectHost,
-    effectPlacements[row[2]]!,
+    effectPlacement,
     mediaHandoff ? 'packed-canvas-frame' : 'effect-frame',
-    mediaHandoff ? sourceSurface : effectHost
+    mediaHandoff ? sourceSurface : effectHost,
+    effectHostPlane
   ];
 }
 
@@ -772,7 +785,8 @@ export function phoneSegmentPresentationContract(
     effectHost,
     effectPlacement,
     kind,
-    subject
+    subject,
+    effectHostPlane
   ] = phoneSegmentPresentationTuple(segmentId);
   return {
     id,
@@ -783,6 +797,7 @@ export function phoneSegmentPresentationContract(
     receiverSurface,
     effectHost,
     effectPlacement,
+    effectHostPlane,
     firstFrame: { kind, subject },
     forward: closedPolicy,
     reverse: closedPolicy

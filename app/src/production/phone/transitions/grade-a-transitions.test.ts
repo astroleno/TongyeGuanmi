@@ -13,6 +13,8 @@ import {
   phoneInkAdapterProgress,
   phoneInkFirstPresentationProgress
 } from './PhoneInkTransition';
+import { canonicalPhoneEffectSegment } from '../phone-story/presentation';
+import { phoneSegmentPresentationTuple } from '../phone-story/manifest';
 
 const inkAdapterSource = readFileSync(
   new URL('./PhoneInkTransition.tsx', import.meta.url),
@@ -20,6 +22,14 @@ const inkAdapterSource = readFileSync(
 );
 const figure2DistanceSource = readFileSync(
   new URL('./figure2-distance-expand.tsx', import.meta.url),
+  'utf8'
+);
+const gradeAStorySource = readFileSync(
+  new URL('../PhoneGradeAStory.tsx', import.meta.url),
+  'utf8'
+);
+const labContactContinuationSource = readFileSync(
+  new URL('../PhoneLabContactContinuation.tsx', import.meta.url),
   'utf8'
 );
 const brandLabCss = readFileSync(
@@ -106,6 +116,47 @@ class FakeDocument {
 }
 
 describe('phone Grade A transition contracts', () => {
+  it('uses the route-overlay-only ink adapter only for above-both contracts', () => {
+    const inkIds = [
+      'portrait-hero-pattern-ink',
+      'portrait-pattern-star-ink',
+      'portrait-star-aod-ink',
+      'phone-method-bottom-figure2',
+      'phone-figure2-proof-brand',
+      'phone-brand-figure3',
+      'phone-services-ttg',
+      'phone-lab-ph-ink',
+      'phone-education-crane-ink'
+    ];
+    for (const id of inkIds) {
+      const segment = canonicalPhoneEffectSegment(id);
+      expect(segment).toBeDefined();
+      expect(phoneSegmentPresentationTuple(segment!)[10]).toBe('route-overlay');
+    }
+    expect(inkAdapterSource).toContain(
+      'const effectHost = phoneRouteOverlayHostFor(contentHost);'
+    );
+    expect(inkAdapterSource).not.toContain('phoneInkEffectHostPlane');
+  });
+
+  it('passes the canonical content host to every route-overlay adapter', () => {
+    expect(gradeAStorySource.match(/host=\{stageHost\}/g)).toHaveLength(3);
+    expect(gradeAStorySource).not.toContain('host={surfacesRef.current}');
+    expect(labContactContinuationSource.match(/host=\{stageHost\}/g)).toHaveLength(4);
+    expect(labContactContinuationSource).not.toContain('host={phStageRef.current}');
+    expect(labContactContinuationSource).not.toContain('host={craneStageRef.current}');
+  });
+
+  it('keeps Figure2 distance expansion in the route overlay host', () => {
+    expect(phoneSegmentPresentationTuple('figure2-distance-expand')[10]).toBe(
+      'route-overlay'
+    );
+    expect(figure2DistanceSource).toContain(
+      'const effectHost = phoneRouteOverlayHostFor(contentHost);'
+    );
+    expect(figure2DistanceSource).not.toContain('phoneSegmentPresentationTuple');
+  });
+
   it('keeps both chapter boundaries on the canonical bottom-up field', () => {
     expect(PHONE_METHOD_FIGURE2_FIELD).toEqual([
       'horizontal',

@@ -2,15 +2,20 @@
 .portrait-scroll-spike {
   --portrait-live-height: 100svh;
   --portrait-live-height: 100dvh;
-  /* One projector-issued ladder spans fixed stages and native document roots. */
-  --phone-layer-coverage: 100;
-  --phone-layer-retained: 200;
-  --phone-layer-fixed: 300;
-  --phone-layer-stable: 400;
-  --phone-layer-transition-source: 500;
-  --phone-layer-transition-effect-between: 550;
-  --phone-layer-transition-receiver: 600;
-  --phone-layer-transition-effect-above: 700;
+  /* Top-level host planes are the only cross-stacking-context order. */
+  --phone-host-plane-coverage: 10;
+  --phone-host-plane-content: 20;
+  --phone-host-plane-route-overlay: 30;
+  --phone-host-plane-navigation-backdrop: 35;
+  --phone-host-plane-navigation: 40;
+  /* Every remaining number is local to the content or route-overlay host. */
+  --phone-content-layer-retained: 10;
+  --phone-content-layer-fixed: 20;
+  --phone-content-layer-stable: 30;
+  --phone-content-layer-transition-source: 40;
+  --phone-content-layer-transition-effect-between: 45;
+  --phone-content-layer-transition-receiver: 50;
+  --phone-route-overlay-layer-effect: 10;
   /* The orchestration transaction, not browser scroll anchoring, owns landing. */
   overflow-anchor: none;
 }
@@ -26,6 +31,7 @@
 
 .portrait-scroll-spike__stage {
   position: fixed;
+  z-index: var(--phone-host-plane-content);
   inset: auto;
   top: var(--portrait-coverage-top);
   left: var(--portrait-coverage-left);
@@ -36,17 +42,42 @@
   background: transparent;
 }
 
-/* Safari always samples one opaque visual-viewport owner behind from/to. */
+/* Safari samples one fixed host behind content; the rail itself has no z-index. */
 .portrait-scroll-spike__stage-rail::before {
   content: "";
   position: fixed;
-  z-index: var(--phone-layer-coverage);
+  z-index: var(--phone-host-plane-coverage);
   inset: auto;
   top: var(--portrait-coverage-top);
   left: var(--portrait-coverage-left);
   width: var(--portrait-coverage-width);
   height: var(--portrait-coverage-height);
   background: var(--portrait-edge-surface);
+  pointer-events: none;
+}
+
+/* Above-both effects are route siblings, never descendants of an endpoint. */
+.portrait-scroll-spike__route-overlay {
+  position: fixed;
+  z-index: var(--phone-host-plane-route-overlay);
+  inset: auto;
+  top: var(--portrait-coverage-top);
+  left: var(--portrait-coverage-left);
+  width: var(--portrait-coverage-width);
+  height: var(--portrait-coverage-height);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.portrait-scroll-spike__route-overlay > canvas {
+  position: absolute;
+  z-index: var(--phone-route-overlay-layer-effect);
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  visibility: visible;
+  opacity: 1;
   pointer-events: none;
 }
 
@@ -115,7 +146,7 @@
   position: absolute;
   z-index: var(
     --phone-presentation-z,
-    var(--phone-layer-transition-effect-above)
+    var(--phone-content-layer-transition-effect-between)
   );
   inset: 0;
   display: block;
@@ -126,42 +157,42 @@
   pointer-events: none;
 }
 
-/* The projector publishes both the semantic role and its global layer. */
+/* The projector publishes a semantic role; each host resolves it locally. */
 .portrait-scroll-spike [data-phone-layer-role] {
   z-index: var(--phone-presentation-z, auto) !important;
 }
 
-/* Numeric planes live in CSS so JS publishes only semantic roles. */
+/* Content-local roles never claim an order outside the content host. */
 .portrait-scroll-spike [data-phone-layer-role="coverage"] {
-  --phone-presentation-z: var(--phone-layer-coverage);
+  --phone-presentation-z: 0;
 }
 
 .portrait-scroll-spike [data-phone-layer-role="retained"] {
-  --phone-presentation-z: var(--phone-layer-retained);
+  --phone-presentation-z: var(--phone-content-layer-retained);
 }
 
 .portrait-scroll-spike [data-phone-layer-role="fixed"] {
-  --phone-presentation-z: var(--phone-layer-fixed);
+  --phone-presentation-z: var(--phone-content-layer-fixed);
 }
 
 .portrait-scroll-spike [data-phone-layer-role="stable"] {
-  --phone-presentation-z: var(--phone-layer-stable);
+  --phone-presentation-z: var(--phone-content-layer-stable);
 }
 
 .portrait-scroll-spike [data-phone-layer-role="transition-source"] {
-  --phone-presentation-z: var(--phone-layer-transition-source);
+  --phone-presentation-z: var(--phone-content-layer-transition-source);
 }
 
 .portrait-scroll-spike [data-phone-layer-role="transition-effect-between"] {
-  --phone-presentation-z: var(--phone-layer-transition-effect-between);
+  --phone-presentation-z: var(--phone-content-layer-transition-effect-between);
 }
 
 .portrait-scroll-spike [data-phone-layer-role="transition-receiver"] {
-  --phone-presentation-z: var(--phone-layer-transition-receiver);
+  --phone-presentation-z: var(--phone-content-layer-transition-receiver);
 }
 
 .portrait-scroll-spike [data-phone-layer-role="transition-effect-above"] {
-  --phone-presentation-z: var(--phone-layer-transition-effect-above);
+  --phone-presentation-z: var(--phone-route-overlay-layer-effect);
 }
 
 /* The projector is the only visibility authority for fixed scene roots. */

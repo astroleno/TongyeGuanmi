@@ -14,6 +14,7 @@ import {
   phoneScenePresentationTuple,
   phoneSegmentPresentationTuple,
   type CanonicalPhoneSegmentId,
+  type PhoneEffectHostPlane,
   type PhoneLandingResolverId,
   type PhonePresentationCommitState,
   type PhonePresentationEvidenceKind,
@@ -418,7 +419,7 @@ export function phoneStoryPresentation(
   };
 }
 
-/** Global presentation plane; these roles never inherit a scene-local z-index. */
+/** Projector roles order elements only inside their declared top-level host. */
 export type PhoneSurfaceRole =
   | 'stable'
   | 'candidate-stable'
@@ -438,36 +439,60 @@ export type PhonePresentationLayer =
   | 'transition-receiver'
   | 'transition-effect-above';
 
-export type PhoneLayerAssignment = Readonly<{ role: PhonePresentationLayer }>;
+/** Top-level hosts establish cross-stacking-context order. */
+export type PhonePresentationHostPlane =
+  | 'coverage'
+  | 'content'
+  | 'route-overlay'
+  | 'navigation';
 
-export type PhoneTransitionLayerPlan = Readonly<{
-  segment: CanonicalPhoneSegmentId;
-  source: PhoneLayerAssignment & Readonly<{ surface: PhoneSurfaceId }>;
-  receiver: PhoneLayerAssignment & Readonly<{ surface: PhoneSurfaceId }>;
-  /** Host and effect element remain distinct registrations. */
-  effect: PhoneLayerAssignment & Readonly<{
-    host: PhoneSurfaceId;
-    placement: 'above-both' | 'between';
-  }>;
-}>;
+const hostPlaneOrder = {
+  coverage: 10,
+  content: 20,
+  'route-overlay': 30,
+  navigation: 40
+} as const satisfies Readonly<Record<PhonePresentationHostPlane, number>>;
 
-const layerZIndex = {
-  coverage: 100,
-  retained: 200,
-  fixed: 300,
-  stable: 400,
-  'transition-source': 500,
-  'transition-effect-between': 550,
-  'transition-receiver': 600,
-  'transition-effect-above': 700
+/**
+ * Internal projection tuple: [segment, source surface, receiver surface,
+ * effect role]. The manifest remains the sole owner of effect host/placement;
+ * callers must resolve that topology from the immutable segment contract.
+ */
+export type PhoneTransitionLayerPlan = readonly [
+  segment: CanonicalPhoneSegmentId,
+  source: PhoneSurfaceId,
+  receiver: PhoneSurfaceId,
+  effectRole: PhonePresentationLayer
+];
+
+const localLayerOrder = {
+  coverage: 0,
+  retained: 10,
+  fixed: 20,
+  stable: 30,
+  'transition-source': 40,
+  'transition-effect-between': 45,
+  'transition-receiver': 50,
+  'transition-effect-above': 10
 } as const satisfies Readonly<Record<PhonePresentationLayer, number>>;
 
-export function phonePresentationLayerZIndex(role: PhonePresentationLayer): number {
-  return layerZIndex[role];
+export function phonePresentationHostPlaneForLayer(
+  role: PhonePresentationLayer
+): PhonePresentationHostPlane {
+  if (role === 'coverage') return 'coverage';
+  if (role === 'transition-effect-above') return 'route-overlay';
+  return 'content';
 }
 
-export function phonePresentationLayer(role: PhonePresentationLayer): PhoneLayerAssignment {
-  return { role };
+/** Only top-level host planes may be compared across stacking contexts. */
+export function phonePresentationHostPlaneOrder(
+  host: PhonePresentationHostPlane
+): number {
+  return hostPlaneOrder[host];
+}
+
+export function phonePresentationLocalLayerOrder(role: PhonePresentationLayer): number {
+  return localLayerOrder[role];
 }
 
 export function phoneLayerForSurfaceRole(role: PhoneSurfaceRole): PhonePresentationLayer {
@@ -487,12 +512,12 @@ export function phoneLayerForSurfaceRole(role: PhoneSurfaceRole): PhonePresentat
   }
 }
 
-export function phoneSurfaceRoleZIndex(role: PhoneSurfaceRole): number {
-  return phonePresentationLayerZIndex(phoneLayerForSurfaceRole(role));
+export function phoneSurfaceRoleLocalLayerOrder(role: PhoneSurfaceRole): number {
+  return phonePresentationLocalLayerOrder(phoneLayerForSurfaceRole(role));
 }
 
 function effectLayer(
-  placement: PhoneTransitionLayerPlan['effect']['placement']
+  placement: ReturnType<typeof phoneSegmentPresentationTuple>[7]
 ): PhonePresentationLayer {
   return placement === 'above-both'
     ? 'transition-effect-above'
@@ -511,16 +536,7 @@ export function phoneTransitionLayerPlan(
 ): PhoneTransitionLayerPlan {
   const source = direction === 1 ? contract[4] : contract[5];
   const receiver = direction === 1 ? contract[5] : contract[4];
-  return {
-    segment: contract[1],
-    source: { surface: source, role: 'transition-source' },
-    receiver: { surface: receiver, role: 'transition-receiver' },
-    effect: {
-      host: contract[6],
-      placement: contract[7],
-      role: effectLayer(contract[7])
-    }
-  };
+  return [contract[1], source, receiver, effectLayer(contract[7])];
 }
 
 const effectSegmentAliases = {
@@ -1026,12 +1042,17 @@ export type PhoneSurfaceRegistration = Readonly<{
 
 export type PhoneSurfaceLease = Readonly<{ dispose(): void }>;
 
-/** Effect hosts and effect elements are deliberately independent planes. */
-export type PhoneEffectRegistration = Readonly<{
-  id: string;
-  host(): HTMLElement | null;
-  element(): HTMLElement | null;
-}>;
+/**
+ * Cross-chunk positional contract: [id, host getter, element getter]. Effect
+ * hosts and effect elements are deliberately independent. The immutable
+ * manifest supplies the expected plane; the host itself supplies its actual
+ * topology identity, so a leaf cannot self-declare a weaker plane.
+ */
+export type PhoneEffectRegistration = readonly [
+  id: string,
+  host: () => HTMLElement | null,
+  element: () => HTMLElement | null
+];
 
 export type PhoneDirectEntryPresentationRequest = Readonly<{
   scene: SceneId;
@@ -1216,10 +1237,10 @@ function roleFor(
   layerPlan: PhoneTransitionLayerPlan | null
 ): PhoneSurfaceRole {
   if (layerPlan) {
-    if (registration.id === layerPlan.receiver.surface) {
+    if (registration.id === layerPlan[2]) {
       return 'transition-receiver';
     }
-    if (registration.id === layerPlan.source.surface) {
+    if (registration.id === layerPlan[1]) {
       return 'transition-source';
     }
   }
@@ -1348,22 +1369,29 @@ export function createPhoneStoryPresentation({
   const clearEffectDecorations = () => {
     for (const element of decoratedEffects) {
       clearLayer(element);
-      data(element, 'phoneEffectHost', undefined);
-      data(element, 'phoneEffectSegment', undefined);
     }
     decoratedEffects.clear();
+  };
+  const hasDeclaredEffectHost = (
+    registration: PhoneEffectRegistration,
+    expectedPlane: PhoneEffectHostPlane
+  ): boolean => {
+    const host = registration[1]();
+    return connected(host)
+      && host.dataset.phonePresentationHost === expectedPlane;
   };
   const decorateEffects = (layerPlan: PhoneTransitionLayerPlan | null) => {
     clearEffectDecorations();
     if (!layerPlan) return;
+    const contract = phoneSegmentPresentationTuple(layerPlan[0]);
     for (const registration of effects.values()) {
-      if (canonicalPhoneEffectSegment(registration.id) !== layerPlan.segment) continue;
-      const host = registration.host();
-      const effect = registration.element();
-      if (!connected(host) || !connected(effect)) continue;
-      decorateLayer(effect, layerPlan.effect.role);
-      data(effect, 'phoneEffectHost', layerPlan.effect.host);
-      data(effect, 'phoneEffectSegment', layerPlan.segment);
+      if (canonicalPhoneEffectSegment(registration[0]) !== layerPlan[0]) continue;
+      const effect = registration[2]();
+      if (
+        !hasDeclaredEffectHost(registration, contract[10])
+        || !connected(effect)
+      ) continue;
+      decorateLayer(effect, layerPlan[3]);
       decoratedEffects.add(effect);
     }
   };
@@ -1401,7 +1429,7 @@ export function createPhoneStoryPresentation({
 
   const effectForSubject = (subject: string): PhoneEffectRegistration | null => {
     for (const registration of effects.values()) {
-      const segment = canonicalPhoneEffectSegment(registration.id);
+      const segment = canonicalPhoneEffectSegment(registration[0]);
       if (segment && phoneSegmentPresentationTuple(segment)[6] === subject) {
         return registration;
       }
@@ -1503,7 +1531,8 @@ export function createPhoneStoryPresentation({
     if (!effect) {
       return null;
     }
-    const effectRoot = effect.element();
+    const effectRoot = effect[2]();
+    const effectHost = effect[1]();
     const facts = readPhoneSurfacePresentation(
       effectRoot,
       effectRoot,
@@ -1512,11 +1541,18 @@ export function createPhoneStoryPresentation({
     if (!facts[0] || !facts[1] || !facts[2]) {
       return null;
     }
-    const segment = canonicalPhoneEffectSegment(effect.id);
+    const segment = canonicalPhoneEffectSegment(effect[0]);
     if (!segment) {
       return null;
     }
-    if (frame.token.kind !== phoneSegmentPresentationTuple(segment)[8]) {
+    const contract = phoneSegmentPresentationTuple(segment);
+    if (
+      !connected(effectHost)
+      || effectHost.dataset.phonePresentationHost !== contract[10]
+    ) {
+      return null;
+    }
+    if (frame.token.kind !== contract[8]) {
       return null;
     }
     const proof = {
@@ -1526,7 +1562,7 @@ export function createPhoneStoryPresentation({
       connected: facts[0],
       visible: facts[1],
       coverageComplete: facts[2],
-      edge: phoneScenePresentationTuple(phoneSegmentPresentationTuple(segment)[3])[1]
+      edge: phoneScenePresentationTuple(contract[3])[1]
     };
     return proof;
   };
@@ -1560,7 +1596,7 @@ export function createPhoneStoryPresentation({
       const sourceLedMediaHandoff = presentationSnapshot.status === 'transaction'
         && presentationSnapshot.session?.phase === 'animating'
         && layerPlan !== null
-        && phoneSegmentPresentationTuple(layerPlan.segment)[8]
+        && phoneSegmentPresentationTuple(layerPlan[0])[8]
           === 'packed-canvas-frame';
       /*
        * A leaf-loading intent and a terminal runner completion are both
@@ -1742,7 +1778,7 @@ export function createPhoneStoryPresentation({
           ? undefined
           : String(Math.round(session.anchor.y)));
         data(routeRoot, 'phoneRetryableRun', snapshot.retryableRun ?? undefined);
-        data(routeRoot, 'phoneLayerSegment', layerPlan?.segment);
+        data(routeRoot, 'phoneLayerSegment', layerPlan?.[0]);
         data(routeRoot, 'portraitCheckpoint', projection.checkpoint);
         data(routeRoot, 'portraitCheckpointTrace', plan.checkpointTrace.join('>'));
         data(routeRoot, 'portraitEdgeScene', projection.edge);
@@ -1772,10 +1808,10 @@ export function createPhoneStoryPresentation({
       }
       for (const surface of surfaces) {
         data(surface.root, 'phoneSurfaceRole', surface.role);
-        const layer = layerPlan && surface.registration.id === layerPlan.source.surface
-          ? layerPlan.source.role
-          : layerPlan && surface.registration.id === layerPlan.receiver.surface
-            ? layerPlan.receiver.role
+        const layer = layerPlan && surface.registration.id === layerPlan[1]
+          ? 'transition-source'
+          : layerPlan && surface.registration.id === layerPlan[2]
+            ? 'transition-receiver'
             : phoneLayerForSurfaceRole(surface.role);
         decorateLayer(surface.root, layer);
         delete surface.root.dataset.phoneBoundarySession;
@@ -1786,14 +1822,8 @@ export function createPhoneStoryPresentation({
         const { source, receiver, sessionId, generation } = plan.endpoints;
         data(source, 'phoneSurfaceRole', 'transition-source');
         data(receiver, 'phoneSurfaceRole', 'transition-receiver');
-        decorateLayer(
-          source,
-          layerPlan?.source.role ?? phoneLayerForSurfaceRole('transition-source')
-        );
-        decorateLayer(
-          receiver,
-          layerPlan?.receiver.role ?? phoneLayerForSurfaceRole('transition-receiver')
-        );
+        decorateLayer(source, 'transition-source');
+        decorateLayer(receiver, 'transition-receiver');
         for (const [element, endpoint] of [[source, 'source'], [receiver, 'receiver']] as const) {
           data(element, 'phoneBoundarySession', sessionId);
           data(element, 'phoneBoundaryGeneration', String(generation));
@@ -1823,15 +1853,13 @@ export function createPhoneStoryPresentation({
       };
     },
     registerEffect(registration) {
-      effects.set(registration.id, registration);
+      effects.set(registration[0], registration);
       return {
         dispose() {
-          if (effects.get(registration.id) !== registration) return;
-          effects.delete(registration.id);
-          const element = registration.element();
+          if (effects.get(registration[0]) !== registration) return;
+          effects.delete(registration[0]);
+          const element = registration[2]();
           if (element) {
-            data(element, 'phoneEffectHost', undefined);
-            data(element, 'phoneEffectSegment', undefined);
             clearLayer(element);
           }
         }

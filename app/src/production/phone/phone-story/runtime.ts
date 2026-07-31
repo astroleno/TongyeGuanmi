@@ -701,7 +701,7 @@ export function registerPhoneRuntimeEffect(
   host: () => HTMLElement | null,
   element: () => HTMLElement | null
 ): PhoneCapabilityLease {
-  const registration: PhoneEffectRegistration = { id, host, element };
+  const registration: PhoneEffectRegistration = [id, host, element];
   return port.registerEffect(registration);
 }
 

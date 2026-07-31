@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 type PrebootInput = Readonly<{
   enabled: boolean;
+  validationEnabled?: boolean;
   width: number;
   height: number;
   pointerCoarse?: boolean;
@@ -17,6 +18,7 @@ type PrebootInput = Readonly<{
 
 function runPhonePreboot({
   enabled,
+  validationEnabled = true,
   width,
   height,
   pointerCoarse = true,
@@ -29,7 +31,8 @@ function runPhonePreboot({
 }: PrebootInput) {
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]
-    ?.replace('__PHONE_STORY_PREBOOT_ENABLED__', String(enabled));
+    ?.replace('__PHONE_STORY_PREBOOT_ENABLED__', String(enabled))
+    .replace('__PHONE_VALIDATION_PREBOOT_ENABLED__', String(validationEnabled));
   if (!script) throw new Error('phone preboot script was not found');
 
   const dataset: Record<string, string> = {};
@@ -142,6 +145,7 @@ describe('phone preboot ownership', () => {
     for (const version of ['46', '47']) {
       const result = runPhonePreboot({
         enabled: false,
+        validationEnabled: true,
         width: 390,
         height: 844,
         search: `?v=${version}`
@@ -150,6 +154,16 @@ describe('phone preboot ownership', () => {
       expect(result.dataset.portraitSpike).toBe('b');
       expect(result.dataset.portraitSpikePreboot).toBe('validation');
     }
+  });
+
+  it('does not admit a numbered diagnostics query into a release preboot', () => {
+    expect(runPhonePreboot({
+      enabled: true,
+      validationEnabled: false,
+      width: 1024,
+      height: 768,
+      search: '?v=47'
+    }).dataset).toEqual({});
   });
 
   it('lets recent lock-screen recovery outrank Safari reload diagnostics', () => {

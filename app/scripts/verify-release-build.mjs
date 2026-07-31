@@ -176,6 +176,10 @@ assert(
   /<noscript>[\s\S]*?#story-loader-static[\s\S]*?<\/noscript>/i.test(html),
   'release HTML is missing the no-JavaScript loader escape'
 );
+assert(
+  html.includes("const productionPhoneEntry = 'true' === 'true'"),
+  'release build must enable the physical-phone root preboot'
+);
 assert((html.match(/data-site-footer="true"/g) ?? []).length === 1, 'release static footer must render exactly once');
 for (const footerText of [
   '© 上海同野观幂科技有限公司',
@@ -252,6 +256,7 @@ for (const forbidden of ['Group1Harness', '/harness/r4-g1', 'React R0 Scaffold']
 process.stdout.write(`${JSON.stringify({
   index: path.relative(repoDir, indexPath),
   checkedCopyItems,
+  phoneStoryPrebootEnabled: true,
   jsFiles: jsFiles.length,
   loaderInkChunk: {
     path: path.relative(repoDir, loaderInkChunks[0]),

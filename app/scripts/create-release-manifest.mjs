@@ -96,6 +96,13 @@ if (
 }
 const sourceCommit = explicitSourceCommit || resolvedSourceCommit;
 const sourceDirty = (await git('status', '--porcelain', '--untracked-files=all')) !== '';
+const builtIndexHtml = await readFile(path.join(distDir, 'index.html'), 'utf8');
+const phoneStoryPrebootEnabled = builtIndexHtml.includes(
+  "const productionPhoneEntry = 'true' === 'true'"
+);
+if (process.env.R5_REQUIRE_PHONE_STORY === '1' && !phoneStoryPrebootEnabled) {
+  throw new Error('release build must enable VITE_ENABLE_PHONE_STORY for the physical-phone root');
+}
 const candidate = explicitCandidate || null;
 let candidateTagObject = null;
 if (sourceCommit !== resolvedSourceCommit) {
@@ -136,6 +143,9 @@ if (phase === 'prepare') {
     candidateTagObject,
     sourceCommit,
     sourceDirty,
+    buildProfile: {
+      phoneStoryPrebootEnabled
+    },
     artifactTreeSha256: currentArtifactTreeSha256,
     files: entries,
     fileCount: entries.length,
@@ -166,6 +176,14 @@ if (phase === 'prepare') {
         `draft release manifest identity mismatch for ${field}: expected ${expected}, received ${draftManifest[field]}`
       );
     }
+  }
+  if (
+    draftManifest.buildProfile?.phoneStoryPrebootEnabled
+      !== phoneStoryPrebootEnabled
+  ) {
+    throw new Error(
+      'draft release manifest identity mismatch for buildProfile.phoneStoryPrebootEnabled'
+    );
   }
   if (JSON.stringify(draftManifest.files) !== JSON.stringify(entries)) {
     throw new Error('draft release manifest artifact entries changed before finalization');
@@ -220,6 +238,7 @@ process.stdout.write(`${JSON.stringify({
   candidate: manifest.candidate,
   candidateTagObject: manifest.candidateTagObject,
   sourceCommit: manifest.sourceCommit,
+  phoneStoryPrebootEnabled: manifest.buildProfile.phoneStoryPrebootEnabled,
   artifactTreeSha256: manifest.artifactTreeSha256,
   fileCount: manifest.fileCount,
   totalBytes: manifest.totalBytes,

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { inflateSync } from 'node:zlib';
 import {
   phoneRun,
   type PhoneRunId
@@ -8,6 +9,205 @@ import { phoneScenePresentationContract } from '../src/production/phone/phone-st
 const LIVE_PHONE_ROOT = 'main[data-phone-authority-id]';
 const LIVE_STORY_LOADER = '.story-loader[data-story-loader="true"]';
 const WHEEL_QUIET_MS = 1_250;
+const PHONE_COVERAGE_RGB = [7, 17, 14] as const;
+
+type PngScreenshot = Readonly<{
+  width: number;
+  height: number;
+  channels: 3 | 4;
+  pixels: Uint8Array;
+}>;
+
+type NormalizedScreenshotRegion = Readonly<{
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}>;
+
+type PixelEvidence = Readonly<{
+  samples: number;
+  nonSurfacePixels: number;
+  nonSurfaceRatio: number;
+}>;
+
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+function paethPredictor(left: number, up: number, upLeft: number): number {
+  const estimate = left + up - upLeft;
+  const leftDistance = Math.abs(estimate - left);
+  const upDistance = Math.abs(estimate - up);
+  const upLeftDistance = Math.abs(estimate - upLeft);
+  if (leftDistance <= upDistance && leftDistance <= upLeftDistance) return left;
+  return upDistance <= upLeftDistance ? up : upLeft;
+}
+
+/**
+ * Decodes the non-interlaced RGB/RGBA PNG emitted by Playwright without adding
+ * a test-only image dependency. Pixel evidence is deliberately taken from the
+ * final compositor screenshot, never from DOM visibility or CSS z-index text.
+ */
+function decodePngScreenshot(png: Buffer): PngScreenshot {
+  if (png.length < PNG_SIGNATURE.length || !png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+    throw new Error('expected a PNG screenshot');
+  }
+
+  let offset = PNG_SIGNATURE.length;
+  let width = 0;
+  let height = 0;
+  let channels: 3 | 4 | undefined;
+  const idat: Buffer[] = [];
+
+  while (offset + 12 <= png.length) {
+    const length = png.readUInt32BE(offset);
+    const typeOffset = offset + 4;
+    const dataOffset = offset + 8;
+    const dataEnd = dataOffset + length;
+    if (dataEnd + 4 > png.length) throw new Error('truncated PNG chunk');
+    const type = png.toString('ascii', typeOffset, dataOffset);
+    const data = png.subarray(dataOffset, dataEnd);
+    if (type === 'IHDR') {
+      if (data.length !== 13 || width !== 0 || height !== 0) {
+        throw new Error('invalid PNG header');
+      }
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      const bitDepth = data[8];
+      const colorType = data[9];
+      const compression = data[10];
+      const filter = data[11];
+      const interlace = data[12];
+      if (
+        bitDepth !== 8
+        || (colorType !== 2 && colorType !== 6)
+        || compression !== 0
+        || filter !== 0
+        || interlace !== 0
+      ) {
+        throw new Error('unsupported PNG screenshot encoding');
+      }
+      channels = colorType === 2 ? 3 : 4;
+    } else if (type === 'IDAT') {
+      idat.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+    offset = dataEnd + 4;
+  }
+
+  if (!width || !height || !channels || idat.length === 0) {
+    throw new Error('incomplete PNG screenshot');
+  }
+  const rowBytes = width * channels;
+  const decoded = inflateSync(Buffer.concat(idat));
+  if (decoded.length !== height * (rowBytes + 1)) {
+    throw new Error('unexpected PNG screenshot data length');
+  }
+  const pixels = Buffer.allocUnsafe(width * height * channels);
+  for (let y = 0; y < height; y += 1) {
+    const encodedOffset = y * (rowBytes + 1);
+    const pixelOffset = y * rowBytes;
+    const filter = decoded[encodedOffset] ?? 0;
+    for (let channel = 0; channel < rowBytes; channel += 1) {
+      const encoded = decoded[encodedOffset + 1 + channel] ?? 0;
+      const left = channel >= channels ? pixels[pixelOffset + channel - channels] ?? 0 : 0;
+      const up = y > 0 ? pixels[pixelOffset + channel - rowBytes] ?? 0 : 0;
+      const upLeft = y > 0 && channel >= channels
+        ? pixels[pixelOffset + channel - rowBytes - channels] ?? 0
+        : 0;
+      let value: number;
+      switch (filter) {
+        case 0:
+          value = encoded;
+          break;
+        case 1:
+          value = encoded + left;
+          break;
+        case 2:
+          value = encoded + up;
+          break;
+        case 3:
+          value = encoded + Math.floor((left + up) / 2);
+          break;
+        case 4:
+          value = encoded + paethPredictor(left, up, upLeft);
+          break;
+        default:
+          throw new Error(`unsupported PNG filter ${filter}`);
+      }
+      pixels[pixelOffset + channel] = value & 0xff;
+    }
+  }
+  return { width, height, channels, pixels };
+}
+
+function screenshotBounds(
+  screenshot: PngScreenshot,
+  region: NormalizedScreenshotRegion
+): Readonly<{ left: number; top: number; right: number; bottom: number }> {
+  const left = Math.max(0, Math.min(screenshot.width - 1, Math.floor(region.left * screenshot.width)));
+  const top = Math.max(0, Math.min(screenshot.height - 1, Math.floor(region.top * screenshot.height)));
+  const right = Math.max(left + 1, Math.min(screenshot.width, Math.ceil(region.right * screenshot.width)));
+  const bottom = Math.max(top + 1, Math.min(screenshot.height, Math.ceil(region.bottom * screenshot.height)));
+  return { left, top, right, bottom };
+}
+
+function compositedPixelEvidence(
+  screenshot: PngScreenshot,
+  region: NormalizedScreenshotRegion,
+  surface: readonly [number, number, number],
+  tolerance = 14
+): PixelEvidence {
+  const bounds = screenshotBounds(screenshot, region);
+  let nonSurfacePixels = 0;
+  const samples = (bounds.right - bounds.left) * (bounds.bottom - bounds.top);
+  for (let y = bounds.top; y < bounds.bottom; y += 1) {
+    for (let x = bounds.left; x < bounds.right; x += 1) {
+      const offset = (y * screenshot.width + x) * screenshot.channels;
+      const distance = Math.max(
+        Math.abs((screenshot.pixels[offset] ?? 0) - surface[0]),
+        Math.abs((screenshot.pixels[offset + 1] ?? 0) - surface[1]),
+        Math.abs((screenshot.pixels[offset + 2] ?? 0) - surface[2])
+      );
+      if (distance > tolerance) nonSurfacePixels += 1;
+    }
+  }
+  return {
+    samples,
+    nonSurfacePixels,
+    nonSurfaceRatio: nonSurfacePixels / samples
+  };
+}
+
+function compositedPixelDelta(
+  before: PngScreenshot,
+  after: PngScreenshot,
+  region: NormalizedScreenshotRegion,
+  tolerance = 14
+): number {
+  if (
+    before.width !== after.width
+    || before.height !== after.height
+    || before.channels !== after.channels
+  ) {
+    throw new Error('cannot compare screenshots with different dimensions');
+  }
+  const bounds = screenshotBounds(before, region);
+  const samples = (bounds.right - bounds.left) * (bounds.bottom - bounds.top);
+  let changed = 0;
+  for (let y = bounds.top; y < bounds.bottom; y += 1) {
+    for (let x = bounds.left; x < bounds.right; x += 1) {
+      const offset = (y * before.width + x) * before.channels;
+      const distance = Math.max(
+        Math.abs((before.pixels[offset] ?? 0) - (after.pixels[offset] ?? 0)),
+        Math.abs((before.pixels[offset + 1] ?? 0) - (after.pixels[offset + 1] ?? 0)),
+        Math.abs((before.pixels[offset + 2] ?? 0) - (after.pixels[offset + 2] ?? 0))
+      );
+      if (distance > tolerance) changed += 1;
+    }
+  }
+  return changed / samples;
+}
 
 const PHONE_HOLD_CONTRACTS = {
   hero: { checkpoint: 'hero-entered', edge: 'hero', edgeSurface: '#07110e', stageOwner: 'front', stageScene: 'hero' },
@@ -1649,7 +1849,7 @@ test('Task 0 rejects a visible Hero completed-to-zero reset on cold WebKit load'
   test.skip(browserName !== 'webkit', 'the confirmed flash is sampled on WebKit');
   test.setTimeout(45_000);
   await installHeroEntranceProbe(page);
-  await visitFormal(page, '/?v=47', 'hero');
+  await visitFormal(page, '/', 'hero');
   await expect.poll(async () => page.locator(LIVE_PHONE_ROOT).getAttribute(
     'data-portrait-hero-entrance'
   )).toBe('complete');
@@ -1677,7 +1877,7 @@ test('Task 0 does not animate AOD when media liveness has no compositor frame', 
   test.setTimeout(90_000);
   await installAodClockWithoutCompositorFrame(page);
   await installColdPhoneRuntimeProbe(page);
-  await visitFormal(page, '/?v=47', 'hero');
+  await visitFormal(page, '/', 'hero');
   await driveFrontScrollRun(page, 'hero', 'pattern', 1);
   await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
   await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
@@ -1714,7 +1914,7 @@ test('Task 0 keeps the coverage plane over a non-zero live visual viewport offse
 }) => {
   test.setTimeout(30_000);
   await installLiveVisualViewportProbe(page);
-  await page.goto('/?v=47', { waitUntil: 'domcontentloaded' });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator(LIVE_STORY_LOADER)).toBeHidden();
   await expect.poll(async () => page.locator(LIVE_PHONE_ROOT).getAttribute(
     'data-phone-cursor'
@@ -1765,7 +1965,7 @@ test('Task 10 gates a cold production formal Hero → Contact journey', async ({
   });
 
   await installColdPhoneRuntimeProbe(page);
-  await visitFormal(page, '/?v=47', 'hero');
+  await visitFormal(page, '/', 'hero');
   await driveJourney(page, FORMAL_FORWARD_JOURNEY);
   await assertStablePhoneHold(page, 'contact');
 
@@ -1781,7 +1981,7 @@ test('Task 10 gates a cold production formal Hero → Contact journey', async ({
 test('Task 10 gates a production Contact → Hero reverse journey', async ({ page }) => {
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
-  await visitFormal(page, '/?v=47#contact', 'contact');
+  await visitFormal(page, '/#contact', 'contact');
   const authorityId = await page.locator(LIVE_PHONE_ROOT).getAttribute(
     'data-phone-authority-id'
   );
@@ -1798,7 +1998,7 @@ test('Task 10 completes two full-motion formal round trips in one authority', as
   // shortening the cadence would stop exercising momentum separation.
   test.setTimeout(300_000);
   await installColdPhoneRuntimeProbe(page);
-  await visitFormal(page, '/?v=47&round-trip=two', 'hero');
+  await visitFormal(page, '/?round-trip=two', 'hero');
   const authorityId = await page.locator(LIVE_PHONE_ROOT).getAttribute(
     'data-phone-authority-id'
   );
@@ -1818,7 +2018,7 @@ test('Task 10 completes two full-motion formal round trips in one authority', as
 test('Task 10 lets a direct Contact hold claim its Group67 reverse boundary', async ({ page }) => {
   test.setTimeout(60_000);
   await installColdPhoneRuntimeProbe(page);
-  await visitFormal(page, '/?v=47#contact', 'contact');
+  await visitFormal(page, '/#contact', 'contact');
   await driveAdjacentPhoneRun(page, 'contact', 'education', -1);
 });
 
@@ -1827,7 +2027,7 @@ test('Task 10 repeats the complete reduced-motion production round trip', async 
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(
     page,
-    '/?v=47&portrait-spike-motion=reduce',
+    '/?portrait-spike-motion=reduce',
     'hero'
   );
   await driveJourney(page, FORMAL_FORWARD_JOURNEY, { reducedMotion: true });
@@ -1839,7 +2039,7 @@ test('Task 10 repeats the complete reduced-motion production round trip', async 
 test('[AOD↔Method reduced cutover] commits both target static endpoints without media playback', async ({ page }) => {
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
-  await visitFormal(page, '/?v=47&portrait-spike-motion=reduce', 'hero');
+  await visitFormal(page, '/?portrait-spike-motion=reduce', 'hero');
   await driveReducedFrontHold(page, 'hero', 'pattern', 1);
   await driveReducedFrontHold(page, 'pattern', 'star-map', 1);
   await driveReducedFrontHold(page, 'star-map', 'aod-animation', 1);
@@ -1883,7 +2083,7 @@ test('[Method↔Figure2↔Proof↔Brand reduced cutover] commits all static endp
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(
     page,
-    '/?v=47&portrait-spike-motion=reduce#method',
+    '/?portrait-spike-motion=reduce#method',
     'method-top'
   );
   const authorityId = await (await assertStablePhoneHold(page, 'method-top'))
@@ -1982,7 +2182,7 @@ test('[Lab↔PH↔Education reduced/direct cutover] commits native leaves withou
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(
     page,
-    '/?v=47&portrait-spike-motion=reduce#lab',
+    '/?portrait-spike-motion=reduce#lab',
     'lab'
   );
   const authorityId = await (await assertStablePhoneHold(page, 'lab'))
@@ -2019,14 +2219,14 @@ test('[Lab↔PH↔Education reduced/direct cutover] commits native leaves withou
   await expect(await assertStablePhoneHold(page, 'lab'))
     .toHaveAttribute('data-phone-authority-id', authorityId!);
 
-  await visitFormal(page, '/?v=47#education', 'education');
+  await visitFormal(page, '/#education', 'education');
   await assertDirectEntryPresentation(page, 'education');
 });
 
 test('[Pattern↔StarMap reduced cutover] repeats two static-proof cycles in one authority', async ({ page }) => {
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
-  await visitFormal(page, '/?v=47&portrait-spike-motion=reduce', 'hero');
+  await visitFormal(page, '/?portrait-spike-motion=reduce', 'hero');
   await driveReducedFrontHold(page, 'hero', 'pattern', 1);
   const authorityId = await (await assertStablePhoneHold(page, 'pattern'))
     .getAttribute('data-phone-authority-id');
@@ -2048,11 +2248,11 @@ test('Task 10 verifies every formal direct entry plus hash, menu, and history', 
   test.setTimeout(180_000);
   await installColdPhoneRuntimeProbe(page);
   for (const [hash, scene] of FORMAL_DIRECT_ENTRIES) {
-    await visitFormal(page, '/?v=47' + hash, scene);
+    await visitFormal(page, '/' + hash, scene);
     await assertDirectEntryPresentation(page, scene);
   }
 
-  await visitFormal(page, '/?v=47#method', 'method-top');
+  await visitFormal(page, '/#method', 'method-top');
   await page.getByRole('button', { name: '菜单' }).click();
   const services = page.locator('nav.site-nav a[href="#services"]');
   await expect(services).toBeVisible();
@@ -2070,7 +2270,7 @@ test('Task 10 verifies every formal direct entry plus hash, menu, and history', 
 test('Task 10 preserves formal scope and validates two Brand–Lab reduced-motion cycles', async ({ page }) => {
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
-  await visitFormal(page, '/?v=47&scope=brand-lab#brand', 'brand');
+  await visitFormal(page, '/?scope=brand-lab#brand', 'brand');
 
   await page.goto('/brand-lab?portrait-spike-motion=reduce#lab', {
     waitUntil: 'domcontentloaded'
@@ -2137,4 +2337,245 @@ test('TTG hard cutover repeats two full-motion Brand–Lab cycles in one authori
     await page.waitForTimeout(150);
     await assertStablePhoneHold(page, 'lab', { scope: 'brand-lab' });
   }
+});
+
+test('[P0 real root] a cold physical-phone root mounts only the phone authority', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  await expect.poll(async () => page.evaluate(() => ({
+    phoneAuthorities: Array.from(
+      document.querySelectorAll<HTMLElement>('[data-phone-authority-id]')
+    ).filter((root) => (
+      root.isConnected
+      && !root.hidden
+      && getComputedStyle(root).display !== 'none'
+      && getComputedStyle(root).visibility !== 'hidden'
+    )).length,
+    desktopShellPresent: Boolean(document.querySelector('.story-app')),
+    desktopHeroRunning: document.querySelector('[data-hero-intro="running"]') !== null
+  })), {
+    timeout: 10_000,
+    message: 'production mobile / must mount the one phone authority, not DesktopStoryShell'
+  }).toEqual({
+    phoneAuthorities: 1,
+    desktopShellPresent: false,
+    desktopHeroRunning: false
+  });
+});
+
+test('[P0 real root pixels] cold Loader paints and changes compositor pixels', async ({ page }) => {
+  test.setTimeout(30_000);
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  const loader = page.locator(`${LIVE_STORY_LOADER}[data-loader-status="running"]`);
+  await expect(loader).toBeVisible();
+  await expect.poll(async () => loader.getAttribute('data-loader-phase')).toBe('revealing');
+
+  // The start of the phrase may legitimately be empty; sample after it has
+  // entered the authored reveal interval, then prove that interval changes.
+  await page.waitForTimeout(320);
+  const first = decodePngScreenshot(await page.screenshot());
+  await page.waitForTimeout(520);
+  const second = decodePngScreenshot(await page.screenshot());
+  const loaderWord = {
+    left: .08,
+    top: .12,
+    right: .92,
+    bottom: .56
+  } as const;
+
+  expect(
+    compositedPixelEvidence(first, loaderWord, [0, 0, 0]).nonSurfaceRatio,
+    'cold Loader must paint visual ink above its black plane'
+  ).toBeGreaterThan(.0005);
+  expect(
+    compositedPixelDelta(first, second, loaderWord),
+    'cold Loader must produce an authored pixel timeline, not a static black cover'
+  ).toBeGreaterThan(.0001);
+  await expect(page.locator(LIVE_PHONE_ROOT)).toHaveCount(1);
+});
+
+test('[P0 real root pixels] post-Loader Hero title and subtitle paint a changing visual', async ({ page }) => {
+  test.setTimeout(30_000);
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  const root = page.locator(LIVE_PHONE_ROOT);
+  await expect(root).toHaveCount(1);
+  await expect.poll(async () => page.locator(LIVE_STORY_LOADER).count()).toBe(0);
+  await expect(root).toHaveAttribute('data-portrait-loader-ready', 'true');
+  await expect(root).toHaveAttribute('data-portrait-hero-entrance', 'playing');
+
+  const first = decodePngScreenshot(await page.screenshot());
+  await page.waitForTimeout(680);
+  const second = decodePngScreenshot(await page.screenshot());
+  const copy = {
+    left: .08,
+    top: .06,
+    right: .92,
+    bottom: .43
+  } as const;
+  const title = {
+    left: .14,
+    top: .10,
+    right: .86,
+    bottom: .28
+  } as const;
+  const subtitle = {
+    left: .12,
+    top: .22,
+    right: .88,
+    bottom: .43
+  } as const;
+
+  expect(
+    compositedPixelEvidence(first, copy, PHONE_COVERAGE_RGB).nonSurfaceRatio,
+    'post-Loader Hero cannot be an opaque coverage-color frame'
+  ).toBeGreaterThan(.002);
+  expect(
+    compositedPixelEvidence(second, title, PHONE_COVERAGE_RGB).nonSurfaceRatio,
+    'Hero title must be visible in the final compositor'
+  ).toBeGreaterThan(.001);
+  expect(
+    compositedPixelEvidence(second, subtitle, PHONE_COVERAGE_RGB).nonSurfaceRatio,
+    'Hero subtitle must be visible in the final compositor'
+  ).toBeGreaterThan(.0005);
+  expect(
+    compositedPixelDelta(first, second, copy),
+    'Hero title/subtitle must show their authored temporal change in pixels'
+  ).toBeGreaterThan(.0001);
+});
+
+test('[P0 real root pixels] Figure1 alpha proof has matching non-edge compositor pixels', async ({ page }) => {
+  test.setTimeout(35_000);
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  const root = page.locator(LIVE_PHONE_ROOT);
+  const figureCanvas = page.locator('[data-portrait-figure-canvas]');
+  const figureParallax = page.locator('.portrait-scroll-spike__hero-figure-parallax');
+  await expect(root).toHaveCount(1);
+  await expect.poll(async () => page.locator(LIVE_STORY_LOADER).count()).toBe(0);
+  await expect(root).toHaveAttribute('data-portrait-loader-ready', 'true');
+  await expect(figureCanvas).toHaveCount(1);
+  await expect.poll(async () => page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('[data-portrait-figure-canvas]');
+    const parallax = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__hero-figure-parallax'
+    );
+    return {
+      canvasWidth: canvas?.width ?? 0,
+      canvasHeight: canvas?.height ?? 0,
+      frameReady: canvas?.dataset.packedAlphaFrameReady ?? null,
+      alpha: parallax?.dataset.portraitFigureAlpha ?? null,
+      frame: parallax?.dataset.portraitFigureFrame ?? null
+    };
+  }), {
+    message: 'Figure1 needs a decoded canvas, verified alpha, and a rendered frame before pixel evidence'
+  }).toEqual({
+    canvasWidth: expect.any(Number),
+    canvasHeight: expect.any(Number),
+    frameReady: 'true',
+    alpha: 'verified',
+    frame: 'ready'
+  });
+  const canvasGeometry = await figureCanvas.evaluate((canvas) => ({
+    width: canvas.width,
+    height: canvas.height,
+    rect: canvas.getBoundingClientRect().toJSON()
+  }));
+  expect(canvasGeometry.width).toBeGreaterThan(0);
+  expect(canvasGeometry.height).toBeGreaterThan(0);
+  await expect(figureParallax).toHaveAttribute('data-portrait-figure-alpha', 'verified');
+
+  const frame = decodePngScreenshot(await page.screenshot());
+  const figure = {
+    left: .12,
+    top: .30,
+    right: .88,
+    bottom: .97
+  } as const;
+  expect(
+    compositedPixelEvidence(frame, figure, PHONE_COVERAGE_RGB).nonSurfaceRatio,
+    'verified Figure1 alpha must be observable as non-edge pixels, not hidden behind coverage'
+  ).toBeGreaterThan(.01);
+});
+
+test('[P0 route-overlay pixels] an above-both ink transition is painted by the route host', async ({ page }) => {
+  test.setTimeout(45_000);
+  await installColdPhoneRuntimeProbe(page);
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const root = await assertStablePhoneHold(page, 'hero');
+  await expect(root).toHaveAttribute('data-portrait-hero-entrance', 'complete', {
+    timeout: 15_000
+  });
+  await waitForNewWheelEpoch(page);
+
+  const before = decodePngScreenshot(await page.screenshot());
+  let transitionFrame: PngScreenshot | null = null;
+  let routeHostEvidence: unknown = null;
+  for (let pulse = 0; pulse < 64; pulse += 1) {
+    await inputPhoneDelta(page, 50);
+    await page.waitForTimeout(80);
+    if (await root.getAttribute('data-phone-cursor') !== 'transition:hero-pattern-scroll:0') {
+      continue;
+    }
+    const ink = page.locator(
+      '[data-phone-presentation-host="route-overlay"] > canvas'
+    );
+    if (await ink.count() !== 1) continue;
+    if (await ink.getAttribute('data-phone-presentation-effect-frame') !== 'ready') {
+      continue;
+    }
+    routeHostEvidence = await page.evaluate(() => {
+      const content = document.querySelector<HTMLElement>(
+        '[data-phone-presentation-host="content"]'
+      );
+      const route = document.querySelector<HTMLElement>(
+        '[data-phone-presentation-host="route-overlay"]'
+      );
+      const canvas = route?.querySelector<HTMLCanvasElement>(':scope > canvas');
+      const routeRect = route?.getBoundingClientRect();
+      const contentRect = content?.getBoundingClientRect();
+      return {
+        directRouteChild: canvas?.parentElement === route,
+        routeCoversContent: Boolean(
+          routeRect
+          && contentRect
+          && routeRect.left <= contentRect.left + 1
+          && routeRect.top <= contentRect.top + 1
+          && routeRect.right >= contentRect.right - 1
+          && routeRect.bottom >= contentRect.bottom - 1
+        )
+      };
+    });
+    transitionFrame = decodePngScreenshot(await page.screenshot());
+    break;
+  }
+
+  expect(routeHostEvidence).toEqual({
+    directRouteChild: true,
+    routeCoversContent: true
+  });
+  expect(transitionFrame, 'hero→Pattern must expose a real route-overlay ink frame').not.toBeNull();
+  if (!transitionFrame) return;
+  expect(
+    compositedPixelDelta(before, transitionFrame, {
+      left: .04,
+      top: .04,
+      right: .96,
+      bottom: .96
+    }),
+    'route-overlay ink must alter final compositor pixels above its endpoints'
+  ).toBeGreaterThan(.005);
+
+  let settled = false;
+  for (let pulse = 0; pulse < 64; pulse += 1) {
+    await inputPhoneDelta(page, 50);
+    await page.waitForTimeout(80);
+    if (await root.getAttribute('data-phone-cursor') === 'hold:pattern') {
+      settled = true;
+      break;
+    }
+  }
+  expect(settled).toBe(true);
+  await assertStablePhoneHold(page, 'pattern');
 });

@@ -8,6 +8,16 @@ export type PhoneStageRailProps = Readonly<{
   children: ReactNode;
 }>;
 
+/**
+ * Effects may only escape the content stacking context through this direct
+ * route sibling. A nested or unrelated overlay is deliberately not accepted.
+ */
+export function phoneRouteOverlayHostFor(
+  contentHost: HTMLElement | null
+): HTMLElement | null {
+  return contentHost?.parentElement?.nextElementSibling as HTMLElement | null;
+}
+
 /** Generic rail/stage geometry only; scene markup belongs to adapters. */
 export function PhoneStageRail({
   railRef,
@@ -23,10 +33,19 @@ export function PhoneStageRail({
         aria-label="同野观幂移动端视觉叙事"
         data-portrait-stage-host="persistent"
       >
-        <div ref={stageRef} className="portrait-scroll-spike__stage-canvas">
+        <div
+          ref={stageRef}
+          className="portrait-scroll-spike__stage-canvas"
+          data-phone-presentation-host="content"
+        >
           {children}
         </div>
       </section>
+      <div
+        className="portrait-scroll-spike__route-overlay"
+        data-phone-presentation-host="route-overlay"
+        aria-hidden="true"
+      />
     </section>
   );
 }

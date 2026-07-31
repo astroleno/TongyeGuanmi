@@ -91,6 +91,7 @@ describe('StoryLoader', () => {
       html.indexOf('else if (manuallyReloaded)')
     );
     expect(html).toContain("'__PHONE_STORY_PREBOOT_ENABLED__' === 'true'");
+    expect(html).toContain("'__PHONE_VALIDATION_PREBOOT_ENABLED__' === 'true'");
     expect(html).toContain("window.matchMedia('(pointer: coarse)').matches");
     expect(html).toContain("window.matchMedia('(hover: none)').matches");
     expect(html).toContain("documentElement.dataset.portraitEdgeScene = 'hero'");
@@ -98,6 +99,9 @@ describe('StoryLoader', () => {
     const viteConfig = readFileSync(new URL('../../vite.config.ts', import.meta.url), 'utf8');
     expect(viteConfig).toContain(
       ".replace('__PHONE_STORY_PREBOOT_ENABLED__', String(phoneStoryPrebootEnabled))"
+    );
+    expect(viteConfig).toContain(
+      ".replace('__PHONE_VALIDATION_PREBOOT_ENABLED__', String(phoneValidationPrebootEnabled))"
     );
     const prebootPhoneRouteIndex = html.indexOf(
       "documentElement.dataset.portraitSpike = 'b'"

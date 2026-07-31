@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { phonePresentationLayerZIndex } from './phone-story/presentation';
+import { phonePresentationHostPlaneOrder } from './phone-story/presentation';
 
 const storySource = readFileSync(
   new URL('./PhoneBrandLabContinuation.tsx', import.meta.url),
@@ -236,13 +236,13 @@ describe('Phone Brand → Lab visual contracts', () => {
 
   it('keeps one opaque edge owner behind every fixed-stage boundary', () => {
     expect(stageStyles).toMatch(
-      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-layer-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
+      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-host-plane-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
     expect(stageStyles).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*background:\s*transparent/s
     );
-    expect(phonePresentationLayerZIndex('coverage')).toBeLessThan(
-      phonePresentationLayerZIndex('transition-receiver')
+    expect(phonePresentationHostPlaneOrder('coverage')).toBeLessThan(
+      phonePresentationHostPlaneOrder('content')
     );
     expect(stageStyles).toMatch(
       /\.portrait-scroll-spike\s*\{[^}]*overflow-anchor:\s*none/s

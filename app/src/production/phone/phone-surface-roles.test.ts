@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { phoneSurfaceRoleZIndex } from './phone-story/presentation';
+import { phoneSurfaceRoleLocalLayerOrder } from './phone-story/presentation';
 
 describe('phone surface role contract', () => {
   it('keeps layer mapping pure so only the projector writes surface datasets', () => {
-    expect(phoneSurfaceRoleZIndex('retained-under-stage')).toBeLessThan(
-      phoneSurfaceRoleZIndex('fixed-current')
+    expect(phoneSurfaceRoleLocalLayerOrder('retained-under-stage')).toBeLessThan(
+      phoneSurfaceRoleLocalLayerOrder('fixed-current')
     );
-    expect(phoneSurfaceRoleZIndex('fixed-current')).toBeLessThan(
-      phoneSurfaceRoleZIndex('stable')
+    expect(phoneSurfaceRoleLocalLayerOrder('fixed-current')).toBeLessThan(
+      phoneSurfaceRoleLocalLayerOrder('stable')
     );
-    expect(phoneSurfaceRoleZIndex('stable')).toBeLessThan(
-      phoneSurfaceRoleZIndex('transition-source')
+    expect(phoneSurfaceRoleLocalLayerOrder('stable')).toBeLessThan(
+      phoneSurfaceRoleLocalLayerOrder('transition-source')
     );
-    expect(phoneSurfaceRoleZIndex('transition-source')).toBeLessThan(
-      phoneSurfaceRoleZIndex('transition-receiver')
+    expect(phoneSurfaceRoleLocalLayerOrder('transition-source')).toBeLessThan(
+      phoneSurfaceRoleLocalLayerOrder('transition-receiver')
     );
   });
 });

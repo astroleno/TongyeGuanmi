@@ -3,24 +3,26 @@ import { canonicalSegments } from '../../story/canonical-spine';
 import {
   canonicalPhoneEffectSegment,
   phoneLayerForSurfaceRole,
-  phonePresentationLayerZIndex,
+  phonePresentationHostPlaneForLayer,
+  phonePresentationHostPlaneOrder,
+  phonePresentationLocalLayerOrder,
   phoneTransitionLayerPlan
 } from './phone-story/presentation';
 import { phoneSegmentPresentationTuple } from './phone-story/manifest';
 
 describe('phone presentation layer contract', () => {
-  it('keeps stable, retained, and endpoint planes in one global order', () => {
-    expect(phonePresentationLayerZIndex(phoneLayerForSurfaceRole('retired'))).toBeLessThan(
-      phonePresentationLayerZIndex(phoneLayerForSurfaceRole('fixed-current'))
+  it('keeps endpoint roles ordered inside the content host', () => {
+    expect(phonePresentationLocalLayerOrder(phoneLayerForSurfaceRole('retired'))).toBeLessThan(
+      phonePresentationLocalLayerOrder(phoneLayerForSurfaceRole('fixed-current'))
     );
-    expect(phonePresentationLayerZIndex(phoneLayerForSurfaceRole('fixed-current'))).toBeLessThan(
-      phonePresentationLayerZIndex(phoneLayerForSurfaceRole('stable'))
+    expect(phonePresentationLocalLayerOrder(phoneLayerForSurfaceRole('fixed-current'))).toBeLessThan(
+      phonePresentationLocalLayerOrder(phoneLayerForSurfaceRole('stable'))
     );
-    expect(phonePresentationLayerZIndex(phoneLayerForSurfaceRole('stable'))).toBeLessThan(
-      phonePresentationLayerZIndex(phoneLayerForSurfaceRole('transition-source'))
+    expect(phonePresentationLocalLayerOrder(phoneLayerForSurfaceRole('stable'))).toBeLessThan(
+      phonePresentationLocalLayerOrder(phoneLayerForSurfaceRole('transition-source'))
     );
-    expect(phonePresentationLayerZIndex(phoneLayerForSurfaceRole('transition-source'))).toBeLessThan(
-      phonePresentationLayerZIndex(phoneLayerForSurfaceRole('transition-receiver'))
+    expect(phonePresentationLocalLayerOrder(phoneLayerForSurfaceRole('transition-source'))).toBeLessThan(
+      phonePresentationLocalLayerOrder(phoneLayerForSurfaceRole('transition-receiver'))
     );
   });
 
@@ -37,23 +39,27 @@ describe('phone presentation layer contract', () => {
             ? contract[5]
             : contract[4];
 
-          expect(plan.segment).toBe(id);
-          expect(plan.source.surface).toBe(departing);
-          expect(plan.receiver.surface).toBe(arriving);
-          expect(phonePresentationLayerZIndex(plan.source.role)).toBeLessThan(
-            phonePresentationLayerZIndex(plan.receiver.role)
+          expect(plan[0]).toBe(id);
+          expect(plan[1]).toBe(departing);
+          expect(plan[2]).toBe(arriving);
+          expect(phonePresentationLocalLayerOrder('transition-source')).toBeLessThan(
+            phonePresentationLocalLayerOrder('transition-receiver')
           );
 
           if (contract[7] === 'above-both') {
-            expect(phonePresentationLayerZIndex(plan.effect.role)).toBeGreaterThan(
-              phonePresentationLayerZIndex(plan.receiver.role)
+            expect(contract[10]).toBe('route-overlay');
+            expect(phonePresentationHostPlaneOrder(contract[10])).toBeGreaterThan(
+              phonePresentationHostPlaneOrder(
+                phonePresentationHostPlaneForLayer('transition-receiver')
+              )
             );
           } else if (contract[7] === 'between') {
-            expect(phonePresentationLayerZIndex(plan.effect.role)).toBeGreaterThan(
-              phonePresentationLayerZIndex(plan.source.role)
+            expect(contract[10]).toBe('content');
+            expect(phonePresentationLocalLayerOrder(plan[3])).toBeGreaterThan(
+              phonePresentationLocalLayerOrder('transition-source')
             );
-            expect(phonePresentationLayerZIndex(plan.effect.role)).toBeLessThan(
-              phonePresentationLayerZIndex(plan.receiver.role)
+            expect(phonePresentationLocalLayerOrder(plan[3])).toBeLessThan(
+              phonePresentationLocalLayerOrder('transition-receiver')
             );
           }
         }

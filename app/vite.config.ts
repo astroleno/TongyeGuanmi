@@ -35,6 +35,7 @@ const phoneCrossChunkContractPolicy = JSON.parse(
 const releaseId = process.env.R5_RELEASE_ID?.trim() ?? '';
 const requireCdn = process.env.R5_REQUIRE_CDN === '1';
 const phoneStoryPrebootEnabled = process.env.VITE_ENABLE_PHONE_STORY === '1';
+const phoneValidationPrebootEnabled = process.env.VITE_ENABLE_PHONE_VALIDATION === '1';
 const assetCdnBase = (process.env.R5_ASSET_CDN_BASE?.trim() || 'https://assets.tongye.me')
   .replace(/\/+$/, '');
 const mediaCdnBase = (process.env.R5_MEDIA_CDN_BASE?.trim() || 'https://media.tongye.me')
@@ -129,6 +130,7 @@ function staticStoryShellPlugin() {
           .replace('__SITE_DESCRIPTION__', escapeAttribute(SITE_META.description))
           .replace('__SITE_TITLE__', escapeAttribute(SITE_META.title))
           .replace('__PHONE_STORY_PREBOOT_ENABLED__', String(phoneStoryPrebootEnabled))
+          .replace('__PHONE_VALIDATION_PREBOOT_ENABLED__', String(phoneValidationPrebootEnabled))
           .replace('<!--__CANONICAL_LINK__-->', `<link rel="canonical" href="${SITE_META.canonicalPath}">`)
           .replace('<!--__R5_CDN_RUNTIME__-->', cdnRuntime)
           .replace('<!--__STATIC_STORY_CONTENT__-->', renderStaticStoryShell(copyReference));
