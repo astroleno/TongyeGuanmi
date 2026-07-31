@@ -58,6 +58,29 @@ const allowedCoreImports = new Map([
   ['PhoneBrandLabStory.tsx', new Set(['PhoneStoryShell.tsx'])]
 ]);
 
+const allowedExternalCoreImports = new Map([
+  ['protocol.ts', new Set()],
+  ['manifest.ts', new Set([
+    '../../story/canonical-spine',
+    '../../story/manifest',
+    '../../story/timings',
+    '../../story/types'
+  ])],
+  ['machine.ts', new Set()],
+  ['presentation.ts', new Set()],
+  ['runtime.ts', new Set()],
+  ['scenes.tsx', new Set(['react'])],
+  ['transitions.tsx', new Set(['react'])],
+  ['PhoneStoryShell.tsx', new Set([
+    'react',
+    './styles.css',
+    '../StoryLoader',
+    '../StoryNav',
+    '../navigation'
+  ])],
+  ['PhoneBrandLabStory.tsx', new Set()]
+]);
+
 const forbiddenCoreDirectories = new Set([
   'adapters',
   'compat',
@@ -168,9 +191,19 @@ function moduleImports(sourceFile) {
   };
   const visit = (node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      const clause = node.importClause;
+      const namedBindings = clause?.namedBindings;
+      const namedSpecifiers = namedBindings && ts.isNamedImports(namedBindings)
+        ? namedBindings.elements
+        : [];
+      const typeOnly = Boolean(clause?.isTypeOnly) || (
+        !clause?.name
+        && namedSpecifiers.length > 0
+        && namedSpecifiers.every((specifier) => specifier.isTypeOnly)
+      );
       add(
         node.moduleSpecifier.text,
-        Boolean(node.importClause?.isTypeOnly),
+        typeOnly,
         node
       );
     } else if (
@@ -178,7 +211,17 @@ function moduleImports(sourceFile) {
       && node.moduleSpecifier
       && ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      add(node.moduleSpecifier.text, node.isTypeOnly, node);
+      const namedExports = node.exportClause && ts.isNamedExports(node.exportClause)
+        ? node.exportClause.elements
+        : [];
+      add(
+        node.moduleSpecifier.text,
+        Boolean(node.isTypeOnly) || (
+          namedExports.length > 0
+          && namedExports.every((specifier) => specifier.isTypeOnly)
+        ),
+        node
+      );
     } else if (
       ts.isCallExpression(node)
       && node.expression.kind === ts.SyntaxKind.ImportKeyword
@@ -220,20 +263,158 @@ function namedDefinitions(sourceFile, prefix) {
   return found;
 }
 
-function namedCalls(sourceFile, name) {
-  const found = [];
-  const visit = (node) => {
-    if (
-      ts.isCallExpression(node)
-      && ts.isIdentifier(node.expression)
-      && node.expression.text === name
-    ) {
-      found.push(node);
+function canonicalSymbol(checker, symbol) {
+  let current = symbol;
+  const seen = new Set();
+  while (current && current.flags & ts.SymbolFlags.Alias && !seen.has(current)) {
+    seen.add(current);
+    const resolved = checker.getAliasedSymbol(current);
+    if (!resolved || resolved === current) break;
+    current = resolved;
+  }
+  return current;
+}
+
+function symbolForExpression(checker, expression) {
+  if (ts.isPropertyAccessExpression(expression)) {
+    return checker.getSymbolAtLocation(expression.name)
+      ?? checker.getSymbolAtLocation(expression);
+  }
+  if (
+    ts.isElementAccessExpression(expression)
+    && expression.argumentExpression
+    && ts.isStringLiteralLike(expression.argumentExpression)
+  ) {
+    return checker
+      .getTypeAtLocation(expression.expression)
+      .getProperty(expression.argumentExpression.text)
+      ?? checker.getSymbolAtLocation(expression);
+  }
+  return checker.getSymbolAtLocation(expression);
+}
+
+function unwrappedExpression(expression) {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current)
+    || ts.isAsExpression(current)
+    || ts.isTypeAssertionExpression(current)
+    || ts.isNonNullExpression(current)
+    || ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function runtimeFactoryCallSites(productionFiles) {
+  const rootNames = productionFiles.map((file) => path.resolve(file));
+  const rootSet = new Set(rootNames);
+  const program = ts.createProgram({
+    rootNames,
+    options: {
+      allowJs: true,
+      checkJs: false,
+      jsx: ts.JsxEmit.Preserve,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      noLib: true,
+      skipLibCheck: true,
+      target: ts.ScriptTarget.Latest
     }
-    ts.forEachChild(node, visit);
+  });
+  const checker = program.getTypeChecker();
+  const sourceFiles = program.getSourceFiles().filter(
+    (sourceFile) => rootSet.has(path.resolve(sourceFile.fileName))
+  );
+  const factorySymbols = new Set();
+  const assignedExpressions = new Map();
+
+  for (const sourceFile of sourceFiles) {
+    const visit = (node) => {
+      const declarationName = (
+        (ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node))
+        && node.name
+        && ts.isIdentifier(node.name)
+      ) ? node.name : undefined;
+      if (declarationName?.text === 'createPhoneStoryRuntime') {
+        const symbol = checker.getSymbolAtLocation(declarationName);
+        if (symbol) factorySymbols.add(canonicalSymbol(checker, symbol));
+      }
+      if (
+        ts.isBinaryExpression(node)
+        && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        && ts.isIdentifier(node.left)
+      ) {
+        const symbol = checker.getSymbolAtLocation(node.left);
+        const canonical = symbol && canonicalSymbol(checker, symbol);
+        if (canonical) {
+          const expressions = assignedExpressions.get(canonical) ?? [];
+          expressions.push(node.right);
+          assignedExpressions.set(canonical, expressions);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+
+  const symbolReferencesFactory = (symbol, seen) => {
+    const canonical = canonicalSymbol(checker, symbol);
+    if (!canonical || seen.has(canonical)) return false;
+    if (factorySymbols.has(canonical)) return true;
+    seen.add(canonical);
+    for (const declaration of canonical.declarations ?? []) {
+      if (
+        ts.isVariableDeclaration(declaration)
+        && declaration.initializer
+        && expressionReferencesFactory(declaration.initializer, seen)
+      ) {
+        return true;
+      }
+    }
+    return (assignedExpressions.get(canonical) ?? []).some(
+      (expression) => expressionReferencesFactory(expression, seen)
+    );
   };
-  visit(sourceFile);
-  return found;
+  const expressionReferencesFactory = (expression, seen = new Set()) => {
+    const unwrapped = unwrappedExpression(expression);
+    const symbol = symbolForExpression(checker, unwrapped);
+    return Boolean(symbol && symbolReferencesFactory(symbol, seen));
+  };
+  const syntacticFactoryReference = (expression) => {
+    const unwrapped = unwrappedExpression(expression);
+    return (
+      ts.isIdentifier(unwrapped)
+      && unwrapped.text === 'createPhoneStoryRuntime'
+    ) || (
+      ts.isPropertyAccessExpression(unwrapped)
+      && unwrapped.name.text === 'createPhoneStoryRuntime'
+    ) || (
+      ts.isElementAccessExpression(unwrapped)
+      && unwrapped.argumentExpression
+      && ts.isStringLiteralLike(unwrapped.argumentExpression)
+      && unwrapped.argumentExpression.text === 'createPhoneStoryRuntime'
+    );
+  };
+
+  const calls = [];
+  for (const sourceFile of sourceFiles) {
+    const visit = (node) => {
+      if (
+        ts.isCallExpression(node)
+        && (
+          syntacticFactoryReference(node.expression)
+          || expressionReferencesFactory(node.expression)
+        )
+      ) {
+        calls.push({ file: sourceFile.fileName, node });
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+  return calls;
 }
 
 function identifiers(sourceFile, names) {
@@ -354,9 +535,34 @@ function provenancePluginViolations(viteSource) {
 function coreTarget(importer, specifier, coreFilesByStem) {
   if (!specifier.startsWith('.')) return undefined;
   const resolved = path.resolve(path.dirname(importer), specifier);
+  const sourceStem = /\.[cm]?[jt]sx?$/.test(path.extname(resolved))
+    ? resolved.replace(/\.[^.]+$/, '')
+    : resolved;
   return coreFilesByStem.get(resolved)
-    ?? coreFilesByStem.get(resolved.replace(/\.[^.]+$/, ''))
+    ?? coreFilesByStem.get(sourceStem)
     ?? coreFilesByStem.get(path.join(resolved, 'index'));
+}
+
+function safeLeafImport(specifier, kind) {
+  const prefix = `../../${kind}/`;
+  if (!specifier.startsWith(prefix)) return false;
+  const tail = specifier.slice(prefix.length);
+  return tail.length > 0
+    && !tail.split('/').some((part) => part === '.' || part === '..');
+}
+
+function externalCoreImportAllowed(name, imported) {
+  if (allowedExternalCoreImports.get(name)?.has(imported.specifier)) {
+    return true;
+  }
+  if (!ts.isCallExpression(imported.node)) return false;
+  return (
+    name === 'scenes.tsx'
+    && safeLeafImport(imported.specifier, 'scenes')
+  ) || (
+    name === 'transitions.tsx'
+    && safeLeafImport(imported.specifier, 'transitions')
+  );
 }
 
 function detectCycles(graph) {
@@ -600,31 +806,39 @@ export async function phoneCleanArchitectureViolations({
             `${name}: presentation leaf ports must be imported type-only`
           );
         }
-      } else if (
-        name === 'runtime.ts'
-        && (
-          imported.specifier.includes('/scenes/')
-          || imported.specifier.includes('/transitions/')
-        )
-      ) {
-        violations.push(
-          `runtime must not import a scene or transition leaf `
-            + `(${imported.specifier})`
-        );
-      } else if (
-        name === 'manifest.ts'
-        && (
-          imported.specifier === 'react'
-          || imported.specifier.includes('presentation')
-          || imported.specifier.includes('/scenes/')
-          || imported.specifier.includes('/transitions/')
-          || imported.specifier.includes('runtime')
-        )
-      ) {
-        violations.push(
-          `manifest.ts imports a React/DOM-bearing or lifecycle module `
-            + `(${imported.specifier})`
-        );
+      } else {
+        if (!externalCoreImportAllowed(name, imported)) {
+          violations.push(
+            `${name}: forbidden external dependency ${imported.specifier}`
+          );
+        }
+        if (
+          name === 'runtime.ts'
+          && (
+            imported.specifier.includes('/scenes/')
+            || imported.specifier.includes('/transitions/')
+          )
+        ) {
+          violations.push(
+            `runtime must not import a scene or transition leaf `
+              + `(${imported.specifier})`
+          );
+        }
+        if (
+          name === 'manifest.ts'
+          && (
+            imported.specifier === 'react'
+            || imported.specifier.includes('presentation')
+            || imported.specifier.includes('/scenes/')
+            || imported.specifier.includes('/transitions/')
+            || imported.specifier.includes('runtime')
+          )
+        ) {
+          violations.push(
+            `manifest.ts imports a React/DOM-bearing or lifecycle module `
+              + `(${imported.specifier})`
+          );
+        }
       }
     }
   }
@@ -698,16 +912,13 @@ export async function phoneCleanArchitectureViolations({
   const productionFiles = (await filesBelow(productionRoot)).filter(isProductionSource);
   const productionSources = await readSources(productionFiles);
   const factoryDefinitions = [];
-  const factoryCalls = [];
+  const factoryCalls = runtimeFactoryCallSites(productionFiles);
   const reducerDefinitions = [];
   const stableCommitDefinitions = [];
   for (const { file, source } of productionSources) {
     const parsed = sourceFileFor(file, source);
     for (const name of namedDefinitions(parsed, 'createPhoneStoryRuntime')) {
       factoryDefinitions.push({ file, name });
-    }
-    for (const node of namedCalls(parsed, 'createPhoneStoryRuntime')) {
-      factoryCalls.push({ file, node });
     }
     for (const name of namedDefinitions(parsed, 'reducePhoneStory')) {
       reducerDefinitions.push({ file, name });

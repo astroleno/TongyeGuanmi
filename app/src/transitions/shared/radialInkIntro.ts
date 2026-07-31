@@ -55,7 +55,8 @@ export function createRadialInkIntroController(
       grade: 'edge-only',
       generation: options.generation,
       ...(options.targetImage ? { targetImage: options.targetImage } : {}),
-      removeCanvasOnDestroy: false
+      removeCanvasOnDestroy: false,
+      loseContextOnDestroy: false
     });
     return renderer;
   };

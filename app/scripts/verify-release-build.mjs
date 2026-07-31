@@ -63,8 +63,15 @@ function phoneLeafModule(moduleId) {
   );
 }
 
+function appSceneOrTransitionModule(moduleId) {
+  return moduleId.includes('/src/scenes/')
+    || moduleId.includes('/src/transitions/');
+}
+
 function lazyLifecycleOwner(moduleId) {
-  return phoneExecutionCoreModule(moduleId)
+  const sourceModule = /\.[cm]?[jt]sx?(?:\?|$)/.test(moduleId);
+  return sourceModule && (
+    phoneExecutionCoreModule(moduleId)
     || [
       '/production/input-controller',
       '/production/phone/PhoneBrandLabStory',
@@ -74,7 +81,8 @@ function lazyLifecycleOwner(moduleId) {
       '/production/phone/phone-stage-timeline',
       '/production/phone/phone-transition-coordinator',
       '/production/portrait-spike/'
-    ].some((marker) => moduleId.includes(marker));
+    ].some((marker) => moduleId.includes(marker))
+  );
 }
 
 export function moduleProvenanceViolations(
@@ -164,7 +172,13 @@ export function moduleProvenanceViolations(
     }
   }
   for (const [moduleId, owners] of ownersByModule) {
-    if (owners.length > 1 && moduleId.includes('/src/production/')) {
+    if (
+      owners.length > 1
+      && (
+        moduleId.includes('/src/production/')
+        || appSceneOrTransitionModule(moduleId)
+      )
+    ) {
       violations.push(
         `${moduleId} is emitted into multiple chunks: ${owners.sort().join(', ')}`
       );
@@ -239,25 +253,90 @@ export function moduleProvenanceViolations(
     }
   }
 
+  const phoneLeafRoots = [...chunkByFile.values()].filter((chunk) => (
+    chunk.isDynamicEntry
+    && (
+      phoneLeafModule(chunk.facadeModuleId ?? '')
+      || chunk.modules.some(phoneLeafModule)
+    )
+  ));
+  const dynamicParents = new Map();
+  const synchronousParents = new Map();
   for (const chunk of chunkByFile.values()) {
-    const leafModules = chunk.modules.filter(phoneLeafModule);
-    if (leafModules.length === 0) continue;
-    const authority = chunk.modules.find(lazyLifecycleOwner);
-    if (authority) {
-      violations.push(
-        `${chunk.fileName} lazy phone leaf contains lifecycle authority ${authority}`
-      );
+    for (const imported of chunk.imports) {
+      const parents = synchronousParents.get(imported) ?? [];
+      parents.push(chunk.fileName);
+      synchronousParents.set(imported, parents);
     }
-    if (chunk.isDynamicEntry) {
+    for (const imported of chunk.dynamicImports) {
+      const parents = dynamicParents.get(imported) ?? [];
+      parents.push(chunk.fileName);
+      dynamicParents.set(imported, parents);
+    }
+  }
+  for (const root of phoneLeafRoots) {
+    const preloadedFiles = new Set();
+    const ancestorFiles = new Set();
+    const addSynchronousClosure = (fileName) => {
+      if (preloadedFiles.has(fileName)) return;
+      preloadedFiles.add(fileName);
+      const chunk = chunkByFile.get(fileName);
+      if (!chunk) return;
+      for (const imported of chunk.imports) addSynchronousClosure(imported);
+    };
+    const addAncestors = (fileName) => {
+      const parents = [
+        ...(dynamicParents.get(fileName) ?? []),
+        ...(synchronousParents.get(fileName) ?? [])
+      ];
+      for (const parent of parents) {
+        if (ancestorFiles.has(parent)) continue;
+        ancestorFiles.add(parent);
+        addSynchronousClosure(parent);
+        addAncestors(parent);
+      }
+    };
+    addAncestors(root.fileName);
+
+    const synchronousFiles = new Set();
+    const visit = (fileName) => {
+      if (synchronousFiles.has(fileName)) return;
+      synchronousFiles.add(fileName);
+      const chunk = chunkByFile.get(fileName);
+      if (!chunk) {
+        violations.push(
+          `${root.fileName} lazy phone leaf closure imports missing chunk ${fileName}`
+        );
+        return;
+      }
+      for (const imported of chunk.imports) visit(imported);
+    };
+    visit(root.fileName);
+    for (const fileName of synchronousFiles) {
+      const chunk = chunkByFile.get(fileName);
+      if (!chunk) continue;
+      const label = fileName === root.fileName
+        ? 'lazy phone leaf chunk'
+        : 'lazy phone leaf closure chunk';
+      const authority = ancestorFiles.has(fileName)
+        ? undefined
+        : chunk.modules.find(lazyLifecycleOwner);
+      if (authority) {
+        violations.push(
+          `${root.fileName} ${label} ${fileName} contains lifecycle authority `
+            + authority
+        );
+      }
       const bytes = chunkBytes instanceof Map
-        ? chunkBytes.get(chunk.fileName)
-        : chunkBytes[chunk.fileName];
+        ? chunkBytes.get(fileName)
+        : chunkBytes[fileName];
       if (
-        typeof bytes === 'number'
+        !preloadedFiles.has(fileName)
+        && typeof bytes === 'number'
         && bytes > DONOR_MAX_LAZY_LEAF_BYTES
       ) {
         violations.push(
-          `${chunk.fileName} lazy phone leaf chunk exceeds donor maximum: `
+          `${root.fileName} ${label} ${fileName} exceeds donor maximum: `
             + `${bytes} > ${DONOR_MAX_LAZY_LEAF_BYTES}`
         );
       }

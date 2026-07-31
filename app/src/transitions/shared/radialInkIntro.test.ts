@@ -7,9 +7,17 @@ const boundaryRenderer = vi.hoisted(() => ({
   prewarm: vi.fn(),
   render: vi.fn()
 }));
+const boundaryState = vi.hoisted(() => ({
+  creations: 0,
+  lostCanvases: new WeakSet<object>()
+}));
 
 vi.mock('../../vendor/ink-scene-transition.js', () => ({
   createInkBoundaryTransition: vi.fn((canvas: HTMLCanvasElement) => {
+    if (boundaryState.lostCanvases.has(canvas)) {
+      throw new Error('WebGL context was permanently lost');
+    }
+    boundaryState.creations += 1;
     boundaryRenderer.canvas = canvas;
     return boundaryRenderer;
   })
@@ -18,7 +26,13 @@ vi.mock('../../vendor/ink-scene-transition.js', () => ({
 import { createRadialInkIntroController } from './radialInkIntro';
 
 beforeEach(() => {
-  boundaryRenderer.destroy.mockClear();
+  boundaryState.creations = 0;
+  boundaryState.lostCanvases = new WeakSet<object>();
+  boundaryRenderer.destroy.mockReset().mockImplementation((loseContext = true) => {
+    if (loseContext && boundaryRenderer.canvas) {
+      boundaryState.lostCanvases.add(boundaryRenderer.canvas);
+    }
+  });
   boundaryRenderer.prewarm.mockClear();
   boundaryRenderer.render.mockReset();
   boundaryRenderer.canvas = null;
@@ -56,7 +70,7 @@ describe('radial Ink intro controller', () => {
     controller.render(1);
     expect(revealSurface.style.clipPath).toBe('');
     expect(canvas.dataset.heroIntroInkActive).toBe('false');
-    expect(boundaryRenderer.destroy).toHaveBeenCalledWith(true);
+    expect(boundaryRenderer.destroy).toHaveBeenCalledWith(false);
 
     controller.dispose();
     expect(boundaryRenderer.destroy).toHaveBeenCalledOnce();
@@ -123,5 +137,35 @@ describe('radial Ink intro controller', () => {
         4
       );
     }
+  });
+
+  it('recreates an active renderer on the same persistent Canvas after cleanup', () => {
+    const canvas = new FakeCanvas();
+    const revealSurface = new FakeElement();
+    const createController = (generation: string) => createRadialInkIntroController({
+      canvas: canvas as unknown as HTMLCanvasElement,
+      revealSurface: revealSurface as unknown as HTMLElement,
+      field: {
+        kind: 'radial',
+        origin: { x: 0.5, y: 0.5 },
+        seed: 'hero-pattern'
+      },
+      generation,
+      viewport: () => ({ width: 1440, height: 900 })
+    });
+
+    const discarded = createController('hero-intro:strict-discarded');
+    discarded.render(0.5);
+    expect(canvas.dataset.r4InkRendererStatus).toBe('active');
+    discarded.dispose();
+    expect(boundaryRenderer.destroy).toHaveBeenLastCalledWith(false);
+
+    const live = createController('hero-intro:strict-live');
+    live.render(0.5);
+
+    expect(boundaryState.creations).toBe(2);
+    expect(canvas.dataset.r4InkRendererStatus).toBe('active');
+    expect(canvas.dataset.heroIntroInkActive).toBe('true');
+    live.dispose();
   });
 });

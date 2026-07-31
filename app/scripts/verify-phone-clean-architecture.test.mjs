@@ -185,6 +185,78 @@ test('rejects two runtime factory call sites and a QA-owned factory call', async
   includes(qa, 'PhoneBrandLabStory');
 });
 
+test('tracks runtime factory calls through aliases, namespaces, and assignments', async () => {
+  for (const [label, extraSource] of Object.entries({
+    alias: `
+      import { createPhoneStoryRuntime as bootPhone } from './phone-story/runtime';
+      bootPhone(() => undefined);
+    `,
+    namespace: `
+      import * as phoneRuntime from './phone-story/runtime';
+      phoneRuntime.createPhoneStoryRuntime(() => undefined);
+    `,
+    assignment: `
+      import { createPhoneStoryRuntime } from './phone-story/runtime';
+      let bootPhone;
+      bootPhone = createPhoneStoryRuntime;
+      bootPhone(() => undefined);
+    `
+  })) {
+    const found = await violations({
+      [`src/production/${label}-phone-entry.ts`]: extraSource
+    });
+    includes(found, 'runtime factory call');
+  }
+
+  const reexported = await violations({
+    'src/production/phone-runtime-bridge.ts': `
+      export {
+        createPhoneStoryRuntime as bootPhone
+      } from './phone-story/runtime';
+    `,
+    'src/production/reexport-phone-entry.ts': `
+      import { bootPhone } from './phone-runtime-bridge';
+      bootPhone(() => undefined);
+    `
+  });
+  includes(reexported, 'runtime factory call');
+});
+
+test('rejects every external dependency outside each core file allowlist', async () => {
+  for (const [label, specifier] of Object.entries({
+    legacyMachine: '../phone/legacy-machine',
+    timeline: '../phone/phone-stage-timeline',
+    coordinator: '../phone/phone-transition-coordinator',
+    react: 'react',
+    css: './machine.css',
+    qa: './PhoneBrandLabStory',
+    bootstrap: '../presentation-shell-loaders'
+  })) {
+    const found = await violations({
+      'src/production/phone-story/machine.ts': `
+        import ${JSON.stringify(specifier)};
+        export function reducePhoneStory(state: unknown) { return state; }
+        export function commitStableCandidate(candidate: unknown) { return candidate; }
+      `
+    });
+    includes(found, 'machine.ts: forbidden');
+  }
+});
+
+test('treats inline named type imports as type-only leaf-port imports', async () => {
+  assert.deepEqual(await violations({
+    'src/production/phone-story/scenes.tsx': `
+      import type { PhoneEvent } from './protocol';
+      import { type PhoneLeafReportPort } from './presentation';
+      export type PhoneSceneLeafProps = Readonly<{
+        event: PhoneEvent;
+        report: PhoneLeafReportPort;
+      }>;
+      export const loadHero = () => import('../../scenes/hero/phone/PhoneHero');
+    `
+  }), []);
+});
+
 test('rejects leaves importing runtime and runtime importing a visual leaf', async () => {
   includes(await violations({
     'src/scenes/hero/phone/PhoneHero.ts':

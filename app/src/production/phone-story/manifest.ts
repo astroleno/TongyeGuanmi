@@ -120,6 +120,15 @@ const deadlineProfiles: Readonly<Record<PhoneDeadlineProfileId, PhoneDeadlinePol
 };
 
 export const phoneManifestFetchDeadlineMs = 3000;
+function freezeOwned<T>(value: T): T {
+  if (value === null || typeof value !== 'object') return value;
+  for (const [key, nested] of Object.entries(value)) {
+    if (key !== 'policy' && key !== 'canonicalPolicy') {
+      freezeOwned(nested);
+    }
+  }
+  return Object.isFrozen(value) ? value : Object.freeze(value);
+}
 const budget = (
   videos: number, activeDecoders: number, canvases: number, webglContexts: number
 ): PhoneResourceBudget => ({
@@ -369,7 +378,7 @@ const phoneSegments = Object.freeze(canonicalSegments.map((seed): PhoneSegmentMa
   };
 }));
 
-export const phoneManifest = Object.freeze({
+export const phoneManifest = freezeOwned({
   scenes: phoneScenes, segments: phoneSegments
 });
 
@@ -423,14 +432,14 @@ function warmEntryClosure(
   source: PhoneSceneId, target: PhoneSceneId
 ): PhoneDependencyClosure {
   assertDifferentEntryScenes(source, target);
-  return {
+  return freezeOwned({
     load: sceneDependencies(target),
     mount: [...sceneMounts('source', source), ...sceneMounts('receiver', target)],
     prewarm: prewarmDependencies(target), retainUntil: 'source-through-prepared',
     exposeReceiverAfter: preparedEvidence(target),
     retireAfter: 'target-stable-rollback-closed',
     resourceBudget: budget(3, 2, 4, 3)
-  };
+  });
 }
 export const phoneWarmEntryClosure = warmEntryClosure;
 
@@ -453,14 +462,14 @@ export function phoneWarmEntryPolicy(
   const targetProfile = phoneSceneById(target).directEntry.deadlineProfile;
   const deadlineProfile = deadlineProfileRank[sourceProfile] >= deadlineProfileRank[targetProfile]
     ? sourceProfile : targetProfile;
-  return {
+  return freezeOwned({
     mode: 'entry', source, target, closure: warmEntryClosure(source, target),
     deadlineProfile, deadlinePolicy: deadlineProfiles[deadlineProfile],
     retirement: {
       success: 'target-stable-rollback-closed', failure: 'source-reproof-after-failure',
       stableCommit: 'preserve-object-identity', commitSequence: 'unchanged'
     }
-  };
+  });
 }
 
 export type PhoneEntryResolution = Readonly<{

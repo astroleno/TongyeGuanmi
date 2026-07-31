@@ -15,6 +15,7 @@ import {
   phoneDirectEntryClosure,
   phoneEntryForLocation,
   phoneManifest,
+  phoneManifestFetchDeadlineMs,
   phoneManifestIntegrity,
   phoneMediaActivationPolicy,
   phoneSceneById,
@@ -199,6 +200,258 @@ const segments = [
   ['crane-contact', 'crane-animation', 'contact', 'between', 'between:crane-contact', 'R-pair', [2, 2, 2, 2], 'D-multi-media']
 ] as const;
 
+const deadlineLedger = {
+  'D-static': {
+    moduleLoad: 8000,
+    mediaPrepare: 0,
+    firstFrame: 1500,
+    planeApply: 1500,
+    scrollConfirm: 1500,
+    rollback: 4000
+  },
+  'D-single-media': {
+    moduleLoad: 8000,
+    mediaPrepare: 8000,
+    firstFrame: 3000,
+    planeApply: 1500,
+    scrollConfirm: 1500,
+    rollback: 5000
+  },
+  'D-multi-media': {
+    moduleLoad: 10000,
+    mediaPrepare: 10000,
+    firstFrame: 4000,
+    planeApply: 1500,
+    scrollConfirm: 1500,
+    rollback: 6000
+  }
+} as const;
+
+const preparedEvidenceLedger = [
+  'module-loaded',
+  'root-connected',
+  'image-decoded',
+  'video-decoded',
+  'canvas-drawn',
+  'static-ready',
+  'layout-measurable',
+  'resource-budget-valid'
+] as const;
+
+const finalEvidenceLedger = [
+  'plane-acknowledged',
+  'content-visible',
+  'frame-visible',
+  'coverage-visible',
+  'landing-confirmed',
+  'scroll-confirmed'
+] as const;
+
+const sceneProofLedger = {
+  hero: {
+    landing: { kind: 'front-corridor', anchor: '#portrait-spike-home' },
+    frame: {
+      kind: 'decoded-or-static-post-paint',
+      surfaceIds: ['hero-figure-canvas', 'hero-figure-poster']
+    },
+    prepared: 'canvas-drawn'
+  },
+  pattern: {
+    landing: { kind: 'authored-boundary', anchor: '#portrait-spike-pattern-title' },
+    frame: {
+      kind: 'image-decode-composite-paint',
+      surfaceIds: ['pattern-image']
+    },
+    prepared: 'image-decoded'
+  },
+  'star-map': {
+    landing: { kind: 'authored-boundary', anchor: '#portrait-spike-star-title' },
+    frame: {
+      kind: 'canvas-or-static-post-paint',
+      surfaceIds: ['star-map-canvas']
+    },
+    prepared: 'canvas-drawn'
+  },
+  'aod-animation': {
+    landing: { kind: 'semantic-edge', anchor: 'aod-semantic-edge' },
+    frame: {
+      kind: 'packed-canvas-draw',
+      surfaceIds: ['aod-figure-canvas']
+    },
+    prepared: 'canvas-drawn'
+  },
+  'method-top': {
+    landing: { kind: 'authored-boundary', anchor: '#method' },
+    frame: { kind: 'content-post-paint', surfaceIds: ['method-root'] },
+    prepared: 'static-ready'
+  },
+  'figure2-animation': {
+    landing: {
+      kind: 'authored-boundary',
+      anchor: '[data-r4-scene="figure2-animation"]'
+    },
+    frame: {
+      kind: 'packed-canvas-draw',
+      surfaceIds: ['figure2-pair-canvas']
+    },
+    prepared: 'canvas-drawn'
+  },
+  'figure2-proof': {
+    landing: {
+      kind: 'authored-boundary',
+      anchor: '#figure2-proof-opening'
+    },
+    frame: {
+      kind: 'content-post-paint',
+      surfaceIds: ['figure2-proof-root']
+    },
+    prepared: 'static-ready'
+  },
+  brand: {
+    landing: { kind: 'authored-boundary', anchor: '#phone-brand-title' },
+    frame: { kind: 'content-post-paint', surfaceIds: ['brand-root'] },
+    prepared: 'static-ready'
+  },
+  'figure3-animation': {
+    landing: {
+      kind: 'persistent-compositor',
+      anchor: '[data-phone-scene="figure3-animation"]'
+    },
+    frame: {
+      kind: 'decoded-composited-frame',
+      surfaceIds: ['figure3-paper-canvas']
+    },
+    prepared: 'canvas-drawn'
+  },
+  services: {
+    landing: { kind: 'authored-boundary', anchor: '#phone-services-title' },
+    frame: { kind: 'content-post-paint', surfaceIds: ['services-root'] },
+    prepared: 'static-ready'
+  },
+  'ttg-animation': {
+    landing: {
+      kind: 'persistent-compositor',
+      anchor: '[data-r4-scene="ttg-animation"]'
+    },
+    frame: {
+      kind: 'decoded-composited-frame',
+      surfaceIds: ['ttg-figure-video']
+    },
+    prepared: 'video-decoded'
+  },
+  lab: {
+    landing: { kind: 'authored-boundary', anchor: '#phone-lab-title' },
+    frame: { kind: 'content-post-paint', surfaceIds: ['lab-root'] },
+    prepared: 'static-ready'
+  },
+  'ph-animation': {
+    landing: {
+      kind: 'persistent-compositor',
+      anchor: '[data-r4-scene="ph-animation"]'
+    },
+    frame: {
+      kind: 'packed-canvas-draw',
+      surfaceIds: ['ph-figure-canvas']
+    },
+    prepared: 'canvas-drawn'
+  },
+  education: {
+    landing: { kind: 'authored-boundary', anchor: '#education' },
+    frame: { kind: 'content-post-paint', surfaceIds: ['education-root'] },
+    prepared: 'static-ready'
+  },
+  'crane-animation': {
+    landing: {
+      kind: 'persistent-compositor',
+      anchor: '[data-r4-scene="crane-animation"]'
+    },
+    frame: {
+      kind: 'packed-canvas-draw',
+      surfaceIds: ['crane-figure-canvas', 'crane-flock-canvas']
+    },
+    prepared: 'canvas-drawn'
+  },
+  contact: {
+    landing: { kind: 'authored-boundary', anchor: '#contact' },
+    frame: { kind: 'content-post-paint', surfaceIds: ['contact-root'] },
+    prepared: 'static-ready'
+  }
+} as const;
+
+const directEntryHashLedger = {
+  hero: { canonicalHash: '#home', aliases: ['#top', '#home'] },
+  pattern: { canonicalHash: '#pattern', aliases: [] },
+  'star-map': { canonicalHash: '#star-map', aliases: ['#belief'] },
+  'aod-animation': { canonicalHash: '#aod-animation', aliases: [] },
+  'method-top': { canonicalHash: '#method', aliases: ['#method'] },
+  'figure2-animation': { canonicalHash: '#figure2-animation', aliases: [] },
+  'figure2-proof': {
+    canonicalHash: '#figure2-proof',
+    aliases: [
+      '#figure2-proof-opening',
+      '#figure2-proof-cards',
+      '#figure2-proof-closing'
+    ]
+  },
+  brand: { canonicalHash: '#brand', aliases: ['#brand'] },
+  'figure3-animation': { canonicalHash: '#figure3-animation', aliases: [] },
+  services: { canonicalHash: '#services', aliases: ['#services'] },
+  'ttg-animation': { canonicalHash: '#ttg-animation', aliases: [] },
+  lab: { canonicalHash: '#lab', aliases: ['#lab'] },
+  'ph-animation': { canonicalHash: '#ph-animation', aliases: [] },
+  education: { canonicalHash: '#education', aliases: ['#education'] },
+  'crane-animation': { canonicalHash: '#crane-animation', aliases: [] },
+  contact: { canonicalHash: '#contact', aliases: ['#contact'] }
+} as const;
+
+const timingExportLedger = {
+  'hero-pattern': [
+    'HERO_PATTERN_MOTION_MS',
+    'HERO_PATTERN_INK_MS',
+    'HERO_PATTERN_TOTAL_MS'
+  ],
+  'pattern-star-map': [
+    'PATTERN_COLLAPSE_MS',
+    'PATTERN_STAR_MAP_INK_MS',
+    'PATTERN_TOTAL_MS',
+    'PATTERN_COLLAPSE_STOP'
+  ],
+  'star-map-aod': [],
+  'aod-method-top': [],
+  'method-bottom-figure2': [],
+  'figure2-distance-expand': ['TERMINAL_DWELL_MS'],
+  'figure2-proof-brand': [],
+  'brand-figure3': [],
+  'figure3-services': ['FIGURE3_SERVICES_DURATION_MS'],
+  'services-ttg': [],
+  'ttg-lab': [
+    'TTG_PLAYBACK_MS',
+    'INTRA_CHAPTER_DISSOLVE_MS',
+    'TERMINAL_DWELL_MS'
+  ],
+  'lab-ph': [],
+  'ph-education': [
+    'PH_PLAYBACK_MS',
+    'INTRA_CHAPTER_DISSOLVE_MS',
+    'TERMINAL_DWELL_MS'
+  ],
+  'education-crane': [],
+  'crane-contact': ['CRANE_CONTACT_DURATION_MS']
+} as const;
+
+const preparePolicyLedger = {
+  sourceCover: 'source-or-loader-through-prepared',
+  receiverMount: 'inert',
+  prewarm: 'module-and-immutable-metadata-only',
+  receiverExposure: 'atomic-candidate-plane'
+} as const;
+
+const reducedMotionLedger = {
+  sampling: 'terminal-static',
+  proof: 'full-visible-quorum',
+  closure: 'unchanged'
+} as const;
+
 function budget(values: readonly number[]) {
   return {
     videos: values[0],
@@ -225,7 +478,232 @@ function prewarm(scene: keyof typeof sceneDetails) {
   ));
 }
 
+function preparedQuorum(scene: keyof typeof sceneDetails) {
+  return [
+    'module-loaded',
+    'root-connected',
+    sceneProofLedger[scene].prepared,
+    'layout-measurable',
+    'resource-budget-valid'
+  ];
+}
+
+function activation(values: readonly number[]) {
+  return values[0] === 0
+    ? {
+        mode: 'none',
+        prewarmMayActivate: false,
+        requiresPhysicalCredit: false,
+        directEntry: 'none',
+        rejection: 'not-applicable'
+      }
+    : {
+        mode: 'gesture-or-muted-autoplay',
+        prewarmMayActivate: false,
+        requiresPhysicalCredit: true,
+        directEntry: 'muted-plays-inline-then-covered-cta',
+        rejection: 'await-accessible-physical-gesture'
+      };
+}
+
+function expectedScene(entry: typeof scenes[number]) {
+  const [id, checkpoint, edgeSurface, plane, values, deadlineProfile] = entry;
+  const details = sceneDetails[id];
+  const proof = sceneProofLedger[id];
+  const hashes = directEntryHashLedger[id];
+  return {
+    id,
+    checkpoint,
+    edgeSurface,
+    plane,
+    landing: proof.landing,
+    content: { mode: 'all-visible', selectors: details.selectors },
+    frame: proof.frame,
+    navigationId: id,
+    reducedMotion: reducedMotionLedger,
+    dependencies: dependencies(id),
+    surfaces: details.surfaces,
+    directEntry: {
+      ...hashes,
+      closure: {
+        load: dependencies(id),
+        mount: mounts('receiver', id),
+        prewarm: [],
+        retainUntil: 'loader-through-prepared',
+        exposeReceiverAfter: preparedQuorum(id),
+        retireAfter: 'loader-after-visible-stable',
+        resourceBudget: budget(values)
+      },
+      preparePolicy: preparePolicyLedger,
+      terminalEvidence: {
+        required: finalEvidenceLedger,
+        retirementProof: 'loader-after-stable'
+      },
+      deadlineProfile,
+      deadlinePolicy: deadlineLedger[deadlineProfile],
+      mediaActivation: activation(values)
+    }
+  };
+}
+
+function canonicalSegment(id: typeof segments[number][0]) {
+  const segment = storyManifest.nodes.find((node) => (
+    node.kind === 'segment' && node.id === id
+  ));
+  if (!segment || segment.kind !== 'segment') {
+    throw new Error(`Missing canonical test ledger segment ${id}`);
+  }
+  return segment;
+}
+
+function expectedSegmentLeg(
+  entry: typeof segments[number],
+  direction: 'forward' | 'reverse'
+) {
+  const [
+    id,
+    canonicalSource,
+    canonicalTarget,
+    ,
+    effectSurface,
+    retirement,
+    values,
+    deadlineProfile
+  ] = entry;
+  const sourceId = direction === 'forward' ? canonicalSource : canonicalTarget;
+  const targetId = direction === 'forward' ? canonicalTarget : canonicalSource;
+  return {
+    direction,
+    source: sourceId,
+    target: targetId,
+    effectSurface,
+    closure: {
+      load: [
+        ...dependencies(sourceId),
+        `transition:${id}`,
+        ...dependencies(targetId)
+      ],
+      mount: [
+        ...mounts('source', sourceId),
+        `effect:${effectSurface}`,
+        ...mounts('receiver', targetId)
+      ],
+      prewarm: prewarm(targetId),
+      retainUntil: 'source-through-prepared',
+      exposeReceiverAfter: preparedQuorum(targetId),
+      retireAfter: retirement === 'R-pair'
+        ? 'pair-exit-or-route-dispose'
+        : 'target-stable-rollback-closed',
+      resourceBudget: budget(values)
+    },
+    preparePolicy: preparePolicyLedger,
+    terminalEvidence: {
+      required: finalEvidenceLedger,
+      retirementProof: retirement
+    },
+    inputBoundary: {
+      claim: 'one-fresh-physical-epoch',
+      arrivingTail: 'reject-until-fresh',
+      release: 'stable-or-rollback',
+      canonicalPolicy: canonicalSegment(id).policy
+    },
+    deadlineProfile,
+    deadlinePolicy: deadlineLedger[deadlineProfile],
+    mediaActivation: activation(values)
+  };
+}
+
+function expectedSegment(entry: typeof segments[number]) {
+  const [
+    id,
+    sourceScene,
+    targetScene,
+    effectPlacement,
+    ,
+    ,
+    ,
+    deadlineProfile
+  ] = entry;
+  const canonical = canonicalSegment(id);
+  return {
+    id,
+    source: sourceScene,
+    target: targetScene,
+    timing: {
+      manifestSegmentId: id,
+      policy: canonical.policy,
+      virtualDuration: canonical.virtualDuration,
+      namedExports: timingExportLedger[id]
+    },
+    effectPlacement,
+    forward: expectedSegmentLeg(entry, 'forward'),
+    reverse: expectedSegmentLeg(entry, 'reverse'),
+    rollback: {
+      kind: 'source-reproof',
+      stableCommit: 'preserve-object-identity',
+      commitSequence: 'unchanged',
+      sourceProof: 'replace-after-full-quorum',
+      failureRetirement: 'never-before-source-reproof',
+      deadlinePolicy: deadlineLedger[deadlineProfile]
+    }
+  };
+}
+
 describe('canonical phone manifest', () => {
+  it('deep-compares the independent Appendix E ledger for 16 entries and 30 legs', () => {
+    expect(phoneManifestFetchDeadlineMs).toBe(3000);
+    expect(PHONE_PREPARED_EVIDENCE_KINDS).toStrictEqual(preparedEvidenceLedger);
+    expect(PHONE_FINAL_EVIDENCE_KINDS).toStrictEqual(finalEvidenceLedger);
+    expect({
+      'D-static': phoneDeadlinePolicy('D-static'),
+      'D-single-media': phoneDeadlinePolicy('D-single-media'),
+      'D-multi-media': phoneDeadlinePolicy('D-multi-media')
+    }).toStrictEqual(deadlineLedger);
+    expect(phoneManifest.scenes).toStrictEqual(scenes.map(expectedScene));
+    expect(phoneManifest.segments).toStrictEqual(segments.map(expectedSegment));
+  });
+
+  it('freezes owned scene, closure, budget, deadline, and warm-entry records', () => {
+    const scene = phoneSceneById('hero');
+    const segment = phoneSegmentBetween('hero', 'pattern');
+    if (!segment) throw new Error('Missing hero-pattern test segment');
+    const warmClosure = phoneWarmEntryClosure('hero', 'crane-animation');
+    const warmPolicy = phoneWarmEntryPolicy('hero', 'crane-animation');
+    const ownedRecords = [
+      phoneManifest,
+      phoneManifest.scenes,
+      phoneManifest.segments,
+      scene,
+      scene.landing,
+      scene.content,
+      scene.content.selectors,
+      scene.frame,
+      scene.frame.surfaceIds,
+      scene.dependencies,
+      scene.surfaces,
+      scene.directEntry,
+      scene.directEntry.aliases,
+      scene.directEntry.closure,
+      scene.directEntry.closure.load,
+      scene.directEntry.closure.mount,
+      scene.directEntry.closure.exposeReceiverAfter,
+      scene.directEntry.closure.resourceBudget,
+      scene.directEntry.deadlinePolicy,
+      segment,
+      segment.forward,
+      segment.forward.closure,
+      segment.forward.closure.resourceBudget,
+      segment.rollback,
+      warmClosure,
+      warmClosure.load,
+      warmClosure.mount,
+      warmClosure.resourceBudget,
+      warmPolicy,
+      warmPolicy.retirement
+    ];
+    expect(ownedRecords.every(Object.isFrozen)).toBe(true);
+  });
+
   it('declares exactly the canonical 16 holds in order with every proof field', () => {
     expect(phoneManifest.scenes.map((scene) => scene.id)).toEqual(canonicalSceneIds);
     expect(new Set(phoneManifest.scenes.map((scene) => scene.id))).toHaveLength(16);

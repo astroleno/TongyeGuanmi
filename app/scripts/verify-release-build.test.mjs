@@ -78,6 +78,60 @@ test('accepts a deterministic modules report with one synchronous core and lazy 
   }), []);
 });
 
+test('exempts chunks already loaded by the dynamic parent from leaf transfer size', () => {
+  const report = validProvenance();
+  report.chunks[0].imports.push('assets/PhonePrelude.js');
+  report.chunks[1].imports.push(
+    'assets/PhonePrelude.js',
+    'assets/PhoneRegistry.js'
+  );
+  report.chunks[1].dynamicImports = [];
+  report.chunks.splice(
+    1,
+    0,
+    chunk({
+      fileName: 'assets/PhonePrelude.js',
+      modules: ['app/src/runtime/shared.ts']
+    }),
+    chunk({
+      fileName: 'assets/PhoneRegistry.js',
+      dynamicImports: ['assets/PhoneHero.js'],
+      modules: ['app/src/production/phone/module-loaders.ts']
+    })
+  );
+  assert.deepEqual(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/PhonePrelude.js': DONOR_MAX_LAZY_LEAF_BYTES + 1000
+    })
+  }), []);
+});
+
+test('still rejects preloaded synchronous authority reachable from a leaf', () => {
+  const report = validProvenance();
+  report.chunks[0].imports.push('assets/PhoneSharedAuthority.js');
+  report.chunks[1].imports.push('assets/PhoneSharedAuthority.js');
+  report.chunks.splice(1, 0, chunk({
+    fileName: 'assets/PhoneSharedAuthority.js',
+    modules: ['app/src/production/input-controller.ts']
+  }));
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/PhoneSharedAuthority.js': 1000
+    })
+  }), 'lifecycle authority');
+});
+
+test('does not classify a co-located stylesheet as lifecycle authority', () => {
+  const report = validProvenance();
+  report.chunks[0].modules.push(
+    'app/src/production/phone/PhoneLabContactShell.css'
+  );
+  report.chunks[0].modules.sort();
+  assert.deepEqual(moduleProvenanceViolations(report, {
+    chunkBytes: bytes()
+  }), []);
+});
+
 test('rejects a missing or malformed provenance report', () => {
   includes(moduleProvenanceViolations(null), 'missing');
   includes(moduleProvenanceViolations({ schemaVersion: 2, chunks: [] }), 'schemaVersion');
@@ -128,4 +182,75 @@ test('rejects a lazy visual leaf above the frozen donor maximum', () => {
       'assets/PhoneHero.js': DONOR_MAX_LAZY_LEAF_BYTES + 1
     })
   }), 'lazy phone leaf chunk');
+});
+
+test('rejects an oversized synchronous shared chunk in a lazy leaf closure', () => {
+  const report = validProvenance();
+  report.chunks[0].imports.push('assets/PhoneShared.js');
+  report.chunks.splice(1, 0, chunk({
+    fileName: 'assets/PhoneShared.js',
+    modules: ['app/src/scenes/hero/phone/shared.ts']
+  }));
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/PhoneShared.js': DONOR_MAX_LAZY_LEAF_BYTES + 1
+    })
+  }), 'lazy phone leaf closure chunk');
+});
+
+test('rejects an oversized general shared chunk newly fetched by a leaf', () => {
+  const report = validProvenance();
+  report.chunks[0].imports.push('assets/PhoneRuntimeShared.js');
+  report.chunks.splice(1, 0, chunk({
+    fileName: 'assets/PhoneRuntimeShared.js',
+    modules: ['app/src/runtime/shared.ts']
+  }));
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/PhoneRuntimeShared.js': DONOR_MAX_LAZY_LEAF_BYTES + 1
+    })
+  }), 'lazy phone leaf closure chunk');
+});
+
+test('rejects lifecycle authority in a transitive lazy leaf dependency', () => {
+  const report = validProvenance();
+  report.chunks[0].imports.push('assets/PhoneShared.js');
+  report.chunks.splice(1, 0,
+    chunk({
+      fileName: 'assets/PhoneAuthority.js',
+      modules: ['app/src/production/input-controller.ts']
+    }),
+    chunk({
+      fileName: 'assets/PhoneShared.js',
+      imports: ['assets/PhoneAuthority.js'],
+      modules: ['app/src/scenes/hero/phone/shared.ts']
+    })
+  );
+  report.chunks.sort((left, right) => (
+    left.fileName < right.fileName ? -1 : left.fileName > right.fileName ? 1 : 0
+  ));
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/PhoneAuthority.js': 1000,
+      'assets/PhoneShared.js': 1000
+    })
+  }), 'lifecycle authority');
+});
+
+test('rejects a phone leaf module emitted into two lazy chunks', () => {
+  const report = validProvenance();
+  report.chunks.push(chunk({
+    fileName: 'assets/PhoneHeroCopy.js',
+    isDynamicEntry: true,
+    facadeModuleId: 'app/src/scenes/hero/phone/PhoneHero.tsx',
+    modules: ['app/src/scenes/hero/phone/PhoneHero.tsx']
+  }));
+  report.chunks.sort((left, right) => (
+    left.fileName < right.fileName ? -1 : left.fileName > right.fileName ? 1 : 0
+  ));
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/PhoneHeroCopy.js': DONOR_MAX_LAZY_LEAF_BYTES
+    })
+  }), 'emitted into multiple chunks');
 });
