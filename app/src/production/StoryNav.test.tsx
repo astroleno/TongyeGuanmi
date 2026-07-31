@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { phonePresentationLayerZIndex } from './phone/phone-story/presentation';
 import { StoryNav, chromeForScene } from './StoryNav';
 
 const stylesheet = readFileSync(new URL('./StoryNav.css', import.meta.url), 'utf8');
@@ -53,6 +54,26 @@ describe('StoryNav', () => {
     expect(markup).not.toContain('inert=""');
     expect(markup.match(/class="scroll-edge-blur__layer"/g)).toHaveLength(7);
     expect(markup.match(/class="scroll-edge-blur__tint"/g)).toHaveLength(1);
+  });
+
+  it('[phone chrome plane] keeps navigation hit targets above every presentation surface', () => {
+    const navigationPlane = 800;
+
+    expect(phonePresentationLayerZIndex('transition-effect-above')).toBeLessThan(
+      navigationPlane
+    );
+    expect(stylesheet).toMatch(
+      /:root\s*\{[^}]*--story-navigation-layer:\s*800;[^}]*--story-navigation-backdrop-layer:\s*799;/s
+    );
+    expect(stylesheet).toMatch(
+      /\.site-nav\s*\{[^}]*z-index:\s*var\(--story-navigation-layer\)[^}]*pointer-events:\s*none/s
+    );
+    expect(stylesheet).toMatch(
+      /\.site-nav\[data-visible="true"\]\s*\{[^}]*pointer-events:\s*auto/s
+    );
+    expect(stylesheet).toMatch(
+      /\.scroll-edge-blur\s*\{[^}]*z-index:\s*var\(--story-navigation-backdrop-layer\)[^}]*pointer-events:\s*none/s
+    );
   });
 
   it('lets a partial shell omit destinations it cannot render', () => {

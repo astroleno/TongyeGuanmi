@@ -1,4 +1,9 @@
-:root { --nav-h: 64px; }
+:root {
+  --nav-h: 64px;
+  /* Chrome is the sole interactive plane above all phone presentation roles. */
+  --story-navigation-layer: 800;
+  --story-navigation-backdrop-layer: 799;
+}
 
 .site-nav {
   --nav-fg: rgba(247, 237, 215, .82);
@@ -7,7 +12,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 300;
+  z-index: var(--story-navigation-layer);
   width: 100vw;
   color: var(--nav-fg);
   background: transparent;
@@ -171,7 +176,7 @@
   top: 0;
   right: 0;
   left: 0;
-  z-index: 299;
+  z-index: var(--story-navigation-backdrop-layer);
   width: 100vw;
   height: calc(var(--nav-h) * 2 + env(safe-area-inset-top, 0px));
   overflow: hidden;
