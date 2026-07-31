@@ -79,8 +79,9 @@ test('accepts the shared semantic writer and textual literals', () => {
       source: '[data-visible="true"] {} [data-ready="false"] {}'
     }],
     runtimeSources: [{
-      file: 'scene.tsx',
+      file: 'src/scenes/scene.tsx',
       source: `
+        import { semanticBoolean } from '../runtime/semantic-data-attribute';
         <div data-visible={semanticBoolean(active)} />
         root.dataset.ready = semanticBoolean(ready);
         root.dataset.visible = 'true';
@@ -101,17 +102,76 @@ test('rejects mixed expressions, nested calls, and comment-only disguises', () =
       `
     }],
     runtimeSources: [{
-      file: 'scene.tsx',
+      file: 'src/scenes/scene.tsx',
       source: `
+        import { semanticBoolean } from '../runtime/semantic-data-attribute';
         <div data-ready={ready || semanticBoolean(false)} />
         <div data-visible={visible /* semanticBoolean(false) */} />
         <div data-loaded={String(semanticBoolean(loaded))} />
       `
     }]
   }), [
-    'scene.tsx: data-loaded must use semanticBoolean(...) or a textual literal',
-    'scene.tsx: data-ready must use semanticBoolean(...) or a textual literal',
-    'scene.tsx: data-visible must use semanticBoolean(...) or a textual literal'
+    'src/scenes/scene.tsx: data-loaded must use semanticBoolean(...) or a textual literal',
+    'src/scenes/scene.tsx: data-ready must use semanticBoolean(...) or a textual literal',
+    'src/scenes/scene.tsx: data-visible must use semanticBoolean(...) or a textual literal'
+  ]);
+});
+
+test('rejects a semanticBoolean call without the canonical import binding', () => {
+  assert.deepEqual(booleanDataContractViolations({
+    viteSource: 'export default {};',
+    cssSources: [{
+      file: 'scene.css',
+      source: '[data-ready="true"] {}'
+    }],
+    runtimeSources: [{
+      file: 'src/scenes/scene.tsx',
+      source: '<div data-ready={semanticBoolean(ready)} />'
+    }]
+  }), [
+    'src/scenes/scene.tsx: data-ready must use semanticBoolean(...) or a textual literal'
+  ]);
+});
+
+test('rejects a local semanticBoolean definition that shadows the shared helper', () => {
+  assert.deepEqual(booleanDataContractViolations({
+    viteSource: 'export default {};',
+    cssSources: [{
+      file: 'scene.css',
+      source: '[data-ready="true"] {}'
+    }],
+    runtimeSources: [{
+      file: 'src/scenes/scene.tsx',
+      source: `
+        function semanticBoolean(value: boolean) {
+          return value ? 'yes' : 'no';
+        }
+        <div data-ready={semanticBoolean(ready)} />
+      `
+    }]
+  }), [
+    'src/scenes/scene.tsx: data-ready must use semanticBoolean(...) or a textual literal'
+  ]);
+});
+
+test('rejects a parameter shadowing the canonical semanticBoolean import', () => {
+  assert.deepEqual(booleanDataContractViolations({
+    viteSource: 'export default {};',
+    cssSources: [{
+      file: 'scene.css',
+      source: '[data-ready="true"] {}'
+    }],
+    runtimeSources: [{
+      file: 'src/scenes/scene.tsx',
+      source: `
+        import { semanticBoolean } from '../runtime/semantic-data-attribute';
+        function Scene(semanticBoolean: (value: boolean) => string) {
+          return <div data-ready={semanticBoolean(ready)} />;
+        }
+      `
+    }]
+  }), [
+    'src/scenes/scene.tsx: data-ready must use semanticBoolean(...) or a textual literal'
   ]);
 });
 
@@ -119,7 +179,9 @@ test('ratchets exact legacy phone debt without exempting the directory', () => {
   const legacyDebt = [{
     file: 'src/production/phone/LegacyShell.tsx',
     attribute: 'data-stage-active',
-    count: 1
+    owner: 'LegacyShell',
+    kind: 'jsx-attribute',
+    writer: 'data-stage-active={String(active)}'
   }];
   const base = {
     viteSource: 'export default {};',
@@ -134,7 +196,11 @@ test('ratchets exact legacy phone debt without exempting the directory', () => {
     ...base,
     runtimeSources: [{
       file: 'src/production/phone/LegacyShell.tsx',
-      source: '<div data-stage-active={String(active)} />'
+      source: `
+        function LegacyShell() {
+          return <div data-stage-active={String(active)} />;
+        }
+      `
     }]
   }), []);
 
@@ -143,8 +209,46 @@ test('ratchets exact legacy phone debt without exempting the directory', () => {
     runtimeSources: []
   }), [
     'src/production/phone/LegacyShell.tsx: data-stage-active legacy debt '
-      + 'baseline is stale; expected 1, found 0'
+      + 'occurrence is stale (LegacyShell; jsx-attribute; '
+      + 'data-stage-active={String(active)})'
   ]);
+});
+
+test('rejects replacing a frozen legacy occurrence with a new writer', () => {
+  const legacyDebt = [{
+    file: 'src/production/phone/LegacyShell.tsx',
+    attribute: 'data-stage-active',
+    owner: 'LegacyShell',
+    kind: 'jsx-attribute',
+    writer: 'data-stage-active={String(active)}'
+  }];
+  const found = booleanDataContractViolations({
+    viteSource: 'export default {};',
+    cssSources: [{
+      file: 'legacy.css',
+      source: '[data-stage-active="true"] {}'
+    }],
+    runtimeSources: [{
+      file: 'src/production/phone/LegacyShell.tsx',
+      source: `
+        function LegacyShell() {
+          return <>
+            <div data-stage-active="true" />
+            <aside data-stage-active={String(ready)} />
+          </>;
+        }
+      `
+    }],
+    legacyDebt
+  });
+
+  assert.equal(found.length, 2);
+  assert.ok(found.some((violation) => violation.includes(
+    'new legacy boolean writer occurrence'
+  )));
+  assert.ok(found.some((violation) => violation.includes(
+    'legacy debt occurrence is stale'
+  )));
 });
 
 test('scans new writers inside the legacy phone directory', async () => {

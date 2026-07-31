@@ -887,6 +887,69 @@ test('rejects recovery without a bounded page reload', async () => {
   }, { phase: 'cutover' }), 'recovery must allow at most one automatic reload');
 });
 
+test('rejects an unconditional return before lineage persistence', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'if (lineage.automaticReloadCount >= 1) return;\n    sessionStorage.setItem',
+        'if (lineage.automaticReloadCount >= 1) return;\n    return;\n    sessionStorage.setItem'
+      )
+  }, { phase: 'cutover' }), 'recovery control flow must reach lineage persistence and reload');
+});
+
+test('rejects an unconditional throw before lineage persistence', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'if (lineage.automaticReloadCount >= 1) return;\n    sessionStorage.setItem',
+        "if (lineage.automaticReloadCount >= 1) return;\n    throw new Error('stop');\n    sessionStorage.setItem"
+      )
+  }, { phase: 'cutover' }), 'recovery control flow must reach lineage persistence and reload');
+});
+
+test('rejects clearing persisted lineage before reload', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        '}));\n    window.location.reload();',
+        '}));\n    sessionStorage.clear();\n    window.location.reload();'
+      )
+  }, { phase: 'cutover' }), 'must not clear or overwrite persisted recovery lineage');
+});
+
+test('rejects overwriting the persisted reload count before reload', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        '}));\n    window.location.reload();',
+        `}));
+    sessionStorage.setItem(lineageStorageKey, JSON.stringify({
+      ...lineage,
+      automaticReloadCount: 0
+    }));
+    window.location.reload();`
+      )
+  }, { phase: 'cutover' }), 'must not clear or overwrite persisted recovery lineage');
+});
+
+test('rejects an indirect lineage reset between persistence and reload', async () => {
+  const source = validRecoveryBoundary
+    .replace(
+      "export type PhoneChunkRecoveryLineage = Readonly<{",
+      `function resetRecoveryLineage() {
+    sessionStorage.clear();
+  }
+  export type PhoneChunkRecoveryLineage = Readonly<{`
+    )
+    .replace(
+      '}));\n    window.location.reload();',
+      '}));\n    resetRecoveryLineage();\n    window.location.reload();'
+    );
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': source
+  }, { phase: 'cutover' }), 'must not clear or overwrite persisted recovery lineage');
+});
+
 test('rejects same-document retry of the rejected phone-core URL', async () => {
   includes(await violations({
     'src/production/presentation-shell-loaders.ts': `

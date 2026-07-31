@@ -10,62 +10,117 @@ export const LEGACY_PHONE_BOOLEAN_DEBT = Object.freeze([
   Object.freeze({
     file: 'src/production/phone/PhoneBrandLabContinuation.tsx',
     attribute: 'data-phone-group45-stage-active',
-    count: 3
+    owner: 'PhoneBrandLabContinuation',
+    kind: 'jsx-attribute',
+    writer: 'data-phone-group45-stage-active={String(stageScene!==null)}'
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneBrandLabContinuation.tsx',
+    attribute: 'data-phone-group45-stage-active',
+    owner: 'render',
+    kind: 'set-attribute',
+    writer: 'root.setAttribute(\'data-phone-group45-stage-active\','
+      + 'String(nextStageScene!==null))'
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneBrandLabContinuation.tsx',
+    attribute: 'data-phone-group45-stage-active',
+    owner: 'stageSurfaces',
+    kind: 'jsx-attribute',
+    writer: 'data-phone-group45-stage-active={String(stageScene!==null)}'
   }),
   Object.freeze({
     file: 'src/production/phone/PhoneBrandLabStory.tsx',
     attribute: 'data-phone-group45-stage-active',
-    count: 1
+    owner: 'PhoneBrandLabStory',
+    kind: 'jsx-attribute',
+    writer: 'data-phone-group45-stage-active={String(stageScene!==null)}'
   }),
   Object.freeze({
     file: 'src/production/phone/PhoneBrandLabStory.tsx',
     attribute: 'data-portrait-stage-active',
-    count: 1
+    owner: 'PhoneBrandLabStory',
+    kind: 'jsx-attribute',
+    writer: 'data-portrait-stage-active={String(stageScene!==null)}'
   }),
   Object.freeze({
     file: 'src/production/phone/PhoneBrandLabStory.tsx',
     attribute: 'data-story-hydrated',
-    count: 1
+    owner: 'PhoneBrandLabStory',
+    kind: 'dataset-assignment',
+    writer: 'documentElement.dataset.storyHydrated=previousHydrated'
   }),
   Object.freeze({
     file: 'src/production/phone/PhoneGradeAStory.tsx',
     attribute: 'data-phone-figure2-arch-visible',
-    count: 1
+    owner: 'setRetainedArchProgress',
+    kind: 'dataset-assignment',
+    writer: 'retainedArch.dataset.phoneFigure2ArchVisible='
+      + 'String(frame.opacity>0.001)'
   }),
   Object.freeze({
     file: 'src/production/phone/PhoneGradeAStory.tsx',
     attribute: 'data-phone-grade-a-active',
-    count: 2
+    owner: 'renderFrame',
+    kind: 'dataset-assignment',
+    writer: 'root.dataset.phoneGradeAActive=String(active)'
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneGradeAStory.tsx',
+    attribute: 'data-phone-grade-a-active',
+    owner: 'renderFrame',
+    kind: 'dataset-assignment',
+    writer: 'surfaces.dataset.phoneGradeAActive=String(active)'
   }),
   Object.freeze({
     file: 'src/production/phone/PhoneGradeAStory.tsx',
     attribute: 'data-phone-method-figure2-ink-active',
-    count: 1
+    owner: 'renderFrame',
+    kind: 'dataset-assignment',
+    writer: 'methodReading.dataset.phoneMethodFigure2InkActive='
+      + 'String(railActive||activeInk?.id===0)'
   }),
   Object.freeze({
     file: 'src/production/phone/PhoneLabContactShell.tsx',
     attribute: 'data-phone-acceptance-stage-active',
-    count: 2
+    owner: 'PhoneLabContactShell',
+    kind: 'jsx-attribute',
+    writer: 'data-phone-acceptance-stage-active={String(isDirectCinematic)}'
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneLabContactShell.tsx',
+    attribute: 'data-phone-acceptance-stage-active',
+    owner: 'setStageActive',
+    kind: 'dataset-assignment',
+    writer: 'stage.dataset.phoneAcceptanceStageActive=String(active)'
   }),
   Object.freeze({
     file: 'src/production/phone/PhoneStoryShell.tsx',
     attribute: 'data-portrait-loader-ready',
-    count: 1
+    owner: 'PhoneStoryShell',
+    kind: 'jsx-attribute',
+    writer: 'data-portrait-loader-ready={String(loaderHidden)}'
   }),
   Object.freeze({
     file: 'src/production/phone/scenes/PhoneFigure2.tsx',
     attribute: 'data-phone-figure2-active',
-    count: 1
+    owner: 'setSceneActive',
+    kind: 'dataset-assignment',
+    writer: 'root.dataset.phoneFigure2Active=String(active)'
   }),
   Object.freeze({
     file: 'src/production/phone/scenes/PhoneMethodTop.tsx',
     attribute: 'data-portrait-aod-method-visible',
-    count: 1
+    owner: 'update',
+    kind: 'dataset-assignment',
+    writer: 'owner.dataset.portraitAodMethodVisible=String(visible)'
   }),
   Object.freeze({
     file: 'src/production/phone/usePhoneStageRuntime.ts',
     attribute: 'data-portrait-stage-active',
-    count: 1
+    owner: 'setStageActive',
+    kind: 'dataset-assignment',
+    writer: 'root.dataset.portraitStageActive=String(stageActive)'
   })
 ]);
 
@@ -94,15 +149,93 @@ function unwrapParentheses(expression) {
   return current;
 }
 
-function textualBooleanWriter(expression) {
+function canonicalSemanticBooleanBinding(file, sourceFile) {
+  const canonicalModule = 'src/runtime/semantic-data-attribute';
+  const canonicalSpecifiers = [];
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement)
+      || !ts.isStringLiteralLike(statement.moduleSpecifier)
+      || !statement.moduleSpecifier.text.startsWith('.')
+    ) {
+      continue;
+    }
+    const resolved = path.posix.normalize(path.posix.join(
+      path.posix.dirname(file),
+      statement.moduleSpecifier.text
+    )).replace(/\.[cm]?[jt]sx?$/i, '');
+    if (resolved !== canonicalModule) continue;
+    const clause = statement.importClause;
+    if (!clause || clause.isTypeOnly || !clause.namedBindings) continue;
+    if (!ts.isNamedImports(clause.namedBindings)) continue;
+    for (const specifier of clause.namedBindings.elements) {
+      const importedName = (specifier.propertyName ?? specifier.name).text;
+      if (importedName === 'semanticBoolean' && !specifier.isTypeOnly) {
+        canonicalSpecifiers.push(specifier);
+      }
+    }
+  }
+  if (canonicalSpecifiers.length !== 1) return undefined;
+
+  const canonicalSpecifier = canonicalSpecifiers[0];
+  const localName = canonicalSpecifier.name.text;
+  const bindingContains = (name) => {
+    if (ts.isIdentifier(name)) return name.text === localName;
+    return name.elements.some((element) => (
+      !ts.isOmittedExpression(element) && bindingContains(element.name)
+    ));
+  };
+  let shadowed = false;
+  const visit = (node) => {
+    if (shadowed) return;
+    if (
+      (ts.isVariableDeclaration(node) || ts.isParameter(node))
+      && bindingContains(node.name)
+    ) {
+      shadowed = true;
+      return;
+    }
+    if (
+      (
+        ts.isFunctionDeclaration(node)
+        || ts.isFunctionExpression(node)
+        || ts.isClassDeclaration(node)
+        || ts.isClassExpression(node)
+        || ts.isEnumDeclaration(node)
+        || ts.isImportEqualsDeclaration(node)
+      )
+      && node.name?.text === localName
+    ) {
+      shadowed = true;
+      return;
+    }
+    if (
+      node !== canonicalSpecifier
+      && (
+        (ts.isImportSpecifier(node) && node.name.text === localName)
+        || (ts.isNamespaceImport(node) && node.name.text === localName)
+        || (ts.isImportClause(node) && node.name?.text === localName)
+      )
+    ) {
+      shadowed = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return shadowed ? undefined : { localName };
+}
+
+function textualBooleanWriter(expression, binding) {
   if (!expression) return false;
   const writer = unwrapParentheses(expression);
   if (ts.isStringLiteral(writer)) {
     return writer.text === 'true' || writer.text === 'false';
   }
-  return ts.isCallExpression(writer)
+  return Boolean(binding)
+    && ts.isCallExpression(writer)
     && ts.isIdentifier(writer.expression)
-    && writer.expression.text === 'semanticBoolean'
+    && writer.expression.text === binding.localName
     && writer.arguments.length === 1;
 }
 
@@ -218,7 +351,37 @@ function setAttributeWriter(call, labels) {
   return { label: label.text, expression: call.arguments[1] };
 }
 
-function unsafeBooleanWriters(file, source, attributes) {
+function occurrenceOwner(node) {
+  let current = node.parent;
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.isVariableDeclaration(current) && ts.isIdentifier(current.name)) {
+      return current.name.text;
+    }
+    if (ts.isFunctionDeclaration(current) && current.name) {
+      return current.name.text;
+    }
+    if (ts.isFunctionExpression(current) && current.name) {
+      return current.name.text;
+    }
+    if (ts.isMethodDeclaration(current)) {
+      return current.name.getText(current.getSourceFile());
+    }
+    if (
+      (ts.isClassDeclaration(current) || ts.isClassExpression(current))
+      && current.name
+    ) {
+      return current.name.text;
+    }
+    current = current.parent;
+  }
+  return '<module>';
+}
+
+function normalizedWriter(node, sourceFile) {
+  return node.getText(sourceFile).replace(/\s+/g, '');
+}
+
+export function booleanWriterOccurrences(file, source, attributes) {
   const labels = new Set([...attributes].map((attribute) => `data-${attribute}`));
   const labelByProperty = new Map(
     [...attributes].map((attribute) => [
@@ -236,7 +399,16 @@ function unsafeBooleanWriters(file, source, attributes) {
     true,
     scriptKind
   );
+  const binding = canonicalSemanticBooleanBinding(file, sourceFile);
   const unsafe = [];
+  const addUnsafe = (attribute, kind, node) => {
+    unsafe.push({
+      attribute,
+      owner: occurrenceOwner(node),
+      kind,
+      writer: normalizedWriter(node, sourceFile)
+    });
+  };
   const visit = (node) => {
     if (ts.isJsxAttribute(node)) {
       const label = ts.isIdentifier(node.name) ? node.name.text : undefined;
@@ -245,8 +417,8 @@ function unsafeBooleanWriters(file, source, attributes) {
         const expression = initializer && ts.isJsxExpression(initializer)
           ? initializer.expression
           : initializer;
-        if (!textualBooleanWriter(expression)) {
-          unsafe.push(label);
+        if (!textualBooleanWriter(expression, binding)) {
+          addUnsafe(label, 'jsx-attribute', node);
         }
       }
     } else if (
@@ -254,19 +426,24 @@ function unsafeBooleanWriters(file, source, attributes) {
       && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
     ) {
       const label = datasetPropertyWriter(node.left, labelByProperty);
-      if (label && !textualBooleanWriter(node.right)) {
-        unsafe.push(label);
+      if (label && !textualBooleanWriter(node.right, binding)) {
+        addUnsafe(label, 'dataset-assignment', node);
       }
     } else if (ts.isCallExpression(node)) {
       const writer = setAttributeWriter(node, labels);
-      if (writer && !textualBooleanWriter(writer.expression)) {
-        unsafe.push(writer.label);
+      if (writer && !textualBooleanWriter(writer.expression, binding)) {
+        addUnsafe(writer.label, 'set-attribute', node);
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
-  return unsafe.sort();
+  return unsafe.sort((left, right) => (
+    left.attribute.localeCompare(right.attribute)
+    || left.owner.localeCompare(right.owner)
+    || left.kind.localeCompare(right.kind)
+    || left.writer.localeCompare(right.writer)
+  ));
 }
 
 export function cssBooleanDataAttributes(source) {
@@ -296,37 +473,55 @@ export function booleanDataContractViolations({
     }
   }
 
-  const unsafeCounts = new Map();
+  const occurrenceKey = ({ file, attribute, owner, kind, writer }) => (
+    [file, attribute, owner, kind, writer].join('\0')
+  );
+  const unsafeOccurrences = [];
   for (const { file, source } of runtimeSources) {
-    for (const label of unsafeBooleanWriters(file, source, attributes)) {
-      const key = `${file}\0${label}`;
-      unsafeCounts.set(key, (unsafeCounts.get(key) ?? 0) + 1);
+    for (const occurrence of booleanWriterOccurrences(file, source, attributes)) {
+      unsafeOccurrences.push({ file, ...occurrence });
     }
   }
 
   const debtCounts = new Map();
   for (const debt of legacyDebt) {
-    const key = `${debt.file}\0${debt.attribute}`;
-    debtCounts.set(key, (debtCounts.get(key) ?? 0) + debt.count);
+    const key = occurrenceKey(debt);
+    debtCounts.set(key, (debtCounts.get(key) ?? 0) + 1);
   }
-
-  for (const [key, count] of unsafeCounts) {
-    const [file, label] = key.split('\0');
-    const allowed = debtCounts.get(key) ?? 0;
-    for (let index = allowed; index < count; index += 1) {
-      violations.push(
-        `${file}: ${label} must use semanticBoolean(...) or a textual literal`
-      );
+  const debtScopes = new Set(legacyDebt.map(
+    ({ file, attribute }) => `${file}\0${attribute}`
+  ));
+  const unsafeCounts = new Map();
+  for (const occurrence of unsafeOccurrences) {
+    const key = occurrenceKey(occurrence);
+    const found = (unsafeCounts.get(key) ?? 0) + 1;
+    unsafeCounts.set(key, found);
+    if (found > (debtCounts.get(key) ?? 0)) {
+      const scope = `${occurrence.file}\0${occurrence.attribute}`;
+      if (debtScopes.has(scope)) {
+        violations.push(
+          `${occurrence.file}: ${occurrence.attribute} new legacy boolean `
+            + `writer occurrence (${occurrence.owner}; ${occurrence.kind}; `
+            + `${occurrence.writer})`
+        );
+      } else {
+        violations.push(
+          `${occurrence.file}: ${occurrence.attribute} must use `
+            + 'semanticBoolean(...) or a textual literal'
+        );
+      }
     }
   }
   for (const [key, expected] of debtCounts) {
     const found = unsafeCounts.get(key) ?? 0;
     if (found < expected) {
-      const [file, label] = key.split('\0');
-      violations.push(
-        `${file}: ${label} legacy debt baseline is stale; `
-          + `expected ${expected}, found ${found}`
-      );
+      const [file, attribute, owner, kind, writer] = key.split('\0');
+      for (let index = found; index < expected; index += 1) {
+        violations.push(
+          `${file}: ${attribute} legacy debt occurrence is stale `
+            + `(${owner}; ${kind}; ${writer})`
+        );
+      }
     }
   }
   return violations;

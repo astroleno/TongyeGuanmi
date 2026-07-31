@@ -1791,6 +1791,15 @@ legacy phone tree under an exact file/attribute/occurrence debt ledger: a new
 writer fails, and removing old debt requires shrinking the ledger in the same
 commit. An entire-directory exemption is forbidden.
 
+A call is semantic only when its identifier is bound by one named value import
+from the canonical `src/runtime/semantic-data-attribute.ts` helper. A missing
+import, a same-named local implementation, or any declaration/parameter that
+shadows the imported binding fails closed. Freeze each legacy occurrence by
+file, attribute, lexical owner, writer kind, and normalized AST writer
+signature rather than by aggregate count. Keep RED fixtures for a missing
+import, a local/shadowed binding, and replacing one frozen occurrence with a
+different writer under the same file and attribute.
+
 The restored fail-closed helper makes the existing forced `story-runtime`
 chunk 55,275 bytes, 16 bytes above the frozen donor maximum. Keep its complete
 branch implementation and split the existing media preparation/decoded-frame
@@ -2055,12 +2064,22 @@ session lineage, derive `automaticReloadCount` from the stored record, guard
 `window.location.reload()`. `markStable()` must clear the same storage key.
 No same-Document import retry is allowed.
 
+Validate that sequence with statement-level control-flow paths, not source
+offsets. Every reachable reload path must be dominated, in order, by preload
+prevention, the stored-lineage read/parse, the bounded guard, and persistence.
+The persisted object must end with `automaticReloadCount: 1`; its `setItem()`
+and `window.location.reload()` form one adjacent, direct-expression tail so no
+intervening call can clear or rewrite the lineage. Reject any additional
+`setItem`, `removeItem`, `clear`, storage alias/escape, or unreachable tail.
+
 Keep RED fixtures for comment-only markers, listener registration hidden in an
 uncalled function, a no-op handler, recovery hidden inside an uncalled nested
 function, an ignored stored lineage, an unbounded reload, an unrelated
 `.reload()` method, recovery outside the import rejection callback, and a
-second import of the same URL. These fixtures must exercise the AST
-relationships rather than merely repeat required strings.
+second import of the same URL. Also keep early-return, throw-before-persist,
+clear-after-persist, overwrite-after-persist, and indirect-reset-before-reload
+fixtures. These fixtures must exercise the AST/control-flow relationships
+rather than merely repeat required strings.
 
 **Task 2 acceptance:**
 

@@ -886,15 +886,6 @@ function recoveryBoundaryViolations(sources) {
   const containsIdentifier = (root, name) => descendants(root, (node) => (
     ts.isIdentifier(node) && node.text === name
   )).length > 0;
-  const containsPropertyValue = (root, name, value) => descendants(root, (node) => {
-    if (!ts.isPropertyAssignment(node)) return false;
-    const propertyName = ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name)
-      ? node.name.text
-      : undefined;
-    return propertyName === name
-      && ts.isNumericLiteral(node.initializer)
-      && Number(node.initializer.text) === value;
-  }).length > 0;
   const identifierOwnerCall = (node, owner, name) => (
     propertyCall(node, name)
     && ts.isIdentifier(node.expression.expression)
@@ -999,12 +990,12 @@ function recoveryBoundaryViolations(sources) {
     const parameterName = parameter && ts.isIdentifier(parameter.name)
       ? parameter.name.text
       : undefined;
-    const preventsDefault = directDescendants(handler, (node) => (
+    const preventCalls = directDescendants(handler, (node) => (
       propertyCall(node, 'preventDefault')
       && parameterName
       && containsIdentifier(node.expression.expression, parameterName)
-    )).length > 0;
-    if (!preventsDefault) {
+    ));
+    if (preventCalls.length === 0) {
       violations.push(
         'cutover vite:preloadError handler must call preventDefault()'
       );
@@ -1017,6 +1008,16 @@ function recoveryBoundaryViolations(sources) {
       );
     }
 
+    const bareReturn = (statement) => {
+      if (ts.isReturnStatement(statement)) {
+        return statement.expression ? undefined : statement;
+      }
+      if (!ts.isBlock(statement) || statement.statements.length !== 1) {
+        return undefined;
+      }
+      const only = statement.statements[0];
+      return ts.isReturnStatement(only) && !only.expression ? only : undefined;
+    };
     const boundedGuards = directDescendants(handler, (node) => {
       if (!ts.isIfStatement(node) || !ts.isBinaryExpression(node.expression)) {
         return false;
@@ -1028,10 +1029,8 @@ function recoveryBoundaryViolations(sources) {
         && ts.isIdentifier(left.expression)
         && ts.isNumericLiteral(right)
         && Number(right.text) === 1
-        && directDescendants(
-          node.thenStatement,
-          (child) => ts.isReturnStatement(child)
-        ).length > 0;
+        && !node.elseStatement
+        && Boolean(bareReturn(node.thenStatement));
     });
     const boundedGuard = boundedGuards.length === 1 ? boundedGuards[0] : undefined;
     if (!boundedGuard) {
@@ -1087,10 +1086,55 @@ function recoveryBoundaryViolations(sources) {
       );
     }
 
-    const persistedReloads = directDescendants(handler, (node) => (
-      identifierOwnerCall(node, 'sessionStorage', 'setItem')
-      && containsPropertyValue(node, 'automaticReloadCount', 1)
-    ));
+    const sessionStorageMethod = (node) => {
+      if (!ts.isCallExpression(node)) return undefined;
+      const target = unwrappedExpression(node.expression);
+      if (
+        ts.isPropertyAccessExpression(target)
+        && ts.isIdentifier(unwrappedExpression(target.expression))
+        && unwrappedExpression(target.expression).text === 'sessionStorage'
+      ) {
+        return target.name.text;
+      }
+      if (
+        ts.isElementAccessExpression(target)
+        && ts.isIdentifier(unwrappedExpression(target.expression))
+        && unwrappedExpression(target.expression).text === 'sessionStorage'
+        && target.argumentExpression
+        && ts.isStringLiteralLike(target.argumentExpression)
+      ) {
+        return target.argumentExpression.text;
+      }
+      return undefined;
+    };
+    const persistsOneReload = (node) => {
+      if (sessionStorageMethod(node) !== 'setItem') return false;
+      const serialized = node.arguments[1]
+        ? unwrappedExpression(node.arguments[1])
+        : undefined;
+      if (
+        !serialized
+        || !propertyCall(serialized, 'stringify')
+        || !ts.isIdentifier(serialized.expression.expression)
+        || serialized.expression.expression.text !== 'JSON'
+      ) {
+        return false;
+      }
+      const record = serialized.arguments[0]
+        ? unwrappedExpression(serialized.arguments[0])
+        : undefined;
+      if (!record || !ts.isObjectLiteralExpression(record)) return false;
+      const last = record.properties.at(-1);
+      if (!last || !ts.isPropertyAssignment(last)) return false;
+      const name = ts.isIdentifier(last.name) || ts.isStringLiteralLike(last.name)
+        ? last.name.text
+        : undefined;
+      const value = unwrappedExpression(last.initializer);
+      return name === 'automaticReloadCount'
+        && ts.isNumericLiteral(value)
+        && Number(value.text) === 1;
+    };
+    const persistedReloads = directDescendants(handler, persistsOneReload);
     const persistedReload = persistedReloads.length === 1
       ? persistedReloads[0]
       : undefined;
@@ -1108,19 +1152,219 @@ function recoveryBoundaryViolations(sources) {
       );
     }
 
+    const storageMutations = directDescendants(handler, (node) => (
+      ['setItem', 'removeItem', 'clear'].includes(sessionStorageMethod(node))
+    ));
+    const allowedStorageCalls = [storedRead, persistedReload].filter(Boolean);
+    const storageReferences = directDescendants(handler, (node) => (
+      ts.isIdentifier(node) && node.text === 'sessionStorage'
+    ));
+    const referenceOwnsAllowedCall = (reference) => {
+      const access = reference.parent;
+      if (
+        !(
+          ts.isPropertyAccessExpression(access)
+          || ts.isElementAccessExpression(access)
+        )
+        || access.expression !== reference
+        || !ts.isCallExpression(access.parent)
+        || access.parent.expression !== access
+      ) {
+        return false;
+      }
+      return allowedStorageCalls.includes(access.parent);
+    };
+    const persistedStatement = persistedReload
+      && ts.isExpressionStatement(persistedReload.parent)
+      && persistedReload.parent.expression === persistedReload
+      ? persistedReload.parent
+      : undefined;
+    const reloadCall = reloadCalls.length === 1 ? reloadCalls[0] : undefined;
+    const reloadStatement = reloadCall
+      && ts.isExpressionStatement(reloadCall.parent)
+      && reloadCall.parent.expression === reloadCall
+      ? reloadCall.parent
+      : undefined;
+    const atomicReloadTail = Boolean(
+      persistedStatement
+      && reloadStatement
+      && persistedStatement.parent === reloadStatement.parent
+      && ts.isBlock(persistedStatement.parent)
+      && persistedStatement.parent.statements.indexOf(reloadStatement)
+        === persistedStatement.parent.statements.indexOf(persistedStatement) + 1
+    );
     if (
-      storedRead
-      && boundedGuard
-      && persistedReload
-      && reloadCalls.length === 1
-      && !(
-        storedRead.getStart() < boundedGuard.getStart()
-        && boundedGuard.getStart() < persistedReload.getStart()
-        && persistedReload.getStart() < reloadCalls[0].getStart()
-      )
+      storageMutations.length !== 1
+      || storageMutations[0] !== persistedReload
+      || storageReferences.some((reference) => !referenceOwnsAllowedCall(reference))
+      || !atomicReloadTail
     ) {
       violations.push(
-        'cutover recovery must read, guard, persist, then reload in order'
+        'cutover recovery must not clear or overwrite persisted recovery lineage'
+      );
+    }
+
+    const handlerBody = handler.body && ts.isBlock(handler.body)
+      ? handler.body
+      : undefined;
+    const reloadPaths = [];
+    const copyStates = (states) => states.map((state) => ({ ...state }));
+    const eventNodes = (root) => directDescendants(root, (node) => (
+      preventCalls.includes(node)
+      || node === storedRead
+      || node === persistedReload
+      || reloadCalls.includes(node)
+    )).sort((left, right) => left.getStart() - right.getStart());
+    const processEvents = (root, states) => {
+      for (const event of eventNodes(root)) {
+        for (const state of states) {
+          if (preventCalls.includes(event)) {
+            if (state.read || state.guarded || state.persisted) {
+              state.orderValid = false;
+            }
+            state.prevented = true;
+          } else if (event === storedRead) {
+            if (!state.prevented || state.guarded || state.persisted) {
+              state.orderValid = false;
+            }
+            state.read = true;
+          } else if (event === persistedReload) {
+            if (!state.read || !state.parsed || !state.guarded) {
+              state.orderValid = false;
+            }
+            state.persisted = true;
+          } else if (reloadCalls.includes(event)) {
+            reloadPaths.push({ ...state });
+          }
+        }
+      }
+      return states;
+    };
+    const staticTruth = (expression) => {
+      const value = unwrappedExpression(expression);
+      if (value.kind === ts.SyntaxKind.TrueKeyword) return true;
+      if (
+        value.kind === ts.SyntaxKind.FalseKeyword
+        || value.kind === ts.SyntaxKind.NullKeyword
+      ) {
+        return false;
+      }
+      if (ts.isNumericLiteral(value)) return Number(value.text) !== 0;
+      if (ts.isStringLiteralLike(value)) return value.text.length > 0;
+      if (
+        ts.isPrefixUnaryExpression(value)
+        && value.operator === ts.SyntaxKind.ExclamationToken
+      ) {
+        const operand = staticTruth(value.operand);
+        return operand === undefined ? undefined : !operand;
+      }
+      return undefined;
+    };
+    const processSequence = (statements, states) => {
+      let current = states;
+      for (const statement of statements) {
+        if (current.length === 0) break;
+        current = processStatement(statement, current);
+      }
+      return current;
+    };
+    const processStatement = (statement, states) => {
+      if (ts.isBlock(statement)) {
+        return processSequence(statement.statements, states);
+      }
+      if (ts.isVariableStatement(statement)) {
+        let current = states;
+        for (const declaration of statement.declarationList.declarations) {
+          if (declaration.initializer) {
+            current = processEvents(declaration.initializer, current);
+          }
+          if (declaration === lineageDeclaration) {
+            for (const state of current) {
+              if (!state.read || state.guarded || state.persisted) {
+                state.orderValid = false;
+              }
+              state.parsed = true;
+            }
+          }
+        }
+        return current;
+      }
+      if (ts.isExpressionStatement(statement)) {
+        return processEvents(statement.expression, states);
+      }
+      if (ts.isIfStatement(statement)) {
+        const afterCondition = processEvents(statement.expression, states);
+        if (statement === boundedGuard) {
+          for (const state of afterCondition) {
+            if (!state.read || !state.parsed || state.persisted) {
+              state.orderValid = false;
+            }
+            state.guarded = true;
+          }
+        }
+        const truth = staticTruth(statement.expression);
+        const thenStates = truth === false
+          ? []
+          : processStatement(statement.thenStatement, copyStates(afterCondition));
+        const elseStates = truth === true
+          ? []
+          : statement.elseStatement
+            ? processStatement(statement.elseStatement, copyStates(afterCondition))
+            : copyStates(afterCondition);
+        return [...thenStates, ...elseStates];
+      }
+      if (ts.isReturnStatement(statement) || ts.isThrowStatement(statement)) {
+        return statement.expression
+          ? (processEvents(statement.expression, states), [])
+          : [];
+      }
+      if (ts.isTryStatement(statement)) {
+        const entering = copyStates(states);
+        const successful = processStatement(statement.tryBlock, copyStates(states));
+        const caught = statement.catchClause
+          ? processStatement(statement.catchClause.block, entering)
+          : [];
+        const continuing = [...successful, ...caught];
+        return statement.finallyBlock
+          ? processStatement(statement.finallyBlock, continuing)
+          : continuing;
+      }
+      if (ts.isLabeledStatement(statement)) {
+        return processStatement(statement.statement, states);
+      }
+      return processEvents(statement, states);
+    };
+    const unsupportedControlFlow = directDescendants(handler, (node) => (
+      ts.isForStatement(node)
+      || ts.isForInStatement(node)
+      || ts.isForOfStatement(node)
+      || ts.isWhileStatement(node)
+      || ts.isDoStatement(node)
+      || ts.isSwitchStatement(node)
+      || ts.isBreakStatement(node)
+      || ts.isContinueStatement(node)
+    )).length > 0;
+    if (handlerBody) {
+      processSequence(handlerBody.statements, [{
+        prevented: false,
+        read: false,
+        parsed: false,
+        guarded: false,
+        persisted: false,
+        orderValid: true
+      }]);
+    }
+    const validReloadFlow = reloadPaths.length > 0 && reloadPaths.every((state) => (
+      state.prevented
+      && state.read
+      && state.parsed
+      && state.guarded
+      && state.persisted
+      && state.orderValid
+    ));
+    if (!handlerBody || unsupportedControlFlow || !validReloadFlow) {
+      violations.push(
+        'cutover recovery control flow must reach lineage persistence and reload'
       );
     }
   }
