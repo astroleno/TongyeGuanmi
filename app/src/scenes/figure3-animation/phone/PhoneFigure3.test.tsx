@@ -109,9 +109,7 @@ describe('PhoneFigure3', () => {
     }>;
     type Plan = Readonly<{
       endpoint: 0 | 1;
-      preparationDirection: 1 | -1;
       preparationKey: string | undefined;
-      timelineRunId: string | undefined;
     }>;
     type Prepare = (
       direction: 1 | -1,
@@ -133,9 +131,7 @@ describe('PhoneFigure3', () => {
 
     expect(reverse).toEqual({
       endpoint: 1,
-      preparationDirection: -1,
-      preparationKey: target.runId,
-      timelineRunId: target.runId
+      preparationKey: target.runId
     });
     expect(phoneFigure3CanStartPreparedRun(
       -1,
@@ -519,6 +515,33 @@ describe('PhoneFigure3', () => {
     expect(phoneFigure3Source).toContain(
       'playback.reset(phoneFigure3BootstrapEndpoint(targetPreparationRef.current));'
     );
+  });
+
+  it('[Group45 reverse lifecycle] reuses only the exact admitted terminal paint before the reverse driver seeks again', () => {
+    const runId = 'authority|session|609|1|609|group45%3Afigure3|packed-canvas-frame';
+
+    // The terminal canvas was already painted and accepted as the admission
+    // proof. Re-seeking it can leave a Safari timeline driver waiting on a
+    // stale `seeked` callback, so playback must consume that one physical fact
+    // before it requests any new decoder frame.
+    expect(phoneFigure3CanStartPreparedRun(-1, 1, runId, runId)).toBe(true);
+    expect(phoneFigure3CanStartPreparedRun(
+      -1,
+      1,
+      runId,
+      'stale-revision'
+    )).toBe(false);
+
+    const startPreparedRun = phoneFigure3Source.slice(
+      phoneFigure3Source.indexOf('const startPreparedRun'),
+      phoneFigure3Source.indexOf('const finishEndpointPresentation')
+    );
+    const reverseDriver = phoneFigure3Source.slice(
+      phoneFigure3Source.indexOf('const reversePlayback = createPhoneFigure3ReversePlayback'),
+      phoneFigure3Source.indexOf('playbackRef.current = playback')
+    );
+    expect(startPreparedRun).toContain('disposePhoneTimelineVideo(videoRef.current);');
+    expect(reverseDriver).toContain('progress >= .9999 && phoneFigure3CanStartPreparedRun(');
   });
 
   it('[Group45 reverse hard cutover] leaves reconciliation as the only Figure3 production startRun writer', () => {

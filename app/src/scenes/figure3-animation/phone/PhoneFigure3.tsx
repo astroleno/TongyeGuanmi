@@ -333,17 +333,13 @@ export function phoneFigure3RunStartPreparation(
   target: Pick<PhoneFigure3TargetPreparation, 'runId'>
 ): Readonly<{
   endpoint: PhoneFigure3Endpoint;
-  preparationDirection: 1 | -1;
   preparationKey: string | undefined;
-  timelineRunId: string | undefined;
 }> {
   const endpoint = phoneFigure3RunStartEndpoint(direction);
   const reverseKey = direction === -1 ? target.runId : undefined;
   return {
     endpoint,
-    preparationDirection: direction === -1 ? -1 : 1,
-    preparationKey: reverseKey,
-    timelineRunId: reverseKey
+    preparationKey: reverseKey
   };
 }
 
@@ -591,9 +587,9 @@ export const PhoneFigure3 = forwardRef<
     setMediaMounted(true);
   }, []);
 
-  const clearEndpointPresentation = useCallback(() => {
+  const clearEndpointPresentation = useCallback((retainRunId = false) => {
     readyEndpointRef.current = null;
-    readyEndpointRunIdRef.current = null;
+    if (!retainRunId) readyEndpointRunIdRef.current = null;
     const root = rootRef.current;
     if (root) {
       delete root.dataset.phoneFigure3EndpointReady;
@@ -683,7 +679,7 @@ export const PhoneFigure3 = forwardRef<
     targetPreparationRef.current = null;
     armedTargetPreparationRef.current = null;
     endpointPreparationRef.current = null;
-    clearEndpointPresentation();
+    clearEndpointPresentation(runDirection === -1);
     completionReportedRef.current = false;
     if (runDirection === 1) {
       // A completed reverse leaves a shared seek driver on this element.
@@ -694,7 +690,14 @@ export const PhoneFigure3 = forwardRef<
       playback.start(1);
       return;
     }
-    reversePlaybackRef.current?.start();
+    // Endpoint preparation may have started a timeline-driver priming seek.
+    // It has served its only purpose once the exact terminal canvas frame was
+    // accepted as admission, so retire it before the reverse clock requests
+    // its first non-terminal decoder frame.
+    const reversePlayback = reversePlaybackRef.current;
+    if (!reversePlayback) return;
+    disposePhoneTimelineVideo(videoRef.current);
+    reversePlayback.start();
   }, [clearEndpointPresentation]);
 
   const finishEndpointPresentation = useCallback((
@@ -964,13 +967,10 @@ export const PhoneFigure3 = forwardRef<
     directionRef.current = runDirection;
     pendingRunDirectionRef.current = runDirection;
     pendingRunTargetKeyRef.current = target.runId;
-    if (preparation.timelineRunId) {
-      reverseRunIdRef.current = preparation.timelineRunId;
-    }
     mountMedia();
     prepareEndpoint(
       endpoint,
-      preparation.preparationDirection,
+      runDirection,
       preparation.preparationKey
     );
   }, [mountMedia, prepareEndpoint]);
@@ -1194,10 +1194,21 @@ export const PhoneFigure3 = forwardRef<
     const reversePlayback = createPhoneFigure3ReversePlayback([
       FIGURE3_END_SECONDS * 1000,
       async (progress) => {
+        const reverseRunId = reverseRunIdRef.current;
+        if (progress >= .9999 && phoneFigure3CanStartPreparedRun(
+          -1,
+          1,
+          reverseRunId,
+          readyEndpointRunIdRef.current
+        )) {
+          const painted = compositor.paint();
+          if (painted) readyEndpointRunIdRef.current = null;
+          return painted;
+        }
         const [status] = await preparePhoneTimelineVideoFrame(
           video,
           figure3TimelineMediaInput(
-            reverseRunIdRef.current,
+            reverseRunId,
             -1,
             progress
           )
