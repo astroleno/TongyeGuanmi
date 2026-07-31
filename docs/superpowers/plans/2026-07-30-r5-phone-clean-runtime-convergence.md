@@ -1,9 +1,10 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** architecture and execution contracts frozen after final
-> implementation-readiness review; ready to begin Task 0. No production
-> implementation in this plan is marked complete. Do not reopen broad design
-> review unless Appendix C is triggered.
+> **Status:** architecture and execution contracts are frozen. Tasks 0–3 and
+> their corrective reviews are complete; Task 4 is next. The verification
+> cadence below removes redundant full-suite reruns without weakening any
+> authority, chunk, presentation, or physical-device release gate. Do not
+> reopen broad design review unless Appendix C is triggered.
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
@@ -1087,29 +1088,72 @@ suggestions:
 | Task 9 | 9A Brand → Figure3 → Services; 9B Services → TTG → Lab |
 | Task 10 | 10A Lab → PH → Education; 10B Education → Crane; 10C Crane → Contact + complete story |
 
+The authoritative execution order from the current branch state is:
+
+```text
+Tasks 0–3 complete
+→ 4A → 4B → 4C → 4D → code/architecture review
+→ Task 5 → Task 6 → code/integration review
+→ 7A → 7B → 7C → 7D → 7E
+→ Task 8
+→ 9A → 9B
+→ 10A → 10B → 10C → cutover-readiness review
+→ Task 11 → Task 12 → automated candidate review
+→ Task 13 physical-iPhone human acceptance
+→ Task 14 identity audit and handoff
+```
+
 Each slice starts with its own red unit/browser failure, ends with its own
 narrow green command and frozen-input check, and receives its own commit.
-Starting a later slice before the prior browser checkpoint is green is
+Starting a later slice before the prior required checkpoint is green is
 forbidden. A parent task acceptance block is checked only after all its slice
 commits pass together.
 
-An executor may proceed mechanically within one checked slice, but may not
-auto-chain across Task 3 contract freeze, Slice 4A queue/entry review, Slice
-4D command/disposal review, or Task 6 real-React ownership review. At each of
-those boundaries, review the diff against Sections 4.3, 4.8, 4.9, and Appendix
-E before starting the next slice. This is an implementation review, not a new
-broad architecture debate.
+Verification has three scopes. Do not promote a broader command into every
+smaller slice:
 
-Every implementation task follows this loop:
+| Scope | Required cadence |
+| --- | --- |
+| Slice gate | RED narrow test, GREEN narrow test, architecture source gate, typecheck, frozen-input check, focused diff review, atomic commit |
+| Parent-task closure | Full Vitest, typecheck, one production build, and the parent task's declared Chromium/WebKit matrix |
+| Release closure | Task 12 complete automated suite, followed by Task 13 Simulator and physical iPhone evidence |
+
+Tasks 7–10 remain stricter during dual service: every vertical slice runs its
+targeted clean WebKit checkpoint plus the old formal mobile-WebKit regression.
+The parent-task closure, not each child slice, adds the full Chromium/WebKit
+matrix and full Vitest/build gates.
+
+The executor may self-review and continue after ordinary slice gates; a
+self-review is not a user-approval pause. Mandatory review nodes are:
+
+| Review node | Reviewer and decision |
+| --- | --- |
+| Task 3 contract freeze | Code/architecture review of protocol, manifest, Appendix E, and dependency direction; completed for the current branch |
+| Task 4D closure | Code/architecture review of the complete machine, runtime, activation, queue, rollback, and disposal; no separate stop after 4A |
+| Task 6 closure | Code/integration review of projector, real React StrictMode ownership, Loader, and lazy boundaries |
+| After Task 10, before Task 11 | Cutover-readiness review: all clean and old-formal gates green, registries complete, deletion ledger ready |
+| Task 12 closure | Automated release-candidate review and `candidateCodeSha` freeze readiness |
+| Task 13 | The only scheduled human visual acceptance: physical iPhone Safari on the exact candidate artifact |
+
+Code review nodes pause the next phase only until their findings are recorded
+and blocking issues are closed; they do not require user attendance. Task 13
+is the only planned wait for human/device evidence.
+
+Tasks 7–10 visual checkpoints are automated engine/pixel evidence reviewed by
+the executor or code reviewer. They do not wait for user visual sign-off. Stop
+early for the user only when evidence conflicts with the frozen donor, a
+subjective visual change is proposed, or Appendix C is triggered.
+
+Every implementation slice follows this loop:
 
 1. Add the failing test or gate.
 2. Run the narrow command and record the expected failure.
-3. Implement only that task.
+3. Implement only that slice.
 4. Run the narrow command to green.
-5. Run `pnpm -C app test` and `pnpm -C app typecheck`.
-6. Run the frozen-input check.
-7. Review the diff for duplicate authority and unrelated changes.
-8. Commit with the exact task/slice commit message.
+5. Run the architecture source gate, typecheck, and frozen-input check.
+6. Review the focused diff for duplicate authority and unrelated changes.
+7. Commit with the exact task/slice commit message.
+8. Run the full parent-task closure only at the final slice of that parent.
 
 Do not combine two task commits to save time. Do not amend a previously
 accepted group after starting the next group without reopening that group's
@@ -2440,7 +2484,6 @@ frame, content, plane, or stable evidence.
 pnpm -C app exec vitest run src/production/phone-story/machine.test.ts \
   --testNamePattern="segment|rollback|fault|deadline"
 pnpm -C app run verify:phone-architecture
-pnpm -C app test
 pnpm -C app typecheck
 git diff --exit-code 9652fbe -- \
   assets app/scripts/homepage-media-contract.mjs app/src/story/timings.ts \
@@ -2501,7 +2544,6 @@ Cover `pagehide/pageshow` with `persisted=true` and `false`:
 pnpm -C app exec vitest run src/production/phone-story/runtime.test.ts \
   --testNamePattern="input|history|viewport|pagehide|pageshow|BFCache"
 pnpm -C app run verify:phone-architecture
-pnpm -C app test
 pnpm -C app typecheck
 git diff --exit-code 9652fbe -- \
   assets app/scripts/homepage-media-contract.mjs app/src/story/timings.ts \
@@ -3161,6 +3203,13 @@ Record both commands in the commit evidence. A slice may not defer old-formal
 verification to the parent task's final checkpoint. This is intentionally the
 strictest part of the dual-service window: one genuine leaf serves both paths,
 while the temporary bridge remains stateless.
+
+These are automated browser/pixel checkpoints, not scheduled user visual
+reviews. Once the targeted clean WebKit and old-formal mobile-WebKit gates are
+green, the executor may continue to the next slice. Escalate only an
+unexplained donor mismatch, a proposed visual/timing change, or an Appendix C
+stop condition. Full Chromium plus WebKit coverage remains at the final slice
+of each parent task.
 
 This allows one visual implementation to serve both migration paths without
 duplicating accepted scenes or allowing the new core to import the old
@@ -4836,6 +4885,13 @@ chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
 This is the critical visual verification for which browser/device automation
 is required. Unit tests and desktop Playwright are not substitutes.
 
+This is the only scheduled human visual-acceptance task. Tasks 7–10 provide
+automated engine/pixel baselines and do not require the user to inspect every
+slice. At Task 13 the executor must stop, hand over the frozen candidate,
+device checklist, and evidence locations to the person operating the physical
+iPhone, and wait for the recorded device result. Simulator evidence cannot
+stand in for this handoff.
+
 **Create:**
 
 - `docs/react-refactor/reports/r5-phone-clean-runtime-acceptance.md`
@@ -5127,31 +5183,32 @@ git diff --exit-code 9652fbe -- \
 Any legacy match must be either an explicitly historical document or a test
 fixture proving rejection. There may be no reachable production match.
 
-- [ ] **Step 14.2: Reconcile complete verification to `candidateCodeSha`**
+- [ ] **Step 14.2: Reconcile immutable candidate evidence without a redundant full rerun**
 
 ```bash
+git diff --exit-code <candidateCodeSha>..HEAD -- \
+  app assets package.json pnpm-lock.yaml pnpm-workspace.yaml
+git ls-tree -r HEAD -- \
+  app assets package.json pnpm-lock.yaml pnpm-workspace.yaml | shasum -a 256
 node --test app/scripts/verify-phone-clean-architecture.test.mjs
 node --test app/scripts/verify-homepage-module-boundaries.test.mjs
 node --test app/scripts/verify-boolean-data-contract.test.mjs
-pnpm -C app run verify:boolean-data
-pnpm -C app run verify:phone-packed-alpha
 pnpm -C app run verify:phone-architecture:cutover
-pnpm -C app test
-pnpm -C app typecheck
-pnpm -C app build
-pnpm -C app run test:e2e
-pnpm -C app run test:release
 git diff --check
 git status --short
 ```
 
-Run these commands before changing report/plan again, and record exact test
-counts and build bytes. If current HEAD is already a docs-only descendant of
-`candidateCodeSha`, run the build/test commands in a disposable detached
-worktree at `candidateCodeSha` so the tested release manifest still names the
-physical candidate. Do not replace the durable candidate artifact with a
-build whose `sourceCommit` is a later documentation SHA. Do not reuse counts
-from Task 0.
+The tree hash must equal the `productionTreeHash` recorded by Task 13. When
+current HEAD is a docs-only descendant and this scoped diff is empty, cite the
+exact Task 12 automated counts/build bytes and Task 13 physical artifact; do
+not repeat full Vitest, build, E2E, or `test:release`, and do not create a new
+release manifest whose `sourceCommit` is the documentation SHA.
+
+Any production/config/lockfile difference invalidates the candidate. Return
+to Task 12, freeze a new candidate, and rerun Task 13 rather than trying to
+repair identity in Task 14. A full suite is run here only when Task 12 evidence
+is missing or invalid, which itself blocks handoff until a new candidate is
+established.
 
 - [ ] **Step 14.3: Review final diff by authority and visuals**
 

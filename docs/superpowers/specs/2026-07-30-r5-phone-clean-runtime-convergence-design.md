@@ -1,11 +1,11 @@
 # R5 Phone Clean Runtime Convergence Design
 
-**Status:** Architecture and execution contracts frozen after final
-implementation-readiness review. Task 0 may start; no production
-implementation has started. Reopen broad architecture only when an explicit
-stop condition in the implementation plan is reached. The user explicitly
-selected a clean convergence from the confirmed Unit 4–7A scene baseline
-instead of continuing to repair the current Unit 7B/recovery runtime.
+**Status:** Architecture and execution contracts are frozen. Tasks 0–3 and
+their corrective reviews are complete; Task 4 is next. Reopen broad
+architecture only when an explicit stop condition in the implementation plan
+is reached. The user explicitly selected a clean convergence from the
+confirmed Unit 4–7A scene baseline instead of continuing to repair the current
+Unit 7B/recovery runtime.
 
 **Decision date:** 2026-07-30
 
@@ -811,15 +811,18 @@ z-index token comparison alone is insufficient.
 4. Integrate Front/AOD, Grade A, Group 4–5, and Group 6–7 in canonical order
    using mandatory vertical slices with independent red tests, browser
    checkpoints, and commits.
-5. Require a visual checkpoint after each slice; do not modify the frozen
-   scene/media/timing contract to make the runtime pass.
+5. Require an automated engine/pixel checkpoint after each slice; these are
+   code-review evidence, not scheduled user visual sign-offs. Do not modify
+   the frozen scene/media/timing contract to make the runtime pass. Escalate
+   only an unexplained donor mismatch or a proposed visual/timing change.
 6. Switch formal `/` to the clean shell in one cutover commit.
 7. In that same commit, remove the old reachable orchestration and query-based
    validation compositions. Formal `/` never mounts two authorities.
 8. Add `/brand-lab` only after the shared factory is green; the QA route is
    separately lazy and absent from the formal module graph.
 9. Complete physical iPhone Safari and BFCache acceptance before making a
-   release claim.
+   release claim. This Task 13 device matrix is the scheduled human visual
+   acceptance; Simulator and automated slice evidence cannot replace it.
 
 Later branches are evidence sources only. No whole commit after `9652fbe` may
 be cherry-picked. Rendering fixes and tests are ported by reviewed path/hunk
