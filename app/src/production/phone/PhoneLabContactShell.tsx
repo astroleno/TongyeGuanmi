@@ -682,6 +682,22 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
     latestCraneContactRef.current = craneContactRef.current;
   }, [adapterRevision, craneContactRef, phEducationRef]);
 
+  useEffect(() => {
+    if (
+      !fullJourney
+      || (activeScene !== 'crane-animation' && activeScene !== 'contact')
+    ) return;
+    const ph = phRef.current;
+    if (!ph) return;
+    // A lazy PH adapter initializes its packed-alpha surface in a passive
+    // effect. Reassert Crane/Contact media-slot ownership after that adapter
+    // publishes its revision so late setup cannot revive a retired Canvas.
+    setVisualEndpoint(ph, 0);
+    ph.leave?.();
+    const phRoot = ph.root();
+    if (phRoot) phRoot.dataset.phoneLabContactEndpoint = 'released';
+  }, [activeScene, adapterRevision, fullJourney, phRef]);
+
   const publishNavigationScene = useCallback((scene: SceneId) => {
     if (currentNavigationScene.current === scene) return;
     currentNavigationScene.current = scene;
@@ -831,8 +847,10 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       handle: PhoneSceneAdapterHandle | null
     ) => {
       if (!handle || retiredCinematics.has(scene)) return;
-      handle.leave?.();
+      // Hide first so a persistent Canvas owner can synchronously observe its
+      // terminal visual boundary instead of racing a later MutationObserver.
       setVisualEndpoint(handle, 0);
+      handle.leave?.();
       const cinematicRoot = handle.root();
       if (cinematicRoot) {
         cinematicRoot.dataset.phoneLabContactEndpoint = 'released';
@@ -1221,11 +1239,11 @@ export function PhoneLabContactShell({ validationMode }: PhoneLabContactShellPro
       // immediately reversible through Education, then retires before Crane
       // begins prewarming its two packed-alpha surfaces.
       if (
-        !phoneLabContactRetainsPhTerminal(
+        cranePrewarming
+        && !phoneLabContactRetainsPhTerminal(
           cinematicRunStates.current['ph-animation'],
           cranePrewarming
         )
-        && cinematicRunStates.current['ph-animation'] === 'complete'
       ) {
         retireCinematic('ph-animation', ph);
       }
