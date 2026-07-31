@@ -1,12 +1,14 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** architecture and execution contracts are frozen. Task 0, Task 1,
-> and Task 3 are complete. The final Task 2 recovery-gate correction is
-> implemented, but Review 2 re-approval is still required; Task 4 remains
-> blocked until that explicit approval. The verification cadence below removes
-> redundant full-suite reruns without weakening any authority, chunk,
-> presentation, or physical-device release gate. Do not reopen broad design
-> review unless Appendix C is triggered.
+> **Status:** architecture and execution contracts are frozen. Tasks 0–3 and
+> their corrective Review 2 work are complete. On 2026-08-01 the user approved
+> uninterrupted execution through Slices 4A → 4B → 4C → 4D: there is no
+> separate pause after 4A. Task 4 stops only at its unified code/architecture
+> review of the complete machine/runtime, rollback, activation, queue, and
+> disposal; Task 5 must not begin before that review closes. The verification
+> cadence below removes redundant full-suite reruns without weakening any
+> authority, chunk, presentation, or physical-device release gate. Do not
+> reopen broad design review unless Appendix C is triggered.
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
