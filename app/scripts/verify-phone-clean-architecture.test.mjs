@@ -222,6 +222,66 @@ test('tracks runtime factory calls through aliases, namespaces, and assignments'
   includes(reexported, 'runtime factory call');
 });
 
+test('rejects every runtime factory value escape', async () => {
+  const escapes = {
+    'array-destructure': `
+      import { createPhoneStoryRuntime } from './phone-story/runtime';
+      const [bootPhone] = [createPhoneStoryRuntime];
+      bootPhone(() => undefined);
+    `,
+    'object-destructure': `
+      import * as phoneRuntime from './phone-story/runtime';
+      const { createPhoneStoryRuntime: bootPhone } = phoneRuntime;
+      bootPhone(() => undefined);
+    `,
+    'object-property': `
+      import { createPhoneStoryRuntime } from './phone-story/runtime';
+      const holder = { bootPhone: createPhoneStoryRuntime };
+      holder.bootPhone(() => undefined);
+    `,
+    'member-assignment': `
+      import { createPhoneStoryRuntime } from './phone-story/runtime';
+      const holder = {};
+      holder.bootPhone = createPhoneStoryRuntime;
+      holder.bootPhone(() => undefined);
+    `,
+    call: `
+      import { createPhoneStoryRuntime } from './phone-story/runtime';
+      createPhoneStoryRuntime.call(null, () => undefined);
+    `,
+    bind: `
+      import { createPhoneStoryRuntime } from './phone-story/runtime';
+      const bootPhone = createPhoneStoryRuntime.bind(null);
+      bootPhone(() => undefined);
+    `,
+    comma: `
+      import { createPhoneStoryRuntime } from './phone-story/runtime';
+      (0, createPhoneStoryRuntime)(() => undefined);
+    `
+  };
+
+  for (const [label, source] of Object.entries(escapes)) {
+    const found = await violations({
+      [`src/production/${label}-phone-entry.ts`]: source
+    }, { phase: 'cutover' });
+    includes(found, 'runtime factory value escape');
+  }
+});
+
+test('does not confuse an unrelated same-named member with the factory symbol', async () => {
+  assert.deepEqual(await violations({
+    'src/production/unrelated-phone-helper.ts': `
+      type Helper = Readonly<{
+        createPhoneStoryRuntime(): string;
+      }>;
+      const helper: Helper = {
+        createPhoneStoryRuntime: () => 'not-a-runtime'
+      };
+      helper.createPhoneStoryRuntime();
+    `
+  }), []);
+});
+
 test('rejects every external dependency outside each core file allowlist', async () => {
   for (const [label, specifier] of Object.entries({
     legacyMachine: '../phone/legacy-machine',
@@ -240,6 +300,40 @@ test('rejects every external dependency outside each core file allowlist', async
       `
     });
     includes(found, 'machine.ts: forbidden');
+  }
+});
+
+test('rejects non-literal imports and every CommonJS-style core import', async () => {
+  const cases = {
+    'template-import': `
+      void import(\`../phone/legacy-machine\`);
+    `,
+    'computed-import': `
+      const target = '../phone/legacy-machine';
+      void import(target);
+    `,
+    require: `
+      require('../phone/legacy-machine');
+    `,
+    'computed-require': `
+      const target = '../phone/legacy-machine';
+      require(target);
+    `,
+    'import-equals': `
+      import legacyMachine = require('../phone/legacy-machine');
+      void legacyMachine;
+    `
+  };
+
+  for (const [label, source] of Object.entries(cases)) {
+    const found = await violations({
+      'src/production/phone-story/machine.ts': `
+        ${source}
+        export function reducePhoneStory(state: unknown) { return state; }
+        export function commitStableCandidate(candidate: unknown) { return candidate; }
+      `
+    });
+    includes(found, label.includes('import') ? 'import' : 'require');
   }
 });
 

@@ -23,7 +23,8 @@ function noiseAtlas() {
 
 export function releaseInkWebGlResources(
   gl,
-  { buffer = null, program = null, shaders = [], textures = [], loseContext = false } = {}
+  { buffer = null, program = null, shaders = [], textures = [] } = {},
+  loseContext = false
 ) {
   textures.forEach((texture) => {
     if (texture) gl.deleteTexture(texture);
@@ -35,7 +36,7 @@ export function releaseInkWebGlResources(
   });
   // StrictMode can remount a reusable canvas immediately after cleanup. The
   // normal path releases resources but keeps that context available.
-  if (loseContext) gl.getExtension?.('WEBGL_lose_context')?.loseContext?.();
+  if (loseContext) gl.getExtension('WEBGL_lose_context')?.loseContext();
 }
 
 export function createInkBoundaryTransition(canvas, options = {}) {
@@ -476,9 +477,8 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
         buffer,
         program,
         shaders: [vertexShader, fragmentShader],
-        textures,
-        loseContext
-      });
+        textures
+      }, loseContext);
       canvas.width = 0;
       canvas.height = 0;
       canvas.style.visibility = 'hidden';

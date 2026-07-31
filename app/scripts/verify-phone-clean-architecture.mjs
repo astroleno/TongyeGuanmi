@@ -186,11 +186,19 @@ function sourceFileFor(file, source) {
 
 function moduleImports(sourceFile) {
   const imports = [];
-  const add = (specifier, typeOnly, node) => {
-    if (specifier) imports.push({ specifier, typeOnly, node });
+  const add = (specifier, typeOnly, node, syntaxViolation) => {
+    imports.push({
+      specifier: specifier || '<computed>',
+      typeOnly,
+      node,
+      syntaxViolation
+    });
   };
   const visit = (node) => {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+    if (
+      ts.isImportDeclaration(node)
+      && ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
       const clause = node.importClause;
       const namedBindings = clause?.namedBindings;
       const namedSpecifiers = namedBindings && ts.isNamedImports(namedBindings)
@@ -209,7 +217,7 @@ function moduleImports(sourceFile) {
     } else if (
       ts.isExportDeclaration(node)
       && node.moduleSpecifier
-      && ts.isStringLiteral(node.moduleSpecifier)
+      && ts.isStringLiteralLike(node.moduleSpecifier)
     ) {
       const namedExports = node.exportClause && ts.isNamedExports(node.exportClause)
         ? node.exportClause.elements
@@ -225,10 +233,36 @@ function moduleImports(sourceFile) {
     } else if (
       ts.isCallExpression(node)
       && node.expression.kind === ts.SyntaxKind.ImportKeyword
-      && node.arguments.length === 1
-      && ts.isStringLiteral(node.arguments[0])
     ) {
-      add(node.arguments[0].text, false, node);
+      const argument = node.arguments.length === 1 ? node.arguments[0] : undefined;
+      if (argument && ts.isStringLiteralLike(argument)) {
+        add(argument.text, false, node);
+      } else {
+        add(undefined, false, node, 'computed dynamic import()');
+      }
+    } else if (
+      ts.isCallExpression(node)
+      && ts.isIdentifier(node.expression)
+      && node.expression.text === 'require'
+    ) {
+      const argument = node.arguments.length === 1 ? node.arguments[0] : undefined;
+      add(
+        argument && ts.isStringLiteralLike(argument) ? argument.text : undefined,
+        false,
+        node,
+        'CommonJS require()'
+      );
+    } else if (
+      ts.isImportEqualsDeclaration(node)
+      && ts.isExternalModuleReference(node.moduleReference)
+    ) {
+      const expression = node.moduleReference.expression;
+      add(
+        expression && ts.isStringLiteralLike(expression) ? expression.text : undefined,
+        Boolean(node.isTypeOnly),
+        node,
+        'import = require()'
+      );
     }
     ts.forEachChild(node, visit);
   };
@@ -307,7 +341,7 @@ function unwrappedExpression(expression) {
   return current;
 }
 
-function runtimeFactoryCallSites(productionFiles) {
+function runtimeFactoryUsage(productionFiles) {
   const rootNames = productionFiles.map((file) => path.resolve(file));
   const rootSet = new Set(rootNames);
   const program = ts.createProgram({
@@ -384,21 +418,107 @@ function runtimeFactoryCallSites(productionFiles) {
   };
   const syntacticFactoryReference = (expression) => {
     const unwrapped = unwrappedExpression(expression);
-    return (
-      ts.isIdentifier(unwrapped)
-      && unwrapped.text === 'createPhoneStoryRuntime'
-    ) || (
-      ts.isPropertyAccessExpression(unwrapped)
-      && unwrapped.name.text === 'createPhoneStoryRuntime'
-    ) || (
-      ts.isElementAccessExpression(unwrapped)
-      && unwrapped.argumentExpression
-      && ts.isStringLiteralLike(unwrapped.argumentExpression)
-      && unwrapped.argumentExpression.text === 'createPhoneStoryRuntime'
-    );
+    return ts.isIdentifier(unwrapped)
+      && unwrapped.text === 'createPhoneStoryRuntime';
   };
 
   const calls = [];
+  const escapes = [];
+  const escapeKeys = new Set();
+  const addEscape = (sourceFile, node) => {
+    const key = `${sourceFile.fileName}:${node.pos}:${node.end}`;
+    if (escapeKeys.has(key)) return;
+    escapeKeys.add(key);
+    escapes.push({ file: sourceFile.fileName, node });
+  };
+  const isTransportOrDefinition = (node) => {
+    const parent = node.parent;
+    if (
+      ts.isImportSpecifier(parent)
+      || ts.isImportClause(parent)
+      || ts.isNamespaceImport(parent)
+      || ts.isExportSpecifier(parent)
+      || (
+        ts.isExportAssignment(parent)
+        && parent.expression === node
+      )
+    ) {
+      return true;
+    }
+    return (
+      (
+        ts.isFunctionDeclaration(parent)
+        || ts.isClassDeclaration(parent)
+        || ts.isVariableDeclaration(parent)
+      )
+      && parent.name === node
+    );
+  };
+  const isNestedExpressionName = (node) => {
+    const parent = node.parent;
+    return (
+      ts.isPropertyAccessExpression(parent)
+      && parent.name === node
+    ) || (
+      ts.isElementAccessExpression(parent)
+      && parent.argumentExpression === node
+    );
+  };
+  const isTypeOnlyReference = (node) => {
+    let current = node.parent;
+    while (current && !ts.isStatement(current) && !ts.isSourceFile(current)) {
+      if (ts.isTypeNode(current) || ts.isTypeElement(current)) return true;
+      current = current.parent;
+    }
+    return false;
+  };
+  const isDirectCallTarget = (node) => {
+    let current = node;
+    while (
+      current.parent
+      && (
+        ts.isParenthesizedExpression(current.parent)
+        || ts.isAsExpression(current.parent)
+        || ts.isTypeAssertionExpression(current.parent)
+        || ts.isNonNullExpression(current.parent)
+        || ts.isSatisfiesExpression(current.parent)
+      )
+      && current.parent.expression === current
+    ) {
+      current = current.parent;
+    }
+    return ts.isCallExpression(current.parent)
+      && current.parent.expression === current;
+  };
+  const bindingElementReferencesFactory = (node) => {
+    if (!ts.isObjectBindingPattern(node.parent)) return false;
+    const propertyNode = node.propertyName ?? node.name;
+    if (
+      !ts.isIdentifier(propertyNode)
+      && !ts.isStringLiteralLike(propertyNode)
+    ) {
+      return false;
+    }
+    const directSymbol = checker.getSymbolAtLocation(propertyNode);
+    if (
+      directSymbol
+      && symbolReferencesFactory(directSymbol, new Set())
+    ) {
+      return true;
+    }
+    const declaration = node.parent.parent;
+    if (!ts.isVariableDeclaration(declaration) || !declaration.initializer) {
+      return false;
+    }
+    const property = checker
+      .getTypeAtLocation(declaration.initializer)
+      .getProperty(propertyNode.text);
+    return Boolean(
+      property
+      && symbolReferencesFactory(property, new Set())
+    );
+  };
+
   for (const sourceFile of sourceFiles) {
     const visit = (node) => {
       if (
@@ -410,11 +530,31 @@ function runtimeFactoryCallSites(productionFiles) {
       ) {
         calls.push({ file: sourceFile.fileName, node });
       }
+      if (
+        ts.isBindingElement(node)
+        && bindingElementReferencesFactory(node)
+      ) {
+        addEscape(sourceFile, node);
+      }
+      if (
+        (
+          ts.isIdentifier(node)
+          || ts.isPropertyAccessExpression(node)
+          || ts.isElementAccessExpression(node)
+        )
+        && !isNestedExpressionName(node)
+        && !isTransportOrDefinition(node)
+        && !isTypeOnlyReference(node)
+        && !isDirectCallTarget(node)
+        && expressionReferencesFactory(node)
+      ) {
+        addEscape(sourceFile, node);
+      }
       ts.forEachChild(node, visit);
     };
     visit(sourceFile);
   }
-  return calls;
+  return { calls, escapes };
 }
 
 function identifiers(sourceFile, names) {
@@ -773,6 +913,12 @@ export async function phoneCleanArchitectureViolations({
     const sourceFile = parsedByFile.get(file);
     const allowedTargets = allowedCoreImports.get(name) ?? new Set();
     for (const imported of moduleImports(sourceFile)) {
+      if (imported.syntaxViolation) {
+        violations.push(
+          `${name}: ${imported.syntaxViolation} is forbidden in the clean core`
+        );
+        continue;
+      }
       const target = coreTarget(file, imported.specifier, coreFilesByStem);
       if (target) {
         graph.get(file).add(target);
@@ -809,7 +955,7 @@ export async function phoneCleanArchitectureViolations({
       } else {
         if (!externalCoreImportAllowed(name, imported)) {
           violations.push(
-            `${name}: forbidden external dependency ${imported.specifier}`
+            `${name}: forbidden external import dependency ${imported.specifier}`
           );
         }
         if (
@@ -912,7 +1058,8 @@ export async function phoneCleanArchitectureViolations({
   const productionFiles = (await filesBelow(productionRoot)).filter(isProductionSource);
   const productionSources = await readSources(productionFiles);
   const factoryDefinitions = [];
-  const factoryCalls = runtimeFactoryCallSites(productionFiles);
+  const factoryUsage = runtimeFactoryUsage(productionFiles);
+  const factoryCalls = factoryUsage.calls;
   const reducerDefinitions = [];
   const stableCommitDefinitions = [];
   for (const { file, source } of productionSources) {
@@ -946,6 +1093,13 @@ export async function phoneCleanArchitectureViolations({
     if (path.basename(call.file) === 'PhoneBrandLabStory.tsx') {
       violations.push(`${relative}: PhoneBrandLabStory must not call the runtime factory`);
     }
+  }
+  for (const escape of factoryUsage.escapes) {
+    const relative = slash(path.relative(appRoot, escape.file));
+    violations.push(
+      `${relative}: runtime factory value escape is forbidden; `
+        + `only the PhoneStoryShell direct call may consume the factory`
+    );
   }
   if (reducerDefinitions.length > 1 || stableCommitDefinitions.length > 1) {
     violations.push(

@@ -5,8 +5,8 @@ export function releaseInkWebGlResources(
     program?: WebGLProgram | null;
     shaders?: readonly (WebGLShader | null)[];
     textures?: readonly (WebGLTexture | null)[];
-    loseContext?: boolean;
-  }
+  },
+  loseContext?: boolean
 ): void;
 
 export type InkBoundaryTransitionOptions = {

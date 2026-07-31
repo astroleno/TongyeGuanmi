@@ -106,6 +106,81 @@ test('exempts chunks already loaded by the dynamic parent from leaf transfer siz
   }), []);
 });
 
+test('requires a shared chunk to be preloaded by every dynamic parent path', () => {
+  const report = validProvenance();
+  report.chunks[0].imports.push('assets/PhoneShared.js');
+  report.chunks[1].imports.push('assets/PhoneShared.js');
+  report.chunks.push(chunk({
+    fileName: 'assets/PhoneAlternateParent.js',
+    dynamicImports: ['assets/PhoneHero.js'],
+    modules: ['app/src/production/phone/alternate-module-loader.ts']
+  }));
+  report.chunks.push(chunk({
+    fileName: 'assets/PhoneShared.js',
+    modules: ['app/src/runtime/shared.ts']
+  }));
+  report.chunks.sort((left, right) => (
+    left.fileName < right.fileName ? -1 : left.fileName > right.fileName ? 1 : 0
+  ));
+
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/PhoneAlternateParent.js': 1000,
+      'assets/PhoneShared.js': DONOR_MAX_LAZY_LEAF_BYTES + 1
+    })
+  }), 'lazy phone leaf closure chunk');
+});
+
+test('stops preload ancestry at an entry instead of following a leaf cycle', () => {
+  const report = validProvenance();
+  report.chunks[0].imports.push(
+    'assets/PhoneShared.js',
+    'assets/index.js'
+  );
+  report.chunks[1].dynamicImports = [];
+  report.chunks[2].dynamicImports = ['assets/PhoneModuleLoaders.js'];
+  report.chunks.push(chunk({
+    fileName: 'assets/PhoneModuleLoaders.js',
+    dynamicImports: ['assets/PhoneHero.js'],
+    modules: ['app/src/production/phone/module-loaders.ts']
+  }));
+  report.chunks.push(chunk({
+    fileName: 'assets/PhoneShared.js',
+    modules: ['app/src/runtime/shared.ts']
+  }));
+  report.chunks.sort((left, right) => (
+    left.fileName < right.fileName ? -1 : left.fileName > right.fileName ? 1 : 0
+  ));
+
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/PhoneModuleLoaders.js': 1000,
+      'assets/PhoneShared.js': DONOR_MAX_LAZY_LEAF_BYTES + 1
+    })
+  }), 'lazy phone leaf closure chunk');
+});
+
+test('does not exempt root authority through a reverse cycle past an entry', () => {
+  const report = validProvenance();
+  report.chunks[0].imports.push('assets/index.js');
+  report.chunks[0].modules.push('app/src/production/input-controller.ts');
+  report.chunks[0].modules.sort();
+  report.chunks[1].dynamicImports = [];
+  report.chunks[2].dynamicImports = ['assets/PhoneModuleLoaders.js'];
+  report.chunks.push(chunk({
+    fileName: 'assets/PhoneModuleLoaders.js',
+    dynamicImports: ['assets/PhoneHero.js'],
+    modules: ['app/src/production/phone/module-loaders.ts']
+  }));
+  report.chunks.sort((left, right) => (
+    left.fileName < right.fileName ? -1 : left.fileName > right.fileName ? 1 : 0
+  ));
+
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({ 'assets/PhoneModuleLoaders.js': 1000 })
+  }), 'lifecycle authority');
+});
+
 test('still rejects preloaded synchronous authority reachable from a leaf', () => {
   const report = validProvenance();
   report.chunks[0].imports.push('assets/PhoneSharedAuthority.js');

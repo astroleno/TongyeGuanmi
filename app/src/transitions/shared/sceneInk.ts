@@ -33,7 +33,7 @@ export class InkRendererRunError extends Error {
     readonly segmentId: string,
     readonly failure: InkRendererFailure
   ) {
-    super(`Ink renderer ${failure.reason} for ${segmentId} (${failure.generation})`);
+    super(`Ink renderer ${failure.reason} (${segmentId})`);
     this.name = 'InkRendererRunError';
   }
 }
@@ -202,16 +202,11 @@ export function createInkFieldRenderer(
 
   let destroyed = false;
   let invalidated = false;
-  let transitionDestroyed = false;
   let failure: InkRendererFailure | null = null;
   const matchesGeneration = () => canvas.dataset[INK_GENERATION] === generation;
   const releaseTransition = (
     loseContext = lifecycle.loseContextOnDestroy ?? true
   ) => {
-    if (transitionDestroyed) {
-      return;
-    }
-    transitionDestroyed = true;
     const activeTransition = transition;
     transition = null;
     activeTransition?.destroy(loseContext);

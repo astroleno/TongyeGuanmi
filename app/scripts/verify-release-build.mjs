@@ -275,28 +275,67 @@ export function moduleProvenanceViolations(
     }
   }
   for (const root of phoneLeafRoots) {
-    const preloadedFiles = new Set();
     const ancestorFiles = new Set();
-    const addSynchronousClosure = (fileName) => {
-      if (preloadedFiles.has(fileName)) return;
-      preloadedFiles.add(fileName);
-      const chunk = chunkByFile.get(fileName);
-      if (!chunk) return;
-      for (const imported of chunk.imports) addSynchronousClosure(imported);
+    const synchronousClosure = (fileName) => {
+      const closure = new Set();
+      const visit = (currentFile) => {
+        if (closure.has(currentFile)) return;
+        closure.add(currentFile);
+        const chunk = chunkByFile.get(currentFile);
+        if (!chunk) return;
+        for (const imported of chunk.imports) visit(imported);
+      };
+      visit(fileName);
+      return closure;
     };
-    const addAncestors = (fileName) => {
+    const addAncestors = (fileName, visited) => {
+      if (chunkByFile.get(fileName)?.isEntry) return;
       const parents = [
         ...(dynamicParents.get(fileName) ?? []),
         ...(synchronousParents.get(fileName) ?? [])
       ];
       for (const parent of parents) {
-        if (ancestorFiles.has(parent)) continue;
+        if (visited.has(parent)) continue;
+        visited.add(parent);
         ancestorFiles.add(parent);
-        addSynchronousClosure(parent);
-        addAncestors(parent);
+        addAncestors(parent, visited);
       }
     };
-    addAncestors(root.fileName);
+    addAncestors(root.fileName, new Set([root.fileName]));
+
+    const preloadPaths = (fileName, visited) => {
+      if (chunkByFile.get(fileName)?.isEntry) {
+        return [new Set()];
+      }
+      const parents = [...new Set([
+        ...(dynamicParents.get(fileName) ?? []),
+        ...(synchronousParents.get(fileName) ?? [])
+      ])];
+      if (parents.length === 0) return [new Set()];
+      const paths = [];
+      for (const parent of parents) {
+        if (visited.has(parent)) {
+          continue;
+        }
+        const parentClosure = synchronousClosure(parent);
+        const nextVisited = new Set(visited);
+        nextVisited.add(parent);
+        for (const upstream of preloadPaths(parent, nextVisited)) {
+          paths.push(new Set([...parentClosure, ...upstream]));
+        }
+      }
+      return paths.length > 0 ? paths : [new Set()];
+    };
+    const parentPreloadPaths = preloadPaths(
+      root.fileName,
+      new Set([root.fileName])
+    );
+    const preloadedFiles = new Set(parentPreloadPaths[0] ?? []);
+    for (const fileName of [...preloadedFiles]) {
+      if (!parentPreloadPaths.every((pathFiles) => pathFiles.has(fileName))) {
+        preloadedFiles.delete(fileName);
+      }
+    }
 
     const synchronousFiles = new Set();
     const visit = (fileName) => {
