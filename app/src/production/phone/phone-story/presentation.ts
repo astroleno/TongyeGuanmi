@@ -984,6 +984,14 @@ export type PhonePresentationAdapter = Readonly<{
   dispose?(token: PresentationToken): void;
 }>;
 
+type PhoneActivePresentationAdapter = Readonly<{
+  token: PresentationToken;
+  report: (proof: PresentationProof) => void;
+  dispose(): void;
+  /** Static/reading bindings retry on the next projected browser paint. */
+  requestFrame?(): void;
+}>;
+
 /**
  * The browser presentation boundary used by non-media static/reading holds.
  * It is injectable solely to make the otherwise browser-only boundary
@@ -1294,13 +1302,7 @@ export function createPhoneStoryPresentation({
   const token = {};
   const registrations = new Map<string, PhoneSurfaceRegistration>();
   const effects = new Map<string, PhoneEffectRegistration>();
-  const activeAdapters = new Map<string, Readonly<{
-    token: PresentationToken;
-    report: (proof: PresentationProof) => void;
-    dispose(): void;
-    /** Static/reading bindings retry on the next projected browser paint. */
-    requestFrame?(): void;
-  }>>();
+  const activeAdapters = new Map<string, PhoneActivePresentationAdapter>();
   const ownedRoots = new Set<HTMLElement>();
   const decoratedEndpoints = new Set<HTMLElement>();
   const decoratedLayers = new Set<HTMLElement>();
@@ -1840,21 +1842,42 @@ export function createPhoneStoryPresentation({
       active?.dispose();
       const adapter = registration?.adapter;
       if (adapter) {
-        const binding = {
+        let framePending = false;
+        let proofAccepted = false;
+        let binding: PhoneActivePresentationAdapter;
+        const requestFrame = () => {
+          if (
+            framePending
+            || proofAccepted
+            || activeAdapters.get(receiver) !== binding
+          ) return;
+          framePending = true;
+          adapter.present(presentationToken, (frame) => {
+            framePending = false;
+            const current = activeAdapters.get(receiver);
+            if (
+              current !== binding
+              || !samePresentationToken(frame.token, binding.token)
+            ) return;
+            const proof = proofForRenderedFrame(frame);
+            // A leaf has reported a real browser paint, but candidate geometry
+            // can still reject that fact before its final stable landing.
+            // Keep the same immutable token armed; a later engine projection
+            // may request another real leaf paint.  This never synthesizes a
+            // proof and leaves a missing callback fail-closed on its timeout.
+            if (!proof) return;
+            proofAccepted = true;
+            binding.report(proof);
+          });
+        };
+        binding = {
           token: presentationToken,
           report,
-          dispose: () => adapter.dispose?.(presentationToken)
-        } as const;
+          dispose: () => adapter.dispose?.(presentationToken),
+          requestFrame
+        };
         activeAdapters.set(receiver, binding);
-        adapter.present(presentationToken, (frame) => {
-          const current = activeAdapters.get(receiver);
-          if (
-            current !== binding
-            || !samePresentationToken(frame.token, binding.token)
-          ) return;
-          const proof = proofForRenderedFrame(frame);
-          if (proof) binding.report(proof);
-        });
+        requestFrame();
         return;
       }
       // Only a manifest-declared DOM post-paint target may use this fallback.

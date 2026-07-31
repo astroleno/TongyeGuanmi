@@ -16,6 +16,7 @@ import {
   phoneDirectEntryAdmissionStrategy,
   phoneRunLegAdmissionStrategy,
   phoneScenePresentationContract,
+  phoneScenePresentationProofKind,
   phoneSegmentAdmissionStrategy,
   phoneSegmentPresentationContract
 } from './phone-story/manifest';
@@ -31,6 +32,14 @@ const contextSource = readFileSync(
 );
 const presentationSource = readFileSync(
   new URL('./phone-story/presentation.ts', import.meta.url),
+  'utf8'
+);
+const machineSource = readFileSync(
+  new URL('./phone-story/machine.ts', import.meta.url),
+  'utf8'
+);
+const engineSource = readFileSync(
+  new URL('./phone-story/runtime/engine.ts', import.meta.url),
   'utf8'
 );
 
@@ -73,6 +82,13 @@ describe('phone presentation adapter contract', () => {
 });
 
 describe('R5 canonical presentation manifest', () => {
+  it('[framework admission closure] derives every terminal proof from one manifest strategy in machine and runtime', () => {
+    expect(machineSource).toContain('phoneScenePresentationProofKind(scene)');
+    expect(engineSource).toContain('phoneScenePresentationProofKind(scene)');
+    expect(machineSource).not.toContain('phoneDirectEntryPresentationProofKind');
+    expect(engineSource).not.toContain('phoneDirectEntryPresentationProofKind');
+  });
+
   it('[framework admission closure] makes DOM post-paint fallback manifest-owned, never receiver-name-owned', () => {
     expect(presentationSource).toContain('phoneDirectEntryAdmissionTuple(scene)');
     expect(presentationSource).toContain("admission[0] !== 'dom-post-paint'");
@@ -134,6 +150,7 @@ describe('R5 canonical presentation manifest', () => {
       expect(admission.kind).toMatch(
         /^(packed-canvas-frame|static-poster|dom-reading)$/
       );
+      expect(phoneScenePresentationProofKind(scene)).toBe(admission.kind);
       expect(admission.subject).toBe(phoneScenePresentationContract(scene).receiverSurface);
       expect(admission.effectRole).toBe('none');
     }

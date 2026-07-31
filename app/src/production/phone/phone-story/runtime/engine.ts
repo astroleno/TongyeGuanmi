@@ -30,7 +30,6 @@ import {
   type PhoneLandingReason
 } from '../../phone-scroll-corridor-registry';
 import {
-  phoneDirectEntryPresentationProofKind,
   phoneScenePresentationProofKind,
   phoneScenePresentationTuple
 } from '../manifest';
@@ -346,17 +345,14 @@ export function createPhoneStoryRuntimeEngine(
    */
   const reportTargetPresentation = (
     activeSession: PhoneOrchestratedRunSession,
-    scene: SceneId,
-    directEntry = false
+    scene: SceneId
   ) => {
     if (publishingTargetProof) return;
     publishingTargetProof = true;
     try {
     const contract = phoneScenePresentationTuple(scene);
     const token = activeSession.presentationProofToken(
-      directEntry
-        ? phoneDirectEntryPresentationProofKind(scene)
-        : phoneScenePresentationProofKind(scene),
+      phoneScenePresentationProofKind(scene),
       contract[4]
     );
     if (!token) return;
@@ -508,7 +504,7 @@ export function createPhoneStoryRuntimeEngine(
         };
         try {
           const token = activeSession.presentationProofToken(
-            phoneDirectEntryPresentationProofKind(operation.to),
+            phoneScenePresentationProofKind(operation.to),
             phoneScenePresentationTuple(operation.to)[4]
           );
           if (!token) {
@@ -532,7 +528,7 @@ export function createPhoneStoryRuntimeEngine(
       if (!preparation.ready || preparation.publishing) return;
       preparation.publishing = true;
       try {
-        reportTargetPresentation(activeSession, operation.to, true);
+        reportTargetPresentation(activeSession, operation.to);
       } finally {
         if (directEntryPreparation === preparation) preparation.publishing = false;
       }

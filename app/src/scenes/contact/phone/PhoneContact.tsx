@@ -10,6 +10,11 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PhoneRenderedPresentationFrame,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
 import { renderPhoneContactHold } from './presentation';
 import '../../../production/editorial-layout.css';
 import './PhoneContact.css';
@@ -17,6 +22,40 @@ export {
   renderPhoneContactHold,
   renderPhoneContactProgress
 } from './presentation';
+
+type PhoneContactStaticPresentationBinding = {
+  token: PresentationToken;
+  key: string;
+  frameSequence: number;
+  report: (frame: PhoneRenderedPresentationFrame) => void;
+  reported: boolean;
+  paintFrame: number | null;
+  proofFrame: number | null;
+};
+
+function cancelPhoneContactStaticPresentationFrames(
+  binding: PhoneContactStaticPresentationBinding
+): void {
+  if (typeof window === 'undefined') return;
+  if (binding.paintFrame !== null) window.cancelAnimationFrame(binding.paintFrame);
+  if (binding.proofFrame !== null) window.cancelAnimationFrame(binding.proofFrame);
+  binding.paintFrame = null;
+  binding.proofFrame = null;
+}
+
+/** Contact forwards the immutable runner/direct-entry token after its paint. */
+export function phoneContactStaticPresentationFrame(
+  token: PresentationToken,
+  frameSequence: number,
+  observedAt: number
+): PhoneRenderedPresentationFrame {
+  return {
+    token,
+    frameSequence,
+    observedAt,
+    origin: 'leaf-static-poster'
+  };
+}
 
 const CONTACT_COPY = [
   'START FROM THE FIELD',
@@ -44,6 +83,73 @@ export const PhoneContact = forwardRef<
   PhoneSceneAdapterProps
 >(function PhoneContact({ onReady }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const presentationBindingRef = useRef<
+    PhoneContactStaticPresentationBinding | null
+  >(null);
+
+  const releaseStaticPresentation = useCallback((
+    token?: PresentationToken
+  ): boolean => {
+    const binding = presentationBindingRef.current;
+    if (
+      !binding
+      || (token && binding.key !== phoneRuntimePresentationTokenKey(token))
+    ) return false;
+    cancelPhoneContactStaticPresentationFrames(binding);
+    const root = rootRef.current;
+    if (root?.dataset.phoneContactStaticPoster === binding.key) {
+      delete root.dataset.phoneContactStaticPoster;
+    }
+    if (presentationBindingRef.current === binding) {
+      presentationBindingRef.current = null;
+    }
+    return true;
+  }, []);
+
+  const requestBoundStaticPresentation = useCallback(() => {
+    const binding = presentationBindingRef.current;
+    if (
+      !binding
+      || binding.reported
+      || binding.paintFrame !== null
+      || binding.proofFrame !== null
+      || typeof window === 'undefined'
+    ) return;
+    // The route runtime owns candidate layout. Contact only reports the exact
+    // token after its authored native endpoint has painted on a browser frame.
+    binding.paintFrame = window.requestAnimationFrame(() => {
+      binding.paintFrame = null;
+      if (presentationBindingRef.current !== binding || binding.reported) {
+        return;
+      }
+      const root = rootRef.current;
+      if (!root) return;
+      renderPhoneContactHold(root);
+      root.dataset.phoneContactStaticPoster = binding.key;
+      if (
+        presentationBindingRef.current !== binding
+        || root.dataset.phoneContactStaticPoster !== binding.key
+      ) return;
+      binding.proofFrame = window.requestAnimationFrame(() => {
+        binding.proofFrame = null;
+        if (
+          presentationBindingRef.current !== binding
+          || binding.reported
+          || root.dataset.phoneContactStaticPoster !== binding.key
+        ) return;
+        binding.reported = true;
+        binding.frameSequence += 1;
+        binding.report(phoneContactStaticPresentationFrame(
+          binding.token,
+          binding.frameSequence,
+          typeof performance !== 'undefined'
+            && typeof performance.now === 'function'
+            ? performance.now()
+            : 0
+        ));
+      });
+    });
+  }, []);
 
   const render = useCallback(() => {
     renderPhoneContactHold(rootRef.current);
@@ -56,9 +162,10 @@ export const PhoneContact = forwardRef<
     if (import.meta.env.DEV) root.dataset.phoneContactStable = 'true';
     onReady?.();
     return () => {
+      releaseStaticPresentation();
       if (import.meta.env.DEV) delete root.dataset.phoneContactStable;
     };
-  }, [onReady]);
+  }, [onReady, releaseStaticPresentation]);
 
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
@@ -82,8 +189,27 @@ export const PhoneContact = forwardRef<
       root.inert = false;
       root.removeAttribute('aria-hidden');
     },
-    dispose() {}
-  }), [render]);
+    presentPresentation(token, report) {
+      releaseStaticPresentation();
+      if (token.kind !== 'static-poster') return;
+      presentationBindingRef.current = {
+        token,
+        key: phoneRuntimePresentationTokenKey(token),
+        frameSequence: 0,
+        report,
+        reported: false,
+        paintFrame: null,
+        proofFrame: null
+      };
+      requestBoundStaticPresentation();
+    },
+    disposePresentation(token) {
+      releaseStaticPresentation(token);
+    },
+    dispose() {
+      releaseStaticPresentation();
+    }
+  }), [releaseStaticPresentation, render, requestBoundStaticPresentation]);
 
   return (
     <div

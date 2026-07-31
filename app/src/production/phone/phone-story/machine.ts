@@ -17,7 +17,6 @@ import {
   type PhonePresentationSnapshot
 } from './presentation';
 import {
-  phoneDirectEntryPresentationProofKind,
   phoneScenePresentationTuple,
   phoneScenePresentationProofKind,
   phoneSegmentPresentationTuple,
@@ -570,12 +569,6 @@ function expectedPresentationToken(
   const scene = proofSceneFor(session);
   const reducedStaticTarget = session.reducedMotion
     && !session.phase.startsWith('rollback-');
-  const directEntryProofKind = (
-    session.operation.trigger === 'entry'
-    && !session.phase.startsWith('rollback-')
-  )
-    ? phoneDirectEntryPresentationProofKind(scene)
-    : null;
   return {
     authorityId: snapshot.authorityId,
     sessionId: session.sessionId,
@@ -585,7 +578,7 @@ function expectedPresentationToken(
     subject: phoneScenePresentationTuple(scene)[4],
     kind: reducedStaticTarget
       ? 'static-poster'
-      : directEntryProofKind ?? phoneScenePresentationProofKind(scene)
+      : phoneScenePresentationProofKind(scene)
   };
 }
 

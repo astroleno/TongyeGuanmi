@@ -3,15 +3,58 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { hashForScene, sceneFromHash } from '../../../production/navigation';
+import type { PresentationToken } from '../../../production/phone/phone-story/runtime';
 import {
   PHONE_CONTACT_INPUT_POLICY,
-  PhoneContact
+  PhoneContact,
+  phoneContactStaticPresentationFrame
 } from './PhoneContact';
 
 const source = readFileSync(new URL('./PhoneContact.tsx', import.meta.url), 'utf8');
 const stylesheet = readFileSync(new URL('./PhoneContact.css', import.meta.url), 'utf8');
 
 describe('PhoneContact', () => {
+  it('forwards the immutable static-poster token only after Contact paints', () => {
+    const token: PresentationToken = {
+      authorityId: 'phone-story',
+      sessionId: 'contact-static',
+      generation: 4,
+      revision: 9,
+      subject: 'native:contact',
+      kind: 'static-poster',
+      leg: 0
+    };
+
+    expect(phoneContactStaticPresentationFrame(token, 1, 73.5)).toEqual({
+      token,
+      frameSequence: 1,
+      observedAt: 73.5,
+      origin: 'leaf-static-poster'
+    });
+    expect(source).toMatch(/presentPresentation\(token, report\)/);
+    expect(source).toMatch(/requestAnimationFrame/);
+    expect(source).toMatch(/disposePresentation\(token\)/);
+  });
+
+  it('owns one cancellable post-paint binding and no synthesized proof writer', () => {
+    expect(source).toContain('cancelPhoneContactStaticPresentationFrames');
+    expect(source).toMatch(
+      /binding\.paintFrame = window\.requestAnimationFrame\([\s\S]*?binding\.proofFrame = window\.requestAnimationFrame\(/
+    );
+    expect(source).toContain('presentationBindingRef.current !== binding');
+    expect(source).toContain('releaseStaticPresentation(token);');
+    for (const legacyWriter of [
+      'reportRenderedFrame(',
+      'presentationProofToken(',
+      'proofForRenderedFrame(',
+      'reportPresentationProof(',
+      'reportProgress(',
+      'reportAnimationComplete('
+    ]) {
+      expect(source).not.toContain(legacyWriter);
+    }
+  });
+
   it('keeps one canonical terminal article with keyboard-reachable actions', () => {
     const markup = renderToStaticMarkup(createElement(PhoneContact, {
       active: true,

@@ -3,7 +3,7 @@ import { canonicalSceneIds } from '../../../story/canonical-spine';
 import type { SceneId } from '../../../story/types';
 import { phoneRunLegTuple } from '../phone-story-runs';
 import {
-  phoneDirectEntryPresentationProofKind,
+  phoneScenePresentationProofKind,
   phoneScenePresentationTuple,
   phoneSegmentPresentationTuple
 } from './manifest';
@@ -33,15 +33,7 @@ type Proof = Readonly<{
 }>;
 
 function proofKind(scene: SceneId): string {
-  switch (phoneScenePresentationTuple(scene)[6]) {
-    case 'reading':
-      return 'dom-reading';
-    case 'static':
-    case 'static-visual':
-      return 'static-poster';
-    case 'visual':
-      return 'packed-canvas-frame';
-  }
+  return phoneScenePresentationProofKind(scene);
 }
 
 function directCandidate(target: SceneId): PhoneStorySnapshot {
@@ -99,13 +91,7 @@ function targetProof(candidate: PhoneStorySnapshot): Proof {
     throw new Error('Expected an active presentation candidate');
   }
   const { operation } = candidate.session;
-  return sceneProof(
-    candidate,
-    operation.to,
-    operation.trigger === 'entry'
-      ? phoneDirectEntryPresentationProofKind(operation.to)
-      : undefined
-  );
+  return sceneProof(candidate, operation.to);
 }
 
 function activeSegmentProof(candidate: PhoneStorySnapshot): Proof {

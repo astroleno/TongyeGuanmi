@@ -641,35 +641,24 @@ export function phoneScenePresentationTuple(
   ];
 }
 
-/** The terminal proof kind is declared with the scene, never inferred from DOM. */
-export function phoneScenePresentationProofKind(
-  sceneId: SceneId
-): Extract<
+type PhoneTerminalPresentationProofKind = Extract<
   PhonePresentationProofKind,
   'dom-reading' | 'static-poster' | 'packed-canvas-frame'
-> {
-  switch (phoneScenePresentationTuple(sceneId)[6]) {
-    case 'reading':
-      return 'dom-reading';
-    case 'static':
-    case 'static-visual':
-      return 'static-poster';
-    case 'visual':
-      return 'packed-canvas-frame';
-  }
+>;
+
+function terminalAdmissionProofKind(sceneId: SceneId): PhoneTerminalPresentationProofKind {
+  return phoneDirectEntryAdmissionTuple(sceneId)[1] as PhoneTerminalPresentationProofKind;
 }
 
-/** Direct entry obtains its proof kind from the exhaustive admission table. */
-export function phoneDirectEntryPresentationProofKind(
+/**
+ * Normal, reduced, and direct terminal verification share the immutable
+ * manifest admission strategy. Content probes describe visibility only; they
+ * may not silently select a different proof transport for a native leaf.
+ */
+export function phoneScenePresentationProofKind(
   sceneId: SceneId
-): Extract<
-  PhonePresentationProofKind,
-  'dom-reading' | 'static-poster' | 'packed-canvas-frame'
-> {
-  return phoneDirectEntryAdmissionTuple(sceneId)[1] as Extract<
-    PhonePresentationProofKind,
-    'dom-reading' | 'static-poster' | 'packed-canvas-frame'
-  >;
+): PhoneTerminalPresentationProofKind {
+  return terminalAdmissionProofKind(sceneId);
 }
 
 export function phoneSegmentPresentationTuple(

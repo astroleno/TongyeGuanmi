@@ -263,6 +263,78 @@ describe('phone presentation proof reader', () => {
     expect(dispose).toHaveBeenCalledWith(figure3Token);
   });
 
+  it('[Group67 static leaf cutover] re-arms one rejected post-paint frame with the same immutable token', () => {
+    const root = element();
+    const contactToken: PresentationToken = {
+      authorityId: 'presentation-authority',
+      sessionId: 'contact-rearm-session',
+      generation: 5,
+      leg: 0,
+      revision: 8,
+      subject: 'native:contact',
+      kind: 'static-poster'
+    };
+    let contentPainted = false;
+    const bindings: Array<(frame: Readonly<{
+      token: PresentationToken;
+      frameSequence: number;
+      observedAt: number;
+      origin: 'leaf-static-poster';
+    }>) => void> = [];
+    const presentation = createPhoneStoryPresentation({
+      authorityId: contactToken.authorityId,
+      scope: 'formal',
+      root: () => root
+    });
+    presentation.registerSurface({
+      id: 'native:contact',
+      scene: 'contact',
+      kind: 'native',
+      root: () => root,
+      coverageRoot: () => root,
+      presentation: () => [
+        true,
+        true,
+        true,
+        contentPainted,
+        'static-poster'
+      ],
+      adapter: {
+        present: (_token, report) => { bindings.push(report); }
+      }
+    });
+    const report = vi.fn();
+
+    presentation.activatePresentationAdapter('contact', contactToken, report);
+    const first = bindings.at(0);
+    if (!first) throw new Error('Expected the first Contact leaf binding');
+    first({
+      token: contactToken,
+      frameSequence: 1,
+      observedAt: 42,
+      origin: 'leaf-static-poster'
+    });
+    expect(report).not.toHaveBeenCalled();
+
+    contentPainted = true;
+    presentation.activatePresentationAdapter('contact', contactToken, report);
+    const retry = bindings.at(1);
+    if (!retry) throw new Error('Expected a same-token Contact leaf re-arm');
+    retry({
+      token: contactToken,
+      frameSequence: 2,
+      observedAt: 43,
+      origin: 'leaf-static-poster'
+    });
+
+    expect(bindings).toHaveLength(2);
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({
+      token: contactToken,
+      frameSequence: 2,
+      edge: 'contact'
+    }));
+  });
+
   it('[R5] accepts AOD’s declared packed-canvas segment frame before its static visual hold', () => {
     const root = element();
     const presentation = createPhoneStoryPresentation({

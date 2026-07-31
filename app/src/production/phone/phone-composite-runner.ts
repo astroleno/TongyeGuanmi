@@ -42,7 +42,7 @@ type ExecutionResources<Visual extends string> = {
   direct: boolean;
   abortController: AbortController;
   retention: PhoneCapabilityRetention;
-  timeout: number;
+  timeout: ReturnType<typeof globalThis.setTimeout> | 0;
   releaseExtra: (() => void) | undefined;
   /** The physical first-frame gate is one accepted fact per immutable leg. */
   presentedLeg: number | null;
@@ -260,7 +260,7 @@ export function createPhoneCompositeRunner<
   };
   const clearTimer = (resource: ExecutionResources<Visual>) => {
     if (!resource.timeout) return;
-    window.clearTimeout(resource.timeout);
+    globalThis.clearTimeout(resource.timeout);
     resource.timeout = 0;
   };
   const releaseRoles = (
@@ -321,7 +321,7 @@ export function createPhoneCompositeRunner<
   };
   const armTimeout = (resource: ExecutionResources<Visual>) => {
     clearTimer(resource);
-    resource.timeout = window.setTimeout(
+    resource.timeout = globalThis.setTimeout(
       () => {
         rollback(resource);
       },
