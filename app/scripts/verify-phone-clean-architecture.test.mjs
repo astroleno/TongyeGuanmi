@@ -840,6 +840,77 @@ test('rejects a reload bound that ignores the stored lineage', async () => {
   }, { phase: 'cutover' }), 'reload bound must derive from stored lineage');
 });
 
+test('rejects overwriting the parsed stored reload count', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        '? JSON.parse(stored)\n      :',
+        `? Object.assign(JSON.parse(stored), {
+          automaticReloadCount: 0 as const
+        })
+      :`
+      )
+  }, { phase: 'cutover' }), 'reload bound must derive from stored lineage');
+});
+
+test('rejects a comma expression that discards the parsed lineage', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        '? JSON.parse(stored)\n      :',
+        `? (JSON.parse(stored), {
+          lineageId: 'discarded-parse',
+          automaticReloadCount: 0 as const
+        })
+      :`
+      )
+  }, { phase: 'cutover' }), 'reload bound must derive from stored lineage');
+});
+
+test('rejects a conditional branch that only contains a fake parse', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        '? JSON.parse(stored)\n      :',
+        `? (false ? JSON.parse(stored) : {
+          lineageId: 'fake-parse',
+          automaticReloadCount: 0 as const
+        })
+      :`
+      )
+  }, { phase: 'cutover' }), 'reload bound must derive from stored lineage');
+});
+
+test('rejects a same-named lineage shadow at the reload guard', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'if (lineage.automaticReloadCount >= 1) return;',
+        `{
+      const lineage: PhoneChunkRecoveryLineage = {
+        lineageId: 'shadow',
+        automaticReloadCount: 0
+      };
+      if (lineage.automaticReloadCount >= 1) return;
+    }`
+      )
+  }, { phase: 'cutover' }), 'reload bound must derive from stored lineage');
+});
+
+test('rejects a local JSON binding that forges the parsed reload count', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        "const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';",
+        `const lineageStorageKey = 'r5-phone-chunk-recovery-lineage-v1';
+  const JSON = {
+    parse: () => ({ lineageId: 'forged', automaticReloadCount: 0 }),
+    stringify: globalThis.JSON.stringify
+  };`
+      )
+  }, { phase: 'cutover' }), 'reload bound must derive from stored lineage');
+});
+
 test('rejects an unrelated reload method', async () => {
   includes(await violations({
     'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
@@ -853,6 +924,36 @@ test('binds recovery to the canonical import rejection callback', async () => {
       .replace(
         "return import('./phone-story/PhoneStoryShell').catch((error) => {\n      recoverPhoneChunk();\n      throw error;\n    });",
         "recoverPhoneChunk();\n    return import('./phone-story/PhoneStoryShell');"
+      )
+  }, { phase: 'cutover' }), 'phone-core import rejection must use');
+});
+
+test('rejects a handler call hidden behind if false in the import catch', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'recoverPhoneChunk();\n      throw error;',
+        'if (false) recoverPhoneChunk();\n      throw error;'
+      )
+  }, { phase: 'cutover' }), 'phone-core import rejection must use');
+});
+
+test('rejects a handler call after return in the import catch', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'recoverPhoneChunk();\n      throw error;',
+        'return;\n      recoverPhoneChunk();\n      throw error;'
+      )
+  }, { phase: 'cutover' }), 'phone-core import rejection must use');
+});
+
+test('rejects a handler call after throw in the import catch', async () => {
+  includes(await violations({
+    'src/production/presentation-shell-loaders.ts': validRecoveryBoundary
+      .replace(
+        'recoverPhoneChunk();\n      throw error;',
+        'throw error;\n      recoverPhoneChunk();'
       )
   }, { phase: 'cutover' }), 'phone-core import rejection must use');
 });

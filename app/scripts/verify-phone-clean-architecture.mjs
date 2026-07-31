@@ -899,12 +899,6 @@ function recoveryBoundaryViolations(sources) {
     && node.expression.expression.expression.text === 'window'
   );
   const nodeText = (node) => node?.getText(node.getSourceFile());
-  const directFunctionCalls = (root, name) => directDescendants(root, (node) => (
-    ts.isCallExpression(node)
-    && ts.isIdentifier(node.expression)
-    && node.expression.text === name
-  ));
-
   const listenerCalls = sourceFiles.flatMap(({ sourceFile }) => descendants(
     sourceFile,
     (node) => identifierOwnerCall(node, 'window', 'addEventListener')
@@ -968,11 +962,31 @@ function recoveryBoundaryViolations(sources) {
       : undefined;
     if (!catchCall) return [];
     const callback = catchCall.arguments[0];
-    if (handlerName && callback && ts.isIdentifier(callback)) {
-      return callback.text === handlerName ? [callback] : [];
+    if (
+      !handlerName
+      || !callback
+      || !isFunctionLike(callback)
+      || callback.asteriskToken
+      || !ts.isBlock(callback.body)
+      || callback.parameters.length !== 1
+      || !ts.isIdentifier(callback.parameters[0].name)
+      || callback.parameters[0].name.text === handlerName
+      || callback.body.statements.length !== 2
+    ) {
+      return [];
     }
-    if (!handlerName || !callback || !isFunctionLike(callback)) return [];
-    return directFunctionCalls(callback, handlerName);
+    const [delegate, rethrow] = callback.body.statements;
+    const errorName = callback.parameters[0].name.text;
+    const delegatesDirectly = ts.isExpressionStatement(delegate)
+      && ts.isCallExpression(delegate.expression)
+      && ts.isIdentifier(delegate.expression.expression)
+      && delegate.expression.expression.text === handlerName
+      && delegate.expression.arguments.length === 0;
+    const rethrowsImportError = ts.isThrowStatement(rethrow)
+      && Boolean(rethrow.expression)
+      && ts.isIdentifier(rethrow.expression)
+      && rethrow.expression.text === errorName;
+    return delegatesDirectly && rethrowsImportError ? [callback] : [];
   });
   if (
     loadPhoneStoryShell
@@ -1042,43 +1056,169 @@ function recoveryBoundaryViolations(sources) {
       && node.arguments.length === 1
     ));
     const storedRead = storedReads.length === 1 ? storedReads[0] : undefined;
-    const storedBinding = storedRead && directDescendants(handler, (node) => (
+    const storedBindings = storedRead ? descendants(handler, (node) => (
       ts.isVariableDeclaration(node)
       && ts.isIdentifier(node.name)
       && node.initializer
-      && descendants(node.initializer, (child) => child === storedRead).length > 0
-    ))[0];
+      && unwrappedExpression(node.initializer) === storedRead
+    )) : [];
+    const storedBinding = storedBindings.length === 1
+      ? storedBindings[0]
+      : undefined;
     const lineageName = boundedGuard
       && ts.isBinaryExpression(boundedGuard.expression)
       && ts.isPropertyAccessExpression(boundedGuard.expression.left)
       && ts.isIdentifier(boundedGuard.expression.left.expression)
       ? boundedGuard.expression.left.expression.text
       : undefined;
-    const lineageDeclaration = lineageName && directDescendants(handler, (node) => (
+    const lineageDeclarations = lineageName ? descendants(handler, (node) => (
       ts.isVariableDeclaration(node)
       && ts.isIdentifier(node.name)
       && node.name.text === lineageName
       && Boolean(node.initializer)
-    ))[0];
+    )) : [];
+    const lineageDeclaration = lineageDeclarations.length === 1
+      ? lineageDeclarations[0]
+      : undefined;
     const storedBindingName = storedBinding && ts.isIdentifier(storedBinding.name)
       ? storedBinding.name.text
       : undefined;
+    const bindingContainsName = (binding, name) => {
+      if (ts.isIdentifier(binding)) return binding.text === name;
+      return binding.elements.some((element) => (
+        !ts.isOmittedExpression(element)
+        && bindingContainsName(element.name, name)
+      ));
+    };
+    const valueBindingsNamed = (name) => descendants(handler, (node) => (
+      (
+        (ts.isVariableDeclaration(node) || ts.isParameter(node))
+        && bindingContainsName(node.name, name)
+      )
+      || (
+        (
+          ts.isFunctionDeclaration(node)
+          || ts.isFunctionExpression(node)
+          || ts.isClassDeclaration(node)
+          || ts.isClassExpression(node)
+          || ts.isEnumDeclaration(node)
+        )
+        && node.name?.text === name
+      )
+    ));
+    const topLevelBindsName = (name) => handler.getSourceFile().statements.some(
+      (statement) => {
+        if (ts.isVariableStatement(statement)) {
+          return statement.declarationList.declarations.some((declaration) => (
+            bindingContainsName(declaration.name, name)
+          ));
+        }
+        if (
+          (
+            ts.isFunctionDeclaration(statement)
+            || ts.isClassDeclaration(statement)
+            || ts.isEnumDeclaration(statement)
+            || ts.isImportEqualsDeclaration(statement)
+          )
+          && statement.name?.text === name
+        ) {
+          return true;
+        }
+        if (!ts.isImportDeclaration(statement) || !statement.importClause) {
+          return false;
+        }
+        const clause = statement.importClause;
+        if (clause.name?.text === name) return true;
+        if (!clause.namedBindings) return false;
+        if (ts.isNamespaceImport(clause.namedBindings)) {
+          return clause.namedBindings.name.text === name;
+        }
+        return clause.namedBindings.elements.some(
+          (specifier) => specifier.name.text === name
+        );
+      }
+    );
+    const variableStatementFor = (declaration) => {
+      const declarationList = declaration?.parent;
+      const statement = declarationList?.parent;
+      return declarationList
+        && ts.isVariableDeclarationList(declarationList)
+        && statement
+        && ts.isVariableStatement(statement)
+        ? statement
+        : undefined;
+    };
+    const singleConstStatement = (declaration) => {
+      const statement = variableStatementFor(declaration);
+      return statement
+        && statement.declarationList.declarations.length === 1
+        && Boolean(statement.declarationList.flags & ts.NodeFlags.Const)
+        ? statement
+        : undefined;
+    };
+    const finalNumericProperty = (expression, name, value) => {
+      const object = unwrappedExpression(expression);
+      if (!ts.isObjectLiteralExpression(object)) return false;
+      const last = object.properties.at(-1);
+      if (!last || !ts.isPropertyAssignment(last)) return false;
+      const propertyName = ts.isIdentifier(last.name) || ts.isStringLiteralLike(last.name)
+        ? last.name.text
+        : undefined;
+      const initializer = unwrappedExpression(last.initializer);
+      return propertyName === name
+        && ts.isNumericLiteral(initializer)
+        && Number(initializer.text) === value;
+    };
+    const lineageInitializer = lineageDeclaration?.initializer
+      ? unwrappedExpression(lineageDeclaration.initializer)
+      : undefined;
+    const parsedBranch = lineageInitializer
+      && ts.isConditionalExpression(lineageInitializer)
+      ? unwrappedExpression(lineageInitializer.whenTrue)
+      : undefined;
+    const parsesExactStoredBinding = Boolean(
+      parsedBranch
+      && propertyCall(parsedBranch, 'parse')
+      && ts.isIdentifier(parsedBranch.expression.expression)
+      && parsedBranch.expression.expression.text === 'JSON'
+      && parsedBranch.arguments.length === 1
+      && ts.isIdentifier(parsedBranch.arguments[0])
+      && parsedBranch.arguments[0].text === storedBindingName
+    );
+    const storedStatement = singleConstStatement(storedBinding);
+    const lineageStatement = singleConstStatement(lineageDeclaration);
+    const canonicalStatementSequence = Boolean(
+      storedStatement
+      && lineageStatement
+      && boundedGuard
+      && storedStatement.parent === lineageStatement.parent
+      && lineageStatement.parent === boundedGuard.parent
+      && ts.isBlock(storedStatement.parent)
+      && storedStatement.parent.statements.indexOf(lineageStatement)
+        === storedStatement.parent.statements.indexOf(storedStatement) + 1
+      && storedStatement.parent.statements.indexOf(boundedGuard)
+        === storedStatement.parent.statements.indexOf(lineageStatement) + 1
+    );
     const parsesStoredLineage = Boolean(
       storedRead
-      && lineageDeclaration?.initializer
-      && descendants(lineageDeclaration.initializer, (node) => (
-        propertyCall(node, 'parse')
-        && ts.isIdentifier(node.expression.expression)
-        && node.expression.expression.text === 'JSON'
-        && Boolean(node.arguments[0])
-        && (
-          descendants(node.arguments[0], (child) => child === storedRead).length > 0
-          || (
-            storedBindingName
-            && containsIdentifier(node.arguments[0], storedBindingName)
-          )
-        )
-      )).length > 0
+      && storedBindingName
+      && lineageName
+      && lineageInitializer
+      && ts.isConditionalExpression(lineageInitializer)
+      && ts.isIdentifier(unwrappedExpression(lineageInitializer.condition))
+      && unwrappedExpression(lineageInitializer.condition).text === storedBindingName
+      && parsesExactStoredBinding
+      && finalNumericProperty(
+        lineageInitializer.whenFalse,
+        'automaticReloadCount',
+        0
+      )
+      && valueBindingsNamed(storedBindingName).length === 1
+      && valueBindingsNamed(lineageName).length === 1
+      && ['JSON', 'sessionStorage', 'window'].every((name) => (
+        valueBindingsNamed(name).length === 0 && !topLevelBindsName(name)
+      ))
+      && canonicalStatementSequence
     );
     if (!parsesStoredLineage) {
       violations.push(

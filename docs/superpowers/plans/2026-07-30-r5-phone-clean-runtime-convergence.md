@@ -2064,9 +2064,21 @@ session lineage, derive `automaticReloadCount` from the stored record, guard
 `window.location.reload()`. `markStable()` must clear the same storage key.
 No same-Document import retry is allowed.
 
+The import rejection uses one inline, non-generator catch callback whose first
+statement is the direct handler call and whose second statement rethrows the
+same callback error. A conditional/dead call or a call after `return`/`throw`
+does not establish recovery reachability.
+
 Validate that sequence with statement-level control-flow paths, not source
 offsets. Every reachable reload path must be dominated, in order, by preload
 prevention, the stored-lineage read/parse, the bounded guard, and persistence.
+Lock the stored-count data flow to three adjacent statements in one block: one
+single-binding `const` reads `sessionStorage.getItem`, one single-binding
+`const` selects `stored ? JSON.parse(stored) : fallback`, and the next statement
+guards that exact unique lineage binding. The fallback object ends with
+`automaticReloadCount: 0`; `JSON`, `sessionStorage`, and `window` remain
+unshadowed. Parse-then-overwrite wrappers, discarded comma results, nested fake
+parse branches, and same-named stored/lineage shadows fail closed.
 The persisted object must end with `automaticReloadCount: 1`; its `setItem()`
 and `window.location.reload()` form one adjacent, direct-expression tail so no
 intervening call can clear or rewrite the lineage. Reject any additional
@@ -2078,8 +2090,11 @@ function, an ignored stored lineage, an unbounded reload, an unrelated
 `.reload()` method, recovery outside the import rejection callback, and a
 second import of the same URL. Also keep early-return, throw-before-persist,
 clear-after-persist, overwrite-after-persist, and indirect-reset-before-reload
-fixtures. These fixtures must exercise the AST/control-flow relationships
-rather than merely repeat required strings.
+fixtures. Catch fixtures cover `if (false)`, return-before-handler, and
+throw-before-handler. Stored-lineage fixtures cover parse-then-overwrite,
+discarded comma results, conditional fake parsing, same-named lineage shadow,
+and a forged local `JSON` binding. These fixtures must exercise the
+AST/control-flow relationships rather than merely repeat required strings.
 
 **Task 2 acceptance:**
 
