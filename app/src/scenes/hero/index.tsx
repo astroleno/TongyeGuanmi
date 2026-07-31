@@ -39,7 +39,6 @@ const HERO_FIGURE_HEVC_ALPHA_VIDEO = new URL('../../../../assets/figure1-hevc-al
 const HERO_FIGURE_POSTER = new URL('../../../../assets/hero-figure-poster.webp', import.meta.url).href;
 const HERO_VIDEO_START_SECONDS = 0;
 const HERO_VIDEO_END_EPSILON = 0.02;
-const HERO_PATTERN_FRAME_RETRY_MS = 500;
 export const HERO_PATTERN_VIDEO_END_SECONDS = 0.9;
 export const HERO_COPY = HOME_COPY;
 
@@ -197,7 +196,7 @@ export function renderHeroPatternProgress(
   return { progress };
 }
 
-function prepareHeroPatternFrameAttempt(
+export function prepareHeroPatternFrame(
   root: HTMLElement | null | undefined,
   rawProgress: number,
   mediaRun: HeroPatternMediaRun
@@ -211,39 +210,6 @@ function prepareHeroPatternFrameAttempt(
     if (result?.status !== 'ready') {
       throw new Error('hero frame stale');
     }
-  });
-}
-
-export function prepareHeroPatternFrame(
-  root: HTMLElement | null | undefined,
-  rawProgress: number,
-  mediaRun: HeroPatternMediaRun
-): Promise<void> {
-  const video = heroFigureVideo(root);
-  if (!video) {
-    return Promise.reject(new Error('hero media unavailable'));
-  }
-  let retryTimer: ReturnType<typeof setTimeout> | undefined;
-  const preparation = new Promise<void>((resolve, reject) => {
-    let primary = true;
-    void prepareHeroPatternFrameAttempt(root, rawProgress, mediaRun).then(
-      () => { if (primary) resolve(); },
-      (error: unknown) => { if (primary) reject(error); }
-    );
-    retryTimer = setTimeout(() => {
-      // Chromium can consume one paused rVFC without invoking it after a cold
-      // seek. Refresh once while retaining rVFC as the only success evidence.
-      primary = false;
-      try {
-        disposeTimelineVideoDriver(video);
-        void prepareHeroPatternFrameAttempt(root, rawProgress, mediaRun).then(resolve, reject);
-      } catch (error) {
-        reject(error);
-      }
-    }, HERO_PATTERN_FRAME_RETRY_MS);
-  });
-  return preparation.finally(() => {
-    if (retryTimer !== undefined) clearTimeout(retryTimer);
   });
 }
 

@@ -37,7 +37,7 @@ test('PH and Lab-to-PH reactivate their persistent packed-alpha and Ink Canvases
   });
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/?v=36&portrait-spike-motion=reduce#lab', {
+  await page.goto('/?v=36#lab', {
     waitUntil: 'domcontentloaded'
   });
   const shell = page.locator('[data-phone-validation-mode="v36"]');
@@ -59,9 +59,40 @@ test('PH and Lab-to-PH reactivate their persistent packed-alpha and Ink Canvases
 
   await scrollLabContactBoundary(
     page,
-    '[data-phone-acceptance-chapter="education"]',
+    '[data-phone-acceptance-chapter="lab-ph-education"]',
+    -0.5
+  );
+  await expect.poll(() => inkCanvas.getAttribute('data-phone-ink-renderer'))
+    .toBe('active');
+  await scrollLabContactBoundary(
+    page,
+    '[data-phone-acceptance-chapter="lab-ph-education"]',
     0.05
   );
+  await expect(shell).toHaveAttribute(
+    'data-phone-acceptance-active-scene',
+    'ph-animation',
+    { timeout: 30_000 }
+  );
+  await expect(shell).toHaveAttribute(
+    'data-phone-lab-contact-visual-run',
+    'ph-animation:forward',
+    { timeout: 30_000 }
+  );
+  // End only the autonomous media run through its production event boundary;
+  // surface retirement/reactivation below remains owned by the real shell.
+  await page.evaluate(() => {
+    const ph = document.querySelector('[data-phone-scene="ph-animation"]');
+    if (!ph) throw new Error('PH production surface is unavailable');
+    ph.dispatchEvent(new CustomEvent('phone-lab-contact-autoplay', {
+      bubbles: true,
+      detail: {
+        scene: 'ph-animation',
+        phase: 'complete',
+        direction: 1
+      }
+    }));
+  });
   await expect(shell).toHaveAttribute(
     'data-phone-acceptance-active-scene',
     'education',
@@ -101,7 +132,29 @@ test('PH and Lab-to-PH reactivate their persistent packed-alpha and Ink Canvases
   await scrollLabContactBoundary(
     page,
     '[data-phone-acceptance-chapter="lab-ph-education"]',
-    -0.5
+    0
+  );
+  await shell.evaluate((element) => {
+    if (element.dataset.phoneAcceptanceActiveScene === 'ph-animation') return;
+    element.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      pointerType: 'touch',
+      isPrimary: true,
+      pointerId: 1,
+      clientY: 200
+    }));
+    element.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles: true,
+      pointerType: 'touch',
+      isPrimary: true,
+      pointerId: 1,
+      clientY: 220
+    }));
+  });
+  await expect(shell).toHaveAttribute(
+    'data-phone-acceptance-active-scene',
+    'ph-animation',
+    { timeout: 30_000 }
   );
   await expect.poll(() => page.evaluate(() => (
     (window as Window & { __r5PhPackedAlphaStatuses?: string[] })

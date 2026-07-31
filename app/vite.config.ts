@@ -227,6 +227,9 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash:7].js',
         entryFileNames: 'assets/[name]-[hash:7].js',
         manualChunks(id) {
+          if (id.includes('/src/media/timeline-video-driver.ts')) {
+            return 'media-timeline-runtime';
+          }
           if (id.includes('/src/production/phone/phone-lab-contact-timeline.ts')) {
             return 'phone-lab-contact-timeline';
           }
@@ -237,7 +240,6 @@ export default defineConfig({
             '/src/transitions/shared/ink.ts',
             '/src/transitions/shared/inkOwnership.ts',
             '/src/transitions/shared/sceneInk.ts',
-            '/src/media/timeline-video-driver.ts',
             '/src/pilot/progress-timeline.ts',
             '/src/transitions/shared/sectionHandoff.ts'
           ].some((moduleId) => id.includes(moduleId))) {

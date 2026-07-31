@@ -5,5 +5,6 @@ describe('semanticBoolean', () => {
   it('keeps CSS boolean data attributes textual under production minification', () => {
     expect(semanticBoolean(true)).toBe('true');
     expect(semanticBoolean(false)).toBe('false');
+    expect(semanticBoolean(undefined as never)).toBe('false');
   });
 });

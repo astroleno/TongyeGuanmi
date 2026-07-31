@@ -11,7 +11,6 @@ import {
   HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS,
   HERO_PATTERN_MOTION_MS,
   HERO_PATTERN_MOTION_STOP,
-  prepareHeroPatternBoundary,
   renderHeroForHeroPattern,
   renderPatternForHeroPattern,
   waitForHeroPatternCommittedFrame
@@ -46,13 +45,11 @@ class FakeElement {
 }
 
 class DeferredFrameVideo extends FakeVideo {
-  frameRequests = 0;
   private frameCallback: ((now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void) | undefined;
 
   override requestVideoFrameCallback(
     callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
   ): number {
-    this.frameRequests += 1;
     this.frameCallback = callback;
     return 1;
   }
@@ -267,28 +264,6 @@ describe('hero-pattern transition', () => {
     expect(video.currentTime).toBeCloseTo(HERO_PATTERN_VIDEO_END_SECONDS);
     expect(fixture.context.from.element?.style.visibility).toBe('hidden');
     timeline.dispose();
-  });
-
-  it('re-requests strict Chromium frame proof when one paused callback stalls', async () => {
-    vi.useFakeTimers();
-    const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
-    const video = new DeferredFrameVideo();
-    fixture.fromRoot.connect('[data-hero-figure-video]', video);
-
-    const preparation = prepareHeroPatternBoundary(
-      fixture.fromRoot as unknown as HTMLElement,
-      0,
-      { runId: 'hero-pattern-stalled-frame:1', direction: 1 }
-    );
-    await Promise.resolve();
-
-    expect(video.frameRequests).toBe(1);
-    await vi.advanceTimersByTimeAsync(500);
-    expect(video.frameRequests).toBe(2);
-
-    video.presentFrame();
-    await expect(preparation).resolves.toBeUndefined();
-    expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
   });
 
   it('reactivates a stale hidden Hero layer before a forward replay', async () => {

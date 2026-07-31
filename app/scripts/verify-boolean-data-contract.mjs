@@ -6,6 +6,69 @@ import ts from 'typescript';
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const APP_ROOT = path.resolve(path.dirname(SCRIPT_PATH), '..');
 
+export const LEGACY_PHONE_BOOLEAN_DEBT = Object.freeze([
+  Object.freeze({
+    file: 'src/production/phone/PhoneBrandLabContinuation.tsx',
+    attribute: 'data-phone-group45-stage-active',
+    count: 3
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneBrandLabStory.tsx',
+    attribute: 'data-phone-group45-stage-active',
+    count: 1
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneBrandLabStory.tsx',
+    attribute: 'data-portrait-stage-active',
+    count: 1
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneBrandLabStory.tsx',
+    attribute: 'data-story-hydrated',
+    count: 1
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneGradeAStory.tsx',
+    attribute: 'data-phone-figure2-arch-visible',
+    count: 1
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneGradeAStory.tsx',
+    attribute: 'data-phone-grade-a-active',
+    count: 2
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneGradeAStory.tsx',
+    attribute: 'data-phone-method-figure2-ink-active',
+    count: 1
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneLabContactShell.tsx',
+    attribute: 'data-phone-acceptance-stage-active',
+    count: 2
+  }),
+  Object.freeze({
+    file: 'src/production/phone/PhoneStoryShell.tsx',
+    attribute: 'data-portrait-loader-ready',
+    count: 1
+  }),
+  Object.freeze({
+    file: 'src/production/phone/scenes/PhoneFigure2.tsx',
+    attribute: 'data-phone-figure2-active',
+    count: 1
+  }),
+  Object.freeze({
+    file: 'src/production/phone/scenes/PhoneMethodTop.tsx',
+    attribute: 'data-portrait-aod-method-visible',
+    count: 1
+  }),
+  Object.freeze({
+    file: 'src/production/phone/usePhoneStageRuntime.ts',
+    attribute: 'data-portrait-stage-active',
+    count: 1
+  })
+]);
+
 function collectFiles(root, extensions, files = []) {
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     if (entry.name === 'node_modules' || entry.name === 'dist') continue;
@@ -41,6 +104,76 @@ function textualBooleanWriter(expression) {
     && ts.isIdentifier(writer.expression)
     && writer.expression.text === 'semanticBoolean'
     && writer.arguments.length === 1;
+}
+
+function semanticBooleanContractViolation(source) {
+  const sourceFile = ts.createSourceFile(
+    'semantic-data-attribute.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const implementations = sourceFile.statements.filter((statement) => (
+    ts.isFunctionDeclaration(statement)
+    && statement.name?.text === 'semanticBoolean'
+  ));
+  const aliases = sourceFile.statements.filter((statement) => (
+    ts.isTypeAliasDeclaration(statement)
+    && statement.name.text === 'SemanticBoolean'
+  ));
+  const implementation = implementations.length === 1
+    ? implementations[0]
+    : undefined;
+  const alias = aliases.length === 1 ? aliases[0] : undefined;
+  const parameter = implementation?.parameters[0];
+  const statements = implementation?.body?.statements ?? [];
+  const returned = statements.length === 1 && ts.isReturnStatement(statements[0])
+    ? statements[0].expression
+    : undefined;
+  const aliasValues = alias && ts.isUnionTypeNode(alias.type)
+    ? alias.type.types.flatMap((type) => (
+        ts.isLiteralTypeNode(type) && ts.isStringLiteral(type.literal)
+          ? [type.literal.text]
+          : []
+      )).sort()
+    : [];
+  const valid = Boolean(
+    implementation
+    && alias
+    && sourceFile.statements.length === 2
+    && implementation.modifiers?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
+    )
+    && alias.modifiers?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword
+    )
+    && ts.isUnionTypeNode(alias.type)
+    && alias.type.types.length === 2
+    && aliasValues.join(',') === 'false,true'
+    && implementation.parameters.length === 1
+    && parameter
+    && ts.isIdentifier(parameter.name)
+    && parameter.type?.kind === ts.SyntaxKind.BooleanKeyword
+    && implementation.type
+    && ts.isTypeReferenceNode(implementation.type)
+    && ts.isIdentifier(implementation.type.typeName)
+    && implementation.type.typeName.text === 'SemanticBoolean'
+    && returned
+    && ts.isConditionalExpression(returned)
+    && ts.isIdentifier(returned.condition)
+    && returned.condition.text === parameter.name.text
+    && ts.isStringLiteral(returned.whenTrue)
+    && returned.whenTrue.text === 'true'
+    && ts.isStringLiteral(returned.whenFalse)
+    && returned.whenFalse.text === 'false'
+  );
+  return valid
+    ? []
+    : [
+        'src/runtime/semantic-data-attribute.ts: semanticBoolean must use the '
+          + 'frozen boolean branch implementation'
+      ];
 }
 
 function datasetPropertyWriter(left, labelByProperty) {
@@ -103,7 +236,7 @@ function unsafeBooleanWriters(file, source, attributes) {
     true,
     scriptKind
   );
-  const unsafe = new Set();
+  const unsafe = [];
   const visit = (node) => {
     if (ts.isJsxAttribute(node)) {
       const label = ts.isIdentifier(node.name) ? node.name.text : undefined;
@@ -113,7 +246,7 @@ function unsafeBooleanWriters(file, source, attributes) {
           ? initializer.expression
           : initializer;
         if (!textualBooleanWriter(expression)) {
-          unsafe.add(label);
+          unsafe.push(label);
         }
       }
     } else if (
@@ -122,18 +255,18 @@ function unsafeBooleanWriters(file, source, attributes) {
     ) {
       const label = datasetPropertyWriter(node.left, labelByProperty);
       if (label && !textualBooleanWriter(node.right)) {
-        unsafe.add(label);
+        unsafe.push(label);
       }
     } else if (ts.isCallExpression(node)) {
       const writer = setAttributeWriter(node, labels);
       if (writer && !textualBooleanWriter(writer.expression)) {
-        unsafe.add(writer.label);
+        unsafe.push(writer.label);
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(sourceFile);
-  return [...unsafe].sort();
+  return unsafe.sort();
 }
 
 export function cssBooleanDataAttributes(source) {
@@ -148,7 +281,8 @@ export function cssBooleanDataAttributes(source) {
 export function booleanDataContractViolations({
   viteSource,
   cssSources,
-  runtimeSources
+  runtimeSources,
+  legacyDebt = []
 }) {
   const violations = [];
   if (/\bbooleans_as_integers\s*:\s*true\b/.test(viteSource)) {
@@ -162,17 +296,45 @@ export function booleanDataContractViolations({
     }
   }
 
+  const unsafeCounts = new Map();
   for (const { file, source } of runtimeSources) {
     for (const label of unsafeBooleanWriters(file, source, attributes)) {
+      const key = `${file}\0${label}`;
+      unsafeCounts.set(key, (unsafeCounts.get(key) ?? 0) + 1);
+    }
+  }
+
+  const debtCounts = new Map();
+  for (const debt of legacyDebt) {
+    const key = `${debt.file}\0${debt.attribute}`;
+    debtCounts.set(key, (debtCounts.get(key) ?? 0) + debt.count);
+  }
+
+  for (const [key, count] of unsafeCounts) {
+    const [file, label] = key.split('\0');
+    const allowed = debtCounts.get(key) ?? 0;
+    for (let index = allowed; index < count; index += 1) {
       violations.push(
         `${file}: ${label} must use semanticBoolean(...) or a textual literal`
+      );
+    }
+  }
+  for (const [key, expected] of debtCounts) {
+    const found = unsafeCounts.get(key) ?? 0;
+    if (found < expected) {
+      const [file, label] = key.split('\0');
+      violations.push(
+        `${file}: ${label} legacy debt baseline is stale; `
+          + `expected ${expected}, found ${found}`
       );
     }
   }
   return violations;
 }
 
-export function verifyBooleanDataContract(root = APP_ROOT) {
+export function verifyBooleanDataContract(root = APP_ROOT, {
+  legacyDebt = LEGACY_PHONE_BOOLEAN_DEBT
+} = {}) {
   const srcRoot = path.join(root, 'src');
   const relative = (file) => path.relative(root, file).split(path.sep).join('/');
   const cssSources = collectFiles(srcRoot, new Set(['.css']))
@@ -180,20 +342,26 @@ export function verifyBooleanDataContract(root = APP_ROOT) {
   const runtimeSources = collectFiles(srcRoot, new Set(['.ts', '.tsx']))
     .filter((file) => {
       const name = relative(file);
-      // The legacy phone authority is frozen until Task 11's atomic deletion.
-      // Scan every other production source recursively, including phone-story
-      // as soon as that canonical directory is introduced.
+      // Tests/harness fixtures are not production writers. The legacy phone
+      // tree is scanned and constrained by the exact debt ledger above.
       return !name.startsWith('src/harness/')
-        && !name.startsWith('src/production/phone/')
         && !name.includes('/__fixtures__/')
         && !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(name);
     })
     .map((file) => ({ file: relative(file), source: fs.readFileSync(file, 'utf8') }));
-  return booleanDataContractViolations({
-    viteSource: fs.readFileSync(path.join(root, 'vite.config.ts'), 'utf8'),
-    cssSources,
-    runtimeSources
-  });
+  const helperPath = path.join(srcRoot, 'runtime/semantic-data-attribute.ts');
+  const helperViolations = semanticBooleanContractViolation(
+    fs.existsSync(helperPath) ? fs.readFileSync(helperPath, 'utf8') : ''
+  );
+  return [
+    ...helperViolations,
+    ...booleanDataContractViolations({
+      viteSource: fs.readFileSync(path.join(root, 'vite.config.ts'), 'utf8'),
+      cssSources,
+      runtimeSources,
+      legacyDebt
+    })
+  ];
 }
 
 if (path.resolve(process.argv[1] ?? '') === SCRIPT_PATH) {

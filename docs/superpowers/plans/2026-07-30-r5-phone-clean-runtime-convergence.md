@@ -1765,6 +1765,40 @@ git add \
 git commit -m "fix(r5): port clean rendering contracts"
 ```
 
+- [x] **Step 1.9: Close Review 2 scope and boolean-debt findings**
+
+Remove the post-Task-1 retry/ownership patches that entered
+`src/scenes/hero/index.tsx` and the legacy `PhoneLabContactShell.tsx`. Those
+files were never added to the Task 1 allowlist, so a green browser probe does
+not authorize extending either lifecycle. Preserve the two regression
+requirements in their clean owners instead:
+
+- Slice 7B reproduces a stalled paused Hero frame callback and resolves it as
+  a generation-bound clean runtime/leaf attempt, without a timer in the old
+  shared Hero scene;
+- Slice 10A/10B proves a late PH packed-surface mount cannot reclaim the media
+  slot after PH retirement and before Crane activation, without a compensating
+  effect in the legacy shell.
+
+Keep the Task 1 mobile Chromium lifecycle regression on the ordinary
+production PH path: enter PH first, complete its forward run, retire the
+surface as Crane approaches, then reverse into the same persistent Canvas.
+The separate direct-scroll/late-mount variant is the Slice 10A/10B regression
+above; it must not be made green by extending the legacy shell.
+
+Restore the frozen branch implementation of `semanticBoolean()`. Scan the
+legacy phone tree under an exact file/attribute/occurrence debt ledger: a new
+writer fails, and removing old debt requires shrinking the ledger in the same
+commit. An entire-directory exemption is forbidden.
+
+The restored fail-closed helper makes the existing forced `story-runtime`
+chunk 55,275 bytes, 16 bytes above the frozen donor maximum. Keep its complete
+branch implementation and split the existing media preparation/decoded-frame
+driver responsibility into the stable `media-timeline-runtime` chunk, leaving
+Ink/presentation ownership in `story-runtime`. Shortening diagnostics,
+type-assertion code golf, tiny one-function sharding, or weakening the
+55,259-byte gate remains forbidden.
+
 **Task 1 acceptance:**
 
 - semantic boolean and packed-alpha lifecycle gates pass;
@@ -3277,6 +3311,10 @@ Then enforce:
 - fixed topology and decoded images are ready under the Loader;
 - Loader release follows target plane post-paint acknowledgement;
 - no later effect rewrites Hero to zero.
+- a paused `requestVideoFrameCallback` that never fires is reproduced as RED;
+  recovery starts a new bounded, generation-bound runtime/leaf attempt and a
+  stale first request cannot prove the boundary. Do not add a scene-owned
+  timeout or same-generation retry to the legacy/shared Hero scene.
 
 Port the reviewed Hero font declaration from `82a4e68` into the new canonical
 Hero CSS, not the old path.
@@ -3906,6 +3944,12 @@ Test Lab → PH → Education and reverse twice, direct PH/Education entries,
 activation rejection/retry, background/foreground, BFCache restore, withheld
 draw, context loss, delayed chunks, rollback failure, and stale callbacks.
 No timeout/seek/play promise can prove PH.
+
+Also mount PH late after its terminal retirement while Crane is prewarming.
+The stale PH surface must remain released, must not reclaim the sole media
+slot, and must not require a legacy-shell effect to retire it again. Prove the
+result through runtime generation/command ownership and the registered clean
+PH surface handle.
 
 - [ ] **Step 10A.3: Verify and commit Slice 10A**
 
