@@ -31,10 +31,8 @@ import {
 } from './protocol';
 
 export type PhoneMachineSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegmentId>;
-export type PhoneMachineTransactionSnapshot = PhoneTransactionSnapshot<
-  PhoneSceneId,
-  PhoneSegmentId
->;
+export type PhoneMachineTransactionSnapshot =
+  PhoneTransactionSnapshot<PhoneSceneId, PhoneSegmentId>;
 export type PhoneMachineResult = PhoneReduceResult<PhoneSceneId, PhoneSegmentId>;
 
 type BootOptions = Readonly<{
@@ -771,7 +769,9 @@ function matchingActiveAttempt(
   snapshot: PhoneMachineTransactionSnapshot,
   attempt: PhoneAttemptKey
 ): boolean {
-  return sameAttempt(snapshot.transaction.attempt, attempt);
+  return snapshot.visibility === 'foreground'
+    && snapshot.viewport.supported
+    && sameAttempt(snapshot.transaction.attempt, attempt);
 }
 
 function updateSegmentPhase(
@@ -870,7 +870,8 @@ function handleEvidence(
   token: string
 ): PhoneMachineResult {
   const transaction = snapshot.transaction;
-  if (!sameAttempt(transaction.attempt, slot.attempt) || kind !== slot.kind) {
+  if (snapshot.visibility !== 'foreground' || !snapshot.viewport.supported
+    || !sameAttempt(transaction.attempt, slot.attempt) || kind !== slot.kind) {
     return freezeOwned({ snapshot, effects: [] });
   }
   const requirements = [...transaction.requiredPrepared, ...transaction.requiredFinal];
@@ -943,52 +944,123 @@ function handleRetry(snapshot: PhoneMachineSnapshot): PhoneMachineResult {
   });
 }
 
-export function phoneEventPriority(event: PhoneStoryEvent): number {
-  switch (event.type) {
-    case 'disconnect-requested': return 0;
-    case 'page-hidden':
-    case 'viewport-sampled': return event.type === 'page-hidden' || event.change !== 'toolbar' ? 1 : 4;
-    case 'terminal-fault': return 2;
-    case 'entry-requested': return 3;
-    case 'page-shown': return 4;
-    case 'physical-intent':
-    case 'scroll-sampled': return 6;
-    default: return 5;
+function handleScroll(
+  snapshot: PhoneMachineSnapshot,
+  sample: Extract<PhoneStoryEvent, { type: 'scroll-sampled' }>['sample']
+): PhoneMachineResult {
+  if (snapshot.visibility !== 'foreground') return freezeOwned({ snapshot, effects: [] });
+  return freezeOwned({
+    snapshot: { ...snapshot, stateRevision: snapshot.stateRevision + 1, scroll: sample },
+    effects: []
+  });
+}
+
+function recoverForViewport(
+  snapshot: PhoneMachineSnapshot,
+  viewport: PhoneViewportSnapshot,
+  invalidated: PhoneAttemptKey | null
+): PhoneMachineResult {
+  const base = freezeOwned({ ...snapshot, viewport, visibility: 'foreground' }) as PhoneMachineSnapshot;
+  const prefix: readonly PhoneStoryEffect[] = invalidated
+    ? [{ type: 'invalidate-attempt', attempt: invalidated }]
+    : [];
+  if (base.stableCommit) {
+    const recovery = reprojectCommittedPlane(base);
+    return freezeOwned({ snapshot: recovery.snapshot, effects: [...prefix, ...recovery.effects] });
   }
+  const candidate = base.status === 'transaction'
+    ? base.transaction.candidateSceneId
+    : phoneEntryForLocation(base.originalEntry.pathname, base.originalEntry.hash).sceneId;
+  return beginTransaction(base, {
+    mode: 'boot', sourceSceneId: null, candidateSceneId: candidate,
+    segmentId: null, direction: null, request: base.originalEntry,
+    commitIntent: 'semantic'
+  }, prefix);
 }
 
-export type PhoneQueuedEvent = Readonly<{
-  sequence: number;
-  event: PhoneStoryEvent;
-}>;
-
-export type PhoneEventQueue = readonly PhoneQueuedEvent[];
-
-export function enqueuePhoneStoryEvent(
-  queue: PhoneEventQueue,
-  event: PhoneStoryEvent,
-  sequence: number
-): PhoneEventQueue {
-  return freezeOwned([...queue, { event, sequence }]);
+function handleViewport(
+  snapshot: PhoneMachineSnapshot,
+  event: Extract<PhoneStoryEvent, { type: 'viewport-sampled' }>
+): PhoneMachineResult {
+  if (event.change === 'unsupported' || !event.viewport.supported) {
+    const attempt = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null;
+    const effects: readonly PhoneStoryEffect[] = attempt
+      ? [{ type: 'invalidate-attempt', attempt }, {
+          type: 'pause-closure', attempt, reason: 'superseded' }]
+      : [];
+    if (snapshot.stableCommit && snapshot.presentationProof) {
+      return freezeOwned({
+        snapshot: {
+          ...snapshot, status: 'stable', stateRevision: snapshot.stateRevision + 1,
+          transaction: null, viewport: event.viewport,
+          scroll: snapshot.scroll ?? { x: 0, y: 0, sampledAt: 0, origin: 'runtime' },
+          input: emptyInput(), stableCommit: snapshot.stableCommit,
+          presentationProof: snapshot.presentationProof
+        },
+        effects
+      });
+    }
+    return freezeOwned({
+      snapshot: { ...snapshot, stateRevision: snapshot.stateRevision + 1,
+        viewport: event.viewport, input: emptyInput() },
+      effects
+    });
+  }
+  if (event.change === 'toolbar' && snapshot.status === 'transaction'
+    && !['presenting-target', 'aligning', 'verifying', 'rolling-back']
+      .includes(snapshot.transaction.phase)) {
+    return freezeOwned({
+      snapshot: { ...snapshot, stateRevision: snapshot.stateRevision + 1,
+        viewport: event.viewport },
+      effects: []
+    });
+  }
+  const invalidated = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null;
+  return recoverForViewport(snapshot, event.viewport, invalidated);
 }
 
-export function dequeuePhoneStoryEvent(queue: PhoneEventQueue): Readonly<{
-  item: PhoneQueuedEvent | null;
-  queue: PhoneEventQueue;
-}> {
-  if (queue.length === 0) return freezeOwned({ item: null, queue });
-  const selected = queue.reduce((best, item) => {
-    const priority = phoneEventPriority(item.event);
-    const bestPriority = phoneEventPriority(best.event);
-    return priority < bestPriority
-      || (priority === bestPriority && item.sequence < best.sequence)
-      ? item
-      : best;
+function handlePageHidden(
+  snapshot: PhoneMachineSnapshot,
+  persisted: boolean
+): PhoneMachineResult {
+  const visibility = persisted ? 'persisted' : 'hidden';
+  if (snapshot.status !== 'transaction') {
+    return freezeOwned({ snapshot: {
+      ...snapshot, stateRevision: snapshot.stateRevision + 1,
+      visibility, input: emptyInput()
+    }, effects: [] });
+  }
+  const deadline = snapshot.transaction.deadline;
+  const effects: PhoneStoryEffect[] = [{
+    type: 'pause-closure', attempt: snapshot.transaction.attempt, reason: 'hidden'
+  }];
+  if (deadline) effects.push({
+    type: 'cancel-deadline', attempt: snapshot.transaction.attempt,
+    operation: deadline.operation
   });
   return freezeOwned({
-    item: selected,
-    queue: queue.filter((item) => item !== selected)
+    snapshot: {
+      ...snapshot, stateRevision: snapshot.stateRevision + 1,
+      visibility, input: emptyInput(),
+      transaction: { ...snapshot.transaction, evidence: [],
+        deadline: deadline ? { ...deadline, suspended: true } : null }
+    },
+    effects
   });
+}
+
+function handlePageShown(
+  snapshot: PhoneMachineSnapshot,
+  persisted: boolean
+): PhoneMachineResult {
+  if (!persisted && snapshot.visibility === 'foreground') {
+    return freezeOwned({ snapshot, effects: [] });
+  }
+  return recoverForViewport(
+    snapshot,
+    snapshot.viewport,
+    snapshot.status === 'transaction' ? snapshot.transaction.attempt : null
+  );
 }
 
 export function reducePhoneStory(
@@ -998,56 +1070,41 @@ export function reducePhoneStory(
   switch (event.type) {
     case 'entry-requested': return handleEntry(snapshot, event.request);
     case 'retry-requested': return handleRetry(snapshot);
-    case 'segment-requested':
-      return handleSegment(
-        snapshot,
-        event.direction,
-        event.physicalEpoch,
-        event.reducedMotion ?? false
-      );
+    case 'segment-requested': return handleSegment(
+      snapshot, event.direction, event.physicalEpoch, event.reducedMotion ?? false
+    );
     case 'physical-intent':
       return handleSegment(snapshot, event.direction, event.epoch, false);
-    case 'evidence-reported':
-      return snapshot.status === 'transaction'
-        ? handleEvidence(snapshot, event.slot, event.report.kind, event.report.token)
-        : freezeOwned({ snapshot, effects: [] });
-    case 'prepared-reported':
-      return snapshot.status === 'transaction'
-        ? handleEvidence(snapshot, event.slot, event.report.kind, event.report.token)
-        : freezeOwned({ snapshot, effects: [] });
-    case 'frame-reported':
-      return snapshot.status === 'transaction'
-        ? handleEvidence(snapshot, event.slot, event.slot.kind, event.report.token)
-        : freezeOwned({ snapshot, effects: [] });
-    case 'failure-reported':
-      return snapshot.status === 'transaction'
-        ? handleFailure(snapshot, event.slot, event.failure)
-        : freezeOwned({ snapshot, effects: [] });
-    case 'deadline-fired':
-      return snapshot.status === 'transaction'
-        ? handleDeadline(snapshot, event)
-        : freezeOwned({ snapshot, effects: [] });
-    case 'transition-progressed':
-      return snapshot.status === 'transaction'
-        ? handleProgress(snapshot, event.attempt, event.progress)
-        : freezeOwned({ snapshot, effects: [] });
-    case 'transition-completed':
-      return snapshot.status === 'transaction'
-        ? handleTransitionComplete(snapshot, event.attempt)
-        : freezeOwned({ snapshot, effects: [] });
-    case 'dwell-completed':
-      return snapshot.status === 'transaction'
-        ? handleBoundaryAdvance(snapshot, event.attempt, 'dwelling', null)
-        : freezeOwned({ snapshot, effects: [] });
-    case 'leg-intent':
-      return snapshot.status === 'transaction'
-        ? handleBoundaryAdvance(
-            snapshot,
-            event.attempt,
-            'awaiting-leg-intent',
-            event.physicalEpoch
-          )
-        : freezeOwned({ snapshot, effects: [] });
+    case 'evidence-reported': return snapshot.status === 'transaction'
+      ? handleEvidence(snapshot, event.slot, event.report.kind, event.report.token)
+      : freezeOwned({ snapshot, effects: [] });
+    case 'prepared-reported': return snapshot.status === 'transaction'
+      ? handleEvidence(snapshot, event.slot, event.report.kind, event.report.token)
+      : freezeOwned({ snapshot, effects: [] });
+    case 'frame-reported': return snapshot.status === 'transaction'
+      ? handleEvidence(snapshot, event.slot, event.slot.kind, event.report.token)
+      : freezeOwned({ snapshot, effects: [] });
+    case 'failure-reported': return snapshot.status === 'transaction'
+      ? handleFailure(snapshot, event.slot, event.failure)
+      : freezeOwned({ snapshot, effects: [] });
+    case 'deadline-fired': return snapshot.status === 'transaction'
+      ? handleDeadline(snapshot, event) : freezeOwned({ snapshot, effects: [] });
+    case 'transition-progressed': return snapshot.status === 'transaction'
+      ? handleProgress(snapshot, event.attempt, event.progress)
+      : freezeOwned({ snapshot, effects: [] });
+    case 'transition-completed': return snapshot.status === 'transaction'
+      ? handleTransitionComplete(snapshot, event.attempt)
+      : freezeOwned({ snapshot, effects: [] });
+    case 'dwell-completed': return snapshot.status === 'transaction'
+      ? handleBoundaryAdvance(snapshot, event.attempt, 'dwelling', null)
+      : freezeOwned({ snapshot, effects: [] });
+    case 'leg-intent': return snapshot.status === 'transaction'
+      ? handleBoundaryAdvance(snapshot, event.attempt, 'awaiting-leg-intent', event.physicalEpoch)
+      : freezeOwned({ snapshot, effects: [] });
+    case 'scroll-sampled': return handleScroll(snapshot, event.sample);
+    case 'viewport-sampled': return handleViewport(snapshot, event);
+    case 'page-hidden': return handlePageHidden(snapshot, event.persisted);
+    case 'page-shown': return handlePageShown(snapshot, event.persisted);
     case 'terminal-fault':
       return terminalFault(snapshot, {
         code: event.code,
@@ -1075,13 +1132,4 @@ export function selectPhoneCheckpoint(snapshot: PhoneMachineSnapshot): string | 
 export function selectPhoneNavigationScene(snapshot: PhoneMachineSnapshot): PhoneSceneId | null {
   const scene = committedScene(snapshot);
   return scene ? phoneSceneById(scene).navigationId : null;
-}
-
-export function selectPhoneAdjacentSegment(
-  snapshot: PhoneMachineSnapshot,
-  direction: PhoneDirection
-): PhoneSegmentId | null {
-  const scene = committedScene(snapshot);
-  const target = scene ? phoneAdjacentTarget(scene, direction) : null;
-  return scene && target ? phoneSegmentBetween(scene, target)?.id ?? null : null;
 }

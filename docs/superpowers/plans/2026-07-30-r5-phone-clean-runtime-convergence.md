@@ -2525,13 +2525,13 @@ git commit -m "feat(r5): close phone segment rollback machine"
 
 ### Slice 4C — input, history, viewport, and BFCache
 
-- [ ] **Step 4C.1: Build a deterministic runtime environment**
+- [x] **Step 4C.1: Build a deterministic runtime environment**
 
 Provide controllable monotonic IDs, active-foreground clock, timeout/RAF
 queues, listener registration, visual viewport, history/hash, page lifecycle,
 scroll commands, and snapshot publication. Expose listener/resource counts.
 
-- [ ] **Step 4C.2: Write RED physical-input/history/viewport tests**
+- [x] **Step 4C.2: Write RED physical-input/history/viewport tests**
 
 Cover wheel, touch, pointer, keyboard, momentum tails, native corridors,
 Contact controls, runtime-originated scroll samples, menu/hash/popstate
@@ -2554,7 +2554,7 @@ Drive the Section 4.8 phase table mechanically. Assert:
   external entry;
 - that queued warm entry starts only after source re-proof.
 
-- [ ] **Step 4C.3: Write RED BFCache and hidden-deadline tests**
+- [x] **Step 4C.3: Write RED BFCache and hidden-deadline tests**
 
 Cover `pagehide/pageshow` with `persisted=true` and `false`:
 
@@ -2568,7 +2568,7 @@ Cover `pagehide/pageshow` with `persisted=true` and `false`:
 - repeated back/forward restores one listener set, one authority, and no stale
   media/Canvas token.
 
-- [ ] **Step 4C.4: Implement the sole input/history/page-lifecycle adapter and commit**
+- [x] **Step 4C.4: Implement the sole input/history/page-lifecycle adapter and commit**
 
 ```bash
 pnpm -C app exec vitest run src/production/phone-story/runtime.test.ts \

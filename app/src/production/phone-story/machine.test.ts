@@ -3,14 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   createPhoneEvidenceSlot,
   createPhoneStoryBoot,
-  dequeuePhoneStoryEvent,
-  enqueuePhoneStoryEvent,
-  phoneEventPriority,
   reducePhoneStory,
   selectPhoneCheckpoint,
   selectPhoneEdgeSurface,
   selectPhoneNavigationScene,
-  type PhoneEventQueue,
   type PhoneMachineResult,
   type PhoneMachineSnapshot,
   type PhoneMachineTransactionSnapshot
@@ -23,6 +19,7 @@ import {
   type PhoneSceneId,
   type PhoneSegmentManifest
 } from './manifest';
+import { phoneEventPriority } from './runtime';
 import {
   PHONE_FINAL_EVIDENCE_KINDS,
   type PhoneEvidenceKind,
@@ -387,33 +384,6 @@ describe('phone event queue and revision semantics', () => {
     expect(phoneEventPriority({ type: 'page-shown', persisted: true })).toBe(4);
     expect(phoneEventPriority({ type: 'deadline-fired', operation: 'moduleLoad', attempt: null })).toBe(5);
     expect(phoneEventPriority({ type: 'physical-intent', direction: 'forward', epoch: 1 })).toBe(6);
-  });
-
-  it('dequeues by lane and preserves FIFO order within a lane', () => {
-    const inputA: PhoneStoryEvent = {
-      type: 'physical-intent', direction: 'forward', epoch: 1
-    };
-    const inputB: PhoneStoryEvent = {
-      type: 'physical-intent', direction: 'reverse', epoch: 2
-    };
-    const entry: PhoneStoryEvent = {
-      type: 'entry-requested',
-      request: { pathname: '/', hash: '#brand', origin: 'menu' }
-    };
-    const disconnected: PhoneStoryEvent = { type: 'disconnect-requested' };
-    const queue = [inputA, inputB, entry, disconnected].reduce<PhoneEventQueue>(
-      (current, event, sequence) => enqueuePhoneStoryEvent(current, event, sequence),
-      []
-    );
-    const first = dequeuePhoneStoryEvent(queue);
-    const second = dequeuePhoneStoryEvent(first.queue);
-    const third = dequeuePhoneStoryEvent(second.queue);
-    const fourth = dequeuePhoneStoryEvent(third.queue);
-    expect(first.item?.event).toBe(disconnected);
-    expect(second.item?.event).toBe(entry);
-    expect(third.item?.event).toBe(inputA);
-    expect(fourth.item?.event).toBe(inputB);
-    expect(dequeuePhoneStoryEvent(fourth.queue).item).toBeNull();
   });
 
   it('keeps state, commit, generation, and plane revisions independent', () => {
