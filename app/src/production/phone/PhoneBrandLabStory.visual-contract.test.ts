@@ -208,13 +208,13 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(figure3Styles).toMatch(
       /figure3-transition__stage[^}]+background:\s*var\(--phone-figure3-paper\)/s
     );
-    expect(figure3Scene).toContain('data-phone-figure3-endpoint-ready');
+    expect(figure3Scene).toContain('data-phone-figure3-paper-canvas');
     expect(figure3Scene).toContain(
       'PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS'
     );
-    expect(figure3Scene).toContain(
-      "`${compositor ? 'ready' : 'fallback'}-${label}`"
-    );
+    expect(figure3Scene).toContain('phoneFigure3EndpointIsPresented');
+    expect(figure3Scene).toContain("reportFrame('figure3-paper-canvas'");
+    expect(figure3Scene).not.toContain('data-phone-figure3-endpoint-ready');
     expect(figure3Styles).toContain(
       'assets/figure3-initial-paper.webp'
     );
@@ -236,10 +236,11 @@ describe('Phone Brand → Lab visual contracts', () => {
   });
 
   it('uses one complementary ink boundary from Brand into Figure3', () => {
-    expect(brandFigure3Transition).toContain('createPhoneInkTransition');
+    expect(brandFigure3Transition).toContain('createPhoneInkLeaf');
     expect(brandFigure3Transition).toContain("direction: 'bottom-to-top'");
     expect(brandFigure3Transition).toContain("seed: 'brand-figure3'");
-    expect(brandFigure3Transition).toContain("from,\n      to,");
+    expect(brandFigure3Transition).toContain("surfaceId: 'fx:brand-figure3'");
+    expect(brandFigure3Transition).not.toContain('Group45PhoneTransitionProps');
     expect(brandFigure3Transition).not.toContain("strategy: 'endpoint-dissolve'");
   });
 

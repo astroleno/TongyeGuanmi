@@ -1,3 +1,7 @@
+.phone-figure3__mount {
+  min-block-size: max(80svh, 38rem);
+}
+
 .phone-figure3 {
   --phone-figure3-paper: var(--portrait-reading-paper, #ede4d2);
   --phone-figure3-paper-treatment:

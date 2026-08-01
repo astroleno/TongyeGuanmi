@@ -12,8 +12,10 @@ import type {
 } from './protocol';
 import { createPhoneStoryRuntime, type PhoneChunkRecoveryPort,
   type PhoneDependencyLoadResult, type PhoneStoryRuntimeEnvironment } from './runtime';
-import { loadPhoneSceneModule, PhoneSceneLeaf, PhoneSceneReading } from './scenes';
-import { loadPhoneTransitionModule, PhoneTransitionLeaf } from './transitions';
+import { createPhoneSceneTopology, loadPhoneSceneModule, PhoneSceneLeaf,
+  PhoneSceneReading, type PhonePlaneBuffer, type PhoneSceneRenderSlot } from './scenes';
+import { createPhoneEffectTopology, loadPhoneTransitionModule, PhoneTransitionLeaf,
+  type PhoneEffectRenderSlot } from './transitions';
 import './styles.css';
 
 export type PhoneStoryShellProps = Readonly<{
@@ -24,13 +26,7 @@ export type PhoneStoryShellProps = Readonly<{
 }>;
 
 type PhoneShellSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegmentId>;
-type PhonePlaneBuffer = 'a' | 'b';
 const WHEEL_GESTURE_GAP_MS = 240;
-type PhoneSceneRenderSlot = Readonly<{
-  sceneId: PhoneSceneId;
-  buffer: PhonePlaneBuffer;
-  reports: PhoneLeafReportPort;
-}>;
 
 function sampleLayout() {
   const width = Math.max(0, window.innerWidth);
@@ -326,10 +322,6 @@ export function PhoneStoryShell({
   const rootRef = useRef<HTMLElement | null>(null);
   const connectedRef = useRef(false);
   const reportPorts = useRef(new Map<string, PhoneLeafReportPort>());
-  const retainedScenes = useRef(new Map<PhoneSceneId, PhoneSceneRenderSlot>());
-  const retainedEffect = useRef<Readonly<{
-    attemptId: string; segmentId: PhoneSegmentId; reports: PhoneLeafReportPort;
-  }> | null>(null);
   const [owners] = useState(() => {
     const presentation = createProjector();
     const engine = createPhoneStoryRuntime({
@@ -339,7 +331,11 @@ export function PhoneStoryShell({
       ports: { loadDependencies: loadPhoneDependencies },
       chunkRecovery
     });
-    return Object.freeze({ presentation, engine });
+    return Object.freeze({
+      presentation, engine,
+      sceneTopology: createPhoneSceneTopology<PhoneSceneId>(),
+      effectTopology: createPhoneEffectTopology<PhoneSegmentId>()
+    });
   });
   const snapshot = useSyncExternalStore(
     owners.engine.subscribe,
@@ -356,8 +352,8 @@ export function PhoneStoryShell({
       connectedRef.current = false;
       runPhoneCleanupSteps('Phone shell cleanup failed', [
         disconnect, detach,
-        () => reportPorts.current.clear(), () => retainedScenes.current.clear(),
-        () => { retainedEffect.current = null; }
+        () => reportPorts.current.clear(), owners.sceneTopology.clear,
+        owners.effectTopology.clear
       ]);
     };
   }, [owners]);
@@ -381,56 +377,49 @@ export function PhoneStoryShell({
   }
   const stableScene = snapshot.stableCommit?.sceneId ?? null;
   const roles = bufferRoles(snapshot);
-  const scenes: PhoneSceneRenderSlot[] = [];
-  const sceneSlot = (
-    sceneId: PhoneSceneId,
-    buffer: PhonePlaneBuffer,
-    binding: PhoneLeafReportBinding
-  ): PhoneSceneRenderSlot => {
-    const retained = retainedScenes.current.get(sceneId);
-    const slot = retained ? { ...retained, buffer }
-      : { sceneId, buffer, reports: reportPort(binding) };
-    retainedScenes.current.set(sceneId, slot);
-    return slot;
-  };
-  let effect = retainedEffect.current;
+  const scenes: PhoneSceneRenderSlot<PhoneSceneId>[] = [];
+  let effect: PhoneEffectRenderSlot<PhoneSegmentId> | null = null;
   if (connectedRef.current && snapshot.status === 'transaction') {
     const transaction = snapshot.transaction;
+    const pairClosure = transaction.mode === 'segment'
+      && transaction.closure.retireAfter === 'pair-exit-or-route-dispose';
+    const pair: readonly [PhoneSceneId, PhoneSceneId] | null = pairClosure
+      && transaction.sourceSceneId
+      ? [transaction.sourceSceneId, transaction.candidateSceneId] : null;
+    owners.sceneTopology.setPair(pair);
     if (transaction.sourceSceneId
       && transaction.mode !== 'rollback' && transaction.mode !== 'recovery') {
       const sceneId = transaction.sourceSceneId;
-      const slot = sceneSlot(sceneId, roles.source, bindingFor(
-        snapshot, 'source', phoneSceneById(sceneId).surfaces
-      ));
-      scenes.push(slot);
+      scenes.push(owners.sceneTopology.retain(sceneId, roles.source, () => reportPort(
+        bindingFor(snapshot, 'source', phoneSceneById(sceneId).surfaces)
+      )));
     }
     const sceneId = transaction.candidateSceneId;
     const leg: PhoneTransactionLeg = transaction.mode === 'rollback' ? 'rollback' : 'target';
-    const slot = sceneSlot(sceneId,
-      transaction.mode === 'rollback' ? roles.source : roles.receiver,
-      bindingFor(snapshot, leg, phoneSceneById(sceneId).surfaces));
-    scenes.push(slot);
+    scenes.push(owners.sceneTopology.retain(sceneId,
+      transaction.mode === 'rollback' ? roles.source : roles.receiver, () => reportPort(
+        bindingFor(snapshot, leg, phoneSceneById(sceneId).surfaces)
+      )));
     const segmentId = transaction.attempt.segmentId;
-    if (transaction.mode === 'segment' && segmentId && transaction.attempt.direction) {
+    const direction = transaction.attempt.direction;
+    if (transaction.mode === 'segment' && segmentId && direction) {
       const segment = phoneManifest.segments.find(({ id }) => id === segmentId);
-      if (segment && (effect?.attemptId !== transaction.attempt.transactionId
-        || effect.segmentId !== segmentId)) effect = {
-        attemptId: transaction.attempt.transactionId, segmentId,
-        reports: reportPort(bindingFor(snapshot, 'effect', [
-          segment[transaction.attempt.direction].effectSurface
-        ]))
-      };
-      retainedEffect.current = effect;
-    }
+      if (segment) effect = owners.effectTopology.retain(
+        transaction.attempt.transactionId, segmentId, pairClosure, () => reportPort(
+          bindingFor(snapshot, 'effect', [
+            segment[direction].effectSurface
+          ])
+        )
+      );
+    } else effect = owners.effectTopology.clear();
   } else if (connectedRef.current && snapshot.stableCommit) {
-    const retained = retainedScenes.current.get(snapshot.stableCommit.sceneId);
-    if (retained) scenes.push({ ...retained, buffer: roles.source });
-  }
-  if (snapshot.status !== 'transaction' || snapshot.transaction.mode !== 'segment') effect = retainedEffect.current = null;
-  const activeSceneIds = new Set(scenes.map(({ sceneId }) => sceneId));
-  for (const sceneId of retainedScenes.current.keys()) {
-    if (!activeSceneIds.has(sceneId)) retainedScenes.current.delete(sceneId);
-  }
+    effect = snapshot.status === 'stable'
+      ? owners.effectTopology.finish() : owners.effectTopology.clear();
+    scenes.push(...owners.sceneTopology.stable(
+      snapshot.stableCommit.sceneId, roles.source, roles.receiver
+    ));
+  } else effect = owners.effectTopology.clear();
+  owners.sceneTopology.prune(scenes);
   const sourceScenes = scenes.filter(({ buffer }) => buffer === roles.source);
   const receiverScenes = scenes.filter(({ buffer }) => buffer === roles.receiver);
   const provenBoot = connectedRef.current && snapshot.status === 'stable'

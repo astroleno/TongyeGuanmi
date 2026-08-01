@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 import {
   PhoneFigure3,
   PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS,
@@ -13,14 +14,14 @@ import {
 } from './PhoneFigure3';
 
 describe('PhoneFigure3', () => {
-  it('owns one optional Figure3 video and skips it for reduced motion', () => {
+  const reports = {
+    registerMount: vi.fn(), reportPrepared: vi.fn(), reportFrame: vi.fn(),
+    reportProgress: vi.fn(), reportComplete: vi.fn(), reportFailure: vi.fn()
+  } satisfies PhoneLeafReportPort;
+
+  it('owns one persistent Figure3 video and one visible paper Canvas', () => {
     const motionMarkup = renderToStaticMarkup(createElement(PhoneFigure3, {
-      active: true,
-      reducedMotion: false
-    }));
-    const reducedMarkup = renderToStaticMarkup(createElement(PhoneFigure3, {
-      active: true,
-      reducedMotion: true
+      reports
     }));
 
     expect(motionMarkup.match(/data-media-key="figure3-motion"/g)).toHaveLength(1);
@@ -28,8 +29,6 @@ describe('PhoneFigure3', () => {
     expect(motionMarkup.match(/<canvas/g)).toHaveLength(1);
     expect(motionMarkup).toContain('data-phone-figure3-paper-canvas');
     expect(motionMarkup).toContain('data-phone-media-fallback="figure3"');
-    expect(reducedMarkup).not.toContain('<video');
-    expect(reducedMarkup).not.toContain('<canvas');
     expect(motionMarkup).toContain('data-phone-media-owner="figure3-motion"');
   });
 

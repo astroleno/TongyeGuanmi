@@ -14,6 +14,57 @@ export type PhoneSceneModule = Readonly<{
   Reading?: ComponentType<PhoneSceneReadingProps>;
 }>;
 export type PhoneSceneLoader = () => Promise<PhoneSceneModule>;
+export type PhonePlaneBuffer = 'a' | 'b';
+export type PhoneSceneRenderSlot<SceneId extends string = string> = Readonly<{
+  sceneId: SceneId;
+  buffer: PhonePlaneBuffer;
+  reports: PhoneLeafReportPort;
+}>;
+
+export function createPhoneSceneTopology<SceneId extends string>() {
+  const retained = new Map<SceneId, PhoneSceneRenderSlot<SceneId>>();
+  let pair: readonly [SceneId, SceneId] | null = null;
+  return Object.freeze({
+    retain(
+      sceneId: SceneId,
+      buffer: PhonePlaneBuffer,
+      createReports: () => PhoneLeafReportPort
+    ): PhoneSceneRenderSlot<SceneId> {
+      const current = retained.get(sceneId);
+      const slot = current ? { ...current, buffer }
+        : { sceneId, buffer, reports: createReports() };
+      retained.set(sceneId, slot);
+      return slot;
+    },
+    setPair(next: readonly [SceneId, SceneId] | null): void {
+      pair = next;
+    },
+    stable(
+      sceneId: SceneId,
+      source: PhonePlaneBuffer,
+      receiver: PhonePlaneBuffer
+    ): readonly PhoneSceneRenderSlot<SceneId>[] {
+      const stable = retained.get(sceneId);
+      if (!stable) return [];
+      const result: PhoneSceneRenderSlot<SceneId>[] = [];
+      if (pair?.includes(sceneId)) {
+        const partnerId = pair[0] === sceneId ? pair[1] : pair[0];
+        const partner = retained.get(partnerId);
+        if (partner) result.push({ ...partner, buffer: receiver });
+      }
+      result.push({ ...stable, buffer: source });
+      return result;
+    },
+    prune(entries: readonly PhoneSceneRenderSlot<SceneId>[]): void {
+      const active = new Set(entries.map(({ sceneId }) => sceneId));
+      for (const sceneId of retained.keys()) if (!active.has(sceneId)) retained.delete(sceneId);
+    },
+    clear(): void {
+      pair = null;
+      retained.clear();
+    }
+  });
+}
 
 export type PhoneSceneRegistry<SceneId extends string = string> = Readonly<{
   load(sceneId: SceneId): Promise<PhoneSceneModule>;
@@ -76,7 +127,9 @@ const sceneLoaders = Object.freeze({
   'method-top': () => import('../../scenes/method-top/phone/PhoneMethodTop'),
   'figure2-animation': () => import('../../scenes/figure2-animation/phone/PhoneFigure2'),
   'figure2-proof': () => import('../../scenes/figure2-proof/phone/PhoneFigure2Proof'),
-  brand: () => import('../../scenes/brand/phone/PhoneBrand')
+  brand: () => import('../../scenes/brand/phone/PhoneBrand'),
+  'figure3-animation': () => import('../../scenes/figure3-animation/phone/PhoneFigure3'),
+  services: () => import('../../scenes/services/phone/PhoneServices')
 }) satisfies Partial<Record<string, PhoneSceneLoader>>;
 const defaultSceneRegistry = createPhoneSceneRegistry<string>(sceneLoaders);
 

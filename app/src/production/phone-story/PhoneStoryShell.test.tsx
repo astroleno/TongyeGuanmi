@@ -129,7 +129,9 @@ vi.mock('./presentation', () => ({
 
 vi.mock('./scenes', async () => {
   const { createElement } = await import('react');
+  const actual = await vi.importActual<typeof import('./scenes')>('./scenes');
   return {
+    createPhoneSceneTopology: actual.createPhoneSceneTopology,
     loadPhoneSceneModule: vi.fn(async () => ({ default: () => null })),
     PhoneSceneLeaf: (props: Record<string, unknown>) => {
       probe.sceneProps.push(props);
@@ -143,7 +145,9 @@ vi.mock('./scenes', async () => {
 
 vi.mock('./transitions', async () => {
   const { createElement } = await import('react');
+  const actual = await vi.importActual<typeof import('./transitions')>('./transitions');
   return {
+    createPhoneEffectTopology: actual.createPhoneEffectTopology,
     loadPhoneTransitionModule: vi.fn(async () => ({ default: () => null })),
     PhoneTransitionLeaf: (props: Record<string, unknown>) => {
       probe.transitionProps.push(props);
@@ -234,10 +238,10 @@ function faultedSnapshot(): SnapshotRecord {
   };
 }
 
-function segmentSnapshot(stageIndex = 0): SnapshotRecord {
+function segmentSnapshot(stageIndex = 0, generation = 2): SnapshotRecord {
   const activeAttempt = Object.freeze({
-    authorityId: 'test-authority', transactionId: 'test:2:segment',
-    transactionGeneration: 2, mode: 'segment', sceneId: 'pattern',
+    authorityId: 'test-authority', transactionId: `test:${generation}:segment`,
+    transactionGeneration: generation, mode: 'segment', sceneId: 'pattern',
     segmentId: 'hero-pattern', direction: 'forward'
   });
   return {
@@ -257,6 +261,52 @@ function segmentSnapshot(stageIndex = 0): SnapshotRecord {
       requiredFinal: [], evidence: [], progress: 0,
       closure: { load: [], mount: [], prewarm: [], resourceBudget: {} }
     }
+  };
+}
+
+function figure3PairSnapshot(
+  sourceSceneId: 'figure3-animation' | 'services',
+  candidateSceneId: 'figure3-animation' | 'services',
+  generation: number,
+  sourceCommitSequence = 1
+): SnapshotRecord {
+  const direction = sourceSceneId === 'figure3-animation' ? 'forward' : 'reverse';
+  const activeAttempt = Object.freeze({
+    authorityId: 'test-authority', transactionId: `test:${generation}:figure3-pair`,
+    transactionGeneration: generation, mode: 'segment', sceneId: candidateSceneId,
+    segmentId: 'figure3-services', direction
+  });
+  return {
+    ...stableSnapshot(), status: 'transaction', stateRevision: 20 + generation,
+    stableCommit: {
+      sceneId: sourceSceneId, landing: {}, commitSequence: sourceCommitSequence
+    },
+    presentationProof: {
+      commitSequence: sourceCommitSequence, planeRevision: sourceCommitSequence
+    },
+    lastPlaneRevision: sourceCommitSequence,
+    transaction: {
+      mode: 'segment', phase: 'preparing', attempt: activeAttempt,
+      sourceSceneId, candidateSceneId, stageIndex: 0,
+      planeRevision: null,
+      requiredPrepared: [], requiredFinal: [], evidence: [], progress: 0,
+      closure: {
+        load: [], mount: [], prewarm: [], resourceBudget: {},
+        retireAfter: 'pair-exit-or-route-dispose'
+      }
+    }
+  };
+}
+
+function stableSceneSnapshot(
+  sceneId: 'figure3-animation' | 'services',
+  commitSequence: number
+): SnapshotRecord {
+  return {
+    ...stableSnapshot(), stateRevision: 30 + commitSequence,
+    stableCommit: { sceneId, landing: {}, commitSequence },
+    presentationProof: { commitSequence, planeRevision: commitSequence },
+    lastPlaneRevision: commitSequence
   };
 }
 
@@ -433,6 +483,8 @@ describe('clean PhoneStoryShell ownership', () => {
     const transitionReports = probe.transitionProps.at(-1)?.reports;
     act(() => engine.publish(segmentSnapshot(1)));
     expect(probe.transitionProps.at(-1)?.reports).toBe(transitionReports);
+    act(() => engine.publish(segmentSnapshot(0, 3)));
+    expect(probe.transitionProps.at(-1)?.reports).toBe(transitionReports);
 
     act(() => engine.publish(rollbackSnapshot()));
     expect(host.querySelector('[data-phone-buffer="b"] [data-phone-scene-leaf="hero"]'))
@@ -453,6 +505,41 @@ describe('clean PhoneStoryShell ownership', () => {
       .toBe(recoveredHero);
     expect(host.querySelector('[data-phone-buffer="b"]')?.getAttribute('data-phone-plane'))
       .toBe('source');
+    act(() => root.unmount());
+  });
+
+  it('retains one Figure3 pair topology and report port across the immediate reverse', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+
+    act(() => engine.publish(figure3PairSnapshot(
+      'figure3-animation', 'services', 8
+    )));
+    const figure3 = host.querySelector('[data-phone-scene-leaf="figure3-animation"]');
+    const services = host.querySelector('[data-phone-scene-leaf="services"]');
+    const effect = host.querySelector('[data-phone-transition-leaf="figure3-services"]');
+    const effectReports = probe.transitionProps.at(-1)?.reports;
+    expect(figure3).not.toBeNull();
+    expect(services).not.toBeNull();
+    expect(effect).not.toBeNull();
+
+    act(() => engine.publish(stableSceneSnapshot('services', 2)));
+    expect(host.querySelector('[data-phone-scene-leaf="figure3-animation"]')).toBe(figure3);
+    expect(host.querySelector('[data-phone-scene-leaf="services"]')).toBe(services);
+    expect(host.querySelector('[data-phone-transition-leaf="figure3-services"]')).toBe(effect);
+
+    act(() => engine.publish(figure3PairSnapshot(
+      'services', 'figure3-animation', 9, 2
+    )));
+    expect(host.querySelector('[data-phone-scene-leaf="figure3-animation"]')).toBe(figure3);
+    expect(host.querySelector('[data-phone-scene-leaf="services"]')).toBe(services);
+    expect(host.querySelector('[data-phone-transition-leaf="figure3-services"]')).toBe(effect);
+    expect(probe.transitionProps.at(-1)?.reports).toBe(effectReports);
+
+    act(() => engine.publish(stableSceneSnapshot('figure3-animation', 3)));
+    expect(host.querySelector('[data-phone-scene-leaf="services"]')).toBe(services);
+    expect(host.querySelector('[data-phone-transition-leaf="figure3-services"]')).toBe(effect);
     act(() => root.unmount());
   });
 

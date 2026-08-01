@@ -1,18 +1,25 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SERVICES_COPY } from '..';
-import { PhoneServices, phoneServicesFrame } from './PhoneServices';
+import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
+import { PhoneServices, Reading, phoneServicesFrame } from './PhoneServices';
 
 describe('PhoneServices', () => {
   it('is directly hash-addressable without earlier visual media', () => {
+    const reports = {
+      registerMount: vi.fn(), reportPrepared: vi.fn(), reportFrame: vi.fn(),
+      reportProgress: vi.fn(), reportComplete: vi.fn(), reportFailure: vi.fn()
+    } satisfies PhoneLeafReportPort;
     const markup = renderToStaticMarkup(createElement(PhoneServices, {
-      active: true,
-      reducedMotion: false
+      reports
+    }));
+    const readingMarkup = renderToStaticMarkup(createElement(Reading, {
+      sceneId: 'services'
     }));
 
     expect(markup).toContain('id="services"');
-    expect(markup).toContain('data-phone-reading="native-document"');
+    expect(readingMarkup).toContain('data-phone-reading="services"');
     expect(markup).toContain(SERVICES_COPY[3]);
     expect(markup.match(/phone-services__row/g)).toHaveLength(4);
     expect(markup).not.toContain('<video');

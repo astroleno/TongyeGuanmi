@@ -1,13 +1,11 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef
-} from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { SERVICES_COPY } from '..';
-import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
+import type {
+  PhoneActivationInvocation,
+  PhoneLeafCommandHandle,
+  PhoneLeafGenerationBinding,
+  PhoneLeafReportPort
+} from '../../../production/phone-story/presentation';
 import './PhoneServices.css';
 
 const SERVICE_ROW_OFFSETS = [4, 8, 12, 16] as const;
@@ -21,81 +19,21 @@ export function phoneServicesFrame(
   reducedMotion = false
 ): Readonly<{ progress: number; opacity: number; y: number }> {
   const progress = reducedMotion ? 1 : clamp(rawProgress);
-  return {
-    progress,
-    opacity: 0.98 + progress * 0.02,
-    y: (1 - progress) * 10
-  };
+  return { progress, opacity: .98 + progress * .02, y: (1 - progress) * 10 };
 }
 
-function applyServicesFrame(
-  root: HTMLElement | null,
-  rawProgress: number,
-  reducedMotion: boolean
-): void {
-  if (!root) return;
-  const frame = phoneServicesFrame(rawProgress, reducedMotion);
-  root.style.setProperty('--phone-services-opacity', frame.opacity.toFixed(4));
-  root.style.setProperty('--phone-services-y', `${frame.y.toFixed(2)}px`);
-  root.dataset.phoneServicesProgress = frame.progress.toFixed(4);
-}
-
-/** A semantic, native-scroll Services chapter with no internal scrollport. */
-export const PhoneServices = forwardRef<
-  ScenePresentationAdapterHandle,
-  Group45PhoneSceneProps
->(function PhoneServices({ active, reducedMotion, onReady }, forwardedRef) {
-  const rootRef = useRef<HTMLElement | null>(null);
-  const update = useCallback((progress: number) => {
-    applyServicesFrame(rootRef.current, progress, reducedMotion);
-  }, [reducedMotion]);
-  const enter = useCallback(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    root.dataset.phoneServicesActive = 'true';
-    update(1);
-  }, [update]);
-  const leave = useCallback(() => {
-    if (rootRef.current) rootRef.current.dataset.phoneServicesActive = 'false';
-  }, []);
-
-  useEffect(() => {
-    update(1);
-    onReady?.();
-  }, [onReady, update]);
-  useEffect(() => {
-    if (active) enter();
-    else leave();
-  }, [active, enter, leave]);
-
-  useImperativeHandle(forwardedRef, () => ({
-    root: () => rootRef.current,
-    update,
-    enter,
-    leave,
-    reverse: enter,
-    dispose() {
-      const root = rootRef.current;
-      if (!root) return;
-      delete root.dataset.phoneServicesActive;
-      delete root.dataset.phoneServicesProgress;
-      root.style.removeProperty('--phone-services-opacity');
-      root.style.removeProperty('--phone-services-y');
-    }
-  }), [enter, leave, update]);
-
+function ServicesContent({ reading }: Readonly<{ reading: boolean }>) {
   return (
     <article
-      ref={rootRef}
-      id="services"
+      id={reading ? 'services-reading' : 'services'}
       className="phone-services"
       data-phone-scene="services"
-      data-phone-reading="native-document"
-      aria-labelledby="phone-services-title"
+      data-phone-reading={reading ? 'services' : undefined}
+      aria-labelledby={reading ? 'phone-services-title-reading' : 'phone-services-title'}
     >
       <header className="phone-services__hero">
         <p className="phone-services__eyebrow">{SERVICES_COPY[0]}</p>
-        <h2 id="phone-services-title">
+        <h2 id={reading ? 'phone-services-title-reading' : 'phone-services-title'}>
           <span>{SERVICES_COPY[1]}</span>
           <span>{SERVICES_COPY[2]}</span>
         </h2>
@@ -113,6 +51,88 @@ export const PhoneServices = forwardRef<
       </ol>
     </article>
   );
-});
+}
+
+export function Reading() {
+  return <ServicesContent reading />;
+}
+
+export function PhoneServices({ reports }: Readonly<{ reports: PhoneLeafReportPort }>) {
+  const rootRef = useRef<HTMLElement | null>(null);
+  const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
+  const paintFrameRef = useRef<number | null>(null);
+  const disposedRef = useRef(false);
+
+  const cancelPaint = useCallback(() => {
+    if (paintFrameRef.current !== null) cancelAnimationFrame(paintFrameRef.current);
+    paintFrameRef.current = null;
+  }, []);
+
+  const provePostPaint = useCallback(() => {
+    cancelPaint();
+    paintFrameRef.current = requestAnimationFrame(() => {
+      paintFrameRef.current = null;
+      const binding = bindingRef.current;
+      if (!binding || disposedRef.current) return;
+      binding.reports.reportPrepared('services-root', {
+        kind: 'static-ready', token: binding.frameToken, ready: true,
+        detail: { postPaint: true }
+      });
+    });
+  }, [cancelPaint]);
+
+  const render = useCallback((rawProgress: number) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const frame = phoneServicesFrame(rawProgress);
+    root.style.setProperty('--phone-services-opacity', frame.opacity.toFixed(4));
+    root.style.setProperty('--phone-services-y', `${frame.y.toFixed(2)}px`);
+    root.dataset.phoneServicesProgress = frame.progress.toFixed(4);
+  }, []);
+
+  const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
+    rebind(binding: PhoneLeafGenerationBinding) {
+      bindingRef.current = binding;
+      provePostPaint();
+    },
+    activate(command): PhoneActivationInvocation {
+      return { invocationId: command.invocationId, surfaceIds: command.surfaceIds,
+        invoked: false, settlements: [] };
+    },
+    render,
+    settle(endpoint) { render(endpoint); },
+    pause() {},
+    dispose() {
+      disposedRef.current = true;
+      cancelPaint();
+      bindingRef.current = null;
+    }
+  }), [cancelPaint, provePostPaint, render]);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    disposedRef.current = false;
+    render(1);
+    reports.registerMount({
+      root,
+      surfaces: [{ id: 'services-root', element: root, kind: 'dom' }],
+      commands
+    });
+    return () => {
+      disposedRef.current = true;
+      cancelPaint();
+      bindingRef.current = null;
+    };
+  }, [cancelPaint, commands, render, reports]);
+
+  return (
+    <div ref={(element) => {
+      rootRef.current = element?.querySelector<HTMLElement>('#services') ?? null;
+    }} className="phone-services__visual">
+      <ServicesContent reading={false} />
+    </div>
+  );
+}
 
 export default PhoneServices;

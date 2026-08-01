@@ -499,18 +499,20 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
         Component: createPhoneSceneMigrationBridge(PhoneBrand, 'legacy-brand')
       }));
     case 'figure3-animation':
-      return import('../../scenes/figure3-animation/phone/PhoneFigure3').then(({
-        PhoneFigure3: Component
+      return import('./scenes/PhoneFigure3').then(({
+        PhoneFigure3
       }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: createPhoneSceneMigrationBridge(
+          PhoneFigure3, 'legacy-figure3', ['figure3-video']
+        )
       }));
     case 'services':
-      return import('../../scenes/services/phone/PhoneServices').then(({
-        PhoneServices: Component
+      return import('./scenes/PhoneServices').then(({
+        PhoneServices
       }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: createPhoneSceneMigrationBridge(PhoneServices, 'legacy-services')
       }));
     case 'ttg-animation':
       return import('../../scenes/ttg-animation/phone/PhoneTtg').then(({
@@ -558,18 +560,22 @@ function importPhoneTransitionAdapter(id: PhoneTransitionAdapterId): Promise<Pho
         PhoneFigure2ProofBrandTransition, 'legacy-proof-brand'
       ) }));
     case 'brand-figure3':
-      return import('../../transitions/brand-figure3/phone').then(({
-        PhoneBrandFigure3Transition: Component
+      return import('./transitions/brand-figure3').then(({
+        PhoneBrandFigure3Transition
       }) => ({
         id,
-        Component: Component as unknown as PhoneTransitionAdapterComponent
+        Component: createPhoneTransitionMigrationBridge(
+          PhoneBrandFigure3Transition, 'legacy-brand-figure3'
+        )
       }));
     case 'figure3-services':
-      return import('../../transitions/figure3-services/phone').then(({
-        PhoneFigure3ServicesTransition: Component
+      return import('./transitions/figure3-services').then(({
+        PhoneFigure3ServicesTransition
       }) => ({
         id,
-        Component: Component as unknown as PhoneTransitionAdapterComponent
+        Component: createPhoneTransitionMigrationBridge(
+          PhoneFigure3ServicesTransition, 'legacy-figure3-services'
+        )
       }));
     case 'services-ttg':
       return import('../../transitions/services-ttg/phone').then(({

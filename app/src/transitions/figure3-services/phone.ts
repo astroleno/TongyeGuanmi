@@ -1,20 +1,15 @@
-import {
-  forwardRef,
-  useCallback,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef
-} from 'react';
+import { createElement, useLayoutEffect, useMemo, useRef } from 'react';
 import type {
-  Group45PhoneTransitionProps
-} from '../../production/phone/adapter-groups/group4-5';
-import type { TransitionPresentationAdapterHandle } from '../../story/presentation';
+  PhoneActivationInvocation,
+  PhoneLeafCommandHandle,
+  PhoneLeafReportPort
+} from '../../production/phone-story/presentation';
 
 export const PHONE_FIGURE3_SERVICES_DECISION = {
   strategy: 'endpoint-dissolve',
   camera: 'none',
   topology: 'persistent-endpoint-opacity',
-  copyCueProgress: 0.8,
+  copyCueProgress: .8,
   receiverOwner: 'services:document-root',
   receiverCopies: 1,
   forwardEndpoint: 'services:reading-top',
@@ -22,7 +17,7 @@ export const PHONE_FIGURE3_SERVICES_DECISION = {
   rationale: 'Figure3 and the one Services document root share a boundary; the source video remains the sole clock and Services enters over its final 20%.'
 } as const;
 
-export const PHONE_FIGURE3_SERVICES_START_PROGRESS = 0.8;
+export const PHONE_FIGURE3_SERVICES_START_PROGRESS = .8;
 
 export type PhoneFigure3ServicesFrame = Readonly<{
   progress: number;
@@ -63,7 +58,7 @@ function applyEndpoint(
     element.style.opacity = opacity.toFixed(4);
     return;
   }
-  const visible = opacity > 0.001;
+  const visible = opacity > .001;
   element.style.opacity = opacity.toFixed(4);
   element.style.visibility = visible ? 'visible' : 'hidden';
   element.style.pointerEvents = visible ? 'auto' : 'none';
@@ -71,27 +66,7 @@ function applyEndpoint(
   element.dataset.phoneDissolve = id;
 }
 
-function clearEndpoint(element: HTMLElement | null, documentFlow = false): void {
-  if (!element) return;
-  if (documentFlow) {
-    delete element.dataset.phoneDissolve;
-    delete element.dataset.phoneDissolveOpacity;
-    element.style.removeProperty('opacity');
-    return;
-  }
-  element.style.removeProperty('opacity');
-  element.style.removeProperty('visibility');
-  element.style.removeProperty('pointer-events');
-  element.inert = false;
-  delete element.dataset.phoneDissolve;
-}
-
-/**
- * Keep both document-flow endpoints on the same compositor topology after the
- * forward handoff. Removing Services' opacity layer here and recreating it
- * when reverse arms makes Safari repaint its translucent paper gradients,
- * which looks like the reading opener entered twice before Figure3 rewinds.
- */
+/** Legacy migration helper; the clean leaf never mutates scene endpoints. */
 export function settlePhoneFigure3ServicesDocumentFlow(
   from: HTMLElement | null,
   to: HTMLElement | null
@@ -100,87 +75,61 @@ export function settlePhoneFigure3ServicesDocumentFlow(
   applyEndpoint(to, 1, 'figure3-services', true);
 }
 
-/** Figure3 media failure resolves directly to the Services reading endpoint. */
-export const PhoneFigure3ServicesTransition = forwardRef<
-  TransitionPresentationAdapterHandle,
-  Group45PhoneTransitionProps
->(function PhoneFigure3ServicesTransition(
-  { host, from, to, reducedMotion, documentFlow = false, onReady },
-  forwardedRef
-) {
+export function PhoneFigure3ServicesTransition({
+  reports
+}: Readonly<{ reports: PhoneLeafReportPort }>) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const progressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
-  const render = useCallback((rawProgress: number) => {
-    const progress = clamp(rawProgress);
-    if (progress > progressRef.current + 0.0001) directionRef.current = 1;
-    if (progress < progressRef.current - 0.0001) directionRef.current = -1;
-    progressRef.current = progress;
-    const mediaFailed = from?.dataset.phoneMediaState === 'fallback'
-      || to?.dataset.phoneMediaState === 'fallback';
-    const frame = phoneFigure3ServicesFrame(
-      progress,
-      reducedMotion,
-      mediaFailed,
-      directionRef.current
-    );
-    if (host) {
-      host.dataset.phoneTransition = 'figure3-services:endpoint-dissolve';
-      host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+  const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
+    rebind() {},
+    activate(command): PhoneActivationInvocation {
+      return { invocationId: command.invocationId, surfaceIds: command.surfaceIds,
+        invoked: false, settlements: [] };
+    },
+    render(rawProgress: number) {
+      const progress = clamp(rawProgress);
+      if (progress > progressRef.current + .0001) directionRef.current = 1;
+      if (progress < progressRef.current - .0001) directionRef.current = -1;
+      progressRef.current = progress;
+      const frame = phoneFigure3ServicesFrame(progress, false, false, directionRef.current);
+      const root = rootRef.current;
+      if (!root) return;
+      root.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+      root.style.setProperty('--phone-figure3-services-progress', frame.progress.toFixed(4));
+    },
+    settle(endpoint) {
+      progressRef.current = endpoint;
+      const frame = phoneFigure3ServicesFrame(endpoint);
+      const root = rootRef.current;
+      if (!root) return;
+      root.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+      root.style.setProperty('--phone-figure3-services-progress', frame.progress.toFixed(4));
+    },
+    pause() {},
+    dispose() {
+      const root = rootRef.current;
+      if (!root) return;
+      delete root.dataset.phoneTransitionProgress;
+      root.style.removeProperty('--phone-figure3-services-progress');
     }
-    applyEndpoint(
-      from,
-      frame.fromOpacity,
-      'figure3-services',
-      documentFlow
-    );
-    applyEndpoint(
-      to,
-      frame.toOpacity,
-      'figure3-services',
-      documentFlow
-    );
-  }, [documentFlow, from, host, reducedMotion, to]);
+  }), []);
 
   useLayoutEffect(() => {
-    render(0);
-    onReady?.();
-    return () => {
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
-      if (host?.dataset.phoneTransition?.startsWith('figure3-services:')) {
-        delete host.dataset.phoneTransition;
-        delete host.dataset.phoneTransitionProgress;
-      }
-    };
-  }, [documentFlow, from, host, onReady, render, to]);
+    const root = rootRef.current;
+    if (!root) return;
+    reports.registerMount({
+      root,
+      surfaces: [{ id: 'between:figure3-services', element: root, kind: 'dom' }],
+      commands
+    });
+  }, [commands, reports]);
 
-  useImperativeHandle(forwardedRef, () => ({
-    render,
-    enter() {
-      directionRef.current = 1;
-      render(0);
-    },
-    leave() {
-      directionRef.current = 1;
-      render(1);
-      if (documentFlow) {
-        settlePhoneFigure3ServicesDocumentFlow(from, to);
-      } else {
-        clearEndpoint(from);
-        clearEndpoint(to);
-      }
-    },
-    reverse() {
-      directionRef.current = -1;
-      render(1);
-    },
-    dispose() {
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
-    }
-  }), [documentFlow, from, render, to]);
-
-  return null;
-});
+  return createElement('div', {
+    ref: rootRef,
+    'data-phone-transition': 'figure3-services',
+    'aria-hidden': 'true'
+  });
+}
 
 export default PhoneFigure3ServicesTransition;

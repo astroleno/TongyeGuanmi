@@ -4222,7 +4222,7 @@ only.
 
 ### Slice 9A — Brand → Figure3 → Services
 
-- [ ] **Step 9A.1: Keep clean Brand fixed; refactor Figure3/Services and their two edges**
+- [x] **Step 9A.1: Keep clean Brand fixed; refactor Figure3/Services and their two edges**
 
 Brand's Task 8 command/report port is the already-accepted source contract:
 this slice may add only the manifest-declared Brand → Figure3 edge wiring and
@@ -4234,7 +4234,7 @@ proven terminal frame, and retirement only after the `figure3-services`
 closure boundary. No poster, screenshot, hidden pre-play, seek-only proof, or
 untracked decoder is allowed.
 
-- [ ] **Step 9A.2: Add vertical-slice direct/failure/browser tests**
+- [x] **Step 9A.2: Add vertical-slice direct/failure/browser tests**
 
 Test Brand → Figure3 → Services and reverse twice; direct entries for those
 three holds; delayed/rejected Figure3 chunk; withheld initial/terminal frame;
@@ -4242,7 +4242,7 @@ hidden Services content; background/foreground; and immediate reverse.
 `commitSequence` increments once per stable hold, and resource counts do not
 grow.
 
-- [ ] **Step 9A.3: Verify and commit Slice 9A**
+- [x] **Step 9A.3: Verify and commit Slice 9A**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -4261,6 +4261,32 @@ pnpm -C app exec playwright test \
 git add app
 git commit -m "feat(r5): converge Figure3 vertical slice"
 ```
+
+**Slice 9A closure record (2026-08-01):**
+
+- Figure3 and Services now mount through the clean command/report boundary;
+  Brand → Figure3 uses the clean Ink leaf and Figure3 → Services uses the
+  reducer-owned between-plane command leaf. The old formal route is retained
+  only through stateless migration facades.
+- Figure3 retains exactly one decoder and one visible 2D compositor. Endpoint
+  proof is accepted only after the physical initial or terminal frame is
+  drawn; intermediate/stale draws cannot satisfy settlement, reusable release
+  preserves the surface, and terminal disposal hard-retires it.
+- The persistent Figure3/Services R-pair keeps the same React leaf, effect,
+  and report identities through stable Services, activation renewal, and an
+  immediate reverse. Delayed/rejected loading, withheld frame/content,
+  visibility restore, direct entry, and two-cycle resource bounds are covered.
+- The focused suite passed 16 files / 186 tests and the complete Vitest suite
+  passed 199 files / 1,266 tests. TypeScript, focused ESLint, boolean-data,
+  architecture, homepage-boundary, packed-alpha, Node fixture, raw-harness,
+  complete production-build, frozen-input, and diff checks passed.
+- Phone-portrait WebKit passed all eight Figure3-slice browser tests. The exact
+  old-formal mobile-WebKit command retained its accepted 2 passes / 3 skips /
+  4 frozen failures at the same AOD reverse and three downstream v47
+  assertions; no oracle was changed.
+- The production build reports 619,412 B of budgeted phone JS and a 41,116 B
+  largest lazy chunk. No transient Playwright trace, video, screenshot, or
+  ignored evidence is committed.
 
 ### Slice 9B — Services → TTG → Lab
 

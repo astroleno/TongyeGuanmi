@@ -12,6 +12,38 @@ export type PhoneTransitionModule = Readonly<{
   default: ComponentType<PhoneTransitionLeafProps>;
 }>;
 export type PhoneTransitionLoader = () => Promise<PhoneTransitionModule>;
+export type PhoneEffectRenderSlot<SegmentId extends string = string> = Readonly<{
+  attemptId: string;
+  segmentId: SegmentId;
+  reports: PhoneLeafReportPort;
+  retainAfterStable: boolean;
+}>;
+
+export function createPhoneEffectTopology<SegmentId extends string>() {
+  let current: PhoneEffectRenderSlot<SegmentId> | null = null;
+  return Object.freeze({
+    retain(
+      attemptId: string,
+      segmentId: SegmentId,
+      retainAfterStable: boolean,
+      createReports: () => PhoneLeafReportPort
+    ): PhoneEffectRenderSlot<SegmentId> {
+      current = current?.segmentId === segmentId
+        ? { ...current, attemptId, retainAfterStable }
+        : { attemptId, segmentId, retainAfterStable, reports: createReports() };
+      return current;
+    },
+    finish(): PhoneEffectRenderSlot<SegmentId> | null {
+      if (!current?.retainAfterStable) current = null;
+      return current;
+    },
+    clear(): null {
+      current = null;
+      return null;
+    }
+  });
+}
+
 export type PhoneTransitionRegistry<SegmentId extends string = string> = Readonly<{
   load(segmentId: SegmentId): Promise<PhoneTransitionModule>;
 }>;
@@ -72,7 +104,9 @@ const transitionLoaders = Object.freeze({
   'aod-method-top': () => import('../../transitions/aod-method-top/phone'),
   'method-bottom-figure2': () => import('../../transitions/method-bottom-figure2/phone'),
   'figure2-distance-expand': () => import('../../transitions/figure2-distance-expand/phone'),
-  'figure2-proof-brand': () => import('../../transitions/figure2-proof-brand/phone')
+  'figure2-proof-brand': () => import('../../transitions/figure2-proof-brand/phone'),
+  'brand-figure3': () => import('../../transitions/brand-figure3/phone'),
+  'figure3-services': () => import('../../transitions/figure3-services/phone')
 }) satisfies Partial<Record<string, PhoneTransitionLoader>>;
 const defaultTransitionRegistry = createPhoneTransitionRegistry<string>(transitionLoaders);
 

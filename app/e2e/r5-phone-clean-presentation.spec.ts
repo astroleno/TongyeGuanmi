@@ -42,6 +42,27 @@ const GRADE_A_SEGMENT = {
   'figure2-animation:method-top': 'method-bottom-figure2'
 } as const;
 
+const FIGURE3_SLICE_CONTENT = {
+  brand: ['#phone-brand-title', '.phone-brand__definition p'],
+  'figure3-animation': [
+    '[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-canvas]'
+  ],
+  services: ['#phone-services-title', '.phone-services__hero > p:last-child']
+} as const;
+
+const FIGURE3_SLICE_HASH = {
+  brand: '#brand',
+  'figure3-animation': '#figure3-animation',
+  services: '#services'
+} as const;
+
+const FIGURE3_SLICE_SEGMENT = {
+  'brand:figure3-animation': 'brand-figure3',
+  'figure3-animation:services': 'figure3-services',
+  'services:figure3-animation': 'figure3-services',
+  'figure3-animation:brand': 'brand-figure3'
+} as const;
+
 async function nextAnimationFrame(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
@@ -94,6 +115,148 @@ async function traverseGradeA(
   expect(await readCommitSequence(page)).toBe(before + 1);
   await assertTargetContentVisible(page, GRADE_A_CONTENT[target]);
   await assertNoWhiteOrTransparentViewportEdges(page);
+}
+
+async function traverseFigure3Slice(
+  page: import('@playwright/test').Page,
+  source: keyof typeof FIGURE3_SLICE_CONTENT,
+  target: keyof typeof FIGURE3_SLICE_CONTENT,
+  direction: 'forward' | 'reverse'
+): Promise<Readonly<{ videos: number; canvases: number }>> {
+  const before = await readCommitSequence(page);
+  await sendFrontIntent(page, direction);
+  await completeFigure3SliceAttempt(page, source, target, direction, before);
+  await assertSinglePhoneAuthority(page);
+  await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT[target]);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+  if (target === 'figure3-animation') {
+    await expect(page.locator('[data-phone-figure3-paper-canvas]'))
+      .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
+  }
+  return page.evaluate(() => ({
+    videos: document.querySelectorAll('.phone-story video').length,
+    canvases: document.querySelectorAll('.phone-story canvas').length
+  }));
+}
+
+async function completeFigure3SliceAttempt(
+  page: import('@playwright/test').Page,
+  source: keyof typeof FIGURE3_SLICE_CONTENT,
+  target: keyof typeof FIGURE3_SLICE_CONTENT,
+  direction: 'forward' | 'reverse',
+  before: number
+): Promise<void> {
+  const segment = FIGURE3_SLICE_SEGMENT[
+    `${source}:${target}` as keyof typeof FIGURE3_SLICE_SEGMENT
+  ];
+  await page.waitForFunction((expectedSegment) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return Boolean(
+      document.querySelector(
+        `[data-phone-plane="effect"] [data-r4-ink-segment="${expectedSegment}"], `
+          + `[data-phone-plane="effect"] [data-phone-transition="${expectedSegment}"]`
+      )
+      || document.querySelector('[data-phone-activation]:not([hidden])')
+      || shell?.dataset.phonePhase === 'awaiting-leg-intent'
+    );
+  }, segment, { timeout: 10_000 });
+  const initialPhase = await page.locator('.phone-story').getAttribute('data-phone-phase');
+  if (await page.locator('[data-phone-activation]:not([hidden])').count()) {
+    await page.locator('[data-phone-activation]:not([hidden])').click();
+  } else if (initialPhase === 'awaiting-leg-intent') {
+    await sendFrontIntent(page, direction);
+  }
+  await expect(page.locator(
+    `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"], `
+      + `[data-phone-plane="effect"] [data-phone-transition="${segment}"]`
+  )).toBeAttached({ timeout: 10_000 });
+  for (let boundary = 0; boundary < 5; boundary += 1) {
+    const handle = await page.waitForFunction(({ from, to, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const state = {
+        scene: shell?.dataset.phoneScene,
+        status: shell?.dataset.phoneStatus,
+        phase: shell?.dataset.phonePhase,
+        failure: shell?.dataset.phoneFailure,
+        sequence: Number(shell?.dataset.phoneCommitSequence)
+      };
+      return state.scene === to && state.sequence > after
+        || state.status === 'stable' && state.scene === from
+        || ['awaiting-media-activation', 'awaiting-leg-intent'].includes(state.phase ?? '')
+        ? state : null;
+    }, { from: source, to: target, after: before }, { timeout: 25_000 });
+    const state = await handle.jsonValue();
+    if (state.scene === target && state.sequence > before) break;
+    if (state.status === 'stable') {
+      throw new Error(`Figure3 slice ${source} → ${target} rolled back: ${JSON.stringify(state)}`);
+    }
+    if (state.phase === 'awaiting-media-activation') {
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    } else if (state.phase === 'awaiting-leg-intent') {
+      await sendFrontIntent(page, direction);
+    }
+  }
+  await waitForCommitSequence(page, target, before);
+  expect(await readCommitSequence(page)).toBe(before + 1);
+}
+
+async function expectFigure3SliceRollback(
+  page: import('@playwright/test').Page,
+  source: keyof typeof FIGURE3_SLICE_CONTENT,
+  target: keyof typeof FIGURE3_SLICE_CONTENT,
+  direction: 'forward' | 'reverse',
+  before: number
+): Promise<void> {
+  let handledActivation = false;
+  let handledLegIntent = false;
+  for (let sample = 0; sample < 300; sample += 1) {
+    const state = await page.locator('.phone-story').evaluate((shell) => ({
+      scene: (shell as HTMLElement).dataset.phoneScene,
+      status: (shell as HTMLElement).dataset.phoneStatus,
+      phase: (shell as HTMLElement).dataset.phonePhase,
+      sequence: Number((shell as HTMLElement).dataset.phoneCommitSequence),
+      activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+    }));
+    if (state.status === 'stable' && state.scene === source
+      && state.sequence === before) return;
+    if (state.status === 'faulted' && state.scene === source
+      && state.sequence === before) return;
+    if (state.status === 'stable' && state.scene === target) {
+      throw new Error(`Withheld Figure3 proof committed ${target}: ${JSON.stringify(state)}`);
+    }
+    if (state.activation && !handledActivation) {
+      handledActivation = true;
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    } else if (state.phase === 'awaiting-leg-intent' && !handledLegIntent) {
+      handledLegIntent = true;
+      await sendFrontIntent(page, direction);
+    }
+    await page.waitForTimeout(100);
+  }
+  const state = await page.locator('.phone-story').evaluate((shell) => ({
+    ...(shell as HTMLElement).dataset
+  }));
+  throw new Error(`Figure3 slice did not roll back: ${JSON.stringify(state)}`);
+}
+
+async function withholdFigure3Endpoint(
+  page: import('@playwright/test').Page,
+  endpoint: 'initial' | 'terminal'
+): Promise<void> {
+  await page.addInitScript((withheld) => {
+    const original = CanvasRenderingContext2D.prototype.drawImage;
+    CanvasRenderingContext2D.prototype.drawImage = function patchedDrawImage(
+      image: CanvasImageSource,
+      ...coordinates: number[]
+    ) {
+      const isFigure3 = this.canvas.matches('[data-phone-figure3-paper-canvas]');
+      const video = image instanceof HTMLVideoElement ? image : null;
+      const atEndpoint = video && (withheld === 'initial'
+        ? video.currentTime <= .05 : video.currentTime >= 2.5);
+      if (isFigure3 && atEndpoint) throw new Error(`withheld-${withheld}-figure3-frame`);
+      return Reflect.apply(original, this, [image, ...coordinates]);
+    };
+  }, endpoint);
 }
 
 async function traverseFront(
@@ -341,6 +504,214 @@ test('Grade A chain commits each hold once and preserves both-direction endpoint
   await traverseGradeA(page, 'brand', 'figure2-proof', 'reverse');
   await traverseGradeA(page, 'figure2-proof', 'figure2-animation', 'reverse');
   await traverseGradeA(page, 'figure2-animation', 'method-top', 'reverse');
+});
+
+test('Figure3 slice direct entries expose accepted Brand, paper, and Services endpoints', async ({
+  page
+}) => {
+  for (const scene of Object.keys(FIGURE3_SLICE_CONTENT) as Array<
+    keyof typeof FIGURE3_SLICE_CONTENT
+  >) {
+    await page.goto(`/harness/r5-phone-clean?direct=${scene}${FIGURE3_SLICE_HASH[scene]}`, {
+      waitUntil: 'domcontentloaded'
+    });
+    await waitForCommitSequence(page, scene, 0);
+    await assertSinglePhoneAuthority(page);
+    await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT[scene]);
+    await assertNoWhiteOrTransparentViewportEdges(page);
+    if (scene === 'figure3-animation') {
+      await expect(page.locator('[data-phone-figure3-paper-canvas]'))
+        .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
+      await expect(page.locator('.phone-figure3 video')).toHaveCount(1);
+      await expect(page.locator('.phone-figure3 canvas')).toHaveCount(1);
+    }
+  }
+});
+
+test('Figure3 slice commits forward and reverse twice without resource growth', async ({ page }) => {
+  await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'brand', 0);
+  const firstCycle: Array<Readonly<{ videos: number; canvases: number }>> = [];
+  const secondCycle: Array<Readonly<{ videos: number; canvases: number }>> = [];
+  for (const samples of [firstCycle, secondCycle]) {
+    samples.push(await traverseFigure3Slice(
+      page, 'brand', 'figure3-animation', 'forward'
+    ));
+    samples.push(await traverseFigure3Slice(
+      page, 'figure3-animation', 'services', 'forward'
+    ));
+    samples.push(await traverseFigure3Slice(
+      page, 'services', 'figure3-animation', 'reverse'
+    ));
+    samples.push(await traverseFigure3Slice(
+      page, 'figure3-animation', 'brand', 'reverse'
+    ));
+  }
+  expect(secondCycle).toEqual(firstCycle);
+  for (const sample of secondCycle) {
+    expect(sample.videos).toBeLessThanOrEqual(1);
+    expect(sample.canvases).toBeLessThanOrEqual(2);
+  }
+});
+
+test('Figure3 slice keeps Brand proved while its lazy scene chunk is delayed', async ({ page }) => {
+  let releaseChunk = () => undefined;
+  let observeRequest = () => undefined;
+  const chunkGate = new Promise<void>((resolve) => { releaseChunk = resolve; });
+  const chunkRequested = new Promise<void>((resolve) => { observeRequest = resolve; });
+  await page.route(/\/assets\/PhoneFigure3-[^/]+\.js$/, async (route) => {
+    observeRequest();
+    await chunkGate;
+    await route.continue();
+  });
+  try {
+    await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'brand', 0);
+    await sendFrontIntent(page, 'forward');
+    await chunkRequested;
+    await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'transaction');
+    expect(await readCommitSequence(page)).toBe(before);
+    await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.brand);
+    releaseChunk();
+    await completeFigure3SliceAttempt(
+      page, 'brand', 'figure3-animation', 'forward', before
+    );
+  } finally {
+    releaseChunk();
+  }
+});
+
+test('Figure3 slice rejects one native chunk URL without retrying it in the Document', async ({
+  page
+}) => {
+  let requests = 0;
+  let observeRequest = () => undefined;
+  const chunkRequested = new Promise<void>((resolve) => { observeRequest = resolve; });
+  await page.route(/\/assets\/PhoneFigure3-[^/]+\.js$/, async (route) => {
+    requests += 1;
+    observeRequest();
+    await route.abort('failed');
+  });
+  await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'brand', 0);
+  await sendFrontIntent(page, 'forward');
+  await chunkRequested;
+  await expectFigure3SliceRollback(
+    page, 'brand', 'figure3-animation', 'forward', before
+  );
+  await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.brand);
+  expect(requests).toBe(1);
+
+  await sendFrontIntent(page, 'forward');
+  await page.waitForTimeout(750);
+  expect(requests).toBe(1);
+  expect(await readCommitSequence(page)).toBe(before);
+  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-scene', 'brand');
+});
+
+test('Figure3 slice refuses a withheld terminal compositor frame', async ({ page }) => {
+  await withholdFigure3Endpoint(page, 'terminal');
+  await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'brand', 0);
+  await sendFrontIntent(page, 'forward');
+  await expect(page.locator('[data-phone-figure3-paper-canvas]')).toBeAttached();
+  await expectFigure3SliceRollback(
+    page, 'brand', 'figure3-animation', 'forward', before
+  );
+  await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.brand);
+});
+
+test('Figure3 slice refuses a withheld initial compositor frame on reverse', async ({ page }) => {
+  await withholdFigure3Endpoint(page, 'initial');
+  await page.goto('/harness/r5-phone-clean#services', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'services', 0);
+  await sendFrontIntent(page, 'reverse');
+  await expect(page.locator('[data-phone-figure3-paper-canvas]')).toBeAttached();
+  const activation = page.locator('[data-phone-activation]:not([hidden])');
+  await expect(activation).toBeVisible();
+  await activation.click();
+  await expect(activation).toBeVisible();
+  await expect(page.locator('.phone-story'))
+    .toHaveAttribute('data-phone-phase', 'awaiting-media-activation');
+  expect(await readCommitSequence(page)).toBe(before);
+  await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.services);
+});
+
+test('Figure3 slice refuses hidden Services content and preserves the compositor source', async ({
+  page
+}) => {
+  await page.goto('/harness/r5-phone-clean#figure3-animation', {
+    waitUntil: 'domcontentloaded'
+  });
+  const before = await waitForCommitSequence(page, 'figure3-animation', 0);
+  await page.addStyleTag({ content: '#services { visibility: hidden !important; }' });
+  await sendFrontIntent(page, 'forward');
+  await expect(page.locator('[data-phone-transition="figure3-services"]')).toBeAttached();
+  await expectFigure3SliceRollback(
+    page, 'figure3-animation', 'services', 'forward', before
+  );
+  await expect(page.locator('.phone-figure3 video')).toHaveCount(1);
+  await expect(page.locator('.phone-figure3 canvas')).toHaveCount(1);
+});
+
+test('Figure3 slice restores its proved source after background and foreground', async ({ page }) => {
+  await page.addInitScript(() => {
+    const visibility = { current: 'visible' as DocumentVisibilityState };
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => visibility.current
+    });
+    Object.defineProperty(window, '__r5SetVisibility', {
+      configurable: true,
+      value: (next: DocumentVisibilityState) => {
+        visibility.current = next;
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+    });
+  });
+  await page.goto('/harness/r5-phone-clean#figure3-animation', {
+    waitUntil: 'domcontentloaded'
+  });
+  const before = await waitForCommitSequence(page, 'figure3-animation', 0);
+  await sendFrontIntent(page, 'forward');
+  await expect(page.locator('[data-phone-transition="figure3-services"]')).toBeAttached();
+  await page.evaluate(() => (
+    window as typeof window & {
+      __r5SetVisibility(next: DocumentVisibilityState): void;
+    }
+  ).__r5SetVisibility('hidden'));
+  await page.waitForTimeout(150);
+  expect(await readCommitSequence(page)).toBe(before);
+  await page.evaluate(() => (
+    window as typeof window & {
+      __r5SetVisibility(next: DocumentVisibilityState): void;
+    }
+  ).__r5SetVisibility('visible'));
+  for (let activationAttempt = 0; activationAttempt < 3; activationAttempt += 1) {
+    const state = await page.waitForFunction(({ sequence }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      if (shell?.dataset.phoneStatus === 'stable'
+        && Number(shell.dataset.phoneCommitSequence) === sequence) return 'stable';
+      if (document.querySelector('[data-phone-activation]:not([hidden])')) return 'activation';
+      return null;
+    }, { sequence: before }, { timeout: 15_000 });
+    if (await state.jsonValue() === 'stable') break;
+    await page.locator('[data-phone-activation]:not([hidden])').click();
+  }
+  await page.waitForFunction(({ sequence }) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return shell?.dataset.phoneStatus === 'stable'
+      && shell.dataset.phoneScene === 'figure3-animation'
+      && Number(shell.dataset.phoneCommitSequence) === sequence;
+  }, { sequence: before });
+  await expect(page.locator('[data-phone-figure3-paper-canvas]'))
+    .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
+  await traverseFigure3Slice(
+    page, 'figure3-animation', 'services', 'forward'
+  );
+  await traverseFigure3Slice(
+    page, 'services', 'figure3-animation', 'reverse'
+  );
 });
 
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {
