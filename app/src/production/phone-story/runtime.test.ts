@@ -1619,6 +1619,41 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('does not cache an abort-aware loader rejection and permits a later reload', async () => {
+    const fixture = createEnvironment();
+    const signals: AbortSignal[] = [];
+    const loadDependencies = vi.fn((
+      _effect: unknown,
+      signal: AbortSignal
+    ) => new Promise<PhoneDependencyLoadResult>((_resolve, reject) => {
+      signals.push(signal);
+      const rejectForAbort = () => reject(new Error('dependency load aborted'));
+      if (signal.aborted) rejectForAbort();
+      else signal.addEventListener('abort', rejectForAbort, { once: true });
+    }));
+    const reportRejectedChunk = vi.fn(async () => 'fail-closed' as const);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#home', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    });
+    const disconnect = runtime.connect();
+    runtime.requestEntry({ pathname: '/', hash: '#brand', origin: 'programmatic' });
+    expect(loadDependencies).toHaveBeenCalledTimes(2);
+    expect(signals[0]?.aborted).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(reportRejectedChunk).not.toHaveBeenCalled();
+    runtime.requestEntry({ pathname: '/', hash: '#home', origin: 'programmatic' });
+    expect(loadDependencies).toHaveBeenCalledTimes(3);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(reportRejectedChunk).not.toHaveBeenCalled();
+    disconnect();
+  });
+
   it('caches a superseded native import late rejection without reviving stale evidence', async () => {
     const fixture = createEnvironment();
     const loads: Array<Readonly<{
