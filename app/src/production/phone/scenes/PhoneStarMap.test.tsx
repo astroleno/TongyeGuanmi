@@ -1,9 +1,17 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   PhoneStarMap,
   phoneStarMapStaticPresentationFrame
 } from './PhoneStarMap';
+
+const source = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), 'PhoneStarMap.tsx'),
+  'utf8'
+);
 
 const motionDriver = {
   set: () => undefined,
@@ -44,5 +52,14 @@ describe('PhoneStarMap Route B adapter', () => {
       origin: 'leaf-static-poster'
     });
     expect(frame.token).toBe(token);
+  });
+
+  it('[execution hard cutover] starts and stops Perlin only from the leaf active reconciliation', () => {
+    expect(source).toContain('updateActiveRef.current?.(active);');
+    expect(source).toContain('updateActive(activeRef.current);');
+    expect(source).not.toContain('__phoneStarActive');
+    expect(source).not.toMatch(/enter\(\)\s*\{/);
+    expect(source).not.toMatch(/leave\(\)\s*\{/);
+    expect(source).not.toMatch(/reverse\(\)\s*\{/);
   });
 });

@@ -119,9 +119,12 @@ describe('Route B proven front-half migration contract', () => {
     expect(fixedStageRegistrationSource).toMatch(
       /const committedPrimeFrame = window\.requestAnimationFrame\(\(\) => \{\s*registrationFrame = window\.requestAnimationFrame/s
     );
+    // Hero starts beneath the Loader during its fade, but the stage still
+    // requires the same one readiness gate before it registers as fixed.
     expect(shellSource).toContain(
-      'usePhoneFixedStageRegistration(loaderHidden && ready)'
+      'const openingExecutionOpen = loaderHidden || props.startupLoaderExiting === true;'
     );
+    expect(shellSource).toContain('usePhoneFixedStageRegistration(\n    openingExecutionOpen && ready\n  )');
     expect(shellSource).toContain('enabled: fixedStageRegistered');
     expect(railCss).toMatch(
       /data-portrait-fixed-stage="priming"[^}]*position:\s*absolute[^}]*bottom:\s*auto[^}]*height:\s*var\(--portrait-stage-height\)/s

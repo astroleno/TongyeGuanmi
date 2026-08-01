@@ -110,7 +110,7 @@ function visibleInViewport(element: HTMLElement): boolean {
 /** Owns Hero markup/media/local rendering; the fixed-stage parent owns timing. */
 export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProps>(
   function PhoneHero(
-    { active, reducedMotion, motionDriver, onFirstFramePrepared, onReady },
+    { active, reducedMotion, motionDriver, onReady },
     forwardedRef
   ) {
     const rootRef = useRef<HTMLElement | null>(null);
@@ -268,10 +268,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         setTitleActive(true);
       }
     }, [ensureIntroInk, motionDriver, storyRoot]);
-    /**
-     * Cold-load priming is intentionally pure DOM/CSS. It must precede loader
-     * readiness without acquiring Hero's compositor, ink bridge, or decoder.
-     */
+    /** Prime entrance state while the Loader remains the top visual plane. */
     const primeEntrance = useCallback(() => {
       const root = rootRef.current;
       const cue = cueRef.current;
@@ -352,10 +349,9 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       ]).then(async () => {
         if (cancelled) return;
         root.dataset.phoneHeroFirstFrame = 'poster-decoded';
-        onFirstFramePrepared?.();
-        // The shell exposes only the Hero while Loader still covers the route.
-        // Two frames let style/layout and compositor visibility settle before
-        // the loader's normal readiness transaction is allowed to continue.
+        // The already-active Hero compositor warms behind StoryLoader. These
+        // frames only establish that the retained opening root can paint; a
+        // decoded poster never controls stage visibility or media ownership.
         await nextBrowserPresentation();
         if (cancelled) return;
         if (!visibleInViewport(root) || !visibleInViewport(figurePoster)) {
@@ -414,7 +410,6 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     }, [
       cancelEntrance,
       motionDriver,
-      onFirstFramePrepared,
       onReady,
       primeEntrance,
       requestPresentedHeroFrame,
@@ -471,22 +466,6 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         motionDriver.set(cue, { y: -18 * progress, opacity: 1 - progress });
         motionDriver.set(vignette, { opacity: 1 - progress * 0.54 });
         playbackRef.current?.scrub(progress);
-      },
-      enter() {
-        sceneActiveRef.current = true;
-        ensureCompositor()?.setActive(!reducedMotion);
-        playbackRef.current?.setActive(!reducedMotion);
-      },
-      leave() {
-        sceneActiveRef.current = false;
-        cancelEntrance();
-        releaseGpuOwners();
-        playbackRef.current?.setActive(false);
-      },
-      reverse() {
-        sceneActiveRef.current = true;
-        ensureCompositor()?.setActive(!reducedMotion);
-        playbackRef.current?.setActive(!reducedMotion);
       },
       presentPresentation(token, report) {
         presentationBindingRef.current = {

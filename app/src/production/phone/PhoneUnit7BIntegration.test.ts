@@ -395,7 +395,8 @@ describe('formal Unit7-B phone integration', () => {
       expect(source).not.toContain('data-phone-surface-role');
       expect(source).not.toContain('style.visibility');
     }
-    expect(starMapSource).toContain('__phoneStarActive');
+    expect(starMapSource).toContain('updateActiveRef.current?.(active)');
+    expect(starMapSource).not.toContain('__phoneStarActive');
     expect(aodSource).toContain('`active` is strictly a decoder/compositor lease');
     expect(aodSource).toContain('const autoplayExecutionRef = useRef<PhoneAodExecution | null>(null)');
     expect(aodSource).toContain('startAutoplay(execution)');

@@ -85,14 +85,30 @@ describe('phone WebGL allocation lifecycle', () => {
   it('retires Hero and AOD packed contexts when their stable owner leaves', () => {
     const hero = source('./scenes/PhoneHero.tsx');
     const aod = source('./scenes/PhoneAod.tsx');
+    const heroProjectionLease = hero.slice(
+      hero.indexOf('useLayoutEffect(() => {\n      sceneActiveRef.current = active;'),
+      hero.indexOf('\n    useImperativeHandle(', hero.indexOf(
+        'useLayoutEffect(() => {\n      sceneActiveRef.current = active;'
+      ))
+    );
+    const aodProjectionLease = aod.slice(
+      aod.indexOf('// `active` is strictly a decoder/compositor lease.'),
+      aod.indexOf('\n    useImperativeHandle(', aod.indexOf(
+        '// `active` is strictly a decoder/compositor lease.'
+      ))
+    );
 
     expect(hero).toContain('const releaseCompositor = useCallback(');
     expect(hero).toContain('renewPackedAlphaCanvas');
-    expect(hero).toMatch(/leave\(\) \{[\s\S]*?releaseGpuOwners\(\);/);
-    expect(hero).toMatch(/reverse\(\) \{[\s\S]*?ensureCompositor\(\)/);
+    expect(hero).not.toMatch(/\n\s*leave\(\) \{/);
+    expect(hero).not.toMatch(/\n\s*reverse\(\) \{/);
+    expect(heroProjectionLease).toContain('releaseGpuOwners();');
+    expect(heroProjectionLease).toContain('ensureCompositor()?.setActive(true);');
     expect(aod).toContain('const ensureCompositor = useCallback(');
     expect(aod).toContain('renewPackedAlphaCanvas');
-    expect(aod).toMatch(/leave\(\) \{[\s\S]*?releaseCompositor\(\);/);
+    expect(aod).not.toMatch(/\n\s*leave\(\) \{/);
+    expect(aod).not.toMatch(/\n\s*reverse\(\) \{/);
+    expect(aodProjectionLease).toContain('releaseCompositor();');
     expect(aod).toMatch(/startAutoplay\(execution\) \{[\s\S]*?ensureCompositor\(\)/);
   });
 

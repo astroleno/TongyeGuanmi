@@ -66,6 +66,7 @@ describe('presentation shell loaders', () => {
     expect(phoneBootstrapSource).toContain('ready={shellPrepared}');
     expect(phoneBootstrapSource).toContain('failed={shellFailed}');
     expect(phoneBootstrapSource).toContain('onHidden={markLoaderHidden}');
+    expect(phoneBootstrapSource).toContain('onExitStart={markLoaderExitStarted}');
     expect(phoneBootstrapSource).toContain(
       'startedAt={loaderStartedAtRef.current}'
     );
@@ -78,6 +79,7 @@ describe('presentation shell loaders', () => {
     expect(phoneBootstrapSource).toContain(
       'startupLoaderActive={startupVisualPlaneActive}'
     );
+    expect(phoneBootstrapSource).toContain('startupLoaderExiting={loaderExiting}');
     expect(phoneBootstrapSource).toContain('mode={loaderMode}');
     expect(phoneBootstrapSource).toContain(
       "get('portrait-spike-motion') === 'reduce'"
@@ -88,6 +90,12 @@ describe('presentation shell loaders', () => {
     expect(phoneShellSource).not.toContain('<PhoneLoader');
     expect(phoneShellSource).toContain(
       'finishLoader(props.startupLoaderExitReason)'
+    );
+    expect(phoneShellSource).toContain(
+      'const openingExecutionOpen = loaderHidden || props.startupLoaderExiting === true;'
+    );
+    expect(phoneShellSource).toContain(
+      'enabled: fixedStageRegistered && openingExecutionOpen'
     );
     expect(phoneShellSource).toContain('directAdmissionOpen');
     expect(phoneShellSource).toContain(

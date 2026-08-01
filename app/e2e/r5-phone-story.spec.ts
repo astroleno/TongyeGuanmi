@@ -209,6 +209,34 @@ function compositedPixelDelta(
   return changed / samples;
 }
 
+/**
+ * A full-frame coverage plane can have a different named CSS color while
+ * still being a visually empty frame. The opening gate therefore measures
+ * actual luminance range in the final compositor image, never an element's
+ * declared background or visibility.
+ */
+function compositedLuminanceRange(
+  screenshot: PngScreenshot,
+  region: NormalizedScreenshotRegion
+): number {
+  const bounds = screenshotBounds(screenshot, region);
+  let minimum = 255;
+  let maximum = 0;
+  for (let y = bounds.top; y < bounds.bottom; y += 4) {
+    for (let x = bounds.left; x < bounds.right; x += 4) {
+      const offset = (y * screenshot.width + x) * screenshot.channels;
+      const luminance = Math.round(
+        ((screenshot.pixels[offset] ?? 0) * 0.2126)
+        + ((screenshot.pixels[offset + 1] ?? 0) * 0.7152)
+        + ((screenshot.pixels[offset + 2] ?? 0) * 0.0722)
+      );
+      minimum = Math.min(minimum, luminance);
+      maximum = Math.max(maximum, luminance);
+    }
+  }
+  return maximum - minimum;
+}
+
 const PHONE_HOLD_CONTRACTS = {
   hero: { checkpoint: 'hero-entered', edge: 'hero', edgeSurface: '#07110e', stageOwner: 'front', stageScene: 'hero' },
   pattern: { checkpoint: 'pattern-complete', edge: 'pattern', edgeSurface: '#8f7f61', stageOwner: 'front', stageScene: 'pattern' },
@@ -2361,6 +2389,161 @@ test('[P0 real root] a cold physical-phone root mounts only the phone authority'
     desktopShellPresent: false,
     desktopHeroRunning: false
   });
+});
+
+test('[execution topology] Loader covers an already-warming Hero stage before poster readiness', async ({ page }) => {
+  test.setTimeout(30_000);
+  await page.goto('/', { waitUntil: 'commit' });
+  let warming: unknown = null;
+  for (let index = 0; index < 80; index += 1) {
+    const sample = await page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>('.portrait-scroll-spike');
+      const hero = document.querySelector<HTMLElement>(
+        '.portrait-scroll-spike__scene--hero'
+      );
+      const stage = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage');
+      const loader = document.querySelector<HTMLElement>(
+        '.story-loader[data-story-loader="true"]'
+      );
+      const style = stage ? getComputedStyle(stage) : null;
+      const loaderStyle = loader ? getComputedStyle(loader) : null;
+      const stageRect = stage?.getBoundingClientRect();
+      const loaderRect = loader?.getBoundingClientRect();
+      return {
+        loaderReady: root?.dataset.portraitLoaderReady ?? null,
+        firstFrame: hero?.dataset.phoneHeroFirstFrame ?? null,
+        stageVisible: Boolean(
+          style
+          && style.visibility !== 'hidden'
+          && Number.parseFloat(style.opacity || '1') > .01
+        ),
+        loaderCoversStage: Boolean(
+          loaderStyle
+          && stageRect
+          && loaderRect
+          && loaderStyle.display !== 'none'
+          && loaderStyle.visibility !== 'hidden'
+          && Number.parseFloat(loaderStyle.opacity || '1') > .01
+          && Number.parseInt(loaderStyle.zIndex || '0', 10)
+            > Number.parseInt(style?.zIndex || '0', 10)
+          && loaderRect.left <= stageRect.left
+          && loaderRect.top <= stageRect.top
+          && loaderRect.right >= stageRect.right
+          && loaderRect.bottom >= stageRect.bottom
+        )
+      };
+    });
+    if (
+      sample.loaderReady === 'false'
+      && sample.firstFrame === 'decoding'
+      && sample.stageVisible
+      && sample.loaderCoversStage
+    ) {
+      warming = sample;
+      break;
+    }
+    await page.waitForTimeout(50);
+  }
+
+  expect(
+    warming,
+    'Hero must prewarm behind Loader before poster decoding; Loader is the only top-level visual cover'
+  ).not.toBeNull();
+});
+
+test('[execution regression] Loader fade reveals one continuous non-empty Hero surface', async ({ page }) => {
+  test.setTimeout(45_000);
+  await installHeroEntranceProbe(page);
+  await page.goto('/', { waitUntil: 'commit' });
+
+  const loader = page.locator(LIVE_STORY_LOADER);
+  await expect.poll(async () => loader.getAttribute('data-loader-status')).toBe('exiting');
+  await expect(
+    page.locator(LIVE_PHONE_ROOT),
+    'the runner must start the retained Hero during Loader fade, not after onHidden'
+  ).toHaveAttribute('data-portrait-hero-entrance', 'playing');
+  await expect.poll(async () => loader.count()).toBe(0);
+  await expect(page.locator(LIVE_PHONE_ROOT)).toHaveAttribute('data-portrait-loader-ready', 'true');
+
+  const openingFrames: PngScreenshot[] = [];
+  for (let index = 0; index < 12; index += 1) {
+    openingFrames.push(decodePngScreenshot(await page.screenshot()));
+    await page.waitForTimeout(50);
+  }
+  const openingRegion = { left: .08, top: .08, right: .92, bottom: .92 } as const;
+  for (const frame of openingFrames) {
+    expect(
+      compositedLuminanceRange(frame, openingRegion),
+      'after Loader fade begins, Hero must never expose a uniform black or coverage frame'
+    ).toBeGreaterThan(18);
+  }
+
+  await expect.poll(async () => page.locator(LIVE_PHONE_ROOT).getAttribute(
+    'data-portrait-hero-entrance'
+  )).toBe('complete');
+  const exposed = (await heroEntranceSamples(page)).filter((sample) => (
+    sample.loaderReady === 'true' && sample.progress !== null
+  ));
+  expect(exposed.length).toBeGreaterThan(1);
+  const entranceSamples = (await heroEntranceSamples(page)).filter((sample) => (
+    sample.progress !== null
+  ));
+  const resetIndex = entranceSamples.findIndex((sample, index) => (
+    index > 0
+    && sample.progress !== null
+    && sample.progress <= .001
+    && entranceSamples.slice(0, index).some((prior) => (
+      prior.progress !== null && prior.progress >= .05
+    ))
+  ));
+  expect(resetIndex, 'the opening surface may progress once, but never reset').toBe(-1);
+});
+
+test('[execution regression] Star Map advances real Perlin frames while its stable leaf is active', async ({ page }) => {
+  test.setTimeout(75_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/', 'hero');
+  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
+  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
+  await assertStablePhoneHold(page, 'star-map');
+
+  const canvas = page.locator('[data-portrait-star-perlin]');
+  await expect(canvas).toHaveCount(1);
+  const firstRevision = Number.parseInt(
+    await canvas.getAttribute('data-portrait-star-perlin-revision') ?? '0',
+    10
+  );
+  const firstFrame = decodePngScreenshot(await canvas.screenshot());
+  await page.waitForTimeout(1_000);
+  const lastRevision = Number.parseInt(
+    await canvas.getAttribute('data-portrait-star-perlin-revision') ?? '0',
+    10
+  );
+  const lastFrame = decodePngScreenshot(await canvas.screenshot());
+
+  expect(
+    lastRevision - firstRevision,
+    `stable Star Map did not advance its leaf-owned Perlin renderer: ${firstRevision} → ${lastRevision}`
+  ).toBeGreaterThanOrEqual(8);
+  expect(
+    compositedPixelDelta(firstFrame, lastFrame, { left: 0, top: 0, right: 1, bottom: 1 }, 4),
+    'stable Star Map must change final canvas pixels while its renderer is active'
+  ).toBeGreaterThan(0);
+
+  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await assertStablePhoneHold(page, 'aod-animation');
+  const inactiveRevision = Number.parseInt(
+    await canvas.getAttribute('data-portrait-star-perlin-revision') ?? '0',
+    10
+  );
+  await page.waitForTimeout(700);
+  expect(
+    Number.parseInt(
+      await canvas.getAttribute('data-portrait-star-perlin-revision') ?? '0',
+      10
+    ),
+    'leaving Star Map must stop its leaf-owned Perlin frame loop'
+  ).toBe(inactiveRevision);
 });
 
 test('[P0 real root pixels] cold Loader paints and changes compositor pixels', async ({ page }) => {

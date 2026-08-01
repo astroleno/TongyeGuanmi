@@ -127,8 +127,6 @@ export type PhoneSceneAdapterProps = Readonly<{
 
 export type PhoneHeroAdapterProps = PhoneSceneAdapterProps & Readonly<{
   motionDriver: PhoneMotionDriver;
-  /** Poster bytes are decoded before the shell exposes the fixed Hero stage. */
-  onFirstFramePrepared?: () => void;
 }>;
 
 export type PhonePatternAdapterProps = PhoneSceneAdapterProps & Readonly<{

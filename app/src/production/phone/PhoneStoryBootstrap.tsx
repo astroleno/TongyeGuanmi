@@ -81,6 +81,7 @@ export function PhoneStoryBootstrap(props: PhoneStoryShellProps = {}) {
   const [shellFailed, setShellFailed] = useState(false);
   const [loaderExitReason, setLoaderExitReason] =
     useState<StoryLoaderExitReason>();
+  const [loaderExiting, setLoaderExiting] = useState(false);
   const [abandoned, setAbandoned] = useState(false);
   const loaderStartedAtRef = useRef(
     typeof performance === 'undefined' ? 0 : performance.now()
@@ -92,6 +93,9 @@ export function PhoneStoryBootstrap(props: PhoneStoryShellProps = {}) {
   const markLoaderHidden = useCallback((reason: StoryLoaderExitReason) => {
     setLoaderExitReason(reason);
     setStartupVisualPlaneActive(false);
+  }, []);
+  const markLoaderExitStarted = useCallback(() => {
+    setLoaderExiting(true);
   }, []);
 
   useLayoutEffect(() => {
@@ -119,6 +123,7 @@ export function PhoneStoryBootstrap(props: PhoneStoryShellProps = {}) {
           ready={shellPrepared}
           failed={shellFailed}
           startedAt={loaderStartedAtRef.current}
+          onExitStart={markLoaderExitStarted}
           onHidden={markLoaderHidden}
         />
       )}
@@ -126,6 +131,7 @@ export function PhoneStoryBootstrap(props: PhoneStoryShellProps = {}) {
         <PhoneStoryShell
           {...props}
           startupLoaderActive={startupVisualPlaneActive}
+          startupLoaderExiting={loaderExiting}
           {...(loaderExitReason === undefined
             ? {}
             : { startupLoaderExitReason: loaderExitReason })}

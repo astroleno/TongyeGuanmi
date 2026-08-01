@@ -18,6 +18,10 @@ const stageRailStyles = readFileSync(
   join(sceneDirectory, '../PhoneStageRail.css'),
   'utf8'
 );
+const heroStyles = readFileSync(
+  join(sceneDirectory, 'PhoneHero.css'),
+  'utf8'
+);
 
 const motionDriver = {
   set: () => undefined,
@@ -47,13 +51,17 @@ describe('PhoneHero Route B adapter', () => {
     expect(markup).not.toContain('phone-scene--hero');
   });
 
-  it('decodes all static opening layers before priming loader readiness', () => {
+  it('keeps decoded-poster facts local while the shell arms Hero before Loader handoff', () => {
     expect(heroSource).toContain('Promise.all([');
     expect(heroSource).toContain('decodeHeroImage(backImage)');
     expect(heroSource).toContain('decodeHeroImage(middleImage)');
     expect(heroSource).toContain('decodeHeroImage(figurePoster)');
     expect(heroSource).toContain("root.dataset.phoneHeroFirstFrame = 'poster-decoded'");
-    expect(heroSource).toContain('onFirstFramePrepared?.();');
+    expect(heroSource).not.toContain('onFirstFramePrepared');
+    expect(storyShellSource).toContain("active={activeFrontSurface('front:hero')}");
+    expect(storyShellSource).not.toContain(
+      "active={loaderHidden && activeFrontSurface('front:hero')}"
+    );
   });
 
   it('does not confirm Hero readiness before browser presentation and viewport proof', () => {
@@ -78,13 +86,20 @@ describe('PhoneHero Route B adapter', () => {
     expect(boundPresentation).not.toContain('visibleInViewport(figurePoster)');
   });
 
-  it('keeps Loader coverage while allowing the decoded Hero poster to composite beneath it', () => {
-    expect(storyShellSource).toContain(
-      "data-phone-hero-first-frame={heroFirstFramePrepared ? 'poster-decoded' : 'pending'}"
+  it('keeps StoryLoader as the only startup visual cover instead of a poster-decoded stage gate', () => {
+    expect(storyShellSource).not.toContain('data-phone-hero-first-frame');
+    expect(stageRailStyles).not.toContain('data-phone-hero-first-frame');
+    expect(stageRailStyles).not.toContain('[data-portrait-loader-ready="false"]');
+    expect(stageRailStyles).toContain('The fixed stage warms from mount');
+  });
+
+  it('keeps the decoded poster visible until the same packed-alpha canvas has a real frame', () => {
+    expect(heroStyles).toContain(
+      '[data-portrait-figure-frame="ready"][data-portrait-figure-alpha="verified"] .portrait-scroll-spike__hero-figure[data-packed-alpha-frame-ready="true"]'
     );
-    expect(stageRailStyles).toContain(
-      '[data-phone-hero-first-frame="poster-decoded"] .portrait-scroll-spike__stage'
+    expect(heroStyles).toContain(
+      '[data-portrait-figure-alpha="verified"] .portrait-scroll-spike__hero-figure-poster'
     );
-    expect(stageRailStyles).toContain('Loader may cover, but never replace, the first decoded Hero poster');
+    expect(heroStyles).toContain('visibility: hidden;');
   });
 });

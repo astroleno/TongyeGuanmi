@@ -113,23 +113,9 @@
   overflow: clip;
 }
 
-.portrait-scroll-spike[data-portrait-loader-ready="false"] .portrait-scroll-spike__stage,
-.portrait-scroll-spike[data-portrait-loader-ready="false"] .portrait-scroll-spike__stage-rail::before {
-  visibility: hidden;
-  opacity: 0;
-}
-
-/* Loader may cover, but never replace, the first decoded Hero poster. This
- * lets WebKit composite the real opening frame before the normal loader exit. */
-.portrait-scroll-spike[data-portrait-loader-ready="false"][data-phone-hero-first-frame="poster-decoded"] .portrait-scroll-spike__stage {
-  visibility: visible;
-  opacity: 1;
-}
-
-.portrait-scroll-spike[data-portrait-loader-ready="false"][data-phone-hero-first-frame="poster-decoded"] .portrait-scroll-spike__stage-rail::before {
-  visibility: hidden;
-  opacity: 0;
-}
+/* The fixed stage warms from mount. StoryLoader is the only startup visual
+ * cover (z-index 1000), so no decoded-poster flag is allowed to reveal or
+ * replace the opening surface during its fade. */
 
 .portrait-scroll-spike__scene {
   position: absolute;

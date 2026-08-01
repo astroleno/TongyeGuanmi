@@ -69,6 +69,7 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
   const washRef = useRef<HTMLDivElement | null>(null);
   const copyRef = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef(active);
+  const updateActiveRef = useRef<((next: boolean) => void) | null>(null);
   const progressRef = useRef(0);
   const presentationBindingRef = useRef<PhoneStarMapPresentationBinding | null>(null);
   const paintBoundPresentationRef = useRef<(() => void) | null>(null);
@@ -79,6 +80,7 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
 
   useEffect(() => {
     activeRef.current = active;
+    updateActiveRef.current?.(active);
   }, [active]);
 
   useEffect(() => {
@@ -195,7 +197,6 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       onReady?.();
     };
     readyFrame = window.requestAnimationFrame(markReady);
-    const root = rootRef.current;
     const updateActive = (next: boolean) => {
       motionActive = next && !reducedMotion;
       canvas.dataset.portraitStarPerlinActive = String(motionActive);
@@ -206,9 +207,8 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
         schedule();
       }
     };
-    if (root) {
-      (root as HTMLElement & { __phoneStarActive?: (next: boolean) => void }).__phoneStarActive = updateActive;
-    }
+    updateActiveRef.current = updateActive;
+    updateActive(activeRef.current);
     return () => {
       disposed = true;
       window.cancelAnimationFrame(readyFrame);
@@ -221,7 +221,7 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       if (import.meta.env.DEV) {
         delete canvas.dataset.portraitStarPerlinProgress;
       }
-      if (root) delete (root as HTMLElement & { __phoneStarActive?: unknown }).__phoneStarActive;
+      if (updateActiveRef.current === updateActive) updateActiveRef.current = null;
       if (paintBoundPresentationRef.current === paintBoundPresentation) {
         paintBoundPresentationRef.current = null;
       }
@@ -233,10 +233,6 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
   }, [onReady, reducedMotion]);
 
   useImperativeHandle(forwardedRef, () => {
-    const setActive = (next: boolean) => {
-      const root = rootRef.current as (HTMLElement & { __phoneStarActive?: (active: boolean) => void }) | null;
-      root?.__phoneStarActive?.(next);
-    };
     return {
       root: () => rootRef.current,
       update(rawProgress) {
@@ -257,9 +253,6 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
           });
         }
       },
-      enter() { setActive(!reducedMotion); },
-      leave() { setActive(false); },
-      reverse() { setActive(!reducedMotion); },
       presentPresentation(token, report) {
         if (presentationBindingRef.current) {
           cancelStarMapPresentationFrames(presentationBindingRef.current);
@@ -279,19 +272,19 @@ export const PhoneStarMap = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdap
       disposePresentation(token) {
         const binding = presentationBindingRef.current;
         if (
-        binding
-        && binding.key === phoneRuntimePresentationTokenKey(token)
-      ) {
-        cancelStarMapPresentationFrames(binding);
+          binding
+          && binding.key === phoneRuntimePresentationTokenKey(token)
+        ) {
+          cancelStarMapPresentationFrames(binding);
+          presentationBindingRef.current = null;
+        }
+      },
+      dispose() {
+        updateActiveRef.current?.(false);
+        if (presentationBindingRef.current) {
+          cancelStarMapPresentationFrames(presentationBindingRef.current);
+        }
         presentationBindingRef.current = null;
-      }
-    },
-    dispose() {
-      setActive(false);
-      if (presentationBindingRef.current) {
-        cancelStarMapPresentationFrames(presentationBindingRef.current);
-      }
-      presentationBindingRef.current = null;
       }
     };
   }, [motionDriver, reducedMotion, requestBoundStaticPresentation]);

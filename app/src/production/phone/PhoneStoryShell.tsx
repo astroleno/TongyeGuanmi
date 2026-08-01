@@ -38,6 +38,8 @@ export type PhoneStoryShellProps = Readonly<{
   validationMode?: 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46' | 'v47';
   /** Bootstrap owns the global visual plane until StoryLoader `onHidden`. */
   startupLoaderActive?: boolean;
+  /** StoryLoader has begun its fade, so the retained Hero may start beneath it. */
+  startupLoaderExiting?: boolean;
   startupLoaderExitReason?: StoryLoaderExitReason;
   onStartupPrepared?: (failed: boolean) => void;
 }>;
@@ -87,11 +89,13 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   }, [finishLoader, loaderHidden, props.startupLoaderExitReason]);
   const mapAodToMethod = frontHalf.mapAodToMethod ?? ZERO_METHOD_PROGRESS;
   const [adapterRevision, setAdapterRevision] = useState(0);
-  const [heroFirstFramePrepared, setHeroFirstFramePrepared] = useState(false);
-  const markHeroFirstFramePrepared = useCallback(() => {
-    setHeroFirstFramePrepared(true);
-  }, []);
-  const fixedStageRegistered = usePhoneFixedStageRegistration(loaderHidden && ready);
+  // The Loader remains the top visual plane through its fade, while the same
+  // retained Hero run is admitted beneath it. Waiting for `onHidden` here
+  // would reveal a blank coverage plane and only then start the entrance.
+  const openingExecutionOpen = loaderHidden || props.startupLoaderExiting === true;
+  const fixedStageRegistered = usePhoneFixedStageRegistration(
+    openingExecutionOpen && ready
+  );
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
   const stageViewportRef = useRef<HTMLElement | null>(null);
@@ -158,7 +162,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     starMapAodRef: starMapAodAdapterRef,
     orchestrator,
     snapshot: navigation.cinematicSnapshot,
-    enabled: fixedStageRegistered && loaderHidden
+    enabled: fixedStageRegistered && openingExecutionOpen
       && ready
       && aodAlphaEndProgress !== undefined
       && !staticFallback,
@@ -180,7 +184,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-portrait-spike-motion={motionEnabled ? 'force' : 'reduce'}
       data-portrait-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}
       data-portrait-loader-ready={semanticBoolean(loaderHidden)}
-      data-phone-hero-first-frame={heroFirstFramePrepared ? 'poster-decoded' : 'pending'}
       data-phone-validation-mode={props.validationMode}
       data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}
       data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}
@@ -196,10 +199,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
         {Hero && (
           <Hero
             ref={bindHeroAdapter}
-            active={loaderHidden && activeFrontSurface('front:hero')}
+            active={activeFrontSurface('front:hero')}
             reducedMotion={!motionEnabled}
             motionDriver={phoneMotionDriver}
-            onFirstFramePrepared={markHeroFirstFramePrepared}
             onReady={markHeroReady}
           />
         )}
