@@ -255,7 +255,7 @@ function registerScene(
   binding: PhoneLeafReportBinding;
 }> {
   const scene = phoneSceneById(sceneId);
-  const plane = leg === 'source' ? fixture.source : fixture.receiver;
+  const plane = leg === 'target' ? fixture.receiver : fixture.source;
   const root = fakeElement(`root:${sceneId}`);
   const content = fakeElement(`content:${sceneId}`, rect(20, 20, 200, 200));
   append(plane, root);
@@ -414,6 +414,19 @@ describe('phone presentation semantic plane', () => {
     expect(root.hasAttribute('inert')).toBe(true);
     expect(fixture.reading.getAttribute('aria-hidden')).toBe('false');
     expect(fixture.story.getAttribute('data-phone-interaction')).toBe('disabled');
+  });
+
+  it('re-proves rollback from the retained source plane instead of exposing the receiver', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const attempt = attemptFor('pattern', 'rollback');
+    registerScene(fixture, 'pattern', attempt, 'rollback');
+    const result = fixture.presentation.verifyRollback(
+      planeRequest('pattern', attempt, 'rollback')
+    );
+    expect(result.failure).toBeNull();
+    expect(fixture.source.getAttribute('data-phone-exposed')).toBe('true');
+    expect(fixture.receiver.getAttribute('data-phone-exposed')).toBe('false');
   });
 });
 

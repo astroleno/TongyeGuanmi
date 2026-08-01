@@ -1,7 +1,12 @@
+// @vitest-environment jsdom
+
 import { createElement } from 'react';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { resolve } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   LOADER_PHRASES,
   STORY_LOADER_TIMINGS,
@@ -9,6 +14,13 @@ import {
   loaderFrameAt,
   loaderSequenceDuration
 } from './StoryLoader';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+afterEach(() => {
+  vi.useRealTimers();
+  document.body.replaceChildren();
+});
 
 describe('StoryLoader', () => {
   it('keeps the legacy two-phrase 5.38s sequence contract', () => {
@@ -41,6 +53,48 @@ describe('StoryLoader', () => {
     }
   });
 
+  it('keeps an unproven phone target covered after the eight-second safety timer', () => {
+    vi.useFakeTimers();
+    const onExitStart = vi.fn();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => {
+      root.render(<StoryLoader
+        mode="direct"
+        ready={false}
+        failed={false}
+        allowSafetyExit={false}
+        onExitStart={onExitStart}
+      />);
+    });
+    act(() => vi.advanceTimersByTime(STORY_LOADER_TIMINGS.safetyMs + 1_000));
+    expect(host.querySelector('[data-story-loader]')?.getAttribute('data-loader-status'))
+      .toBe('running');
+    expect(onExitStart).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('keeps a terminal phone boot failure covered for the accessible shell retry', () => {
+    vi.useFakeTimers();
+    const onExitStart = vi.fn();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => root.render(<StoryLoader
+      mode="direct"
+      ready={false}
+      failed
+      allowSafetyExit={false}
+      onExitStart={onExitStart}
+    />));
+    act(() => vi.advanceTimersByTime(STORY_LOADER_TIMINGS.safetyMs + 1_000));
+    expect(host.querySelector('[data-story-loader]')?.getAttribute('data-loader-status'))
+      .toBe('running');
+    expect(onExitStart).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
   it('renders one restrained live announcement and non-focusable visual ink layers', () => {
     const markup = renderToStaticMarkup(createElement(StoryLoader, {
       mode: 'cold-hero',
@@ -49,6 +103,7 @@ describe('StoryLoader', () => {
     }));
 
     expect(markup).toContain('data-story-loader="true"');
+    expect(markup).toContain('data-phone-loader="true"');
     expect(markup).toContain('aria-live="polite"');
     expect(markup.match(/aria-live=/g)).toHaveLength(1);
     expect(markup).toContain('story-loader__ink-blur');
@@ -60,7 +115,7 @@ describe('StoryLoader', () => {
   });
 
   it('provides a pre-hydration loader with a no-JS escape before the React root', () => {
-    const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
     const loaderIndex = html.indexOf('data-story-loader-static="true"');
     const rootIndex = html.indexOf('id="root"');
     expect(loaderIndex).toBeGreaterThan(0);
@@ -87,7 +142,7 @@ describe('StoryLoader', () => {
     expect(html).toContain("window.matchMedia('(hover: none)').matches");
     expect(html).toContain("documentElement.dataset.portraitEdgeScene = 'hero'");
     expect(html).toContain("documentElement.style.setProperty('--portrait-document-surface', '#07110e')");
-    const viteConfig = readFileSync(new URL('../../vite.config.ts', import.meta.url), 'utf8');
+    const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
     expect(viteConfig).toContain(
       ".replace('__PHONE_STORY_PREBOOT_ENABLED__', String(phoneStoryPrebootEnabled))"
     );

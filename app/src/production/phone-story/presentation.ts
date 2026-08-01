@@ -699,7 +699,7 @@ export function createPhonePresentation(
     topology.source.style.setProperty('--phone-plane-z', '10');
     topology.receiver.style.setProperty('--phone-plane-z', '30');
     topology.source.setAttribute('data-phone-retained', 'true');
-    if (request.leg === 'source') {
+    if (request.leg !== 'target') {
       topology.source.setAttribute('data-phone-exposed', 'true');
       topology.receiver.setAttribute('data-phone-exposed', 'false');
     } else {
@@ -734,8 +734,8 @@ export function createPhonePresentation(
     if (elements.some((element) => !element)) return presentationFailure(
       'presentation-content-missing', 'A required scene selector is absent from its registered root'
     );
-    const active = request.leg === 'source' ? topology.source : topology.receiver;
-    const activeZ = request.leg === 'source' ? 10 : 30;
+    const active = request.leg !== 'target' ? topology.source : topology.receiver;
+    const activeZ = request.leg !== 'target' ? 10 : 30;
     const layers = Array.from(topology.planes.children) as HTMLElement[];
     for (const element of elements) {
       if (!element || !intersectsVisualViewport(element, visual)
@@ -804,7 +804,7 @@ export function createPhonePresentation(
       [visual.offsetLeft + 0.25, bottom - 0.25],
       [right - 0.25, bottom - 0.25]
     ];
-    const active = request.leg === 'source' ? topology.source : topology.receiver;
+    const active = request.leg !== 'target' ? topology.source : topology.receiver;
     return points.every(([x, y]) => containsPoint(topology.coverage, x, y)
       && containsPoint(active, x, y));
   };

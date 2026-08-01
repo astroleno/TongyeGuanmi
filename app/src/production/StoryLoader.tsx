@@ -34,6 +34,7 @@ export type StoryLoaderProps = {
   mode: StoryLoaderMode;
   ready: boolean;
   failed: boolean;
+  allowSafetyExit?: boolean;
   release?: boolean;
   onExitStart?: (reason: StoryLoaderExitReason) => void;
   onHidden?: (reason: StoryLoaderExitReason) => void;
@@ -86,6 +87,7 @@ export function StoryLoader({
   mode,
   ready,
   failed,
+  allowSafetyExit = true,
   release = true,
   onExitStart,
   onHidden,
@@ -186,22 +188,22 @@ export function StoryLoader({
     if (!release) {
       return;
     }
-    if (failed) {
+    if (failed && allowSafetyExit) {
       setExitReason((current) => current ?? 'error');
       return;
     }
     if (ready && frame.sequenceComplete) {
       setExitReason((current) => current ?? 'ready');
     }
-  }, [failed, frame.sequenceComplete, ready, release]);
+  }, [allowSafetyExit, failed, frame.sequenceComplete, ready, release]);
 
   useEffect(() => {
-    if (!release || exitReason || hidden) {
+    if (!allowSafetyExit || !release || exitReason || hidden) {
       return;
     }
     const timer = window.setTimeout(() => setExitReason('safety'), STORY_LOADER_TIMINGS.safetyMs);
     return () => window.clearTimeout(timer);
-  }, [exitReason, hidden, release]);
+  }, [allowSafetyExit, exitReason, hidden, release]);
 
   useEffect(() => {
     onStatusChange?.(status);
@@ -237,6 +239,7 @@ export function StoryLoader({
     <div
       className="story-loader loading-screen"
       data-story-loader="true"
+      data-phone-loader="true"
       data-loader-mode={mode}
       data-loader-status={status}
       data-loader-ink-status={inkStatus}
