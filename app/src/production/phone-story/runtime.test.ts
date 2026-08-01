@@ -1626,8 +1626,11 @@ describe('phone runtime effects, media activation, and disposal', () => {
       _effect: unknown,
       signal: AbortSignal
     ) => new Promise<PhoneDependencyLoadResult>((_resolve, reject) => {
+      const explicitAbortError = signals.length === 0
+        ? Object.assign(new Error('dependency load aborted'), { name: 'AbortError' })
+        : null;
       signals.push(signal);
-      const rejectForAbort = () => reject(new Error('dependency load aborted'));
+      const rejectForAbort = () => reject(explicitAbortError ?? signal.reason);
       if (signal.aborted) rejectForAbort();
       else signal.addEventListener('abort', rejectForAbort, { once: true });
     }));
@@ -1651,6 +1654,44 @@ describe('phone runtime effects, media activation, and disposal', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(reportRejectedChunk).not.toHaveBeenCalled();
+    disconnect();
+  });
+
+  it('caches a native rejection that reaches catch after a same-tick supersede', async () => {
+    const fixture = createEnvironment();
+    const signals: AbortSignal[] = [];
+    const nativeError = new TypeError('Failed to fetch dynamically imported module');
+    const loadDependencies = vi.fn((
+      _effect: unknown,
+      signal: AbortSignal
+    ): Promise<PhoneDependencyLoadResult> => {
+      signals.push(signal);
+      return signals.length === 1
+        ? Promise.reject(nativeError)
+        : new Promise(() => undefined);
+    });
+    const reportRejectedChunk = vi.fn(async () => 'fail-closed' as const);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#home', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    });
+    const disconnect = runtime.connect();
+    const retired = currentTransaction(runtime).attempt;
+    runtime.requestEntry({ pathname: '/', hash: '#brand', origin: 'programmatic' });
+    expect(signals[0]?.aborted).toBe(true);
+    await vi.waitFor(() => expect(reportRejectedChunk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transactionId: retired.transactionId,
+        moduleUrl: 'unknown-phone-module',
+        reason: nativeError.message
+      })
+    ));
+    runtime.requestEntry({ pathname: '/', hash: '#home', origin: 'programmatic' });
+    expect(loadDependencies).toHaveBeenCalledTimes(2);
+    expect(runtime.getSnapshot().status).toBe('faulted');
     disconnect();
   });
 

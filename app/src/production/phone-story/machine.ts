@@ -857,9 +857,13 @@ function handleEvidence(
   if (!requirements.some((required) => sameSlot(required, slot)) || hasEvidence(transaction, slot)) {
     return freezeOwned({ snapshot, effects: [] });
   }
-  const accepted = acceptedEvidence(snapshot, freezeOwned({ slot, token }));
+  let accepted = acceptedEvidence(snapshot, freezeOwned({ slot, token }));
+  const sourceFinal = accepted.transaction.requiredFinal[0]?.leg === 'source';
+  if (sourceFinal && accepted.transaction.phase === 'preparing'
+    && quorumComplete(accepted.transaction, accepted.transaction.requiredFinal))
+    accepted = reviseTransaction(accepted, { requiredFinal: [] }, {}, [], false).snapshot;
   if (
-    transaction.requiredFinal.length === 0
+    accepted.transaction.requiredFinal.length === 0
     && quorumComplete(accepted.transaction, accepted.transaction.requiredPrepared)
   ) {
     if ((accepted.transaction.mode === 'segment'
@@ -876,15 +880,18 @@ function handleEvidence(
     accepted.transaction.requiredFinal.length > 0
     && quorumComplete(accepted.transaction, accepted.transaction.requiredFinal)
   ) {
-    if (accepted.transaction.mode === 'segment'
-      && accepted.transaction.phase === 'presenting-source') {
-      return accepted.transaction.reducedMotion
-        ? beginTargetPresentation(accepted) : beginPlayback(accepted);
+    if (sourceFinal) {
+      return accepted.transaction.phase === 'presenting-source'
+        ? accepted.transaction.reducedMotion
+          ? beginTargetPresentation(accepted) : beginPlayback(accepted)
+        : freezeOwned({ snapshot: accepted, effects: [] });
     }
     return accepted.transaction.commitIntent === 'semantic'
       ? commitStableCandidate(accepted)
       : finishReproject(accepted);
   }
+  if (sourceFinal && accepted.transaction.requiredFinal.length > 0)
+    return freezeOwned({ snapshot: accepted, effects: [] });
   const pending = advanceEvidenceDeadline(accepted);
   if (pending.snapshot.transaction.mode === 'segment'
     && (pending.snapshot.transaction.phase === 'presenting-target'
@@ -938,28 +945,30 @@ function reprojectActivePlane(
   viewport: PhoneViewportSnapshot
 ): PhoneMachineResult {
   const transaction = snapshot.transaction;
-  if (transaction.planeRevision === null) {
-    return reviseTransaction(snapshot, {}, { viewport: viewport });
-  }
+  const sourceCoverage = snapshot.stableCommit !== null && transaction.mode !== 'rollback'
+    && transaction.phase !== 'presenting-source' && transaction.requiredFinal[0]?.leg !== 'target';
+  if (transaction.planeRevision === null && !sourceCoverage) return reviseTransaction(snapshot, {}, { viewport: viewport });
   const planeRevision = snapshot.lastPlaneRevision + 1;
-  const requiredFinal = transaction.requiredFinal.map((slot) => (
-    evidenceSlot(transaction.attempt, transaction.stageIndex, slot.leg, slot.kind, planeRevision)
-  ));
-  const proving = requiredFinal.length > 0;
+  const requiredFinal = sourceCoverage
+    ? [evidenceSlot(transaction.attempt, transaction.stageIndex,
+        'source', 'coverage-visible', planeRevision)]
+    : transaction.requiredFinal.map((slot) => evidenceSlot(
+        transaction.attempt, transaction.stageIndex, slot.leg, slot.kind, planeRevision
+      ));
   const rollback = transaction.mode === 'rollback';
   const timeoutMs = transaction.deadlinePolicy.planeApply;
-  const deadline = proving && !rollback ? {
+  const deadline = !rollback && !sourceCoverage ? {
     operation: 'planeApply' as const, remainingMs: timeoutMs,
     startedAtActiveMs: 0, suspended: false
   } : transaction.deadline;
-  const phase = proving && ['aligning', 'verifying'].includes(transaction.phase)
+  const phase = !sourceCoverage && ['aligning', 'verifying'].includes(transaction.phase)
     ? 'presenting-target' as const : transaction.phase;
   return reviseTransaction(snapshot, {
     phase, planeRevision, requiredFinal, deadline,
     evidence: transaction.evidence.filter(({ slot }) => slot.planeRevision === null)
   }, { viewport, lastPlaneRevision: planeRevision }, [{
     type: 'apply-presentation-plane', attempt: transaction.attempt, planeRevision
-  }, ...(proving && !rollback ? [{
+  }, ...(!rollback && !sourceCoverage ? [{
     type: 'schedule-deadline' as const, attempt: transaction.attempt,
     operation: 'planeApply', timeoutMs
   }] : [])]);
@@ -1040,13 +1049,7 @@ function handleViewport(
       effects
     });
   }
-  if (event.change === 'toolbar' && snapshot.status === 'transaction') {
-    return ['presenting-source', 'playing', 'dwelling', 'awaiting-leg-intent',
-      'presenting-target', 'aligning', 'verifying', 'rolling-back']
-      .includes(snapshot.transaction.phase)
-      ? reprojectActivePlane(snapshot, event.viewport)
-      : reviseTransaction(snapshot, {}, { viewport: event.viewport });
-  }
+  if (event.change === 'toolbar' && snapshot.status === 'transaction') return reprojectActivePlane(snapshot, event.viewport);
   const invalidated = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null;
   return recoverForViewport(snapshot, event.viewport, invalidated);
 }

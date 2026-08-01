@@ -760,6 +760,120 @@ describe('phone segment transaction machine', () => {
     }
   });
 
+  it('reprojects one reducer-owned source coverage slot across active toolbar phases', () => {
+    const pattern = phoneManifest.segments.find(({ id }) => id === 'pattern-star-map')!;
+    const figure2 = phoneManifest.segments.find(({ id }) => id === 'figure2-distance-expand')!;
+    const media = phoneManifest.segments.find(({ id }) => id === 'hero-pattern')!;
+    const playing = reachPlaying(beginSegment(pattern, 'forward', 61));
+    const awaitingLeg = dispatch(playing.snapshot, {
+      type: 'transition-completed', attempt: transaction(playing.snapshot).transaction.attempt
+    });
+    const beforeDwell = reachPlaying(beginSegment(figure2, 'forward', 62));
+    const dwelling = dispatch(beforeDwell.snapshot, {
+      type: 'transition-completed', attempt: transaction(beforeDwell.snapshot).transaction.attempt
+    });
+    let awaitingMedia = beginSegment(media, 'forward', 63);
+    for (const slot of transaction(awaitingMedia.snapshot).transaction.requiredPrepared) {
+      awaitingMedia = reportSlot(awaitingMedia.snapshot, slot);
+    }
+    awaitingMedia = dispatch(awaitingMedia.snapshot, {
+      type: 'activation-settled', invoked: false,
+      attempt: transaction(awaitingMedia.snapshot).transaction.attempt
+    });
+    const cases = [
+      ['preparing', beginSegment(media, 'forward', 64)],
+      ['playing', playing],
+      ['dwelling', dwelling],
+      ['awaiting-leg-intent', awaitingLeg],
+      ['awaiting-media-activation', awaitingMedia]
+    ] as const;
+    const nextViewport = {
+      ...viewport,
+      visual: { ...viewport.visual, offsetTop: 23, height: 821 },
+      visualRevision: 2
+    } as const;
+
+    for (const [expectedPhase, current] of cases) {
+      const before = transaction(current.snapshot).transaction;
+      expect(before.phase).toBe(expectedPhase);
+      const reprojected = dispatch(current.snapshot, {
+        type: 'viewport-sampled', viewport: nextViewport, change: 'toolbar'
+      });
+      const active = transaction(reprojected.snapshot).transaction;
+      expect(active.phase).toBe(before.phase);
+      expect(active.stageIndex).toBe(before.stageIndex);
+      expect(active.progress).toBe(before.progress);
+      expect(active.deadline).toBe(before.deadline);
+      expect(active.requiredFinal).toHaveLength(1);
+      const sourceCoverage = active.requiredFinal[0]!;
+      expect(sourceCoverage).toEqual(expect.objectContaining({
+        attempt: before.attempt,
+        stageIndex: before.stageIndex,
+        leg: 'source',
+        kind: 'coverage-visible',
+        planeRevision: active.planeRevision
+      }));
+      expect(reprojected.effects).toContainEqual({
+        type: 'apply-presentation-plane',
+        attempt: before.attempt,
+        planeRevision: active.planeRevision
+      });
+      let resumedResult = reportSlot(reprojected.snapshot, sourceCoverage);
+      let resumed = transaction(resumedResult.snapshot).transaction;
+      expect(resumed.phase).toBe(before.phase);
+      expect(resumed.stageIndex).toBe(before.stageIndex);
+      expect(resumed.progress).toBe(before.progress);
+      expect(resumed.deadline).toBe(before.deadline);
+      expect(resumed.evidence).toContainEqual(expect.objectContaining({ slot: sourceCoverage }));
+      if (expectedPhase === 'preparing') {
+        expect(resumed.requiredFinal).toEqual([]);
+        for (const slot of resumed.requiredPrepared.filter(({ kind }) => kind === 'module-loaded')) {
+          resumedResult = reportSlot(resumedResult.snapshot, slot);
+        }
+        resumed = transaction(resumedResult.snapshot).transaction;
+        expect(resumed.deadline?.operation).toBe('mediaPrepare');
+      } else {
+        expect(resumed.requiredFinal).toEqual([sourceCoverage]);
+      }
+      const repeated = dispatch(resumedResult.snapshot, {
+        type: 'viewport-sampled',
+        viewport: { ...nextViewport, visualRevision: 3 },
+        change: 'toolbar'
+      });
+      const rebound = transaction(repeated.snapshot).transaction;
+      expect(rebound.phase).toBe(before.phase);
+      expect(rebound.progress).toBe(before.progress);
+      expect(rebound.deadline).toBe(resumed.deadline);
+      expect(rebound.requiredFinal).toEqual([
+        expect.objectContaining({
+          leg: 'source', kind: 'coverage-visible', planeRevision: rebound.planeRevision
+        })
+      ]);
+    }
+  });
+
+  it('resumes media preparation when toolbar source coverage lands after prepared quorum', () => {
+    const media = phoneManifest.segments.find(({ id }) => id === 'hero-pattern')!;
+    let current = beginSegment(media, 'forward', 65);
+    current = dispatch(current.snapshot, {
+      type: 'viewport-sampled',
+      viewport: { ...viewport, visualRevision: 2 },
+      change: 'toolbar'
+    });
+    const sourceCoverage = transaction(current.snapshot).transaction.requiredFinal[0]!;
+    for (const slot of transaction(current.snapshot).transaction.requiredPrepared) {
+      current = reportSlot(current.snapshot, slot);
+    }
+    current = reportSlot(current.snapshot, sourceCoverage);
+    const resumed = transaction(current.snapshot).transaction;
+    expect(resumed.phase).toBe('preparing');
+    expect(resumed.requiredFinal).toEqual([]);
+    expect(resumed.deadline?.operation).toBe('mediaPrepare');
+    expect(current.effects).not.toContainEqual(expect.objectContaining({
+      type: 'schedule-deadline', operation: 'scrollConfirm'
+    }));
+  });
+
   it('keeps progress monotonic and dwell/intent evidence separate from visible proof', () => {
     for (const id of ['pattern-star-map', 'figure2-distance-expand'] as const) {
       const segment = phoneManifest.segments.find((candidate) => candidate.id === id)!;

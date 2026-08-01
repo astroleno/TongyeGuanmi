@@ -654,7 +654,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       }
     }).catch((error: unknown) => {
       if (pendingLoads.get(key) === load) pendingLoads.delete(key);
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted && (error === controller.signal.reason || (error instanceof Error && error.name === 'AbortError'))) return;
       const reason = error instanceof Error ? error.message : String(error);
       reject({ moduleUrl: 'unknown-phone-module', reason });
     });
