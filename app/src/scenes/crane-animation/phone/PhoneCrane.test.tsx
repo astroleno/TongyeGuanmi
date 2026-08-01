@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 import {
   FakeElement,
   FakeVideo
@@ -19,6 +20,7 @@ import {
   PHONE_CRANE_FIGURE_MEDIA_SECONDS,
   PHONE_CRANE_FLOCK_MEDIA_SECONDS,
   PHONE_CRANE_FLOCK_PLAYBACK_RATE,
+  phoneCraneMediaProgressForTimeline,
   phoneCraneTimelineProgressForFigureMediaProgress,
   phoneCraneTimelineProgressForFlockMediaProgress
 } from './PhoneCrane.autoplay';
@@ -42,12 +44,15 @@ const motionSource = readFileSync(
   'utf8'
 );
 const css = readFileSync(new URL('./PhoneCrane.css', import.meta.url), 'utf8');
+const reports = {
+  registerMount() {}, reportPrepared() {}, reportFrame() {}, reportProgress() {},
+  reportComplete() {}, reportFailure() {}
+} satisfies PhoneLeafReportPort;
 
 describe('PhoneCrane', () => {
   it('keeps one canonical Crane stage with two media surfaces', () => {
     const markup = renderToStaticMarkup(createElement(PhoneCrane, {
-      active: true,
-      reducedMotion: false
+      reports
     }));
 
     expect(markup.match(/data-r4-scene="crane-animation"/g)).toHaveLength(1);
@@ -68,36 +73,32 @@ describe('PhoneCrane', () => {
     expect(phoneCranePresentationProgress(0.25)).toBe(0.25);
   });
 
-  it('reuses AOD native clocks with the authored half-second media stagger', () => {
-    expect(autoplaySource).toContain('createPhoneNativeAutoplay');
+  it('uses clean runtime commands with the authored half-second media stagger', () => {
     expect(source).toContain('createPhonePackedAlphaSurface');
-    expect(source).toContain('createPortal');
     expect(source).toContain('figureCanvasRef');
     expect(source).toContain('flockCanvasRef');
     expect(source).toContain("'crane-figure-packed'");
     expect(source).toContain("'crane-flock-packed'");
-    expect(source).toContain("ensurePackedSurfaces('endpoint')");
-    expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
-    expect(autoplaySource).toContain('FIGURE_START_SECONDS = 0.5');
-    expect(autoplaySource).toContain('figureClock.start()');
+    expect(source).toContain('binding.reports.reportFrame(surfaceId');
+    expect(source).toContain("'crane-figure-canvas'");
+    expect(source).toContain("'crane-flock-canvas'");
+    expect(source).toContain('seekPhoneCraneReverseFrames');
+    expect(source).toContain("surface.dispose('terminal')");
+    expect(source).not.toContain('createPortal');
+    expect(source).not.toContain('useState');
+    expect(source).not.toContain('setTimeout');
+    expect(source).not.toContain('production/phone/types');
+    expect(source).not.toContain('phone-lab-contact-timeline');
+    expect(autoplaySource).not.toContain('production/phone');
+    expect(autoplaySource).not.toContain('createPhoneNativeAutoplay');
+    expect(autoplaySource).not.toContain('createPhonePresentedReversePlayback');
     expect(motionSource).toContain('renderPhoneCranePresentation');
     expect(motionSource).toContain("'presented-frame-reverse'");
-    expect(source).toContain("ensurePackedSurfaces('endpoint')");
     expect(source).not.toContain('prepareCraneAnimationFrame');
-    expect(autoplaySource).toContain('prepareCraneAnimationFrame');
-    expect(autoplaySource).toContain('createPhonePresentedReversePlayback');
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
-    expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
-    expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
-    expect(source).toContain('beginPreparedReverse');
-    expect(source).toContain("'preparing-reverse'");
-    expect(source).toContain("phase: 'progress'");
-    expect(autoplaySource).toContain('figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE');
-    expect(autoplaySource).toContain('figure.currentTime = CRANE_VIDEO_END_SECONDS');
-    expect(autoplaySource).toContain("root.dataset.phoneCraneFigurePreroll = 'released'");
-    expect(autoplaySource).toContain("owner === 'flock'");
-    expect(autoplaySource).toContain('if (!figureStarted)');
-    expect(autoplaySource).not.toContain('nativeGate');
+    expect(source).toContain('PHONE_CRANE_FIGURE_PLAYBACK_RATE');
+    expect(source).toContain('PHONE_CRANE_FLOCK_PLAYBACK_RATE');
+    expect(source).toContain("data-phone-crane-figure-preroll', 'released'");
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
     expect(css).toContain('--phone-crane-motion-height');
     expect(css).toContain('width: calc(var(--phone-crane-motion-height) * 16 / 9)');
@@ -140,14 +141,9 @@ describe('PhoneCrane', () => {
     expect(phoneCraneTimelineProgressForFigureMediaProgress(1)).toBe(1);
     expect(phoneCraneTimelineProgressForFlockMediaProgress(0)).toBe(0);
     expect(phoneCraneTimelineProgressForFlockMediaProgress(1)).toBeCloseTo(5 / 6, 8);
-    expect(autoplaySource).toContain(
-      'flock.playbackRate = PHONE_CRANE_FLOCK_PLAYBACK_RATE'
-    );
-    expect(autoplaySource).toContain(
-      'phoneCraneTimelineProgressForFlockMediaProgress(1)'
-    );
-    expect(autoplaySource).not.toContain('PHONE_CRANE_REVERSE_DISSOLVE_MS');
-    expect(autoplaySource).not.toContain('endpoint-dissolve');
+    expect(phoneCraneMediaProgressForTimeline(0)).toEqual({ figure: 0, flock: 0 });
+    expect(phoneCraneMediaProgressForTimeline(1 / 6).figure).toBe(0);
+    expect(phoneCraneMediaProgressForTimeline(1)).toEqual({ figure: 1, flock: 1 });
 
     const endpoint = new FakeElement();
     const arch = new FakeElement();

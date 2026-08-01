@@ -118,7 +118,11 @@ export function loadLabContactPhoneSceneAdapter(
         PhoneCrane: Component
       }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: createLabContactSceneMigrationBridge(
+          Component,
+          'legacy-lab-contact-crane',
+          ['crane-figure-video', 'crane-flock-video']
+        )
       }));
     case 'contact':
       return import('../../../scenes/contact/phone/PhoneContact').then(({

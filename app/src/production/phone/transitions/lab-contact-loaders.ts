@@ -162,9 +162,20 @@ export function loadLabContactPhoneTransitionAdapter(
         )
       }));
     case 'education-crane':
-      return import('../../../transitions/education-crane/phone').then(({
-        PhoneEducationCraneTransition: Component
-      }) => ({ id, Component: Component as unknown as PhoneTransitionAdapterComponent }));
+      return import('../../../transitions/education-crane/phone').then((module) => ({
+        id,
+        Component: createLabContactTransitionMigrationBridge(
+          module.PhoneEducationCraneTransition,
+          'legacy-lab-contact-education-crane',
+          {
+            render: (props, _direction, progress) => {
+              module.applyPhoneEducationCraneFrame(
+                props.from, props.to, progress, props.reducedMotion
+              );
+            }
+          }
+        )
+      }));
     case 'crane-contact':
       return import('../../../transitions/crane-contact/phone').then(({
         PhoneCraneContactTransition: Component

@@ -264,7 +264,7 @@ function registerScene(
   leg: 'source' | 'target' | 'rollback' = 'target'
 ): Readonly<{
   lease: PhoneLeafMountLease; root: HTMLElement; content: HTMLElement;
-  binding: PhoneLeafReportBinding;
+  binding: PhoneLeafReportBinding; surfaces: ReadonlyMap<string, HTMLElement>;
 }> {
   const scene = phoneSceneById(sceneId);
   const plane = leg === 'target' ? fixture.receiver : fixture.source;
@@ -277,9 +277,11 @@ function registerScene(
     || scene.landing.anchor.startsWith('[') ? scene.landing.anchor
       : `[data-phone-landing="${scene.landing.anchor}"]`;
   select(root, landingSelector, content);
+  const surfaceElements = new Map<string, HTMLElement>();
   const surfaces = scene.surfaces.map((id) => {
     const element = fakeElement(id, rect(0, 0, 390, 844));
     append(root, element);
+    surfaceElements.set(id, element);
     return { id, element, kind: surfaceKind(id) };
   });
   const allowedReports = scene.directEntry.closure.exposeReceiverAfter;
@@ -302,7 +304,7 @@ function registerScene(
       });
     }
   }
-  return { lease, root, content, binding };
+  return { lease, root, content, binding, surfaces: surfaceElements };
 }
 
 describe('phone presentation semantic plane', () => {
@@ -557,6 +559,48 @@ describe('phone presentation content, frame, and mount proof', () => {
     fixture.setStyle(root, computedStyle({ clipPath: 'inset(50%)' }));
     expect(fixture.presentation.verifyVisibleCandidate(planeRequest('pattern')).failure?.code)
       .toBe('presentation-content-invisible');
+  });
+
+  it('accepts a fully proved packed-alpha compositor when either authored layer is visible', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const { root, surfaces } = registerScene(fixture, 'crane-animation');
+    const scene = phoneSceneById('crane-animation');
+    const figure = surfaces.get('crane-figure-canvas')!;
+    const flock = surfaces.get('crane-flock-canvas')!;
+    select(root, scene.content.selectors[0]!, figure);
+    select(root, scene.content.selectors[1]!, flock);
+
+    fixture.setStyle(figure, computedStyle({ opacity: '0' }));
+    fixture.setStyle(flock, computedStyle({ opacity: '1' }));
+    fixture.setHitStack([flock, root, fixture.receiver, fixture.planes, fixture.viewport]);
+    expect(fixture.presentation.verifyVisibleCandidate(
+      planeRequest('crane-animation')
+    ).failure).toBeNull();
+
+    fixture.setStyle(figure, computedStyle({ opacity: '1' }));
+    fixture.setStyle(flock, computedStyle({ opacity: '0', visibility: 'hidden' }));
+    fixture.setHitStack([figure, root, fixture.receiver, fixture.planes, fixture.viewport]);
+    expect(fixture.presentation.verifyVisibleCandidate(
+      planeRequest('crane-animation')
+    ).failure).toBeNull();
+  });
+
+  it('rejects a packed-alpha compositor when every authored layer is hidden', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const { root, surfaces } = registerScene(fixture, 'crane-animation');
+    const scene = phoneSceneById('crane-animation');
+    const figure = surfaces.get('crane-figure-canvas')!;
+    const flock = surfaces.get('crane-flock-canvas')!;
+    select(root, scene.content.selectors[0]!, figure);
+    select(root, scene.content.selectors[1]!, flock);
+    fixture.setStyle(figure, computedStyle({ opacity: '0' }));
+    fixture.setStyle(flock, computedStyle({ opacity: '0' }));
+
+    expect(fixture.presentation.verifyVisibleCandidate(
+      planeRequest('crane-animation')
+    ).failure?.code).toBe('presentation-content-invisible');
   });
 
   it('requires every selector inside the registered root and a live intersecting rect', () => {

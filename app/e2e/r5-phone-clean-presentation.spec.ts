@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+  assertCompositeTargetContentVisible,
   assertSinglePhoneAuthority,
   assertLayerOrderAtPoints,
   assertNoWhiteOrTransparentViewportEdges,
@@ -105,6 +106,24 @@ const PH_SLICE_SEGMENT = {
 } as const;
 
 type PhSliceScene = keyof typeof PH_SLICE_CONTENT;
+
+const CRANE_SLICE_CONTENT = {
+  education: [
+    '#education [data-r4-scene="education"] .r4-education__vertical h2',
+    '#education .r4-education__lead p'
+  ],
+  'crane-animation': [
+    '[data-r4-scene="crane-animation"] [data-phone-packed-alpha-canvas="crane-figure"]',
+    '[data-r4-scene="crane-animation"] [data-phone-packed-alpha-canvas="crane-flock"]'
+  ]
+} as const;
+
+const CRANE_SLICE_SEGMENT = {
+  'education:crane-animation': 'education-crane',
+  'crane-animation:education': 'education-crane'
+} as const;
+
+type CraneSliceScene = keyof typeof CRANE_SLICE_CONTENT;
 
 async function nextAnimationFrame(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
@@ -498,6 +517,118 @@ async function expectPhSliceRollback(
     await page.waitForTimeout(100);
   }
   throw new Error(`PH slice did not roll back from ${source}`);
+}
+
+async function completeCraneSliceAttempt(
+  page: import('@playwright/test').Page,
+  source: CraneSliceScene,
+  target: CraneSliceScene,
+  direction: 'forward' | 'reverse',
+  before: number
+): Promise<void> {
+  const segment = CRANE_SLICE_SEGMENT[
+    `${source}:${target}` as keyof typeof CRANE_SLICE_SEGMENT
+  ];
+  const effectSelector = `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"]`;
+  await page.waitForFunction((expectedSegment) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return Boolean(document.querySelector(
+      `[data-phone-plane="effect"] [data-r4-ink-segment="${expectedSegment}"]`
+    ) || document.querySelector('[data-phone-activation]:not([hidden])')
+      || shell?.dataset.phonePhase === 'awaiting-leg-intent');
+  }, segment, { timeout: 10_000 });
+  await expect(page.locator(effectSelector)).toBeAttached({ timeout: 10_000 });
+  await expect(page.locator('.phone-story')).toHaveAttribute(
+    'data-phone-interaction', 'disabled'
+  );
+  for (let boundary = 0; boundary < 5; boundary += 1) {
+    const state = await page.waitForFunction(({ from, to, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const current = {
+        scene: shell?.dataset.phoneScene,
+        status: shell?.dataset.phoneStatus,
+        phase: shell?.dataset.phonePhase,
+        sequence: Number(shell?.dataset.phoneCommitSequence),
+        activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+      };
+      return current.scene === to && current.sequence > after
+        || current.status === 'stable' && current.scene === from
+        || current.activation
+        || current.phase === 'awaiting-leg-intent'
+        ? current : null;
+    }, { from: source, to: target, after: before }, { timeout: 25_000 });
+    const current = await state.jsonValue();
+    if (current.scene === target && current.sequence > before) break;
+    if (current.status === 'stable') {
+      throw new Error(`Crane slice ${source} → ${target} rolled back: ${JSON.stringify(current)}`);
+    }
+    if (current.activation) {
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    } else if (current.phase === 'awaiting-leg-intent') {
+      await sendFrontIntent(page, direction);
+    }
+  }
+  await waitForCommitSequence(page, target, before);
+  expect(await readCommitSequence(page)).toBe(before + 1);
+  await expect(page.locator('.phone-story')).toHaveAttribute(
+    'data-phone-interaction', 'enabled'
+  );
+}
+
+async function traverseCraneSlice(
+  page: import('@playwright/test').Page,
+  source: CraneSliceScene,
+  target: CraneSliceScene,
+  direction: 'forward' | 'reverse'
+): Promise<Readonly<{ videos: number; canvases: number }>> {
+  const before = await readCommitSequence(page);
+  await sendFrontIntent(page, direction);
+  await completeCraneSliceAttempt(page, source, target, direction, before);
+  await assertSinglePhoneAuthority(page);
+  if (target === 'crane-animation') {
+    await assertCompositeTargetContentVisible(page, CRANE_SLICE_CONTENT[target]);
+  } else {
+    await assertTargetContentVisible(page, CRANE_SLICE_CONTENT[target]);
+  }
+  await assertNoWhiteOrTransparentViewportEdges(page);
+  if (target === 'crane-animation') {
+    for (const layer of ['crane-figure', 'crane-flock']) {
+      await expect(page.locator(`[data-phone-packed-alpha-canvas="${layer}"]`))
+        .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+    }
+  }
+  return page.evaluate(() => ({
+    videos: document.querySelectorAll('.phone-story video').length,
+    canvases: document.querySelectorAll('.phone-story canvas').length
+  }));
+}
+
+async function expectCraneSliceRollback(
+  page: import('@playwright/test').Page,
+  source: CraneSliceScene,
+  target: CraneSliceScene,
+  before: number
+): Promise<void> {
+  let handledActivation = false;
+  for (let sample = 0; sample < 300; sample += 1) {
+    const state = await page.locator('.phone-story').evaluate((shell) => ({
+      scene: (shell as HTMLElement).dataset.phoneScene,
+      status: (shell as HTMLElement).dataset.phoneStatus,
+      sequence: Number((shell as HTMLElement).dataset.phoneCommitSequence),
+      activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+    }));
+    if ((state.status === 'stable' || state.status === 'faulted')
+      && state.scene === source && state.sequence === before) return;
+    if (state.status === 'stable' && state.scene === target) {
+      throw new Error(`Withheld Crane proof committed ${target}: ${JSON.stringify(state)}`);
+    }
+    if (state.activation && !handledActivation) {
+      handledActivation = true;
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    }
+    await page.waitForTimeout(100);
+  }
+  throw new Error(`Crane slice did not roll back from ${source}`);
 }
 
 async function withholdFigure3Endpoint(
@@ -1272,6 +1403,212 @@ test('PH slice re-proves its retained compositor after visibility and BFCache ev
     .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
   await traversePhSlice(page, 'ph-animation', 'education', 'forward');
   await traversePhSlice(page, 'education', 'ph-animation', 'reverse');
+});
+
+test('Crane slice direct entry proves both authored packed surfaces', async ({ page }) => {
+  await page.goto('/harness/r5-phone-clean?direct=crane-animation#crane-animation', {
+    waitUntil: 'domcontentloaded'
+  });
+  await waitForCommitSequence(page, 'crane-animation', 0);
+  await assertSinglePhoneAuthority(page);
+  await assertCompositeTargetContentVisible(
+    page, CRANE_SLICE_CONTENT['crane-animation']
+  );
+  await assertNoWhiteOrTransparentViewportEdges(page);
+  await expect(page.locator('.phone-crane video')).toHaveCount(2);
+  await expect(page.locator('.phone-crane canvas')).toHaveCount(2);
+  for (const layer of ['crane-figure', 'crane-flock']) {
+    await expect(page.locator(`[data-phone-packed-alpha-canvas="${layer}"]`))
+      .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+  }
+});
+
+test('Crane slice completes Education ↔ Crane twice without resource growth', async ({
+  page
+}) => {
+  await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'education', 0);
+  const cycle = async () => [
+    await traverseCraneSlice(page, 'education', 'crane-animation', 'forward'),
+    await traverseCraneSlice(page, 'crane-animation', 'education', 'reverse')
+  ];
+  const first = await cycle();
+  const second = await cycle();
+  expect(second).toEqual(first);
+  for (const sample of second) {
+    expect(sample.videos).toBeLessThanOrEqual(2);
+    expect(sample.canvases).toBeLessThanOrEqual(3);
+  }
+});
+
+test('Crane slice retries both decoder activations only after a real gesture', async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalPlay = HTMLMediaElement.prototype.play;
+    let rejected = false;
+    HTMLMediaElement.prototype.play = function patchedPlay() {
+      if (!rejected && this.matches('[data-crane-figure-front-video]')) {
+        rejected = true;
+        return Promise.reject(new DOMException('gesture required', 'NotAllowedError'));
+      }
+      return originalPlay.call(this);
+    };
+  });
+  await page.goto('/harness/r5-phone-clean?direct=crane-animation#crane-animation', {
+    waitUntil: 'domcontentloaded'
+  });
+  await expect(page.locator('[data-phone-activation]')).toBeVisible();
+  expect(await readCommitSequence(page)).toBe(0);
+  await page.locator('[data-phone-activation]').click();
+  await waitForCommitSequence(page, 'crane-animation', 0);
+  for (const layer of ['crane-figure', 'crane-flock']) {
+    await expect(page.locator(`[data-phone-packed-alpha-canvas="${layer}"]`))
+      .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+  }
+});
+
+test('Crane slice keeps Education proved while the Crane chunk is delayed', async ({ page }) => {
+  let releaseChunk = () => undefined;
+  let observeRequest = () => undefined;
+  const gate = new Promise<void>((resolve) => { releaseChunk = resolve; });
+  const requested = new Promise<void>((resolve) => { observeRequest = resolve; });
+  await page.route(/\/assets\/PhoneCrane-[^/]+\.js$/, async (route) => {
+    observeRequest();
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'education', 0);
+    await sendFrontIntent(page, 'forward');
+    await requested;
+    expect(await readCommitSequence(page)).toBe(before);
+    await assertTargetContentVisible(page, CRANE_SLICE_CONTENT.education);
+    releaseChunk();
+    await completeCraneSliceAttempt(
+      page, 'education', 'crane-animation', 'forward', before
+    );
+  } finally {
+    releaseChunk();
+  }
+});
+
+test('Crane slice caches a rejected Crane chunk without same-Document retry', async ({ page }) => {
+  let requests = 0;
+  let observeRequest = () => undefined;
+  const requested = new Promise<void>((resolve) => { observeRequest = resolve; });
+  await page.route(/\/assets\/PhoneCrane-[^/]+\.js$/, async (route) => {
+    requests += 1;
+    observeRequest();
+    await route.abort('failed');
+  });
+  await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'education', 0);
+  await sendFrontIntent(page, 'forward');
+  await requested;
+  await expectCraneSliceRollback(page, 'education', 'crane-animation', before);
+  await assertTargetContentVisible(page, CRANE_SLICE_CONTENT.education);
+  expect(requests).toBe(1);
+  await sendFrontIntent(page, 'forward');
+  await page.waitForTimeout(750);
+  expect(requests).toBe(1);
+  expect(await readCommitSequence(page)).toBe(before);
+});
+
+test('Crane slice refuses one withheld packed frame and keeps Education stable', async ({
+  page
+}) => {
+  let releaseMedia = () => undefined;
+  const gate = new Promise<void>((resolve) => { releaseMedia = resolve; });
+  await page.route(/crane-flock-motion-rgb-alpha.*\.mp4$/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'education', 0);
+    await sendFrontIntent(page, 'forward');
+    await expect(page.locator('[data-phone-packed-alpha-canvas="crane-flock"]'))
+      .toBeAttached();
+    await expectCraneSliceRollback(page, 'education', 'crane-animation', before);
+    await assertTargetContentVisible(page, CRANE_SLICE_CONTENT.education);
+  } finally {
+    releaseMedia();
+  }
+});
+
+test('Crane slice context loss cannot commit a partial two-surface proof', async ({ page }) => {
+  let releaseMedia = () => undefined;
+  const gate = new Promise<void>((resolve) => { releaseMedia = resolve; });
+  await page.route(/crane-(?:figure|flock)-motion-rgb-alpha.*\.mp4$/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'education', 0);
+    await sendFrontIntent(page, 'forward');
+    const canvas = page.locator('[data-phone-packed-alpha-canvas="crane-figure"]');
+    await expect(canvas).toBeAttached();
+    await canvas.dispatchEvent('webglcontextlost', { cancelable: true });
+    await expectCraneSliceRollback(page, 'education', 'crane-animation', before);
+  } finally {
+    releaseMedia();
+  }
+});
+
+test('Crane slice re-proves both surfaces across visibility, BFCache, and orientation', async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const visibility = { current: 'visible' as DocumentVisibilityState };
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true, get: () => visibility.current
+    });
+    Object.defineProperty(window, '__r5SetVisibility', {
+      configurable: true,
+      value: (next: DocumentVisibilityState) => {
+        visibility.current = next;
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+    });
+  });
+  await page.goto('/harness/r5-phone-clean#crane-animation', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'crane-animation', 0);
+  const beforePlaneRevision = Number(await page.locator('.phone-story')
+    .getAttribute('data-phone-plane-revision'));
+  await page.evaluate(() => {
+    const api = window as typeof window & {
+      __r5SetVisibility(next: DocumentVisibilityState): void;
+    };
+    api.__r5SetVisibility('hidden');
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    window.dispatchEvent(new Event('orientationchange'));
+    window.dispatchEvent(new Event('resize'));
+    api.__r5SetVisibility('visible');
+  });
+  try {
+    await page.waitForFunction((before) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      return shell?.dataset.phoneStatus === 'stable'
+        && shell.dataset.phoneScene === 'crane-animation'
+        && Number(shell.dataset.phonePlaneRevision) > before;
+    }, beforePlaneRevision, { timeout: 15_000 });
+  } catch (error) {
+    const state = await page.locator('.phone-story').evaluate((shell) => ({
+      shell: { ...(shell as HTMLElement).dataset },
+      layers: [...document.querySelectorAll<HTMLElement>(
+        '[data-phone-packed-alpha-canvas^="crane-"]'
+      )].map((layer) => ({ dataset: { ...layer.dataset }, style: getComputedStyle(layer).cssText }))
+    }));
+    throw new Error(`Crane reproof did not settle: ${JSON.stringify(state)}`, { cause: error });
+  }
+  for (const layer of ['crane-figure', 'crane-flock']) {
+    await expect(page.locator(`[data-phone-packed-alpha-canvas="${layer}"]`))
+      .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+  }
+  await traverseCraneSlice(page, 'crane-animation', 'education', 'reverse');
+  await traverseCraneSlice(page, 'education', 'crane-animation', 'forward');
 });
 
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {

@@ -452,9 +452,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     }
     for (const lease of [...leaves.values()]) {
       if (!sameAttempt(lease.reports.binding.attempt, attempt)) continue;
-      if (lease.reports.binding.leg !== 'source' && lease.reports.binding.leg !== 'rollback') {
-        retireLease(lease, 'generation-replaced');
-      }
+      const retained = attempt.mode === 'recovery'
+        || ['source', 'rollback'].includes(lease.reports.binding.leg);
+      if (!retained) retireLease(lease, 'generation-replaced');
     }
   };
 

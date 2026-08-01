@@ -2004,6 +2004,35 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('retains a committed media leaf when layout supersedes its recovery generation', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#crane-animation');
+    const disconnect = runtime.connect();
+    const { commands } = commandFixture();
+    registerCurrentLeaf(runtime, commands);
+    proveCurrent(runtime, fixture);
+    const stableCommit = runtime.getSnapshot().stableCommit;
+
+    fixture.emit({ type: 'pagehide', persisted: true });
+    fixture.emit({ type: 'pageshow', persisted: true });
+    const firstRecovery = currentTransaction(runtime);
+    expect(firstRecovery.mode).toBe('recovery');
+    fixture.emit({
+      type: 'viewport', change: 'layout',
+      viewport: { ...initialViewport(), layoutRevision: 2, visualRevision: 2 }
+    });
+
+    const latestRecovery = currentTransaction(runtime);
+    expect(latestRecovery.mode).toBe('recovery');
+    expect(latestRecovery.attempt.transactionGeneration)
+      .toBeGreaterThan(firstRecovery.attempt.transactionGeneration);
+    expect(commands.dispose).not.toHaveBeenCalled();
+    expect(commands.rebind).toHaveBeenCalledTimes(3);
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot().stableCommit).toBe(stableCommit);
+    disconnect();
+  });
+
   it('keeps the proven stable leaf as the safe cover when recovery proof fails', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#pattern');

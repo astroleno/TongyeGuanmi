@@ -496,9 +496,9 @@ function opaqueStyle(style: CSSStyleDeclaration): boolean {
 
 function visibleThroughAncestors(
   element: HTMLElement, root: HTMLElement,
-  getStyle: PhonePresentationDependencies['getComputedStyle']
+  getStyle: PhonePresentationDependencies['getComputedStyle'], includeSelf = true
 ): boolean {
-  return visibleStyle(getStyle(element)) && (element === root
+  return (!includeSelf || visibleStyle(getStyle(element))) && (element === root
     || !!element.parentElement && visibleThroughAncestors(element.parentElement, root, getStyle));
 }
 
@@ -533,6 +533,7 @@ function requiredIdentityIsValid(request: PhonePlaneRequest): boolean {
 export function createPhonePresentation(
   dependencies: PhonePresentationDependencies
 ): PhonePresentation {
+  const getStyle = dependencies.getComputedStyle;
   const state: {
     root: HTMLElement | null;
     mountSequence: number;
@@ -691,7 +692,6 @@ export function createPhonePresentation(
     const segment = request.attempt.segmentId
       ? phoneManifest.segments.find(({ id }) => id === request.attempt.segmentId) : null;
     const expectedEffect = segment?.effectPlacement === 'above-both' ? 40 : 20;
-    const style = dependencies.getComputedStyle;
     topology.effect.style.setProperty('--phone-plane-z', String(expectedEffect));
     return topology.viewport.parentElement === state.root
       && topology.coverage.parentElement === topology.viewport
@@ -699,11 +699,11 @@ export function createPhonePresentation(
       && topology.source.parentElement === topology.planes
       && topology.effect.parentElement === topology.planes
       && topology.receiver.parentElement === topology.planes
-      && style(topology.viewport).position === 'fixed'
-      && style(topology.viewport).isolation === 'isolate'
-      && Number.parseInt(style(topology.source).zIndex, 10) === 10
-      && Number.parseInt(style(topology.effect).zIndex, 10) === expectedEffect
-      && Number.parseInt(style(topology.receiver).zIndex, 10) === 30;
+      && getStyle(topology.viewport).position === 'fixed'
+      && getStyle(topology.viewport).isolation === 'isolate'
+      && Number.parseInt(getStyle(topology.source).zIndex, 10) === 10
+      && Number.parseInt(getStyle(topology.effect).zIndex, 10) === expectedEffect
+      && Number.parseInt(getStyle(topology.receiver).zIndex, 10) === 30;
   };
 
   const applyVariables = (
@@ -758,6 +758,7 @@ export function createPhonePresentation(
     );
     const visual = request.viewport.visual;
     const scene = phoneSceneById(request.sceneId);
+    const authoredComposite = scene.frame.surfaceIds.length > 1;
     const elements = scene.content.selectors.map((selector) => (
       record.root?.querySelector<HTMLElement>(selector) ?? null
     ));
@@ -769,7 +770,7 @@ export function createPhonePresentation(
     const layers = Array.from(topology.planes.children) as HTMLElement[];
     for (const element of elements) {
       if (!element || !intersectsVisualViewport(element, visual)
-        || !visibleThroughAncestors(element, record.root, dependencies.getComputedStyle)) {
+        || !visibleThroughAncestors(element, record.root, getStyle, !authoredComposite)) {
         return presentationFailure(
           'presentation-content-invisible', 'Required scene content is not visibly intersecting'
         );
@@ -781,10 +782,10 @@ export function createPhonePresentation(
       const targetIndex = hits.findIndex((hit) => hit === element || element.contains(hit));
       const hitOccluder = targetIndex < 0 ? null : hits.slice(0, targetIndex).find((hit) => (
         !(request.loaderCovered && hit.hasAttribute('data-phone-loader'))
-          && opaqueStyle(dependencies.getComputedStyle(hit))
+          && opaqueStyle(getStyle(hit))
       ));
       const layerOccluder = layers.find((layer) => {
-        const style = dependencies.getComputedStyle(layer);
+        const style = getStyle(layer);
         return layer !== active && !layer.contains(element) && !element.contains(layer)
           && Number.parseInt(style.zIndex, 10) > activeZ && opaqueStyle(style)
           && containsPoint(layer, bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
@@ -793,9 +794,13 @@ export function createPhonePresentation(
         'presentation-content-occluded', 'Required scene content is occluded in the story stack'
       );
     }
+    if (authoredComposite && !elements.some((element) => (
+      !!element && visibleStyle(getStyle(element))
+    ))) return presentationFailure('presentation-content-invisible',
+      'No authored compositor layer is visibly participating');
     const pseudoOccludes = layers
       .some((element) => phonePseudoElements.some((pseudo) => {
-        const style = dependencies.getComputedStyle(element, pseudo);
+        const style = getStyle(element, pseudo);
         return style.content !== 'none' && opaqueStyle(style)
           && Number.parseInt(style.zIndex, 10) > activeZ;
       }));
@@ -813,12 +818,13 @@ export function createPhonePresentation(
         ? 'static-ready' : scene.frame.kind === 'decoded-composited-frame'
           && scene.directEntry.closure.resourceBudget.canvases === 0
           ? 'video-decoded' : 'canvas-drawn';
-    return requiredSurfaces.length > 0 && requiredSurfaces.every((surfaceId) => {
-      const surface = record.surfaces.get(surfaceId)?.element;
-      return !!surface && !!record.root && record.facts.get(surfaceId)?.has(expectedFact) === true
-        && intersectsVisualViewport(surface, request.viewport.visual)
-        && visibleThroughAncestors(surface, record.root, dependencies.getComputedStyle);
-    });
+    const surfaces = requiredSurfaces.map((id) => record.surfaces.get(id)?.element);
+    return surfaces.length > 0 && surfaces.every((surface, index) => !!surface && !!record.root
+      && record.facts.get(requiredSurfaces[index]!)?.has(expectedFact) === true
+      && intersectsVisualViewport(surface, request.viewport.visual)
+      && visibleThroughAncestors(surface, record.root, getStyle, surfaces.length === 1))
+      && (surfaces.length === 1 || surfaces.some((surface) =>
+        !!surface && visibleStyle(getStyle(surface))));
   };
 
   const coverageIsVisible = (
@@ -846,7 +852,7 @@ export function createPhonePresentation(
       ? anchor : `[data-phone-landing="${anchor}"]`;
     const element = record.root.querySelector<HTMLElement>(selector);
     return !!element && intersectsVisualViewport(element, request.viewport.visual)
-      && visibleThroughAncestors(element, record.root, dependencies.getComputedStyle);
+      && visibleThroughAncestors(element, record.root, getStyle);
   };
 
   const provePlane = (

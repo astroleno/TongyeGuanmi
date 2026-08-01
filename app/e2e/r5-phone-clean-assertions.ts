@@ -187,6 +187,54 @@ export async function assertTargetContentVisible(
   expect(failures, 'required clean target content').toEqual([]);
 }
 
+export async function assertCompositeTargetContentVisible(
+  page: Page,
+  selectors: readonly string[]
+): Promise<void> {
+  const result = await page.evaluate((required) => {
+    const root = document.querySelector<HTMLElement>('.phone-story');
+    const failures: string[] = [];
+    let visiblyParticipating = 0;
+    for (const selector of required) {
+      const element = root?.querySelector<HTMLElement>(selector);
+      if (!element) {
+        failures.push(`${selector}:missing`);
+        continue;
+      }
+      const rect = element.getBoundingClientRect();
+      const intersects = rect.width > 0 && rect.height > 0
+        && rect.right > 0 && rect.bottom > 0
+        && rect.left < window.innerWidth && rect.top < window.innerHeight;
+      let ancestorsVisible = true;
+      for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+        const style = getComputedStyle(ancestor);
+        if (style.display === 'none' || style.visibility !== 'visible'
+          || Number.parseFloat(style.opacity || '1') <= 0) {
+          ancestorsVisible = false;
+          break;
+        }
+        if (ancestor === root) break;
+      }
+      if (!intersects || !ancestorsVisible) {
+        failures.push(`${selector}:not-presented`);
+        continue;
+      }
+      const style = getComputedStyle(element);
+      if (element.checkVisibility({
+        checkOpacity: true,
+        checkVisibilityCSS: true,
+        contentVisibilityAuto: true
+      }) && style.display !== 'none' && style.visibility === 'visible'
+        && Number.parseFloat(style.opacity || '1') > 0) {
+        visiblyParticipating += 1;
+      }
+    }
+    return { failures, visiblyParticipating };
+  }, selectors);
+  expect(result.failures, 'required authored compositor surfaces').toEqual([]);
+  expect(result.visiblyParticipating, 'visible authored compositor layer').toBeGreaterThan(0);
+}
+
 export async function assertNoIntermediateWhiteOrBlackFrame(
   frameSeries: readonly Buffer[],
   policy: PhoneIntermediateFramePolicy

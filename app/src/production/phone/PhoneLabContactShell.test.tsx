@@ -139,7 +139,7 @@ describe('PhoneLabContactShell', () => {
     expect(shellSource).toContain('!phoneLabContactDirectEntryAutoplays(entryScene, reducedMotion)');
   });
 
-  it('keeps the shared PH and Education migration bridges stateless', () => {
+  it('keeps the shared PH, Education, and Crane migration bridges stateless', () => {
     for (const source of [sceneLoaderSource, transitionLoaderSource]) {
       expect(source).not.toContain('useState');
       expect(source).not.toContain('setTimeout');
@@ -152,11 +152,15 @@ describe('PhoneLabContactShell', () => {
     expect(sceneLoaderSource).toContain(
       "Component, 'legacy-lab-contact-education'"
     );
+    expect(sceneLoaderSource).toContain("'legacy-lab-contact-crane'");
     expect(transitionLoaderSource).toContain(
       "module.PhoneLabPhTransition,\n          'legacy-lab-contact-lab-ph'"
     );
     expect(transitionLoaderSource).toContain(
       "module.PhonePhEducationTransition,\n          'legacy-lab-contact-ph-education'"
+    );
+    expect(transitionLoaderSource).toContain(
+      "module.PhoneEducationCraneTransition,\n          'legacy-lab-contact-education-crane'"
     );
   });
 

@@ -23,27 +23,18 @@ describe('Phone Education → Crane transition', () => {
       kind: 'horizontal',
       direction: 'bottom-to-top'
     });
-    expect(source).toContain('createPhoneInkTransition');
-    expect(source).toContain('from: null');
+    expect(source).toContain('createPhoneInkLeaf');
+    expect(source).toContain("segmentId: 'education-crane'");
+    expect(source).toContain("surfaceId: 'fx:education-crane'");
     expect(source).toContain("grade: 'edge-bright'");
-    expect(source).toContain(
-      "'data-phone-education-crane-ink': 'bottom-to-top'"
-    );
-    expect(source).toContain('ensureInk()?.render(frame.progress)');
-    expect(source).toContain('const releaseInk = useCallback');
-    expect(source).toContain('canvas.width = 1');
-    expect(source).toMatch(
-      /leave\(\) \{\s*directionRef\.current = 1;\s*render\(1\);[\s\S]*?releaseInk\(\);\s*\}/
-    );
-    expect(source).toMatch(
-      /reverse\(\) \{\s*directionRef\.current = -1;\s*render\(1\);\s*\}/
-    );
+    expect(source).toContain("portraitInk: 'education-crane'");
     expect(stylesheet).toContain('phone-education-crane__ink');
     expect(stylesheet).toContain(
       'height: var(--phone-cinematic-stage-canvas-height, 100lvh)'
     );
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).not.toContain('parkPhoneCraneMedia');
+    expect(source).not.toContain('production/phone/types');
   });
 
   it('keeps both authored endpoints opaque while the contour owns visibility', () => {

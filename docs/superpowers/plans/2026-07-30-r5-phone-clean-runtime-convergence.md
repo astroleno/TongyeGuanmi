@@ -4535,21 +4535,21 @@ git commit -m "feat(r5): converge PH and Education vertical slice"
 
 ### Slice 10B — Education → Crane
 
-- [ ] **Step 10B.1: Refactor Crane and its entry edge**
+- [x] **Step 10B.1: Refactor Crane and its entry edge**
 
 Preserve distinct Crane figure/flock authored media layers, crop, initial and
 terminal frames, and reverse compositor. Both media resources belong to the
 declared closure/resource budget; unifying authority must not flatten them.
 No setTimeout fallback can mark an endpoint ready.
 
-- [ ] **Step 10B.2: Prove Crane activation/reverse/resource recovery**
+- [x] **Step 10B.2: Prove Crane activation/reverse/resource recovery**
 
 Test forward/reverse twice, direct Crane entry, figure/flock activation,
 withheld frame, context loss, lock/unlock, background/foreground, BFCache,
 orientation, chunk delay/rejection, and deterministic Canvas/decoder
 retirement.
 
-- [ ] **Step 10B.3: Verify and commit Slice 10B**
+- [x] **Step 10B.3: Verify and commit Slice 10B**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -4566,6 +4566,33 @@ pnpm -C app exec playwright test \
 git add app
 git commit -m "feat(r5): converge Crane vertical slice"
 ```
+
+**Slice 10B closure record (2026-08-01):**
+
+- Crane now registers the donor-authored figure and flock video/Canvas pairs
+  behind one clean command/report boundary. Both current-generation physical
+  Canvas draws are mandatory; the projector permits either authored layer to
+  fade at an endpoint only while the other layer remains visibly participating.
+- Education → Crane is an effect-only clean Ink leaf. Runtime-owned progress,
+  activation, reverse sampling, pause/rebind, and terminal disposal replace the
+  old native-clock and legacy-shell lifecycle owners without flattening the two
+  media lanes.
+- A retained committed media leaf now survives a BFCache recovery generation
+  that is immediately superseded by a layout recovery. The latest generation
+  rebinds and re-proves the same surfaces instead of hard-disposing the safe
+  committed plane and timing out in media preparation.
+- The focused suite passed 13 files / 180 tests and the complete Vitest suite
+  passed 207 files / 1,291 tests. TypeScript, focused ESLint, boolean-data,
+  architecture, homepage-boundary, packed-alpha, production-build,
+  frozen-input, and diff checks passed.
+- Phone-portrait WebKit passed all eight Crane-slice tests: direct entry, two
+  Education ↔ Crane cycles, two-decoder activation retry, delayed/rejected
+  chunks, withheld flock draw, context loss, visibility, BFCache, orientation,
+  and forward/reverse reproof. The exact old-formal mobile-WebKit command kept
+  its accepted 2 passes / 3 skips / 4 frozen failures at the same AOD reverse
+  and three downstream v47 assertions; no oracle changed.
+- The production build reports 609,875 B of budgeted phone JS and a 41,116 B
+  largest lazy chunk. No transient Playwright artifact is committed.
 
 ### Slice 10C — Crane → Contact and complete story
 
