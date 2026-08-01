@@ -63,6 +63,29 @@ const FIGURE3_SLICE_SEGMENT = {
   'figure3-animation:brand': 'brand-figure3'
 } as const;
 
+const GROUP45_CONTENT = {
+  brand: ['#phone-brand-title', '.phone-brand__definition p'],
+  'figure3-animation': [
+    '[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-canvas]'
+  ],
+  services: ['#phone-services-title', '.phone-services__hero > p:last-child'],
+  'ttg-animation': ['[data-r4-scene="ttg-animation"] [data-ttg-figure-video]'],
+  lab: ['#phone-lab-title', '.phone-lab__hero > p:not(.phone-lab__eyebrow)']
+} as const;
+
+const GROUP45_SEGMENT = {
+  'brand:figure3-animation': 'brand-figure3',
+  'figure3-animation:services': 'figure3-services',
+  'services:ttg-animation': 'services-ttg',
+  'ttg-animation:lab': 'ttg-lab',
+  'lab:ttg-animation': 'ttg-lab',
+  'ttg-animation:services': 'services-ttg',
+  'services:figure3-animation': 'figure3-services',
+  'figure3-animation:brand': 'brand-figure3'
+} as const;
+
+type Group45Scene = keyof typeof GROUP45_CONTENT;
+
 async function nextAnimationFrame(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
@@ -198,6 +221,123 @@ async function completeFigure3SliceAttempt(
   }
   await waitForCommitSequence(page, target, before);
   expect(await readCommitSequence(page)).toBe(before + 1);
+}
+
+async function completeGroup45Attempt(
+  page: import('@playwright/test').Page,
+  source: Group45Scene,
+  target: Group45Scene,
+  direction: 'forward' | 'reverse',
+  before: number
+): Promise<void> {
+  const segment = GROUP45_SEGMENT[`${source}:${target}` as keyof typeof GROUP45_SEGMENT];
+  await page.waitForFunction((expectedSegment) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return Boolean(document.querySelector(
+      `[data-phone-plane="effect"] [data-r4-ink-segment="${expectedSegment}"], `
+        + `[data-phone-plane="effect"] [data-phone-transition="${expectedSegment}"]`
+    ) || document.querySelector('[data-phone-activation]:not([hidden])')
+      || shell?.dataset.phonePhase === 'awaiting-leg-intent');
+  }, segment, { timeout: 10_000 });
+  const initialPhase = await page.locator('.phone-story').getAttribute('data-phone-phase');
+  if (await page.locator('[data-phone-activation]:not([hidden])').count()) {
+    await page.locator('[data-phone-activation]:not([hidden])').click();
+  } else if (initialPhase === 'awaiting-leg-intent') {
+    await sendFrontIntent(page, direction);
+  }
+  await expect(page.locator(
+    `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"], `
+      + `[data-phone-plane="effect"] [data-phone-transition="${segment}"]`
+  )).toBeAttached({ timeout: 10_000 });
+  for (let boundary = 0; boundary < 5; boundary += 1) {
+    const state = await page.waitForFunction(({ from, to, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const current = {
+        scene: shell?.dataset.phoneScene,
+        status: shell?.dataset.phoneStatus,
+        phase: shell?.dataset.phonePhase,
+        failure: shell?.dataset.phoneFailure,
+        sequence: Number(shell?.dataset.phoneCommitSequence)
+      };
+      return current.scene === to && current.sequence > after
+        || current.status === 'stable' && current.scene === from
+        || ['awaiting-media-activation', 'awaiting-leg-intent'].includes(current.phase ?? '')
+        ? current : null;
+    }, { from: source, to: target, after: before }, { timeout: 25_000 });
+    const current = await state.jsonValue();
+    if (current.scene === target && current.sequence > before) break;
+    if (current.status === 'stable') {
+      throw new Error(`Group 4-5 ${source} → ${target} rolled back: ${JSON.stringify(current)}`);
+    }
+    if (current.phase === 'awaiting-media-activation') {
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    } else if (current.phase === 'awaiting-leg-intent') {
+      await sendFrontIntent(page, direction);
+    }
+  }
+  await waitForCommitSequence(page, target, before);
+  expect(await readCommitSequence(page)).toBe(before + 1);
+}
+
+async function traverseGroup45(
+  page: import('@playwright/test').Page,
+  source: Group45Scene,
+  target: Group45Scene,
+  direction: 'forward' | 'reverse'
+): Promise<Readonly<{ videos: number; canvases: number }>> {
+  const before = await readCommitSequence(page);
+  await sendFrontIntent(page, direction);
+  await completeGroup45Attempt(page, source, target, direction, before);
+  await assertSinglePhoneAuthority(page);
+  await assertTargetContentVisible(page, GROUP45_CONTENT[target]);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+  if (target === 'ttg-animation') {
+    await expect(page.locator('[data-ttg-figure-video]'))
+      .toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
+  }
+  return page.evaluate(() => ({
+    videos: document.querySelectorAll('.phone-story video').length,
+    canvases: document.querySelectorAll('.phone-story canvas').length
+  }));
+}
+
+async function expectGroup45Rollback(
+  page: import('@playwright/test').Page,
+  source: Group45Scene,
+  target: Group45Scene,
+  direction: 'forward' | 'reverse',
+  before: number
+): Promise<void> {
+  let handledActivation = false;
+  let handledLegIntent = false;
+  for (let sample = 0; sample < 300; sample += 1) {
+    const state = await page.locator('.phone-story').evaluate((shell) => ({
+      scene: (shell as HTMLElement).dataset.phoneScene,
+      status: (shell as HTMLElement).dataset.phoneStatus,
+      phase: (shell as HTMLElement).dataset.phonePhase,
+      sequence: Number((shell as HTMLElement).dataset.phoneCommitSequence),
+      activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+    }));
+    if (state.status === 'stable' && state.scene === source
+      && state.sequence === before) return;
+    if (state.status === 'faulted' && state.scene === source
+      && state.sequence === before) return;
+    if (state.status === 'stable' && state.scene === target) {
+      throw new Error(`Withheld Group 4-5 proof committed ${target}: ${JSON.stringify(state)}`);
+    }
+    if (state.activation && !handledActivation) {
+      handledActivation = true;
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    } else if (state.phase === 'awaiting-leg-intent' && !handledLegIntent) {
+      handledLegIntent = true;
+      await sendFrontIntent(page, direction);
+    }
+    await page.waitForTimeout(100);
+  }
+  const state = await page.locator('.phone-story').evaluate((shell) => ({
+    ...(shell as HTMLElement).dataset
+  }));
+  throw new Error(`Group 4-5 did not roll back: ${JSON.stringify(state)}`);
 }
 
 async function expectFigure3SliceRollback(
@@ -712,6 +852,162 @@ test('Figure3 slice restores its proved source after background and foreground',
   await traverseFigure3Slice(
     page, 'services', 'figure3-animation', 'reverse'
   );
+});
+
+test('Group 4-5 direct TTG and Lab entries expose their accepted endpoints', async ({ page }) => {
+  for (const scene of ['ttg-animation', 'lab'] as const) {
+    await page.goto(`/harness/r5-phone-clean?direct=${scene}#${scene}`, {
+      waitUntil: 'domcontentloaded'
+    });
+    await waitForCommitSequence(page, scene, 0);
+    await assertSinglePhoneAuthority(page);
+    await assertTargetContentVisible(page, GROUP45_CONTENT[scene]);
+    await assertNoWhiteOrTransparentViewportEdges(page);
+    if (scene === 'ttg-animation') {
+      await expect(page.locator('[data-ttg-figure-video]'))
+        .toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
+      await expect(page.locator('.phone-ttg video')).toHaveCount(1);
+    }
+  }
+});
+
+test('Group 4-5 completes two full forward/reverse cycles without resource growth', async ({
+  page
+}) => {
+  await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'brand', 0);
+  const cycle = async () => {
+    const samples = [];
+    samples.push(await traverseGroup45(page, 'brand', 'figure3-animation', 'forward'));
+    samples.push(await traverseGroup45(page, 'figure3-animation', 'services', 'forward'));
+    samples.push(await traverseGroup45(page, 'services', 'ttg-animation', 'forward'));
+    samples.push(await traverseGroup45(page, 'ttg-animation', 'lab', 'forward'));
+    samples.push(await traverseGroup45(page, 'lab', 'ttg-animation', 'reverse'));
+    samples.push(await traverseGroup45(page, 'ttg-animation', 'services', 'reverse'));
+    samples.push(await traverseGroup45(page, 'services', 'figure3-animation', 'reverse'));
+    samples.push(await traverseGroup45(page, 'figure3-animation', 'brand', 'reverse'));
+    return samples;
+  };
+  const first = await cycle();
+  const second = await cycle();
+  expect(second).toEqual(first);
+  for (const sample of second) {
+    expect(sample.videos).toBeLessThanOrEqual(1);
+    expect(sample.canvases).toBeLessThanOrEqual(2);
+  }
+});
+
+test('Group 4-5 keeps Services proved while the TTG leaf chunk is delayed', async ({ page }) => {
+  let releaseChunk = () => undefined;
+  let observeRequest = () => undefined;
+  const gate = new Promise<void>((resolve) => { releaseChunk = resolve; });
+  const requested = new Promise<void>((resolve) => { observeRequest = resolve; });
+  await page.route(/\/assets\/PhoneTtg-[^/]+\.js$/, async (route) => {
+    observeRequest();
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto('/harness/r5-phone-clean#services', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'services', 0);
+    await sendFrontIntent(page, 'forward');
+    await requested;
+    await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'transaction');
+    expect(await readCommitSequence(page)).toBe(before);
+    await assertTargetContentVisible(page, GROUP45_CONTENT.services);
+    releaseChunk();
+    await completeGroup45Attempt(page, 'services', 'ttg-animation', 'forward', before);
+  } finally {
+    releaseChunk();
+  }
+});
+
+test('Group 4-5 caches a rejected TTG chunk without same-Document retry', async ({ page }) => {
+  let requests = 0;
+  let observeRequest = () => undefined;
+  const requested = new Promise<void>((resolve) => { observeRequest = resolve; });
+  await page.route(/\/assets\/PhoneTtg-[^/]+\.js$/, async (route) => {
+    requests += 1;
+    observeRequest();
+    await route.abort('failed');
+  });
+  await page.goto('/harness/r5-phone-clean#services', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'services', 0);
+  await sendFrontIntent(page, 'forward');
+  await requested;
+  await expectGroup45Rollback(page, 'services', 'ttg-animation', 'forward', before);
+  await assertTargetContentVisible(page, GROUP45_CONTENT.services);
+  expect(requests).toBe(1);
+  await sendFrontIntent(page, 'forward');
+  await page.waitForTimeout(750);
+  expect(requests).toBe(1);
+  expect(await readCommitSequence(page)).toBe(before);
+});
+
+test('Group 4-5 refuses to expose TTG while its decoded frame is withheld', async ({ page }) => {
+  let releaseMedia = () => undefined;
+  const gate = new Promise<void>((resolve) => { releaseMedia = resolve; });
+  await page.route(/ttg-figure-motion.*\.(?:webm|mp4)$/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto('/harness/r5-phone-clean#services', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'services', 0);
+    await sendFrontIntent(page, 'forward');
+    await expect(page.locator('[data-ttg-figure-video]')).toBeAttached();
+    await expectGroup45Rollback(page, 'services', 'ttg-animation', 'forward', before);
+    await assertTargetContentVisible(page, GROUP45_CONTENT.services);
+  } finally {
+    releaseMedia();
+  }
+});
+
+test('Group 4-5 restores proved TTG after visibility and BFCache lifecycle events', async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const visibility = { current: 'visible' as DocumentVisibilityState };
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true, get: () => visibility.current
+    });
+    Object.defineProperty(window, '__r5SetVisibility', {
+      configurable: true,
+      value: (next: DocumentVisibilityState) => {
+        visibility.current = next;
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+    });
+  });
+  await page.goto('/harness/r5-phone-clean#ttg-animation', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'ttg-animation', 0);
+  await sendFrontIntent(page, 'forward');
+  await expect(page.locator('[data-phone-transition="ttg-lab"]')).toBeAttached();
+  await page.evaluate(() => {
+    const api = window as typeof window & {
+      __r5SetVisibility(next: DocumentVisibilityState): void;
+    };
+    api.__r5SetVisibility('hidden');
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    api.__r5SetVisibility('visible');
+  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const state = await page.waitForFunction(({ sequence }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      if (shell?.dataset.phoneStatus === 'stable'
+        && shell.dataset.phoneScene === 'ttg-animation'
+        && Number(shell.dataset.phoneCommitSequence) === sequence) return 'stable';
+      if (document.querySelector('[data-phone-activation]:not([hidden])')) return 'activation';
+      return null;
+    }, { sequence: before }, { timeout: 15_000 });
+    if (await state.jsonValue() === 'stable') break;
+    await page.locator('[data-phone-activation]:not([hidden])').click();
+  }
+  await expect(page.locator('[data-ttg-figure-video]'))
+    .toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
+  await traverseGroup45(page, 'ttg-animation', 'lab', 'forward');
+  await traverseGroup45(page, 'lab', 'ttg-animation', 'reverse');
 });
 
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {

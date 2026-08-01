@@ -1,15 +1,10 @@
-import {
-  forwardRef,
-  useCallback,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef
-} from 'react';
+import { createElement, useLayoutEffect, useMemo, useRef } from 'react';
 import type {
-  Group45PhoneTransitionProps
-} from '../../production/phone/adapter-groups/group4-5';
+  PhoneActivationInvocation,
+  PhoneLeafCommandHandle,
+  PhoneLeafReportPort
+} from '../../production/phone-story/presentation';
 import { PHONE_TTG_LAB_ANIMATION_STOP } from '../../scenes/ttg-animation/phone/motion';
-import type { TransitionPresentationAdapterHandle } from '../../story/presentation';
 
 export const PHONE_TTG_LAB_DECISION = {
   strategy: 'desktop-overlay-dissolve',
@@ -41,13 +36,8 @@ export function phoneTtgLabFrame(
   const progress = mediaFailed
     ? direction === 1 ? 1 : 0
     : reducedMotion ? chapterProgress <= 0 ? 0 : 1
-      : clamp(
-        (chapterProgress - PHONE_TTG_LAB_ANIMATION_STOP)
-          / (1 - PHONE_TTG_LAB_ANIMATION_STOP)
-      );
-  // TTG is the retained source plate. Lab alone owns the dissolve opacity:
-  // fading the TTG ancestor makes Safari defer its alpha-video plane until
-  // the ancestor returns to opacity 1, which hides the figure in reverse.
+      : clamp((chapterProgress - PHONE_TTG_LAB_ANIMATION_STOP)
+        / (1 - PHONE_TTG_LAB_ANIMATION_STOP));
   return { progress, fromOpacity: 1, toOpacity: progress };
 }
 
@@ -66,7 +56,7 @@ function applyEndpoint(
     element.inert = true;
     return;
   }
-  const visible = opacity > 0.001;
+  const visible = opacity > .001;
   element.style.opacity = opacity.toFixed(4);
   element.style.visibility = visible ? 'visible' : 'hidden';
   element.style.pointerEvents = visible ? 'auto' : 'none';
@@ -91,11 +81,7 @@ function clearEndpoint(element: HTMLElement | null, documentFlow = false): void 
   delete element.dataset.phoneDissolve;
 }
 
-/**
- * Lab returns to normal document flow at the forward endpoint, while TTG
- * stays at opacity zero until the fixed stage is retired. Clearing both
- * endpoints in the same frame briefly exposed TTG over the first Lab screen.
- */
+/** Legacy migration helper; the clean leaf never mutates scene endpoints. */
 export function settlePhoneTtgLabDocumentFlow(
   from: HTMLElement | null,
   to: HTMLElement | null
@@ -104,90 +90,62 @@ export function settlePhoneTtgLabDocumentFlow(
   clearEndpoint(to, true);
 }
 
-/** TTG failure lands on Lab's stable reading root, which Unit 6 can consume. */
-export const PhoneTtgLabTransition = forwardRef<
-  TransitionPresentationAdapterHandle,
-  Group45PhoneTransitionProps
->(function PhoneTtgLabTransition(
-  { host, from, to, reducedMotion, documentFlow = false, onReady },
-  forwardedRef
-) {
+/** Between-plane command leaf; presentation owns source and receiver opacity. */
+export function PhoneTtgLabTransition({
+  reports
+}: Readonly<{ reports: PhoneLeafReportPort }>) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const progressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
-  const render = useCallback((rawProgress: number) => {
-    const progress = clamp(rawProgress);
-    if (progress > progressRef.current + 0.0001) directionRef.current = 1;
-    if (progress < progressRef.current - 0.0001) directionRef.current = -1;
-    progressRef.current = progress;
-    const mediaFailed = from?.dataset.phoneMediaState === 'fallback'
-      || to?.dataset.phoneMediaState === 'fallback';
-    const frame = phoneTtgLabFrame(
-      progress,
-      reducedMotion,
-      mediaFailed,
-      directionRef.current
-    );
-    if (host) {
-      host.dataset.phoneTransition = 'ttg-lab:desktop-overlay-dissolve';
-      host.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+  const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
+    rebind() {},
+    activate(command): PhoneActivationInvocation {
+      return { invocationId: command.invocationId, surfaceIds: command.surfaceIds,
+        invoked: false, settlements: [] };
+    },
+    render(rawProgress: number) {
+      const progress = clamp(rawProgress);
+      if (progress > progressRef.current + .0001) directionRef.current = 1;
+      if (progress < progressRef.current - .0001) directionRef.current = -1;
+      progressRef.current = progress;
+      const frame = phoneTtgLabFrame(progress, false, false, directionRef.current);
+      const root = rootRef.current;
+      if (!root) return;
+      root.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+      root.style.setProperty('--phone-ttg-lab-progress', frame.progress.toFixed(4));
+    },
+    settle(endpoint) {
+      progressRef.current = endpoint;
+      const frame = phoneTtgLabFrame(endpoint);
+      const root = rootRef.current;
+      if (!root) return;
+      root.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+      root.style.setProperty('--phone-ttg-lab-progress', frame.progress.toFixed(4));
+    },
+    pause() {},
+    dispose() {
+      const root = rootRef.current;
+      if (!root) return;
+      delete root.dataset.phoneTransitionProgress;
+      root.style.removeProperty('--phone-ttg-lab-progress');
     }
-    applyEndpoint(
-      from,
-      frame.fromOpacity,
-      'ttg-lab',
-      documentFlow
-    );
-    applyEndpoint(
-      to,
-      frame.toOpacity,
-      'ttg-lab',
-      documentFlow
-    );
-  }, [documentFlow, from, host, reducedMotion, to]);
+  }), []);
 
   useLayoutEffect(() => {
-    render(0);
-    onReady?.();
-    return () => {
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
-      if (host?.dataset.phoneTransition?.startsWith('ttg-lab:')) {
-        delete host.dataset.phoneTransition;
-        delete host.dataset.phoneTransitionProgress;
-      }
-    };
-  }, [documentFlow, from, host, onReady, render, to]);
+    const root = rootRef.current;
+    if (!root) return;
+    reports.registerMount({
+      root,
+      surfaces: [{ id: 'between:ttg-lab', element: root, kind: 'dom' }],
+      commands
+    });
+  }, [commands, reports]);
 
-  useImperativeHandle(forwardedRef, () => ({
-    render,
-    enter() {
-      directionRef.current = 1;
-      progressRef.current = 0;
-      render(0);
-    },
-    leave() {
-      directionRef.current = 1;
-      progressRef.current = 1;
-      render(1);
-      if (documentFlow) {
-        settlePhoneTtgLabDocumentFlow(from, to);
-      } else {
-        clearEndpoint(from);
-        clearEndpoint(to);
-      }
-    },
-    reverse() {
-      directionRef.current = -1;
-      progressRef.current = 1;
-      render(1);
-    },
-    dispose() {
-      clearEndpoint(from, documentFlow);
-      clearEndpoint(to, documentFlow);
-    }
-  }), [documentFlow, from, render, to]);
-
-  return null;
-});
+  return createElement('div', {
+    ref: rootRef,
+    'data-phone-transition': 'ttg-lab',
+    'aria-hidden': 'true'
+  });
+}
 
 export default PhoneTtgLabTransition;

@@ -129,7 +129,9 @@ const sceneLoaders = Object.freeze({
   'figure2-proof': () => import('../../scenes/figure2-proof/phone/PhoneFigure2Proof'),
   brand: () => import('../../scenes/brand/phone/PhoneBrand'),
   'figure3-animation': () => import('../../scenes/figure3-animation/phone/PhoneFigure3'),
-  services: () => import('../../scenes/services/phone/PhoneServices')
+  services: () => import('../../scenes/services/phone/PhoneServices'),
+  'ttg-animation': () => import('../../scenes/ttg-animation/phone/PhoneTtg'),
+  lab: () => import('../../scenes/lab/phone/PhoneLab')
 }) satisfies Partial<Record<string, PhoneSceneLoader>>;
 const defaultSceneRegistry = createPhoneSceneRegistry<string>(sceneLoaders);
 

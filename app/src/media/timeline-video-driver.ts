@@ -600,6 +600,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
           && Math.abs(this.inFlightSeek.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
         ) {
           this.presentedSeekFrame = frame;
+          this.armSeekedFrameFallback(frame);
+          if (!this.video.seeking) this.completeInFlightSeek();
           return;
         }
         this.markFrameReady(frame, 'video-frame-callback');
@@ -626,7 +628,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       !frame.allowSeekedFrameFallback
       || this.disposed
       || frame.generation !== this.generation
-      || this.video.seeking
     ) {
       return;
     }
@@ -645,13 +646,32 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       if (
         this.disposed
         || frame.generation !== this.generation
-        || this.video.readyState < 2
-        || this.video.seeking
-        || Math.abs(this.video.currentTime - frame.targetTime) > PRESENTATION_TOLERANCE_SECONDS
       ) {
         return;
       }
+      if (
+        this.video.readyState < 2
+        || this.video.seeking
+        || Math.abs(this.video.currentTime - frame.targetTime) > PRESENTATION_TOLERANCE_SECONDS
+      ) {
+        const waiting = [...this.waiters].some((waiter) => (
+          waiter.generation === frame.generation
+          && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+        ));
+        const pendingNative = this.pendingNative?.desired;
+        if (waiting || pendingNative?.generation === frame.generation
+          && Math.abs(pendingNative.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS) {
+          this.armSeekedFrameFallback(frame);
+        }
+        return;
+      }
+      if (this.inFlightSeek?.generation === frame.generation
+        && Math.abs(this.inFlightSeek.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS) {
+        this.inFlightSeek = undefined;
+        this.presentedSeekFrame = undefined;
+      }
       this.markFrameReady(frame, 'seeked-fallback');
+      this.flushQueuedSeek();
     }, SEEKED_FRAME_FALLBACK_DELAY_MS);
   }
 
@@ -665,6 +685,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   private markFrameReady(frame: DesiredFrame, evidence: FramePresentationEvidence): void {
     if (frame.generation !== this.generation) {
+      return;
+    }
+    if (this.video.readyState < 2 || this.video.seeking) {
+      this.presentFrame(frame);
       return;
     }
     this.cancelFrameCallback();

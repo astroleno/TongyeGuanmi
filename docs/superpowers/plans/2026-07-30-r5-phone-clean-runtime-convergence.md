@@ -4202,7 +4202,7 @@ git commit -m "feat(r5): converge Unit 4 Grade A chain"
 - existing Group 4–5 adapter/module-loader files only for the stateless
   migration bridge
 
-- [ ] **Step 9.1: Freeze the accepted Group 4–5 endpoints**
+- [x] **Step 9.1: Freeze the accepted Group 4–5 endpoints**
 
 Before refactoring, assert:
 
@@ -4290,7 +4290,7 @@ git commit -m "feat(r5): converge Figure3 vertical slice"
 
 ### Slice 9B — Services → TTG → Lab
 
-- [ ] **Step 9B.1: Refactor TTG/Lab and their two edges**
+- [x] **Step 9B.1: Refactor TTG/Lab and their two edges**
 
 After Slice 9A is green, remove these legacy imports from all Group 4–5
 genuine leaves:
@@ -4306,7 +4306,7 @@ production/phone/phone-presented-reverse-playback
 Preserve TTG's decoded/composited initial/terminal frame, persistent closure,
 reverse endpoint, and identity-bound resource retirement.
 
-- [ ] **Step 9B.2: Prove two full Group 4–5 cycles and recovery**
+- [x] **Step 9B.2: Prove two full Group 4–5 cycles and recovery**
 
 Browser tests execute:
 
@@ -4323,7 +4323,7 @@ assert one authority, one `commitSequence` increment, matching
 frame/content/coverage/landing/edge, free input, and bounded decoder/Canvas
 counts.
 
-- [ ] **Step 9B.3: Run Group 4–5 checkpoints**
+- [x] **Step 9B.3: Run Group 4–5 checkpoints**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -4360,12 +4360,40 @@ pnpm -C app build
 
 Run the old formal route regression as well.
 
-- [ ] **Step 9B.4: Commit Slice 9B**
+- [x] **Step 9B.4: Commit Slice 9B**
 
 ```bash
 git add app
 git commit -m "feat(r5): converge TTG and Lab vertical slice"
 ```
+
+**Slice 9B closure record (2026-08-01):**
+
+- TTG and Lab now mount through the clean command/report boundary; Services →
+  TTG uses the clean Ink leaf and TTG → Lab uses the reducer-owned
+  between-plane command leaf. Old formal consumers resolve only through
+  stateless migration facades.
+- TTG reports only a decoded physical initial or terminal frame bound to the
+  current frame token. Its persistent decoder supports pause/rebind recovery,
+  while terminal disposal removes sources and driver ownership. The shared
+  timeline driver now covers both WebKit endpoint orders: `seeked` before the
+  `seeking` flag clears, and a matching frame callback as the final event.
+- Two complete Brand ↔ Lab cycles passed without decoder/Canvas growth.
+  Direct TTG/Lab entry, delayed/rejected TTG loading, withheld decoded media,
+  visibility/BFCache recovery, rollback, and reverse endpoint reuse are
+  covered without changing an old-formal oracle.
+- The focused suite passed 22 files / 210 tests and the complete Vitest suite
+  passed 201 files / 1,274 tests. TypeScript, focused ESLint, boolean-data,
+  architecture, homepage-boundary, packed-alpha, Node fixtures, raw-harness,
+  complete production-build, frozen-input, and diff checks passed.
+- Phone-portrait Chromium and WebKit each passed all six Group 4–5 browser
+  tests. The exact old-formal mobile-WebKit command retained its accepted
+  2 passes / 3 skips / 4 frozen failures at the same AOD reverse and three
+  downstream v47 assertions.
+- The production build reports 610,313 B of budgeted phone JS, 623,911 B for
+  the complete phone presentation family, and a 41,116 B largest lazy chunk.
+  No transient Playwright trace, video, screenshot, or ignored evidence is
+  committed.
 
 **Task 9 acceptance:**
 

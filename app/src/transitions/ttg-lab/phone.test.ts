@@ -1,10 +1,21 @@
+// @vitest-environment jsdom
+
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
+import type {
+  PhoneLeafMountRegistration,
+  PhoneLeafReportPort
+} from '../../production/phone-story/presentation';
 import {
   PHONE_TTG_LAB_DECISION,
+  PhoneTtgLabTransition,
   phoneTtgLabFrame,
   settlePhoneTtgLabDocumentFlow
 } from './phone';
 import { PHONE_TTG_LAB_ANIMATION_STOP } from '../../scenes/ttg-animation/phone/motion';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 function fakeEndpoint(): HTMLElement {
   const properties = new Map<string, string>();
@@ -27,6 +38,16 @@ function fakeEndpoint(): HTMLElement {
       }
     }
   } as unknown as HTMLElement;
+}
+
+function reportFixture() {
+  let registration: PhoneLeafMountRegistration | null = null;
+  const reports = {
+    registerMount(next: PhoneLeafMountRegistration) { registration = next; },
+    reportPrepared() {}, reportFrame() {}, reportProgress() {},
+    reportComplete() {}, reportFailure() {}
+  } satisfies PhoneLeafReportPort;
+  return { reports, registration: () => registration };
 }
 
 describe('Phone TTG → Lab transition', () => {
@@ -94,5 +115,21 @@ describe('Phone TTG → Lab transition', () => {
     expect(phoneTtgLabFrame(.3, false, true, 1).progress).toBe(1);
     expect(phoneTtgLabFrame(.7, false, true, -1).progress).toBe(0);
     expect(phoneTtgLabFrame(.3, true).progress).toBe(1);
+  });
+
+  it('registers one clean between-plane surface without owning endpoints', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => {
+      root.render(createElement(PhoneTtgLabTransition, { reports: mount.reports }));
+    });
+    expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
+      ['between:ttg-lab', 'dom']
+    ]);
+    mount.registration()?.commands.render((1 + PHONE_TTG_LAB_ANIMATION_STOP) / 2);
+    expect(host.querySelector<HTMLElement>('[data-phone-transition="ttg-lab"]')
+      ?.dataset.phoneTransitionProgress).toBe('0.5000');
+    act(() => root.unmount());
   });
 });

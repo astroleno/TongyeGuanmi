@@ -299,7 +299,7 @@ function figure3PairSnapshot(
 }
 
 function stableSceneSnapshot(
-  sceneId: 'figure3-animation' | 'services',
+  sceneId: 'figure3-animation' | 'services' | 'ttg-animation' | 'lab',
   commitSequence: number
 ): SnapshotRecord {
   return {
@@ -307,6 +307,40 @@ function stableSceneSnapshot(
     stableCommit: { sceneId, landing: {}, commitSequence },
     presentationProof: { commitSequence, planeRevision: commitSequence },
     lastPlaneRevision: commitSequence
+  };
+}
+
+function ttgPairSnapshot(
+  sourceSceneId: 'ttg-animation' | 'lab',
+  candidateSceneId: 'ttg-animation' | 'lab',
+  generation: number,
+  sourceCommitSequence = 1
+): SnapshotRecord {
+  const direction = sourceSceneId === 'ttg-animation' ? 'forward' : 'reverse';
+  const activeAttempt = Object.freeze({
+    authorityId: 'test-authority', transactionId: `test:${generation}:ttg-pair`,
+    transactionGeneration: generation, mode: 'segment', sceneId: candidateSceneId,
+    segmentId: 'ttg-lab', direction
+  });
+  return {
+    ...stableSnapshot(), status: 'transaction', stateRevision: 40 + generation,
+    stableCommit: {
+      sceneId: sourceSceneId, landing: {}, commitSequence: sourceCommitSequence
+    },
+    presentationProof: {
+      commitSequence: sourceCommitSequence, planeRevision: sourceCommitSequence
+    },
+    lastPlaneRevision: sourceCommitSequence,
+    transaction: {
+      mode: 'segment', phase: 'preparing', attempt: activeAttempt,
+      sourceSceneId, candidateSceneId, stageIndex: 0,
+      planeRevision: null,
+      requiredPrepared: [], requiredFinal: [], evidence: [], progress: 0,
+      closure: {
+        load: [], mount: [], prewarm: [], resourceBudget: {},
+        retireAfter: 'pair-exit-or-route-dispose'
+      }
+    }
   };
 }
 
@@ -540,6 +574,37 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => engine.publish(stableSceneSnapshot('figure3-animation', 3)));
     expect(host.querySelector('[data-phone-scene-leaf="services"]')).toBe(services);
     expect(host.querySelector('[data-phone-transition-leaf="figure3-services"]')).toBe(effect);
+    act(() => root.unmount());
+  });
+
+  it('retains one TTG/Lab pair topology and report port across the immediate reverse', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+
+    act(() => engine.publish(ttgPairSnapshot('ttg-animation', 'lab', 10)));
+    const ttg = host.querySelector('[data-phone-scene-leaf="ttg-animation"]');
+    const lab = host.querySelector('[data-phone-scene-leaf="lab"]');
+    const effect = host.querySelector('[data-phone-transition-leaf="ttg-lab"]');
+    const effectReports = probe.transitionProps.at(-1)?.reports;
+    expect(ttg).not.toBeNull();
+    expect(lab).not.toBeNull();
+    expect(effect).not.toBeNull();
+
+    act(() => engine.publish(stableSceneSnapshot('lab', 2)));
+    expect(host.querySelector('[data-phone-scene-leaf="ttg-animation"]')).toBe(ttg);
+    expect(host.querySelector('[data-phone-scene-leaf="lab"]')).toBe(lab);
+    expect(host.querySelector('[data-phone-transition-leaf="ttg-lab"]')).toBe(effect);
+
+    act(() => engine.publish(ttgPairSnapshot('lab', 'ttg-animation', 11, 2)));
+    expect(host.querySelector('[data-phone-scene-leaf="ttg-animation"]')).toBe(ttg);
+    expect(host.querySelector('[data-phone-scene-leaf="lab"]')).toBe(lab);
+    expect(host.querySelector('[data-phone-transition-leaf="ttg-lab"]')).toBe(effect);
+    expect(probe.transitionProps.at(-1)?.reports).toBe(effectReports);
+
+    act(() => engine.publish(stableSceneSnapshot('ttg-animation', 3)));
+    expect(host.querySelector('[data-phone-scene-leaf="lab"]')).toBe(lab);
+    expect(host.querySelector('[data-phone-transition-leaf="ttg-lab"]')).toBe(effect);
     act(() => root.unmount());
   });
 

@@ -515,18 +515,20 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
         Component: createPhoneSceneMigrationBridge(PhoneServices, 'legacy-services')
       }));
     case 'ttg-animation':
-      return import('../../scenes/ttg-animation/phone/PhoneTtg').then(({
-        PhoneTtg: Component
+      return import('./scenes/PhoneTtg').then(({
+        PhoneTtg
       }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: createPhoneSceneMigrationBridge(
+          PhoneTtg, 'legacy-ttg', ['ttg-figure-video']
+        )
       }));
     case 'lab':
-      return import('../../scenes/lab/phone/PhoneLab').then(({
-        PhoneLab: Component
+      return import('./scenes/PhoneLab').then(({
+        PhoneLab
       }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: createPhoneSceneMigrationBridge(PhoneLab, 'legacy-lab')
       }));
   }
 }
@@ -578,18 +580,22 @@ function importPhoneTransitionAdapter(id: PhoneTransitionAdapterId): Promise<Pho
         )
       }));
     case 'services-ttg':
-      return import('../../transitions/services-ttg/phone').then(({
-        PhoneServicesTtgTransition: Component
+      return import('./transitions/services-ttg').then(({
+        PhoneServicesTtgTransition
       }) => ({
         id,
-        Component: Component as unknown as PhoneTransitionAdapterComponent
+        Component: createPhoneTransitionMigrationBridge(
+          PhoneServicesTtgTransition, 'legacy-services-ttg'
+        )
       }));
     case 'ttg-lab':
-      return import('../../transitions/ttg-lab/phone').then(({
-        PhoneTtgLabTransition: Component
+      return import('./transitions/ttg-lab').then(({
+        PhoneTtgLabTransition
       }) => ({
         id,
-        Component: Component as unknown as PhoneTransitionAdapterComponent
+        Component: createPhoneTransitionMigrationBridge(
+          PhoneTtgLabTransition, 'legacy-ttg-lab'
+        )
       }));
   }
 }

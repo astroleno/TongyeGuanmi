@@ -132,6 +132,18 @@ export function phoneFigure3EndpointIsPresented(
     && Math.abs(currentTime - targetTime) <= PHONE_FIGURE3_ENDPOINT_TOLERANCE_SECONDS;
 }
 
+export function phoneFigure3HasReusableEndpointFrame(
+  video: Pick<HTMLVideoElement, 'currentTime' | 'readyState' | 'seeking'>,
+  canvas: Pick<HTMLCanvasElement, 'dataset'>,
+  endpoint: PhoneFigure3Endpoint
+): boolean {
+  return canvas.dataset.phoneFigure3PaperFrame === 'ready'
+    && canvas.dataset.phoneFigure3PaperEndpoint === (endpoint === 1 ? 'terminal' : 'initial')
+    && phoneFigure3EndpointIsPresented(
+      endpoint, video.currentTime, video.readyState, video.seeking
+    );
+}
+
 function figure3TimelineMediaInput(
   runId: string,
   direction: 1 | -1,
@@ -183,13 +195,15 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   const reportPresentedFrame = useCallback(() => {
     const root = rootRef.current;
     const video = videoRef.current;
+    const canvas = canvasRef.current;
     const binding = bindingRef.current;
-    if (!root || !video || !binding || disposedRef.current) return;
+    if (!root || !video || !canvas || !binding || disposedRef.current) return;
     const progress = progressRef.current;
     const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
     if (endpoint === null || !phoneFigure3EndpointIsPresented(
       endpoint, video.currentTime, video.readyState, video.seeking
     )) return;
+    canvas.dataset.phoneFigure3PaperEndpoint = endpoint === 1 ? 'terminal' : 'initial';
     root.dataset.phoneFigure3PaperCompositor = 'ready';
     root.dataset.phoneMediaState = 'ready';
     binding.reports.reportFrame('figure3-paper-canvas', {
@@ -239,8 +253,17 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     ));
     if (disposedRef.current || generation !== activationGenerationRef.current
       || binding !== bindingRef.current || result?.status !== 'ready') return;
-    if (!compositor.paint()) throw new Error('Figure3 decoded frame was not painted');
-  }, []);
+    const endpoint = progressRef.current <= .001 ? 0
+      : progressRef.current >= .999 ? 1 : null;
+    if (!compositor.paint()) {
+      const canvas = canvasRef.current;
+      if (endpoint === null || !canvas
+        || !phoneFigure3HasReusableEndpointFrame(video, canvas, endpoint)) {
+        throw new Error('Figure3 decoded frame was not painted');
+      }
+      reportPresentedFrame();
+    }
+  }, [reportPresentedFrame]);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
@@ -286,6 +309,15 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       render(endpoint);
       const binding = bindingRef.current;
       if (!binding || disposedRef.current) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      compositorRef.current?.paint();
+      if (video && canvas && phoneFigure3HasReusableEndpointFrame(
+        video, canvas, endpoint
+      )) {
+        reportPresentedFrame();
+        return;
+      }
       const generation = ++activationGenerationRef.current;
       void prepareCurrentFrame(generation, binding, directionRef.current)
         .catch((error) => reportFailure('figure3-frame-preparation-failed', error));
@@ -308,7 +340,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       releasePhoneFigure3PaperCanvas(canvasRef.current);
       bindingRef.current = null;
     }
-  }), [prepareCurrentFrame, render, reportFailure]);
+  }), [prepareCurrentFrame, render, reportFailure, reportPresentedFrame]);
 
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'field') sceneRef.current = element;

@@ -146,14 +146,38 @@ describe('clean PhoneFigure3 leaf', () => {
       })
     );
 
+    const canvas = host.querySelector('[data-phone-figure3-paper-canvas]');
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error('missing Figure3 Canvas');
+    canvas.dataset.phoneFigure3PaperFrame = 'ready';
+    canvas.dataset.phoneFigure3PaperEndpoint = 'terminal';
+    video.currentTime = 2.567;
+    const prepareCount = probe.prepareFrame.mock.calls.length;
+    probe.paint.mockImplementation(() => false);
+    const retained = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: retained.reports,
+      frameToken: 'figure3:frame:4'
+    });
+    await act(async () => {
+      mount.registration()?.commands.settle(1);
+      await Promise.resolve();
+    });
+    expect(probe.prepareFrame).toHaveBeenCalledTimes(prepareCount);
+    expect(retained.reports.reportFailure).not.toHaveBeenCalled();
+    expect(retained.reports.reportFrame).toHaveBeenCalledWith(
+      'figure3-paper-canvas', expect.objectContaining({
+        kind: 'frame', token: 'figure3:frame:4', presented: true
+      })
+    );
+
     mount.registration()?.commands.render(.62);
-    const endpointProofCount = renewed.reports.reportFrame.mock.calls.length;
+    const endpointProofCount = retained.reports.reportFrame.mock.calls.length;
     video.currentTime = 1.2;
     probe.paint();
-    expect(renewed.reports.reportFrame).toHaveBeenCalledTimes(endpointProofCount);
+    expect(retained.reports.reportFrame).toHaveBeenCalledTimes(endpointProofCount);
     expect(probe.renderProgress).toHaveBeenCalledWith(
       expect.any(HTMLElement), .62, expect.objectContaining({
-        mediaRun: expect.objectContaining({ runId: expect.stringContaining('figure3:frame:3') })
+        mediaRun: expect.objectContaining({ runId: expect.stringContaining('figure3:frame:4') })
       })
     );
     mount.registration()?.commands.pause('outside-closure');

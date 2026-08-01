@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 import {
   PhoneTtg,
   phoneTtgFrame,
@@ -16,21 +17,21 @@ import {
   phoneTtgReverseFrameProgress
 } from './motion';
 
+const reports = {
+  registerMount() {}, reportPrepared() {}, reportFrame() {}, reportProgress() {},
+  reportComplete() {}, reportFailure() {}
+} satisfies PhoneLeafReportPort;
+
 describe('PhoneTtg', () => {
   it('owns only its one optional video and retains local static layers', () => {
     const motionMarkup = renderToStaticMarkup(createElement(PhoneTtg, {
-      active: true,
-      reducedMotion: false
-    }));
-    const reducedMarkup = renderToStaticMarkup(createElement(PhoneTtg, {
-      active: true,
-      reducedMotion: true
+      reports
     }));
 
     expect(motionMarkup.match(/data-media-key="ttg-figure-motion"/g)).toHaveLength(1);
     expect(motionMarkup.match(/<video/g)).toHaveLength(1);
     expect(motionMarkup.match(/<img/g)).toHaveLength(3);
-    expect(reducedMarkup).not.toContain('<video');
+    expect(motionMarkup).toContain('data-phone-media-owner="ttg-figure-motion"');
   });
 
   it('has reversible mobile layer frames and a media-failure endpoint', () => {

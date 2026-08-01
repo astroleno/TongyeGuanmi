@@ -1,13 +1,11 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef
-} from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { LAB_COPY } from '..';
-import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import type { ScenePresentationAdapterHandle } from '../../../story/presentation';
+import type {
+  PhoneActivationInvocation,
+  PhoneLeafCommandHandle,
+  PhoneLeafGenerationBinding,
+  PhoneLeafReportPort
+} from '../../../production/phone-story/presentation';
 import './PhoneLab.css';
 
 const LAB_ROW_OFFSETS = [11, 14, 17, 20, 23, 26] as const;
@@ -21,91 +19,27 @@ export function phoneLabFrame(
   reducedMotion = false
 ): Readonly<{ progress: number; opacity: number; y: number }> {
   const progress = reducedMotion ? 1 : clamp(rawProgress);
-  return {
-    progress,
-    opacity: 0.98 + progress * 0.02,
-    y: (1 - progress) * 10
-  };
+  return { progress, opacity: .98 + progress * .02, y: (1 - progress) * 10 };
 }
 
-function applyLabFrame(
-  root: HTMLElement | null,
-  rawProgress: number,
-  reducedMotion: boolean
-): void {
-  if (!root) return;
-  const frame = phoneLabFrame(rawProgress, reducedMotion);
-  root.style.setProperty('--phone-lab-opacity', frame.opacity.toFixed(4));
-  root.style.setProperty('--phone-lab-y', `${frame.y.toFixed(2)}px`);
-  root.dataset.phoneLabProgress = frame.progress.toFixed(4);
-}
-
-/** Native document-flow Lab chapter; its root is the stable Lab → PH input. */
-export const PhoneLab = forwardRef<
-  ScenePresentationAdapterHandle,
-  Group45PhoneSceneProps
->(function PhoneLab({ active, reducedMotion, onReady }, forwardedRef) {
-  const rootRef = useRef<HTMLElement | null>(null);
-  const update = useCallback((progress: number) => {
-    applyLabFrame(rootRef.current, progress, reducedMotion);
-  }, [reducedMotion]);
-  const enter = useCallback(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    root.dataset.phoneLabActive = 'true';
-    root.dataset.phoneLabStableInput = 'lab-ph';
-    update(1);
-  }, [update]);
-  const leave = useCallback(() => {
-    if (rootRef.current) rootRef.current.dataset.phoneLabActive = 'false';
-  }, []);
-
-  useEffect(() => {
-    update(1);
-    onReady?.();
-  }, [onReady, update]);
-  useEffect(() => {
-    if (active) enter();
-    else leave();
-  }, [active, enter, leave]);
-
-  useImperativeHandle(forwardedRef, () => ({
-    root: () => rootRef.current,
-    update,
-    enter,
-    leave,
-    reverse: enter,
-    dispose() {
-      const root = rootRef.current;
-      if (!root) return;
-      delete root.dataset.phoneLabActive;
-      delete root.dataset.phoneLabProgress;
-      delete root.dataset.phoneLabStableInput;
-      root.style.removeProperty('--phone-lab-opacity');
-      root.style.removeProperty('--phone-lab-y');
-    }
-  }), [enter, leave, update]);
-
+function LabContent({ reading }: Readonly<{ reading: boolean }>) {
   return (
     <article
-      ref={rootRef}
-      id="lab"
+      id={reading ? 'lab-reading' : 'lab'}
       className="phone-lab"
       data-phone-scene="lab"
-      data-phone-reading="native-document"
+      data-phone-reading={reading ? 'lab' : undefined}
       data-phone-lab-stable-input="lab-ph"
-      aria-labelledby="phone-lab-title"
+      aria-labelledby={reading ? 'phone-lab-title-reading' : 'phone-lab-title'}
     >
       <section className="phone-lab__screen phone-lab__screen--intro">
         <header className="phone-lab__hero">
           <p className="phone-lab__eyebrow">{LAB_COPY[7]}</p>
-          <h2 id="phone-lab-title">
+          <h2 id={reading ? 'phone-lab-title-reading' : 'phone-lab-title'}>
             <span>{LAB_COPY[8]}</span>
             <span>{LAB_COPY[9]}</span>
           </h2>
-          <p>
-            {LAB_COPY[0]} <em>{LAB_COPY[1]}</em>{LAB_COPY[2]}
-          </p>
+          <p>{LAB_COPY[0]} <em>{LAB_COPY[1]}</em>{LAB_COPY[2]}</p>
           <p>{LAB_COPY[10]}</p>
         </header>
       </section>
@@ -122,6 +56,89 @@ export const PhoneLab = forwardRef<
       </section>
     </article>
   );
-});
+}
+
+export function Reading() {
+  return <LabContent reading />;
+}
+
+/** Static clean leaf; the shell owns the separate native reading-flow copy. */
+export function PhoneLab({ reports }: Readonly<{ reports: PhoneLeafReportPort }>) {
+  const rootRef = useRef<HTMLElement | null>(null);
+  const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
+  const paintFrameRef = useRef<number | null>(null);
+  const disposedRef = useRef(false);
+
+  const cancelPaint = useCallback(() => {
+    if (paintFrameRef.current !== null) cancelAnimationFrame(paintFrameRef.current);
+    paintFrameRef.current = null;
+  }, []);
+
+  const provePostPaint = useCallback(() => {
+    cancelPaint();
+    paintFrameRef.current = requestAnimationFrame(() => {
+      paintFrameRef.current = null;
+      const binding = bindingRef.current;
+      if (!binding || disposedRef.current) return;
+      binding.reports.reportPrepared('lab-root', {
+        kind: 'static-ready', token: binding.frameToken, ready: true,
+        detail: { postPaint: true }
+      });
+    });
+  }, [cancelPaint]);
+
+  const render = useCallback((rawProgress: number) => {
+    const root = rootRef.current;
+    if (!root) return;
+    const frame = phoneLabFrame(rawProgress);
+    root.style.setProperty('--phone-lab-opacity', frame.opacity.toFixed(4));
+    root.style.setProperty('--phone-lab-y', `${frame.y.toFixed(2)}px`);
+    root.dataset.phoneLabProgress = frame.progress.toFixed(4);
+  }, []);
+
+  const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
+    rebind(binding: PhoneLeafGenerationBinding) {
+      bindingRef.current = binding;
+      provePostPaint();
+    },
+    activate(command): PhoneActivationInvocation {
+      return { invocationId: command.invocationId, surfaceIds: command.surfaceIds,
+        invoked: false, settlements: [] };
+    },
+    render,
+    settle(endpoint) { render(endpoint); },
+    pause() {},
+    dispose() {
+      disposedRef.current = true;
+      cancelPaint();
+      bindingRef.current = null;
+    }
+  }), [cancelPaint, provePostPaint, render]);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    disposedRef.current = false;
+    render(1);
+    reports.registerMount({
+      root,
+      surfaces: [{ id: 'lab-root', element: root, kind: 'dom' }],
+      commands
+    });
+    return () => {
+      disposedRef.current = true;
+      cancelPaint();
+      bindingRef.current = null;
+    };
+  }, [cancelPaint, commands, render, reports]);
+
+  return (
+    <div ref={(element) => {
+      rootRef.current = element?.querySelector<HTMLElement>('#lab') ?? null;
+    }} className="phone-lab__visual">
+      <LabContent reading={false} />
+    </div>
+  );
+}
 
 export default PhoneLab;

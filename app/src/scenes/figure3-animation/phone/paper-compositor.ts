@@ -123,6 +123,7 @@ export function releasePhoneFigure3PaperCanvas(
 ): void {
   if (!canvas) return;
   delete canvas.dataset.phoneFigure3PaperFrame;
+  delete canvas.dataset.phoneFigure3PaperEndpoint;
   canvas.width = 1;
   canvas.height = 1;
 }

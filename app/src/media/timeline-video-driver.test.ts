@@ -78,6 +78,13 @@ class FakeVideo {
     }
   }
 
+  completeSeekBeforeClearingSeeking(): void {
+    for (const listener of this.listeners.get('seeked') ?? []) {
+      listener();
+    }
+    this.seeking = false;
+  }
+
   dispatch(type: string): void {
     for (const listener of this.listeners.get(type) ?? []) {
       listener();
@@ -182,6 +189,80 @@ describe('timeline video driver', () => {
     }
   });
 
+  it('arms the WebKit fallback when seeked fires before the seeking flag clears', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    try {
+      const readiness = driver.prepareFrame({
+        runId: 'media-webkit-exact-endpoint:1',
+        direction: 1,
+        progress: 0,
+        durationFallbackSeconds: 10,
+        allowSeekedFrameFallback: true
+      });
+      video.completeSeek();
+      video.completeSeekBeforeClearingSeeking();
+      await vi.advanceTimersByTimeAsync(120);
+
+      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+      expect(video.dataset.timelineVideoFrameEvidence).toBe('seeked-fallback');
+    } finally {
+      driver.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries the WebKit fallback while the completed seek remains unsettled', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    try {
+      const readiness = driver.prepareFrame({
+        runId: 'media-webkit-late-seek-settlement:1',
+        direction: 1,
+        progress: 0,
+        durationFallbackSeconds: 10,
+        allowSeekedFrameFallback: true
+      });
+      video.completeSeek();
+      video.dispatch('seeked');
+      await vi.advanceTimersByTimeAsync(120);
+      expect(driver.snapshot().frameReady).toBe(false);
+
+      video.seeking = false;
+      await vi.advanceTimersByTimeAsync(120);
+
+      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+      expect(video.dataset.timelineVideoFrameEvidence).toBe('seeked-fallback');
+    } finally {
+      driver.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('accepts the matching frame when WebKit clears seeking without another seeked event', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-webkit-frame-is-final-event:1',
+      direction: 1,
+      progress: 0,
+      durationFallbackSeconds: 10,
+      allowSeekedFrameFallback: true
+    });
+    video.completeSeek();
+    video.seeking = false;
+    video.presentFrame();
+
+    await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+    expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
+    driver.dispose();
+  });
+
   it('keeps the WebKit fallback pending until decoded current data is available', async () => {
     vi.useFakeTimers();
     const video = new FakeVideo();
@@ -203,6 +284,10 @@ describe('timeline video driver', () => {
       video.completeSeek();
       await vi.advanceTimersByTimeAsync(120);
 
+      expect(settled).toBe(false);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.presentFrame();
+      await Promise.resolve();
       expect(settled).toBe(false);
       expect(driver.snapshot().frameReady).toBe(false);
 
