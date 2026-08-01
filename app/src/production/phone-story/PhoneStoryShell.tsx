@@ -86,7 +86,10 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
         if (target.closest('[data-phone-contact-control], #contact input, #contact textarea')) {
           return 'contact-control' as const;
         }
-        return target.closest('a, button, input, textarea, select, [contenteditable], [data-phone-native-corridor]')
+        return target.closest([
+          'a', 'button', 'input', 'textarea', 'select', '[contenteditable]',
+          '[data-phone-native-corridor]', '[data-phone-input-owner="native-document"]'
+        ].join(','))
           ? 'native-corridor' as const : 'story' as const;
       };
       let claimedTouchScroll = false;

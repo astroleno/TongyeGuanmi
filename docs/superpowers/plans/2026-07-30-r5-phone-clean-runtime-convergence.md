@@ -1,15 +1,11 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** architecture and execution contracts are frozen. Tasks 0–6 and
+> **Status:** architecture and execution contracts are frozen. Tasks 0–10 and
 > their corrective reviews are complete. On 2026-08-01 the executor completed
-> uninterrupted Slices 4A → 4B → 4C → 4D, Task 5, and Task 6. Task 4's unified
-> machine/runtime review and Task 6's unified projector, real React StrictMode,
-> Loader, and lazy-boundary review are closed. Task 7A established the clean
-> browser harness, Slice 7B closed the Hero/Loader handoff, Slice 7C closed
-> Pattern and dynamic viewport coverage, Slice 7D made AOD activation/frame
-> proof causal, Slice 7E completed the Front matrix, and Task 8 converged the
-> complete Unit 4 Grade A chain through Brand. Execution is continuing with
-> Task 9. The
+> Slices 4A → 4D, Tasks 5–8, Slices 9A → 9B, and Slices 10A → 10C. The unified
+> machine/runtime, projector/StrictMode/lazy-boundary, and Task 10
+> cutover-readiness reviews are closed. Execution is stopped before the atomic
+> Task 11 formal cutover. The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
@@ -1141,7 +1137,7 @@ self-review is not a user-approval pause. Mandatory review nodes are:
 | Task 3 contract freeze | Code/architecture review of protocol, manifest, Appendix E, and dependency direction; completed for the current branch |
 | Task 4D closure | Completed on 2026-08-01: unified review of machine, runtime, activation, queue, rollback, and disposal; no separate stop occurred after 4A |
 | Task 6 closure | Completed on 2026-08-01: unified review of projector, real React StrictMode ownership, Loader, and lazy boundaries; blockers closed and execution stopped before Task 7 |
-| After Task 10, before Task 11 | Cutover-readiness review: all clean and old-formal gates green, registries complete, deletion ledger ready |
+| After Task 10, before Task 11 | Completed on 2026-08-01: clean gates pass, the accepted old-formal oracle baseline is unchanged, registries are complete, and the deletion ledger is ready |
 | Task 12 closure | Automated release-candidate review and `candidateCodeSha` freeze readiness |
 | Task 13 | The only scheduled human visual acceptance: physical iPhone Safari on the exact candidate artifact |
 
@@ -4720,6 +4716,35 @@ git commit -m "feat(r5): converge Contact and full phone story"
 - Contact stays native and direct-entry safe;
 - two complete forward/reverse cycles show no resource growth;
 - all genuine leaves are free of old phone lifecycle imports.
+
+**Task 10 cutover-readiness review record (2026-08-01):**
+
+- Unified review of the complete machine/runtime found no remaining blocker in
+  authority identity, rollback anchoring, activation renewal, serial queue
+  priority/preemption, native rejection poisoning, or exception-safe disposal.
+  The focused machine/runtime suite remains 97/97.
+- Review first reproduced one Task 10 input blocker: Contact and Education
+  declared a native-document owner, but wheel/touch/keyboard events on ordinary
+  descendants were still classified as cinematic story input. The browser RED
+  returned `dispatchEvent=false`; the shell now recognizes the declared native
+  document corridor, and a real Shell test covers wheel, keyboard, and touch
+  prevention below that owner.
+- The final clean registries load all 16 scenes and all 15 transitions; the
+  architecture gate confirms one canonical factory/call path and no genuine
+  leaf imports an old phone lifecycle module. Appendix A contains the final
+  disposition for both legacy directories and every deletion category.
+- The cutover-mode gate is intentionally still red only for Task 11 work: the
+  missing canonical wrapper/bootstrap recovery shape, legacy `production/phone`
+  and `production/portrait-spike` directories, and the old App query
+  composition. No unexpected pre-cutover violation was found.
+- The complete suite passed 210 files / 1,299 tests; focused ESLint, TypeScript,
+  boolean-data, architecture, homepage-boundary, packed-alpha, production
+  build, frozen-input, and diff checks passed. Phone JS remains 609,917 B and
+  the largest lazy chunk 41,116 B.
+- Chromium and WebKit each passed the final Group 6–7 plus 60-segment matrix
+  (3/3 per engine). The old-formal mobile-WebKit gate remains exactly the
+  accepted 2 passes / 3 skips / 4 frozen failures. Review is approved and
+  execution stops before Task 11.
 
 ---
 

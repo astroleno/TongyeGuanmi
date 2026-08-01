@@ -1971,6 +1971,13 @@ test('Group 6-7 direct Contact is minimal, post-paint visible, and natively inte
   await expect(mail).toBeFocused();
   await top.focus();
   await expect(top).toBeFocused();
+  const nativeCopy = page.locator('[data-phone-reading="contact"] p').first();
+  expect(await nativeCopy.evaluate((element) => element.dispatchEvent(new WheelEvent(
+    'wheel', { bubbles: true, cancelable: true, deltaY: 120 }
+  )))).toBe(true);
+  expect(await nativeCopy.evaluate((element) => element.dispatchEvent(new KeyboardEvent(
+    'keydown', { bubbles: true, cancelable: true, key: 'ArrowUp' }
+  )))).toBe(true);
   expect(await top.evaluate((element) => element.dispatchEvent(new WheelEvent(
     'wheel', { bubbles: true, cancelable: true, deltaY: 120 }
   )))).toBe(true);

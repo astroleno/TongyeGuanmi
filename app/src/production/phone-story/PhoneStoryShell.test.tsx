@@ -774,6 +774,43 @@ describe('clean PhoneStoryShell ownership', () => {
     }
   });
 
+  it('keeps every descendant of a native document outside cinematic prevention', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const story = host.querySelector('.phone-story');
+    if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
+    const reading = document.createElement('section');
+    reading.dataset.phoneInputOwner = 'native-document';
+    const copy = document.createElement('p');
+    reading.append(copy);
+    story.append(reading);
+    const wheel = new WheelEvent('wheel', {
+      bubbles: true, cancelable: true, deltaY: 120
+    });
+    const key = new KeyboardEvent('keydown', {
+      bubbles: true, cancelable: true, key: 'ArrowUp'
+    });
+    const touchStart = new Event('touchstart', { bubbles: true });
+    Object.defineProperty(touchStart, 'touches', {
+      value: [{ identifier: 11, clientY: 200 }]
+    });
+    const touchMove = new Event('touchmove', { bubbles: true, cancelable: true });
+    act(() => {
+      copy.dispatchEvent(wheel);
+      copy.dispatchEvent(key);
+      copy.dispatchEvent(touchStart);
+      copy.dispatchEvent(touchMove);
+    });
+    expect(wheel.defaultPrevented).toBe(false);
+    expect(key.defaultPrevented).toBe(false);
+    expect(touchMove.defaultPrevented).toBe(false);
+    expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([
+      expect.objectContaining({ kind: 'wheel', target: 'native-corridor' }),
+      expect.objectContaining({ kind: 'keyboard', target: 'native-corridor' })
+    ]);
+    act(() => root.unmount());
+  });
+
   it('marks wheel momentum tails and repeated keys as non-fresh physical input', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
