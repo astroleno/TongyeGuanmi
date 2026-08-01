@@ -291,39 +291,45 @@ once, and the terminal transaction is disposed before input returns.
 - Modify: `app/src/production/phone/transitions/figure2-distance-expand.tsx`
 - Modify: `app/src/production/phone/PhoneGradeAStory.test.ts`
 - Modify: `app/src/production/phone/phone-grade-a-runtime.test.ts`
-- Modify: `app/src/production/phone/phone-composite-runner.test.ts`
+- Modify: `app/src/production/phone/scenes/PhoneFigure2.test.tsx`
+- Modify: `app/src/production/phone/transitions/grade-a-transitions.test.ts`
+- Modify: `app/src/production/phone/phone-cross-chunk-execution-contract.test.ts`
+- Modify: `app/src/scenes/figure2-animation/index.tsx`
+- Modify: `app/src/transitions/figure2-distance-expand/index.ts`
+- Modify: `app/scripts/verify-homepage-module-boundaries.mjs`
+- Modify: `app/scripts/verify-homepage-module-boundaries.test.mjs`
 - Modify: `app/e2e/r5-phone-story.spec.ts`
 
-- [ ] Bind the forward landing to the rendered Figure2 leaf origin/corridor
+- [x] Bind the forward landing to the rendered Figure2 leaf origin/corridor
   measured after the leaf is mounted, not to an upstream trigger or nominal
   track edge. The runner captures this one landing fact for its transaction;
   it does not invent a second geometry model.
 
-- [ ] Make `PhoneFigure2` the sole writer of its video/canvas timeline. It
+- [x] Make `PhoneFigure2` the sole writer of its video/canvas timeline. It
   receives one declarative progress/phase input from the current transaction
   and applies it once to its own media. It reports observed frame/playhead
   facts back upward; it never commits a hold or starts a proof transaction.
 
-- [ ] Remove all Figure2-media writes from `PhoneGradeAStory` while a
+- [x] Remove all Figure2-media writes from `PhoneGradeAStory` while a
   Figure2→Proof snapshot is active. Remove all calls from
   `figure2-distance-expand.tsx` that render, update, seek, or timeline-drive
   the shared Figure2 media. That transition may draw Ink/effect output only;
   it must consume a read-only rendered input rather than control the Figure2
   leaf.
 
-- [ ] Add a source ownership gate: outside `PhoneFigure2` and its local
+- [x] Add a source ownership gate: outside `PhoneFigure2` and its local
   media implementation, production files must have zero write calls to the
   Figure2 playhead/renderer (including `figure2.update(...)`,
   `renderFigure2AnimationProgress(...)`, and bridge `timeline(['render', ...])`
   variants). The test must inspect resolved imports/call bindings, not merely
   a filename regex.
 
-- [ ] Make the Task 8 Figure2 landing/playhead/single-Proof tests green. Add
+- [x] Make the Task 8 Figure2 landing/playhead/single-Proof tests green. Add
   unit sequences for first-input advancement, monotonic samples, one Proof
   entry, stale/aborted transaction disposal, and reverse re-entry without a
   second media writer.
 
-- [ ] Run focused Vitest, static ownership gate, typecheck, production build,
+- [x] Run focused Vitest, static ownership gate, typecheck, production build,
   and the Method→Figure2→Proof Chromium visual case. Commit the ledger alone,
   for example: `fix(r5): give Figure2 media one execution owner`.
 
@@ -331,6 +337,12 @@ once, and the terminal transaction is disposed before input returns.
 from its real landing; no sampled playhead reverses; the Figure2→Proof edge is
 entered once; all former writers are absent rather than disabled behind a
 condition.
+
+**Task 11 checkpoint evidence:** full Vitest (`223` files / `1692` tests),
+typecheck, the resolved-import ownership gate, and production build passed.
+The built phone shell is `659449 B` (`4103 B` headroom). The Chromium visual
+case verifies real leaf-origin landing, first-input advancement, visible-source
+monotonic playhead samples, and exactly one Proof entry.
 
 ### Task 12: Re-establish qualification only after the three cutovers
 

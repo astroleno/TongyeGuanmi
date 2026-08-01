@@ -181,13 +181,11 @@ describe('phone Grade A transition contracts', () => {
     expect(phoneFigure2ProofTimelineProgress(1)).toBe(1);
   });
 
-  it('maps canonical progress exactly once before either renderer samples it', () => {
-    expect(figure2DistanceSource).toContain(
-      'fallbackFrame(from, to, canonical, reducedMotion)'
-    );
-    expect(figure2DistanceSource).not.toContain(
-      'fallbackFrame(from, to, sampled, reducedMotion)'
-    );
+  it('[Method→Figure2→Proof execution cutover] sends canonical progress only to the Ink bridge', () => {
+    expect(figure2DistanceSource).toContain("timeline(['render', sampled]);");
+    expect(figure2DistanceSource).not.toContain('fallbackFrame(');
+    expect(figure2DistanceSource).not.toContain('renderFigure2AnimationProgress');
+    expect(figure2DistanceSource).not.toContain('figure2IntroProgress(');
   });
 
   it('keeps Proof visible until reduced-motion Brand boundary entry', () => {

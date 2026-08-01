@@ -12,6 +12,10 @@ import {
 } from './PhoneGradeAStory';
 
 const gradeALanding = gradeAStory as typeof gradeAStory & Readonly<{
+  phoneGradeAFigure2LandingMode(
+    reason: 'forward' | 'reverse' | 'rollback' | 'direct-entry',
+    direction: 1 | -1
+  ): 'rendered-origin' | 'completed-edge';
   phoneGradeAFigure2LandingBoundary(
     reason: 'forward' | 'reverse' | 'rollback' | 'direct-entry',
     direction: 1 | -1
@@ -24,6 +28,10 @@ const source = readFileSync(
 );
 const figure2Source = readFileSync(
   new URL('./scenes/PhoneFigure2.tsx', import.meta.url),
+  'utf8'
+);
+const figure2DistanceSource = readFileSync(
+  new URL('./transitions/figure2-distance-expand.tsx', import.meta.url),
   'utf8'
 );
 const tailBundleSource = readFileSync(
@@ -113,6 +121,14 @@ describe('phone Grade A document progress', () => {
     expect(boundary?.('rollback', 1)).toBe(1);
     expect(boundary?.('rollback', -1)).toBe(0);
   });
+
+  it('[Method→Figure2 execution cutover] lands the first forward hold on the rendered Figure2 corridor origin', () => {
+    const mode = gradeALanding.phoneGradeAFigure2LandingMode;
+    expect(mode?.('forward', 1)).toBe('rendered-origin');
+    expect(mode?.('direct-entry', 1)).toBe('rendered-origin');
+    expect(mode?.('reverse', -1)).toBe('completed-edge');
+    expect(mode?.('rollback', 1)).toBe('completed-edge');
+  });
 });
 
 describe('phone Grade A orchestration ownership', () => {
@@ -146,6 +162,28 @@ describe('phone Grade A orchestration ownership', () => {
     expect(source).not.toContain('data-phone-grade-a-active');
   });
 
+  it('[execution hard cutover] leaves all Figure2 media writes to the Figure2 leaf', () => {
+    expect(
+      source.match(/figure2Ref\.current\?\.(?:enter|leave|reverse|update)\?\./g) ?? []
+    ).toEqual([]);
+    expect(figure2DistanceSource).not.toContain('renderFigure2AnimationProgress');
+    expect(figure2DistanceSource).not.toContain('figure2IntroProgress(');
+  });
+
+  it('[normal Grade A hard cutover] forwards an immutable Ink frame instead of rebuilding a segment proof', () => {
+    const start = gradeARuntimeSource.indexOf('const begin =');
+    const end = gradeARuntimeSource.indexOf('const registrations =', start);
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const normalAdmission = gradeARuntimeSource.slice(start, end);
+    expect(normalAdmission).toContain('session[16](frame)');
+    expect(normalAdmission).toContain('presentationToken: execution[5]!');
+    expect(normalAdmission).not.toContain('session[5]');
+    expect(normalAdmission).not.toContain('presentationProofToken(');
+    expect(figure2DistanceSource).toContain('presentedTokenRef.current = owner[5];');
+    expect(figure2DistanceSource).toContain("origin: 'segment-first-frame'");
+  });
+
   it('[Method↔Figure2 reduced cutover] has one named static-admission branch with no legacy proof or playback writer', () => {
     const start = gradeARuntimeSource.indexOf('const beginReducedStaticAdmission');
     const end = gradeARuntimeSource.indexOf('const begin =', start);
@@ -171,7 +209,9 @@ describe('phone Grade A orchestration ownership', () => {
   });
 
   it('[Method↔Figure2 reduced cutover] gates packed-media suppression by the active static binding, not the global preference', () => {
-    expect(figure2Source).toContain('if (staticPresentationBindingRef.current)');
+    expect(figure2Source).toContain(
+      "mode === 'static' || staticPresentationBindingRef.current"
+    );
     expect(figure2Source).not.toContain('if (reducedMotion) {');
   });
 

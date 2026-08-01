@@ -7,6 +7,7 @@ import {
   literalModuleGraph,
   phoneCrossChunkCompressionPolicyViolations,
   phoneCrossChunkExecutionContractViolations,
+  phoneFigure2ExecutionOwnershipViolations,
   phoneLazyAdapterPropReserveViolations,
   phonePresentationTokenReserveViolations,
   phoneStoryPresentationFacadeReserveViolations,
@@ -236,6 +237,62 @@ describe('homepage phone-shell debt ratchet', () => {
         source: 'usePhoneCheckpointPublisher(root);'
       }
     ])).toContain('PhoneLabContactContinuation.tsx: callback or React edge/checkpoint publisher is forbidden');
+  });
+
+  it('[Task 11] resolves Figure2 renderer imports and rejects every non-leaf writer', () => {
+    const leaf = {
+      file: 'src/production/phone/scenes/PhoneFigure2.tsx',
+      source: `
+        import { renderFigure2AnimationProgress as render } from '../../../scenes/figure2-animation';
+        render(root, progress);
+      `
+    };
+    const aliasedTransitionWriter = {
+      file: 'src/production/phone/transitions/figure2-distance-expand.tsx',
+      source: `
+        import { renderFigure2AnimationProgress as draw } from '../../../scenes/figure2-animation';
+        draw(root, progress);
+      `
+    };
+    const handleWriter = {
+      file: 'src/production/phone/PhoneGradeAStory.tsx',
+      source: 'figure2Ref.current?.update?.(1);'
+    };
+    const leafLegacyWriter = {
+      file: 'src/production/phone/scenes/PhoneFigure2.tsx',
+      source: `
+        import { ensureFigure2HoldFrame } from '../../../scenes/figure2-animation';
+        ensureFigure2HoldFrame(root);
+      `
+    };
+    const localSameName = {
+      file: 'src/production/phone/transitions/local.ts',
+      source: `
+        function renderFigure2AnimationProgress() {}
+        renderFigure2AnimationProgress();
+      `
+    };
+    const legacyProofWriter = {
+      file: 'src/production/phone/phone-grade-a-runtime.ts',
+      source: 'session[5]("effect-frame", "grade-a:ink");'
+    };
+
+    expect(phoneFigure2ExecutionOwnershipViolations([leaf])).toEqual([]);
+    expect(phoneFigure2ExecutionOwnershipViolations([
+      aliasedTransitionWriter,
+      handleWriter,
+      localSameName,
+      leafLegacyWriter
+    ])).toEqual([
+      'src/production/phone/transitions/figure2-distance-expand.tsx: Figure2 renderer write imported as draw is only allowed in PhoneFigure2.tsx',
+      'src/production/phone/PhoneGradeAStory.tsx: figure2Ref.current.update is a forbidden Figure2 imperative writer',
+      'src/production/phone/scenes/PhoneFigure2.tsx: ensureFigure2HoldFrame bypasses the leaf-owned Figure2 media plan'
+    ]);
+    expect(phoneFigure2ExecutionOwnershipViolations([
+      legacyProofWriter
+    ])).toEqual([
+      'src/production/phone/phone-grade-a-runtime.ts: session[5] generic proof synthesis is forbidden; forward the exact raw leaf frame through session[16]'
+    ]);
   });
 
   it('[Task 9] recursively excludes QA and legacy shells from the formal import graph', async () => {

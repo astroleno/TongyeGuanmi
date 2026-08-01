@@ -1377,6 +1377,129 @@ export function phoneExecutionOwnershipViolations(files) {
   return found;
 }
 
+/**
+ * Task 11 hard cutover: the Grade A parent may retain a Figure2 capability
+ * for roots, target preparation, and raw presentation bindings, but it may
+ * not write Figure2 media. Resolve imported renderer bindings instead of
+ * matching a spelling so aliases cannot make a second playhead writer pass.
+ */
+export function phoneFigure2ExecutionOwnershipViolations(files) {
+  const found = [];
+  const rendererWriters = new Set([
+    'renderFigure2AnimationProgress',
+    'renderFigure2Hold',
+    'parkFigure2Media',
+    'prepareFigure2MediaLeg',
+    'prepareFigure2TerminalPair',
+    'commitFigure2MediaLeg',
+    'commitFigure2TerminalPair',
+    'ensureFigure2HoldFrame'
+  ]);
+  const leafForbiddenWriters = new Set(['ensureFigure2HoldFrame']);
+  const isLeaf = (file) => path.normalize(file).endsWith(path.join(
+    'src', 'production', 'phone', 'scenes', 'PhoneFigure2.tsx'
+  ));
+  const isGradeARunner = (file) => path.normalize(file).endsWith(path.join(
+    'src', 'production', 'phone', 'phone-grade-a-runtime.ts'
+  ));
+  const isRendererModule = (file, specifier) => {
+    const target = relativeTarget(file, specifier);
+    if (!target) return false;
+    const normalized = path.normalize(target);
+    return normalized.endsWith(path.join('src', 'scenes', 'figure2-animation'))
+      || normalized.endsWith(path.join('src', 'scenes', 'figure2-animation', 'index'));
+  };
+  const propertyChain = (expression) => {
+    if (ts.isIdentifier(expression)) return expression.text;
+    if (ts.isPropertyAccessExpression(expression)) {
+      const parent = propertyChain(expression.expression);
+      return parent ? `${parent}.${expression.name.text}` : expression.name.text;
+    }
+    return '';
+  };
+
+  for (const { file, source } of files) {
+    const parsed = ts.createSourceFile(
+      file,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+    );
+    const namedBindings = new Map();
+    const namespaceBindings = new Set();
+    for (const statement of parsed.statements) {
+      if (!ts.isImportDeclaration(statement)) continue;
+      if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      if (!isRendererModule(file, statement.moduleSpecifier.text)) continue;
+      const bindings = statement.importClause?.namedBindings;
+      if (!bindings) continue;
+      if (ts.isNamespaceImport(bindings)) {
+        namespaceBindings.add(bindings.name.text);
+        continue;
+      }
+      for (const binding of bindings.elements) {
+        const imported = binding.propertyName?.text ?? binding.name.text;
+        if (rendererWriters.has(imported)) {
+          namedBindings.set(binding.name.text, imported);
+        }
+      }
+    }
+    const label = relativeFile(file);
+    const visit = (node) => {
+      if (ts.isCallExpression(node)) {
+        if (
+          isGradeARunner(file)
+          && ts.isElementAccessExpression(node.expression)
+          && ts.isIdentifier(node.expression.expression)
+          && node.expression.expression.text === 'session'
+          && ts.isNumericLiteral(node.expression.argumentExpression)
+          && node.expression.argumentExpression.text === '5'
+        ) {
+          found.push(
+            `${label}: session[5] generic proof synthesis is forbidden; forward the exact raw leaf frame through session[16]`
+          );
+        }
+        if (ts.isIdentifier(node.expression)) {
+          const imported = namedBindings.get(node.expression.text);
+          if (imported && isLeaf(file) && leafForbiddenWriters.has(imported)) {
+            found.push(
+              `${label}: ${imported} bypasses the leaf-owned Figure2 media plan`
+            );
+          } else if (imported && !isLeaf(file)) {
+            found.push(
+              `${label}: Figure2 renderer write imported as ${node.expression.text} is only allowed in PhoneFigure2.tsx`
+            );
+          }
+        }
+        if (ts.isPropertyAccessExpression(node.expression)) {
+          const expression = node.expression;
+          if (
+            namespaceBindings.has(propertyChain(expression.expression))
+            && rendererWriters.has(expression.name.text)
+            && !isLeaf(file)
+          ) {
+            found.push(
+              `${label}: Figure2 renderer write ${propertyChain(expression)} is only allowed in PhoneFigure2.tsx`
+            );
+          }
+          const chain = propertyChain(expression);
+          if (
+            /^figure2Ref\.current\.(?:enter|leave|reverse|update)$/.test(chain)
+          ) {
+            found.push(
+              `${label}: ${chain} is a forbidden Figure2 imperative writer`
+            );
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(parsed);
+  }
+  return found;
+}
+
 /** Keeps every declared run-anchor policy on the one exhaustive resolver. */
 export function phoneRunAnchorResolverViolations({
   definitionsSource,
@@ -1508,6 +1631,14 @@ const crossChunkExecutionFiles = [
 const crossChunkExecutionGraph = await literalModuleGraph(crossChunkExecutionFiles);
 violations.push(...phoneCrossChunkExecutionContractViolations(
   graphEntries(crossChunkExecutionGraph).map(([file, source]) => ({ file, source }))
+));
+const phoneFigure2ExecutionSources = await Promise.all(
+  (await filesBelow(phoneDir))
+    .filter((file) => !/\.(?:test|spec)\.(?:ts|tsx)$/.test(file))
+    .map(async (file) => ({ file, source: await readFile(file, 'utf8') }))
+);
+violations.push(...phoneFigure2ExecutionOwnershipViolations(
+  phoneFigure2ExecutionSources
 ));
 
 if (!formalPhoneGraphEntries.some(([file]) => isFile(file, phoneRuntimePath))) {

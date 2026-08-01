@@ -6,9 +6,6 @@ import {
   useRef
 } from 'react';
 import {
-  renderFigure2AnimationProgress
-} from '../../../scenes/figure2-animation';
-import {
   FIGURE2_DISTANCE_EXPAND_SEGMENT
 } from '../../../story/figure2-distance-expand-contract';
 import type {
@@ -18,7 +15,6 @@ import type {
 import {
   createPhoneFigure2DistanceExpandBridge,
   FIGURE2_INTRO_END,
-  figure2IntroProgress,
   type PhoneFigure2DistanceExpandBridge
 } from '../../../transitions/figure2-distance-expand';
 import {
@@ -29,8 +25,13 @@ import {
   useOptionalPhoneStoryRuntimePort
 } from '../PhoneStoryRuntimeContext';
 import { phoneRouteOverlayHostFor } from '../PhoneStageRail';
-import { registerPhoneRuntimeEffect } from '../phone-story/runtime';
+import {
+  registerPhoneRuntimeEffect,
+  type PresentationToken
+} from '../phone-story/runtime';
 import type {
+  PhoneCinematicRequest,
+  PhonePresentedFrameReporter,
   PhoneTransitionAdapterHandle,
   PhoneTransitionAdapterProps
 } from '../types';
@@ -47,21 +48,6 @@ export function phoneFigure2ProofTimelineProgress(
 ): number {
   return FIGURE2_INTRO_END
     + (1 - FIGURE2_INTRO_END) * clamp(progress);
-}
-
-function fallbackFrame(
-  from: HTMLElement,
-  to: HTMLElement,
-  progress: number,
-  reducedMotion: boolean
-): void {
-  void to;
-  const canonical = reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
-  renderFigure2AnimationProgress(
-    from,
-    figure2IntroProgress(phoneFigure2ProofTimelineProgress(canonical)),
-    { videoMode: 'none' }
-  );
 }
 
 /**
@@ -86,7 +72,9 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   >> | null>(null);
   const leaseRef = useRef<PhoneInkSurfaceLease | undefined>(undefined);
   const effectRegistrationRef = useRef<{ dispose(): void } | undefined>(undefined);
-  const presentedFrameRef = useRef<(() => void) | undefined>(undefined);
+  const presentedFrameRef = useRef<PhonePresentedFrameReporter | undefined>(undefined);
+  const presentedTokenRef = useRef<PresentationToken | undefined>(undefined);
+  const presentedFrameSequenceRef = useRef(0);
   const releaseEffectRegistration = useCallback(() => {
     effectRegistrationRef.current?.dispose();
     effectRegistrationRef.current = undefined;
@@ -99,6 +87,8 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     buildRef.current = null;
     leaseRef.current = undefined;
     presentedFrameRef.current = undefined;
+    presentedTokenRef.current = undefined;
+    presentedFrameSequenceRef.current = 0;
   }, [releaseEffectRegistration]);
   const releaseTimeline = useCallback(() => {
     leaseRef.current?.release();
@@ -178,15 +168,19 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     const canonical = reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
     const sampled = phoneFigure2ProofTimelineProgress(canonical);
     const timeline = timelineRef.current;
-    if (!timeline) {
-      fallbackFrame(from, to, canonical, reducedMotion);
-      return;
-    }
+    if (!timeline) return;
     timeline(['render', sampled]);
     if (leaseRef.current?.canvas.dataset.phonePresentationEffectFrame === 'ready') {
       const report = presentedFrameRef.current;
+      const token = presentedTokenRef.current;
       presentedFrameRef.current = undefined;
-      report?.();
+      presentedTokenRef.current = undefined;
+      report?.(token ? {
+        token,
+        frameSequence: ++presentedFrameSequenceRef.current,
+        observedAt: performance.now(),
+        origin: 'segment-first-frame'
+      } : undefined);
     }
   };
 
@@ -199,8 +193,10 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     render,
     prepare,
-    begin(_owner, onPresentedFrame) {
+    begin(owner: PhoneCinematicRequest, onPresentedFrame) {
       presentedFrameRef.current = onPresentedFrame;
+      presentedTokenRef.current = owner[5];
+      presentedFrameSequenceRef.current = 0;
     },
     prepareFirstFrame() {
       // Figure2 owns its depth field only after the authored intro interval.

@@ -110,8 +110,10 @@ describe('phone cross-chunk execution contracts', () => {
     expect(source('phone-composite-runner.ts')).toContain(
       'presentationToken: presentationIdentity'
     );
+    // Grade A forwards the raw leaf-admission token carried by its execution
+    // tuple; it must not reconstruct a presentation identity at this boundary.
     expect(source('phone-grade-a-runtime.ts')).toContain(
-      'presentationToken: presentationIdentity'
+      'presentationToken: execution[5]!'
     );
   });
 

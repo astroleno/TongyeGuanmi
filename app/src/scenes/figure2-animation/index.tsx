@@ -501,13 +501,14 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
   useEffect(() => {
     const root = rootRef.current;
     const controller = new AbortController();
+    const phoneLeafOwnsMedia = root?.dataset.phoneFigure2MediaOwner === 'leaf';
     for (const video of root?.querySelectorAll<HTMLVideoElement>('[data-figure2-video]') ?? []) {
       video.muted = true;
       video.loop = false;
       video.playsInline = true;
       video.pause();
     }
-    if (root) {
+    if (root && !phoneLeafOwnsMedia) {
       void ensureFigure2HoldFrame(root, controller.signal)
         .then(() => {
           registerHandle?.(FIGURE2_OPENING_FRAME_HANDLE, root.querySelector(FIGURE2_COMBINED_VIDEO_SELECTOR));

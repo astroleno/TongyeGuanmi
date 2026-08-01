@@ -2618,6 +2618,164 @@ test('[AOD↔Method execution cutover] completes one exact forward and reverse p
   expect(probe.maxActive).toBeLessThanOrEqual(4);
 });
 
+test('[execution regression] Method landing starts Figure2 playback before the Proof boundary', async ({ page }) => {
+  test.setTimeout(90_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/#method', 'method-top');
+  await driveAdjacentPhoneRun(page, 'method-top', 'figure2-animation', 1);
+  await assertStablePhoneHold(page, 'figure2-animation');
+  await waitForNewWheelEpoch(page);
+
+  const before = await page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    const track = document.getElementById('figure2-animation');
+    const video = document.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
+    return {
+      trackTop: track?.getBoundingClientRect().top ?? null,
+      viewportHeight: window.visualViewport?.height ?? window.innerHeight,
+      scrollProgress: root?.dataset.phoneScrollProgress ?? null,
+      playhead: video?.currentTime ?? null
+    };
+  });
+  await page.evaluate(() => {
+    const target = window as typeof window & {
+      __figure2PlayheadProbe?: {
+        samples: Array<{
+          time: number;
+          cursor: string | null;
+          progress: string | null;
+          mediaRun: string | null;
+          owner: string | null;
+          role: string | null;
+          ariaHidden: string | null;
+          sourceVisible: boolean;
+          timelineRun: string | null;
+          timelineDirection: string | null;
+          timelineProgress: string | null;
+          timelineTarget: string | null;
+          packedOwner: string | null;
+        }>;
+        stop(): void;
+      };
+    };
+    let sampling = true;
+    const samples: Array<{
+      time: number;
+      cursor: string | null;
+      progress: string | null;
+      mediaRun: string | null;
+      owner: string | null;
+      role: string | null;
+      ariaHidden: string | null;
+      sourceVisible: boolean;
+      timelineRun: string | null;
+      timelineDirection: string | null;
+      timelineProgress: string | null;
+      timelineTarget: string | null;
+      packedOwner: string | null;
+    }> = [];
+    const sample = () => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      const figure2 = document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]');
+      const video = document.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
+      const cursor = root?.dataset.phoneCursor;
+      if (
+        video
+        && (cursor === 'hold:figure2-animation' || cursor === 'transition:figure2-proof:0')
+      ) {
+        const style = figure2 ? window.getComputedStyle(figure2) : null;
+        const role = figure2?.dataset.phoneSurfaceRole ?? null;
+        const sourceVisible = Boolean(
+          figure2
+          && figure2.getAttribute('aria-hidden') !== 'true'
+          && role !== 'retired'
+          && style?.visibility !== 'hidden'
+          && Number(style?.opacity ?? 0) > .001
+        );
+        const next = {
+          time: Number(video.currentTime.toFixed(4)),
+          cursor: cursor ?? null,
+          progress: figure2?.dataset.figure2Progress ?? null,
+          mediaRun: figure2?.dataset.figure2MediaRun ?? null,
+          owner: figure2?.dataset.phoneFigure2MediaOwner ?? null,
+          role,
+          ariaHidden: figure2?.getAttribute('aria-hidden') ?? null,
+          sourceVisible,
+          timelineRun: video.dataset.timelineVideoRun ?? null,
+          timelineDirection: video.dataset.timelineVideoDirection ?? null,
+          timelineProgress: video.dataset.timelineVideoProgress ?? null,
+          timelineTarget: video.dataset.timelineVideoTarget ?? null,
+          packedOwner: video.dataset.phonePackedAlphaOwner ?? null
+        };
+        const previous = samples.at(-1);
+        if (
+          !previous
+          || Math.abs(previous.time - next.time) > .01
+          || previous.cursor !== next.cursor
+          || previous.timelineRun !== next.timelineRun
+          || previous.timelineTarget !== next.timelineTarget
+          || previous.packedOwner !== next.packedOwner
+        ) samples.push(next);
+      }
+      if (sampling) window.requestAnimationFrame(sample);
+    };
+    target.__figure2PlayheadProbe = {
+      samples,
+      stop() {
+        sampling = false;
+      }
+    };
+    window.requestAnimationFrame(sample);
+  });
+  await inputPhoneDelta(page, 50);
+  await page.waitForTimeout(500);
+  const after = await page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    const video = document.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
+    return {
+      cursor: root?.dataset.phoneCursor ?? null,
+      scrollProgress: root?.dataset.phoneScrollProgress ?? null,
+      playhead: video?.currentTime ?? null
+    };
+  });
+
+  expect(before.trackTop).not.toBeNull();
+  expect(before.trackTop!).toBeLessThanOrEqual(before.viewportHeight * .25);
+  expect(after.cursor).toBe('hold:figure2-animation');
+  expect(Number(after.scrollProgress)).toBeGreaterThan(Number(before.scrollProgress));
+  expect(after.playhead).not.toBeNull();
+  expect(before.playhead).not.toBeNull();
+  expect(after.playhead! - before.playhead!).toBeGreaterThan(.05);
+  await driveAdjacentPhoneRun(page, 'figure2-animation', 'figure2-proof', 1);
+  const playheads = await page.evaluate(() => {
+    const target = window as typeof window & {
+      __figure2PlayheadProbe?: {
+        samples: Array<{ time: number }>;
+        stop(): void;
+      };
+    };
+    const probe = target.__figure2PlayheadProbe;
+    probe?.stop();
+    return probe?.samples ?? [];
+  });
+  const visiblePlayheads = playheads.filter((sample) => sample.sourceVisible);
+  expect(visiblePlayheads.some((sample) => sample.time > 1)).toBe(true);
+  expect(visiblePlayheads.at(-1)?.time).toBeGreaterThanOrEqual(2.59);
+  for (let index = 1; index < visiblePlayheads.length; index += 1) {
+    expect(
+      visiblePlayheads[index]!.time,
+      JSON.stringify(playheads, null, 2)
+    ).toBeGreaterThanOrEqual(visiblePlayheads[index - 1]!.time - .01);
+  }
+  for (const sample of playheads.filter((entry) => !entry.sourceVisible)) {
+    expect(sample.ariaHidden, JSON.stringify(playheads, null, 2)).toBe('true');
+    expect(
+      sample.role,
+      JSON.stringify(playheads, null, 2)
+    ).toMatch(/^(retained-under-stage|retired)$/);
+  }
+});
+
 test('[P0 real root pixels] cold Loader paints and changes compositor pixels', async ({ page }) => {
   test.setTimeout(30_000);
   await page.goto('/', { waitUntil: 'domcontentloaded' });

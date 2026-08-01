@@ -79,10 +79,24 @@ export function phoneGradeAFigure2LandingBoundary(
   reason: PhoneLandingReason,
   direction: PhoneTransitionDirection
 ): 0 | 1 {
-  return (reason === 'reverse' && direction === -1)
-    || (reason === 'rollback' && direction === 1)
+  return phoneGradeAFigure2LandingMode(reason, direction) === 'completed-edge'
     ? 1
     : 0;
+}
+
+/**
+ * An entering Figure2 hold must land on the mounted Figure2 corridor origin,
+ * not on the upstream point that started the Method boundary transaction.
+ * The completed edge remains necessary only when returning from Proof.
+ */
+export function phoneGradeAFigure2LandingMode(
+  reason: PhoneLandingReason,
+  direction: PhoneTransitionDirection
+): 'rendered-origin' | 'completed-edge' {
+  return (reason === 'reverse' && direction === -1)
+    || (reason === 'rollback' && direction === 1)
+    ? 'completed-edge'
+    : 'rendered-origin';
 }
 
 export function phoneGradeAArchFrame(
@@ -356,6 +370,18 @@ export function PhoneGradeAStory({
       const brandTop = elementDocumentTop(brandBoundary);
       return direction === 1 ? brandTop - height : brandTop;
     };
+    const figure2LandingPosition = (
+      reason: PhoneLandingReason,
+      direction: PhoneTransitionDirection
+    ): number | null => {
+      if (phoneGradeAFigure2LandingMode(reason, direction) === 'completed-edge') {
+        return boundaryPosition(1, direction);
+      }
+      // This is measured from the mounted document corridor immediately before
+      // the runtime requests its landing. It is the first visible Figure2
+      // origin, whereas boundary 0 is only the upstream Method trigger.
+      return elementDocumentTop(rail);
+    };
     const surfaceLeases = [
       registerPhoneRuntimeSurface(
         orchestrator,
@@ -472,10 +498,7 @@ export function PhoneGradeAStory({
           return method ? elementDocumentTop(method) : null;
         }
         if (scene === 'figure2-animation') {
-          return boundaryPosition(
-            phoneGradeAFigure2LandingBoundary(reason, direction),
-            direction
-          );
+          return figure2LandingPosition(reason, direction);
         }
         if (scene === 'figure2-proof') {
           return boundaryPosition(1, direction);
@@ -653,7 +676,6 @@ export function PhoneGradeAStory({
     const renderStableMethod = () => {
       methodPaper?.style.setProperty('visibility', 'hidden');
       setMethodInkProgress(0);
-      figure2Ref.current?.leave?.();
       proofRef.current?.leave?.();
       methodFigure2Ref.current?.render(0);
       figure2ProofRef.current?.render(0);
@@ -667,10 +689,6 @@ export function PhoneGradeAStory({
         : 0;
       methodPaper?.style.setProperty('visibility', 'hidden');
       setMethodInkProgress(1);
-      figure2Ref.current?.enter?.();
-      figure2Ref.current?.update(
-        clamp(figureProgress / FIGURE2_PROOF_SPLIT)
-      );
       proofRef.current?.leave?.();
       methodFigure2Ref.current?.render(1);
       figure2ProofRef.current?.render(0);
@@ -684,7 +702,6 @@ export function PhoneGradeAStory({
         : 0;
       methodPaper?.style.setProperty('visibility', 'hidden');
       setMethodInkProgress(1);
-      figure2Ref.current?.leave?.();
       methodFigure2Ref.current?.render(1);
       figure2ProofRef.current?.render(1);
       proofBrandRef.current?.render(0);
@@ -695,7 +712,6 @@ export function PhoneGradeAStory({
     const renderStableBrand = () => {
       methodPaper?.style.setProperty('visibility', 'hidden');
       setMethodInkProgress(1);
-      figure2Ref.current?.leave?.();
       proofRef.current?.leave?.();
       methodFigure2Ref.current?.render(1);
       figure2ProofRef.current?.render(1);
@@ -717,15 +733,11 @@ export function PhoneGradeAStory({
               : direction === 1 ? 1 : 0;
             methodPaper?.style.setProperty('visibility', 'hidden');
             setMethodInkProgress(endpoint);
-            if (endpoint === 1) figure2Ref.current?.enter?.();
-            else figure2Ref.current?.leave?.();
             proofRef.current?.leave?.();
             setRetainedArchProgress(endpoint, 0);
             return;
           }
           setMethodInkProgress(progress);
-          figure2Ref.current?.enter?.();
-          figure2Ref.current?.update(0);
           proofRef.current?.leave?.();
           methodFigure2Ref.current?.render(progress);
           figure2ProofRef.current?.render(0);
@@ -740,12 +752,10 @@ export function PhoneGradeAStory({
             methodPaper?.style.setProperty('visibility', 'hidden');
             setMethodInkProgress(1);
             if (targetIsProof) {
-              figure2Ref.current?.leave?.();
               proofRef.current?.enter?.();
               proofRef.current?.update(0);
               setRetainedArchProgress(1, 1);
             } else {
-              figure2Ref.current?.enter?.();
               proofRef.current?.leave?.();
               setRetainedArchProgress(1, 0);
             }
@@ -757,8 +767,6 @@ export function PhoneGradeAStory({
           );
           methodPaper?.style.setProperty('visibility', 'hidden');
           setMethodInkProgress(1);
-          figure2Ref.current?.enter?.();
-          figure2Ref.current?.update(1);
           proofRef.current?.enter?.();
           methodFigure2Ref.current?.render(1);
           figure2ProofRef.current?.render(progress);
@@ -776,7 +784,6 @@ export function PhoneGradeAStory({
             const targetIsBrand = direction === 1 ? !rollback : rollback;
             methodPaper?.style.setProperty('visibility', 'hidden');
             setMethodInkProgress(1);
-            figure2Ref.current?.leave?.();
             if (targetIsBrand) {
               proofRef.current?.leave?.();
             } else {
@@ -792,7 +799,6 @@ export function PhoneGradeAStory({
           );
           methodPaper?.style.setProperty('visibility', 'hidden');
           setMethodInkProgress(1);
-          figure2Ref.current?.leave?.();
           proofRef.current?.enter?.();
           methodFigure2Ref.current?.render(1);
           figure2ProofRef.current?.render(1);

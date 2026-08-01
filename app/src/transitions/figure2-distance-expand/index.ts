@@ -500,21 +500,23 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
 
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof');
-    const figureState = renderFigure2AnimationProgress(fromRoot, intro, {
-      proofProgress: 0,
-      videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection),
-      mediaRun: {
-        ...(this.mediaRun ?? { runId: this.context.runId }),
-        direction: this.playbackDirection,
-        reducedMotion: this.context.prefersReducedMotion
-      }
-    });
+    const depthTransform = this.ownsMedia
+      ? renderFigure2AnimationProgress(fromRoot, intro, {
+        proofProgress: 0,
+        videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection),
+        mediaRun: {
+          ...(this.mediaRun ?? { runId: this.context.runId }),
+          direction: this.playbackDirection,
+          reducedMotion: this.context.prefersReducedMotion
+        }
+      }).depthTransform
+      : figure2DepthTransformForProgress(fromRoot, intro);
     const depthOwnership = inkOwnershipGateProgress(reveal);
-    this.depthMask?.render(depthOwnership, figureState.depthTransform);
+    this.depthMask?.render(depthOwnership, depthTransform);
     this.inkRuntime([
       'render',
       reveal,
-      phoneFigure2DepthTransformRequest(figureState.depthTransform)
+      phoneFigure2DepthTransformRequest(depthTransform)
     ]);
     const valueDomain = depthOwnership <= 0 ? '0' : depthOwnership >= 1 ? '1' : '1,0';
 
@@ -559,23 +561,27 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     }
     this.inkRuntime(['dispose']);
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
-    renderFigure2AnimationProgress(
-      fromRoot,
-      figure2IntroProgress(this.progressValue),
-      {
-        proofProgress: 0,
-        videoMode: 'none'
-      }
-    );
+    if (this.ownsMedia) {
+      renderFigure2AnimationProgress(
+        fromRoot,
+        figure2IntroProgress(this.progressValue),
+        {
+          proofProgress: 0,
+          videoMode: 'none'
+        }
+      );
+    }
     if (this.progressValue > 0.001 && this.progressValue < 0.999) {
       applyLayerVisibility(this.context.from, holdVisibility(false));
       applyLayerVisibility(this.context.to, hiddenVisibility());
     }
     this.depthMask?.dispose();
-    if (this.progressValue < 0.999) {
-      renderFigure2Hold(fromRoot);
-    } else {
-      parkFigure2Media(fromRoot);
+    if (this.ownsMedia) {
+      if (this.progressValue < 0.999) {
+        renderFigure2Hold(fromRoot);
+      } else {
+        parkFigure2Media(fromRoot);
+      }
     }
     this.elevation.restore();
     clearTransitionAttrs(this.context.to.element);

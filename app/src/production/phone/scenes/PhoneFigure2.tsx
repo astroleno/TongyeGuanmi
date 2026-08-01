@@ -12,7 +12,6 @@ import {
 } from './phone-packed-alpha-surface';
 import {
   disposeFigure2Media,
-  ensureFigure2HoldFrame,
   figure2AnimationScene,
   parkFigure2Media,
   renderFigure2AnimationProgress,
@@ -24,9 +23,12 @@ import type {
 } from '../types';
 import {
   phoneRuntimePresentationTokenKey,
+  selectPhoneCinematicSnapshot,
+  type PhoneCinematicSnapshot,
   type PhoneRenderedPresentationFrame,
   type PresentationToken
 } from '../phone-story/runtime';
+import { usePhoneStorySnapshot } from '../PhoneStoryRuntimeContext';
 import { phoneMediaUrlFor } from '../phone-media';
 import './PhoneFigure2.css';
 
@@ -40,6 +42,59 @@ const FIGURE2_POSTER_IMAGE = phoneMediaUrlFor(
   'figure2-animation'
 );
 const FIGURE2_ENDPOINT_SECONDS = 2.6;
+const FIGURE2_DOCUMENT_PROGRESS_END = .72;
+
+export type PhoneFigure2MediaPlan = readonly [
+  mode: 'idle' | 'static' | 'seek',
+  progress: number,
+  transactionDirection: 1 | -1 | null
+];
+
+function clamp(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+/**
+ * The Figure2 leaf consumes the same immutable positional snapshot as every
+ * other projection. No parent or transition can issue it an imperative media
+ * command: this plan is its sole media driver.
+ */
+export function phoneFigure2MediaPlan(
+  snapshot: PhoneCinematicSnapshot,
+  reducedMotion: boolean
+): PhoneFigure2MediaPlan {
+  const [
+    semanticScene,
+    ,
+    ,
+    ,
+    ,
+    ,
+    run,
+    direction,
+    ,
+    ,
+    ,
+    status,
+    ,
+    ,
+    ,
+    scrollCorridor,
+    scrollProgress
+  ] = snapshot;
+  const mode = reducedMotion ? 'static' : 'seek';
+
+  if (status === 'transaction') {
+    if (run === 'method-figure2') return [mode, 0, direction];
+    if (run === 'figure2-proof') return [mode, 1, direction];
+    return ['idle', 0, null];
+  }
+  if (semanticScene !== 'figure2-animation') return ['idle', 0, null];
+  const progress = scrollCorridor === 'method-grade-a'
+    ? clamp(scrollProgress / FIGURE2_DOCUMENT_PROGRESS_END)
+    : 0;
+  return [mode, progress, null];
+}
 
 type PhoneFigure2StaticPresentationBinding = {
   token: PresentationToken;
@@ -79,10 +134,14 @@ export function phoneFigure2StaticPresentationFrame(
 export const PhoneFigure2 = forwardRef<
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
->(function PhoneFigure2({ active, onReady }, forwardedRef) {
+>(function PhoneFigure2({ active, reducedMotion, onReady }, forwardedRef) {
+  const storySnapshot = usePhoneStorySnapshot();
+  const mediaPlan = phoneFigure2MediaPlan(
+    selectPhoneCinematicSnapshot(storySnapshot),
+    reducedMotion
+  );
   const rootRef = useRef<HTMLElement | null>(null);
   const packedSurfaceRef = useRef<PhonePackedAlphaSurface | undefined>(undefined);
-  const mediaControllerRef = useRef<AbortController | undefined>(undefined);
   const sceneActiveRef = useRef(false);
   const scrollProgressRef = useRef(0);
   const scrollDirectionRef = useRef<1 | -1>(1);
@@ -182,8 +241,6 @@ export const PhoneFigure2 = forwardRef<
   }, []);
   const releasePackedSurface = useCallback(() => {
     const root = rootRef.current;
-    mediaControllerRef.current?.abort();
-    mediaControllerRef.current = undefined;
     presentationBindingRef.current = null;
     packedSurfaceRef.current?.(['release']);
     if (root) parkFigure2Media(root);
@@ -200,9 +257,6 @@ export const PhoneFigure2 = forwardRef<
     );
     const container = video?.parentElement;
     if (!root || !video || !canvas || !container) return undefined;
-    const controller = new AbortController();
-    mediaControllerRef.current?.abort();
-    mediaControllerRef.current = controller;
     const surface = packedSurfaceRef.current ?? createPhonePackedAlphaSurface([
       root,
       container,
@@ -229,12 +283,6 @@ export const PhoneFigure2 = forwardRef<
       root.dataset.phoneFigure2Alpha = 'poster-fallback';
       video.dataset.phoneFigure2Alpha = 'poster-fallback';
     }
-    void ensureFigure2HoldFrame(root, controller.signal)
-      .then(() => {
-        if (!controller.signal.aborted && !sceneActiveRef.current) {
-          parkFigure2Media(root);
-        }
-      }).catch(() => undefined);
     return surface;
   }, [reportRenderedFrame]);
   const setSceneActive = useCallback((active: boolean) => {
@@ -247,9 +295,39 @@ export const PhoneFigure2 = forwardRef<
   }, [releasePackedSurface]);
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'stage') {
-      rootRef.current = element?.closest<HTMLElement>('[data-r4-scene="figure2-animation"]') ?? null;
+      const root = element?.closest<HTMLElement>('[data-r4-scene="figure2-animation"]') ?? null;
+      rootRef.current = root;
+      // The shared scene mounts the canonical markup, but this phone leaf is
+      // the one and only Figure2 timeline owner. Its marker is available
+      // before the shared component's passive hold-frame effect runs.
+      if (root) root.dataset.phoneFigure2MediaOwner = 'leaf';
     }
   }, []);
+  const applyMediaPlan = useCallback(([
+    mode,
+    progress,
+    transactionDirection
+  ]: PhoneFigure2MediaPlan) => {
+    const root = rootRef.current;
+    if (!root || !sceneActiveRef.current || mode === 'idle') return;
+    if (mode === 'static' || staticPresentationBindingRef.current) {
+      scrollProgressRef.current = 0;
+      return void renderFigure2Hold(root);
+    }
+    const previous = scrollProgressRef.current;
+    const direction = transactionDirection
+      ?? (progress > previous ? 1 : progress < previous ? -1 : scrollDirectionRef.current);
+    scrollDirectionRef.current = direction;
+    scrollProgressRef.current = progress;
+    ensurePackedSurface();
+    renderFigure2AnimationProgress(root, progress, {
+      videoMode: 'seek',
+      mediaRun: {
+        runId: 'f2',
+        direction
+      }
+    });
+  }, [ensurePackedSurface]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -297,6 +375,12 @@ export const PhoneFigure2 = forwardRef<
     else root.setAttribute('aria-hidden', 'true');
   }, [active, setSceneActive]);
 
+  /* The leaf alone translates the authority snapshot into Figure2 media IO. */
+  useLayoutEffect(() => {
+    if (!active) return;
+    applyMediaPlan(mediaPlan);
+  }, [active, applyMediaPlan, mediaPlan]);
+
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     async prepareTargetPresentation({
@@ -308,7 +392,7 @@ export const PhoneFigure2 = forwardRef<
       const mode = progress >= 0.999 ? 'endpoint' : 'forward';
       const surface = ensurePackedSurface(mode);
       if (!surface) {
-        throw new Error('Figure2 presentation unavailable');
+        throw new Error('Figure2 unavailable');
       }
       await surface([
         'prepare',
@@ -318,38 +402,10 @@ export const PhoneFigure2 = forwardRef<
         phoneRuntimePresentationTokenKey(presentationToken as PresentationToken)
       ]);
     },
-    update(progress) {
-      if (staticPresentationBindingRef.current) {
-        scrollProgressRef.current = 0;
-        renderFigure2Hold(rootRef.current);
-        return;
-      }
-      if (progress > scrollProgressRef.current) {
-        scrollDirectionRef.current = 1;
-      } else if (progress < scrollProgressRef.current) {
-        scrollDirectionRef.current = -1;
-      }
-      scrollProgressRef.current = progress;
-      ensurePackedSurface();
-      renderFigure2AnimationProgress(rootRef.current, progress, {
-        videoMode: 'seek',
-        mediaRun: {
-          runId: 'f2',
-          direction: scrollDirectionRef.current
-        }
-      });
-    },
-    enter() {
-      setSceneActive(true);
-      rootRef.current?.removeAttribute('aria-hidden');
-    },
-    leave() {
-      setSceneActive(false);
-      rootRef.current?.setAttribute('aria-hidden', 'true');
-    },
-    reverse() {
-      setSceneActive(true);
-      rootRef.current?.removeAttribute('aria-hidden');
+    update() {
+      // Shared adapter compatibility requires this member, but Phone Figure2
+      // intentionally ignores imperative writers. The snapshot effect above
+      // is the only path that can touch its media timeline.
     },
     presentPresentation(token, report) {
       releaseStaticPresentation();
@@ -392,7 +448,6 @@ export const PhoneFigure2 = forwardRef<
       disposeFigure2Media(rootRef.current);
     }
   }), [
-    ensurePackedSurface,
     releasePackedSurface,
     releaseStaticPresentation,
     requestBoundStaticPresentation,

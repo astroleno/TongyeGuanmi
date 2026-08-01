@@ -6,6 +6,7 @@ import {
   registerPhoneCompositeRunCapability,
   type PhoneCompositeSession,
   type PhoneExecutionToken,
+  type PhoneRenderedPresentationFrame,
   type PhoneStorySnapshot
 } from './phone-story/runtime';
 import {
@@ -97,10 +98,19 @@ export type PhoneGradeARunner = Readonly<{
 }>;
 
 function identityFor(
+  boundary: PhoneGradeABoundaryCapability,
   session: PhoneCompositeSession,
   direction: PhoneTransitionDirection
-): PhoneExecutionToken {
-  return [session[0], session[1], session[2], session[3](), direction];
+): PhoneExecutionToken | null {
+  const leg = phoneRunLegTuple(
+    phoneGradeARunForBoundary(boundary.id),
+    session[3]()
+  );
+  if (!leg) return null;
+  const contract = phoneSegmentPresentationTuple(leg[0]);
+  const token = session[15](contract[8], contract[9]);
+  if (!token) return null;
+  return [session[0], session[1], session[2], session[3](), direction, token];
 }
 
 function waitForBoundaryReady(
@@ -137,21 +147,6 @@ function waitForBoundaryReady(
     signal.addEventListener('abort', onAbort, { once: true });
     inspect();
   });
-}
-
-function reportRenderedBoundaryFrame(
-  boundary: PhoneGradeABoundaryCapability,
-  session: PhoneCompositeSession
-): boolean {
-  const leg = phoneRunLegTuple(
-    phoneGradeARunForBoundary(boundary.id),
-    session[3]()
-  );
-  const requirement = leg
-    ? phoneSegmentPresentationTuple(leg[0])
-    : undefined;
-  if (!requirement) return false;
-  return session[5](requirement[8], requirement[9]);
 }
 
 /**
@@ -311,14 +306,16 @@ export function createPhoneGradeARunner({
         complete
       );
     };
-    const startRenderedTransition = () => {
+    const startRenderedTransition = (
+      frame?: PhoneRenderedPresentationFrame
+    ) => {
       if (
         firstFrameReported
         || terminal
         || !transition
         || !session[4]()
       ) return;
-      if (!reportRenderedBoundaryFrame(boundary, session)) {
+      if (!frame || !session[16](frame)) {
         rollback();
         return;
       }
@@ -340,32 +337,26 @@ export function createPhoneGradeARunner({
         const from = boundary.from();
         const to = boundary.to();
         if (!transition || !from || !to) {
-          throw new Error('Phone Grade A boundary became unready');
+          throw new Error('Grade A boundary unavailable');
         }
         const source = direction === 1 ? from : to;
         const receiver = direction === 1 ? to : from;
         session[8](source, receiver);
+        const execution = identityFor(boundary, session, direction);
+        if (!execution) {
+          throw new Error('Grade A token stale');
+        }
         transition.begin(
-          identityFor(session, direction),
+          execution,
           startRenderedTransition
         );
         transition.commitEndpoint(direction === 1 ? 0 : 1);
         if (boundary.prepareReceiver) {
-          const leg = phoneRunLegTuple(
-            phoneGradeARunForBoundary(boundary.id),
-            session[3]()
-          );
-          if (!leg) throw new Error('Phone Grade A leg is unavailable');
-          const contract = phoneSegmentPresentationTuple(leg[0]);
-          const presentationIdentity = session[14](contract[8], contract[9]);
-          if (!presentationIdentity) {
-            throw new Error('Phone Grade A presentation token is stale');
-          }
           await boundary.prepareReceiver({
             progress: direction === 1 ? 0 : 1,
             direction,
             runId: `${session[1]}:${session[2]}`,
-            presentationToken: presentationIdentity,
+            presentationToken: execution[5]!,
             signal: preparation.signal
           });
         }

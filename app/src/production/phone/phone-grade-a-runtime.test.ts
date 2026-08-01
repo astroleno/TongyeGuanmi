@@ -10,6 +10,7 @@ import type {
   PhoneRunCapability,
   PhoneStoryRuntimeEngine as PhoneStoryOrchestrator
 } from './phone-story/runtime/engine';
+import type { PhoneExecutionToken } from './phone-story/runtime';
 import type { PhoneRunId } from './phone-story-runs';
 import {
   createPhoneStorySnapshot,
@@ -31,18 +32,73 @@ const gradeAExecutionToken = [
   'phone-session-grade-a',
   9,
   0,
-  1
-] as const;
+  1,
+  {
+    authorityId: 'phone-authority-grade-a',
+    sessionId: 'phone-session-grade-a',
+    generation: 9,
+    leg: 0,
+    revision: 1,
+    subject: 'grade-a:ink',
+    kind: 'effect-frame'
+  }
+] as const satisfies PhoneExecutionToken;
 
 function transition(
   prepare = vi.fn(async () => undefined)
 ): PhoneTransitionAdapterHandle {
+  let owner: PhoneExecutionToken | undefined;
   let onPresentedFrame: (() => void) | undefined;
   return {
-    begin: vi.fn((_request, reportFrame) => {
-      onPresentedFrame = reportFrame;
+    begin: vi.fn((request, reportFrame) => {
+      owner = request;
+      onPresentedFrame = () => {
+        const token = owner?.[5];
+        if (!token) return;
+        reportFrame?.({
+          token,
+          frameSequence: 1,
+          observedAt: 41,
+          origin: 'segment-first-frame'
+        });
+      };
     }),
     prepareFirstFrame: vi.fn(() => onPresentedFrame?.()),
+    prepare,
+    render: vi.fn(),
+    commitEndpoint: vi.fn(),
+    releaseEndpoint: vi.fn(),
+    enter: vi.fn(),
+    reverse: vi.fn()
+  };
+}
+
+/** A normal-motion effect leaf may only settle the runner with its raw token. */
+function tokenBoundTransition(
+  prepare = vi.fn(async () => undefined)
+): PhoneTransitionAdapterHandle {
+  let owner: PhoneExecutionToken | undefined;
+  let onPresentedFrame: ((frame?: {
+    token: PresentationToken;
+    frameSequence: number;
+    observedAt: number;
+    origin: 'segment-first-frame';
+  }) => void) | undefined;
+  return {
+    begin: vi.fn((request, report) => {
+      owner = request;
+      onPresentedFrame = report;
+    }),
+    prepareFirstFrame: vi.fn(() => {
+      const token = owner?.[5];
+      if (!token) throw new Error('expected an immutable effect-frame token');
+      onPresentedFrame?.({
+        token,
+        frameSequence: 1,
+        observedAt: 41,
+        origin: 'segment-first-frame'
+      });
+    }),
     prepare,
     render: vi.fn(),
     commitEndpoint: vi.fn(),
@@ -580,7 +636,8 @@ describe('canonical Grade A run lifecycle', () => {
     expect(adapter.enter).toHaveBeenCalledTimes(1);
     expect(adapter.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
     expect(adapter.commitEndpoint).toHaveBeenLastCalledWith(1);
-    expect(activeSession.reportRenderedFrame).toHaveBeenCalledTimes(1);
+    expect(activeSession.reportPresentationFrame).toHaveBeenCalledTimes(1);
+    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
     expect(activeSession.reportProgress).toHaveBeenLastCalledWith(1);
     expect(activeSession).not.toHaveProperty('moveTo');
     expect(activeSession.provideRelease).toHaveBeenCalledWith(
@@ -596,6 +653,43 @@ describe('canonical Grade A run lifecycle', () => {
     expect(lifecycle).toEqual(['commit']);
   });
 
+  it('[normal Grade A hard cutover] forwards the leaf-produced exact effect frame instead of rebuilding a proof', async () => {
+    const from = element();
+    const to = element();
+    const adapter = tokenBoundTransition();
+    const registered = orchestratorCapabilities();
+    createPhoneGradeARunner({
+      orchestrator: registered.orchestrator,
+      boundaries: [boundary(1, adapter, from, to)],
+      reducedMotion: false,
+      timeoutMs: 1_000
+    });
+    const activeSession = session();
+
+    expect(
+      registered.capabilities.get('figure2-proof')?.start(1, activeSession)
+    ).toBe(true);
+    await vi.waitFor(() => {
+      expect(activeSession.reportPresentationFrame).toHaveBeenCalledTimes(1);
+    });
+
+    expect(activeSession.reportPresentationFrame).toHaveBeenCalledWith({
+      token: expect.objectContaining({
+        authorityId: 'phone-authority-grade-a',
+        sessionId: 'phone-session-grade-a',
+        generation: 9,
+        leg: 0,
+        revision: 1,
+        subject: 'grade-a:ink',
+        kind: 'effect-frame'
+      }),
+      frameSequence: 1,
+      observedAt: 41,
+      origin: 'segment-first-frame'
+    });
+    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
+  });
+
   it('[R5] rolls back instead of advancing a Grade A timeline when its frame proof is rejected', async () => {
     const from = element();
     const to = element();
@@ -608,7 +702,7 @@ describe('canonical Grade A run lifecycle', () => {
       timeoutMs: 1000
     });
     const activeSession = session();
-    vi.mocked(activeSession.reportRenderedFrame).mockReturnValue(false);
+    vi.mocked(activeSession.reportPresentationFrame).mockReturnValue(false);
 
     registered.capabilities.get('method-figure2')?.start(1, activeSession);
     await vi.waitFor(() => {
