@@ -5,7 +5,8 @@
 > the executor completed uninterrupted Slices 4A → 4B → 4C → 4D with no
 > separate pause after 4A. Task 4's unified code/architecture review of the
 > complete machine/runtime, rollback, activation, queue, and disposal is
-> closed. Task 5 remains unstarted pending the next authorized execution. The
+> closed, including the post-4D corrective closeout recorded below. Task 5
+> remains unstarted pending the next authorized execution. The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
@@ -654,6 +655,7 @@ type PhoneEvidenceSlot = Readonly<{
   stageIndex: number;
   leg: 'source' | 'effect' | 'target' | 'rollback';
   kind: PhoneEvidenceKind;
+  surfaceId: PhoneSurfaceId | null;
   planeRevision: number | null;
 }>;
 ```
@@ -765,9 +767,10 @@ The binding supplies attempt, stage, leg, evidence kind, and active
 registers one root, all named
 video/Canvas/DOM surfaces, and one leaf-wide command handle; registration is
 not content evidence. `reportPrepared()`/`reportFrame()` accept only a
-leaf-local surface ID declared by the manifest. Runtime maps that ID to the
-closed evidence slot. A leaf report is a prepared decode/draw fact, not final
-visible-frame proof.
+leaf-local surface ID declared by the manifest. The presentation authority
+maps that fact to a surface-bound closed evidence slot; runtime accepts only
+the resulting opaque proof records. A leaf report is a prepared decode/draw
+fact, not final visible-frame proof.
 
 `PhoneLeafReportPort`, `PhoneLeafCommandHandle`, registrations, and DOM
 surface types live in `presentation.ts`. Serializable attempt/slot/report
@@ -2679,7 +2682,7 @@ git add app/src/production/phone-story
 git commit -m "feat(r5): centralize phone effects and media activation"
 ```
 
-**Task 4D closure record (2026-08-01):**
+**Initial Task 4D closure record (2026-08-01):**
 
 - Focused machine/runtime verification passed 54/54 tests; the complete suite
   passed 181 files / 1139 tests, followed by TypeScript and the complete
@@ -2698,7 +2701,41 @@ git commit -m "feat(r5): centralize phone effects and media activation"
   LOC. Phone JS is 628,833 B and the largest lazy chunk is 41,116 B. Frozen
   donor inputs are unchanged; archived evidence verifies 44/44 report hashes
   and 227/227 files (217,091,751 bytes).
-- The unified Task 4 review has no blocking finding. Task 5 was not started.
+- This initial closure was subsequently reopened by correctness review; the
+  corrective record below supersedes its no-finding statement. Task 5 was not
+  started.
+
+**Task 4D corrective closure record (2026-08-01):**
+
+- Surface-bound prepared slots now require both Crane Canvas draws; all
+  D-static prepared orderings reject a `0ms` media deadline; every ordered
+  warm-entry rollback preserves its normalized union deadline; and the full
+  hash/popstate rollback matrix re-canonicalizes any newer external target.
+- Reduced motion is sampled from the runtime environment and still completes
+  source proof on all 30 legs. Leaf progress/completion cannot advance the
+  reducer; only the runtime clock can do so.
+- Registration, DOM/resource validation, and prepared-proof construction are
+  injected through `PhonePresentation`; runtime retains only opaque leases.
+  Multi-surface activation carries per-surface asynchronous settlements, and
+  any partial rejection pauses the closure, reclaims decoder counts, and
+  enters the covered CTA path.
+- Dependency loading now returns a structured failed dependency and native
+  module URL. A second consecutive segment can reject its own transition URL
+  while the stable source rollback reloads successfully. Publication and
+  command boundaries re-check the exact connection, so synchronous disconnect
+  cannot recreate an old-authority RAF.
+- Corrective TDD first produced 12 focused failures. Final focused verification
+  passed 82/82; Node gate fixtures passed 114/114; the complete Vitest suite
+  passed 181 files / 1151 tests, followed by focused ESLint, TypeScript, and the
+  complete production build.
+- Architecture gates pass at protocol 450/450, manifest 547/550,
+  presentation 255/900, machine 1098/1100, and runtime 998/1000 non-blank LOC.
+  The still-frozen formal production closure remains 628,833 B of phone JS
+  with a 41,116 B largest lazy chunk; these figures do not claim Task 5
+  cutover. Frozen donor inputs are unchanged, and archived evidence verifies
+  44/44 report hashes plus 227/227 files (217,091,751 bytes).
+- The complete machine/runtime, rollback, activation, queue, and disposal
+  review is closed. Task 5 remains unstarted.
 
 `connect()` installs one active authority and returns its complete disconnect.
 Each connection starts a fresh boot transaction for the explicit entry.
@@ -2709,7 +2746,9 @@ Each connection starts a fresh boot transaction for the explicit entry.
   directions use one reducer;
 - cold boot and warm entry candidate/evidence/URL intent are reducer state,
   not effect-interpreter state;
-- warm menu/hash/popstate failure retains the original stable source and URL;
+- warm menu/hash/popstate failure retains the original stable source and URL,
+  while a newer external request queued during rollback is re-canonicalized
+  after source proof;
 - one stable-commit branch requires one attempt's complete evidence slots;
 - one proof-only reproject branch retains the stable commit and refreshes all
   final presentation evidence;

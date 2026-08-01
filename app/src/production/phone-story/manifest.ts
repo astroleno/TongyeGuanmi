@@ -11,10 +11,11 @@ import type { SegmentPolicy } from '../../story/types';
 import {
   PHONE_FINAL_EVIDENCE_KINDS,
   PHONE_PREPARED_EVIDENCE_KINDS,
-  type PhoneDependencyClosure, type PhoneDependencyRef, type PhoneDirection,
+  type PhoneDeadlinePolicy, type PhoneDependencyClosure, type PhoneDependencyRef,
+  type PhoneDirection,
   type PhoneFinalEvidenceKind, type PhoneMountRole,
   type PhonePreparedEvidenceKind, type PhoneProofBoundary,
-  type PhoneResourceBudget
+  type PhoneResourceBudget, type PhoneSurfaceId
 } from './protocol';
 
 export type PhoneSceneId = (typeof canonicalSceneIds)[number];
@@ -23,10 +24,7 @@ export type PhonePlane = 'front' | 'grade-a' | 'group45' | 'group67' | 'native';
 export type PhoneEffectPlacement = 'between' | 'above-both';
 export type PhoneDeadlineProfileId = 'D-static' | 'D-single-media' | 'D-multi-media';
 
-export type PhoneDeadlinePolicy = Readonly<{
-  moduleLoad: number; mediaPrepare: number; firstFrame: number;
-  planeApply: number; scrollConfirm: number; rollback: number;
-}>;
+export type { PhoneDeadlinePolicy } from './protocol';
 export type PhoneLanding = Readonly<{
   kind: 'front-corridor' | 'authored-boundary' | 'semantic-edge' | 'persistent-compositor';
   anchor: string;
@@ -386,6 +384,17 @@ export function phoneSceneById(id: PhoneSceneId): PhoneSceneManifest {
   const scene = phoneManifest.scenes.find((entry) => entry.id === id);
   if (!scene) throw new Error(`Unknown phone scene: ${id}`);
   return scene;
+}
+
+export function phonePreparedSurfaceIds(
+  sceneId: PhoneSceneId,
+  kind: PhonePreparedEvidenceKind
+): readonly (PhoneSurfaceId | null)[] {
+  const scene = phoneSceneById(sceneId);
+  if (kind === 'module-loaded' || kind === 'resource-budget-valid') return [null];
+  if (kind === 'root-connected' || kind === 'layout-measurable') return [`root:${sceneId}`];
+  return scene.frame.kind === 'packed-canvas-draw'
+    ? scene.frame.surfaceIds : [scene.frame.surfaceIds[0] ?? null];
 }
 export function phoneSegmentBetween(
   source: PhoneSceneId, target: PhoneSceneId

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createPhoneStoryRuntime,
+  type PhoneDependencyLoadResult,
   type PhoneRuntimeHostEvent,
   type PhoneRuntimeLifecycleStep,
   type PhoneRuntimeResourceCounts,
@@ -13,8 +14,10 @@ import { phoneManifest, phoneSceneById } from './manifest';
 import type {
   PhoneLeafCommandHandle,
   PhoneLeafGenerationBinding,
-  PhoneLeafReportBinding
+  PhoneLeafReportBinding,
+  PhonePresentation
 } from './presentation';
+import { describePhoneLeafMount } from './presentation';
 import type {
   PhoneEvidenceSlot,
   PhoneStoryEffect,
@@ -22,7 +25,6 @@ import type {
   PhoneStorySnapshot,
   PhoneViewportSnapshot
 } from './protocol';
-import { PHONE_MEDIA_ACTIVATION_REJECTED } from './protocol';
 
 const initialViewport = (): PhoneViewportSnapshot => ({
   layout: { width: 390, height: 844, orientation: 'portrait' },
@@ -68,6 +70,7 @@ function createEnvironment(): EnvironmentFixture {
     nextAuthorityId: () => `runtime-authority:${++authority}`,
     readViewport: initialViewport,
     activeNow: () => activeMs,
+    readReducedMotion: () => false,
     subscribeHost: (listener) => {
       listeners.add(listener);
       return () => {
@@ -132,8 +135,42 @@ function createRuntime(
 ): PhoneStoryRuntime {
   return createPhoneStoryRuntime({
     initialEntry: { pathname: '/', hash, origin: 'initial' },
-    environment: fixture.port
+    environment: fixture.port,
+    presentation: createPresentationAuthority()
   });
+}
+
+function createPresentationAuthority(): PhonePresentation {
+  let registration = 0;
+  return {
+    registerLeafMount: (request) => {
+      const descriptor = describePhoneLeafMount(request);
+      return {
+        ...descriptor,
+        registrationKey: `test-presentation:${++registration}`,
+        commands: request.registration.commands,
+        rebind: () => undefined,
+        release: () => undefined
+      };
+    },
+    verifyPrepared: ({ binding, fact }) => {
+      if (!fact || fact.report.kind === 'frame'
+        || !binding.allowedReports.includes(fact.report.kind)
+        || !['image-decoded', 'video-decoded', 'canvas-drawn', 'static-ready']
+          .includes(fact.report.kind)) return { records: [] };
+      return { records: [{
+        slot: {
+          attempt: binding.attempt,
+          stageIndex: binding.stageIndex,
+          leg: binding.leg,
+          kind: fact.report.kind,
+          surfaceId: fact.surfaceId,
+          planeRevision: binding.planeRevision
+        },
+        token: fact.report.token
+      }] };
+    }
+  };
 }
 
 function currentTransaction(runtime: PhoneStoryRuntime) {
@@ -149,7 +186,7 @@ function reportSlot(fixture: EnvironmentFixture, slot: PhoneEvidenceSlot): void 
     slot,
     report: {
       kind: slot.kind,
-      token: `${slot.attempt.transactionId}:${slot.leg}:${slot.kind}:${slot.stageIndex}`,
+      token: `${slot.attempt.transactionId}:${slot.leg}:${slot.kind}:${slot.surfaceId ?? 'global'}:${slot.stageIndex}`,
       accepted: true
     }
   });
@@ -169,12 +206,24 @@ function proveCurrent(
       fixture.send({ type: 'activation-settled', invoked: true, attempt: transaction.attempt });
       continue;
     }
+    if (transaction.phase === 'preparing'
+      && transaction.closure.resourceBudget.videos > 0
+      && transaction.activation !== 'spent'
+      && transaction.requiredPrepared.every((slot) => transaction.evidence.some((record) => (
+        record.slot.kind === slot.kind && record.slot.leg === slot.leg
+          && record.slot.stageIndex === slot.stageIndex
+          && record.slot.surfaceId === slot.surfaceId
+          && record.slot.planeRevision === slot.planeRevision
+      )))) {
+      fixture.send({ type: 'activation-settled', invoked: true, attempt: transaction.attempt });
+      continue;
+    }
     if (transaction.phase === 'playing') {
       fixture.send({ type: 'transition-completed', attempt: transaction.attempt });
       continue;
     }
     if (transaction.phase === 'dwelling') {
-      fixture.send({ type: 'dwell-completed', attempt: transaction.attempt });
+      fixture.send({ type: 'deadline-fired', operation: 'dwell', attempt: transaction.attempt });
       continue;
     }
     if (transaction.phase === 'awaiting-leg-intent') {
@@ -192,6 +241,7 @@ function proveCurrent(
       record.slot.kind === slot.kind
         && record.slot.leg === slot.leg
         && record.slot.stageIndex === slot.stageIndex
+        && record.slot.surfaceId === slot.surfaceId
         && record.slot.planeRevision === slot.planeRevision
     )));
     if (!missing) throw new Error(`no missing proof in ${transaction.phase}`);
@@ -207,11 +257,24 @@ function reachPlaying(runtime: PhoneStoryRuntime, fixture: EnvironmentFixture): 
       fixture.send({ type: 'activation-settled', invoked: true, attempt: transaction.attempt });
       continue;
     }
+    if (transaction.phase === 'preparing'
+      && transaction.closure.resourceBudget.videos > 0
+      && transaction.activation !== 'spent'
+      && transaction.requiredPrepared.every((slot) => transaction.evidence.some((record) => (
+        record.slot.kind === slot.kind && record.slot.leg === slot.leg
+          && record.slot.stageIndex === slot.stageIndex
+          && record.slot.surfaceId === slot.surfaceId
+          && record.slot.planeRevision === slot.planeRevision
+      )))) {
+      fixture.send({ type: 'activation-settled', invoked: true, attempt: transaction.attempt });
+      continue;
+    }
     const slots = transaction.requiredFinal.length > 0
       ? transaction.requiredFinal : transaction.requiredPrepared;
     const missing = slots.find((slot) => !transaction.evidence.some((record) => (
       record.slot.kind === slot.kind && record.slot.leg === slot.leg
         && record.slot.stageIndex === slot.stageIndex
+        && record.slot.surfaceId === slot.surfaceId
         && record.slot.planeRevision === slot.planeRevision
     )));
     if (!missing) throw new Error(`cannot reach playback from ${transaction.phase}`);
@@ -357,7 +420,8 @@ describe('phone runtime input, history, viewport, and queue', () => {
     };
     const runtime = createPhoneStoryRuntime({
       initialEntry: { pathname: '/', hash: '#brand', origin: 'initial' },
-      environment
+      environment,
+      presentation: createPresentationAuthority()
     });
     let queued = false;
     runtime.subscribe(() => {
@@ -491,7 +555,7 @@ describe('phone runtime input, history, viewport, and queue', () => {
         physicalEpoch: (active.claimedPhysicalEpoch ?? 0) + 1
       });
       if (currentTransaction(runtime).phase === 'dwelling') fixture.send({
-        type: 'dwell-completed', attempt: active.attempt
+        type: 'deadline-fired', operation: 'dwell', attempt: active.attempt
       });
     }
     const before = currentTransaction(runtime);
@@ -709,7 +773,8 @@ describe('phone runtime pagehide/pageshow/BFCache lifecycle', () => {
     let liveViewport = initialViewport();
     const runtime = createPhoneStoryRuntime({
       initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
-      environment: { ...fixture.port, readViewport: () => liveViewport }
+      environment: { ...fixture.port, readViewport: () => liveViewport },
+      presentation: createPresentationAuthority()
     });
     const disconnect = runtime.connect();
     proveCurrent(runtime, fixture);
@@ -753,10 +818,13 @@ function commandFixture(
   let activationCall = 0;
   const commands: PhoneLeafCommandHandle = {
     rebind: vi.fn((binding) => { rebindings.push(binding); }),
-    activate: vi.fn((command) => ({
+    activate: vi.fn((command: Parameters<PhoneLeafCommandHandle['activate']>[0]) => ({
       invocationId: command.invocationId,
       surfaceIds: command.surfaceIds,
-      invoked: activation(++activationCall)
+      invoked: activation(++activationCall),
+      settlements: command.surfaceIds.map((surfaceId) => ({
+        surfaceId, status: 'fulfilled' as const
+      }))
     })),
     render: vi.fn(),
     settle: vi.fn(),
@@ -767,6 +835,137 @@ function commandFixture(
 }
 
 describe('phone runtime effects, media activation, and disposal', () => {
+  it('delegates mount ownership to the injected presentation authority', () => {
+    const fixture = createEnvironment();
+    const registerLeafMount = vi.fn(() => ({
+      registrationKey: 'presentation:pattern',
+      commands: commandFixture().commands,
+      surfaceIds: ['pattern-image'],
+      activationSurfaceIds: [],
+      resources: { videos: 0, activeDecoders: 0, canvases: 0, webglContexts: 0 },
+      rebind: vi.fn(),
+      release: vi.fn()
+    }));
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: { registerLeafMount, verifyPrepared: () => ({ records: [] }) }
+    });
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    expect(registerLeafMount).toHaveBeenCalledTimes(1);
+    disconnect();
+  });
+
+  it('does not let a leaf forge root, layout, or resource prepared proof', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#pattern');
+    const disconnect = runtime.connect();
+    const { reports } = registerCurrentLeaf(runtime, commandFixture().commands);
+    for (const kind of [
+      'root-connected', 'layout-measurable', 'resource-budget-valid'
+    ] as const) {
+      const before = runtime.getSnapshot();
+      reports.reportPrepared('pattern-image', { kind, token: `forged:${kind}`, ready: true });
+      expect(runtime.getSnapshot()).toBe(before);
+    }
+    disconnect();
+  });
+
+  it('waits for every asynchronous media settlement and reclaims partial rejection', async () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#crane-animation');
+    const disconnect = runtime.connect();
+    let rejectFlock!: (reason?: unknown) => void;
+    const figure = Promise.resolve();
+    const flock = new Promise<void>((_resolve, reject) => { rejectFlock = reject; });
+    void flock.catch(() => undefined);
+    const commands = {
+      rebind: vi.fn(),
+      activate: vi.fn((command: Parameters<PhoneLeafCommandHandle['activate']>[0]) => ({
+        invocationId: command.invocationId,
+        surfaceIds: command.surfaceIds,
+        invoked: true,
+        settlements: command.surfaceIds.map((surfaceId) => ({
+          surfaceId,
+          status: 'pending' as const,
+          settled: surfaceId === 'crane-flock-video' ? flock : figure
+        }))
+      })),
+      render: vi.fn(), settle: vi.fn(), pause: vi.fn(), dispose: vi.fn()
+    } as unknown as PhoneLeafCommandHandle;
+    registerCurrentLeaf(runtime, commands);
+    expect(currentTransaction(runtime).activation).not.toBe('spent');
+    rejectFlock(new Error('flock play rejected'));
+    await vi.waitFor(() => {
+      expect(currentTransaction(runtime).activation).toBe('awaiting');
+    });
+    expect(commands.pause).toHaveBeenCalled();
+    expect(fixture.resources.at(-1)?.activeDecoders).toBe(0);
+    disconnect();
+  });
+
+  it('treats leaf progress and completion as diagnostics, never phase authority', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#pattern');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    const reports = registerCurrentEffect(runtime, commandFixture().commands);
+    reachPlaying(runtime, fixture);
+    const before = runtime.getSnapshot();
+    reports.reportProgress(1);
+    reports.reportComplete();
+    expect(runtime.getSnapshot()).toBe(before);
+    disconnect();
+  });
+
+  it('reads the production reduced-motion policy and still proves the source plane', () => {
+    const fixture = createEnvironment();
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: { ...fixture.port, readReducedMotion: () => true },
+      presentation: createPresentationAuthority()
+    });
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    let active = currentTransaction(runtime);
+    for (const slot of active.requiredPrepared) reportSlot(fixture, slot);
+    active = currentTransaction(runtime);
+    expect(active.phase).toBe('presenting-source');
+    for (const slot of active.requiredFinal) reportSlot(fixture, slot);
+    expect(currentTransaction(runtime).phase).toBe('presenting-target');
+    expect(fixture.counts().frames).toBe(0);
+    disconnect();
+  });
+
+  it('cannot recreate an authority RAF after a subscriber disconnects during publish', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#pattern');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    let active = currentTransaction(runtime);
+    for (const slot of active.requiredPrepared) reportSlot(fixture, slot);
+    active = currentTransaction(runtime);
+    for (const slot of active.requiredFinal.slice(0, -1)) reportSlot(fixture, slot);
+    const unsubscribe = runtime.subscribe(() => disconnect());
+    reportSlot(fixture, active.requiredFinal.at(-1)!);
+    expect(fixture.counts()).toEqual({ listeners: 0, timers: 0, frames: 0 });
+    unsubscribe();
+  });
+
   it('closes over an immutable report binding and rejects false readiness facts', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#pattern');
@@ -837,7 +1036,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     const { reports } = registerCurrentLeaf(runtime, commandFixture().commands);
     const before = runtime.getSnapshot();
     reports.reportFailure({
-      code: PHONE_MEDIA_ACTIVATION_REJECTED,
+      code: 'media-activation-rejected',
       message: 'not a media leaf',
       recoverable: true
     });
@@ -894,7 +1093,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
-  it('turns asynchronous autoplay permission rejection into the covered activation wait', () => {
+  it('rejects the legacy leaf-failure path as a second activation authority', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#crane-animation');
     const disconnect = runtime.connect();
@@ -904,16 +1103,12 @@ describe('phone runtime effects, media activation, and disposal', () => {
     for (const slot of currentTransaction(runtime).requiredPrepared) reportSlot(fixture, slot);
     expect(currentTransaction(runtime).phase).toBe('presenting-target');
     reports.reportFailure({
-      code: PHONE_MEDIA_ACTIVATION_REJECTED,
+      code: 'media-activation-rejected',
       message: 'play promise rejected',
       recoverable: true
     });
-    expect(currentTransaction(runtime).phase).toBe('awaiting-media-activation');
-    expect(fixture.counts().timers).toBe(0);
+    expect(currentTransaction(runtime).phase).toBe('presenting-target');
     expect(runtime.getSnapshot().stableCommit).toBeNull();
-    expect(fixture.effects).toContainEqual(expect.objectContaining({
-      type: 'show-activation-cta', enabled: true
-    }));
     disconnect();
   });
 
@@ -939,7 +1134,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
         id, element: {} as HTMLElement, kind: 'dom'
       })),
       commands
-    })).toThrow(/surfaces differ/);
+    })).toThrow(/surface(?:s| kind) differs/);
     expect(fixture.resources).toEqual(resourcesBeforeInvalidMount);
     const { reports } = registerCurrentLeaf(runtime, commands);
     expect(fixture.resources.at(-1)).toEqual({
@@ -1050,8 +1245,12 @@ describe('phone runtime effects, media activation, and disposal', () => {
     target.reports.reportProgress(0.4);
     expect(runtime.getSnapshot()).toBe(beforeTargetProgress);
     effectReports.reportProgress(0.4);
-    expect(commands.render).toHaveBeenCalledWith(0.4);
+    expect(runtime.getSnapshot()).toBe(beforeTargetProgress);
     effectReports.reportComplete();
+    expect(runtime.getSnapshot()).toBe(beforeTargetProgress);
+    fixture.advance(100_000);
+    fixture.flushFrames();
+    expect(commands.render).toHaveBeenCalledWith(expect.any(Number));
     let active = currentTransaction(runtime);
     expect(active.phase).toBe('awaiting-leg-intent');
     const stageBeforeIntent = active.stageIndex;
@@ -1071,7 +1270,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
       if (active.phase === 'playing') {
         fixture.send({ type: 'transition-completed', attempt: active.attempt });
       } else if (active.phase === 'dwelling') {
-        fixture.send({ type: 'dwell-completed', attempt: active.attempt });
+        fixture.send({ type: 'deadline-fired', operation: 'dwell', attempt: active.attempt });
       } else if (active.phase === 'awaiting-leg-intent') {
         fixture.send({
           type: 'leg-intent', attempt: active.attempt,
@@ -1102,6 +1301,9 @@ describe('phone runtime effects, media activation, and disposal', () => {
     const effect = registerCurrentEffect(runtime, commandFixture().commands);
     reachPlaying(runtime, fixture);
     effect.reportComplete();
+    expect(currentTransaction(runtime).phase).toBe('playing');
+    fixture.advance(100_000);
+    fixture.flushFrames();
     const dwelling = currentTransaction(runtime);
     expect(dwelling.phase).toBe('dwelling');
     expect(fixture.counts().timers).toBe(1);
@@ -1209,14 +1411,19 @@ describe('phone runtime effects, media activation, and disposal', () => {
 
   it('aborts a superseded closure load and accepts completion only for the latest attempt', async () => {
     const fixture = createEnvironment();
-    const loads: Array<Readonly<{ resolve(): void; signal: AbortSignal }>> = [];
+    const loads: Array<Readonly<{
+      resolve(result: PhoneDependencyLoadResult): void; signal: AbortSignal;
+    }>> = [];
     const loadDependencies = vi.fn((
       _effect: unknown,
       signal: AbortSignal
-    ) => new Promise<void>((resolve) => { loads.push({ resolve, signal }); }));
+    ) => new Promise<PhoneDependencyLoadResult>((resolve) => {
+      loads.push({ resolve, signal });
+    }));
     const runtime = createPhoneStoryRuntime({
       initialEntry: { pathname: '/', hash: '#home', origin: 'initial' },
       environment: fixture.port,
+      presentation: createPresentationAuthority(),
       ports: { loadDependencies }
     });
     const disconnect = runtime.connect();
@@ -1226,10 +1433,10 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(latest.transactionGeneration).toBeGreaterThan(first.transactionGeneration);
     expect(loadDependencies).toHaveBeenCalledTimes(2);
     expect(loads[0]?.signal.aborted).toBe(true);
-    loads[0]?.resolve();
+    loads[0]?.resolve({ status: 'loaded' });
     await Promise.resolve();
     expect(currentTransaction(runtime).evidence.some(({ slot }) => slot.attempt === first)).toBe(false);
-    loads[1]?.resolve();
+    loads[1]?.resolve({ status: 'loaded' });
     await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
       slot.kind === 'module-loaded' && slot.attempt === latest
     ))).toBe(true));
@@ -1246,6 +1453,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     const runtime = createPhoneStoryRuntime({
       initialEntry: { pathname: '/', hash: '#education', origin: 'initial' },
       environment: fixture.port,
+      presentation: createPresentationAuthority(),
       chunkRecovery: recovery
     });
     const disconnect = runtime.connect();
@@ -1273,6 +1481,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     const runtime = createPhoneStoryRuntime({
       initialEntry: { pathname: '/', hash: '#home', origin: 'initial' },
       environment: fixture.port,
+      presentation: createPresentationAuthority(),
       ports: { loadDependencies },
       chunkRecovery: recovery
     });
@@ -1283,6 +1492,62 @@ describe('phone runtime effects, media activation, and disposal', () => {
     await Promise.resolve();
     expect(loadDependencies).toHaveBeenCalledTimes(1);
     expect(Object.isFrozen(recovery)).toBe(true);
+    disconnect();
+  });
+
+  it('poisons only a second leg native rejection and reloads its stable source rollback', async () => {
+    const fixture = createEnvironment();
+    const reportRejectedChunk = vi.fn(async () => 'fail-closed' as const);
+    const loadDependencies = vi.fn(async (effect: Extract<PhoneStoryEffect, {
+      type: 'load-dependencies'
+    }>) => effect.attempt.mode === 'segment'
+      && effect.attempt.segmentId === 'star-map-aod'
+      ? {
+          status: 'rejected' as const,
+          dependency: 'transition:star-map-aod' as const,
+          moduleUrl: '/assets/star-map-aod.js',
+          reason: 'native transition import rejected'
+        }
+      : { status: 'loaded' as const });
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    } as Parameters<typeof createPhoneStoryRuntime>[0]);
+    const disconnect = runtime.connect();
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('star-map');
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    await vi.waitFor(() => expect(currentTransaction(runtime).mode).toBe('rollback'));
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot().status).toBe('stable');
+    expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('star-map');
+    expect(reportRejectedChunk).toHaveBeenCalledWith(expect.objectContaining({
+      moduleUrl: '/assets/star-map-aod.js'
+    }));
     disconnect();
   });
 });

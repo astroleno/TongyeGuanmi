@@ -1,15 +1,18 @@
 import {
   phoneAdjacentTarget, phoneEntryForLocation, phoneManifest, phoneSceneById,
-  phoneSegmentBetween, phoneWarmEntryPolicy, type PhoneSceneId, type PhoneSegmentId
+  phonePreparedSurfaceIds, phoneSegmentBetween, phoneWarmEntryPolicy,
+  type PhoneSceneId, type PhoneSegmentId
 } from './manifest';
 import {
   PHONE_FINAL_EVIDENCE_KINDS, type PhoneAttemptKey, type PhoneDirection,
-  type PhoneEvidenceKind, type PhoneEvidenceRecord, type PhoneEvidenceSlot,
+  type PhoneEvidenceKind, type PhonePreparedEvidenceKind, type PhoneEvidenceRecord,
+  type PhoneEvidenceSlot,
   type PhoneEntryRequest, type PhoneFailure, type PhonePresentationProof,
   type PhoneReduceResult, type PhoneStableCommit, type PhoneStoryEffect,
   type PhoneStoryEvent, type PhoneStorySnapshot, type PhoneTransaction,
   type PhoneTransactionLeg, type PhoneTransactionMode,
-  type PhoneTransactionSnapshot, type PhoneViewportSnapshot
+  type PhoneTransactionSnapshot, type PhoneViewportSnapshot,
+  type PhoneDeadlinePolicy, type PhoneSurfaceId
 } from './protocol';
 
 export type PhoneMachineSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegmentId>;
@@ -27,6 +30,7 @@ type TransactionOptions = Readonly<{
   commitIntent: 'semantic' | 'reproject' | 'rollback'; generation: number;
   fallbackFromSceneId?: PhoneSceneId | null; pendingEntry?: PhoneEntryRequest | null;
   restoreUrlOnRollback?: boolean;
+  deadlinePolicy?: PhoneDeadlinePolicy; canonicalizeUrlOnCommit?: boolean;
   physicalEpoch?: number | null; reducedMotion?: boolean; activation?: 'offered' | 'spent';
   failure?: PhoneFailure | null;
 }>;
@@ -57,7 +61,7 @@ function reviseTransaction(
   });
 }
 
-function sameAttempt(left: PhoneAttemptKey, right: PhoneAttemptKey): boolean {
+export function sameAttempt(left: PhoneAttemptKey, right: PhoneAttemptKey): boolean {
   return left.authorityId === right.authorityId && left.transactionId === right.transactionId
     && left.transactionGeneration === right.transactionGeneration && left.mode === right.mode
     && left.sceneId === right.sceneId && left.segmentId === right.segmentId
@@ -67,14 +71,8 @@ function sameAttempt(left: PhoneAttemptKey, right: PhoneAttemptKey): boolean {
 function sameSlot(left: PhoneEvidenceSlot, right: PhoneEvidenceSlot): boolean {
   return sameAttempt(left.attempt, right.attempt) && left.stageIndex === right.stageIndex
     && left.leg === right.leg && left.kind === right.kind
+    && left.surfaceId === right.surfaceId
     && left.planeRevision === right.planeRevision;
-}
-
-export function createPhoneEvidenceSlot<SceneId extends string = string,
-  SegmentId extends string = string>(
-  slot: PhoneEvidenceSlot<SceneId, SegmentId>
-): PhoneEvidenceSlot<SceneId, SegmentId> {
-  return freezeOwned({ ...slot });
 }
 
 function evidenceSlot(
@@ -82,9 +80,21 @@ function evidenceSlot(
   stageIndex: number,
   leg: PhoneTransactionLeg,
   kind: PhoneEvidenceKind,
-  planeRevision: number | null
+  planeRevision: number | null,
+  surfaceId: PhoneSurfaceId | null = null
 ): PhoneEvidenceSlot<PhoneSceneId, PhoneSegmentId> {
-  return createPhoneEvidenceSlot({ attempt, stageIndex, leg, kind, planeRevision });
+  return freezeOwned({ attempt, stageIndex, leg, kind, surfaceId, planeRevision });
+}
+
+function preparedSlots(
+  attempt: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>,
+  sceneId: PhoneSceneId,
+  leg: PhoneTransactionLeg,
+  kinds: readonly PhonePreparedEvidenceKind[]
+): readonly PhoneEvidenceSlot<PhoneSceneId, PhoneSegmentId>[] {
+  return kinds.flatMap((kind) => phonePreparedSurfaceIds(sceneId, kind).map((surfaceId) => (
+    evidenceSlot(attempt, 0, leg, kind, null, surfaceId)
+  )));
 }
 
 function attemptFor(
@@ -129,20 +139,22 @@ function transactionFor(
     ? legPolicy.closure
     : warmPolicy?.closure ?? scene.directEntry.closure;
   const leg: PhoneTransactionLeg = options.mode === 'rollback' ? 'rollback' : 'target';
-  const targetPrepared = closure.exposeReceiverAfter.map((kind) => (
-    evidenceSlot(attempt, 0, leg, kind, null)
-  ));
+  const targetPrepared = preparedSlots(
+    attempt, options.candidateSceneId, leg, closure.exposeReceiverAfter
+  );
   const requiredPrepared = options.mode === 'segment'
     ? [
-        evidenceSlot(attempt, 0, 'source', 'root-connected', null),
+        evidenceSlot(attempt, 0, 'source', 'root-connected', null,
+          options.sourceSceneId ? `root:${options.sourceSceneId}` : null),
         evidenceSlot(attempt, 0, 'effect', 'module-loaded', null),
-        evidenceSlot(attempt, 0, 'effect', 'root-connected', null),
+        evidenceSlot(attempt, 0, 'effect', 'root-connected', null,
+          legPolicy?.effectSurface ?? null),
         ...targetPrepared
       ]
     : targetPrepared;
-  const deadlinePolicy = options.mode === 'rollback' && segment
+  const deadlinePolicy = options.deadlinePolicy ?? (options.mode === 'rollback' && segment
     ? segment.rollback.deadlinePolicy
-    : legPolicy?.deadlinePolicy ?? warmPolicy?.deadlinePolicy ?? scene.directEntry.deadlinePolicy;
+    : legPolicy?.deadlinePolicy ?? warmPolicy?.deadlinePolicy ?? scene.directEntry.deadlinePolicy);
   const deadlineOperation = options.mode === 'rollback' ? 'rollback' : 'moduleLoad';
   return freezeOwned({
     mode: options.mode, phase: options.mode === 'rollback' ? 'rolling-back' : 'preparing',
@@ -151,11 +163,12 @@ function transactionFor(
     closure, dependencies: closure.load,
     requestedEntry: options.request,
     canonicalPathname: options.request.pathname, canonicalHash: scene.directEntry.canonicalHash,
-    urlEffect: urlEffectFor(options.request, scene.directEntry.canonicalHash, warm),
+    urlEffect: options.canonicalizeUrlOnCommit
+      ? 'replace' : urlEffectFor(options.request, scene.directEntry.canonicalHash, warm),
     restoreUrlOnRollback: options.restoreUrlOnRollback
       ?? (warm && (options.request.origin === 'hash' || options.request.origin === 'popstate')),
     fallbackFromSceneId: options.fallbackFromSceneId ?? null, commitIntent: options.commitIntent,
-    pendingEntry: options.pendingEntry ?? null,
+    pendingEntry: options.pendingEntry ?? null, deadlinePolicy,
     deadline: {
       operation: deadlineOperation,
       remainingMs: deadlinePolicy[deadlineOperation],
@@ -319,16 +332,7 @@ function segmentFor(transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>)
 function deadlinePolicyFor(
   transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>
 ) {
-  const segment = segmentFor(transaction);
-  if (transaction.mode === 'rollback' && segment) return segment.rollback.deadlinePolicy;
-  if (transaction.mode === 'segment' && segment && transaction.attempt.direction) {
-    return segment[transaction.attempt.direction].deadlinePolicy;
-  }
-  if (transaction.mode === 'entry' && transaction.sourceSceneId) {
-    return phoneWarmEntryPolicy(transaction.sourceSceneId, transaction.candidateSceneId)
-      .deadlinePolicy;
-  }
-  return phoneSceneById(transaction.candidateSceneId).directEntry.deadlinePolicy;
+  return transaction.deadlinePolicy;
 }
 
 function beginPlayback(snapshot: PhoneMachineTransactionSnapshot): PhoneMachineResult {
@@ -380,6 +384,9 @@ function advanceEvidenceDeadline(
     return freezeOwned({ snapshot, effects: [] });
   }
   const timeoutMs = deadlinePolicyFor(transaction)[operation];
+  if (timeoutMs <= 0) {
+    return reviseTransaction(snapshot, { deadline: null }, {}, [], false);
+  }
   return reviseTransaction(snapshot, { deadline: {
     operation, remainingMs: timeoutMs, startedAtActiveMs: 0, suspended: false
   } }, {}, [{ type: 'schedule-deadline', attempt: transaction.attempt, operation, timeoutMs }], false);
@@ -475,7 +482,11 @@ function finishReproject(snapshot: PhoneMachineTransactionSnapshot): PhoneMachin
     }
   } as const);
   const pendingEntryEffect: readonly PhoneStoryEffect[] = snapshot.transaction.pendingEntry
-    ? [{ type: 'defer-entry', request: snapshot.transaction.pendingEntry }]
+    ? [{
+        type: 'defer-entry', request: snapshot.transaction.pendingEntry,
+        ...(rollback && snapshot.transaction.restoreUrlOnRollback
+          ? { urlWasReplaced: true } : {})
+      }]
     : [];
   return freezeOwned({ snapshot: stable, effects: [
     ...(rollback ? urlEffects(snapshot.transaction, 'rollback') : []), ...pendingEntryEffect
@@ -530,7 +541,8 @@ function startWarmEntry(
   snapshot: PhoneMachineSnapshot,
   request: PhoneEntryRequest,
   target: PhoneSceneId,
-  invalidatedAttempt?: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>
+  invalidatedAttempt?: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>,
+  urlWasReplaced = false
 ): PhoneMachineResult {
   const source = snapshot.stableCommit;
   if (!source) {
@@ -541,7 +553,7 @@ function startWarmEntry(
       segmentId: null,
       direction: null,
       request,
-      commitIntent: 'semantic'
+      commitIntent: 'semantic', canonicalizeUrlOnCommit: urlWasReplaced
     }, invalidatedAttempt ? [{ type: 'invalidate-attempt', attempt: invalidatedAttempt }] : []);
   }
   if (source.sceneId === target) return reprojectCommittedPlane(snapshot, request);
@@ -552,22 +564,24 @@ function startWarmEntry(
     segmentId: null,
     direction: null,
     request,
-    commitIntent: 'semantic'
+    commitIntent: 'semantic', canonicalizeUrlOnCommit: urlWasReplaced
   }, invalidatedAttempt ? [{ type: 'invalidate-attempt', attempt: invalidatedAttempt }] : []);
 }
 
 function handleEntry(
   snapshot: PhoneMachineSnapshot,
-  request: PhoneEntryRequest
+  request: PhoneEntryRequest,
+  urlWasReplaced = false
 ): PhoneMachineResult {
   const target = phoneEntryForLocation(request.pathname, request.hash).sceneId;
   if (snapshot.status === 'transaction') {
     if (snapshot.transaction.mode === 'rollback') {
       return reviseTransaction(snapshot, { pendingEntry: request });
     }
-    return startWarmEntry(snapshot, request, target, snapshot.transaction.attempt);
+    return startWarmEntry(snapshot, request, target, snapshot.transaction.attempt,
+      urlWasReplaced);
   }
-  return startWarmEntry(snapshot, request, target);
+  return startWarmEntry(snapshot, request, target, undefined, urlWasReplaced);
 }
 
 function validFailureSlot(
@@ -617,6 +631,7 @@ function failTransaction(
       commitIntent: 'rollback',
       pendingEntry: transaction.pendingEntry,
       restoreUrlOnRollback: transaction.restoreUrlOnRollback,
+      deadlinePolicy: transaction.deadlinePolicy,
       physicalEpoch: transaction.claimedPhysicalEpoch,
       activation: 'spent',
       reducedMotion: transaction.reducedMotion,
@@ -804,6 +819,7 @@ function handleActivationRequest(
     segmentId: current.attempt.segmentId, direction: current.attempt.direction,
     request: current.requestedEntry, commitIntent: current.commitIntent,
     pendingEntry: current.pendingEntry, restoreUrlOnRollback: current.restoreUrlOnRollback,
+    deadlinePolicy: current.deadlinePolicy,
     physicalEpoch: epoch, activation: 'offered', reducedMotion: current.reducedMotion,
     fallbackFromSceneId: current.fallbackFromSceneId, failure: current.failure
   });
@@ -819,7 +835,6 @@ function handleActivationSettled(
   if (!sameAttempt(snapshot.transaction.attempt, event.attempt)) {
     return freezeOwned({ snapshot, effects: [] });
   }
-  const waiting = snapshot.transaction.phase === 'awaiting-media-activation';
   const prepared = quorumComplete(snapshot.transaction, snapshot.transaction.requiredPrepared);
   const settled = reviseTransaction(snapshot, {
     phase: event.invoked ? 'preparing' : prepared ? 'awaiting-media-activation' : snapshot.transaction.phase,
@@ -828,10 +843,8 @@ function handleActivationSettled(
   }, {}, prepared || event.invoked ? [{
       type: 'show-activation-cta', attempt: event.attempt, enabled: !event.invoked
   }] : []);
-  if (!event.invoked || !waiting || !prepared) return settled;
-  return settled.snapshot.transaction.mode === 'segment'
-    && settled.snapshot.transaction.reducedMotion
-    ? beginTargetPresentation(settled.snapshot) : beginFinalProof(settled.snapshot);
+  if (!event.invoked || !prepared) return settled;
+  return beginFinalProof(settled.snapshot);
 }
 
 function handleEvidence(
@@ -856,10 +869,8 @@ function handleEvidence(
   ) {
     if (accepted.transaction.closure.resourceBudget.videos > 0
       && accepted.transaction.activation !== 'spent') {
-      return awaitMediaActivation(accepted);
-    }
-    if (accepted.transaction.mode === 'segment' && accepted.transaction.reducedMotion) {
-      return beginTargetPresentation(accepted);
+      return accepted.transaction.activation === 'awaiting'
+        ? awaitMediaActivation(accepted) : advanceEvidenceDeadline(accepted);
     }
     return beginFinalProof(accepted);
   }
@@ -869,7 +880,8 @@ function handleEvidence(
   ) {
     if (accepted.transaction.mode === 'segment'
       && accepted.transaction.phase === 'presenting-source') {
-      return beginPlayback(accepted);
+      return accepted.transaction.reducedMotion
+        ? beginTargetPresentation(accepted) : beginPlayback(accepted);
     }
     return accepted.transaction.commitIntent === 'semantic'
       ? commitStableCandidate(accepted)
@@ -972,6 +984,7 @@ function recoverForViewport(
       segmentId: rollback.attempt.segmentId, direction: rollback.attempt.direction,
       request: rollback.requestedEntry, commitIntent: 'rollback',
       pendingEntry: rollback.pendingEntry, restoreUrlOnRollback: rollback.restoreUrlOnRollback,
+      deadlinePolicy: rollback.deadlinePolicy,
       physicalEpoch: rollback.claimedPhysicalEpoch, activation: 'spent',
       reducedMotion: rollback.reducedMotion, failure: rollback.failure
     }, prefix);
@@ -1087,21 +1100,13 @@ export function reducePhoneStory(
   event: PhoneStoryEvent
 ): PhoneMachineResult {
   switch (event.type) {
-    case 'entry-requested': return handleEntry(snapshot, event.request);
+    case 'entry-requested': return handleEntry(snapshot, event.request, event.urlWasReplaced);
     case 'retry-requested': return handleRetry(snapshot);
     case 'segment-requested': return handleSegment(
       snapshot, event.direction, event.physicalEpoch, event.reducedMotion ?? false
     );
-    case 'physical-intent':
-      return handleSegment(snapshot, event.direction, event.epoch, false);
     case 'evidence-reported': return snapshot.status === 'transaction'
       ? handleEvidence(snapshot, event.slot, event.report.kind, event.report.token)
-      : freezeOwned({ snapshot, effects: [] });
-    case 'prepared-reported': return snapshot.status === 'transaction'
-      ? handleEvidence(snapshot, event.slot, event.report.kind, event.report.token)
-      : freezeOwned({ snapshot, effects: [] });
-    case 'frame-reported': return snapshot.status === 'transaction'
-      ? handleEvidence(snapshot, event.slot, event.slot.kind, event.report.token)
       : freezeOwned({ snapshot, effects: [] });
     case 'failure-reported': return snapshot.status === 'transaction'
       ? handleFailure(snapshot, event.slot, event.failure)
@@ -1113,9 +1118,6 @@ export function reducePhoneStory(
       : freezeOwned({ snapshot, effects: [] });
     case 'transition-completed': return snapshot.status === 'transaction'
       ? handleTransitionComplete(snapshot, event.attempt)
-      : freezeOwned({ snapshot, effects: [] });
-    case 'dwell-completed': return snapshot.status === 'transaction'
-      ? handleBoundaryAdvance(snapshot, event.attempt, 'dwelling', null)
       : freezeOwned({ snapshot, effects: [] });
     case 'leg-intent': return snapshot.status === 'transaction'
       ? handleBoundaryAdvance(snapshot, event.attempt, 'awaiting-leg-intent', event.physicalEpoch)
@@ -1140,21 +1142,17 @@ export function reducePhoneStory(
   }
 }
 
-function committedScene(snapshot: PhoneMachineSnapshot): PhoneSceneId | null {
-  return snapshot.stableCommit?.sceneId ?? null;
-}
-
 export function selectPhoneEdgeSurface(snapshot: PhoneMachineSnapshot): `#${string}` | null {
-  const scene = committedScene(snapshot);
+  const scene = snapshot.stableCommit?.sceneId ?? null;
   return scene ? phoneSceneById(scene).edgeSurface : null;
 }
 
 export function selectPhoneCheckpoint(snapshot: PhoneMachineSnapshot): string | null {
-  const scene = committedScene(snapshot);
+  const scene = snapshot.stableCommit?.sceneId ?? null;
   return scene ? phoneSceneById(scene).checkpoint : null;
 }
 
 export function selectPhoneNavigationScene(snapshot: PhoneMachineSnapshot): PhoneSceneId | null {
-  const scene = committedScene(snapshot);
+  const scene = snapshot.stableCommit?.sceneId ?? null;
   return scene ? phoneSceneById(scene).navigationId : null;
 }

@@ -74,6 +74,7 @@ export type PhoneEvidenceSlot<
   stageIndex: number;
   leg: PhoneTransactionLeg;
   kind: PhoneEvidenceKind;
+  surfaceId: PhoneSurfaceId | null;
   planeRevision: number | null;
 }>;
 
@@ -99,8 +100,6 @@ export type PhoneFailure = Readonly<{
   detail?: PhoneSerializableValue;
 }>;
 
-export const PHONE_MEDIA_ACTIVATION_REJECTED = 'media-activation-rejected';
-
 export type PhoneActivationCredit =
   | 'physical-epoch'
   | 'direct-muted-autoplay';
@@ -109,12 +108,6 @@ export type PhoneLeafActivationCommand = Readonly<{
   invocationId: string;
   surfaceIds: readonly PhoneSurfaceId[];
   credit: PhoneActivationCredit;
-}>;
-
-export type PhoneActivationInvocation = Readonly<{
-  invocationId: string;
-  surfaceIds: readonly PhoneSurfaceId[];
-  invoked: boolean;
 }>;
 
 export type PhoneLeafPauseReason =
@@ -194,6 +187,22 @@ export type PhoneEntryRequest = Readonly<{
   origin: PhoneEntryOrigin;
 }>;
 
+export type PhoneRuntimeInputEvent = Readonly<{
+  type: 'input'; kind: 'wheel' | 'touch' | 'pointer' | 'keyboard';
+  delta?: number; key?: string; fresh: boolean;
+  target: 'story' | 'native-corridor' | 'contact-control'; trusted?: boolean;
+}>;
+
+export type PhoneRuntimeHostEvent =
+  | PhoneRuntimeInputEvent
+  | Readonly<{ type: 'entry'; request: PhoneEntryRequest }>
+  | Readonly<{ type: 'viewport'; viewport: PhoneViewportSnapshot; change: 'toolbar' | 'layout' | 'unsupported' }>
+  | Readonly<{ type: 'scroll'; sample: PhoneScrollSample }>
+  | Readonly<{ type: 'visibility'; hidden: boolean }>
+  | Readonly<{ type: 'pagehide'; persisted: boolean }>
+  | Readonly<{ type: 'pageshow'; persisted: boolean }>
+  | Readonly<{ type: 'activation'; trusted: boolean }>;
+
 export type PhoneLayoutViewport = Readonly<{
   width: number;
   height: number;
@@ -272,6 +281,15 @@ export type PhoneDeadlineOperation =
   | 'dwell'
   | 'rollback';
 
+export type PhoneDeadlinePolicy = Readonly<{
+  moduleLoad: number;
+  mediaPrepare: number;
+  firstFrame: number;
+  planeApply: number;
+  scrollConfirm: number;
+  rollback: number;
+}>;
+
 export type PhoneDeadlineState = Readonly<{
   operation: PhoneDeadlineOperation;
   remainingMs: number;
@@ -303,6 +321,7 @@ export type PhoneTransaction<
   fallbackFromSceneId: SceneId | null;
   commitIntent: 'semantic' | 'reproject' | 'rollback';
   pendingEntry: PhoneEntryRequest | null;
+  deadlinePolicy: PhoneDeadlinePolicy;
   deadline: PhoneDeadlineState | null;
   progress: number;
   claimedPhysicalEpoch: number | null;
@@ -385,7 +404,11 @@ export type PhoneEvidenceReport = Readonly<{
 
 export type PhoneStoryEvent =
   | Readonly<{ type: 'disconnect-requested' }>
-  | Readonly<{ type: 'entry-requested'; request: PhoneEntryRequest }>
+  | Readonly<{
+      type: 'entry-requested';
+      request: PhoneEntryRequest;
+      urlWasReplaced?: boolean;
+    }>
   | Readonly<{ type: 'retry-requested' }>
   | Readonly<{
       type: 'segment-requested';
@@ -399,23 +422,12 @@ export type PhoneStoryEvent =
       report: PhoneEvidenceReport;
     }>
   | Readonly<{
-      type: 'prepared-reported';
-      slot: PhoneEvidenceSlot;
-      report: PhonePreparedReport;
-    }>
-  | Readonly<{
-      type: 'frame-reported';
-      slot: PhoneEvidenceSlot;
-      report: PhoneFrameReport;
-    }>
-  | Readonly<{
       type: 'failure-reported';
       slot: PhoneEvidenceSlot;
       failure: PhoneFailure;
     }>
   | Readonly<{ type: 'transition-progressed'; progress: number; attempt: PhoneAttemptKey }>
   | Readonly<{ type: 'transition-completed'; attempt: PhoneAttemptKey }>
-  | Readonly<{ type: 'dwell-completed'; attempt: PhoneAttemptKey }>
   | Readonly<{ type: 'leg-intent'; attempt: PhoneAttemptKey; physicalEpoch: number }>
   | Readonly<{
       type: 'deadline-fired';
@@ -430,7 +442,6 @@ export type PhoneStoryEvent =
   | Readonly<{ type: 'scroll-sampled'; sample: PhoneScrollSample }>
   | Readonly<{ type: 'page-hidden'; persisted: boolean }>
   | Readonly<{ type: 'page-shown'; persisted: boolean; viewport?: PhoneViewportSnapshot }>
-  | Readonly<{ type: 'physical-intent'; direction: PhoneDirection; epoch: number }>
   | Readonly<{ type: 'activation-requested'; epoch: number }>
   | Readonly<{ type: 'activation-settled'; invoked: boolean; attempt: PhoneAttemptKey }>
   | Readonly<{ type: 'terminal-fault'; code: string }>;
@@ -475,7 +486,11 @@ export type PhoneStoryEffect =
       surfaceIds: readonly PhoneSurfaceId[];
     }>
   | Readonly<{ type: 'show-activation-cta'; attempt: PhoneAttemptKey; enabled: boolean }>
-  | Readonly<{ type: 'defer-entry'; request: PhoneEntryRequest }>;
+  | Readonly<{
+      type: 'defer-entry';
+      request: PhoneEntryRequest;
+      urlWasReplaced?: boolean;
+    }>;
 
 export type PhoneReduceResult<
   SceneId extends string = string,

@@ -33,7 +33,8 @@ describe('phone presentation leaf boundary', () => {
     })).toEqual({
       invocationId: 'fixture-activation',
       surfaceIds: ['fixture-surface'],
-      invoked: true
+      invoked: true,
+      settlements: [{ surfaceId: 'fixture-surface', status: 'fulfilled' }]
     });
     expect(() => commands.render(0.5)).not.toThrow();
     expect(() => commands.settle(1)).not.toThrow();
