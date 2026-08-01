@@ -129,7 +129,9 @@ export function loadLabContactPhoneSceneAdapter(
         PhoneContact: Component
       }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: createLabContactSceneMigrationBridge(
+          Component, 'legacy-lab-contact-contact'
+        )
       }));
   }
 }

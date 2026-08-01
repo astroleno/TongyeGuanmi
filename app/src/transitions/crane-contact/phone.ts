@@ -1,10 +1,4 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef
-} from 'react';
+import { createElement, useLayoutEffect, useMemo, useRef } from 'react';
 import {
   releaseContactEntrance,
   renderContactEntrance,
@@ -13,9 +7,10 @@ import {
 import { storyManifest } from '../../story/manifest';
 import type { SpineSegmentNode } from '../../story/types';
 import type {
-  PhoneTransitionAdapterHandle,
-  PhoneTransitionAdapterProps
-} from '../../production/phone/types';
+  PhoneActivationInvocation,
+  PhoneLeafCommandHandle,
+  PhoneLeafReportPort
+} from '../../production/phone-story/presentation';
 import './phone.css';
 
 const ENDPOINT_EPSILON = 0.001;
@@ -184,57 +179,76 @@ export function applyPhoneCraneContactFrame(
   return frame;
 }
 
-export const PhoneCraneContactTransition = forwardRef<
-  PhoneTransitionAdapterHandle,
-  PhoneTransitionAdapterProps
->(function PhoneCraneContactTransition(
-  { from, onReady, reducedMotion, to },
-  forwardedRef
-) {
-  const lastProgressRef = useRef(0);
+export function disposePhoneCraneContactProjection(
+  from: HTMLElement | null,
+  to: HTMLElement | null,
+  progress: number
+): void {
+  const endpoint = progress >= 1 - ENDPOINT_EPSILON ? 1 : 0;
+  releaseContactEntrance(to, 'phone-crane-contact:phone', endpoint);
+  if (endpoint === 1) renderContactHold(to);
+  setContactOverlay(to, false);
+  clearEndpointVisibility(from);
+  clearEndpointVisibility(to);
+}
 
-  const render = useCallback((rawProgress: number) => {
-    const progress = transitionProgress(rawProgress, reducedMotion);
-    lastProgressRef.current = progress;
-    const runId = 'phone-crane-contact:phone';
-    applyPhoneCraneContactFrame(from, to, rawProgress, {
-      reducedMotion,
-      runId,
-      // The fixed AOD-style receiver is visual-only while snap owns the
-      // document. leave() commits it to native flow and restores CTA input.
-      interactiveEndpoint: false
-    });
-  }, [from, reducedMotion, to]);
-
-  useEffect(() => {
-    renderContactHold(to);
-    render(0);
-    onReady?.();
-  }, [onReady, render, to]);
-
-  useImperativeHandle(forwardedRef, () => ({
-    render,
-    enter() {
-      render(0);
+/** Between-plane command leaf; presentation owns both endpoint trees. */
+export function PhoneCraneContactTransition({ reports }: Readonly<{
+  reports: PhoneLeafReportPort;
+}>) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
+    rebind() {},
+    activate(command): PhoneActivationInvocation {
+      return {
+        invocationId: command.invocationId,
+        surfaceIds: command.surfaceIds,
+        invoked: false,
+        settlements: []
+      };
     },
-    leave() {
-      render(1);
-      settlePhoneCraneContactDocumentFlow(from, to);
+    render(rawProgress: number) {
+      const frame = phoneCraneContactFrame(rawProgress);
+      const root = rootRef.current;
+      if (!root) return;
+      root.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+      root.style.setProperty(
+        '--phone-crane-contact-progress', frame.contactProgress.toFixed(4)
+      );
     },
-    reverse() {
-      render(1);
+    settle(endpoint) {
+      const frame = phoneCraneContactFrame(endpoint);
+      const root = rootRef.current;
+      if (!root) return;
+      root.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+      root.style.setProperty(
+        '--phone-crane-contact-progress', frame.contactProgress.toFixed(4)
+      );
     },
+    pause() {},
     dispose() {
-      const endpoint = lastProgressRef.current >= 1 - ENDPOINT_EPSILON ? 1 : 0;
-      releaseContactEntrance(to, 'phone-crane-contact:phone', endpoint);
-      if (endpoint === 1) renderContactHold(to);
-      setContactOverlay(to, false);
-      clearEndpointVisibility(from);
-      clearEndpointVisibility(to);
+      const root = rootRef.current;
+      if (!root) return;
+      delete root.dataset.phoneTransitionProgress;
+      root.style.removeProperty('--phone-crane-contact-progress');
     }
-  }), [from, render, to]);
+  }), []);
 
-  return null;
-});
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    reports.registerMount({
+      root,
+      surfaces: [{ id: 'between:crane-contact', element: root, kind: 'dom' }],
+      commands
+    });
+  }, [commands, reports]);
+
+  return createElement('div', {
+    ref: rootRef,
+    'data-phone-transition': 'crane-contact',
+    'aria-hidden': 'true'
+  });
+}
 
 export default PhoneCraneContactTransition;

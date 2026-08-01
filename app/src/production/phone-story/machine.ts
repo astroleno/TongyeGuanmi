@@ -859,6 +859,9 @@ function handleEvidence(
   if (sourceFinal && accepted.transaction.phase === 'preparing'
     && quorumComplete(accepted.transaction, accepted.transaction.requiredFinal))
     accepted = reviseTransaction(accepted, { requiredFinal: [] }, {}, [], false).snapshot;
+  if (accepted.transaction.activation === 'awaiting') {
+    return awaitMediaActivation(accepted);
+  }
   if (
     accepted.transaction.requiredFinal.length === 0
     && quorumComplete(accepted.transaction, accepted.transaction.requiredPrepared)
@@ -868,8 +871,7 @@ function handleEvidence(
       : phoneSceneById(accepted.transaction.candidateSceneId)
         .directEntry.closure.resourceBudget.videos > 0)
       && accepted.transaction.activation !== 'spent') {
-      return accepted.transaction.activation === 'awaiting'
-        ? awaitMediaActivation(accepted) : advanceEvidenceDeadline(accepted);
+      return advanceEvidenceDeadline(accepted);
     }
     return beginFinalProof(accepted);
   }

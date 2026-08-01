@@ -134,7 +134,8 @@ const sceneLoaders = Object.freeze({
   lab: () => import('../../scenes/lab/phone/PhoneLab'),
   'ph-animation': () => import('../../scenes/ph-animation/phone/PhonePh'),
   education: () => import('../../scenes/education/phone/PhoneEducation'),
-  'crane-animation': () => import('../../scenes/crane-animation/phone/PhoneCrane')
+  'crane-animation': () => import('../../scenes/crane-animation/phone/PhoneCrane'),
+  contact: () => import('../../scenes/contact/phone/PhoneContact')
 }) satisfies Partial<Record<string, PhoneSceneLoader>>;
 const defaultSceneRegistry = createPhoneSceneRegistry<string>(sceneLoaders);
 

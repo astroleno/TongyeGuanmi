@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { hashForScene, sceneFromHash } from '../../../production/navigation';
+import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 import {
   PHONE_CONTACT_INPUT_POLICY,
   PhoneContact
@@ -10,12 +11,15 @@ import {
 
 const source = readFileSync(new URL('./PhoneContact.tsx', import.meta.url), 'utf8');
 const stylesheet = readFileSync(new URL('./PhoneContact.css', import.meta.url), 'utf8');
+const reports = {
+  registerMount() {}, reportPrepared() {}, reportFrame() {}, reportProgress() {},
+  reportComplete() {}, reportFailure() {}
+} satisfies PhoneLeafReportPort;
 
 describe('PhoneContact', () => {
   it('keeps one canonical terminal article with keyboard-reachable actions', () => {
     const markup = renderToStaticMarkup(createElement(PhoneContact, {
-      active: true,
-      reducedMotion: false
+      reports
     }));
 
     expect(markup).toContain('id="contact"');
@@ -36,6 +40,7 @@ describe('PhoneContact', () => {
       pointer: 'native'
     });
     expect(source).not.toMatch(/addEventListener\(/);
+    expect(source).not.toContain('production/phone/types');
     expect(stylesheet).toMatch(
       /\.phone-contact\s*>\s*\.r4-contact\s*\{[^}]*min-height:\s*var\(--phone-cinematic-stage-height,\s*100lvh\)/s
     );

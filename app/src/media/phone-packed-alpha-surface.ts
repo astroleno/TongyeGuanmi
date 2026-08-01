@@ -23,6 +23,8 @@ export type PhonePackedAlphaSurfaceFrame = Readonly<{
 
 export type PhonePackedAlphaSurface = Readonly<{
   activate(mode?: PhonePackedAlphaSurfaceMode): number;
+  /** Best-effort repaint for retained proof; a transient miss is not terminal. */
+  probe(): boolean;
   render(): boolean;
   release(): void;
   dispose(retirement?: PackedAlphaContextRetirement): void;
@@ -283,6 +285,9 @@ export function createPhonePackedAlphaSurface(
         else settleStaticFallback(generation);
       }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
       return generation;
+    },
+    probe() {
+      return activeGeneration > 0 && compositor?.render() === true;
     },
     render() {
       const generation = activeGeneration;

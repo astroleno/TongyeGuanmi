@@ -1,25 +1,21 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef
-} from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import {
   contactScene,
-  renderContactHold
+  renderContactHold,
+  renderContactProgress
 } from '..';
 import type {
-  PhoneSceneAdapterHandle,
-  PhoneSceneAdapterProps
-} from '../../../production/phone/types';
+  PhoneActivationInvocation,
+  PhoneLeafCommandHandle,
+  PhoneLeafGenerationBinding,
+  PhoneLeafReportPort
+} from '../../../production/phone-story/presentation';
 import '../../../production/editorial-layout.css';
 import './PhoneContact.css';
 
-/**
- * Contact is a terminal native document article. Its controls must remain
- * outside cinematic wheel, touch, keyboard, focus, and pointer ownership.
- */
+const ContactSurface = contactScene.Component;
+
+/** The terminal document owns every Contact interaction path. */
 export const PHONE_CONTACT_INPUT_POLICY = Object.freeze({
   wheel: 'native',
   touch: 'native',
@@ -28,59 +24,19 @@ export const PHONE_CONTACT_INPUT_POLICY = Object.freeze({
   pointer: 'native'
 } as const);
 
-/** Stable Contact endpoint with no media, canvas, or global listener owner. */
-export const PhoneContact = forwardRef<
-  PhoneSceneAdapterHandle,
-  PhoneSceneAdapterProps
->(function PhoneContact({ onReady }, forwardedRef) {
-  const rootRef = useRef<HTMLElement | null>(null);
-
-  const render = useCallback(() => {
-    renderContactHold(rootRef.current);
-  }, []);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    renderContactHold(root);
-    root.dataset.phoneContactStable = 'true';
-    onReady?.();
-    return () => {
-      delete root.dataset.phoneContactStable;
-    };
-  }, [onReady]);
-
-  useImperativeHandle(forwardedRef, () => ({
-    root: () => rootRef.current,
-    update: render,
-    enter() {
-      const root = rootRef.current;
-      if (!root) return;
-      root.inert = false;
-      root.removeAttribute('aria-hidden');
-      renderContactHold(root);
-    },
-    leave() {
-      const root = rootRef.current;
-      if (!root) return;
-      root.inert = true;
-      root.setAttribute('aria-hidden', 'true');
-    },
-    reverse() {
-      const root = rootRef.current;
-      if (!root) return;
-      root.inert = false;
-      root.removeAttribute('aria-hidden');
-    },
-    dispose() {}
-  }), [render]);
-
-  const ContactSurface = contactScene.Component;
+function ContactContent({
+  reading,
+  registerRoot
+}: Readonly<{
+  reading: boolean;
+  registerRoot?: (element: HTMLElement | null) => void;
+}>) {
   return (
     <div
-      id={contactScene.id}
+      id={reading ? 'contact-reading' : contactScene.id}
       className="phone-contact"
       data-phone-scene="contact"
+      data-phone-reading={reading ? 'contact' : undefined}
       data-phone-contact-state="terminal"
       data-phone-input-owner="native-document"
       data-phone-input-policy="wheel-touch-keyboard-focus-pointer-native"
@@ -89,11 +45,102 @@ export const PhoneContact = forwardRef<
         scene={contactScene.id}
         hidden={false}
         registerHandle={(name, element) => {
-          if (name === 'copy') rootRef.current = element;
+          if (name === 'copy') registerRoot?.(element);
         }}
       />
     </div>
   );
-});
+}
+
+/** Native reading copy; the shell enables it only after the stable commit. */
+export function Reading() {
+  return <ContactContent reading />;
+}
+
+/** Static terminal leaf with one post-paint proof and no resource owner. */
+export function PhoneContact({ reports }: Readonly<{
+  reports: PhoneLeafReportPort;
+}>) {
+  const mountRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLElement | null>(null);
+  const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
+  const paintFrameRef = useRef<number | null>(null);
+  const disposedRef = useRef(false);
+
+  const cancelPaint = useCallback(() => {
+    if (paintFrameRef.current !== null) cancelAnimationFrame(paintFrameRef.current);
+    paintFrameRef.current = null;
+  }, []);
+
+  const provePostPaint = useCallback(() => {
+    cancelPaint();
+    paintFrameRef.current = requestAnimationFrame(() => {
+      paintFrameRef.current = null;
+      const binding = bindingRef.current;
+      if (!binding || disposedRef.current) return;
+      binding.reports.reportPrepared('contact-root', {
+        kind: 'static-ready', token: binding.frameToken, ready: true,
+        detail: { postPaint: true }
+      });
+    });
+  }, [cancelPaint]);
+
+  const render = useCallback((rawProgress: number) => {
+    renderContactProgress(rootRef.current, Math.min(1, Math.max(0, rawProgress)));
+  }, []);
+
+  const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
+    rebind(binding: PhoneLeafGenerationBinding) {
+      bindingRef.current = binding;
+      provePostPaint();
+    },
+    activate(command): PhoneActivationInvocation {
+      return {
+        invocationId: command.invocationId,
+        surfaceIds: command.surfaceIds,
+        invoked: false,
+        settlements: []
+      };
+    },
+    render,
+    settle(endpoint) {
+      if (endpoint === 1) renderContactHold(rootRef.current);
+      else render(0);
+    },
+    pause() {},
+    dispose() {
+      disposedRef.current = true;
+      cancelPaint();
+      bindingRef.current = null;
+    }
+  }), [cancelPaint, provePostPaint, render]);
+
+  useLayoutEffect(() => {
+    const mount = mountRef.current;
+    const root = rootRef.current;
+    if (!mount || !root) return;
+    disposedRef.current = false;
+    renderContactHold(root);
+    reports.registerMount({
+      root: mount,
+      surfaces: [{ id: 'contact-root', element: root, kind: 'dom' }],
+      commands
+    });
+    return () => {
+      disposedRef.current = true;
+      cancelPaint();
+      bindingRef.current = null;
+      rootRef.current = null;
+    };
+  }, [cancelPaint, commands, reports]);
+
+  return (
+    <div ref={mountRef} className="phone-contact__visual">
+      <ContactContent reading={false} registerRoot={(element) => {
+        rootRef.current = element;
+      }} />
+    </div>
+  );
+}
 
 export default PhoneContact;

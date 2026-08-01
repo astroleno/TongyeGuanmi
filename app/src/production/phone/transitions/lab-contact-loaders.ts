@@ -30,7 +30,7 @@ type LegacyProjection = Readonly<{
   enter?(props: PhoneTransitionAdapterProps): void;
   leave?(props: PhoneTransitionAdapterProps, direction: 1 | -1): void;
   reverse?(props: PhoneTransitionAdapterProps): void;
-  dispose?(props: PhoneTransitionAdapterProps): void;
+  dispose?(props: PhoneTransitionAdapterProps, progress: number): void;
 }>;
 
 function createLabContactTransitionMigrationBridge(
@@ -44,6 +44,7 @@ function createLabContactTransitionMigrationBridge(
       const readyRef = useRef(props.onReady);
       const generationRef = useRef(0);
       const directionRef = useRef<1 | -1>(1);
+      const progressRef = useRef(0);
       readyRef.current = props.onReady;
       const reports = useMemo<PhoneLeafReportPort>(() => Object.freeze({
         registerMount(registration) {
@@ -61,6 +62,7 @@ function createLabContactTransitionMigrationBridge(
         reportFailure: () => undefined
       }), [label]);
       const render = (progress: number) => {
+        progressRef.current = progress;
         registrationRef.current?.commands.render(progress);
         projection.render(props, directionRef.current, progress);
       };
@@ -74,6 +76,7 @@ function createLabContactTransitionMigrationBridge(
         leave() {
           const direction = directionRef.current;
           const endpoint = direction === 1 ? 1 : 0;
+          progressRef.current = endpoint;
           registrationRef.current?.commands.settle(endpoint);
           projection.render(props, direction, endpoint);
           projection.leave?.(props, direction);
@@ -85,7 +88,7 @@ function createLabContactTransitionMigrationBridge(
           render(1);
         },
         dispose() {
-          projection.dispose?.(props);
+          projection.dispose?.(props, progressRef.current);
           registrationRef.current?.commands.dispose('closure-retired');
         }
       }), [props]);
@@ -177,8 +180,30 @@ export function loadLabContactPhoneTransitionAdapter(
         )
       }));
     case 'crane-contact':
-      return import('../../../transitions/crane-contact/phone').then(({
-        PhoneCraneContactTransition: Component
-      }) => ({ id, Component: Component as unknown as PhoneTransitionAdapterComponent }));
+      return import('../../../transitions/crane-contact/phone').then((module) => ({
+        id,
+        Component: createLabContactTransitionMigrationBridge(
+          module.PhoneCraneContactTransition,
+          'legacy-lab-contact-crane-contact',
+          {
+            render: (props, _direction, progress) => {
+              module.applyPhoneCraneContactFrame(
+                props.from, props.to, progress,
+                { reducedMotion: props.reducedMotion, interactiveEndpoint: false }
+              );
+            },
+            leave: (props, direction) => {
+              if (direction === 1) {
+                module.settlePhoneCraneContactDocumentFlow(props.from, props.to);
+              }
+            },
+            dispose: (props, progress) => {
+              module.disposePhoneCraneContactProjection(
+                props.from, props.to, progress
+              );
+            }
+          }
+        )
+      }));
   }
 }

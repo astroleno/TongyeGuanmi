@@ -13,6 +13,7 @@ const packedProbe = vi.hoisted(() => ({
   generations: [0, 0],
   surfaces: [] as Array<{
     activate: ReturnType<typeof vi.fn>;
+    probe: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
     release: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
@@ -25,6 +26,7 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
     packedProbe.options.push(options);
     const surface = {
       activate: vi.fn(() => ++packedProbe.generations[index]!),
+      probe: vi.fn(() => false),
       render: vi.fn(() => true),
       release: vi.fn(),
       dispose: vi.fn()
@@ -138,10 +140,20 @@ describe('clean PhoneCrane leaf', () => {
     for (const surface of packedProbe.surfaces) {
       expect(surface.release).not.toHaveBeenCalled();
       expect(surface.dispose).not.toHaveBeenCalled();
+      surface.probe.mockClear();
       surface.render.mockClear();
     }
     commands.rebind({ reports: mount.reports, frameToken: 'crane:retained:2' });
-    for (const surface of packedProbe.surfaces) expect(surface.render).toHaveBeenCalledOnce();
+    for (const surface of packedProbe.surfaces) {
+      expect(surface.probe).toHaveBeenCalledOnce();
+      expect(surface.render).not.toHaveBeenCalled();
+      surface.probe.mockClear();
+    }
+    commands.settle(1);
+    for (const surface of packedProbe.surfaces) {
+      expect(surface.probe).toHaveBeenCalledOnce();
+      expect(surface.render).not.toHaveBeenCalled();
+    }
 
     commands.dispose('closure-retired');
     commands.dispose('closure-retired');

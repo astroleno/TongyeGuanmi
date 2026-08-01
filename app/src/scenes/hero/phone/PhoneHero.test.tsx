@@ -138,6 +138,21 @@ describe('clean PhoneHero leaf', () => {
     );
   });
 
+  it('keeps a boot projection at zero visible when the forward hold settles', async () => {
+    const fixture = reportFixture();
+    await act(async () => {
+      root.render(<PhoneHero reports={fixture.reports} />);
+    });
+    const commands = fixture.registration()?.commands as PhoneLeafCommandHandle;
+    const copy = host.querySelector<HTMLElement>('.portrait-scroll-spike__hero-copy')!;
+
+    commands.render(0);
+    expect(Number(copy.style.opacity)).toBe(1);
+    commands.settle(1);
+
+    expect(Number(copy.style.opacity)).toBe(1);
+  });
+
   it('keeps the migration leaf free of legacy authority and adopts the reviewed subtitle font', () => {
     expect(source).not.toMatch(/production\/phone\/(?:types|runtime|usePhone|phone-media)/);
     expect(source).not.toMatch(/addEventListener\(['"](?:pointer|touch|deviceorientation|wheel|keydown)/);

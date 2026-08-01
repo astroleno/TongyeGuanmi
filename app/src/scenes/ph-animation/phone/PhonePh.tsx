@@ -111,7 +111,7 @@ export function PhonePh({ reports }: PhonePhProps) {
     if (directionRef.current === -1) {
       seekPhonePhReverseFrame(videoRef.current, progress);
     }
-    if (surfaceGenerationRef.current > 0) surfaceRef.current?.render();
+    if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
   }, []);
 
   const activateSurface = useCallback((endpoint: 0 | 1 | null) => {
@@ -126,7 +126,7 @@ export function PhonePh({ reports }: PhonePhProps) {
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
       frameSequenceRef.current = 0;
-      if (surfaceGenerationRef.current > 0) surfaceRef.current?.render();
+      if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
     },
     activate(command): PhoneActivationInvocation {
       const expected = ['ph-figure-video'];

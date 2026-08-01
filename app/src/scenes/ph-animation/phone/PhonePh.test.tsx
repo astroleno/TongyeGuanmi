@@ -90,7 +90,7 @@ describe('PhonePh', () => {
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain("surfaceRef.current?.dispose('terminal')");
     expect(source).not.toContain('surfaceRef.current?.release()');
-    expect(source).toContain('surfaceRef.current?.render()');
+    expect(source).toContain('surfaceRef.current?.probe()');
     expect(motionSource).toContain('phonePhForegroundParallaxY');
     expect(reverseSource).not.toContain('phone-presented-reverse-playback');
     for (const forbidden of [

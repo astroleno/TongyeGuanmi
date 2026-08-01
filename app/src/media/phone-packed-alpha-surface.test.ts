@@ -145,6 +145,23 @@ describe('canonical phone packed-alpha surface', () => {
     current.surface.dispose('terminal');
   });
 
+  it('allows a retained-generation probe to miss without retiring the surface', () => {
+    const current = fixture();
+    const generation = current.surface.activate();
+    compositorProbe.renderResult = false;
+
+    expect(current.surface.probe()).toBe(false);
+    expect(current.onFailure).not.toHaveBeenCalled();
+
+    compositorProbe.renderResult = true;
+    expect(current.surface.probe()).toBe(true);
+    compositorProbe.callbacks[0]?.();
+    expect(current.onFrame).toHaveBeenCalledWith({
+      canvas: current.canvas, generation
+    });
+    current.surface.dispose('terminal');
+  });
+
   it('reports setup and context loss immediately and retires their token', () => {
     compositorProbe.setupFailure = true;
     const setup = fixture();

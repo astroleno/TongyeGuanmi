@@ -125,6 +125,55 @@ const CRANE_SLICE_SEGMENT = {
 
 type CraneSliceScene = keyof typeof CRANE_SLICE_CONTENT;
 
+const COMPLETE_STORY_SCENES = [
+  'hero', 'pattern', 'star-map', 'aod-animation', 'method-top',
+  'figure2-animation', 'figure2-proof', 'brand', 'figure3-animation',
+  'services', 'ttg-animation', 'lab', 'ph-animation', 'education',
+  'crane-animation', 'contact'
+] as const;
+
+type CompleteStoryScene = (typeof COMPLETE_STORY_SCENES)[number];
+
+const COMPLETE_STORY_SEGMENTS = [
+  'hero-pattern', 'pattern-star-map', 'star-map-aod', 'aod-method-top',
+  'method-bottom-figure2', 'figure2-distance-expand', 'figure2-proof-brand',
+  'brand-figure3', 'figure3-services', 'services-ttg', 'ttg-lab', 'lab-ph',
+  'ph-education', 'education-crane', 'crane-contact'
+] as const;
+
+type CompleteStorySegment = (typeof COMPLETE_STORY_SEGMENTS)[number];
+
+const COMPLETE_STORY_CONTENT: Readonly<Record<CompleteStoryScene, readonly string[]>> = {
+  ...FRONT_CONTENT,
+  ...GRADE_A_CONTENT,
+  ...GROUP45_CONTENT,
+  ...PH_SLICE_CONTENT,
+  ...CRANE_SLICE_CONTENT,
+  contact: [
+    '#contact [data-r4-scene="contact"] h2',
+    '#contact [data-r4-scene="contact"] p'
+  ]
+};
+
+const BETWEEN_PLANE_SEGMENTS = new Set<CompleteStorySegment>([
+  'aod-method-top', 'figure3-services', 'ttg-lab', 'ph-education',
+  'crane-contact'
+]);
+
+type RuntimeResourceSample = Readonly<{
+  videos: number;
+  decoders: number;
+  canvases: number;
+  webgl: number;
+}>;
+
+type LifecycleProbeSample = Readonly<{
+  listeners: number;
+  timeouts: number;
+  intervals: number;
+  animationFrames: number;
+}>;
+
 async function nextAnimationFrame(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
@@ -629,6 +678,298 @@ async function expectCraneSliceRollback(
     await page.waitForTimeout(100);
   }
   throw new Error(`Crane slice did not roll back from ${source}`);
+}
+
+function completeStorySegment(
+  source: CompleteStoryScene,
+  target: CompleteStoryScene
+): CompleteStorySegment {
+  const sourceIndex = COMPLETE_STORY_SCENES.indexOf(source);
+  const targetIndex = COMPLETE_STORY_SCENES.indexOf(target);
+  const segmentIndex = Math.min(sourceIndex, targetIndex);
+  if (Math.abs(sourceIndex - targetIndex) !== 1) {
+    throw new Error(`Non-adjacent complete-story edge: ${source} → ${target}`);
+  }
+  const segment = COMPLETE_STORY_SEGMENTS[segmentIndex];
+  if (!segment) throw new Error(`Missing complete-story segment at ${segmentIndex}`);
+  return segment;
+}
+
+async function readRuntimeResources(
+  page: import('@playwright/test').Page
+): Promise<RuntimeResourceSample> {
+  return page.evaluate(() => {
+    const root = document.querySelector('.phone-story__planes');
+    const videos = root?.querySelectorAll('video') ?? [];
+    const canvases = root?.querySelectorAll('canvas') ?? [];
+    const webgl = root?.querySelectorAll([
+      'canvas[data-portrait-figure-canvas]',
+      'canvas[data-aod-figure-canvas]',
+      'canvas[data-figure2-packed-alpha-canvas]',
+      'canvas[data-phone-packed-alpha-canvas]'
+    ].join(',')) ?? [];
+    return {
+      videos: videos.length,
+      decoders: [...videos].filter((video) => video.readyState >= 2).length,
+      canvases: canvases.length,
+      webgl: webgl.length
+    };
+  });
+}
+
+async function assertCompleteStoryFrame(
+  page: import('@playwright/test').Page,
+  scene: CompleteStoryScene
+): Promise<void> {
+  if (scene === 'hero') {
+    await expect(page.locator('[data-portrait-figure-frame]'))
+      .toHaveAttribute('data-portrait-figure-frame', 'ready');
+  } else if (scene === 'pattern') {
+    await expect(page.locator('.portrait-scroll-spike__scene--pattern'))
+      .toHaveAttribute('data-phone-pattern-frame', 'ready');
+  } else if (scene === 'star-map') {
+    await expect(page.locator('[data-portrait-star-perlin]'))
+      .toHaveAttribute('data-portrait-star-perlin', 'ready');
+  } else if (scene === 'aod-animation') {
+    await expect(page.locator('[data-aod-figure-canvas]'))
+      .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+  } else if (scene === 'figure2-animation') {
+    await expect(page.locator('[data-figure2-packed-alpha-canvas]'))
+      .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+  } else if (scene === 'figure3-animation') {
+    await expect(page.locator('[data-phone-figure3-paper-canvas]'))
+      .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
+  } else if (scene === 'ttg-animation') {
+    await expect(page.locator('[data-ttg-figure-video]'))
+      .toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
+  } else if (scene === 'ph-animation') {
+    await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
+      .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+  } else if (scene === 'crane-animation') {
+    for (const layer of ['crane-figure', 'crane-flock']) {
+      await expect(page.locator(`[data-phone-packed-alpha-canvas="${layer}"]`))
+        .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+    }
+  }
+}
+
+async function traverseCompleteStoryLeg(
+  page: import('@playwright/test').Page,
+  source: CompleteStoryScene,
+  target: CompleteStoryScene,
+  direction: 'forward' | 'reverse'
+): Promise<RuntimeResourceSample> {
+  const segment = completeStorySegment(source, target);
+  const beforeState = await page.locator('.phone-story').evaluate((shell) => ({
+    revision: Number((shell as HTMLElement).dataset.phoneRevision),
+    sequence: Number((shell as HTMLElement).dataset.phoneCommitSequence)
+  }));
+  const before = beforeState.sequence;
+  await assertSinglePhoneAuthority(page);
+  if (source === 'crane-animation') {
+    await assertCompositeTargetContentVisible(page, COMPLETE_STORY_CONTENT[source]);
+  } else {
+    await assertTargetContentVisible(page, COMPLETE_STORY_CONTENT[source]);
+  }
+  await sendFrontIntent(page, direction);
+  const startedHandle = await page.waitForFunction(({ from, to, after, revision }) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    const state = {
+      interaction: shell?.dataset.phoneInteraction,
+      revision: Number(shell?.dataset.phoneRevision),
+      scene: shell?.dataset.phoneScene,
+      sequence: Number(shell?.dataset.phoneCommitSequence),
+      status: shell?.dataset.phoneStatus
+    };
+    return state.revision > revision && (state.status === 'transaction'
+      || state.status === 'stable' && (state.scene === from
+        || state.scene === to && state.sequence > after)) ? state : null;
+  }, { from: source, to: target, after: before, revision: beforeState.revision }, {
+    timeout: 15_000
+  });
+  const started = await startedHandle.jsonValue();
+  if (started.status === 'stable' && started.scene === source) {
+    throw new Error(
+      `Complete story ${source} → ${target} rolled back: ${JSON.stringify(started)}`
+    );
+  }
+  if (started.status === 'transaction') expect(started.interaction).toBe('disabled');
+  const effectSelector = `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"], `
+    + `[data-phone-plane="effect"] [data-phone-transition="${segment}"]`;
+  await expect(page.locator(effectSelector)).toBeAttached({ timeout: 15_000 });
+  await expect(page.locator(effectSelector)).toHaveCount(1);
+  await assertSinglePhoneAuthority(page);
+
+  for (let boundary = 0; boundary < 8; boundary += 1) {
+    const handle = await page.waitForFunction(({ from, to, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const state = {
+        scene: shell?.dataset.phoneScene,
+        status: shell?.dataset.phoneStatus,
+        phase: shell?.dataset.phonePhase,
+        sequence: Number(shell?.dataset.phoneCommitSequence),
+        activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+      };
+      return state.scene === to && state.sequence > after
+        || state.status === 'stable' && state.scene === from
+        || state.activation || state.phase === 'awaiting-leg-intent'
+        ? state : null;
+    }, { from: source, to: target, after: before }, { timeout: 30_000 });
+    const state = await handle.jsonValue();
+    if (state.scene === target && state.sequence > before) break;
+    if (state.status === 'stable') {
+      throw new Error(
+        `Complete story ${source} → ${target} rolled back: ${JSON.stringify(state)}`
+      );
+    }
+    if (state.activation) {
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    } else if (state.phase === 'awaiting-leg-intent') {
+      await sendFrontIntent(page, direction);
+    }
+    await page.waitForTimeout(50);
+  }
+
+  await waitForCommitSequence(page, target, before);
+  expect(await readCommitSequence(page)).toBe(before + 1);
+  await expect(page.locator('[data-phone-plane="effect"]')).toHaveCSS(
+    'z-index', BETWEEN_PLANE_SEGMENTS.has(segment) ? '20' : '40'
+  );
+  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'stable');
+  await expect(page.locator('.phone-story')).toHaveAttribute(
+    'data-phone-interaction', 'enabled'
+  );
+  await assertSinglePhoneAuthority(page);
+  if (target === 'crane-animation') {
+    await assertCompositeTargetContentVisible(page, COMPLETE_STORY_CONTENT[target]);
+  } else {
+    await assertTargetContentVisible(page, COMPLETE_STORY_CONTENT[target]);
+  }
+  await assertCompleteStoryFrame(page, target);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+  return readRuntimeResources(page);
+}
+
+async function installLifecycleProbe(
+  page: import('@playwright/test').Page
+): Promise<void> {
+  await page.evaluate(() => {
+    type ListenerRecord = Readonly<{
+      target: EventTarget;
+      type: string;
+      listener: EventListenerOrEventListenerObject;
+      capture: boolean;
+    }>;
+    const listeners: ListenerRecord[] = [];
+    const originalAdd = EventTarget.prototype.addEventListener;
+    const originalRemove = EventTarget.prototype.removeEventListener;
+    const captureFor = (options?: boolean | AddEventListenerOptions) => (
+      typeof options === 'boolean' ? options : Boolean(options?.capture)
+    );
+    EventTarget.prototype.addEventListener = function patchedAdd(
+      type,
+      listener,
+      options
+    ) {
+      if (listener && !(typeof options === 'object' && options.once)) {
+        const capture = captureFor(options);
+        if (!listeners.some((record) => record.target === this
+          && record.type === type && record.listener === listener
+          && record.capture === capture)) {
+          const record = { target: this, type, listener, capture };
+          listeners.push(record);
+          if (typeof options === 'object' && options.signal) {
+            originalAdd.call(options.signal, 'abort', () => {
+              const index = listeners.indexOf(record);
+              if (index >= 0) listeners.splice(index, 1);
+            }, { once: true });
+          }
+        }
+      }
+      return originalAdd.call(this, type, listener, options);
+    };
+    EventTarget.prototype.removeEventListener = function patchedRemove(
+      type,
+      listener,
+      options
+    ) {
+      const capture = captureFor(options);
+      const index = listeners.findIndex((record) => record.target === this
+        && record.type === type && record.listener === listener
+        && record.capture === capture);
+      if (index >= 0) listeners.splice(index, 1);
+      return originalRemove.call(this, type, listener, options);
+    };
+
+    const timeouts = new Set<number>();
+    const intervals = new Set<number>();
+    const animationFrames = new Set<number>();
+    const originalSetTimeout = window.setTimeout.bind(window);
+    const originalClearTimeout = window.clearTimeout.bind(window);
+    const originalSetInterval = window.setInterval.bind(window);
+    const originalClearInterval = window.clearInterval.bind(window);
+    const originalRequestFrame = window.requestAnimationFrame.bind(window);
+    const originalCancelFrame = window.cancelAnimationFrame.bind(window);
+    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+      let id = 0;
+      id = originalSetTimeout(() => {
+        timeouts.delete(id);
+        if (typeof handler === 'function') handler(...args);
+      }, timeout);
+      timeouts.add(id);
+      return id;
+    }) as typeof window.setTimeout;
+    window.clearTimeout = ((id?: number) => {
+      if (id !== undefined) timeouts.delete(id);
+      originalClearTimeout(id);
+    }) as typeof window.clearTimeout;
+    window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+      const id = originalSetInterval(handler, timeout, ...args);
+      intervals.add(id);
+      return id;
+    }) as typeof window.setInterval;
+    window.clearInterval = ((id?: number) => {
+      if (id !== undefined) intervals.delete(id);
+      originalClearInterval(id);
+    }) as typeof window.clearInterval;
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      let id = 0;
+      id = originalRequestFrame((time) => {
+        animationFrames.delete(id);
+        callback(time);
+      });
+      animationFrames.add(id);
+      return id;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = ((id: number) => {
+      animationFrames.delete(id);
+      originalCancelFrame(id);
+    }) as typeof window.cancelAnimationFrame;
+    Object.defineProperty(window, '__r5LifecycleProbe', {
+      configurable: true,
+      value: () => {
+        for (let index = listeners.length - 1; index >= 0; index -= 1) {
+          const target = listeners[index]?.target;
+          if (target instanceof Node && !target.isConnected) listeners.splice(index, 1);
+        }
+        return {
+          listeners: listeners.length,
+          timeouts: timeouts.size,
+          intervals: intervals.size,
+          animationFrames: animationFrames.size
+        };
+      }
+    });
+  });
+}
+
+async function readLifecycleProbe(
+  page: import('@playwright/test').Page
+): Promise<LifecycleProbeSample> {
+  await nextAnimationFrame(page);
+  return page.evaluate(() => (
+    window as typeof window & { __r5LifecycleProbe(): LifecycleProbeSample }
+  ).__r5LifecycleProbe());
 }
 
 async function withholdFigure3Endpoint(
@@ -1609,6 +1950,125 @@ test('Crane slice re-proves both surfaces across visibility, BFCache, and orient
   }
   await traverseCraneSlice(page, 'crane-animation', 'education', 'reverse');
   await traverseCraneSlice(page, 'education', 'crane-animation', 'forward');
+});
+
+test('Group 6-7 direct Contact is minimal, post-paint visible, and natively interactive', async ({
+  page
+}) => {
+  await page.goto('/harness/r5-phone-clean?direct=contact#contact', {
+    waitUntil: 'domcontentloaded'
+  });
+  await waitForCommitSequence(page, 'contact', 0);
+  await assertSinglePhoneAuthority(page);
+  await assertTargetContentVisible(page, COMPLETE_STORY_CONTENT.contact);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+  await expect(page.locator('[data-phone-reading="contact"]')).toBeVisible();
+  await expect(page.locator('.phone-story__reading-flow')).not.toHaveAttribute('inert', '');
+  const mail = page.locator('[data-phone-reading="contact"] a[href^="mailto:"]');
+  const top = page.locator('[data-phone-reading="contact"] a[href="#top"]');
+  await expect(mail).toBeVisible();
+  await mail.focus();
+  await expect(mail).toBeFocused();
+  await top.focus();
+  await expect(top).toBeFocused();
+  expect(await top.evaluate((element) => element.dispatchEvent(new WheelEvent(
+    'wheel', { bubbles: true, cancelable: true, deltaY: 120 }
+  )))).toBe(true);
+  await expect(page.locator(
+    '.phone-story__planes video, .phone-story__planes canvas'
+  )).toHaveCount(0);
+  expect(await readRuntimeResources(page)).toEqual({
+    videos: 0, decoders: 0, canvases: 0, webgl: 0
+  });
+  const chunks = await page.evaluate(() => performance.getEntriesByType('resource')
+    .map(({ name }) => name).filter((name) => /\/assets\/[^/]+\.js(?:$|\?)/.test(name)));
+  expect(chunks.some((name) => /\/PhoneContact-[^/]+\.js/.test(name))).toBe(true);
+  expect(chunks.some((name) => /\/(?:PhoneCrane|crane-contact)-[^/]+\.js/.test(name)))
+    .toBe(false);
+});
+
+test('Group 6-7 Crane ↔ Contact commits twice with native input release and no growth', async ({
+  page
+}) => {
+  await page.goto('/harness/r5-phone-clean#crane-animation', {
+    waitUntil: 'domcontentloaded'
+  });
+  await waitForCommitSequence(page, 'crane-animation', 0);
+  const cycle = async () => {
+    const contact = await traverseCompleteStoryLeg(
+      page, 'crane-animation', 'contact', 'forward'
+    );
+    await expect(page.locator('[data-phone-reading="contact"] a[href^="mailto:"]'))
+      .toBeVisible();
+    const crane = await traverseCompleteStoryLeg(
+      page, 'contact', 'crane-animation', 'reverse'
+    );
+    return [contact, crane] as const;
+  };
+  const first = await cycle();
+  const second = await cycle();
+  expect(second).toEqual(first);
+});
+
+test('complete story proves all 60 segment traversals through one authority without growth', async ({
+  page
+}) => {
+  test.setTimeout(480_000);
+  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  const bootHandle = await page.waitForFunction(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    const state = {
+      status: shell?.dataset.phoneStatus,
+      scene: shell?.dataset.phoneScene,
+      sequence: Number(shell?.dataset.phoneCommitSequence),
+      failure: shell?.dataset.phoneFailure,
+      message: shell?.dataset.phoneFailureMessage
+    };
+    return state.status === 'faulted'
+      || state.status === 'stable' && state.scene === 'hero' && state.sequence > 0
+      ? state : null;
+  }, null, { timeout: 30_000 });
+  const boot = await bootHandle.jsonValue();
+  if (boot.status === 'faulted') {
+    throw new Error(`Complete-story boot faulted: ${JSON.stringify(boot)}`);
+  }
+  const initialSequence = boot.sequence;
+  await installLifecycleProbe(page);
+  const authority = await page.locator('.phone-story').getAttribute('data-phone-authority');
+
+  const cycle = async () => {
+    const samples: RuntimeResourceSample[] = [];
+    for (let index = 0; index < COMPLETE_STORY_SCENES.length - 1; index += 1) {
+      samples.push(await traverseCompleteStoryLeg(
+        page,
+        COMPLETE_STORY_SCENES[index]!,
+        COMPLETE_STORY_SCENES[index + 1]!,
+        'forward'
+      ));
+    }
+    for (let index = COMPLETE_STORY_SCENES.length - 1; index > 0; index -= 1) {
+      samples.push(await traverseCompleteStoryLeg(
+        page,
+        COMPLETE_STORY_SCENES[index]!,
+        COMPLETE_STORY_SCENES[index - 1]!,
+        'reverse'
+      ));
+    }
+    return {
+      samples,
+      boundaryResources: await readRuntimeResources(page),
+      boundaryLifecycle: await readLifecycleProbe(page)
+    };
+  };
+
+  const first = await cycle();
+  const second = await cycle();
+  expect(second.samples).toEqual(first.samples);
+  expect(second.boundaryResources).toEqual(first.boundaryResources);
+  expect(second.boundaryLifecycle).toEqual(first.boundaryLifecycle);
+  expect(await readCommitSequence(page)).toBe(initialSequence + 60);
+  expect(await page.locator('.phone-story').getAttribute('data-phone-authority'))
+    .toBe(authority);
 });
 
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {

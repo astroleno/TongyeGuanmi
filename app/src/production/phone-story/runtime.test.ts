@@ -1680,11 +1680,16 @@ describe('phone runtime effects, media activation, and disposal', () => {
     });
 
     const { commands } = commandFixture();
-    registerCurrentLeaf(runtime, commands);
+    const { reports } = registerCurrentLeaf(runtime, commands);
     expect(fixture.effects.at(-1)).toMatchObject({
       type: 'show-activation-cta', enabled: true
     });
     expect(commands.activate).not.toHaveBeenCalled();
+    reportCurrentLeafFacts(runtime, reports);
+    expect(currentTransaction(runtime).phase).toBe('awaiting-media-activation');
+    expect(fixture.counts().timers).toBe(0);
+    fixture.advance(8_001);
+    expect(currentTransaction(runtime).phase).toBe('awaiting-media-activation');
     disconnect();
   });
 

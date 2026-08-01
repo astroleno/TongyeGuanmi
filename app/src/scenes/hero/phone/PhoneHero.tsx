@@ -285,13 +285,13 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         };
       },
       render(progress) {
-        renderedRef.current = true;
         const clamped = renderHeroStage({
           back: backMotionRef.current, middle: middleMotionRef.current,
           figure: figureMotionRef.current, copy: copyRef.current,
           subtitle: subtitleRef.current, cue: cueRef.current,
           vignette: vignetteRef.current
         }, progress);
+        if (clamped > 0.0001) renderedRef.current = true;
         if (Math.abs(clamped - lastProgressRef.current) >= 0.003) {
           lastProgressRef.current = clamped;
           playbackRef.current?.scrub(clamped);

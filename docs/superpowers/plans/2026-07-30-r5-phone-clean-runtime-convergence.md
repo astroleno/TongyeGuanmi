@@ -4596,7 +4596,7 @@ git commit -m "feat(r5): converge Crane vertical slice"
 
 ### Slice 10C — Crane → Contact and complete story
 
-- [ ] **Step 10C.1: Refactor Contact/terminal edge and remove legacy imports**
+- [x] **Step 10C.1: Refactor Contact/terminal edge and remove legacy imports**
 
 Education remains native until its boundary. Contact never receives cinematic
 `preventDefault`; links, focus, selection, and controls stay interactive.
@@ -4618,7 +4618,7 @@ Use canonical media resolution and
 `app/src/media/phone-packed-alpha-surface.ts`; leaves report only active
 attempt/slot draw, progress, complete, and failure.
 
-- [ ] **Step 10C.2: Prove the complete 16-hold story twice**
+- [x] **Step 10C.2: Prove the complete 16-hold story twice**
 
 In the clean harness:
 
@@ -4643,7 +4643,7 @@ assert:
 - input release;
 - no listener/timer/decoder/Canvas growth.
 
-- [ ] **Step 10C.3: Run Group 6–7 and complete-story checkpoints**
+- [x] **Step 10C.3: Run Group 6–7 and complete-story checkpoints**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -4680,12 +4680,38 @@ pnpm -C app build
 
 Run the old formal route regression one final time before cutover.
 
-- [ ] **Step 10C.4: Commit Slice 10C**
+- [x] **Step 10C.4: Commit Slice 10C**
 
 ```bash
 git add app
 git commit -m "feat(r5): converge Contact and full phone story"
 ```
+
+**Slice 10C closure record (2026-08-01):**
+
+- Contact is a native, direct-entry-safe clean leaf with a post-paint visible
+  proof and no cinematic input interception. Crane → Contact is an effect-only
+  clean leaf; the old formal route reaches both genuine leaves only through the
+  existing stateless migration bridges.
+- The clean registries load all 16 holds and all 15 transitions. Genuine Group
+  6–7 leaves no longer import old phone lifecycle modules, and the complete
+  harness traversal committed all 60 ordered segment crossings through the one
+  reducer/runtime authority.
+- Packed-alpha retained surfaces now use a non-terminal reproof probe while
+  explicit render failure remains fail-closed. A superseded activation wait no
+  longer restarts the media-preparation deadline, and the Hero boot projection
+  no longer consumes its entrance endpoint before forward playback.
+- The focused suite passed 20 files / 212 tests and the complete Vitest suite
+  passed 210 files / 1,298 tests. TypeScript, focused ESLint, boolean-data,
+  architecture, homepage-boundary, packed-alpha, raw-harness,
+  production-build, frozen-input, and diff checks passed.
+- Phone-portrait Chromium and WebKit each passed the two Group 6–7 checkpoints
+  plus the complete 60-segment story checkpoint (3/3 per engine). The exact
+  old-formal mobile-WebKit command retained its accepted 2 passes / 3 skips /
+  4 frozen failures at the same AOD reverse and three downstream v47
+  assertions; no oracle changed.
+- The production build reports 609,917 B of budgeted phone JS and a 41,116 B
+  largest lazy chunk. No transient Playwright artifact is committed.
 
 **Task 10 acceptance:**
 

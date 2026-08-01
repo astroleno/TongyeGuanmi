@@ -12,6 +12,7 @@ const surfaceProbe = vi.hoisted(() => ({
   options: null as null | Record<string, unknown>,
   generation: 0,
   activate: vi.fn(() => ++surfaceProbe.generation),
+  probe: vi.fn(() => false),
   render: vi.fn(() => true),
   release: vi.fn(),
   dispose: vi.fn()
@@ -22,6 +23,7 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
     surfaceProbe.options = options;
     return {
       activate: surfaceProbe.activate,
+      probe: surfaceProbe.probe,
       render: surfaceProbe.render,
       release: surfaceProbe.release,
       dispose: surfaceProbe.dispose
@@ -48,6 +50,7 @@ describe('clean PhonePh leaf', () => {
     surfaceProbe.options = null;
     surfaceProbe.generation = 0;
     surfaceProbe.activate.mockClear();
+    surfaceProbe.probe.mockClear();
     surfaceProbe.render.mockClear();
     surfaceProbe.release.mockClear();
     surfaceProbe.dispose.mockClear();
@@ -126,12 +129,14 @@ describe('clean PhonePh leaf', () => {
       surfaceIds: ['ph-figure-video'],
       credit: 'physical-epoch'
     });
+    surfaceProbe.probe.mockClear();
     surfaceProbe.render.mockClear();
     commands.pause('outside-closure');
     expect(surfaceProbe.release).not.toHaveBeenCalled();
     expect(surfaceProbe.dispose).not.toHaveBeenCalled();
     commands.rebind({ reports: mount.reports, frameToken: 'ph:retained:2' });
-    expect(surfaceProbe.render).toHaveBeenCalledOnce();
+    expect(surfaceProbe.probe).toHaveBeenCalledOnce();
+    expect(surfaceProbe.render).not.toHaveBeenCalled();
     const canvas = host.querySelector<HTMLCanvasElement>(
       '[data-phone-packed-alpha-canvas="ph-figure"]'
     )!;
@@ -166,7 +171,8 @@ describe('clean PhonePh leaf', () => {
     commands.settle(1);
 
     expect(surfaceProbe.activate).toHaveBeenCalledTimes(1);
-    expect(surfaceProbe.render).toHaveBeenCalled();
+    expect(surfaceProbe.probe).toHaveBeenCalled();
+    expect(surfaceProbe.render).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
 });

@@ -146,7 +146,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     }
     renderPhoneCranePresentation(rootRef.current, progress, directionRef.current);
     for (const [index, surface] of (surfacesRef.current ?? []).entries()) {
-      if ((surfaceGenerationsRef.current[index] ?? 0) > 0) surface.render();
+      if ((surfaceGenerationsRef.current[index] ?? 0) > 0) surface.probe();
     }
   }, []);
 
@@ -164,7 +164,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       bindingRef.current = binding;
       frameSequenceRef.current = 0;
       for (const [index, surface] of (surfacesRef.current ?? []).entries()) {
-        if ((surfaceGenerationsRef.current[index] ?? 0) > 0) surface.render();
+        if ((surfaceGenerationsRef.current[index] ?? 0) > 0) surface.probe();
       }
     },
     activate(command): PhoneActivationInvocation {
