@@ -217,7 +217,8 @@ function bootSnapshot(): SnapshotRecord {
 
 function stableSnapshot(): SnapshotRecord {
   return {
-    ...bootSnapshot(), status: 'stable', stateRevision: 2, transaction: null,
+    ...bootSnapshot(), status: 'stable', stateRevision: 2, lastPlaneRevision: 1,
+    transaction: null,
     stableCommit: { sceneId: 'hero', landing: {}, commitSequence: 1 },
     presentationProof: { commitSequence: 1, planeRevision: 1 },
     scroll: { x: 0, y: 0, sampledAt: 0, origin: 'runtime' },
@@ -391,6 +392,21 @@ describe('clean PhoneStoryShell ownership', () => {
       pathname: '/', hash: '#contact', origin: 'menu'
     });
     expect(probe.engines).toHaveLength(created);
+    act(() => root.unmount());
+  });
+
+  it('exposes exact browser-harness diagnostics only when explicitly enabled', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(
+      <PhoneStoryShell diagnostics scope="harness" chunkRecovery={chunkRecovery} />
+    ));
+    const engine = connectedEngine();
+    act(() => engine.publish(stableSnapshot()));
+    const shell = host.querySelector('.phone-story');
+    expect(shell?.getAttribute('data-phone-authority')).toBe('test-authority');
+    expect(shell?.getAttribute('data-phone-plane-revision')).toBe('1');
+    expect(shell?.getAttribute('data-phone-commit-sequence')).toBe('1');
+    expect(shell?.getAttribute('data-phone-scene')).toBe('hero');
     act(() => root.unmount());
   });
 

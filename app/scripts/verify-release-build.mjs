@@ -166,6 +166,11 @@ export function moduleProvenanceViolations(
   const ownersByModule = new Map();
   for (const chunk of chunkByFile.values()) {
     for (const moduleId of chunk.modules) {
+      if (/(?:^|\/)node_modules\/(?:(?:\.pnpm\/(?:pngjs|@types\+pngjs)@[^/]+\/node_modules\/)?(?:pngjs|@types\/pngjs))(?:\/|$)/.test(moduleId)) {
+        violations.push(
+          `${chunk.fileName} contains test-only screenshot decoder ${moduleId}`
+        );
+      }
       const owners = ownersByModule.get(moduleId) ?? [];
       owners.push(chunk.fileName);
       ownersByModule.set(moduleId, owners);

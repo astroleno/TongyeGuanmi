@@ -78,6 +78,21 @@ test('accepts a deterministic modules report with one synchronous core and lazy 
   }), []);
 });
 
+test('rejects test-only screenshot decoders from every emitted production chunk', () => {
+  for (const moduleId of [
+    'node_modules/pngjs/lib/png.js',
+    'node_modules/.pnpm/pngjs@7.0.0/node_modules/pngjs/lib/png.js',
+    'node_modules/@types/pngjs/index.d.ts'
+  ]) {
+    const report = validProvenance();
+    report.chunks[2].modules.push(moduleId);
+    report.chunks[2].modules.sort();
+    includes(moduleProvenanceViolations(report, {
+      chunkBytes: bytes()
+    }), 'test-only screenshot decoder');
+  }
+});
+
 test('exempts chunks already loaded by the dynamic parent from leaf transfer size', () => {
   const report = validProvenance();
   report.chunks[0].imports.push('assets/PhonePrelude.js');

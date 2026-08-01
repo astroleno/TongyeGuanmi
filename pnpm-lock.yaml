@@ -35,6 +35,9 @@ importers:
       '@types/node':
         specifier: ^24.0.8
         version: 24.13.2
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
       '@types/react':
         specifier: ^19.1.8
         version: 19.2.17
@@ -53,6 +56,9 @@ importers:
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       terser:
         specifier: 5.49.0
         version: 5.49.0
@@ -1003,6 +1009,12 @@ packages:
     resolution: {integrity: sha512-fRa09kZTgu8o71KFcDjUFuc7F+dEbZYZmkI0mg5YBTRs0yMKjYHsq/c0urDKeDb+D5qVgXOdFcuu+DZPKOITwA==}
     dependencies:
       undici-types: 7.18.2
+    dev: true
+
+  /@types/pngjs@6.0.5:
+    resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
+    dependencies:
+      '@types/node': 24.13.2
     dev: true
 
   /@types/react-dom@19.2.3(@types/react@19.2.17):
@@ -2004,6 +2016,11 @@ packages:
       playwright-core: 1.61.1
     optionalDependencies:
       fsevents: 2.3.2
+    dev: true
+
+  /pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
     dev: true
 
   /postcss@8.5.16:

@@ -6,6 +6,7 @@ const routeLoaders: Readonly<Record<string, () => Promise<{ default: HarnessRout
   '/harness/machine': () => import('./MachineHarness').then(({ MachineHarness }) => ({ default: MachineHarness })),
   '/harness/devtools': () => import('./DevtoolsHarness').then(({ DevtoolsHarness }) => ({ default: DevtoolsHarness })),
   '/harness/stage': () => import('./StageHarness').then(({ StageHarness }) => ({ default: StageHarness })),
+  '/harness/r5-phone-clean': () => import('./r5-phone-clean/PhoneCleanHarness').then(({ PhoneCleanHarness }) => ({ default: PhoneCleanHarness })),
   '/harness/r3-pilot': () => import('./r3/PilotHarness').then(({ PilotHarness }) => ({ default: () => <PilotHarness mode="pilot" /> })),
   '/harness/aod-animation': () => import('./r3/PilotHarness').then(({ PilotHarness }) => ({ default: () => <PilotHarness mode="aod-animation" /> })),
   '/harness/star-map-aod': () => import('./r3/PilotHarness').then(({ PilotHarness }) => ({ default: () => <PilotHarness mode="star-map-aod" /> })),

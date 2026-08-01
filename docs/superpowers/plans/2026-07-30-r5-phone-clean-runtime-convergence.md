@@ -4,8 +4,8 @@
 > their corrective reviews are complete. On 2026-08-01 the executor completed
 > uninterrupted Slices 4A → 4B → 4C → 4D, Task 5, and Task 6. Task 4's unified
 > machine/runtime review and Task 6's unified projector, real React StrictMode,
-> Loader, and lazy-boundary review are closed. Execution is stopped before
-> Task 7 at the next mandatory review boundary. The
+> Loader, and lazy-boundary review are closed. Task 7A established the clean
+> browser harness and execution is continuing with Slice 7B. The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
@@ -3417,6 +3417,13 @@ This allows one visual implementation to serve both migration paths without
 duplicating accepted scenes or allowing the new core to import the old
 lifecycle.
 
+Harness checkpoints use the corrected Task 0.6 build rule: after TypeScript
+and source gates, run `VITE_ENABLE_HARNESS=1 pnpm -C app exec vite build`.
+Never run the package `build` wrapper with that flag, because the production
+release verifier correctly rejects the other emitted R4 harness chunks. Run
+the ordinary unflagged package build separately when a production build gate
+is listed.
+
 ---
 
 ## Task 7: Integrate Front through AOD and reproduce the three known failures
@@ -3470,7 +3477,7 @@ lifecycle.
 - `app/package.json` and lockfile to add `pngjs` plus `@types/pngjs` as
   test-only dependencies
 
-- [ ] **Step 7.1: Prepare the per-slice visual disposition map**
+- [x] **Step 7.1: Prepare the per-slice visual disposition map**
 
 Use the `9652fbe` Front files as the visual donor and map each source to Slice
 7B–7E before moving it. Preserve:
@@ -3512,7 +3519,7 @@ progress/time and calls that handle, while the leaf owns only visual sampling.
 
 ### Slice 7A — harness and real pixel helpers
 
-- [ ] **Step 7A.1: Create the DEV-only clean harness**
+- [x] **Step 7A.1: Create the DEV-only clean harness**
 
 Add:
 
@@ -3530,7 +3537,7 @@ the runtime factory, substitute a reducer, or import `runtime.ts`.
 The route remains behind the existing `HarnessRouter` DEV/release-harness
 guard. It is not a query alias for formal `/`.
 
-- [ ] **Step 7A.2: Add real stacking-context and pixel helpers**
+- [x] **Step 7A.2: Add real stacking-context and pixel helpers**
 
 `r5-phone-clean-assertions.ts` must provide:
 
@@ -3576,7 +3583,7 @@ phone-portrait-webkit = iPhone 15 portrait, WebKit
 The default `playwright.config.ts` ignores `r5-*.spec.ts`, so every R5 command
 in this plan must explicitly use `playwright.release.config.ts`.
 
-- [ ] **Step 7A.3: Prove the empty harness fails closed and commit**
+- [x] **Step 7A.3: Prove the empty harness fails closed and commit**
 
 Use deterministic placeholder leaves to prove one authority, opaque Loader,
 pixel helper failure on a one-pixel gap, and no production dependency on the
@@ -3584,7 +3591,8 @@ harness:
 
 ```bash
 pnpm -C app exec vitest run src/production/phone-story
-VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app typecheck
+VITE_ENABLE_HARNESS=1 pnpm -C app exec vite build
 pnpm -C app exec playwright test \
   --config=playwright.release.config.ts \
   e2e/r5-phone-clean-runtime.spec.ts \
@@ -3593,6 +3601,32 @@ pnpm -C app exec playwright test \
 git add app pnpm-lock.yaml
 git commit -m "test(r5): establish clean phone browser harness"
 ```
+
+**Slice 7A closure record (2026-08-01):**
+
+- The visual disposition ledger is frozen in
+  `docs/react-refactor/reports/r5-phone-clean-runtime-task7-disposition.md`
+  against donor `9652fbe`; every Front source is assigned to 7B–7E and legacy
+  lifecycle/authority donation is explicitly excluded.
+- RED verification observed the missing clean route (`Harness not found`, zero
+  `.phone-story` owners), absent exact shell diagnostics, a one-pixel bottom
+  gap incorrectly accepted by the first decoder, a center control pixel
+  incorrectly treated as an edge, and `pngjs` accepted in a synthetic
+  production chunk. Each counterexample is now covered.
+- GREEN verification passed 150/150 focused phone-story tests, TypeScript, the
+  harness architecture gate, the ordinary production build, and 5/5 real
+  iPhone-15 portrait WebKit harness tests. The browser tests decode actual PNG
+  screenshots, reject a one-CSS-pixel gap, inspect browser stacking order,
+  distinguish edge coverage from scene content, and reject black/white only
+  when it is intermediate rather than an allowed endpoint.
+- The DEV/release-harness route renders the same clean `PhoneStoryShell` with
+  one diagnostic authority and the existing fail-closed lazy covers. It does
+  not import or call the runtime factory. `pngjs` and `@types/pngjs` are
+  development-only and the release provenance gate rejects either from any
+  emitted production chunk.
+- The raw harness build follows the corrected Task 0.6 rule. The package
+  wrapper's deterministic rejection of emitted R4 harness markers was
+  re-observed and was not treated as a product failure or bypassed.
 
 ### Slice 7B — Hero and Loader
 
@@ -3630,7 +3664,8 @@ pnpm -C app exec vitest run \
   src/production/StoryLoader.test.tsx \
   src/scenes/hero/phone \
   src/production/phone-story
-VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app typecheck
+VITE_ENABLE_HARNESS=1 pnpm -C app exec vite build
 pnpm -C app exec playwright test \
   --config=playwright.release.config.ts \
   e2e/r5-phone-clean-presentation.spec.ts \
@@ -3664,7 +3699,8 @@ element.
 pnpm -C app exec vitest run \
   src/scenes/pattern/phone \
   src/production/phone-story/presentation.test.ts
-VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app typecheck
+VITE_ENABLE_HARNESS=1 pnpm -C app exec vite build
 pnpm -C app exec playwright test \
   --config=playwright.release.config.ts \
   e2e/r5-phone-clean-presentation.spec.ts \
@@ -3709,7 +3745,8 @@ pnpm -C app exec vitest run \
   src/media/phone-media.test.ts \
   src/media/phone-packed-alpha-surface.test.ts \
   src/production/phone-story/runtime.test.ts
-VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app typecheck
+VITE_ENABLE_HARNESS=1 pnpm -C app exec vite build
 pnpm -C app exec playwright test \
   --config=playwright.release.config.ts \
   e2e/r5-phone-clean-runtime.spec.ts \
@@ -3753,7 +3790,8 @@ pnpm -C app exec vitest run \
   src/transitions/hero-pattern/phone.test.tsx \
   src/transitions/pattern-star-map/phone.test.tsx \
   src/transitions/star-map-aod/phone.test.tsx
-VITE_ENABLE_HARNESS=1 pnpm -C app build
+pnpm -C app typecheck
+VITE_ENABLE_HARNESS=1 pnpm -C app exec vite build
 pnpm -C app exec playwright test \
   --config=playwright.release.config.ts \
   e2e/r5-phone-clean-runtime.spec.ts \

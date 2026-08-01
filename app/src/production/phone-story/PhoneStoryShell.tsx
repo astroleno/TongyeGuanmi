@@ -457,6 +457,10 @@ export function PhoneStoryShell({
       data-phone-status={snapshot.status}
       data-phone-interaction={snapshot.status === 'stable' ? 'enabled' : 'disabled'}
       data-phone-revision={diagnostics ? snapshot.stateRevision : undefined}
+      data-phone-authority={diagnostics ? snapshot.authorityId : undefined}
+      data-phone-plane-revision={diagnostics ? snapshot.lastPlaneRevision : undefined}
+      data-phone-commit-sequence={diagnostics ? snapshot.stableCommit?.commitSequence ?? 0 : undefined}
+      data-phone-scene={diagnostics ? stableScene ?? undefined : undefined}
     >
       <div data-phone-loader="true">
         <StoryLoader
