@@ -4436,7 +4436,7 @@ git commit -m "feat(r5): converge TTG and Lab vertical slice"
 - existing Group 6–7 adapter/module-loader files only for the stateless
   migration bridge
 
-- [ ] **Step 10.1: Freeze Unit 6 contracts and close the `c808e06` preflight**
+- [x] **Step 10.1: Freeze Unit 6 contracts and close the `c808e06` preflight**
 
 Before refactor, assert:
 
@@ -4467,14 +4467,14 @@ rejected.
 
 ### Slice 10A — Lab → PH → Education
 
-- [ ] **Step 10A.1: Refactor PH/Education and both edges**
+- [x] **Step 10A.1: Refactor PH/Education and both edges**
 
 Move only the clean-port behavior for Lab → PH and PH → Education. PH reverse
 starts from a proven terminal frame; the packed Canvas draw reports an
 attempt-bound frame; Education stays native; terminal PH compositor retention
 and retirement follow the closure. Runtime owns activation and story clock.
 
-- [ ] **Step 10A.2: Add direct/reverse/fault/resource checkpoints**
+- [x] **Step 10A.2: Add direct/reverse/fault/resource checkpoints**
 
 Test Lab → PH → Education and reverse twice, direct PH/Education entries,
 activation rejection/retry, background/foreground, BFCache restore, withheld
@@ -4487,7 +4487,7 @@ slot, and must not require a legacy-shell effect to retire it again. Prove the
 result through runtime generation/command ownership and the registered clean
 PH surface handle.
 
-- [ ] **Step 10A.3: Verify and commit Slice 10A**
+- [x] **Step 10A.3: Verify and commit Slice 10A**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -4505,6 +4505,33 @@ pnpm -C app exec playwright test \
 git add app
 git commit -m "feat(r5): converge PH and Education vertical slice"
 ```
+
+**Slice 10A closure record (2026-08-01):**
+
+- The frozen `c808e06` Group 6/7 ledger is fully classified, and its PH,
+  Education, Lab → PH, and PH → Education observations are preserved by the
+  canonical donor hashes plus clean unit/browser assertions; no legacy
+  lifecycle hunk was ported.
+- PH now owns one registered packed-video/Canvas pair behind the clean
+  command/report boundary. Only an attempt-bound physical compositor draw can
+  prove a frame; retained pause/rebind re-proves the same surface, while
+  terminal disposal hard-retires it. Education remains a native document leaf
+  with a separate one-viewport visual endpoint.
+- The runtime projects reducer-owned progress into a newly registered leaf
+  before activation. Both edges use clean effect leaves, and the old formal
+  route reaches the same genuine leaves only through stateless migration
+  bridges in the existing Group 6–7 loader files.
+- The focused suite passed 16 files / 199 tests and the complete Vitest suite
+  passed 205 files / 1,284 tests. TypeScript, focused ESLint, boolean-data,
+  architecture, homepage-boundary, packed-alpha, raw-harness,
+  production-build, frozen-input, and diff checks passed.
+- Phone-portrait WebKit passed all six PH-slice browser tests, including two
+  complete Lab ↔ Education cycles, delayed loading, withheld draw, context
+  loss, visibility, and BFCache reproof. The exact old-formal mobile-WebKit
+  command retained its accepted 2 passes / 3 skips / 4 frozen failures at the
+  same AOD reverse and three downstream v47 assertions; no oracle changed.
+- The production build reports 610,313 B of budgeted phone JS and a 41,116 B
+  largest lazy chunk. No transient Playwright artifact is committed.
 
 ### Slice 10B — Education → Crane
 

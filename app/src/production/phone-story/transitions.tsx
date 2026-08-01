@@ -108,7 +108,9 @@ const transitionLoaders = Object.freeze({
   'brand-figure3': () => import('../../transitions/brand-figure3/phone'),
   'figure3-services': () => import('../../transitions/figure3-services/phone'),
   'services-ttg': () => import('../../transitions/services-ttg/phone'),
-  'ttg-lab': () => import('../../transitions/ttg-lab/phone')
+  'ttg-lab': () => import('../../transitions/ttg-lab/phone'),
+  'lab-ph': () => import('../../transitions/lab-ph/phone'),
+  'ph-education': () => import('../../transitions/ph-education/phone')
 }) satisfies Partial<Record<string, PhoneTransitionLoader>>;
 const defaultTransitionRegistry = createPhoneTransitionRegistry<string>(transitionLoaders);
 

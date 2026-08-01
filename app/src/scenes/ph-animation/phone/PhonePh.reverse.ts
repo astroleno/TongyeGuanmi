@@ -1,91 +1,35 @@
 import {
-  prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
-} from '../../../media/timeline-video-driver';
-import {
-  createPhonePresentedReversePlayback,
-  type PhonePresentedReversePlayback
-} from '../../../production/phone/phone-presented-reverse-playback';
-import { PH_PLAYBACK_MS } from '../../../story/timings';
-import {
   PH_FIGURE_END_SECONDS,
   phPlaybackProgress
 } from '..';
-import type { PhonePhPlaybackDirection } from './PhonePh.motion';
 
-const PH_DURATION_FALLBACK_SECONDS = PH_FIGURE_END_SECONDS + 1 / 30;
-
-export type PhonePhPresentedReverse = PhonePresentedReversePlayback;
-
-function reverseFrameInput(
-  runId: string,
-  progress: number
-): TimelineVideoDriveInput {
-  return {
-    runId,
-    direction: -1,
-    progress: phPlaybackProgress(progress),
-    durationFallbackSeconds: PH_DURATION_FALLBACK_SECONDS,
-    startSeconds: 0,
-    endSeconds: PH_FIGURE_END_SECONDS,
-    timelineDurationMs: PH_PLAYBACK_MS,
-    mode: 'timeline',
-    nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: true
-  };
+/** Runtime-driven reverse playhead; it owns no timer, completion, or reports. */
+export function phonePhReverseMediaTime(
+  progress: number,
+  duration = PH_FIGURE_END_SECONDS
+): number {
+  const endpoint = Number.isFinite(duration) && duration > 0
+    ? Math.min(PH_FIGURE_END_SECONDS, duration)
+    : PH_FIGURE_END_SECONDS;
+  return phPlaybackProgress(Math.min(1, Math.max(0, progress))) * endpoint;
 }
 
 /**
- * d208a86's presented-frame reverse contract adapted to the PH packed-alpha
- * decoder. Canonical camera progress advances only after Safari has prepared
- * the matching media frame, so the retained Canvas cannot display the final
- * figure while the island has already returned to its opening position.
+ * Request the authored packed frame for a runtime-supplied reverse sample.
+ * Readiness is still proved only by the packed compositor's physical draw.
  */
-export function createPhonePhPresentedReverse(
-  root: HTMLElement,
-  render: (
-    progress: number,
-    direction: PhonePhPlaybackDirection
-  ) => void,
-  onComplete: () => void,
-  onFailure: () => void
-): PhonePhPresentedReverse | null {
-  const video = root.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
-  if (!video) return null;
-  let runSequence = 0;
-  let runId = 'phone-ph-reverse-0';
-
-  const playback = createPhonePresentedReversePlayback({
-    durationMs: PH_PLAYBACK_MS,
-    prepare: async (progress) => {
-      const result = await prepareTimelineVideoFrame(
-        video,
-        reverseFrameInput(runId, progress)
-      );
-      return result?.status === 'ready' && result.runId === runId;
-    },
-    render: (progress) => render(progress, -1),
-    onComplete,
-    onError: onFailure,
-    onStatus: (status) => {
-      root.dataset.phonePhReverse = status;
-    }
-  });
-
-  return {
-    get active() {
-      return playback.active;
-    },
-    start() {
-      runSequence += 1;
-      runId = `phone-ph-reverse-${runSequence}`;
-      playback.start();
-    },
-    retry: playback.retry,
-    stop: playback.stop,
-    dispose() {
-      playback.dispose();
-      delete root.dataset.phonePhReverse;
-    }
-  };
+export function seekPhonePhReverseFrame(
+  video: HTMLVideoElement | null,
+  progress: number
+): boolean {
+  if (!video) return false;
+  const target = phonePhReverseMediaTime(progress, video.duration);
+  video.pause();
+  if (Math.abs(video.currentTime - target) <= .002) return true;
+  try {
+    video.currentTime = target;
+    return true;
+  } catch {
+    return false;
+  }
 }

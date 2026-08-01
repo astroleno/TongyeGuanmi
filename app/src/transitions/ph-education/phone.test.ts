@@ -30,7 +30,8 @@ describe('Phone PH → Education transition', () => {
     expect(source).not.toContain('preparePhAnimationFrame');
     expect(source).not.toContain('parkPhonePhMedia');
     expect(source).not.toContain('renderPhonePhAnimationProgress');
-    expect(source).toContain('setEducationDocumentLayer');
+    expect(source).toContain("id: 'between:ph-education'");
+    expect(source).not.toContain('production/phone/types');
   });
 
   it('maps the canonical PH clock before the short Education dissolve', () => {
@@ -148,7 +149,7 @@ describe('Phone PH → Education transition', () => {
     expect(midpoint.educationOpacity).toBeCloseTo(0.5, 8);
     expect(education.style.opacity).toBe('0.5000');
     expect(ph.style.values.get('--ph-front-parallax-y')).toBe('135.00px');
-    expect(source).toContain('directionRef.current === -1');
+    expect(source).toContain('applyPhonePhEducationReverseFrame');
   });
 
   it('keeps the full ordered endpoint sequence under reduced motion', () => {

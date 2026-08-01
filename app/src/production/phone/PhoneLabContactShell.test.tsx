@@ -13,6 +13,12 @@ import {
 
 const shellSource = readFileSync(new URL('./PhoneLabContactShell.tsx', import.meta.url), 'utf8');
 const shellCss = readFileSync(new URL('./PhoneLabContactShell.css', import.meta.url), 'utf8');
+const sceneLoaderSource = readFileSync(
+  new URL('./scenes/lab-contact-loaders.ts', import.meta.url), 'utf8'
+);
+const transitionLoaderSource = readFileSync(
+  new URL('./transitions/lab-contact-loaders.ts', import.meta.url), 'utf8'
+);
 
 describe('PhoneLabContactShell', () => {
   it('cuts the validation journey at Lab without mounting the Grade A shell', () => {
@@ -131,6 +137,27 @@ describe('PhoneLabContactShell', () => {
     expect(phoneLabContactDirectEntryAutoplays('education', false)).toBe(false);
     expect(phoneLabContactDirectEntryAutoplays('ph-animation', true)).toBe(false);
     expect(shellSource).toContain('!phoneLabContactDirectEntryAutoplays(entryScene, reducedMotion)');
+  });
+
+  it('keeps the shared PH and Education migration bridges stateless', () => {
+    for (const source of [sceneLoaderSource, transitionLoaderSource]) {
+      expect(source).not.toContain('useState');
+      expect(source).not.toContain('setTimeout');
+      expect(source).not.toContain('requestAnimationFrame');
+      expect(source).not.toContain('addEventListener');
+    }
+    expect(sceneLoaderSource).toContain(
+      "createLabContactSceneMigrationBridge(\n          Component, 'legacy-lab-contact-ph'"
+    );
+    expect(sceneLoaderSource).toContain(
+      "Component, 'legacy-lab-contact-education'"
+    );
+    expect(transitionLoaderSource).toContain(
+      "module.PhoneLabPhTransition,\n          'legacy-lab-contact-lab-ph'"
+    );
+    expect(transitionLoaderSource).toContain(
+      "module.PhonePhEducationTransition,\n          'legacy-lab-contact-ph-education'"
+    );
   });
 
   it('never exposes the Contact lazy-loader copy in the document flow', () => {

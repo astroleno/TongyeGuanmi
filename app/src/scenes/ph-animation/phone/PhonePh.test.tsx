@@ -14,6 +14,8 @@ import {
   phonePhPresentationProgress,
   phonePhTimelineProgressForMediaProgress
 } from './PhonePh';
+import { phonePhReverseMediaTime } from './PhonePh.reverse';
+import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 
 const source = readFileSync(new URL('./PhonePh.tsx', import.meta.url), 'utf8');
 const motionSource = readFileSync(
@@ -24,17 +26,17 @@ const reverseSource = readFileSync(
   new URL('./PhonePh.reverse.ts', import.meta.url),
   'utf8'
 );
-const nativeClockSource = readFileSync(
-  new URL('../../../production/phone/phone-native-autoplay.ts', import.meta.url),
-  'utf8'
-);
 const css = readFileSync(new URL('./PhonePh.css', import.meta.url), 'utf8');
+
+const reports = {
+  registerMount() {}, reportPrepared() {}, reportFrame() {}, reportProgress() {},
+  reportComplete() {}, reportFailure() {}
+} satisfies PhoneLeafReportPort;
 
 describe('PhonePh', () => {
   it('keeps one canonical PH visual/media owner', () => {
     const markup = renderToStaticMarkup(createElement(PhonePh, {
-      active: true,
-      reducedMotion: false
+      reports
     }));
 
     expect(markup.match(/data-r4-scene="ph-animation"/g)).toHaveLength(1);
@@ -54,6 +56,8 @@ describe('PhonePh', () => {
     expect(phonePhTimelineProgressForMediaProgress(0.445)).toBeCloseTo(0.5, 5);
     expect(phonePhTimelineProgressForMediaProgress(1)).toBeCloseTo(1, 5);
     expect(phonePhForegroundParallaxY({ figureY: 135 })).toBe(135);
+    expect(phonePhReverseMediaTime(0)).toBe(0);
+    expect(phonePhReverseMediaTime(1)).toBe(1.5);
     expect(css).toContain('left: 61%');
     expect(css).toContain('--phone-ph-plate-width');
     expect(css).toContain('--phone-ph-front-width');
@@ -76,33 +80,25 @@ describe('PhonePh', () => {
     expect(source).toContain("'--phone-ph-island-source'");
   });
 
-  it('reuses the AOD native-time policy and Figure2 stable-surface policy', () => {
-    expect(source).toContain('createPhoneNativeAutoplay');
+  it('uses the clean runtime command port and one packed-alpha surface', () => {
     expect(source).toContain('createPhonePackedAlphaSurface');
-    expect(source).toContain('createPortal');
-    expect(source).toContain('figureCanvasRef');
-    expect(source).toContain("phoneMediaUrlFor('ph-figure-packed'");
-    expect(source).toContain("ensurePackedSurface('endpoint')");
-    expect(source).toContain("reducedMotion ? 'endpoint' : 'forward'");
+    expect(source).toContain('PhoneLeafCommandHandle');
+    expect(source).toContain('reports.registerMount');
+    expect(source).toContain("reportFrame('ph-figure-canvas'");
+    expect(source).toContain('phoneMediaUrlFor(');
+    expect(source).toContain("surface.activate(endpoint === 1 ? 'endpoint' : 'forward')");
     expect(source).toContain('PH_FIGURE_END_SECONDS');
-    expect(source).toContain('createPhonePhPresentedReverse');
-    expect(source).toContain('beginPreparedReverse');
-    expect(source).toContain("phase: 'progress'");
-    expect(source).toContain("'preparing-reverse'");
-    expect(motionSource).toContain("'presented-frame-reverse'");
-    expect(reverseSource).toContain('createPhonePresentedReversePlayback');
-    expect(reverseSource).toContain('prepareTimelineVideoFrame');
-    expect(reverseSource).toContain('phPlaybackProgress(progress)');
-    expect(reverseSource).toContain('allowSeekedFrameFallback: true');
+    expect(source).toContain("surfaceRef.current?.dispose('terminal')");
+    expect(source).not.toContain('surfaceRef.current?.release()');
+    expect(source).toContain('surfaceRef.current?.render()');
     expect(motionSource).toContain('phonePhForegroundParallaxY');
-    expect(nativeClockSource).toContain('video.currentTime / duration');
-    expect(nativeClockSource).toContain("video.addEventListener('timeupdate'");
-    expect(nativeClockSource).not.toContain('primeFromGesture');
-    expect(nativeClockSource).not.toContain("addEventListener('touchstart'");
-    expect(source).not.toContain('driveTimelineVideo');
-    expect(source).not.toContain("mode: 'timeline'");
-    expect(reverseSource).toContain("mode: 'timeline'");
-    expect(reverseSource).not.toContain('endpoint-dissolve');
+    expect(reverseSource).not.toContain('phone-presented-reverse-playback');
+    for (const forbidden of [
+      'production/phone/types',
+      'phone-native-autoplay',
+      'phone-lab-contact-timeline',
+      'phone-presented-reverse-playback'
+    ]) expect(source).not.toContain(forbidden);
   });
 
   it('falls back to its static layers and parks media without a reload', () => {

@@ -1,34 +1,29 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef
-} from 'react';
+import { createElement, useLayoutEffect, useMemo, useRef } from 'react';
+import type {
+  PhoneActivationInvocation,
+  PhoneLeafCommandHandle,
+  PhoneLeafReportPort
+} from '../../production/phone-story/presentation';
 import { renderPhonePhPresentation } from '../../scenes/ph-animation/phone/PhonePh.motion';
 import { renderEducationProgress } from '../../scenes/education';
 import {
   INTRA_CHAPTER_DISSOLVE_MS,
   PH_PLAYBACK_MS
 } from '../../story/timings';
-import type {
-  PhoneTransitionAdapterHandle,
-  PhoneTransitionAdapterProps
-} from '../../production/phone/types';
 
-const ENDPOINT_EPSILON = 0.001;
+const ENDPOINT_EPSILON = .001;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
 function range01(value: number, start: number, end: number): number {
-  return clamp((value - start) / Math.max(0.0001, end - start));
+  return clamp((value - start) / Math.max(.0001, end - start));
 }
 
 function transitionProgress(rawProgress: number, reducedMotion: boolean): number {
   const progress = clamp(rawProgress);
-  return reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
+  return reducedMotion ? (progress < .5 ? 0 : 1) : progress;
 }
 
 function applyDissolveEndpoint(
@@ -38,18 +33,12 @@ function applyDissolveEndpoint(
 ): void {
   if (!element) return;
   element.style.opacity = opacity.toFixed(4);
-  // 35b0aee keeps document-flow endpoints composited at opacity zero. Their
-  // accessibility and input ownership still follow the interactive flag.
   element.style.visibility = 'visible';
   element.style.pointerEvents = interactive ? 'auto' : 'none';
   element.inert = !interactive;
   element.setAttribute('aria-hidden', String(!interactive));
 }
 
-/**
- * Keep the canonical PH playback duration and then dissolve immediately into
- * Education. There is no extra document hold between the two endpoints.
- */
 export const PHONE_PH_EDUCATION_DECISION = Object.freeze({
   mode: 'endpoint-dissolve',
   source: '4b861b58-ttg-lab-overlay-dissolve',
@@ -76,15 +65,9 @@ export function phonePhEducationFrame(
   reducedMotion = false
 ): PhonePhEducationFrame {
   const progress = transitionProgress(rawProgress, reducedMotion);
-  const phProgress = range01(
-    progress,
-    0,
-    PHONE_PH_EDUCATION_ANIMATION_STOP
-  );
+  const phProgress = range01(progress, 0, PHONE_PH_EDUCATION_ANIMATION_STOP);
   const educationProgress = range01(
-    progress,
-    PHONE_PH_EDUCATION_ANIMATION_STOP,
-    1
+    progress, PHONE_PH_EDUCATION_ANIMATION_STOP, 1
   );
   return {
     progress,
@@ -99,32 +82,21 @@ export function phonePhEducationFallbackFrame(): PhonePhEducationFrame {
   return phonePhEducationFrame(1, true);
 }
 
+/** Stateless compatibility projection for the old acceptance shell only. */
 export function applyPhonePhEducationFrame(
   from: HTMLElement | null,
   to: HTMLElement | null,
   rawProgress: number,
-  options: Readonly<{
-    reducedMotion?: boolean;
-  }> = {}
+  options: Readonly<{ reducedMotion?: boolean }> = {}
 ): PhonePhEducationFrame {
   const frame = phonePhEducationFrame(rawProgress, options.reducedMotion);
-  // PH is the only owner of its video/clock. This Grade B bridge merely
-  // holds its canonical visual endpoint while it dissolves to native reading.
   renderPhonePhPresentation(
-    from,
-    frame.phProgress,
-    1,
-    options.reducedMotion
+    from, frame.phProgress, 1, options.reducedMotion
   );
-  // Desktop prepares Education's final hold before the dissolve. Keep the
-  // same target state here and let the root opacity be the only bridge clock.
   renderEducationProgress(to, 1);
-  // Match 4b861b58 TTG → Lab: never alpha-fade the retained media ancestor.
-  // The receiver alone owns opacity and covers the source as one whole scene.
   applyDissolveEndpoint(from, frame.phOpacity, false);
   applyDissolveEndpoint(
-    to,
-    frame.educationOpacity,
+    to, frame.educationOpacity,
     frame.educationOpacity >= 1 - ENDPOINT_EPSILON
   );
   from?.setAttribute('data-phone-ph-education-handoff', 'source');
@@ -134,11 +106,6 @@ export function applyPhonePhEducationFrame(
   return frame;
 }
 
-/**
- * Reverse playback is owned by PhonePh. This receiver-only sample lets the
- * native Education page dissolve away without writing PH back to its terminal
- * frame on every reverse animation tick.
- */
 export function applyPhonePhEducationReverseFrame(
   to: HTMLElement | null,
   rawProgress: number,
@@ -150,95 +117,74 @@ export function applyPhonePhEducationReverseFrame(
   return frame;
 }
 
-function setEducationDocumentLayer(
-  to: HTMLElement | null,
-  active: boolean
-): void {
-  const documentSlot = to?.closest<HTMLElement>(
-    '[data-phone-acceptance-chapter="education"]'
-  );
-  if (active) {
-    documentSlot?.setAttribute('data-phone-ph-education-layer', 'true');
-  } else {
-    documentSlot?.removeAttribute('data-phone-ph-education-layer');
-  }
-}
-
-function clearDissolveEndpoint(element: HTMLElement | null): void {
-  if (!element) return;
-  element.style.opacity = '';
-  element.style.visibility = '';
-  element.style.pointerEvents = '';
-  element.inert = false;
-  element.removeAttribute('aria-hidden');
-}
-
-/** Commit the receiver at the same shared document boundary as the PH marker. */
 export function settlePhonePhEducationDocumentFlow(
   from: HTMLElement | null,
   to: HTMLElement | null
 ): void {
-  // 35b0aee: keep both endpoints on the same compositor topology after the
-  // forward handoff. Reverse can then arm without rebuilding Education's
-  // paper layer or PH's hidden retained source.
   applyDissolveEndpoint(from, 0, false);
   applyDissolveEndpoint(to, 1, true);
 }
 
-export const PhonePhEducationTransition = forwardRef<
-  PhoneTransitionAdapterHandle,
-  PhoneTransitionAdapterProps
->(function PhonePhEducationTransition(
-  { from, onReady, reducedMotion, to },
-  forwardedRef
-) {
-  const directionRef = useRef<1 | -1>(1);
-  const render = useCallback((rawProgress: number) => {
-    if (directionRef.current === -1) {
-      applyPhonePhEducationReverseFrame(to, rawProgress, reducedMotion);
-      return;
-    }
-    applyPhonePhEducationFrame(from, to, rawProgress, { reducedMotion });
-  }, [from, reducedMotion, to]);
-
-  useEffect(() => {
-    render(0);
-    onReady?.();
-  }, [onReady, render]);
-
-  useImperativeHandle(forwardedRef, () => ({
-    render,
-    enter() {
-      directionRef.current = 1;
-      setEducationDocumentLayer(to, true);
-      render(0);
+/** Between-plane command leaf; presentation owns source and receiver opacity. */
+export function PhonePhEducationTransition({ reports }: Readonly<{
+  reports: PhoneLeafReportPort;
+}>) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const progressRef = useRef(0);
+  const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
+    rebind() {},
+    activate(command): PhoneActivationInvocation {
+      return {
+        invocationId: command.invocationId,
+        surfaceIds: command.surfaceIds,
+        invoked: false,
+        settlements: []
+      };
     },
-    leave() {
-      if (directionRef.current === -1) {
-        render(0);
-        setEducationDocumentLayer(to, false);
-        applyDissolveEndpoint(to, 0, false);
-        directionRef.current = 1;
-        return;
-      }
-      render(1);
-      settlePhonePhEducationDocumentFlow(from, to);
-      setEducationDocumentLayer(to, false);
+    render(rawProgress: number) {
+      const frame = phonePhEducationFrame(rawProgress);
+      progressRef.current = frame.progress;
+      const root = rootRef.current;
+      if (!root) return;
+      root.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+      root.style.setProperty(
+        '--phone-ph-education-progress', frame.educationProgress.toFixed(4)
+      );
     },
-    reverse() {
-      directionRef.current = -1;
-      setEducationDocumentLayer(to, true);
-      render(1);
+    settle(endpoint) {
+      progressRef.current = endpoint;
+      const frame = phonePhEducationFrame(endpoint);
+      const root = rootRef.current;
+      if (!root) return;
+      root.dataset.phoneTransitionProgress = frame.progress.toFixed(4);
+      root.style.setProperty(
+        '--phone-ph-education-progress', frame.educationProgress.toFixed(4)
+      );
     },
+    pause() {},
     dispose() {
-      directionRef.current = 1;
-      setEducationDocumentLayer(to, false);
-      clearDissolveEndpoint(from);
-      clearDissolveEndpoint(to);
+      const root = rootRef.current;
+      if (!root) return;
+      delete root.dataset.phoneTransitionProgress;
+      root.style.removeProperty('--phone-ph-education-progress');
     }
-  }), [from, render, to]);
+  }), []);
 
-  return null;
-});
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    reports.registerMount({
+      root,
+      surfaces: [{ id: 'between:ph-education', element: root, kind: 'dom' }],
+      commands
+    });
+  }, [commands, reports]);
+
+  return createElement('div', {
+    ref: rootRef,
+    'data-phone-transition': 'ph-education',
+    'aria-hidden': 'true'
+  });
+}
 
 export default PhonePhEducationTransition;

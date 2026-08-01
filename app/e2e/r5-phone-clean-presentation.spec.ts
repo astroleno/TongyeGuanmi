@@ -86,6 +86,26 @@ const GROUP45_SEGMENT = {
 
 type Group45Scene = keyof typeof GROUP45_CONTENT;
 
+const PH_SLICE_CONTENT = {
+  lab: ['#phone-lab-title', '.phone-lab__hero > p:not(.phone-lab__eyebrow)'],
+  'ph-animation': [
+    '[data-r4-scene="ph-animation"] [data-phone-packed-alpha-canvas="ph-figure"]'
+  ],
+  education: [
+    '#education [data-r4-scene="education"] .r4-education__vertical h2',
+    '#education .r4-education__lead p'
+  ]
+} as const;
+
+const PH_SLICE_SEGMENT = {
+  'lab:ph-animation': 'lab-ph',
+  'ph-animation:education': 'ph-education',
+  'education:ph-animation': 'ph-education',
+  'ph-animation:lab': 'lab-ph'
+} as const;
+
+type PhSliceScene = keyof typeof PH_SLICE_CONTENT;
+
 async function nextAnimationFrame(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
@@ -377,6 +397,107 @@ async function expectFigure3SliceRollback(
     ...(shell as HTMLElement).dataset
   }));
   throw new Error(`Figure3 slice did not roll back: ${JSON.stringify(state)}`);
+}
+
+async function completePhSliceAttempt(
+  page: import('@playwright/test').Page,
+  source: PhSliceScene,
+  target: PhSliceScene,
+  direction: 'forward' | 'reverse',
+  before: number
+): Promise<void> {
+  const segment = PH_SLICE_SEGMENT[`${source}:${target}` as keyof typeof PH_SLICE_SEGMENT];
+  const effectSelector = `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"], `
+    + `[data-phone-plane="effect"] [data-phone-transition="${segment}"]`;
+  await page.waitForFunction((expectedSegment) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return Boolean(document.querySelector(
+      `[data-phone-plane="effect"] [data-r4-ink-segment="${expectedSegment}"], `
+        + `[data-phone-plane="effect"] [data-phone-transition="${expectedSegment}"]`
+    ) || document.querySelector('[data-phone-activation]:not([hidden])')
+      || shell?.dataset.phonePhase === 'awaiting-leg-intent');
+  }, segment, { timeout: 10_000 });
+  await expect(page.locator(effectSelector)).toBeAttached({ timeout: 10_000 });
+  for (let boundary = 0; boundary < 5; boundary += 1) {
+    const state = await page.waitForFunction(({ from, to, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const current = {
+        scene: shell?.dataset.phoneScene,
+        status: shell?.dataset.phoneStatus,
+        phase: shell?.dataset.phonePhase,
+        failure: shell?.dataset.phoneFailure,
+        sequence: Number(shell?.dataset.phoneCommitSequence),
+        activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+      };
+      return current.scene === to && current.sequence > after
+        || current.status === 'stable' && current.scene === from
+        || current.activation
+        || current.phase === 'awaiting-leg-intent'
+        ? current : null;
+    }, { from: source, to: target, after: before }, { timeout: 25_000 });
+    const current = await state.jsonValue();
+    if (current.scene === target && current.sequence > before) break;
+    if (current.status === 'stable') {
+      throw new Error(`PH slice ${source} → ${target} rolled back: ${JSON.stringify(current)}`);
+    }
+    if (current.activation) {
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    } else if (current.phase === 'awaiting-leg-intent') {
+      await sendFrontIntent(page, direction);
+    }
+  }
+  await waitForCommitSequence(page, target, before);
+  expect(await readCommitSequence(page)).toBe(before + 1);
+}
+
+async function traversePhSlice(
+  page: import('@playwright/test').Page,
+  source: PhSliceScene,
+  target: PhSliceScene,
+  direction: 'forward' | 'reverse'
+): Promise<Readonly<{ videos: number; canvases: number }>> {
+  const before = await readCommitSequence(page);
+  await sendFrontIntent(page, direction);
+  await completePhSliceAttempt(page, source, target, direction, before);
+  await assertSinglePhoneAuthority(page);
+  await assertTargetContentVisible(page, PH_SLICE_CONTENT[target]);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+  if (target === 'ph-animation') {
+    await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
+      .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+  }
+  return page.evaluate(() => ({
+    videos: document.querySelectorAll('.phone-story video').length,
+    canvases: document.querySelectorAll('.phone-story canvas').length
+  }));
+}
+
+async function expectPhSliceRollback(
+  page: import('@playwright/test').Page,
+  source: PhSliceScene,
+  target: PhSliceScene,
+  before: number
+): Promise<void> {
+  let handledActivation = false;
+  for (let sample = 0; sample < 300; sample += 1) {
+    const state = await page.locator('.phone-story').evaluate((shell) => ({
+      scene: (shell as HTMLElement).dataset.phoneScene,
+      status: (shell as HTMLElement).dataset.phoneStatus,
+      sequence: Number((shell as HTMLElement).dataset.phoneCommitSequence),
+      activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+    }));
+    if ((state.status === 'stable' || state.status === 'faulted')
+      && state.scene === source && state.sequence === before) return;
+    if (state.status === 'stable' && state.scene === target) {
+      throw new Error(`Withheld PH proof committed ${target}: ${JSON.stringify(state)}`);
+    }
+    if (state.activation && !handledActivation) {
+      handledActivation = true;
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    }
+    await page.waitForTimeout(100);
+  }
+  throw new Error(`PH slice did not roll back from ${source}`);
 }
 
 async function withholdFigure3Endpoint(
@@ -1008,6 +1129,149 @@ test('Group 4-5 restores proved TTG after visibility and BFCache lifecycle event
     .toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
   await traverseGroup45(page, 'ttg-animation', 'lab', 'forward');
   await traverseGroup45(page, 'lab', 'ttg-animation', 'reverse');
+});
+
+test('PH slice direct PH and Education entries expose accepted endpoints', async ({ page }) => {
+  for (const scene of ['ph-animation', 'education'] as const) {
+    await page.goto(`/harness/r5-phone-clean?direct=${scene}#${scene}`, {
+      waitUntil: 'domcontentloaded'
+    });
+    await waitForCommitSequence(page, scene, 0);
+    await assertSinglePhoneAuthority(page);
+    await assertTargetContentVisible(page, PH_SLICE_CONTENT[scene]);
+    await assertNoWhiteOrTransparentViewportEdges(page);
+    if (scene === 'ph-animation') {
+      await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
+        .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+      await expect(page.locator('.phone-ph video')).toHaveCount(1);
+      await expect(page.locator('.phone-ph canvas')).toHaveCount(1);
+    }
+  }
+});
+
+test('PH slice completes Lab → PH → Education forward/reverse twice without growth', async ({
+  page
+}) => {
+  await page.goto('/harness/r5-phone-clean#lab', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'lab', 0);
+  const cycle = async () => [
+    await traversePhSlice(page, 'lab', 'ph-animation', 'forward'),
+    await traversePhSlice(page, 'ph-animation', 'education', 'forward'),
+    await traversePhSlice(page, 'education', 'ph-animation', 'reverse'),
+    await traversePhSlice(page, 'ph-animation', 'lab', 'reverse')
+  ];
+  const first = await cycle();
+  const second = await cycle();
+  expect(second).toEqual(first);
+  for (const sample of second) {
+    expect(sample.videos).toBeLessThanOrEqual(1);
+    expect(sample.canvases).toBeLessThanOrEqual(2);
+  }
+});
+
+test('PH slice keeps Lab proved while the PH leaf chunk is delayed', async ({ page }) => {
+  let releaseChunk = () => undefined;
+  let observeRequest = () => undefined;
+  const gate = new Promise<void>((resolve) => { releaseChunk = resolve; });
+  const requested = new Promise<void>((resolve) => { observeRequest = resolve; });
+  await page.route(/\/assets\/PhonePh-[^/]+\.js$/, async (route) => {
+    observeRequest();
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto('/harness/r5-phone-clean#lab', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'lab', 0);
+    await sendFrontIntent(page, 'forward');
+    await requested;
+    expect(await readCommitSequence(page)).toBe(before);
+    await assertTargetContentVisible(page, PH_SLICE_CONTENT.lab);
+    releaseChunk();
+    await completePhSliceAttempt(page, 'lab', 'ph-animation', 'forward', before);
+  } finally {
+    releaseChunk();
+  }
+});
+
+test('PH slice refuses a withheld packed draw and keeps Lab stable', async ({ page }) => {
+  let releaseMedia = () => undefined;
+  const gate = new Promise<void>((resolve) => { releaseMedia = resolve; });
+  await page.route(/ph-figure-motion-rgb-alpha.*\.mp4$/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto('/harness/r5-phone-clean#lab', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'lab', 0);
+    await sendFrontIntent(page, 'forward');
+    await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
+      .toBeAttached();
+    await expectPhSliceRollback(page, 'lab', 'ph-animation', before);
+    await assertTargetContentVisible(page, PH_SLICE_CONTENT.lab);
+  } finally {
+    releaseMedia();
+  }
+});
+
+test('PH slice context loss cannot commit a false PH frame', async ({ page }) => {
+  let releaseMedia = () => undefined;
+  const gate = new Promise<void>((resolve) => { releaseMedia = resolve; });
+  await page.route(/ph-figure-motion-rgb-alpha.*\.mp4$/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto('/harness/r5-phone-clean#lab', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'lab', 0);
+    await sendFrontIntent(page, 'forward');
+    const canvas = page.locator('[data-phone-packed-alpha-canvas="ph-figure"]');
+    await expect(canvas).toBeAttached();
+    await canvas.dispatchEvent('webglcontextlost', { cancelable: true });
+    await expectPhSliceRollback(page, 'lab', 'ph-animation', before);
+  } finally {
+    releaseMedia();
+  }
+});
+
+test('PH slice re-proves its retained compositor after visibility and BFCache events', async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const visibility = { current: 'visible' as DocumentVisibilityState };
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true, get: () => visibility.current
+    });
+    Object.defineProperty(window, '__r5SetVisibility', {
+      configurable: true,
+      value: (next: DocumentVisibilityState) => {
+        visibility.current = next;
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+    });
+  });
+  await page.goto('/harness/r5-phone-clean#ph-animation', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'ph-animation', 0);
+  const beforePlaneRevision = Number(await page.locator('.phone-story')
+    .getAttribute('data-phone-plane-revision'));
+  await page.evaluate(() => {
+    const api = window as typeof window & {
+      __r5SetVisibility(next: DocumentVisibilityState): void;
+    };
+    api.__r5SetVisibility('hidden');
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    api.__r5SetVisibility('visible');
+  });
+  await page.waitForFunction((before) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return shell?.dataset.phoneStatus === 'stable'
+      && shell.dataset.phoneScene === 'ph-animation'
+      && Number(shell.dataset.phonePlaneRevision) > before;
+  }, beforePlaneRevision, { timeout: 15_000 });
+  await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
+    .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+  await traversePhSlice(page, 'ph-animation', 'education', 'forward');
+  await traversePhSlice(page, 'education', 'ph-animation', 'reverse');
 });
 
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {

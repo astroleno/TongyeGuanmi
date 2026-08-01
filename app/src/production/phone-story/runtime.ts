@@ -303,9 +303,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         };
         leaves.set(key, lease);
         bindLeafGeneration(lease, state, false);
-        const active = snapshot.status === 'transaction'
-          && sameAttempt(snapshot.transaction.attempt, state.binding.attempt)
+        const active = snapshot.status === 'transaction' && sameAttempt(snapshot.transaction.attempt, state.binding.attempt)
           ? snapshot.transaction : null;
+        if (active) lease.mount.commands.render(active.progress);
         if (active && state.binding.leg === 'target' && mount.resources.videos > 0) {
           if (['boot', 'entry'].includes(active.mode)) {
             invokeActivation([lease], active.attempt, 'direct-muted-autoplay');

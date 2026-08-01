@@ -998,6 +998,47 @@ function commandFixture(
 }
 
 describe('phone runtime projector bridge', () => {
+  it('renders the reducer-owned start endpoint before activating a newly mounted leaf', () => {
+    const directFixture = createEnvironment();
+    const directRuntime = createRuntime(directFixture, '#ph-animation');
+    const disconnectDirect = directRuntime.connect();
+    const directCalls: string[] = [];
+    const { commands: directCommands } = commandFixture();
+    vi.mocked(directCommands.render).mockImplementation((progress) => {
+      directCalls.push(`render:${progress}`);
+    });
+    vi.mocked(directCommands.activate).mockImplementation((command) => {
+      directCalls.push('activate');
+      return {
+        invocationId: command.invocationId,
+        surfaceIds: command.surfaceIds,
+        invoked: true,
+        settlements: command.surfaceIds.map((surfaceId) => ({
+          surfaceId, status: 'fulfilled' as const
+        }))
+      };
+    });
+    registerCurrentLeaf(directRuntime, directCommands);
+    expect(directCalls.slice(0, 2)).toEqual(['render:0', 'activate']);
+    disconnectDirect();
+
+    const reverseFixture = createEnvironment();
+    const reverseRuntime = createRuntime(reverseFixture, '#education');
+    const disconnectReverse = reverseRuntime.connect();
+    proveCurrent(reverseRuntime, reverseFixture);
+    reverseFixture.emit({
+      type: 'input', kind: 'wheel', delta: -100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    expect(currentTransaction(reverseRuntime)).toMatchObject({
+      candidateSceneId: 'ph-animation', progress: 1
+    });
+    const { commands: reverseCommands } = commandFixture();
+    registerCurrentLeaf(reverseRuntime, reverseCommands);
+    expect(reverseCommands.render).toHaveBeenCalledWith(1);
+    disconnectReverse();
+  });
+
   it('uses verifyVisibleCandidate for one exact target-plane proof and never forwards it', () => {
     const fixture = createEnvironment();
     const verifyVisibleCandidate = vi.fn(exactPlaneResult);

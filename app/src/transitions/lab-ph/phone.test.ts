@@ -28,28 +28,14 @@ describe('Phone Lab → PH transition', () => {
     });
     expect(source).not.toMatch(/from ['"].*PhoneLab/);
     expect(source).not.toMatch(/from ['"].*scenes\/lab/);
-    expect(source).toContain('createPhoneInkTransition');
+    expect(source).toContain('createPhoneInkLeaf');
     expect(source).toContain("direction: 'bottom-to-top'");
     expect(source).toContain("grade: 'edge-bright'");
-    expect(source).toContain("'data-phone-lab-ph-ink': 'bottom-to-top'");
-    expect(source).toContain("host.dataset.phoneLabPhInkSurface = 'transparent'");
-    expect(source).toContain('from: null');
-    expect(source).toContain('ensureInk()?.render(frame.progress)');
-    expect(source).toContain('const progressRef = useRef(0)');
-    expect(source).toContain('const directionRef = useRef<1 | -1>(1)');
-    expect(source).toContain('const releaseInk = useCallback');
-    expect(source).toContain('ink.dispose()');
-    expect(source).toContain('canvas.width = 1');
-    expect(source).toMatch(
-      /leave\(\) \{\s*directionRef\.current = 1;\s*render\(1\);\s*[\s\S]*?releaseInk\(\);\s*\}/
-    );
-    expect(source).toMatch(
-      /reverse\(\) \{\s*directionRef\.current = -1;\s*render\(1\);\s*\}/
-    );
+    expect(source).toContain("surfaceId: 'fx:lab-ph'");
+    expect(source).toContain("segmentId: 'lab-ph'");
     expect(stylesheet).toContain('data-phone-lab-ph-ink-surface="transparent"');
     expect(stylesheet).toContain('background: transparent');
-    expect(source).not.toContain('preparePhAnimationFrame');
-    expect(source).not.toContain('parkPhonePhMedia');
+    expect(source).not.toContain('production/phone/');
   });
 
   it('accepts a lightweight stable Lab outlet fixture without Lab JSX or refs', () => {

@@ -52,6 +52,31 @@
   padding: max(72px, 12svh) clamp(24px, 6vw, 42px) max(72px, 12svh);
 }
 
+/*
+ * The fixed candidate plane proves the authored Education landing, while the
+ * separate Reading export keeps both native document acts. Do not put the
+ * two-screen reading document inside the one-viewport transition plane.
+ */
+.phone-education__visual {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
+.phone-education__visual .phone-education,
+.phone-education__visual .r4-education {
+  height: 100%;
+  min-height: 100%;
+}
+
+.phone-education__visual .r4-education__wide {
+  display: none;
+}
+
+.phone-education__visual .r4-education__vertical {
+  min-height: 100%;
+}
+
 .phone-education :is(a, button, input, select, textarea, [role="button"]) {
   pointer-events: auto;
   touch-action: manipulation;
