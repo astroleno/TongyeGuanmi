@@ -482,18 +482,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           autoplayRef.current?.reset();
         }
       },
-      enter() {
-        ensureCompositor()?.setActive(true);
-      },
-      leave() {
-        clearAutoplayExecution();
-        if (presentationBindingRef.current) {
-          cancelAodPresentationFrames(presentationBindingRef.current);
-        }
-        presentationBindingRef.current = null;
-        releaseCompositor();
-      },
-      reverse() {},
       dispose() {
         clearAutoplayExecution();
         if (presentationBindingRef.current) {

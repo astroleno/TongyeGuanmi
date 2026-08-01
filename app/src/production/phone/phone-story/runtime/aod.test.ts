@@ -42,7 +42,8 @@ type Harness = Readonly<{
 function createHarness(
   direction: 1 | -1 = 1,
   startResult: 'playing' | 'blocked' | 'error' = 'playing',
-  reducedMotion = false
+  reducedMotion = false,
+  reducedTargetPosition: (direction: 1 | -1) => number | null = () => 100
 ): Harness {
   const token = {
     authorityId: 'aod-authority',
@@ -222,6 +223,7 @@ function createHarness(
     reset,
     reducedMotion,
     {
+      position: reducedTargetPosition,
       present: presentStaticTarget,
       dispose: disposeStaticTarget
     }
@@ -309,6 +311,16 @@ describe('AOD ↔ Method single runner cutover', () => {
       value.runner[6]();
     }
   );
+
+  it('[AOD reduced cutover] asks the runner-owned target layout for the static receiver, not its source boundary', async () => {
+    const value = createHarness(1, 'playing', true, () => 1_728);
+
+    expect(value.startRun()).toBe(true);
+    await Promise.resolve();
+
+    expect(value.requestReducedTargetLayout).toHaveBeenCalledWith(1_728);
+    value.runner[6]();
+  });
 
   it('orders admission → accepted proof → playback → settle and suppresses pre-proof progress', async () => {
     const value = createHarness();

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FRONT_HALF_CHECKPOINT_IDS } from '../../story/semantic-checkpoints';
 import * as phoneStageTimeline from './phone-stage-timeline';
@@ -13,6 +14,11 @@ import {
   phoneStageFrame
 } from './phone-stage-timeline';
 
+const stageTimelineSource = readFileSync(
+  new URL('./phone-stage-timeline.ts', import.meta.url),
+  'utf8'
+);
+
 describe('phone stage timeline', () => {
   it('maps the accepted forward Route B stops to named checkpoints', () => {
     const trace = [
@@ -23,7 +29,8 @@ describe('phone stage timeline', () => {
       phoneStageFrame(PHONE_STAGE_STOPS.patternStarEnd + 0.01)[1],
       phoneStageFrame(PHONE_STAGE_STOPS.starAodStart + 0.01)[1],
       phoneStageFrame(PHONE_STAGE_STOPS.starAodEnd + 0.01)[1],
-      phoneStageFrame(1)[1]
+      phoneStageFrame(1)[1],
+      phoneAodCheckpointForMethodProgress(0)
     ];
     expect(trace).toEqual([
       'hero-entered',
@@ -32,6 +39,7 @@ describe('phone stage timeline', () => {
       'pattern-to-star-map',
       'star-map-reading',
       'star-map-to-aod',
+      'aod-stage',
       'aod-stage',
       'aod-autoplay'
     ]);
@@ -52,12 +60,12 @@ describe('phone stage timeline', () => {
       'pattern-complete',
       'pattern'
     ]);
-    expect(phoneStageFrame(0.3, true)[10]).toBe('hold-pattern');
+    expect(phoneStageFrame(0.3, true)[9]).toBe('hold-pattern');
     expect(phoneStageFrame(0.9, true).slice(1, 3)).toEqual([
       'aod-stage',
       'aod-animation'
     ]);
-    expect(phoneStageFrame(0.9, true)[10]).toBe('hold-aod');
+    expect(phoneStageFrame(0.9, true)[9]).toBe('hold-aod');
     expect(phoneFrontRailSample(
       (PHONE_STAGE_STOPS.heroMotionEnd + PHONE_STAGE_STOPS.heroPatternEnd) / 2,
       1,
@@ -115,6 +123,12 @@ describe('phone stage timeline', () => {
     expect(phoneAodCheckpointForMethodProgress(0.002)).toBe('aod-to-method');
     expect(phoneAodCompletionCheckpoint(1)).toBe('method-intro');
     expect(phoneAodCompletionCheckpoint(-1)).toBe('aod-stage');
+  });
+
+  it('[AOD first-intent cutover] keeps every post-AOD rail sample as a source hold', () => {
+    expect(stageTimelineSource).not.toContain('aodAutoplayStart');
+    expect(phoneStageFrame(PHONE_STAGE_STOPS.starAodEnd)[1]).toBe('aod-stage');
+    expect(phoneStageFrame(1)[1]).toBe('aod-stage');
   });
 
   it('[Task 4] maps one front-rail geometry sample to a hold or one scroll run', () => {
@@ -204,7 +218,7 @@ describe('phone stage timeline', () => {
       phoneStageFrame(PHONE_STAGE_STOPS.patternStarEnd + 0.01)[1],
       phoneStageFrame(PHONE_STAGE_STOPS.starAodStart + 0.01)[1],
       phoneStageFrame(PHONE_STAGE_STOPS.starAodEnd + 0.01)[1],
-      phoneStageFrame(1)[1],
+      phoneAodCheckpointForMethodProgress(0),
       phoneAodCheckpointForMethodProgress(0.5),
       phoneAodCompletionCheckpoint(1)
     ];

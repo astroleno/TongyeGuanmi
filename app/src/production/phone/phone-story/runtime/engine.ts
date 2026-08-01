@@ -361,7 +361,6 @@ export function createPhoneStoryRuntimeEngine(
     return resolvePhoneRunLanding({
       policy: phoneRunTuple(operation.run)[4],
       direction: operation.direction,
-      reason,
       currentY: options.scrollY(),
       boundaryY: snapshot.session.anchor.y ?? fallbackY,
       ...(corridorLanding === null ? {} : {
@@ -709,7 +708,6 @@ export function createPhoneStoryRuntimeEngine(
       ? resolvePhoneRunLanding({
           policy: definition[4],
           direction,
-          reason,
           currentY: options.scrollY(),
           boundaryY,
           ...(compositeY === null ? {} : { compositeY })

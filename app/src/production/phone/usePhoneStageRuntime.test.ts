@@ -5,10 +5,17 @@ import {
   reducePhoneStorySnapshot
 } from './phone-story/machine';
 import { selectPhoneCinematicSnapshot } from './phone-story/runtime';
-import { phoneSnapshotOwnsAod } from './usePhoneStageRuntime';
+import {
+  phoneSnapshotOwnsAod,
+  phoneSnapshotOwnsMethod
+} from './usePhoneStageRuntime';
 
 const stageRuntimeSource = readFileSync(
   new URL('./usePhoneStageRuntime.ts', import.meta.url),
+  'utf8'
+);
+const aodLeafSource = readFileSync(
+  new URL('./scenes/PhoneAod.tsx', import.meta.url),
   'utf8'
 );
 
@@ -42,9 +49,97 @@ describe('phone stage AOD resource selection', () => {
     })))).toBe(false);
   });
 
+  it('[AOD first-intent cutover] does not activate Method leaf effects before its authored cue', () => {
+    const initial = createPhoneStorySnapshot({
+      authorityId: 'aod-method-cue-authority',
+      scene: 'aod-animation'
+    });
+    const prepared = reducePhoneStorySnapshot(initial, {
+      type: 'RUN_STARTED',
+      authorityId: initial.authorityId,
+      sessionId: 'aod-method-cue-session',
+      generation: 1,
+      leg: 0,
+      direction: 1,
+      run: 'aod-method',
+      anchorY: 800,
+      inputEpoch: 1
+    }).snapshot;
+    expect(phoneSnapshotOwnsMethod(
+      selectPhoneCinematicSnapshot(prepared),
+      (progress) => Math.max(0, (progress - .8) / .2)
+    )).toBe(false);
+
+    if (prepared.status !== 'transaction') {
+      throw new Error('Expected an AOD transaction');
+    }
+    const session = prepared.session;
+    const proof = {
+      token: {
+        authorityId: prepared.authorityId,
+        sessionId: session.sessionId,
+        generation: session.generation,
+        leg: session.operation.legIndex,
+        revision: session.presentationRevision,
+        subject: 'front:aod',
+        kind: 'packed-canvas-frame' as const
+      },
+      frameSequence: 1,
+      observedAt: 10,
+      connected: true,
+      visible: true,
+      coverageComplete: true,
+      edge: 'method' as const
+    };
+    const animating = reducePhoneStorySnapshot(prepared, {
+      type: 'PRESENTATION_PROOF_REPORTED',
+      authorityId: prepared.authorityId,
+      sessionId: session.sessionId,
+      generation: session.generation,
+      leg: session.operation.legIndex,
+      direction: session.operation.direction,
+      proof
+    }).snapshot;
+    if (animating.status !== 'transaction') {
+      throw new Error('Expected an animating AOD transaction');
+    }
+    const running = animating.session;
+    const beforeCue = reducePhoneStorySnapshot(animating, {
+      type: 'PROGRESS_REPORTED',
+      authorityId: animating.authorityId,
+      sessionId: running.sessionId,
+      generation: running.generation,
+      leg: running.operation.legIndex,
+      direction: running.operation.direction,
+      progress: .8
+    }).snapshot;
+    expect(phoneSnapshotOwnsMethod(
+      selectPhoneCinematicSnapshot(beforeCue),
+      (progress) => Math.max(0, (progress - .8) / .2)
+    )).toBe(false);
+
+    if (beforeCue.status !== 'transaction') {
+      throw new Error('Expected an AOD transaction at its cue');
+    }
+    const cue = beforeCue.session;
+    const afterCue = reducePhoneStorySnapshot(beforeCue, {
+      type: 'PROGRESS_REPORTED',
+      authorityId: beforeCue.authorityId,
+      sessionId: cue.sessionId,
+      generation: cue.generation,
+      leg: cue.operation.legIndex,
+      direction: cue.operation.direction,
+      progress: .81
+    }).snapshot;
+    expect(phoneSnapshotOwnsMethod(
+      selectPhoneCinematicSnapshot(afterCue),
+      (progress) => Math.max(0, (progress - .8) / .2)
+    )).toBe(true);
+  });
+
   it('[terminal/direct admission surface lease] keeps Method registered across renderer and loader revisions', () => {
     const registration = stageRuntimeSource.indexOf(
-      "'native:method'"
+      "registerPhoneRuntimeSurface(\n        options.orchestrator,\n        'native:method'"
     );
     const effectStart = stageRuntimeSource.lastIndexOf(
       '  useLayoutEffect(() => {',
@@ -92,5 +187,22 @@ describe('phone stage AOD resource selection', () => {
     // A leaf handle can temporarily disappear while React rebinds a renderer.
     // That must never remove the Method → AOD input boundary or its one runner.
     expect(admissionEffect).not.toContain('options.adapterRevision');
+  });
+
+  it('[AOD first-intent cutover] derives its geometry boundary from the stable semantic edge', () => {
+    expect(stageRuntimeSource).not.toContain('aodAutoplayStart');
+    expect(stageRuntimeSource.match(/stagePosition\(PHONE_STAGE_STOPS\.starAodEnd\)/g))
+      .toHaveLength(1);
+    expect(stageRuntimeSource).toContain('const aodSemanticPosition = () =>');
+    expect(stageRuntimeSource).toContain(
+      'window.scrollY + method.getBoundingClientRect().top'
+    );
+  });
+
+  it('[AOD first-intent cutover] admits playback through the one runner bridge', () => {
+    expect(stageRuntimeSource.match(/aodAdapter\.startAutoplay\(/g)).toHaveLength(1);
+    expect(aodLeafSource).not.toMatch(/\n\s*enter\(\)\s*\{/);
+    expect(aodLeafSource).not.toMatch(/\n\s*leave\(\)\s*\{/);
+    expect(aodLeafSource).not.toMatch(/\n\s*reverse\(\)\s*\{/);
   });
 });

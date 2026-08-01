@@ -13,7 +13,7 @@ describe('orchestrator-owned phone run landing', () => {
   ] as const)('resolves %s %s %s without a generic fallback', (
     policy,
     direction,
-    reason,
+    _reason,
     currentY,
     boundaryY,
     compositeY,
@@ -22,7 +22,6 @@ describe('orchestrator-owned phone run landing', () => {
     expect(resolvePhoneRunLanding({
       policy,
       direction,
-      reason,
       currentY,
       boundaryY,
       compositeY
@@ -33,10 +32,26 @@ describe('orchestrator-owned phone run landing', () => {
     expect(resolvePhoneRunLanding({
       policy: 'authored-boundary',
       direction: -1,
-      reason: 'reverse',
       currentY: 5_619,
       boundaryY: 5_619,
       targetY: 4_051
     } as Parameters<typeof resolvePhoneRunLanding>[0])).toBe(4_051);
+  });
+
+  it('[AOD→Method execution cutover] keeps the source boundary for admission but lands the completed forward target', () => {
+    expect(resolvePhoneRunLanding({
+      policy: 'aod-semantic-edge',
+      direction: 1,
+      currentY: 1_382,
+      boundaryY: 1_382,
+      targetY: 1_728
+    } as Parameters<typeof resolvePhoneRunLanding>[0])).toBe(1_728);
+    expect(resolvePhoneRunLanding({
+      policy: 'aod-semantic-edge',
+      direction: -1,
+      currentY: 1_728,
+      boundaryY: 1_382,
+      targetY: 1_728
+    } as Parameters<typeof resolvePhoneRunLanding>[0])).toBe(1_382);
   });
 });

@@ -838,13 +838,30 @@ function terminalCandidateProjection(
   );
   const cursor = transactionCursor(snapshot);
   if (!cursor) return target;
-  const physical = phoneStoryPresentation(
-    presentationCursorForTransaction(snapshot, cursor)
-  );
-  return {
+  // AOD's forward terminal cursor ends at progress 1, whose semantic scene
+  // is already native Method. That would release the packed AOD source before
+  // Method can render its exact admission proof. Keep this one vertical
+  // handoff on its source physical plane until the proof advances the reducer.
+  // Other canonical segments retain their already-qualified terminal policy.
+  const keepsAodSourceForMethodAdmission = operation.run === 'aod-method'
+    && operation.direction === 1;
+  const sourcePhysicalCursor = keepsAodSourceForMethodAdmission
+    ? { ...cursor, progress: 0 }
+    : cursor;
+  const physical = phoneStoryPresentation(sourcePhysicalCursor);
+  const candidate = {
     ...target,
     stageOwner: physical.stageOwner,
     stageScene: physical.stageScene
+  };
+  if (!keepsAodSourceForMethodAdmission) return candidate;
+  return {
+    ...candidate,
+    // Preserve the one currently painted source as the coverage owner. The
+    // candidate receiver remains the target leaf, so it can issue its raw
+    // post-paint proof without a second visual writer or a blank frame.
+    sourceSurface: physical.sourceSurface,
+    coverageSurface: physical.coverageSurface
   };
 }
 
@@ -881,14 +898,26 @@ function projectionForTransaction(
     return phoneStableProjection(operationSource(operation), 'candidate', revision);
   }
   const cursor = transactionCursor(snapshot);
-  return cursor
-    ? {
-        ...phoneStoryPresentation(
-          presentationCursorForTransaction(snapshot, cursor)
-        ),
-        revision
-      }
-    : phoneStableProjection(operationSource(operation), 'candidate', revision);
+  if (!cursor) {
+    return phoneStableProjection(operationSource(operation), 'candidate', revision);
+  }
+  const projection = phoneStoryPresentation(
+    presentationCursorForTransaction(snapshot, cursor)
+  );
+  if (
+    operation.run === 'aod-method'
+    && operation.direction === 1
+    && phase === 'animating'
+  ) {
+    const sourceStage = phoneStoryPresentation({ ...cursor, progress: 0 });
+    return {
+      ...projection,
+      stageOwner: sourceStage.stageOwner,
+      stageScene: sourceStage.stageScene,
+      revision
+    };
+  }
+  return { ...projection, revision };
 }
 
 function scrollRunCursor(snapshot: PhoneScrollRunSnapshot): PhoneStoryTransition {

@@ -55,6 +55,31 @@ export function phoneSnapshotOwnsAod(snapshot: PhoneCinematicSnapshot): boolean 
     || snapshot[2] === FRONT_AOD_SURFACE;
 }
 
+/** Method leaf effects follow the projection and AOD's authored receiver cue. */
+export function phoneSnapshotOwnsMethod(
+  snapshot: PhoneCinematicSnapshot,
+  mapAodToMethod: (progress: number) => number
+): boolean {
+  const [
+    ,
+    sourceSurface,
+    receiverSurface,
+    ,
+    ,
+    ,
+    run,
+    direction,
+    ,
+    phase,
+    progress
+  ] = snapshot;
+  if (sourceSurface === 'native:method') return true;
+  if (receiverSurface !== 'native:method') return false;
+  if (run !== 'aod-method' || direction !== 1) return true;
+  if (phase === 'preparing') return false;
+  return phase !== 'animating' || mapAodToMethod(progress ?? 0) > 0;
+}
+
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
@@ -117,7 +142,10 @@ function frontProgressForSnapshot(snapshot: PhoneCinematicSnapshot): number | nu
     }
   }
   if (status === 'transaction' && transactionRun === 'aod-method') {
-    return PHONE_STAGE_STOPS.aodAutoplayStart;
+    // Keep the rail at the stable source semantic edge while the runner owns
+    // AOD admission and playback. A rail percentage is never an autoplay
+    // command or an alternative transaction owner.
+    return PHONE_STAGE_STOPS.starAodEnd;
   }
   if (stageOwner !== 'front') return null;
   return scrollProgress > 0 || semanticScene === 'hero'
@@ -374,6 +402,13 @@ export function usePhoneStageRuntime(
     let completedHeroEntrance = false;
     const stagePosition = (progress: number) => stageScrollStart
       + (stageScrollEnd - stageScrollStart) * progress;
+    const aodSemanticPosition = () => stagePosition(PHONE_STAGE_STOPS.starAodEnd);
+    const methodDocumentPosition = () => {
+      const method = methodRef.current?.root();
+      return method
+        ? window.scrollY + method.getBoundingClientRect().top
+        : null;
+    };
     const readStageScrollDistance = () => {
       const configuredDistance = Number.parseFloat(
         root.style.getPropertyValue('--portrait-stage-scroll-distance')
@@ -511,10 +546,13 @@ export function usePhoneStageRuntime(
       (run, direction) => {
         if (run !== 'aod-method') return null;
         return direction === 1
-          ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
+          ? aodSemanticPosition()
           : Math.max(stageScrollStart, stageScrollEnd - 1);
       },
       (scene) => {
+        if (scene === 'method-top') {
+          return methodDocumentPosition();
+        }
         const progress = frontHoldProgress(scene);
         return progress === null ? null : stagePosition(progress);
       }
@@ -530,7 +568,7 @@ export function usePhoneStageRuntime(
     ] = registerPhoneRuntimeAodCapability(
       options.orchestrator,
       (direction) => direction === 1
-        ? stagePosition(PHONE_STAGE_STOPS.aodAutoplayStart)
+        ? aodSemanticPosition()
         : Math.max(stageScrollStart, stageScrollEnd - 1),
       (direction) => {
         const snapshot = snapshotRef.current;
@@ -555,6 +593,12 @@ export function usePhoneStageRuntime(
       },
       options.reducedMotion,
       {
+        position(direction) {
+          if (direction !== 1) {
+            return aodSemanticPosition();
+          }
+          return methodDocumentPosition();
+        },
         present(execution, report) {
           const methodAdapter = methodRef.current;
           const aodAdapter = aodRef.current;

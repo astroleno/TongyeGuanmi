@@ -28,7 +28,6 @@ export function renderPhoneStageTransitions(
     heroPatternProgress,
     patternStarProgress,
     starAodProgress,
-    ,
     ownershipKey
   ] = frame;
   if (ownershipKey === 'handoff-hero-pattern') {

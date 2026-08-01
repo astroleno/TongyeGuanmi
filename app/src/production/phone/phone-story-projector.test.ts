@@ -416,6 +416,124 @@ describe('phone story projector', () => {
     expect(proof.dataset.phoneSurfaceRole).toBe('transition-receiver');
   });
 
+  it('[AOD first-intent cutover] retains Method until the runner reaches its authored cue', () => {
+    const root = element();
+    const aod = element();
+    const method = element();
+    const projector = createPhoneStoryPresentation({
+      authorityId: 'aod-first-intent-authority',
+      scope: 'formal',
+      root: () => root
+    });
+    projector.registerSurface({
+      id: 'front:aod',
+      scene: 'aod-animation',
+      kind: 'fixed',
+      root: () => aod,
+      coverageRoot: () => aod,
+      presentation: () => [true, true, true, false, null]
+    });
+    projector.registerSurface({
+      id: 'native:method',
+      scene: 'method-top',
+      kind: 'native',
+      root: () => method,
+      coverageRoot: () => method,
+      presentation: () => [true, false, false, false, null]
+    });
+
+    const apply = (snapshot: Parameters<typeof phonePresentationSnapshot>[0]) => {
+      const plan = preflight(projector, snapshot);
+      if (!plan) throw new Error('Expected an AOD presentation plan');
+      projector.apply(plan);
+    };
+    let current = reducePhoneStorySnapshot(createPhoneStorySnapshot({
+      authorityId: 'aod-first-intent-authority',
+      scene: 'aod-animation'
+    }), {
+      type: 'RUN_STARTED',
+      authorityId: 'aod-first-intent-authority',
+      sessionId: 'aod-first-intent-session',
+      generation: 1,
+      leg: 0,
+      direction: 1,
+      run: 'aod-method',
+      anchorY: 800,
+      inputEpoch: 1
+    }).snapshot;
+
+    apply(current);
+    expect(aod.dataset.phoneSurfaceRole).toBe('transition-source');
+    expect(method.dataset.phoneSurfaceRole).toBe('retained-under-stage');
+    expect(method.dataset.phoneLayerRole).toBe('retained');
+
+    if (current.status !== 'transaction') {
+      throw new Error('Expected a prepared AOD transaction');
+    }
+    const firstSession = current.session;
+    const leg = phoneRunLegTuple('aod-method', firstSession.operation.legIndex);
+    if (!leg) throw new Error('Expected the AOD → Method leg');
+    const frame = phoneSegmentPresentationTuple(leg[0]);
+    current = reducePhoneStorySnapshot(current, {
+      type: 'PRESENTATION_PROOF_REPORTED',
+      authorityId: current.authorityId,
+      sessionId: firstSession.sessionId,
+      generation: firstSession.generation,
+      leg: firstSession.operation.legIndex,
+      direction: firstSession.operation.direction,
+      proof: {
+        token: {
+          authorityId: current.authorityId,
+          sessionId: firstSession.sessionId,
+          generation: firstSession.generation,
+          leg: firstSession.operation.legIndex,
+          revision: firstSession.presentationRevision,
+          subject: frame[9],
+          kind: frame[8]
+        },
+        frameSequence: 1,
+        observedAt: 42,
+        connected: true,
+        visible: true,
+        coverageComplete: true,
+        edge: phoneScenePresentationTuple(frame[3])[1]
+      }
+    }).snapshot;
+    if (current.status !== 'transaction') {
+      throw new Error('Expected an animating AOD transaction');
+    }
+
+    const belowCue = current.session;
+    current = reducePhoneStorySnapshot(current, {
+      type: 'PROGRESS_REPORTED',
+      authorityId: current.authorityId,
+      sessionId: belowCue.sessionId,
+      generation: belowCue.generation,
+      leg: belowCue.operation.legIndex,
+      direction: belowCue.operation.direction,
+      progress: 0.8
+    }).snapshot;
+    apply(current);
+    expect(method.dataset.phoneSurfaceRole).toBe('retained-under-stage');
+
+    if (current.status !== 'transaction') {
+      throw new Error('Expected an AOD transaction at its cue');
+    }
+    const afterCue = current.session;
+    current = reducePhoneStorySnapshot(current, {
+      type: 'PROGRESS_REPORTED',
+      authorityId: current.authorityId,
+      sessionId: afterCue.sessionId,
+      generation: afterCue.generation,
+      leg: afterCue.operation.legIndex,
+      direction: afterCue.operation.direction,
+      progress: 0.81
+    }).snapshot;
+    apply(current);
+    expect(method.dataset.phoneSurfaceRole).toBe('transition-receiver');
+    expect(method.dataset.phoneLayerRole).toBe('transition-receiver');
+  });
+
   it('[R5] keeps one live physical plane through a source-led media handoff', () => {
     const root = element();
     const figure3 = element();

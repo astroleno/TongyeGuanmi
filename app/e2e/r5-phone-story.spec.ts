@@ -2546,6 +2546,78 @@ test('[execution regression] Star Map advances real Perlin frames while its stab
   ).toBe(inactiveRevision);
 });
 
+test('[execution regression] first AOD forward input locks the runner before the rail can advance', async ({ page }) => {
+  test.setTimeout(90_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/', 'hero');
+  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
+  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
+  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await assertStablePhoneHold(page, 'aod-animation');
+  await waitForNewWheelEpoch(page);
+
+  const before = await page.evaluate(() => ({
+    scrollY: window.scrollY,
+    aodTime: document.querySelector<HTMLVideoElement>('[data-aod-figure-video]')?.currentTime ?? null
+  }));
+  await inputPhoneDelta(page, 50);
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  }));
+  const after = await page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+    const method = document.getElementById('method');
+    const style = method ? getComputedStyle(method) : null;
+    const rect = method?.getBoundingClientRect();
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    return {
+      cursor: root?.dataset.phoneCursor ?? null,
+      input: root?.dataset.phoneInputState ?? null,
+      scrollY: window.scrollY,
+      aodTime: video?.currentTime ?? null,
+      playbackOwner: video?.dataset.timelineVideoRun ?? null,
+      methodVisible: Boolean(
+        method
+        && style
+        && rect
+        && style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && Number.parseFloat(style.opacity || '1') > .01
+        && rect.bottom > 0
+        && rect.top < viewportHeight
+      )
+    };
+  });
+
+  expect(after.cursor).toBe('transition:aod-method:0');
+  expect(after.input).toBe('locked');
+  expect(after.playbackOwner).toMatch(/^phone-aod-forward:/);
+  expect(Math.abs(after.scrollY - before.scrollY)).toBeLessThanOrEqual(2);
+  expect(after.methodVisible).toBe(false);
+});
+
+test('[AOD↔Method execution cutover] completes one exact forward and reverse playback cycle', async ({ page }) => {
+  test.setTimeout(150_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/', 'hero');
+  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
+  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
+  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  const authorityId = await (await assertStablePhoneHold(page, 'aod-animation'))
+    .getAttribute('data-phone-authority-id');
+
+  await driveAdjacentPhoneRun(page, 'aod-animation', 'method-top', 1, 70_000);
+  await driveAdjacentPhoneRun(page, 'method-top', 'aod-animation', -1, 70_000);
+
+  await expect(await assertStablePhoneHold(page, 'aod-animation'))
+    .toHaveAttribute('data-phone-authority-id', authorityId!);
+  const probe = await phoneRuntimeProbe(page);
+  expect(probe.maxActive).toBeLessThanOrEqual(4);
+});
+
 test('[P0 real root pixels] cold Loader paints and changes compositor pixels', async ({ page }) => {
   test.setTimeout(30_000);
   await page.goto('/', { waitUntil: 'domcontentloaded' });

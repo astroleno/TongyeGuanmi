@@ -14,8 +14,7 @@ export const PHONE_STAGE_STOPS = Object.freeze({
   patternStarStart: 0.52,
   patternStarEnd: 0.61,
   starAodStart: 0.71,
-  starAodEnd: 0.80,
-  aodAutoplayStart: 0.985
+  starAodEnd: 0.80
 });
 
 /**
@@ -49,7 +48,6 @@ export type PhoneStageFrame = readonly [
   heroPatternProgress: number,
   patternStarProgress: number,
   starAodProgress: number,
-  shouldStartAodAutoplay: boolean,
   ownershipKey: PhoneStageOwnershipKey
 ];
 
@@ -156,47 +154,47 @@ export function phoneStageFrame(rawProgress: number, reducedMotion = false): Pho
 
   if (reducedMotion) {
     if (progress < stops.heroPatternEnd) {
-      return [progress, 'hero-entered', 'hero', 1, 0, 0, 0, 0, 0, false, 'hold-hero'];
+      return [progress, 'hero-entered', 'hero', 1, 0, 0, 0, 0, 0, 'hold-hero'];
     }
     if (progress < stops.patternStarEnd) {
-      return [progress, 'pattern-complete', 'pattern', 1, 1, 0, 1, 0, 0, false, 'hold-pattern'];
+      return [progress, 'pattern-complete', 'pattern', 1, 1, 0, 1, 0, 0, 'hold-pattern'];
     }
     if (progress < stops.starAodEnd) {
-      return [progress, 'star-map-reading', 'star-map', 1, 1, 1, 1, 1, 0, false, 'hold-star'];
+      return [progress, 'star-map-reading', 'star-map', 1, 1, 1, 1, 1, 0, 'hold-star'];
     }
-    return [progress, 'aod-stage', 'aod-animation', 1, 1, 1, 1, 1, 1, false, 'hold-aod'];
+    return [progress, 'aod-stage', 'aod-animation', 1, 1, 1, 1, 1, 1, 'hold-aod'];
   }
 
   if (progress < stops.heroMotionEnd) {
-    return [progress, 'hero-entered', 'hero', heroProgress, 0, 0, 0, 0, 0, false, 'hold-hero'];
+    return [progress, 'hero-entered', 'hero', heroProgress, 0, 0, 0, 0, 0, 'hold-hero'];
   }
   if (progress < stops.heroPatternEnd) {
     return [
       progress, 'hero-to-pattern', 'hero', 1, 0, 0,
-      heroPatternProgress, 0, 0, false, 'handoff-hero-pattern'
+      heroPatternProgress, 0, 0, 'handoff-hero-pattern'
     ];
   }
   if (progress < stops.patternStarStart) {
-    return [progress, 'pattern-complete', 'pattern', 1, patternProgress, 0, 1, 0, 0, false, 'hold-pattern'];
+    return [progress, 'pattern-complete', 'pattern', 1, patternProgress, 0, 1, 0, 0, 'hold-pattern'];
   }
   if (progress < stops.patternStarEnd) {
     return [
       progress, 'pattern-to-star-map', 'pattern', 1, 1, starProgress,
-      1, patternStarProgress, 0, false, 'handoff-pattern-star'
+      1, patternStarProgress, 0, 'handoff-pattern-star'
     ];
   }
   if (progress < stops.starAodStart) {
-    return [progress, 'star-map-reading', 'star-map', 1, 1, starProgress, 1, 1, 0, false, 'hold-star'];
+    return [progress, 'star-map-reading', 'star-map', 1, 1, starProgress, 1, 1, 0, 'hold-star'];
   }
   if (progress < stops.starAodEnd) {
     return [
       progress, 'star-map-to-aod', 'star-map', 1, 1, starProgress,
-      1, 1, starAodProgress, false, 'handoff-star-aod'
+      1, 1, starAodProgress, 'handoff-star-aod'
     ];
   }
   return [
     progress,
-    progress >= stops.aodAutoplayStart ? 'aod-autoplay' : 'aod-stage',
+    'aod-stage',
     'aod-animation',
     1,
     1,
@@ -204,7 +202,6 @@ export function phoneStageFrame(rawProgress: number, reducedMotion = false): Pho
     1,
     1,
     1,
-    progress >= stops.aodAutoplayStart,
     'hold-aod'
   ];
 }
@@ -222,7 +219,7 @@ export function phoneFrontRailSampleTuple(
     reducedMotion ? rawProgress : settledFrontRailProgress(rawProgress, direction),
     reducedMotion
   );
-  switch (frame[10]) {
+  switch (frame[9]) {
     case 'handoff-hero-pattern':
       return [null, 'hero-pattern-scroll', direction, frame[6], reducedMotion];
     case 'handoff-pattern-star':
@@ -258,9 +255,9 @@ export function frontHalfCheckpointIndex(id: FrontHalfCheckpointId): number {
 }
 
 /**
- * AOD owns its media clock after the rail reaches the autoplay trigger.
- * Method becomes a semantic handoff only once its adapter has a non-zero
- * entrance value, keeping this timeline independent of AOD-local timing.
+ * The AOD runner owns the media clock after it claims the stable AOD semantic
+ * edge. Method becomes a semantic handoff only once its adapter has a
+ * non-zero entrance value, keeping the rail independent of AOD-local timing.
  */
 export function phoneAodCheckpointForMethodProgress(methodProgress: number): FrontHalfCheckpointId {
   return clamp(methodProgress) > 0.001 ? 'aod-to-method' : 'aod-autoplay';

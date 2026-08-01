@@ -244,10 +244,10 @@ leave; all focused checks are green. Do not run broad WebKit qualification yet.
 - Modify: `app/src/production/phone/scenes/PhoneAod.test.tsx`
 - Modify: `app/e2e/r5-phone-story.spec.ts`
 
-- [ ] Remove `aodAutoplayStart: 0.985` as a playback authority. Do not merely
+- [x] Remove `aodAutoplayStart: 0.985` as a playback authority. Do not merely
   lower the threshold: a rail percentage is not an input transaction.
 
-- [ ] On the first valid forward input from stable AOD, the AOD→Method runner
+- [x] On the first valid forward input from stable AOD, the AOD→Method runner
   must synchronously create the one transaction and lock input before native
   scroll advances the rail. Its only legal phase order is:
 
@@ -259,21 +259,21 @@ leave; all focused checks are green. Do not run broad WebKit qualification yet.
   → hold:method-top / input free
   ~~~
 
-- [ ] The stage observer may report scroll/sample facts but cannot call AOD
+- [x] The stage observer may report scroll/sample facts but cannot call AOD
   playback, commit a landing, or unlock input. The runner starts source media
   exactly once, owns blocked/retry/context-loss disposal, and accepts the
   Method leaf fact only after the authored cue. Method must not become a
   visible receiver before that point.
 
-- [ ] Preserve the existing exact-token and reduced-motion contracts. AOD
+- [x] Preserve the existing exact-token and reduced-motion contracts. AOD
   leaves report their actual frame/cue facts; neither a stage callback nor a
   runner reconstructs a leaf proof.
 
-- [ ] Make the Task 8 first-input test green and add deterministic unit tests
+- [x] Make the Task 8 first-input test green and add deterministic unit tests
   for: one initial lock/start, no direct timeline autoplay, cue-gated Method
   admission, abort/reverse cleanup, and stale callback rejection.
 
-- [ ] Run targeted Vitest, typecheck, production build, then the AOD→Method
+- [x] Run targeted Vitest, typecheck, production build, then the AOD→Method
   Chromium visual case. Commit this ledger separately, for example:
   `fix(r5): route first AOD input through the transaction runner`.
 

@@ -463,6 +463,59 @@ describe('token-bound phone presentation proofs', () => {
     });
   });
 
+  it('[AOD first-intent cutover] keeps the completed AOD source painted until Method proves its target token', () => {
+    const initial = createPhoneStorySnapshot({
+      authorityId: 'aod-method-terminal-source',
+      scene: 'aod-animation',
+      actualY: 1_382
+    });
+    let candidate = reducePhoneStorySnapshot(initial, {
+      type: 'RUN_STARTED',
+      authorityId: initial.authorityId,
+      sessionId: 'aod-method-terminal-source-session',
+      generation: 1,
+      leg: 0,
+      direction: 1,
+      run: 'aod-method',
+      anchorY: 1_382,
+      inputEpoch: 1
+    }).snapshot;
+
+    candidate = reportProof(candidate, activeSegmentProof(candidate));
+    candidate = reduceOwned(candidate, 'PROGRESS_REPORTED', { progress: .81 });
+    expect(candidate).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'animating' },
+      projection: {
+        semanticScene: 'method-top',
+        stageOwner: 'front',
+        stageScene: 'aod-animation',
+        sourceSurface: 'front:aod',
+        receiverSurface: 'native:method',
+        coverageSurface: 'front:aod'
+      }
+    });
+    candidate = reduceOwned(candidate, 'PROGRESS_REPORTED', { progress: 1 });
+    candidate = reduceOwned(candidate, 'LEG_COMPLETED');
+
+    expect(candidate).toMatchObject({
+      status: 'transaction',
+      session: {
+        phase: 'verifying-target',
+        operation: { run: 'aod-method', direction: 1, to: 'method-top' }
+      },
+      projection: {
+        commitState: 'candidate',
+        semanticScene: 'method-top',
+        stageOwner: 'front',
+        stageScene: 'aod-animation',
+        sourceSurface: 'front:aod',
+        receiverSurface: 'native:method',
+        coverageSurface: 'front:aod'
+      }
+    });
+  });
+
   it.each(canonicalSceneIds)(
     '[Task 1] accepts a same-revision real proof for %s',
     (scene) => {

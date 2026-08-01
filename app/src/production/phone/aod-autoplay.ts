@@ -7,8 +7,10 @@ import {
   mapAodTimelineToMediaProgress
 } from '../../scenes/aod-animation/progress';
 import type { PhoneAodExecution } from './phone-story/runtime';
-
-export const PHONE_AOD_METHOD_START_PROGRESS = 0.8;
+export {
+  PHONE_AOD_METHOD_START_PROGRESS,
+  phoneAodMethodProgress
+} from './transitions/aod-method-top';
 
 type VisibilityDocument = Pick<Document, 'hidden' | 'addEventListener' | 'removeEventListener'>;
 
@@ -65,13 +67,6 @@ function sameExecution(
 function smoothstep(value: number): number {
   const progress = clamp(value);
   return progress * progress * (3 - 2 * progress);
-}
-
-export function phoneAodMethodProgress(aodProgress: number): number {
-  return clamp(
-    (clamp(aodProgress) - PHONE_AOD_METHOD_START_PROGRESS)
-      / (1 - PHONE_AOD_METHOD_START_PROGRESS)
-  );
 }
 
 /**

@@ -1,11 +1,9 @@
 import type { PhoneRunAnchorPolicy } from './phone-story-runs';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
-import type { PhoneLandingReason } from './phone-scroll-corridor-registry';
 
 export type PhoneRunLandingRequest = Readonly<{
   policy: PhoneRunAnchorPolicy;
   direction: PhoneTransitionDirection;
-  reason: PhoneLandingReason;
   currentY: number;
   boundaryY: number;
   /** Final target marker measured by the selected corridor. */
@@ -31,6 +29,11 @@ export function resolvePhoneRunLanding({
 }: PhoneRunLandingRequest): number {
   switch (policy) {
     case 'aod-semantic-edge':
+      // The boundary starts and reverses AOD, but a completed forward run
+      // must land its native Method target before its final proof/commit.
+      if (direction === 1 && targetY !== undefined) {
+        return Math.max(0, targetY);
+      }
       return Math.max(0, boundaryY);
     case 'authored-boundary':
       return Math.max(0, targetY ?? (

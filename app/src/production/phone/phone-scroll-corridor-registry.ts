@@ -84,15 +84,18 @@ function firstForScenes(
 
 function firstForRun(
   corridors: Iterable<PhoneScrollCorridor>,
-  run: PhoneRunId
+  run: PhoneRunId,
+  direction: PhoneTransitionDirection
 ): PhoneScrollCorridor | null {
   const [, from, to] = phoneRunTuple(run);
+  let fallback: PhoneScrollCorridor | null = null;
   for (const corridor of corridors) {
-    if (corridor.scenes.includes(from) && corridor.scenes.includes(to)) {
-      return corridor;
+    if (corridor.boundary(run, direction) !== null) return corridor;
+    if (!fallback && corridor.scenes.includes(from) && corridor.scenes.includes(to)) {
+      fallback = corridor;
     }
   }
-  return null;
+  return fallback;
 }
 
 export function createPhoneScrollCorridorRegistry(): PhoneScrollCorridorRegistry {
@@ -135,7 +138,7 @@ export function createPhoneScrollCorridorRegistry(): PhoneScrollCorridorRegistry
         snapshot.status === 'transaction' ? snapshot.session.operation.run : null
       );
       const corridor = run
-        ? firstForRun(corridors.values(), run)
+        ? firstForRun(corridors.values(), run, direction)
         : firstForScenes(corridors.values(), [scene]) ?? selected(snapshot);
       return corridor?.landing(scene, reason, direction) ?? null;
     },

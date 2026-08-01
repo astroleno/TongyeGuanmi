@@ -1,6 +1,7 @@
 import type { PhoneCheckpointId } from '../../../story/semantic-checkpoints';
 import type { SceneId, SegmentId } from '../../../story/types';
 import { useLayoutEffect, type RefObject } from 'react';
+import { phoneAodMethodProgress } from '../transitions/aod-method-top';
 import type { PhoneRouteScope } from '../phone-route-scope';
 import {
   phoneRunLegSegment,
@@ -1236,6 +1237,13 @@ function roleFor(
   registration: PhoneSurfaceRegistration,
   layerPlan: PhoneTransitionLayerPlan | null
 ): PhoneSurfaceRole {
+  // AOD owns the physical source plane through its authored playback cue.
+  // The Method leaf remains mounted and registered for its later exact proof,
+  // but is deliberately not a receiver, layer, or visual writer before then.
+  if (
+    aodMethodKeepsTargetDormant(snapshot)
+    && registration.id === projection.receiverSurface
+  ) return 'retained-under-stage';
   if (layerPlan) {
     if (registration.id === layerPlan[2]) {
       return 'transition-receiver';
@@ -1261,9 +1269,30 @@ function roleFor(
   return snapshot.status === 'stable' ? 'retired' : 'retained-under-stage';
 }
 
+function aodMethodKeepsTargetDormant(
+  snapshot: PhonePresentationSnapshotView
+): boolean {
+  const session = snapshot.session;
+  return snapshot.status === 'transaction'
+    && snapshot.projection.commitState === 'transition'
+    && snapshot.projection.sourceSurface === 'front:aod'
+    && snapshot.projection.receiverSurface === 'native:method'
+    && session !== null
+    && session.operation.run === 'aod-method'
+    && session.operation.direction === 1
+    && (
+      session.phase === 'preparing'
+      || (
+      session.phase === 'animating'
+        && phoneAodMethodProgress(session.progress) === 0
+      )
+    );
+}
+
 function transitionLayerPlanFor(
   snapshot: PhonePresentationSnapshotView
 ): PhoneTransitionLayerPlan | null {
+  if (aodMethodKeepsTargetDormant(snapshot)) return null;
   if (snapshot.projection.commitState !== 'transition') return null;
   if (snapshot.status === 'scroll-run') {
     if (!snapshot.scrollRun) return null;

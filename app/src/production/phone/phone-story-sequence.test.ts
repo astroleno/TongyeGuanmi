@@ -212,7 +212,6 @@ describe('canonical phone story sequence', () => {
       expect(() => resolvePhoneRunLanding({
         policy: definition.anchor,
         direction: 1,
-        reason: 'forward',
         currentY: 120,
         boundaryY: 160,
         targetY: 180,

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createPhoneAodAutoplay } from './aod-autoplay';
+import {
+  createPhoneAodAutoplay,
+  phoneAodMethodProgress
+} from './aod-autoplay';
 import type { PhoneAodExecution } from './phone-story/runtime';
 
 function execution(direction: 1 | -1 = 1): PhoneAodExecution {
@@ -39,6 +42,12 @@ class FakeVideo extends EventTarget {
 }
 
 describe('phone AOD autoplay lifecycle', () => {
+  it('keeps Method dormant through the authored source-playback cue', () => {
+    expect(phoneAodMethodProgress(.8)).toBe(0);
+    expect(phoneAodMethodProgress(.8001)).toBeGreaterThan(0);
+    expect(phoneAodMethodProgress(.801)).toBeGreaterThan(0);
+  });
+
   it('reports a blocked first play so the owning session can roll back', async () => {
     const video = new FakeVideo();
     video.play.mockRejectedValueOnce(new Error('blocked'));

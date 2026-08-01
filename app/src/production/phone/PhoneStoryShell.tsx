@@ -4,7 +4,10 @@ import { StoryNav } from '../StoryNav';
 import { PhoneStageRail } from './PhoneStageRail';
 import { usePhoneAdapterHandleRef } from './phone-adapter-binding';
 import { phoneMotionDriver } from './phone-gsap-driver';
-import { usePhoneStageRuntime } from './usePhoneStageRuntime';
+import {
+  phoneSnapshotOwnsMethod,
+  usePhoneStageRuntime
+} from './usePhoneStageRuntime';
 import { usePhoneFrontHalfAdapters } from './usePhoneFrontHalfAdapters';
 import { usePhoneFixedStageRegistration } from './usePhoneFixedStageRegistration';
 import { usePhoneViewportGeometry } from './usePhoneViewportGeometry';
@@ -138,6 +141,9 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     navigation.cinematicSnapshot[1] === id
     || navigation.cinematicSnapshot[2] === id
   );
+  const methodExecutionActive = loaderHidden
+    && modulesReady
+    && phoneSnapshotOwnsMethod(navigation.cinematicSnapshot, mapAodToMethod);
 
   usePhoneViewportGeometry(rootRef, motionEnabled);
 
@@ -265,7 +271,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       {MethodTop && (
         <MethodTop
           ref={bindMethodAdapter}
-          active={loaderHidden && modulesReady}
+          active={methodExecutionActive}
           reducedMotion={!motionEnabled}
           motionDriver={phoneMotionDriver}
           stageHost={stageHost}

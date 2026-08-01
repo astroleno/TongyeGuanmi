@@ -83,6 +83,27 @@ describe('phone scroll corridor registry', () => {
     expect(registry.boundary(brand, 'proof-brand', -1)).toBe(3_900);
   });
 
+  it('[AOD→Method execution cutover] uses its boundary owner without claiming Method sampling', () => {
+    const registry = createPhoneScrollCorridorRegistry();
+    const aod = createPhoneStorySnapshot({ authorityId: 'a', scene: 'aod-animation' });
+    registry.register({
+      id: 'front-rail',
+      scenes: ['hero', 'pattern', 'star-map', 'aod-animation'],
+      sample: () => null,
+      boundary: (run) => run === 'aod-method' ? 1_382 : null,
+      landing: (scene) => scene === 'method-top' ? 1_728 : null
+    });
+    registry.register({
+      id: 'method-grade-a',
+      scenes: ['method-top', 'figure2-animation', 'figure2-proof'],
+      sample: () => null,
+      boundary: () => null,
+      landing: () => null
+    });
+
+    expect(registry.landing(aod, 'method-top', 'forward', 1, 'aod-method')).toBe(1_728);
+  });
+
   it('[R5] resolves a shared Lab landing by run ownership, not effect registration order', () => {
     const registry = createPhoneScrollCorridorRegistry();
     const services = createPhoneStorySnapshot({ authorityId: 'a', scene: 'services' });

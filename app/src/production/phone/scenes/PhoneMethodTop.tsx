@@ -129,7 +129,7 @@ export const PhoneMethodTop = forwardRef<
     if (!bridge) return;
     const progress = clamp(rawProgress);
     const ease = progress * progress * (3 - 2 * progress);
-    const visible = progress > 0.001;
+    const visible = progress > 0;
     motionDriver.set(bridge, {
       autoAlpha: ease,
       y: 30 * (1 - ease),

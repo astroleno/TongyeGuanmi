@@ -363,6 +363,7 @@ type ActiveAodRun = readonly [
  * AOD lifecycle or proof builder.
  */
 type PhoneAodReducedStaticTarget = Readonly<{
+  position(direction: PhoneTransitionDirection): number | null;
   present(
     execution: PhoneAodExecution,
     report: (frame: PhoneRenderedPresentationFrame) => void
@@ -505,7 +506,7 @@ export function registerPhoneRuntimeAodCapability(
       || current.session.aod!.stage !== 'admission'
       || !target
     ) return false;
-    const targetY = position(record[1][1]);
+    const targetY = target.position(record[1][1]);
     if (
       targetY === null
       || !Number.isFinite(targetY)

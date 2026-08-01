@@ -1214,6 +1214,54 @@ describe('single phone story projector transaction', () => {
     frontLease.dispose();
   });
 
+  it('[AOD first-intent cutover] claims the stable AOD semantic edge before native scroll can drift', () => {
+    const aodBoundary = 1_920;
+    let starts = 0;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'aod-animation',
+      scrollY: () => aodBoundary,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerRunCapability('aod-method', 'aod:method', capability(
+      aodBoundary,
+      () => { starts += 1; }
+    ));
+    orchestrator.registerScrollCorridor({
+      id: 'front-aod-first-intent',
+      scenes: ['hero', 'pattern', 'star-map', 'aod-animation'],
+      sample: () => null,
+      boundary: (run, direction) => (
+        run === 'aod-method' && direction === 1 ? aodBoundary : null
+      ),
+      landing: () => aodBoundary
+    });
+
+    expect(orchestrator.resolveIntent([
+      1,
+      1,
+      aodBoundary,
+      aodBoundary + 50
+    ])).toBe('claim-boundary');
+    expect(starts).toBe(1);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        phase: 'preparing',
+        inputEpoch: 1,
+        operation: { run: 'aod-method', direction: 1 },
+        aod: { stage: 'admission' }
+      }
+    });
+
+    expect(orchestrator.resolveIntent([
+      1,
+      1,
+      aodBoundary,
+      aodBoundary + 100
+    ])).toBe('block-active-session');
+    expect(starts).toBe(1);
+  });
+
   it('does not publish a next snapshot when a connected root disconnects during preflight', () => {
     const root = Object.assign(element(), { isConnected: true });
     const orchestrator = createPhoneStoryOrchestrator({
