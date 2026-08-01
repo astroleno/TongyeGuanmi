@@ -46,6 +46,319 @@ The following remain immutable throughout every task:
 7. Every source change is test-first, cohesive, and committed only when its
    named gate is green except for an explicitly recorded browser known-red.
 
+## Authoritative release-regression amendment — 2026-08-01
+
+This amendment supersedes every earlier claim in this document that a Task 10
+run, a root-route pixel gate, a `7/7` browser result, or a completed/frozen
+ledger is release evidence. It does **not** discard the route-local machine,
+manifest, immutable-token, or leaf-fact architecture. The failure is lower in
+the stack: presentation **execution** still has more than one writer for
+visible surfaces, media playheads, and landings.
+
+**Current disposition:** implementation execution **NO-GO**; automated
+qualification **invalidated**; release **NO-GO**. This is based on a clean,
+fresh production rebuild at commit `8e2ae7e`, not a cached preview. Do not
+create a release candidate, publish to CDN, run release qualification, or
+claim a browser/device pass until the three active ledgers below are closed in
+order.
+
+Earlier pass counts remain useful historical diagnostics only. In particular,
+cursor, surface-role, DOM-rectangle, CSS-number, or late screenshot assertions
+cannot establish that a visible surface was continuously painted, that a media
+timeline advanced once, or that one and only one execution owner drove it.
+
+### Current execution-authority audit
+
+| Affected chain | Confirmed symptom | Current split writer / discontinuity | Required ownership after cutover |
+| --- | --- | --- | --- |
+| Loader → Hero; Star Map | Hero presents poster → black/packed-canvas gap → entrance; Star Map remains at revision `2 → 2` in `hold:star-map`. | `PhoneStageRail.css` exposes the opening poster before `PhoneStoryShell.tsx` activates the Hero compositor. `PhoneStarMap.tsx` stores `active` in a ref without calling the real `updateActive()` renderer control. | Hero leaf owns one continuous opening surface and reports a real post-paint first frame; Star Map leaf owns only its Perlin renderer start/stop from its declarative `active` input. |
+| AOD → Method | The first forward gesture at `hold:aod-animation` scrolls roughly 700px; AOD remains paused at time zero and Method is already near the viewport before playback begins. | `phone-stage-timeline.ts` treats `0.985` as an autoplay trigger while the AOD hold begins near `0.80`; native rail progress can therefore advance independently of the transaction. | The AOD→Method runner owns the first boundary intent, input lock, source playback, authored cue, Method admission, settle, and abort. The rail observer reports facts only. |
+| Method → Figure2 → Proof | Figure2 initially lands about one viewport below view, then later starts; Figure2→Proof repeatedly jumps `2.6 → 0 → 2.6 → 0`. | `PhoneGradeAStory.tsx` drives Figure2 while its proof snapshot is active, and `figure2-distance-expand.tsx` drives the same Figure2 timeline again. The forward landing is derived from an upstream trigger rather than the rendered Figure2 origin. | `PhoneFigure2` is the sole writer of its media timeline. The transition may render only Ink/effect output; the runner owns landing/admission/settle and receives the leaf's fact reports. |
+
+The state machine remains the only authority that may commit a stable hold.
+The runner remains the only authority that may accept input, create a
+transaction, lock/unlock input, choose an admission/playback/settle phase,
+choose a landing, or dispose the transaction. A leaf receives its immutable
+snapshot/driver input, performs its own renderer/media operation exactly once,
+and reports an observed fact. It cannot use an imperative `enter()`, `leave()`,
+or transition callback to acquire a second presentation writer.
+
+### Freeze and sequencing rule
+
+Until Tasks 8–11 complete, freeze AOD unrelated to its own ledger, Figure2
+unrelated to its own ledger, Figure3, TTG, Groups 4–7, media hashes, authored
+timings, and direct-entry behavior. Do not turn an active ledger into a broad
+compatibility cleanup. Each task must first install its deterministic
+known-red gates, then hard-cut the one vertical execution chain, then commit
+only after its named gates are green.
+
+The only permitted order is:
+
+1. Hero + Star Map continuous opening execution.
+2. AOD → Method first-intent execution.
+3. Method → Figure2 → Proof single-media-writer execution.
+4. Re-run qualification; only then consider CDN/release/device work.
+
+### Task 8: Install the execution-regression gates before product changes
+
+**Files:**
+
+- Modify: `app/e2e/r5-phone-story.spec.ts`
+- Modify: `app/src/production/phone/scenes/PhoneStarMap.test.tsx`
+- Modify: `app/src/production/phone/scenes/PhoneHero.test.tsx`
+- Modify: `app/src/production/phone/phone-stage-timeline.test.ts`
+- Modify: `app/src/production/phone/PhoneGradeAStory.test.ts`
+- Modify: `app/src/production/phone/phone-grade-a-runtime.test.ts`
+
+- [ ] Add one test-only sampling helper in the existing E2E spec. It must
+  record wall-clock time, `scrollY`, route-machine cursor/phase/input, Star
+  Map revision, Figure2 `currentTime`, and the rendered bounding boxes needed
+  for correlation. Dataset values identify the target only; every visual
+  acceptance assertion must use screenshots/canvas pixels or computed geometry
+  rather than a CSS string or dataset value.
+
+- [ ] Add the Loader→Hero known-red path before the current late Hero checks.
+  Starting while Loader is still visible, sample at least twelve frames at
+  50ms intervals through `revealing` and Hero entrance completion. Assert the
+  opening ROI never becomes a uniform background frame after Loader fade
+  begins, and that Hero progress is monotonic with at most one `0 → 1` run.
+  A representative assertion shape is:
+
+  ~~~ts
+  expect(samples.every((sample) => sample.openingPixelDelta > 0.002)).toBe(true);
+  expect(countProgressResets(samples.map((sample) => sample.heroProgress))).toBe(0);
+  ~~~
+
+- [ ] Add the Star Map known-red path: settle at `hold:star-map`, sample for
+  one second, require the Perlin revision to increase by at least eight and
+  the canvas screenshot delta to be non-zero. Navigate away and require the
+  revision to stop increasing. The test must fail on `8e2ae7e` because the
+  current revision remains `2 → 2`.
+
+  ~~~ts
+  expect(samples.at(-1)!.revision - samples[0]!.revision).toBeGreaterThanOrEqual(8);
+  expect(pixelDelta(samples[0]!.image, samples.at(-1)!.image)).toBeGreaterThan(0.001);
+  ~~~
+
+- [ ] Add the AOD first-forward known-red path. From a stable
+  `hold:aod-animation`, issue one small forward phone input and, within two
+  animation frames, require `transition:aod-method`, locked input, and a
+  started AOD source. Before that transaction takes control, require absolute
+  `scrollY` drift of no more than 2px and no visible Method text. Continue to
+  require exactly one AOD completion before `hold:method-top` can appear.
+
+  ~~~ts
+  expect(firstTransaction.cursor).toContain('transition:aod-method');
+  expect(firstTransaction.input).toBe('locked');
+  expect(Math.abs(firstTransaction.scrollY - initialScrollY)).toBeLessThanOrEqual(2);
+  expect(methodTextVisibleBeforeAodCue(samples)).toBe(false);
+  ~~~
+
+- [ ] Add the Method→Figure2→Proof known-red path. From the real Figure2
+  hold, a first small forward input must advance its media within 500ms. Sample
+  the playhead every 80ms; no adjacent sample may decrease by more than 0.05s,
+  and the run may enter Figure2→Proof exactly once without returning to a
+  Figure2 transaction after Proof begins. Assert that the rendered Figure2
+  origin is inside the intended viewport corridor at the landing, rather than
+  merely that an upstream trigger exists.
+
+  ~~~ts
+  expect(playheadAfterFirstInput - playheadAtHold).toBeGreaterThan(0.05);
+  expect(hasDecreaseGreaterThan(samples.map((sample) => sample.figure2Time), 0.05)).toBe(false);
+  expect(countCursorEntries(samples, 'transition:figure2-proof')).toBe(1);
+  ~~~
+
+- [ ] Add focused unit tests for the same contracts: Star Map prop activation
+  calls the real renderer control after initialization; Hero first-frame
+  readiness represents the surface that will remain visible; timeline input at
+  stable AOD does not directly autoplay or scroll past the runner; Figure2
+  transition code has no media-write capability.
+
+- [ ] Run the new focused tests against `8e2ae7e`, retain the expected red
+  trace/screenshot evidence in the normal ignored test-results location, and
+  record the exact failure predicates in the implementation commit message.
+  Do not commit a permanent red test-only checkpoint.
+
+**Gate before Task 9:** all four tests are demonstrably red for the specified
+execution defect, not because of a locator, timing race, or unsupported test
+diagnostic. No production file changes are permitted before this review.
+
+### Task 9: Hard-cut Loader → Hero and Hero → Star Map execution
+
+**Files:**
+
+- Modify: `app/src/production/phone/PhoneStoryShell.tsx`
+- Modify: `app/src/production/phone/PhoneStageRail.css`
+- Modify: `app/src/production/phone/scenes/PhoneHero.tsx`
+- Modify: `app/src/production/phone/scenes/PhoneStarMap.tsx`
+- Modify: the Task 8 tests only where an observable name is intentionally
+  replaced
+
+- [ ] Delete the early `poster-decoded` visibility handoff in
+  `PhoneStageRail.css`. A decoded poster is preloading evidence, not
+  authorization to reveal a second opening surface.
+
+- [ ] Arm the Hero leaf while Loader still owns visibility, but do not reveal
+  the stage until that **same** Hero compositor has delivered a non-black,
+  browser-painted first frame. The Loader fade must reveal that already-running
+  surface; do not reveal a poster, hide it, then activate a separately mounted
+  packed-alpha canvas.
+
+- [ ] Make `PhoneHero` publish its first-frame fact only after its retained
+  compositor surface has painted. Keep one immutable opening run and one
+  monotonic entrance driver; repeated effects, stale callbacks, and Loader
+  changes may not reset progress or start a second entrance.
+
+- [ ] Change `PhoneStarMap`'s declarative `active` reconciliation to call the
+  actual Perlin renderer `updateActive()` after renderer initialization and on
+  each active transition. `active=false` cancels the frame loop; `active=true`
+  starts it. Do not restore a runtime `enter()`/`leave()` command or add a
+  second runner writer.
+
+- [ ] Add a static ownership test that the only production call site able to
+  start/stop Star Map's renderer is the leaf's active reconciliation; machine,
+  runtime, adapter, and transition modules may only provide the declarative
+  input.
+
+- [ ] Run the Task 8 Hero/Star Map browser gates, relevant Vitest files,
+  typecheck, production build, and the existing focused Chromium story cases.
+  Commit the resulting vertical cutover as one checkpoint, for example:
+  `fix(r5): make opening and Star Map execution single-owner`.
+
+**Gate before Task 10:** Hero has no post-Loader black frame or progress reset;
+Star Map revision advances and pixels change while active, then stops after
+leave; all focused checks are green. Do not run broad WebKit qualification yet.
+
+### Task 10: Hard-cut AOD → Method first-intent execution
+
+**Files:**
+
+- Modify: `app/src/production/phone/phone-stage-timeline.ts`
+- Modify: `app/src/production/phone/usePhoneStageRuntime.ts`
+- Modify only the AOD wiring in `app/src/production/phone/phone-story/runtime.ts`
+- Modify `app/src/production/phone/scenes/PhoneAod.tsx` and
+  `app/src/production/phone/scenes/PhoneMethodTop.tsx` only if a leaf must
+  report an observed frame/cue fact
+- Modify: `app/src/production/phone/phone-stage-timeline.test.ts`
+- Modify: `app/src/production/phone/phone-story/runtime/engine.test.ts`
+- Modify: `app/src/production/phone/scenes/PhoneAod.test.tsx`
+- Modify: `app/e2e/r5-phone-story.spec.ts`
+
+- [ ] Remove `aodAutoplayStart: 0.985` as a playback authority. Do not merely
+  lower the threshold: a rail percentage is not an input transaction.
+
+- [ ] On the first valid forward input from stable AOD, the AOD→Method runner
+  must synchronously create the one transaction and lock input before native
+  scroll advances the rail. Its only legal phase order is:
+
+  ~~~text
+  hold:aod-animation / input free
+  → aod-method source playback / input locked
+  → method candidate after authored AOD cue / input locked
+  → exact Method admission proof
+  → hold:method-top / input free
+  ~~~
+
+- [ ] The stage observer may report scroll/sample facts but cannot call AOD
+  playback, commit a landing, or unlock input. The runner starts source media
+  exactly once, owns blocked/retry/context-loss disposal, and accepts the
+  Method leaf fact only after the authored cue. Method must not become a
+  visible receiver before that point.
+
+- [ ] Preserve the existing exact-token and reduced-motion contracts. AOD
+  leaves report their actual frame/cue facts; neither a stage callback nor a
+  runner reconstructs a leaf proof.
+
+- [ ] Make the Task 8 first-input test green and add deterministic unit tests
+  for: one initial lock/start, no direct timeline autoplay, cue-gated Method
+  admission, abort/reverse cleanup, and stale callback rejection.
+
+- [ ] Run targeted Vitest, typecheck, production build, then the AOD→Method
+  Chromium visual case. Commit this ledger separately, for example:
+  `fix(r5): route first AOD input through the transaction runner`.
+
+**Gate before Task 11:** first AOD input starts the transaction with at most
+2px pre-transaction drift, Method is not visible before its cue, AOD completes
+once, and the terminal transaction is disposed before input returns.
+
+### Task 11: Hard-cut Method → Figure2 → Proof to one media writer
+
+**Files:**
+
+- Modify: `app/src/production/phone/PhoneGradeAStory.tsx`
+- Modify: `app/src/production/phone/phone-grade-a-runtime.ts`
+- Modify: `app/src/production/phone/scenes/PhoneFigure2.tsx`
+- Modify: `app/src/production/phone/transitions/figure2-distance-expand.tsx`
+- Modify: `app/src/production/phone/PhoneGradeAStory.test.ts`
+- Modify: `app/src/production/phone/phone-grade-a-runtime.test.ts`
+- Modify: `app/src/production/phone/phone-composite-runner.test.ts`
+- Modify: `app/e2e/r5-phone-story.spec.ts`
+
+- [ ] Bind the forward landing to the rendered Figure2 leaf origin/corridor
+  measured after the leaf is mounted, not to an upstream trigger or nominal
+  track edge. The runner captures this one landing fact for its transaction;
+  it does not invent a second geometry model.
+
+- [ ] Make `PhoneFigure2` the sole writer of its video/canvas timeline. It
+  receives one declarative progress/phase input from the current transaction
+  and applies it once to its own media. It reports observed frame/playhead
+  facts back upward; it never commits a hold or starts a proof transaction.
+
+- [ ] Remove all Figure2-media writes from `PhoneGradeAStory` while a
+  Figure2→Proof snapshot is active. Remove all calls from
+  `figure2-distance-expand.tsx` that render, update, seek, or timeline-drive
+  the shared Figure2 media. That transition may draw Ink/effect output only;
+  it must consume a read-only rendered input rather than control the Figure2
+  leaf.
+
+- [ ] Add a source ownership gate: outside `PhoneFigure2` and its local
+  media implementation, production files must have zero write calls to the
+  Figure2 playhead/renderer (including `figure2.update(...)`,
+  `renderFigure2AnimationProgress(...)`, and bridge `timeline(['render', ...])`
+  variants). The test must inspect resolved imports/call bindings, not merely
+  a filename regex.
+
+- [ ] Make the Task 8 Figure2 landing/playhead/single-Proof tests green. Add
+  unit sequences for first-input advancement, monotonic samples, one Proof
+  entry, stale/aborted transaction disposal, and reverse re-entry without a
+  second media writer.
+
+- [ ] Run focused Vitest, static ownership gate, typecheck, production build,
+  and the Method→Figure2→Proof Chromium visual case. Commit the ledger alone,
+  for example: `fix(r5): give Figure2 media one execution owner`.
+
+**Gate before qualification:** first small Figure2 input advances visible media
+from its real landing; no sampled playhead reverses; the Figure2→Proof edge is
+entered once; all former writers are absent rather than disabled behind a
+condition.
+
+### Task 12: Re-establish qualification only after the three cutovers
+
+**Files:**
+
+- Modify or create only after all gates pass:
+  `docs/react-refactor/reports/r5-phone-presentation-state-machine-acceptance.md`
+
+- [ ] Run source ownership/static gates, full Vitest, typecheck, and a fresh
+  production build before browser work. Record exact commit, bundle size, and
+  test totals; do not reuse prior artifacts or pass counts.
+
+- [ ] Run the new continuous-pixel and single-writer cases plus the complete
+  Chromium portrait matrix: forward, reverse, two complete cycles,
+  direct-entry, and the existing formal Task 10 cases. Every state assertion
+  must be paired with its real-pixel/media/input assertion.
+
+- [ ] Only after Chromium is fully green, run the same WebKit portrait matrix.
+  Only after both are green, run trusted physical-iPhone Safari forward,
+  reverse, two-cycle, direct-entry, and background/foreground recovery checks.
+
+- [ ] Write the acceptance report with links to fresh traces/screenshots,
+  browser versions, device identity, exact commit, and every gate above. A
+  release candidate, `release:prepare`, memory qualification, CDN publication,
+  or release-finalization remains prohibited until this report is green.
+
+## Locked production ownership map
+
 ## Locked production ownership map
 
 Create the authority directory below. The existing scenes and transitions
