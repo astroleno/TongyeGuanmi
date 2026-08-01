@@ -3,8 +3,8 @@ import { createPhoneStoryBoot, reducePhoneStory, sameAttempt, type PhoneMachineR
 import { phoneManifest, phoneSceneById } from './manifest';
 import type { PhoneLeafMountRegistration, PhoneLeafReportBinding,
   PhoneLeafReportPort, PhoneLeafMountLease, PhonePresentation } from './presentation';
-import { closePhoneLeafReportBinding, invokePhoneActivationBatch,
-  phoneActivationSurfaceIds, phoneLeafMountKey } from './presentation';
+import { clearPhoneOwnershipRegistries, closePhoneLeafReportBinding, invokePhoneActivationBatch,
+  phoneActivationSurfaceIds, phoneLeafMountKey, runPhoneCleanupSteps } from './presentation';
 import type {
   PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneFailure,
   PhoneLeafDisposeReason, PhoneStoryEffect,
@@ -62,7 +62,7 @@ type DeadlineLease = Readonly<{ key: string; handle: PhoneRuntimeTimerHandle; co
 type ReportState = { valid: boolean; binding: PhoneLeafReportBinding };
 type LeafLease = {
   key: string; reports: ReportState; mount: PhoneLeafMountLease;
-  activeDecoders: number; disposed: boolean };
+  activeDecoders: number; disposed: boolean; frameToken: string | null };
 type PendingLoad = {
   controller: AbortController; waiters: Array<Readonly<{ effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>;
     connection: number }>> };
@@ -120,7 +120,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   });
   let snapshot = inert.snapshot;
   let connected = false, connection = 0, draining = false;
-  let sequence = 0, physicalEpoch = 0, activationSequence = 0;
+  let sequence = 0, physicalEpoch = 0, activationSequence = 0, frameSequence = 0;
   let queue: QueuedEvent[] = [];
   let removeHostListener: (() => void) | null = null, sampleFrame: PhoneRuntimeTimerHandle | null = null;
   let playback: PlaybackLease | null = null;
@@ -153,9 +153,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   };
 
   const cancelDeadlines = (predicate: (lease: DeadlineLease) => boolean): void => {
-    for (const lease of [...deadlines.values()]) {
-      if (predicate(lease)) cancelDeadline(lease.key);
-    }
+    runPhoneCleanupSteps('Phone deadline cancellation failed', [...deadlines.values()]
+      .filter(predicate).map((lease) => () => cancelDeadline(lease.key)));
   };
 
   const syncDeadlines = (): void => {
@@ -271,6 +270,17 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     }, connection);
   };
 
+  const bindLeafGeneration = (
+    lease: LeafLease, state: ReportState, rebindMount: boolean
+  ): void => {
+    lease.reports = state;
+    if (rebindMount) lease.mount.rebind(state.binding);
+    const frameToken = `${state.binding.attempt.transactionId}:frame:${++frameSequence}`;
+    lease.frameToken = frameToken;
+    lease.mount.commands.rebind({ reports: createReportPort(state), frameToken });
+    acceptPreparedProof(state, lease, null);
+  };
+
   function createReportPort(state: ReportState): PhoneLeafReportPort {
     return Object.freeze({
       registerMount: (registration: PhoneLeafMountRegistration) => {
@@ -289,16 +299,16 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
           throw error;
         }
         const lease: LeafLease = {
-          key, reports: state, mount, activeDecoders: 0, disposed: false
+          key, reports: state, mount, activeDecoders: 0, disposed: false, frameToken: null
         };
         leaves.set(key, lease);
+        bindLeafGeneration(lease, state, false);
         if (snapshot.status === 'transaction'
           && sameAttempt(snapshot.transaction.attempt, state.binding.attempt)
           && ['boot', 'entry'].includes(snapshot.transaction.mode)
           && state.binding.leg === 'target' && mount.resources.videos > 0) {
           invokeActivation([lease], snapshot.transaction.attempt, 'direct-muted-autoplay');
         }
-        acceptPreparedProof(state, lease, null);
       },
       reportPrepared: (surfaceId, report) => {
         const lease = mountedLease(state);
@@ -309,7 +319,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       },
       reportFrame: (surfaceId, report) => {
         const lease = mountedLease(state);
-        if (!report.presented || !lease || !lease.mount.surfaceIds.includes(surfaceId)) return;
+        if (!report.presented || !lease || report.token !== lease.frameToken
+          || !lease.mount.surfaceIds.includes(surfaceId)) return;
         acceptPreparedProof(state, lease, { surfaceId, report });
       },
       reportProgress: () => undefined,
@@ -384,14 +395,15 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   const pauseLease = (lease: LeafLease, reason: Parameters<
     PhoneLeafMountRegistration['commands']['pause']
   >[0]): void => {
-    lease.mount.commands.pause(reason);
-    environment.observeLifecycle?.('pause');
-    if (lease.activeDecoders > 0) {
-      updateResources({
-        videos: 0, activeDecoders: lease.activeDecoders, canvases: 0, webglContexts: 0
-      }, -1);
-      lease.activeDecoders = 0;
-    }
+    const activeDecoders = lease.activeDecoders;
+    runPhoneCleanupSteps('Phone leaf pause failed', [
+      () => lease.mount.commands.pause(reason),
+      () => environment.observeLifecycle?.('pause'),
+      () => activeDecoders > 0 && updateResources({
+        videos: 0, activeDecoders, canvases: 0, webglContexts: 0
+      }, -1),
+      () => { lease.activeDecoders = 0; }
+    ]);
   };
 
   const retireLease = (
@@ -400,18 +412,18 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     paused = false
   ): void => {
     if (lease.disposed) return;
-    closeReports(lease.reports);
-    if (!paused) {
-      pauseLease(lease, 'outside-closure');
-    }
-    lease.mount.commands.dispose(reason);
-    environment.observeLifecycle?.('dispose');
-    lease.disposed = true;
-    leaves.delete(lease.key);
-    environment.observeLifecycle?.('unregister');
-    lease.mount.release();
-    updateResources({ ...lease.mount.resources, activeDecoders: lease.activeDecoders }, -1);
-    environment.observeLifecycle?.('release');
+    runPhoneCleanupSteps('Phone leaf retirement failed', [
+      () => closeReports(lease.reports),
+      ...(!paused ? [() => pauseLease(lease, 'outside-closure')] : []),
+      () => lease.mount.commands.dispose(reason),
+      () => environment.observeLifecycle?.('dispose'),
+      () => { lease.disposed = true; leaves.delete(lease.key); },
+      () => environment.observeLifecycle?.('unregister'),
+      () => lease.mount.release(),
+      () => updateResources({ ...lease.mount.resources,
+        activeDecoders: lease.activeDecoders }, -1),
+      () => environment.observeLifecycle?.('release')
+    ]);
   };
 
   const invalidateAttempt = (attempt: PhoneAttemptKey): void => {
@@ -463,13 +475,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       const state: ReportState = { valid: true,
         binding: closePhoneLeafReportBinding(binding) };
       reportStates.add(state);
-      lease.reports = state;
       pauseLease(lease, 'superseded');
-      lease.mount.rebind(state.binding);
-      lease.mount.commands.rebind({
-        reports: createReportPort(state),
-        frameToken: `${attempt.transactionId}:frame:${attempt.transactionGeneration}`
-      });
+      bindLeafGeneration(lease, state, true);
     }
     return candidates;
   };
@@ -518,15 +525,10 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       const state: ReportState = { valid: true,
         binding: closePhoneLeafReportBinding(binding) };
       reportStates.add(state);
-      lease.reports = state;
       lease.key = phoneLeafMountKey(binding);
       if (leaves.has(lease.key)) throw new Error(`Phone leaf rebind collision: ${lease.key}`);
       leaves.set(lease.key, lease);
-      lease.mount.rebind(state.binding);
-      lease.mount.commands.rebind({
-        reports: createReportPort(state),
-        frameToken: `${transaction.attempt.transactionId}:frame:${transaction.attempt.transactionGeneration}`
-      });
+      bindLeafGeneration(lease, state, true);
     }
   };
 
@@ -641,8 +643,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       }
     };
     void ports.loadDependencies(effect, controller.signal).then((result) => {
-      if (pendingLoads.get(key) !== load) return;
-      pendingLoads.delete(key);
+      if (pendingLoads.get(key) === load) pendingLoads.delete(key);
       if (result.status === 'rejected') {
         reject(result);
         return;
@@ -652,9 +653,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         reportLoadedModules(waiter.effect, waiter.connection);
       }
     }).catch((error: unknown) => {
-      if (pendingLoads.get(key) !== load) return;
-      pendingLoads.delete(key);
-      if (controller.signal.aborted) return;
+      if (pendingLoads.get(key) === load) pendingLoads.delete(key);
       const reason = error instanceof Error ? error.message : String(error);
       reject({ moduleUrl: 'unknown-phone-module', reason });
     });
@@ -770,15 +769,10 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         const state: ReportState = { valid: true,
           binding: closePhoneLeafReportBinding(binding) };
         reportStates.add(state);
-        lease.reports = state;
         lease.key = phoneLeafMountKey(binding);
         if (leaves.has(lease.key)) throw new Error(`Phone leaf stage collision: ${lease.key}`);
         leaves.set(lease.key, lease);
-        lease.mount.rebind(state.binding);
-        lease.mount.commands.rebind({
-          reports: createReportPort(state),
-          frameToken: `${next.transaction.attempt.transactionId}:stage:${next.transaction.stageIndex}`
-        });
+        bindLeafGeneration(lease, state, true);
       }
     }
     if (next.transaction.phase === 'playing'
@@ -904,23 +898,31 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   const disconnectConnection = (expectedConnection: number): void => {
     if (!connected || expectedConnection !== connection) return;
     connected = false;
-    removeHostListener?.();
-    removeHostListener = null;
-    cancelDeadlines(() => true);
-    cancelPlayback();
-    cancelSamples();
-    for (const load of pendingLoads.values()) load.controller.abort();
-    pendingLoads.clear();
-    activations.clear();
-    for (const lease of [...leaves.values()]) retireLease(lease, 'route-dispose');
-    for (const state of [...reportStates]) closeReports(state, false);
-    for (const dependencies of dependencyLeases.values()) {
-      ports.releaseDependencies?.(dependencies);
-    }
-    dependencyLeases.clear();
-    stableDependencyAttempt = null;
-    listeners.clear();
-    queue = [];
+    runPhoneCleanupSteps('Phone runtime disconnect failed', [
+      () => removeHostListener?.(),
+      () => cancelDeadlines(() => true),
+      () => cancelPlayback(),
+      () => cancelSamples(),
+      ...[...pendingLoads.values()].map((load) => () => load.controller.abort()),
+      ...[...leaves.values()].map((lease) => () => retireLease(lease, 'route-dispose')),
+      ...[...reportStates].map((state) => () => closeReports(state, false)),
+      ...[...dependencyLeases.values()].map((dependencies) => (
+        () => ports.releaseDependencies?.(dependencies)
+      )),
+      () => {
+        removeHostListener = null;
+        playback = null;
+        sampleFrame = null;
+        pendingViewport = null;
+        pendingScroll = null;
+        stableDependencyAttempt = null;
+        clearPhoneOwnershipRegistries([
+          deadlines, pendingLoads, activations, leaves,
+          reportStates, dependencyLeases, listeners
+        ]);
+        queue = [];
+      }
+    ]);
   };
 
   const handleHost = (event: PhoneRuntimeHostEvent, expectedConnection: number): void => {

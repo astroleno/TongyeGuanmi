@@ -302,7 +302,7 @@ function beginFinalProof(snapshot: PhoneMachineTransactionSnapshot): PhoneMachin
   const requiredFinal = kinds.map((kind) => (
     evidenceSlot(transaction.attempt, transaction.stageIndex, leg, kind, planeRevision)
   ));
-  const timeoutMs = deadlinePolicyFor(transaction).planeApply;
+  const timeoutMs = transaction.deadlinePolicy.planeApply;
   const next = freezeOwned({
     ...snapshot, lastPlaneRevision: planeRevision,
     transaction: {
@@ -329,12 +329,6 @@ function segmentFor(transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>)
     : null;
 }
 
-function deadlinePolicyFor(
-  transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>
-) {
-  return transaction.deadlinePolicy;
-}
-
 function beginPlayback(snapshot: PhoneMachineTransactionSnapshot): PhoneMachineResult {
   return reviseTransaction(snapshot,
     { phase: 'playing', requiredFinal: [], deadline: null }, {}, [], false);
@@ -346,7 +340,7 @@ function beginTargetPresentation(snapshot: PhoneMachineTransactionSnapshot): Pho
   const requiredFinal = PHONE_FINAL_EVIDENCE_KINDS.map((kind) => (
     evidenceSlot(transaction.attempt, transaction.stageIndex, 'target', kind, planeRevision)
   ));
-  const timeoutMs = deadlinePolicyFor(transaction).planeApply;
+  const timeoutMs = transaction.deadlinePolicy.planeApply;
   return freezeOwned({
     snapshot: {
       ...snapshot, stateRevision: snapshot.stateRevision + 1,
@@ -383,9 +377,9 @@ function advanceEvidenceDeadline(
   if (transaction.deadline?.operation === operation) {
     return freezeOwned({ snapshot, effects: [] });
   }
-  const timeoutMs = deadlinePolicyFor(transaction)[operation];
+  const timeoutMs = transaction.deadlinePolicy[operation];
   if (timeoutMs <= 0) {
-    return reviseTransaction(snapshot, { deadline: null }, {}, [], false);
+    return freezeOwned({ snapshot, effects: [] });
   }
   return reviseTransaction(snapshot, { deadline: {
     operation, remainingMs: timeoutMs, startedAtActiveMs: 0, suspended: false
@@ -485,6 +479,7 @@ function finishReproject(snapshot: PhoneMachineTransactionSnapshot): PhoneMachin
     ? [{
         type: 'defer-entry', request: snapshot.transaction.pendingEntry,
         ...(rollback && snapshot.transaction.restoreUrlOnRollback
+          && ['hash', 'popstate'].includes(snapshot.transaction.pendingEntry.origin)
           ? { urlWasReplaced: true } : {})
       }]
     : [];
@@ -867,7 +862,10 @@ function handleEvidence(
     transaction.requiredFinal.length === 0
     && quorumComplete(accepted.transaction, accepted.transaction.requiredPrepared)
   ) {
-    if (accepted.transaction.closure.resourceBudget.videos > 0
+    if ((accepted.transaction.mode === 'segment'
+      ? accepted.transaction.closure.mount.some((mount) => mount.includes('video'))
+      : phoneSceneById(accepted.transaction.candidateSceneId)
+        .directEntry.closure.resourceBudget.videos > 0)
       && accepted.transaction.activation !== 'spent') {
       return accepted.transaction.activation === 'awaiting'
         ? awaitMediaActivation(accepted) : advanceEvidenceDeadline(accepted);
@@ -949,7 +947,7 @@ function reprojectActivePlane(
   ));
   const proving = requiredFinal.length > 0;
   const rollback = transaction.mode === 'rollback';
-  const timeoutMs = deadlinePolicyFor(transaction).planeApply;
+  const timeoutMs = transaction.deadlinePolicy.planeApply;
   const deadline = proving && !rollback ? {
     operation: 'planeApply' as const, remainingMs: timeoutMs,
     startedAtActiveMs: 0, suspended: false

@@ -246,6 +246,27 @@ export function describePhoneLeafMount(
   });
 }
 
+export function runPhoneCleanupSteps(
+  label: string,
+  steps: readonly (() => void)[]
+): void {
+  const errors: unknown[] = [];
+  for (const step of steps) {
+    try {
+      step();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0) throw new AggregateError(errors, label);
+}
+
+export function clearPhoneOwnershipRegistries(
+  registries: readonly Readonly<{ clear(): void }>[]
+): void {
+  for (const registry of registries) registry.clear();
+}
+
 function unboundReport(label: string, operation: string): never {
   throw new Error(`${label}: phone leaf report port is unbound (${operation})`);
 }

@@ -50,6 +50,14 @@ function transaction(snapshot: PhoneMachineSnapshot): PhoneMachineTransactionSna
   return snapshot;
 }
 
+function requiresMediaActivation(
+  active: PhoneMachineTransactionSnapshot['transaction']
+): boolean {
+  return active.mode === 'segment'
+    ? active.closure.mount.some((mount) => mount.includes('video'))
+    : phoneSceneById(active.candidateSceneId).directEntry.closure.resourceBudget.videos > 0;
+}
+
 function dispatch(
   snapshot: PhoneMachineSnapshot,
   event: PhoneStoryEvent
@@ -83,7 +91,7 @@ function reportRequired(
     : transaction(current.snapshot).transaction.requiredFinal;
   for (const slot of slots) current = reportSlot(current.snapshot, slot);
   if (group === 'prepared' && current.snapshot.status === 'transaction'
-    && current.snapshot.transaction.closure.resourceBudget.videos > 0
+    && requiresMediaActivation(current.snapshot.transaction)
     && current.snapshot.transaction.activation !== 'spent') {
     current = dispatch(current.snapshot, {
       type: 'activation-settled', invoked: true,
@@ -333,9 +341,33 @@ describe('phone Task 4 corrective invariants', () => {
             timeoutMs: 0
           }));
           if (current.snapshot.status === 'transaction') {
-            expect(current.snapshot.transaction.deadline?.remainingMs).not.toBe(0);
+            expect(current.snapshot.transaction.deadline).not.toBeNull();
+            expect(current.snapshot.transaction.deadline?.remainingMs).toBeGreaterThan(0);
           }
         }
+      }
+    }
+  });
+
+  it('never requires media activation for a static target in any ordered warm entry', () => {
+    const staticTargets = phoneManifest.scenes.filter(({ directEntry }) => (
+      directEntry.closure.resourceBudget.videos === 0
+    ));
+    for (const source of phoneManifest.scenes) {
+      const stable = prove(boot(source.id, `authority:static-warm:${source.id}`));
+      for (const target of staticTargets) {
+        if (target.id === source.id) continue;
+        let entering = dispatch(stable.snapshot, {
+          type: 'entry-requested',
+          request: { pathname: '/', hash: target.directEntry.canonicalHash, origin: 'menu' }
+        });
+        for (const slot of transaction(entering.snapshot).transaction.requiredPrepared) {
+          entering = reportSlot(entering.snapshot, slot);
+        }
+        expect(transaction(entering.snapshot).transaction.phase).toBe('presenting-target');
+        expect(entering.effects).not.toContainEqual(expect.objectContaining({
+          type: 'show-activation-cta'
+        }));
       }
     }
   });
@@ -369,7 +401,7 @@ describe('phone Task 4 corrective invariants', () => {
 
   it('re-canonicalizes a newer external URL after rollback restored the source URL', () => {
     for (const firstOrigin of ['hash', 'popstate'] as const) {
-      for (const pendingOrigin of ['hash', 'popstate'] as const) {
+      for (const pendingOrigin of ['hash', 'popstate', 'menu', 'programmatic'] as const) {
         const source = prove(boot('brand', `authority:url:${firstOrigin}:${pendingOrigin}`));
         const entering = dispatch(source.snapshot, {
           type: 'entry-requested',
@@ -389,21 +421,21 @@ describe('phone Task 4 corrective invariants', () => {
           type: 'replace-url', pathname: '/', hash: '#brand'
         });
         const deferred = restored.effects.find(({ type }) => type === 'defer-entry');
-        expect(deferred).toEqual(expect.objectContaining({
+        const external = pendingOrigin === 'hash' || pendingOrigin === 'popstate';
+        expect(deferred).toEqual({
           type: 'defer-entry',
           request: { pathname: '/', hash: '#contact', origin: pendingOrigin },
-          urlWasReplaced: true
-        }));
-        if (!deferred || deferred.type !== 'defer-entry'
-          || deferred.urlWasReplaced !== true) throw new Error('missing pending entry');
+          ...(external ? { urlWasReplaced: true } : {})
+        });
+        if (!deferred || deferred.type !== 'defer-entry') throw new Error('missing pending entry');
         const pending = dispatch(restored.snapshot, {
           type: 'entry-requested',
           request: deferred.request,
-          urlWasReplaced: deferred.urlWasReplaced
+          ...(deferred.urlWasReplaced ? { urlWasReplaced: true } : {})
         });
         const settled = prove(pending);
         expect(settled.effects).toContainEqual({
-          type: 'replace-url', pathname: '/', hash: '#contact'
+          type: external ? 'replace-url' : 'push-url', pathname: '/', hash: '#contact'
         });
       }
     }

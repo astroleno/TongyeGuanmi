@@ -5,7 +5,7 @@
 > the executor completed uninterrupted Slices 4A → 4B → 4C → 4D with no
 > separate pause after 4A. Task 4's unified code/architecture review of the
 > complete machine/runtime, rollback, activation, queue, and disposal is
-> closed, including the post-4D corrective closeout recorded below. Task 5
+> closed, including both post-4D corrective closeouts recorded below. Task 5
 > remains unstarted pending the next authorized execution. The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
@@ -2737,6 +2737,48 @@ git commit -m "feat(r5): centralize phone effects and media activation"
 - The complete machine/runtime, rollback, activation, queue, and disposal
   review is closed. Task 5 remains unstarted.
 
+**Task 4D second corrective closure record (2026-08-01):**
+
+- Activation is now derived from the actual entry target or exact segment
+  mount roles, never from a warm union capacity. A runtime/mount seam covers
+  all 240 ordered warm source/target pairs without injecting
+  `activation-settled`; only targets with real video registrations invoke the
+  activation command.
+- D-static preparation retains its original positive module deadline while
+  structural/static evidence is incomplete. Every prepared arrival ordering
+  now asserts a non-null, positive deadline rather than accepting `null` as
+  “not zero.”
+- Runtime issues a fresh frame token at initial registration and every retained,
+  activation, or stage rebind, stores the expected token on the opaque lease,
+  and rejects stale-token frames before presentation verification. The same
+  centralized rebind path regenerates structural proof without direct reducer
+  event injection.
+- Native dependency settlement is split from attempt evidence: a superseded
+  import's late fulfillment/rejection updates the same-Document cache and
+  recovery lineage, while its emptied waiter set cannot write stale reducer
+  evidence. A later request for the rejected dependency fails closed without
+  calling the loader again.
+- Rollback deferral marks URL replacement only for queued `hash`/`popstate`
+  requests; queued `menu`/`programmatic` requests retain their required push.
+  Lease pause/dispose/release and every dependency release now run to completion
+  before one `AggregateError` is reported, with listener/timer/RAF/registry and
+  resource ownership cleared even when a cleanup callback throws.
+- Task 5's modify set now includes `runtime.ts` and `runtime.test.ts`. The plan
+  fixes the local projector wiring, exact proof-to-slot mapping, prohibition on
+  forwarding `apply-presentation-plane` through the generic environment hook,
+  and a structural 960-before/1000-after runtime LOC strategy. Task 5 remains
+  unstarted.
+- Corrective TDD first produced 19 focused failures. Final focused verification
+  passed 80/80; Node gate fixtures passed 114/114; the complete Vitest suite
+  passed 181 files / 1160 tests, followed by focused ESLint, TypeScript, and the
+  complete production build. No Playwright run was required for this
+  gate/runtime/document-only corrective.
+- Architecture gates pass at protocol 450/450, manifest 547/550,
+  presentation 274/900, machine 1097/1100, and runtime 999/1000 non-blank LOC.
+  Formal phone JS remains 628,833 B with a 41,116 B largest lazy chunk. Frozen
+  donor inputs are unchanged; archived evidence verifies 44/44 report hashes
+  and 227/227 files (217,091,751 bytes).
+
 `connect()` installs one active authority and returns its complete disconnect.
 Each connection starts a fresh boot transaction for the explicit entry.
 
@@ -2746,9 +2788,9 @@ Each connection starts a fresh boot transaction for the explicit entry.
   directions use one reducer;
 - cold boot and warm entry candidate/evidence/URL intent are reducer state,
   not effect-interpreter state;
-- warm menu/hash/popstate failure retains the original stable source and URL,
-  while a newer external request queued during rollback is re-canonicalized
-  after source proof;
+- warm menu/hash/popstate failure retains the original stable source and URL;
+  a newer external request queued during rollback is re-canonicalized after
+  source proof, while queued menu/programmatic intent still pushes history;
 - one stable-commit branch requires one attempt's complete evidence slots;
 - one proof-only reproject branch retains the stable commit and refreshes all
   final presentation evidence;
@@ -2773,6 +2815,8 @@ Each connection starts a fresh boot transaction for the explicit entry.
 
 - `app/src/production/phone-story/presentation.ts` created as a contract in
   Task 3
+- `app/src/production/phone-story/runtime.ts`
+- `app/src/production/phone-story/runtime.test.ts`
 
 - [ ] **Step 5.1: Write RED tests for the semantic layer plan**
 
@@ -2916,6 +2960,48 @@ export function createPhonePresentation(
   dependencies: PhonePresentationDependencies
 ): PhonePresentation;
 ```
+
+Task 5 is a projector/runtime integration task, not a presentation-only file
+task. The serializable `apply-presentation-plane` effect remains narrow: its
+exact leg and phase are derived fail-closed from the active transaction's
+`requiredFinal` slots. Every slot must share the effect attempt and
+`planeRevision`, and must name exactly one of `source`, `target`, or `rollback`.
+This avoids adding duplicate phase authority to `protocol.ts` while still
+giving `PhonePlaneRequest` a closed leg, scene, revision, viewport, and
+required-proof identity.
+
+`runtime.ts` must wire the projector directly:
+
+1. sample layout/visual viewport values through the injected
+   `PhonePresentation` at the existing runtime-owned host/RAF boundaries;
+2. intercept `apply-presentation-plane`, validate it against the current
+   attempt and `requiredFinal`, and call exactly one of `applyPlane`,
+   `verifyVisibleCandidate`, `verifyReproject`, or `verifyRollback` as selected
+   by the reducer-owned transaction/slots;
+3. map returned proof records only onto the exact current `requiredFinal`
+   slots, rejecting missing, extra, mixed-attempt, mixed-leg, or stale-revision
+   records before enqueueing `evidence-reported`;
+4. convert projector failure into the existing bounded `failure-reported`
+   path for that exact slot; and
+5. do not forward `apply-presentation-plane` to
+   `environment.performEffect`. That generic hook may observe/serve the other
+   browser effects, but it is not a second plane adapter or proof authority.
+
+`runtime.test.ts` must prove this wiring with source, target, reproject, and
+rollback cases, including stale revision, mixed leg, partial proof, and a
+generic `performEffect` callback attempting to forge plane evidence. Tests
+must also prove that one projector result creates at most one record for each
+exact reducer slot.
+
+The LOC work is structural and precedes projector behavior. Before adding the
+bridge, extract the browser-independent activation-batch settlement and
+generation-token/ordered-cleanup mechanics into named pure helpers in
+`presentation.ts`; runtime retains every connection check, queue, reducer
+enqueue, resource counter, and lease map. The RED refactor checkpoint requires
+`runtime.ts <= 960` non-blank LOC before projector wiring and `<= 1000` after
+it, while `presentation.ts` remains `<= 900`. No compressed statements,
+shortened diagnostics, type assertions, new core helper file, or second
+coordinator may be used to meet the budget.
 
 `createPhoneLeafReportPort(...).registerMount()` must close over
 `registerLeafMount()`; the leaf never receives the returned lease.
