@@ -4,7 +4,7 @@ import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
 import { phoneManifest, phoneSceneById, type PhoneSceneId,
   type PhoneSegmentId } from './manifest';
-import { createPhonePresentation, type PhoneLeafReportBinding,
+import { createPhonePresentation, runPhoneCleanupSteps, type PhoneLeafReportBinding,
   type PhoneLeafReportPort, type PhonePresentation } from './presentation';
 import type {
   PhoneDependencyRef, PhoneEntryRequest, PhoneStoryEffect, PhoneStorySnapshot,
@@ -261,26 +261,22 @@ async function loadPhoneDependencies(
   const modules = effect.dependencies.filter((dependency) => (
     dependency.startsWith('scene:') || dependency.startsWith('transition:')
   ));
-  const results = await Promise.all(modules.map(async (dependency) => {
-    try {
-      if (dependency.startsWith('scene:')) {
-        await loadPhoneSceneModule(dependency.slice('scene:'.length));
-      } else {
-        await loadPhoneTransitionModule(dependency.slice('transition:'.length));
-      }
-      return null;
-    } catch (error) {
-      return { dependency, error };
-    }
-  }));
-  const failure = results.find((result) => result !== null);
-  if (!failure) return { status: 'loaded' };
-  return {
-    status: 'rejected',
-    dependency: failure.dependency as PhoneDependencyRef,
-    moduleUrl: failure.dependency,
-    reason: failure.error instanceof Error ? failure.error.message : String(failure.error)
-  };
+  try {
+    await Promise.all(modules.map(async (dependency) => {
+      try {
+        await (dependency.startsWith('scene:')
+          ? loadPhoneSceneModule(dependency.slice('scene:'.length))
+          : loadPhoneTransitionModule(dependency.slice('transition:'.length)));
+      } catch (error) { throw { dependency, error }; }
+    }));
+    return { status: 'loaded' };
+  } catch (failure) {
+    const rejected = failure as Readonly<{ dependency: PhoneDependencyRef; error: unknown }>;
+    return {
+      status: 'rejected', dependency: rejected.dependency, moduleUrl: rejected.dependency,
+      reason: rejected.error instanceof Error ? rejected.error.message : String(rejected.error)
+    };
+  }
 }
 
 function initialEntry(entry?: PhoneEntryRequest): PhoneEntryRequest {
@@ -328,6 +324,7 @@ export function PhoneStoryShell({
   chunkRecovery
 }: PhoneStoryShellProps) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const connectedRef = useRef(false);
   const reportPorts = useRef(new Map<string, PhoneLeafReportPort>());
   const retainedScenes = useRef(new Map<PhoneSceneId, PhoneSceneRenderSlot>());
   const retainedEffect = useRef<Readonly<{
@@ -353,13 +350,15 @@ export function PhoneStoryShell({
     const root = rootRef.current;
     if (!root) return;
     const detach = owners.presentation.attachRoot(root);
+    connectedRef.current = true;
     const disconnect = owners.engine.connect();
     return () => {
-      disconnect();
-      detach();
-      reportPorts.current.clear();
-      retainedScenes.current.clear();
-      retainedEffect.current = null;
+      connectedRef.current = false;
+      runPhoneCleanupSteps('Phone shell cleanup failed', [
+        disconnect, detach,
+        () => reportPorts.current.clear(), () => retainedScenes.current.clear(),
+        () => { retainedEffect.current = null; }
+      ]);
     };
   }, [owners]);
 
@@ -371,7 +370,7 @@ export function PhoneStoryShell({
     reportPorts.current.set(key, created);
     return created;
   };
-  if (snapshot.status === 'transaction') {
+  if (connectedRef.current && snapshot.status === 'transaction') {
     const prefix = [snapshot.transaction.attempt.transactionId,
       snapshot.transaction.stageIndex].join('|');
     for (const key of reportPorts.current.keys()) {
@@ -394,7 +393,7 @@ export function PhoneStoryShell({
     return slot;
   };
   let effect = retainedEffect.current;
-  if (snapshot.status === 'transaction') {
+  if (connectedRef.current && snapshot.status === 'transaction') {
     const transaction = snapshot.transaction;
     if (transaction.sourceSceneId
       && transaction.mode !== 'rollback' && transaction.mode !== 'recovery') {
@@ -422,7 +421,7 @@ export function PhoneStoryShell({
       };
       retainedEffect.current = effect;
     }
-  } else if (snapshot.stableCommit) {
+  } else if (connectedRef.current && snapshot.stableCommit) {
     const retained = retainedScenes.current.get(snapshot.stableCommit.sceneId);
     if (retained) scenes.push({ ...retained, buffer: roles.source });
   }
@@ -434,9 +433,9 @@ export function PhoneStoryShell({
   const sourceScenes = scenes.filter(({ buffer }) => buffer === roles.source);
   const receiverScenes = scenes.filter(({ buffer }) => buffer === roles.receiver);
   const stableScene = snapshot.stableCommit?.sceneId ?? null;
-  const provenBoot = snapshot.status === 'stable'
+  const provenBoot = connectedRef.current && snapshot.status === 'stable'
     && snapshot.presentationProof.commitSequence === snapshot.stableCommit.commitSequence;
-  const faulted = snapshot.status === 'faulted';
+  const faulted = connectedRef.current && snapshot.status === 'faulted';
   const navigationScene = stableScene ?? 'hero';
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = (sceneId: PhoneSceneId) => {

@@ -1,12 +1,11 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** architecture and execution contracts are frozen. Tasks 0–4 and
-> their corrective reviews are complete. On 2026-08-01 the user approved and
-> the executor completed uninterrupted Slices 4A → 4B → 4C → 4D with no
-> separate pause after 4A. Task 4's unified code/architecture review of the
-> complete machine/runtime, rollback, activation, queue, and disposal is
-> closed, including both post-4D corrective closeouts recorded below. Task 5
-> remains unstarted pending the next authorized execution. The
+> **Status:** architecture and execution contracts are frozen. Tasks 0–6 and
+> their corrective reviews are complete. On 2026-08-01 the executor completed
+> uninterrupted Slices 4A → 4B → 4C → 4D, Task 5, and Task 6. Task 4's unified
+> machine/runtime review and Task 6's unified projector, real React StrictMode,
+> Loader, and lazy-boundary review are closed. Execution is stopped before
+> Task 7 at the next mandatory review boundary. The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
@@ -1137,7 +1136,7 @@ self-review is not a user-approval pause. Mandatory review nodes are:
 | --- | --- |
 | Task 3 contract freeze | Code/architecture review of protocol, manifest, Appendix E, and dependency direction; completed for the current branch |
 | Task 4D closure | Completed on 2026-08-01: unified review of machine, runtime, activation, queue, rollback, and disposal; no separate stop occurred after 4A |
-| Task 6 closure | Code/integration review of projector, real React StrictMode ownership, Loader, and lazy boundaries |
+| Task 6 closure | Completed on 2026-08-01: unified review of projector, real React StrictMode ownership, Loader, and lazy boundaries; blockers closed and execution stopped before Task 7 |
 | After Task 10, before Task 11 | Cutover-readiness review: all clean and old-formal gates green, registries complete, deletion ledger ready |
 | Task 12 closure | Automated release-candidate review and `candidateCodeSha` freeze readiness |
 | Task 13 | The only scheduled human visual acceptance: physical iPhone Safari on the exact candidate artifact |
@@ -2818,7 +2817,7 @@ Each connection starts a fresh boot transaction for the explicit entry.
 - `app/src/production/phone-story/runtime.ts`
 - `app/src/production/phone-story/runtime.test.ts`
 
-- [ ] **Step 5.1: Write RED tests for the semantic layer plan**
+- [x] **Step 5.1: Write RED tests for the semantic layer plan**
 
 Use an in-memory registration/geometry fixture and test both directions of all
 15 segments. The expected stack is:
@@ -2852,7 +2851,7 @@ inert target during prepared proof; one atomic candidate-plane apply makes the
 receiver non-occluded inside the story stack while retaining source mounted as
 rollback anchor; interaction remains disabled until stable commit.
 
-- [ ] **Step 5.2: Write RED viewport and coverage tests**
+- [x] **Step 5.2: Write RED viewport and coverage tests**
 
 Define two distinct value objects:
 
@@ -2883,7 +2882,7 @@ Tests must prove:
 - `0`, fractional, zoomed, and landscape offsets are handled explicitly;
 - no scene ID changes the coverage calculation.
 
-- [ ] **Step 5.3: Write RED content/frame proof tests**
+- [x] **Step 5.3: Write RED content/frame proof tests**
 
 Content proof must require:
 
@@ -2933,7 +2932,7 @@ root rect alone
 Canvas existence
 ```
 
-- [ ] **Step 5.4: Implement the route-local projector**
+- [x] **Step 5.4: Implement the route-local projector**
 
 The API should remain narrow:
 
@@ -3037,7 +3036,7 @@ The cleanup returned by `attachRoot()` clears the root and all registrations
 for that connection. A later StrictMode attach starts empty; no module-global
 registry or detached DOM reference may survive.
 
-- [ ] **Step 5.5: Establish one fixed topology before Loader exit**
+- [x] **Step 5.5: Establish one fixed topology before Loader exit**
 
 `styles.css` must implement one documented stacking context. The required
 shape is:
@@ -3070,7 +3069,7 @@ CSS requirements:
 - one transition layer plan controls between/above placement;
 - Loader remains opaque above this complete topology until runtime proof.
 
-- [ ] **Step 5.6: Make Hero zero synchronous**
+- [x] **Step 5.6: Make Hero zero synchronous**
 
 The projector must apply Hero's initial presentation variables before the
 Loader may receive `ready=true`:
@@ -3086,7 +3085,7 @@ post-paint proof accepted
 There is no CSS default of `1`, no completed Hero shown before reset, and no
 two-RAF fixed-stage registration that changes topology after reveal.
 
-- [ ] **Step 5.7: Verify and commit**
+- [x] **Step 5.7: Verify and commit**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -3133,7 +3132,7 @@ git commit -m "feat(r5): make phone presentation atomic"
 Formal `/` still imports the old `production/phone/PhoneStoryShell` after this
 task. The clean shell is unit-tested but not yet a production route.
 
-- [ ] **Step 6.1: Write RED shell-ownership tests**
+- [x] **Step 6.1: Write RED shell-ownership tests**
 
 Mock `scenes.tsx` and `transitions.tsx` with deterministic leaves. Tests must
 prove:
@@ -3165,7 +3164,7 @@ not a source assertion or hand-called connect/disconnect sequence. Add
 connect → cleanup → reconnect ordering plus listener/input counts. The global
 Vitest default remains `node`; only DOM lifecycle tests opt into jsdom.
 
-- [ ] **Step 6.2: Make StoryLoader phone-safe without forking it**
+- [x] **Step 6.2: Make StoryLoader phone-safe without forking it**
 
 Add an optional prop with a desktop-preserving default:
 
@@ -3185,7 +3184,7 @@ allowSafetyExit?: boolean; // default true
 Tests must prove an elapsed 8-second Loader timer cannot reveal an unproven
 phone target.
 
-- [ ] **Step 6.3: Implement typed lazy registries**
+- [x] **Step 6.3: Implement typed lazy registries**
 
 `scenes.tsx` and `transitions.tsx` contain:
 
@@ -3248,7 +3247,7 @@ This runtime contract covers leaf imports after core load. Initial
 implemented at Task 11 and tested at Task 12; it cannot be delegated back to a
 runtime that does not yet exist.
 
-- [ ] **Step 6.4: Implement the shell topology**
+- [x] **Step 6.4: Implement the shell topology**
 
 The shell is responsible only for wiring:
 
@@ -3295,7 +3294,7 @@ snapshot, but it must not import `useMobileLandscapeEntry` or create a second
 gate/store. The stable desktop shell may keep its existing mobile-landscape
 behavior unchanged.
 
-- [ ] **Step 6.5: Prove no new authority entered lazy chunks**
+- [x] **Step 6.5: Prove no new authority entered lazy chunks**
 
 ```bash
 rg -n "runtime|dispatch|addEventListener|currentScene|checkpoint|setTimeout|requestAnimationFrame" \
@@ -3306,7 +3305,7 @@ rg -n "runtime|dispatch|addEventListener|currentScene|checkpoint|setTimeout|requ
 Every match must be a type/comment/import-loader false positive that the
 architecture gate permits. There must be no import of `./runtime`.
 
-- [ ] **Step 6.6: Verify and commit**
+- [x] **Step 6.6: Verify and commit**
 
 ```bash
 pnpm -C app add -D jsdom
@@ -3342,6 +3341,33 @@ git commit -m "feat(r5): wire one clean phone story shell"
 - absent leaves fail closed without creating a compatibility lifecycle.
 - real jsdom StrictMode effect replay proves old connection cleanup before the
   live connection claims browser ownership.
+
+**Task 5–6 closure record (2026-08-01):**
+
+- Task 5 landed as `962683d` and Task 6 as `bbd6a7e`. The final integration
+  closeout additionally corrected rollback/recovery plane identity,
+  disconnected initial render ownership, exact and early lazy-rejection
+  attribution, and exception-safe shell cleanup.
+- Focused StoryLoader/shell/runtime/presentation verification passed 111/111;
+  the complete Vitest suite passed 183 files / 1220 tests. The architecture
+  gate, focused ESLint, TypeScript, complete production build, frozen-input
+  check, and diff check all passed.
+- Architecture budgets pass at protocol 450/450, manifest 547/550, machine
+  1100/1100, runtime 1000/1000, presentation 898/900, shell 496/500, scenes
+  155/180, and transitions 140/160 non-blank LOC. Formal phone JS is 628,892 B
+  and the largest lazy chunk is 41,116 B.
+- The real jsdom StrictMode replay proves disconnect/detach before reconnect;
+  cleanup still detaches the projector if runtime disposal throws. Loader
+  safety time cannot reveal an unproven phone target, terminal failure retains
+  an accessible retry, and a rejected dependency is reported immediately even
+  while a sibling import remains pending.
+- Lazy registries contain no lifecycle authority, cache fulfilled promises,
+  poison rejected module identities for the current Document, and keep missing
+  leaves under non-null covers. The clean shell remains unreachable from the
+  formal `/` route until Task 11, as required. Frozen donor inputs are
+  unchanged. No Playwright rerun was required by this unit/integration review.
+- The Task 6 mandatory code/integration review is closed with no remaining
+  blocker. Task 7 remains unstarted.
 
 ---
 

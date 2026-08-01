@@ -31,6 +31,7 @@ type MockEngine = Readonly<{
 const probe = vi.hoisted(() => ({
   activeConnections: 0,
   maxActiveConnections: 0,
+  disconnectFailure: false,
   presentationSequence: 0,
   events: [] as string[],
   engines: [] as MockEngine[],
@@ -72,22 +73,26 @@ vi.mock('./runtime', () => ({
           probe.activeConnections
         );
         removeHost = config.environment.subscribeHost((event) => hostEvents.push(event));
+        snapshot = snapshot ? { ...snapshot } : snapshot;
+        subscribers.forEach((listener) => listener());
         return () => {
           engine.disconnectCount += 1;
           probe.events.push(`disconnect:${id}`);
           removeHost?.();
           removeHost = null;
           probe.activeConnections -= 1;
+          if (probe.disconnectFailure) throw new Error('runtime disconnect failed');
         };
       },
-      createLeafReportPort: vi.fn(() => Object.freeze({
-        registerMount: vi.fn(),
-        reportPrepared: vi.fn(),
-        reportFrame: vi.fn(),
-        reportProgress: vi.fn(),
-        reportComplete: vi.fn(),
-        reportFailure: vi.fn()
-      }) satisfies PhoneLeafReportPort),
+      createLeafReportPort: vi.fn(() => {
+        if (engine.connectCount === engine.disconnectCount) {
+          throw new Error('report ports require the active route connection');
+        }
+        return Object.freeze({
+          registerMount: vi.fn(), reportPrepared: vi.fn(), reportFrame: vi.fn(),
+          reportProgress: vi.fn(), reportComplete: vi.fn(), reportFailure: vi.fn()
+        }) satisfies PhoneLeafReportPort;
+      }),
       publish: (next: SnapshotRecord) => {
         snapshot = next;
         subscribers.forEach((listener) => listener());
@@ -99,6 +104,13 @@ vi.mock('./runtime', () => ({
 }));
 
 vi.mock('./presentation', () => ({
+  runPhoneCleanupSteps: (label: string, steps: readonly (() => void)[]) => {
+    const errors: unknown[] = [];
+    for (const step of steps) {
+      try { step(); } catch (error) { errors.push(error); }
+    }
+    if (errors.length > 0) throw new AggregateError(errors, label);
+  },
   createPhonePresentation: vi.fn(() => {
     const id = ++probe.presentationSequence;
     return {
@@ -322,6 +334,7 @@ function reportPortProbe(reportFailure = vi.fn()): PhoneLeafReportPort {
 beforeEach(() => {
   probe.activeConnections = 0;
   probe.maxActiveConnections = 0;
+  probe.disconnectFailure = false;
   probe.presentationSequence = 0;
   probe.events.length = 0;
   probe.engines.length = 0;
@@ -445,6 +458,16 @@ describe('clean PhoneStoryShell ownership', () => {
     expect(oldDisconnect).toBeLessThan(newConnect);
     expect(probe.maxActiveConnections).toBe(1);
     act(() => root.unmount());
+  });
+
+  it('detaches the projector even when runtime disconnect reports an aggregated failure', () => {
+    const { root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    probe.disconnectFailure = true;
+    expect(() => act(() => root.unmount())).toThrow(/Phone shell cleanup failed/);
+    expect(probe.activeConnections).toBe(0);
+    expect(probe.events).toContain(`detach:${engine.presentationId}`);
   });
 
   it('passes only closed report ports into visual leaves and keeps terminal failure covered', () => {
@@ -613,6 +636,7 @@ describe('clean PhoneStoryShell ownership', () => {
   it('attributes a native lazy rejection to the dependency that actually failed', async () => {
     const { root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    vi.mocked(loadPhoneSceneModule).mockReturnValueOnce(new Promise(() => undefined));
     vi.mocked(loadPhoneTransitionModule).mockRejectedValueOnce(
       new Error('native transition rejection')
     );
@@ -627,7 +651,11 @@ describe('clean PhoneStoryShell ownership', () => {
       },
       dependencies: ['scene:hero', 'transition:hero-pattern']
     };
-    await expect(load(effect, new AbortController().signal)).resolves.toMatchObject({
+    const outcome = await Promise.race([
+      load(effect, new AbortController().signal),
+      new Promise<'timeout'>((resolveTimeout) => setTimeout(() => resolveTimeout('timeout'), 0))
+    ]);
+    expect(outcome).toMatchObject({
       status: 'rejected', dependency: 'transition:hero-pattern',
       moduleUrl: 'transition:hero-pattern', reason: 'native transition rejection'
     });
