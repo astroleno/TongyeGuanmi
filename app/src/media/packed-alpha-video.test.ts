@@ -16,7 +16,10 @@ const retirementContract = packedAlphaVideo as PackedAlphaRetirementContract;
 
 type EventListenerProbe = (event: Event) => void;
 
-function createGlProbe(options: Readonly<{ textureAvailable?: boolean }> = {}) {
+function createGlProbe(options: Readonly<{
+  textureAvailable?: boolean;
+  frameUploadFails?: boolean;
+}> = {}) {
   const loseContext = vi.fn();
   const resources = {
     vertex: { kind: 'vertex' },
@@ -81,7 +84,9 @@ function createGlProbe(options: Readonly<{ textureAvailable?: boolean }> = {}) {
     viewport: vi.fn(),
     clear: vi.fn(),
     activeTexture: vi.fn(),
-    texImage2D: vi.fn(),
+    texImage2D: vi.fn(() => {
+      if (options.frameUploadFails) throw new Error('frame upload failed');
+    }),
     uniform1f: vi.fn(),
     drawArrays: vi.fn(),
     flush: vi.fn(),
@@ -312,14 +317,19 @@ describe('packed alpha video', () => {
     const canvas = new CanvasProbe(probe.gl);
     const video = new VideoProbe();
     const onFrame = vi.fn();
+    const onFailure = vi.fn();
 
     const compositor = createPackedAlphaVideoCompositor({
       canvas: canvas as unknown as HTMLCanvasElement,
       video: video as unknown as HTMLVideoElement,
-      onFrame
+      onFrame,
+      onFailure
     });
 
     expect(canvas.dataset.packedAlphaStatus).toBe('setup-failed');
+    expect(onFailure).toHaveBeenCalledWith({
+      code: 'setup-failed', message: 'Packed-alpha WebGL setup failed'
+    });
     expect(probe.spies.deleteBuffer).toHaveBeenCalledWith(probe.resources.buffer);
     expect(probe.spies.deleteProgram).toHaveBeenCalledWith(probe.resources.program);
     expect(probe.spies.deleteShader).toHaveBeenCalledWith(probe.resources.vertex);
@@ -337,10 +347,12 @@ describe('packed alpha video', () => {
     const canvas = new CanvasProbe(probe.gl);
     const video = new VideoProbe();
     const onFrame = vi.fn();
+    const onFailure = vi.fn();
     const compositor = createPackedAlphaVideoCompositor({
       canvas: canvas as unknown as HTMLCanvasElement,
       video: video as unknown as HTMLVideoElement,
-      onFrame
+      onFrame,
+      onFailure
     });
     canvas.dataset.packedAlphaFrameReady = 'true';
     canvas.dataset.packedAlphaFrame = '3';
@@ -356,6 +368,9 @@ describe('packed alpha video', () => {
     expect(preventDefault).toHaveBeenCalledOnce();
     expect(video.cancelVideoFrameCallback).toHaveBeenCalledWith(41);
     expect(canvas.dataset.packedAlphaStatus).toBe('context-lost');
+    expect(onFailure).toHaveBeenCalledWith({
+      code: 'context-lost', message: 'Packed-alpha WebGL context was lost'
+    });
     expect(canvas.dataset.packedAlphaFrameReady).toBeUndefined();
     expect(canvas.dataset.packedAlphaFrame).toBeUndefined();
     expect(canvas.dataset.packedAlphaMediaTime).toBeUndefined();
@@ -364,6 +379,36 @@ describe('packed alpha video', () => {
 
     compositor.dispose();
     expect(probe.loseContext).toHaveBeenCalledOnce();
+  });
+
+  it('reports unavailable WebGL and a failed frame upload synchronously', () => {
+    const unavailableCanvas = new CanvasProbe(
+      null as unknown as WebGLRenderingContext
+    );
+    const unavailableFailure = vi.fn();
+    createPackedAlphaVideoCompositor({
+      canvas: unavailableCanvas as unknown as HTMLCanvasElement,
+      video: new VideoProbe() as unknown as HTMLVideoElement,
+      onFailure: unavailableFailure
+    });
+    expect(unavailableFailure).toHaveBeenCalledWith({
+      code: 'webgl-unavailable', message: 'Packed-alpha WebGL is unavailable'
+    });
+
+    const probe = createGlProbe({ frameUploadFails: true });
+    const video = new VideoProbe();
+    video.readyState = 2;
+    const uploadFailure = vi.fn();
+    const compositor = createPackedAlphaVideoCompositor({
+      canvas: new CanvasProbe(probe.gl) as unknown as HTMLCanvasElement,
+      video: video as unknown as HTMLVideoElement,
+      onFailure: uploadFailure
+    });
+    expect(compositor.render()).toBe(false);
+    expect(uploadFailure).toHaveBeenCalledWith({
+      code: 'frame-upload-failed', message: 'Packed-alpha frame upload failed'
+    });
+    compositor.dispose();
   });
 
   it('uses a renewed backing context after activate-dispose-activate', () => {

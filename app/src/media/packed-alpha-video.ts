@@ -53,6 +53,12 @@ type PackedAlphaVideoOptions = Readonly<{
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
   onFrame?: () => void;
+  onFailure?: (failure: PackedAlphaVideoFailure) => void;
+}>;
+
+export type PackedAlphaVideoFailure = Readonly<{
+  code: 'webgl-unavailable' | 'setup-failed' | 'frame-upload-failed' | 'context-lost';
+  message: string;
 }>;
 
 type VideoWithFrameCallbacks = HTMLVideoElement & {
@@ -196,6 +202,9 @@ export function createPackedAlphaVideoCompositor(
   });
   if (!gl) {
     canvas.dataset.packedAlphaStatus = 'webgl-unavailable';
+    options.onFailure?.({
+      code: 'webgl-unavailable', message: 'Packed-alpha WebGL is unavailable'
+    });
     return {
       render: () => false,
       setActive: () => undefined,
@@ -210,6 +219,9 @@ export function createPackedAlphaVideoCompositor(
   const texture = gl.createTexture();
   if (!shaders || !buffer || !texture) {
     canvas.dataset.packedAlphaStatus = 'setup-failed';
+    options.onFailure?.({
+      code: 'setup-failed', message: 'Packed-alpha WebGL setup failed'
+    });
     if (buffer) gl.deleteBuffer(buffer);
     if (texture) gl.deleteTexture(texture);
     if (shaders) {
@@ -301,6 +313,9 @@ export function createPackedAlphaVideoCompositor(
       );
     } catch {
       canvas.dataset.packedAlphaStatus = 'frame-upload-failed';
+      options.onFailure?.({
+        code: 'frame-upload-failed', message: 'Packed-alpha frame upload failed'
+      });
       return false;
     }
     gl.useProgram(program);
@@ -380,6 +395,9 @@ export function createPackedAlphaVideoCompositor(
     clearPresentedFrame(false);
     canvas.dataset.packedAlphaStatus = 'context-lost';
     canvas.dataset.packedAlphaCompositorActive = semanticBoolean(false);
+    options.onFailure?.({
+      code: 'context-lost', message: 'Packed-alpha WebGL context was lost'
+    });
   };
 
   video.addEventListener('loadeddata', renderAndSchedule);

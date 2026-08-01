@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { initStarFieldReveal, type StarFieldCamera } from '../../../scenes/star-map/starFieldReveal';
 import { BELIEF_COPY, STAR_MAP_TITLE } from '../../../story/copy';
-import { phoneMediaUrlFor } from '../phone-media';
+import { phoneMediaUrlFor } from '../../../media/phone-media';
 import type {
   PhonePatternAdapterProps,
   PhoneSceneAdapterHandle

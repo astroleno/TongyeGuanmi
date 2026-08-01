@@ -21,7 +21,7 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../types';
-import { phoneMediaUrlFor } from '../phone-media';
+import { phoneMediaUrlFor } from '../../../media/phone-media';
 import './PhoneFigure2.css';
 
 const Figure2Surface = figure2AnimationScene.Component;

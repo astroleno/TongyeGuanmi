@@ -139,6 +139,10 @@ describe('homepage phone-shell debt ratchet', () => {
       'module-loaders.ts',
       '../../scenes/pattern/phone/PhonePattern'
     ), []);
+    assert.deepEqual(shellZoneRendererImportViolations(
+      'module-loaders.ts',
+      '../../scenes/aod-animation/phone/PhoneAod'
+    ), []);
     assert.ok(shellZoneRendererImportViolations(
       'module-loaders.ts',
       '../../scenes/hero/phone/rogue-Hero'
@@ -146,6 +150,10 @@ describe('homepage phone-shell debt ratchet', () => {
     assert.ok(shellZoneRendererImportViolations(
       'module-loaders.ts',
       '../../scenes/pattern/phone/rogue-Pattern'
+    ).length > 0);
+    assert.ok(shellZoneRendererImportViolations(
+      'module-loaders.ts',
+      '../../scenes/aod-animation/phone/rogue-Aod'
     ).length > 0);
   });
 

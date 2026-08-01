@@ -32,6 +32,7 @@ export const phoneShellDebt = Object.freeze({
     'hero-motion.ts::../../scenes/hero/phone/PhoneHero.motion',
     'module-loaders.ts::../../scenes/hero/phone/PhoneHero',
     'module-loaders.ts::../../scenes/pattern/phone/PhonePattern',
+    'module-loaders.ts::../../scenes/aod-animation/phone/PhoneAod',
     'module-loaders.ts::../../scenes/brand/phone/PhoneBrand',
     'module-loaders.ts::../../scenes/figure3-animation/phone/PhoneFigure3',
     'module-loaders.ts::../../scenes/services/phone/PhoneServices',

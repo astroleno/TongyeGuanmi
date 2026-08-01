@@ -20,6 +20,7 @@ import {
 } from './adapter-groups/group4-5';
 import type {
   PhoneAodAdapterComponent,
+  PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
   PhoneHeroAdapterProps,
   PhoneLoaderAdapterModule,
@@ -30,6 +31,7 @@ import type {
   PhoneSceneAdapterComponent,
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterModule,
+  PhoneSceneAdapterProps,
   PhoneStarMapAdapterComponent,
   PhoneTransitionAdapterId,
   PhoneTransitionAdapterComponent,
@@ -41,6 +43,7 @@ import type {
 } from '../phone-story/presentation';
 import type { PhoneHeroMigrationCommands } from '../../scenes/hero/phone/PhoneHero';
 import type { PhonePatternMigrationCommands } from '../../scenes/pattern/phone/PhonePattern';
+import type { PhoneAodMigrationCommands } from '../../scenes/aod-animation/phone/PhoneAod';
 
 let loaderCache: Promise<PhoneLoaderAdapterModule> | undefined;
 let resolvedLoaderCache: PhoneLoaderAdapterModule | undefined;
@@ -201,16 +204,70 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
         Component: Component as unknown as PhoneStarMapAdapterComponent
       }));
     case 'aod-animation':
-      return import('./scenes/PhoneAod').then(({
-        PhoneAod: Component,
-        PHONE_AOD_ALPHA_START_PROGRESS: aodAlphaStartProgress,
-        PHONE_AOD_ALPHA_END_PROGRESS: aodAlphaEndProgress
-      }) => ({
-        id,
-        Component: Component as unknown as PhoneAodAdapterComponent,
-        aodAlphaStartProgress,
-        aodAlphaEndProgress
-      }));
+      return import('../../scenes/aod-animation/phone/PhoneAod').then((module) => {
+        const Component = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps>(
+          function PhoneAodMigrationBridge(props, forwardedRef) {
+            const registrationRef = useRef<PhoneLeafMountRegistration | null>(null);
+            const readyRef = useRef(props.onReady);
+            const progressRef = useRef(props.onAodProgress);
+            const completeRef = useRef(props.onAodComplete);
+            const generationRef = useRef(0);
+            readyRef.current = props.onReady;
+            progressRef.current = props.onAodProgress;
+            completeRef.current = props.onAodComplete;
+            const reports = useMemo<PhoneLeafReportPort>(() => Object.freeze({
+              registerMount(registration) {
+                registrationRef.current = registration;
+                registration.commands.rebind({
+                  reports,
+                  frameToken: `legacy-aod:frame:${++generationRef.current}`
+                });
+                readyRef.current?.();
+              },
+              reportPrepared: () => undefined,
+              reportFrame: () => undefined,
+              reportProgress: (progress) => progressRef.current?.(progress, 1),
+              reportComplete: () => completeRef.current?.(1),
+              reportFailure: () => undefined
+            }), []);
+            const migration = () => {
+              const commands = registrationRef.current?.commands as
+                | PhoneAodMigrationCommands
+                | undefined;
+              return commands?.[module.PHONE_AOD_MIGRATION_CONTROL];
+            };
+            useLayoutEffect(() => {
+              if (props.active) migration()?.enter();
+              else registrationRef.current?.commands.pause('hidden');
+            }, [props.active]);
+            useImperativeHandle(forwardedRef, () => ({
+              root: () => registrationRef.current?.root ?? null,
+              update(progress) {
+                registrationRef.current?.commands.render(progress);
+                progressRef.current?.(progress, 1);
+              },
+              startAutoplay(direction) {
+                migration()?.startAutoplay(direction);
+                const endpoint = direction === 1 ? 1 : 0;
+                progressRef.current?.(endpoint, direction);
+                completeRef.current?.(direction);
+              },
+              resetAutoplay: () => migration()?.resetAutoplay(),
+              enter: () => migration()?.enter(),
+              leave: () => migration()?.leave(),
+              reverse: () => undefined,
+              dispose: () => registrationRef.current?.commands.dispose('closure-retired')
+            }), []);
+            return createElement(module.PhoneAod, { reports });
+          }
+        );
+        return {
+          id,
+          Component: Component as PhoneAodAdapterComponent,
+          aodAlphaStartProgress: module.PHONE_AOD_ALPHA_START_PROGRESS,
+          aodAlphaEndProgress: module.PHONE_AOD_ALPHA_END_PROGRESS
+        };
+      });
     case 'method-top':
       return import('./scenes/PhoneMethodTop').then(({ PhoneMethodTop: Component }) => ({
         id,

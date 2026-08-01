@@ -3769,7 +3769,7 @@ git commit -m "fix(r5): close global phone viewport coverage"
 
 ### Slice 7D — AOD and iOS media activation
 
-- [ ] **Step 7D.1: Make AOD frame proof causal and fail fast**
+- [x] **Step 7D.1: Make AOD frame proof causal and fail fast**
 
 Update the packed-alpha surface API so:
 
@@ -3795,7 +3795,7 @@ any assertion where
 “still preparing after 500 ms” counts as success. Add tests that cross the old
 six-second watchdog boundary.
 
-- [ ] **Step 7D.2: Run the AOD/activation checkpoint and commit**
+- [x] **Step 7D.2: Run the AOD/activation checkpoint and commit**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -3813,6 +3813,32 @@ pnpm -C app exec playwright test \
 git add app
 git commit -m "fix(r5): make AOD activation and frame proof causal"
 ```
+
+**Slice 7D closure record (2026-08-01):**
+
+- The genuine AOD leaf, packed-alpha surface, and phone media resolver moved to
+  their canonical scene/media paths. The old formal route reaches the same AOD
+  implementation through one exact stateless bridge; PH, Crane, Figure2, and
+  Star Map now import the canonical media resolver/surface directly.
+- RED browser coverage reproduced both the missing semantic landing proof and
+  an autoplay rejection that occurred before prepared quorum and therefore
+  left the retained topology inert with a hidden CTA. The shared scene now
+  exposes the manifest landing anchor, and reducer-owned activation rejection
+  enters the covered `awaiting-media-activation` state immediately.
+- Packed-alpha failures are generation-bound and fail fast for unavailable or
+  incomplete WebGL setup, frame upload, explicit render failure, and context
+  loss. React-owned Canvas cleanup remains reactivatable; a failed generation
+  renews its Canvas, while terminal disposal alone hard-retires the context.
+  A six-second background gap invalidates the old attempt and restarts one
+  bounded foreground deadline.
+- Focused AOD/media/runtime tests passed 77/77, compositor tests passed 11/11,
+  machine tests passed 28/28, and TypeScript, architecture, homepage boundary,
+  raw harness build, frozen-input, and diff checks passed. Real iPhone-15
+  portrait WebKit passed both causal-draw and rejected-autoplay/real-gesture
+  checkpoints.
+- The exact old-formal mobile-WebKit regression retained the accepted parent
+  baseline: 2 passes / 3 skips / 4 failures at the same AOD reverse and three
+  downstream v47 assertions. No frozen old-formal oracle was changed.
 
 ### Slice 7E — Star Map, front transitions, and Front matrix
 

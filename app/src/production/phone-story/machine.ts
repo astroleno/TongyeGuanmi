@@ -830,15 +830,12 @@ function handleActivationSettled(
   if (!sameAttempt(snapshot.transaction.attempt, event.attempt)) {
     return freezeOwned({ snapshot, effects: [] });
   }
+  if (!event.invoked) return awaitMediaActivation(snapshot);
   const prepared = quorumComplete(snapshot.transaction, snapshot.transaction.requiredPrepared);
   const settled = reviseTransaction(snapshot, {
-    phase: event.invoked ? 'preparing' : prepared ? 'awaiting-media-activation' : snapshot.transaction.phase,
-    activation: event.invoked ? 'spent' : 'awaiting', retainedTopology: true,
-    deadline: !event.invoked && prepared ? null : snapshot.transaction.deadline
-  }, {}, prepared || event.invoked ? [{
-      type: 'show-activation-cta', attempt: event.attempt, enabled: !event.invoked
-  }] : []);
-  if (!event.invoked || !prepared) return settled;
+    phase: 'preparing', activation: 'spent', retainedTopology: true
+  }, {}, [{ type: 'show-activation-cta', attempt: event.attempt, enabled: false }]);
+  if (!prepared) return settled;
   return beginFinalProof(settled.snapshot);
 }
 

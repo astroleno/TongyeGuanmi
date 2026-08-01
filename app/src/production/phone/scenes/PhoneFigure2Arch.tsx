@@ -1,5 +1,5 @@
 import { RetainedFigure2Arch } from '../../../stage/RetainedFigure2Arch';
-import { phoneMediaUrlFor } from '../phone-media';
+import { phoneMediaUrlFor } from '../../../media/phone-media';
 
 const PHONE_FIGURE2_FOREGROUND_ARCH = phoneMediaUrlFor(
   'figure2-foreground-arch',

@@ -23,13 +23,13 @@ import {
   type PhoneNativeAutoplay
 } from '../../../production/phone/phone-native-autoplay';
 import { dispatchPhoneLabContactAutoplay } from '../../../production/phone/phone-lab-contact-timeline';
-import { phoneMediaUrlFor } from '../../../production/phone/phone-media';
+import { phoneMediaUrlFor } from '../../../media/phone-media';
 import {
   createPhonePackedAlphaSurface,
   releasePhonePackedAlphaWhenHidden,
   type PhonePackedAlphaSurface,
   type PhonePackedAlphaSurfaceMode
-} from '../../../production/phone/scenes/phone-packed-alpha-surface';
+} from '../../../media/phone-packed-alpha-surface';
 import {
   phonePhTimelineProgressForMediaProgress,
   renderPhonePhPresentation,

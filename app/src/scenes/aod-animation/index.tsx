@@ -162,6 +162,7 @@ function AodAnimationScene({ registerHandle }: SceneComponentProps) {
       data-aod-backdrop-exit-end="1.55"
       data-aod-figure-start-scale="1"
       data-aod-figure-start-y-vh="10.5"
+      data-phone-landing="aod-semantic-edge"
       aria-label="The Ancient of Days visual scene"
     >
       <div className="aod-transition__sticky">

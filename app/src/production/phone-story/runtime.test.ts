@@ -885,6 +885,27 @@ describe('phone runtime pagehide/pageshow/BFCache lifecycle', () => {
     disconnect();
   });
 
+  it('restarts an AOD proof after crossing the retired six-second watchdog in background', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#aod-animation');
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    const before = currentTransaction(runtime).attempt.transactionGeneration;
+    expect(currentTransaction(runtime).phase).toBe('preparing');
+    expect(fixture.counts().timers).toBe(1);
+
+    fixture.emit({ type: 'visibility', hidden: true });
+    fixture.advance(6_001);
+    fixture.fireTimers();
+    expect(fixture.counts().timers).toBe(0);
+    fixture.emit({ type: 'visibility', hidden: false });
+
+    expect(currentTransaction(runtime).attempt.transactionGeneration).toBeGreaterThan(before);
+    expect(currentTransaction(runtime).deadline?.remainingMs).toBeGreaterThan(0);
+    expect(fixture.counts().timers).toBe(1);
+    disconnect();
+  });
+
   it('pauses hidden deadlines and re-proves a stable BFCache restore with one listener', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#education');
@@ -1548,6 +1569,34 @@ describe('phone runtime effects, media activation, and disposal', () => {
     proveCurrent(runtime, fixture);
     expect(runtime.getSnapshot().status).toBe('stable');
     expect(commands.rebind).toHaveBeenCalledTimes(2);
+    disconnect();
+  });
+
+  it('offers activation immediately when direct autoplay rejects before prepared proof', async () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#aod-animation');
+    const disconnect = runtime.connect();
+    const { commands } = commandFixture();
+    vi.mocked(commands.activate).mockImplementation((command) => ({
+      invocationId: command.invocationId,
+      surfaceIds: command.surfaceIds,
+      invoked: true,
+      settlements: command.surfaceIds.map((surfaceId) => ({
+        surfaceId,
+        status: 'pending' as const,
+        settled: Promise.reject(new DOMException('gesture required', 'NotAllowedError'))
+      }))
+    }));
+
+    registerCurrentLeaf(runtime, commands);
+
+    await vi.waitFor(() => expect(currentTransaction(runtime).phase)
+      .toBe('awaiting-media-activation'));
+    expect(currentTransaction(runtime).activation).toBe('awaiting');
+    expect(currentTransaction(runtime).retainedTopology).toBe(true);
+    expect(fixture.effects).toContainEqual(expect.objectContaining({
+      type: 'show-activation-cta', enabled: true
+    }));
     disconnect();
   });
 
