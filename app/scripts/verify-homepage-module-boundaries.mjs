@@ -28,6 +28,9 @@ export const phoneShellDebt = Object.freeze({
     'phone-ink.ts::../../transitions/shared/inkField',
     'phone-ink.ts::../../transitions/shared/inkOwnership',
     'phone-ink.ts::../../transitions/shared/sceneInk',
+    // Task 7 temporary stateless bridge; both entries are deleted at cutover.
+    'hero-motion.ts::../../scenes/hero/phone/PhoneHero.motion',
+    'module-loaders.ts::../../scenes/hero/phone/PhoneHero',
     'module-loaders.ts::../../scenes/brand/phone/PhoneBrand',
     'module-loaders.ts::../../scenes/figure3-animation/phone/PhoneFigure3',
     'module-loaders.ts::../../scenes/services/phone/PhoneServices',

@@ -4,7 +4,15 @@ import {
   driveTimelineVideo
 } from '../../../media/timeline-video-driver';
 import { setPackedAlphaVideoSource } from '../../../media/packed-alpha-video';
-import type { PhoneMotionDriver } from '../types';
+
+export type PhoneMotionDriver = Readonly<{
+  set(target: HTMLElement, vars: Readonly<Record<string, string | number>>): void;
+  quickTo(
+    target: HTMLElement,
+    property: 'x' | 'y',
+    vars: Readonly<{ duration: number; ease: string }>
+  ): (value: number) => void;
+}>;
 
 export const PHONE_FIGURE_DURATION_SECONDS = 2.042;
 /**

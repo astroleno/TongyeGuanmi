@@ -214,7 +214,7 @@
   width: min(22em, 84vw);
   margin: 0 auto;
   color: rgba(247, 237, 215, .82);
-  font-family: var(--font-traditional);
+  font-family: var(--font-sans);
   font-size: clamp(15px, 4vw, 18px);
   line-height: 1.5;
   letter-spacing: .035em;

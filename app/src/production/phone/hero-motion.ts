@@ -10,7 +10,7 @@ export {
   phoneDeviceParallaxSample,
   phoneFigureFallbackSourceFor,
   phoneFigureSourceFor
-} from './scenes/PhoneHero.motion';
+} from '../../scenes/hero/phone/PhoneHero.motion';
 
 export type {
   PhoneDeviceParallax,
@@ -18,4 +18,4 @@ export type {
   PhoneFigureSource,
   PhoneFigureSources,
   PhoneParallaxTarget
-} from './scenes/PhoneHero.motion';
+} from '../../scenes/hero/phone/PhoneHero.motion';

@@ -68,7 +68,9 @@ export function createPhoneSceneRegistry<SceneId extends string = string>(
   });
 }
 
-const sceneLoaders = Object.freeze({}) satisfies Partial<Record<string, PhoneSceneLoader>>;
+const sceneLoaders = Object.freeze({
+  hero: () => import('../../scenes/hero/phone/PhoneHero')
+}) satisfies Partial<Record<string, PhoneSceneLoader>>;
 const defaultSceneRegistry = createPhoneSceneRegistry<string>(sceneLoaders);
 
 type PhoneSceneFailureBoundaryProps = Readonly<{

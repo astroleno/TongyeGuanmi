@@ -1,4 +1,12 @@
 import {
+  createElement,
+  forwardRef,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef
+} from 'react';
+import {
   frontHalfPhoneSceneIds,
   frontHalfPhoneTransitionIds
 } from './adapter-groups/front-half';
@@ -12,6 +20,8 @@ import {
 } from './adapter-groups/group4-5';
 import type {
   PhoneAodAdapterComponent,
+  PhoneHeroAdapterHandle,
+  PhoneHeroAdapterProps,
   PhoneLoaderAdapterModule,
   PhoneMethodAdapterComponent,
   PhoneSceneAdapterId,
@@ -22,6 +32,11 @@ import type {
   PhoneTransitionAdapterComponent,
   PhoneTransitionAdapterModule
 } from './types';
+import type {
+  PhoneLeafMountRegistration,
+  PhoneLeafReportPort
+} from '../phone-story/presentation';
+import type { PhoneHeroMigrationCommands } from '../../scenes/hero/phone/PhoneHero';
 
 let loaderCache: Promise<PhoneLoaderAdapterModule> | undefined;
 let resolvedLoaderCache: PhoneLoaderAdapterModule | undefined;
@@ -56,10 +71,76 @@ function importPhoneLoaderAdapter(): Promise<PhoneLoaderAdapterModule> {
 function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAdapterModule> {
   switch (id) {
     case 'hero':
-      return import('./scenes/PhoneHero').then(({ PhoneHero: Component }) => ({
-        id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
-      }));
+      return import('../../scenes/hero/phone/PhoneHero').then((module) => {
+        const Component = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProps>(
+          function PhoneHeroMigrationBridge(props, forwardedRef) {
+            const registrationRef = useRef<PhoneLeafMountRegistration | null>(null);
+            const readyRef = useRef(props.onReady);
+            const generationRef = useRef(0);
+            readyRef.current = props.onReady;
+            const reports = useMemo<PhoneLeafReportPort>(() => Object.freeze({
+              registerMount(registration) {
+                registrationRef.current = registration;
+                registration.commands.rebind({
+                  reports,
+                  frameToken: `legacy-hero:frame:${++generationRef.current}`
+                });
+                readyRef.current?.();
+              },
+              reportPrepared: () => undefined,
+              reportFrame: () => undefined,
+              reportProgress: () => undefined,
+              reportComplete: () => undefined,
+              reportFailure: () => undefined
+            }), []);
+            const migration = () => {
+              const commands = registrationRef.current?.commands as
+                | PhoneHeroMigrationCommands
+                | undefined;
+              return commands?.[module.PHONE_HERO_MIGRATION_CONTROL];
+            };
+            useLayoutEffect(() => {
+              void props.motionDriver;
+              if (props.active && !props.reducedMotion) migration()?.enter();
+              else registrationRef.current?.commands.pause('hidden');
+            }, [props.active, props.motionDriver, props.reducedMotion]);
+            useImperativeHandle(forwardedRef, () => ({
+              root: () => registrationRef.current?.root ?? null,
+              update: (progress) => registrationRef.current?.commands.render(progress),
+              enter: () => migration()?.enter(),
+              leave: () => migration()?.leave(),
+              reverse: () => migration()?.enter(),
+              startEntrance: () => {
+                const commands = registrationRef.current?.commands as
+                  | PhoneHeroMigrationCommands
+                  | undefined;
+                commands?.[module.PHONE_HERO_MIGRATION_CONTROL].startEntrance();
+              },
+              completeEntrance: () => {
+                const commands = registrationRef.current?.commands as
+                  | PhoneHeroMigrationCommands
+                  | undefined;
+                commands?.[module.PHONE_HERO_MIGRATION_CONTROL].completeEntrance();
+              },
+              cancelEntrance: () => {
+                const commands = registrationRef.current?.commands as
+                  | PhoneHeroMigrationCommands
+                  | undefined;
+                commands?.[module.PHONE_HERO_MIGRATION_CONTROL].cancelEntrance();
+              },
+              unlockFromGesture: () => {
+                const commands = registrationRef.current?.commands as
+                  | PhoneHeroMigrationCommands
+                  | undefined;
+                commands?.[module.PHONE_HERO_MIGRATION_CONTROL].unlockFromGesture();
+              },
+              dispose: () => registrationRef.current?.commands.dispose('closure-retired')
+            }), []);
+            return createElement(module.PhoneHero, { reports });
+          }
+        );
+        return { id, Component: Component as unknown as PhoneSceneAdapterComponent };
+      });
     case 'pattern':
       return import('./scenes/PhonePattern').then(({ PhonePattern: Component }) => ({
         id,

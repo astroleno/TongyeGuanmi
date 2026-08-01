@@ -127,6 +127,18 @@ describe('homepage phone-shell debt ratchet', () => {
       'phone-ink.ts',
       '../../transitions/shared/sceneInk'
     ), []);
+    assert.deepEqual(shellZoneRendererImportViolations(
+      'module-loaders.ts',
+      '../../scenes/hero/phone/PhoneHero'
+    ), []);
+    assert.deepEqual(shellZoneRendererImportViolations(
+      'hero-motion.ts',
+      '../../scenes/hero/phone/PhoneHero.motion'
+    ), []);
+    assert.ok(shellZoneRendererImportViolations(
+      'module-loaders.ts',
+      '../../scenes/hero/phone/rogue-Hero'
+    ).length > 0);
   });
 
   it('delegates the canonical phone graph to the clean architecture verifier', () => {

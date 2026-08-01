@@ -20,9 +20,9 @@ const edgeSurfaceSource = source('../phone/phone-edge-surface.ts');
 const viewportGeometrySource = source('../phone/usePhoneViewportGeometry.ts');
 const frontHalfSource = source('../phone/usePhoneFrontHalfAdapters.ts');
 const loaderSource = source('../phone/scenes/PhoneLoader.tsx');
-const heroSource = source('../phone/scenes/PhoneHero.tsx');
-const heroMotionSource = source('../phone/scenes/PhoneHero.motion.ts');
-const heroCss = source('../phone/scenes/PhoneHero.css');
+const heroSource = source('../../scenes/hero/phone/PhoneHero.tsx');
+const heroMotionSource = source('../../scenes/hero/phone/PhoneHero.motion.ts');
+const heroCss = source('../../scenes/hero/phone/PhoneHero.css');
 const patternSource = source('../phone/scenes/PhonePattern.tsx');
 const patternCss = source('../phone/scenes/PhonePattern.css');
 const starSource = source('../phone/scenes/PhoneStarMap.tsx');
@@ -177,11 +177,11 @@ describe('Route B proven front-half migration contract', () => {
 
   it('preserves Hero entrance, safe copy anchors, and one edge surface', () => {
     expect(heroSource).toContain(
-      'const [titleActive, setTitleActive] = useState(reducedMotion);'
+      'const [titleActive, setTitleActive] = useState(false);'
     );
     expect(heroSource).toContain('const startEntrance = useCallback(() => {');
     expect(heroSource).toContain(
-      "owner.dataset.portraitHeroTextEntrance = 'playing'"
+      'owner.dataset.portraitHeroTextEntrance = sample.complete'
     );
     expect(runtimeSource).toContain('heroAdapter.startEntrance()');
     for (const css of [heroCss, patternCss, starCss]) {
@@ -235,9 +235,8 @@ describe('Route B proven front-half migration contract', () => {
   it('keeps one packed-alpha owner and the phone-only 0.49 → 0.59 mapping', () => {
     expect(heroSource).toContain('createPackedAlphaVideoCompositor');
     expect(aodSource).toContain('createPackedAlphaVideoCompositor');
-    expect(heroSource).toContain(
-      "phoneMediaUrlFor('hero-figure-packed', 'hero')"
-    );
+    expect(heroSource).toContain("assertPhoneMediaOwner('hero-figure-packed', 'hero')");
+    expect(heroSource).toContain("'../../../../../assets/figure1-rgb-alpha.mp4'");
     expect(aodSource).toContain("'aod-figure-packed'");
     expect(aodSource).not.toContain('packed-reverse');
     expect(aodSource).toContain('driveReverseFrame');

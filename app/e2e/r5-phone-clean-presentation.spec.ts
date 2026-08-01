@@ -7,6 +7,63 @@ import {
   waitForCommitSequence
 } from './r5-phone-clean-assertions';
 
+test('Hero Loader handoff starts at zero under one fixed opaque topology', async ({ page }) => {
+  let releaseVideo = () => undefined;
+  const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });
+  await page.route(/figure1-rgb-alpha.*\.mp4/, async (route) => {
+    await videoGate;
+    await route.continue();
+  });
+  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  const hero = page.locator('.portrait-scroll-spike__scene--hero');
+  await expect(hero).toBeAttached();
+  const firstCommit = await hero.evaluate((element) => {
+    const root = element as HTMLElement;
+    const loader = document.querySelector<HTMLElement>('[data-story-loader="true"]');
+    const viewport = root.closest('[data-phone-plane]')
+      ?.parentElement?.parentElement as HTMLElement | null;
+    return {
+      loader: loader?.dataset.loaderStatus,
+      loaderVisible: loader?.hidden === false,
+      progress: root.style.getPropertyValue('--r4-hero-progress'),
+      middle: root.style.getPropertyValue('--r4-hero-middle-intro'),
+      figure: root.style.getPropertyValue('--r4-hero-figure-intro'),
+      viewportPosition: viewport ? getComputedStyle(viewport).position : null,
+      rootPosition: getComputedStyle(root).position
+    };
+  });
+  expect(firstCommit).toEqual({
+    loader: 'running', loaderVisible: true,
+    progress: '0.0000', middle: '0.0000', figure: '0.0000',
+    viewportPosition: 'fixed', rootPosition: 'absolute'
+  });
+
+  releaseVideo();
+  await waitForCommitSequence(page, 'hero', 0);
+  await expect(hero).toHaveAttribute('data-phone-hero-images', 'decoded');
+  const loader = page.locator('[data-story-loader="true"]');
+  await expect(loader).toHaveAttribute('data-loader-status', 'exiting', { timeout: 10_000 });
+  const allExitFrames: Buffer[] = [];
+  for (let frame = 0; frame < 12; frame += 1) {
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    allExitFrames.push(await page.screenshot());
+  }
+  await page.waitForFunction(() => {
+    const target = document.querySelector<HTMLElement>('[data-story-loader="true"]');
+    return !target || Number.parseFloat(getComputedStyle(target).opacity) < 0.7;
+  });
+  const provenExitFrames: Buffer[] = [];
+  for (let frame = 0; frame < 8; frame += 1) {
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    provenExitFrames.push(await page.screenshot());
+  }
+  expect(allExitFrames).toHaveLength(12);
+  await assertNoIntermediateWhiteOrBlackFrame(provenExitFrames, { tolerance: 3 });
+  await expect(loader).toHaveAttribute('data-loader-status', 'hidden');
+  await assertTargetContentVisible(page, ['#portrait-spike-home']);
+  await assertOpaqueViewportEdges(page, [36, 40, 36], 32);
+});
+
 test('harness contract keeps every real viewport edge opaque', async ({ page }) => {
   await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-story-loader="true"]')).toBeVisible();

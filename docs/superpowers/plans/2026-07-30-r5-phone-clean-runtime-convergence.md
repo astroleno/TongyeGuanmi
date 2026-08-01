@@ -5,7 +5,8 @@
 > uninterrupted Slices 4A → 4B → 4C → 4D, Task 5, and Task 6. Task 4's unified
 > machine/runtime review and Task 6's unified projector, real React StrictMode,
 > Loader, and lazy-boundary review are closed. Task 7A established the clean
-> browser harness and execution is continuing with Slice 7B. The
+> browser harness, Slice 7B closed the Hero/Loader handoff, and execution is
+> continuing with Slice 7C. The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
@@ -3630,7 +3631,7 @@ git commit -m "test(r5): establish clean phone browser harness"
 
 ### Slice 7B — Hero and Loader
 
-- [ ] **Step 7B.1: Reproduce Hero flash before declaring the fix**
+- [x] **Step 7B.1: Reproduce Hero flash before declaring the fix**
 
 Instrument screenshots from navigation start through Loader exit at every
 animation frame available to the test. The RED assertion must catch either:
@@ -3657,7 +3658,7 @@ Then enforce:
 Port the reviewed Hero font declaration from `82a4e68` into the new canonical
 Hero CSS, not the old path.
 
-- [ ] **Step 7B.2: Run the Hero/Loader checkpoint and commit**
+- [x] **Step 7B.2: Run the Hero/Loader checkpoint and commit**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -3673,6 +3674,35 @@ pnpm -C app exec playwright test \
 git add app
 git commit -m "fix(r5): close phone Hero Loader handoff"
 ```
+
+**Slice 7B closure record (2026-08-01):**
+
+- The genuine donor Hero moved to `scenes/hero/phone/`; the old formal route
+  reaches that same component through one ref/report translation in the
+  existing `module-loaders.ts`. The bridge owns no React state, timer, RAF,
+  input listener, checkpoint, or stable state and is covered by an exact
+  temporary module-boundary allowlist for Task 11 deletion.
+- RED/GREEN coverage holds the packed video request before decode to inspect
+  the first committed DOM: Hero is at exact zero, the Loader is still opaque,
+  and the viewport topology is already fixed. Twelve consecutive exit RAF
+  screenshots plus post-proof frames contain no black/white reappearance or
+  topology swap. Images must be decoded and the generation-bound compositor
+  frame acknowledged before the clean commit and Loader release.
+- A withheld first compositor callback cannot report through a newer frame
+  token. Rebinding disposes the old resources reactivatably, creates a fresh
+  generation, and accepts only that generation's draw; no scene timeout or
+  same-generation retry was added. Persistent React cleanup remains
+  reactivatable, while runtime terminal disposal owns hard context retirement.
+- Focused Hero/Loader/core tests passed 174/174, the architecture and homepage
+  boundary gates, TypeScript, raw harness build, ordinary production build,
+  frozen-input check, and the real WebKit `Hero|Loader` checkpoint passed.
+  Phone JS is 631,823 B and the largest lazy chunk remains 41,116 B.
+- The exact old-formal mobile-WebKit command was also run on both this slice
+  and a disposable archive of its parent `5d58264`. Both produced the same
+  2 passes / 3 skips / 4 pre-existing failures at the same assertions (AOD
+  reverse checkpoint and three downstream v47 oracles); the Hero/Loader
+  portion passed after the bridge. This establishes no migration regression
+  without changing, skipping, or weakening those frozen old-formal tests.
 
 ### Slice 7C — Pattern and dynamic viewport
 
