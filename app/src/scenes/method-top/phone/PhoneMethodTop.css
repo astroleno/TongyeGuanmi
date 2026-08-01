@@ -1,0 +1,110 @@
+.phone-method-top {
+  box-sizing: border-box;
+  min-height: var(--phone-layout-height, 100vh);
+  padding: 0 0 max(72px, calc(env(safe-area-inset-bottom) + 44px));
+  background: #ede4d2;
+  color: #1e211c;
+}
+
+.phone-method-top__visual,
+.phone-method-top__visual > .phone-method-top {
+  height: 100%;
+  width: 100%;
+}
+
+.phone-method-top .portrait-scroll-spike__method-bridge-content,
+.phone-method-top .portrait-scroll-spike__steps {
+  width: min(640px, 100%);
+  margin-inline: auto;
+}
+
+.phone-method-top .portrait-scroll-spike__method-bridge {
+  box-sizing: border-box;
+  display: flex;
+  min-height: var(--phone-layout-height, 100vh);
+  width: 100%;
+  flex-direction: column;
+  justify-content: center;
+  padding: max(76px, calc(env(safe-area-inset-top) + 48px))
+    max(24px, env(safe-area-inset-right))
+    max(68px, calc(env(safe-area-inset-bottom) + 36px))
+    max(24px, env(safe-area-inset-left));
+}
+
+.phone-method-top .portrait-scroll-spike__method-bridge-content > span {
+  display: block;
+  margin: 0 0 12px;
+  color: #715b2e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .14em;
+}
+
+.phone-method-top .portrait-scroll-spike__reading-intro h2 {
+  display: grid;
+  gap: .22em;
+  margin: 0;
+  color: #20251f;
+  font-family: var(--font-traditional);
+  font-size: clamp(38px, 10.5vw, 56px);
+  font-weight: 600;
+  line-height: 1.08;
+}
+
+.phone-method-top .portrait-scroll-spike__reading-intro p {
+  margin: 22px 0 0;
+  color: rgba(30, 33, 28, .76);
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.phone-method-top .portrait-scroll-spike__steps {
+  display: grid;
+  width: min(640px, calc(100% - 48px));
+  margin-top: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.phone-method-top .portrait-scroll-spike__steps li {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 24px 0;
+  border-top: 1px solid rgba(30, 33, 28, .15);
+}
+
+.phone-method-top .portrait-scroll-spike__steps li > span {
+  grid-row: span 2;
+  color: #776735;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.phone-method-top .portrait-scroll-spike__steps h3 {
+  margin: 0;
+  font-family: var(--font-traditional);
+  font-size: 25px;
+  line-height: 1.2;
+}
+
+.phone-method-top .portrait-scroll-spike__steps p {
+  margin: 8px 0 0;
+  color: rgba(30, 33, 28, .74);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.phone-grade-a-slot {
+  position: relative;
+  width: 100%;
+  min-height: 660lvh;
+  background: transparent;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .phone-grade-a-slot {
+    min-height: 600lvh;
+  }
+}

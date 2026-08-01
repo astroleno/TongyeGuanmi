@@ -102,20 +102,6 @@ export const LEGACY_PHONE_BOOLEAN_DEBT = Object.freeze([
     writer: 'data-portrait-loader-ready={String(loaderHidden)}'
   }),
   Object.freeze({
-    file: 'src/production/phone/scenes/PhoneFigure2.tsx',
-    attribute: 'data-phone-figure2-active',
-    owner: 'setSceneActive',
-    kind: 'dataset-assignment',
-    writer: 'root.dataset.phoneFigure2Active=String(active)'
-  }),
-  Object.freeze({
-    file: 'src/production/phone/scenes/PhoneMethodTop.tsx',
-    attribute: 'data-portrait-aod-method-visible',
-    owner: 'update',
-    kind: 'dataset-assignment',
-    writer: 'owner.dataset.portraitAodMethodVisible=String(visible)'
-  }),
-  Object.freeze({
     file: 'src/production/phone/usePhoneStageRuntime.ts',
     attribute: 'data-portrait-stage-active',
     owner: 'setStageActive',

@@ -29,7 +29,6 @@ import {
   PhoneBrandLabContinuation,
   phoneGroup45SceneFromHash
 } from './PhoneBrandLabContinuation';
-import { PhoneFigure2Arch } from './scenes/PhoneFigure2Arch';
 import './PhoneGradeAStory.css';
 
 const FIGURE2_PROOF_SPLIT = 0.72;
@@ -648,7 +647,6 @@ export function PhoneGradeAStory({
             onReady={markProofReady}
           />
         )}
-        <PhoneFigure2Arch />
       </div>
       {scenesReady && MethodFigure2 && (
         <MethodFigure2

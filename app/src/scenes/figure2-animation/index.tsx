@@ -500,6 +500,9 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     const root = rootRef.current;
+    if (root?.dataset.phoneRuntimeOwned === 'true') {
+      return () => registerHandle?.(FIGURE2_OPENING_FRAME_HANDLE, null);
+    }
     const controller = new AbortController();
     for (const video of root?.querySelectorAll<HTMLVideoElement>('[data-figure2-video]') ?? []) {
       video.muted = true;

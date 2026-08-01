@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { phoneManifest, phonePreparedSurfaceIds, phoneSceneById,
   type PhoneSceneId, type PhoneSegmentId } from './manifest';
 import {
-  createNoopPhoneLeafCommandHandle,
   createPhonePresentation,
+  type PhoneLeafCommandHandle,
   type PhoneLeafMountLease,
   type PhoneLeafReportBinding,
   type PhonePlaneRequest,
@@ -16,6 +16,18 @@ import type {
   PhoneLayoutViewport, PhonePreparedEvidenceKind, PhoneVisualViewport,
   PhoneViewportSnapshot
 } from './protocol';
+
+function createNoopPhoneLeafCommandHandle(): PhoneLeafCommandHandle {
+  return Object.freeze({
+    rebind: () => undefined,
+    activate: ({ invocationId, surfaceIds }) => ({
+      invocationId, surfaceIds, invoked: true,
+      settlements: surfaceIds.map((surfaceId) => ({ surfaceId, status: 'fulfilled' }))
+    }),
+    render: () => undefined, settle: () => undefined,
+    pause: () => undefined, dispose: () => undefined
+  });
+}
 
 type Rect = Readonly<{
   left: number; top: number; right: number; bottom: number;

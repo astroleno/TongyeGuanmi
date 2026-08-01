@@ -17,6 +17,31 @@ const FRONT_CONTENT = {
   'aod-animation': ['[data-aod-figure-canvas]']
 } as const;
 
+const GRADE_A_CONTENT = {
+  'method-top': ['#method #portrait-spike-method-title'],
+  'figure2-animation': [
+    '[data-r4-scene="figure2-animation"] [data-figure2-packed-alpha-canvas]'
+  ],
+  'figure2-proof': ['#figure2-proof-opening .r4-proof-opening__title'],
+  brand: ['#phone-brand-title', '.phone-brand__definition p']
+} as const;
+
+const GRADE_A_HASH = {
+  'method-top': '#method-top',
+  'figure2-animation': '#figure2-animation',
+  'figure2-proof': '#figure2-proof',
+  brand: '#brand'
+} as const;
+
+const GRADE_A_SEGMENT = {
+  'method-top:figure2-animation': 'method-bottom-figure2',
+  'figure2-animation:figure2-proof': 'figure2-distance-expand',
+  'figure2-proof:brand': 'figure2-proof-brand',
+  'brand:figure2-proof': 'figure2-proof-brand',
+  'figure2-proof:figure2-animation': 'figure2-distance-expand',
+  'figure2-animation:method-top': 'method-bottom-figure2'
+} as const;
+
 async function nextAnimationFrame(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
@@ -26,6 +51,49 @@ async function sendFrontIntent(
   direction: 'forward' | 'reverse'
 ): Promise<void> {
   await page.keyboard.press(direction === 'forward' ? 'ArrowDown' : 'ArrowUp');
+}
+
+async function traverseGradeA(
+  page: import('@playwright/test').Page,
+  source: keyof typeof GRADE_A_CONTENT,
+  target: keyof typeof GRADE_A_CONTENT,
+  direction: 'forward' | 'reverse'
+): Promise<void> {
+  const before = await readCommitSequence(page);
+  await sendFrontIntent(page, direction);
+  const segment = GRADE_A_SEGMENT[`${source}:${target}` as keyof typeof GRADE_A_SEGMENT];
+  const effect = page.locator(`[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"]`);
+  await expect(effect).toBeAttached({ timeout: 10_000 });
+  for (let boundary = 0; boundary < 4; boundary += 1) {
+    const handle = await page.waitForFunction(({ from, to, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const state = {
+        scene: shell?.dataset.phoneScene,
+        status: shell?.dataset.phoneStatus,
+        phase: shell?.dataset.phonePhase,
+        failure: shell?.dataset.phoneFailure,
+        sequence: Number(shell?.dataset.phoneCommitSequence)
+      };
+      return state.scene === to && state.sequence > after
+        || state.status === 'stable' && state.scene === from
+        || ['awaiting-media-activation', 'awaiting-leg-intent'].includes(state.phase ?? '')
+        ? state : null;
+    }, { from: source, to: target, after: before }, { timeout: 20_000 });
+    const state = await handle.jsonValue();
+    if (state.scene === target && state.sequence > before) break;
+    if (state.status === 'stable') {
+      throw new Error(`Grade A ${source} → ${target} rolled back: ${JSON.stringify(state)}`);
+    }
+    if (state.phase === 'awaiting-media-activation') {
+      await page.locator('[data-phone-activation]:not([hidden])').click();
+    } else if (state.phase === 'awaiting-leg-intent') {
+      await sendFrontIntent(page, direction);
+    }
+  }
+  await waitForCommitSequence(page, target, before);
+  expect(await readCommitSequence(page)).toBe(before + 1);
+  await assertTargetContentVisible(page, GRADE_A_CONTENT[target]);
+  await assertNoWhiteOrTransparentViewportEdges(page);
 }
 
 async function traverseFront(
@@ -233,6 +301,46 @@ test('Front direct Star Map exposes a causal rotated Canvas frame and content', 
     .toHaveAttribute('data-portrait-star-camera', 'rotate(-90deg) cover');
   await assertTargetContentVisible(page, FRONT_CONTENT['star-map']);
   await assertNoWhiteOrTransparentViewportEdges(page);
+});
+
+test('Grade A direct entries expose the requested target before Loader retirement', async ({
+  page
+}) => {
+  for (const scene of Object.keys(GRADE_A_CONTENT) as Array<keyof typeof GRADE_A_CONTENT>) {
+    await page.goto(`/harness/r5-phone-clean?direct=${scene}${GRADE_A_HASH[scene]}`, {
+      waitUntil: 'domcontentloaded'
+    });
+    await waitForCommitSequence(page, scene, 0);
+    await assertSinglePhoneAuthority(page);
+    await assertTargetContentVisible(page, GRADE_A_CONTENT[scene]);
+    await assertNoWhiteOrTransparentViewportEdges(page);
+    await expect(page.locator('[data-story-loader="true"]'))
+      .toHaveAttribute('data-loader-status', 'hidden');
+    if (scene === 'figure2-animation') {
+      await expect(page.locator('[data-figure2-packed-alpha-canvas]'))
+        .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+      await expect(page.locator('[data-stage-retained-figure2-arch="true"]'))
+        .toHaveCount(1);
+      expect(await page.locator('[data-stage-retained-figure2-arch="true"]')
+        .evaluate((arch) => Boolean(arch.closest('[data-figure2-depth-ranked-field="true"]'))))
+        .toBe(false);
+    }
+  }
+});
+
+test('Grade A chain commits each hold once and preserves both-direction endpoints', async ({
+  page
+}) => {
+  await page.goto('/harness/r5-phone-clean#method-top', {
+    waitUntil: 'domcontentloaded'
+  });
+  await waitForCommitSequence(page, 'method-top', 0);
+  await traverseGradeA(page, 'method-top', 'figure2-animation', 'forward');
+  await traverseGradeA(page, 'figure2-animation', 'figure2-proof', 'forward');
+  await traverseGradeA(page, 'figure2-proof', 'brand', 'forward');
+  await traverseGradeA(page, 'brand', 'figure2-proof', 'reverse');
+  await traverseGradeA(page, 'figure2-proof', 'figure2-animation', 'reverse');
+  await traverseGradeA(page, 'figure2-animation', 'method-top', 'reverse');
 });
 
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {

@@ -1,21 +1,41 @@
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { describe, expect, it, vi } from 'vitest';
 import { BRAND_COPY } from '..';
-import { PhoneBrand, phoneBrandFrame } from './PhoneBrand';
+import type {
+  PhoneLeafMountRegistration,
+  PhoneLeafReportPort
+} from '../../../production/phone-story/presentation';
+import { PhoneBrand, Reading, phoneBrandFrame } from './PhoneBrand';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+function reportFixture() {
+  let registration: PhoneLeafMountRegistration | null = null;
+  const reports = {
+    registerMount: vi.fn((next: PhoneLeafMountRegistration) => { registration = next; }),
+    reportPrepared: vi.fn(), reportFrame: vi.fn(), reportProgress: vi.fn(),
+    reportComplete: vi.fn(), reportFailure: vi.fn()
+  } satisfies PhoneLeafReportPort;
+  return { reports, registration: () => registration };
+}
 
 describe('PhoneBrand', () => {
-  it('keeps one native document chapter and the canonical copy', () => {
-    const markup = renderToStaticMarkup(createElement(PhoneBrand, {
-      active: true,
-      reducedMotion: false
-    }));
-
-    expect(markup).toContain('id="brand"');
-    expect(markup).toContain('data-phone-reading="native-document"');
-    expect(markup).toContain(BRAND_COPY[1]);
-    expect(markup).toContain(BRAND_COPY[5]);
-    expect(markup).not.toContain('<video');
+  it('registers one clean static receiver and preserves canonical copy', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneBrand reports={mount.reports} />); });
+    expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
+      ['brand-root', 'dom']
+    ]);
+    expect(host.textContent).toContain(BRAND_COPY[1]);
+    expect(host.textContent).toContain(BRAND_COPY[5]);
+    expect(host.querySelector('video')).toBeNull();
+    await act(async () => { root.render(<Reading sceneId="brand" />); });
+    expect(host.querySelector('[data-phone-reading="brand"]')).not.toBeNull();
   });
 
   it('keeps a readable stable receiver at both Proof → Brand endpoints', () => {

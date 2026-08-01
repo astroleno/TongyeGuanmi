@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   loadPhoneLoaderAdapter,
@@ -19,6 +21,10 @@ import {
 } from './adapter-groups/group4-5';
 
 describe('phone presentation adapter registry', () => {
+  const source = readFileSync(resolve(
+    process.cwd(), 'src/production/phone/module-loaders.ts'
+  ), 'utf8');
+
   it('loads Loader as the first formal front-half presentation adapter', async () => {
     const loader = await loadPhoneLoaderAdapter();
     expect(loader.id).toBe('loader');
@@ -66,6 +72,14 @@ describe('phone presentation adapter registry', () => {
       'figure2-distance-expand',
       'figure2-proof-brand'
     ]);
+  });
+
+  it('keeps the temporary shared-leaf migration bridges stateless', () => {
+    expect(source).not.toContain('useState');
+    expect(source).not.toContain('IntersectionObserver');
+    expect(source).not.toContain('requestAnimationFrame');
+    expect(source).not.toContain('setTimeout');
+    expect(source).not.toMatch(/import\(['"]\.\.\/\.\.\/(?:scenes\/(?:method-top|figure2)|transitions\/(?:method-bottom|figure2-distance|figure2-proof))/);
   });
 
   it('resolves Unit7-A through the same shared caches without Unit6', () => {

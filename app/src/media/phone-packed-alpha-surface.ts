@@ -6,6 +6,7 @@ import {
   type PackedAlphaVideoCompositor,
   type PackedAlphaVideoFailure
 } from './packed-alpha-video';
+import { semanticBoolean } from '../runtime/semantic-data-attribute';
 
 export type PhonePackedAlphaSurfaceMode = 'forward' | 'endpoint';
 
@@ -82,6 +83,10 @@ export function createPhonePackedAlphaSurface(
   let generationSequence = 0;
   let activeGeneration = 0;
   let canvasNeedsRenewal = false;
+
+  if (retainedCanvas) {
+    retainedCanvas.dataset.packedAlphaCompositorActive = semanticBoolean(false);
+  }
 
   const clearEndpointSeek = () => {
     if (!endpointSeek) return;
@@ -166,6 +171,9 @@ export function createPhonePackedAlphaSurface(
 
   const release = () => {
     clearPresentation(ownsCanvas ? 'terminal' : 'reactivatable');
+    if (retainedCanvas) {
+      retainedCanvas.dataset.packedAlphaCompositorActive = semanticBoolean(false);
+    }
     releaseVideoSource(video);
     mode = undefined;
   };

@@ -34,7 +34,11 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
   })
 }));
 
-import { PhoneAod } from './PhoneAod';
+import {
+  PHONE_AOD_MIGRATION_CONTROL,
+  PhoneAod,
+  type PhoneAodMigrationCommands
+} from './PhoneAod';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -161,6 +165,24 @@ describe('clean PhoneAod leaf', () => {
     mount.registration()?.commands.settle(0);
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');
     mount.registration()?.commands.settle(1);
+    expect(scene.dataset.portraitAodProgress).toBe('0.0000');
+  });
+
+  it('lets the stateless formal bridge await a real forward activation', async () => {
+    let releasePlayback!: () => void;
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementationOnce(() => (
+      new Promise<void>((resolve) => { releasePlayback = resolve; })
+    ));
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const commands = mount.registration()!.commands as PhoneAodMigrationCommands;
+    const scene = host.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod')!;
+    const completion = commands[PHONE_AOD_MIGRATION_CONTROL].startAutoplay(1);
+
+    expect(completion).toBeInstanceOf(Promise);
+    expect(scene.dataset.portraitAodProgress).toBe('0.0000');
+    releasePlayback();
+    await expect(completion).resolves.toBeUndefined();
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');
   });
 });

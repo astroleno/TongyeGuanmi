@@ -11,6 +11,12 @@
   scroll-margin-top: 0;
 }
 
+.phone-brand__visual,
+.phone-brand__visual > .phone-brand {
+  height: 100%;
+  width: 100%;
+}
+
 .phone-brand__content {
   display: grid;
   gap: clamp(48px, 10svh, 88px);

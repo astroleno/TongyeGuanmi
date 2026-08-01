@@ -137,8 +137,12 @@ export function closePhoneLeafReportBinding(
 
 export function phoneLeafMountKey(binding: PhoneLeafReportBinding): string {
   return [binding.leg, binding.stageIndex,
-    [...binding.allowedSurfaceIds].sort().join(',')].join('|');
+    phoneIdentitySignature(binding.allowedSurfaceIds, ',')].join('|');
 }
+
+export const phoneIdentitySignature = (
+  values: readonly string[], separator = '|'
+): string => [...values].sort().join(separator);
 
 export function invokePhoneActivationBatch<Owner>(
   invocationId: string,
@@ -151,7 +155,7 @@ export function invokePhoneActivationBatch<Owner>(
   const required = [...new Set(requested ?? activeTargets.flatMap(({ surfaceIds }) => surfaceIds))];
   const covered = [...new Set(activeTargets.flatMap(({ surfaceIds }) => surfaceIds))];
   if (required.length === 0
-    || required.slice().sort().join('|') !== covered.sort().join('|')) {
+    || phoneIdentitySignature(required) !== phoneIdentitySignature(covered)) {
     return { invoked: false, targets: activeTargets, surfaceIds: required, pending: [] };
   }
   authorize(activeTargets);
@@ -166,10 +170,10 @@ export function invokePhoneActivationBatch<Owner>(
     invoked: false, targets: activeTargets, surfaceIds: required, pending: []
   };
   const valid = invocations.every((result, index) => {
-    const expected = [...(activeTargets[index]?.surfaceIds ?? [])].sort().join('|');
+    const expected = phoneIdentitySignature(activeTargets[index]?.surfaceIds ?? []);
     return result.invoked && result.invocationId === invocationId
-      && [...result.surfaceIds].sort().join('|') === expected
-      && [...result.settlements.map(({ surfaceId }) => surfaceId)].sort().join('|') === expected
+      && phoneIdentitySignature(result.surfaceIds) === expected
+      && phoneIdentitySignature(result.settlements.map(({ surfaceId }) => surfaceId)) === expected
       && result.settlements.every(({ status }) => status !== 'rejected');
   });
   return {
@@ -241,6 +245,31 @@ export function createPhoneRetainedLeafBinding(
   });
 }
 
+export function createPhoneSupersedingLeafBinding(
+  transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>,
+  stale: PhoneLeafReportBinding
+): PhoneLeafReportBinding | null {
+  if (stale.attempt.authorityId !== transaction.attempt.authorityId
+    || stale.attempt.transactionGeneration >= transaction.attempt.transactionGeneration) {
+    return null;
+  }
+  const leg = phoneRetainedMountLeg(
+    transaction.closure, transaction.mode, stale.allowedSurfaceIds
+  );
+  const ownerMatches = leg === 'source'
+    ? transaction.sourceSceneId === stale.attempt.sceneId
+    : leg === 'effect'
+      ? transaction.attempt.segmentId === stale.attempt.segmentId
+        && transaction.attempt.direction === stale.attempt.direction
+      : leg !== null && transaction.candidateSceneId === stale.attempt.sceneId;
+  if (!leg || !ownerMatches) return null;
+  const binding = createPhoneRetainedLeafBinding(
+    transaction, leg, stale.allowedSurfaceIds
+  );
+  assertPhoneLeafReportBindingContract(binding, transaction);
+  return binding;
+}
+
 export function assertPhoneLeafReportBindingContract(
   binding: PhoneLeafReportBinding,
   transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>
@@ -260,8 +289,8 @@ export function assertPhoneLeafReportBindingContract(
     ? segment && transaction.attempt.direction
       ? [segment[transaction.attempt.direction].effectSurface] : []
     : sceneId ? [...phoneSceneById(sceneId).surfaces] : [];
-  if (expectedSurfaces.sort().join('|')
-    !== [...binding.allowedSurfaceIds].sort().join('|')) {
+  if (phoneIdentitySignature(expectedSurfaces)
+    !== phoneIdentitySignature(binding.allowedSurfaceIds)) {
     throw new Error('Phone leaf report binding differs from manifest surfaces');
   }
 }
@@ -341,10 +370,10 @@ export function phonePlaneResultIsExact(
 export function describePhoneLeafMount(
   request: PhoneLeafMountRequest
 ): PhoneLeafMountDescriptor {
-  const allowed = [...request.binding.allowedSurfaceIds].sort();
+  const allowed = phoneIdentitySignature(request.binding.allowedSurfaceIds);
   const surfaces = request.registration.surfaces;
-  const actual = surfaces.map(({ id }) => id).sort();
-  if (new Set(actual).size !== actual.length || actual.join('|') !== allowed.join('|')) {
+  const actual = surfaces.map(({ id }) => id);
+  if (new Set(actual).size !== actual.length || phoneIdentitySignature(actual) !== allowed) {
     throw new Error('Phone leaf surfaces differ from the closed presentation binding');
   }
   if (surfaces.some(({ id, kind }) => (
@@ -355,16 +384,15 @@ export function describePhoneLeafMount(
   const videos = surfaces.filter(({ kind }) => kind === 'video').length;
   const canvases = surfaces.filter(({ kind }) => kind.startsWith('canvas')).length;
   const webglContexts = surfaces.filter(({ kind }) => kind === 'canvas-webgl').length;
-  const scene = phoneManifest.scenes.find((candidate) => (
-    [...candidate.surfaces].sort().join('|') === allowed.join('|')
-  ));
+  const scene = phoneSceneForSurfaces(request.binding.allowedSurfaceIds);
   const segment = request.binding.attempt.segmentId
     ? phoneManifest.segments.find(({ id }) => id === request.binding.attempt.segmentId)
     : null;
   const declaredEffect = request.binding.leg === 'effect'
     && request.binding.attempt.direction !== null
-    && segment?.[request.binding.attempt.direction].effectSurface === allowed[0]
-    && allowed.length === 1;
+    && segment?.[request.binding.attempt.direction].effectSurface
+      === request.binding.allowedSurfaceIds[0]
+    && request.binding.allowedSurfaceIds.length === 1;
   if (!scene && !declaredEffect) {
     throw new Error('Phone leaf surfaces are not declared by the manifest');
   }
@@ -418,15 +446,15 @@ function samePhoneBinding(left: PhoneLeafReportBinding, right: PhoneLeafReportBi
   return samePhoneAttempt(left.attempt, right.attempt)
     && left.stageIndex === right.stageIndex && left.leg === right.leg
     && left.planeRevision === right.planeRevision
-    && [...left.allowedReports].sort().join('|') === [...right.allowedReports].sort().join('|')
-    && [...left.allowedSurfaceIds].sort().join('|')
-      === [...right.allowedSurfaceIds].sort().join('|');
+    && phoneIdentitySignature(left.allowedReports) === phoneIdentitySignature(right.allowedReports)
+    && phoneIdentitySignature(left.allowedSurfaceIds)
+      === phoneIdentitySignature(right.allowedSurfaceIds);
 }
 
 function phoneSceneForSurfaces(surfaceIds: readonly PhoneSurfaceId[]) {
-  const signature = [...surfaceIds].sort().join('|');
+  const signature = phoneIdentitySignature(surfaceIds);
   return phoneManifest.scenes.find((scene) => (
-    [...scene.surfaces].sort().join('|') === signature
+    phoneIdentitySignature(scene.surfaces) === signature
   )) ?? null;
 }
 
@@ -565,8 +593,8 @@ export function createPhonePresentation(
       commands: record.commands,
       rebind: (binding: PhoneLeafReportBinding) => {
         if (record.released) throw new Error('Phone leaf mount lease is released');
-        if ([...binding.allowedSurfaceIds].sort().join('|')
-          !== [...record.descriptor.surfaceIds].sort().join('|')) {
+        if (phoneIdentitySignature(binding.allowedSurfaceIds)
+          !== phoneIdentitySignature(record.descriptor.surfaceIds)) {
           throw new Error('Phone leaf rebind differs from registered surfaces');
         }
         const nextKey = phoneLeafMountKey(binding);
@@ -648,11 +676,11 @@ export function createPhonePresentation(
 
   const findPlaneMount = (request: PhonePlaneRequest): PhoneMountRecord | null => {
     const scene = phoneSceneById(request.sceneId);
-    const signature = [...scene.surfaces].sort().join('|');
+    const signature = phoneIdentitySignature(scene.surfaces);
     return [...state.mounts.values()].find((record) => (
       !record.released && record.root && samePhoneAttempt(record.binding.attempt, request.attempt)
       && record.binding.leg === request.leg
-      && [...record.descriptor.surfaceIds].sort().join('|') === signature
+      && phoneIdentitySignature(record.descriptor.surfaceIds) === signature
     )) ?? null;
   };
 
@@ -936,40 +964,4 @@ export function clearPhoneOwnershipRegistries(
   registries: readonly Readonly<{ clear(): void }>[]
 ): void {
   for (const registry of registries) registry.clear();
-}
-
-function unboundReport(label: string, operation: string): never {
-  throw new Error(`${label}: phone leaf report port is unbound (${operation})`);
-}
-
-export function createThrowingPhoneLeafReportPort(
-  label = 'unbound-phone-leaf'
-): PhoneLeafReportPort {
-  return Object.freeze({
-    registerMount: () => unboundReport(label, 'registerMount'),
-    reportPrepared: () => unboundReport(label, 'reportPrepared'),
-    reportFrame: () => unboundReport(label, 'reportFrame'),
-    reportProgress: () => unboundReport(label, 'reportProgress'),
-    reportComplete: () => unboundReport(label, 'reportComplete'),
-    reportFailure: () => unboundReport(label, 'reportFailure')
-  });
-}
-
-export function createNoopPhoneLeafCommandHandle(): PhoneLeafCommandHandle {
-  return Object.freeze({
-    rebind: () => undefined,
-    activate: (command) => Object.freeze({
-      invocationId: command.invocationId,
-      surfaceIds: Object.freeze([...command.surfaceIds]),
-      invoked: true,
-      settlements: Object.freeze(command.surfaceIds.map((surfaceId) => Object.freeze({
-        surfaceId,
-        status: 'fulfilled' as const
-      })))
-    }),
-    render: () => undefined,
-    settle: () => undefined,
-    pause: () => undefined,
-    dispose: () => undefined
-  });
 }

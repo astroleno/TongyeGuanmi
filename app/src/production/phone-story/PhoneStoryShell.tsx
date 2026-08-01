@@ -379,6 +379,7 @@ export function PhoneStoryShell({
   } else {
     reportPorts.current.clear();
   }
+  const stableScene = snapshot.stableCommit?.sceneId ?? null;
   const roles = bufferRoles(snapshot);
   const scenes: PhoneSceneRenderSlot[] = [];
   const sceneSlot = (
@@ -432,7 +433,6 @@ export function PhoneStoryShell({
   }
   const sourceScenes = scenes.filter(({ buffer }) => buffer === roles.source);
   const receiverScenes = scenes.filter(({ buffer }) => buffer === roles.receiver);
-  const stableScene = snapshot.stableCommit?.sceneId ?? null;
   const provenBoot = connectedRef.current && snapshot.status === 'stable'
     && snapshot.presentationProof.commitSequence === snapshot.stableCommit.commitSequence;
   const faulted = connectedRef.current && snapshot.status === 'faulted';
@@ -487,7 +487,7 @@ export function PhoneStoryShell({
           </div>
         </div>
       </div>
-      <div className="phone-story__reading-flow" inert={snapshot.status !== 'stable'}>
+      <div className="phone-story__reading-flow" inert={snapshot.status !== 'stable'} aria-hidden={snapshot.status !== 'stable'}>
         {stableScene ? <PhoneSceneReading sceneId={stableScene} /> : null}
       </div>
       <StoryNav

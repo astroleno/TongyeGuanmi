@@ -69,7 +69,10 @@ const transitionLoaders = Object.freeze({
   'hero-pattern': () => import('../../transitions/hero-pattern/phone'),
   'pattern-star-map': () => import('../../transitions/pattern-star-map/phone'),
   'star-map-aod': () => import('../../transitions/star-map-aod/phone'),
-  'aod-method-top': () => import('../../transitions/aod-method-top/phone')
+  'aod-method-top': () => import('../../transitions/aod-method-top/phone'),
+  'method-bottom-figure2': () => import('../../transitions/method-bottom-figure2/phone'),
+  'figure2-distance-expand': () => import('../../transitions/figure2-distance-expand/phone'),
+  'figure2-proof-brand': () => import('../../transitions/figure2-proof-brand/phone')
 }) satisfies Partial<Record<string, PhoneTransitionLoader>>;
 const defaultTransitionRegistry = createPhoneTransitionRegistry<string>(transitionLoaders);
 

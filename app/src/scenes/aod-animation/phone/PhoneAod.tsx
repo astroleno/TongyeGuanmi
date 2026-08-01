@@ -71,7 +71,7 @@ function renderPhoneAod(root: HTMLElement, rawProgress: number): void {
 type PhoneAodMigrationControl = Readonly<{
   enter(): void;
   leave(): void;
-  startAutoplay(direction: 1 | -1): void;
+  startAutoplay(direction: 1 | -1): Promise<void>;
   resetAutoplay(): void;
 }>;
 
@@ -180,7 +180,23 @@ export function PhoneAod({ reports }: PhoneAodProps) {
           commandHandle.pause('outside-closure');
         },
         startAutoplay(direction) {
-          render(direction === 1 ? 1 : 0);
+          if (direction === -1) {
+            render(0);
+            return Promise.resolve();
+          }
+          const invocation = commandHandle.activate({
+            invocationId: 'legacy-aod:autoplay',
+            surfaceIds: ['aod-figure-video'],
+            credit: 'physical-epoch'
+          });
+          if (!invocation.invoked || invocation.settlements.some(({
+            status
+          }) => status === 'rejected')) {
+            return Promise.reject(new Error('AOD migration activation was rejected'));
+          }
+          return Promise.all(invocation.settlements.flatMap((settlement) => (
+            settlement.status === 'pending' ? [settlement.settled] : []
+          ))).then(() => undefined);
         },
         resetAutoplay() {
           render(0);

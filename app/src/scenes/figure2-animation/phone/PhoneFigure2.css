@@ -1,0 +1,93 @@
+.phone-figure2,
+.phone-figure2 > .r4-figure2 {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.phone-figure2 {
+  overflow: hidden;
+  background: #e2dac9;
+}
+
+.phone-figure2 > .r4-figure2 {
+  z-index: 2;
+  min-height: 100%;
+  overflow: visible;
+  background: transparent;
+}
+
+.phone-figure2 .r4-figure2__middle-camera {
+  width: max(100vw, calc(var(--phone-visual-height, 100vh) * 16 / 9));
+  height: max(var(--phone-visual-height, 100vh), calc(100vw * 9 / 16));
+}
+
+.phone-figure2 .r4-figure2__figures {
+  bottom: max(14svh, calc(env(safe-area-inset-bottom, 0px) + 76px));
+  width: 118vw;
+  height: min(62svh, 580px);
+}
+
+.phone-figure2 .r4-figure2__figure--combined {
+  width: min(116vw, 540px);
+}
+
+.phone-figure2 .r4-figure2__media-stack--combined {
+  position: relative;
+  isolation: isolate;
+}
+
+.phone-figure2 .r4-figure2__media-stack--combined::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: var(--phone-figure2-poster-image) 50% 50% / contain no-repeat;
+  opacity: var(--r4-figure2-video-opacity, 1);
+  pointer-events: none;
+  filter: brightness(1.03) contrast(1.16) saturate(1.10) drop-shadow(0 10px 8px rgba(40, 30, 20, .22));
+}
+
+.phone-figure2 .r4-figure2__video,
+.phone-figure2 .r4-figure2__packed-alpha-canvas {
+  position: relative;
+  z-index: 1;
+}
+
+.phone-figure2 .r4-figure2__video {
+  opacity: 0;
+}
+
+.phone-figure2 .r4-figure2__packed-alpha-canvas {
+  opacity: var(--r4-figure2-video-opacity, 1);
+}
+
+.phone-figure2 > .phone-grade-a__foreground-arch {
+  --r4-figure2-near-arch-blur: 0px;
+  --r4-figure2-near-arch-brightness: .76;
+  --r4-figure2-near-arch-scale: 1.025;
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
+  filter: blur(var(--r4-figure2-near-arch-blur)) brightness(var(--r4-figure2-near-arch-brightness)) contrast(1.08) saturate(.84) sepia(.04);
+  transform: translate3d(-50%, -50%, 0) scale(var(--r4-figure2-near-arch-scale));
+  pointer-events: none;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .phone-figure2 .r4-figure2__figures {
+    bottom: 5svh;
+    width: 76vw;
+    height: 76svh;
+  }
+
+  .phone-figure2 .r4-figure2__figure--combined {
+    width: min(48vw, 400px);
+  }
+}

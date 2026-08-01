@@ -1,11 +1,37 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createNoopPhoneLeafCommandHandle,
-  createThrowingPhoneLeafReportPort,
+  type PhoneLeafCommandHandle,
   type PhoneLeafMountRegistration,
-  type PhoneLeafReportBinding
+  type PhoneLeafReportBinding,
+  type PhoneLeafReportPort
 } from './presentation';
+
+function createNoopPhoneLeafCommandHandle(): PhoneLeafCommandHandle {
+  return Object.freeze({
+    rebind: () => undefined,
+    activate: ({ invocationId, surfaceIds }) => ({
+      invocationId, surfaceIds, invoked: true,
+      settlements: surfaceIds.map((surfaceId) => ({ surfaceId, status: 'fulfilled' }))
+    }),
+    render: () => undefined, settle: () => undefined,
+    pause: () => undefined, dispose: () => undefined
+  });
+}
+
+function createThrowingPhoneLeafReportPort(label: string): PhoneLeafReportPort {
+  const unbound = (operation: string): never => {
+    throw new Error(`${label}: phone leaf report port is unbound (${operation})`);
+  };
+  return Object.freeze({
+    registerMount: () => unbound('registerMount'),
+    reportPrepared: () => unbound('reportPrepared'),
+    reportFrame: () => unbound('reportFrame'),
+    reportProgress: () => unbound('reportProgress'),
+    reportComplete: () => unbound('reportComplete'),
+    reportFailure: () => unbound('reportFailure')
+  });
+}
 
 const source = readFileSync(
   new URL('./presentation.ts', import.meta.url),

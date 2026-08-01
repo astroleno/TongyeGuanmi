@@ -79,6 +79,7 @@
 
 .phone-story[data-phone-interaction="disabled"] .phone-story__reading-flow {
   pointer-events: none;
+  visibility: hidden;
 }
 
 .phone-story__activation,

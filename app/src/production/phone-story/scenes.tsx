@@ -72,7 +72,11 @@ const sceneLoaders = Object.freeze({
   hero: () => import('../../scenes/hero/phone/PhoneHero'),
   pattern: () => import('../../scenes/pattern/phone/PhonePattern'),
   'star-map': () => import('../../scenes/star-map/phone/PhoneStarMap'),
-  'aod-animation': () => import('../../scenes/aod-animation/phone/PhoneAod')
+  'aod-animation': () => import('../../scenes/aod-animation/phone/PhoneAod'),
+  'method-top': () => import('../../scenes/method-top/phone/PhoneMethodTop'),
+  'figure2-animation': () => import('../../scenes/figure2-animation/phone/PhoneFigure2'),
+  'figure2-proof': () => import('../../scenes/figure2-proof/phone/PhoneFigure2Proof'),
+  brand: () => import('../../scenes/brand/phone/PhoneBrand')
 }) satisfies Partial<Record<string, PhoneSceneLoader>>;
 const defaultSceneRegistry = createPhoneSceneRegistry<string>(sceneLoaders);
 

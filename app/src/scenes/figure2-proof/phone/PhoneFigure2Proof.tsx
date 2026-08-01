@@ -1,61 +1,28 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
-import { BRAND_COPY } from '..';
 import type {
   PhoneActivationInvocation,
   PhoneLeafCommandHandle,
   PhoneLeafGenerationBinding,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
-import './PhoneBrand.css';
+import { figure2ProofScene, renderFigure2ProofHold } from '..';
+import './PhoneFigure2Proof.css';
+
+const Figure2ProofSurface = figure2ProofScene.Component;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-export function phoneBrandFrame(
+export function phoneFigure2ProofFrame(
   rawProgress: number,
-  reducedMotion = false
-): Readonly<{ progress: number; opacity: number; y: number }> {
-  const progress = reducedMotion ? 1 : clamp(rawProgress);
-  return {
-    progress,
-    opacity: .96 + progress * .04,
-    y: (1 - progress) * 12
-  };
+  viewportHeight: number
+): Readonly<{ progress: number; translateY: number }> {
+  const progress = clamp(rawProgress);
+  return { progress, translateY: -2 * Math.max(1, viewportHeight) * progress };
 }
 
-function BrandContent({ reading }: Readonly<{ reading: boolean }>) {
-  return (
-    <article
-      id="brand"
-      className="phone-brand"
-      data-phone-scene="brand"
-      data-phone-reading={reading ? 'brand' : undefined}
-      aria-labelledby={reading ? 'phone-brand-title-reading' : 'phone-brand-title'}
-    >
-      <div className="phone-brand__content">
-        <section className="phone-brand__definition">
-          <span>{BRAND_COPY[0]}</span>
-          <h2 id={reading ? 'phone-brand-title-reading' : 'phone-brand-title'}>
-            {BRAND_COPY[1]}
-          </h2>
-          <p>{BRAND_COPY[2]}</p>
-        </section>
-        <section className="phone-brand__definition">
-          <span>{BRAND_COPY[3]}</span>
-          <h2>{BRAND_COPY[4]}</h2>
-          <p>{BRAND_COPY[5]}</p>
-        </section>
-      </div>
-    </article>
-  );
-}
-
-export function Reading(_props: Readonly<{ sceneId: string }>) {
-  return <BrandContent reading />;
-}
-
-export function PhoneBrand({ reports }: Readonly<{ reports: PhoneLeafReportPort }>) {
+export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafReportPort }>) {
   const rootRef = useRef<HTMLElement | null>(null);
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
   const paintFrameRef = useRef<number | null>(null);
@@ -72,20 +39,20 @@ export function PhoneBrand({ reports }: Readonly<{ reports: PhoneLeafReportPort 
       paintFrameRef.current = null;
       const binding = bindingRef.current;
       if (!binding || disposedRef.current) return;
-      binding.reports.reportPrepared('brand-root', {
+      binding.reports.reportPrepared('figure2-proof-root', {
         kind: 'static-ready', token: binding.frameToken, ready: true,
         detail: { postPaint: true }
       });
     });
   }, [cancelPaint]);
 
-  const render = useCallback((progress: number) => {
+  const render = useCallback((rawProgress: number) => {
     const root = rootRef.current;
     if (!root) return;
-    const frame = phoneBrandFrame(progress);
-    root.style.setProperty('--phone-brand-opacity', frame.opacity.toFixed(4));
-    root.style.setProperty('--phone-brand-y', `${frame.y.toFixed(2)}px`);
-    root.dataset.phoneBrandProgress = frame.progress.toFixed(4);
+    const viewportHeight = root.parentElement?.clientHeight || window.innerHeight || 1;
+    const frame = phoneFigure2ProofFrame(rawProgress, viewportHeight);
+    root.style.setProperty('--phone-proof-translate-y', `${frame.translateY.toFixed(2)}px`);
+    root.dataset.phoneProofProgress = frame.progress.toFixed(4);
   }, []);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
@@ -98,7 +65,10 @@ export function PhoneBrand({ reports }: Readonly<{ reports: PhoneLeafReportPort 
         invoked: false, settlements: [] };
     },
     render,
-    settle() { render(1); },
+    settle() {
+      renderFigure2ProofHold(rootRef.current);
+      render(0);
+    },
     pause() {},
     dispose() {
       disposedRef.current = true;
@@ -107,14 +77,19 @@ export function PhoneBrand({ reports }: Readonly<{ reports: PhoneLeafReportPort 
     }
   }), [cancelPaint, provePostPaint, render]);
 
+  const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
+    if (name === 'copy') rootRef.current = element;
+  }, []);
+
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     disposedRef.current = false;
-    render(1);
+    renderFigure2ProofHold(root);
+    render(0);
     reports.registerMount({
       root,
-      surfaces: [{ id: 'brand-root', element: root, kind: 'dom' }],
+      surfaces: [{ id: 'figure2-proof-root', element: root, kind: 'dom' }],
       commands
     });
     return () => {
@@ -125,12 +100,12 @@ export function PhoneBrand({ reports }: Readonly<{ reports: PhoneLeafReportPort 
   }, [cancelPaint, commands, render, reports]);
 
   return (
-    <div ref={(element) => {
-      rootRef.current = element?.querySelector<HTMLElement>('.phone-brand') ?? null;
-    }} className="phone-brand__visual">
-      <BrandContent reading={false} />
-    </div>
+    <Figure2ProofSurface
+      scene="figure2-proof"
+      hidden={false}
+      registerHandle={registerHandle}
+    />
   );
 }
 
-export default PhoneBrand;
+export default PhoneFigure2Proof;

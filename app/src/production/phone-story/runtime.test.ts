@@ -1760,6 +1760,32 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('rebinds a late unmounted target registration to the active superseding attempt', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#method');
+    const disconnect = runtime.connect();
+    const stale = currentTransaction(runtime);
+    const scene = phoneSceneById(stale.candidateSceneId);
+    const reports = runtime.createLeafReportPort({
+      attempt: stale.attempt, stageIndex: stale.stageIndex, leg: 'target',
+      allowedReports: stale.requiredPrepared.map(({ kind }) => kind),
+      allowedSurfaceIds: scene.surfaces, planeRevision: stale.planeRevision
+    });
+    runtime.requestEntry({ pathname: '/', hash: '#method', origin: 'hash' });
+    const active = currentTransaction(runtime);
+    expect(active.attempt.transactionGeneration)
+      .toBeGreaterThan(stale.attempt.transactionGeneration);
+    const { commands, rebindings } = commandFixture();
+    reports.registerMount({
+      root: {} as HTMLElement,
+      surfaces: [{ id: 'method-root', element: {} as HTMLElement, kind: 'dom' }],
+      commands
+    });
+    expect(commands.rebind).toHaveBeenCalledTimes(1);
+    expect(rebindings[0]?.frameToken).toContain(active.attempt.transactionId);
+    disconnect();
+  });
+
   it('reactivates only video surfaces declared by the active segment closure', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#crane-animation');

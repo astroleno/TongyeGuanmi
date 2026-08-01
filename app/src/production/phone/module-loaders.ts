@@ -1,6 +1,9 @@
 import {
+  type ComponentType,
   createElement,
   forwardRef,
+  lazy,
+  Suspense,
   useImperativeHandle,
   useLayoutEffect,
   useMemo,
@@ -25,6 +28,7 @@ import type {
   PhoneHeroAdapterProps,
   PhoneLoaderAdapterModule,
   PhoneMethodAdapterComponent,
+  PhoneMethodAdapterProps,
   PhonePatternAdapterComponent,
   PhonePatternAdapterProps,
   PhoneSceneAdapterId,
@@ -35,6 +39,8 @@ import type {
   PhoneStarMapAdapterComponent,
   PhoneTransitionAdapterId,
   PhoneTransitionAdapterComponent,
+  PhoneTransitionAdapterHandle,
+  PhoneTransitionAdapterProps,
   PhoneTransitionAdapterModule
 } from './types';
 import type {
@@ -45,6 +51,93 @@ import type { PhoneHeroMigrationCommands } from '../../scenes/hero/phone/PhoneHe
 import type { PhonePatternMigrationCommands } from '../../scenes/pattern/phone/PhonePattern';
 import type { PhoneAodMigrationCommands } from '../../scenes/aod-animation/phone/PhoneAod';
 import type { PhoneStarMapMigrationCommands } from '../../scenes/star-map/phone/PhoneStarMap';
+
+const LegacyPhoneGradeAStory = lazy(() => import('./PhoneGradeAStory').then((module) => ({
+  default: module.PhoneGradeAStory
+})));
+
+type PhoneCleanLeaf = ComponentType<Readonly<{ reports: PhoneLeafReportPort }>>;
+
+function usePhoneMigrationMount(onReady: (() => void) | undefined, label: string) {
+  const registrationRef = useRef<PhoneLeafMountRegistration | null>(null);
+  const readyRef = useRef(onReady);
+  const generationRef = useRef(0);
+  readyRef.current = onReady;
+  const reports = useMemo<PhoneLeafReportPort>(() => Object.freeze({
+    registerMount(registration) {
+      registrationRef.current = registration;
+      registration.commands.rebind({
+        reports,
+        frameToken: `${label}:frame:${++generationRef.current}`
+      });
+      readyRef.current?.();
+    },
+    reportPrepared: () => undefined,
+    reportFrame: () => undefined,
+    reportProgress: () => undefined,
+    reportComplete: () => undefined,
+    reportFailure: () => undefined
+  }), [label]);
+  return { registrationRef, reports };
+}
+
+function createPhoneSceneMigrationBridge(
+  Leaf: PhoneCleanLeaf,
+  label: string,
+  activationSurfaceIds: readonly string[] = []
+): PhoneSceneAdapterComponent {
+  return forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProps>(
+    function PhoneSceneMigrationBridge(props, forwardedRef) {
+      const { registrationRef, reports } = usePhoneMigrationMount(props.onReady, label);
+      const enter = () => {
+        const commands = registrationRef.current?.commands;
+        commands?.settle(1);
+        if (!commands || activationSurfaceIds.length === 0) return;
+        const result = commands.activate({
+          invocationId: `${label}:activate`,
+          surfaceIds: activationSurfaceIds,
+          credit: 'physical-epoch'
+        });
+        for (const settlement of result.settlements) {
+          if (settlement.status === 'pending') void settlement.settled.catch(() => undefined);
+        }
+      };
+      useLayoutEffect(() => {
+        if (props.active) enter();
+        else registrationRef.current?.commands.pause('hidden');
+      }, [props.active]);
+      useImperativeHandle(forwardedRef, () => ({
+        root: () => registrationRef.current?.root ?? null,
+        update: (progress) => registrationRef.current?.commands.render(progress),
+        enter,
+        leave: () => registrationRef.current?.commands.pause('outside-closure'),
+        reverse: enter,
+        dispose: () => registrationRef.current?.commands.dispose('closure-retired')
+      }), []);
+      return createElement(Leaf, { reports });
+    }
+  );
+}
+
+function createPhoneTransitionMigrationBridge(
+  Leaf: PhoneCleanLeaf,
+  label: string
+): PhoneTransitionAdapterComponent {
+  return forwardRef<PhoneTransitionAdapterHandle, PhoneTransitionAdapterProps>(
+    function PhoneTransitionMigrationBridge(props, forwardedRef) {
+      const { registrationRef, reports } = usePhoneMigrationMount(props.onReady, label);
+      void props.host; void props.from; void props.to; void props.reducedMotion;
+      useImperativeHandle(forwardedRef, () => ({
+        render: (progress) => registrationRef.current?.commands.render(progress),
+        enter: () => registrationRef.current?.commands.render(0),
+        leave: () => registrationRef.current?.commands.settle(1),
+        reverse: () => registrationRef.current?.commands.render(1),
+        dispose: () => registrationRef.current?.commands.dispose('closure-retired')
+      }), []);
+      return createElement(Leaf, { reports });
+    }
+  );
+}
 
 let loaderCache: Promise<PhoneLoaderAdapterModule> | undefined;
 let resolvedLoaderCache: PhoneLoaderAdapterModule | undefined;
@@ -280,6 +373,10 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
                 | undefined;
               return commands?.[module.PHONE_AOD_MIGRATION_CONTROL];
             };
+            const video = () => registrationRef.current?.root.querySelector<HTMLVideoElement>(
+              '[data-aod-figure-video]'
+            ) ?? null;
+            const clearAutoplayCompletion = () => { const media = video(); if (media) media.onended = null; };
             useLayoutEffect(() => {
               if (props.active) migration()?.enter();
               else registrationRef.current?.commands.pause('hidden');
@@ -291,16 +388,37 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
                 progressRef.current?.(progress, 1);
               },
               startAutoplay(direction) {
-                migration()?.startAutoplay(direction);
-                const endpoint = direction === 1 ? 1 : 0;
-                progressRef.current?.(endpoint, direction);
-                completeRef.current?.(direction);
+                clearAutoplayCompletion();
+                const completion = migration()?.startAutoplay(direction);
+                if (!completion) return;
+                if (direction === 1) {
+                  const media = video();
+                  if (!media) return;
+                  const finish = () => {
+                    if (media.onended !== finish) return;
+                    media.onended = null;
+                    void completion.then(() => {
+                      registrationRef.current?.commands.render(1);
+                      progressRef.current?.(1, 1);
+                      completeRef.current?.(1);
+                    }).catch(() => undefined);
+                  };
+                  media.onended = finish;
+                  return;
+                }
+                void completion.then(() => {
+                  progressRef.current?.(0, -1);
+                  completeRef.current?.(-1);
+                }).catch(() => undefined);
               },
-              resetAutoplay: () => migration()?.resetAutoplay(),
+              resetAutoplay: () => { clearAutoplayCompletion(); migration()?.resetAutoplay(); },
               enter: () => migration()?.enter(),
-              leave: () => migration()?.leave(),
+              leave: () => { clearAutoplayCompletion(); migration()?.leave(); },
               reverse: () => undefined,
-              dispose: () => registrationRef.current?.commands.dispose('closure-retired')
+              dispose: () => {
+                clearAutoplayCompletion();
+                registrationRef.current?.commands.dispose('closure-retired');
+              }
             }), []);
             return createElement(module.PhoneAod, { reports });
           }
@@ -313,26 +431,72 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
         };
       });
     case 'method-top':
-      return import('./scenes/PhoneMethodTop').then(({ PhoneMethodTop: Component }) => ({
-        id,
-        Component: Component as unknown as PhoneMethodAdapterComponent
-      }));
+      return import('./scenes/PhoneMethodTop').then((module) => {
+        const Component = forwardRef<PhoneSceneAdapterHandle, PhoneMethodAdapterProps>(
+          function PhoneMethodMigrationBridge(props, forwardedRef) {
+            const { registrationRef, reports } = usePhoneMigrationMount(
+              props.onReady, 'legacy-method'
+            );
+            const gradeARequested = props.active;
+            void props.motionDriver;
+            useLayoutEffect(() => {
+              if (props.active) registrationRef.current?.commands.settle(1);
+              else registrationRef.current?.commands.pause('hidden');
+            }, [props.active]);
+            useImperativeHandle(forwardedRef, () => ({
+              root: () => registrationRef.current?.root ?? null,
+              update: (progress) => registrationRef.current?.commands.render(progress),
+              enter: () => registrationRef.current?.commands.settle(1),
+              leave: () => registrationRef.current?.commands.pause('outside-closure'),
+              reverse: () => registrationRef.current?.commands.settle(1),
+              dispose: () => registrationRef.current?.commands.dispose('closure-retired')
+            }), []);
+            return createElement('div', { className: 'phone-method-migration' },
+              createElement(module.PhoneMethodTop, { reports }),
+              createElement('div', {
+                className: 'phone-grade-a-slot',
+                'data-phone-grade-a-requested': String(gradeARequested)
+              }, gradeARequested && createElement(Suspense, { fallback: null },
+                  createElement(LegacyPhoneGradeAStory, {
+                    reducedMotion: props.reducedMotion,
+                    stageHost: props.stageHost,
+                    ...(props.onGradeACheckpoint
+                      ? { onCheckpoint: props.onGradeACheckpoint } : {}),
+                    ...(props.onGradeASceneChange
+                      ? { onSceneChange: props.onGradeASceneChange } : {}),
+                    ...(props.onGradeAEdgeScene
+                      ? { onEdgeScene: props.onGradeAEdgeScene } : {})
+                  }))
+              )
+            );
+          }
+        );
+        return { id, Component: Component as PhoneMethodAdapterComponent };
+      });
     case 'figure2-animation':
-      return import('./scenes/PhoneFigure2').then(({ PhoneFigure2: Component }) => ({
+      return import('./scenes/PhoneFigure2').then(({
+        PhoneFigure2
+      }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: createPhoneSceneMigrationBridge(
+          PhoneFigure2, 'legacy-figure2', ['figure2-pair-video']
+        )
       }));
     case 'figure2-proof':
-      return import('./scenes/PhoneFigure2Proof').then(({ PhoneFigure2Proof: Component }) => ({
+      return import('./scenes/PhoneFigure2Proof').then(({
+        PhoneFigure2Proof
+      }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: createPhoneSceneMigrationBridge(
+          PhoneFigure2Proof, 'legacy-figure2-proof'
+        )
       }));
     case 'brand':
       return import('../../scenes/brand/phone/PhoneBrand').then(({
-        PhoneBrand: Component
+        PhoneBrand
       }) => ({
         id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
+        Component: createPhoneSceneMigrationBridge(PhoneBrand, 'legacy-brand')
       }));
     case 'figure3-animation':
       return import('../../scenes/figure3-animation/phone/PhoneFigure3').then(({
@@ -377,16 +541,22 @@ function importPhoneTransitionAdapter(id: PhoneTransitionAdapterId): Promise<Pho
       return import('./transitions/aod-method-top').then(({ phoneAodMethodTopTransition }) => phoneAodMethodTopTransition);
     case 'method-bottom-figure2':
       return import('./transitions/method-bottom-figure2').then(({
-        PhoneMethodBottomFigure2Transition: Component
-      }) => ({ id, Component }));
+        PhoneMethodBottomFigure2Transition
+      }) => ({ id, Component: createPhoneTransitionMigrationBridge(
+        PhoneMethodBottomFigure2Transition, 'legacy-method-figure2'
+      ) }));
     case 'figure2-distance-expand':
       return import('./transitions/figure2-distance-expand').then(({
-        PhoneFigure2DistanceExpandTransition: Component
-      }) => ({ id, Component }));
+        PhoneFigure2DistanceExpandTransition
+      }) => ({ id, Component: createPhoneTransitionMigrationBridge(
+        PhoneFigure2DistanceExpandTransition, 'legacy-figure2-proof'
+      ) }));
     case 'figure2-proof-brand':
       return import('./transitions/figure2-proof-brand').then(({
-        PhoneFigure2ProofBrandTransition: Component
-      }) => ({ id, Component }));
+        PhoneFigure2ProofBrandTransition
+      }) => ({ id, Component: createPhoneTransitionMigrationBridge(
+        PhoneFigure2ProofBrandTransition, 'legacy-proof-brand'
+      ) }));
     case 'brand-figure3':
       return import('../../transitions/brand-figure3/phone').then(({
         PhoneBrandFigure3Transition: Component

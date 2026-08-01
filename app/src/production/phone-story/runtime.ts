@@ -5,9 +5,10 @@ import type { PhoneLeafMountRegistration, PhoneLeafReportBinding, PhoneLeafRepor
   PhonePresentation } from './presentation';
 import { assertPhoneLeafReportBindingContract, bindPhoneLeafGeneration,
   claimPhoneActivationDecoders, clearPhoneOwnershipRegistries, closePhoneLeafReportBinding,
-  createPhonePlaneRequest, createPhoneRetainedLeafBinding, invokePhoneActivationBatch,
-  phoneActivationSurfaceIds, phoneLeafMountKey, phonePlaneResultIsExact, phoneRetainedMountLeg,
-  runPhoneCleanupSteps, runPhoneLeafRetirement,
+  createPhonePlaneRequest, createPhoneRetainedLeafBinding, createPhoneSupersedingLeafBinding,
+  invokePhoneActivationBatch,
+  phoneActivationSurfaceIds, phoneIdentitySignature, phoneLeafMountKey, phonePlaneResultIsExact,
+  phoneRetainedMountLeg, runPhoneCleanupSteps, runPhoneLeafRetirement,
   settlePhoneActivationBatch } from './presentation';
 import type { PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneFailure,
   PhoneLeafDisposeReason, PhoneStoryEffect, PhoneRejectedChunkFailure,
@@ -271,15 +272,24 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     acceptPreparedProof(state, lease, null);
   };
 
+  const reviveLateReportState = (stale: ReportState): ReportState | null => {
+    const binding = connected && snapshot.status === 'transaction'
+      ? createPhoneSupersedingLeafBinding(snapshot.transaction, stale.binding) : null;
+    if (!binding || leaves.has(phoneLeafMountKey(binding))) return null;
+    const revived: ReportState = { valid: true, binding };
+    reportStates.add(revived); return revived;
+  };
+
   function createReportPort(state: ReportState): PhoneLeafReportPort {
     return Object.freeze({
       registerMount: (registration: PhoneLeafMountRegistration) => {
+        if (!state.valid) state = reviveLateReportState(state) ?? state;
         if (!state.valid) return;
         const key = phoneLeafMountKey(state.binding);
         if (leaves.has(key)) throw new Error(`Phone leaf mount already registered: ${key}`);
         const mount = presentation.registerLeafMount({ binding: state.binding, registration });
-        const expected = [...state.binding.allowedSurfaceIds].sort().join('|');
-        if ([...mount.surfaceIds].sort().join('|') !== expected
+        const expected = phoneIdentitySignature(state.binding.allowedSurfaceIds);
+        if (phoneIdentitySignature(mount.surfaceIds) !== expected
           || mount.resources.activeDecoders !== 0) {
           mount.release();
           throw new Error(`Phone presentation lease differs from the closed binding: ${key}`);
@@ -394,6 +404,22 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     ]);
   };
 
+  const renewLeaseBinding = (
+    lease: LeafLease,
+    binding: PhoneLeafReportBinding,
+    pause = false
+  ): void => {
+    closeReports(lease.reports);
+    if (pause) pauseLease(lease, 'superseded');
+    leaves.delete(lease.key);
+    const state: ReportState = { valid: true, binding: closePhoneLeafReportBinding(binding) };
+    reportStates.add(state);
+    lease.key = phoneLeafMountKey(state.binding);
+    if (leaves.has(lease.key)) throw new Error(`Phone leaf rebind collision: ${lease.key}`);
+    leaves.set(lease.key, lease);
+    bindLeafGeneration(lease, state, true);
+  };
+
   const retireLease = (
     lease: LeafLease,
     reason: PhoneLeafDisposeReason,
@@ -459,15 +485,10 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     ));
     for (const lease of candidates) {
       if (sameAttempt(lease.reports.binding.attempt, attempt)) continue;
-      closeReports(lease.reports);
       const binding: PhoneLeafReportBinding = {
         ...lease.reports.binding, attempt, planeRevision: null
       };
-      const state: ReportState = { valid: true,
-        binding: closePhoneLeafReportBinding(binding) };
-      reportStates.add(state);
-      pauseLease(lease, 'superseded');
-      bindLeafGeneration(lease, state, true);
+      renewLeaseBinding(lease, binding, true);
     }
     return candidates;
   };
@@ -486,17 +507,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         retireLease(lease, 'closure-retired');
         continue;
       }
-      closeReports(lease.reports);
-      pauseLease(lease, 'superseded');
-      leaves.delete(lease.key);
       const binding = createPhoneRetainedLeafBinding(transaction, leg, actual);
-      const state: ReportState = { valid: true,
-        binding };
-      reportStates.add(state);
-      lease.key = phoneLeafMountKey(binding);
-      if (leaves.has(lease.key)) throw new Error(`Phone leaf rebind collision: ${lease.key}`);
-      leaves.set(lease.key, lease);
-      bindLeafGeneration(lease, state, true);
+      renewLeaseBinding(lease, binding, true);
     }
   };
 
@@ -513,9 +525,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     return selected;
   };
 
-  const dependencyKey = (dependencies: readonly PhoneDependencyRef[]) => (
-    [...dependencies].sort().join('|')
-  );
+  const dependencyKey = (dependencies: readonly PhoneDependencyRef[]) => phoneIdentitySignature(dependencies);
 
   const releaseDependencyLease = (attempt: PhoneAttemptKey): void => {
     const key = attemptIdentity(attempt);
@@ -769,20 +779,12 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     if (previous.transaction.stageIndex !== next.transaction.stageIndex) {
       for (const lease of leases) {
         if (!ownsConnection(activeConnection)) return;
-        closeReports(lease.reports);
-        leaves.delete(lease.key);
         const binding: PhoneLeafReportBinding = {
           ...lease.reports.binding,
           stageIndex: next.transaction.stageIndex,
           planeRevision: next.transaction.planeRevision
         };
-        const state: ReportState = { valid: true,
-          binding: closePhoneLeafReportBinding(binding) };
-        reportStates.add(state);
-        lease.key = phoneLeafMountKey(binding);
-        if (leaves.has(lease.key)) throw new Error(`Phone leaf stage collision: ${lease.key}`);
-        leaves.set(lease.key, lease);
-        bindLeafGeneration(lease, state, true);
+        renewLeaseBinding(lease, binding);
       }
     }
     if (next.transaction.phase === 'playing'
@@ -836,9 +838,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     } else if (next.status === 'faulted') {
       abortAttemptLoads(transaction.attempt);
       const stableSurfaces = next.stableCommit
-        ? [...phoneSceneById(next.stableCommit.sceneId).surfaces].sort().join('|') : null;
+        ? phoneIdentitySignature(phoneSceneById(next.stableCommit.sceneId).surfaces) : null;
       for (const lease of matching) {
-        const leaseSurfaces = [...lease.mount.surfaceIds].sort().join('|');
+        const leaseSurfaces = phoneIdentitySignature(lease.mount.surfaceIds);
         if (stableSurfaces !== null && leaseSurfaces === stableSurfaces) {
           closeReports(lease.reports);
           pauseLease(lease, 'rollback');

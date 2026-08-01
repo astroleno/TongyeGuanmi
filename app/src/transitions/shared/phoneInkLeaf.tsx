@@ -17,8 +17,9 @@ import {
 export type PhoneInkLeafOptions = Readonly<{
   segmentId: string;
   surfaceId: `fx:${string}`;
-  field: InkFieldSpec;
+  field: InkFieldSpec | ((viewport: Readonly<{ width: number; height: number }>) => InkFieldSpec);
   grade: InkGradePreset;
+  mapProgress?: (progress: number) => number;
   canvasClassName?: string;
   portraitInk?: string;
 }>;
@@ -29,6 +30,13 @@ function viewportFor(canvas: HTMLCanvasElement): Readonly<{ width: number; heigh
     width: Math.max(1, bounds.width || canvas.clientWidth || window.innerWidth),
     height: Math.max(1, bounds.height || canvas.clientHeight || window.innerHeight)
   };
+}
+
+function fieldFor(
+  options: PhoneInkLeafOptions,
+  viewport: Readonly<{ width: number; height: number }>
+): InkFieldSpec {
+  return typeof options.field === 'function' ? options.field(viewport) : options.field;
 }
 
 function setEffectVisible(canvas: HTMLCanvasElement | null, visible: boolean): void {
@@ -86,14 +94,16 @@ export function createPhoneInkLeaf(
         };
       },
       render(rawProgress: number) {
-        const progress = Math.min(1, Math.max(0, rawProgress));
+        const progress = Math.min(1, Math.max(0,
+          options.mapProgress?.(rawProgress) ?? rawProgress));
         const canvas = canvasRef.current;
         if (!canvas) return;
         const visible = progress > .002 && progress < .999;
         setEffectVisible(canvas, visible);
         if (!visible) return;
+        const viewport = viewportFor(canvas);
         rendererRef.current?.render(createInkFieldFrame(
-          options.field, progress, viewportFor(canvas)
+          fieldFor(options, viewport), progress, viewport
         ));
       },
       settle() { setEffectVisible(canvasRef.current, false); },
@@ -113,16 +123,18 @@ export function createPhoneInkLeaf(
       disposedRef.current = false;
       pendingFailureRef.current = null;
       setEffectVisible(canvas, false);
+      const viewport = viewportFor(canvas);
+      const initialField = fieldFor(options, viewport);
       const renderer = createInkFieldRenderer(canvas, {
         removeCanvasOnDestroy: false,
         loseContextOnDestroy: false,
-        fieldKind: options.field.kind,
+        fieldKind: initialField.kind,
         grade: options.grade,
         generation: 'phone-story:unbound',
         onInvalidated: reportFailure
       });
       rendererRef.current = renderer;
-      renderer?.prewarm(createInkFieldFrame(options.field, .003, viewportFor(canvas)));
+      renderer?.prewarm(createInkFieldFrame(initialField, .003, viewport));
       reports.registerMount({
         root: canvas,
         surfaces: [{ id: options.surfaceId, element: canvas, kind: 'canvas-webgl' }],

@@ -7,8 +7,9 @@
 > Loader, and lazy-boundary review are closed. Task 7A established the clean
 > browser harness, Slice 7B closed the Hero/Loader handoff, Slice 7C closed
 > Pattern and dynamic viewport coverage, Slice 7D made AOD activation/frame
-> proof causal, and Slice 7E completed the Front matrix. Task 7 is complete and
-> execution is continuing with Task 8. The
+> proof causal, Slice 7E completed the Front matrix, and Task 8 converged the
+> complete Unit 4 Grade A chain through Brand. Execution is continuing with
+> Task 9. The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
@@ -3987,7 +3988,7 @@ git commit -m "feat(r5): converge Front transitions on clean runtime"
 - existing Grade A adapter/module-loader files only for the stateless
   migration bridge
 
-- [ ] **Step 8.1: Freeze Unit 4 visual contracts before refactor**
+- [x] **Step 8.1: Freeze Unit 4 visual contracts before refactor**
 
 Add assertions for:
 
@@ -4005,7 +4006,7 @@ Use `3deb717` and the clean base as donors. The later commits `71e5ef9` and
 `82a4e68` may donate reviewed presentation/tests only. Do not inherit their
 phone lifecycle.
 
-- [ ] **Step 8.2: Refactor Method/Figure2/Proof and the minimum Brand receiver to narrow ports**
+- [x] **Step 8.2: Refactor Method/Figure2/Proof and the minimum Brand receiver to narrow ports**
 
 Scene leaves:
 
@@ -4030,7 +4031,7 @@ They may not:
 - dispatch to the old coordinator;
 - install physical input listeners.
 
-- [ ] **Step 8.3: Preserve the Figure2 compositor and depth contracts**
+- [x] **Step 8.3: Preserve the Figure2 compositor and depth contracts**
 
 Require:
 
@@ -4043,7 +4044,7 @@ Require:
 - reverse endpoint proof uses the actual terminal/initial frame, not a seek
   command or dataset.
 
-- [ ] **Step 8.4: Make Figure2 coverage global, not local**
+- [x] **Step 8.4: Make Figure2 coverage global, not local**
 
 Reproduce bottom/right white exposure with real screenshot pixels while DOM
 readiness is otherwise green. Correct only shared presentation geometry and
@@ -4060,7 +4061,7 @@ scene-specific viewport height
 extra opaque overlay above the scene
 ```
 
-- [ ] **Step 8.5: Complete AOD → Method and Proof → Brand transactions**
+- [x] **Step 8.5: Complete AOD → Method and Proof → Brand transactions**
 
 For forward and reverse:
 
@@ -4074,7 +4075,7 @@ For forward and reverse:
 - Proof → Brand uses the declared above-both effect and cannot reveal empty
   Brand paper.
 
-- [ ] **Step 8.6: Add direct-entry first-exposed-frame tests**
+- [x] **Step 8.6: Add direct-entry first-exposed-frame tests**
 
 Test cold entries to:
 
@@ -4090,7 +4091,7 @@ must already contain target content, correct edge surface, correct plane, and
 required media/static proof. It must not show Hero, empty paper, prior scene,
 or geometry-only stage.
 
-- [ ] **Step 8.7: Run Unit 4 checkpoints**
+- [x] **Step 8.7: Run Unit 4 checkpoints**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -4126,7 +4127,7 @@ pnpm -C app build
 
 Run the old formal route regression as well.
 
-- [ ] **Step 8.8: Commit**
+- [x] **Step 8.8: Commit**
 
 ```bash
 git add app
@@ -4142,6 +4143,33 @@ git commit -m "feat(r5): converge Unit 4 Grade A chain"
 - Figure2 has real-frame and four-edge proof in both directions;
 - all Grade A direct entries expose target content first;
 - no Figure2/Method/Proof sub-machine remains in genuine leaves.
+
+**Task 8 closure record (2026-08-01):**
+
+- Method Top, Figure2, Figure2 Proof, the three Unit 4 transitions, and the
+  minimum Brand receiver now mount only through closed report ports and narrow
+  visual command handles. The former Grade A adapter files are inert re-export
+  facades; the temporary formal-route bridge translates ports without state,
+  input listeners, timers, RAF ownership, or another coordinator.
+- Figure2 retains one packed source, one causal compositor Canvas, and one
+  foreground arch outside the binary depth field. Dormant packed-alpha Canvas
+  state is explicitly textual false; terminal retirement remains hard while
+  release/reactivation stays reusable.
+- Late unmounted leaf registration can rebind only to a structurally matching,
+  newer transaction under the same authority. The binding proof lives in the
+  presentation boundary, runtime remains at its 1,000 non-blank LOC ceiling,
+  and presentation remains within budget at 893 LOC.
+- The complete Vitest suite passed 197 files / 1,261 tests. Boolean-data,
+  architecture, homepage-boundary, packed-alpha, Node fixture, TypeScript,
+  raw harness build, complete production build, frozen-input, and diff checks
+  passed. The exact boolean debt ledger shrank by two retired adapter writers.
+- The focused phone-portrait Chromium and WebKit checkpoints each passed all
+  six Front/Grade A/direct-entry tests. The exact old-formal mobile-WebKit run
+  retained its accepted 2 passes / 3 skips / 4 frozen failures at the same AOD
+  reverse and three downstream v47 assertions; no oracle was changed.
+- The production build reports 627,923 B of budgeted phone JS, 641,521 B for
+  the complete phone presentation family, and a 41,116 B largest lazy chunk.
+  No transient trace, video, screenshot, or ignored evidence is committed.
 
 ---
 

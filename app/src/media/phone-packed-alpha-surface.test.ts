@@ -168,8 +168,10 @@ describe('canonical phone packed-alpha surface', () => {
 
   it('keeps a React Canvas reactivatable but hard-retires it explicitly once', () => {
     const current = fixture();
+    expect(current.canvas.dataset.packedAlphaCompositorActive).toBe('false');
     current.surface.activate();
     current.surface.release();
+    expect(current.canvas.dataset.packedAlphaCompositorActive).toBe('false');
     current.surface.activate();
     expect(current.currentCanvas()).toBe(current.canvas);
     expect(compositorProbe.disposals[0]).toHaveBeenCalledWith('reactivatable');
