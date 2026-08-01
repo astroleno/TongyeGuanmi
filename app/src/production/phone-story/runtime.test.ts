@@ -16,6 +16,8 @@ import type {
   PhoneLeafGenerationBinding,
   PhoneLeafReportPort,
   PhoneLeafReportBinding,
+  PhonePlaneApplyResult,
+  PhonePlaneRequest,
   PhonePresentation
 } from './presentation';
 import { describePhoneLeafMount } from './presentation';
@@ -66,10 +68,11 @@ function createEnvironment(): EnvironmentFixture {
   let activeMs = 0;
   let authority = 0;
   let handle = 0;
+  let liveViewport = initialViewport();
   let send: ((event: PhoneStoryEvent) => void) | null = null;
   const port: PhoneStoryRuntimeEnvironment = {
     nextAuthorityId: () => `runtime-authority:${++authority}`,
-    readViewport: initialViewport,
+    readViewport: () => liveViewport,
     activeNow: () => activeMs,
     readReducedMotion: () => false,
     subscribeHost: (listener) => {
@@ -107,7 +110,10 @@ function createEnvironment(): EnvironmentFixture {
     urlWrites,
     lifecycle,
     resources,
-    emit: (event) => [...listeners].forEach((listener) => listener(event)),
+    emit: (event) => {
+      if (event.type === 'viewport') liveViewport = event.viewport;
+      [...listeners].forEach((listener) => listener(event));
+    },
     flushFrames: () => {
       const pending = [...frames.values()];
       frames.clear();
@@ -137,13 +143,16 @@ function createRuntime(
   return createPhoneStoryRuntime({
     initialEntry: { pathname: '/', hash, origin: 'initial' },
     environment: fixture.port,
-    presentation: createPresentationAuthority()
+    presentation: createPresentationAuthority(fixture.port.readViewport)
   });
 }
 
-function createPresentationAuthority(): PhonePresentation {
+function createPresentationAuthority(
+  readViewport: () => PhoneViewportSnapshot = initialViewport
+): PhonePresentation {
   let registration = 0;
   return {
+    attachRoot: () => () => undefined,
     registerLeafMount: (request) => {
       const descriptor = describePhoneLeafMount(request);
       return {
@@ -170,7 +179,13 @@ function createPresentationAuthority(): PhonePresentation {
         },
         token: fact.report.token
       }] };
-    }
+    },
+    sampleLayoutViewport: () => readViewport().layout,
+    sampleVisualViewport: () => readViewport().visual,
+    applyPlane: () => ({ records: [], failure: null }),
+    verifyVisibleCandidate: () => ({ records: [], failure: null }),
+    verifyReproject: () => ({ records: [], failure: null }),
+    verifyRollback: () => ({ records: [], failure: null })
   };
 }
 
@@ -308,6 +323,50 @@ function proveCurrent(
   }
 }
 
+function prepareCurrentPlane(
+  runtime: PhoneStoryRuntime,
+  fixture: EnvironmentFixture
+): void {
+  for (;;) {
+    const transaction = currentTransaction(runtime);
+    if (transaction.requiredFinal.length > 0) return;
+    if (transaction.phase === 'awaiting-media-activation'
+      || (requiresMediaActivation(transaction)
+        && transaction.activation !== 'spent'
+        && transaction.requiredPrepared.every((slot) => transaction.evidence.some((record) => (
+          record.slot.kind === slot.kind && record.slot.leg === slot.leg
+            && record.slot.surfaceId === slot.surfaceId
+        ))))) {
+      fixture.send({ type: 'activation-settled', invoked: true, attempt: transaction.attempt });
+      continue;
+    }
+    const missing = transaction.requiredPrepared.find((slot) => !transaction.evidence.some((record) => (
+      record.slot.kind === slot.kind && record.slot.leg === slot.leg
+        && record.slot.stageIndex === slot.stageIndex && record.slot.surfaceId === slot.surfaceId
+    )));
+    if (!missing) throw new Error(`cannot prepare projector plane from ${transaction.phase}`);
+    reportSlot(fixture, missing);
+  }
+}
+
+function exactPlaneResult(request: PhonePlaneRequest): PhonePlaneApplyResult {
+  return {
+    records: request.required.map((slot) => ({
+      slot,
+      token: `${request.attempt.transactionId}:projector:${slot.kind}:${request.planeRevision}`
+    })),
+    failure: null
+  };
+}
+
+function createProjectorAuthority(
+  methods: Partial<Pick<PhonePresentation,
+    'applyPlane' | 'verifyVisibleCandidate' | 'verifyReproject' | 'verifyRollback'>> = {},
+  readViewport: () => PhoneViewportSnapshot = initialViewport
+): PhonePresentation {
+  return { ...createPresentationAuthority(readViewport), ...methods };
+}
+
 function reachPlaying(runtime: PhoneStoryRuntime, fixture: EnvironmentFixture): void {
   for (;;) {
     const transaction = currentTransaction(runtime);
@@ -362,6 +421,7 @@ function registerCurrentLeaf(
       id,
       element: {} as HTMLElement,
       kind: id.includes('video') ? 'video' as const
+        : /(?:image|poster|arch)/.test(id) ? 'image' as const
         : ['hero-intro-ink', 'star-map-canvas', 'figure3-paper-canvas'].includes(id)
           ? 'canvas-2d' as const
           : id.includes('canvas') ? 'canvas-webgl' as const : 'dom' as const
@@ -614,9 +674,7 @@ describe('phone runtime input, history, viewport, and queue', () => {
     expect(reprojected.progress).toBe(progressed.progress);
     expect(runtime.getSnapshot().lastPlaneRevision)
       .toBeGreaterThan(progressed.planeRevision ?? 0);
-    expect(fixture.effects.at(-1)).toEqual(expect.objectContaining({
-      type: 'apply-presentation-plane', attempt: progressed.attempt
-    }));
+    expect(fixture.effects.some(({ type }) => type === 'apply-presentation-plane')).toBe(false);
     disconnect();
   });
 
@@ -918,6 +976,224 @@ function commandFixture(
   return { commands, rebindings };
 }
 
+describe('phone runtime projector bridge', () => {
+  it('uses verifyVisibleCandidate for one exact target-plane proof and never forwards it', () => {
+    const fixture = createEnvironment();
+    const verifyVisibleCandidate = vi.fn(exactPlaneResult);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority(
+        { verifyVisibleCandidate }, fixture.port.readViewport
+      )
+    });
+    const disconnect = runtime.connect();
+    prepareCurrentPlane(runtime, fixture);
+    expect(currentTransaction(runtime).phase).toBe('presenting-target');
+    expect(verifyVisibleCandidate).not.toHaveBeenCalled();
+    fixture.flushFrames();
+    expect(verifyVisibleCandidate).toHaveBeenCalledTimes(1);
+    expect(verifyVisibleCandidate.mock.calls[0]?.[0]).toMatchObject({
+      leg: 'target', sceneId: 'pattern', interactionEnabled: false
+    });
+    expect(runtime.getSnapshot().status).toBe('stable');
+    expect(fixture.effects.some(({ type }) => type === 'apply-presentation-plane')).toBe(false);
+    disconnect();
+  });
+
+  it('uses applyPlane for a fresh source coverage revision during active playback', () => {
+    const fixture = createEnvironment();
+    const applyPlane = vi.fn(exactPlaneResult);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority({ applyPlane }, fixture.port.readViewport)
+    });
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.flushFrames();
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    reachPlaying(runtime, fixture);
+    fixture.flushFrames();
+    applyPlane.mockClear();
+    fixture.emit({
+      type: 'viewport', change: 'toolbar',
+      viewport: { ...initialViewport(), visualRevision: 2 }
+    });
+    fixture.flushFrames();
+    fixture.flushFrames();
+    expect(applyPlane).toHaveBeenCalledTimes(1);
+    expect(applyPlane.mock.calls[0]?.[0]).toMatchObject({
+      leg: 'source', required: [expect.objectContaining({ kind: 'coverage-visible' })]
+    });
+    expect(currentTransaction(runtime).phase).toBe('playing');
+    disconnect();
+  });
+
+  it('uses verifyReproject with runtime-sampled live toolbar geometry', () => {
+    const fixture = createEnvironment();
+    const verifyReproject = vi.fn(exactPlaneResult);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#education', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority({ verifyReproject }, fixture.port.readViewport)
+    });
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.flushFrames();
+    const live: PhoneViewportSnapshot = {
+      ...initialViewport(),
+      visual: { offsetLeft: 0.5, offsetTop: 37.25, width: 389.5, height: 806.75, scale: 1.25 },
+      visualRevision: 2
+    };
+    fixture.emit({ type: 'viewport', change: 'toolbar', viewport: live });
+    fixture.flushFrames();
+    prepareCurrentPlane(runtime, fixture);
+    fixture.flushFrames();
+    expect(verifyReproject).toHaveBeenCalledTimes(1);
+    expect(verifyReproject.mock.calls[0]?.[0].viewport).toEqual(live);
+    expect(runtime.getSnapshot().status).toBe('stable');
+    disconnect();
+  });
+
+  it('uses verifyRollback for the exact retained source plane', () => {
+    const fixture = createEnvironment();
+    const verifyRollback = vi.fn(exactPlaneResult);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#brand', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority({ verifyRollback }, fixture.port.readViewport)
+    });
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.flushFrames();
+    runtime.requestEntry({ pathname: '/', hash: '#services', origin: 'menu' });
+    const failed = currentTransaction(runtime);
+    fixture.send({
+      type: 'failure-reported',
+      slot: failed.requiredPrepared[0]!,
+      failure: { code: 'fixture-load', message: 'fixture', recoverable: true }
+    });
+    expect(currentTransaction(runtime).mode).toBe('rollback');
+    prepareCurrentPlane(runtime, fixture);
+    fixture.flushFrames();
+    expect(verifyRollback).toHaveBeenCalledTimes(1);
+    expect(verifyRollback.mock.calls[0]?.[0]).toMatchObject({
+      leg: 'rollback', sceneId: 'brand'
+    });
+    expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('brand');
+    disconnect();
+  });
+
+  it.each([
+    ['stale revision', (request: PhonePlaneRequest) => ({
+      ...exactPlaneResult(request),
+      records: exactPlaneResult(request).records.map((record, index) => index === 0
+        ? { ...record, slot: { ...record.slot, planeRevision: request.planeRevision - 1 } }
+        : record)
+    })],
+    ['mixed leg', (request: PhonePlaneRequest) => ({
+      ...exactPlaneResult(request),
+      records: exactPlaneResult(request).records.map((record, index) => index === 0
+        ? { ...record, slot: { ...record.slot, leg: 'source' as const } }
+        : record)
+    })],
+    ['mixed attempt', (request: PhonePlaneRequest) => ({
+      ...exactPlaneResult(request),
+      records: exactPlaneResult(request).records.map((record, index) => index === 0
+        ? { ...record, slot: { ...record.slot, attempt: {
+            ...record.slot.attempt, transactionId: 'forged-transaction'
+          } } }
+        : record)
+    })],
+    ['partial proof', (request: PhonePlaneRequest) => ({
+      ...exactPlaneResult(request), records: exactPlaneResult(request).records.slice(1)
+    })],
+    ['duplicate slot', (request: PhonePlaneRequest) => {
+      const result = exactPlaneResult(request);
+      return { ...result, records: [...result.records, result.records[0]!] };
+    }]
+  ] as const)('fails closed on a projector %s result', (_label, resultFor) => {
+    const fixture = createEnvironment();
+    const verifyVisibleCandidate = vi.fn(resultFor);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority(
+        { verifyVisibleCandidate }, fixture.port.readViewport
+      )
+    });
+    const disconnect = runtime.connect();
+    prepareCurrentPlane(runtime, fixture);
+    const rejectedAttempt = currentTransaction(runtime).attempt;
+    fixture.flushFrames();
+    expect(verifyVisibleCandidate).toHaveBeenCalledTimes(1);
+    expect(runtime.getSnapshot().stableCommit?.sceneId).not.toBe('pattern');
+    const snapshot = runtime.getSnapshot();
+    if (snapshot.status === 'transaction') {
+      expect(snapshot.transaction.attempt.transactionGeneration)
+        .toBeGreaterThan(rejectedAttempt.transactionGeneration);
+      expect(snapshot.transaction.candidateSceneId).toBe('hero');
+    }
+    disconnect();
+  });
+
+  it('turns a thrown projector exception into the bounded presentation failure path', () => {
+    const fixture = createEnvironment();
+    const verifyVisibleCandidate = vi.fn((): PhonePlaneApplyResult => {
+      throw new Error('projector exploded');
+    });
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority(
+        { verifyVisibleCandidate }, fixture.port.readViewport
+      )
+    });
+    const disconnect = runtime.connect();
+    prepareCurrentPlane(runtime, fixture);
+    expect(() => fixture.flushFrames()).not.toThrow();
+    expect(verifyVisibleCandidate).toHaveBeenCalledTimes(1);
+    expect(runtime.getSnapshot().stableCommit?.sceneId).not.toBe('pattern');
+    disconnect();
+  });
+
+  it('does not let generic performEffect forge presentation evidence', () => {
+    const fixture = createEnvironment();
+    const observed: PhoneStoryEffect['type'][] = [];
+    const environment: PhoneStoryRuntimeEnvironment = {
+      ...fixture.port,
+      performEffect: (effect, enqueue) => {
+        observed.push(effect.type);
+        fixture.port.performEffect?.(effect, enqueue);
+        if (effect.type === 'apply-presentation-plane') {
+          const transaction = currentTransaction(runtime);
+          for (const slot of transaction.requiredFinal) reportSlot(fixture, slot);
+          enqueue({ type: 'terminal-fault', code: 'generic-projector-forgery' });
+        }
+      }
+    };
+    const verifyVisibleCandidate = vi.fn(exactPlaneResult);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment,
+      presentation: createProjectorAuthority(
+        { verifyVisibleCandidate }, fixture.port.readViewport
+      )
+    });
+    const disconnect = runtime.connect();
+    prepareCurrentPlane(runtime, fixture);
+    fixture.flushFrames();
+    expect(observed).not.toContain('apply-presentation-plane');
+    expect(verifyVisibleCandidate).toHaveBeenCalledTimes(1);
+    expect(runtime.getSnapshot().status).toBe('stable');
+    disconnect();
+  });
+});
+
 describe('phone runtime effects, media activation, and disposal', () => {
   it('delegates mount ownership to the injected presentation authority', () => {
     const fixture = createEnvironment();
@@ -933,7 +1209,11 @@ describe('phone runtime effects, media activation, and disposal', () => {
     const runtime = createPhoneStoryRuntime({
       initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
       environment: fixture.port,
-      presentation: { registerLeafMount, verifyPrepared: () => ({ records: [] }) }
+      presentation: {
+        ...createPresentationAuthority(),
+        registerLeafMount,
+        verifyPrepared: () => ({ records: [] })
+      }
     });
     const disconnect = runtime.connect();
     registerCurrentLeaf(runtime, commandFixture().commands);
@@ -1027,7 +1307,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(active.phase).toBe('presenting-source');
     for (const slot of active.requiredFinal) reportSlot(fixture, slot);
     expect(currentTransaction(runtime).phase).toBe('presenting-target');
-    expect(fixture.counts().frames).toBe(0);
+    expect(fixture.counts().frames).toBe(1);
     disconnect();
   });
 
@@ -1070,7 +1350,10 @@ describe('phone runtime effects, media activation, and disposal', () => {
     reports.registerMount({
       root: {} as HTMLElement,
       surfaces: scene.surfaces.map((id) => ({
-        id, element: {} as HTMLElement, kind: id.includes('canvas') ? 'canvas-webgl' : 'dom'
+        id, element: {} as HTMLElement,
+        kind: id.includes('video') ? 'video'
+          : /(?:image|poster|arch)/.test(id) ? 'image'
+            : id.includes('canvas') ? 'canvas-webgl' : 'dom'
       })),
       commands: commandFixture().commands
     });
@@ -1346,7 +1629,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
           : id.includes('canvas') ? 'canvas-webgl' : 'dom'
       })),
       commands
-    })).toThrow(/surfaces differ/);
+    })).toThrow(/surface kind differs/);
     disconnect();
   });
 

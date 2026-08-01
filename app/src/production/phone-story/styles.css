@@ -1,0 +1,72 @@
+.phone-story {
+  --phone-visual-offset-left: 0px;
+  --phone-visual-offset-top: 0px;
+  --phone-visual-width: 100vw;
+  --phone-visual-height: 100vh;
+  --phone-visual-scale: 1;
+  --phone-layout-width: 100vw;
+  --phone-layout-height: 100vh;
+  --phone-story-progress: 0;
+  --phone-hero-motion-progress: 0;
+  --phone-hero-authored-progress: 0;
+  isolation: isolate;
+  position: relative;
+}
+
+.phone-story__viewport {
+  height: var(--phone-visual-height);
+  isolation: isolate;
+  left: var(--phone-visual-offset-left);
+  position: fixed;
+  top: var(--phone-visual-offset-top);
+  width: var(--phone-visual-width);
+}
+
+.phone-story__coverage {
+  background: var(--phone-story-coverage, #07110e);
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+}
+
+.phone-story__planes {
+  inset: 0;
+  isolation: isolate;
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+}
+
+.phone-story__planes > [data-phone-plane] {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+[data-phone-plane="source"] {
+  z-index: 10;
+}
+
+[data-phone-plane="effect"] {
+  z-index: var(--phone-plane-z, 20);
+}
+
+[data-phone-plane="receiver"] {
+  z-index: 30;
+}
+
+[data-phone-plane][data-phone-exposed="false"] {
+  visibility: hidden;
+}
+
+.phone-story__reading-flow {
+  min-height: var(--phone-layout-height);
+  position: relative;
+  width: var(--phone-layout-width);
+  z-index: 50;
+}
+
+.phone-story[data-phone-interaction="disabled"] .phone-story__reading-flow {
+  pointer-events: none;
+}
