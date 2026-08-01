@@ -23,19 +23,22 @@ const loaderSource = source('../phone/scenes/PhoneLoader.tsx');
 const heroSource = source('../../scenes/hero/phone/PhoneHero.tsx');
 const heroMotionSource = source('../../scenes/hero/phone/PhoneHero.motion.ts');
 const heroCss = source('../../scenes/hero/phone/PhoneHero.css');
-const patternSource = source('../phone/scenes/PhonePattern.tsx');
-const patternCss = source('../phone/scenes/PhonePattern.css');
-const starSource = source('../phone/scenes/PhoneStarMap.tsx');
-const starCss = source('../phone/scenes/PhoneStarMap.css');
-const aodSource = source('../phone/scenes/PhoneAod.tsx');
-const aodCss = source('../phone/scenes/PhoneAod.css');
+const patternSource = source('../../scenes/pattern/phone/PhonePattern.tsx');
+const patternCss = source('../../scenes/pattern/phone/PhonePattern.css');
+const starSource = source('../../scenes/star-map/phone/PhoneStarMap.tsx');
+const starCss = source('../../scenes/star-map/phone/PhoneStarMap.css');
+const aodSource = source('../../scenes/aod-animation/phone/PhoneAod.tsx');
+const aodCss = source('../../scenes/aod-animation/phone/PhoneAod.css');
 const methodSource = source('../phone/scenes/PhoneMethodTop.tsx');
 const methodCss = source('../phone/scenes/PhoneMethodTop.css');
 const heroPatternSource = source('../phone/transitions/hero-pattern.tsx');
 const patternStarSource = source('../phone/transitions/pattern-star-map.tsx');
 const starAodSource = source('../phone/transitions/star-map-aod.tsx');
+const heroPatternLeafSource = source('../../transitions/hero-pattern/phone.tsx');
+const patternStarLeafSource = source('../../transitions/pattern-star-map/phone.tsx');
+const starAodLeafSource = source('../../transitions/star-map-aod/phone.tsx');
 const aodMethodSource = source('../phone/transitions/aod-method-top.ts');
-const phoneMediaSource = source('../phone/phone-media.ts');
+const phoneMediaSource = source('../../media/phone-media.ts');
 const gradeAStorySource = source('../phone/PhoneGradeAStory.tsx');
 const gradeAStoryCss = source('../phone/PhoneGradeAStory.css');
 const gradeAFigureSource = source('../phone/scenes/PhoneFigure2.tsx');
@@ -165,13 +168,16 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain('<PatternStarMapTransition');
     expect(shellSource).toContain('<StarMapAodTransition');
     expect(heroPatternSource).toContain("id: 'portrait-hero-pattern-ink'");
-    expect(heroPatternSource).toContain("seed: 'portrait-hero-pattern-r5'");
+    expect(heroPatternSource).toContain('PHONE_HERO_PATTERN_INK_OPTIONS');
+    expect(heroPatternLeafSource).toContain("seed: 'portrait-hero-pattern-r5'");
     expect(patternStarSource).toContain("id: 'portrait-pattern-star-ink'");
-    expect(patternStarSource).toContain("seed: 'portrait-pattern-star-r5'");
-    expect(patternStarSource).toContain("portraitInk: 'pattern-star'");
+    expect(patternStarSource).toContain('PHONE_PATTERN_STAR_MAP_INK_OPTIONS');
+    expect(patternStarLeafSource).toContain("seed: 'portrait-pattern-star-r5'");
+    expect(patternStarLeafSource).toContain("portraitInk: 'pattern-star'");
     expect(starAodSource).toContain("id: 'portrait-star-aod-ink'");
-    expect(starAodSource).toContain("seed: 'portrait-star-aod-r5'");
-    expect(starAodSource).toContain("portraitInk: 'star-aod'");
+    expect(starAodSource).toContain('PHONE_STAR_MAP_AOD_INK_OPTIONS');
+    expect(starAodLeafSource).toContain("seed: 'portrait-star-aod-r5'");
+    expect(starAodLeafSource).toContain("portraitInk: 'star-aod'");
     expect(aodMethodSource).toContain('phoneAodMethodProgress');
   });
 
@@ -185,7 +191,7 @@ describe('Route B proven front-half migration contract', () => {
     );
     expect(runtimeSource).toContain('heroAdapter.startEntrance()');
     for (const css of [heroCss, patternCss, starCss]) {
-      expect(css).toContain('var(--portrait-readable-bottom-offset)');
+      expect(css).toMatch(/var\(--portrait-readable-bottom-offset(?:,\s*0px)?\)/);
     }
     expect(shellCss).toContain('100lvh');
     expect(shellSource).not.toContain('stage-backplate');
@@ -196,7 +202,10 @@ describe('Route B proven front-half migration contract', () => {
     expect(patternCss).not.toContain('background-attachment');
     expect(patternCss).not.toContain('data-portrait-edge-scene="pattern"');
     expect(patternCss).not.toContain('portrait-scroll-spike__stage[');
-    expect(patternSource.match(/pattern-background/g)).toHaveLength(1);
+    expect(patternSource).toContain(
+      "assertPhoneMediaOwner('pattern-background', 'pattern')"
+    );
+    expect(patternSource).toContain("'../../../../../assets/pattern-background.webp'");
     expect(patternCss).not.toMatch(
       /portrait-scroll-spike__pattern-motion\s*\{[^}]*will-change:/s
     );
@@ -205,13 +214,8 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__pattern-bloom\s*\{[^}]*inset:\s*0[^}]*height:\s*100%/s
     );
     expect(patternCss).not.toContain('stage-backplate');
-    expect(patternCss).toContain('--portrait-pattern-edge-surface: #8f7f61');
-    expect(patternCss).toMatch(
-      /\.portrait-scroll-spike\s*\{[^}]*portrait-pattern-edge-surface:[^}]*8f7f61/s
-    );
-    expect(patternCss).toMatch(
-      /\.portrait-scroll-spike__pattern-motion::after\s*\{[^}]*height:\s*clamp\(48px,\s*6\.5svh,\s*60px\)[^}]*background:\s*linear-gradient\([^}]*var\(--portrait-pattern-edge-surface\)\s*100%/s
-    );
+    expect(patternCss).not.toContain('--portrait-pattern-edge-surface');
+    expect(patternCss).not.toContain('.portrait-scroll-spike__pattern-motion::after');
     expect(patternCss).not.toContain('data-phone-validation-mode="v47"');
     expect(edgeSurfaceSource).toContain(
       "PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#8f7f61'"
@@ -220,10 +224,8 @@ describe('Route B proven front-half migration contract', () => {
     expect(aodCss).toContain('--portrait-aod-bottom-mist-background');
     expect(aodCss).not.toContain('--portrait-browser-edge-reserve');
     expect(shellCss).not.toContain('--portrait-browser-edge-reserve');
-    expect(aodCss).toMatch(
-      /data-portrait-edge-scene="aod"[^}]*stage-rail\s*\{[^}]*background:\s*#ede4d2/s
-    );
-    expect(aodCss).toContain('html[data-portrait-spike="b"][data-portrait-edge-scene="aod"]');
+    expect(aodCss).not.toContain('data-portrait-edge-scene="aod"');
+    expect(aodCss).not.toContain('stage-rail');
     expect(shellSource).toContain('attachStoryMediaUnlock(rootRef.current)');
     expect(shellCss).toMatch(
       /site-nav\.has-scroll-edge-blur::before\s*\{[^}]*backdrop-filter:\s*blur\(20px\)/s
@@ -234,16 +236,16 @@ describe('Route B proven front-half migration contract', () => {
 
   it('keeps one packed-alpha owner and the phone-only 0.49 → 0.59 mapping', () => {
     expect(heroSource).toContain('createPackedAlphaVideoCompositor');
-    expect(aodSource).toContain('createPackedAlphaVideoCompositor');
+    expect(aodSource).toContain('createPhonePackedAlphaSurface');
     expect(heroSource).toContain("assertPhoneMediaOwner('hero-figure-packed', 'hero')");
     expect(heroSource).toContain("'../../../../../assets/figure1-rgb-alpha.mp4'");
     expect(aodSource).toContain("'aod-figure-packed'");
     expect(aodSource).not.toContain('packed-reverse');
-    expect(aodSource).toContain('driveReverseFrame');
-    expect(aodSource).toContain('driveTimelineVideo');
+    expect(aodSource).toContain('surface.activate');
+    expect(aodSource).toContain('renderAodTransitionProgress');
     expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_START');
     expect(aodSource).toContain('AOD_PHONE_TIMELINE_ALPHA_END');
-    expect(aodSource).toContain('alphaEndProgress: PHONE_AOD_ALPHA_END_PROGRESS');
+    expect(aodSource).toContain('PHONE_AOD_ALPHA_END_PROGRESS, PHONE_AOD_ALPHA_START_PROGRESS');
     expect(shellSource).toContain(
       'data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}'
     );
@@ -259,7 +261,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(starSource).toContain('rotationDegrees: -90');
     expect(starSource).toContain('data-portrait-star-perlin');
     expect(starCss).toContain('portrait-scroll-spike__scene--star');
-    expect(aodSource).toContain('phoneAodBackdropPresentation');
+    expect(aodSource).toContain('portraitAodBackdropProgress');
     expect(methodSource).toContain('id="method"');
     expect(methodSource).toContain('portrait-scroll-spike__method-bridge');
     expect(methodCss).toMatch(
@@ -285,7 +287,7 @@ describe('Route B proven front-half migration contract', () => {
       "from '../../../media/packed-alpha-video'"
     );
     expect(patternSource).toContain(
-      "from '../../../scenes/pattern/patternBloomRenderer'"
+      "from '../patternBloomRenderer'"
     );
     expect(starSource).toContain(
       "phoneMediaUrlFor('star-map-source', 'star-map')"

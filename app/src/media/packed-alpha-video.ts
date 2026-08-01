@@ -420,8 +420,8 @@ export function createPackedAlphaVideoCompositor(
       canvas.dataset.packedAlphaCompositorActive = semanticBoolean(active);
       if (!active) {
         cancelScheduledFrame();
-        clearPresentedFrame();
-        canvas.dataset.packedAlphaStatus = 'suspended';
+        canvas.dataset.packedAlphaStatus = renderedFrames > 0
+          ? 'suspended-retained' : 'suspended';
         return;
       }
       canvas.dataset.packedAlphaStatus = 'waiting';

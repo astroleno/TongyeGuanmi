@@ -43,7 +43,7 @@ export default defineConfig({
     },
     {
       name: 'phone-portrait-chromium',
-      use: { ...devices['Pixel 7'], browserName: 'chromium' }
+      use: { ...devices['Pixel 7'], browserName: 'chromium', channel: 'chrome' }
     },
     {
       name: 'phone-portrait-webkit',

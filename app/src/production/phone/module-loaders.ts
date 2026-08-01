@@ -44,6 +44,7 @@ import type {
 import type { PhoneHeroMigrationCommands } from '../../scenes/hero/phone/PhoneHero';
 import type { PhonePatternMigrationCommands } from '../../scenes/pattern/phone/PhonePattern';
 import type { PhoneAodMigrationCommands } from '../../scenes/aod-animation/phone/PhoneAod';
+import type { PhoneStarMapMigrationCommands } from '../../scenes/star-map/phone/PhoneStarMap';
 
 let loaderCache: Promise<PhoneLoaderAdapterModule> | undefined;
 let resolvedLoaderCache: PhoneLoaderAdapterModule | undefined;
@@ -199,10 +200,53 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
         return { id, Component: Component as PhonePatternAdapterComponent };
       });
     case 'star-map':
-      return import('./scenes/PhoneStarMap').then(({ PhoneStarMap: Component }) => ({
-        id,
-        Component: Component as unknown as PhoneStarMapAdapterComponent
-      }));
+      return import('../../scenes/star-map/phone/PhoneStarMap').then((module) => {
+        const Component = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdapterProps>(
+          function PhoneStarMapMigrationBridge(props, forwardedRef) {
+            const registrationRef = useRef<PhoneLeafMountRegistration | null>(null);
+            const readyRef = useRef(props.onReady);
+            const generationRef = useRef(0);
+            readyRef.current = props.onReady;
+            const reports = useMemo<PhoneLeafReportPort>(() => Object.freeze({
+              registerMount(registration) {
+                registrationRef.current = registration;
+                registration.commands.rebind({
+                  reports,
+                  frameToken: `legacy-star-map:frame:${++generationRef.current}`
+                });
+              },
+              reportPrepared: () => undefined,
+              reportFrame(surfaceId) {
+                if (surfaceId === 'star-map-canvas') readyRef.current?.();
+              },
+              reportProgress: () => undefined,
+              reportComplete: () => undefined,
+              reportFailure: () => undefined
+            }), []);
+            const migration = () => {
+              const commands = registrationRef.current?.commands as
+                | PhoneStarMapMigrationCommands
+                | undefined;
+              return commands?.[module.PHONE_STAR_MAP_MIGRATION_CONTROL];
+            };
+            useLayoutEffect(() => {
+              void props.motionDriver;
+              if (props.active) migration()?.enter();
+              else registrationRef.current?.commands.pause('hidden');
+            }, [props.active, props.motionDriver, props.reducedMotion]);
+            useImperativeHandle(forwardedRef, () => ({
+              root: () => registrationRef.current?.root ?? null,
+              update: (progress) => registrationRef.current?.commands.render(progress),
+              enter: () => migration()?.enter(),
+              leave: () => migration()?.leave(),
+              reverse: () => migration()?.reverse(),
+              dispose: () => registrationRef.current?.commands.dispose('closure-retired')
+            }), []);
+            return createElement(module.PhoneStarMap, { reports });
+          }
+        );
+        return { id, Component: Component as PhoneStarMapAdapterComponent };
+      });
     case 'aod-animation':
       return import('../../scenes/aod-animation/phone/PhoneAod').then((module) => {
         const Component = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps>(

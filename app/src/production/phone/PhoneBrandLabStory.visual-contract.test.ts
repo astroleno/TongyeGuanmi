@@ -38,7 +38,7 @@ const stageStyles = readFileSync(
   'utf8'
 );
 const aodStyles = readFileSync(
-  new URL('./scenes/PhoneAod.css', import.meta.url),
+  new URL('../../scenes/aod-animation/phone/PhoneAod.css', import.meta.url),
   'utf8'
 );
 const methodStyles = readFileSync(

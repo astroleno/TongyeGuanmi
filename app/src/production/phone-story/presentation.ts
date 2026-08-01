@@ -94,12 +94,13 @@ export function bindPhoneLeafGeneration(
   binding: PhoneLeafReportBinding,
   reports: PhoneLeafReportPort,
   sequence: number,
-  rebindMount: boolean
+  rebindMount: boolean,
+  beforeRebind?: (token: PhoneFrameToken) => void
 ): PhoneFrameToken {
-  if (rebindMount) mount.rebind(binding);
   const generation = createPhoneLeafGenerationBinding(
     reports, binding.attempt.transactionId, sequence
   );
+  beforeRebind?.(generation.frameToken); if (rebindMount) mount.rebind(binding);
   mount.commands.rebind(generation);
   return generation.frameToken;
 }

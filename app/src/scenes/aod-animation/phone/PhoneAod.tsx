@@ -152,9 +152,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         };
       },
       render,
-      settle(endpoint) {
-        render(endpoint);
-      },
+      settle() { render(0); },
       pause() {
         surfaceGenerationRef.current = 0;
         surfaceRef.current?.release();

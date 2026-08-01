@@ -112,6 +112,17 @@ describe('clean PhonePattern leaf', () => {
     expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(0.78, 0.78);
   });
 
+  it('settles to the same readable Pattern hold from either direction', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePattern reports={mount.reports} />); });
+    mount.registration()?.commands.settle(0);
+    expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-copy')?.style.opacity)
+      .toBe('1');
+    expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(1, 1);
+    mount.registration()?.commands.settle(1);
+    expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(1, 1);
+  });
+
   it('keeps edge ownership global and contains no scene-specific concealment', () => {
     const css = readFileSync(resolve(
       process.cwd(), 'src/scenes/pattern/phone/PhonePattern.css'

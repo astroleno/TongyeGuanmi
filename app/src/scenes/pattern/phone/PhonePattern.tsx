@@ -131,9 +131,7 @@ export function PhonePattern({ reports }: PhonePatternProps) {
         };
       },
       render,
-      settle(endpoint) {
-        render(endpoint);
-      },
+      settle() { render(1); },
       pause() {
         activeRef.current = false;
         rendererRef.current?.setRenderActive(false, false);

@@ -381,6 +381,27 @@ describe('packed alpha video', () => {
     expect(probe.loseContext).toHaveBeenCalledOnce();
   });
 
+  it('pauses scheduling without erasing the last causally drawn rollback frame', () => {
+    const probe = createGlProbe();
+    const canvas = new CanvasProbe(probe.gl);
+    const video = new VideoProbe();
+    video.readyState = 2;
+    const compositor = createPackedAlphaVideoCompositor({
+      canvas: canvas as unknown as HTMLCanvasElement,
+      video: video as unknown as HTMLVideoElement
+    });
+    expect(canvas.dataset.packedAlphaFrameReady).toBe('true');
+    const draws = probe.spies.drawArrays.mock.calls.length;
+
+    compositor.setActive(false);
+
+    expect(video.cancelVideoFrameCallback).toHaveBeenCalled();
+    expect(canvas.dataset.packedAlphaStatus).toBe('suspended-retained');
+    expect(canvas.dataset.packedAlphaFrameReady).toBe('true');
+    expect(probe.spies.drawArrays).toHaveBeenCalledTimes(draws);
+    compositor.dispose();
+  });
+
   it('reports unavailable WebGL and a failed frame upload synchronously', () => {
     const unavailableCanvas = new CanvasProbe(
       null as unknown as WebGLRenderingContext

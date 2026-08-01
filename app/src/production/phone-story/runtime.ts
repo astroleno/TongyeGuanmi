@@ -1,33 +1,28 @@
-import { createPhoneStoryBoot, reducePhoneStory, sameAttempt, type PhoneMachineResult,
-  type PhoneMachineSnapshot } from './machine';
+import { createPhoneStoryBoot, reducePhoneStory, sameAttempt, type PhoneMachineResult, type PhoneMachineSnapshot } from './machine';
 import { phoneManifest, phoneSceneById } from './manifest';
-import type { PhoneLeafMountRegistration, PhoneLeafReportBinding,
-  PhoneLeafReportPort, PhoneLeafMountLease, PhonePlaneApplyResult,
+import type { PhoneLeafMountRegistration, PhoneLeafReportBinding, PhoneLeafReportPort,
+  PhoneLeafMountLease, PhonePlaneApplyResult,
   PhonePresentation } from './presentation';
 import { assertPhoneLeafReportBindingContract, bindPhoneLeafGeneration,
   claimPhoneActivationDecoders, clearPhoneOwnershipRegistries, closePhoneLeafReportBinding,
   createPhonePlaneRequest, createPhoneRetainedLeafBinding, invokePhoneActivationBatch,
-  phoneActivationSurfaceIds, phoneLeafMountKey, phonePlaneResultIsExact,
-  phoneRetainedMountLeg, runPhoneCleanupSteps, runPhoneLeafRetirement,
+  phoneActivationSurfaceIds, phoneLeafMountKey, phonePlaneResultIsExact, phoneRetainedMountLeg,
+  runPhoneCleanupSteps, runPhoneLeafRetirement,
   settlePhoneActivationBatch } from './presentation';
-import type {
-  PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneFailure,
-  PhoneLeafDisposeReason, PhoneStoryEffect,
-  PhoneRejectedChunkFailure, PhoneRuntimeLifecycleStep, PhoneRuntimeResourceCounts,
-  PhoneRuntimeHostEvent, PhoneRuntimeInputEvent, PhoneStableRecoveryProof,
+import type { PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneFailure,
+  PhoneLeafDisposeReason, PhoneStoryEffect, PhoneRejectedChunkFailure,
+  PhoneRuntimeLifecycleStep, PhoneRuntimeResourceCounts, PhoneRuntimeHostEvent,
+  PhoneRuntimeInputEvent, PhoneStableRecoveryProof,
   PhoneStoryEvent, PhoneStorySnapshot, PhoneViewportSnapshot
 } from './protocol';
-export type { PhoneRejectedChunkFailure, PhoneRuntimeLifecycleStep, PhoneRuntimeHostEvent,
-  PhoneRuntimeInputEvent, PhoneRuntimeResourceCounts, PhoneStableRecoveryProof } from './protocol';
+export type { PhoneRejectedChunkFailure, PhoneRuntimeLifecycleStep, PhoneRuntimeHostEvent, PhoneRuntimeInputEvent, PhoneRuntimeResourceCounts, PhoneStableRecoveryProof } from './protocol';
 
 export type PhoneRuntimeTimerHandle = string | number | Readonly<{ id: string }>;
 export type PhoneChunkRecoveryPort = Readonly<{ reportRejectedChunk(failure: PhoneRejectedChunkFailure): Promise<'reloading' | 'fail-closed'>; markStable(proof: PhoneStableRecoveryProof): void }>;
 
-export type PhoneRuntimeEffectPorts = Readonly<{ loadDependencies?(effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>, signal: AbortSignal): Promise<PhoneDependencyLoadResult>;
-  releaseDependencies?(dependencies: readonly PhoneDependencyRef[]): void }>;
+export type PhoneRuntimeEffectPorts = Readonly<{ loadDependencies?(effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>, signal: AbortSignal): Promise<PhoneDependencyLoadResult>; releaseDependencies?(dependencies: readonly PhoneDependencyRef[]): void }>;
 
-export type PhoneDependencyLoadResult = Readonly<{ status: 'loaded' }>
-  | Readonly<{ status: 'rejected'; dependency: PhoneDependencyRef; moduleUrl: string; reason: string }>;
+export type PhoneDependencyLoadResult = Readonly<{ status: 'loaded' }> | Readonly<{ status: 'rejected'; dependency: PhoneDependencyRef; moduleUrl: string; reason: string }>;
 
 export type PhoneStoryRuntimeEnvironment = Readonly<{
   nextAuthorityId(): string; readViewport(): PhoneViewportSnapshot; activeNow(): number;
@@ -36,17 +31,14 @@ export type PhoneStoryRuntimeEnvironment = Readonly<{
   cancelTimer(handle: PhoneRuntimeTimerHandle): void; cancelFrame(handle: PhoneRuntimeTimerHandle): void;
   requestFrame(callback: () => void): PhoneRuntimeTimerHandle;
   writeUrl(mode: 'push' | 'replace', pathname: string, hash: string): void;
-  observePublish?(snapshot: PhoneStorySnapshot): void; performEffect?(effect: PhoneStoryEffect,
-    enqueue: (event: PhoneStoryEvent) => void): void;
+  observePublish?(snapshot: PhoneStorySnapshot): void; performEffect?(effect: PhoneStoryEffect, enqueue: (event: PhoneStoryEvent) => void): void;
   observeLifecycle?(step: PhoneRuntimeLifecycleStep): void; observeResources?(counts: PhoneRuntimeResourceCounts): void;
 }>;
 
-export type PhoneStoryRuntimeConfig = Readonly<{ initialEntry: PhoneEntryRequest; environment: PhoneStoryRuntimeEnvironment;
-  presentation: PhonePresentation; ports?: PhoneRuntimeEffectPorts; chunkRecovery?: PhoneChunkRecoveryPort }>;
+export type PhoneStoryRuntimeConfig = Readonly<{ initialEntry: PhoneEntryRequest; environment: PhoneStoryRuntimeEnvironment; presentation: PhonePresentation; ports?: PhoneRuntimeEffectPorts; chunkRecovery?: PhoneChunkRecoveryPort }>;
 
 export type PhoneStoryRuntime = Readonly<{
-  getSnapshot(): PhoneMachineSnapshot; subscribe(listener: () => void): () => void;
-  connect(): () => void; requestEntry(entry: PhoneEntryRequest): void; retry(): void;
+  getSnapshot(): PhoneMachineSnapshot; subscribe(listener: () => void): () => void; connect(): () => void; requestEntry(entry: PhoneEntryRequest): void; retry(): void;
   createLeafReportPort(binding: PhoneLeafReportBinding): PhoneLeafReportPort;
 }>;
 
@@ -273,7 +265,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   ): void => {
     lease.reports = state;
     lease.frameToken = bindPhoneLeafGeneration(
-      lease.mount, state.binding, createReportPort(state), ++frameSequence, rebindMount
+      lease.mount, state.binding, createReportPort(state), ++frameSequence, rebindMount,
+      (token) => { lease.frameToken = token; }
     );
     acceptPreparedProof(state, lease, null);
   };
@@ -300,11 +293,18 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         };
         leaves.set(key, lease);
         bindLeafGeneration(lease, state, false);
-        if (snapshot.status === 'transaction'
+        const active = snapshot.status === 'transaction'
           && sameAttempt(snapshot.transaction.attempt, state.binding.attempt)
-          && ['boot', 'entry'].includes(snapshot.transaction.mode)
-          && state.binding.leg === 'target' && mount.resources.videos > 0) {
-          invokeActivation([lease], snapshot.transaction.attempt, 'direct-muted-autoplay');
+          ? snapshot.transaction : null;
+        if (active && state.binding.leg === 'target' && mount.resources.videos > 0) {
+          if (['boot', 'entry'].includes(active.mode)) {
+            invokeActivation([lease], active.attempt, 'direct-muted-autoplay');
+          } else if (active.phase === 'awaiting-media-activation') {
+            environment.performEffect?.(
+              { type: 'show-activation-cta', attempt: active.attempt, enabled: true },
+              (event) => enqueueFor(event, connection)
+            );
+          }
         }
       },
       reportPrepared: (surfaceId, report) => {

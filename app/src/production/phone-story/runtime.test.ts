@@ -1216,6 +1216,30 @@ describe('phone runtime projector bridge', () => {
 });
 
 describe('phone runtime effects, media activation, and disposal', () => {
+  it('accepts a causal frame reported synchronously from command rebind', () => {
+    const fixture = createEnvironment();
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#aod-animation', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createFrameProofPresentationAuthority()
+    });
+    const disconnect = runtime.connect();
+    const canvasSurface = phoneSceneById('aod-animation').frame.surfaceIds[0]!;
+    const commands = commandFixture().commands;
+    vi.mocked(commands.rebind).mockImplementation((binding) => {
+      binding.reports.reportFrame(canvasSurface, {
+        kind: 'frame', token: binding.frameToken,
+        presented: true, frameId: 'synchronous-causal-draw'
+      });
+    });
+    registerCurrentLeaf(runtime, commands);
+    expect(currentTransaction(runtime).evidence).toContainEqual(expect.objectContaining({
+      slot: expect.objectContaining({ kind: 'canvas-drawn', surfaceId: canvasSurface }),
+      token: expect.stringContaining(':frame:')
+    }));
+    disconnect();
+  });
+
   it('delegates mount ownership to the injected presentation authority', () => {
     const fixture = createEnvironment();
     const registerLeafMount = vi.fn(() => ({
@@ -1597,6 +1621,29 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(fixture.effects).toContainEqual(expect.objectContaining({
       type: 'show-activation-cta', enabled: true
     }));
+    disconnect();
+  });
+
+  it('reveals segment activation only after the delayed video leaf registers', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#star-map');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true, target: 'story'
+    });
+    expect(currentTransaction(runtime).candidateSceneId).toBe('aod-animation');
+    expect(currentTransaction(runtime).phase).toBe('awaiting-media-activation');
+    expect(fixture.effects.at(-1)).toMatchObject({
+      type: 'show-activation-cta', enabled: false
+    });
+
+    const { commands } = commandFixture();
+    registerCurrentLeaf(runtime, commands);
+    expect(fixture.effects.at(-1)).toMatchObject({
+      type: 'show-activation-cta', enabled: true
+    });
+    expect(commands.activate).not.toHaveBeenCalled();
     disconnect();
   });
 

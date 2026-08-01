@@ -9,12 +9,19 @@ import {
 test('harness contract keeps one route-local authority under the opaque Loader', async ({
   page
 }) => {
+  let releaseVideo = () => undefined;
+  const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });
+  await page.route(/figure1-rgb-alpha.*\.mp4/, async (route) => {
+    await videoGate;
+    await route.continue();
+  });
   await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
   await assertSinglePhoneAuthority(page);
   await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-scope', 'harness');
   await expect(page.locator('[data-story-loader="true"]')).toBeVisible();
   expect(await readPlaneRevision(page)).toBeGreaterThanOrEqual(0);
   expect(await readCommitSequence(page)).toBe(0);
+  releaseVideo();
 });
 
 test('AOD direct activation requires a causal packed Canvas draw', async ({ page }) => {

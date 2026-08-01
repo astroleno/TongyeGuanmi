@@ -1,12 +1,90 @@
 import { expect, test } from '@playwright/test';
 import {
+  assertSinglePhoneAuthority,
   assertLayerOrderAtPoints,
   assertNoWhiteOrTransparentViewportEdges,
   assertNoIntermediateWhiteOrBlackFrame,
   assertOpaqueViewportEdges,
   assertTargetContentVisible,
+  readCommitSequence,
   waitForCommitSequence
 } from './r5-phone-clean-assertions';
+
+const FRONT_CONTENT = {
+  hero: ['#portrait-spike-home'],
+  pattern: ['#portrait-spike-pattern-title'],
+  'star-map': ['#portrait-spike-star-title'],
+  'aod-animation': ['[data-aod-figure-canvas]']
+} as const;
+
+async function nextAnimationFrame(page: import('@playwright/test').Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+}
+
+async function sendFrontIntent(
+  page: import('@playwright/test').Page,
+  direction: 'forward' | 'reverse'
+): Promise<void> {
+  await page.keyboard.press(direction === 'forward' ? 'ArrowDown' : 'ArrowUp');
+}
+
+async function traverseFront(
+  page: import('@playwright/test').Page,
+  source: keyof typeof FRONT_CONTENT,
+  target: keyof typeof FRONT_CONTENT,
+  direction: 'forward' | 'reverse'
+): Promise<Buffer[]> {
+  const before = await readCommitSequence(page);
+  await sendFrontIntent(page, direction);
+  await page.waitForFunction(({ from, to }) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return shell?.dataset.phoneScene === to
+      || shell?.dataset.phoneScene === from && shell.dataset.phoneStatus === 'transaction';
+  }, { from: source, to: target });
+  const effect = page.locator('[data-phone-plane="effect"] [data-r4-ink-segment]');
+  await expect(effect).toBeAttached();
+  await expect(effect).toHaveAttribute('data-r4-ink-effect-only', 'true');
+  const frames: Buffer[] = [await page.screenshot()];
+  for (let index = 0; index < 10; index += 1) {
+    await nextAnimationFrame(page);
+    frames.push(await page.screenshot());
+  }
+  await page.waitForFunction(({ to }) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return shell?.dataset.phoneScene === to
+      || ['awaiting-leg-intent', 'awaiting-media-activation']
+        .includes(shell?.dataset.phonePhase ?? '');
+  }, { to: target }, { timeout: 20_000 });
+  const boundary = await page.locator('.phone-story').getAttribute('data-phone-phase');
+  if (boundary === 'awaiting-leg-intent') await sendFrontIntent(page, direction);
+  if (boundary === 'awaiting-media-activation') {
+    const activation = page.locator('[data-phone-activation]');
+    await expect(activation).toBeVisible();
+    await activation.click();
+  }
+  try {
+    await page.waitForFunction(({ scene, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      return shell?.dataset.phoneScene === scene
+        && Number(shell.dataset.phoneCommitSequence) > after;
+    }, { scene: target, after: before }, { timeout: 25_000 });
+  } catch (error) {
+    const state = await page.locator('.phone-story').evaluate((shell) => ({
+      ...((shell as HTMLElement).dataset),
+      activation: !!document.querySelector('[data-phone-activation]:not([hidden])')
+    }));
+    throw new Error(
+      `Front ${source} → ${target} did not commit: ${JSON.stringify(state)}`,
+      { cause: error }
+    );
+  }
+  frames.push(await page.screenshot());
+  await assertSinglePhoneAuthority(page);
+  await assertTargetContentVisible(page, FRONT_CONTENT[target]);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+  await assertNoIntermediateWhiteOrBlackFrame(frames, { tolerance: 3 });
+  return frames;
+}
 
 async function patternViewportProof(page: import('@playwright/test').Page) {
   return page.evaluate(() => {
@@ -91,13 +169,20 @@ test('Hero Loader handoff starts at zero under one fixed opaque topology', async
   await assertNoIntermediateWhiteOrBlackFrame(provenExitFrames, { tolerance: 3 });
   await expect(loader).toHaveAttribute('data-loader-status', 'hidden');
   await assertTargetContentVisible(page, ['#portrait-spike-home']);
-  await assertOpaqueViewportEdges(page, [36, 40, 36], 32);
+  await assertNoWhiteOrTransparentViewportEdges(page);
 });
 
 test('harness contract keeps every real viewport edge opaque', async ({ page }) => {
+  let releaseVideo = () => undefined;
+  const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });
+  await page.route(/figure1-rgb-alpha.*\.mp4/, async (route) => {
+    await videoGate;
+    await route.continue();
+  });
   await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-story-loader="true"]')).toBeVisible();
   await assertOpaqueViewportEdges(page, [0, 0, 0], 0);
+  releaseVideo();
 });
 
 test('harness contract pixel decoder rejects a one-CSS-pixel edge gap', async ({ page }) => {
@@ -136,6 +221,71 @@ test('Pattern viewport and coverage stay globally owned through a live resize', 
     }
     await assertNoWhiteOrTransparentViewportEdges(page);
   }
+});
+
+test('Front direct Star Map exposes a causal rotated Canvas frame and content', async ({ page }) => {
+  await page.goto('/harness/r5-phone-clean#star-map', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'star-map', 0);
+  await assertSinglePhoneAuthority(page);
+  await expect(page.locator('[data-portrait-star-perlin]'))
+    .toHaveAttribute('data-portrait-star-perlin', 'ready');
+  await expect(page.locator('[data-portrait-star-perlin]'))
+    .toHaveAttribute('data-portrait-star-camera', 'rotate(-90deg) cover');
+  await assertTargetContentVisible(page, FRONT_CONTENT['star-map']);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+});
+
+test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {
+  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'hero', 0);
+  await traverseFront(page, 'hero', 'pattern', 'forward');
+  await traverseFront(page, 'pattern', 'star-map', 'forward');
+  await traverseFront(page, 'star-map', 'aod-animation', 'forward');
+  await traverseFront(page, 'aod-animation', 'star-map', 'reverse');
+  await traverseFront(page, 'star-map', 'pattern', 'reverse');
+  await traverseFront(page, 'pattern', 'hero', 'reverse');
+});
+
+test('Front reduced motion still reaches one fully proven target hold', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'hero', 0);
+  await traverseFront(page, 'hero', 'pattern', 'forward');
+  await expect(page.locator('.portrait-scroll-spike__pattern-copy')).toHaveCSS('opacity', '1');
+});
+
+test('Front Ink failure rolls back to the fully proved source without committing target', async ({ page }) => {
+  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'hero', 0);
+  await sendFrontIntent(page, 'forward');
+  const canvas = page.locator('[data-r4-ink-segment="hero-pattern"]');
+  await expect(canvas).toBeAttached();
+  await canvas.dispatchEvent('webglcontextlost', { cancelable: true });
+  try {
+    await page.waitForFunction(({ sequence }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      return shell?.dataset.phoneStatus === 'stable'
+        && shell.dataset.phoneScene === 'hero'
+        && Number(shell.dataset.phoneCommitSequence) === sequence;
+    }, { sequence: before }, { timeout: 20_000 });
+  } catch (error) {
+    const state = await page.locator('.phone-story').evaluate((shell) => ({
+      ...((shell as HTMLElement).dataset),
+      retry: !!document.querySelector('[data-phone-retry]:not([hidden])'),
+      activation: !!document.querySelector('[data-phone-activation]:not([hidden])'),
+      heroCanvas: document.querySelector<HTMLElement>('[data-portrait-figure-canvas]')
+        ? { ...document.querySelector<HTMLElement>('[data-portrait-figure-canvas]')!.dataset }
+        : null,
+      heroRoot: document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--hero')
+        ? { ...document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--hero')!.dataset }
+        : null
+    }));
+    throw new Error(`Front rollback did not settle: ${JSON.stringify(state)}`, {
+      cause: error
+    });
+  }
+  await assertTargetContentVisible(page, FRONT_CONTENT.hero);
+  await assertNoWhiteOrTransparentViewportEdges(page);
 });
 
 test('harness contract edge decoder permits distinct visible scene content', async ({ page }) => {

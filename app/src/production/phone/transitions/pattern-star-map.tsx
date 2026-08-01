@@ -1,11 +1,12 @@
 import { createPhoneInkAdapter } from './PhoneInkTransition';
+import { PHONE_PATTERN_STAR_MAP_INK_OPTIONS } from '../../../transitions/pattern-star-map/phone';
 
 export const PhonePatternStarMapTransition = createPhoneInkAdapter({
   id: 'portrait-pattern-star-ink',
-  field: { kind: 'radial', origin: { x: 0.5, y: 0.28 }, seed: 'portrait-pattern-star-r5' },
-  canvasClassName: 'portrait-scroll-spike__ink',
-  portraitInk: 'pattern-star',
-  grade: 'dark'
+  field: PHONE_PATTERN_STAR_MAP_INK_OPTIONS.field,
+  canvasClassName: PHONE_PATTERN_STAR_MAP_INK_OPTIONS.canvasClassName,
+  portraitInk: PHONE_PATTERN_STAR_MAP_INK_OPTIONS.portraitInk,
+  grade: PHONE_PATTERN_STAR_MAP_INK_OPTIONS.grade
 });
 
 export default PhonePatternStarMapTransition;

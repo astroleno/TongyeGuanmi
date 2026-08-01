@@ -65,9 +65,12 @@ export function createPhoneTransitionRegistry<SegmentId extends string = string>
   });
 }
 
-const transitionLoaders = Object.freeze({}) satisfies Partial<
-  Record<string, PhoneTransitionLoader>
->;
+const transitionLoaders = Object.freeze({
+  'hero-pattern': () => import('../../transitions/hero-pattern/phone'),
+  'pattern-star-map': () => import('../../transitions/pattern-star-map/phone'),
+  'star-map-aod': () => import('../../transitions/star-map-aod/phone'),
+  'aod-method-top': () => import('../../transitions/aod-method-top/phone')
+}) satisfies Partial<Record<string, PhoneTransitionLoader>>;
 const defaultTransitionRegistry = createPhoneTransitionRegistry<string>(transitionLoaders);
 
 type PhoneTransitionFailureBoundaryProps = Readonly<{

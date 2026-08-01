@@ -71,6 +71,7 @@ export function createPhoneSceneRegistry<SceneId extends string = string>(
 const sceneLoaders = Object.freeze({
   hero: () => import('../../scenes/hero/phone/PhoneHero'),
   pattern: () => import('../../scenes/pattern/phone/PhonePattern'),
+  'star-map': () => import('../../scenes/star-map/phone/PhoneStarMap'),
   'aod-animation': () => import('../../scenes/aod-animation/phone/PhoneAod')
 }) satisfies Partial<Record<string, PhoneSceneLoader>>;
 const defaultSceneRegistry = createPhoneSceneRegistry<string>(sceneLoaders);

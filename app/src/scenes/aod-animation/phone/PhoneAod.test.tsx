@@ -153,4 +153,14 @@ describe('clean PhoneAod leaf', () => {
     expect(source).not.toContain('setTimeout(');
     expect(source).not.toContain('addEventListener(');
   });
+
+  it('settles to the authored AOD hold from either transaction direction', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const scene = host.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod')!;
+    mount.registration()?.commands.settle(0);
+    expect(scene.dataset.portraitAodProgress).toBe('0.0000');
+    mount.registration()?.commands.settle(1);
+    expect(scene.dataset.portraitAodProgress).toBe('0.0000');
+  });
 });

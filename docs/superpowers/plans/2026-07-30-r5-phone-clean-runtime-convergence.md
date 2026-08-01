@@ -6,8 +6,9 @@
 > machine/runtime review and Task 6's unified projector, real React StrictMode,
 > Loader, and lazy-boundary review are closed. Task 7A established the clean
 > browser harness, Slice 7B closed the Hero/Loader handoff, Slice 7C closed
-> Pattern and dynamic viewport coverage, and execution is continuing with
-> Slice 7D. The
+> Pattern and dynamic viewport coverage, Slice 7D made AOD activation/frame
+> proof causal, and Slice 7E completed the Front matrix. Task 7 is complete and
+> execution is continuing with Task 8. The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
@@ -3842,7 +3843,7 @@ git commit -m "fix(r5): make AOD activation and frame proof causal"
 
 ### Slice 7E — Star Map, front transitions, and Front matrix
 
-- [ ] **Step 7E.1: Enforce all four global gates on every Front hold/segment**
+- [x] **Step 7E.1: Enforce all four global gates on every Front hold/segment**
 
 For Hero, Pattern, Star Map, AOD and both directions of the first three
 complete segments, require:
@@ -3860,7 +3861,7 @@ rollback source proof
 `aod-method-top` may prepare in this task, but its target cannot pass until
 Method is integrated in Task 8.
 
-- [ ] **Step 7E.2: Run Front unit and browser checkpoints**
+- [x] **Step 7E.2: Run Front unit and browser checkpoints**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -3900,7 +3901,7 @@ Also run the existing formal phone story regression against the old route.
 Any old-route failure introduced by the temporary stateless bridge blocks the
 commit.
 
-- [ ] **Step 7E.3: Freeze visual evidence and commit**
+- [x] **Step 7E.3: Freeze visual evidence and commit**
 
 Store only intentional Playwright baselines/evidence in the repository's
 existing snapshot convention. Do not commit transient videos/traces unless
@@ -3919,6 +3920,33 @@ git commit -m "feat(r5): converge Front transitions on clean runtime"
 - no scene-specific coverage concealment exists;
 - AOD readiness is causally tied to a real compositor draw;
 - formal old authority remains operational through stateless migration bridges.
+
+**Slice 7E / Task 7 closure record (2026-08-01):**
+
+- The genuine Star Map leaf moved to `scenes/star-map/phone/`; one real 2D
+  Canvas draw with the accepted -90° camera proves the current generation.
+  The first three Front Ink leaves now expose the six-command clean visual
+  port with their frozen fields, origins, directions, seeds, and grades.
+- Hero, Pattern, Star Map, and AOD now settle to their authored readable hold
+  independently of transaction endpoint. A synchronous causal draw emitted
+  during command rebind is accepted only after its lease token is installed;
+  paused packed-alpha surfaces retain the last causal rollback frame while
+  terminal disposal still clears and hard-retires resources.
+- Delayed AOD media registration re-exposes the activation CTA only for the
+  matching active attempt and never auto-activates. The clean Front browser
+  matrix proves both directions of Hero ↔ Pattern ↔ Star Map ↔ AOD, real Ink
+  effect ownership, reduced-motion target proof, and Ink-failure rollback.
+- The focused clean suite passed 16 files / 181 tests; the complete Vitest
+  suite passed 191 files / 1249 tests. TypeScript, focused ESLint, architecture,
+  homepage boundary, packed-alpha, raw harness build, complete production
+  build, frozen-input, and diff checks passed.
+- Phone-portrait Chromium and WebKit each passed all 13 clean harness tests.
+  The exact old-formal mobile-WebKit command retained the accepted baseline of
+  2 passes / 3 skips / 4 failures at the same AOD reverse and three downstream
+  v47 assertions; no frozen oracle was changed or weakened.
+- The production build reports 641,414 B of phone JS and a 41,116 B largest
+  lazy chunk. No transient Playwright trace, video, screenshot, or ignored
+  evidence was added to the commit.
 
 ---
 
