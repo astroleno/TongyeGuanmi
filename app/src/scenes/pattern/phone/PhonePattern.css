@@ -2,7 +2,6 @@
   --portrait-pattern-wash-background:
     radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
     linear-gradient(180deg, rgba(246, 229, 188, .14), rgba(31, 21, 17, .18));
-  --portrait-pattern-edge-surface: #8f7f61;
 }
 
 .portrait-scroll-spike__scene--pattern {
@@ -17,25 +16,6 @@
   display: block;
   pointer-events: none;
   user-select: none;
-}
-
-.portrait-scroll-spike__pattern-motion::after {
-  content: "";
-  position: absolute;
-  z-index: 4;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: clamp(48px, 6.5svh, 60px);
-  pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgba(143, 127, 97, 0) 0%,
-    rgba(143, 127, 97, .24) 52%,
-    rgba(143, 127, 97, .72) 78%,
-    var(--portrait-pattern-edge-surface) 86%,
-    var(--portrait-pattern-edge-surface) 100%
-  );
 }
 
 .portrait-scroll-spike__pattern-image {
@@ -56,6 +36,7 @@
   inset: 0;
   pointer-events: none;
   background: var(--portrait-pattern-wash-background);
+  opacity: .54;
   will-change: opacity;
 }
 
@@ -73,13 +54,15 @@
 .portrait-scroll-spike__pattern-copy {
   position: absolute;
   z-index: 4;
-  left: max(24px, env(safe-area-inset-left));
   right: max(24px, env(safe-area-inset-right));
   bottom: calc(
-    var(--portrait-readable-bottom-offset)
+    var(--portrait-readable-bottom-offset, 0px)
     + max(48px, calc(env(safe-area-inset-bottom) + 30px))
   );
+  left: max(24px, env(safe-area-inset-left));
+  opacity: 0;
   text-shadow: 0 1px 0 rgba(247, 232, 190, .42);
+  transform: translate3d(0, 44px, 0);
   will-change: transform, opacity;
 }
 

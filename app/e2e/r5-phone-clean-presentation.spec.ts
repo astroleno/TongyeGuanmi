@@ -1,11 +1,41 @@
 import { expect, test } from '@playwright/test';
 import {
   assertLayerOrderAtPoints,
+  assertNoWhiteOrTransparentViewportEdges,
   assertNoIntermediateWhiteOrBlackFrame,
   assertOpaqueViewportEdges,
   assertTargetContentVisible,
   waitForCommitSequence
 } from './r5-phone-clean-assertions';
+
+async function patternViewportProof(page: import('@playwright/test').Page) {
+  return page.evaluate(() => {
+    const visual = window.visualViewport;
+    const viewport = document.querySelector<HTMLElement>('.phone-story__viewport');
+    const coverage = document.querySelector<HTMLElement>('.phone-story__coverage');
+    const active = document.querySelector<HTMLElement>('[data-phone-plane][data-phone-exposed="true"]');
+    const pattern = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--pattern');
+    const motion = document.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-motion');
+    const bounds = (element: HTMLElement | null) => {
+      const rect = element?.getBoundingClientRect();
+      return rect ? [rect.left, rect.top, rect.right, rect.bottom] : null;
+    };
+    return {
+      visual: visual
+        ? [visual.offsetLeft, visual.offsetTop,
+          visual.offsetLeft + visual.width, visual.offsetTop + visual.height]
+        : [0, 0, window.innerWidth, window.innerHeight],
+      viewport: bounds(viewport),
+      coverage: bounds(coverage),
+      active: bounds(active),
+      pattern: bounds(pattern),
+      coverageColor: getComputedStyle(document.querySelector('.phone-story')!)
+        .getPropertyValue('--phone-story-coverage').trim(),
+      patternAfter: motion ? getComputedStyle(motion, '::after').content : null,
+      frame: pattern?.dataset.phonePatternFrame
+    };
+  });
+}
 
 test('Hero Loader handoff starts at zero under one fixed opaque topology', async ({ page }) => {
   let releaseVideo = () => undefined;
@@ -82,6 +112,30 @@ test('harness contract pixel decoder rejects a one-CSS-pixel edge gap', async ({
   await expect(assertOpaqueViewportEdges(page, [7, 17, 14], 0)).rejects.toThrow(
     /opaque viewport edge/i
   );
+});
+
+test('Pattern viewport and coverage stay globally owned through a live resize', async ({ page }) => {
+  await page.goto('/harness/r5-phone-clean#pattern', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'pattern', 0);
+  await expect(page.locator('.portrait-scroll-spike__scene--pattern'))
+    .toHaveAttribute('data-phone-pattern-frame', 'ready');
+  await assertTargetContentVisible(page, ['#portrait-spike-pattern-title']);
+
+  for (const size of [{ width: 393, height: 852 }, { width: 390, height: 720 }]) {
+    await page.setViewportSize(size);
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
+    const proof = await patternViewportProof(page);
+    expect(proof.frame).toBe('ready');
+    expect(proof.coverageColor).toBe('#8f7f61');
+    expect(proof.patternAfter).toBe('none');
+    for (const bounds of [proof.viewport, proof.coverage, proof.active, proof.pattern]) {
+      expect(bounds).not.toBeNull();
+      bounds?.forEach((value, index) => expect(value).toBeCloseTo(proof.visual[index]!, 0));
+    }
+    await assertNoWhiteOrTransparentViewportEdges(page);
+  }
 });
 
 test('harness contract edge decoder permits distinct visible scene content', async ({ page }) => {

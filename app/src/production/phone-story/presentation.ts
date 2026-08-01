@@ -693,6 +693,7 @@ export function createPhonePresentation(
       ['--phone-story-progress', String(request.progress)]
     ];
     for (const [property, value] of variables) state.root?.style.setProperty(property, value);
+    state.root?.style.setProperty('--phone-story-coverage', phoneSceneById(request.sceneId).edgeSurface);
     state.root?.setAttribute('data-phone-orientation', layout.orientation);
     state.root?.setAttribute('data-phone-interaction',
       request.interactionEnabled ? 'enabled' : 'disabled');

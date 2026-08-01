@@ -468,6 +468,7 @@ describe('phone presentation viewport and coverage', () => {
     expect(fixture.story.style.getPropertyValue('--phone-visual-offset-left')).toBe(`${visual.offsetLeft}px`);
     expect(fixture.story.style.getPropertyValue('--phone-visual-offset-top')).toBe(`${visual.offsetTop}px`);
     expect(fixture.story.style.getPropertyValue('--phone-visual-scale')).toBe(String(visual.scale));
+    expect(fixture.story.style.getPropertyValue('--phone-story-coverage')).toBe('#8f7f61');
   });
 
   it.each([

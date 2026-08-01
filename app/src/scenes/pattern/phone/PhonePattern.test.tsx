@@ -1,0 +1,123 @@
+// @vitest-environment jsdom
+
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type {
+  PhoneLeafMountRegistration,
+  PhoneLeafReportPort
+} from '../../../production/phone-story/presentation';
+
+const rendererProbe = vi.hoisted(() => ({
+  instances: [] as Array<{
+    destroy: ReturnType<typeof vi.fn>;
+    prepareStaticFrame: ReturnType<typeof vi.fn>;
+    setFrameProgress: ReturnType<typeof vi.fn>;
+    setRenderActive: ReturnType<typeof vi.fn>;
+    start: ReturnType<typeof vi.fn>;
+  }>
+}));
+
+vi.mock('../patternBloomRenderer', async () => {
+  const actual = await vi.importActual<typeof import('../patternBloomRenderer')>(
+    '../patternBloomRenderer'
+  );
+  return {
+    ...actual,
+    PatternBloomRenderer: vi.fn(() => {
+      const instance = {
+        destroy: vi.fn(),
+        prepareStaticFrame: vi.fn().mockResolvedValue(undefined),
+        setFrameProgress: vi.fn(),
+        setRenderActive: vi.fn(),
+        start: vi.fn().mockResolvedValue(undefined)
+      };
+      rendererProbe.instances.push(instance);
+      return instance;
+    })
+  };
+});
+
+import { PhonePattern, phonePatternFrame } from './PhonePattern';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+function reportFixture() {
+  let registration: PhoneLeafMountRegistration | null = null;
+  const reports = {
+    registerMount: vi.fn((next: PhoneLeafMountRegistration) => { registration = next; }),
+    reportPrepared: vi.fn(),
+    reportFrame: vi.fn(),
+    reportProgress: vi.fn(),
+    reportComplete: vi.fn(),
+    reportFailure: vi.fn()
+  } satisfies PhoneLeafReportPort;
+  return { reports, registration: () => registration };
+}
+
+describe('clean PhonePattern leaf', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    rendererProbe.instances = [];
+    host = document.createElement('div');
+    document.body.replaceChildren(host);
+    root = createRoot(host);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  });
+
+  it('registers one image surface and reports decode only after the accepted composite draw', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePattern reports={mount.reports} />); });
+
+    expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
+      ['pattern-image', 'image']
+    ]);
+    expect(Object.keys(mount.registration()?.commands ?? {}).sort()).toEqual([
+      'activate', 'dispose', 'pause', 'rebind', 'render', 'settle'
+    ]);
+    const current = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: current.reports,
+      frameToken: 'pattern:frame:1'
+    });
+    expect(current.reports.reportPrepared).not.toHaveBeenCalled();
+
+    await act(async () => {
+      host.querySelector('img')?.dispatchEvent(new Event('load'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(rendererProbe.instances[0]?.prepareStaticFrame).toHaveBeenCalledTimes(1);
+    expect(current.reports.reportPrepared).toHaveBeenCalledWith(
+      'pattern-image',
+      expect.objectContaining({
+        kind: 'image-decoded', ready: true,
+        detail: { imageDecoded: true, rendererCompositeDrawn: true }
+      })
+    );
+  });
+
+  it('renders the accepted Pattern mapping through the closed command seam', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePattern reports={mount.reports} />); });
+    mount.registration()?.commands.render(0.78);
+    const frame = phonePatternFrame(0.78);
+    expect(frame.copyProgress).toBe(1);
+    expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-copy')?.style.opacity)
+      .toBe('1');
+    expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(0.78, 0.78);
+  });
+
+  it('keeps edge ownership global and contains no scene-specific concealment', () => {
+    const css = readFileSync(resolve(
+      process.cwd(), 'src/scenes/pattern/phone/PhonePattern.css'
+    ), 'utf8');
+    expect(css).not.toMatch(/pattern-motion::(?:before|after)/);
+    expect(css).not.toMatch(/bottom:\s*-\d/);
+    expect(css).not.toMatch(/overscan|toolbar-edge/);
+  });
+});

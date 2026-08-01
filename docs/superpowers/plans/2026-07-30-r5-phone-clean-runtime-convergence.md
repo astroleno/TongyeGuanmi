@@ -5,8 +5,9 @@
 > uninterrupted Slices 4A → 4B → 4C → 4D, Task 5, and Task 6. Task 4's unified
 > machine/runtime review and Task 6's unified projector, real React StrictMode,
 > Loader, and lazy-boundary review are closed. Task 7A established the clean
-> browser harness, Slice 7B closed the Hero/Loader handoff, and execution is
-> continuing with Slice 7C. The
+> browser harness, Slice 7B closed the Hero/Loader handoff, Slice 7C closed
+> Pattern and dynamic viewport coverage, and execution is continuing with
+> Slice 7D. The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
@@ -3706,7 +3707,7 @@ git commit -m "fix(r5): close phone Hero Loader handoff"
 
 ### Slice 7C — Pattern and dynamic viewport
 
-- [ ] **Step 7C.1: Reproduce Pattern bottom/right exposure**
+- [x] **Step 7C.1: Reproduce Pattern bottom/right exposure**
 
 The RED test must fail on a one-pixel white/transparent strip while title/root
 datasets remain “ready.” Then make Pattern report:
@@ -3723,7 +3724,7 @@ Fix the global coverage/projector contract if it fails. Do not add a
 Pattern-only gradient, strip, negative bottom, overscan surface, or pseudo
 element.
 
-- [ ] **Step 7C.2: Run the Pattern/viewport checkpoint and commit**
+- [x] **Step 7C.2: Run the Pattern/viewport checkpoint and commit**
 
 ```bash
 pnpm -C app exec vitest run \
@@ -3738,6 +3739,33 @@ pnpm -C app exec playwright test \
 git add app
 git commit -m "fix(r5): close global phone viewport coverage"
 ```
+
+**Slice 7C closure record (2026-08-01):**
+
+- The genuine Pattern leaf moved to `scenes/pattern/phone/`; the clean registry
+  and old formal route now share it through the same exact temporary
+  stateless bridge rule used by Hero. The bridge translates only refs,
+  progress, active state, and the accepted ready report and is covered by a
+  precise module-boundary allowlist and rogue-import RED fixture.
+- Pattern preparation now requires both the background image decode and the
+  accepted `PatternBloomRenderer` static composite draw before reporting the
+  manifest's `pattern-image` evidence. Rebinding reports only through the
+  current port; the public leaf exposes only the six frozen command methods.
+- The old Pattern-only bottom gradient/pseudo-element and negative bottom
+  placement were deleted. The projector owns the scene edge color through
+  `--phone-story-coverage`, while one fixed viewport, coverage, active plane,
+  and Pattern root are proved against the same live visual-viewport rectangle.
+- The real WebKit checkpoint booted directly to Pattern, then changed the live
+  viewport from 393×852 to 390×720. Both frames retained exact four-edge
+  geometry and opaque non-white boundary pixels with the title and composite
+  readiness still visible. The one-CSS-pixel decoder remains RED against a
+  deliberate uncovered bottom edge.
+- Focused Pattern/projector tests passed 32/32, the homepage boundary gate,
+  TypeScript, raw harness build, and WebKit `Pattern|viewport|coverage`
+  checkpoint passed. The exact old-formal mobile-WebKit command retained the
+  same parent-baseline result: 2 passes / 3 skips / 4 failures at the same AOD
+  reverse and downstream v47 assertions, while its Pattern plate test passed.
+  No frozen oracle was changed or weakened.
 
 ### Slice 7D — AOD and iOS media activation
 

@@ -146,6 +146,21 @@ export async function assertOpaqueViewportEdges(
   }
 }
 
+export async function assertNoWhiteOrTransparentViewportEdges(page: Page): Promise<void> {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error('Viewport edge assertion requires a fixed viewport');
+  const png = PNG.sync.read(await page.screenshot());
+  for (const point of edgePoints(viewport.width, viewport.height)) {
+    const actual = pixelAt(png, viewport.width, viewport.height, point);
+    const white = actual[0] >= 250 && actual[1] >= 250 && actual[2] >= 250;
+    if (actual[3] !== 255 || white) {
+      throw new Error(
+        `Pattern viewport exposure at (${point.x}, ${point.y}): ${actual.join(',')}`
+      );
+    }
+  }
+}
+
 export async function assertTargetContentVisible(
   page: Page,
   selectors: readonly string[]

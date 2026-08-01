@@ -24,8 +24,11 @@ import type {
   PhoneHeroAdapterProps,
   PhoneLoaderAdapterModule,
   PhoneMethodAdapterComponent,
+  PhonePatternAdapterComponent,
+  PhonePatternAdapterProps,
   PhoneSceneAdapterId,
   PhoneSceneAdapterComponent,
+  PhoneSceneAdapterHandle,
   PhoneSceneAdapterModule,
   PhoneStarMapAdapterComponent,
   PhoneTransitionAdapterId,
@@ -37,6 +40,7 @@ import type {
   PhoneLeafReportPort
 } from '../phone-story/presentation';
 import type { PhoneHeroMigrationCommands } from '../../scenes/hero/phone/PhoneHero';
+import type { PhonePatternMigrationCommands } from '../../scenes/pattern/phone/PhonePattern';
 
 let loaderCache: Promise<PhoneLoaderAdapterModule> | undefined;
 let resolvedLoaderCache: PhoneLoaderAdapterModule | undefined;
@@ -142,10 +146,55 @@ function importPhoneSceneAdapter(id: PhoneSceneAdapterId): Promise<PhoneSceneAda
         return { id, Component: Component as unknown as PhoneSceneAdapterComponent };
       });
     case 'pattern':
-      return import('./scenes/PhonePattern').then(({ PhonePattern: Component }) => ({
-        id,
-        Component: Component as unknown as PhoneSceneAdapterComponent
-      }));
+      return import('../../scenes/pattern/phone/PhonePattern').then((module) => {
+        const Component = forwardRef<PhoneSceneAdapterHandle, PhonePatternAdapterProps>(
+          function PhonePatternMigrationBridge(props, forwardedRef) {
+            const registrationRef = useRef<PhoneLeafMountRegistration | null>(null);
+            const readyRef = useRef(props.onReady);
+            const generationRef = useRef(0);
+            readyRef.current = props.onReady;
+            const reports = useMemo<PhoneLeafReportPort>(() => Object.freeze({
+              registerMount(registration) {
+                registrationRef.current = registration;
+                registration.commands.rebind({
+                  reports,
+                  frameToken: `legacy-pattern:frame:${++generationRef.current}`
+                });
+              },
+              reportPrepared(surfaceId, report) {
+                if (surfaceId === 'pattern-image' && report.kind === 'image-decoded') {
+                  readyRef.current?.();
+                }
+              },
+              reportFrame: () => undefined,
+              reportProgress: () => undefined,
+              reportComplete: () => undefined,
+              reportFailure: () => undefined
+            }), []);
+            const migration = () => {
+              const commands = registrationRef.current?.commands as
+                | PhonePatternMigrationCommands
+                | undefined;
+              return commands?.[module.PHONE_PATTERN_MIGRATION_CONTROL];
+            };
+            useLayoutEffect(() => {
+              void props.motionDriver;
+              if (props.active) migration()?.enter(!props.reducedMotion);
+              else registrationRef.current?.commands.pause('hidden');
+            }, [props.active, props.motionDriver, props.reducedMotion]);
+            useImperativeHandle(forwardedRef, () => ({
+              root: () => registrationRef.current?.root ?? null,
+              update: (progress) => registrationRef.current?.commands.render(progress),
+              enter: () => migration()?.enter(!props.reducedMotion),
+              leave: () => migration()?.leave(),
+              reverse: () => migration()?.reverse(!props.reducedMotion),
+              dispose: () => registrationRef.current?.commands.dispose('closure-retired')
+            }), [props.reducedMotion]);
+            return createElement(module.PhonePattern, { reports });
+          }
+        );
+        return { id, Component: Component as PhonePatternAdapterComponent };
+      });
     case 'star-map':
       return import('./scenes/PhoneStarMap').then(({ PhoneStarMap: Component }) => ({
         id,
