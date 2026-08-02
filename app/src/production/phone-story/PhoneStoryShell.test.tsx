@@ -203,7 +203,21 @@ function attempt(mode = 'boot', generation = 1) {
   });
 }
 
-function bootSnapshot(): SnapshotRecord {
+function loadedEvidence(
+  activeAttempt: Readonly<Record<string, unknown>>,
+  stageIndex = 0,
+  leg = 'target'
+): readonly SnapshotRecord[] {
+  return [{
+    slot: {
+      attempt: activeAttempt, stageIndex, leg, kind: 'module-loaded',
+      surfaceId: null, planeRevision: null
+    },
+    report: { kind: 'module-loaded', token: 'fixture:module', accepted: true }
+  }];
+}
+
+function bootSnapshot(modulesLoaded = true): SnapshotRecord {
   const activeAttempt = attempt();
   return {
     status: 'transaction', authorityId: 'test-authority', stateRevision: 1,
@@ -219,7 +233,7 @@ function bootSnapshot(): SnapshotRecord {
         attempt: activeAttempt, stageIndex: 0, leg: 'target', kind: 'module-loaded',
         surfaceId: null, planeRevision: null
       }],
-      requiredFinal: [], evidence: [], progress: 0,
+      requiredFinal: [], evidence: modulesLoaded ? loadedEvidence(activeAttempt) : [], progress: 0,
       closure: { load: [], mount: [], prewarm: [], resourceBudget: {} }
     }
   };
@@ -257,14 +271,14 @@ function segmentSnapshot(stageIndex = 0, generation = 2): SnapshotRecord {
       sourceSceneId: 'hero', candidateSceneId: 'pattern', stageIndex,
       planeRevision: null,
       requiredPrepared: [
-        { attempt: activeAttempt, stageIndex, leg: 'source', kind: 'root-connected',
+        { attempt: activeAttempt, stageIndex: 0, leg: 'source', kind: 'root-connected',
           surfaceId: 'root:hero', planeRevision: null },
-        { attempt: activeAttempt, stageIndex, leg: 'effect', kind: 'root-connected',
+        { attempt: activeAttempt, stageIndex: 0, leg: 'effect', kind: 'root-connected',
           surfaceId: 'hero-pattern-ink', planeRevision: null },
-        { attempt: activeAttempt, stageIndex, leg: 'target', kind: 'module-loaded',
+        { attempt: activeAttempt, stageIndex: 0, leg: 'target', kind: 'module-loaded',
           surfaceId: null, planeRevision: null }
       ],
-      requiredFinal: [], evidence: [], progress: 0,
+      requiredFinal: [], evidence: loadedEvidence(activeAttempt, 0, 'effect'), progress: 0,
       closure: { load: [], mount: [], prewarm: [], resourceBudget: {} }
     }
   };
@@ -295,7 +309,9 @@ function figure3PairSnapshot(
       mode: 'segment', phase: 'preparing', attempt: activeAttempt,
       sourceSceneId, candidateSceneId, stageIndex: 0,
       planeRevision: null,
-      requiredPrepared: [], requiredFinal: [], evidence: [], progress: 0,
+      requiredPrepared: [], requiredFinal: [], evidence: loadedEvidence(
+        activeAttempt, 0, 'effect'
+      ), progress: 0,
       closure: {
         load: [], mount: [], prewarm: [], resourceBudget: {},
         retireAfter: 'pair-exit-or-route-dispose'
@@ -341,7 +357,9 @@ function ttgPairSnapshot(
       mode: 'segment', phase: 'preparing', attempt: activeAttempt,
       sourceSceneId, candidateSceneId, stageIndex: 0,
       planeRevision: null,
-      requiredPrepared: [], requiredFinal: [], evidence: [], progress: 0,
+      requiredPrepared: [], requiredFinal: [], evidence: loadedEvidence(
+        activeAttempt, 0, 'effect'
+      ), progress: 0,
       closure: {
         load: [], mount: [], prewarm: [], resourceBudget: {},
         retireAfter: 'pair-exit-or-route-dispose'
@@ -366,7 +384,7 @@ function rollbackSnapshot(): SnapshotRecord {
         attempt: activeAttempt, stageIndex: 0, leg: 'rollback', kind: 'module-loaded',
         surfaceId: null, planeRevision: null
       }],
-      requiredFinal: [], evidence: [], progress: 0,
+      requiredFinal: [], evidence: loadedEvidence(activeAttempt, 0, 'rollback'), progress: 0,
       closure: { load: [], mount: [], prewarm: [], resourceBudget: {} }
     }
   };
@@ -388,7 +406,7 @@ function recoverySnapshot(): SnapshotRecord {
         attempt: activeAttempt, stageIndex: 0, leg: 'target', kind: 'module-loaded',
         surfaceId: null, planeRevision: null
       }],
-      requiredFinal: [], evidence: [], progress: 0,
+      requiredFinal: [], evidence: loadedEvidence(activeAttempt), progress: 0,
       closure: { load: [], mount: [], prewarm: [], resourceBudget: {} }
     }
   };
@@ -447,6 +465,19 @@ beforeEach(() => {
 });
 
 describe('clean PhoneStoryShell ownership', () => {
+  it('does not render a lazy receiver before reducer-owned module evidence arrives', () => {
+    probe.snapshot = bootSnapshot(false);
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+
+    expect(host.querySelector('[data-phone-scene-leaf="hero"]')).toBeNull();
+    act(() => engine.publish(bootSnapshot(true)));
+    expect(host.querySelector('[data-phone-scene-leaf="hero"]')).not.toBeNull();
+
+    act(() => root.unmount());
+  });
+
   it('replaces pending preboot with a presentation-only mounted marker and one implementation signature', () => {
     document.documentElement.dataset.phonePreboot = 'pending';
     const { host, root } = hostRoot();
@@ -544,6 +575,7 @@ describe('clean PhoneStoryShell ownership', () => {
     expect(host.querySelector('[data-phone-transition-leaf="hero-pattern"]')).not.toBeNull();
     const transitionReports = probe.transitionProps.at(-1)?.reports;
     act(() => engine.publish(segmentSnapshot(1)));
+    expect(host.querySelector('[data-phone-transition-leaf="hero-pattern"]')).not.toBeNull();
     expect(probe.transitionProps.at(-1)?.reports).toBe(transitionReports);
     act(() => engine.publish(segmentSnapshot(0, 3)));
     expect(probe.transitionProps.at(-1)?.reports).toBe(transitionReports);

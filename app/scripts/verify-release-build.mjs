@@ -68,6 +68,11 @@ function appSceneOrTransitionModule(moduleId) {
     || moduleId.includes('/src/transitions/');
 }
 
+function generatedCrossChunkPolicyArtifact(value) {
+  return /(?:cross[-_/]chunk[-_/](?:field|propert)(?:y|ies)(?:[-_/](?:registry|manifest|policy))?|reserved[-_/](?:field|propert)(?:y|ies)(?:[-_/](?:registry|manifest|map)))/i
+    .test(value);
+}
+
 function lazyLifecycleOwner(moduleId) {
   const sourceModule = /\.[cm]?[jt]sx?(?:\?|$)/.test(moduleId);
   return sourceModule && (
@@ -165,6 +170,14 @@ export function moduleProvenanceViolations(
 
   const ownersByModule = new Map();
   for (const chunk of chunkByFile.values()) {
+    if (
+      generatedCrossChunkPolicyArtifact(chunk.fileName)
+      || chunk.modules.some(generatedCrossChunkPolicyArtifact)
+    ) {
+      violations.push(
+        `${chunk.fileName} is a generated cross-chunk property policy artifact`
+      );
+    }
     for (const moduleId of chunk.modules) {
       if (/(?:^|\/)node_modules\/(?:(?:\.pnpm\/(?:pngjs|@types\+pngjs)@[^/]+\/node_modules\/)?(?:pngjs|@types\/pngjs))(?:\/|$)/.test(moduleId)) {
         violations.push(
@@ -203,6 +216,13 @@ export function moduleProvenanceViolations(
         );
       }
     }
+    for (const fileName of emittedManifestFiles) {
+      if (!chunkByFile.has(fileName)) {
+        violations.push(
+          `${fileName} is absent from the module provenance report`
+        );
+      }
+    }
   }
 
   const shellChunks = [...chunkByFile.values()].filter((chunk) => (
@@ -214,6 +234,9 @@ export function moduleProvenanceViolations(
   ));
   if (shellChunks.length > 1) {
     violations.push('PhoneStoryShell execution core is duplicated across chunks');
+  }
+  if (shellChunks.length === 0) {
+    violations.push('PhoneStoryShell execution core is missing from module provenance');
   }
   if (shellChunks.length === 1) {
     const synchronousFiles = new Set();
@@ -254,6 +277,41 @@ export function moduleProvenanceViolations(
         violations.push(
           'formal phone execution core eagerly contains PhoneBrandLabStory'
         );
+      }
+    }
+  }
+
+  const desktopShellChunks = [...chunkByFile.values()].filter((chunk) => (
+    chunk.modules.some((moduleId) => (
+      moduleId.endsWith(
+        '/src/production/desktop/DesktopStoryShell.tsx'
+      )
+    ))
+  ));
+  for (const desktopShellChunk of desktopShellChunks) {
+    const synchronousFiles = new Set();
+    const visit = (fileName) => {
+      if (synchronousFiles.has(fileName)) return;
+      synchronousFiles.add(fileName);
+      const chunk = chunkByFile.get(fileName);
+      if (!chunk) {
+        violations.push(
+          `desktop execution closure imports missing chunk ${fileName}`
+        );
+        return;
+      }
+      for (const imported of chunk.imports) visit(imported);
+    };
+    visit(desktopShellChunk.fileName);
+    for (const fileName of synchronousFiles) {
+      const chunk = chunkByFile.get(fileName);
+      if (!chunk) continue;
+      for (const moduleId of chunk.modules) {
+        if (phoneStoryModule(moduleId) || phoneLeafModule(moduleId)) {
+          violations.push(
+            `desktop execution closure eagerly contains phone module ${moduleId}`
+          );
+        }
       }
     }
   }

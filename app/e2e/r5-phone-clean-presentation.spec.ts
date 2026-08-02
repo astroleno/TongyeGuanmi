@@ -1015,7 +1015,8 @@ async function traverseFront(
   page: import('@playwright/test').Page,
   source: keyof typeof FRONT_CONTENT,
   target: keyof typeof FRONT_CONTENT,
-  direction: 'forward' | 'reverse'
+  direction: 'forward' | 'reverse',
+  observePlaybackEffect = true
 ): Promise<Buffer[]> {
   const before = await readCommitSequence(page);
   await sendFrontIntent(page, direction);
@@ -1025,8 +1026,10 @@ async function traverseFront(
       || shell?.dataset.phoneScene === from && shell.dataset.phoneStatus === 'transaction';
   }, { from: source, to: target });
   const effect = page.locator('[data-phone-plane="effect"] [data-r4-ink-segment]');
-  await expect(effect).toBeAttached();
-  await expect(effect).toHaveAttribute('data-r4-ink-effect-only', 'true');
+  if (observePlaybackEffect) {
+    await expect(effect).toBeAttached();
+    await expect(effect).toHaveAttribute('data-r4-ink-effect-only', 'true');
+  }
   const frames: Buffer[] = [await page.screenshot()];
   for (let index = 0; index < 10; index += 1) {
     await nextAnimationFrame(page);
@@ -2118,6 +2121,174 @@ test('complete story proves all 60 segment traversals through one authority with
     .toBe(authority);
 });
 
+test('transition leaf delay keeps the committed source opaque until the ordinary ESM edge resolves', async ({
+  page
+}) => {
+  let releaseTransition = () => undefined;
+  let observeTransition = () => undefined;
+  const gate = new Promise<void>((resolve) => { releaseTransition = resolve; });
+  const requested = new Promise<void>((resolve) => { observeTransition = resolve; });
+  await page.route(
+    /\/assets\/phone-(?!(?:media|packed-alpha-surface)-)[^/]+\.js$/,
+    async (route) => {
+      observeTransition();
+      await gate;
+      await route.continue();
+    }
+  );
+  try {
+    await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'hero', 0);
+    await sendFrontIntent(page, 'forward');
+    await requested;
+    await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'transaction');
+    expect(await readCommitSequence(page)).toBe(before);
+    await assertTargetContentVisible(page, FRONT_CONTENT.hero);
+    await expect(page.locator('[data-phone-plane="receiver"] > *')).toHaveCount(0);
+    releaseTransition();
+    await waitForCommitSequence(page, 'pattern', before);
+    await assertTargetContentVisible(page, FRONT_CONTENT.pattern);
+  } finally {
+    releaseTransition();
+  }
+});
+
+test('rejected transition URL is not retried in-document and source retry remains accessible', async ({
+  page
+}) => {
+  let requests = 0;
+  await page.route(
+    /\/assets\/phone-(?!(?:media|packed-alpha-surface)-)[^/]+\.js$/,
+    async (route) => {
+      requests += 1;
+      await route.abort('failed');
+    }
+  );
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'hero', 0);
+  await page.evaluate(() => sessionStorage.setItem(
+    'r5-phone-chunk-recovery-lineage-v1',
+    JSON.stringify({
+      lineageId: 'spent-transition-lineage', entryUrl: location.href,
+      firstDocumentBuildId: 'first', currentDocumentBuildId: 'current',
+      deployedBuildId: 'deployed', failedModuleUrl: '/assets/phone-old.js',
+      failedModuleClass: 'transition-leaf', automaticReloadCount: 1,
+      status: 'reloaded'
+    })
+  ));
+  await sendFrontIntent(page, 'forward');
+  const shell = page.locator('.phone-story');
+  await expect(shell).toHaveAttribute('data-phone-status', 'faulted');
+  await expect(shell).toHaveAttribute('data-phone-scene', 'hero');
+  expect(await readCommitSequence(page)).toBe(before);
+  await assertTargetContentVisible(page, FRONT_CONTENT.hero);
+  const retry = page.locator('[data-phone-retry="true"]');
+  await expect(retry).toBeVisible();
+  expect(requests).toBe(1);
+  await retry.click();
+  await expect(shell).toHaveAttribute('data-phone-status', 'stable');
+  await sendFrontIntent(page, 'forward');
+  await expect(shell).toHaveAttribute('data-phone-status', 'faulted');
+  expect(requests).toBe(1);
+});
+
+test('Hero image decode rejection reaches a bounded Loader fault with retry', async ({ page }) => {
+  await page.addInitScript(() => {
+    const image = HTMLImageElement.prototype;
+    const originalComplete = Object.getOwnPropertyDescriptor(image, 'complete')?.get;
+    const originalDecode = image.decode;
+    Object.defineProperty(image, 'complete', {
+      configurable: true,
+      get() {
+        if (this.className.includes('portrait-scroll-spike__hero-')) return false;
+        return originalComplete?.call(this) ?? false;
+      }
+    });
+    image.decode = async function patchedDecode() {
+      if (this.className.includes('portrait-scroll-spike__hero-')) {
+        throw new DOMException('image decode rejected', 'EncodingError');
+      }
+      return originalDecode.call(this);
+    };
+  });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+  const shell = page.locator('.phone-story');
+  await expect(shell).toHaveAttribute('data-phone-status', 'faulted', {
+    timeout: 20_000
+  });
+  await expect(shell).toHaveAttribute('data-phone-commit-sequence', '0');
+  await expect(page.locator('[data-phone-retry="true"]')).toBeVisible();
+  await expect(page.locator('[data-story-loader="true"]')).toBeVisible();
+});
+
+test('WebGL unavailable on an Ink leg rolls back over the committed source', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function patchedGetContext(
+      contextId: string,
+      ...options: unknown[]
+    ) {
+      if (['webgl', 'webgl2', 'experimental-webgl'].includes(contextId)) return null;
+      return Reflect.apply(original, this, [contextId, ...options]);
+    } as typeof HTMLCanvasElement.prototype.getContext;
+  });
+  await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'brand', 0);
+  await sendFrontIntent(page, 'forward');
+  const shell = page.locator('.phone-story');
+  await expectFigure3SliceRollback(
+    page, 'brand', 'figure3-animation', 'forward', before
+  );
+  await expect(shell).toHaveAttribute('data-phone-scene', 'brand');
+  expect(await readCommitSequence(page)).toBe(before);
+  await assertTargetContentVisible(page, GRADE_A_CONTENT.brand);
+  const status = await shell.getAttribute('data-phone-status');
+  if (status === 'faulted') {
+    await expect(page.locator('[data-phone-retry="true"]')).toBeVisible();
+  } else {
+    await expect(shell).toHaveAttribute('data-phone-interaction', 'enabled');
+  }
+});
+
+test('withheld requestVideoFrameCallback cannot expose Figure3 and restores Brand', async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperties(navigator, {
+      userAgent: {
+        configurable: true,
+        value: 'Mozilla/5.0 R5StrictFrameCallbackProbe'
+      },
+      platform: { configurable: true, value: 'Linux x86_64' },
+      maxTouchPoints: { configurable: true, value: 0 }
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, 'requestVideoFrameCallback', {
+      configurable: true,
+      value: () => 1
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, 'cancelVideoFrameCallback', {
+      configurable: true,
+      value: () => undefined
+    });
+  });
+  await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'brand', 0);
+  await sendFrontIntent(page, 'forward');
+  const shell = page.locator('.phone-story');
+  await expectFigure3SliceRollback(
+    page, 'brand', 'figure3-animation', 'forward', before
+  );
+  await expect(shell).toHaveAttribute('data-phone-scene', 'brand');
+  expect(await readCommitSequence(page)).toBe(before);
+  await assertTargetContentVisible(page, GRADE_A_CONTENT.brand);
+  const status = await shell.getAttribute('data-phone-status');
+  if (status === 'faulted') {
+    await expect(page.locator('[data-phone-retry="true"]')).toBeVisible();
+  } else {
+    await expect(shell).toHaveAttribute('data-phone-interaction', 'enabled');
+  }
+});
+
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {
   await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'hero', 0);
@@ -2133,7 +2304,7 @@ test('Front reduced motion still reaches one fully proven target hold', async ({
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'hero', 0);
-  await traverseFront(page, 'hero', 'pattern', 'forward');
+  await traverseFront(page, 'hero', 'pattern', 'forward', false);
   await expect(page.locator('.portrait-scroll-spike__pattern-copy')).toHaveCSS('opacity', '1');
 });
 

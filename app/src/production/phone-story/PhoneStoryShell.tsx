@@ -387,6 +387,9 @@ export function PhoneStoryShell({
   let effect: PhoneEffectRenderSlot<PhoneSegmentId> | null = null;
   if (connectedRef.current && snapshot.status === 'transaction') {
     const transaction = snapshot.transaction;
+    const dependenciesLoaded = transaction.evidence.some(({ slot }) =>
+      slot.kind === 'module-loaded'
+      && slot.attempt.transactionId === transaction.attempt.transactionId);
     const pairClosure = transaction.mode === 'segment'
       && transaction.closure.retireAfter === 'pair-exit-or-route-dispose';
     const pair: readonly [PhoneSceneId, PhoneSceneId] | null = pairClosure
@@ -400,15 +403,17 @@ export function PhoneStoryShell({
         bindingFor(snapshot, 'source', phoneSceneById(sceneId).surfaces)
       )));
     }
-    const sceneId = transaction.candidateSceneId;
-    const leg: PhoneTransactionLeg = transaction.mode === 'rollback' ? 'rollback' : 'target';
-    scenes.push(owners.sceneTopology.retain(sceneId,
-      transaction.mode === 'rollback' ? roles.source : roles.receiver, () => reportPort(
-        bindingFor(snapshot, leg, phoneSceneById(sceneId).surfaces)
-      )));
+    if (dependenciesLoaded) {
+      const sceneId = transaction.candidateSceneId;
+      const leg: PhoneTransactionLeg = transaction.mode === 'rollback' ? 'rollback' : 'target';
+      scenes.push(owners.sceneTopology.retain(sceneId,
+        transaction.mode === 'rollback' ? roles.source : roles.receiver, () => reportPort(
+          bindingFor(snapshot, leg, phoneSceneById(sceneId).surfaces)
+        )));
+    }
     const segmentId = transaction.attempt.segmentId;
     const direction = transaction.attempt.direction;
-    if (transaction.mode === 'segment' && segmentId && direction) {
+    if (dependenciesLoaded && transaction.mode === 'segment' && segmentId && direction) {
       const segment = phoneManifest.segments.find(({ id }) => id === segmentId);
       if (segment) effect = owners.effectTopology.retain(
         transaction.attempt.transactionId, segmentId, pairClosure, () => reportPort(
@@ -494,7 +499,7 @@ export function PhoneStoryShell({
         onNavigate={navigate}
       />
       <button type="button" className="phone-story__activation" data-phone-activation="true" hidden disabled>继续播放</button>
-      {faulted && !snapshot.stableCommit ? (
+      {faulted ? (
         <button
           type="button"
           className="phone-story__retry"

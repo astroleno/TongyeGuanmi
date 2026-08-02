@@ -33,7 +33,7 @@ export type PhoneChunkRecoveryEnvironment = Readonly<{
   isOnline(): boolean;
   waitForOnline(): Promise<void>;
   fetchReleaseManifest(url: string, init: RequestInit): Promise<unknown>;
-  reload(): void;
+  reload(entryUrl?: string): void;
   createLineageId(): string;
   activeNow?(): number;
   isDocumentHidden?(): boolean;
@@ -248,11 +248,12 @@ export function createPhoneChunkRecoveryController(
       return failClosed('自动恢复不可用，请手动重新加载。', null, false);
     }
     publish({ status: 'reloading', lineage: reloaded, message: '正在重新加载最新版本…' });
-    environment.reload();
+    environment.reload(reloaded.entryUrl);
     return 'reloading';
   };
   const report = (failure: ChunkFailure) => {
     if (snapshot.status === 'reloading') return Promise.resolve('reloading' as const);
+    if (snapshot.status === 'fail-closed') return Promise.resolve('fail-closed' as const);
     if (pending) return pending;
     pending = recover(failure).finally(() => { pending = null; });
     return pending;
@@ -290,7 +291,9 @@ export function createPhoneChunkRecoveryController(
         : 'unknown-phone-preload';
       void controller.reportPhoneCoreRejection(event, moduleUrl);
     },
-    manualReload: environment.reload
+    // React click handlers receive the SyntheticEvent as their first argument.
+    // Keep that value out of the optional recovery-entry URL channel.
+    manualReload: () => environment.reload.call(environment)
   });
   return controller;
 }
@@ -311,7 +314,19 @@ export function createBrowserPhoneChunkRecoveryController(): PhoneChunkRecoveryC
       if (!response.ok) throw new Error(`release manifest HTTP ${response.status}`);
       return response.json();
     },
-    reload: () => window.location.reload(),
+    reload: (entryUrl) => {
+      if (entryUrl) {
+        try {
+          const target = new URL(entryUrl, window.location.href);
+          if (target.origin === window.location.origin
+            && target.href !== window.location.href) {
+            window.location.replace(`${target.pathname}${target.search}${target.hash}`);
+            return;
+          }
+        } catch {}
+      }
+      window.location.reload();
+    },
     createLineageId: () => globalThis.crypto?.randomUUID?.()
       ?? `r5-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     activeNow: () => performance.now(),

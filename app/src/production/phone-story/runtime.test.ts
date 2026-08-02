@@ -2276,7 +2276,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
-  it('poisons only a second leg native rejection and reloads its stable source rollback', async () => {
+  it('poisons only a second leg native rejection and holds its stable source fail-closed', async () => {
     const fixture = createEnvironment();
     const reportRejectedChunk = vi.fn(async () => 'fail-closed' as const);
     const loadDependencies = vi.fn(async (effect: Extract<PhoneStoryEffect, {
@@ -2319,16 +2319,19 @@ describe('phone runtime effects, media activation, and disposal', () => {
       type: 'input', kind: 'wheel', delta: 100, fresh: true,
       trusted: true, target: 'story'
     });
-    await vi.waitFor(() => expect(currentTransaction(runtime).mode).toBe('rollback'));
+    await vi.waitFor(() => expect(runtime.getSnapshot().status).toBe('faulted'));
+    expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('star-map');
+    expect(reportRejectedChunk).toHaveBeenCalledWith(expect.objectContaining({
+      moduleUrl: '/assets/star-map-aod.js'
+    }));
+    runtime.retry();
+    expect(currentTransaction(runtime).mode).toBe('recovery');
     await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
       slot.kind === 'module-loaded'
     ))).toBe(true));
     proveCurrent(runtime, fixture);
     expect(runtime.getSnapshot().status).toBe('stable');
     expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('star-map');
-    expect(reportRejectedChunk).toHaveBeenCalledWith(expect.objectContaining({
-      moduleUrl: '/assets/star-map-aod.js'
-    }));
     disconnect();
   });
 

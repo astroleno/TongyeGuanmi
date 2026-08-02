@@ -176,7 +176,11 @@ afterEach(async () => {
 
 test('accepts one shell-owned factory, QA wrapper, pure graph, and ordinary minification', async () => {
   assert.deepEqual(await violations(), []);
-  assert.deepEqual(await violations({}, { phase: 'cutover' }), []);
+});
+
+test('cutover rejects the legacy recovery micro-shape even when its old checks pass', async () => {
+  includes(await violations({}, { phase: 'cutover' }),
+    'executable phone-core recovery controller');
 });
 
 test('accepts the executable controller recovery boundary used by the formal cutover', async () => {

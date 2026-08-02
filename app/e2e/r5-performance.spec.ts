@@ -36,6 +36,9 @@ type LiveInkWitness = {
 
 type InkPixelWitness = Readonly<{
   segment: string;
+  rendererStatus: string;
+  opacity: number;
+  visible: boolean;
   progress: number;
   width: number;
   height: number;
@@ -121,18 +124,51 @@ async function readInkPixels(
   page: Page,
   segment: string,
   includeHorizontalDoubleEdge = false,
-  includeParticleMorphology = false
+  includeParticleMorphology = false,
+  progressRange?: Readonly<{ min: number; max: number }>
 ): Promise<InkPixelWitness> {
-  return page.evaluate(async ({ expectedSegment, inspectDoubleEdge, inspectParticles }) => {
+  return page.evaluate(async ({ expectedSegment, inspectDoubleEdge, inspectParticles, range }) => {
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (range) {
+      await new Promise<void>((resolve, reject) => {
+        const startedAt = performance.now();
+        const sample = () => {
+          const candidate = document.querySelector<HTMLCanvasElement>(
+            `canvas[data-r4-ink-segment="${expectedSegment}"]`
+          );
+          const style = candidate ? getComputedStyle(candidate) : null;
+          const progress = Number.parseFloat(candidate?.dataset.r4InkProgress ?? 'NaN');
+          if (
+            candidate?.dataset.r4InkActive === 'true'
+            && candidate.dataset.r4InkRendererActive === 'true'
+            && candidate.dataset.r4InkRendererStatus === 'active'
+            && style?.visibility === 'visible'
+            && Number.parseFloat(style.opacity) > 0.002
+            && progress >= range.min
+            && progress <= range.max
+          ) {
+            resolve();
+            return;
+          }
+          if (performance.now() - startedAt >= 15_000) {
+            reject(new Error(`Ink canvas ${expectedSegment} missed the pixel sample window`));
+            return;
+          }
+          requestAnimationFrame(sample);
+        };
+        sample();
+      });
+    } else {
+      await nextFrame();
+    }
     const canvas = document.querySelector<HTMLCanvasElement>(
       `canvas[data-r4-ink-segment="${expectedSegment}"]`
     );
     if (!canvas) throw new Error(`Ink canvas ${expectedSegment} disappeared before pixel readback`);
     const gl = canvas.getContext('webgl');
     if (!gl) throw new Error(`Ink canvas ${expectedSegment} has no WebGL context`);
-
-    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    await nextFrame();
+    const style = getComputedStyle(canvas);
+    const sampledProgress = Number.parseFloat(canvas.dataset.r4InkProgress ?? 'NaN');
     const width = canvas.width;
     const height = canvas.height;
     const pixels = new Uint8Array(width * height * 4);
@@ -282,7 +318,10 @@ async function readInkPixels(
 
     return {
       segment: expectedSegment,
-      progress: Number.parseFloat(canvas.dataset.r4InkProgress ?? 'NaN'),
+      rendererStatus: canvas.dataset.r4InkRendererStatus ?? 'missing',
+      opacity: Number.parseFloat(style.opacity),
+      visible: style.visibility === 'visible',
+      progress: sampledProgress,
       width,
       height,
       readbackError,
@@ -298,7 +337,8 @@ async function readInkPixels(
   }, {
     expectedSegment: segment,
     inspectDoubleEdge: includeHorizontalDoubleEdge,
-    inspectParticles: includeParticleMorphology
+    inspectParticles: includeParticleMorphology,
+    range: progressRange
   });
 }
 
@@ -556,8 +596,6 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   const figure3Tail = summarizeFrames(figure3TailIntervals);
 
   await bootStory(page, '/#method');
-  await pressFromCurrentHold(page, 'PageDown');
-  await waitForHold(page, 'method-bottom');
   await reachReadingEdge(page, 1);
   const figure2OpeningFrame = page.locator('[data-r4-scene="figure2-animation"]');
   await expect(figure2OpeningFrame).toHaveAttribute('data-figure2-hold-frame-ready', 'true');
@@ -741,6 +779,7 @@ test('focused media and horizontal Ink paths separate first decode from steady f
   const ttgSameRunReverseFrames = await stopFrameSampling(page);
 
   await bootStory(page, '/#figure2-proof-opening');
+  await reachReadingEdge(page, -1);
   startedAt = Date.now();
   await pressFromCurrentHold(page, 'PageUp');
   await page.waitForFunction(() => {
@@ -796,8 +835,22 @@ test('focused media and horizontal Ink paths separate first decode from steady f
   });
   await reachReadingEdge(page, 1);
   await pressFromCurrentHold(page, 'PageDown');
-  const horizontalInkWitness = await waitForLiveInk(page, 'services-ttg', { min: 0.46, max: 0.56 });
-  const horizontalInkPixels = await readInkPixels(page, 'services-ttg', true);
+  const horizontalInkPixels = await readInkPixels(
+    page,
+    'services-ttg',
+    true,
+    false,
+    { min: 0.46, max: 0.56 }
+  );
+  const horizontalInkWitness: LiveInkWitness = {
+    segment: horizontalInkPixels.segment,
+    rendererStatus: horizontalInkPixels.rendererStatus,
+    width: horizontalInkPixels.width,
+    height: horizontalInkPixels.height,
+    opacity: horizontalInkPixels.opacity,
+    visible: horizontalInkPixels.visible,
+    progress: horizontalInkPixels.progress
+  };
   await startFrameSampling(page, 'horizontal-ink');
   await waitForHold(page, 'ttg-animation');
   const horizontalInkFrames = await stopFrameSampling(page);

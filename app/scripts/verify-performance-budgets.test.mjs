@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import {
+  CLEAN_CUTOVER_BASELINE_BYTES,
+  CLEAN_CUTOVER_MAX_LAZY_LEAF_BYTES,
   PERFORMANCE_BUDGETS,
-  performanceBudgetViolations
+  performanceBudgetViolations,
+  performanceCutoverBaseline
 } from './verify-performance-budgets.mjs';
 
 const { test } = process.env.VITEST
@@ -53,4 +56,23 @@ test('desktop headroom below 4 KiB remains a build failure', () => {
     })),
     ['desktopJsHeadroomBytes below required headroom: 4095 < 4096']
   );
+});
+
+test('records the first clean cutover bundle and largest lazy leaf as report-only baselines', () => {
+  assert.equal(CLEAN_CUTOVER_BASELINE_BYTES, 604_751);
+  assert.equal(CLEAN_CUTOVER_MAX_LAZY_LEAF_BYTES, 50_892);
+  assert.deepEqual(performanceCutoverBaseline(actual({
+    phoneJsRawBytes: 604_800,
+    largestLazyJsRawBytes: 50_900
+  })), {
+    cleanCutoverBaselineBytes: 604_751,
+    cleanCutoverMaxLazyLeafBytes: 50_892,
+    phoneJsDeltaFromCleanCutoverBytes: 49,
+    largestLazyDeltaFromCleanCutoverBytes: 8,
+    status: 'warning'
+  });
+  assert.deepEqual(performanceBudgetViolations(actual({
+    phoneJsRawBytes: 604_800,
+    largestLazyJsRawBytes: 50_900
+  })), []);
 });

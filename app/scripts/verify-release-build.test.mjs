@@ -78,6 +78,31 @@ test('accepts a deterministic modules report with one synchronous core and lazy 
   }), []);
 });
 
+test('rejects a provenance report that omits the phone execution core', () => {
+  const report = validProvenance();
+  report.chunks = report.chunks.filter(({ fileName }) => (
+    fileName !== 'assets/PhoneStoryShell.js'
+  ));
+  report.chunks.at(-1).dynamicImports = [];
+
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes()
+  }), 'PhoneStoryShell execution core is missing');
+});
+
+test('requires every emitted manifest chunk to appear in module provenance', () => {
+  const report = validProvenance();
+  const viteManifest = Object.fromEntries([
+    ...report.chunks.map((entry) => [entry.fileName, { file: entry.fileName }]),
+    ['app/src/hidden-policy.ts', { file: 'assets/hidden-policy.js' }]
+  ]);
+
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes(),
+    viteManifest
+  }), 'assets/hidden-policy.js is absent from the module provenance report');
+});
+
 test('rejects test-only screenshot decoders from every emitted production chunk', () => {
   for (const moduleId of [
     'node_modules/pngjs/lib/png.js',
@@ -258,6 +283,49 @@ test('rejects a visual leaf that becomes eager with the phone execution core', (
   includes(moduleProvenanceViolations(report, {
     chunkBytes: bytes()
   }), 'eager phone leaf');
+});
+
+test('rejects a phone module that becomes eager with the desktop execution closure', () => {
+  const report = validProvenance();
+  report.chunks.push(chunk({
+    fileName: 'assets/DesktopStoryShell.js',
+    isDynamicEntry: true,
+    facadeModuleId:
+      'app/src/production/desktop/DesktopStoryShell.tsx',
+    imports: ['assets/DesktopShared.js'],
+    modules: ['app/src/production/desktop/DesktopStoryShell.tsx']
+  }));
+  report.chunks.push(chunk({
+    fileName: 'assets/DesktopShared.js',
+    modules: ['app/src/scenes/hero/phone/PhoneHero.tsx']
+  }));
+  report.chunks.sort((left, right) => (
+    left.fileName < right.fileName ? -1 : left.fileName > right.fileName ? 1 : 0
+  ));
+
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/DesktopShared.js': 1000,
+      'assets/DesktopStoryShell.js': 1000
+    })
+  }), 'desktop execution closure eagerly contains phone module');
+});
+
+test('rejects generated cross-chunk property policy artifacts', () => {
+  const report = validProvenance();
+  report.chunks.push(chunk({
+    fileName: 'assets/r5-cross-chunk-field-registry.js',
+    modules: ['app/src/generated/reserved-property-manifest.ts']
+  }));
+  report.chunks.sort((left, right) => (
+    left.fileName < right.fileName ? -1 : left.fileName > right.fileName ? 1 : 0
+  ));
+
+  includes(moduleProvenanceViolations(report, {
+    chunkBytes: bytes({
+      'assets/r5-cross-chunk-field-registry.js': 1000
+    })
+  }), 'generated cross-chunk property policy artifact');
 });
 
 test('rejects lifecycle authority inside a lazy leaf chunk', () => {

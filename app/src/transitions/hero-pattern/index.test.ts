@@ -242,13 +242,23 @@ describe('hero-pattern transition', () => {
   });
 
   it('waits for the reverse Hero endpoint after timeline construction resets its surfaces', async () => {
+    vi.useFakeTimers();
     const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
     const canvas = new FakeCanvas();
     const video = new DeferredFrameVideo();
     fixture.fromRoot.connect('[data-hero-figure-video]', video);
     if (fixture.context.from.element) {
       fixture.context.from.element.style.visibility = 'hidden';
+      fixture.context.from.element.style.opacity = '0';
     }
+    const setFromVisibility = fixture.fromLayer.setVisibility.bind(fixture.fromLayer);
+    fixture.fromLayer.setVisibility = (state) => {
+      setFromVisibility(state);
+      if (fixture.context.from.element) {
+        fixture.context.from.element.style.visibility = state.visible ? 'visible' : 'hidden';
+        fixture.context.from.element.style.opacity = String(state.opacity);
+      }
+    };
     vi.stubGlobal('document', { createElement: () => canvas });
 
     const build = createHeroPatternTransition().buildTimeline({
@@ -256,13 +266,20 @@ describe('hero-pattern transition', () => {
       direction: -1
     });
     await Promise.resolve();
+    await Promise.resolve();
 
     expect(video.hasPendingFrame()).toBe(true);
+    expect(fixture.context.from.element?.style.visibility).toBe('visible');
+    expect(fixture.context.from.element?.style.opacity).toBe('0.001');
+    expect(fixture.context.from.element?.style.zIndex).toBe('31');
+    await vi.advanceTimersByTimeAsync(50);
     video.presentFrame();
     const timeline = await build;
     expect(video.hasPendingFrame()).toBe(false);
     expect(video.currentTime).toBeCloseTo(HERO_PATTERN_VIDEO_END_SECONDS);
     expect(fixture.context.from.element?.style.visibility).toBe('hidden');
+    expect(fixture.context.from.element?.style.opacity).toBe('0');
+    expect(fixture.context.from.element?.style.zIndex).toBe('');
     timeline.dispose();
   });
 

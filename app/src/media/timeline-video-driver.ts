@@ -91,6 +91,8 @@ type TimelineManagedVideo = HTMLVideoElement & {
 
 const SEEK_TOLERANCE_SECONDS = 0.001;
 const PRESENTATION_TOLERANCE_SECONDS = 0.05;
+const EXACT_TARGET_PRIME_OFFSET_SECONDS = 0.05;
+const EXACT_TARGET_PRIME_SETTLE_DELAY_MS = 50;
 const SEEKED_FRAME_FALLBACK_DELAY_MS = 120;
 const DEFAULT_END_EPSILON_SECONDS = 0.02;
 
@@ -123,6 +125,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private queuedSeek: DesiredFrame | undefined;
   private inFlightSeek: DesiredFrame | undefined;
   private primingSeek: DesiredFrame | undefined;
+  private pendingEndpointPrime: DesiredFrame | undefined;
+  private primingCompletionTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly waiters = new Set<FrameWaiter>();
   private nativeFallback = false;
   private nativeStarted = false;
@@ -229,8 +233,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
     // Reuse only when the last presented frame and physical playhead together
     // remain within the same accepted presentation window as the new target.
-    if (Math.abs(this.readyTime - desired.targetTime)
-      + Math.abs(this.video.currentTime - desired.targetTime) <= PRESENTATION_TOLERANCE_SECONDS) {
+    if (
+      Math.abs(this.readyTime - desired.targetTime) <= PRESENTATION_TOLERANCE_SECONDS
+      && Math.abs(this.video.currentTime - desired.targetTime) <= PRESENTATION_TOLERANCE_SECONDS
+    ) {
       this.markFrameReady(desired, 'playhead-reuse');
     }
 
@@ -268,7 +274,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       }
     });
     if (this.waiters.has(waiter)) {
-      const priming = this.beginExactTargetSeek(desired);
+      const endpoint = desired.progress <= 0.001 || desired.progress >= 0.999;
+      if (endpoint) {
+        this.pendingEndpointPrime = desired;
+      }
+      const priming = endpoint
+        ? this.startPendingEndpointPrime()
+        : this.beginExactTargetSeek(desired);
       if (priming.error) {
         this.rejectWaiter(waiter, priming.error);
       } else if (!priming.started) {
@@ -290,7 +302,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       generation: this.generation,
       desiredProgress: this.latest?.progress,
       targetTime: this.latest?.targetTime,
-      seekPending: Boolean(this.primingSeek || this.inFlightSeek || this.queuedSeek),
+      seekPending: Boolean(
+        this.pendingEndpointPrime || this.primingSeek || this.inFlightSeek || this.queuedSeek
+      ),
       nativeFallback: this.nativeFallback,
       frameReady
     };
@@ -312,6 +326,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.queuedSeek = undefined;
     this.inFlightSeek = undefined;
     this.primingSeek = undefined;
+    this.pendingEndpointPrime = undefined;
+    this.cancelPrimingCompletion();
     this.latest = undefined;
     this.latestInput = undefined;
   }
@@ -330,6 +346,14 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       // still useful evidence if the next generation targets the same frame.
       this.queuedSeek = undefined;
       this.primingSeek = undefined;
+      this.pendingEndpointPrime = undefined;
+      this.cancelPrimingCompletion();
+      // A decoder can clear `seeking` without delivering the old generation's
+      // final event. Do not let that settled ownership record block the new
+      // generation's first causal seek.
+      if (!this.video.seeking) {
+        this.inFlightSeek = undefined;
+      }
       this.cancelFrameCallback();
       delete this.video.dataset.timelineVideoFrameEvidence;
       this.video.pause();
@@ -438,19 +462,31 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.flushQueuedSeek();
   }
 
-  private beginExactTargetSeek(desired: DesiredFrame): {
+  private beginExactTargetSeek(desired: DesiredFrame, force = false): {
     started: boolean;
     error?: Error;
   } {
     if (
       this.primingSeek
       || this.inFlightSeek
-      || Math.abs(this.video.currentTime - desired.targetTime) > SEEK_TOLERANCE_SECONDS
+      || (!force && Math.abs(this.video.currentTime - desired.targetTime) > SEEK_TOLERANCE_SECONDS)
     ) {
       return { started: false };
     }
-    const duration = finiteDuration(this.video, desired.targetTime + 0.01);
-    const offset = SEEK_TOLERANCE_SECONDS * 2;
+    // Metadata can still be unavailable for a cold endpoint preparation. Use
+    // the caller's declared media duration so the start endpoint retains room
+    // for the same cross-frame nudge used after metadata has loaded.
+    const duration = finiteDuration(
+      this.video,
+      Math.max(
+        desired.targetTime + EXACT_TARGET_PRIME_OFFSET_SECONDS,
+        this.latestInput?.durationFallbackSeconds ?? 0
+      )
+    );
+    // A sub-frame nudge can be quantized back onto the same decoded sample,
+    // leaving paused Chromium with no new frame to satisfy RVFC. Cross at
+    // least one common video-frame interval before seeking to the exact target.
+    const offset = EXACT_TARGET_PRIME_OFFSET_SECONDS;
     const nudgedTime = desired.targetTime + offset <= duration
       ? desired.targetTime + offset
       : Math.max(0, desired.targetTime - offset);
@@ -461,7 +497,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.primingSeek = desired;
       this.video.currentTime = nudgedTime;
       if (!this.video.seeking) {
-        this.completePrimingSeek();
+        // A synchronously settled setter has not necessarily given the
+        // decoder/compositor a turn to present the nudged frame. Preserve one
+        // frame interval before seeking back to the exact endpoint.
+        this.primingCompletionTimer = setTimeout(() => {
+          this.primingCompletionTimer = undefined;
+          this.completePrimingSeek();
+        }, EXACT_TARGET_PRIME_SETTLE_DELAY_MS);
       }
       return { started: true };
     } catch (cause) {
@@ -479,11 +521,34 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
   }
 
+  private startPendingEndpointPrime(): {
+    started: boolean;
+    error?: Error;
+  } {
+    const pending = this.pendingEndpointPrime;
+    if (!pending || this.primingSeek || this.inFlightSeek) {
+      return { started: false };
+    }
+    // Consume ownership before the seek. Some decoded endpoints settle
+    // synchronously (`video.seeking` remains false), which re-enters through
+    // completeInFlightSeek before beginExactTargetSeek returns.
+    this.pendingEndpointPrime = undefined;
+    const result = this.beginExactTargetSeek(pending, true);
+    if (result.started || result.error) {
+      return result;
+    }
+    // A degenerate media interval has no alternate frame to cross. Fall back
+    // to the ordinary exact seek without retaining a permanently pending
+    // prime request.
+    return result;
+  }
+
   private completePrimingSeek(): void {
     const primed = this.primingSeek;
     if (!primed) {
       return;
     }
+    this.cancelPrimingCompletion();
     this.primingSeek = undefined;
     if (this.disposed || primed.generation !== this.generation) {
       return;
@@ -509,10 +574,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return;
     }
     this.inFlightSeek = desired;
+    // Register before assigning currentTime. A paused decoder may submit the
+    // target frame immediately, and registering afterward can miss the only
+    // causal presentation callback for that seek.
+    this.presentFrame(desired);
     try {
       this.video.currentTime = desired.targetTime;
     } catch (cause) {
       this.inFlightSeek = undefined;
+      this.cancelFrameCallback();
       this.failFrame(desired, new MediaPreparationError(
         'MEDIA_SEEK_FAILED',
         'media seek failed',
@@ -520,7 +590,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       ));
       return;
     }
-    this.presentFrame(desired);
     if (!this.video.seeking) {
       this.completeInFlightSeek();
     }
@@ -551,6 +620,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
           this.presentFrame(completed);
         }
       }
+    }
+    const endpointPriming = this.startPendingEndpointPrime();
+    if (endpointPriming.started || endpointPriming.error) {
+      return;
     }
     this.flushQueuedSeek();
   }
@@ -683,6 +756,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.seekedFrameFallbackFrame = undefined;
   }
 
+  private cancelPrimingCompletion(): void {
+    if (this.primingCompletionTimer !== undefined) {
+      clearTimeout(this.primingCompletionTimer);
+    }
+    this.primingCompletionTimer = undefined;
+  }
+
   private markFrameReady(frame: DesiredFrame, evidence: FramePresentationEvidence): void {
     if (frame.generation !== this.generation) {
       return;
@@ -694,6 +774,12 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.cancelFrameCallback();
     this.frameReadyGeneration = frame.generation;
     this.readyTime = frame.targetTime;
+    if (
+      this.pendingEndpointPrime?.generation === frame.generation
+      && Math.abs(this.pendingEndpointPrime.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ) {
+      this.pendingEndpointPrime = undefined;
+    }
     this.video.dataset.timelineVideoFrameReady = 'true';
     this.video.dataset.timelineVideoFrameEvidence = evidence;
     delete this.video.dataset.timelineVideoStaticFallback;
@@ -779,6 +865,17 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   private cancelPresentationWhenUnused(frame: DesiredFrame): void {
+    const stillWaiting = [...this.waiters].some((waiter) => (
+      waiter.generation === frame.generation
+      && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ));
+    if (
+      !stillWaiting
+      && this.pendingEndpointPrime?.generation === frame.generation
+      && Math.abs(this.pendingEndpointPrime.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ) {
+      this.pendingEndpointPrime = undefined;
+    }
     if (
       !this.presentingFrame
       || this.presentingFrame.generation !== frame.generation
@@ -786,10 +883,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     ) {
       return;
     }
-    const stillWaiting = [...this.waiters].some((waiter) => (
-      waiter.generation === frame.generation
-      && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
-    ));
     const pendingNative = this.pendingNative?.desired;
     if (
       stillWaiting
@@ -831,6 +924,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.queuedSeek = undefined;
     this.inFlightSeek = undefined;
     this.primingSeek = undefined;
+    this.pendingEndpointPrime = undefined;
+    this.cancelPrimingCompletion();
     this.cancelFrameCallback();
     delete this.video.dataset.timelineVideoFrameReady;
     delete this.video.dataset.timelineVideoFrameEvidence;

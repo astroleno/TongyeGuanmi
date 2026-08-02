@@ -93,7 +93,9 @@ describe('presentation shell loaders', () => {
       '/r5-release-manifest.json',
       expect.objectContaining({ cache: 'no-store' })
     );
-    expect(fixture.reload).toHaveBeenCalledTimes(1);
+    expect(fixture.reload).toHaveBeenCalledWith(
+      'https://tongye.test/#figure3-animation'
+    );
     expect(storedLineage(fixture.storage as MemoryStorage)).toMatchObject({
       lineageId: 'lineage-1',
       entryUrl: 'https://tongye.test/#figure3-animation',
@@ -105,6 +107,15 @@ describe('presentation shell loaders', () => {
       automaticReloadCount: 1,
       status: 'reloaded'
     });
+  });
+
+  it('does not forward a React click event into the optional recovery entry URL', () => {
+    const fixture = recoveryFixture();
+    const controller = createPhoneChunkRecoveryController(fixture.environment);
+
+    (controller.manualReload as (event: unknown) => void)({ type: 'click' });
+
+    expect(fixture.reload).toHaveBeenCalledWith();
   });
 
   it('does not mint another reload when build IDs and hashed URLs change', async () => {
@@ -175,6 +186,22 @@ describe('presentation shell loaders', () => {
     )).resolves.toBe('fail-closed');
     expect(invalidController.getSnapshot()).toMatchObject({ status: 'fail-closed' });
     expect(invalidManifest.reload).not.toHaveBeenCalled();
+  });
+
+  it('does not classify the same Document again after recovery is fail-closed', async () => {
+    const fixture = recoveryFixture();
+    fixture.fetchReleaseManifest.mockResolvedValue({ schemaVersion: 3 });
+    const controller = createPhoneChunkRecoveryController(fixture.environment);
+
+    await expect(controller.reportPhoneCoreRejection(
+      new Error('first core failure'), '/assets/core.js'
+    )).resolves.toBe('fail-closed');
+    await expect(controller.reportPhoneCoreRejection(
+      new Error('duplicate boundary report'), '/assets/core.js'
+    )).resolves.toBe('fail-closed');
+
+    expect(fixture.fetchReleaseManifest).toHaveBeenCalledTimes(1);
+    expect(fixture.reload).not.toHaveBeenCalled();
   });
 
   it('routes vite:preloadError through the same bounded policy and prevents the default', async () => {

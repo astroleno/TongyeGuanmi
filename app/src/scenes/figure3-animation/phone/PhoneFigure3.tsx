@@ -178,8 +178,10 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
   const progressRef = useRef(0);
   const directionRef = useRef<1 | -1>(1);
+  const settledEndpointRef = useRef<PhoneFigure3Endpoint>(0);
   const activationGenerationRef = useRef(0);
   const frameSequenceRef = useRef(0);
+  const pausedRef = useRef(false);
   const disposedRef = useRef(false);
 
   const reportFailure = useCallback((code: string, error: unknown) => {
@@ -269,7 +271,24 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
       frameSequenceRef.current = 0;
+      const currentEndpoint = progressRef.current <= .001 ? 0
+        : progressRef.current >= .999 ? 1 : null;
+      const wasPaused = pausedRef.current;
+      pausedRef.current = false;
+      const endpoint = currentEndpoint ?? settledEndpointRef.current;
+      if (wasPaused && currentEndpoint === null) render(endpoint);
       compositorRef.current?.paint();
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (video && canvas && phoneFigure3HasReusableEndpointFrame(
+        video, canvas, endpoint
+      )) {
+        reportPresentedFrame();
+      } else if (wasPaused) {
+        const generation = ++activationGenerationRef.current;
+        void prepareCurrentFrame(generation, binding, directionRef.current)
+          .catch((error) => reportFailure('figure3-frame-preparation-failed', error));
+      }
     },
     activate(command): PhoneActivationInvocation {
       const expected = ['figure3-video'];
@@ -305,6 +324,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     },
     render,
     settle(endpoint) {
+      settledEndpointRef.current = endpoint;
       directionRef.current = endpoint === 0 ? -1 : 1;
       render(endpoint);
       const binding = bindingRef.current;
@@ -323,6 +343,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         .catch((error) => reportFailure('figure3-frame-preparation-failed', error));
     },
     pause() {
+      pausedRef.current = true;
       activationGenerationRef.current += 1;
       const video = videoRef.current;
       if (video) {
@@ -333,6 +354,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     dispose() {
       if (disposedRef.current) return;
       disposedRef.current = true;
+      pausedRef.current = false;
       activationGenerationRef.current += 1;
       compositorRef.current?.dispose();
       compositorRef.current = null;
@@ -355,6 +377,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     const canvas = canvasRef.current;
     if (!mountRoot || !root || !scene || !video || !canvas) return;
     disposedRef.current = false;
+    pausedRef.current = false;
     root.dataset.phoneFigure3PaperCompositor = 'preparing';
     root.dataset.phoneMediaState = 'preparing';
     const compositor = createPhoneFigure3PaperCompositor({

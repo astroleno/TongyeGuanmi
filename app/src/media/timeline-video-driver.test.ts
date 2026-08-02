@@ -18,6 +18,8 @@ class FakeVideo {
   playCalls = 0;
   rejectNextPlay = false;
   throwOnCurrentTimeWrite = false;
+  presentFrameOnCurrentTimeWrite = false;
+  remainSettledOnCurrentTimeWrite = false;
   private time = 0;
   private frameCallback: ((now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void) | undefined;
   private readonly listeners = new Map<string, Set<Listener>>();
@@ -32,7 +34,8 @@ class FakeVideo {
     }
     this.time = value;
     this.currentTimeWrites.push(value);
-    this.seeking = true;
+    this.seeking = !this.remainSettledOnCurrentTimeWrite;
+    if (this.presentFrameOnCurrentTimeWrite) this.presentFrame();
   }
 
   addEventListener(type: string, listener: Listener): void {
@@ -112,7 +115,7 @@ describe('timeline video driver', () => {
     });
 
     expect(video.currentTimeWrites).toHaveLength(1);
-    expect(video.currentTimeWrites[0]).toBeGreaterThan(0);
+    expect(video.currentTimeWrites[0]).toBeGreaterThanOrEqual(0.05);
     video.completeSeek();
     expect(video.currentTimeWrites.length).toBeGreaterThanOrEqual(2);
     expect(video.currentTimeWrites.at(-1)).toBe(0);
@@ -128,6 +131,75 @@ describe('timeline video driver', () => {
     expect(settled).toBe(true);
 
     await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+  });
+
+  it('defers endpoint priming until an older in-flight seek has settled', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const input = {
+      runId: 'media-deferred-endpoint:1',
+      direction: 1 as const,
+      durationFallbackSeconds: 10
+    };
+
+    driver.drive({ ...input, progress: 0.98 });
+    const readiness = driver.prepareFrame({ ...input, progress: 1 });
+    video.completeSeek();
+
+    expect(video.currentTimeWrites.at(-1)).toBeCloseTo(9.93, 2);
+    video.completeSeek();
+    expect(video.currentTimeWrites.at(-1)).toBeCloseTo(9.98, 2);
+    video.presentFrame();
+    video.completeSeek();
+
+    await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+    driver.dispose();
+  });
+
+  it('consumes a pending endpoint prime before a synchronously settled seek can re-enter it', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    video.remainSettledOnCurrentTimeWrite = true;
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    try {
+      const readiness = driver.prepareFrame({
+        runId: 'media-synchronous-endpoint:1',
+        direction: -1,
+        progress: 1,
+        durationFallbackSeconds: 2.042,
+        endSeconds: 0.9
+      });
+
+      expect(video.currentTimeWrites).toHaveLength(1);
+      expect(video.currentTimeWrites[0]).toBeCloseTo(0.95);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(video.currentTimeWrites).toHaveLength(2);
+      expect(video.currentTimeWrites[1]).toBe(0.9);
+      video.presentFrame();
+      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+    } finally {
+      driver.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses the declared media duration to prime the start endpoint before metadata is ready', () => {
+    const video = new FakeVideo();
+    video.duration = Number.NaN;
+    video.readyState = 0;
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    void driver.prepareFrame({
+      runId: 'media-cold-start-frame:1',
+      direction: 1,
+      progress: 0,
+      durationFallbackSeconds: 2.042
+    });
+
+    expect(video.currentTimeWrites).toHaveLength(1);
+    expect(video.currentTimeWrites[0]).toBeGreaterThanOrEqual(0.05);
+    driver.dispose();
   });
 
   it('does not claim frame readiness when the frame callback has not fired', async () => {
@@ -159,6 +231,52 @@ describe('timeline video driver', () => {
       driver.dispose();
       vi.useRealTimers();
     }
+  });
+
+  it('registers the frame callback before a target seek can present', async () => {
+    const video = new FakeVideo();
+    video.presentFrameOnCurrentTimeWrite = true;
+    const driver = createTimelineVideoDriver(videoElement(video));
+    let settled = false;
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-seek-frame-race:1',
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+    void readiness.then(() => { settled = true; });
+    video.completeSeek();
+    await Promise.resolve();
+
+    expect(settled).toBe(true);
+    await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+    driver.dispose();
+  });
+
+  it('retires a settled seek from an older generation when its event was missed', () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    driver.drive({
+      runId: 'media-old-generation:1',
+      direction: 1,
+      progress: 0.4,
+      durationFallbackSeconds: 10
+    });
+    expect(video.currentTimeWrites).toHaveLength(1);
+    video.seeking = false;
+
+    void driver.prepareFrame({
+      runId: 'media-current-generation:2',
+      direction: 1,
+      progress: 0,
+      durationFallbackSeconds: 10
+    });
+
+    expect(video.currentTimeWrites).toHaveLength(2);
+    expect(video.currentTimeWrites.at(-1)).toBeGreaterThanOrEqual(0.05);
+    driver.dispose();
   });
 
   it('accepts a completed WebKit seek when its opted-in frame callback stalls', async () => {
@@ -406,6 +524,34 @@ describe('timeline video driver', () => {
     driver.drive(nextInput);
 
     await expect(driver.prepareFrame(nextInput)).resolves.toMatchObject({ status: 'ready', direction: -1 });
+    expect(video.currentTimeWrites).toHaveLength(seekWrites);
+    driver.dispose();
+  });
+
+  it('treats presented-frame and playhead tolerances as independent bounds', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const first = driver.prepareFrame({
+      runId: 'presentation-window:1',
+      direction: 1,
+      progress: 0.496,
+      durationFallbackSeconds: 10
+    });
+    video.completeSeek();
+    video.presentFrame();
+    await expect(first).resolves.toMatchObject({ status: 'ready' });
+
+    video.currentTime = 5.01;
+    video.completeSeek();
+    const seekWrites = video.currentTimeWrites.length;
+    const second = driver.prepareFrame({
+      runId: 'presentation-window:1',
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+
+    await expect(second).resolves.toMatchObject({ status: 'ready' });
     expect(video.currentTimeWrites).toHaveLength(seekWrites);
     driver.dispose();
   });

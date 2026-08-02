@@ -2,7 +2,7 @@
 
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   PhoneLeafMountRegistration,
   PhoneLeafReportPort
@@ -83,6 +83,10 @@ function reportFixture() {
 }
 
 describe('clean PhoneFigure3 leaf', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('owns one persistent decoder/Canvas and proves only the current physical draw', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
@@ -184,6 +188,50 @@ describe('clean PhoneFigure3 leaf', () => {
     expect(probe.disposeCompositor).not.toHaveBeenCalled();
     mount.registration()?.commands.dispose('closure-retired');
     expect(probe.disposeCompositor).toHaveBeenCalledOnce();
+    act(() => root.unmount());
+  });
+
+  it('reprepares the last settled frame when a paused retained leaf is rebound', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+
+    const first = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: first.reports,
+      frameToken: 'figure3:retained:1'
+    });
+    await act(async () => {
+      mount.registration()?.commands.settle(1);
+      await Promise.resolve();
+    });
+    mount.registration()?.commands.render(.4);
+    mount.registration()?.commands.pause('hidden');
+    probe.prepareFrame.mockClear();
+
+    const recovered = reportFixture();
+    await act(async () => {
+      mount.registration()?.commands.rebind({
+        reports: recovered.reports,
+        frameToken: 'figure3:retained:2'
+      });
+      await Promise.resolve();
+    });
+
+    expect(probe.renderProgress).toHaveBeenLastCalledWith(
+      expect.any(HTMLElement), 1, expect.any(Object)
+    );
+    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+    expect(recovered.reports.reportFrame).toHaveBeenCalledWith(
+      'figure3-paper-canvas', expect.objectContaining({
+        kind: 'frame', token: 'figure3:retained:2', presented: true
+      })
+    );
+
     act(() => root.unmount());
   });
 });

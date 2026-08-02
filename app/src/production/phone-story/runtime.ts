@@ -564,18 +564,12 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
 
   const reportLoadFailure = (
     effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>,
-    reason: string,
+    _reason: string,
     activeConnection: number
   ): void => {
     if (snapshot.status !== 'transaction'
       || !sameAttempt(snapshot.transaction.attempt, effect.attempt)) return;
-    const slot = snapshot.transaction.requiredPrepared.find(({ kind }) => (
-      kind === 'module-loaded'
-    )) ?? snapshot.transaction.requiredPrepared[0];
-    if (slot) enqueueFor({
-      type: 'failure-reported', slot,
-      failure: { code: 'module-load-rejected', message: reason, recoverable: true }
-    }, activeConnection);
+    enqueueFor({ type: 'terminal-fault', code: 'module-load-rejected' }, activeConnection);
   };
 
   const loadDependencies = (

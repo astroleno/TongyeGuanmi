@@ -73,6 +73,77 @@ test('brand-lab is a separate route instance over the same clean implementation'
   expect(scripts.some((url) => url.includes('PhoneBrandLabStory'))).toBe(true);
 });
 
+test('real back and forward traversal restores one re-proven route authority', async ({
+  page
+}, testInfo) => {
+  const lifecycleKey = 'r5-e2e-page-lifecycle';
+  await page.addInitScript((key) => {
+    const append = (type: 'pagehide' | 'pageshow', persisted: boolean) => {
+      const previous = JSON.parse(sessionStorage.getItem(key) ?? '[]') as unknown[];
+      sessionStorage.setItem(key, JSON.stringify([
+        ...previous,
+        { type, persisted, url: location.href }
+      ]));
+    };
+    window.addEventListener('pagehide', (event) => {
+      append('pagehide', event.persisted);
+    });
+    window.addEventListener('pageshow', (event) => {
+      append('pageshow', event.persisted);
+    });
+  }, lifecycleKey);
+
+  await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
+  await expectCleanShell(page, 'formal', 'brand');
+  const formalAuthority = await page.locator('.phone-story')
+    .getAttribute('data-phone-authority');
+  const formalPlaneRevision = Number(await page.locator('.phone-story')
+    .getAttribute('data-phone-plane-revision'));
+  await page.evaluate((key) => sessionStorage.removeItem(key), lifecycleKey);
+
+  await page.goto('/brand-lab#brand', { waitUntil: 'domcontentloaded' });
+  await expectCleanShell(page, 'brand-lab', 'brand');
+  await page.goBack();
+  await expect(page).toHaveURL(/\/#brand$/);
+  const backShell = page.locator('.phone-story');
+  await expect(backShell).toHaveCount(1, { timeout: 20_000 });
+  await expect(backShell).toHaveAttribute('data-phone-scope', 'formal');
+  await expect(backShell).toHaveAttribute('data-phone-scene', 'brand');
+  await expect(backShell).toHaveAttribute('data-phone-status', 'stable');
+  const backAuthority = await page.locator('.phone-story')
+    .getAttribute('data-phone-authority');
+  const lifecycle = await page.evaluate((key) => JSON.parse(
+    sessionStorage.getItem(key) ?? '[]'
+  ) as Array<{ type: string; persisted: boolean; url: string }>, lifecycleKey);
+  const restoredFromBfcache = lifecycle.some(({ type, persisted, url }) => (
+    type === 'pageshow' && persisted && url.endsWith('/#brand')
+  ));
+  const notRestoredReason = await page.evaluate(() => {
+    const navigation = performance.getEntriesByType('navigation')[0] as
+      PerformanceNavigationTiming & { notRestoredReasons?: { toJSON?(): unknown } | null };
+    return navigation?.notRestoredReasons?.toJSON?.() ?? null;
+  });
+  testInfo.annotations.push({
+    type: 'bfcache',
+    description: restoredFromBfcache
+      ? 'granted'
+      : `not granted: ${JSON.stringify(notRestoredReason)}`
+  });
+  if (restoredFromBfcache) {
+    expect(backAuthority).toBe(formalAuthority);
+    await page.waitForFunction((before) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      return Number(shell?.dataset.phonePlaneRevision) > before;
+    }, formalPlaneRevision);
+  }
+  await assertSinglePhoneAuthority(page);
+
+  await page.goForward();
+  await expectCleanShell(page, 'brand-lab', 'brand');
+  await assertSinglePhoneAuthority(page);
+  await expect(page.locator('#phone-brand-title')).toBeVisible();
+});
+
 test('obsolete query compositions cannot select another phone shell', async ({ page }) => {
   await page.goto(
     '/?v=47&scope=brand-lab&portrait-spike=a&portrait-spike-motion=force#lab',

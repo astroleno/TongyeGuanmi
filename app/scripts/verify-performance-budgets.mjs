@@ -13,6 +13,8 @@ const totalJsHardCapBytes = phoneJsHardCapBytes;
 const requiredDesktopJsHeadroomBytes = 4 * KiB;
 
 export const PHONE_JS_CLEAN_BASE_TARGET_BYTES = 628_044;
+export const CLEAN_CUTOVER_BASELINE_BYTES = 604_751;
+export const CLEAN_CUTOVER_MAX_LAZY_LEAF_BYTES = 50_892;
 
 export const PERFORMANCE_BUDGETS = Object.freeze({
   initialJsRawBytes: 360 * KiB,
@@ -61,6 +63,21 @@ export function performanceBudgetViolations(actual) {
     );
   }
   return violations;
+}
+
+export function performanceCutoverBaseline(actual) {
+  const phoneDelta = actual.phoneJsRawBytes - CLEAN_CUTOVER_BASELINE_BYTES;
+  const largestLazyDelta = actual.largestLazyJsRawBytes
+    - CLEAN_CUTOVER_MAX_LAZY_LEAF_BYTES;
+  return {
+    cleanCutoverBaselineBytes: CLEAN_CUTOVER_BASELINE_BYTES,
+    cleanCutoverMaxLazyLeafBytes: CLEAN_CUTOVER_MAX_LAZY_LEAF_BYTES,
+    phoneJsDeltaFromCleanCutoverBytes: phoneDelta,
+    largestLazyDeltaFromCleanCutoverBytes: largestLazyDelta,
+    status: phoneDelta <= 0 && largestLazyDelta <= 0
+      ? 'at-or-below-baseline'
+      : 'warning'
+  };
 }
 
 async function filesBelow(directory) {
@@ -234,6 +251,7 @@ export async function verifyPerformanceBudgets({
       requiredTotalJsHeadroomBytes: requiredDesktopJsHeadroomBytes
     },
     cleanBase,
+    cleanCutover: performanceCutoverBaseline(actual),
     actual,
     presentationFamilies: {
       desktopJsRawBytes: desktopPresentation.bytes,

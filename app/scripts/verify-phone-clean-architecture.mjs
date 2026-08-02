@@ -2702,6 +2702,9 @@ export async function phoneCleanArchitectureViolations({
         allSources
       ));
     } else {
+      violations.push(
+        'cutover is missing the executable phone-core recovery controller'
+      );
       violations.push(...recoveryBoundaryViolations(formalSources, allSources));
       violations.push(...storageLineageViolations(formalSources));
     }

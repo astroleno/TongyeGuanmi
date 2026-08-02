@@ -173,16 +173,32 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
       const video = root?.querySelector<HTMLVideoElement>('[data-hero-figure-video]');
       const sourceLayer = context.from.element;
       const restoreHidden = context.direction < 0 && sourceLayer?.style.visibility === 'hidden';
-      if (sourceLayer) {
+      const restoreOpacity = context.direction < 0
+        && sourceLayer !== null
+        && Number.parseFloat(sourceLayer.style.opacity || '1') <= 0.001;
+      const previousZIndex = sourceLayer?.style.zIndex;
+      const exposeSourceForFrame = () => {
+        if (!sourceLayer) return;
         // A visibility:hidden video may not receive rVFC while an endpoint is
         // prepared. Forward replay can begin before React has committed the
-        // post-reverse role, so cover both directions. Opacity remains owned by
-        // the stage and prevents a hidden endpoint from flashing.
+        // post-reverse role, so cover both directions. A freshly mounted reverse
+        // source is also fully transparent; give it a non-visible compositor
+        // probe (the Stage visibility threshold is <= .001) so Chromium can
+        // present the paused frame without exposing Hero over Pattern.
         sourceLayer.style.visibility = 'visible';
-      }
+        if (restoreOpacity) {
+          sourceLayer.style.opacity = '0.001';
+          sourceLayer.style.zIndex = '31';
+        }
+      };
+      exposeSourceForFrame();
       try {
         const timeline = await transition.buildTimeline(context);
         if (video) {
+          // Ink endpoint ownership resets the reverse source to the hidden
+          // Stage state during construction, so restore compositor eligibility
+          // after construction and before requesting the causal frame.
+          exposeSourceForFrame();
           await prepareHeroPatternBoundary(root, context.direction === 1 ? 0 : 1, {
             runId: context.runId,
             direction: context.direction,
@@ -193,6 +209,10 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
       } finally {
         if (restoreHidden) {
           sourceLayer.style.visibility = 'hidden';
+        }
+        if (restoreOpacity) {
+          sourceLayer.style.opacity = '0';
+          sourceLayer.style.zIndex = previousZIndex ?? '';
         }
       }
     }
