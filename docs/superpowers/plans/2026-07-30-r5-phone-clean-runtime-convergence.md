@@ -1,11 +1,13 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** architecture and execution contracts are frozen. Tasks 0–10 and
-> their corrective reviews are complete. On 2026-08-01 the executor completed
-> Slices 4A → 4D, Tasks 5–8, Slices 9A → 9B, and Slices 10A → 10C. The unified
-> machine/runtime, projector/StrictMode/lazy-boundary, and Task 10
-> cutover-readiness reviews are closed. Execution is stopped before the atomic
-> Task 11 formal cutover. The
+> **Status:** architecture and execution contracts are frozen. Tasks 0–11 and
+> their corrective reviews are complete. On 2026-08-02 the Task 12 automated
+> release run was stopped at its first new Mobile WebKit TTG failure after a
+> bounded root-cause diagnostic. Task 12 is **BLOCKED / NO-GO**; its acceptance
+> and commit remain open, no `candidateCodeSha` is frozen, and Task 13 is not
+> authorized. See the
+> [Task 12 blocker review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
+> The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
 > reopen broad design review unless Appendix C is triggered.
@@ -5416,6 +5418,24 @@ git commit -m "test(r5): validate phone runtime and presentation gates"
 This is `Chunk-contract-complete` automated evidence only. Do not describe
 chunks as “closed” and do not claim `Release-complete` until the physical
 chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
+
+**Task 12 blocker review record (2026-08-02):**
+
+- Decision: **BLOCKED / NO-GO**. The current WIP is not Task 12 closure and
+  Task 13 must not start.
+- The Group 4–5 first-state divergence was root-caused and the focused Mobile
+  WebKit gate passed 10/10. Static gates, 1,184 Vitest tests, typecheck, build,
+  and size/LOC budgets passed.
+- The single authorized complete release rerun stopped after 74 passes at an
+  intermittent Mobile WebKit TTG direct-entry failure; 152 tests were not run.
+- Failure evidence shows activation already spent and a causal decoded frame
+  physically ready while the reducer still lacks only the TTG `video-decoded`
+  prepared proof. One passing leaf-event chain was preserved, but the failing
+  leaf-event branch was not captured, so no further production patch is
+  evidence-backed.
+- Full findings, verification ledger, hashes, and the only permitted resume
+  sequence are recorded in the
+  [Task 12 blocker review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
 
 ---
 
