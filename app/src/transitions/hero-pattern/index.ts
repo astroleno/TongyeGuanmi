@@ -18,7 +18,7 @@ export const HERO_PATTERN_INK_ORIGIN = Object.freeze({ x: 0.5, y: 0.5 });
 export const HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS = 8000;
 export { HERO_PATTERN_INK_MS, HERO_PATTERN_MOTION_MS, HERO_PATTERN_MOTION_STOP } from '../../story/timings';
 const HERO_SCENE_SELECTOR = '[data-r4-scene="hero"]';
-const REVERSE_COMPOSITOR_NUDGE_MS = 250;
+const COMPOSITOR_NUDGE_MS = 250;
 
 export function heroPatternMotionProgress(progress: number): number {
   return range01(progress, 0, HERO_PATTERN_MOTION_STOP);
@@ -93,9 +93,7 @@ async function prepareHeroPatternBoundary(
 ): Promise<void> {
   const linked = createLinkedAbortController(mediaRun.signal);
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const video = mediaRun.direction === -1
-    ? root?.querySelector<HTMLVideoElement>('[data-hero-figure-video]') ?? null
-    : null;
+  const video = root?.querySelector<HTMLVideoElement>('[data-hero-figure-video]') ?? null;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       const error = new MediaPreparationError(
@@ -115,7 +113,7 @@ async function prepareHeroPatternBoundary(
       // an rVFC. Muted playback only nudges the compositor; it is never frame
       // evidence, and the preparation still waits for the causal callback.
       void video.play().catch(() => undefined);
-    }, REVERSE_COMPOSITOR_NUDGE_MS)
+    }, COMPOSITOR_NUDGE_MS)
     : undefined;
   try {
     await Promise.race([
