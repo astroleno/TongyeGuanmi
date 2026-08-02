@@ -213,10 +213,11 @@ describe('hero-pattern transition', () => {
     }
   );
 
-  it('warms Hero media and Ink before input, then reuses the presented start frame', async () => {
+  it('reuses the presented prewarm proof after the physical playhead drifts within its accepted window', async () => {
     const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
     const canvas = new FakeCanvas();
     const video = new FakeVideo();
+    Object.assign(video, { readyState: 4, seeking: false });
     fixture.fromRoot.connect('[data-hero-figure-video]', video);
     vi.stubGlobal('document', { createElement: () => canvas });
     const transition = createHeroPatternTransition();
@@ -233,6 +234,11 @@ describe('hero-pattern transition', () => {
     expect(video.currentTime).toBe(0);
     expect(video.playCalls).toBe(0);
 
+    // A real Chromium slow sample presented the requested 0s frame through
+    // rVFC, then exposed a settled 0.051944s playhead at keydown. The driver
+    // still owns the exact same endpoint proof, so the mutable playhead must
+    // not veto that proof during the timeline generation handoff.
+    video.currentTime = .051944;
     const warmSeekWrites = video.currentTimeWrites;
     const timeline = await transition.buildTimeline(fixture.context);
 

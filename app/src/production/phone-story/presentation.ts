@@ -198,7 +198,7 @@ export type PhoneLeafMountDescriptor = Readonly<{
 
 export type PhoneLeafMountLease = Readonly<PhoneLeafMountDescriptor & {
   registrationKey: string; commands: PhoneLeafCommandHandle;
-  rebind(binding: PhoneLeafReportBinding): void; release(): void;
+  isAttached(): boolean; rebind(binding: PhoneLeafReportBinding): void; release(): void;
 }>;
 
 export function phoneActivationSurfaceIds(
@@ -592,6 +592,7 @@ export function createPhonePresentation(
       ...descriptor,
       registrationKey: record.registrationKey,
       commands: record.commands,
+      isAttached: () => Boolean(!record.released && record.root && state.root?.contains(record.root)),
       rebind: (binding: PhoneLeafReportBinding) => {
         if (record.released) throw new Error('Phone leaf mount lease is released');
         if (phoneIdentitySignature(binding.allowedSurfaceIds)

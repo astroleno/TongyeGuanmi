@@ -159,6 +159,7 @@ function createPresentationAuthority(
         ...descriptor,
         registrationKey: `test-presentation:${++registration}`,
         commands: request.registration.commands,
+        isAttached: () => true,
         rebind: () => undefined,
         release: () => undefined
       };
@@ -1289,6 +1290,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
       surfaceIds: ['pattern-image'],
       activationSurfaceIds: [],
       resources: { videos: 0, activeDecoders: 0, canvases: 0, webglContexts: 0 },
+      isAttached: () => true,
       rebind: vi.fn(),
       release: vi.fn()
     }));
@@ -1637,6 +1639,69 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('rebinds late effect and target ports across a retained activation retry', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#figure3-animation');
+    const disconnect = runtime.connect();
+    const source = commandFixture((call) => call !== 2);
+    registerCurrentLeaf(runtime, source.commands);
+    proveCurrent(runtime, fixture);
+
+    fixture.emit({
+      type: 'input', kind: 'keyboard', key: 'ArrowDown', fresh: true,
+      trusted: true, target: 'story'
+    });
+    const waiting = currentTransaction(runtime);
+    expect(waiting.phase).toBe('awaiting-media-activation');
+    const segment = phoneManifest.segments.find(({ id }) => (
+      id === waiting.attempt.segmentId
+    ));
+    if (!segment || !waiting.attempt.direction) throw new Error('missing Figure3 segment');
+    const effectSurface = segment[waiting.attempt.direction].effectSurface;
+    const targetScene = phoneSceneById(waiting.candidateSceneId);
+    const lateEffect = runtime.createLeafReportPort({
+      attempt: waiting.attempt,
+      stageIndex: waiting.stageIndex,
+      leg: 'effect',
+      allowedReports: waiting.requiredPrepared.filter(({ leg }) => leg === 'effect')
+        .map(({ kind }) => kind),
+      allowedSurfaceIds: [effectSurface],
+      planeRevision: waiting.planeRevision
+    });
+    const lateTarget = runtime.createLeafReportPort({
+      attempt: waiting.attempt,
+      stageIndex: waiting.stageIndex,
+      leg: 'target',
+      allowedReports: waiting.requiredPrepared.filter(({ leg }) => leg === 'target')
+        .map(({ kind }) => kind),
+      allowedSurfaceIds: targetScene.surfaces,
+      planeRevision: waiting.planeRevision
+    });
+
+    fixture.emit({ type: 'activation', trusted: true });
+    const active = currentTransaction(runtime);
+    expect(active.attempt.transactionGeneration)
+      .toBeGreaterThan(waiting.attempt.transactionGeneration);
+    const effect = commandFixture();
+    const target = commandFixture();
+    lateEffect.registerMount({
+      root: {} as HTMLElement,
+      surfaces: [{ id: effectSurface, element: {} as HTMLElement, kind: 'dom' }],
+      commands: effect.commands
+    });
+    lateTarget.registerMount({
+      root: {} as HTMLElement,
+      surfaces: targetScene.surfaces.map((id) => ({
+        id, element: {} as HTMLElement, kind: 'dom' as const
+      })),
+      commands: target.commands
+    });
+
+    expect(effect.rebindings[0]?.frameToken).toContain(active.attempt.transactionId);
+    expect(target.rebindings[0]?.frameToken).toContain(active.attempt.transactionId);
+    disconnect();
+  });
+
   it('offers activation immediately when direct autoplay rejects before prepared proof', async () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#aod-animation');
@@ -1748,6 +1813,102 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(currentTransaction(runtime).evidence).toEqual([]);
     expect(commands.activate).toHaveBeenCalledTimes(1);
     expect(currentTransaction(runtime).requiredFinal).toEqual([]);
+    disconnect();
+  });
+
+  it('retires a detached retained mount before React registers its replacement', () => {
+    const fixture = createEnvironment();
+    const authority = createPresentationAuthority();
+    let firstMountAttached = true;
+    let registration = 0;
+    const releases = vi.fn();
+    const presentation: PhonePresentation = {
+      ...authority,
+      registerLeafMount: (request) => {
+        const descriptor = describePhoneLeafMount(request);
+        const current = ++registration;
+        return {
+          ...descriptor,
+          registrationKey: `detached-remount:${current}`,
+          commands: request.registration.commands,
+          isAttached: () => current !== 1 || firstMountAttached,
+          rebind: () => undefined,
+          release: releases
+        };
+      }
+    };
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#brand', origin: 'initial' },
+      environment: fixture.port,
+      presentation
+    });
+    const disconnect = runtime.connect();
+    const first = commandFixture();
+    const { reports, binding } = registerCurrentLeaf(runtime, first.commands);
+    firstMountAttached = false;
+    const second = commandFixture();
+
+    expect(() => reports.registerMount({
+      root: {} as HTMLElement,
+      surfaces: binding.allowedSurfaceIds.map((id) => ({
+        id, element: {} as HTMLElement, kind: 'dom' as const
+      })),
+      commands: second.commands
+    })).not.toThrow();
+    expect(first.commands.dispose).toHaveBeenCalledWith('generation-replaced');
+    expect(releases).toHaveBeenCalledTimes(1);
+    expect(second.commands.rebind).toHaveBeenCalledTimes(1);
+    disconnect();
+  });
+
+  it('revives a stale React port when its retained mount detached before replacement', () => {
+    const fixture = createEnvironment();
+    const authority = createPresentationAuthority();
+    let firstMountAttached = true;
+    let registration = 0;
+    const releases = vi.fn();
+    const presentation: PhonePresentation = {
+      ...authority,
+      registerLeafMount: (request) => {
+        const descriptor = describePhoneLeafMount(request);
+        const current = ++registration;
+        return {
+          ...descriptor,
+          registrationKey: `stale-detached-remount:${current}`,
+          commands: request.registration.commands,
+          isAttached: () => current !== 1 || firstMountAttached,
+          rebind: () => undefined,
+          release: releases
+        };
+      }
+    };
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#brand', origin: 'initial' },
+      environment: fixture.port,
+      presentation
+    });
+    const disconnect = runtime.connect();
+    const first = commandFixture();
+    const { reports, binding } = registerCurrentLeaf(runtime, first.commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      target: 'story', trusted: true
+    });
+    firstMountAttached = false;
+    const second = commandFixture();
+
+    reports.registerMount({
+      root: {} as HTMLElement,
+      surfaces: binding.allowedSurfaceIds.map((id) => ({
+        id, element: {} as HTMLElement, kind: 'dom' as const
+      })),
+      commands: second.commands
+    });
+
+    expect(first.commands.dispose).toHaveBeenCalledWith('generation-replaced');
+    expect(releases).toHaveBeenCalledTimes(1);
+    expect(second.commands.rebind).toHaveBeenCalledTimes(1);
     disconnect();
   });
 

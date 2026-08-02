@@ -98,6 +98,14 @@ function append(parent: HTMLElement, child: HTMLElement): void {
   parentState.children.push(child);
 }
 
+function detach(child: HTMLElement): void {
+  const childState = elementStates.get(child);
+  const parentState = childState?.parent ? elementStates.get(childState.parent) : null;
+  if (!childState) throw new Error('unknown fake element');
+  if (parentState) parentState.children = parentState.children.filter((entry) => entry !== child);
+  childState.parent = null;
+}
+
 function select(parent: HTMLElement, selector: string, child: HTMLElement): void {
   elementStates.get(parent)?.selectors.set(selector, child);
 }
@@ -627,6 +635,17 @@ describe('phone presentation content, frame, and mount proof', () => {
     lease.release();
     expect(fixture.presentation.verifyVisibleCandidate(planeRequest('pattern')).failure?.code)
       .toBe('presentation-mount-missing');
+  });
+
+  it('reports whether a presentation lease still owns an attached React mount', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const { lease, root } = registerScene(fixture, 'brand');
+    expect(lease.isAttached()).toBe(true);
+    detach(root);
+    expect(lease.isAttached()).toBe(false);
+    lease.release();
+    expect(lease.isAttached()).toBe(false);
   });
 
   it('rejects undeclared, duplicate, external, and second-live mount surfaces', () => {

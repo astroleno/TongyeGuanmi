@@ -28,7 +28,7 @@ export function heroPatternInkProgress(progress: number): number {
 }
 
 export function renderHeroForHeroPattern(root: HTMLElement | null): void {
-  renderHeroPatternProgress(root, 0);
+  renderHeroPatternProgress(root, 0, { retainMediaFrame: true });
 }
 
 export function renderPatternForHeroPattern(root: HTMLElement | null): void {

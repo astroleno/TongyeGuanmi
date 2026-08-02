@@ -68,7 +68,7 @@ vi.mock('./paper-compositor', () => ({
   releasePhoneFigure3PaperCanvas: vi.fn()
 }));
 
-import { PhoneFigure3 } from './PhoneFigure3';
+import { PhoneFigure3, phoneFigure3HasReusableEndpointFrame } from './PhoneFigure3';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -232,6 +232,251 @@ describe('clean PhoneFigure3 leaf', () => {
       })
     );
 
+    act(() => root.unmount());
+  });
+
+  it('gives synchronous activation sole ownership of paused rebind preparation', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+
+    const first = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: first.reports,
+      frameToken: 'figure3:activation-owner:1'
+    });
+    mount.registration()?.commands.render(1);
+    mount.registration()?.commands.pause('superseded');
+    const canvas = host.querySelector('[data-phone-figure3-paper-canvas]');
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error('missing Figure3 Canvas');
+    delete canvas.dataset.phoneFigure3PaperFrame;
+    delete canvas.dataset.phoneFigure3PaperEndpoint;
+    probe.prepareFrame.mockClear();
+
+    const renewed = reportFixture();
+    let invocation: ReturnType<PhoneLeafMountRegistration['commands']['activate']> | undefined;
+    await act(async () => {
+      mount.registration()?.commands.rebind({
+        reports: renewed.reports,
+        frameToken: 'figure3:activation-owner:2'
+      });
+      invocation = mount.registration()?.commands.activate({
+        invocationId: 'figure3:activation-owner:invocation',
+        surfaceIds: ['figure3-video'],
+        credit: 'physical-epoch'
+      });
+      await Promise.all(invocation?.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )) ?? []);
+    });
+
+    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+    expect(renewed.reports.reportFrame).toHaveBeenCalledWith(
+      'figure3-paper-canvas', expect.objectContaining({
+        kind: 'frame', token: 'figure3:activation-owner:2', presented: true
+      })
+    );
+    act(() => root.unmount());
+  });
+
+  it('does not let a retained Canvas mask a failed causal repaint', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+    const current = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: current.reports,
+      frameToken: 'figure3:causal-paint:1'
+    });
+    const video = host.querySelector('video');
+    const canvas = host.querySelector('[data-phone-figure3-paper-canvas]');
+    if (!(video instanceof HTMLVideoElement) || !(canvas instanceof HTMLCanvasElement)) {
+      throw new Error('missing Figure3 causal surfaces');
+    }
+    canvas.dataset.phoneFigure3PaperFrame = 'ready';
+    canvas.dataset.phoneFigure3PaperEndpoint = 'initial';
+    video.currentTime = 0;
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
+    Object.defineProperty(video, 'seeking', { configurable: true, value: false });
+    probe.paint.mockImplementation(() => false);
+
+    const invocation = mount.registration()?.commands.activate({
+      invocationId: 'figure3:causal-paint:activation',
+      surfaceIds: ['figure3-video'],
+      credit: 'physical-epoch'
+    });
+    const settlement = invocation?.settlements[0];
+    if (!settlement || settlement.status !== 'pending') {
+      throw new Error('missing Figure3 causal settlement');
+    }
+
+    await expect(settlement.settled).rejects.toThrow('Figure3 decoded frame was not painted');
+    expect(current.reports.reportFrame).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('rejects a stale activation settlement instead of fulfilling it', async () => {
+    let releasePlayback: () => void = () => undefined;
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => (
+      new Promise<void>((resolve) => { releasePlayback = resolve; })
+    ));
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+    const current = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: current.reports,
+      frameToken: 'figure3:stale-activation:1'
+    });
+    const invocation = mount.registration()?.commands.activate({
+      invocationId: 'figure3:stale-activation:invocation',
+      surfaceIds: ['figure3-video'],
+      credit: 'physical-epoch'
+    });
+    const settlement = invocation?.settlements[0];
+    if (!settlement || settlement.status !== 'pending') {
+      throw new Error('missing Figure3 stale activation settlement');
+    }
+
+    mount.registration()?.commands.pause('outside-closure');
+    releasePlayback();
+
+    await expect(settlement.settled).rejects.toThrow(
+      'Figure3 activation was superseded before frame preparation'
+    );
+    expect(current.reports.reportFrame).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('rejects activation replaced while its causal frame promise is pending', async () => {
+    let releaseFrame: () => void = () => undefined;
+    probe.prepareFrame.mockImplementationOnce((video: HTMLVideoElement) => (
+      new Promise((resolve) => {
+        releaseFrame = () => resolve({
+          status: 'ready' as const,
+          runId: 'figure3:pending-activation',
+          direction: 1 as const,
+          generation: 1,
+          targetTime: video.currentTime
+        });
+      })
+    ));
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+    const current = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: current.reports,
+      frameToken: 'figure3:pending-activation:1'
+    });
+    const invocation = mount.registration()?.commands.activate({
+      invocationId: 'figure3:pending-activation:invocation',
+      surfaceIds: ['figure3-video'],
+      credit: 'physical-epoch'
+    });
+    const settlement = invocation?.settlements[0];
+    if (!settlement || settlement.status !== 'pending') {
+      throw new Error('missing Figure3 pending activation settlement');
+    }
+    await Promise.resolve();
+    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+
+    mount.registration()?.commands.pause('outside-closure');
+    releaseFrame();
+
+    await expect(settlement.settled).rejects.toThrow(
+      'Figure3 activation was superseded before frame preparation'
+    );
+    expect(current.reports.reportFrame).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('accepts the driver-owned causal frame before Chromium clears seeking', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    probe.prepareFrame.mockImplementationOnce(async (video: HTMLVideoElement) => {
+      video.currentTime = 2.567;
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+      Object.defineProperty(video, 'seeking', { configurable: true, value: true });
+      return {
+        status: 'ready' as const, runId: 'figure3:causal', direction: 1 as const,
+        generation: 1, targetTime: video.currentTime
+      };
+    });
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+    const current = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: current.reports, frameToken: 'figure3:causal:1'
+    });
+
+    await act(async () => {
+      mount.registration()?.commands.settle(1);
+      await Promise.resolve();
+    });
+
+    expect(current.reports.reportFrame).toHaveBeenCalledWith(
+      'figure3-paper-canvas', expect.objectContaining({
+        kind: 'frame', token: 'figure3:causal:1', presented: true
+      })
+    );
+    act(() => root.unmount());
+  });
+
+  it('accepts a driver-owned start proof after the physical playhead drifts past the retained boundary', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    probe.prepareFrame.mockImplementationOnce(async (video: HTMLVideoElement) => {
+      video.currentTime = .051;
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
+      Object.defineProperty(video, 'seeking', { configurable: true, value: true });
+      return {
+        status: 'ready' as const, runId: 'figure3:causal-drift', direction: 1 as const,
+        generation: 1, targetTime: 0
+      };
+    });
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+    const current = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: current.reports, frameToken: 'figure3:causal-drift:1'
+    });
+
+    await act(async () => {
+      mount.registration()?.commands.settle(0);
+      await Promise.resolve();
+    });
+
+    expect(current.reports.reportFrame).toHaveBeenCalledWith(
+      'figure3-paper-canvas', expect.objectContaining({
+        kind: 'frame', token: 'figure3:causal-drift:1', presented: true
+      })
+    );
+    const video = host.querySelector('video');
+    const canvas = host.querySelector('[data-phone-figure3-paper-canvas]');
+    if (!(video instanceof HTMLVideoElement) || !(canvas instanceof HTMLCanvasElement)) {
+      throw new Error('missing Figure3 retained surfaces');
+    }
+    expect(phoneFigure3HasReusableEndpointFrame(video, canvas, 0)).toBe(false);
     act(() => root.unmount());
   });
 });

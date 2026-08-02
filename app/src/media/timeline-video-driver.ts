@@ -90,7 +90,7 @@ type TimelineManagedVideo = HTMLVideoElement & {
 };
 
 const SEEK_TOLERANCE_SECONDS = 0.001;
-const PRESENTATION_TOLERANCE_SECONDS = 0.05;
+export const TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS = 0.05;
 const EXACT_TARGET_PRIME_OFFSET_SECONDS = 0.05;
 const EXACT_TARGET_PRIME_SETTLE_DELAY_MS = 50;
 const SEEKED_FRAME_FALLBACK_DELAY_MS = 120;
@@ -200,8 +200,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         : undefined;
     if (endpoint && !(endpoint === 'start' && nativeEligible)) {
       this.stopNativePlayback();
+      if (this.canReusePresentedFrame(desired)) {
+        this.markFrameReady(desired, 'playhead-reuse');
+      }
       if ((input.endpointPolicy?.[endpoint] ?? 'seek') === 'seek') {
-        this.scheduleSeek(desired);
+        if (!this.frameIsReady(desired)) {
+          this.scheduleSeek(desired);
+        }
       }
       return this.snapshot();
     }
@@ -231,12 +236,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.configureElement();
     this.stopNativePlayback();
 
-    // Reuse only when the last presented frame and physical playhead together
-    // remain within the same accepted presentation window as the new target.
-    if (
-      Math.abs(this.readyTime - desired.targetTime) <= PRESENTATION_TOLERANCE_SECONDS
-      && Math.abs(this.video.currentTime - desired.targetTime) <= PRESENTATION_TOLERANCE_SECONDS
-    ) {
+    // Reuse an exact driver-owned proof across a generation handoff. Nearby
+    // targets additionally require the physical playhead to remain in-window.
+    if (this.canReusePresentedFrame(desired)) {
       this.markFrameReady(desired, 'playhead-reuse');
     }
 
@@ -249,10 +251,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       }
     }
 
-    if (
-      this.frameReadyGeneration === desired.generation
-      && Math.abs(this.readyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS
-    ) {
+    if (this.frameIsReady(desired)) {
       return Promise.resolve(frameResult(desired, 'ready'));
     }
 
@@ -457,6 +456,18 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.nativeStarted = false;
   }
 
+  private canReusePresentedFrame(desired: DesiredFrame): boolean {
+    const readyDistance = Math.abs(this.readyTime - desired.targetTime);
+    const playheadDistance = Math.abs(this.video.currentTime - desired.targetTime);
+    return readyDistance <= TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS
+      && playheadDistance <= TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS;
+  }
+
+  private frameIsReady(desired: DesiredFrame): boolean {
+    return this.frameReadyGeneration === desired.generation
+      && Math.abs(this.readyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS;
+  }
+
   private scheduleSeek(desired: DesiredFrame): void {
     this.queuedSeek = desired;
     this.flushQueuedSeek();
@@ -653,7 +664,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         }
         if (
           Number.isFinite(metadata?.mediaTime)
-          && Math.abs(metadata.mediaTime - frame.targetTime) > PRESENTATION_TOLERANCE_SECONDS
+          && Math.abs(metadata.mediaTime - frame.targetTime) > TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS
         ) {
           // A compositor nudge can advance beyond the requested sample before
           // its first callback. Re-seek the proof target instead of following
@@ -716,7 +727,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       if (
         this.video.readyState < 2
         || this.video.seeking
-        || Math.abs(this.video.currentTime - frame.targetTime) > PRESENTATION_TOLERANCE_SECONDS
+        || Math.abs(this.video.currentTime - frame.targetTime) > TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS
       ) {
         const waiting = [...this.waiters].some((waiter) => (
           waiter.generation === frame.generation
@@ -927,6 +938,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 }
 
 const sharedDrivers = new WeakMap<HTMLVideoElement, TimelineVideoDriver>();
+const framePreparationOwners = new WeakMap<HTMLVideoElement, symbol>();
 
 export function createTimelineVideoDriver(video: HTMLVideoElement): TimelineVideoDriver {
   return new TimelineVideoDriverImpl(video);
@@ -955,6 +967,7 @@ export function timelineVideoDriverFor(video: HTMLVideoElement): TimelineVideoDr
 }
 
 export function disposeTimelineVideoDriver(video: HTMLVideoElement): void {
+  framePreparationOwners.delete(video);
   const managedVideo = video as TimelineManagedVideo;
   if (managedVideo.__r5TimelineVideoDispose) {
     managedVideo.__r5TimelineVideoDispose();
@@ -976,15 +989,21 @@ export function prepareTimelineVideoFrame(
   input: TimelineVideoDriveInput
 ): Promise<TimelineVideoFrameResult | undefined> {
   if (!video) return Promise.resolve(undefined);
+  const owner = Symbol(input.runId);
+  framePreparationOwners.set(video, owner);
   const preparation = timelineVideoDriverFor(video).prepareFrame(input);
   // A covered paused video may settle its seek without submitting an rVFC.
   // Muted playback only nudges the compositor; readiness still requires the
   // causal callback, and the element is paused again before preparation exits.
   const nudge = setTimeout(() => {
-    if (!input.signal?.aborted) void video.play().catch(() => undefined);
+    if (!input.signal?.aborted && framePreparationOwners.get(video) === owner) {
+      void video.play().catch(() => undefined);
+    }
   }, PAUSED_COMPOSITOR_NUDGE_MS);
   return preparation.finally(() => {
     clearTimeout(nudge);
+    if (framePreparationOwners.get(video) !== owner) return;
+    framePreparationOwners.delete(video);
     video.pause();
   });
 }

@@ -222,10 +222,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     }
   };
 
-  const updateResources = (
-    delta: PhoneRuntimeResourceCounts,
-    direction: 1 | -1
-  ): void => {
+  const updateResources = (delta: PhoneRuntimeResourceCounts, direction: 1 | -1): void => {
     const next = {
       videos: resources.videos + direction * delta.videos,
       activeDecoders: resources.activeDecoders + direction * delta.activeDecoders,
@@ -275,7 +272,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   const reviveLateReportState = (stale: ReportState): ReportState | null => {
     const binding = connected && snapshot.status === 'transaction'
       ? createPhoneSupersedingLeafBinding(snapshot.transaction, stale.binding) : null;
-    if (!binding || leaves.has(phoneLeafMountKey(binding))) return null;
+    if (!binding) return null;
+    closeReports(stale);
+    if (leaves.get(phoneLeafMountKey(binding))?.mount.isAttached()) return null;
     const revived: ReportState = { valid: true, binding };
     reportStates.add(revived); return revived;
   };
@@ -283,10 +282,17 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   function createReportPort(state: ReportState): PhoneLeafReportPort {
     return Object.freeze({
       registerMount: (registration: PhoneLeafMountRegistration) => {
-        if (!state.valid) state = reviveLateReportState(state) ?? state;
+        state = reviveLateReportState(state) ?? state;
         if (!state.valid) return;
         const key = phoneLeafMountKey(state.binding);
-        if (leaves.has(key)) throw new Error(`Phone leaf mount already registered: ${key}`);
+        const existing = leaves.get(key);
+        if (existing?.mount.isAttached()) throw new Error(`Phone leaf mount already registered: ${key}`);
+        if (existing) {
+          const replacesOwnState = existing.reports === state;
+          const binding = state.binding;
+          retireLease(existing, 'generation-replaced');
+          if (replacesOwnState) { state = { valid: true, binding }; reportStates.add(state); }
+        }
         const mount = presentation.registerLeafMount({ binding: state.binding, registration });
         const expected = phoneIdentitySignature(state.binding.allowedSurfaceIds);
         if (phoneIdentitySignature(mount.surfaceIds) !== expected

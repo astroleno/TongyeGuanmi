@@ -194,17 +194,14 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     });
   }, []);
 
-  const reportPresentedFrame = useCallback(() => {
+  const commitPresentedFrame = useCallback((
+    endpoint: PhoneFigure3Endpoint,
+    progress: number,
+    binding: PhoneLeafGenerationBinding
+  ) => {
     const root = rootRef.current;
-    const video = videoRef.current;
     const canvas = canvasRef.current;
-    const binding = bindingRef.current;
-    if (!root || !video || !canvas || !binding || disposedRef.current) return;
-    const progress = progressRef.current;
-    const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
-    if (endpoint === null || !phoneFigure3EndpointIsPresented(
-      endpoint, video.currentTime, video.readyState, video.seeking
-    )) return;
+    if (!root || !canvas || disposedRef.current || binding !== bindingRef.current) return;
     canvas.dataset.phoneFigure3PaperEndpoint = endpoint === 1 ? 'terminal' : 'initial';
     root.dataset.phoneFigure3PaperCompositor = 'ready';
     root.dataset.phoneMediaState = 'ready';
@@ -216,6 +213,18 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       detail: { compositorDrawn: true, progress }
     });
   }, []);
+
+  const reportPresentedFrame = useCallback(() => {
+    const video = videoRef.current;
+    const binding = bindingRef.current;
+    if (!video || !binding || disposedRef.current) return;
+    const progress = progressRef.current;
+    const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
+    if (endpoint === null || !phoneFigure3EndpointIsPresented(
+      endpoint, video.currentTime, video.readyState, video.seeking
+    )) return;
+    commitPresentedFrame(endpoint, progress, binding);
+  }, [commitPresentedFrame]);
 
   const currentRunId = useCallback((direction = directionRef.current) => {
     return `${bindingRef.current?.frameToken ?? 'phone-story:unbound'}:figure3:${direction}`;
@@ -248,24 +257,25 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     const video = videoRef.current;
     const compositor = compositorRef.current;
     if (!video || !compositor) throw new Error('Figure3 persistent compositor unavailable');
+    const progress = progressRef.current;
+    const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
     const result = await prepareTimelineVideoFrame(video, figure3TimelineMediaInput(
       `${binding.frameToken}:figure3:${direction}`,
       direction,
-      progressRef.current
+      progress
     ));
     if (disposedRef.current || generation !== activationGenerationRef.current
-      || binding !== bindingRef.current || result?.status !== 'ready') return;
-    const endpoint = progressRef.current <= .001 ? 0
-      : progressRef.current >= .999 ? 1 : null;
+      || binding !== bindingRef.current || result?.status !== 'ready') return false;
+    if (endpoint === null) return false;
+    const proofSequence = frameSequenceRef.current;
     if (!compositor.paint()) {
-      const canvas = canvasRef.current;
-      if (endpoint === null || !canvas
-        || !phoneFigure3HasReusableEndpointFrame(video, canvas, endpoint)) {
-        throw new Error('Figure3 decoded frame was not painted');
-      }
-      reportPresentedFrame();
+      throw new Error('Figure3 decoded frame was not painted');
     }
-  }, [reportPresentedFrame]);
+    if (frameSequenceRef.current === proofSequence) {
+      commitPresentedFrame(endpoint, progress, binding);
+    }
+    return true;
+  }, [commitPresentedFrame]);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
@@ -286,8 +296,20 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         reportPresentedFrame();
       } else if (wasPaused) {
         const generation = ++activationGenerationRef.current;
-        void prepareCurrentFrame(generation, binding, directionRef.current)
-          .catch((error) => reportFailure('figure3-frame-preparation-failed', error));
+        // Runtime rebinds the retained topology and invokes activation in the
+        // same physical-gesture stack. Defer recovery preparation by one
+        // microtask so that activation can become the sole causal frame owner;
+        // standalone lifecycle rebinds still prepare on that next microtask.
+        void Promise.resolve().then(() => {
+          if (disposedRef.current || generation !== activationGenerationRef.current
+            || binding !== bindingRef.current) return;
+          return prepareCurrentFrame(generation, binding, directionRef.current);
+        }).catch((error) => {
+          if (!disposedRef.current && generation === activationGenerationRef.current
+            && binding === bindingRef.current) {
+            reportFailure('figure3-frame-preparation-failed', error);
+          }
+        });
       }
     },
     activate(command): PhoneActivationInvocation {
@@ -310,10 +332,14 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       } catch (error) {
         playback = Promise.reject(error);
       }
-      const settled = playback.then(() => {
-        if (generation !== activationGenerationRef.current || disposedRef.current) return;
+      const settled = playback.then(async () => {
+        if (generation !== activationGenerationRef.current || disposedRef.current) {
+          throw new Error('Figure3 activation was superseded before frame preparation');
+        }
         video.pause();
-        return prepareCurrentFrame(generation, binding, directionRef.current);
+        if (!await prepareCurrentFrame(generation, binding, directionRef.current)) {
+          throw new Error('Figure3 activation was superseded before frame preparation');
+        }
       });
       return {
         invocationId: command.invocationId,

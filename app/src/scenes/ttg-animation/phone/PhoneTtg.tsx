@@ -7,6 +7,7 @@ import {
   disposeTimelineVideoDriver,
   driveTimelineVideo,
   prepareTimelineVideoFrame,
+  TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS,
   type TimelineVideoDriveInput
 } from '../../../media/timeline-video-driver';
 import type {
@@ -128,7 +129,8 @@ const PHONE_TTG_TERMINAL_TOLERANCE_SECONDS = .08;
 
 export function phoneTtgEndpointIsPresented(
   video: Pick<HTMLVideoElement, 'currentTime' | 'duration' | 'readyState' | 'seeking'>,
-  endpoint: PhoneTtgEndpoint
+  endpoint: PhoneTtgEndpoint,
+  acceptCausalFrame = false
 ): boolean {
   const terminal = Number.isFinite(video.duration) && video.duration > 0
     ? Math.min(TTG_FIGURE_END_SECONDS, video.duration)
@@ -136,8 +138,10 @@ export function phoneTtgEndpointIsPresented(
   const target = endpoint === 1 ? terminal : 0;
   const tolerance = endpoint === 1
     ? PHONE_TTG_TERMINAL_TOLERANCE_SECONDS
-    : PHONE_TTG_INITIAL_TOLERANCE_SECONDS;
-  return video.readyState >= 2 && !video.seeking
+    : acceptCausalFrame
+      ? TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS
+      : PHONE_TTG_INITIAL_TOLERANCE_SECONDS;
+  return video.readyState >= 2 && (acceptCausalFrame || !video.seeking)
     && Math.abs(video.currentTime - target) <= tolerance;
 }
 
@@ -210,8 +214,7 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
   ) => {
     const root = rootRef.current;
     const video = videoRef.current;
-    if (!root || !video || disposedRef.current || binding !== bindingRef.current
-      || !phoneTtgHasReusableEndpointFrame(video, endpoint)) return;
+    if (!root || !video || disposedRef.current || binding !== bindingRef.current) return;
     root.dataset.phoneMediaState = 'ready';
     binding.reports.reportPrepared('ttg-figure-video', {
       kind: 'video-decoded',
@@ -258,16 +261,17 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
     const video = videoRef.current;
     if (!video) throw new Error('TTG decoder unavailable');
     const progress = progressRef.current;
+    const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
     const result = await prepareTimelineVideoFrame(video, ttgTimelineMediaInput(
       `${binding.frameToken}:ttg:${direction}`, direction, progress
     ));
     if (disposedRef.current || generation !== preparationGenerationRef.current
-      || binding !== bindingRef.current || result?.status !== 'ready') return;
-    const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
-    if (endpoint === null || !phoneTtgEndpointIsPresented(video, endpoint)) return;
+      || binding !== bindingRef.current || result?.status !== 'ready') return false;
+    if (endpoint === null) return false;
     video.dataset.phoneGroup45FrameReady = 'true';
     video.dataset.phoneTtgEndpointReady = endpoint === 1 ? 'terminal' : 'initial';
     reportEndpointFrame(endpoint, binding);
+    return true;
   }, [reportEndpointFrame]);
 
   const reportFailure = useCallback((error: unknown) => {
@@ -295,8 +299,20 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
         reportEndpointFrame(endpoint, binding);
       } else if (wasPaused) {
         const generation = ++preparationGenerationRef.current;
-        void prepareCurrentFrame(generation, binding, directionRef.current)
-          .catch(reportFailure);
+        // Runtime rebinds retained topology and invokes activation in the same
+        // physical-gesture stack. Defer recovery by one microtask so activation
+        // becomes the sole causal frame owner; a standalone rebind still
+        // prepares on that next microtask.
+        void Promise.resolve().then(() => {
+          if (disposedRef.current || generation !== preparationGenerationRef.current
+            || binding !== bindingRef.current) return;
+          return prepareCurrentFrame(generation, binding, directionRef.current);
+        }).catch((error) => {
+          if (!disposedRef.current && generation === preparationGenerationRef.current
+            && binding === bindingRef.current) {
+            reportFailure(error);
+          }
+        });
       }
     },
     activate(command): PhoneActivationInvocation {
@@ -315,10 +331,14 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
       } catch (error) {
         playback = Promise.reject(error);
       }
-      const settled = playback.then(() => {
-        if (generation !== preparationGenerationRef.current || disposedRef.current) return;
+      const settled = playback.then(async () => {
+        if (generation !== preparationGenerationRef.current || disposedRef.current) {
+          throw new Error('TTG activation was superseded before frame preparation');
+        }
         video.pause();
-        return prepareCurrentFrame(generation, binding, directionRef.current);
+        if (!await prepareCurrentFrame(generation, binding, directionRef.current)) {
+          throw new Error('TTG activation was superseded before frame preparation');
+        }
       });
       return {
         invocationId: command.invocationId,

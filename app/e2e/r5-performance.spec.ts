@@ -13,8 +13,48 @@ test.use({ video: 'off', trace: 'off', screenshot: 'off' });
 type PerformanceWindow = Window & {
   __r5Lcp?: number;
   __r5LcpElement?: string;
+  __r5FirstVisual?: BrowserFirstVisualMeasurement;
+  __r5HeroPreKeydownVideo?: BrowserTimelineVideoSnapshot;
   __r5StopFrames?: () => number[];
 };
+
+type BrowserTimelineVideoSnapshot = Readonly<{
+  timelineVideoRun: string | null;
+  timelineVideoFrameReady: string | null;
+  timelineVideoFrameEvidence: string | null;
+  currentTime: number | null;
+  seeking: boolean | null;
+  readyState: number | null;
+}>;
+
+type BrowserFirstVisualMeasurement = Readonly<{
+  clock: 'browser-performance';
+  startEvent: 'keydown';
+  key: 'PageDown' | 'PageUp';
+  keydownAt: number;
+  presentedAt: number;
+  firstVisualMs: number;
+  progress: number;
+  timeline?: Readonly<{
+    segment: string;
+    acceptedInputAt: number | null;
+    acceptedState: string | null;
+    transitionStartAt: number | null;
+    transitionState: string | null;
+    preKeydownVideo: BrowserTimelineVideoSnapshot | null;
+    keydownToAcceptedInputMs: number | null;
+    acceptedInputToTransitionStartMs: number | null;
+    transitionStartToFirstProgressRafMs: number | null;
+  }>;
+}>;
+
+type BrowserFirstVisualTarget = Readonly<{
+  selector: string;
+  runtimeSegment?: string;
+  progressSource:
+    | Readonly<{ kind: 'style-property'; name: string }>
+    | Readonly<{ kind: 'attribute'; name: string }>;
+}>;
 
 type InkSamplingMode =
   | 'all'
@@ -490,11 +530,129 @@ async function pressFromCurrentHold(page: Page, key: 'PageDown' | 'PageUp'): Pro
   await page.keyboard.press(key);
 }
 
+async function measureBrowserFirstVisual(
+  page: Page,
+  key: 'PageDown' | 'PageUp',
+  target: BrowserFirstVisualTarget
+): Promise<BrowserFirstVisualMeasurement> {
+  await page.evaluate(({ expectedKey, visualTarget }) => {
+    const scope = window as PerformanceWindow;
+    const runtime = (window as Window & {
+      __story?: {
+        getState(): Readonly<{
+          state: unknown;
+          context: Readonly<{
+            pendingSegment?: string;
+            activeSegment?: string;
+          }>;
+        }>;
+        subscribe(listener: () => void): () => void;
+      };
+    }).__story;
+    delete scope.__r5FirstVisual;
+    let keydownAt: number | undefined;
+    let acceptedInputAt: number | null = null;
+    let acceptedState: string | null = null;
+    let transitionStartAt: number | null = null;
+    let transitionState: string | null = null;
+    let preKeydownVideo: BrowserTimelineVideoSnapshot | null = null;
+    const readProgress = (): number => {
+      const element = document.querySelector<HTMLElement>(visualTarget.selector);
+      if (!element) return Number.NaN;
+      const value = visualTarget.progressSource.kind === 'style-property'
+        ? element.style.getPropertyValue(visualTarget.progressSource.name)
+        : element.getAttribute(visualTarget.progressSource.name);
+      return Number.parseFloat(value ?? 'NaN');
+    };
+    const observeRuntime = () => {
+      if (keydownAt === undefined || !visualTarget.runtimeSegment || !runtime) return;
+      const snapshot = runtime.getState();
+      const state = String(snapshot.state);
+      const segment = snapshot.context.activeSegment ?? snapshot.context.pendingSegment;
+      if (acceptedInputAt === null && state !== 'hold'
+        && segment === visualTarget.runtimeSegment) {
+        acceptedInputAt = performance.now();
+        acceptedState = state;
+      }
+      if (transitionStartAt === null && state === 'playing'
+        && snapshot.context.activeSegment === visualTarget.runtimeSegment) {
+        transitionStartAt = performance.now();
+        transitionState = state;
+      }
+    };
+    const unsubscribe = visualTarget.runtimeSegment ? runtime?.subscribe(observeRuntime) : undefined;
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key !== expectedKey) return;
+      removeEventListener('keydown', onKeydown, true);
+      preKeydownVideo = visualTarget.runtimeSegment === 'hero-pattern'
+        ? scope.__r5HeroPreKeydownVideo ?? null
+        : null;
+      keydownAt = performance.now();
+      const samplePresentedFrame = (presentedAt: number) => {
+        const progress = readProgress();
+        if (Number.isFinite(progress) && progress > 0.01) {
+          const timeline = visualTarget.runtimeSegment ? {
+            segment: visualTarget.runtimeSegment,
+            acceptedInputAt,
+            acceptedState,
+            transitionStartAt,
+            transitionState,
+            preKeydownVideo,
+            keydownToAcceptedInputMs: acceptedInputAt === null
+              ? null : acceptedInputAt - keydownAt!,
+            acceptedInputToTransitionStartMs: acceptedInputAt === null
+              || transitionStartAt === null ? null : transitionStartAt - acceptedInputAt,
+            transitionStartToFirstProgressRafMs: transitionStartAt === null
+              ? null : presentedAt - transitionStartAt
+          } : undefined;
+          unsubscribe?.();
+          scope.__r5FirstVisual = {
+            clock: 'browser-performance', startEvent: 'keydown', key: expectedKey,
+            keydownAt, presentedAt, firstVisualMs: presentedAt - keydownAt, progress,
+            ...(timeline ? { timeline } : {})
+          };
+          return;
+        }
+        requestAnimationFrame(samplePresentedFrame);
+      };
+      requestAnimationFrame(samplePresentedFrame);
+    };
+    addEventListener('keydown', onKeydown, true);
+  }, { expectedKey: key, visualTarget: target });
+  await page.keyboard.press(key);
+  // The protocol wait only transports a duration already closed over inside
+  // the browser; it is deliberately not one of the measurement boundaries.
+  await page.waitForFunction(() => Boolean((window as PerformanceWindow).__r5FirstVisual), undefined, {
+    timeout: 15_000
+  });
+  return page.evaluate(() => {
+    const measurement = (window as PerformanceWindow).__r5FirstVisual;
+    if (!measurement) throw new Error('Browser first-visual measurement is missing');
+    return measurement;
+  });
+}
+
 test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budgets', async ({ page }, testInfo) => {
   test.setTimeout(60_000);
 
   await page.addInitScript(() => {
-    (window as PerformanceWindow).__r5Lcp = 0;
+    const scope = window as PerformanceWindow;
+    scope.__r5Lcp = 0;
+    const captureHeroPreKeydownVideo = (event: KeyboardEvent) => {
+      if (event.key !== 'PageDown' || scope.__r5HeroPreKeydownVideo) return;
+      const video = document.querySelector<HTMLVideoElement>('[data-hero-figure-video]');
+      if (!video) return;
+      scope.__r5HeroPreKeydownVideo = {
+        timelineVideoRun: video.dataset.timelineVideoRun ?? null,
+        timelineVideoFrameReady: video.dataset.timelineVideoFrameReady ?? null,
+        timelineVideoFrameEvidence: video.dataset.timelineVideoFrameEvidence ?? null,
+        currentTime: Number.isFinite(video.currentTime) ? video.currentTime : null,
+        seeking: video.seeking,
+        readyState: video.readyState
+      };
+      removeEventListener('keydown', captureHeroPreKeydownVideo, true);
+    };
+    addEventListener('keydown', captureHeroPreKeydownVideo, true);
     new PerformanceObserver((list) => {
       const last = list.getEntries().at(-1);
       if (last) {
@@ -561,15 +719,22 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   const idlePlayback = summarizeFrames(idleFrameIntervals);
 
   await startFrameSampling(page, 'hero-pattern');
-  const heroStartedAt = Date.now();
-  await pressFromCurrentHold(page, 'PageDown');
-  await page.waitForFunction(() => {
-    const hero = document.querySelector<HTMLElement>('[data-r4-scene="hero"]');
-    return Number.parseFloat(
-      hero?.style.getPropertyValue('--r4-hero-pattern-figure-progress') ?? '0'
-    ) > 0.01;
+  const heroFirstVisual = await measureBrowserFirstVisual(page, 'PageDown', {
+    selector: '[data-r4-scene="hero"]',
+    runtimeSegment: 'hero-pattern',
+    progressSource: { kind: 'style-property', name: '--r4-hero-pattern-figure-progress' }
   });
-  const heroFirstVisualMs = Date.now() - heroStartedAt;
+  expect(heroFirstVisual.timeline, 'Hero→Pattern browser-stage timeline').toBeDefined();
+  const heroTimeline = heroFirstVisual.timeline!;
+  expect(heroTimeline.segment).toBe('hero-pattern');
+  expect(heroTimeline.acceptedInputAt, 'Hero→Pattern accepted input timestamp').not.toBeNull();
+  expect(heroTimeline.transitionStartAt, 'Hero→Pattern transition start timestamp').not.toBeNull();
+  expect(heroTimeline.preKeydownVideo, 'Hero→Pattern pre-keydown video snapshot').not.toBeNull();
+  expect(heroTimeline.acceptedState).not.toBe('hold');
+  expect(heroTimeline.transitionState).toBe('playing');
+  expect(heroTimeline.keydownToAcceptedInputMs).toBeGreaterThanOrEqual(0);
+  expect(heroTimeline.acceptedInputToTransitionStartMs).toBeGreaterThanOrEqual(0);
+  expect(heroTimeline.transitionStartToFirstProgressRafMs).toBeGreaterThanOrEqual(0);
   const heroPatternWitness = await waitForLiveInk(page, 'hero-pattern', { min: 0.46, max: 0.56 });
   const heroPatternPixels = await readInkPixels(page, 'hero-pattern', false, true);
   await waitForHold(page, 'pattern');
@@ -600,10 +765,11 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
   const figure2OpeningFrame = page.locator('[data-r4-scene="figure2-animation"]');
   await expect(figure2OpeningFrame).toHaveAttribute('data-figure2-hold-frame-ready', 'true');
   await startFrameSampling(page, 'horizontal-ink');
-  const methodStartedAt = Date.now();
-  await pressFromCurrentHold(page, 'PageDown');
+  const methodFirstVisual = await measureBrowserFirstVisual(page, 'PageDown', {
+    selector: 'canvas[data-r4-ink-segment="method-bottom-figure2"]',
+    progressSource: { kind: 'attribute', name: 'data-r4-ink-progress' }
+  });
   const methodFigure2Witness = await waitForLiveInk(page, 'method-bottom-figure2', { min: 0.03, max: 0.20 });
-  const methodFirstVisualMs = Date.now() - methodStartedAt;
   await waitForHold(page, 'figure2-animation');
   const methodFigure2Intervals = await stopFrameSampling(page);
 
@@ -626,11 +792,13 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
     },
     coldStart: {
       heroPattern: {
-        firstVisualMs: heroFirstVisualMs,
+        firstVisualMs: heroFirstVisual.firstVisualMs,
+        measurement: heroFirstVisual,
         frames: summarizeFrames(heroPatternIntervals)
       },
       methodFigure2: {
-        firstVisualMs: methodFirstVisualMs,
+        firstVisualMs: methodFirstVisual.firstVisualMs,
+        measurement: methodFirstVisual,
         frames: summarizeFrames(methodFigure2Intervals)
       }
     },
@@ -651,6 +819,12 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
     contentType: 'application/json'
   });
 
+  for (const path of Object.values(report.coldStart)) {
+    expect(path.measurement.clock).toBe('browser-performance');
+    expect(path.measurement.startEvent).toBe('keydown');
+    expect(path.measurement.progress).toBeGreaterThan(0.01);
+    expect(path.firstVisualMs).toBe(path.measurement.presentedAt - path.measurement.keydownAt);
+  }
   expect(bootMetrics.lcpMs).toBeGreaterThan(0);
   expect(bootMetrics.lcpMs).toBeLessThanOrEqual(2_500);
   expect(runtimeReadyMs).toBeLessThanOrEqual(

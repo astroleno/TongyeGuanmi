@@ -58,6 +58,7 @@ export type HeroPatternMediaRun = Readonly<{
 
 export type HeroPatternRenderOptions = Readonly<{
   mediaRun?: HeroPatternMediaRun;
+  retainMediaFrame?: boolean;
 }>;
 
 function heroFigureVideo(root: HTMLElement | null | undefined): HTMLVideoElement | null {
@@ -152,7 +153,12 @@ export function renderHeroHold(root: HTMLElement | null): void {
 
 function heroPatternMediaInput(progress: number, mediaRun: HeroPatternMediaRun): TimelineVideoDriveInput {
   return {
-    runId: mediaRun.runId,
+    // The prepared forward endpoint and its first runtime consumer deliberately
+    // share one generation. This keeps the prewarm proof causal without
+    // weakening the shared driver's physical-playhead requirement.
+    runId: progress <= .001 && mediaRun.direction === 1
+      ? 'hero-pattern-prewarm'
+      : mediaRun.runId,
     direction: mediaRun.direction,
     progress,
     durationFallbackSeconds: 2.042,
@@ -190,7 +196,7 @@ export function renderHeroPatternProgress(
   const video = heroFigureVideo(root);
   if (video && options.mediaRun) {
     driveTimelineVideo(video, heroPatternMediaInput(progress, options.mediaRun));
-  } else if (video) {
+  } else if (video && !options.retainMediaFrame) {
     setHeroVideoPlaybackState(video, progress >= 0.999 ? 'terminal' : 'start');
   }
   return { progress };
@@ -201,7 +207,7 @@ export function prepareHeroPatternFrame(
   rawProgress: number,
   mediaRun: HeroPatternMediaRun
 ): Promise<void> {
-  renderHeroPatternProgress(root, rawProgress);
+  renderHeroPatternProgress(root, rawProgress, { retainMediaFrame: true });
   const video = heroFigureVideo(root);
   if (!video) {
     return Promise.reject(new Error('hero media unavailable'));

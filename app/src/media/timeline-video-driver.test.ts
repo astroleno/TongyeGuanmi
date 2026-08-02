@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createTimelineVideoDriver,
+  disposeTimelineVideoDriver,
   prepareTimelineVideoFrame,
   timelineVideoDriverFor
 } from './timeline-video-driver';
@@ -328,6 +329,23 @@ describe('timeline video driver', () => {
     }
   });
 
+  it('does not let a disposed preparation pause successor playback', async () => {
+    const video = new FakeVideo();
+    const readiness = prepareTimelineVideoFrame(videoElement(video), {
+      runId: 'media-disposed-owner:1',
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+
+    disposeTimelineVideoDriver(videoElement(video));
+    await video.play();
+    expect(video.paused).toBe(false);
+
+    await expect(readiness).resolves.toMatchObject({ status: 'stale' });
+    expect(video.paused).toBe(false);
+  });
+
   it('registers the frame callback before a target seek can present', async () => {
     const video = new FakeVideo();
     video.presentFrameOnCurrentTimeWrite = true;
@@ -615,19 +633,19 @@ describe('timeline video driver', () => {
     }
   });
 
-  it('reuses an acceptable presented endpoint at an exact playhead across a direction generation', async () => {
+  it('does not transfer an exact proof across generations after narrow physical drift', async () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));
     const first = driver.prepareFrame({
       runId: 'endpoint-reuse:1',
       direction: 1,
-      progress: 0.996,
+      progress: 1,
       durationFallbackSeconds: 10
     });
     video.completeSeek();
     video.presentFrame();
     await expect(first).resolves.toMatchObject({ status: 'ready' });
-    video.currentTime = 9.98;
+    video.currentTime = 9.928056;
     video.completeSeek();
     const seekWrites = video.currentTimeWrites.length;
     const nextInput = {
@@ -636,10 +654,42 @@ describe('timeline video driver', () => {
       progress: 1,
       durationFallbackSeconds: 10
     };
-    driver.drive(nextInput);
+    const second = driver.prepareFrame(nextInput);
 
-    await expect(driver.prepareFrame(nextInput)).resolves.toMatchObject({ status: 'ready', direction: -1 });
-    expect(video.currentTimeWrites).toHaveLength(seekWrites);
+    expect(video.currentTimeWrites).toHaveLength(seekWrites + 1);
+    driver.dispose();
+    await expect(second).resolves.toMatchObject({ status: 'stale' });
+  });
+
+  it('does not reuse an exact old-generation proof when the physical playhead is far away', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const first = driver.prepareFrame({
+      runId: 'physical-proof:1',
+      direction: 1,
+      progress: 0,
+      durationFallbackSeconds: 10
+    });
+    video.completeSeek();
+    video.presentFrame();
+    await expect(first).resolves.toMatchObject({ status: 'ready', targetTime: 0 });
+
+    video.currentTime = 8;
+    video.completeSeek();
+    const seekWrites = video.currentTimeWrites.length;
+    const second = driver.prepareFrame({
+      runId: 'physical-proof:2',
+      direction: -1,
+      progress: 0,
+      durationFallbackSeconds: 10
+    });
+
+    expect(video.currentTimeWrites).toHaveLength(seekWrites + 1);
+    expect(video.currentTimeWrites.at(-1)).toBeGreaterThan(0);
+    video.completeSeek();
+    expect(video.currentTimeWrites.at(-1)).toBe(0);
+    video.presentFrame();
+    await expect(second).resolves.toMatchObject({ status: 'ready', targetTime: 0 });
     driver.dispose();
   });
 
@@ -669,6 +719,34 @@ describe('timeline video driver', () => {
     await expect(second).resolves.toMatchObject({ status: 'ready' });
     expect(video.currentTimeWrites).toHaveLength(seekWrites);
     driver.dispose();
+  });
+
+  it('does not reuse a nearby proof when the physical playhead is outside its presentation window', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const first = driver.prepareFrame({
+      runId: 'nearby-presentation-window:1',
+      direction: 1,
+      progress: 0.496,
+      durationFallbackSeconds: 10
+    });
+    video.completeSeek();
+    video.presentFrame();
+    await expect(first).resolves.toMatchObject({ status: 'ready' });
+
+    video.currentTime = 5.051944;
+    video.completeSeek();
+    const seekWrites = video.currentTimeWrites.length;
+    const second = driver.prepareFrame({
+      runId: 'nearby-presentation-window:1',
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+
+    expect(video.currentTimeWrites).toHaveLength(seekWrites + 1);
+    driver.dispose();
+    await expect(second).resolves.toMatchObject({ status: 'stale' });
   });
 
   it('rejects preparation when the media seek setter throws', async () => {
