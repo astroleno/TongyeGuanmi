@@ -17,3 +17,4 @@ export const PhoneHeroPatternTransition = createPhoneInkLeaf(
 );
 
 export default PhoneHeroPatternTransition;
+export const phoneSegmentId = 'hero-pattern' as const;

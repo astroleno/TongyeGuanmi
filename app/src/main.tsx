@@ -1,52 +1,45 @@
-import { lazy, StrictMode, Suspense } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
+import { App, appRouteForPath, type PhoneAppChunkRecovery } from './App';
+import { initialPresentationFamily } from './production/presentation-profile';
 import { assertBrowserRuntime } from './runtime/browser-guard';
-
-const PhoneBrandLabScope = lazy(() => import('./production/phone/scenes/PhoneBrandLabScope').then(({
-  PhoneBrandLabScope: Component
-}) => ({ default: Component })));
-
-function phoneBrandLabScopeRequested(): boolean {
-  const url = new URL(window.location.href);
-  const pathname = url.pathname.replace(/\/+$/, '') || '/';
-  return url.searchParams.get('scope') === 'brand-lab' || pathname === '/brand-lab';
-}
 
 assertBrowserRuntime('React mount');
 
-if (window.location.pathname !== '/' && window.location.pathname !== '/index.html') {
-  document.documentElement.dataset.storyHydrated = 'true';
-}
-
 const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error('Root element #root was not found');
-}
-const brandLabScope = phoneBrandLabScopeRequested();
+if (!rootElement) throw new Error('Root element #root was not found');
+const mountRoot = rootElement;
 
-if (brandLabScope) {
-  document.getElementById('story-loader-static')?.remove();
-}
+const route = appRouteForPath(
+  window.location.pathname,
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_HARNESS === '1'
+);
+const needsPhoneRecovery = route === 'brand-lab'
+  || (route === 'formal' && initialPresentationFamily() === 'phone');
 
-if (window.location.pathname !== '/' && window.location.pathname !== '/index.html') {
-  document.getElementById('story-loader-static')?.remove();
-}
-
-const root = createRoot(rootElement);
-
-if (brandLabScope) {
-  root.render(
+async function mount() {
+  let recovery: PhoneAppChunkRecovery | null = null;
+  if (needsPhoneRecovery) {
+    const {
+      createBrowserPhoneChunkRecoveryController,
+      installPhoneChunkRecoveryController
+    } = await import('./production/presentation-shell-loaders');
+    const chunkRecovery = createBrowserPhoneChunkRecoveryController();
+    installPhoneChunkRecoveryController(chunkRecovery);
+    window.addEventListener('vite:preloadError', chunkRecovery.handlePreloadError);
+    recovery = chunkRecovery;
+  }
+  createRoot(mountRoot).render(
     <StrictMode>
-      <Suspense fallback={<main className="route-loading">正在准备 Brand → Lab…</main>}>
-        <PhoneBrandLabScope />
-      </Suspense>
+      <App chunkRecovery={recovery} />
     </StrictMode>
   );
-} else {
-  root.render(
+}
+
+void mount().catch(() => {
+  createRoot(mountRoot).render(
     <StrictMode>
-      <App />
+      <App chunkRecovery={null} />
     </StrictMode>
   );
-}
+});

@@ -142,3 +142,4 @@ export function PhoneLab({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
 }
 
 export default PhoneLab;
+export const phoneSceneId = 'lab' as const;

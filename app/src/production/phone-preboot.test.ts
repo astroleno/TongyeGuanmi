@@ -3,34 +3,32 @@ import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 type PrebootInput = Readonly<{
-  enabled: boolean;
   width: number;
   height: number;
+  pathname?: string;
+  hash?: string;
   pointerCoarse?: boolean;
   hoverNone?: boolean;
-  search?: string;
+  navigationType?: 'navigate' | 'reload';
 }>;
 
 function runPhonePreboot({
-  enabled,
   width,
   height,
+  pathname = '/',
+  hash = '',
   pointerCoarse = true,
   hoverNone = true,
-  search = ''
+  navigationType = 'navigate'
 }: PrebootInput) {
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
-  const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1]
-    ?.replace('__PHONE_STORY_PREBOOT_ENABLED__', String(enabled));
+  const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1];
   if (!script) throw new Error('phone preboot script was not found');
 
   const dataset: Record<string, string> = {};
   const styles = new Map<string, string>();
   runInNewContext(script, {
-    Date,
     Math,
-    Number,
-    URLSearchParams,
     document: {
       documentElement: {
         dataset,
@@ -41,14 +39,9 @@ function runPhonePreboot({
         }
       }
     },
-    location: { search },
+    location: { pathname, hash },
     performance: {
-      getEntriesByType: () => [{ type: 'navigate' }],
-      navigation: { type: 0 }
-    },
-    sessionStorage: {
-      getItem: () => null,
-      removeItem: () => undefined
+      getEntriesByType: () => [{ type: navigationType }]
     },
     window: {
       innerHeight: height,
@@ -68,41 +61,72 @@ function runPhonePreboot({
 }
 
 describe('phone preboot ownership', () => {
-  it('publishes the Hero edge synchronously for the enabled bare phone route', () => {
-    const result = runPhonePreboot({ enabled: true, width: 390, height: 844 });
-
-    expect(result.dataset).toMatchObject({
-      portraitEdgeScene: 'hero',
-      portraitSpike: 'b',
-      portraitSpikePreboot: 'production'
-    });
-    expect(result.styles.get('--portrait-document-surface')).toBe('#07110e');
+  it('publishes only a presentation-pending cover for supported portrait and landscape phones', () => {
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 844, height: 390 }
+    ]) {
+      const result = runPhonePreboot(viewport);
+      expect(result.dataset).toEqual({ phonePreboot: 'pending' });
+      expect(result.styles.get('--phone-preboot-surface')).toBe('#07110e');
+    }
   });
 
-  it('does not claim tablets or phone-disabled production routes', () => {
+  it('keeps direct hashes and reloads covered without restoring scene or Loader state', () => {
+    const direct = runPhonePreboot({
+      width: 390,
+      height: 844,
+      hash: '#contact'
+    });
+    const reload = runPhonePreboot({
+      width: 390,
+      height: 844,
+      navigationType: 'reload'
+    });
+
+    expect(direct.dataset).toEqual({ phonePreboot: 'pending' });
+    expect(reload.dataset).toEqual({ phonePreboot: 'pending' });
+  });
+
+  it('treats /brand-lab as an explicit phone-shell route on a desktop QA workstation', () => {
+    const result = runPhonePreboot({
+      width: 1440,
+      height: 900,
+      pathname: '/brand-lab',
+      pointerCoarse: false,
+      hoverNone: false
+    });
+
+    expect(result.dataset).toEqual({ phonePreboot: 'pending' });
+    expect(result.styles.get('--phone-preboot-surface')).toBe('#07110e');
+  });
+
+  it('does not claim desktop or tablet formal routes', () => {
     expect(runPhonePreboot({
-      enabled: true,
+      width: 1440,
+      height: 900,
+      pointerCoarse: false,
+      hoverNone: false
+    }).dataset).toEqual({});
+    expect(runPhonePreboot({
       width: 768,
       height: 1024
     }).dataset).toEqual({});
-    expect(runPhonePreboot({
-      enabled: false,
-      width: 390,
-      height: 844
-    }).dataset).toEqual({});
   });
 
-  it('keeps numbered physical-device routes independent from the release flag', () => {
-    for (const version of ['46', '47']) {
-      const result = runPhonePreboot({
-        enabled: false,
-        width: 390,
-        height: 844,
-        search: `?v=${version}`
-      });
+  it('contains no validation, checkpoint, scene, or session restoration authority', () => {
+    const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 
-      expect(result.dataset.portraitSpike).toBe('b');
-      expect(result.dataset.portraitSpikePreboot).toBe('validation');
+    for (const forbidden of [
+      'portrait-spike',
+      'portraitEdgeScene',
+      'URLSearchParams',
+      'validationNumber',
+      'sessionStorage',
+      'loader-complete',
+      'hidden-at'
+    ]) {
+      expect(html).not.toContain(forbidden);
     }
   });
 });

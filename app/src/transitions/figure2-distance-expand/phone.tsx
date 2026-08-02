@@ -61,3 +61,4 @@ export const PhoneFigure2DistanceExpandTransition = createPhoneInkLeaf(
 );
 
 export default PhoneFigure2DistanceExpandTransition;
+export const phoneSegmentId = 'figure2-distance-expand' as const;

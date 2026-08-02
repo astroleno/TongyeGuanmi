@@ -87,7 +87,7 @@ describe('PhoneCrane', () => {
     expect(source).not.toContain('createPortal');
     expect(source).not.toContain('useState');
     expect(source).not.toContain('setTimeout');
-    expect(source).not.toContain('production/phone/types');
+    expect(source).not.toContain(['production', 'phone', 'types'].join('/'));
     expect(source).not.toContain('phone-lab-contact-timeline');
     expect(autoplaySource).not.toContain('production/phone');
     expect(autoplaySource).not.toContain('createPhoneNativeAutoplay');

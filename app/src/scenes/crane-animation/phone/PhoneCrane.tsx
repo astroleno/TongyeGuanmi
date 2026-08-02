@@ -412,3 +412,4 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
 }
 
 export default PhoneCrane;
+export const phoneSceneId = 'crane-animation' as const;

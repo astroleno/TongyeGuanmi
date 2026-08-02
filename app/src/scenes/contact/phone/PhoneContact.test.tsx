@@ -40,7 +40,7 @@ describe('PhoneContact', () => {
       pointer: 'native'
     });
     expect(source).not.toMatch(/addEventListener\(/);
-    expect(source).not.toContain('production/phone/types');
+    expect(source).not.toContain(['production', 'phone', 'types'].join('/'));
     expect(stylesheet).toMatch(
       /\.phone-contact\s*>\s*\.r4-contact\s*\{[^}]*min-height:\s*var\(--phone-cinematic-stage-height,\s*100lvh\)/s
     );

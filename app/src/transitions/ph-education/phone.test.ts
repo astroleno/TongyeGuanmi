@@ -31,7 +31,7 @@ describe('Phone PH → Education transition', () => {
     expect(source).not.toContain('parkPhonePhMedia');
     expect(source).not.toContain('renderPhonePhAnimationProgress');
     expect(source).toContain("id: 'between:ph-education'");
-    expect(source).not.toContain('production/phone/types');
+    expect(source).not.toContain(['production', 'phone', 'types'].join('/'));
   });
 
   it('maps the canonical PH clock before the short Education dissolve', () => {

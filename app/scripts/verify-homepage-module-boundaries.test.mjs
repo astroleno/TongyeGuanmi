@@ -1,169 +1,96 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import {
-  phoneShellDebt,
-  phoneShellCssDebt,
-  phoneShellCssDebtViolations,
-  phoneShellDebtViolations,
-  scanPhoneShellCssDebt,
-  scanPhoneShellDebt,
-  shellZoneRendererImportViolations
+  classifyHomepageSource,
+  homepageModuleBoundaryViolations,
+  verifyHomepageModuleBoundaries
 } from './verify-homepage-module-boundaries.mjs';
 
-const { describe, it } = process.env.VITEST
+const { test } = process.env.VITEST
   ? await import('vitest')
   : await import('node:test');
 
-const shellSource = readFileSync(
-  new URL('../src/production/phone/PhoneStoryShell.tsx', import.meta.url),
-  'utf8'
-);
-const shellCssSource = readFileSync(
-  new URL('../src/production/phone/PhoneStoryShell.css', import.meta.url),
-  'utf8'
-);
-const boundaryGateSource = readFileSync(
-  new URL('./verify-homepage-module-boundaries.mjs', import.meta.url),
-  'utf8'
-);
+const sourceDir = '/fixture/src';
+const source = (file, content) => ({ file: path.join(sourceDir, file), source: content });
 
-function violationsFor(source) {
-  return phoneShellDebtViolations(scanPhoneShellDebt(source));
-}
+test('classifies the clean phone, desktop, story, and shared zones', () => {
+  assert.equal(classifyHomepageSource(
+    '/fixture/src/production/phone-story/runtime.ts',
+    sourceDir
+  ), 'phone');
+  assert.equal(classifyHomepageSource(
+    '/fixture/src/scenes/hero/phone/PhoneHero.tsx',
+    sourceDir
+  ), 'phone');
+  assert.equal(classifyHomepageSource(
+    '/fixture/src/production/desktop/DesktopStoryShell.tsx',
+    sourceDir
+  ), 'desktop');
+  assert.equal(classifyHomepageSource('/fixture/src/story/manifest.ts', sourceDir), 'story');
+});
 
-function cssViolationsFor(source) {
-  return phoneShellCssDebtViolations(scanPhoneShellCssDebt(source));
-}
+test('accepts internal imports and imports from presentation zones to shared code', () => {
+  assert.deepEqual(homepageModuleBoundaryViolations([
+    source('production/phone-story/runtime.ts', "import './machine';\n"),
+    source('production/desktop/DesktopStoryShell.tsx', "import '../../runtime/x';\n"),
+    source('story/manifest.ts', "import './copy';\n")
+  ], { sourceDir }), []);
+});
 
-describe('homepage phone-shell debt ratchet', () => {
-  it('accepts the frozen Unit 3 baseline', () => {
-    assert.deepEqual(violationsFor(shellSource), []);
-  });
+test('rejects desktop/phone coupling and presentation imports from story contracts', () => {
+  const found = homepageModuleBoundaryViolations([
+    source(
+      'production/desktop/DesktopStoryShell.tsx',
+      "import '../../scenes/hero/phone/PhoneHero';\n"
+    ),
+    source(
+      'production/phone-story/runtime.ts',
+      "import '../desktop/DesktopStoryShell';\n"
+    ),
+    source(
+      'story/manifest.ts',
+      "import '../production/phone-story/protocol';\n"
+    )
+  ], { sourceDir });
+  assert.ok(found.some((violation) => violation.includes(
+    'desktop must not import phone'
+  )));
+  assert.ok(found.some((violation) => violation.includes(
+    'phone must not import desktop'
+  )));
+  assert.ok(found.some((violation) => violation.includes(
+    'shared story contracts must not import a presentation shell'
+  )));
+});
 
-  it('rejects a new shell-owned product media key', () => {
-    const violations = violationsFor(
-      `${shellSource}\nconst NEXT_MEDIA = phoneMediaUrlFor('new-media', 'hero');`
-    );
-    assert.ok(violations.includes('new shell-owned media key is forbidden (new-media)'));
-  });
+test('fails closed on deleted authorities and computed module syntax', () => {
+  const found = homepageModuleBoundaryViolations([
+    source(
+      'production/phone-story/runtime.ts',
+      "import '../phone/PhoneStoryShell';\nimport(runtimePath);\nrequire('./machine');\n"
+    )
+  ], { sourceDir });
+  assert.ok(found.some((violation) => violation.includes(
+    'imports deleted phone authority'
+  )));
+  assert.ok(found.some((violation) => violation.includes(
+    'dynamic import must use a static string specifier'
+  )));
+  assert.ok(found.some((violation) => violation.includes(
+    'CommonJS require is forbidden'
+  )));
+});
 
-  it('rejects media ownership hidden behind a non-literal key', () => {
-    const violations = violationsFor(
-      `${shellSource}\nconst NEXT_MEDIA = phoneMediaUrlFor(mediaId, 'hero');`
-    );
-    assert.ok(violations.includes(
-      'shell media ownership calls must use literal product media IDs'
-    ));
-  });
-
-  it('rejects a new scene progress threshold but permits tuning an existing value', () => {
-    const added = violationsFor(`${shellSource}\nconst PATTERN_FADE_END = 0.5;`);
-    assert.ok(added.includes(
-      'new shell-owned progress constant is forbidden (PATTERN_FADE_END)'
-    ));
-
-    const tuned = shellSource.replace(
-      'const PATTERN_MOTION_END = 0.47;',
-      'const PATTERN_MOTION_END = 0.471;'
-    );
-    assert.deepEqual(violationsFor(tuned), []);
-  });
-
-  it('rejects another scene root and permits a migrated root to disappear', () => {
-    const added = violationsFor(
-      `${shellSource}\n<section className="portrait-scroll-spike__scene--figure2" />`
-    );
-    assert.ok(added.includes('new shell-owned scene root is forbidden (figure2)'));
-
-    const migrated = shellSource.replace(
-      'portrait-scroll-spike__scene--star',
-      'phone-scene--star'
-    );
-    assert.deepEqual(violationsFor(migrated), []);
-  });
-
-  it('rejects shell growth even when a new line avoids the named debt patterns', () => {
-    assert.ok(violationsFor(`${shellSource.trimEnd()}\nvoid 0;\n`).includes(
-      `Unit 3 shell debt grew to ${phoneShellDebt.maxLines + 1} lines `
-        + `(ratchet ${phoneShellDebt.maxLines})`
-    ));
-  });
-
-  it('ratchets the shell CSS asset, scene, owner, and line debts', () => {
-    assert.deepEqual(cssViolationsFor(shellCssSource), []);
-    const sceneViolations = cssViolationsFor(
-      `${shellCssSource.trimEnd()}\n.portrait-scroll-spike__scene--figure2 {}\n`
-    );
-    for (const expected of [
-      'new shell-owned CSS scene root is forbidden (figure2)',
-      `Unit 3 shell CSS debt grew to ${phoneShellCssDebt.maxLines + 1} lines `
-        + `(ratchet ${phoneShellCssDebt.maxLines})`
-    ]) {
-      assert.ok(sceneViolations.includes(expected));
-    }
-    assert.ok(cssViolationsFor(
-      `${shellCssSource}\n.extra { background: url("../../../../assets/new-scene.webp"); }\n`
-    ).includes(
-      'new shell-owned CSS asset URL is forbidden (../../../../assets/new-scene.webp)'
-    ));
-  });
-
-  it('rejects moving renderer ownership into a new top-level phone helper', () => {
-    assert.ok(shellZoneRendererImportViolations(
-      'hero-runtime.ts',
-      '../../scenes/hero/motion'
-    ).includes(
-      'new shell-zone renderer import is forbidden '
-        + '(hero-runtime.ts -> ../../scenes/hero/motion)'
-    ));
-    assert.ok(shellZoneRendererImportViolations(
-      'hero-motion.ts',
-      '../../media/packed-alpha-video'
-    ).includes(
-      'new shell-zone renderer import is forbidden '
-        + '(hero-motion.ts -> ../../media/packed-alpha-video)'
-    ));
-    assert.deepEqual(shellZoneRendererImportViolations(
-      'phone-ink.ts',
-      '../../transitions/shared/sceneInk'
-    ), []);
-    assert.deepEqual(shellZoneRendererImportViolations(
-      'module-loaders.ts',
-      '../../scenes/hero/phone/PhoneHero'
-    ), []);
-    assert.deepEqual(shellZoneRendererImportViolations(
-      'hero-motion.ts',
-      '../../scenes/hero/phone/PhoneHero.motion'
-    ), []);
-    assert.deepEqual(shellZoneRendererImportViolations(
-      'module-loaders.ts',
-      '../../scenes/pattern/phone/PhonePattern'
-    ), []);
-    assert.deepEqual(shellZoneRendererImportViolations(
-      'module-loaders.ts',
-      '../../scenes/aod-animation/phone/PhoneAod'
-    ), []);
-    assert.ok(shellZoneRendererImportViolations(
-      'module-loaders.ts',
-      '../../scenes/hero/phone/rogue-Hero'
-    ).length > 0);
-    assert.ok(shellZoneRendererImportViolations(
-      'module-loaders.ts',
-      '../../scenes/pattern/phone/rogue-Pattern'
-    ).length > 0);
-    assert.ok(shellZoneRendererImportViolations(
-      'module-loaders.ts',
-      '../../scenes/aod-animation/phone/rogue-Aod'
-    ).length > 0);
-  });
-
-  it('delegates the canonical phone graph to the clean architecture verifier', () => {
-    assert.ok(boundaryGateSource.includes(
-      "import { phoneCleanArchitectureViolations } "
-        + "from './verify-phone-clean-architecture.mjs';"
-    ));
-    assert.ok(boundaryGateSource.includes(
-      "phoneCleanArchitectureViolations({\n  appRoot: appDir,\n  phase: 'harness'"
-    ));
-  });
+test('the repository passes the cutover homepage boundary', {
+  timeout: 15_000
+}, async () => {
+  const result = await verifyHomepageModuleBoundaries();
+  assert.equal(result.phase, 'cutover');
+  assert.ok(result.files > 0);
+  const gateSource = await readFile(new URL(
+    './verify-homepage-module-boundaries.mjs',
+    import.meta.url
+  ), 'utf8');
+  assert.ok(gateSource.includes("phase: 'cutover'"));
 });

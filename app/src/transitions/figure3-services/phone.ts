@@ -133,3 +133,4 @@ export function PhoneFigure3ServicesTransition({
 }
 
 export default PhoneFigure3ServicesTransition;
+export const phoneSegmentId = 'figure3-services' as const;

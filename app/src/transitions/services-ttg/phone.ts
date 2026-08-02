@@ -52,3 +52,4 @@ export const PhoneServicesTtgTransition = createPhoneInkLeaf(
 );
 
 export default PhoneServicesTtgTransition;
+export const phoneSegmentId = 'services-ttg' as const;

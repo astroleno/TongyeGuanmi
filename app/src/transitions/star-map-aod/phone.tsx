@@ -16,3 +16,4 @@ export const PhoneStarMapAodTransition = createPhoneInkLeaf(
 );
 
 export default PhoneStarMapAodTransition;
+export const phoneSegmentId = 'star-map-aod' as const;

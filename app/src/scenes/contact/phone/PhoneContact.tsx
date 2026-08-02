@@ -144,3 +144,4 @@ export function PhoneContact({ reports }: Readonly<{
 }
 
 export default PhoneContact;
+export const phoneSceneId = 'contact' as const;

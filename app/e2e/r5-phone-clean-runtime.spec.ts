@@ -6,7 +6,7 @@ import {
   waitForCommitSequence
 } from './r5-phone-clean-assertions';
 
-test('harness contract keeps one route-local authority under the opaque Loader', async ({
+test('formal contract keeps one route-local authority under the opaque Loader', async ({
   page
 }) => {
   let releaseVideo = () => undefined;
@@ -15,9 +15,9 @@ test('harness contract keeps one route-local authority under the opaque Loader',
     await videoGate;
     await route.continue();
   });
-  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await assertSinglePhoneAuthority(page);
-  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-scope', 'harness');
+  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-scope', 'formal');
   await expect(page.locator('[data-story-loader="true"]')).toBeVisible();
   expect(await readPlaneRevision(page)).toBeGreaterThanOrEqual(0);
   expect(await readCommitSequence(page)).toBe(0);
@@ -25,7 +25,7 @@ test('harness contract keeps one route-local authority under the opaque Loader',
 });
 
 test('AOD direct activation requires a causal packed Canvas draw', async ({ page }) => {
-  await page.goto('/harness/r5-phone-clean#aod-animation', {
+  await page.goto('/#aod-animation', {
     waitUntil: 'domcontentloaded'
   });
   await waitForCommitSequence(page, 'aod-animation', 0);
@@ -53,7 +53,7 @@ test('AOD rejected autoplay stays inert until one real activation gesture', asyn
       return originalPlay.call(this);
     };
   });
-  await page.goto('/harness/r5-phone-clean#aod-animation', {
+  await page.goto('/#aod-animation', {
     waitUntil: 'domcontentloaded'
   });
   const shell = page.locator('.phone-story');

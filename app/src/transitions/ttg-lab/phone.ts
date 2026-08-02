@@ -149,3 +149,4 @@ export function PhoneTtgLabTransition({
 }
 
 export default PhoneTtgLabTransition;
+export const phoneSegmentId = 'ttg-lab' as const;

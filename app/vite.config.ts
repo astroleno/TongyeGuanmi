@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -8,6 +9,16 @@ import { renderStaticStoryShell, type StaticCopyReference } from './build/static
 import { SITE_META } from './src/content/site-meta';
 
 const repoRoot = fileURLToPath(new URL('../', import.meta.url));
+const documentBuildId = process.env.R5_SOURCE_COMMIT?.trim() || (() => {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD^{commit}'], {
+      cwd: repoRoot,
+      encoding: 'utf8'
+    }).trim();
+  } catch {
+    return 'development';
+  }
+})();
 const copyReference = JSON.parse(
   readFileSync(new URL('../docs/react-refactor/inventory/copy-reference.json', import.meta.url), 'utf8')
 ) as StaticCopyReference;
@@ -23,7 +34,6 @@ const cdnReleasePolicy = JSON.parse(
 ) as CdnReleasePolicy;
 const releaseId = process.env.R5_RELEASE_ID?.trim() ?? '';
 const requireCdn = process.env.R5_REQUIRE_CDN === '1';
-const phoneStoryPrebootEnabled = process.env.VITE_ENABLE_PHONE_STORY === '1';
 const assetCdnBase = (process.env.R5_ASSET_CDN_BASE?.trim() || 'https://assets.tongye.me')
   .replace(/\/+$/, '');
 const mediaCdnBase = (process.env.R5_MEDIA_CDN_BASE?.trim() || 'https://media.tongye.me')
@@ -96,7 +106,6 @@ function staticStoryShellPlugin() {
           .replace('__SITE_LANGUAGE__', escapeAttribute(SITE_META.language))
           .replace('__SITE_DESCRIPTION__', escapeAttribute(SITE_META.description))
           .replace('__SITE_TITLE__', escapeAttribute(SITE_META.title))
-          .replace('__PHONE_STORY_PREBOOT_ENABLED__', String(phoneStoryPrebootEnabled))
           .replace('<!--__CANONICAL_LINK__-->', `<link rel="canonical" href="${SITE_META.canonicalPath}">`)
           .replace('<!--__R5_CDN_RUNTIME__-->', cdnRuntime)
           .replace('<!--__STATIC_STORY_CONTENT__-->', renderStaticStoryShell(copyReference));
@@ -156,7 +165,15 @@ function r5ModuleProvenancePlugin(): Plugin {
           )].sort(),
           modules: [...new Set(
             Object.keys(chunk.modules).map(normalizeR5ModuleId)
-          )].sort()
+          )].sort(),
+          moduleBytes: Object.fromEntries(
+            Object.entries(chunk.modules)
+              .map(([moduleId, details]): [string, number] => [
+                normalizeR5ModuleId(moduleId),
+                details.renderedLength
+              ])
+              .sort(([left], [right]) => left.localeCompare(right))
+          )
         }))
         .sort((left, right) => (
           left.fileName < right.fileName
@@ -175,6 +192,9 @@ function r5ModuleProvenancePlugin(): Plugin {
 }
 
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_R5_DOCUMENT_BUILD_ID': JSON.stringify(documentBuildId)
+  },
   plugins: [react(), staticStoryShellPlugin(), r5ModuleProvenancePlugin()],
   ...(releaseId
     ? {
@@ -229,9 +249,6 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('/src/media/timeline-video-driver.ts')) {
             return 'media-timeline-runtime';
-          }
-          if (id.includes('/src/production/phone/phone-lab-contact-timeline.ts')) {
-            return 'phone-lab-contact-timeline';
           }
           if (id.includes('/src/transitions/shared/stagedMediaHandoff.ts')) {
             return 'staged-media-runtime';

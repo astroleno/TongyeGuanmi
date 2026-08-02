@@ -123,35 +123,22 @@ describe('StoryLoader', () => {
     expect(html).toContain('data-loader-ink-fallback="true"');
     expect(html).not.toContain('mobile-landscape-entry-static');
     expect(html).toContain('#story-loader-static { display: none !important; }');
-    expect(html).toContain('sessionStorage');
-    expect(html).toContain('portraitLoaderResume');
-    expect(html).toContain('hidden-at');
-    expect(html).toContain('validationNumber >= 16');
-    expect(html).toContain('validationNumber <= 40');
-    expect(html).toContain('validationNumber === 42');
-    expect(html).toContain('validationNumber === 43');
-    expect(html).toContain('validationNumber === 44');
-    expect(html).toContain('validationNumber === 45');
-    expect(html).toContain('validationNumber === 46');
-    expect(html).toContain('validationNumber === 47');
-    expect(html).not.toContain('validationNumber === 41');
-    expect(html).toContain("navigation?.type === 'reload'");
-    expect(html).toContain('manuallyReloaded');
-    expect(html).toContain("'__PHONE_STORY_PREBOOT_ENABLED__' === 'true'");
+    expect(html).not.toContain('sessionStorage');
+    expect(html).not.toContain('validationNumber');
+    expect(html).not.toContain('portrait-spike');
     expect(html).toContain("window.matchMedia('(pointer: coarse)').matches");
     expect(html).toContain("window.matchMedia('(hover: none)').matches");
-    expect(html).toContain("documentElement.dataset.portraitEdgeScene = 'hero'");
-    expect(html).toContain("documentElement.style.setProperty('--portrait-document-surface', '#07110e')");
+    expect(html).toContain("location.pathname === '/brand-lab'");
+    expect(html).toContain("documentElement.dataset.phonePreboot = 'pending'");
+    expect(html).toContain("documentElement.style.setProperty('--phone-preboot-surface', '#07110e')");
     const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
-    expect(viteConfig).toContain(
-      ".replace('__PHONE_STORY_PREBOOT_ENABLED__', String(phoneStoryPrebootEnabled))"
-    );
+    expect(viteConfig).not.toContain('__PHONE_STORY_PREBOOT_ENABLED__');
     const prebootPhoneRouteIndex = html.indexOf(
-      "documentElement.dataset.portraitSpike = 'b'"
+      "documentElement.dataset.phonePreboot = 'pending'"
     );
     expect(prebootPhoneRouteIndex).toBeGreaterThan(0);
     expect(prebootPhoneRouteIndex).toBeLessThan(loaderIndex);
-    expect(html).toContain('html[data-portrait-spike="b"] .static-content { display: none !important; }');
-    expect(html).toContain('background: var(--portrait-document-surface, #07110e) !important;');
+    expect(html).toContain('html[data-phone-preboot] .static-content { display: none !important; }');
+    expect(html).toContain('background: var(--phone-preboot-surface, #07110e) !important;');
   });
 });

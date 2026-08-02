@@ -462,3 +462,4 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
 }
 
 export default PhoneHero;
+export const phoneSceneId = 'hero' as const;

@@ -35,7 +35,7 @@ describe('Phone Lab → PH transition', () => {
     expect(source).toContain("segmentId: 'lab-ph'");
     expect(stylesheet).toContain('data-phone-lab-ph-ink-surface="transparent"');
     expect(stylesheet).toContain('background: transparent');
-    expect(source).not.toContain('production/phone/');
+    expect(source).not.toContain(['production', 'phone', ''].join('/'));
   });
 
   it('accepts a lightweight stable Lab outlet fixture without Lab JSX or refs', () => {

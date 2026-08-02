@@ -38,3 +38,4 @@ export function PhoneAodMethodTopTransition({
 }
 
 export default PhoneAodMethodTopTransition;
+export const phoneSegmentId = 'aod-method-top' as const;

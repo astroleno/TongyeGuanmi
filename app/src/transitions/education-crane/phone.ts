@@ -95,3 +95,4 @@ export const PhoneEducationCraneTransition = createPhoneInkLeaf(
 );
 
 export default PhoneEducationCraneTransition;
+export const phoneSegmentId = 'education-crane' as const;

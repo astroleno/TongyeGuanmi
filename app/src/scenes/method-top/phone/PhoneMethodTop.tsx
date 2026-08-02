@@ -162,3 +162,4 @@ export function PhoneMethodTop({ reports }: PhoneMethodTopProps) {
 }
 
 export default PhoneMethodTop;
+export const phoneSceneId = 'method-top' as const;

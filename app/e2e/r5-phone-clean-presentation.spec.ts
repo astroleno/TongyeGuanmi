@@ -178,6 +178,18 @@ async function nextAnimationFrame(page: import('@playwright/test').Page): Promis
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
 
+async function withholdRecoveryManifest(
+  page: import('@playwright/test').Page
+): Promise<() => void> {
+  let release = () => undefined;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(/\/r5-release-manifest\.json(?:\?.*)?$/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  return release;
+}
+
 async function sendFrontIntent(
   page: import('@playwright/test').Page,
   direction: 'forward' | 'reverse'
@@ -975,21 +987,28 @@ async function readLifecycleProbe(
 async function withholdFigure3Endpoint(
   page: import('@playwright/test').Page,
   endpoint: 'initial' | 'terminal'
-): Promise<void> {
+): Promise<() => Promise<void>> {
   await page.addInitScript((withheld) => {
     const original = CanvasRenderingContext2D.prototype.drawImage;
+    let enabled = false;
+    Object.defineProperty(window, '__r5WithholdFigure3Endpoint', {
+      configurable: true,
+      value: () => { enabled = true; }
+    });
     CanvasRenderingContext2D.prototype.drawImage = function patchedDrawImage(
       image: CanvasImageSource,
       ...coordinates: number[]
     ) {
       const isFigure3 = this.canvas.matches('[data-phone-figure3-paper-canvas]');
-      const video = image instanceof HTMLVideoElement ? image : null;
-      const atEndpoint = video && (withheld === 'initial'
-        ? video.currentTime <= .05 : video.currentTime >= 2.5);
-      if (isFigure3 && atEndpoint) throw new Error(`withheld-${withheld}-figure3-frame`);
+      if (isFigure3 && enabled) {
+        throw new Error(`withheld-${withheld}-figure3-frame`);
+      }
       return Reflect.apply(original, this, [image, ...coordinates]);
     };
   }, endpoint);
+  return () => page.evaluate(() => (
+    window as typeof window & { __r5WithholdFigure3Endpoint(): void }
+  ).__r5WithholdFigure3Endpoint());
 }
 
 async function traverseFront(
@@ -1086,7 +1105,7 @@ test('Hero Loader handoff starts at zero under one fixed opaque topology', async
     await videoGate;
     await route.continue();
   });
-  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   const hero = page.locator('.portrait-scroll-spike__scene--hero');
   await expect(hero).toBeAttached();
   const firstCommit = await hero.evaluate((element) => {
@@ -1136,20 +1155,20 @@ test('Hero Loader handoff starts at zero under one fixed opaque topology', async
   await assertNoWhiteOrTransparentViewportEdges(page);
 });
 
-test('harness contract keeps every real viewport edge opaque', async ({ page }) => {
+test('formal contract keeps every real viewport edge opaque', async ({ page }) => {
   let releaseVideo = () => undefined;
   const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });
   await page.route(/figure1-rgb-alpha.*\.mp4/, async (route) => {
     await videoGate;
     await route.continue();
   });
-  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-story-loader="true"]')).toBeVisible();
-  await assertOpaqueViewportEdges(page, [0, 0, 0], 0);
+  await assertNoWhiteOrTransparentViewportEdges(page);
   releaseVideo();
 });
 
-test('harness contract pixel decoder rejects a one-CSS-pixel edge gap', async ({ page }) => {
+test('formal contract pixel decoder rejects a one-CSS-pixel edge gap', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.setContent(`
     <style>
@@ -1164,7 +1183,7 @@ test('harness contract pixel decoder rejects a one-CSS-pixel edge gap', async ({
 });
 
 test('Pattern viewport and coverage stay globally owned through a live resize', async ({ page }) => {
-  await page.goto('/harness/r5-phone-clean#pattern', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#pattern', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'pattern', 0);
   await expect(page.locator('.portrait-scroll-spike__scene--pattern'))
     .toHaveAttribute('data-phone-pattern-frame', 'ready');
@@ -1188,7 +1207,7 @@ test('Pattern viewport and coverage stay globally owned through a live resize', 
 });
 
 test('Front direct Star Map exposes a causal rotated Canvas frame and content', async ({ page }) => {
-  await page.goto('/harness/r5-phone-clean#star-map', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#star-map', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'star-map', 0);
   await assertSinglePhoneAuthority(page);
   await expect(page.locator('[data-portrait-star-perlin]'))
@@ -1203,7 +1222,7 @@ test('Grade A direct entries expose the requested target before Loader retiremen
   page
 }) => {
   for (const scene of Object.keys(GRADE_A_CONTENT) as Array<keyof typeof GRADE_A_CONTENT>) {
-    await page.goto(`/harness/r5-phone-clean?direct=${scene}${GRADE_A_HASH[scene]}`, {
+    await page.goto(`/${GRADE_A_HASH[scene]}`, {
       waitUntil: 'domcontentloaded'
     });
     await waitForCommitSequence(page, scene, 0);
@@ -1227,7 +1246,7 @@ test('Grade A direct entries expose the requested target before Loader retiremen
 test('Grade A chain commits each hold once and preserves both-direction endpoints', async ({
   page
 }) => {
-  await page.goto('/harness/r5-phone-clean#method-top', {
+  await page.goto('/#method-top', {
     waitUntil: 'domcontentloaded'
   });
   await waitForCommitSequence(page, 'method-top', 0);
@@ -1245,7 +1264,7 @@ test('Figure3 slice direct entries expose accepted Brand, paper, and Services en
   for (const scene of Object.keys(FIGURE3_SLICE_CONTENT) as Array<
     keyof typeof FIGURE3_SLICE_CONTENT
   >) {
-    await page.goto(`/harness/r5-phone-clean?direct=${scene}${FIGURE3_SLICE_HASH[scene]}`, {
+    await page.goto(`/${FIGURE3_SLICE_HASH[scene]}`, {
       waitUntil: 'domcontentloaded'
     });
     await waitForCommitSequence(page, scene, 0);
@@ -1262,7 +1281,7 @@ test('Figure3 slice direct entries expose accepted Brand, paper, and Services en
 });
 
 test('Figure3 slice commits forward and reverse twice without resource growth', async ({ page }) => {
-  await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'brand', 0);
   const firstCycle: Array<Readonly<{ videos: number; canvases: number }>> = [];
   const secondCycle: Array<Readonly<{ videos: number; canvases: number }>> = [];
@@ -1298,7 +1317,7 @@ test('Figure3 slice keeps Brand proved while its lazy scene chunk is delayed', a
     await route.continue();
   });
   try {
-    await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
     const before = await waitForCommitSequence(page, 'brand', 0);
     await sendFrontIntent(page, 'forward');
     await chunkRequested;
@@ -1317,6 +1336,7 @@ test('Figure3 slice keeps Brand proved while its lazy scene chunk is delayed', a
 test('Figure3 slice rejects one native chunk URL without retrying it in the Document', async ({
   page
 }) => {
+  const releaseManifest = await withholdRecoveryManifest(page);
   let requests = 0;
   let observeRequest = () => undefined;
   const chunkRequested = new Promise<void>((resolve) => { observeRequest = resolve; });
@@ -1325,39 +1345,49 @@ test('Figure3 slice rejects one native chunk URL without retrying it in the Docu
     observeRequest();
     await route.abort('failed');
   });
-  await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
-  const before = await waitForCommitSequence(page, 'brand', 0);
-  await sendFrontIntent(page, 'forward');
-  await chunkRequested;
-  await expectFigure3SliceRollback(
-    page, 'brand', 'figure3-animation', 'forward', before
-  );
-  await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.brand);
-  expect(requests).toBe(1);
+  try {
+    await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'brand', 0);
+    await sendFrontIntent(page, 'forward');
+    await chunkRequested;
+    await expectFigure3SliceRollback(
+      page, 'brand', 'figure3-animation', 'forward', before
+    );
+    await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.brand);
+    expect(requests).toBe(1);
 
-  await sendFrontIntent(page, 'forward');
-  await page.waitForTimeout(750);
-  expect(requests).toBe(1);
-  expect(await readCommitSequence(page)).toBe(before);
-  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-scene', 'brand');
+    await sendFrontIntent(page, 'forward');
+    await page.waitForTimeout(750);
+    expect(requests).toBe(1);
+    expect(await readCommitSequence(page)).toBe(before);
+    await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-scene', 'brand');
+  } finally {
+    releaseManifest();
+  }
 });
 
 test('Figure3 slice refuses a withheld terminal compositor frame', async ({ page }) => {
-  await withholdFigure3Endpoint(page, 'terminal');
-  await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
+  const withhold = await withholdFigure3Endpoint(page, 'terminal');
+  await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'brand', 0);
+  await withhold();
   await sendFrontIntent(page, 'forward');
   await expect(page.locator('[data-phone-figure3-paper-canvas]')).toBeAttached();
-  await expectFigure3SliceRollback(
-    page, 'brand', 'figure3-animation', 'forward', before
-  );
+  const activation = page.locator('[data-phone-activation]:not([hidden])');
+  await expect(activation).toBeVisible();
+  await activation.click();
+  await expect(activation).toBeVisible();
+  await expect(page.locator('.phone-story'))
+    .toHaveAttribute('data-phone-phase', 'awaiting-media-activation');
+  expect(await readCommitSequence(page)).toBe(before);
   await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.brand);
 });
 
 test('Figure3 slice refuses a withheld initial compositor frame on reverse', async ({ page }) => {
-  await withholdFigure3Endpoint(page, 'initial');
-  await page.goto('/harness/r5-phone-clean#services', { waitUntil: 'domcontentloaded' });
+  const withhold = await withholdFigure3Endpoint(page, 'initial');
+  await page.goto('/#services', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'services', 0);
+  await withhold();
   await sendFrontIntent(page, 'reverse');
   await expect(page.locator('[data-phone-figure3-paper-canvas]')).toBeAttached();
   const activation = page.locator('[data-phone-activation]:not([hidden])');
@@ -1373,7 +1403,7 @@ test('Figure3 slice refuses a withheld initial compositor frame on reverse', asy
 test('Figure3 slice refuses hidden Services content and preserves the compositor source', async ({
   page
 }) => {
-  await page.goto('/harness/r5-phone-clean#figure3-animation', {
+  await page.goto('/#figure3-animation', {
     waitUntil: 'domcontentloaded'
   });
   const before = await waitForCommitSequence(page, 'figure3-animation', 0);
@@ -1402,7 +1432,7 @@ test('Figure3 slice restores its proved source after background and foreground',
       }
     });
   });
-  await page.goto('/harness/r5-phone-clean#figure3-animation', {
+  await page.goto('/#figure3-animation', {
     waitUntil: 'domcontentloaded'
   });
   const before = await waitForCommitSequence(page, 'figure3-animation', 0);
@@ -1449,7 +1479,7 @@ test('Figure3 slice restores its proved source after background and foreground',
 
 test('Group 4-5 direct TTG and Lab entries expose their accepted endpoints', async ({ page }) => {
   for (const scene of ['ttg-animation', 'lab'] as const) {
-    await page.goto(`/harness/r5-phone-clean?direct=${scene}#${scene}`, {
+    await page.goto(`/#${scene}`, {
       waitUntil: 'domcontentloaded'
     });
     await waitForCommitSequence(page, scene, 0);
@@ -1467,7 +1497,7 @@ test('Group 4-5 direct TTG and Lab entries expose their accepted endpoints', asy
 test('Group 4-5 completes two full forward/reverse cycles without resource growth', async ({
   page
 }) => {
-  await page.goto('/harness/r5-phone-clean#brand', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'brand', 0);
   const cycle = async () => {
     const samples = [];
@@ -1501,7 +1531,7 @@ test('Group 4-5 keeps Services proved while the TTG leaf chunk is delayed', asyn
     await route.continue();
   });
   try {
-    await page.goto('/harness/r5-phone-clean#services', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#services', { waitUntil: 'domcontentloaded' });
     const before = await waitForCommitSequence(page, 'services', 0);
     await sendFrontIntent(page, 'forward');
     await requested;
@@ -1516,6 +1546,7 @@ test('Group 4-5 keeps Services proved while the TTG leaf chunk is delayed', asyn
 });
 
 test('Group 4-5 caches a rejected TTG chunk without same-Document retry', async ({ page }) => {
+  const releaseManifest = await withholdRecoveryManifest(page);
   let requests = 0;
   let observeRequest = () => undefined;
   const requested = new Promise<void>((resolve) => { observeRequest = resolve; });
@@ -1524,17 +1555,21 @@ test('Group 4-5 caches a rejected TTG chunk without same-Document retry', async 
     observeRequest();
     await route.abort('failed');
   });
-  await page.goto('/harness/r5-phone-clean#services', { waitUntil: 'domcontentloaded' });
-  const before = await waitForCommitSequence(page, 'services', 0);
-  await sendFrontIntent(page, 'forward');
-  await requested;
-  await expectGroup45Rollback(page, 'services', 'ttg-animation', 'forward', before);
-  await assertTargetContentVisible(page, GROUP45_CONTENT.services);
-  expect(requests).toBe(1);
-  await sendFrontIntent(page, 'forward');
-  await page.waitForTimeout(750);
-  expect(requests).toBe(1);
-  expect(await readCommitSequence(page)).toBe(before);
+  try {
+    await page.goto('/#services', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'services', 0);
+    await sendFrontIntent(page, 'forward');
+    await requested;
+    await expectGroup45Rollback(page, 'services', 'ttg-animation', 'forward', before);
+    await assertTargetContentVisible(page, GROUP45_CONTENT.services);
+    expect(requests).toBe(1);
+    await sendFrontIntent(page, 'forward');
+    await page.waitForTimeout(750);
+    expect(requests).toBe(1);
+    expect(await readCommitSequence(page)).toBe(before);
+  } finally {
+    releaseManifest();
+  }
 });
 
 test('Group 4-5 refuses to expose TTG while its decoded frame is withheld', async ({ page }) => {
@@ -1545,7 +1580,7 @@ test('Group 4-5 refuses to expose TTG while its decoded frame is withheld', asyn
     await route.continue();
   });
   try {
-    await page.goto('/harness/r5-phone-clean#services', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#services', { waitUntil: 'domcontentloaded' });
     const before = await waitForCommitSequence(page, 'services', 0);
     await sendFrontIntent(page, 'forward');
     await expect(page.locator('[data-ttg-figure-video]')).toBeAttached();
@@ -1572,7 +1607,7 @@ test('Group 4-5 restores proved TTG after visibility and BFCache lifecycle event
       }
     });
   });
-  await page.goto('/harness/r5-phone-clean#ttg-animation', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#ttg-animation', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'ttg-animation', 0);
   await sendFrontIntent(page, 'forward');
   await expect(page.locator('[data-phone-transition="ttg-lab"]')).toBeAttached();
@@ -1605,7 +1640,7 @@ test('Group 4-5 restores proved TTG after visibility and BFCache lifecycle event
 
 test('PH slice direct PH and Education entries expose accepted endpoints', async ({ page }) => {
   for (const scene of ['ph-animation', 'education'] as const) {
-    await page.goto(`/harness/r5-phone-clean?direct=${scene}#${scene}`, {
+    await page.goto(`/#${scene}`, {
       waitUntil: 'domcontentloaded'
     });
     await waitForCommitSequence(page, scene, 0);
@@ -1624,7 +1659,7 @@ test('PH slice direct PH and Education entries expose accepted endpoints', async
 test('PH slice completes Lab → PH → Education forward/reverse twice without growth', async ({
   page
 }) => {
-  await page.goto('/harness/r5-phone-clean#lab', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#lab', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'lab', 0);
   const cycle = async () => [
     await traversePhSlice(page, 'lab', 'ph-animation', 'forward'),
@@ -1652,7 +1687,7 @@ test('PH slice keeps Lab proved while the PH leaf chunk is delayed', async ({ pa
     await route.continue();
   });
   try {
-    await page.goto('/harness/r5-phone-clean#lab', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#lab', { waitUntil: 'domcontentloaded' });
     const before = await waitForCommitSequence(page, 'lab', 0);
     await sendFrontIntent(page, 'forward');
     await requested;
@@ -1673,7 +1708,7 @@ test('PH slice refuses a withheld packed draw and keeps Lab stable', async ({ pa
     await route.continue();
   });
   try {
-    await page.goto('/harness/r5-phone-clean#lab', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#lab', { waitUntil: 'domcontentloaded' });
     const before = await waitForCommitSequence(page, 'lab', 0);
     await sendFrontIntent(page, 'forward');
     await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
@@ -1693,7 +1728,7 @@ test('PH slice context loss cannot commit a false PH frame', async ({ page }) =>
     await route.continue();
   });
   try {
-    await page.goto('/harness/r5-phone-clean#lab', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#lab', { waitUntil: 'domcontentloaded' });
     const before = await waitForCommitSequence(page, 'lab', 0);
     await sendFrontIntent(page, 'forward');
     const canvas = page.locator('[data-phone-packed-alpha-canvas="ph-figure"]');
@@ -1721,7 +1756,7 @@ test('PH slice re-proves its retained compositor after visibility and BFCache ev
       }
     });
   });
-  await page.goto('/harness/r5-phone-clean#ph-animation', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#ph-animation', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'ph-animation', 0);
   const beforePlaneRevision = Number(await page.locator('.phone-story')
     .getAttribute('data-phone-plane-revision'));
@@ -1747,7 +1782,7 @@ test('PH slice re-proves its retained compositor after visibility and BFCache ev
 });
 
 test('Crane slice direct entry proves both authored packed surfaces', async ({ page }) => {
-  await page.goto('/harness/r5-phone-clean?direct=crane-animation#crane-animation', {
+  await page.goto('/#crane-animation', {
     waitUntil: 'domcontentloaded'
   });
   await waitForCommitSequence(page, 'crane-animation', 0);
@@ -1767,7 +1802,7 @@ test('Crane slice direct entry proves both authored packed surfaces', async ({ p
 test('Crane slice completes Education ↔ Crane twice without resource growth', async ({
   page
 }) => {
-  await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#education', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'education', 0);
   const cycle = async () => [
     await traverseCraneSlice(page, 'education', 'crane-animation', 'forward'),
@@ -1794,7 +1829,7 @@ test('Crane slice retries both decoder activations only after a real gesture', a
       return originalPlay.call(this);
     };
   });
-  await page.goto('/harness/r5-phone-clean?direct=crane-animation#crane-animation', {
+  await page.goto('/#crane-animation', {
     waitUntil: 'domcontentloaded'
   });
   await expect(page.locator('[data-phone-activation]')).toBeVisible();
@@ -1818,7 +1853,7 @@ test('Crane slice keeps Education proved while the Crane chunk is delayed', asyn
     await route.continue();
   });
   try {
-    await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#education', { waitUntil: 'domcontentloaded' });
     const before = await waitForCommitSequence(page, 'education', 0);
     await sendFrontIntent(page, 'forward');
     await requested;
@@ -1834,6 +1869,7 @@ test('Crane slice keeps Education proved while the Crane chunk is delayed', asyn
 });
 
 test('Crane slice caches a rejected Crane chunk without same-Document retry', async ({ page }) => {
+  const releaseManifest = await withholdRecoveryManifest(page);
   let requests = 0;
   let observeRequest = () => undefined;
   const requested = new Promise<void>((resolve) => { observeRequest = resolve; });
@@ -1842,17 +1878,21 @@ test('Crane slice caches a rejected Crane chunk without same-Document retry', as
     observeRequest();
     await route.abort('failed');
   });
-  await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
-  const before = await waitForCommitSequence(page, 'education', 0);
-  await sendFrontIntent(page, 'forward');
-  await requested;
-  await expectCraneSliceRollback(page, 'education', 'crane-animation', before);
-  await assertTargetContentVisible(page, CRANE_SLICE_CONTENT.education);
-  expect(requests).toBe(1);
-  await sendFrontIntent(page, 'forward');
-  await page.waitForTimeout(750);
-  expect(requests).toBe(1);
-  expect(await readCommitSequence(page)).toBe(before);
+  try {
+    await page.goto('/#education', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'education', 0);
+    await sendFrontIntent(page, 'forward');
+    await requested;
+    await expectCraneSliceRollback(page, 'education', 'crane-animation', before);
+    await assertTargetContentVisible(page, CRANE_SLICE_CONTENT.education);
+    expect(requests).toBe(1);
+    await sendFrontIntent(page, 'forward');
+    await page.waitForTimeout(750);
+    expect(requests).toBe(1);
+    expect(await readCommitSequence(page)).toBe(before);
+  } finally {
+    releaseManifest();
+  }
 });
 
 test('Crane slice refuses one withheld packed frame and keeps Education stable', async ({
@@ -1865,7 +1905,7 @@ test('Crane slice refuses one withheld packed frame and keeps Education stable',
     await route.continue();
   });
   try {
-    await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#education', { waitUntil: 'domcontentloaded' });
     const before = await waitForCommitSequence(page, 'education', 0);
     await sendFrontIntent(page, 'forward');
     await expect(page.locator('[data-phone-packed-alpha-canvas="crane-flock"]'))
@@ -1885,7 +1925,7 @@ test('Crane slice context loss cannot commit a partial two-surface proof', async
     await route.continue();
   });
   try {
-    await page.goto('/harness/r5-phone-clean#education', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#education', { waitUntil: 'domcontentloaded' });
     const before = await waitForCommitSequence(page, 'education', 0);
     await sendFrontIntent(page, 'forward');
     const canvas = page.locator('[data-phone-packed-alpha-canvas="crane-figure"]');
@@ -1913,7 +1953,7 @@ test('Crane slice re-proves both surfaces across visibility, BFCache, and orient
       }
     });
   });
-  await page.goto('/harness/r5-phone-clean#crane-animation', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#crane-animation', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'crane-animation', 0);
   const beforePlaneRevision = Number(await page.locator('.phone-story')
     .getAttribute('data-phone-plane-revision'));
@@ -1955,7 +1995,7 @@ test('Crane slice re-proves both surfaces across visibility, BFCache, and orient
 test('Group 6-7 direct Contact is minimal, post-paint visible, and natively interactive', async ({
   page
 }) => {
-  await page.goto('/harness/r5-phone-clean?direct=contact#contact', {
+  await page.goto('/#contact', {
     waitUntil: 'domcontentloaded'
   });
   await waitForCommitSequence(page, 'contact', 0);
@@ -1997,7 +2037,7 @@ test('Group 6-7 direct Contact is minimal, post-paint visible, and natively inte
 test('Group 6-7 Crane ↔ Contact commits twice with native input release and no growth', async ({
   page
 }) => {
-  await page.goto('/harness/r5-phone-clean#crane-animation', {
+  await page.goto('/#crane-animation', {
     waitUntil: 'domcontentloaded'
   });
   await waitForCommitSequence(page, 'crane-animation', 0);
@@ -2021,7 +2061,7 @@ test('complete story proves all 60 segment traversals through one authority with
   page
 }) => {
   test.setTimeout(480_000);
-  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   const bootHandle = await page.waitForFunction(() => {
     const shell = document.querySelector<HTMLElement>('.phone-story');
     const state = {
@@ -2079,7 +2119,7 @@ test('complete story proves all 60 segment traversals through one authority with
 });
 
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {
-  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'hero', 0);
   await traverseFront(page, 'hero', 'pattern', 'forward');
   await traverseFront(page, 'pattern', 'star-map', 'forward');
@@ -2091,14 +2131,14 @@ test('Front first three segments preserve effect semantics and endpoints both wa
 
 test('Front reduced motion still reaches one fully proven target hold', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'hero', 0);
   await traverseFront(page, 'hero', 'pattern', 'forward');
   await expect(page.locator('.portrait-scroll-spike__pattern-copy')).toHaveCSS('opacity', '1');
 });
 
 test('Front Ink failure rolls back to the fully proved source without committing target', async ({ page }) => {
-  await page.goto('/harness/r5-phone-clean#hero', { waitUntil: 'domcontentloaded' });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'hero', 0);
   await sendFrontIntent(page, 'forward');
   const canvas = page.locator('[data-r4-ink-segment="hero-pattern"]');
@@ -2131,7 +2171,7 @@ test('Front Ink failure rolls back to the fully proved source without committing
   await assertNoWhiteOrTransparentViewportEdges(page);
 });
 
-test('harness contract edge decoder permits distinct visible scene content', async ({ page }) => {
+test('formal contract edge decoder permits distinct visible scene content', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.setContent(`
     <style>
@@ -2146,7 +2186,7 @@ test('harness contract edge decoder permits distinct visible scene content', asy
   );
 });
 
-test('harness contract helpers inspect rendered layers, content, frames, and commits', async ({
+test('formal contract helpers inspect rendered layers, content, frames, and commits', async ({
   page
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });

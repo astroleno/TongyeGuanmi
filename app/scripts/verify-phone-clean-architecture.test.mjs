@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { phoneCleanArchitectureViolations } from './verify-phone-clean-architecture.mjs';
@@ -177,6 +177,63 @@ afterEach(async () => {
 test('accepts one shell-owned factory, QA wrapper, pure graph, and ordinary minification', async () => {
   assert.deepEqual(await violations(), []);
   assert.deepEqual(await violations({}, { phase: 'cutover' }), []);
+});
+
+test('accepts the executable controller recovery boundary used by the formal cutover', async () => {
+  const recoverySource = await readFile(new URL(
+    '../src/production/presentation-shell-loaders.ts', import.meta.url
+  ), 'utf8');
+  const mainSource = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  assert.deepEqual(await violations({
+    'src/production/presentation-shell-loaders.ts': recoverySource,
+    'src/main.tsx': mainSource,
+    'src/App.tsx': 'export function App() { return null; }\n'
+  }, { phase: 'cutover' }), []);
+});
+
+test('rejects broken bindings and policy branches in the executable recovery controller', async () => {
+  const recoverySource = await readFile(new URL(
+    '../src/production/presentation-shell-loaders.ts', import.meta.url
+  ), 'utf8');
+  const mainSource = await readFile(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  const cases = [
+    {
+      expected: 'vite listener must bind the installed controller handler',
+      recoverySource,
+      mainSource: mainSource.replace(
+        "window.addEventListener('vite:preloadError', chunkRecovery.handlePreloadError);",
+        "window.addEventListener('vite:preloadError', () => undefined);"
+      )
+    },
+    {
+      expected: 'persist automaticReloadCount: 1 before reload',
+      recoverySource: recoverySource.replace(
+        'automaticReloadCount: 1 as const',
+        'automaticReloadCount: 0 as const'
+      ),
+      mainSource
+    },
+    {
+      expected: 'fetch the release manifest with cache: no-store',
+      recoverySource: recoverySource.replace("cache: 'no-store'", "cache: 'default'"),
+      mainSource
+    },
+    {
+      expected: 'wait online before release classification',
+      recoverySource: recoverySource.replace(
+        'await environment.waitForOnline();',
+        'void environment.waitForOnline();'
+      ),
+      mainSource
+    }
+  ];
+  for (const fixture of cases) {
+    includes(await violations({
+      'src/production/presentation-shell-loaders.ts': fixture.recoverySource,
+      'src/main.tsx': fixture.mainSource,
+      'src/App.tsx': 'export function App() { return null; }\n'
+    }, { phase: 'cutover' }), fixture.expected);
+  }
 });
 
 test('rejects two runtime factory call sites and a QA-owned factory call', async () => {
@@ -501,13 +558,15 @@ test('rejects property-name mangling while accepting ordinary ESM minification',
   }), 'property-name mangling');
 });
 
-test('rejects a formal loader importing the QA wrapper', async () => {
-  includes(await violations({
+test('allows a route-only QA lazy loader while the formal loader stays isolated', async () => {
+  assert.deepEqual(await violations({
     'src/production/presentation-shell-loaders.ts': `
       ${validRecoveryBoundary}
-      export const loadQa = () => import('./phone-story/PhoneBrandLabStory');
+      export function loadPhoneBrandLabStory() {
+        return import('./phone-story/PhoneBrandLabStory');
+      }
     `
-  }), 'formal loader');
+  }), []);
 });
 
 test('rejects numbered validation/query composition in the clean core', async () => {

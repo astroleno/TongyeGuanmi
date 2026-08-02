@@ -366,6 +366,11 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
     video.loop = false;
     video.playsInline = true;
     root.dataset.phoneMediaState = 'preparing';
+    const showStaticFallback = () => {
+      root.dataset.phoneMediaState = 'fallback';
+      root.style.setProperty('--phone-ttg-figure-opacity', '0');
+    };
+    video.addEventListener('error', showStaticFallback);
     render(0);
     reports.registerMount({
       root: mountRoot,
@@ -376,6 +381,7 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
       disposedRef.current = true;
       pausedRef.current = false;
       preparationGenerationRef.current += 1;
+      video.removeEventListener('error', showStaticFallback);
       releasePhoneTtgVideo(video);
       bindingRef.current = null;
       sceneRef.current = null;
@@ -437,3 +443,4 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
 }
 
 export default PhoneTtg;
+export const phoneSceneId = 'ttg-animation' as const;

@@ -46,8 +46,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__star-motion,
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__star-copy {
+  .portrait-scroll-spike__star-motion,
+  .portrait-scroll-spike__star-copy {
     transform: none !important; opacity: 1 !important; visibility: inherit !important;
   }
 }

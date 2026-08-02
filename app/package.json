@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && pnpm run verify:boolean-data && pnpm run verify:phone-architecture && node scripts/verify-homepage-module-boundaries.mjs && pnpm run verify:phone-packed-alpha && vite build && pnpm run verify:media && node scripts/verify-release-build.mjs && node scripts/verify-performance-budgets.mjs && node scripts/create-cdn-publish-manifest.mjs && node scripts/create-release-manifest.mjs",
+    "build": "tsc -b && pnpm run verify:boolean-data && pnpm run verify:phone-architecture:cutover && node scripts/verify-homepage-module-boundaries.mjs && pnpm run verify:phone-packed-alpha && vite build && pnpm run verify:media && node scripts/verify-release-build.mjs && node scripts/verify-performance-budgets.mjs && node scripts/create-cdn-publish-manifest.mjs && node scripts/create-release-manifest.mjs",
     "build:release": "pnpm run release:prepare && pnpm run evidence:memory:release && pnpm run release:finalize",
     "release:prepare": "R5_REQUIRE_RELEASE_IDENTITY=1 R5_REQUIRE_CDN=1 R5_RELEASE_MANIFEST_PHASE=prepare pnpm run build",
     "release:finalize": "R5_REQUIRE_RELEASE_IDENTITY=1 R5_REQUIRE_MEMORY_EVIDENCE=1 R5_RELEASE_MANIFEST_PHASE=finalize node scripts/create-release-manifest.mjs",

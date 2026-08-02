@@ -18,3 +18,4 @@ export const PhoneFigure2ProofBrandTransition = createPhoneInkLeaf(
 );
 
 export default PhoneFigure2ProofBrandTransition;
+export const phoneSegmentId = 'figure2-proof-brand' as const;

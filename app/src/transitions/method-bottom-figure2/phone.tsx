@@ -23,3 +23,4 @@ export const PhoneMethodBottomFigure2Transition = createPhoneInkLeaf(
 );
 
 export default PhoneMethodBottomFigure2Transition;
+export const phoneSegmentId = 'method-bottom-figure2' as const;

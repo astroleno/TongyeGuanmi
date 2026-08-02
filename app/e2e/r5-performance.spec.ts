@@ -451,10 +451,6 @@ async function pressFromCurrentHold(page: Page, key: 'PageDown' | 'PageUp'): Pro
 }
 
 test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budgets', async ({ page }, testInfo) => {
-  test.skip(
-    !['desktop-chromium', 'mobile-chromium'].includes(testInfo.project.name),
-    'performance sampling is Chromium-only'
-  );
   test.setTimeout(60_000);
 
   await page.addInitScript(() => {
@@ -712,10 +708,6 @@ test('LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budget
 });
 
 test('focused media and horizontal Ink paths separate first decode from steady frame pacing', async ({ page }, testInfo) => {
-  test.skip(
-    !['desktop-chromium', 'mobile-chromium'].includes(testInfo.project.name),
-    'focused frame sampling is Chromium-only'
-  );
   test.setTimeout(120_000);
 
   await bootStory(page, '/#ttg-animation');

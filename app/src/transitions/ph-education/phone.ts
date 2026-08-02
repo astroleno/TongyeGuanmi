@@ -188,3 +188,4 @@ export function PhonePhEducationTransition({ reports }: Readonly<{
 }
 
 export default PhonePhEducationTransition;
+export const phoneSegmentId = 'ph-education' as const;

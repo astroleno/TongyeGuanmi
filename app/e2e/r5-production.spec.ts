@@ -47,8 +47,24 @@ test('public root boots the production StoryApp without scaffold or harness code
   await expectLayerInvariants(page);
 });
 
-test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progressive nav', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'full presentation timing runs once');
+test('desktop formal root does not download the clean phone execution or leaves', async ({
+  page
+}) => {
+  const phoneScripts: string[] = [];
+  page.on('request', (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (
+      request.resourceType() === 'script'
+      && /\/(?:PhoneStoryShell|PhoneBrandLabStory|Phone(?:Hero|Pattern|StarMap|Aod|MethodTop|Figure2|Figure2Proof|Brand|Figure3|Services|Ttg|Lab|Ph|Education|Crane|Contact))-[^/]+\.js$/.test(pathname)
+    ) {
+      phoneScripts.push(pathname);
+    }
+  });
+  await bootStory(page);
+  expect(phoneScripts).toEqual([]);
+});
+
+test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progressive nav', async ({ page }) => {
   test.setTimeout(120_000);
 
   await page.addInitScript(() => {
@@ -213,8 +229,7 @@ test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progr
   )), { timeout: 5_000 }).toBeGreaterThan(0);
 });
 
-test('direct entries use the readiness cover and reduced motion renders the Hero endpoint', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'presentation variants run once');
+test('direct entries use the readiness cover and reduced motion renders the Hero endpoint', async ({ page }) => {
 
   for (const scene of ['method-top', 'contact'] as const) {
     const snapshot = await bootStory(page, `/?presentation=direct#${scene}`);
@@ -254,8 +269,7 @@ test('direct entries use the readiness cover and reduced motion renders the Hero
   await expect(hero).not.toHaveAttribute('data-hero-parallax-active', 'true');
 });
 
-test('Contact renders the canonical filing footer once in the interactive story', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'global production metadata runs once');
+test('Contact renders the canonical filing footer once in the interactive story', async ({ page }) => {
 
   await bootStory(page, '/?presentation=direct#contact');
   const footer = page.locator('[data-production-story-app="true"] [data-site-footer="true"]');
@@ -288,8 +302,7 @@ test('Contact renders the canonical filing footer once in the interactive story'
   });
 });
 
-test('Hero boot failure removes the loader and leaves the crawlable static shell', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'boot failure injection runs once');
+test('Hero boot failure removes the loader and leaves the crawlable static shell', async ({ page }) => {
 
   const indexResponse = await page.request.get('/');
   const indexHtml = await indexResponse.text();
@@ -319,8 +332,7 @@ test('Hero boot failure removes the loader and leaves the crawlable static shell
   expect(await page.locator('html').getAttribute('data-story-hydrated')).toBeNull();
 });
 
-test('slow next-scene assets do not block the current production hold', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'slow prefetch probe runs once');
+test('slow next-scene assets do not block the current production hold', async ({ page }) => {
   let releasePatternRequest = () => undefined;
   let patternRequestStarted = false;
   const patternGate = new Promise<void>((resolve) => {
@@ -372,8 +384,7 @@ test('menu navigation pushes history and browser history restores the prior hold
   await expectLayerInvariants(page);
 });
 
-test('the latest navigation request wins when an earlier lazy scene loads slowly', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'navigation race runs once');
+test('the latest navigation request wins when an earlier lazy scene loads slowly', async ({ page }) => {
   await page.route('**/method-top-*.js', async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 700));
     await route.continue();
@@ -394,8 +405,7 @@ test('the latest navigation request wins when an earlier lazy scene loads slowly
   await expectLayerInvariants(page);
 });
 
-test('every canonical hash boots directly and public aliases remain supported', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'exhaustive hash sweep runs once');
+test('every canonical hash boots directly and public aliases remain supported', async ({ page }) => {
 
   for (const scene of canonicalScenes) {
     const snapshot = await bootStory(page, `/?hash=${scene}#${scene}`);
@@ -784,7 +794,6 @@ test('consolidated Method-to-Figure2 ink keeps an opaque receiver field beneath 
 });
 
 test('AOD first presented alpha frame stays composited over Method paper from p=0', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'presented alpha-frame readback runs once');
   test.setTimeout(45_000);
   await bootStory(page, '/#aod-animation');
 
@@ -894,8 +903,7 @@ test('AOD first presented alpha frame stays composited over Method paper from p=
   await expectLayerInvariants(page);
 });
 
-test('Method reverse presents descending AOD frames and rejects the arriving wheel tail until a fresh gesture', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'presented-frame and physical wheel envelope run once');
+test('Method reverse presents descending AOD frames and rejects the arriving wheel tail until a fresh gesture', async ({ page }) => {
   test.setTimeout(45_000);
   await bootStory(page, '/#method-top');
 
@@ -1005,8 +1013,7 @@ test('critical reverse chains return through hero, pilot, and figure2 proof hold
   expect(Math.abs(methodEntry.scrollTop - methodEntry.maxScrollTop)).toBeLessThan(1);
 });
 
-test('slow media succeeds before timeout and failed endpoint recovery leaves an interactive static hold', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'network recovery runs once');
+test('slow media succeeds before timeout and failed endpoint recovery leaves an interactive static hold', async ({ page }) => {
   test.setTimeout(120_000);
 
   await page.route('**/*aod-figure-motion*.webm', async (route) => {
@@ -1082,8 +1089,7 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
   await expectLayerInvariants(page);
 });
 
-test('failed incoming AOD media skips the blocked transition and lands on its static AOD hold', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'network recovery runs once');
+test('failed incoming AOD media skips the blocked transition and lands on its static AOD hold', async ({ page }) => {
   test.setTimeout(60_000);
 
   await page.route('**/*aod-figure-motion*.webm', (route) => route.abort('failed'));
@@ -1100,8 +1106,7 @@ test('failed incoming AOD media skips the blocked transition and lands on its st
   await expectLayerInvariants(page);
 });
 
-test('Contact reverse recovery stays local while only its explicit link may return to Hero', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'network recovery runs once');
+test('Contact reverse recovery stays local while only its explicit link may return to Hero', async ({ page }) => {
   test.setTimeout(120_000);
 
   const craneMedia = /crane-(?:figure|flock)-motion[^/]*\.webm(?:\?.*)?$/;
@@ -1207,8 +1212,7 @@ test('Contact reverse recovery stays local while only its explicit link may retu
   await expectLayerInvariants(page);
 });
 
-test('legacy and harness URLs cannot reach an old/default runtime in release output', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'release routing scan runs once');
+test('legacy and harness URLs cannot reach an old/default runtime in release output', async ({ page }) => {
 
   await page.goto('/aod.html');
   await expect(page.getByRole('heading', { name: '页面不存在' })).toBeVisible();

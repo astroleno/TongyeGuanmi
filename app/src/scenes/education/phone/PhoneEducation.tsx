@@ -124,3 +124,4 @@ export function PhoneEducation({ reports }: Readonly<{
 }
 
 export default PhoneEducation;
+export const phoneSceneId = 'education' as const;

@@ -413,3 +413,4 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
 }
 
 export default PhoneFigure3;
+export const phoneSceneId = 'figure3-animation' as const;

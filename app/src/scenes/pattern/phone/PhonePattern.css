@@ -92,8 +92,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__pattern-motion,
-  html[data-portrait-spike-motion="reduce"] .portrait-scroll-spike__pattern-copy {
+  .portrait-scroll-spike__pattern-motion,
+  .portrait-scroll-spike__pattern-copy {
     transform: none !important;
     opacity: 1 !important;
     visibility: inherit !important;

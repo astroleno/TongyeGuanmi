@@ -245,3 +245,4 @@ export function PhonePattern({ reports }: PhonePatternProps) {
 }
 
 export default PhonePattern;
+export const phoneSceneId = 'pattern' as const;

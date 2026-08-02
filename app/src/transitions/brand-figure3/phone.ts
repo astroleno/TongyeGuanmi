@@ -53,3 +53,4 @@ export const PhoneBrandFigure3Transition = createPhoneInkLeaf(
 );
 
 export default PhoneBrandFigure3Transition;
+export const phoneSegmentId = 'brand-figure3' as const;

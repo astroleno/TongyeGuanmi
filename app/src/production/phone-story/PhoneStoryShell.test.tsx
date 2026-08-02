@@ -132,7 +132,10 @@ vi.mock('./scenes', async () => {
   const actual = await vi.importActual<typeof import('./scenes')>('./scenes');
   return {
     createPhoneSceneTopology: actual.createPhoneSceneTopology,
-    loadPhoneSceneModule: vi.fn(async () => ({ default: () => null })),
+    loadPhoneSceneModule: vi.fn(async () => ({
+      default: () => null,
+      phoneSceneId: 'hero' as const
+    })),
     PhoneSceneLeaf: (props: Record<string, unknown>) => {
       probe.sceneProps.push(props);
       return createElement('div', { 'data-phone-scene-leaf': props.sceneId });
@@ -148,7 +151,10 @@ vi.mock('./transitions', async () => {
   const actual = await vi.importActual<typeof import('./transitions')>('./transitions');
   return {
     createPhoneEffectTopology: actual.createPhoneEffectTopology,
-    loadPhoneTransitionModule: vi.fn(async () => ({ default: () => null })),
+    loadPhoneTransitionModule: vi.fn(async () => ({
+      default: () => null,
+      phoneSegmentId: 'hero-pattern' as const
+    })),
     PhoneTransitionLeaf: (props: Record<string, unknown>) => {
       probe.transitionProps.push(props);
       return createElement('div', { 'data-phone-transition-leaf': props.segmentId });
@@ -428,12 +434,34 @@ beforeEach(() => {
   probe.transitionProps.length = 0;
   probe.snapshot = bootSnapshot();
   document.body.replaceChildren();
+  delete document.documentElement.dataset.phonePreboot;
   vi.clearAllMocks();
-  vi.mocked(loadPhoneSceneModule).mockResolvedValue({ default: () => null });
-  vi.mocked(loadPhoneTransitionModule).mockResolvedValue({ default: () => null });
+  vi.mocked(loadPhoneSceneModule).mockResolvedValue({
+    default: () => null,
+    phoneSceneId: 'hero'
+  });
+  vi.mocked(loadPhoneTransitionModule).mockResolvedValue({
+    default: () => null,
+    phoneSegmentId: 'hero-pattern'
+  });
 });
 
 describe('clean PhoneStoryShell ownership', () => {
+  it('replaces pending preboot with a presentation-only mounted marker and one implementation signature', () => {
+    document.documentElement.dataset.phonePreboot = 'pending';
+    const { host, root } = hostRoot();
+    act(() => root.render(
+      <PhoneStoryShell diagnostics chunkRecovery={chunkRecovery} />
+    ));
+
+    expect(document.documentElement.dataset.phonePreboot).toBe('mounted');
+    expect(host.querySelector('.phone-story')?.getAttribute('data-phone-implementation'))
+      .toBe('clean-v1');
+
+    act(() => root.unmount());
+    expect(document.documentElement.dataset.phonePreboot).toBeUndefined();
+  });
+
   it('replays real StrictMode layout effects without overlapping browser ownership', () => {
     const { root } = hostRoot();
     act(() => root.render(
@@ -899,7 +927,10 @@ describe('clean PhoneStoryShell ownership', () => {
 describe('clean lazy registries', () => {
   it('caches fulfilled scene modules without caching a rejected import promise', async () => {
     const { createPhoneSceneRegistry } = await vi.importActual<typeof import('./scenes')>('./scenes');
-    const fulfilled = vi.fn(async () => ({ default: () => null }));
+    const fulfilled = vi.fn(async () => ({
+      default: () => null,
+      phoneSceneId: 'hero' as const
+    }));
     const rejected = vi.fn(async () => { throw new Error('native scene rejection'); });
     const registry = createPhoneSceneRegistry({ hero: fulfilled, pattern: rejected });
     const firstLoad = registry.load('hero');

@@ -252,3 +252,4 @@ export function PhoneCraneContactTransition({ reports }: Readonly<{
 }
 
 export default PhoneCraneContactTransition;
+export const phoneSegmentId = 'crane-contact' as const;

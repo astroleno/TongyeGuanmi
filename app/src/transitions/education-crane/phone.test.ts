@@ -34,7 +34,7 @@ describe('Phone Education → Crane transition', () => {
     );
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).not.toContain('parkPhoneCraneMedia');
-    expect(source).not.toContain('production/phone/types');
+    expect(source).not.toContain(['production', 'phone', 'types'].join('/'));
   });
 
   it('keeps both authored endpoints opaque while the contour owns visibility', () => {

@@ -94,7 +94,7 @@ describe('PhonePh', () => {
     expect(motionSource).toContain('phonePhForegroundParallaxY');
     expect(reverseSource).not.toContain('phone-presented-reverse-playback');
     for (const forbidden of [
-      'production/phone/types',
+      ['production', 'phone', 'types'].join('/'),
       'phone-native-autoplay',
       'phone-lab-contact-timeline',
       'phone-presented-reverse-playback'

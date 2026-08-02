@@ -103,7 +103,11 @@
 }
 
 .phone-ttg video.ttg-layer--figure[data-phone-ttg-endpoint-ready] {
-  opacity: var(--ttg-figure-video-opacity, 1);
+  opacity: var(--phone-ttg-figure-opacity, 1);
+}
+
+.phone-ttg[data-phone-media-state="fallback"] video.ttg-layer--figure {
+  opacity: 0;
 }
 
 .phone-ttg[data-phone-media-state="fallback"] .phone-ttg__fallback,

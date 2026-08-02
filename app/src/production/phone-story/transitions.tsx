@@ -6,12 +6,18 @@ import {
   type ReactNode
 } from 'react';
 import type { PhoneLeafReportPort } from './presentation';
+import type { PhoneSegmentId } from './manifest';
 
 export type PhoneTransitionLeafProps = Readonly<{ reports: PhoneLeafReportPort }>;
-export type PhoneTransitionModule = Readonly<{
+export type PhoneTransitionModule<SegmentId extends string = string> = Readonly<{
+  phoneSegmentId: SegmentId;
   default: ComponentType<PhoneTransitionLeafProps>;
 }>;
-export type PhoneTransitionLoader = () => Promise<PhoneTransitionModule>;
+export type PhoneTransitionLoader<SegmentId extends string = string> =
+  () => Promise<PhoneTransitionModule<SegmentId>>;
+export type PhoneTransitionLoaderMap = {
+  readonly [SegmentId in PhoneSegmentId]: PhoneTransitionLoader<SegmentId>;
+};
 export type PhoneEffectRenderSlot<SegmentId extends string = string> = Readonly<{
   attemptId: string;
   segmentId: SegmentId;
@@ -49,7 +55,8 @@ export type PhoneTransitionRegistry<SegmentId extends string = string> = Readonl
 }>;
 
 class PhoneTransitionLoadError extends Error {
-  readonly code: 'phone-transition-leaf-missing' | 'phone-transition-leaf-rejected';
+  readonly code: 'phone-transition-leaf-missing' | 'phone-transition-leaf-rejected'
+    | 'phone-transition-leaf-mismatch';
 
   constructor(
     code: PhoneTransitionLoadError['code'],
@@ -80,12 +87,17 @@ export function createPhoneTransitionRegistry<SegmentId extends string = string>
         'phone-transition-leaf-missing', `Transition ${segmentId} has no clean lazy leaf`
       );
       const promise = loader().then((module) => {
+        if (module.phoneSegmentId !== segmentId) throw new PhoneTransitionLoadError(
+          'phone-transition-leaf-mismatch',
+          `Transition ${segmentId} resolved module ${module.phoneSegmentId}`
+        );
         pending.delete(segmentId);
         fulfilled.set(segmentId, promise);
         return module;
-      }, (cause: unknown) => {
+      }).catch((cause: unknown) => {
         pending.delete(segmentId);
         rejected.add(segmentId);
+        if (cause instanceof PhoneTransitionLoadError) throw cause;
         throw new PhoneTransitionLoadError(
           'phone-transition-leaf-rejected',
           cause instanceof Error ? cause.message : String(cause)
@@ -97,7 +109,14 @@ export function createPhoneTransitionRegistry<SegmentId extends string = string>
   });
 }
 
-const transitionLoaders = Object.freeze({
+export function defineExhaustivePhoneTransitionLoaders(
+  loaders: PhoneTransitionLoaderMap
+): PhoneTransitionLoaderMap {
+  return Object.freeze(loaders);
+}
+
+const transitionLoaders: Record<PhoneSegmentId, PhoneTransitionLoader> =
+defineExhaustivePhoneTransitionLoaders({
   'hero-pattern': () => import('../../transitions/hero-pattern/phone'),
   'pattern-star-map': () => import('../../transitions/pattern-star-map/phone'),
   'star-map-aod': () => import('../../transitions/star-map-aod/phone'),
@@ -113,8 +132,10 @@ const transitionLoaders = Object.freeze({
   'ph-education': () => import('../../transitions/ph-education/phone'),
   'education-crane': () => import('../../transitions/education-crane/phone'),
   'crane-contact': () => import('../../transitions/crane-contact/phone')
-}) satisfies Partial<Record<string, PhoneTransitionLoader>>;
-const defaultTransitionRegistry = createPhoneTransitionRegistry<string>(transitionLoaders);
+});
+const defaultTransitionRegistry = createPhoneTransitionRegistry<string>(
+  transitionLoaders
+);
 
 type PhoneTransitionFailureBoundaryProps = Readonly<{
   children: ReactNode;

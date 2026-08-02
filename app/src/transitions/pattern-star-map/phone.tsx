@@ -17,3 +17,4 @@ export const PhonePatternStarMapTransition = createPhoneInkLeaf(
 );
 
 export default PhonePatternStarMapTransition;
+export const phoneSegmentId = 'pattern-star-map' as const;

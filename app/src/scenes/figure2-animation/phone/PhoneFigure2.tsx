@@ -202,3 +202,4 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
 }
 
 export default PhoneFigure2;
+export const phoneSceneId = 'figure2-animation' as const;

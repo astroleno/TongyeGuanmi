@@ -281,3 +281,4 @@ export function PhoneAod({ reports }: PhoneAodProps) {
 }
 
 export default PhoneAod;
+export const phoneSceneId = 'aod-animation' as const;

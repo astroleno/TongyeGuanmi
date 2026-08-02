@@ -88,3 +88,4 @@ export const PHONE_LAB_PH_OPTIONS = Object.freeze({
 export const PhoneLabPhTransition = createPhoneInkLeaf(PHONE_LAB_PH_OPTIONS);
 
 export default PhoneLabPhTransition;
+export const phoneSegmentId = 'lab-ph' as const;

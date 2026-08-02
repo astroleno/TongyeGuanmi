@@ -234,3 +234,4 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
 }
 
 export default PhoneStarMap;
+export const phoneSceneId = 'star-map' as const;

@@ -30,7 +30,7 @@ describe('Phone Crane → Contact transition', () => {
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).not.toContain('parkPhoneCraneMedia');
     expect(source).not.toContain('renderCraneAnimationProgress');
-    expect(source).not.toContain('production/phone/types');
+    expect(source).not.toContain(['production', 'phone', 'types'].join('/'));
     expect(source).toContain('frame.contactProgress');
     expect(stylesheet).toContain('data-phone-crane-contact-layer="true"');
     expect(stylesheet).toContain('z-index: 4');

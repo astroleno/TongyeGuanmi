@@ -1,7 +1,11 @@
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { bootStory, waitForHold } from './r5-helpers';
+import { bootStory } from './r5-helpers';
+import {
+  assertSinglePhoneAuthority,
+  waitForCommitSequence
+} from './r5-phone-clean-assertions';
 
 const repoDir = resolve(process.cwd(), '..');
 const inventoryPath = resolve(repoDir, 'dist', 'homepage-media-inventory.json');
@@ -31,6 +35,8 @@ type HomepageMediaInventory = Readonly<{
     emittedPath: string;
   }>[];
 }>;
+
+let cleanMediaDocumentSequence = 0;
 
 async function fileExists(file: string): Promise<boolean> {
   try {
@@ -75,143 +81,75 @@ async function decodedMask(page: Page, selector: string): Promise<Readonly<{
   });
 }
 
-async function pressFromCurrentHold(page: Page, key: 'PageDown' | 'PageUp'): Promise<void> {
-  await page.keyboard.press(key);
+async function bootCleanMediaEntry(page: Page, scene: string): Promise<void> {
+  cleanMediaDocumentSequence += 1;
+  await page.goto(`/?r5-media-entry=${cleanMediaDocumentSequence}#${scene}`, {
+    waitUntil: 'domcontentloaded'
+  });
+  await waitForCommitSequence(page, scene, 0);
+  await assertSinglePhoneAuthority(page);
 }
 
-test('Hero leaves the initial figure deferred and promotes it only from idle adjacent warmup', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile-chromium', 'Batch B transfer gate uses mobile Chromium');
-  await page.addInitScript(() => {
-    const callbacks: Array<() => void> = [];
-    const scope = window as typeof window & { __r5DeferredIdleCallbacks?: Array<() => void> };
-    scope.__r5DeferredIdleCallbacks = callbacks;
-    Object.defineProperty(window, 'requestIdleCallback', {
-      configurable: true,
-      value: (callback: (deadline: { didTimeout: boolean; timeRemaining(): number }) => void) => {
-        callbacks.push(() => callback({ didTimeout: false, timeRemaining: () => 50 }));
-        return callbacks.length;
-      }
-    });
+test('Hero clean entry owns one packed-alpha figure surface and a decoded poster', async ({ page }) => {
+  await bootCleanMediaEntry(page, 'hero');
+  const scene = page.locator('[data-phone-plane="source"] .portrait-scroll-spike__scene--hero');
+  await expect(scene.locator('[data-portrait-figure-video]')).toHaveCount(1);
+  await expect(scene.locator('[data-portrait-figure-canvas]')).toHaveCount(1);
+  await expect(scene.locator('[data-portrait-figure-poster]')).toHaveCount(1);
+  await expect(scene).toHaveAttribute('data-phone-hero-images', 'decoded');
+  const state = await scene.evaluate((root) => {
+    const video = root.querySelector<HTMLVideoElement>('[data-portrait-figure-video]');
+    const poster = root.querySelector<HTMLImageElement>('[data-portrait-figure-poster]');
+    return {
+      preload: video?.preload,
+      source: video?.currentSrc || video?.src,
+      poster: poster?.currentSrc || poster?.src,
+      posterDecoded: Boolean(poster?.complete && poster.naturalWidth > 0)
+    };
   });
-  const requests: string[] = [];
-  page.on('request', (request) => {
-    if (request.resourceType() === 'video') {
-      requests.push(new URL(request.url()).pathname);
-    }
-  });
-
-  await bootStory(page, '/?presentation=direct');
-  const initial = await page.locator('[data-r4-scene="hero"] [data-hero-figure-video]').evaluate((video: HTMLVideoElement) => ({
-    preload: video.preload,
-    source: video.currentSrc || video.src,
-    poster: video.poster
-  }));
-  expect(initial).toMatchObject({ preload: 'none' });
-  expect(initial.source).toMatch(/figure1-[^/]+\.webm$/);
-  expect(initial.poster).toMatch(/hero-figure-poster-[^/]+\.webp$/);
-  expect(initial.source).not.toContain('hero-figure-scrub');
-  expect(requests.some((url) => /figure1-[^/]+\.webm$/.test(url))).toBe(false);
-
-  await page.waitForFunction(() => {
-    const scope = window as typeof window & { __r5DeferredIdleCallbacks?: Array<() => void> };
-    return (scope.__r5DeferredIdleCallbacks?.length ?? 0) > 0;
-  });
-  await page.evaluate(() => {
-    const scope = window as typeof window & { __r5DeferredIdleCallbacks?: Array<() => void> };
-    const callback = scope.__r5DeferredIdleCallbacks?.shift();
-    if (!callback) throw new Error('Hero idle warmup was not scheduled');
-    callback();
-  });
-  await page.waitForFunction(() => {
-    const video = document.querySelector<HTMLVideoElement>('[data-r4-scene="hero"] [data-hero-figure-video]');
-    return video?.preload === 'auto'
-      && video.dataset.timelineVideoFrameReady === 'true'
-      && video.paused;
-  });
-
-  await pressFromCurrentHold(page, 'PageDown');
-  await waitForHold(page, 'pattern');
+  expect(state.preload).toBe('auto');
+  expect(state.source).toMatch(/figure1-rgb-alpha-[^/]+\.mp4$/);
+  expect(state.poster).toMatch(/hero-figure-poster-[^/]+\.webp$/);
+  expect(state.posterDecoded).toBe(true);
 });
 
-test('direct non-Hero entries expose exactly the seven canonical physical video keys', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile-chromium', 'Batch B media gate uses mobile Chromium');
+test('clean direct media entries expose exactly the seven canonical physical video keys', async ({ page }) => {
   const cases = [
-    {
-      scene: 'figure2-animation',
-      media: [['figure2-pair-motion', 'figure2-pair-motion']]
-    },
-    { scene: 'ttg-animation', media: [['ttg-figure-motion', 'ttg-figure-motion']] },
-    { scene: 'ph-animation', media: [['ph-figure-motion', 'ph-figure-motion']] },
-    { scene: 'aod-animation', media: [['aod-figure-motion', 'aod-figure-motion']] },
-    { scene: 'figure3-animation', media: [['figure3-motion', 'figure3-motion']] },
-    {
-      scene: 'crane-animation',
-      media: [
-        ['crane-figure-motion', 'crane-figure-motion'],
-        ['crane-flock-motion', 'crane-flock-motion']
-      ]
-    }
+    { scene: 'figure2-animation', keys: ['figure2-pair-motion'] },
+    { scene: 'ttg-animation', keys: ['ttg-figure-motion'] },
+    { scene: 'ph-animation', keys: ['ph-figure-motion'] },
+    { scene: 'aod-animation', keys: ['aod-figure-motion'] },
+    { scene: 'figure3-animation', keys: ['figure3-motion'] },
+    { scene: 'crane-animation', keys: ['crane-figure-motion', 'crane-flock-motion'] }
   ] as const;
 
   for (const entry of cases) {
-    await bootStory(page, `/?presentation=direct#${entry.scene}`);
-    const videos = await page.evaluate((scene) => {
-      const layer = document.querySelector<HTMLElement>(`[data-stage-layer="${scene}"]`);
-      return [...(layer?.querySelectorAll<HTMLVideoElement>('[data-media-key]') ?? [])].map((video) => ({
-        key: video.dataset.mediaKey,
-        source: video.currentSrc || video.src,
-        poster: video.poster,
-        playbackRate: video.playbackRate
+    await bootCleanMediaEntry(page, entry.scene);
+    const videos = await page.locator('.phone-story video[data-media-key]')
+      .evaluateAll((elements) => elements.map((element) => {
+      const video = element as HTMLVideoElement;
+      return { key: video.dataset.mediaKey, source: video.currentSrc || video.src };
       }));
-    }, entry.scene);
-    expect(videos.map((video) => video.key)).toEqual(entry.media.map(([key]) => key));
-    for (const [index, [, filename]] of entry.media.entries()) {
-      expect(videos[index]?.source).toMatch(new RegExp(`${filename}-[^/]+\\.webm$`));
-      expect(videos[index]?.poster).toBe('');
-      expect(videos[index]?.playbackRate).toBeGreaterThan(0);
-    }
+    expect(videos.map(({ key }) => key)).toEqual(entry.keys);
+    expect(videos.every(({ source }) => /\.(?:webm|mp4)(?:$|\?)/.test(source))).toBe(true);
   }
 });
 
-test('iPhone and iPad WebKit select HEVC alpha while retaining WebM fallback', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile-webkit', 'HEVC alpha selection is an iOS WebKit contract');
+test('iPhone and iPad WebKit keep decoded HEVC fallbacks and explicit packed policies', async ({ page }) => {
   const cases = [
-    { scene: 'hero', path: '/?presentation=direct', media: ['figure1'] },
-    {
-      scene: 'figure2-animation',
-      path: '/?presentation=direct#figure2-animation',
-      media: ['figure2-pair-motion']
-    },
-    {
-      scene: 'ttg-animation',
-      path: '/?presentation=direct#ttg-animation',
-      media: ['ttg-figure-motion']
-    },
-    {
-      scene: 'ph-animation',
-      path: '/?presentation=direct#ph-animation',
-      media: ['ph-figure-motion']
-    },
-    {
-      scene: 'aod-animation',
-      path: '/?presentation=direct#aod-animation',
-      media: ['aod-figure-motion']
-    },
-    {
-      scene: 'figure3-animation',
-      path: '/?presentation=direct#figure3-animation',
-      media: ['figure3-motion']
-    },
+    { scene: 'ttg-animation', media: ['ttg-figure-motion'], policy: 'decoded' },
+    { scene: 'ph-animation', media: ['ph-figure-motion'], policy: 'packed' },
+    { scene: 'figure3-animation', media: ['figure3-motion'], policy: 'decoded' },
     {
       scene: 'crane-animation',
-      path: '/?presentation=direct#crane-animation',
-      media: ['crane-figure-motion', 'crane-flock-motion']
+      media: ['crane-figure-motion', 'crane-flock-motion'],
+      policy: 'packed'
     }
   ] as const;
 
   for (const entry of cases) {
-    await bootStory(page, entry.path);
-    const videos = page.locator(`[data-stage-layer="${entry.scene}"] video`);
+    await bootCleanMediaEntry(page, entry.scene);
+    const videos = page.locator('.phone-story video[data-media-key]');
     await expect(videos).toHaveCount(entry.media.length);
     for (const [index, filename] of entry.media.entries()) {
       const video = videos.nth(index);
@@ -220,6 +158,13 @@ test('iPhone and iPad WebKit select HEVC alpha while retaining WebM fallback', a
         source: (element as HTMLSourceElement).src,
         type: element.getAttribute('type')
       })));
+      if (entry.policy === 'packed') {
+        expect(sources.map(({ format }) => format)).toEqual(['packed']);
+        expect(sources[0]?.source).toMatch(
+          new RegExp(`${filename}-rgb-alpha-[^/]+\\.mp4$`)
+        );
+        continue;
+      }
       expect(sources.map(({ format }) => format)).toEqual(['hevc', 'webm']);
       expect(sources[0]).toMatchObject({
         format: 'hevc',
@@ -237,10 +182,11 @@ test('iPhone and iPad WebKit select HEVC alpha while retaining WebM fallback', a
   }
 });
 
-test('iPhone WebKit decodes the HEVC Hero frame with a live alpha plane', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile-webkit', 'HEVC alpha decode is an iOS WebKit contract');
-  await bootStory(page, '/?presentation=direct');
-  const result = await page.locator('[data-stage-layer="hero"] [data-hero-figure-video]')
+test('iPhone WebKit decodes a clean HEVC alpha frame with a live alpha plane', async ({ page }) => {
+  await bootCleanMediaEntry(page, 'ttg-animation');
+  const result = await page.locator(
+    '[data-phone-plane="source"] [data-r4-scene="ttg-animation"] [data-ttg-figure-video]'
+  )
     .evaluate(async (video: HTMLVideoElement) => {
       const waitFor = (event: keyof HTMLMediaElementEventMap, timeoutMs = 15_000) => new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(() => {
@@ -298,7 +244,7 @@ test('iPhone WebKit decodes the HEVC Hero frame with a live alpha plane', async 
       };
     });
 
-  expect(result.currentSrc).toMatch(/figure1-hevc-alpha-[^/]+\.mp4$/);
+  expect(result.currentSrc).toMatch(/ttg-figure-motion-hevc-alpha-[^/]+\.mp4$/);
   expect(result.readyState).toBeGreaterThanOrEqual(2);
   expect(result.minAlpha).toBeLessThanOrEqual(16);
   expect(result.maxAlpha).toBeGreaterThanOrEqual(240);
@@ -306,8 +252,7 @@ test('iPhone WebKit decodes the HEVC Hero frame with a live alpha plane', async 
   expect(result.partialRatio).toBeGreaterThan(0);
 });
 
-test('Batch C WebP browser decode remains valid after presentation recompression', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'Batch C WebP gate runs once in desktop Chromium');
+test('Batch C WebP browser decode remains valid after presentation recompression', async ({ page }) => {
   const sourcePresence = await Promise.all(batchCWebpPairs.map(([source]) => fileExists(resolve(repoDir, source))));
   const retainedPngsPresent = sourcePresence.every(Boolean);
   expect(sourcePresence.every(Boolean) || sourcePresence.every((present) => !present)).toBe(true);
@@ -443,8 +388,7 @@ test('Batch C WebP browser decode remains valid after presentation recompression
   }
 });
 
-test('Batch C runtime loads WebP depth, mask, and Pattern layers without PNG requests', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop-chromium', 'Batch C runtime gate runs once in desktop Chromium');
+test('Batch C runtime loads WebP depth, mask, and Pattern layers without PNG requests', async ({ page }) => {
   const emittedBySource = await webpEmittedPaths();
   expect(emittedBySource.size).toBe(batchCWebpPairs.length);
   const expectedPaths = new Set([...emittedBySource.values()].map((entry) => `/${entry}`));

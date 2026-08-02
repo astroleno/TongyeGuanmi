@@ -134,3 +134,4 @@ export function PhoneBrand({ reports }: Readonly<{ reports: PhoneLeafReportPort 
 }
 
 export default PhoneBrand;
+export const phoneSceneId = 'brand' as const;

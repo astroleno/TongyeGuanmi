@@ -27,6 +27,7 @@ export type PhoneStoryShellProps = Readonly<{
 
 type PhoneShellSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegmentId>;
 const WHEEL_GESTURE_GAP_MS = 240;
+const PHONE_IMPLEMENTATION_SIGNATURE = 'clean-v1';
 
 function sampleLayout() {
   const width = Math.max(0, window.innerWidth);
@@ -348,11 +349,13 @@ export function PhoneStoryShell({
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    document.documentElement.dataset.phonePreboot = 'mounted';
     const detach = owners.presentation.attachRoot(root);
     connectedRef.current = true;
     const disconnect = owners.engine.connect();
     return () => {
       connectedRef.current = false;
+      delete document.documentElement.dataset.phonePreboot;
       runPhoneCleanupSteps('Phone shell cleanup failed', [
         disconnect, detach,
         () => reportPorts.current.clear(), owners.sceneTopology.clear,
@@ -445,6 +448,7 @@ export function PhoneStoryShell({
     <main ref={rootRef} className="phone-story"
       data-phone-scope={scope}
       data-phone-status={snapshot.status}
+      data-phone-implementation={PHONE_IMPLEMENTATION_SIGNATURE}
       data-phone-interaction={snapshot.status === 'stable' ? 'enabled' : 'disabled'}
       data-phone-revision={diagnostics ? snapshot.stateRevision : undefined}
       data-phone-authority={diagnostics ? snapshot.authorityId : undefined}

@@ -6,14 +6,20 @@ import {
   type ReactNode
 } from 'react';
 import type { PhoneLeafReportPort } from './presentation';
+import type { PhoneSceneId } from './manifest';
 
 export type PhoneSceneLeafProps = Readonly<{ reports: PhoneLeafReportPort }>;
 export type PhoneSceneReadingProps = Readonly<{ sceneId: string }>;
-export type PhoneSceneModule = Readonly<{
+export type PhoneSceneModule<SceneId extends string = string> = Readonly<{
+  phoneSceneId: SceneId;
   default: ComponentType<PhoneSceneLeafProps>;
   Reading?: ComponentType<PhoneSceneReadingProps>;
 }>;
-export type PhoneSceneLoader = () => Promise<PhoneSceneModule>;
+export type PhoneSceneLoader<SceneId extends string = string> =
+  () => Promise<PhoneSceneModule<SceneId>>;
+export type PhoneSceneLoaderMap = {
+  readonly [SceneId in PhoneSceneId]: PhoneSceneLoader<SceneId>;
+};
 export type PhonePlaneBuffer = 'a' | 'b';
 export type PhoneSceneRenderSlot<SceneId extends string = string> = Readonly<{
   sceneId: SceneId;
@@ -71,7 +77,8 @@ export type PhoneSceneRegistry<SceneId extends string = string> = Readonly<{
 }>;
 
 class PhoneSceneLoadError extends Error {
-  readonly code: 'phone-scene-leaf-missing' | 'phone-scene-leaf-rejected';
+  readonly code: 'phone-scene-leaf-missing' | 'phone-scene-leaf-rejected'
+    | 'phone-scene-leaf-mismatch';
 
   constructor(
     code: PhoneSceneLoadError['code'],
@@ -102,12 +109,17 @@ export function createPhoneSceneRegistry<SceneId extends string = string>(
         'phone-scene-leaf-missing', `Scene ${sceneId} has no clean lazy leaf`
       );
       const promise = loader().then((module) => {
+        if (module.phoneSceneId !== sceneId) throw new PhoneSceneLoadError(
+          'phone-scene-leaf-mismatch',
+          `Scene ${sceneId} resolved module ${module.phoneSceneId}`
+        );
         pending.delete(sceneId);
         fulfilled.set(sceneId, promise);
         return module;
-      }, (cause: unknown) => {
+      }).catch((cause: unknown) => {
         pending.delete(sceneId);
         rejected.add(sceneId);
+        if (cause instanceof PhoneSceneLoadError) throw cause;
         throw new PhoneSceneLoadError(
           'phone-scene-leaf-rejected',
           cause instanceof Error ? cause.message : String(cause)
@@ -119,7 +131,14 @@ export function createPhoneSceneRegistry<SceneId extends string = string>(
   });
 }
 
-const sceneLoaders = Object.freeze({
+export function defineExhaustivePhoneSceneLoaders(
+  loaders: PhoneSceneLoaderMap
+): PhoneSceneLoaderMap {
+  return Object.freeze(loaders);
+}
+
+const sceneLoaders: Record<PhoneSceneId, PhoneSceneLoader> =
+defineExhaustivePhoneSceneLoaders({
   hero: () => import('../../scenes/hero/phone/PhoneHero'),
   pattern: () => import('../../scenes/pattern/phone/PhonePattern'),
   'star-map': () => import('../../scenes/star-map/phone/PhoneStarMap'),
@@ -136,7 +155,7 @@ const sceneLoaders = Object.freeze({
   education: () => import('../../scenes/education/phone/PhoneEducation'),
   'crane-animation': () => import('../../scenes/crane-animation/phone/PhoneCrane'),
   contact: () => import('../../scenes/contact/phone/PhoneContact')
-}) satisfies Partial<Record<string, PhoneSceneLoader>>;
+});
 const defaultSceneRegistry = createPhoneSceneRegistry<string>(sceneLoaders);
 
 type PhoneSceneFailureBoundaryProps = Readonly<{

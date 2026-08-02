@@ -1,51 +1,59 @@
-import { lazy, Suspense, useState } from 'react';
-import { canUseDOM } from './runtime/browser-guard';
-import { initialPresentationFamily, type PresentationFamily } from './production/presentation-profile';
 import {
-  loadDesktopStoryShell,
-  loadPhoneLabContactShell,
-  loadPhoneStoryShell
-} from './production/presentation-shell-loaders';
+  Component,
+  lazy,
+  Suspense,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode
+} from 'react';
+import { canUseDOM } from './runtime/browser-guard';
+import {
+  initialPresentationFamily,
+  type PresentationFamily
+} from './production/presentation-profile';
+import type { PhoneChunkRecoveryController } from './production/presentation-shell-loaders';
 import './styles.css';
 
 const harnessEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_HARNESS === '1';
 const HarnessRouter = harnessEnabled
-  ? lazy(() => import('./harness/HarnessRouter').then(({ HarnessRouter: Router }) => ({ default: Router })))
+  ? lazy(() => import('./harness/HarnessRouter').then(({ HarnessRouter: Router }) => ({
+      default: Router
+    })))
   : null;
-const DesktopStoryShell = lazy(loadDesktopStoryShell);
-const PhoneStoryShell = lazy(loadPhoneStoryShell);
-const PhoneLabContactShell = lazy(loadPhoneLabContactShell);
-const phoneShellEnabled = import.meta.env.VITE_ENABLE_PHONE_STORY === '1';
+const DesktopStoryShell = lazy(() => import(
+  './production/desktop/DesktopStoryShell'
+).then(({ DesktopStoryShell: Shell }) => ({ default: Shell })));
+const PhoneStoryShell = lazy(async () => {
+  const { loadPhoneStoryShell } = await import(
+    './production/presentation-shell-loaders'
+  );
+  return loadPhoneStoryShell();
+});
+const PhoneBrandLabStory = lazy(async () => {
+  const { loadPhoneBrandLabStory } = await import(
+    './production/presentation-shell-loaders'
+  );
+  return loadPhoneBrandLabStory();
+});
 
-type PhoneValidationMode = 'v16' | 'v17' | 'v18' | 'v19' | 'v20' | 'v21' | 'v22' | 'v23' | 'v24' | 'v25' | 'v26' | 'v27' | 'v28' | 'v29' | 'v30' | 'v31' | 'v32' | 'v33' | 'v34' | 'v35' | 'v36' | 'v37' | 'v38' | 'v39' | 'v40' | 'v42' | 'v43' | 'v44' | 'v45' | 'v46' | 'v47';
+export type AppRoute = 'formal' | 'brand-lab' | 'harness' | 'not-found';
 
-function requestedPhoneValidationMode(): PhoneValidationMode | undefined {
-  if (!canUseDOM()) return undefined;
-  const version = new URLSearchParams(window.location.search).get('v');
-  return version === '16' || version === '17' || version === '18'
-    || version === '19' || version === '20' || version === '21'
-    || version === '22' || version === '23' || version === '24'
-    || version === '25' || version === '26' || version === '27'
-    || version === '28' || version === '29' || version === '30'
-    || version === '31' || version === '32' || version === '33'
-    || version === '34' || version === '35' || version === '36'
-    || version === '37' || version === '38' || version === '39'
-    || version === '40' || version === '42' || version === '43'
-    || version === '44' || version === '45' || version === '46'
-    || version === '47'
-      ? `v${version}`
-    : undefined;
+export function appRouteForPath(pathname: string, allowHarness: boolean): AppRoute {
+  if (pathname === '/' || pathname === '/index.html') return 'formal';
+  if (pathname === '/brand-lab') return 'brand-lab';
+  if (pathname.startsWith('/harness/') && allowHarness) return 'harness';
+  return 'not-found';
 }
 
 function initialShellFamily(): PresentationFamily {
-  if (!canUseDOM()) return 'desktop';
-  // Unit 0–6 use this thin verification entry. Unit 7 removes the gate after
-  // physical-device acceptance; an explicit release flag permits staged QA.
-  if (requestedPhoneValidationMode()) return 'phone';
-  return phoneShellEnabled && initialPresentationFamily() === 'phone' ? 'phone' : 'desktop';
+  return canUseDOM() ? initialPresentationFamily() : 'desktop';
 }
 
 function NotFound() {
+  useLayoutEffect(() => {
+    document.getElementById('story-loader-static')?.remove();
+  }, []);
   return (
     <main className="route-not-found">
       <p>404</p>
@@ -55,32 +63,115 @@ function NotFound() {
   );
 }
 
-export function App() {
+function PhoneBootstrapUnavailable() {
+  useLayoutEffect(() => {
+    document.getElementById('story-loader-static')?.remove();
+  }, []);
+  return (
+    <main className="route-phone-recovery" role="alert" data-phone-bootstrap="fail-closed">
+      <h1>手机故事暂时无法加载</h1>
+      <p>启动恢复边界不可用，请手动重新加载。</p>
+      <button type="button" onClick={() => window.location.reload()}>重新加载</button>
+      <a href="/">返回首页</a>
+    </main>
+  );
+}
+
+export type PhoneAppChunkRecovery = Pick<PhoneChunkRecoveryController,
+  'port' | 'getSnapshot' | 'subscribe' | 'reportPhoneCoreRejection' | 'manualReload'>;
+
+function PhoneRecoverySurface({
+  recovery,
+  failed
+}: Readonly<{ recovery: PhoneAppChunkRecovery; failed: boolean }>) {
+  const snapshot = useSyncExternalStore(
+    recovery.subscribe,
+    recovery.getSnapshot,
+    recovery.getSnapshot
+  );
+  const failClosed = failed && snapshot.status === 'fail-closed';
+  useLayoutEffect(() => {
+    if (failClosed) document.getElementById('story-loader-static')?.remove();
+  }, [failClosed]);
+  if (!failClosed) {
+    return <main className="route-loading" data-phone-bootstrap={snapshot.status} aria-busy="true" />;
+  }
+  return (
+    <main className="route-phone-recovery" role="alert" data-phone-bootstrap="fail-closed">
+      <h1>手机故事暂时无法加载</h1>
+      <p>{snapshot.message}</p>
+      <button type="button" onClick={recovery.manualReload}>重新加载</button>
+      <a href="/">返回首页</a>
+    </main>
+  );
+}
+
+type PhoneLazyBoundaryProps = Readonly<{
+  recovery: PhoneAppChunkRecovery;
+  routeKey: string;
+  children: ReactNode;
+}>;
+
+class PhoneLazyBoundary extends Component<
+  PhoneLazyBoundaryProps,
+  Readonly<{ error: unknown | null; routeKey: string }>
+> {
+  state = { error: null, routeKey: this.props.routeKey };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { error };
+  }
+
+  static getDerivedStateFromProps(
+    props: PhoneLazyBoundaryProps,
+    state: Readonly<{ error: unknown | null; routeKey: string }>
+  ) {
+    return props.routeKey === state.routeKey
+      ? null
+      : { error: null, routeKey: props.routeKey };
+  }
+
+  componentDidCatch(error: unknown): void {
+    void this.props.recovery.reportPhoneCoreRejection(error);
+  }
+
+  render(): ReactNode {
+    return this.state.error
+      ? <PhoneRecoverySurface recovery={this.props.recovery} failed />
+      : this.props.children;
+  }
+}
+
+export function App({ chunkRecovery }: Readonly<{
+  chunkRecovery: PhoneAppChunkRecovery | null;
+}>) {
   const path = canUseDOM() ? window.location.pathname : '/';
-  const phoneValidationMode = requestedPhoneValidationMode();
-  // This state intentionally freezes the selected renderer. Rotating a phone
-  // updates PhoneStoryShell geometry in place instead of remounting desktop.
+  const route = appRouteForPath(path, harnessEnabled);
   const [shellFamily] = useState(initialShellFamily);
-  if (path.startsWith('/harness/')) {
-    if (!HarnessRouter) {
-      return <NotFound />;
-    }
+  if (route === 'harness') {
+    if (!HarnessRouter) return <NotFound />;
     return (
       <Suspense fallback={<main className="route-loading">Loading harness…</main>}>
         <HarnessRouter path={path} />
       </Suspense>
     );
   }
-  if (path !== '/' && path !== '/index.html') {
-    return <NotFound />;
+  if (route === 'not-found') return <NotFound />;
+  if (route === 'formal' && shellFamily === 'desktop') {
+    return (
+      <Suspense fallback={<main className="route-loading">正在加载故事…</main>}>
+        <DesktopStoryShell />
+      </Suspense>
+    );
   }
+  if (!chunkRecovery) return <PhoneBootstrapUnavailable />;
   return (
-    <Suspense fallback={<main className="route-loading">正在加载故事…</main>}>
-      {shellFamily === 'phone'
-        ? phoneValidationMode === 'v36'
-          ? <PhoneLabContactShell validationMode="v36" />
-          : <PhoneStoryShell {...(phoneValidationMode ? { validationMode: phoneValidationMode } : {})} />
-        : <DesktopStoryShell />}
-    </Suspense>
+    <PhoneLazyBoundary recovery={chunkRecovery} routeKey={route}>
+      <Suspense fallback={<PhoneRecoverySurface recovery={chunkRecovery} failed={false} />}>
+        {route === 'brand-lab'
+          ? <PhoneBrandLabStory chunkRecovery={chunkRecovery.port} />
+          : <PhoneStoryShell diagnostics chunkRecovery={chunkRecovery.port} />}
+      </Suspense>
+    </PhoneLazyBoundary>
   );
 }

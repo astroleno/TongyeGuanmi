@@ -12,18 +12,6 @@
     <title>__SITE_TITLE__</title>
     <script>
       try {
-        const validationVersion = new URLSearchParams(location.search).get('v');
-        const validationNumber = Number(validationVersion);
-        const validationPhoneEntry =
-          (Number.isInteger(validationNumber)
-            && validationNumber >= 16
-            && validationNumber <= 40)
-          || validationNumber === 42
-          || validationNumber === 43
-          || validationNumber === 44
-          || validationNumber === 45
-          || validationNumber === 46
-          || validationNumber === 47;
         const viewport = window.visualViewport;
         const viewportWidth = Math.max(1, viewport?.width ?? window.innerWidth);
         const viewportHeight = Math.max(1, viewport?.height ?? window.innerHeight);
@@ -31,43 +19,23 @@
           && window.matchMedia('(hover: none)').matches;
         const phoneGeometry = (viewportHeight > viewportWidth && viewportWidth <= 600)
           || (viewportWidth > viewportHeight && viewportHeight <= 500);
-        const productionPhoneEntry = '__PHONE_STORY_PREBOOT_ENABLED__' === 'true'
-          && phoneCapabilities
-          && phoneGeometry;
-        if (validationPhoneEntry || productionPhoneEntry) {
-          // Hide the static document before React resolves the phone shell.
-          // Without this synchronous route marker, the static brand can flash
-          // between the preload cover and the authored eight-character Loader.
+        const phoneShellEntry = location.pathname === '/brand-lab'
+          || (phoneCapabilities && phoneGeometry);
+        if (phoneShellEntry) {
           const documentElement = document.documentElement;
-          documentElement.dataset.portraitSpike = 'b';
-          documentElement.dataset.portraitSpikePreboot = validationPhoneEntry
-            ? 'validation'
-            : 'production';
-          documentElement.dataset.portraitEdgeScene = 'hero';
-          documentElement.style.setProperty('--portrait-document-surface', '#07110e');
-          const completed = sessionStorage.getItem('tongye:portrait-spike:v16:loader-complete') === 'true';
-          const hiddenAt = Number(sessionStorage.getItem('tongye:portrait-spike:v16:hidden-at'));
-          const age = Date.now() - hiddenAt;
-          const navigation = performance.getEntriesByType?.('navigation')?.[0];
-          const manuallyReloaded = navigation?.type === 'reload'
-            || performance.navigation?.type === 1;
-          if (manuallyReloaded) {
-            sessionStorage.removeItem('tongye:portrait-spike:v16:hidden-at');
-          } else if (completed && hiddenAt > 0 && age >= 0 && age < 30 * 60 * 1000) {
-            document.documentElement.dataset.portraitLoaderResume = 'skip';
-            sessionStorage.removeItem('tongye:portrait-spike:v16:hidden-at');
-          }
+          documentElement.dataset.phonePreboot = 'pending';
+          documentElement.style.setProperty('--phone-preboot-surface', '#07110e');
         }
       } catch {}
     </script>
     <style>
       /* This must precede the application stylesheet: the pre-hydration
        * cover can hand over before Vite has applied the route stylesheet. */
-      html[data-portrait-spike="b"] .static-content { display: none !important; }
-      html[data-portrait-spike="b"],
-      html[data-portrait-spike="b"] body,
-      html[data-portrait-spike="b"] #root {
-        background: var(--portrait-document-surface, #07110e) !important;
+      html[data-phone-preboot] .static-content { display: none !important; }
+      html[data-phone-preboot],
+      html[data-phone-preboot] body,
+      html[data-phone-preboot] #root {
+        background: var(--phone-preboot-surface, #07110e) !important;
       }
     </style>
   </head>

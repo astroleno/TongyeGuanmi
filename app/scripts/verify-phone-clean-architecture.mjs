@@ -45,8 +45,8 @@ const allowedCoreImports = new Map([
     'presentation.ts',
     'protocol.ts'
   ])],
-  ['scenes.tsx', new Set(['presentation.ts', 'protocol.ts'])],
-  ['transitions.tsx', new Set(['presentation.ts', 'protocol.ts'])],
+  ['scenes.tsx', new Set(['manifest.ts', 'presentation.ts', 'protocol.ts'])],
+  ['transitions.tsx', new Set(['manifest.ts', 'presentation.ts', 'protocol.ts'])],
   ['PhoneStoryShell.tsx', new Set([
     'manifest.ts',
     'presentation.ts',
@@ -1925,6 +1925,295 @@ function recoveryBoundaryViolations(sources, referenceSources = sources) {
   return violations;
 }
 
+function controllerRecoveryBoundaryViolations(sources, referenceSources = sources) {
+  const violations = [];
+  const loaderEntry = sources.find(({ file }) => (
+    slash(file).endsWith('/src/production/presentation-shell-loaders.ts')
+  ));
+  const mainEntry = sources.find(({ file }) => slash(file).endsWith('/src/main.tsx'));
+  if (!loaderEntry || !mainEntry) {
+    return ['cutover is missing the executable phone-core recovery controller'];
+  }
+  const rootNames = referenceSources.map(({ file }) => path.resolve(file));
+  const program = ts.createProgram({
+    rootNames,
+    options: {
+      allowJs: true,
+      checkJs: false,
+      jsx: ts.JsxEmit.Preserve,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      noLib: true,
+      skipLibCheck: true,
+      target: ts.ScriptTarget.Latest
+    }
+  });
+  const checker = program.getTypeChecker();
+  const sourceByPath = new Map(program.getSourceFiles().map((sourceFile) => [
+    path.resolve(sourceFile.fileName),
+    sourceFile
+  ]));
+  const loader = sourceByPath.get(path.resolve(loaderEntry.file))
+    ?? sourceFileFor(loaderEntry.file, loaderEntry.source);
+  const main = sourceByPath.get(path.resolve(mainEntry.file))
+    ?? sourceFileFor(mainEntry.file, mainEntry.source);
+  const descendants = (root, predicate) => {
+    const found = [];
+    const visit = (node) => {
+      if (predicate(node)) found.push(node);
+      ts.forEachChild(node, visit);
+    };
+    visit(root);
+    return found;
+  };
+  const symbolAt = (node) => {
+    const symbol = node && checker.getSymbolAtLocation(node);
+    return symbol ? canonicalSymbol(checker, symbol) : undefined;
+  };
+  const functionNamed = (sourceFile, name) => descendants(sourceFile, (node) => (
+    ts.isFunctionDeclaration(node) && node.name?.text === name
+  ));
+  const propertyCall = (node, owner, method) => (
+    ts.isCallExpression(node)
+    && ts.isPropertyAccessExpression(unwrappedExpression(node.expression))
+    && unwrappedExpression(node.expression).name.text === method
+    && ts.isIdentifier(unwrappedExpression(node.expression).expression)
+    && unwrappedExpression(node.expression).expression.text === owner
+  );
+
+  const keyDeclarations = loader.statements.flatMap((statement) => {
+    if (!ts.isVariableStatement(statement)) return [];
+    return statement.declarationList.declarations.flatMap((declaration) => {
+      const initializer = declaration.initializer
+        ? unwrappedExpression(declaration.initializer)
+        : undefined;
+      return ts.isIdentifier(declaration.name)
+        && initializer
+        && ts.isStringLiteralLike(initializer)
+        && /lineage/i.test(initializer.text)
+        && !/(?:build|module|url)/i.test(initializer.text)
+        ? [{ statement, declaration }]
+        : [];
+    });
+  });
+  const keyEntry = keyDeclarations.length === 1
+    && Boolean(keyDeclarations[0].statement.declarationList.flags & ts.NodeFlags.Const)
+    && keyDeclarations[0].statement.declarationList.declarations.length === 1
+    ? keyDeclarations[0]
+    : undefined;
+  const keyName = keyEntry?.declaration.name;
+  const keySymbol = keyName && ts.isIdentifier(keyName) ? symbolAt(keyName) : undefined;
+  if (!keyEntry || !keySymbol) {
+    violations.push(
+      'cutover recovery must own one immutable storage-lineage key independent of build and URL'
+    );
+  }
+
+  const lineageTypes = descendants(loader, (node) => (
+    ts.isTypeAliasDeclaration(node) && node.name.text === 'PhoneChunkRecoveryLineage'
+  ));
+  const lineageTypeNode = lineageTypes.length === 1
+    && ts.isTypeReferenceNode(lineageTypes[0].type)
+    && ts.isIdentifier(lineageTypes[0].type.typeName)
+    && lineageTypes[0].type.typeName.text === 'Readonly'
+    && lineageTypes[0].type.typeArguments?.length === 1
+    ? lineageTypes[0].type.typeArguments[0]
+    : lineageTypes[0]?.type;
+  const lineageFields = lineageTypeNode && ts.isTypeLiteralNode(lineageTypeNode)
+    ? new Set(lineageTypeNode.members.flatMap((member) => (
+        ts.isPropertySignature(member)
+        && member.name
+        && (ts.isIdentifier(member.name) || ts.isStringLiteralLike(member.name))
+          ? [member.name.text]
+          : []
+      )))
+    : new Set();
+  const requiredLineageFields = [
+    'lineageId', 'entryUrl', 'firstDocumentBuildId', 'currentDocumentBuildId',
+    'deployedBuildId', 'failedModuleUrl', 'failedModuleClass',
+    'automaticReloadCount', 'status'
+  ];
+  if (!requiredLineageFields.every((field) => lineageFields.has(field))) {
+    violations.push('cutover recovery lineage is missing executable frozen fields');
+  }
+
+  const storageCalls = descendants(loader, (node) => (
+    ts.isCallExpression(node)
+    && ts.isPropertyAccessExpression(unwrappedExpression(node.expression))
+    && ['getItem', 'setItem', 'removeItem'].includes(
+      unwrappedExpression(node.expression).name.text
+    )
+  ));
+  const storageKeyIsCanonical = (call) => {
+    const argument = call.arguments[0]
+      ? unwrappedExpression(call.arguments[0])
+      : undefined;
+    return argument && ts.isIdentifier(argument) && symbolAt(argument) === keySymbol;
+  };
+  if (
+    storageCalls.length < 3
+    || storageCalls.some((call) => !storageKeyIsCanonical(call))
+  ) {
+    violations.push('cutover recovery storage calls must share the immutable lineage key binding');
+  }
+
+  const countGuards = descendants(loader, (node) => {
+    if (!ts.isIfStatement(node) || !ts.isBinaryExpression(node.expression)) return false;
+    const expression = node.expression;
+    return expression.operatorToken.kind === ts.SyntaxKind.GreaterThanEqualsToken
+      && ts.isPropertyAccessExpression(unwrappedExpression(expression.left))
+      && unwrappedExpression(expression.left).name.text === 'automaticReloadCount'
+      && ts.isNumericLiteral(unwrappedExpression(expression.right))
+      && Number(unwrappedExpression(expression.right).text) === 1
+      && descendants(node.thenStatement, (child) => (
+        ts.isCallExpression(child)
+        && ts.isIdentifier(unwrappedExpression(child.expression))
+        && unwrappedExpression(child.expression).text === 'failClosed'
+      )).length === 1;
+  });
+  if (countGuards.length !== 1) {
+    violations.push('cutover recovery must guard the stored cross-reload allowance');
+  }
+
+  const persistedOne = descendants(loader, (node) => (
+    ts.isPropertyAssignment(node)
+    && (ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name))
+    && node.name.text === 'automaticReloadCount'
+    && ts.isAsExpression(node.initializer)
+    && ts.isNumericLiteral(unwrappedExpression(node.initializer.expression))
+    && Number(unwrappedExpression(node.initializer.expression).text) === 1
+  ));
+  const reloadCalls = descendants(loader, (node) => propertyCall(node, 'environment', 'reload'));
+  if (
+    persistedOne.length !== 1
+    || reloadCalls.length !== 1
+    || persistedOne[0].getStart() >= reloadCalls[0].getStart()
+  ) {
+    violations.push('cutover recovery must persist automaticReloadCount: 1 before reload');
+  }
+
+  const manifestCalls = descendants(loader, (node) => (
+    propertyCall(node, 'environment', 'fetchReleaseManifest')
+  ));
+  const manifestCall = manifestCalls.length === 1 ? manifestCalls[0] : undefined;
+  const manifestUrl = manifestCall?.arguments[0];
+  const manifestInit = manifestCall?.arguments[1]
+    ? unwrappedExpression(manifestCall.arguments[1])
+    : undefined;
+  const noStore = manifestInit && ts.isObjectLiteralExpression(manifestInit)
+    && manifestInit.properties.some((property) => (
+      ts.isPropertyAssignment(property)
+      && (ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name))
+      && property.name.text === 'cache'
+      && ts.isStringLiteralLike(unwrappedExpression(property.initializer))
+      && unwrappedExpression(property.initializer).text === 'no-store'
+    ));
+  if (
+    !manifestCall
+    || !manifestUrl
+    || !ts.isStringLiteralLike(unwrappedExpression(manifestUrl))
+    || unwrappedExpression(manifestUrl).text !== '/r5-release-manifest.json'
+    || !noStore
+  ) {
+    violations.push('cutover recovery must fetch the release manifest with cache: no-store');
+  }
+  const deadline = loaderEntry.source.match(
+    /\bmanifestFetchDeadlineMs\s*=\s*([0-9_]+)/
+  );
+  if (!deadline || Number(deadline[1].replaceAll('_', '')) !== 3000) {
+    violations.push('cutover recovery manifest active deadline must remain 3000 ms');
+  }
+  const onlineAwaits = descendants(loader, (node) => (
+    ts.isAwaitExpression(node)
+    && propertyCall(unwrappedExpression(node.expression), 'environment', 'waitForOnline')
+  ));
+  if (onlineAwaits.length !== 1) {
+    violations.push('cutover recovery must wait online before release classification');
+  }
+  if (!/if\s*\(\s*!storage\s*\)\s*return\s+failClosed\s*\(/.test(loaderEntry.source)) {
+    violations.push('cutover recovery must disable automatic reload without sessionStorage');
+  }
+
+  const mainRecoveryDeclarations = descendants(main, (node) => (
+    ts.isVariableDeclaration(node)
+    && ts.isIdentifier(node.name)
+    && node.name.text === 'chunkRecovery'
+    && node.initializer
+    && ts.isCallExpression(unwrappedExpression(node.initializer))
+    && ts.isIdentifier(unwrappedExpression(node.initializer).expression)
+    && unwrappedExpression(node.initializer).expression.text
+      === 'createBrowserPhoneChunkRecoveryController'
+  ));
+  const mainRecoveryName = mainRecoveryDeclarations.length === 1
+    ? mainRecoveryDeclarations[0].name
+    : undefined;
+  const mainRecoverySymbol = mainRecoveryName && ts.isIdentifier(mainRecoveryName)
+    ? symbolAt(mainRecoveryName)
+    : undefined;
+  const preloadListeners = descendants(main, (node) => (
+    ts.isCallExpression(node)
+    && ts.isPropertyAccessExpression(unwrappedExpression(node.expression))
+    && unwrappedExpression(node.expression).name.text === 'addEventListener'
+    && ts.isIdentifier(unwrappedExpression(node.expression).expression)
+    && unwrappedExpression(node.expression).expression.text === 'window'
+    && node.arguments[0]
+    && ts.isStringLiteralLike(unwrappedExpression(node.arguments[0]))
+    && unwrappedExpression(node.arguments[0]).text === 'vite:preloadError'
+  ));
+  const preloadHandler = preloadListeners[0]?.arguments[1]
+    ? unwrappedExpression(preloadListeners[0].arguments[1])
+    : undefined;
+  const bindsController = preloadListeners.length === 1
+    && preloadHandler
+    && ts.isPropertyAccessExpression(preloadHandler)
+    && preloadHandler.name.text === 'handlePreloadError'
+    && ts.isIdentifier(unwrappedExpression(preloadHandler.expression))
+    && symbolAt(unwrappedExpression(preloadHandler.expression)) === mainRecoverySymbol;
+  if (!bindsController) {
+    violations.push('cutover vite listener must bind the installed controller handler');
+  }
+  const renderCalls = descendants(main, (node) => (
+    ts.isCallExpression(node)
+    && ts.isPropertyAccessExpression(unwrappedExpression(node.expression))
+    && unwrappedExpression(node.expression).name.text === 'render'
+  ));
+  if (
+    preloadListeners.length !== 1
+    || renderCalls.length < 1
+    || preloadListeners[0].getStart() >= renderCalls[0].getStart()
+  ) {
+    violations.push('cutover preload recovery listener must install before React render');
+  }
+
+  const shellLoaders = functionNamed(loader, 'loadPhoneStoryShell');
+  const shellLoader = shellLoaders.length === 1 ? shellLoaders[0] : undefined;
+  const phoneImports = shellLoader ? descendants(shellLoader, (node) => (
+    ts.isCallExpression(node)
+    && node.expression.kind === ts.SyntaxKind.ImportKeyword
+    && node.arguments[0]
+    && ts.isStringLiteralLike(unwrappedExpression(node.arguments[0]))
+    && unwrappedExpression(node.arguments[0]).text === './phone-story/PhoneStoryShell'
+  )) : [];
+  const oneDirectReturn = shellLoader?.body
+    && ts.isBlock(shellLoader.body)
+    && shellLoader.body.statements.length === 1
+    && ts.isReturnStatement(shellLoader.body.statements[0]);
+  const reportsCoreFailure = shellLoader && descendants(shellLoader, (node) => (
+    ts.isPropertyAccessExpression(node)
+    && node.name.text === 'reportPhoneCoreRejection'
+    && ts.isIdentifier(unwrappedExpression(node.expression))
+    && node.expression.text === 'installedController'
+  )).length === 1;
+  const rethrows = shellLoader && descendants(shellLoader, ts.isThrowStatement).length === 1;
+  if (!oneDirectReturn || phoneImports.length !== 1 || !reportsCoreFailure || !rethrows) {
+    violations.push(
+      'cutover loadPhoneStoryShell must directly wrap one canonical import rejection'
+    );
+  }
+
+  return violations;
+}
+
 async function readSources(files) {
   return Promise.all(files.map(async (file) => ({
     file,
@@ -2365,6 +2654,14 @@ export async function phoneCleanArchitectureViolations({
         if (!target) continue;
         const nextChain = [...chain, target];
         if (path.resolve(target) === canonicalQaFile) {
+          let owner = imported.node.parent;
+          while (owner && !ts.isSourceFile(owner) && !ts.isFunctionLike(owner)) {
+            owner = owner.parent;
+          }
+          const routeOnlyQaLoader = owner
+            && ts.isFunctionDeclaration(owner)
+            && owner.name?.text === 'loadPhoneBrandLabStory';
+          if (routeOnlyQaLoader) continue;
           violations.push(
             `${slash(path.relative(appRoot, file))}: formal loader closure violation; `
               + `formal graph must not import the QA shell (${nextChain.map((entry) => (
@@ -2396,8 +2693,18 @@ export async function phoneCleanArchitectureViolations({
       }
     }
 
-    violations.push(...recoveryBoundaryViolations(formalSources, allSources));
-    violations.push(...storageLineageViolations(formalSources));
+    const ownsControllerRecoveryBoundary = formalSources.some(({ source }) => (
+      source.includes('createPhoneChunkRecoveryController')
+    ));
+    if (ownsControllerRecoveryBoundary) {
+      violations.push(...controllerRecoveryBoundaryViolations(
+        formalSources,
+        allSources
+      ));
+    } else {
+      violations.push(...recoveryBoundaryViolations(formalSources, allSources));
+      violations.push(...storageLineageViolations(formalSources));
+    }
 
     const performancePath = path.join(
       appRoot,

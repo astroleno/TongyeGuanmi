@@ -314,3 +314,4 @@ export function PhonePh({ reports }: PhonePhProps) {
 }
 
 export default PhonePh;
+export const phoneSceneId = 'ph-animation' as const;

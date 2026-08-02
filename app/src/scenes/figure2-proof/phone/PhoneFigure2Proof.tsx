@@ -109,3 +109,4 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
 }
 
 export default PhoneFigure2Proof;
+export const phoneSceneId = 'figure2-proof' as const;
