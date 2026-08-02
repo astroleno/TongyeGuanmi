@@ -4,7 +4,9 @@
 > their corrective reviews are complete. On 2026-08-02 the Task 12 automated
 > release run was stopped at its first new desktop cold-first-visual budget
 > failure after the Mobile WebKit TTG root cause was closed. A browser-local
-> clock correction reproduced the same bimodality, so Task 12 is
+> clock correction reproduced the same bimodality, and a bounded four-stage
+> timeline localized its first divergence to the runtime's `preparing` window
+> after accepted input and before `playing`, so Task 12 is
 > **BLOCKED / NO-GO**; its acceptance
 > and commit remain open, no `candidateCodeSha` is frozen, and Task 13 is not
 > authorized. See the
@@ -5441,9 +5443,17 @@ chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
   first rAF with progress above `0.01`. Corrected probes measured `50ms`,
   `45.3ms`, then `106.5ms`; the last failed the unchanged budget while steady
   frame pacing remained healthy.
-- The browser-local bimodality still does not identify a production cause. The
-  next permitted work is one bounded browser-stage timeline, not another
-  complete suite, a speculative production patch, or a relaxed budget.
+- The bounded browser-stage timeline is complete. A passing sample split
+  `51.2ms` into `2.3ms` accepted-input, `7.2ms` preparation, and `41.7ms`
+  first-progress scheduling; the next sample failed at `100.2ms` with
+  `2.4ms`, `48.6ms`, and `49.2ms`. The first extra `41.4ms` is therefore in
+  accepted input → transition start while the runtime remains `preparing`.
+- The slow preparation interval resembles the video driver's `50ms`
+  exact-endpoint prime settle path, but the current evidence is correlation,
+  not causal proof. The next permitted work is one deterministic unit/integration
+  RED fixture for that branch. Do not run another complete suite, patch
+  production speculatively, or relax the budget. The focused performance gate
+  must pass at least 10/10 before the one remaining complete release rerun.
 - Full findings, verification ledger, hashes, and the only permitted resume
   sequence are recorded in the
   [Task 12 blocker review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).

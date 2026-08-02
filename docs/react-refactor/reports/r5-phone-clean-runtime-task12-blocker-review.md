@@ -3,7 +3,7 @@
 - Date: 2026-08-02
 - Reviewer: correctness, main thread
 - Branch: `codex/r5-phone-clean-runtime-convergence`
-- Reviewed base HEAD: `92ef4f609485af75daec6bf13fe5971038511f9f`
+- Reviewed base HEAD: `02b8f8f2d6fd591f4a3ce1ff946c5277e8162665`
 - Reviewed candidate: uncommitted eleven-file Task 12 WIP
 - Decision: **BLOCKED / NO-GO**
 - Next phase: **Task 13 is not authorized**
@@ -30,13 +30,21 @@ test-only measurement is now browser-local: `performance.now()` is sampled in
 the real `keydown` handler and in the first `requestAnimationFrame` observing
 visual progress above `0.01`; Playwright only transports the closed result.
 
-The correction removed protocol time but did not make the gate stable. A
-single corrected probe passed at `50ms`; the bounded repeat then measured
-`45.3ms` followed by `106.5ms`, failing the unchanged `80ms` budget. The third
-repeat was not run after `--max-failures=1`. This is browser-side evidence, so
-the old release result cannot be dismissed as only protocol jitter. Task 12
-still cannot honestly close, `candidateCodeSha` is not frozen, and Task 13
-remains unauthorized.
+The correction removed protocol time but did not make the gate stable. The
+requested four-boundary browser timeline now records the runtime's subscribed
+state in the same browser clock. A passing sample split `51.2ms` into
+`2.3ms` keydown-to-accepted, `7.2ms` accepted-to-playing, and `41.7ms`
+playing-to-first-progress-rAF. The next bounded sample failed at `100.2ms`:
+the same stages were `2.4ms`, `48.6ms`, and `49.2ms`. The first material
+divergence is therefore inside `preparing`, after input acceptance and before
+the runtime enters `playing`; it is not Playwright dispatch or steady-state
+frame pacing.
+
+Source inspection found that the slow `48.6ms` preparation interval is close
+to the video driver's `50ms` exact-endpoint prime settle path. That is a
+correlation, not proof that this branch fired. No production change or budget
+relaxation was made. Task 12 still cannot honestly close,
+`candidateCodeSha` is not frozen, and Task 13 remains unauthorized.
 
 ## Resolved finding
 
@@ -76,10 +84,12 @@ Implemented closure:
 
 ### P1 — Browser-side Hero → Pattern cold first visual remains bimodal
 
-Location:
+Locations:
 
-- `app/e2e/r5-performance.spec.ts:511`
-- `app/e2e/r5-performance.spec.ts:796`
+- `app/e2e/r5-performance.spec.ts:522`
+- `app/e2e/r5-performance.spec.ts:619`
+- `app/src/media/timeline-video-driver.ts:95`
+- `app/src/media/timeline-video-driver.ts:506`
 
 The old full-suite observation was:
 
@@ -98,12 +108,18 @@ trusted latency measurement. The corrected browser-only probes were:
 | focused repeat 1 | 45.3ms | 42.3ms | pass |
 | focused repeat 2 | 106.5ms | 58.4ms | fail |
 | focused repeat 3 | — | — | not run after first failure |
+| four-stage timeline GREEN | 51.2ms | 47.0ms | pass |
+| four-stage timeline bounded repeat 1 | 100.2ms | 46.9ms | fail; repeats 2–3 not run |
 
 The failing browser-only run still had healthy Hero → Pattern steady-state
 frame pacing: `16.9ms` p95, `33.3ms` max, and zero frames over `50ms`. The
-measurement correction therefore confirms a cold-start-only bimodality but
-does not yet identify which browser-side stage consumes the extra interval.
-There is no evidence-backed production change or basis for weakening `80ms`.
+measurement correction therefore confirms a cold-start-only bimodality. The
+four-stage split localizes the first extra `41.4ms` to accepted input →
+transition start while the runtime remains `preparing`; keydown acceptance
+differs by only `0.1ms`, and the later first-progress rAF adds another `7.5ms`.
+The timing resemblance to the driver's `50ms` endpoint-prime fallback is not
+yet a deterministic causal proof. There is no evidence-backed production
+change or basis for weakening `80ms`.
 
 Release result:
 
@@ -122,13 +138,13 @@ Impact:
 
 Required before reopening Task 12 closure:
 
-1. Keep the current eleven-file WIP intact and do not infer a production cause
-   from the terminal timeout or aggregate frame pacing.
-2. Use one bounded, test-only browser timeline to split
-   `keydown → accepted input → transition start → first progress frame` and
-   locate the first delayed stage.
-3. Add a deterministic RED fixture only after that cause is identified, then
-   make the focused performance gate stable before any broad run.
+1. Keep the current eleven-file WIP intact; the requested browser-stage
+   timeline is complete and must not become a general diagnostics framework.
+2. At unit/integration level, create one deterministic RED fixture that proves
+   or disproves whether the Hero start-frame generation reaches the driver's
+   `50ms` exact-endpoint prime settle path despite completed adjacent prewarm.
+3. Change production only if that fixture establishes the causal branch. Make
+   the focused performance gate pass at least 10/10 before any broad run.
 4. Re-run static gates and exactly one complete release suite. A new first
    failure returns to a bounded diagnostic; it does not authorize repeated
    227-case loops.
@@ -177,6 +193,17 @@ Fresh verification after the test-only clock correction:
 - `git diff --check`;
 - all persistent evidence hashes.
 
+Fresh verification after the four-stage browser timeline:
+
+- RED: the new Hero timeline assertion failed because the timeline was absent;
+- focused GREEN: Hero `51.2ms`, with `2.3ms → 7.2ms → 41.7ms` stage splits;
+- bounded repeat: Hero `100.2ms`, with `2.4ms → 48.6ms → 49.2ms` stage splits;
+- the unchanged `80ms` assertion failed, and repeats 2–3 did not run after
+  `--max-failures=1`;
+- TypeScript and `git diff --check` passed;
+- no production file and no complete release suite was run or changed in this
+  diagnostic step.
+
 The complete release rerun rebuilt the same 606,526-byte phone closure before
 starting its 227 Playwright cases. It stopped at the first new blocking result
 described above. The browser-clock focused failure correctly prevented a second
@@ -207,6 +234,9 @@ Key hashes:
 | `browser-clock-performance-last-run.json` | `9a5223409da2862421b2543af80da93eab6f91e800831e75a07084ff880fec72` |
 | `browser-clock-performance-focused-summary.json` | `81a501c70d5fbc0ee70eac6368165c195323ffd6bb9eb2e373135f497825b677` |
 | `ttg-mobile-webkit-10x-summary.json` | `243ecc7853bae2051ba7423ecea85a7cf7731bcaabb0417ef15394c1629931c8` |
+| `browser-stage-timeline-error-context.md` | `b17c4382922cd4061bd5552b57c926894787052366f65b8ce2930e4d1b348031` |
+| `browser-stage-timeline-last-run.json` | `e08ac6f13ad1ff7cb588d8817059d1fe8537745223acbefee41fbddef5381a4b` |
+| `browser-stage-timeline-summary.json` | `40f60081ef8dae6782162b4ee479a4c5d9165d2caf13a47626665421f960e324` |
 
 The test-only global/runtime and TTG leaf recorders were removed. The eleven
 production/test files remain uncommitted so they are preserved without
