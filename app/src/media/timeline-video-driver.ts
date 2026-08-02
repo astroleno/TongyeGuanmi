@@ -94,6 +94,7 @@ const PRESENTATION_TOLERANCE_SECONDS = 0.05;
 const EXACT_TARGET_PRIME_OFFSET_SECONDS = 0.05;
 const EXACT_TARGET_PRIME_SETTLE_DELAY_MS = 50;
 const SEEKED_FRAME_FALLBACK_DELAY_MS = 120;
+const PAUSED_COMPOSITOR_NUDGE_MS = 250;
 const DEFAULT_END_EPSILON_SECONDS = 0.02;
 
 function clamp(value: number): number {
@@ -983,7 +984,16 @@ export function prepareTimelineVideoFrame(
   video: HTMLVideoElement | null | undefined,
   input: TimelineVideoDriveInput
 ): Promise<TimelineVideoFrameResult | undefined> {
-  return video
-    ? timelineVideoDriverFor(video).prepareFrame(input)
-    : Promise.resolve(undefined);
+  if (!video) return Promise.resolve(undefined);
+  const preparation = timelineVideoDriverFor(video).prepareFrame(input);
+  // A covered paused video may settle its seek without submitting an rVFC.
+  // Muted playback only nudges the compositor; readiness still requires the
+  // causal callback, and the element is paused again before preparation exits.
+  const nudge = setTimeout(() => {
+    if (!input.signal?.aborted) void video.play().catch(() => undefined);
+  }, PAUSED_COMPOSITOR_NUDGE_MS);
+  return preparation.finally(() => {
+    clearTimeout(nudge);
+    video.pause();
+  });
 }

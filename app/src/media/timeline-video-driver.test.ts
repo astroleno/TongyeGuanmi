@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createTimelineVideoDriver, timelineVideoDriverFor } from './timeline-video-driver';
+import {
+  createTimelineVideoDriver,
+  prepareTimelineVideoFrame,
+  timelineVideoDriverFor
+} from './timeline-video-driver';
 
 type Listener = () => void;
 
@@ -229,6 +233,37 @@ describe('timeline video driver', () => {
       await expect(readiness).resolves.toMatchObject({ status: 'ready' });
     } finally {
       driver.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('nudges a stalled strict frame without treating playback as frame evidence', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    let settled = false;
+
+    try {
+      const readiness = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'media-compositor-nudge:1',
+        direction: 1,
+        progress: 0.5,
+        durationFallbackSeconds: 10
+      });
+      void readiness.then(() => { settled = true; });
+
+      await vi.advanceTimersByTimeAsync(249);
+      expect(video.playCalls).toBe(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(video.playCalls).toBe(1);
+      expect(video.paused).toBe(false);
+      expect(settled).toBe(false);
+
+      video.completeSeek();
+      video.presentFrame();
+      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+      expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
+      expect(video.paused).toBe(true);
+    } finally {
       vi.useRealTimers();
     }
   });

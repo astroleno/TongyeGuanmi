@@ -324,6 +324,38 @@ describe('Figure2 canonical media', () => {
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 
+  it.each([1, -1] as const)(
+    'nudges a stalled %s compositor but still waits for the requested Figure2 frame',
+    async (direction) => {
+      vi.useFakeTimers();
+      const { root, video } = mediaRoot();
+
+      try {
+        const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, {
+          runId: `figure2-stalled:${direction}`,
+          direction,
+          timelineDurationMs: FIGURE2_INTRO_PLAYBACK_MS
+        });
+        let settled = false;
+        void preparation.then(() => { settled = true; });
+
+        await vi.advanceTimersByTimeAsync(249);
+        expect(video.playCalls).toBe(0);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(video.playCalls).toBe(1);
+        expect(settled).toBe(false);
+
+        video.presentRequestedFrame();
+        await preparation;
+        expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
+        expect(video.paused).toBe(true);
+      } finally {
+        disposeFigure2Media(root as unknown as HTMLElement);
+        vi.useRealTimers();
+      }
+    }
+  );
+
   it('plays the second half natively for reverse without per-progress seeks', async () => {
     const { root, video } = mediaRoot();
     renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.62);
