@@ -291,9 +291,7 @@ export function createPhoneChunkRecoveryController(
         : 'unknown-phone-preload';
       void controller.reportPhoneCoreRejection(event, moduleUrl);
     },
-    // React click handlers receive the SyntheticEvent as their first argument.
-    // Keep that value out of the optional recovery-entry URL channel.
-    manualReload: () => environment.reload.call(environment)
+    manualReload: environment.reload
   });
   return controller;
 }

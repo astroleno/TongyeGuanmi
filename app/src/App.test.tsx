@@ -29,7 +29,7 @@ vi.mock('./production/presentation-shell-loaders', async () => {
   };
 });
 
-import { App, appRouteForPath } from './App';
+import { App, PhoneRecoverySurface, appRouteForPath } from './App';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -46,12 +46,39 @@ const recovery = {
 };
 
 afterEach(() => {
+  vi.clearAllMocks();
   lifecycle.length = 0;
   document.body.replaceChildren();
   window.history.replaceState(null, '', '/');
 });
 
 describe('formal route cutover', () => {
+  it('does not forward the React click event as a recovery entry URL', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const failClosed = {
+      status: 'fail-closed' as const,
+      lineage: null,
+      message: '请手动重新加载。'
+    };
+
+    await act(async () => {
+      root.render(<PhoneRecoverySurface recovery={{
+        ...recovery,
+        getSnapshot: () => failClosed
+      }} failed />);
+    });
+    await act(async () => {
+      host.querySelector('button')?.dispatchEvent(new MouseEvent('click', {
+        bubbles: true
+      }));
+    });
+
+    expect(recovery.manualReload).toHaveBeenCalledWith();
+    await act(async () => root.unmount());
+  });
+
   it('accepts only the two public routes, the release harness boundary, and the 404', () => {
     expect(appRouteForPath('/', false)).toBe('formal');
     expect(appRouteForPath('/index.html', false)).toBe('formal');

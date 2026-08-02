@@ -109,15 +109,6 @@ describe('presentation shell loaders', () => {
     });
   });
 
-  it('does not forward a React click event into the optional recovery entry URL', () => {
-    const fixture = recoveryFixture();
-    const controller = createPhoneChunkRecoveryController(fixture.environment);
-
-    (controller.manualReload as (event: unknown) => void)({ type: 'click' });
-
-    expect(fixture.reload).toHaveBeenCalledWith();
-  });
-
   it('does not mint another reload when build IDs and hashed URLs change', async () => {
     const sharedStorage = new MemoryStorage();
     const first = recoveryFixture({ storage: sharedStorage, currentBuildId: 'build-a' });

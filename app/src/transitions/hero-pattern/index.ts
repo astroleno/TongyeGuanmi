@@ -18,6 +18,7 @@ export const HERO_PATTERN_INK_ORIGIN = Object.freeze({ x: 0.5, y: 0.5 });
 export const HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS = 8000;
 export { HERO_PATTERN_INK_MS, HERO_PATTERN_MOTION_MS, HERO_PATTERN_MOTION_STOP } from '../../story/timings';
 const HERO_SCENE_SELECTOR = '[data-r4-scene="hero"]';
+const REVERSE_COMPOSITOR_NUDGE_MS = 250;
 
 export function heroPatternMotionProgress(progress: number): number {
   return range01(progress, 0, HERO_PATTERN_MOTION_STOP);
@@ -85,15 +86,18 @@ export function waitForHeroPatternCommittedFrame(
   });
 }
 
-export async function prepareHeroPatternBoundary(
+async function prepareHeroPatternBoundary(
   root: HTMLElement | null | undefined,
   progress: number,
   mediaRun: Parameters<typeof prepareHeroPatternFrame>[2]
 ): Promise<void> {
   const linked = createLinkedAbortController(mediaRun.signal);
-  const timer: [ReturnType<typeof setTimeout>?] = [];
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const video = mediaRun.direction === -1
+    ? root?.querySelector<HTMLVideoElement>('[data-hero-figure-video]') ?? null
+    : null;
   const timeout = new Promise<never>((_, reject) => {
-    timer[0] = setTimeout(() => {
+    timer = setTimeout(() => {
       const error = new MediaPreparationError(
         'MEDIA_PREPARATION_TIMEOUT',
         `Hero terminal frame preparation exceeded ${HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS}ms`
@@ -104,13 +108,24 @@ export async function prepareHeroPatternBoundary(
       reject(error);
     }, HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS);
   });
+  const compositorTimer = video
+    ? setTimeout(() => {
+      if (linked.controller.signal.aborted) return;
+      // A paused, covered Chromium video can settle its seek without submitting
+      // an rVFC. Muted playback only nudges the compositor; it is never frame
+      // evidence, and the preparation still waits for the causal callback.
+      void video.play().catch(() => undefined);
+    }, REVERSE_COMPOSITOR_NUDGE_MS)
+    : undefined;
   try {
     await Promise.race([
       prepareHeroPatternFrame(root, progress, { ...mediaRun, signal: linked.controller.signal }),
       timeout
     ]);
   } finally {
-    if (timer[0]) clearTimeout(timer[0]);
+    clearTimeout(timer);
+    clearTimeout(compositorTimer);
+    video?.pause();
     linked.dispose();
   }
 }

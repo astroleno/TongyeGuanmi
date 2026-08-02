@@ -261,10 +261,10 @@ describe('hero-pattern transition', () => {
     };
     vi.stubGlobal('document', { createElement: () => canvas });
 
-    const build = createHeroPatternTransition().buildTimeline({
+    const build = Promise.resolve(createHeroPatternTransition().buildTimeline({
       ...fixture.context,
       direction: -1
-    });
+    }));
     await Promise.resolve();
     await Promise.resolve();
 
@@ -280,6 +280,39 @@ describe('hero-pattern transition', () => {
     expect(fixture.context.from.element?.style.visibility).toBe('hidden');
     expect(fixture.context.from.element?.style.opacity).toBe('0');
     expect(fixture.context.from.element?.style.zIndex).toBe('');
+    timeline.dispose();
+  });
+
+  it('nudges a stalled reverse compositor but still requires its causal frame callback', async () => {
+    vi.useFakeTimers();
+    const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
+    const canvas = new FakeCanvas();
+    const video = new DeferredFrameVideo();
+    fixture.fromRoot.connect('[data-hero-figure-video]', video);
+    vi.stubGlobal('document', { createElement: () => canvas });
+
+    const build = Promise.resolve(createHeroPatternTransition().buildTimeline({
+      ...fixture.context,
+      direction: -1
+    }));
+    await vi.advanceTimersByTimeAsync(249);
+
+    expect(video.hasPendingFrame()).toBe(true);
+    expect(video.playCalls).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(video.playCalls).toBe(1);
+    expect(video.paused).toBe(false);
+
+    let settled = false;
+    void build.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    video.presentFrame();
+    const timeline = await build;
+    expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
+    expect(video.paused).toBe(true);
     timeline.dispose();
   });
 

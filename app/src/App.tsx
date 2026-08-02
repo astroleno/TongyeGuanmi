@@ -80,7 +80,7 @@ function PhoneBootstrapUnavailable() {
 export type PhoneAppChunkRecovery = Pick<PhoneChunkRecoveryController,
   'port' | 'getSnapshot' | 'subscribe' | 'reportPhoneCoreRejection' | 'manualReload'>;
 
-function PhoneRecoverySurface({
+export function PhoneRecoverySurface({
   recovery,
   failed
 }: Readonly<{ recovery: PhoneAppChunkRecovery; failed: boolean }>) {
@@ -100,7 +100,7 @@ function PhoneRecoverySurface({
     <main className="route-phone-recovery" role="alert" data-phone-bootstrap="fail-closed">
       <h1>手机故事暂时无法加载</h1>
       <p>{snapshot.message}</p>
-      <button type="button" onClick={recovery.manualReload}>重新加载</button>
+      <button type="button" onClick={() => recovery.manualReload()}>重新加载</button>
       <a href="/">返回首页</a>
     </main>
   );
