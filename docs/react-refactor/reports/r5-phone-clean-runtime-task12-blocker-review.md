@@ -3,8 +3,8 @@
 - Date: 2026-08-02
 - Reviewer: correctness, main thread
 - Branch: `codex/r5-phone-clean-runtime-convergence`
-- Reviewed base HEAD: `4be47ccbe7a5be29f379013ddeae7b3200b6301a`
-- Reviewed candidate: uncommitted ten-file Task 12 WIP
+- Reviewed base HEAD: `92ef4f609485af75daec6bf13fe5971038511f9f`
+- Reviewed candidate: uncommitted eleven-file Task 12 WIP
 - Decision: **BLOCKED / NO-GO**
 - Next phase: **Task 13 is not authorized**
 
@@ -24,11 +24,19 @@ gate all passed; the latter completed 10/10. All static, unit, type, build,
 frozen-input, LOC, bundle, and evidence-hash gates then passed.
 
 The one authorized complete release rerun found a new first failure in the
-desktop Chromium performance gate. `heroPattern` cold first visual measured
-`110ms` against the frozen `80ms` maximum. The run was intentionally stopped
-rather than using the remaining 196 cases as a diagnostic loop. Task 12
-therefore still cannot honestly close, `candidateCodeSha` is not frozen, and
-Task 13 remains unauthorized.
+desktop Chromium performance gate. Its original Node-side `Date.now()` window
+was invalid because it included Playwright protocol and host scheduling. That
+test-only measurement is now browser-local: `performance.now()` is sampled in
+the real `keydown` handler and in the first `requestAnimationFrame` observing
+visual progress above `0.01`; Playwright only transports the closed result.
+
+The correction removed protocol time but did not make the gate stable. A
+single corrected probe passed at `50ms`; the bounded repeat then measured
+`45.3ms` followed by `106.5ms`, failing the unchanged `80ms` budget. The third
+repeat was not run after `--max-failures=1`. This is browser-side evidence, so
+the old release result cannot be dismissed as only protocol jitter. Task 12
+still cannot honestly close, `candidateCodeSha` is not frozen, and Task 13
+remains unauthorized.
 
 ## Resolved finding
 
@@ -66,13 +74,14 @@ Implemented closure:
 
 ## Blocking finding
 
-### P1 — The complete release candidate misses the frozen desktop cold-first-visual budget
+### P1 — Browser-side Hero → Pattern cold first visual remains bimodal
 
 Location:
 
-- `app/e2e/r5-performance.spec.ts:725`
+- `app/e2e/r5-performance.spec.ts:511`
+- `app/e2e/r5-performance.spec.ts:796`
 
-Observed in the only post-fix complete release rerun:
+The old full-suite observation was:
 
 - project: `desktop-chromium`;
 - test: `LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budgets`;
@@ -80,13 +89,21 @@ Observed in the only post-fix complete release rerun:
 - actual: `110ms`;
 - required: `≤ 80ms`.
 
-The same captured report showed healthy steady-state frame pacing
-(`17.4ms` p95, `33.4ms` max, zero frames over `50ms`) and a passing
-`methodFigure2` cold first visual at `65ms`. That does not waive the failed
-Hero → Pattern cold-start contract. There is not enough evidence in this run
-to attribute the 30ms excess to production work, the test environment, or a
-specific scheduler/rendering boundary, so no additional production patch is
-authorized here.
+That `110ms` value mixed browser and host clocks and is no longer treated as a
+trusted latency measurement. The corrected browser-only probes were:
+
+| Probe | Hero → Pattern | Method → Figure2 | Result |
+| --- | ---: | ---: | --- |
+| single GREEN | 50.0ms | 44.7ms | pass |
+| focused repeat 1 | 45.3ms | 42.3ms | pass |
+| focused repeat 2 | 106.5ms | 58.4ms | fail |
+| focused repeat 3 | — | — | not run after first failure |
+
+The failing browser-only run still had healthy Hero → Pattern steady-state
+frame pacing: `16.9ms` p95, `33.3ms` max, and zero frames over `50ms`. The
+measurement correction therefore confirms a cold-start-only bimodality but
+does not yet identify which browser-side stage consumes the extra interval.
+There is no evidence-backed production change or basis for weakening `80ms`.
 
 Release result:
 
@@ -105,10 +122,11 @@ Impact:
 
 Required before reopening Task 12 closure:
 
-1. Keep the current ten-file WIP intact and do not infer a production cause
-   from the terminal timeout or this single aggregate measurement.
-2. Use a bounded, focused cold Hero → Pattern diagnostic to locate the first
-   delayed visual state and preserve its test-only timing evidence.
+1. Keep the current eleven-file WIP intact and do not infer a production cause
+   from the terminal timeout or aggregate frame pacing.
+2. Use one bounded, test-only browser timeline to split
+   `keydown → accepted input → transition start → first progress frame` and
+   locate the first delayed stage.
 3. Add a deterministic RED fixture only after that cause is identified, then
    make the focused performance gate stable before any broad run.
 4. Re-run static gates and exactly one complete release suite. A new first
@@ -127,7 +145,7 @@ Required before reopening Task 12 closure:
 | presentation | Mount leases expose attachment state only to the canonical runtime. Figure3/TTG causal frame acceptance stays generation- and binding-guarded. |
 
 No correctness finding in this review requires an architecture rewrite. That
-does not convert the ten-file WIP into an accepted Task 12 candidate while the
+does not convert the eleven-file WIP into an accepted Task 12 candidate while the
 complete release gate is red.
 
 ## Verification ledger
@@ -148,9 +166,21 @@ Passed before the release rerun:
 - largest lazy chunk: 50,892 B;
 - persistent blocker evidence manifest: all entries pass SHA-256 verification.
 
+Fresh verification after the test-only clock correction:
+
+- browser-clock RED: the legacy Node window reported `359ms`, then the new
+  measurement-presence assertion failed as intended;
+- corrected single probe: Hero `50ms`, Method `44.7ms`, pass;
+- corrected bounded repeat: one pass, one browser-side `106.5ms` Hero failure,
+  third run not started;
+- TypeScript;
+- `git diff --check`;
+- all persistent evidence hashes.
+
 The complete release rerun rebuilt the same 606,526-byte phone closure before
 starting its 227 Playwright cases. It stopped at the first new blocking result
-described above; no second full rerun was performed.
+described above. The browser-clock focused failure correctly prevented a second
+full rerun.
 
 ## Evidence and repository state
 
@@ -173,8 +203,12 @@ Key hashes:
 | `release-rerun-performance-error-context.md` | `3c15a0606f83cca8fd0e72f38a7332bceb5b4e2dd059fafa3fc50385f92b3cf9` |
 | `release-rerun-last-run.json` | `31636499db805550b2ad7952540d26aa61ee303a328070768b4a8ca56183f4f6` |
 | `release-rerun-performance-summary.json` | `a6e424ef6e3540d90f081976025c09368d2ed5998cee3d1223d06ed3d6a3f0a3` |
+| `browser-clock-performance-error-context.md` | `c83ed0dc408fae7280716c29236d844264a693e41aacf12fe1e44ff5d130a91b` |
+| `browser-clock-performance-last-run.json` | `9a5223409da2862421b2543af80da93eab6f91e800831e75a07084ff880fec72` |
+| `browser-clock-performance-focused-summary.json` | `81a501c70d5fbc0ee70eac6368165c195323ffd6bb9eb2e373135f497825b677` |
+| `ttg-mobile-webkit-10x-summary.json` | `243ecc7853bae2051ba7423ecea85a7cf7731bcaabb0417ef15394c1629931c8` |
 
-The test-only global/runtime and TTG leaf recorders were removed. The ten real
+The test-only global/runtime and TTG leaf recorders were removed. The eleven
 production/test files remain uncommitted so they are preserved without
 mislabeling them as a Task 12 acceptance commit. No candidate tag, push,
 merge, or Task 13 evidence was created.

@@ -3,7 +3,8 @@
 > **Status:** architecture and execution contracts are frozen. Tasks 0–11 and
 > their corrective reviews are complete. On 2026-08-02 the Task 12 automated
 > release run was stopped at its first new desktop cold-first-visual budget
-> failure after the Mobile WebKit TTG root cause was closed. Task 12 is
+> failure after the Mobile WebKit TTG root cause was closed. A browser-local
+> clock correction reproduced the same bimodality, so Task 12 is
 > **BLOCKED / NO-GO**; its acceptance
 > and commit remain open, no `candidateCodeSha` is frozen, and Task 13 is not
 > authorized. See the
@@ -5435,9 +5436,14 @@ chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
   when desktop Chromium measured Hero → Pattern cold first visual at `110ms`
   against the frozen `80ms` maximum. One next test was interrupted and 196 did
   not run.
-- This aggregate measurement does not identify a production cause, so the next
-  permitted work is a bounded focused performance diagnostic, not another
-  complete suite or a speculative patch.
+- The old Node-side window included Playwright/host delay. Its test-only
+  replacement records browser `performance.now()` from the real keydown to the
+  first rAF with progress above `0.01`. Corrected probes measured `50ms`,
+  `45.3ms`, then `106.5ms`; the last failed the unchanged budget while steady
+  frame pacing remained healthy.
+- The browser-local bimodality still does not identify a production cause. The
+  next permitted work is one bounded browser-stage timeline, not another
+  complete suite, a speculative production patch, or a relaxed budget.
 - Full findings, verification ledger, hashes, and the only permitted resume
   sequence are recorded in the
   [Task 12 blocker review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
