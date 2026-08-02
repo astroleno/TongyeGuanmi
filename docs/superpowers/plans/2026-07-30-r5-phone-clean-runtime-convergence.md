@@ -1,16 +1,15 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** architecture and execution contracts are frozen. Tasks 0–11 and
-> their corrective reviews are complete. On 2026-08-02 the Task 12 automated
-> release run was stopped at its first new desktop cold-first-visual budget
-> failure after the Mobile WebKit TTG root cause was closed. A browser-local
-> clock correction reproduced the same bimodality, and a bounded four-stage
-> timeline localized its first divergence to the runtime's `preparing` window
-> after accepted input and before `playing`, so Task 12 is
-> **BLOCKED / NO-GO**; its acceptance
-> and commit remain open, no `candidateCodeSha` is frozen, and Task 13 is not
-> authorized. See the
-> [Task 12 blocker review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
+> **Status:** architecture and execution contracts are frozen. Tasks 0–12 and
+> their corrective reviews are complete. Task 12 is
+> **GO / `Chunk-contract-complete`** on candidate-code input
+> `a4ba41feaf76fb2f40afbcf222f1565216fac648`: focused phone-portrait WebKit
+> complete-story passed 10/10 and the single final release run passed 227/227,
+> with all unit, type, architecture, frozen-input, build, bundle, and evidence
+> gates green. Task 13 has not started; its clean-worktree build, formal
+> candidate/artifact freeze, Simulator, physical iPhone, and deployed-network
+> acceptance remain open. See the
+> [Task 12 closure review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
 > The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
@@ -4794,7 +4793,7 @@ app/src/production/phone/
 app/src/production/portrait-spike/
 ```
 
-- [ ] **Step 11.1: Make the registries exhaustive before routing**
+- [x] **Step 11.1: Make the registries exhaustive before routing**
 
 Change `scenes.tsx` and `transitions.tsx` from partial to exhaustive records:
 
@@ -4808,7 +4807,7 @@ const transitionLoaders: Record<PhoneSegmentId, PhoneTransitionLoader> =
 Tests must fail compilation or manifest integrity when any of the 16/15 keys
 is omitted, duplicated, or mapped to a module declaring the wrong ID.
 
-- [ ] **Step 11.2: Implement the QA wrapper with no authority**
+- [x] **Step 11.2: Implement the QA wrapper with no authority**
 
 The entire behavior should be equivalent to:
 
@@ -4848,7 +4847,7 @@ The QA wrapper may accept and pass through the eager
 `PhoneChunkRecoveryPort` supplied by App. That infrastructure prop does not
 permit it to inspect lineage or make recovery decisions.
 
-- [ ] **Step 11.3: Replace numbered/query compositions with two real routes**
+- [x] **Step 11.3: Replace numbered/query compositions with two real routes**
 
 Final routing contract:
 
@@ -4881,7 +4880,7 @@ unchanged.
 Reduced motion comes from the platform media query and the same runtime entry,
 not a URL-controlled second behavior.
 
-- [ ] **Step 11.3A: Install the eager phone-core bootstrap boundary**
+- [x] **Step 11.3A: Install the eager phone-core bootstrap boundary**
 
 Implement Section 4.9 without adding a new story authority:
 
@@ -4920,7 +4919,7 @@ layout effect only after the React Loader exists in the same commit. A 404 may
 remove it only after the visible 404 root is committed. This prevents the
 static-cover → lazy-shell black gap on formal and direct QA entries.
 
-- [ ] **Step 11.4: Rewrite preboot as presentation cover, not scene state**
+- [x] **Step 11.4: Rewrite preboot as presentation cover, not scene state**
 
 The synchronous `index.html` preboot may:
 
@@ -4959,7 +4958,7 @@ presentation-only mounted marker that keeps `.static-content` hidden. The
 projector removes that marker on route detach. Neither marker is read by the
 reducer.
 
-- [ ] **Step 11.5: Delete the old authority and migration bridges**
+- [x] **Step 11.5: Delete the old authority and migration bridges**
 
 The directory deletion removes these categories:
 
@@ -4997,7 +4996,7 @@ find app/src/production/phone-story -maxdepth 1 -type f \
 The final command must list exactly the ten allowlisted production files plus
 adjacent test files when the test-name filter is not applied.
 
-- [ ] **Step 11.6: Remove all final legacy imports from genuine leaves**
+- [x] **Step 11.6: Remove all final legacy imports from genuine leaves**
 
 ```bash
 rg -n "production/phone/|production/portrait-spike/|PhoneSceneAdapter|PhoneTransitionAdapter|validationMode" \
@@ -5006,7 +5005,7 @@ rg -n "production/phone/|production/portrait-spike/|PhoneSceneAdapter|PhoneTrans
 
 Expected: no matches. Do not keep re-export shims.
 
-- [ ] **Step 11.7: Switch build gate to cutover mode**
+- [x] **Step 11.7: Switch build gate to cutover mode**
 
 Change ordinary build to run:
 
@@ -5023,7 +5022,7 @@ pnpm -C app run verify:phone-architecture:cutover
 This is expected to fail until every old path, partial registry, query route,
 extra core file, and legacy import is gone.
 
-- [ ] **Step 11.8: Prove route/module isolation**
+- [x] **Step 11.8: Prove route/module isolation**
 
 Test built output, not source strings only:
 
@@ -5042,7 +5041,7 @@ Also record the first fully functional cutover bundle as
 `628,044` remains the clean-base warning target; only `663,552` is the
 immutable total hard cap.
 
-- [ ] **Step 11.8A: Apply the complete R5 release-suite disposition**
+- [x] **Step 11.8A: Apply the complete R5 release-suite disposition**
 
 Update `playwright.release.config.ts`, `r5-helpers.ts`, and all Task 0
 dispositioned specs:
@@ -5067,7 +5066,7 @@ Reconcile discovered files/tests by project with the Task 0 ledger. Every live
 current/new R5 spec must be discovered somewhere; zero-discovery or an
 undispositioned legacy helper blocks cutover.
 
-- [ ] **Step 11.9: Run the atomic cutover suite**
+- [x] **Step 11.9: Run the atomic cutover suite**
 
 ```bash
 pnpm -C app run verify:boolean-data
@@ -5095,7 +5094,7 @@ git diff --exit-code 9652fbe -- \
 git diff --check
 ```
 
-- [ ] **Step 11.10: Review the deletion diff and commit atomically**
+- [x] **Step 11.10: Review the deletion diff and commit atomically**
 
 Before commit:
 
@@ -5151,7 +5150,7 @@ only one old shell.
 - `app/e2e/r5-phone-story.spec.ts`
 - `app/package.json`
 
-- [ ] **Step 12.1: Gate the built synchronous core/chunk closure**
+- [x] **Step 12.1: Gate the built synchronous core/chunk closure**
 
 Inspect both the Vite manifest and
 `dist/audit/r5-module-provenance.json` emitted from
@@ -5173,7 +5172,7 @@ requirement to defeat safe Rollup vendor chunking.
 Manifest entry/import edges alone are insufficient evidence for module
 placement or duplication.
 
-- [ ] **Step 12.2: Test slow/rejected chunks without production query hooks**
+- [x] **Step 12.2: Test slow/rejected chunks without production query hooks**
 
 Use Playwright network routing to:
 
@@ -5231,7 +5230,7 @@ Document. See
 and
 [Vite load error handling](https://vite.dev/guide/build#load-error-handling).
 
-- [ ] **Step 12.3: Test media/compositor faults globally**
+- [x] **Step 12.3: Test media/compositor faults globally**
 
 Intercept or instrument:
 
@@ -5252,7 +5251,7 @@ decoded-video policies, and Canvas/WebGL faults to Canvas/compositor policies;
 do not limit failure coverage to AOD.
 Assertions are rollback/fail-closed/retry, never “remained preparing.”
 
-- [ ] **Step 12.4: Automate BFCache and page-lifecycle recovery**
+- [x] **Step 12.4: Automate BFCache and page-lifecycle recovery**
 
 Use real `pagehide/pageshow` event paths and a browser back/forward traversal.
 Cover `persisted=true` where the engine supports BFCache and deterministic
@@ -5273,7 +5272,7 @@ An engine that does not grant BFCache must record the browser reason and still
 pass reducer/runtime persisted-event tests; physical Safari remains mandatory
 in Task 13.
 
-- [ ] **Step 12.5: Run the global 16-hold/15-segment presentation matrix**
+- [x] **Step 12.5: Run the global 16-hold/15-segment presentation matrix**
 
 For every hold:
 
@@ -5304,7 +5303,7 @@ Browser engine tests may programmatically vary viewport geometry to exercise
 logic, but those tests are labeled engine evidence, not real mobile Safari
 evidence.
 
-- [ ] **Step 12.6: Enforce final production complexity**
+- [x] **Step 12.6: Enforce final production complexity**
 
 The cutover architecture gate must report:
 
@@ -5329,7 +5328,7 @@ create an unapproved eleventh file. The gate must separately prove
 `machine.ts` has no browser effects and `runtime.ts` has no second reducer or
 stable-state constructor.
 
-- [ ] **Step 12.7: Enforce bundle size and chunk structure**
+- [x] **Step 12.7: Enforce bundle size and chunk structure**
 
 Run:
 
@@ -5364,7 +5363,7 @@ clean structure. Do not raise the hard cap, add property mangling, create a
 reserved-name registry, code-golf diagnostics, collapse into a God file, or
 weaken measurement.
 
-- [ ] **Step 12.8: Run all automated closure gates**
+- [x] **Step 12.8: Run all automated closure gates**
 
 ```bash
 node --test app/scripts/verify-phone-clean-architecture.test.mjs
@@ -5397,7 +5396,7 @@ git diff --exit-code 9652fbe -- \
 git diff --check
 ```
 
-- [ ] **Step 12.9: Commit**
+- [x] **Step 12.9: Commit**
 
 ```bash
 git add app
@@ -5423,40 +5422,37 @@ This is `Chunk-contract-complete` automated evidence only. Do not describe
 chunks as “closed” and do not claim `Release-complete` until the physical
 chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
 
-**Task 12 blocker review record (2026-08-02):**
+**Task 12 closure review record (updated 2026-08-03):**
 
-- Decision: **BLOCKED / NO-GO**. The current WIP is not Task 12 closure and
-  Task 13 must not start.
-- The failure-side TTG leaf chain proved a `0.05s` driver-owned causal start
-  sample was rejected only by TTG's narrower `0.04s` endpoint predicate. The
-  shared-tolerance fix has a deterministic regression, and Mobile WebKit TTG
-  passed 10/10.
-- Static gates, 1,185 Vitest tests, TypeScript, the complete build,
-  frozen-input/hash checks, and size/LOC budgets passed. Phone JavaScript is
-  606,526 B and `runtime.ts` is exactly 1,000 nonblank LOC.
-- The single authorized complete release rerun then stopped after 29 passes
-  when desktop Chromium measured Hero → Pattern cold first visual at `110ms`
-  against the frozen `80ms` maximum. One next test was interrupted and 196 did
-  not run.
-- The old Node-side window included Playwright/host delay. Its test-only
-  replacement records browser `performance.now()` from the real keydown to the
-  first rAF with progress above `0.01`. Corrected probes measured `50ms`,
-  `45.3ms`, then `106.5ms`; the last failed the unchanged budget while steady
-  frame pacing remained healthy.
-- The bounded browser-stage timeline is complete. A passing sample split
-  `51.2ms` into `2.3ms` accepted-input, `7.2ms` preparation, and `41.7ms`
-  first-progress scheduling; the next sample failed at `100.2ms` with
-  `2.4ms`, `48.6ms`, and `49.2ms`. The first extra `41.4ms` is therefore in
-  accepted input → transition start while the runtime remains `preparing`.
-- The slow preparation interval resembles the video driver's `50ms`
-  exact-endpoint prime settle path, but the current evidence is correlation,
-  not causal proof. The next permitted work is one deterministic unit/integration
-  RED fixture for that branch. Do not run another complete suite, patch
-  production speculatively, or relax the budget. The focused performance gate
-  must pass at least 10/10 before the one remaining complete release rerun.
-- Full findings, verification ledger, hashes, and the only permitted resume
-  sequence are recorded in the
-  [Task 12 blocker review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
+- Decision: **GO / Review approved / `Chunk-contract-complete`**. Task 13 has
+  not started.
+- The generic timeline driver once again requires physical playhead agreement
+  for proof reuse. The former Crane reverse regressions pass 16/16, and Hero's
+  prewarm/first consumer share one named generation without a global semantic
+  exception.
+- Figure3 and TTG retained rebind recovery is microtask-deferred so a
+  same-stack activation is the sole causal preparation owner. Causal results
+  remain binding/generation scoped; retained-frame reuse remains physically
+  strict.
+- Full Vitest passed 173 files / 1,195 tests; Node gate fixtures passed 97/97;
+  TypeScript, boolean-data, packed-alpha, cutover architecture, frozen-input,
+  `git diff --check`, and complete build passed.
+- Build output: desktop JavaScript `577,525 B` with `4,107 B` headroom, phone
+  JavaScript `607,339 B`, and maximum lazy JavaScript `50,892 B`. The desktop
+  reserve is only 11 bytes above its required 4,096-byte gate and remains an
+  explicit future-change risk.
+- Phone-portrait WebKit's cumulative complete-story test passed 10/10 in 28.4
+  minutes. The single final complete release suite then passed 227/227 in 28.1
+  minutes; Hero → Pattern was `52.8ms` against the unchanged `80ms` limit.
+- Candidate code is committed as
+  `a4ba41feaf76fb2f40afbcf222f1565216fac648`; its canonical production-tree
+  hash is
+  `5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3`.
+  Task 13 Step 13.1 still owns the clean rebuild and formal candidate/artifact
+  identity freeze.
+- All 33 persistent Task 12 evidence hashes verify. Formal findings,
+  verification details, historical blocker records, and hashes are in the
+  [Task 12 closure review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
 
 ---
 

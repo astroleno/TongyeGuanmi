@@ -1,14 +1,222 @@
-# R5 Phone Clean Runtime — Task 12 blocker review
+# R5 Phone Clean Runtime — Task 12 closure review
 
-- Date: 2026-08-02
+- Date: 2026-08-03
 - Reviewer: correctness, main thread
 - Branch: `codex/r5-phone-clean-runtime-convergence`
-- Reviewed base HEAD: `02b8f8f2d6fd591f4a3ce1ff946c5277e8162665`
-- Reviewed candidate: uncommitted eleven-file Task 12 WIP
-- Decision: **BLOCKED / NO-GO**
-- Next phase: **Task 13 is not authorized**
+- Reviewed base HEAD: `49e06fc164c0ba17c6037332be94629a8773011d`
+- Reviewed candidate code commit: `a4ba41feaf76fb2f40afbcf222f1565216fac648`
+- Reviewed pre-commit code-diff SHA-256: `3b40ea1c24d46e30191e6381c263b302e63267c4e2b7b4d6bc78562da0c01b5e`
+- Decision: **GO — Review approved; Task 12 is `Chunk-contract-complete`**
+- Stop boundary: **Task 13 has not started**
 
-## Outcome
+## Task 12 closure disposition — 2026-08-03
+
+All Task 12 blockers are closed on the reviewed candidate:
+
+- the shared timeline driver again requires bounded agreement between its
+  proof and the physical playhead, so an old generation cannot skip a real
+  endpoint seek;
+- Figure3 and TTG defer standalone retained-rebind recovery by one microtask,
+  making same-stack activation the sole causal preparation owner;
+- causal leaf reports trust the current driver result plus binding/generation
+  identity, while retained-frame reuse keeps the stricter physical check;
+- Hero's prewarm and first forward consumer share the same named driver
+  generation instead of weakening generic cross-generation reuse;
+- browser-local Hero → Pattern first-visual timing passed at `52.8ms` against
+  the unchanged `80ms` limit;
+- phone-portrait WebKit's cumulative 60-traversal story passed 10/10, followed
+  by one complete 227-case release run with 227/227 passing.
+
+The fourteen code files were committed without the plan/report changes as
+`a4ba41feaf76fb2f40afbcf222f1565216fac648`. The canonical production-tree
+input for Task 13 is:
+
+```text
+candidateCodeSha input: a4ba41feaf76fb2f40afbcf222f1565216fac648
+productionTreeHash:      5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3
+```
+
+Task 13 Step 13.1 still owns the clean-worktree rebuild and formal freeze of
+the candidate/artifact identity. No iOS Simulator, physical iPhone, deployed
+compression, release claim, push, merge, or Task 13 evidence is asserted by
+this review.
+
+### Formal correctness review
+
+```json
+{
+  "reviewer": "correctness",
+  "findings": [],
+  "residual_risks": [
+    {
+      "risk": "Desktop JavaScript headroom is 4,107 B, only 11 B above the required 4,096 B reserve; any later production growth must rerun the build gate and must not relax the budget or use code-golf workarounds."
+    },
+    {
+      "risk": "Task 12 earns Chunk-contract-complete only; Task 13 physical-device and deployed-artifact acceptance remains open."
+    }
+  ],
+  "testing_gaps": [
+    "iOS Simulator, physical iPhone Safari, and deployed compression evidence belong to Task 13 and were not run."
+  ]
+}
+```
+
+### Unified machine/runtime review
+
+| Area | Closure result |
+| --- | --- |
+| machine / stable commit | No second reducer, stable-commit path, or semantic authority was introduced; unproved targets still fail closed to the prior stable commit. |
+| queue / supersede | Runtime tests cover superseded preparation, native rejection versus abort, detached mount replacement, late-port generation rebind, and serial settlement without stale proof acceptance. |
+| rollback | Rollback retains the committed source and requires a newly valid presentation plane before unlocking input. |
+| activation | Figure3/TTG same-stack rebind → activate has one causal owner; stale activation/frame settlement rejects instead of fulfilling without proof. |
+| disposal / resources | Mount leases, report ports, media preparation ownership, superseded playback, and final resource retirement remain generation-scoped and exception-safe. |
+| presentation | Causal proof is binding/generation/endpoint scoped; retained proof still requires physical playhead agreement; toolbar/current-plane reprojection retains one reducer-owned proof source. |
+
+### Verification ledger
+
+- focused changed-path Vitest: 5 files / 84 tests passed;
+- Group 7 transition regression: 16/16 passed;
+- full Vitest: 173 files / 1,195 tests passed;
+- Node gate fixtures: 97/97 passed;
+- TypeScript, boolean-data, packed-alpha, cutover architecture, frozen-input
+  diff, and `git diff --check`: passed;
+- complete build: passed; desktop JS `577,525 B`, phone JS `607,339 B`,
+  largest lazy JS `50,892 B`, artifact tree
+  `89a9342203ba0adb0f5274ed53703e10b001e37d041c93425b5c6d7e6677cff5`;
+- phone-portrait WebKit cumulative complete-story focused repeat: 10/10
+  passed in 28.4 minutes;
+- complete release suite: 227/227 passed in 28.1 minutes with one worker;
+  Hero → Pattern `52.8ms`, Method → Figure2 `41.9ms`.
+
+The requested full-suite command included `-- --max-failures=1`; pnpm passed
+the separator through, so Playwright did not parse that option. This did not
+alter the result because no test failed, and the suite was not rerun.
+
+### Persistent closure evidence
+
+Evidence remains outside Git under:
+
+`artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task12-blocker-review/`
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `task12-complete-story-webkit-10x-green-summary.json` | `b6f0704aefe78949c784ef66e3d592b38080ab0a6cbe97211efe026cb117759d` |
+| `task12-release-green-summary.json` | `8f86e9a6a604662dc61a8a9545cda83939f97c76d5875ec8507ebfc1494e4baa` |
+
+All 33 entries in the persistent `SHA256SUMS` manifest pass verification.
+
+## Prior blocker disposition — superseded by the closure above
+
+The following material is retained as the audit trail for the earlier red
+candidate. Its `BLOCKED / NO-GO`, 193/227 result, and permitted-resume text are
+historical and are not the current review decision.
+
+Task 12 closure is not achieved. The earlier TTG causal-frame and Hero →
+Pattern performance blockers are closed, and the newly diagnosed Figure3
+activation race is fixed and stable in focused testing. The one authorized
+complete release suite nevertheless produced a new first failure in the
+phone-portrait WebKit complete-story traversal. The suite stopped on that
+first failure as required; it was not rerun.
+
+Current release result:
+
+- command: `PLAYWRIGHT_PORT=4177 pnpm exec playwright test --config=playwright.release.config.ts --max-failures=1`;
+- discovered: 227;
+- passed: 193;
+- failed: 1;
+- did not run: 33;
+- duration: 24.8 minutes;
+- first failure: `complete story proves all 60 segment traversals through one authority without growth`;
+- project: `phone-portrait-webkit`;
+- failing leg: `lab → ttg-animation`;
+- terminal observation: stable `lab`, `commitSequence = 20`, no visible activation CTA.
+
+The candidate remains an uncommitted WIP. `candidateCodeSha` is still null;
+no release-candidate commit, tag, push, merge, or Task 13 evidence was created.
+
+### P1 — cumulative WebKit complete-story traversal rolls back Lab → TTG
+
+The same candidate passed all of the following before the broad run:
+
+- changed-file Vitest: 14 files / 229 tests;
+- complete TypeScript/build/architecture/media/budget gates;
+- Figure3 reverse withheld-frame WebKit: 10/10 without diagnostics;
+- TTG decode-failure Mobile WebKit: 10/10;
+- desktop performance: 10/10, with Hero → Pattern first visual between
+  `44.4ms` and `55.5ms` against the unchanged `80ms` limit.
+
+Inside the complete suite, both Chromium and WebKit Figure3 terminal/initial
+withheld-frame checks passed, including the former test 169 blocker. The
+phone-portrait Chromium 60-traversal complete-story test also passed. WebKit
+then passed the focused Group 4–5 direct, cycle, delayed-chunk,
+rejected-chunk, withheld-TTG, and lifecycle tests before the later cumulative
+60-traversal test rolled back on `lab → ttg-animation`.
+
+That evidence narrows the remaining blocker to state accumulated by the long
+WebKit complete-story sequence. It does not yet establish whether the first
+wrong event is a stale generation, activation ownership, decoder/resource
+retirement, or a missing TTG causal frame report. The saved Playwright error
+context contains the stable rollback state but no leaf/runtime event chain.
+Changing production from this final state would therefore be speculative.
+
+If Task 12 is resumed, the only justified next diagnostic is one focused
+complete-story WebKit reproduction with the previously used test-only
+runtime/TTG leaf recorder scoped to the failing `lab → ttg-animation` leg.
+Capture the first wrong event and persist its trace/log before any production
+change. Do not run another complete 227-case suite until a deterministic RED
+fixture exists and the resulting focused complete-story gate is stable at
+least 10/10.
+
+### Figure3 activation race closed in this review
+
+The preceding full-suite failure at the reverse withheld Figure3 frame was
+not a hanging `play()` promise. A test-only browser recorder and retained
+trace proved:
+
+1. `play()` resolved and WebKit emitted `play`/`playing`;
+2. the target was correctly `2.567s`;
+3. paused retained rebind had already started an endpoint prime at `2.517s`;
+4. synchronous activation then started a second preparation against the same
+   driver generation, after which the causal waiter could remain pending until
+   the reducer deadline.
+
+The fix defers retained-rebind recovery preparation by one microtask. A
+same-stack activation increments the leaf generation first and becomes the
+sole causal frame owner; standalone lifecycle rebind still prepares on the
+next microtask. A deterministic RED test observed two prepare calls before
+the fix and exactly one after it. The original uninstrumented WebKit test then
+passed 10/10 and passed again as release-suite case 169.
+
+### Current unified machine/runtime review
+
+| Area | Current review result |
+| --- | --- |
+| machine / stable commit | No new reducer or commit path was introduced. The remaining broad-run failure rolled back to the committed Lab hold rather than publishing an unproved TTG target. |
+| queue / supersede | Focused runtime and leaf tests preserve generation guards; Figure3 activation now has one causal preparation owner. The long WebKit failure lacks the event chain needed to clear cumulative queue ownership. |
+| rollback | Fail-closed behavior is intact, but the unexplained Lab rollback makes the complete-story release gate red. |
+| activation | Figure3 rebind/activation ownership is closed. Focused TTG activation is 10/10; cumulative Lab → TTG WebKit activation/proof remains unproven. |
+| disposal / resources | Focused resource-growth, context-loss, visibility, and BFCache cases passed. The cumulative complete-story failure still requires event-level evidence before disposal can be cleared. |
+| presentation | Causal Figure3/TTG proof guards remain binding/generation-scoped. No false target commit was observed. |
+
+### Current evidence
+
+Persistent evidence remains under:
+
+`artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task12-blocker-review/`
+
+New audit entries:
+
+| Evidence | SHA-256 |
+| --- | --- |
+| `figure3-reverse-webkit-rvfc-race-error-context.md` | `1717d0416b8cb911c0e6efeb705a878e57f43dd8d58399a833536000f72f7da5` |
+| `figure3-reverse-webkit-rvfc-race-trace.zip` | `2f5e3e7487c06a929b6b947b51678b12fa52647f3e0daa09fb338d9c161fd6d9` |
+| `task12-pre-release-focused-gates-summary.json` | `b2f4f831d50233a429ac3a1608afb60f09763acadd226308c4017be8a40222f5` |
+| `task12-release-once-complete-story-lab-ttg-webkit-error-context.md` | `5790333004475903b752f695f61ce086be040d0b4b9c4121d955e0fa016576be` |
+| `task12-release-once-summary.json` | `fd943212f2ceeae6efca76d037bd91029ddb6e6bd759c7065b691321caffa168` |
+
+All 31 entries in the persistent `SHA256SUMS` manifest pass verification.
+
+## Prior diagnostic record — superseded where the current disposition differs
 
 The reported Mobile WebKit TTG failure is root-caused and fixed without a
 broad runtime change. A test-only leaf recorder captured the first wrong state:
