@@ -140,7 +140,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private readyTime = Number.NaN;
   private frameCallbackId: number | undefined;
   private presentingFrame: DesiredFrame | undefined;
-  private presentedSeekFrame: DesiredFrame | undefined;
   private seekedFrameFallbackTimer: ReturnType<typeof setTimeout> | undefined;
   private seekedFrameFallbackFrame: DesiredFrame | undefined;
   private disposed = false;
@@ -603,23 +602,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
     this.inFlightSeek = undefined;
     if (completed.generation === this.generation) {
-      const frameWasPresented = Boolean(
-        this.presentedSeekFrame
-        && this.presentedSeekFrame.generation === completed.generation
-        && Math.abs(this.presentedSeekFrame.targetTime - completed.targetTime) <= SEEK_TOLERANCE_SECONDS
-      );
-      if (frameWasPresented) {
-        this.presentedSeekFrame = undefined;
-        this.markFrameReady(completed, 'video-frame-callback');
+      const callbackPending = this.frameCallbackId !== undefined
+        && this.presentingFrame?.generation === completed.generation
+        && Math.abs(this.presentingFrame.targetTime - completed.targetTime) <= SEEK_TOLERANCE_SECONDS;
+      if (callbackPending) {
+        this.armSeekedFrameFallback(completed);
       } else {
-        const callbackPending = this.frameCallbackId !== undefined
-          && this.presentingFrame?.generation === completed.generation
-          && Math.abs(this.presentingFrame.targetTime - completed.targetTime) <= SEEK_TOLERANCE_SECONDS;
-        if (callbackPending) {
-          this.armSeekedFrameFallback(completed);
-        } else {
-          this.presentFrame(completed);
-        }
+        this.presentFrame(completed);
       }
     }
     const endpointPriming = this.startPendingEndpointPrime();
@@ -666,19 +655,20 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
           Number.isFinite(metadata?.mediaTime)
           && Math.abs(metadata.mediaTime - frame.targetTime) > PRESENTATION_TOLERANCE_SECONDS
         ) {
-          this.presentFrame(frame);
+          // A compositor nudge can advance beyond the requested sample before
+          // its first callback. Re-seek the proof target instead of following
+          // playback away from the only frame this waiter may accept.
+          this.scheduleSeek(frame);
           return;
         }
         if (
           this.inFlightSeek?.generation === frame.generation
           && Math.abs(this.inFlightSeek.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
         ) {
-          this.presentedSeekFrame = frame;
-          this.armSeekedFrameFallback(frame);
-          if (!this.video.seeking) this.completeInFlightSeek();
-          return;
+          this.inFlightSeek = undefined;
         }
         this.markFrameReady(frame, 'video-frame-callback');
+        this.flushQueuedSeek();
       });
       this.armSeekedFrameFallback(frame);
     } catch (cause) {
@@ -742,7 +732,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       if (this.inFlightSeek?.generation === frame.generation
         && Math.abs(this.inFlightSeek.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS) {
         this.inFlightSeek = undefined;
-        this.presentedSeekFrame = undefined;
       }
       this.markFrameReady(frame, 'seeked-fallback');
       this.flushQueuedSeek();
@@ -768,7 +757,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     if (frame.generation !== this.generation) {
       return;
     }
-    if (this.video.readyState < 2 || this.video.seeking) {
+    if (
+      this.video.readyState < 2
+      || (this.video.seeking && evidence !== 'video-frame-callback')
+    ) {
       this.presentFrame(frame);
       return;
     }
@@ -805,7 +797,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   private cancelFrameCallback(): void {
     this.cancelSeekedFrameFallback();
-    this.presentedSeekFrame = undefined;
     if (this.frameCallbackId === undefined) {
       this.presentingFrame = undefined;
       return;

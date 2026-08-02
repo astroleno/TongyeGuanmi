@@ -748,7 +748,23 @@ test('consolidated Method-to-Figure2 ink keeps an opaque receiver field beneath 
       receiverPaperColor: string;
       receiverPaperImage: string;
     }[] = [];
-    const timeout = window.setTimeout(() => reject(new Error('Method-to-Figure2 witness timed out')), 5_000);
+    const timeout = window.setTimeout(() => {
+      const video = document.querySelector<HTMLVideoElement>(
+        '[data-stage-layer="figure2-animation"] [data-figure2-combined-video]'
+      );
+      reject(new Error(`Method-to-Figure2 witness timed out: ${JSON.stringify({
+        snapshot: window.__storyApp?.snapshot(),
+        sampleCount: values.length,
+        video: video ? {
+          currentTime: video.currentTime,
+          duration: video.duration,
+          paused: video.paused,
+          readyState: video.readyState,
+          seeking: video.seeking,
+          dataset: { ...video.dataset }
+        } : null
+      })}`));
+    }, 5_000);
     const sample = () => {
       const snapshot = window.__storyApp?.snapshot();
       const source = document.querySelector<HTMLElement>('[data-stage-layer="method-top"]');

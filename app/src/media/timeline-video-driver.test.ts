@@ -98,10 +98,14 @@ class FakeVideo {
     }
   }
 
-  presentFrame(): void {
+  presentFrame(mediaTime = this.time): void {
     const callback = this.frameCallback;
     this.frameCallback = undefined;
-    callback?.(0, {} as VideoFrameCallbackMetadata);
+    callback?.(0, { mediaTime } as VideoFrameCallbackMetadata);
+  }
+
+  advancePlaybackTo(value: number): void {
+    this.time = value;
   }
 }
 
@@ -128,9 +132,6 @@ describe('timeline video driver', () => {
       settled = true;
     });
     video.presentFrame();
-    await Promise.resolve();
-    expect(settled).toBe(false);
-    video.completeSeek();
     await Promise.resolve();
     expect(settled).toBe(true);
 
@@ -268,6 +269,65 @@ describe('timeline video driver', () => {
     }
   });
 
+  it('re-seeks the requested frame when a compositor nudge presents a drifted frame', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    let settled = false;
+
+    try {
+      const readiness = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'media-compositor-drift:1',
+        direction: 1,
+        progress: 0.5,
+        durationFallbackSeconds: 10
+      });
+      void readiness.then(() => { settled = true; });
+      video.completeSeek();
+
+      await vi.advanceTimersByTimeAsync(250);
+      expect(video.playCalls).toBe(1);
+      const seekWritesBeforeDriftRecovery = video.currentTimeWrites.length;
+      video.advancePlaybackTo(10);
+      video.presentFrame(10);
+
+      expect(video.currentTimeWrites).toHaveLength(seekWritesBeforeDriftRecovery + 1);
+      expect(video.currentTimeWrites.at(-1)).toBeCloseTo(4.99);
+      expect(video.paused).toBe(false);
+      expect(settled).toBe(false);
+
+      video.completeSeek();
+      video.presentFrame(4.99);
+      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+      expect(video.paused).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels the compositor nudge when preparation aborts before playback', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const controller = new AbortController();
+
+    try {
+      const readiness = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'media-compositor-abort:1',
+        direction: 1,
+        progress: 0.5,
+        durationFallbackSeconds: 10,
+        signal: controller.signal
+      });
+      controller.abort();
+
+      await expect(readiness).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+      await vi.advanceTimersByTimeAsync(250);
+      expect(video.playCalls).toBe(0);
+      expect(video.paused).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('registers the frame callback before a target seek can present', async () => {
     const video = new FakeVideo();
     video.presentFrameOnCurrentTimeWrite = true;
@@ -282,6 +342,26 @@ describe('timeline video driver', () => {
     });
     void readiness.then(() => { settled = true; });
     video.completeSeek();
+    await Promise.resolve();
+
+    expect(settled).toBe(true);
+    await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+    driver.dispose();
+  });
+
+  it('accepts a matching causal frame even when Chromium has not cleared seeking yet', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    let settled = false;
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-frame-before-seek-flag:1',
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+    void readiness.then(() => { settled = true; });
+    video.presentFrame(4.99);
     await Promise.resolve();
 
     expect(settled).toBe(true);
