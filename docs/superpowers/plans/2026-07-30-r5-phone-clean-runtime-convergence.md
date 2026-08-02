@@ -2,8 +2,9 @@
 
 > **Status:** architecture and execution contracts are frozen. Tasks 0–11 and
 > their corrective reviews are complete. On 2026-08-02 the Task 12 automated
-> release run was stopped at its first new Mobile WebKit TTG failure after a
-> bounded root-cause diagnostic. Task 12 is **BLOCKED / NO-GO**; its acceptance
+> release run was stopped at its first new desktop cold-first-visual budget
+> failure after the Mobile WebKit TTG root cause was closed. Task 12 is
+> **BLOCKED / NO-GO**; its acceptance
 > and commit remain open, no `candidateCodeSha` is frozen, and Task 13 is not
 > authorized. See the
 > [Task 12 blocker review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
@@ -5423,16 +5424,20 @@ chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
 
 - Decision: **BLOCKED / NO-GO**. The current WIP is not Task 12 closure and
   Task 13 must not start.
-- The Group 4–5 first-state divergence was root-caused and the focused Mobile
-  WebKit gate passed 10/10. Static gates, 1,184 Vitest tests, typecheck, build,
-  and size/LOC budgets passed.
-- The single authorized complete release rerun stopped after 74 passes at an
-  intermittent Mobile WebKit TTG direct-entry failure; 152 tests were not run.
-- Failure evidence shows activation already spent and a causal decoded frame
-  physically ready while the reducer still lacks only the TTG `video-decoded`
-  prepared proof. One passing leaf-event chain was preserved, but the failing
-  leaf-event branch was not captured, so no further production patch is
-  evidence-backed.
+- The failure-side TTG leaf chain proved a `0.05s` driver-owned causal start
+  sample was rejected only by TTG's narrower `0.04s` endpoint predicate. The
+  shared-tolerance fix has a deterministic regression, and Mobile WebKit TTG
+  passed 10/10.
+- Static gates, 1,185 Vitest tests, TypeScript, the complete build,
+  frozen-input/hash checks, and size/LOC budgets passed. Phone JavaScript is
+  606,526 B and `runtime.ts` is exactly 1,000 nonblank LOC.
+- The single authorized complete release rerun then stopped after 29 passes
+  when desktop Chromium measured Hero → Pattern cold first visual at `110ms`
+  against the frozen `80ms` maximum. One next test was interrupted and 196 did
+  not run.
+- This aggregate measurement does not identify a production cause, so the next
+  permitted work is a bounded focused performance diagnostic, not another
+  complete suite or a speculative patch.
 - Full findings, verification ledger, hashes, and the only permitted resume
   sequence are recorded in the
   [Task 12 blocker review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).

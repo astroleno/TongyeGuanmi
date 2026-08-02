@@ -3,140 +3,154 @@
 - Date: 2026-08-02
 - Reviewer: correctness, main thread
 - Branch: `codex/r5-phone-clean-runtime-convergence`
-- Reviewed HEAD: `f167b9b974d8d1c86342ce5e85b6b7f6df86ed52`
+- Reviewed base HEAD: `4be47ccbe7a5be29f379013ddeae7b3200b6301a`
+- Reviewed candidate: uncommitted ten-file Task 12 WIP
 - Decision: **BLOCKED / NO-GO**
 - Next phase: **Task 13 is not authorized**
 
 ## Outcome
 
-Task 12 cannot honestly be closed. The bounded diagnostic window replaced the
-long Playwright loops, found and fixed the Group 4–5 first-state divergence,
-and reached a 10/10 focused browser gate. The one subsequently authorized full
-release run then exposed an intermittent Mobile WebKit TTG direct-entry stall.
-That run was stopped at the first failure instead of consuming the remaining
-152 cases.
+The reported Mobile WebKit TTG failure is root-caused and fixed without a
+broad runtime change. A test-only leaf recorder captured the first wrong state:
+the shared video driver had returned `ready` for its causal start sample while
+the TTG leaf rejected the physical playhead at `0.05s`. The driver contract
+accepts a `0.05s` presentation window, but TTG's initial endpoint guard allowed
+only `0.04s`. The fix makes only a current, driver-owned causal start proof use
+the shared driver window; retained/reusable TTG frames keep the stricter
+`0.04s` test.
 
-The TTG failure-side runtime snapshot and one passing leaf-event sequence were
-captured. They narrow the fault to the handoff between a spent activation and
-the missing `video-decoded` prepared report, but they do not identify which
-leaf guard or asynchronous settlement discarded the report. No further
-production patch is justified from the available evidence.
+The deterministic regression, focused 173-test set, and Mobile WebKit TTG
+gate all passed; the latter completed 10/10. All static, unit, type, build,
+frozen-input, LOC, bundle, and evidence-hash gates then passed.
+
+The one authorized complete release rerun found a new first failure in the
+desktop Chromium performance gate. `heroPattern` cold first visual measured
+`110ms` against the frozen `80ms` maximum. The run was intentionally stopped
+rather than using the remaining 196 cases as a diagnostic loop. Task 12
+therefore still cannot honestly close, `candidateCodeSha` is not frozen, and
+Task 13 remains unauthorized.
+
+## Resolved finding
+
+### Mobile WebKit TTG now converts its causal decoded frame into reducer-owned proof
+
+Failure-side leaf order:
+
+1. `mount → rebind → activate → play-fulfilled → prepare-start` remained on
+   generation 1 and the current binding.
+2. `prepare-settled` returned `status: ready`; the canonical video had
+   `readyState = 4`, `currentTime = 0.05`, `seeking = true`, and
+   `timelineVideoFrameReady = true` with `video-frame-callback` evidence.
+3. The only false guard was `endpointPresented`; no `report-check` or
+   `report-dispatched` event followed.
+4. The runtime later reached its media-preparation deadline and correctly
+   rolled the boot transaction back to Hero rather than publishing TTG without
+   its required `video-decoded` proof.
+
+This excludes stale driver settlement, generation mismatch, binding
+replacement, and report acceptance as the first divergence. The mismatch was
+between the driver's accepted causal sample window and the TTG leaf's narrower
+initial endpoint window.
+
+Implemented closure:
+
+- the video driver exports its `0.05s` presentation tolerance as one shared
+  contract;
+- TTG uses that tolerance only for an immediately returned causal start-frame
+  proof;
+- TTG still requires its original `0.04s`, non-seeking predicate before
+  reusing a retained endpoint frame;
+- a deterministic activation-path test reproduces the Mobile WebKit
+  `currentTime = 0.05`, `seeking = true`, driver-`ready` result;
+- every temporary runtime/leaf diagnostic hook was removed before final gates.
 
 ## Blocking finding
 
-### P1 — Mobile WebKit can spend TTG activation without accepting its decoded frame
+### P1 — The complete release candidate misses the frozen desktop cold-first-visual budget
 
-Locations under review:
+Location:
 
-- `app/src/scenes/ttg-animation/phone/PhoneTtg.tsx`
-- `app/src/production/phone-story/runtime.ts`
-- `app/e2e/r5-ttg-alpha.spec.ts`
+- `app/e2e/r5-performance.spec.ts:725`
 
-Observed failure:
+Observed in the only post-fix complete release rerun:
 
-1. The complete release suite reached 74 passed tests, then
-   `mobile-webkit › r5-ttg-alpha.spec.ts › TTG decode failure hides its video
-   and preserves the authored fallback` timed out during the initial
-   `waitForCommitSequence`; the test had not yet injected the decode error.
-   The remaining 152 tests were terminated.
-2. The failure-side five-second snapshot was still a TTG boot transaction in
-   `preparing`, with `activation: spent` and an active `mediaPrepare` deadline.
-   Its only missing prepared requirement was `video-decoded` for
-   `ttg-figure-video`.
-3. At the same point, the canonical video had no media error, `readyState = 4`,
-   the expected current run/generation, the endpoint playhead, and
-   `timelineVideoFrameReady = true` with `video-frame-callback` evidence.
-   No page or console error explained the missing report.
-4. The bounded passing replay recorded the complete sequence
-   `pageshow → rebind → activate → play-fulfilled → prepared(initial) →
-   prepared(terminal)`, then reached stable commit 1. Its frame and report
-   generation stayed aligned.
+- project: `desktop-chromium`;
+- test: `LCP, frame pacing, memory, GPU surfaces, and dispose stay inside R5 budgets`;
+- assertion: `heroPattern cold first visual`;
+- actual: `110ms`;
+- required: `≤ 80ms`.
 
-The first known wrong state is therefore not the final Playwright timeout. It
-is the transaction having consumed activation while the physically decoded
-TTG frame has not become the reducer-owned prepared proof. The failed run did
-not retain the corresponding leaf-event array, so the evidence cannot yet
-distinguish among a stale driver result, generation invalidation, binding
-replacement, or another report guard. Treating any one of those as the cause
-would be a guess.
+The same captured report showed healthy steady-state frame pacing
+(`17.4ms` p95, `33.4ms` max, zero frames over `50ms`) and a passing
+`methodFigure2` cold first visual at `65ms`. That does not waive the failed
+Hero → Pattern cold-start contract. There is not enough evidence in this run
+to attribute the 30ms excess to production work, the test environment, or a
+specific scheduler/rendering boundary, so no additional production patch is
+authorized here.
+
+Release result:
+
+- 29 passed;
+- 1 failed;
+- 1 next test was interrupted by the deliberate stop;
+- 196 did not run;
+- exit code 130 after termination.
 
 Impact:
 
-- a real direct entry can remain behind the Hero/Loader cover;
-- the full dispositioned release suite is not green;
-- `candidateCodeSha` cannot be frozen and Task 13 cannot start.
+- the complete dispositioned release suite is not green;
+- Task 12 acceptance and its release-candidate commit remain open;
+- `candidateCodeSha` cannot be frozen;
+- Task 13 cannot start.
 
 Required before reopening Task 12 closure:
 
-1. Restore the test-only TTG leaf event recorder without changing production
-   behavior and capture one failing Mobile WebKit run, preserving the exact
-   event order before the timeout.
-2. Add a deterministic RED unit/integration fixture for the specific branch
-   proven by that event order, then make only that fixture green.
-3. Make the focused TTG Mobile WebKit gate stable for at least 10/10 runs.
-4. Re-run static gates and exactly one complete release suite. Any new first
-   failure returns to a bounded focused diagnostic; it does not authorize a
-   five-loop or 227-case diagnostic cycle.
-
-## Resolved within the diagnostic window
-
-The earlier Group 4–5 failure is root-caused rather than merely timed out:
-
-- a retired `prepareTimelineVideoFrame()` settlement could execute its final
-  `pause()` after successor playback acquired the same video;
-- a retained activation retry could receive late React effect/target mounts
-  through the previous generation's report ports;
-- the observed media activation rejection was
-  `AbortError: The play() request was interrupted by a call to pause()`.
-
-The current uncommitted patch adds preparation ownership to the shared video
-driver, permits replacement only for a detached retained mount, and rebinds
-late report ports to the active generation. Deterministic regressions cover
-both ownership boundaries. Group 4–5 then passed 10/10 focused Mobile WebKit
-runs.
+1. Keep the current ten-file WIP intact and do not infer a production cause
+   from the terminal timeout or this single aggregate measurement.
+2. Use a bounded, focused cold Hero → Pattern diagnostic to locate the first
+   delayed visual state and preserve its test-only timing evidence.
+3. Add a deterministic RED fixture only after that cause is identified, then
+   make the focused performance gate stable before any broad run.
+4. Re-run static gates and exactly one complete release suite. A new first
+   failure returns to a bounded diagnostic; it does not authorize repeated
+   227-case loops.
 
 ## Unified machine/runtime review
 
 | Area | Review result |
 | --- | --- |
-| machine and stable commit | No Task 12 WIP change; reducer/queue/rollback tests were green in the 1,184-test Vitest run. Approval remains contingent on the release gate. |
-| queue and supersede | Generation-bound late reports and retained mounts have focused coverage; no second queue or authority was introduced. |
-| rollback | Existing fail-closed rollback tests remained green; the failed TTG boot had no prior stable source and correctly kept the Loader rather than publishing a false target. |
-| activation | Group 4–5 abort/play ownership is proven and focused-green. TTG can still reach `activation: spent` without its prepared proof, which is the blocking boundary. |
-| disposal | The video preparation owner prevents a retired promise from pausing successor playback; detached mount replacement retires and releases the old lease once. |
-| presentation | The retained lease now exposes attachment state to the runtime. Focused tests cover attached/detached behavior; full release approval is withheld. |
+| machine and stable commit | No Task 12 WIP change. Reducer, stable-commit, toolbar reprojection, rollback, and queue tests remain green. |
+| queue and supersede | Late effect/target report ports bind to the active generation; stale work cannot satisfy the successor transaction. No second queue or authority was introduced. |
+| rollback | TTG's failed diagnostic transaction rolled back instead of publishing an unproved target. Existing fail-closed rollback tests remain green. |
+| activation | Shared video preparation ownership prevents a retired settlement from pausing successor playback. The TTG causal start frame now produces the required reducer-owned proof. |
+| disposal | Detached retained mounts are retired and released before replacement; attached duplicate mounts remain rejected. |
+| presentation | Mount leases expose attachment state only to the canonical runtime. Figure3/TTG causal frame acceptance stays generation- and binding-guarded. |
 
-This review finds no basis for a broader architecture rewrite. It also does not
-approve the current WIP as Task 12 closure while the P1 remains.
+No correctness finding in this review requires an architecture rewrite. That
+does not convert the ten-file WIP into an accepted Task 12 candidate while the
+complete release gate is red.
 
 ## Verification ledger
 
 Passed before the release rerun:
 
-- focused machine/runtime/media tests: 144/144;
+- deterministic machine/runtime/presentation/video-driver/Figure3/TTG set:
+  173/173;
+- Mobile WebKit TTG focused gate: 10/10;
+- Node gate fixtures required by Step 12.8: 97/97;
+- Vitest: 173 files / 1,185 tests;
 - TypeScript;
-- Group 4–5 focused Mobile WebKit: 10/10;
-- Node gate fixtures: 119/119;
-- Vitest: 173 files / 1,184 tests;
-- full build and architecture/LOC gates;
+- complete production build and all embedded architecture/media/size gates;
+- frozen-input comparison against `9652fbe`;
+- `git diff --check`;
 - `runtime.ts`: exactly 1,000 nonblank LOC;
-- phone JavaScript: 606,523 B;
-- largest lazy chunk: 50,892 B.
+- phone JavaScript: 606,526 B;
+- largest lazy chunk: 50,892 B;
+- persistent blocker evidence manifest: all entries pass SHA-256 verification.
 
-Release result:
-
-- 74 passed;
-- 1 failed at Mobile WebKit TTG initial commit;
-- 152 did not run because the suite was intentionally terminated at the first
-  new failure.
-
-Bounded TTG replay after instrumentation removal is not claimed as closure: the
-instrumented single test passed once in 6.9 seconds and preserved the passing
-event chain, but did not reproduce the failure-side leaf events.
-
-After removing every temporary diagnostic hook, the final deterministic
-machine/runtime/presentation/video-driver/Figure3/TTG set passed 172/172 and
-TypeScript passed again. No browser suite was started for this cleanup check.
+The complete release rerun rebuilt the same 606,526-byte phone closure before
+starting its 227 Playwright cases. It stopped at the first new blocking result
+described above; no second full rerun was performed.
 
 ## Evidence and repository state
 
@@ -151,11 +165,16 @@ Key hashes:
 | `group45-fail-runtime.log` | `77d8321a2342710cc9abf7c9ebb17a96f192ae3e00e174bbd46c918121a1860d` |
 | `group45-pass-runtime.log` | `5908483aa155b8dc776b7dafa62d21f54f77deaf7767f9b944bef042e38b18a5` |
 | `group45-activation-reason.log` | `f8e965e183d1d5d5dd046662a3faceb252e186bd7b061b131d4957d00af5b6ea` |
-| `group45-failure-trace/0-trace.trace` | `aefebbcd5d815468c89bc2e7c1caa971dd757acd49cdc644d5c4e31a142d46d1` |
-| `ttg-pass-runtime.log` | `5df855c9ffc3e6ca74ff29e1f5062a2f5c038146f7882e096028eae3072e277b` |
-| `ttg-pass-trace.zip` | `ef7be3345e2b29b4b547719b44fc38d750d88eb69a3260d75539ce49d5a7ff09` |
+| `ttg-pass-diagnostic-v2.json` | `553892cd7cf92ebd6e018dc107d5fd382a3f1690e5a0c48f6cb92da67e5ab2c4` |
+| `ttg-pass-trace-v2.zip` | `f751edd1b7ed3799453959ded6b1653f38cec8612b8df98921f64cc792ddd085` |
+| `ttg-fail-diagnostic-v2.json` | `5f1df5b774e718c61bec9aa5915587b7e65adadb1517f0c07f2a7b1b675f9802` |
+| `ttg-fail-error-context-v2.md` | `e4ff402656504a5c3e01691b57b8c326969ea12974eb8ed71b51a7a98ae046be` |
+| `ttg-fail-trace-v2.zip` | `9ec1fb674589c9dafc2dedf257123f556491982ea86349ce5f198119af9ff674` |
+| `release-rerun-performance-error-context.md` | `3c15a0606f83cca8fd0e72f38a7332bceb5b4e2dd059fafa3fc50385f92b3cf9` |
+| `release-rerun-last-run.json` | `31636499db805550b2ad7952540d26aa61ee303a328070768b4a8ca56183f4f6` |
+| `release-rerun-performance-summary.json` | `a6e424ef6e3540d90f081976025c09368d2ed5998cee3d1223d06ed3d6a3f0a3` |
 
-The test-only global/runtime and TTG diagnostic hooks were removed after the
-bounded replay. The ten real production/test files remain uncommitted so they
-are preserved without mislabeling them as a Task 12 acceptance commit. No
-candidate tag, push, merge, or Task 13 evidence was created.
+The test-only global/runtime and TTG leaf recorders were removed. The ten real
+production/test files remain uncommitted so they are preserved without
+mislabeling them as a Task 12 acceptance commit. No candidate tag, push,
+merge, or Task 13 evidence was created.
