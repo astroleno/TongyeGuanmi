@@ -6,11 +6,14 @@
 > `a4ba41feaf76fb2f40afbcf222f1565216fac648`: focused phone-portrait WebKit
 > complete-story passed 10/10 and the single final release run passed 227/227,
 > with all unit, type, architecture, frozen-input, build, bundle, and evidence
-> gates green. A clean detached candidate worktree is prepared at the exact
-> code commit; no Task 13 build has run there yet. Task 13 has not started;
-> its formal candidate/artifact freeze, Simulator, physical iPhone, and
-> deployed-network acceptance remain open. See the
+> gates green. Task 13.1 is complete: the clean detached candidate was built
+> once, its 174-file manifest was independently verified, and its exact
+> `sourceCommit`/production/artifact identity is frozen. Task 13.2 has not
+> started; Simulator, physical iPhone, and deployed-network acceptance remain
+> open. See the
 > [Task 12 closure review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
+> Candidate identity and remaining device rows are recorded in the
+> [Task 13 acceptance report](../../react-refactor/reports/r5-phone-clean-runtime-acceptance.md).
 > The
 > verification cadence below removes redundant full-suite reruns without weakening any
 > authority, chunk, presentation, or physical-device release gate. Do not
@@ -5488,7 +5491,7 @@ All Task 13 test servers must serve the detached candidate worktree's `dist/`.
 The report worktree's `dist/` is non-candidate scratch output and must not be
 used as device evidence.
 
-- [ ] **Step 13.1: Freeze the candidate identity**
+- [x] **Step 13.1: Freeze the candidate identity**
 
 Record:
 
@@ -5577,6 +5580,27 @@ Definitions:
 - `finalHandoffSha` is created later and may differ only by plan/report
   bookkeeping. It is never substituted for `candidateCodeSha` in physical
   evidence.
+
+**Step 13.1 execution record — 2026-08-03:**
+
+```text
+candidateCodeSha:          a4ba41feaf76fb2f40afbcf222f1565216fac648
+productionTreeHash:        5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3
+document build ID:         a4ba41feaf76fb2f40afbcf222f1565216fac648
+CDN release ID:            null (local artifact; CDN disabled)
+manifest candidate/tag:    null / null
+manifest qualification:    pending-memory
+manifest sourceCommit:     a4ba41feaf76fb2f40afbcf222f1565216fac648
+manifest sourceDirty:      false
+artifactTreeSha256:        f7f7446dc4727755745184fad111036c516974de2cdbed3b02a7d59f5d8ae293
+release manifest SHA-256:  7e02bfe28574715006c9adcff4a3552e8f9bcf02ca52f9c214a90efcdba079c8
+manifest inventory:        174 files / 83,612,584 bytes; 174/174 verified
+```
+
+The build and all identity checks passed. Persistent hashes are under
+`artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-candidate-freeze/`.
+This freezes the local device-test artifact only; Step 13.2 and every physical
+or deployed release row remain open.
 
 - [ ] **Step 13.2: Run iOS Simulator as simulator evidence**
 

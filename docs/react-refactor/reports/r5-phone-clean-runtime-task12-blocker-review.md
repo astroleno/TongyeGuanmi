@@ -7,7 +7,7 @@
 - Reviewed candidate code commit: `a4ba41feaf76fb2f40afbcf222f1565216fac648`
 - Reviewed pre-commit code-diff SHA-256: `3b40ea1c24d46e30191e6381c263b302e63267c4e2b7b4d6bc78562da0c01b5e`
 - Decision: **GO — Review approved; Task 12 is `Chunk-contract-complete`**
-- Stop boundary: **Task 13 has not started**
+- Subsequent status: **Task 13.1 identity freeze complete; Task 13.2 has not started**
 
 ## Task 12 closure disposition — 2026-08-03
 
@@ -53,9 +53,12 @@ worktree's `dist/r5-release-manifest.json` records the documentation commit and
 is explicitly non-candidate output; it must not be reused for Simulator or
 physical-device evidence.
 
-Task 13 Step 13.1 still owns the actual build and formal artifact freeze. No
-iOS Simulator, physical iPhone, deployed compression, release claim, push,
-merge, or Task 13 evidence is asserted by this review.
+This Task 12 review did not itself assert a candidate build. Task 13.1 was
+subsequently executed only in the detached candidate worktree; its exact
+manifest identity is recorded in the
+[Task 13 acceptance report](r5-phone-clean-runtime-acceptance.md). No iOS
+Simulator, physical iPhone, deployed compression, release claim, push, or
+merge is asserted here.
 
 ### Post-closure identity correction
 
@@ -76,8 +79,9 @@ the HEAD, detached-state, clean-status, and production-tree checks before the
 build. That dependency bootstrap has been executed successfully from the
 frozen lockfile (`258` packages reused, none downloaded); Vite now resolves as
 `7.3.6`. The candidate remains detached and clean with the same production-tree
-hash, and no candidate manifest has been created. The actual Task 13 build and
-manifest freeze remain unstarted.
+hash. Task 13.1 later built that exact candidate once and froze its 174-file
+artifact/manifest identity; Task 13.2 and all device/deployment rows remain
+unstarted.
 
 ### Task 12 code correctness review
 
@@ -94,7 +98,6 @@ manifest freeze remain unstarted.
     }
   ],
   "testing_gaps": [
-    "Task 13's detached-candidate build and release-manifest identity assertion have not run.",
     "iOS Simulator, physical iPhone Safari, and deployed compression evidence belong to Task 13 and were not run."
   ]
 }
