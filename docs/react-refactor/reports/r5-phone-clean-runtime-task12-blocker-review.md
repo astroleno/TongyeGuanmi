@@ -4,14 +4,15 @@
 - Reviewer: correctness, main thread
 - Branch: `codex/r5-phone-clean-runtime-convergence`
 - Reviewed base HEAD: `49e06fc164c0ba17c6037332be94629a8773011d`
-- Reviewed candidate code commit: `a4ba41feaf76fb2f40afbcf222f1565216fac648`
-- Reviewed pre-commit code-diff SHA-256: `3b40ea1c24d46e30191e6381c263b302e63267c4e2b7b4d6bc78562da0c01b5e`
+- Superseded candidate code commit: `a4ba41feaf76fb2f40afbcf222f1565216fac648`
+- Current candidate code commit: `8f3913908cba95e150d464dfab12270efe9dbdc3`
+- Superseded pre-commit code-diff SHA-256: `3b40ea1c24d46e30191e6381c263b302e63267c4e2b7b4d6bc78562da0c01b5e`
 - Decision: **GO — Review approved; Task 12 is `Chunk-contract-complete`**
-- Subsequent status: **Task 13.1 identity freeze complete; Task 13.2 has not started**
+- Subsequent status: **Task 13.1 replacement identity frozen; Task 13.2 must restart**
 
 ## Task 12 closure disposition — 2026-08-03
 
-All Task 12 blockers are closed on the reviewed candidate:
+All Task 12 blockers are closed on the current candidate:
 
 - the shared timeline driver again requires bounded agreement between its
   proof and the physical playhead, so an old generation cannot skip a real
@@ -22,33 +23,34 @@ All Task 12 blockers are closed on the reviewed candidate:
   identity, while retained-frame reuse keeps the stricter physical check;
 - Hero's prewarm and first forward consumer share the same named driver
   generation instead of weakening generic cross-generation reuse;
-- browser-local Hero → Pattern first-visual timing passed at `52.8ms` against
+- browser-local Hero → Pattern first-visual timing passed at `51.1ms` against
   the unchanged `80ms` limit;
-- phone-portrait WebKit's cumulative 60-traversal story passed 10/10, followed
-  by one complete 227-case release run with 227/227 passing.
+- after Simulator invalidated the prior candidate, the corrective Figure2
+  Grade A path passed 10/10, followed by one complete 227-case release run
+  with 227/227 passing.
 
-The fourteen code files were committed without the plan/report changes as
-`a4ba41feaf76fb2f40afbcf222f1565216fac648`. The canonical production-tree
-input for Task 13 is:
+The original fourteen-file closure was superseded by a focused CSS fallback
+regression/fix and a Figure2 transient-repaint regression/fix. The replacement
+candidate is committed as `8f3913908cba95e150d464dfab12270efe9dbdc3`.
+The canonical production-tree input for Task 13 is:
 
 ```text
-candidateCodeSha input: a4ba41feaf76fb2f40afbcf222f1565216fac648
-productionTreeHash:      5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3
+candidateCodeSha input: 8f3913908cba95e150d464dfab12270efe9dbdc3
+productionTreeHash:      96b664cf88e88d207596256ca3adaf6b739b11e77d5f3d2ebe60293854c895e0
 ```
 
-The report branch first moved beyond the candidate at documentation commit
-`f78e41ac101020a56543e5a6b25c1e63bab79aed` and may advance through further
+The report branch may advance beyond the replacement candidate through
 docs-only commits. None is a candidate build identity. A clean detached
 candidate worktree has therefore been created at the exact code commit:
 
 ```text
-/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f
+/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139
 ```
 
-Its detached HEAD is `a4ba41feaf76fb2f40afbcf222f1565216fac648`, its
+Its detached HEAD is `8f3913908cba95e150d464dfab12270efe9dbdc3`, its
 working tree is clean, and its canonical production-tree hash is the value
 above. Task 13 Step 13.1 must build only from that detached worktree and must
-reject any manifest whose `sourceCommit` is not `a4ba41f…`. The current report
+reject any manifest whose `sourceCommit` is not `8f39139…`. The current report
 worktree's `dist/r5-release-manifest.json` records the documentation commit and
 is explicitly non-candidate output; it must not be reused for Simulator or
 physical-device evidence.
@@ -78,10 +80,27 @@ Step 13.1 now runs
 the HEAD, detached-state, clean-status, and production-tree checks before the
 build. That dependency bootstrap has been executed successfully from the
 frozen lockfile (`258` packages reused, none downloaded); Vite now resolves as
-`7.3.6`. The candidate remains detached and clean with the same production-tree
-hash. Task 13.1 later built that exact candidate once and froze its 174-file
-artifact/manifest identity; Task 13.2 and all device/deployment rows remain
-unstarted.
+`7.3.6`. The current replacement candidate remains detached and clean with its
+updated production-tree hash. Task 13.1 built that exact candidate once and
+froze its 174-file artifact/manifest identity; Task 13.2 and all physical or
+deployment rows must restart from this identity.
+
+### Simulator corrective reclosure
+
+The first Simulator cold-root inspection invalidated `a4ba41f…`: Hero and Star
+Map referenced `--portrait-readable-bottom-offset` without a fallback, so the
+whole `bottom` declaration became invalid when no writer existed. A CSS
+contract now requires Hero, Pattern, and Star Map to use
+`var(--portrait-readable-bottom-offset, 0px)`, and focused Simulator checks
+confirmed the corrected Hero cue plus Star Map portrait/landscape round-trip.
+
+The subsequent release run exposed a separate Figure2 rollback. Reducer
+diagnostics showed that a causal canvas proof had already been accepted before
+a transient packed-alpha repaint miss was promoted to
+`figure2-packed-alpha-render-failed`. Figure2 now uses best-effort `probe()`
+for progress repaint and leaves causal frame reporting as the only proof owner.
+The deterministic regression passed, the Grade A chain passed 10/10, and the
+single replacement release run passed 227/227 in 28.8 minutes.
 
 ### Task 12 code correctness review
 
@@ -116,23 +135,21 @@ unstarted.
 
 ### Verification ledger
 
-- focused changed-path Vitest: 5 files / 84 tests passed;
+- focused CSS and Figure2 regression suites: 10/10 and 9/9 passed;
 - Group 7 transition regression: 16/16 passed;
-- full Vitest: 173 files / 1,195 tests passed;
+- full Vitest: 174 files / 1,199 tests passed;
 - Node gate fixtures: 97/97 passed;
 - TypeScript, boolean-data, packed-alpha, cutover architecture, frozen-input
   diff, and `git diff --check`: passed;
-- complete build: passed; desktop JS `577,525 B`, phone JS `607,339 B`,
+- complete build: passed; desktop JS `577,525 B`, phone JS `607,259 B`,
   largest lazy JS `50,892 B`, artifact tree
-  `89a9342203ba0adb0f5274ed53703e10b001e37d041c93425b5c6d7e6677cff5`;
-- phone-portrait WebKit cumulative complete-story focused repeat: 10/10
-  passed in 28.4 minutes;
-- complete release suite: 227/227 passed in 28.1 minutes with one worker;
-  Hero → Pattern `52.8ms`, Method → Figure2 `41.9ms`.
+  `a9586450d93e8ff4d7893e15eb51edd783379a7332d960d9260ebadeee6f9a4e`;
+- corrective Figure2 Grade A focused repeat: 10/10 passed;
+- complete release suite: 227/227 passed in 28.8 minutes with one worker and
+  `--max-failures=1`; Hero → Pattern `51.1ms`.
 
-The requested full-suite command included `-- --max-failures=1`; pnpm passed
-the separator through, so Playwright did not parse that option. This did not
-alter the result because no test failed, and the suite was not rerun.
+The replacement full-suite command passed `--max-failures=1` directly to
+Playwright and was not repeated after its 227/227 result.
 
 ### Persistent closure evidence
 

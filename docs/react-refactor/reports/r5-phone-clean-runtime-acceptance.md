@@ -4,24 +4,24 @@
 - Status: **Step 13.1 candidate identity frozen; Steps 13.2–13.9 pending**
 - Current claim: **`Chunk-contract-complete`; not `Release-complete`**
 - Report branch: `codex/r5-phone-clean-runtime-convergence`
-- Candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f`
+- Candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139`
 
 ## Frozen candidate identity
 
 | Item | Value |
 | --- | --- |
 | candidate mode | detached, clean, immutable production source |
-| `candidateCodeSha` | `a4ba41feaf76fb2f40afbcf222f1565216fac648` |
-| `productionTreeHash` | `5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3` |
-| document build/recovery ID | `a4ba41feaf76fb2f40afbcf222f1565216fac648` |
+| `candidateCodeSha` | `8f3913908cba95e150d464dfab12270efe9dbdc3` |
+| `productionTreeHash` | `96b664cf88e88d207596256ca3adaf6b739b11e77d5f3d2ebe60293854c895e0` |
+| document build/recovery ID | `8f3913908cba95e150d464dfab12270efe9dbdc3` |
 | CDN release ID | `null` — local candidate artifact; CDN/deployment not yet configured |
 | release-manifest schema / qualification | schema 3 / `pending-memory` |
 | manifest candidate / tag object | `null` / `null` |
-| manifest `sourceCommit` | `a4ba41feaf76fb2f40afbcf222f1565216fac648` |
+| manifest `sourceCommit` | `8f3913908cba95e150d464dfab12270efe9dbdc3` |
 | manifest `sourceDirty` | `false` |
-| `artifactTreeSha256` | `f7f7446dc4727755745184fad111036c516974de2cdbed3b02a7d59f5d8ae293` |
-| release-manifest SHA-256 | `7e02bfe28574715006c9adcff4a3552e8f9bcf02ca52f9c214a90efcdba079c8` |
-| manifest inventory | 174 files / 83,612,584 bytes; 174/174 bytes and hashes independently verified |
+| `artifactTreeSha256` | `a9586450d93e8ff4d7893e15eb51edd783379a7332d960d9260ebadeee6f9a4e` |
+| release-manifest SHA-256 | `63984b8c8f5f9ee3bd660f1bda17302ef2378ad5e350edd34245e861c4af3531` |
+| manifest inventory | 174 files / 83,612,514 bytes; 174/174 bytes and hashes independently verified |
 
 `VITE_R5_DOCUMENT_BUILD_ID` and deployed recovery identity both derive from
 the exact source commit. The report worktree's docs-only HEAD and its local
@@ -50,7 +50,7 @@ HEAD, detached state, clean status, and production tree hash were rechecked.
 Exactly one formal build was run:
 
 ```text
-pnpm -C /Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f/app build
+pnpm -C /Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139/app build
 ```
 
 Result: passed. The command completed TypeScript, boolean-data, clean
@@ -64,38 +64,45 @@ manifest gates.
 | desktop JavaScript | 577,525 B |
 | required desktop headroom | 4,096 B |
 | actual desktop headroom | 4,107 B |
-| phone JavaScript | 607,339 B |
-| phone headroom | 56,213 B |
+| phone JavaScript | 607,259 B |
+| phone headroom | 56,293 B |
 | largest lazy JavaScript | 50,892 B |
-| total asset bytes | 83,463,823 B |
+| total asset bytes | 83,463,753 B |
 | largest asset | 11,002,083 B |
 
 The manifest inventory was then recomputed from `dist/`; every listed file's
 byte count and SHA-256 matched, the sorted file set matched exactly, and the
-aggregate artifact hash matched `artifactTreeSha256`. No Task 12 Playwright or
-227-case suite was rerun because the frozen candidate source did not change.
+aggregate artifact hash matched `artifactTreeSha256`.
+
+The prior Simulator attempt invalidated candidate `a4ba41f…` after exposing
+missing Hero and Star Map readable-bottom fallbacks. The correction then
+exposed a Figure2 transient packed-alpha repaint being promoted to a fatal
+rollback. Both received deterministic regressions and focused verification;
+the new source passed 174 files / 1,199 Vitest tests, 97/97 Node gate fixtures,
+the Figure2 Grade A chain 10/10, and one complete 227/227 release suite before
+this replacement artifact was frozen.
 
 ## Durable evidence
 
 Candidate artifact to serve for every remaining Task 13 row:
 
 ```text
-/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f/dist/
+/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139/dist/
 ```
 
 Persistent identity evidence:
 
 ```text
-artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-candidate-freeze/
+artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-candidate-freeze-8f39139/
 ```
 
 | Evidence | SHA-256 |
 | --- | --- |
-| `r5-release-manifest.json` | `7e02bfe28574715006c9adcff4a3552e8f9bcf02ca52f9c214a90efcdba079c8` |
-| `cdn-publish-manifest.json` | `e7cb8e3a8ab236620b051a92633d71c45fccd692c451b88a556e03d6f009aa7a` |
-| `vite-manifest.json` | `484343bb7f3748982f71dd39fbce42e883de16a4328b1fec30ddaf86067f180d` |
-| `r5-module-provenance.json` | `acb35668991820475ed41c5b9ef82d3138b6cf3d17fe3d00bd69df46d6c087c4` |
-| `task13-candidate-freeze-summary.json` | `688b200a02844be00613f2073315024a37477506100f26d22b7301d07ca41649` |
+| `r5-release-manifest.json` | `63984b8c8f5f9ee3bd660f1bda17302ef2378ad5e350edd34245e861c4af3531` |
+| `cdn-publish-manifest.json` | `a8da1c30c157af305a495d47cafc864f42e4fd29cebb70a4dc201a2a703c07b9` |
+| `vite-manifest.json` | `3f4c1e1614f509ccb84173254ad1919964d5d992b811df397dd0ba3542081913` |
+| `r5-module-provenance.json` | `ca3c08842b90a6a951ae48ccb55e60b4454619a3f7fa1e0c618e446cc9e60f13` |
+| `task13-candidate-freeze-summary.json` | `ece5992e6aa5d4067ef74bf8ad127a7ebea08fbb1ab2cfe491d12f65f09a6e73` |
 
 The evidence-directory `SHA256SUMS` verifies 5/5 entries.
 

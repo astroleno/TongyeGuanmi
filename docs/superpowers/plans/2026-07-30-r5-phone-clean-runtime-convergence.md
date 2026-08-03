@@ -3,14 +3,14 @@
 > **Status:** architecture and execution contracts are frozen. Tasks 0–12 and
 > their corrective reviews are complete. Task 12 is
 > **GO / `Chunk-contract-complete`** on candidate-code input
-> `a4ba41feaf76fb2f40afbcf222f1565216fac648`: focused phone-portrait WebKit
-> complete-story passed 10/10 and the single final release run passed 227/227,
+> `8f3913908cba95e150d464dfab12270efe9dbdc3`: the corrective Figure2 Grade A
+> path passed 10/10 and the single final release run passed 227/227,
 > with all unit, type, architecture, frozen-input, build, bundle, and evidence
 > gates green. Task 13.1 is complete: the clean detached candidate was built
 > once, its 174-file manifest was independently verified, and its exact
-> `sourceCommit`/production/artifact identity is frozen. Task 13.2 has not
-> started; Simulator, physical iPhone, and deployed-network acceptance remain
-> open. See the
+> `sourceCommit`/production/artifact identity is frozen. Task 13.2 must restart
+> from the replacement candidate; Simulator, physical iPhone, and deployed-
+> network acceptance remain open. See the
 > [Task 12 closure review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
 > Candidate identity and remaining device rows are recorded in the
 > [Task 13 acceptance report](../../react-refactor/reports/r5-phone-clean-runtime-acceptance.md).
@@ -5438,20 +5438,23 @@ chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
   same-stack activation is the sole causal preparation owner. Causal results
   remain binding/generation scoped; retained-frame reuse remains physically
   strict.
-- Full Vitest passed 173 files / 1,195 tests; Node gate fixtures passed 97/97;
+- Full Vitest passed 174 files / 1,199 tests; Node gate fixtures passed 97/97;
   TypeScript, boolean-data, packed-alpha, cutover architecture, frozen-input,
   `git diff --check`, and complete build passed.
 - Build output: desktop JavaScript `577,525 B` with `4,107 B` headroom, phone
-  JavaScript `607,339 B`, and maximum lazy JavaScript `50,892 B`. The desktop
+  JavaScript `607,259 B`, and maximum lazy JavaScript `50,892 B`. The desktop
   reserve is only 11 bytes above its required 4,096-byte gate and remains an
   explicit future-change risk.
-- Phone-portrait WebKit's cumulative complete-story test passed 10/10 in 28.4
-  minutes. The single final complete release suite then passed 227/227 in 28.1
-  minutes; Hero → Pattern was `52.8ms` against the unchanged `80ms` limit.
-- Candidate code is committed as
-  `a4ba41feaf76fb2f40afbcf222f1565216fac648`; its canonical production-tree
+- The corrective Figure2 Grade A chain passed 10/10 before the single final
+  complete release suite passed 227/227 in 28.8 minutes; Hero → Pattern was
+  `51.1ms` against the unchanged `80ms` limit.
+- The original `a4ba41f…` candidate was invalidated when Simulator exposed a
+  missing readable-bottom fallback in Hero and Star Map. The regression and a
+  later Figure2 transient-repaint rollback were corrected and reclosed.
+- Candidate code is now committed as
+  `8f3913908cba95e150d464dfab12270efe9dbdc3`; its canonical production-tree
   hash is
-  `5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3`.
+  `96b664cf88e88d207596256ca3adaf6b739b11e77d5f3d2ebe60293854c895e0`.
   Task 13 Step 13.1 completed the clean candidate rebuild and formal
   candidate/artifact identity freeze; Step 13.2 remains open.
 - All 33 persistent Task 12 evidence hashes verify. Formal findings,
@@ -5484,7 +5487,7 @@ Task 13 uses two deliberately separate worktrees:
 
 | Role | Path | Allowed work |
 | --- | --- | --- |
-| Candidate artifact | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f` | Detached at exact `candidateCodeSha`; build, serve, Simulator, and physical-device testing only. Never edit or commit here. |
+| Candidate artifact | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139` | Detached at exact `candidateCodeSha`; build, serve, Simulator, and physical-device testing only. Never edit or commit here. |
 | Report branch | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime` | Acceptance report and plan bookkeeping only. Never build a candidate artifact from its docs-only HEAD. |
 
 All Task 13 test servers must serve the detached candidate worktree's `dist/`.
@@ -5514,9 +5517,9 @@ reduced-motion setting
 The immutable Task 12 inputs are:
 
 ```text
-candidateCodeSha   = a4ba41feaf76fb2f40afbcf222f1565216fac648
-productionTreeHash = 5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3
-candidateWorktree  = /Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f
+candidateCodeSha   = 8f3913908cba95e150d464dfab12270efe9dbdc3
+productionTreeHash = 96b664cf88e88d207596256ca3adaf6b739b11e77d5f3d2ebe60293854c895e0
+candidateWorktree  = /Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139
 ```
 
 Create or verify the detached worktree, then build once there and test that
@@ -5524,9 +5527,9 @@ exact artifact:
 
 ```bash
 repositoryRoot=/Users/aitoshuu/Documents/GitHub/TongyeGuanmi
-candidateCodeSha=a4ba41feaf76fb2f40afbcf222f1565216fac648
-candidateWorktree=/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f
-expectedProductionTreeHash=5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3
+candidateCodeSha=8f3913908cba95e150d464dfab12270efe9dbdc3
+candidateWorktree=/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139
+expectedProductionTreeHash=96b664cf88e88d207596256ca3adaf6b739b11e77d5f3d2ebe60293854c895e0
 
 test -e "$candidateWorktree/.git" || \
   git -C "$repositoryRoot" worktree add --detach \
@@ -5584,21 +5587,21 @@ Definitions:
 **Step 13.1 execution record — 2026-08-03:**
 
 ```text
-candidateCodeSha:          a4ba41feaf76fb2f40afbcf222f1565216fac648
-productionTreeHash:        5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3
-document build ID:         a4ba41feaf76fb2f40afbcf222f1565216fac648
+candidateCodeSha:          8f3913908cba95e150d464dfab12270efe9dbdc3
+productionTreeHash:        96b664cf88e88d207596256ca3adaf6b739b11e77d5f3d2ebe60293854c895e0
+document build ID:         8f3913908cba95e150d464dfab12270efe9dbdc3
 CDN release ID:            null (local artifact; CDN disabled)
 manifest candidate/tag:    null / null
 manifest qualification:    pending-memory
-manifest sourceCommit:     a4ba41feaf76fb2f40afbcf222f1565216fac648
+manifest sourceCommit:     8f3913908cba95e150d464dfab12270efe9dbdc3
 manifest sourceDirty:      false
-artifactTreeSha256:        f7f7446dc4727755745184fad111036c516974de2cdbed3b02a7d59f5d8ae293
-release manifest SHA-256:  7e02bfe28574715006c9adcff4a3552e8f9bcf02ca52f9c214a90efcdba079c8
-manifest inventory:        174 files / 83,612,584 bytes; 174/174 verified
+artifactTreeSha256:        a9586450d93e8ff4d7893e15eb51edd783379a7332d960d9260ebadeee6f9a4e
+release manifest SHA-256:  63984b8c8f5f9ee3bd660f1bda17302ef2378ad5e350edd34245e861c4af3531
+manifest inventory:        174 files / 83,612,514 bytes; 174/174 verified
 ```
 
 The build and all identity checks passed. Persistent hashes are under
-`artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-candidate-freeze/`.
+`artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-candidate-freeze-8f39139/`.
 This freezes the local device-test artifact only; Step 13.2 and every physical
 or deployed release row remain open.
 
