@@ -53,7 +53,9 @@
   opacity: 0;
 }
 
+.phone-grade-a__surfaces .r4-figure2[data-phone-figure2-alpha="awaiting-native-playback"] .r4-figure2__video,
 .phone-grade-a__surfaces .r4-figure2[data-phone-figure2-alpha="probing"] .r4-figure2__video,
+.phone-grade-a__surfaces .r4-figure2[data-phone-figure2-alpha="static-fallback"] .r4-figure2__video,
 .phone-grade-a__surfaces .r4-figure2[data-phone-figure2-alpha="poster-fallback"] .r4-figure2__video,
 .phone-grade-a__surfaces .r4-figure2[data-phone-figure2-alpha="verified"] .r4-figure2__video {
   opacity: 0;

@@ -259,21 +259,10 @@ export const PhoneFigure2 = forwardRef<
       'figure2-pair',
       'r4-figure2__packed-alpha-canvas',
       null,
-      (presentationKey) => {
-        video.dataset.phoneFigure2Alpha = 'verified';
-        canvas.dataset.phoneFigure2Alpha = 'verified';
-        reportRenderedFrame(presentationKey);
-      }
+      reportRenderedFrame
     ]);
     packedSurfaceRef.current = surface;
     surface(['activate', mode]);
-    if (root.dataset.phoneFigure2Alpha === 'awaiting-native-playback') {
-      root.dataset.phoneFigure2Alpha = 'probing';
-      video.dataset.phoneFigure2Alpha = 'probing';
-    } else if (root.dataset.phoneFigure2Alpha === 'static-fallback') {
-      root.dataset.phoneFigure2Alpha = 'poster-fallback';
-      video.dataset.phoneFigure2Alpha = 'poster-fallback';
-    }
     return surface;
   }, [reportRenderedFrame]);
   const setSceneActive = useCallback((active: boolean) => {
@@ -342,8 +331,6 @@ export const PhoneFigure2 = forwardRef<
       root.style.removeProperty('--phone-figure2-poster-image');
       delete root.dataset.phoneFigure2Alpha;
       if (import.meta.env.DEV) delete root.dataset.phoneFigure2Ready;
-      delete video.dataset.phoneFigure2Alpha;
-      delete canvas.dataset.phoneFigure2Alpha;
     };
   }, [onReady, releasePackedSurface, releaseStaticPresentation]);
 

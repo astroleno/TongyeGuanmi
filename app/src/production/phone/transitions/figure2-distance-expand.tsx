@@ -51,6 +51,31 @@ export function phoneFigure2ProofTimelineProgress(
 }
 
 /**
+ * A reclaimed WebGL surface can need more than one browser paint before its
+ * first depth frame is drawable. This retries rendering only; it cannot
+ * advance the machine or manufacture a presentation proof.
+ */
+export function schedulePhoneFigure2FirstFrameRetry(
+  pending: () => boolean,
+  render: () => void
+): () => void {
+  let cancelled = false;
+  let frame = 0;
+  const retry = () => {
+    frame = 0;
+    if (cancelled || !pending()) return;
+    render();
+    if (!cancelled && pending()) frame = requestAnimationFrame(retry);
+  };
+  retry();
+  return () => {
+    cancelled = true;
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+  };
+}
+
+/**
  * Native-scroll driver for the existing authored Figure2 timeline. The shared
  * timeline still owns camera, depth mask, and Ink; document progress replaces
  * Director time and uses deterministic seek frames in both directions.
@@ -75,11 +100,17 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   const presentedFrameRef = useRef<PhonePresentedFrameReporter | undefined>(undefined);
   const presentedTokenRef = useRef<PresentationToken | undefined>(undefined);
   const presentedFrameSequenceRef = useRef(0);
+  const firstFrameRetryCancelRef = useRef<(() => void) | undefined>(undefined);
+  const cancelFirstFrameRetry = useCallback(() => {
+    firstFrameRetryCancelRef.current?.();
+    firstFrameRetryCancelRef.current = undefined;
+  }, []);
   const releaseEffectRegistration = useCallback(() => {
     effectRegistrationRef.current?.dispose();
     effectRegistrationRef.current = undefined;
   }, []);
   const retireTimeline = useCallback(() => {
+    cancelFirstFrameRetry();
     buildRevisionRef.current += 1;
     releaseEffectRegistration();
     timelineRef.current?.(['dispose']);
@@ -89,7 +120,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     presentedFrameRef.current = undefined;
     presentedTokenRef.current = undefined;
     presentedFrameSequenceRef.current = 0;
-  }, [releaseEffectRegistration]);
+  }, [cancelFirstFrameRetry, releaseEffectRegistration]);
   const releaseTimeline = useCallback(() => {
     leaseRef.current?.release();
     retireTimeline();
@@ -171,6 +202,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     if (!timeline) return;
     timeline(['render', sampled]);
     if (leaseRef.current?.canvas.dataset.phonePresentationEffectFrame === 'ready') {
+      cancelFirstFrameRetry();
       const report = presentedFrameRef.current;
       const token = presentedTokenRef.current;
       presentedFrameRef.current = undefined;
@@ -184,6 +216,19 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     }
   };
 
+  const scheduleFirstFrameRetry = useCallback(() => {
+    cancelFirstFrameRetry();
+    const cancel = schedulePhoneFigure2FirstFrameRetry(
+      () => Boolean(presentedFrameRef.current),
+      () => render(.5)
+    );
+    if (presentedFrameRef.current) {
+      cancel();
+    } else {
+      firstFrameRetryCancelRef.current = cancel;
+    }
+  }, [cancelFirstFrameRetry, render]);
+
   useLayoutEffect(() => {
     if (!effectHost || !from || !to) return;
     onReady?.();
@@ -194,13 +239,14 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     render,
     prepare,
     begin(owner: PhoneCinematicRequest, onPresentedFrame) {
+      cancelFirstFrameRetry();
       presentedFrameRef.current = onPresentedFrame;
       presentedTokenRef.current = owner[5];
       presentedFrameSequenceRef.current = 0;
     },
     prepareFirstFrame() {
       // Figure2 owns its depth field only after the authored intro interval.
-      render(.5);
+      scheduleFirstFrameRetry();
     },
     commitEndpoint(endpoint) { render(endpoint); },
     releaseEndpoint() {
@@ -210,7 +256,15 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     dispose() {
       releaseTimeline();
     }
-  }), [from, prepare, reducedMotion, releaseTimeline, to]);
+  }), [
+    cancelFirstFrameRetry,
+    from,
+    prepare,
+    reducedMotion,
+    releaseTimeline,
+    scheduleFirstFrameRetry,
+    to
+  ]);
 
   return null;
 });

@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FIGURE2_INTRO_END } from '../../../transitions/figure2-distance-expand';
 import {
   alignPhoneProofBrandReceiver,
   PHONE_PROOF_BRAND_FIELD
 } from './figure2-proof-brand';
 import {
-  phoneFigure2ProofTimelineProgress
+  phoneFigure2ProofTimelineProgress,
+  schedulePhoneFigure2FirstFrameRetry
 } from './figure2-distance-expand';
 import { PHONE_METHOD_FIGURE2_FIELD } from './method-bottom-figure2';
 import {
@@ -22,6 +23,10 @@ const inkAdapterSource = readFileSync(
 );
 const figure2DistanceSource = readFileSync(
   new URL('./figure2-distance-expand.tsx', import.meta.url),
+  'utf8'
+);
+const figure2Styles = readFileSync(
+  new URL('../scenes/PhoneFigure2.css', import.meta.url),
   'utf8'
 );
 const gradeAStorySource = readFileSync(
@@ -116,6 +121,10 @@ class FakeDocument {
 }
 
 describe('phone Grade A transition contracts', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('uses the route-overlay-only ink adapter only for above-both contracts', () => {
     const inkIds = [
       'portrait-hero-pattern-ink',
@@ -188,6 +197,15 @@ describe('phone Grade A transition contracts', () => {
     expect(figure2DistanceSource).not.toContain('figure2IntroProgress(');
   });
 
+  it('[P0 packed-alpha] never exposes the raw RGB/alpha pair while its first canvas frame is pending', () => {
+    expect(figure2Styles).toMatch(
+      /data-phone-figure2-alpha="awaiting-native-playback"\] \.r4-figure2__video[\s\S]*?opacity:\s*0/
+    );
+    expect(figure2Styles).toMatch(
+      /data-phone-figure2-alpha="static-fallback"\] \.r4-figure2__video[\s\S]*?opacity:\s*0/
+    );
+  });
+
   it('keeps Proof visible until reduced-motion Brand boundary entry', () => {
     expect(phoneInkAdapterProgress(0, true, 'boundary')).toBe(0);
     expect(phoneInkAdapterProgress(0.001, true, 'boundary')).toBe(1);
@@ -212,6 +230,68 @@ describe('phone Grade A transition contracts', () => {
       'window.requestAnimationFrame(\n          renderUntilPresented\n        )'
     );
     expect(inkAdapterSource).toContain('scheduleFirstFrameRetry(direction);');
+  });
+
+  it('[P0 Figure2→Proof admission] retries the same in-between frame until the leaf has reported its real effect frame', () => {
+    const queued = new Map<number, () => void>();
+    let nextFrame = 0;
+    let pending = true;
+    let attempts = 0;
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => {
+        const frame = ++nextFrame;
+        queued.set(frame, callback);
+        return frame;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (frame: number) => queued.delete(frame));
+    const cancel = schedulePhoneFigure2FirstFrameRetry(
+      () => pending,
+      () => {
+        attempts += 1;
+        if (attempts === 3) pending = false;
+      }
+    );
+
+    expect(attempts).toBe(1);
+    expect(queued.size).toBe(1);
+    const first = queued.get(1);
+    queued.delete(1);
+    first?.();
+    expect(attempts).toBe(2);
+    expect(queued.size).toBe(1);
+    const second = queued.get(2);
+    queued.delete(2);
+    second?.();
+    expect(attempts).toBe(3);
+    expect(queued.size).toBe(0);
+
+    cancel();
+  });
+
+  it('[P0 Figure2→Proof admission] wires the production adapter to the token-bound retry rather than an endpoint fallback', () => {
+    expect(figure2DistanceSource).toContain(
+      'schedulePhoneFigure2FirstFrameRetry('
+    );
+    expect(figure2DistanceSource).toContain('scheduleFirstFrameRetry();');
+    expect(figure2DistanceSource).not.toContain('fallbackFrame(');
+  });
+
+  it('[P0 Figure2→Proof admission] retires a pending first-frame retry before a stale callback can draw', () => {
+    const queued = new Map<number, () => void>();
+    let attempts = 0;
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => {
+        queued.set(7, callback);
+        return 7;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (frame: number) => queued.delete(frame));
+    const cancel = schedulePhoneFigure2FirstFrameRetry(
+      () => true,
+      () => { attempts += 1; }
+    );
+
+    expect(attempts).toBe(1);
+    cancel();
+    queued.get(7)?.();
+    expect(attempts).toBe(1);
   });
 
   it('aligns only the forward receiver and preserves the reverse source', () => {
