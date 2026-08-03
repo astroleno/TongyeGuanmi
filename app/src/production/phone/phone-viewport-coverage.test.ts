@@ -70,6 +70,29 @@ describe('phone live viewport coverage', () => {
     expect(stageCanvas).not.toContain('background: transparent;');
   });
 
+  it('[P0 Safari coverage] freezes the content and route hosts while only the opaque backing may extend', () => {
+    const stage = stageRailStyles.slice(
+      stageRailStyles.indexOf('.portrait-scroll-spike__stage {'),
+      stageRailStyles.indexOf('.portrait-scroll-spike__stage-rail::before {')
+    );
+    const coverage = stageRailStyles.slice(
+      stageRailStyles.indexOf('.portrait-scroll-spike__stage-rail::before {'),
+      stageRailStyles.indexOf('/* Above-both effects are route siblings,')
+    );
+    const overlay = stageRailStyles.slice(
+      stageRailStyles.indexOf('.portrait-scroll-spike__route-overlay {'),
+      stageRailStyles.indexOf('.portrait-scroll-spike__route-overlay > canvas')
+    );
+
+    expect(stage).toContain('inset: 0;');
+    expect(stage).not.toContain('--portrait-coverage-');
+    expect(overlay).toContain('inset: 0;');
+    expect(overlay).not.toContain('--portrait-coverage-');
+    expect(coverage).toContain('inset: 0 auto auto 0;');
+    expect(coverage).toContain('width: max(100%, var(--portrait-coverage-right));');
+    expect(coverage).toContain('height: max(100%, var(--portrait-coverage-bottom));');
+  });
+
   it('[front-half gate] uses Pattern’s actual painted backing color for the route coverage plane', () => {
     expect(patternStyles).toContain('background: #d9c08f;');
     expect(presentationSource).toContain("PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#d9c08f'");
@@ -77,7 +100,7 @@ describe('phone live viewport coverage', () => {
     expect(presentationSource).not.toContain('#8f7f61');
   });
 
-  it('separates the live four-edge coverage plane from the frozen layout viewport', () => {
+  it('extends the live opaque backing from the frozen layout origin without moving its camera', () => {
     const input = {
       innerWidth: 390,
       innerHeight: 844,
@@ -91,20 +114,16 @@ describe('phone live viewport coverage', () => {
     const coverage = readPhoneCoverageViewport(input);
 
     expect(coverage).toMatchObject({
-      left: 12,
-      top: 160,
-      right: 387,
-      bottom: 860,
-      width: 375,
-      height: 700
+      right: 390,
+      bottom: 860
     });
-    expect(readPhoneLayoutViewport(coverage)).toMatchObject({
-      width: 375,
-      height: 700
+    expect(readPhoneLayoutViewport(input)).toMatchObject({
+      width: 390,
+      height: 844
     });
   });
 
-  it('coalesces visual viewport changes into one coverage revision without refreshing layout', () => {
+  it('extends coverage monotonically for toolbar motion without refreshing layout', () => {
     const value = fixture();
     const layouts: Array<Readonly<{ width: number; height: number; revision: number }>> = [];
     const controller = createPhoneViewportCoverageController({
@@ -115,8 +134,6 @@ describe('phone live viewport coverage', () => {
     });
 
     expect(layouts).toHaveLength(1);
-    expect(value.values.get('--portrait-coverage-left')).toBe('0px');
-    expect(value.values.get('--portrait-coverage-top')).toBe('0px');
     expect(value.values.get('--portrait-coverage-right')).toBe('390px');
     expect(value.values.get('--portrait-coverage-bottom')).toBe('844px');
 
@@ -131,11 +148,22 @@ describe('phone live viewport coverage', () => {
 
     expect(layouts).toHaveLength(1);
     expect(value.root.dataset.phoneCoverageRevision).toBe('2');
-    expect(value.values.get('--portrait-coverage-left')).toBe('8px');
-    expect(value.values.get('--portrait-coverage-top')).toBe('160px');
     expect(value.values.get('--portrait-coverage-right')).toBe('398px');
     expect(value.values.get('--portrait-coverage-bottom')).toBe('860px');
-    expect(value.values.get('--portrait-coverage-height')).toBe('700px');
+
+    // Safari's toolbar can retract in the same layout revision. Retaining the
+    // greatest opaque extent prevents a single-frame bottom seam while the
+    // fixed stage and overlay remain in their frozen coordinate space.
+    value.visualViewport.offsetLeft = 0;
+    value.visualViewport.offsetTop = 0;
+    value.visualViewport.height = 700;
+    value.visualViewport.dispatchEvent(new Event('resize'));
+    value.flushFrame();
+
+    expect(layouts).toHaveLength(1);
+    expect(value.root.dataset.phoneCoverageRevision).toBe('2');
+    expect(value.values.get('--portrait-coverage-right')).toBe('398px');
+    expect(value.values.get('--portrait-coverage-bottom')).toBe('860px');
     controller.dispose();
   });
 
@@ -149,6 +177,13 @@ describe('phone live viewport coverage', () => {
       onLayout: (_root, layout) => layouts.push(layout.revision)
     });
 
+    Object.assign(value.windowRef as unknown as {
+      innerWidth: number;
+      innerHeight: number;
+    }, {
+      innerWidth: 844,
+      innerHeight: 390
+    });
     value.visualViewport.width = 844;
     value.visualViewport.height = 390;
     value.visualViewport.dispatchEvent(new Event('resize'));

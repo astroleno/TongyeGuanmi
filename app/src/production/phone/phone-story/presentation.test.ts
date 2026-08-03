@@ -77,6 +77,39 @@ describe('phone presentation proof reader', () => {
     ]);
   });
 
+  it('[P0 Safari coverage] accepts the computed opaque route plane when a frozen content host ends before a live toolbar edge', () => {
+    const root = element();
+    const rail = {} as HTMLElement;
+    const route = {
+      querySelector: (selector: string) => (
+        selector === '.portrait-scroll-spike__stage-rail' ? rail : null
+      )
+    } as unknown as HTMLElement;
+    Object.assign(root, { closest: () => route });
+
+    vi.stubGlobal('window', {
+      innerWidth: 390,
+      innerHeight: 844,
+      visualViewport: { offsetLeft: 0, offsetTop: 160, width: 390, height: 844 }
+    });
+    vi.stubGlobal('getComputedStyle', (target: Element, pseudo?: string | null) => (
+      target === rail && pseudo === '::before'
+        ? { width: '390px', height: '1004px' }
+        : { display: 'block', visibility: 'visible', opacity: '1' }
+    ));
+    try {
+      expect(readPhoneSurfacePresentation(root, root, 'preflight')).toEqual([
+        true,
+        true,
+        true,
+        false,
+        null
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('[Task 5] emits a static proof only after its candidate has crossed a browser presentation boundary', () => {
     const root = element();
     let scheduled: (() => void) | undefined;

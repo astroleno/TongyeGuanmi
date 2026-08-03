@@ -144,7 +144,13 @@ describe('Route B proven front-half migration contract', () => {
       phonePresentationHostPlaneOrder('content')
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*top:\s*var\(--portrait-coverage-top\)[^}]*left:\s*var\(--portrait-coverage-left\)[^}]*width:\s*var\(--portrait-coverage-width\)[^}]*height:\s*var\(--portrait-coverage-height\)[^}]*overflow:\s*visible/s
+      /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*inset:\s*0[^}]*overflow:\s*visible/s
+    );
+    expect(railCss).toMatch(
+      /portrait-scroll-spike__route-overlay\s*\{[^}]*position:\s*fixed[^}]*inset:\s*0[^}]*overflow:\s*visible/s
+    );
+    expect(railCss).toMatch(
+      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*inset:\s*0 auto auto 0[^}]*width:\s*max\(100%,\s*var\(--portrait-coverage-right\)\)[^}]*height:\s*max\(100%,\s*var\(--portrait-coverage-bottom\)\)/s
     );
     expect(railCss).not.toContain('.portrait-scroll-spike__stage::after');
     expect(railCss).toMatch(

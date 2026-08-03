@@ -248,6 +248,58 @@ function compositedLuminanceRange(
   return maximum - minimum;
 }
 
+type ViewportEdgePixelWitness = Readonly<{
+  edge: string;
+  transparentPixels: number;
+  nearWhitePixels: number;
+  samples: number;
+}>;
+
+/**
+ * This is deliberately a compositor-image gate. DOM boxes and CSS custom
+ * properties explain the topology below, but cannot prove that Safari did
+ * not expose a white/transparent seam at a live viewport edge.
+ */
+function viewportEdgePixelWitnesses(
+  screenshot: PngScreenshot
+): readonly ViewportEdgePixelWitness[] {
+  // Deliberately touch the physical screenshot boundary: a 1px Safari seam
+  // is the failure this gate exists to catch, so an inset sample is too weak.
+  const insetX = 0;
+  const insetY = 0;
+  const midX = Math.floor(screenshot.width / 2);
+  const midY = Math.floor(screenshot.height / 2);
+  const points = [
+    ['top-left', insetX, insetY],
+    ['top', midX, insetY],
+    ['top-right', screenshot.width - insetX - 1, insetY],
+    ['right', screenshot.width - insetX - 1, midY],
+    ['bottom-right', screenshot.width - insetX - 1, screenshot.height - insetY - 1],
+    ['bottom', midX, screenshot.height - insetY - 1],
+    ['bottom-left', insetX, screenshot.height - insetY - 1],
+    ['left', insetX, midY]
+  ] as const;
+  const radius = 1;
+  return points.map(([edge, x, y]) => {
+    let transparentPixels = 0;
+    let nearWhitePixels = 0;
+    let samples = 0;
+    for (let sampleY = Math.max(0, y - radius); sampleY <= Math.min(screenshot.height - 1, y + radius); sampleY += 1) {
+      for (let sampleX = Math.max(0, x - radius); sampleX <= Math.min(screenshot.width - 1, x + radius); sampleX += 1) {
+        const offset = (sampleY * screenshot.width + sampleX) * screenshot.channels;
+        const red = screenshot.pixels[offset] ?? 0;
+        const green = screenshot.pixels[offset + 1] ?? 0;
+        const blue = screenshot.pixels[offset + 2] ?? 0;
+        const alpha = screenshot.channels === 4 ? screenshot.pixels[offset + 3] ?? 0 : 255;
+        samples += 1;
+        if (alpha < 250) transparentPixels += 1;
+        if (red >= 248 && green >= 248 && blue >= 248) nearWhitePixels += 1;
+      }
+    }
+    return { edge, transparentPixels, nearWhitePixels, samples };
+  });
+}
+
 const PHONE_HOLD_CONTRACTS = {
   hero: { checkpoint: 'hero-entered', edge: 'hero', edgeSurface: '#07110e', stageOwner: 'front', stageScene: 'hero' },
   pattern: { checkpoint: 'pattern-complete', edge: 'pattern', edgeSurface: '#d9c08f', stageOwner: 'front', stageScene: 'pattern' },
@@ -1103,11 +1155,17 @@ async function installLiveVisualViewportProbe(page: Page): Promise<void> {
       width: number;
       height: number;
     };
+    // addInitScript runs before WebKit settles the viewport meta. Convert the
+    // temporary desktop-width dimensions by the emulated screen scale so App
+    // still selects PhoneStoryShell and the initial fake bounds match the
+    // post-meta layout camera used for first-frame admission.
+    const screenWidth = window.screen.width || window.innerWidth;
+    const scale = Math.min(1, screenWidth / Math.max(1, window.innerWidth));
     const state: ViewportState = {
       offsetLeft: 0,
       offsetTop: 0,
-      width: window.innerWidth,
-      height: window.innerHeight
+      width: Math.round(window.innerWidth * scale),
+      height: Math.round(window.innerHeight * scale)
     };
     const viewport = new EventTarget() as EventTarget & ViewportState;
     for (const key of Object.keys(state) as Array<keyof ViewportState>) {
@@ -2186,29 +2244,32 @@ test('[P0 AOD admission] a first rejected play remains retryable until a real re
   ))).toBe(false);
 });
 
-test('Task 0 keeps the coverage plane over a non-zero live visual viewport offset', async ({
+test('[P0 Safari viewport pixels] freezes content hosts and keeps every live edge opaque', async ({
   page
 }) => {
-  test.setTimeout(30_000);
+  test.setTimeout(45_000);
   await installLiveVisualViewportProbe(page);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator(LIVE_STORY_LOADER)).toBeHidden();
   await expect.poll(async () => page.locator(LIVE_PHONE_ROOT).getAttribute(
     'data-phone-cursor'
   )).toBe('hold:hero');
-  await setLiveVisualViewport(page, {
-    offsetTop: 160,
-    height: 844
-  });
-  await page.waitForTimeout(300);
+  await expect(page.locator(LIVE_PHONE_ROOT)).toHaveAttribute(
+    'data-portrait-hero-entrance',
+    'complete'
+  );
 
-  const coverage = await page.evaluate(() => {
+  const inspectViewportHosts = () => page.evaluate(() => {
     const viewport = window.visualViewport;
-    const stage = document.querySelector<HTMLElement>(
-      '.portrait-scroll-spike__stage-canvas'
+    const stage = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage');
+    const overlay = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__route-overlay'
     );
-    if (!viewport || !stage) throw new Error('Missing live viewport or coverage plane');
-    const rect = stage.getBoundingClientRect();
+    const rail = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-rail');
+    if (!viewport || !stage || !overlay || !rail) {
+      throw new Error('Missing live viewport presentation hosts');
+    }
+    const pseudo = getComputedStyle(rail, '::before');
     return {
       viewport: {
         left: viewport.offsetLeft,
@@ -2216,20 +2277,53 @@ test('Task 0 keeps the coverage plane over a non-zero live visual viewport offse
         right: viewport.offsetLeft + viewport.width,
         bottom: viewport.offsetTop + viewport.height
       },
+      stage: stage.getBoundingClientRect().toJSON(),
+      overlay: overlay.getBoundingClientRect().toJSON(),
       coverage: {
-        left: rect.left,
-        top: rect.top,
-        right: rect.right,
-        bottom: rect.bottom
+        left: Number.parseFloat(pseudo.left),
+        top: Number.parseFloat(pseudo.top),
+        width: Number.parseFloat(pseudo.width),
+        height: Number.parseFloat(pseudo.height)
       }
     };
   });
-  expect(coverage.coverage.left).toBeLessThanOrEqual(coverage.viewport.left + 1);
-  expect(coverage.coverage.top).toBeLessThanOrEqual(coverage.viewport.top + 1);
-  expect(coverage.coverage.right).toBeGreaterThanOrEqual(coverage.viewport.right - 1);
-  expect(coverage.coverage.bottom).toBeGreaterThanOrEqual(
-    coverage.viewport.bottom - 1
-  );
+  const before = await inspectViewportHosts();
+  await setLiveVisualViewport(page, {
+    offsetTop: 160,
+    height: 844
+  });
+  await page.waitForTimeout(300);
+
+  const extended = await inspectViewportHosts();
+  for (const host of ['stage', 'overlay'] as const) {
+    expect(extended[host].left).toBeCloseTo(before[host].left, 0);
+    expect(extended[host].top).toBeCloseTo(before[host].top, 0);
+    expect(extended[host].right).toBeCloseTo(before[host].right, 0);
+    expect(extended[host].bottom).toBeCloseTo(before[host].bottom, 0);
+  }
+  expect(extended.coverage.left).toBeCloseTo(0, 0);
+  expect(extended.coverage.top).toBeCloseTo(0, 0);
+  expect(extended.coverage.width).toBeGreaterThanOrEqual(extended.viewport.right - 1);
+  expect(extended.coverage.height).toBeGreaterThanOrEqual(extended.viewport.bottom - 1);
+  for (const sample of viewportEdgePixelWitnesses(
+    decodePngScreenshot(await page.screenshot())
+  )) {
+    expect(sample.transparentPixels, `${sample.edge} edge exposed transparent compositor pixels`).toBe(0);
+    expect(sample.nearWhitePixels, `${sample.edge} edge exposed a white seam`).toBe(0);
+  }
+
+  await setLiveVisualViewport(page, { offsetTop: 0, height: 700 });
+  await page.waitForTimeout(300);
+  const retracted = await inspectViewportHosts();
+  expect(retracted.coverage.left).toBeCloseTo(0, 0);
+  expect(retracted.coverage.top).toBeCloseTo(0, 0);
+  expect(retracted.coverage.height).toBeGreaterThanOrEqual(extended.coverage.height - 1);
+  for (const sample of viewportEdgePixelWitnesses(
+    decodePngScreenshot(await page.screenshot())
+  )) {
+    expect(sample.transparentPixels, `${sample.edge} edge exposed transparent compositor pixels after retraction`).toBe(0);
+    expect(sample.nearWhitePixels, `${sample.edge} edge exposed a white seam after retraction`).toBe(0);
+  }
 });
 
 test('tail prefetch keeps one formal phone authority when PH mounts', async ({ page }) => {

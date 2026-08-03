@@ -641,10 +641,22 @@ function coversLiveViewport(element: HTMLElement): boolean {
   const height = viewport?.height ?? window.innerHeight;
   if (width <= 0 || height <= 0) return false;
   const epsilon = .5;
-  return rect.left <= left + epsilon
+  if (rect.left <= left + epsilon
     && rect.top <= top + epsilon
     && rect.right >= left + width - epsilon
-    && rect.bottom >= top + height - epsilon;
+    && rect.bottom >= top + height - epsilon) return true;
+  // Content hosts stay in the frozen layout coordinate space. When Safari's
+  // toolbar exposes a farther live edge, only the independent opaque route
+  // plane extends; inspect its computed geometry rather than moving a scene
+  // host or treating a CSS variable as proof.
+  const rail = element.closest?.('.portrait-scroll-spike')?.querySelector<HTMLElement>(
+    '.portrait-scroll-spike__stage-rail'
+  );
+  const plane = rail ? getComputedStyle(rail, '::before') : null;
+  const right = Number.parseFloat(plane?.width ?? '');
+  const bottom = Number.parseFloat(plane?.height ?? '');
+  return right >= left + width - epsilon
+    && bottom >= top + height - epsilon;
 }
 
 function intersectsLiveViewport(element: HTMLElement): boolean {
@@ -769,12 +781,8 @@ export type PhoneLayoutViewport = Readonly<{
 }>;
 
 export type PhoneCoverageViewport = Readonly<{
-  left: number;
-  top: number;
   right: number;
   bottom: number;
-  width: number;
-  height: number;
   revision: number;
 }>;
 
@@ -800,12 +808,12 @@ export type PhoneViewportCoverageController = Readonly<{
   dispose(): void;
 }>;
 
-function finiteViewport(value: number, fallback: number): number {
-  return Number.isFinite(value) ? value : fallback;
+function viewportSize(value: number): number {
+  return Math.max(1, Math.round(Number.isFinite(value) ? value : 1));
 }
 
-function roundedViewport(value: number): number {
-  return Math.max(1, Math.round(value));
+function viewportOffset(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
 export function readPhoneCoverageViewport(
@@ -817,68 +825,46 @@ export function readPhoneCoverageViewport(
   revision = 0
 ): PhoneCoverageViewport {
   const viewport = source.visualViewport;
-  const width = roundedViewport(finiteViewport(
-    viewport?.width ?? source.innerWidth,
-    source.innerWidth || 1
-  ));
-  const height = roundedViewport(finiteViewport(
-    viewport?.height ?? source.innerHeight,
-    source.innerHeight || 1
-  ));
-  const left = Math.max(0, finiteViewport(viewport?.offsetLeft ?? 0, 0));
-  const top = Math.max(0, finiteViewport(viewport?.offsetTop ?? 0, 0));
-  return {
-    left,
-    top,
-    right: left + width,
-    bottom: top + height,
-    width,
-    height,
-    revision
-  };
+  const visualWidth = viewportSize(viewport?.width ?? source.innerWidth);
+  const visualHeight = viewportSize(viewport?.height ?? source.innerHeight);
+  const visualLeft = viewportOffset(viewport?.offsetLeft ?? 0);
+  const visualTop = viewportOffset(viewport?.offsetTop ?? 0);
+  // The coverage plane never becomes a second camera. It starts at the
+  // frozen layout origin and extends just far enough to cover the live visual
+  // viewport's far edges; controller state below keeps that extension
+  // monotonic throughout a toolbar animation.
+  const right = Math.max(viewportSize(source.innerWidth), visualLeft + visualWidth);
+  const bottom = Math.max(viewportSize(source.innerHeight), visualTop + visualHeight);
+  return { right, bottom, revision };
 }
 
 export function readPhoneLayoutViewport(
-  coverage: PhoneCoverageViewport,
+  source: Readonly<{
+    innerWidth: number;
+    innerHeight: number;
+  }>,
   revision = 0
 ): PhoneLayoutViewport {
-  return { width: coverage.width, height: coverage.height, revision };
-}
-
-function sameCoverage(
-  left: PhoneCoverageViewport | null,
-  right: PhoneCoverageViewport
-): boolean {
-  return Boolean(
-    left
-    && left.left === right.left
-    && left.top === right.top
-    && left.right === right.right
-    && left.bottom === right.bottom
-  );
+  return {
+    width: viewportSize(source.innerWidth),
+    height: viewportSize(source.innerHeight),
+    revision
+  };
 }
 
 export function applyPhoneCoverageViewport(
   root: HTMLElement,
   coverage: PhoneCoverageViewport
 ): void {
-  root.style.setProperty('--portrait-coverage-left', `${coverage.left}px`);
-  root.style.setProperty('--portrait-coverage-top', `${coverage.top}px`);
   root.style.setProperty('--portrait-coverage-right', `${coverage.right}px`);
   root.style.setProperty('--portrait-coverage-bottom', `${coverage.bottom}px`);
-  root.style.setProperty('--portrait-coverage-width', `${coverage.width}px`);
-  root.style.setProperty('--portrait-coverage-height', `${coverage.height}px`);
   root.dataset.phoneCoverageRevision = String(coverage.revision);
 }
 
 export function clearPhoneCoverageViewport(root: HTMLElement): void {
   for (const property of [
-    '--portrait-coverage-left',
-    '--portrait-coverage-top',
     '--portrait-coverage-right',
-    '--portrait-coverage-bottom',
-    '--portrait-coverage-width',
-    '--portrait-coverage-height'
+    '--portrait-coverage-bottom'
   ]) root.style.removeProperty(property);
   delete root.dataset.phoneCoverageRevision;
 }
@@ -910,16 +896,31 @@ export function createPhoneViewportCoverageController({
   const sync = (force = false) => {
     if (disposed) return;
     const observed = readPhoneCoverageViewport(windowRef, coverageRevision + 1);
-    if (!sameCoverage(coverage, observed)) {
+    const observedLayout = readPhoneLayoutViewport(windowRef, layoutRevision + 1);
+    // A toolbar may change innerHeight on some Safari releases. Width is the
+    // stable layout-camera discriminator; orientation/fullscreen explicitly
+    // force a new layout below.
+    const widthChanged = !layout || Math.abs(observedLayout.width - layout.width) > 1;
+    const resetCoverage = !coverage || force || forceLayout || widthChanged;
+    const nextCoverage = resetCoverage || !coverage
+      ? observed
+      : {
+        right: Math.max(coverage.right, observed.right),
+        bottom: Math.max(coverage.bottom, observed.bottom),
+        revision: observed.revision
+      };
+    if (
+      !coverage
+      || coverage.right !== nextCoverage.right
+      || coverage.bottom !== nextCoverage.bottom
+    ) {
       coverageRevision += 1;
-      coverage = { ...observed, revision: coverageRevision };
+      coverage = { ...nextCoverage, revision: coverageRevision };
       applyPhoneCoverageViewport(root, coverage);
     }
-    const currentCoverage = coverage ?? observed;
-    const widthChanged = !layout || Math.abs(currentCoverage.width - layout.width) > 1;
     if (!force && !forceLayout && !widthChanged) return;
     layoutRevision += 1;
-    layout = readPhoneLayoutViewport(currentCoverage, layoutRevision);
+    layout = { ...observedLayout, revision: layoutRevision };
     forceLayout = false;
     onLayout(root, layout);
   };

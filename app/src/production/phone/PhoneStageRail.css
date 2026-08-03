@@ -32,26 +32,22 @@
 .portrait-scroll-spike__stage {
   position: fixed;
   z-index: var(--phone-host-plane-content);
-  inset: auto;
-  top: var(--portrait-coverage-top);
-  left: var(--portrait-coverage-left);
-  width: var(--portrait-coverage-width);
-  height: var(--portrait-coverage-height);
-  /* This dynamic-height host positions the stage; it must not clip its lvh child. */
+  /* The content camera is frozen at the layout viewport. Safari toolbar
+   * movement belongs only to the opaque coverage plane below. */
+  inset: 0;
   overflow: visible;
   background: transparent;
 }
 
-/* Safari samples one fixed host behind content; the rail itself has no z-index. */
+/* Safari samples one independent opaque host behind content. It can only
+ * extend away from the frozen origin, never shift the content camera. */
 .portrait-scroll-spike__stage-rail::before {
   content: "";
   position: fixed;
   z-index: var(--phone-host-plane-coverage);
-  inset: auto;
-  top: var(--portrait-coverage-top);
-  left: var(--portrait-coverage-left);
-  width: var(--portrait-coverage-width);
-  height: var(--portrait-coverage-height);
+  inset: 0 auto auto 0;
+  width: max(100%, var(--portrait-coverage-right));
+  height: max(100%, var(--portrait-coverage-bottom));
   background: var(--portrait-edge-surface);
   pointer-events: none;
 }
@@ -60,11 +56,8 @@
 .portrait-scroll-spike__route-overlay {
   position: fixed;
   z-index: var(--phone-host-plane-route-overlay);
-  inset: auto;
-  top: var(--portrait-coverage-top);
-  left: var(--portrait-coverage-left);
-  width: var(--portrait-coverage-width);
-  height: var(--portrait-coverage-height);
+  /* Above-both effects share the content host's frozen coordinate space. */
+  inset: 0;
   overflow: visible;
   pointer-events: none;
 }
