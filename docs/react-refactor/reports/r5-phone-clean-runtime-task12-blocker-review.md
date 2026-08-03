@@ -36,12 +36,38 @@ candidateCodeSha input: a4ba41feaf76fb2f40afbcf222f1565216fac648
 productionTreeHash:      5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3
 ```
 
-Task 13 Step 13.1 still owns the clean-worktree rebuild and formal freeze of
-the candidate/artifact identity. No iOS Simulator, physical iPhone, deployed
-compression, release claim, push, merge, or Task 13 evidence is asserted by
-this review.
+The report branch first moved beyond the candidate at documentation commit
+`f78e41ac101020a56543e5a6b25c1e63bab79aed` and may advance through further
+docs-only commits. None is a candidate build identity. A clean detached
+candidate worktree has therefore been created at the exact code commit:
 
-### Formal correctness review
+```text
+/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f
+```
+
+Its detached HEAD is `a4ba41feaf76fb2f40afbcf222f1565216fac648`, its
+working tree is clean, and its canonical production-tree hash is the value
+above. Task 13 Step 13.1 must build only from that detached worktree and must
+reject any manifest whose `sourceCommit` is not `a4ba41f…`. The current report
+worktree's `dist/r5-release-manifest.json` records the documentation commit and
+is explicitly non-candidate output; it must not be reused for Simulator or
+physical-device evidence.
+
+Task 13 Step 13.1 still owns the actual build and formal artifact freeze. No
+iOS Simulator, physical iPhone, deployed compression, release claim, push,
+merge, or Task 13 evidence is asserted by this review.
+
+### Post-closure identity correction
+
+The post-closure review found one documentation-workflow ambiguity: the old
+Step 13.1 command block said only "clean worktree," so executing it from the
+current docs-only HEAD would mint a release manifest with `sourceCommit =
+f78e41a…`. The plan now pins the detached candidate path and requires exact
+HEAD, clean-tree, production-tree, `sourceCommit`, and `sourceDirty` checks
+before any Simulator or physical iPhone run. This closes the finding without
+starting Task 13 or changing candidate code.
+
+### Task 12 code correctness review
 
 ```json
 {
@@ -56,6 +82,7 @@ this review.
     }
   ],
   "testing_gaps": [
+    "Task 13's detached-candidate build and release-manifest identity assertion have not run.",
     "iOS Simulator, physical iPhone Safari, and deployed compression evidence belong to Task 13 and were not run."
   ]
 }

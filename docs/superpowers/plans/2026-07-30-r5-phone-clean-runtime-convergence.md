@@ -6,9 +6,10 @@
 > `a4ba41feaf76fb2f40afbcf222f1565216fac648`: focused phone-portrait WebKit
 > complete-story passed 10/10 and the single final release run passed 227/227,
 > with all unit, type, architecture, frozen-input, build, bundle, and evidence
-> gates green. Task 13 has not started; its clean-worktree build, formal
-> candidate/artifact freeze, Simulator, physical iPhone, and deployed-network
-> acceptance remain open. See the
+> gates green. A clean detached candidate worktree is prepared at the exact
+> code commit; no Task 13 build has run there yet. Task 13 has not started;
+> its formal candidate/artifact freeze, Simulator, physical iPhone, and
+> deployed-network acceptance remain open. See the
 > [Task 12 closure review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
 > The
 > verification cadence below removes redundant full-suite reruns without weakening any
@@ -5476,6 +5477,17 @@ Do not change production code while recording a passing matrix. If a defect is
 found, return to the responsible task, add a failing automated regression,
 fix it, rerun all later gates, and start this matrix again on the new commit.
 
+Task 13 uses two deliberately separate worktrees:
+
+| Role | Path | Allowed work |
+| --- | --- | --- |
+| Candidate artifact | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f` | Detached at exact `candidateCodeSha`; build, serve, Simulator, and physical-device testing only. Never edit or commit here. |
+| Report branch | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime` | Acceptance report and plan bookkeeping only. Never build a candidate artifact from its docs-only HEAD. |
+
+All Task 13 test servers must serve the detached candidate worktree's `dist/`.
+The report worktree's `dist/` is non-candidate scratch output and must not be
+used as device evidence.
+
 - [ ] **Step 13.1: Freeze the candidate identity**
 
 Record:
@@ -5496,23 +5508,58 @@ network mode
 reduced-motion setting
 ```
 
-Build once from a clean worktree and test that exact artifact:
+The immutable Task 12 inputs are:
+
+```text
+candidateCodeSha   = a4ba41feaf76fb2f40afbcf222f1565216fac648
+productionTreeHash = 5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3
+candidateWorktree  = /Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f
+```
+
+Create or verify the detached worktree, then build once there and test that
+exact artifact:
 
 ```bash
-git status --short
-pnpm -C app build
-git rev-parse HEAD
-git ls-tree -r HEAD -- \
-  app assets package.json pnpm-lock.yaml pnpm-workspace.yaml | shasum -a 256
-shasum -a 256 dist/r5-release-manifest.json
+repositoryRoot=/Users/aitoshuu/Documents/GitHub/TongyeGuanmi
+candidateCodeSha=a4ba41feaf76fb2f40afbcf222f1565216fac648
+candidateWorktree=/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-a4ba41f
+expectedProductionTreeHash=5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3
+
+test -e "$candidateWorktree/.git" || \
+  git -C "$repositoryRoot" worktree add --detach \
+    "$candidateWorktree" "$candidateCodeSha"
+test "$(git -C "$candidateWorktree" rev-parse 'HEAD^{commit}')" = \
+  "$candidateCodeSha"
+test -z "$(git -C "$candidateWorktree" symbolic-ref -q HEAD 2>/dev/null || true)"
+test -z "$(git -C "$candidateWorktree" status --porcelain --untracked-files=all)"
+test "$(git -C "$candidateWorktree" ls-tree -r HEAD -- \
+  app assets package.json pnpm-lock.yaml pnpm-workspace.yaml | \
+  shasum -a 256 | awk '{print $1}')" = "$expectedProductionTreeHash"
+
+pnpm -C "$candidateWorktree/app" build
+node -e '
+  const fs = require("node:fs");
+  const [file, expected] = process.argv.slice(1);
+  const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
+  if (manifest.sourceCommit !== expected || manifest.sourceDirty !== false) {
+    throw new Error(`candidate manifest identity mismatch: ${JSON.stringify({
+      sourceCommit: manifest.sourceCommit,
+      sourceDirty: manifest.sourceDirty
+    })}`);
+  }
+' "$candidateWorktree/dist/r5-release-manifest.json" "$candidateCodeSha"
+shasum -a 256 "$candidateWorktree/dist/r5-release-manifest.json"
 ```
 
 Definitions:
 
-- `candidateCodeSha` is this pre-evidence-report `HEAD`, containing all
-  production code/configuration tested by Tasks 12–13.
+- `candidateCodeSha` is the exact Task 12 code commit above, not the current
+  docs-only branch `HEAD`. It contains all production code/configuration tested
+  by Tasks 12–13.
 - `productionTreeHash` is the SHA-256 of the canonical `git ls-tree` output
   above, covering `app/`, `assets/`, root package/workspace files, and lockfile.
+- release-manifest `sourceCommit` must equal `candidateCodeSha`, and
+  `sourceDirty` must be `false`; either mismatch blocks every device run.
 - `buildId` and `artifactTreeSha256` identify the exact built artifact tested
   on Simulator and physical iPhone.
 - `finalHandoffSha` is created later and may differ only by plan/report
@@ -5776,9 +5823,12 @@ git status --short
 
 The tree hash must equal the `productionTreeHash` recorded by Task 13. When
 current HEAD is a docs-only descendant and this scoped diff is empty, cite the
-exact Task 12 automated counts/build bytes and Task 13 physical artifact; do
-not repeat full Vitest, build, E2E, or `test:release`, and do not create a new
-release manifest whose `sourceCommit` is the documentation SHA.
+exact Task 12 automated counts/build bytes and the artifact built in the
+detached candidate worktree. Do not repeat full Vitest, build, E2E, or
+`test:release` from the report worktree, and do not create a new release
+manifest whose `sourceCommit` is the documentation SHA. The only admissible
+Task 13 manifest is the one whose `sourceCommit` equals the recorded
+`candidateCodeSha`.
 
 Any production/config/lockfile difference invalidates the candidate. Return
 to Task 12, freeze a new candidate, and rerun Task 13 rather than trying to
