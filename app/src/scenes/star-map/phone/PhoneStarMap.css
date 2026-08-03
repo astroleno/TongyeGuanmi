@@ -31,7 +31,7 @@
   position: absolute; z-index: 3;
   left: max(24px, env(safe-area-inset-left));
   right: max(24px, env(safe-area-inset-right));
-  bottom: calc(var(--portrait-readable-bottom-offset) + max(52px, calc(env(safe-area-inset-bottom) + 30px)));
+  bottom: calc(var(--portrait-readable-bottom-offset, 0px) + max(52px, calc(env(safe-area-inset-bottom) + 30px)));
   will-change: transform, opacity;
 }
 
