@@ -141,6 +141,22 @@ export const PhoneCrane = forwardRef<
     useState<HTMLElement | null>(null);
   const [flockCanvasHost, setFlockCanvasHost] =
     useState<HTMLElement | null>(null);
+  const bindFigureVideoHost = useCallback(
+    (element: HTMLVideoElement | null) => {
+      const host = element?.parentElement;
+      if (!host) return;
+      setFigureCanvasHost((current) => current === host ? current : host);
+    },
+    []
+  );
+  const bindFlockVideoHost = useCallback(
+    (element: HTMLVideoElement | null) => {
+      const host = element?.parentElement;
+      if (!host) return;
+      setFlockCanvasHost((current) => current === host ? current : host);
+    },
+    []
+  );
   const forwardRunRef = useRef<PhoneCraneForwardRun | null>(null);
   const reversePlaybackRef = useRef<PhoneCranePresentedReverse | null>(null);
   const packedSurfacesRef = useRef<readonly [
@@ -542,12 +558,7 @@ export const PhoneCrane = forwardRef<
                   />
                   <div className="crane-video-transition crane-video-transition--figure">
                     <video
-                      ref={(element) => {
-                        const host = element?.parentElement ?? null;
-                        setFigureCanvasHost((current) => (
-                          current === host ? current : host
-                        ));
-                      }}
+                      ref={bindFigureVideoHost}
                       className="crane-figure-video"
                       data-crane-figure-video
                       data-media-key={CRANE_FIGURE_MEDIA_KEY}
@@ -578,12 +589,7 @@ export const PhoneCrane = forwardRef<
                   />
                   <div className="crane-video-transition crane-video-transition--front">
                     <video
-                      ref={(element) => {
-                        const host = element?.parentElement ?? null;
-                        setFlockCanvasHost((current) => (
-                          current === host ? current : host
-                        ));
-                      }}
+                      ref={bindFlockVideoHost}
                       className="crane-figure-video crane-figure-video--front"
                       data-crane-figure-front-video
                       data-media-key={CRANE_FLOCK_MEDIA_KEY}

@@ -63,6 +63,26 @@ describe('PhoneCrane', () => {
     expect(markup).toContain('data-phone-scene="crane-animation"');
   });
 
+  it('binds both packed canvas hosts through stable callback refs', () => {
+    expect(source).toMatch(
+      /const bindFigureVideoHost = useCallback\(\s*\(element: HTMLVideoElement \| null\) => \{/s
+    );
+    expect(source).toMatch(
+      /const bindFlockVideoHost = useCallback\(\s*\(element: HTMLVideoElement \| null\) => \{/s
+    );
+    expect(source).toContain('ref={bindFigureVideoHost}');
+    expect(source).toContain('ref={bindFlockVideoHost}');
+    expect(source).not.toMatch(/ref=\{\(element\) => \{/);
+    expect(source).toContain(
+      'setFigureCanvasHost((current) => current === host ? current : host);'
+    );
+    expect(source).toContain(
+      'setFlockCanvasHost((current) => current === host ? current : host);'
+    );
+    expect(source.match(/data-phone-packed-alpha-canvas="crane-figure"/g)).toHaveLength(1);
+    expect(source.match(/data-phone-packed-alpha-canvas="crane-flock"/g)).toHaveLength(1);
+  });
+
   it('uses the formal packed flock media on every route', () => {
     expect(source).toContain('PHONE_CRANE_FLOCK_PACKED,');
     expect(source).not.toContain('qa-media');

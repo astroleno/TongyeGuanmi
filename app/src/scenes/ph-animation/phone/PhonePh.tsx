@@ -112,6 +112,14 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [figureCanvasHost, setFigureCanvasHost] =
       useState<HTMLElement | null>(null);
+    const bindFigureVideoHost = useCallback(
+      (element: HTMLVideoElement | null) => {
+        const host = element?.parentElement;
+        if (!host) return;
+        setFigureCanvasHost((current) => current === host ? current : host);
+      },
+      []
+    );
     const nativeAutoplayRef = useRef<PhoneNativeAutoplay | null>(null);
     const reversePlaybackRef = useRef<PhonePhPresentedReverse | null>(null);
     const packedSurfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
@@ -448,12 +456,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
                       alt=""
                     />
                     <video
-                      ref={(element) => {
-                        const host = element?.parentElement ?? null;
-                        setFigureCanvasHost((current) => (
-                          current === host ? current : host
-                        ));
-                      }}
+                      ref={bindFigureVideoHost}
                       className="ph-layer ph-layer--figure"
                       data-ph-alpha-video
                       data-media-key={PH_MEDIA_KEY}

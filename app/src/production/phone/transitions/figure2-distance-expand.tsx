@@ -193,7 +193,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     timeline(['commit', ...leg]);
   }, [ensureTimeline, reducedMotion]);
 
-  const render = (rawProgress: number) => {
+  const render = useCallback((rawProgress: number) => {
     if (!from || !to) return;
     const progress = clamp(rawProgress);
     const canonical = reducedMotion ? (progress < 0.5 ? 0 : 1) : progress;
@@ -214,7 +214,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
         origin: 'segment-first-frame'
       } : undefined);
     }
-  };
+  }, [cancelFirstFrameRetry, from, reducedMotion, to]);
 
   const scheduleFirstFrameRetry = useCallback(() => {
     cancelFirstFrameRetry();

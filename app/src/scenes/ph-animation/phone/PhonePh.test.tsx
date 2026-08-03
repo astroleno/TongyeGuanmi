@@ -50,6 +50,18 @@ describe('PhonePh', () => {
     expect(markup).toContain('preload="auto"');
   });
 
+  it('binds its sole packed canvas host through a stable callback ref', () => {
+    expect(source).toMatch(
+      /const bindFigureVideoHost = useCallback\(\s*\(element: HTMLVideoElement \| null\) => \{/s
+    );
+    expect(source).toContain('ref={bindFigureVideoHost}');
+    expect(source).not.toMatch(/ref=\{\(element\) => \{/);
+    expect(source).toContain(
+      'setFigureCanvasHost((current) => current === host ? current : host);'
+    );
+    expect(source.match(/data-phone-packed-alpha-canvas="ph-figure"/g)).toHaveLength(1);
+  });
+
   it('[R5] redraws its prepared packed surface when an active media token starts', () => {
     expect(source).toContain('const presentPreparedFrame = useCallback((token: PresentationToken) => {');
     expect(source).toContain("surface?.(['present', phoneRuntimePresentationTokenKey(token)])");

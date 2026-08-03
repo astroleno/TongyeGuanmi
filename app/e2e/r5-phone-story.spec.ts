@@ -10,6 +10,17 @@ const LIVE_PHONE_ROOT = 'main[data-phone-authority-id]';
 const LIVE_STORY_LOADER = '.story-loader[data-story-loader="true"]';
 const WHEEL_QUIET_MS = 1_250;
 const PHONE_COVERAGE_RGB = [7, 17, 14] as const;
+const phonePageErrors = new WeakMap<Page, string[]>();
+const stableAuthorityIds = new WeakMap<Page, string>();
+
+test.beforeEach(({ page }) => {
+  const errors: string[] = [];
+  phonePageErrors.set(page, errors);
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) stableAuthorityIds.delete(page);
+  });
+});
 
 type PngScreenshot = Readonly<{
   width: number;
@@ -411,6 +422,10 @@ async function readPhoneEvidence(page: Page) {
       width: visualViewport?.width ?? window.innerWidth,
       height: visualViewport?.height ?? window.innerHeight
     };
+    const viewportHit = document.elementFromPoint(
+      Math.round(viewport.left + viewport.width / 2),
+      Math.round(viewport.top + viewport.height / 2)
+    );
     const appRoot = document.getElementById('root');
     const documentElement = document.documentElement;
     const navigationCurrent = Array.from(
@@ -425,7 +440,14 @@ async function readPhoneEvidence(page: Page) {
       coverageRoot: coverageElement ? surface(coverageElement) : null,
       actualY: window.scrollY,
       documentScrollTop: document.scrollingElement?.scrollTop ?? window.scrollY,
+      documentScrollHeight: Math.max(
+        documentElement.scrollHeight,
+        document.body.scrollHeight,
+        document.scrollingElement?.scrollHeight ?? 0
+      ),
       viewport,
+      fallback: documentElement.dataset.phoneStoryFallback ?? null,
+      staticContentAtViewport: Boolean(viewportHit?.closest('.static-content')),
       navigationCurrent,
       colors: {
         document: getComputedStyle(documentElement).backgroundColor,
@@ -446,6 +468,7 @@ function expectStablePhoneEvidence(
   scope: PhoneRouteScope
 ): void {
   const expected = PHONE_HOLD_CONTRACTS[scene];
+  expect(evidence.authorityRoots).toHaveLength(1);
   expect(evidence.liveAuthorityRoots).toHaveLength(1);
   const root = evidence.liveAuthorityRoots[0];
   if (!root) throw new Error('Expected exactly one live phone authority root');
@@ -467,6 +490,8 @@ function expectStablePhoneEvidence(
   expect(root.display).not.toBe('none');
   expect(root.opacity).toBeGreaterThan(0);
   expect(root.pointerEvents).not.toBe('none');
+  expect(evidence.fallback).toBeNull();
+  expect(evidence.staticContentAtViewport).toBe(false);
 
   const scrollProgress = Number(root.data.phoneScrollProgress);
   expect(evidence.actualY).toBeCloseTo(evidence.documentScrollTop, 0);
@@ -519,6 +544,21 @@ function expectStablePhoneEvidence(
   );
 }
 
+function expectStablePhoneRuntimeGates(
+  page: Page,
+  evidence: Awaited<ReturnType<typeof readPhoneEvidence>>
+): void {
+  expect(phonePageErrors.get(page) ?? []).toEqual([]);
+  const authorityId = evidence.liveAuthorityRoots[0]?.authorityId;
+  if (!authorityId) throw new Error('Expected a live phone authority id');
+  const established = stableAuthorityIds.get(page);
+  if (established === undefined) {
+    stableAuthorityIds.set(page, authorityId);
+  } else {
+    expect(authorityId).toBe(established);
+  }
+}
+
 async function assertStablePhoneHold(
   page: Page,
   scene: PhoneStableScene,
@@ -531,6 +571,7 @@ async function assertStablePhoneHold(
     const evidence = await readPhoneEvidence(page);
     try {
       expectStablePhoneEvidence(evidence, scene, scope);
+      expectStablePhoneRuntimeGates(page, evidence);
       return null;
     } catch (error) {
       return error instanceof Error ? error.message : String(error);
@@ -541,6 +582,7 @@ async function assertStablePhoneHold(
   }).toBeNull();
   const evidence = await readPhoneEvidence(page);
   expectStablePhoneEvidence(evidence, scene, scope);
+  expectStablePhoneRuntimeGates(page, evidence);
   return page.locator(LIVE_PHONE_ROOT);
 }
 
@@ -1848,6 +1890,74 @@ async function visitFormal(
   await assertStablePhoneHold(page, scene);
 }
 
+type TailPrefetchEvidence = Readonly<{
+  authorityIds: readonly string[];
+  fallback: string | null;
+  scrollHeight: number;
+  staticContentAtViewport: boolean;
+  phLeaves: number;
+  craneLeaves: number;
+  coverage: Readonly<{
+    viewport: Readonly<{ left: number; top: number; right: number; bottom: number }>;
+    stage: Readonly<{ left: number; top: number; right: number; bottom: number }> | null;
+  }>;
+}>;
+
+async function readTailPrefetchEvidence(page: Page): Promise<TailPrefetchEvidence> {
+  return page.evaluate(() => {
+    const viewport = window.visualViewport;
+    const viewportBounds = {
+      left: viewport?.offsetLeft ?? 0,
+      top: viewport?.offsetTop ?? 0,
+      right: (viewport?.offsetLeft ?? 0) + (viewport?.width ?? window.innerWidth),
+      bottom: (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)
+    };
+    const stage = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__stage-canvas'
+    );
+    const stageRect = stage?.getBoundingClientRect() ?? null;
+    const viewportHit = document.elementFromPoint(
+      Math.round((viewportBounds.left + viewportBounds.right) / 2),
+      Math.round((viewportBounds.top + viewportBounds.bottom) / 2)
+    );
+    return {
+      authorityIds: Array.from(
+        document.querySelectorAll<HTMLElement>('[data-phone-authority-id]')
+      ).filter((element) => element.isConnected).map((element) => (
+        element.dataset.phoneAuthorityId ?? ''
+      )),
+      fallback: document.documentElement.dataset.phoneStoryFallback ?? null,
+      scrollHeight: Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight,
+        document.scrollingElement?.scrollHeight ?? 0
+      ),
+      staticContentAtViewport: Boolean(viewportHit?.closest('.static-content')),
+      phLeaves: document.querySelectorAll('[data-phone-scene="ph-animation"]').length,
+      craneLeaves: document.querySelectorAll('[data-phone-scene="crane-animation"]').length,
+      coverage: {
+        viewport: viewportBounds,
+        stage: stageRect ? {
+          left: stageRect.left,
+          top: stageRect.top,
+          right: stageRect.right,
+          bottom: stageRect.bottom
+        } : null
+      }
+    };
+  });
+}
+
+async function requestGradeATailPrefetch(page: Page): Promise<void> {
+  const slot = page.locator('[data-phone-grade-a-requested]');
+  for (let pulse = 0; pulse < 64; pulse += 1) {
+    if (await slot.getAttribute('data-phone-grade-a-requested') === 'true') return;
+    await inputPhoneDelta(page, 120);
+    await page.waitForTimeout(80);
+  }
+  await expect(slot).toHaveAttribute('data-phone-grade-a-requested', 'true');
+}
+
 /**
  * A stable cursor alone is not evidence that a cold deep link rendered its
  * selected hold. Verify the manifest's own copy/frame probes are visible in
@@ -2017,6 +2127,84 @@ test('Task 0 keeps the coverage plane over a non-zero live visual viewport offse
   expect(coverage.coverage.bottom).toBeGreaterThanOrEqual(
     coverage.viewport.bottom - 1
   );
+});
+
+test('tail prefetch keeps one formal phone authority when PH mounts', async ({ page }) => {
+  test.setTimeout(75_000);
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/', 'hero');
+  const before = await readTailPrefetchEvidence(page);
+  expect(before.authorityIds).toHaveLength(1);
+  const authorityId = before.authorityIds[0];
+  if (!authorityId) throw new Error('Cold formal route did not publish an authority id');
+
+  await requestGradeATailPrefetch(page);
+  // The lazy import and its ref-commit occur after the observer publishes the
+  // request flag; sample only after that commit boundary has had time to run.
+  await page.waitForTimeout(750);
+  const after = await readTailPrefetchEvidence(page);
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+  expect(after.authorityIds).toEqual([authorityId]);
+  expect(after.scrollHeight).toBeGreaterThanOrEqual(before.scrollHeight);
+  expect(after.fallback).toBeNull();
+  expect(after.staticContentAtViewport).toBe(false);
+  await expect(page.locator('[data-phone-scene="ph-animation"]')).toHaveCount(1);
+  await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]')).toHaveCount(1);
+  expect(after.phLeaves).toBe(1);
+  expect(after.coverage.stage).not.toBeNull();
+  const stage = after.coverage.stage;
+  if (!stage) throw new Error('Tail prefetch unmounted the fixed stage coverage');
+  expect(stage.left).toBeLessThanOrEqual(after.coverage.viewport.left + 1);
+  expect(stage.top).toBeLessThanOrEqual(after.coverage.viewport.top + 1);
+  expect(stage.right).toBeGreaterThanOrEqual(after.coverage.viewport.right - 1);
+  expect(stage.bottom).toBeGreaterThanOrEqual(after.coverage.viewport.bottom - 1);
+});
+
+test('tail prefetch direct Crane mount keeps its two packed hosts inside one authority', async ({
+  page
+}) => {
+  test.setTimeout(60_000);
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/#crane-animation', 'crane-animation');
+  const before = await readTailPrefetchEvidence(page);
+  expect(before.authorityIds).toHaveLength(1);
+  const authorityId = before.authorityIds[0];
+  if (!authorityId) throw new Error('Direct Crane route did not publish an authority id');
+
+  await page.waitForTimeout(750);
+  const after = await readTailPrefetchEvidence(page);
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+  expect(after.authorityIds).toEqual([authorityId]);
+  expect(after.scrollHeight).toBeGreaterThanOrEqual(before.scrollHeight);
+  expect(after.fallback).toBeNull();
+  expect(after.staticContentAtViewport).toBe(false);
+  await expect(page.locator('[data-phone-scene="crane-animation"]')).toHaveCount(1);
+  await expect(page.locator('[data-phone-packed-alpha-canvas="crane-figure"]')).toHaveCount(1);
+  await expect(page.locator('[data-phone-packed-alpha-canvas="crane-flock"]')).toHaveCount(1);
+  expect(after.craneLeaves).toBe(1);
+  expect(after.coverage.stage).not.toBeNull();
+  const stage = after.coverage.stage;
+  if (!stage) throw new Error('Direct Crane mount unmounted fixed stage coverage');
+  expect(stage.left).toBeLessThanOrEqual(after.coverage.viewport.left + 1);
+  expect(stage.top).toBeLessThanOrEqual(after.coverage.viewport.top + 1);
+  expect(stage.right).toBeGreaterThanOrEqual(after.coverage.viewport.right - 1);
+  expect(stage.bottom).toBeGreaterThanOrEqual(after.coverage.viewport.bottom - 1);
 });
 
 test('Task 10 gates a cold production formal Hero → Contact journey', async ({ page }) => {

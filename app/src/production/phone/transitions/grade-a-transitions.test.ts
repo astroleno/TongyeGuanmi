@@ -283,6 +283,18 @@ describe('phone Grade A transition contracts', () => {
     expect(figure2DistanceSource).not.toContain('fallbackFrame(');
   });
 
+  it('[P0 tail mount] keeps the Figure2→Proof forwarded handle stable across parent readiness renders', () => {
+    expect(figure2DistanceSource).toMatch(
+      /const render = useCallback\(\(rawProgress: number\) => \{/s
+    );
+    expect(figure2DistanceSource).toContain(
+      'const scheduleFirstFrameRetry = useCallback('
+    );
+    expect(figure2DistanceSource).toMatch(
+      /useImperativeHandle\(forwardedRef,[\s\S]*?scheduleFirstFrameRetry,[\s\S]*?\]\);/s
+    );
+  });
+
   it('[P0 Figure2→Proof admission] retires a pending first-frame retry before a stale callback can draw', () => {
     const queued = new Map<number, () => void>();
     let attempts = 0;
