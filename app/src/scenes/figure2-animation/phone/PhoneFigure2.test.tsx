@@ -11,6 +11,7 @@ import type {
 const probe = vi.hoisted(() => ({
   surfaceOptions: null as null | Record<string, unknown>,
   activate: vi.fn(() => 1), renderSurface: vi.fn(() => true),
+  probeSurface: vi.fn(() => true),
   release: vi.fn(), disposeSurface: vi.fn(), renderProgress: vi.fn()
 }));
 
@@ -31,7 +32,7 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
   createPhonePackedAlphaSurface: vi.fn((options: Record<string, unknown>) => {
     probe.surfaceOptions = options;
     return {
-      activate: probe.activate, render: probe.renderSurface,
+      activate: probe.activate, probe: probe.probeSurface, render: probe.renderSurface,
       release: probe.release, dispose: probe.disposeSurface
     };
   })
@@ -95,5 +96,33 @@ describe('clean PhoneFigure2 leaf', () => {
     );
     mount.registration()?.commands.render(.72);
     expect(probe.renderProgress).toHaveBeenCalled();
+  });
+
+  it('keeps a transient reactivation repaint miss non-terminal until a causal frame', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    probe.activate.mockReturnValue(1);
+    probe.renderSurface.mockReset().mockReturnValue(false);
+    probe.probeSurface.mockReset().mockReturnValue(false);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+    const current = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: current.reports, frameToken: 'figure2:reactivate:1'
+    });
+
+    const invocation = mount.registration()?.commands.activate({
+      invocationId: 'figure2:reactivate',
+      surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch'
+    });
+    const settlement = invocation?.settlements[0];
+    expect(settlement?.status).toBe('pending');
+    if (settlement?.status === 'pending') await expect(settlement.settled).resolves.toBeUndefined();
+    mount.registration()?.commands.render(.4);
+
+    expect(probe.probeSurface).toHaveBeenCalledOnce();
+    expect(probe.renderSurface).not.toHaveBeenCalled();
+    expect(current.reports.reportFailure).not.toHaveBeenCalled();
   });
 });

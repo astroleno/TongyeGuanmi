@@ -59,7 +59,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
     const clamped = Math.min(1, Math.max(0, progress));
     progressRef.current = clamped;
     renderFigure2AnimationProgress(sceneRef.current, clamped, { videoMode: 'none' });
-    if (surfaceGenerationRef.current > 0) surfaceRef.current?.render();
+    if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
   }, []);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
@@ -83,9 +83,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       let settled: Promise<void>;
       try {
         settled = Promise.resolve(video.play()).then(() => {
-          if (generation !== surfaceGenerationRef.current || !surface.render()) {
-            throw new Error('Figure2 compositor did not present the activated frame');
-          }
+          if (generation !== surfaceGenerationRef.current || disposedRef.current) return;
         });
       } catch (error) {
         settled = Promise.reject(error);
