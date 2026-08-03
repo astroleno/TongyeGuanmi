@@ -461,12 +461,13 @@ export function createPhoneStoryRuntimeEngine(
     }
   };
   /**
-   * Reduced front holds use the same machine session as every other reduced
-   * transaction, but they have no cinematic run or direct-entry lifecycle.
-   * The target leaf receives the raw immutable frame token; this branch never
-   * reads readiness, commands a landing, or manufactures a browser frame.
+   * Pattern → Star Map uses one machine candidate but has no cinematic runner
+   * or direct-entry lifecycle. The target leaf receives the raw immutable
+   * frame token; this branch never reads readiness, commands a landing, or
+   * manufactures a browser frame. The current scroll position is the authored
+   * rail landing, so Safari must not be asked to fight an active touch scroll.
    */
-  const reportReducedSampledTargetPresentation = (
+  const reportSampledTargetPresentation = (
     activeSession: PhoneOrchestratedRunSession,
     scene: SceneId
   ) => {
@@ -475,7 +476,7 @@ export function createPhoneStoryRuntimeEngine(
     try {
       const contract = phoneScenePresentationTuple(scene);
       const token = activeSession.presentationFrameToken(
-        'static-poster',
+        phoneScenePresentationProofKind(scene),
         contract[4]
       );
       if (!token) return;
@@ -500,12 +501,14 @@ export function createPhoneStoryRuntimeEngine(
     if (
       operation.run === null
       && operation.trigger === 'auto'
-      && session.reducedMotion
-      && session.phase === 'preparing'
+      && operation.to === 'star-map'
+      && session.phase === (
+        session.reducedMotion ? 'preparing' : 'verifying-target'
+      )
     ) {
       const activeSession = sessions.resume();
       if (activeSession?.valid()) {
-        reportReducedSampledTargetPresentation(activeSession, operation.to);
+        reportSampledTargetPresentation(activeSession, operation.to);
       }
       return;
     }

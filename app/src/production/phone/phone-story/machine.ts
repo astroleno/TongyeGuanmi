@@ -1637,12 +1637,24 @@ export function reducePhoneStorySnapshot(
     case 'PRESENTATION_PROOF_REPORTED': {
       const nextSession = reportPresentationProof(snapshot, session, event);
       if (!nextSession || nextSession === session) return reduced(snapshot);
-      // Reduced motion is still admitted by the same immutable transaction,
-      // but a real static target paint is its terminal evidence. No media
-      // clock, progress event, or synthetic endpoint commit participates.
+      // Pattern → Star Map is still admitted by the same immutable
+      // transaction, but a real static target paint is its terminal evidence.
+      // Its sampled scroll position is already the authored rail landing, so
+      // no readiness-driven layout release or programmatic scroll correction
+      // may race an active Safari touch gesture. No media clock, progress
+      // event, or synthetic endpoint commit participates.
       if (
-        nextSession.reducedMotion
-        && nextSession.phase === 'preparing'
+        (
+          // Every reduced transaction shares this short static endpoint path.
+          (nextSession.reducedMotion
+            ? nextSession.phase === 'preparing'
+          // Normal Pattern → Star Map has no cinematic runner. Its
+          // exact leaf proof is likewise terminal, without Safari alignment.
+            : operation.run === null
+              && operation.trigger === 'auto'
+              && operation.to === 'star-map'
+              && nextSession.phase === 'verifying-target')
+        )
         && validPresentationProof(
           snapshot,
           nextSession,

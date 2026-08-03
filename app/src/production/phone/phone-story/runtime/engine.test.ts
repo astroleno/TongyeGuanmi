@@ -273,6 +273,83 @@ describe('single phone story projector transaction', () => {
     });
   });
 
+  it('[Pattern→StarMap physical touch cutover] commits a normal sampled static proof without direct-entry preparation or scroll alignment', () => {
+    const root = element();
+    const star = element();
+    const directPreparation = vi.fn();
+    const scrollCommands: number[] = [];
+    let boundToken: PresentationToken | null = null;
+    let reportLeafFrame: ((frame: PhoneRenderedPresentationFrame) => void) | null = null;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'pattern',
+      root,
+      scrollY: () => 2_183,
+      scrollTo: (y) => { scrollCommands.push(y); }
+    });
+    orchestrator.registerScrollCorridor({
+      id: 'front-rail',
+      scenes: ['pattern', 'star-map'],
+      sample: () => null,
+      boundary: () => null,
+      landing: () => 2_263
+    });
+    orchestrator.registerSurface({
+      id: 'front:star-map',
+      scene: 'star-map',
+      kind: 'fixed',
+      root: () => star,
+      coverageRoot: () => root,
+      presentation: () => [true, true, true, true, 'static-poster'],
+      adapter: {
+        present(token, report) {
+          boundToken = token;
+          reportLeafFrame = report;
+        }
+      },
+      prepareDirectEntry: directPreparation
+    });
+
+    orchestrator.dispatch({
+      type: 'SCROLL_SAMPLED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      actualY: 2_183,
+      corridor: 'front-rail',
+      scene: 'star-map',
+      progress: .61,
+      direction: 1,
+      reducedMotion: false
+    } as never);
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target', reducedMotion: false },
+      projection: { semanticScene: 'star-map', commitState: 'candidate' }
+    });
+    expect(directPreparation).not.toHaveBeenCalled();
+    expect(boundToken).not.toBeNull();
+    expect(reportLeafFrame).not.toBeNull();
+
+    const emitLeafFrame = reportLeafFrame as ((frame: PhoneRenderedPresentationFrame) => void) | null;
+    if (!emitLeafFrame || !boundToken) {
+      throw new Error('Expected the normal sampled candidate to retain the exact leaf token');
+    }
+    emitLeafFrame({
+      token: boundToken,
+      frameSequence: 1,
+      observedAt: 42,
+      origin: 'leaf-static-poster'
+    });
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'star-map',
+      session: null,
+      scroll: { actualY: 2_183 },
+      projection: { commitState: 'stable' }
+    });
+    expect(scrollCommands).toEqual([]);
+  });
+
   it('registers surfaces as pure handles and lets the projector select roles', () => {
     const root = element();
     const brand = element();
