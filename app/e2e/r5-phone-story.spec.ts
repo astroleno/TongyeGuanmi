@@ -1052,6 +1052,49 @@ async function aodNoFrameProbe(page: Page) {
   ));
 }
 
+async function blockFirstAodPlay(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const target = window as typeof window & {
+      __phoneAodFirstPlayBlockProbe?: {
+        playCalls: number;
+        rejected: boolean;
+      };
+    };
+    const probe = { playCalls: 0, rejected: false };
+    const originalPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function play() {
+      if (!this.matches('[data-aod-figure-video]')) {
+        return Reflect.apply(originalPlay, this, []);
+      }
+      probe.playCalls += 1;
+      if (probe.playCalls !== 1) {
+        return Reflect.apply(originalPlay, this, []);
+      }
+      // Keep the first promise pending long enough for the warmed canvas to
+      // produce its frame-zero callback. The runner must retain that fact in
+      // admission, rather than accepting it as playback evidence.
+      return new Promise<void>((_resolve, reject) => {
+        window.setTimeout(() => {
+          probe.rejected = true;
+          reject(new DOMException('Synthetic AOD autoplay rejection', 'NotAllowedError'));
+        }, 160);
+      });
+    };
+    target.__phoneAodFirstPlayBlockProbe = probe;
+  });
+}
+
+async function firstAodPlayBlockProbe(page: Page) {
+  return page.evaluate(() => (
+    (window as typeof window & {
+      __phoneAodFirstPlayBlockProbe?: {
+        playCalls: number;
+        rejected: boolean;
+      };
+    }).__phoneAodFirstPlayBlockProbe
+  ));
+}
+
 async function installLiveVisualViewportProbe(page: Page): Promise<void> {
   await page.addInitScript(() => {
     type ViewportState = {
@@ -2080,6 +2123,66 @@ test('Task 0 does not animate AOD when media liveness has no compositor frame', 
   expect(trace.stateEvents.some((state) => (
     state.cursor === 'transition:aod-method:0'
     && state.phase === 'animating'
+  ))).toBe(false);
+});
+
+test('[P0 AOD admission] a first rejected play remains retryable until a real retry reaches Method', async ({
+  page
+}) => {
+  test.setTimeout(120_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/', 'hero');
+  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
+  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
+  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await assertStablePhoneHold(page, 'aod-animation');
+  await blockFirstAodPlay(page);
+  await waitForNewWheelEpoch(page);
+
+  await inputPhoneDelta(page, 50);
+  await page.waitForTimeout(600);
+  const blockedState = await page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+    return {
+      cursor: root?.dataset.phoneCursor ?? null,
+      phase: root?.dataset.phoneTransitionPhase ?? null,
+      input: root?.dataset.phoneInputState ?? null,
+      retryable: root?.dataset.phoneRetryableRun ?? null,
+      progress: Number(root?.dataset.phoneTransitionProgress ?? Number.NaN),
+      paused: video?.paused ?? null,
+      time: video?.currentTime ?? null
+    };
+  });
+  expect(blockedState).toMatchObject({
+    cursor: 'transition:aod-method:0',
+    phase: 'preparing',
+    input: 'locked',
+    paused: true
+  });
+
+  const blocked = await firstAodPlayBlockProbe(page);
+  expect(blocked?.playCalls).toBe(1);
+  expect(blocked?.rejected).toBe(true);
+  const blockedTrace = await phoneRuntimeProbe(page);
+  const aodAttempt = blockedTrace.stateEvents.filter((state) => (
+    state.cursor === 'transition:aod-method:0'
+  ));
+  expect(aodAttempt).not.toEqual([]);
+  expect(aodAttempt.some((state) => state.phase === 'animating')).toBe(false);
+
+  // The next input is the sole retry intent. It must start the same machine
+  // session without converting the failed first attempt into a progress
+  // watchdog transaction.
+  await page.mouse.move(195, 400);
+  await page.mouse.down();
+  await page.mouse.up();
+  await assertStablePhoneHold(page, 'method-top', { timeout: 70_000 });
+  const recovered = await firstAodPlayBlockProbe(page);
+  expect(recovered?.playCalls).toBeGreaterThanOrEqual(2);
+  expect((await phoneRuntimeProbe(page)).stateEvents.some((state) => (
+    state.cursor === 'transition:aod-method:0'
+    && state.phase === 'rollback-rendering'
   ))).toBe(false);
 });
 

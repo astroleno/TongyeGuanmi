@@ -34,6 +34,7 @@ type Harness = Readonly<{
   }>;
   runner: ReturnType<typeof registerPhoneRuntimeAodCapability>;
   startRun(): boolean | void;
+  settleStart(result: 'playing' | 'blocked' | 'error'): void;
   reducedStrategy(): boolean | undefined;
   stage(): PhoneAodRunnerStage;
   progress(): number;
@@ -41,7 +42,7 @@ type Harness = Readonly<{
 
 function createHarness(
   direction: 1 | -1 = 1,
-  startResult: 'playing' | 'blocked' | 'error' = 'playing',
+  startResult: 'playing' | 'blocked' | 'error' | 'pending' = 'playing',
   reducedMotion = false,
   reducedTargetPosition: (direction: 1 | -1) => number | null = () => 100
 ): Harness {
@@ -202,14 +203,27 @@ function createHarness(
     }
   } as unknown as PhoneStoryRuntimePort;
   let attempts = 0;
-  const start = vi.fn(async (startedExecution: PhoneAodExecution) => {
+  const pendingStartResolvers: Array<
+    (result: 'playing' | 'blocked' | 'error') => void
+  > = [];
+  const start = vi.fn((startedExecution: PhoneAodExecution) => {
     execution = startedExecution;
     events.push('start');
     const result = startResult === 'blocked' && attempts++ > 0
       ? 'playing'
       : startResult;
-    return result;
+    if (result === 'pending') {
+      return new Promise<'playing' | 'blocked' | 'error'>((resolve) => {
+        pendingStartResolvers.push(resolve);
+      });
+    }
+    return Promise.resolve(result);
   });
+  const settleStart = (result: 'playing' | 'blocked' | 'error') => {
+    const resolve = pendingStartResolvers.shift();
+    if (!resolve) throw new Error('Expected a pending AOD autoplay attempt');
+    resolve(result);
+  };
   const release = vi.fn(() => events.push('release-playback'));
   const reset = vi.fn(() => events.push('reset-leaf'));
   const presentStaticTarget = vi.fn(() => true);
@@ -244,6 +258,7 @@ function createHarness(
     session,
     runner,
     startRun: () => capability?.start(direction, session),
+    settleStart,
     reducedStrategy: () => capability?.reducedMotion,
     stage: () => stage,
     progress: () => progress
@@ -367,6 +382,40 @@ describe('AOD ↔ Method single runner cutover', () => {
 
     value.runner[1](frameFor(value.execution), value.execution);
     expect(value.session.frame).toHaveBeenCalledOnce();
+    value.runner[6]();
+  });
+
+  it('[P0 AOD admission] waits for confirmed playback before accepting an earlier exact frame', async () => {
+    const value = createHarness(1, 'pending');
+
+    expect(value.startRun()).toBe(true);
+    await Promise.resolve();
+
+    // Safari may paint the prepared zero frame before video.play() settles.
+    // That fact belongs to the current immutable token, but cannot by itself
+    // advance the machine out of admission.
+    value.runner[1](frameFor(value.execution), value.execution);
+    expect(value.stage()).toBe('admission');
+    expect(value.session.frame).not.toHaveBeenCalled();
+    expect(value.release).not.toHaveBeenCalled();
+
+    value.settleStart('blocked');
+    await Promise.resolve();
+    expect(value.stage()).toBe('blocked');
+    expect(value.session.frame).not.toHaveBeenCalled();
+    expect(value.release).not.toHaveBeenCalled();
+
+    expect(value.runner[4]()).toBe(true);
+    value.settleStart('playing');
+    await Promise.resolve();
+    expect(value.stage()).toBe('admission');
+
+    // A rejected attempt cannot recycle its old prepared frame. A new frame
+    // from the retry is required before the runner releases playback.
+    value.runner[1](frameFor(value.execution, 2), value.execution);
+    expect(value.stage()).toBe('playback');
+    expect(value.session.frame).toHaveBeenCalledOnce();
+    expect(value.release).toHaveBeenCalledOnce();
     value.runner[6]();
   });
 

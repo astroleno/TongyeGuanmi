@@ -352,9 +352,10 @@ export function registerPhoneCompositeRunCapability(
 export const PHONE_AOD_PREPARE_TIMEOUT_MS = 6_000;
 export const PHONE_AOD_PROGRESS_WATCHDOG_MS = 2_400;
 
-type ActiveAodRun = readonly [
+type ActiveAodRun = [
   session: PhoneAodRunSession,
-  execution: PhoneAodExecution
+  execution: PhoneAodExecution,
+  admission: PhoneRenderedPresentationFrame | true | null
 ];
 
 /**
@@ -409,7 +410,7 @@ export function registerPhoneRuntimeAodCapability(
   let active: ActiveAodRun | null = null;
   let watchdog: ReturnType<typeof globalThis.setTimeout> | undefined;
   let startNonce = 0;
-  const runtimeDocument = typeof document === 'undefined' ? undefined : document;
+  const runtimeDocument = globalThis.document;
 
   const clearWatchdog = () => {
     if (watchdog !== undefined) globalThis.clearTimeout(watchdog);
@@ -473,28 +474,42 @@ export function registerPhoneRuntimeAodCapability(
       ? PHONE_AOD_PREPARE_TIMEOUT_MS
       : PHONE_AOD_PROGRESS_WATCHDOG_MS);
   };
+  const admitPendingFrame = (
+    record: ActiveAodRun,
+    frame: PhoneRenderedPresentationFrame
+  ) => {
+    const current = stateFor(record);
+    if (!current || current.session.aod!.stage !== 'admission') return;
+    if (!record[0].reportPresentationFrame(frame)) return;
+    const accepted = stateFor(record);
+    if (!accepted || accepted.session.aod!.stage !== 'playback') return;
+    record[2] = null;
+    armWatchdog('playback');
+    releasePlayback(record[1]);
+  };
   const attempt = (record: ActiveAodRun): boolean => {
     const current = stateFor(record);
     if (!current || current.session.aod!.stage !== 'admission') return false;
     const nonce = ++startNonce;
+    record[2] = null;
     armWatchdog('admission');
-    void startAutoplay(record[1]).then(
-      (result) => {
-        if (nonce !== startNonce || !stateFor(record)) return;
-        if (result === 'playing') return;
-        if (result === 'blocked') {
-          record[0].reportAodAutoplayBlocked();
-          return;
-        }
-        record[0].reportFailure('media-failed');
-        retire(true);
-      },
-      () => {
-        if (nonce !== startNonce || !stateFor(record)) return;
-        record[0].reportFailure('media-failed');
-        retire(true);
+    const settleAutoplay = (result: PhoneAodStartResult) => {
+      if (nonce !== startNonce || !stateFor(record)) return;
+      if (result === 'playing') {
+        const frame = record[2];
+        if (frame && frame !== true) admitPendingFrame(record, frame);
+        else record[2] = true;
+        return;
       }
-    );
+      record[2] = null;
+      if (result === 'blocked') {
+        record[0].reportAodAutoplayBlocked();
+        return;
+      }
+      record[0].reportFailure('media-failed');
+      retire(true);
+    };
+    void startAutoplay(record[1]).then(settleAutoplay, () => settleAutoplay('error'));
     return true;
   };
   const beginReducedAdmission = (record: ActiveAodRun): boolean => {
@@ -538,15 +553,9 @@ export function registerPhoneRuntimeAodCapability(
       return;
     }
     const current = stateFor();
-    if (!current || current.session.reducedMotion) return;
-    if (
-      current.session.aod!.stage === 'admission'
-      || current.session.aod!.stage === 'blocked'
-    ) {
-      armWatchdog('admission');
-    } else if (current.session.aod!.stage === 'playback') {
-      armWatchdog('playback');
-    }
+    const stage = current?.session.aod?.stage;
+    if (!current || current.session.reducedMotion || !stage) return;
+    armWatchdog(stage === 'playback' ? 'playback' : 'admission');
   };
   runtimeDocument?.addEventListener('visibilitychange', onVisibilityChange);
 
@@ -567,7 +576,8 @@ export function registerPhoneRuntimeAodCapability(
       retire(true);
       const record: ActiveAodRun = [
         aodSession,
-        [token, direction]
+        [token, direction],
+        null
       ];
       active = record;
       if (!reduced) return attempt(record);
@@ -607,11 +617,8 @@ export function registerPhoneRuntimeAodCapability(
         || record[1] !== execution
         || frame.token !== execution[0]
       ) return;
-      if (!record[0].reportPresentationFrame(frame)) return;
-      const accepted = stateFor(record);
-      if (!accepted || accepted.session.aod!.stage !== 'playback') return;
-      armWatchdog('playback');
-      releasePlayback(record[1]);
+      if (record[2] === true) admitPendingFrame(record, frame);
+      else record[2] = frame;
     },
     (execution) => {
       const record = active;
@@ -627,10 +634,8 @@ export function registerPhoneRuntimeAodCapability(
         (execution[1] === 1 && progress < .999)
         || (execution[1] === -1 && progress > .001)
       ) return;
-      clearWatchdog();
       record[0].reportEndpointCommit('receiver');
-      active = null;
-      startNonce += 1;
+      retire(false);
     },
     (execution, reason) => {
       const record = active;
