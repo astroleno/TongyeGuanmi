@@ -5429,7 +5429,7 @@ chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
 **Task 12 closure review record (updated 2026-08-03):**
 
 - Decision: **GO / Review approved / `Chunk-contract-complete`**. Task 13 has
-  not started.
+  started; Step 13.1 is complete and Step 13.2 Simulator acceptance is next.
 - The generic timeline driver once again requires physical playhead agreement
   for proof reuse. The former Crane reverse regressions pass 16/16, and Hero's
   prewarm/first consumer share one named generation without a global semantic
@@ -5452,8 +5452,8 @@ chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
   `a4ba41feaf76fb2f40afbcf222f1565216fac648`; its canonical production-tree
   hash is
   `5a4d8cee502155f71c226931b176ee1bc7f75f1fe2bfe43a23e1f93e3f9f60a3`.
-  Task 13 Step 13.1 still owns the clean rebuild and formal candidate/artifact
-  identity freeze.
+  Task 13 Step 13.1 completed the clean candidate rebuild and formal
+  candidate/artifact identity freeze; Step 13.2 remains open.
 - All 33 persistent Task 12 evidence hashes verify. Formal findings,
   verification details, historical blocker records, and hashes are in the
   [Task 12 closure review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
