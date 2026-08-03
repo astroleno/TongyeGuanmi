@@ -875,9 +875,29 @@ function projectionForTransaction(
   }
   if (operation.run === null && !phase.startsWith('rollback-')) {
     const target = phoneStableProjection(operationTarget(operation), 'candidate', revision);
-    return {
+    const source = phoneScenePresentationTuple(operationSource(operation));
+    const candidate = {
       ...target,
-      edge: phoneStableProjection(operationSource(operation)).edge
+      edge: source[1]
+    };
+    // A sampled front hold still enters through the single machine candidate.
+    // Until its target leaf reports the exact physical frame, retain the
+    // already-painted source as the coverage plane. This prevents Star → AOD
+    // from exposing a blank paper frame between its scroll handoff and the
+    // AOD packed-canvas admission; TARGET_PRESENTED atomically gives control
+    // back to the candidate target below.
+    if (
+      source[3] !== 'star-map'
+      || target.semanticScene !== 'aod-animation'
+      || operation.trigger !== 'auto'
+      || phase !== 'verifying-target'
+    ) return candidate;
+    return {
+      ...candidate,
+      stageOwner: source[2],
+      stageScene: source[3],
+      sourceSurface: source[4],
+      coverageSurface: source[4]
     };
   }
   if (phase === 'verifying-target' && isTerminalLeg(operation)) {

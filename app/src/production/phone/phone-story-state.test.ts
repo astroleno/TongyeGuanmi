@@ -50,6 +50,10 @@ type SnapshotView = Readonly<{
     commitState: 'transition' | 'candidate' | 'stable';
     semanticScene: string;
     edge: string;
+    sourceSurface?: string | null;
+    receiverSurface?: string;
+    coverageSurface?: string;
+    stageScene?: string | null;
   }>;
 }>;
 
@@ -1163,13 +1167,92 @@ describe('PhoneStorySnapshot reducer', () => {
       },
       projection: {
         commitState: 'candidate',
-        edge: 'hero'
+        edge: 'hero',
+        receiverSurface: 'front:pattern',
+        sourceSurface: null,
+        coverageSurface: 'front:pattern',
+        stageScene: 'pattern'
       },
       scroll: {
         actualY: 240,
         corridor: 'front-rail',
         progress: 1,
         direction: 1
+      }
+    });
+  });
+
+  it('[Star→AOD admission] keeps the painted source until the target exact proof is accepted', async () => {
+    const api = await snapshotApi();
+    const scrolling = api.reducePhoneStorySnapshot(
+      api.createPhoneStorySnapshot({
+        authorityId: snapshotIdentity.authorityId,
+        scene: 'star-map',
+        actualY: 640
+      }),
+      {
+        type: 'SCROLL_SAMPLED',
+        authorityId: snapshotIdentity.authorityId,
+        actualY: 700,
+        corridor: 'front-rail',
+        run: 'star-aod-scroll',
+        progress: .9,
+        direction: 1
+      }
+    ).snapshot;
+    let candidate = api.reducePhoneStorySnapshot(scrolling, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: snapshotIdentity.authorityId,
+      actualY: 720,
+      corridor: 'front-rail',
+      scene: 'aod-animation',
+      progress: 1,
+      direction: 1
+    }).snapshot;
+
+    expect(candidate).toMatchObject({
+      status: 'transaction',
+      session: {
+        operation: {
+          trigger: 'auto',
+          run: null,
+          from: 'star-map',
+          to: 'aod-animation'
+        },
+        phase: 'verifying-target'
+      },
+      projection: {
+        commitState: 'candidate',
+        sourceSurface: 'front:star-map',
+        receiverSurface: 'front:aod',
+        coverageSurface: 'front:star-map',
+        stageScene: 'star-map'
+      }
+    });
+    const session = candidate.session;
+    if (!session) throw new Error('Expected AOD candidate session');
+    const identity = {
+      authorityId: snapshotIdentity.authorityId,
+      sessionId: session.sessionId,
+      generation: session.generation,
+      leg: 0,
+      direction: 1
+    } as const;
+    candidate = api.reducePhoneStorySnapshot(
+      candidate,
+      targetEvidence(candidate, identity, 'direct-entry', 1)
+    ).snapshot;
+    candidate = api.reducePhoneStorySnapshot(candidate, {
+      type: 'TARGET_PRESENTED',
+      ...identity
+    }).snapshot;
+
+    expect(candidate).toMatchObject({
+      session: { phase: 'releasing-layout' },
+      projection: {
+        sourceSurface: null,
+        coverageSurface: 'front:aod',
+        stageScene: 'aod-animation'
       }
     });
   });

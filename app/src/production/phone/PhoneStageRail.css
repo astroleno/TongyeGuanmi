@@ -111,6 +111,9 @@
   height: max(100%, var(--portrait-stage-canvas-height));
   min-height: max(100%, var(--portrait-stage-canvas-height));
   overflow: clip;
+  /* This registered coverage root paints the live viewport itself. A scene
+   * may be transparent while its leaf is warming, but the host cannot be. */
+  background: var(--portrait-edge-surface);
 }
 
 /* The fixed stage warms from mount. StoryLoader is the only startup visual

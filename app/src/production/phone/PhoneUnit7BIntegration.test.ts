@@ -278,7 +278,7 @@ describe('formal Unit7-B phone integration', () => {
       );
     }
     expect(aodSource).toMatch(
-      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodStaticPresentationFrame\(/
+      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodPresentationFrame\(/
     );
     expect(methodSource).toMatch(
       /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneMethodStaticPresentationFrame\(/

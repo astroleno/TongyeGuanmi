@@ -1,12 +1,10 @@
 import {
-  useEffect,
   useState,
   type Dispatch,
   type SetStateAction
 } from 'react';
 import type { SceneId } from '../../story/types';
-import { hashForScene, sceneFromHash } from '../navigation';
-import { markPhoneLoaderResumeHash } from './phone-loader-lifecycle';
+import { sceneFromHash } from '../navigation';
 
 export function usePhoneNavigationScene(
   fallbackScene: SceneId
@@ -17,10 +15,6 @@ export function usePhoneNavigationScene(
       : sceneFromHash(window.location.hash))
     ?? fallbackScene
   ));
-
-  useEffect(() => {
-    markPhoneLoaderResumeHash(hashForScene(scene));
-  }, [scene]);
 
   return [scene, setScene] as const;
 }

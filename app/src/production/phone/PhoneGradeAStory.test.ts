@@ -210,7 +210,7 @@ describe('phone Grade A orchestration ownership', () => {
 
   it('[Method↔Figure2 reduced cutover] gates packed-media suppression by the active static binding, not the global preference', () => {
     expect(figure2Source).toContain(
-      "mode === 'static' || staticPresentationBindingRef.current"
+      "io === 'static' || staticPresentationBindingRef.current"
     );
     expect(figure2Source).not.toContain('if (reducedMotion) {');
   });

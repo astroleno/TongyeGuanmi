@@ -94,8 +94,12 @@ export function createPhoneIntentCoordinator(
     inputEpoch: number;
     until: number;
   }> | null = null;
-  let lastNativeProbeEpoch = 0;
-  const nativeProbeFrames = new Map<number, number>();
+  const nativeProbeFrames = new Map<number, {
+    expected: Readonly<{ revision: number; corridor: string | null }>;
+    frame: number;
+    projectedY: number;
+    startY: number;
+  }>();
 
   const nextIdentity = () => {
     sequence += 1;
@@ -126,25 +130,38 @@ export function createPhoneIntentCoordinator(
     if (
       !requestFrame
       || !options.scrollState
-      || lastNativeProbeEpoch === identity.inputEpoch
     ) return;
-    lastNativeProbeEpoch = identity.inputEpoch;
+    const retained = nativeProbeFrames.get(identity.inputEpoch);
+    if (retained) {
+      // Safari delivers several touchmove samples before the first animation
+      // frame. The one same-epoch recovery must use the latest projected
+      // target rather than silently retaining the first 40px sample.
+      retained.projectedY = projectedY;
+      return;
+    }
     const expected = options.scrollState();
+    const probe = {
+      expected,
+      frame: 0,
+      projectedY,
+      startY
+    };
+    nativeProbeFrames.set(identity.inputEpoch, probe);
     const frame = requestFrame(() => {
       nativeProbeFrames.delete(identity.inputEpoch);
       const current = options.scrollState?.();
       if (
         !current
-        || current.revision !== expected.revision
-        || current.corridor !== expected.corridor
-        || Math.abs(scrollY() - startY) >= .5
+        || current.revision !== probe.expected.revision
+        || current.corridor !== probe.expected.corridor
+        || Math.abs(scrollY() - probe.startY) >= .5
       ) return;
-      const correctedY = Math.max(0, projectedY);
-      if (Math.abs(correctedY - startY) < .5) return;
+      const correctedY = Math.max(0, probe.projectedY);
+      if (Math.abs(correctedY - probe.startY) < .5) return;
       scrollTo(correctedY);
       options.onNativeScrollCorrection?.();
     });
-    nativeProbeFrames.set(identity.inputEpoch, frame);
+    probe.frame = frame;
   };
 
   const onTouchStart = (event: TouchEvent) => {
@@ -232,7 +249,7 @@ export function createPhoneIntentCoordinator(
       root.removeEventListener('wheel', onWheel, blocking);
       window.removeEventListener('scroll', onScroll);
       if (cancelFrame) {
-        for (const frame of nativeProbeFrames.values()) cancelFrame(frame);
+        for (const { frame } of nativeProbeFrames.values()) cancelFrame(frame);
       }
       nativeProbeFrames.clear();
     }

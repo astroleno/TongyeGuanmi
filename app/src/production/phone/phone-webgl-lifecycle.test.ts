@@ -133,9 +133,13 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(hero).toContain('const ensureIntroInk = useCallback(() =>');
     expect(mountEffect).not.toContain('ensureCompositor();');
     expect(mountEffect).not.toContain("introInk(['prewarm']);");
-    expect(hero).toContain('if (active && !reducedMotion) {');
+    // Reduced motion still needs one paused packed-alpha draw to make the
+    // Loader handoff real; only playback/parallax stay disabled. Direct
+    // downstream routes remain cold because `active` is false there.
+    expect(hero).toContain('if (active) {');
     expect(hero).toContain('ensureCompositor()?.setActive(true);');
     expect(hero).toContain("ensureIntroInk()?.(['prewarm']);");
+    expect(hero).toContain('playbackRef.current?.setActive(active && !reducedMotion);');
   });
 
   it('retires both Hero GPU owners when direct-entry handoff makes Hero inactive', () => {

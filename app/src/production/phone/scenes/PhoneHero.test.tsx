@@ -51,39 +51,53 @@ describe('PhoneHero Route B adapter', () => {
     expect(markup).not.toContain('phone-scene--hero');
   });
 
-  it('keeps decoded-poster facts local while the shell arms Hero before Loader handoff', () => {
+  it('[front-half gate] treats a decoded poster as local warm-up only and hands Loader off from the packed canvas post-paint', () => {
     expect(heroSource).toContain('Promise.all([');
     expect(heroSource).toContain('decodeHeroImage(backImage)');
     expect(heroSource).toContain('decodeHeroImage(middleImage)');
     expect(heroSource).toContain('decodeHeroImage(figurePoster)');
     expect(heroSource).toContain("root.dataset.phoneHeroFirstFrame = 'poster-decoded'");
-    expect(heroSource).not.toContain('onFirstFramePrepared');
+    expect(heroSource).toContain('const schedulePackedAlphaPostPaint');
+    expect(heroSource).toContain("visibleRoot.dataset.phoneHeroFirstFrame = 'packed-alpha-post-paint'");
+    const decodedPosterPath = heroSource.slice(
+      heroSource.indexOf("root.dataset.phoneHeroFirstFrame = 'poster-decoded'"),
+      heroSource.indexOf('}).catch(() => {')
+    );
+    expect(decodedPosterPath).not.toContain('onReady?.();');
+    expect(decodedPosterPath).not.toContain('heroPackedFramePresentedRef.current = true;');
     expect(storyShellSource).toContain("active={activeFrontSurface('front:hero')}");
     expect(storyShellSource).not.toContain(
       "active={loaderHidden && activeFrontSurface('front:hero')}"
     );
   });
 
-  it('does not confirm Hero readiness before browser presentation and viewport proof', () => {
-    expect(heroSource).toContain('await nextBrowserPresentation();');
-    expect(heroSource).toContain('if (!visibleInViewport(root) || !visibleInViewport(figurePoster))');
-    expect(heroSource).toContain("root.dataset.phoneHeroFirstFrame = 'presented'");
+  it('[front-half gate] confirms Hero readiness only after a successful packed-alpha draw survives browser presentation', () => {
+    const postPaintPath = heroSource.slice(
+      heroSource.indexOf('const schedulePackedAlphaPostPaint'),
+      heroSource.indexOf('const ensureCompositor')
+    );
+    expect(postPaintPath).toContain('canvas.dataset.packedAlphaFrameReady !== \'true\'');
+    expect(postPaintPath).toContain('void nextBrowserPresentation().then(() => {');
+    expect(postPaintPath).toContain('visibleInViewport(visibleCanvas)');
+    expect(postPaintPath).toContain('heroPackedFramePresentedRef.current = true;');
+    expect(postPaintPath).toContain("visibleRoot.dataset.phoneHeroFirstFrame = 'packed-alpha-post-paint'");
     expect(heroSource).toContain('onReady?.();');
   });
 
-  it('[Task 5] binds the decoded Hero poster to the active presentation token before reporting', () => {
+  it('[Task 5] binds the post-painted Hero canvas to the active presentation token before reporting', () => {
     const boundPresentation = heroSource.slice(
       heroSource.indexOf('const requestPresentedHeroFrame'),
       heroSource.indexOf('const renderEntrance')
     );
     expect(heroSource).toContain('presentPresentation(token, report)');
     expect(heroSource).toContain('requestPresentedHeroFrame();');
-    expect(heroSource).toContain('heroPosterPresentedRef.current = true;');
+    expect(heroSource).toContain('heroPackedFramePresentedRef.current = true;');
     expect(heroSource).toContain('next.report({');
     expect(heroSource).toContain('token: next.token');
     expect(heroSource).toContain('disposePresentation(token)');
     expect(boundPresentation).toContain('visibleInViewport(root)');
-    expect(boundPresentation).not.toContain('visibleInViewport(figurePoster)');
+    expect(boundPresentation).toContain('visibleInViewport(canvas)');
+    expect(boundPresentation).toContain("canvas.dataset.packedAlphaFrameReady !== 'true'");
   });
 
   it('keeps StoryLoader as the only startup visual cover instead of a poster-decoded stage gate', () => {
@@ -98,7 +112,7 @@ describe('PhoneHero Route B adapter', () => {
       '[data-portrait-figure-frame="ready"][data-portrait-figure-alpha="verified"] .portrait-scroll-spike__hero-figure[data-packed-alpha-frame-ready="true"]'
     );
     expect(heroStyles).toContain(
-      '[data-portrait-figure-alpha="verified"] .portrait-scroll-spike__hero-figure-poster'
+      '[data-portrait-figure-frame="ready"][data-portrait-figure-alpha="verified"]:has(.portrait-scroll-spike__hero-figure[data-packed-alpha-frame-ready="true"]) .portrait-scroll-spike__hero-figure-poster'
     );
     expect(heroStyles).toContain('visibility: hidden;');
   });

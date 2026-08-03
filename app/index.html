@@ -61,38 +61,6 @@
             documentElement.dataset.phoneStoryFallback = 'startup-timeout';
             documentElement.style.removeProperty('--portrait-document-surface');
           }, 4_000);
-          const completed = sessionStorage.getItem('tongye:portrait-spike:v16:loader-complete') === 'true';
-          const hiddenAt = Number(sessionStorage.getItem('tongye:portrait-spike:v16:hidden-at'));
-          const age = Date.now() - hiddenAt;
-          const navigation = performance.getEntriesByType?.('navigation')?.[0];
-          const manuallyReloaded = navigation?.type === 'reload'
-            || performance.navigation?.type === 1;
-          if (
-            manuallyReloaded
-            && completed
-            && hiddenAt > 0
-            && age >= 0
-            && age < 30 * 60 * 1000
-          ) {
-            const resumeHash = sessionStorage.getItem(
-              'tongye:portrait-spike:v16:resume-hash'
-            );
-            if (resumeHash && /^#[a-z0-9-]+$/.test(resumeHash)) {
-              history.replaceState(
-                history.state,
-                '',
-                `${location.pathname}${location.search}${resumeHash}`
-              );
-              documentElement.dataset.portraitResumeHash = resumeHash;
-            }
-            documentElement.dataset.portraitLoaderResume = 'skip';
-            sessionStorage.removeItem('tongye:portrait-spike:v16:hidden-at');
-          } else if (manuallyReloaded) {
-            // A visible manual refresh has no recent hidden marker and still
-            // owns the cold Loader. Safari lock-screen reloads reach the
-            // recovery branch above before this navigation-type diagnostic.
-            sessionStorage.removeItem('tongye:portrait-spike:v16:hidden-at');
-          }
         }
       } catch {}
     </script>

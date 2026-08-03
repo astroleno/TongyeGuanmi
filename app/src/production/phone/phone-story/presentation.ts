@@ -53,7 +53,8 @@ export type PhoneEdgeScene =
   | 'crane'
   | 'contact';
 
-export const PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#8f7f61';
+/** Pattern's route backing must be its real painted base, never a nearby tint. */
+export const PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#d9c08f';
 
 export const PHONE_EDGE_SURFACE_BY_SCENE: Readonly<
   Record<PhoneEdgeScene, string>

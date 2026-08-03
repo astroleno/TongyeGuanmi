@@ -7,10 +7,7 @@ import {
 } from 'react';
 import type { PhoneCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
-import {
-  attachPhoneLoaderVisibilityLifecycle,
-  phoneLoaderCompletedInDocument
-} from './phone-loader-lifecycle';
+import { phoneLoaderCompletedInDocument } from './phone-loader-lifecycle';
 import {
   phoneStoryEntrySceneFromHash
 } from './phone-entry-plan';
@@ -94,11 +91,6 @@ export function usePhoneStoryEntryLifecycle(
     if (!admissionScene) return;
     requestPhoneRuntimeDirectEntry(orchestrator, admissionScene, 'initial');
   }, [directAdmissionOpen, entryScene, orchestrator]);
-
-  useEffect(() => {
-    if (entryScene) return;
-    return attachPhoneLoaderVisibilityLifecycle();
-  }, [entryScene]);
 
   useEffect(() => {
     const documentElement = document.documentElement;

@@ -25,7 +25,11 @@ const phoneFigure2MediaPlan = (
     phoneFigure2MediaPlan?: (
       snapshot: PhoneCinematicSnapshot,
       reducedMotion: boolean
-    ) => readonly ['idle' | 'static' | 'seek', number, 1 | -1 | null];
+    ) => readonly [
+      'idle' | 'static' | 'seek',
+      number,
+      'forward' | 'endpoint' | null
+    ];
   }>
 ).phoneFigure2MediaPlan;
 
@@ -122,14 +126,14 @@ describe('PhoneFigure2', () => {
       scene: 'figure2-animation',
       scrollCorridor: 'method-grade-a',
       scrollProgress: .36
-    }), false)).toEqual(['seek', .5, null]);
+    }), false)).toEqual(['seek', .5, 'forward']);
     expect(phoneFigure2MediaPlan(cinematicSnapshot({
       status: 'transaction',
       run: 'method-figure2',
       direction: 1,
       phase: 'preparing',
       progress: 0
-    }), false)).toEqual(['seek', 0, 1]);
+    }), false)).toEqual(['seek', 0, 'forward']);
     expect(phoneFigure2MediaPlan(cinematicSnapshot({
       scene: 'figure2-proof',
       status: 'transaction',
@@ -137,13 +141,14 @@ describe('PhoneFigure2', () => {
       direction: -1,
       phase: 'animating',
       progress: .45
-    }), false)).toEqual(['seek', 1, -1]);
+    }), false)).toEqual(['seek', 1, 'endpoint']);
     expect(phoneFigure2MediaPlan(cinematicSnapshot({
       status: 'transaction',
       run: 'method-figure2',
       direction: 1,
       phase: 'preparing',
       progress: 0
-    }), true)).toEqual(['static', 0, 1]);
+    }), true)).toEqual(['static', 0, 'endpoint']);
   });
+
 });

@@ -138,7 +138,8 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     const textRevealFrameRef = useRef<number | undefined>(undefined);
     const sceneActiveRef = useRef(false);
     const adapterReadyRef = useRef(false);
-    const heroPosterPresentedRef = useRef(false);
+    const heroPackedFramePresentedRef = useRef(false);
+    const packedAlphaPostPaintScheduledRef = useRef(false);
     const presentationBindingRef = useRef<Readonly<{
       token: PresentationToken;
       report: (frame: PhoneRenderedPresentationFrame) => void;
@@ -153,6 +154,8 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       if (!compositor) return;
       compositor.dispose();
       compositorRef.current = undefined;
+      heroPackedFramePresentedRef.current = false;
+      packedAlphaPostPaintScheduledRef.current = false;
       if (canvas) figureCanvasRef.current = renewPackedAlphaCanvas(canvas);
     }, []);
     const releaseGpuOwners = useCallback(() => {
@@ -160,26 +163,6 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       introInkRef.current?.(['dispose']);
       introInkRef.current = undefined;
     }, [releaseCompositor]);
-    const ensureCompositor = useCallback(() => {
-      if (reducedMotion) return undefined;
-      if (compositorRef.current) return compositorRef.current;
-      const figureVideo = figureVideoRef.current;
-      const figureCanvas = figureCanvasRef.current;
-      const figureParallax = figureParallaxRef.current;
-      if (!figureVideo || !figureCanvas || !figureParallax) return undefined;
-      const compositor = createPackedAlphaVideoCompositor({
-        video: figureVideo,
-        canvas: figureCanvas,
-        onFrame: () => {
-          figureVideo.dataset.portraitFigureAlpha = 'verified';
-          figureParallax.dataset.portraitFigureAlpha = 'verified';
-          figureParallax.dataset.portraitFigureFrame = 'ready';
-        }
-      });
-      compositor.setActive(sceneActiveRef.current);
-      compositorRef.current = compositor;
-      return compositor;
-    }, [reducedMotion]);
     const storyRoot = useCallback(() => (
       rootRef.current?.closest<HTMLElement>('.portrait-scroll-spike') ?? rootRef.current
     ), []);
@@ -217,18 +200,23 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     }, [cancelTextRevealFrame]);
     const requestPresentedHeroFrame = useCallback(() => {
       const binding = presentationBindingRef.current;
-      if (!binding || binding.scheduled || !heroPosterPresentedRef.current) return;
+      if (!binding || binding.scheduled || !heroPackedFramePresentedRef.current) return;
       const scheduled = { ...binding, scheduled: true } as const;
       presentationBindingRef.current = scheduled;
       void nextBrowserPresentation().then(() => {
         if (presentationBindingRef.current !== scheduled) return;
         const root = rootRef.current;
-        // The initial decoded poster is checked before loader readiness, but
-        // the active packed-alpha canvas may legitimately replace that image
-        // before the candidate token is armed. The token-bound proof is the
-        // new browser frame of the visible Hero root, not the continued DOM
-        // visibility of a retired poster element.
-        if (!root || !visibleInViewport(root)) {
+        const canvas = figureCanvasRef.current;
+        // A decoded poster establishes only a local warm-up fact. The token
+        // can cross the leaf boundary only after this exact packed-alpha
+        // canvas has drawn and survived a browser paint.
+        if (
+          !root
+          || !canvas
+          || canvas.dataset.packedAlphaFrameReady !== 'true'
+          || !visibleInViewport(root)
+          || !visibleInViewport(canvas)
+        ) {
           presentationBindingRef.current = { ...scheduled, scheduled: false };
           return;
         }
@@ -241,6 +229,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         next.report({
           token: next.token,
           frameSequence: next.frameSequence,
+          origin: 'leaf-post-paint',
           observedAt: typeof performance !== 'undefined'
             && typeof performance.now === 'function'
             ? performance.now()
@@ -248,6 +237,65 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         });
       });
     }, []);
+    /**
+     * Loader handoff and initial presentation share this one physical fact:
+     * the active packed-alpha canvas completed a GL draw, then stayed visible
+     * through two browser frames. A decoded poster never reaches either gate.
+     */
+    const schedulePackedAlphaPostPaint = useCallback(() => {
+      if (
+        heroPackedFramePresentedRef.current
+        || packedAlphaPostPaintScheduledRef.current
+      ) return;
+      const root = rootRef.current;
+      const canvas = figureCanvasRef.current;
+      if (!root || !canvas || canvas.dataset.packedAlphaFrameReady !== 'true') return;
+      packedAlphaPostPaintScheduledRef.current = true;
+      void nextBrowserPresentation().then(() => {
+        packedAlphaPostPaintScheduledRef.current = false;
+        const visibleRoot = rootRef.current;
+        const visibleCanvas = figureCanvasRef.current;
+        if (
+          !adapterReadyRef.current
+          || !sceneActiveRef.current
+          || heroPackedFramePresentedRef.current
+          || !visibleRoot
+          || !visibleCanvas
+          || visibleCanvas.dataset.packedAlphaFrameReady !== 'true'
+          || !visibleInViewport(visibleRoot)
+          || !visibleInViewport(visibleCanvas)
+        ) {
+          if (visibleRoot && adapterReadyRef.current) {
+            visibleRoot.dataset.phoneHeroFirstFrame = 'packed-alpha-not-presented';
+          }
+          return;
+        }
+        heroPackedFramePresentedRef.current = true;
+        visibleRoot.dataset.phoneHeroFirstFrame = 'packed-alpha-post-paint';
+        requestPresentedHeroFrame();
+        onReady?.();
+      });
+    }, [onReady, requestPresentedHeroFrame]);
+    const ensureCompositor = useCallback(() => {
+      if (compositorRef.current) return compositorRef.current;
+      const figureVideo = figureVideoRef.current;
+      const figureCanvas = figureCanvasRef.current;
+      const figureParallax = figureParallaxRef.current;
+      if (!figureVideo || !figureCanvas || !figureParallax) return undefined;
+      const compositor = createPackedAlphaVideoCompositor({
+        video: figureVideo,
+        canvas: figureCanvas,
+        onFrame: () => {
+          figureVideo.dataset.portraitFigureAlpha = 'verified';
+          figureParallax.dataset.portraitFigureAlpha = 'verified';
+          figureParallax.dataset.portraitFigureFrame = 'ready';
+          schedulePackedAlphaPostPaint();
+        }
+      });
+      compositor.setActive(sceneActiveRef.current);
+      compositorRef.current = compositor;
+      return compositor;
+    }, [schedulePackedAlphaPostPaint]);
     const renderEntrance = useCallback((rawProgress: number) => {
       const root = rootRef.current;
       const cue = cueRef.current;
@@ -346,62 +394,47 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         decodeHeroImage(backImage),
         decodeHeroImage(middleImage),
         decodeHeroImage(figurePoster)
-      ]).then(async () => {
+      ]).then(() => {
         if (cancelled) return;
-        root.dataset.phoneHeroFirstFrame = 'poster-decoded';
-        // The already-active Hero compositor warms behind StoryLoader. These
-        // frames only establish that the retained opening root can paint; a
-        // decoded poster never controls stage visibility or media ownership.
-        await nextBrowserPresentation();
-        if (cancelled) return;
-        if (!visibleInViewport(root) || !visibleInViewport(figurePoster)) {
-          root.dataset.phoneHeroFirstFrame = 'not-presented';
-          return;
+        // The poster is a retained visual fallback only. It must not replace
+        // the compositor's token-bound draw as the Loader handoff authority.
+        if (!heroPackedFramePresentedRef.current) {
+          root.dataset.phoneHeroFirstFrame = 'poster-decoded';
         }
-        root.dataset.phoneHeroFirstFrame = 'presented';
-        heroPosterPresentedRef.current = true;
-        requestPresentedHeroFrame();
-        onReady?.();
       }).catch(() => {
         if (!cancelled) root.dataset.phoneHeroFirstFrame = 'failed';
       });
       if (reducedMotion) {
         renderHeroProgress(root, 1);
       }
-      if (reducedMotion) {
-        return () => {
-          cancelled = true;
-          adapterReadyRef.current = false;
-          heroPosterPresentedRef.current = false;
-          presentationBindingRef.current = null;
-          cancelEntrance();
-        };
-      }
       const owner = storyRoot() ?? root;
       const playback = createPhoneFigurePlayback(
         figureVideo,
         HERO_FIGURE_PACKED_ALPHA_VIDEO
       );
-      const parallax = attachPhoneDeviceParallax({
-        root: owner,
-        motionDriver,
-        targets: [
-          { element: backParallax, x: 7, y: 5 },
-          { element: middleParallax, x: 14, y: 10 },
-          { element: figureParallax, x: 22, y: 16 }
-        ]
-      });
+      const parallax = reducedMotion
+        ? undefined
+        : attachPhoneDeviceParallax({
+          root: owner,
+          motionDriver,
+          targets: [
+            { element: backParallax, x: 7, y: 5 },
+            { element: middleParallax, x: 14, y: 10 },
+            { element: figureParallax, x: 22, y: 16 }
+          ]
+        });
       playbackRef.current = playback;
       parallaxRef.current = parallax;
 
       return () => {
         cancelled = true;
         adapterReadyRef.current = false;
-        heroPosterPresentedRef.current = false;
+        heroPackedFramePresentedRef.current = false;
+        packedAlphaPostPaintScheduledRef.current = false;
         presentationBindingRef.current = null;
         cancelEntrance();
         sceneActiveRef.current = false;
-        parallax.dispose();
+        parallax?.dispose();
         playback.dispose();
         releaseGpuOwners();
         if (parallaxRef.current === parallax) parallaxRef.current = undefined;
@@ -410,9 +443,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     }, [
       cancelEntrance,
       motionDriver,
-      onReady,
       primeEntrance,
-      requestPresentedHeroFrame,
       reducedMotion,
       releaseGpuOwners,
       storyRoot
@@ -420,9 +451,11 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
 
     useLayoutEffect(() => {
       sceneActiveRef.current = active;
-      if (active && !reducedMotion) {
+      if (active) {
         ensureCompositor()?.setActive(true);
-        ensureIntroInk()?.(['prewarm']);
+        if (!reducedMotion) {
+          ensureIntroInk()?.(['prewarm']);
+        }
       } else {
         compositorRef.current?.setActive(false);
         if (!active) {

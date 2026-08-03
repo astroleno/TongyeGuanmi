@@ -166,7 +166,7 @@ describe('phone preboot ownership', () => {
     }).dataset).toEqual({});
   });
 
-  it('lets recent lock-screen recovery outrank Safari reload diagnostics', () => {
+  it('[front-half gate] never turns a reload into cross-document Loader recovery', () => {
     const result = runPhonePreboot({
       enabled: true,
       width: 390,
@@ -180,13 +180,17 @@ describe('phone preboot ownership', () => {
       }
     });
 
-    expect(result.dataset.portraitLoaderResume).toBe('skip');
-    expect(result.dataset.portraitResumeHash).toBe('#brand');
-    expect(result.replacedUrls).toEqual(['/?v=47#brand']);
-    expect(result.storage.has('tongye:portrait-spike:v16:hidden-at')).toBe(false);
+    expect(result.dataset.portraitLoaderResume).toBeUndefined();
+    expect(result.dataset.portraitResumeHash).toBeUndefined();
+    expect(result.replacedUrls).toEqual([]);
+    expect(result.storage).toEqual(new Map([
+      ['tongye:portrait-spike:v16:loader-complete', 'true'],
+      ['tongye:portrait-spike:v16:hidden-at', expect.any(String)],
+      ['tongye:portrait-spike:v16:resume-hash', '#brand']
+    ]));
   });
 
-  it('does not mistake a fresh navigation for lock-screen recovery', () => {
+  it('does not inspect stored Loader state on a fresh navigation', () => {
     const result = runPhonePreboot({
       enabled: true,
       width: 390,

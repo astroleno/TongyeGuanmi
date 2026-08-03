@@ -45,9 +45,9 @@ const FIGURE2_ENDPOINT_SECONDS = 2.6;
 const FIGURE2_DOCUMENT_PROGRESS_END = .72;
 
 export type PhoneFigure2MediaPlan = readonly [
-  mode: 'idle' | 'static' | 'seek',
-  progress: number,
-  transactionDirection: 1 | -1 | null
+  io: 'idle' | 'static' | 'seek',
+  semanticProgress: number,
+  surfaceMode: PhonePackedAlphaSurfaceMode | null
 ];
 
 function clamp(value: number): number {
@@ -71,7 +71,7 @@ export function phoneFigure2MediaPlan(
     ,
     ,
     run,
-    direction,
+    ,
     ,
     ,
     ,
@@ -82,18 +82,19 @@ export function phoneFigure2MediaPlan(
     scrollCorridor,
     scrollProgress
   ] = snapshot;
-  const mode = reducedMotion ? 'static' : 'seek';
+  const io = reducedMotion ? 'static' : 'seek';
+  const surfaceMode = reducedMotion ? 'endpoint' : 'forward';
 
   if (status === 'transaction') {
-    if (run === 'method-figure2') return [mode, 0, direction];
-    if (run === 'figure2-proof') return [mode, 1, direction];
+    if (run === 'method-figure2') return [io, 0, surfaceMode];
+    if (run === 'figure2-proof') return [io, 1, 'endpoint'];
     return ['idle', 0, null];
   }
   if (semanticScene !== 'figure2-animation') return ['idle', 0, null];
   const progress = scrollCorridor === 'method-grade-a'
     ? clamp(scrollProgress / FIGURE2_DOCUMENT_PROGRESS_END)
     : 0;
-  return [mode, progress, null];
+  return [io, progress, surfaceMode];
 }
 
 type PhoneFigure2StaticPresentationBinding = {
@@ -143,8 +144,6 @@ export const PhoneFigure2 = forwardRef<
   const rootRef = useRef<HTMLElement | null>(null);
   const packedSurfaceRef = useRef<PhonePackedAlphaSurface | undefined>(undefined);
   const sceneActiveRef = useRef(false);
-  const scrollProgressRef = useRef(0);
-  const scrollDirectionRef = useRef<1 | -1>(1);
   const presentationBindingRef = useRef<Readonly<{
     token: PresentationToken;
     key: string;
@@ -165,10 +164,7 @@ export const PhoneFigure2 = forwardRef<
     next.report({
       token: next.token,
       frameSequence: next.frameSequence,
-      observedAt: typeof performance !== 'undefined'
-        && typeof performance.now === 'function'
-        ? performance.now()
-        : 0
+      observedAt: performance.now()
     });
   }, []);
   const releaseStaticPresentation = useCallback((
@@ -231,10 +227,7 @@ export const PhoneFigure2 = forwardRef<
         binding.report(phoneFigure2StaticPresentationFrame(
           binding.token,
           binding.frameSequence,
-          typeof performance !== 'undefined'
-            && typeof performance.now === 'function'
-            ? performance.now()
-            : 0
+          performance.now()
         ));
       });
     });
@@ -245,9 +238,7 @@ export const PhoneFigure2 = forwardRef<
     packedSurfaceRef.current?.(['release']);
     if (root) parkFigure2Media(root);
   }, []);
-  const ensurePackedSurface = useCallback((
-    mode: PhonePackedAlphaSurfaceMode = 'forward'
-  ) => {
+  const ensurePackedSurface = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
     const root = rootRef.current;
     const video = root?.querySelector<HTMLVideoElement>(
       '[data-figure2-combined-video]'
@@ -304,28 +295,21 @@ export const PhoneFigure2 = forwardRef<
     }
   }, []);
   const applyMediaPlan = useCallback(([
-    mode,
-    progress,
-    transactionDirection
+    io,
+    semanticProgress,
+    surfaceMode
   ]: PhoneFigure2MediaPlan) => {
     const root = rootRef.current;
-    if (!root || !sceneActiveRef.current || mode === 'idle') return;
-    if (mode === 'static' || staticPresentationBindingRef.current) {
-      scrollProgressRef.current = 0;
+    if (!root || !sceneActiveRef.current || io === 'idle') return;
+    if (io === 'static' || staticPresentationBindingRef.current) {
       return void renderFigure2Hold(root);
     }
-    const previous = scrollProgressRef.current;
-    const direction = transactionDirection
-      ?? (progress > previous ? 1 : progress < previous ? -1 : scrollDirectionRef.current);
-    scrollDirectionRef.current = direction;
-    scrollProgressRef.current = progress;
-    ensurePackedSurface();
-    renderFigure2AnimationProgress(root, progress, {
+    ensurePackedSurface(surfaceMode ?? 'forward');
+    renderFigure2AnimationProgress(root, semanticProgress, {
       videoMode: 'seek',
-      mediaRun: {
-        runId: 'f2',
-        direction
-      }
+      // Scroll sampling owns one canonical 0 → 2.6s seek surface, even
+      // while the physical viewport jitters in the reverse direction.
+      mediaRun: { runId: 'figure2-scroll', direction: 1 }
     });
   }, [ensurePackedSurface]);
 
@@ -385,11 +369,12 @@ export const PhoneFigure2 = forwardRef<
     root: () => rootRef.current,
     async prepareTargetPresentation({
       progress,
+      direction,
       signal,
       directEntry,
       presentationToken
     }) {
-      const mode = progress >= 0.999 ? 'endpoint' : 'forward';
+      const mode = direction === -1 || progress >= .999 ? 'endpoint' : 'forward';
       const surface = ensurePackedSurface(mode);
       if (!surface) {
         throw new Error('Figure2 unavailable');
@@ -429,7 +414,10 @@ export const PhoneFigure2 = forwardRef<
         frameSequence: 0,
         report
       };
-      const surface = packedSurfaceRef.current ?? ensurePackedSurface();
+      // A runner/direct-entry preparation owns the target surface mode.
+      // Recreating it here would silently fall back to `forward` and can
+      // undo a Proof → Figure2 endpoint preparation.
+      const surface = packedSurfaceRef.current;
       surface?.(['present', key]);
     },
     disposePresentation(token) {

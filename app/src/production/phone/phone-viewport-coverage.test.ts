@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createPhoneViewportCoverageController,
@@ -5,6 +6,19 @@ import {
   readPhoneLayoutViewport,
   type PhoneViewportWindow
 } from './phone-story/presentation';
+
+const stageRailStyles = readFileSync(
+  new URL('./PhoneStageRail.css', import.meta.url),
+  'utf8'
+);
+const presentationSource = readFileSync(
+  new URL('./phone-story/presentation.ts', import.meta.url),
+  'utf8'
+);
+const patternStyles = readFileSync(
+  new URL('./scenes/PhonePattern.css', import.meta.url),
+  'utf8'
+);
 
 function fixture() {
   const visualViewport = Object.assign(new EventTarget(), {
@@ -45,6 +59,24 @@ function fixture() {
 }
 
 describe('phone live viewport coverage', () => {
+  it('[front-half gate] makes the registered stage canvas an opaque live backing, not a transparent geometry-only proxy', () => {
+    const stageCanvas = stageRailStyles.slice(
+      stageRailStyles.indexOf('.portrait-scroll-spike__stage-canvas {'),
+      stageRailStyles.indexOf('/* The fixed stage warms from mount')
+    );
+
+    expect(stageCanvas).toContain('height: max(100%, var(--portrait-stage-canvas-height));');
+    expect(stageCanvas).toContain('background: var(--portrait-edge-surface);');
+    expect(stageCanvas).not.toContain('background: transparent;');
+  });
+
+  it('[front-half gate] uses Pattern’s actual painted backing color for the route coverage plane', () => {
+    expect(patternStyles).toContain('background: #d9c08f;');
+    expect(presentationSource).toContain("PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#d9c08f'");
+    expect(presentationSource).toContain('pattern: PHONE_PATTERN_TERMINAL_EDGE_SURFACE');
+    expect(presentationSource).not.toContain('#8f7f61');
+  });
+
   it('separates the live four-edge coverage plane from the frozen layout viewport', () => {
     const input = {
       innerWidth: 390,

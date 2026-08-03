@@ -262,6 +262,54 @@ describe('phone transition coordinator', () => {
     expect(frames).toHaveLength(0);
   });
 
+  it('[front-half gate] coalesces every move of one native touch gesture to its latest projected scroll target', () => {
+    const { root, testWindow } = installCoordinatorEnvironment();
+    const frames = new Map<number, () => void>();
+    let frameId = 0;
+    const intents: PhoneIntent[] = [];
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      (intent) => {
+        intents.push(intent);
+        return 'pass-native';
+      },
+      {
+        scrollY: () => testWindow.scrollY,
+        scrollTo: (y) => testWindow.scrollTo(0, y),
+        requestFrame: (callback) => {
+          const id = ++frameId;
+          frames.set(id, callback);
+          return id;
+        },
+        cancelFrame: (id) => frames.delete(id),
+        scrollState: () => ({ revision: 7, corridor: 'front-rail' })
+      }
+    );
+
+    root.dispatch('touchstart', {
+      touches: [{ clientY: 600 }]
+    });
+    for (const clientY of [560, 500, 440]) {
+      root.dispatch('touchmove', {
+        target: null,
+        touches: [{ clientY }],
+        preventDefault: vi.fn(),
+        stopImmediatePropagation: vi.fn()
+      });
+    }
+
+    expect(intents.map(([inputEpoch]) => inputEpoch)).toEqual([1, 1, 1]);
+    expect(frames).toHaveLength(1);
+    const queued = frames.entries().next().value as [number, () => void];
+    frames.delete(queued[0]);
+    queued[1]();
+
+    expect(
+      testWindow.scrollY,
+      'a single Safari gesture must correct to its final move, not only its first move'
+    ).toBe(160);
+  });
+
   it('does not correct a pass-native gesture after the browser already moved', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
     const frames = new Map<number, () => void>();

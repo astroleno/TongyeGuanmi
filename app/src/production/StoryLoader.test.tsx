@@ -71,11 +71,11 @@ describe('StoryLoader', () => {
     expect(html).toContain('data-loader-ink-fallback="true"');
     expect(html).not.toContain('mobile-landscape-entry-static');
     expect(html).toContain('#story-loader-static { display: none !important; }');
-    expect(html).toContain('sessionStorage');
-    expect(html).toContain('portraitLoaderResume');
-    expect(html).toContain('hidden-at');
-    expect(html).toContain('resume-hash');
-    expect(html).toContain('history.replaceState');
+    expect(html).not.toContain('sessionStorage');
+    expect(html).not.toContain('portraitLoaderResume');
+    expect(html).not.toContain('hidden-at');
+    expect(html).not.toContain('resume-hash');
+    expect(html).not.toContain('history.replaceState');
     expect(html).toContain('validationNumber >= 16');
     expect(html).toContain('validationNumber <= 40');
     expect(html).toContain('validationNumber === 42');
@@ -85,11 +85,8 @@ describe('StoryLoader', () => {
     expect(html).toContain('validationNumber === 46');
     expect(html).toContain('validationNumber === 47');
     expect(html).not.toContain('validationNumber === 41');
-    expect(html).toContain("navigation?.type === 'reload'");
-    expect(html).toContain('manuallyReloaded');
-    expect(html.indexOf('manuallyReloaded\n            && completed')).toBeLessThan(
-      html.indexOf('else if (manuallyReloaded)')
-    );
+    expect(html).not.toContain("navigation?.type === 'reload'");
+    expect(html).not.toContain('manuallyReloaded');
     expect(html).toContain("'__PHONE_STORY_PREBOOT_ENABLED__' === 'true'");
     expect(html).toContain("'__PHONE_VALIDATION_PREBOOT_ENABLED__' === 'true'");
     expect(html).toContain("window.matchMedia('(pointer: coarse)').matches");

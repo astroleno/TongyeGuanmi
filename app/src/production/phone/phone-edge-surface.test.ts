@@ -25,7 +25,7 @@ describe('phone edge surface contract', () => {
   });
 
   it('has no validation-route branch in the production edge contract', () => {
-    expect(PHONE_PATTERN_TERMINAL_EDGE_SURFACE).toBe('#8f7f61');
+    expect(PHONE_PATTERN_TERMINAL_EDGE_SURFACE).toBe('#d9c08f');
     expect(PHONE_EDGE_SURFACE_BY_SCENE.pattern).toBe(
       PHONE_PATTERN_TERMINAL_EDGE_SURFACE
     );

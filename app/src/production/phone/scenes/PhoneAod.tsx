@@ -67,17 +67,18 @@ function cancelAodPresentationFrames(binding: PhoneAodPresentationBinding): void
   binding.proofFrame = null;
 }
 
-/** The AOD leaf returns the runner's immutable static endpoint token unchanged. */
-export function phoneAodStaticPresentationFrame(
+/** The AOD leaf returns its runner-issued token unchanged after a physical paint. */
+export function phoneAodPresentationFrame(
   token: PresentationToken,
   frameSequence: number,
-  observedAt: number
+  observedAt: number,
+  origin: 'leaf-static-poster' | 'leaf-post-paint' = 'leaf-static-poster'
 ): PhoneRenderedPresentationFrame {
   return {
     token,
     frameSequence,
     observedAt,
-    origin: 'leaf-static-poster'
+    origin
   };
 }
 
@@ -142,13 +143,13 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         || typeof window === 'undefined'
       ) return;
       // AOD's reduced endpoint is its already-mounted authored DOM scene. It
-      // is rendered in one frame under the exact target token and reported in
-      // the following frame; no autoplay result or dataset can stand in for
-      // this physical static paint.
+      // is rendered at the authored hold (zero), then reported in the
+      // following frame; no autoplay result or dataset can stand in for this
+      // physical static paint.
       binding.paintFrame = window.requestAnimationFrame(() => {
         binding.paintFrame = null;
         if (presentationBindingRef.current !== binding || binding.reported) return;
-        renderRef.current?.(1);
+        renderRef.current?.(0);
         const staticSurface = rootRef.current?.querySelector<HTMLElement>(
           '[data-aod-reveal-surface]'
         );
@@ -159,7 +160,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           if (presentationBindingRef.current !== binding || binding.reported) return;
           binding.reported = true;
           binding.frameSequence += 1;
-          binding.report(phoneAodStaticPresentationFrame(
+          binding.report(phoneAodPresentationFrame(
             binding.token,
             binding.frameSequence,
             performance.now()
@@ -175,8 +176,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       const staticSurface = rootRef.current?.querySelector<HTMLElement>(
         '[data-aod-reveal-surface]'
       );
-      delete rootRef.current?.dataset.phonePresentationFrame;
-      canvas?.removeAttribute('data-phone-presentation-frame');
       delete staticSurface?.dataset.aodStaticPoster;
       if (!compositor) return;
       compositor.dispose();
@@ -201,26 +200,42 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         onFrame: () => {
           const execution = autoplayExecutionRef.current;
           const rendered = renderedFrameRef.current;
-          if (
-            !execution
-            || !rendered
-            || rootRef.current !== root
-            || compositorRef.current !== compositor
-          ) {
-            // AOD can also be the receiver of Star → AOD. That target uses
-            // the regular presentation-adapter binding; an AOD media run may
-            // never duplicate that proof path.
-            if (!execution) requestBoundStaticPresentation();
+          if (rootRef.current !== root || compositorRef.current !== compositor) {
             return;
           }
-          root.dataset.phonePresentationFrame = 'ready';
-          canvas.dataset.phonePresentationFrame = 'ready';
+          // AOD can also be the receiver of Star → AOD or a direct entry.
+          // In full motion its target proof is this actual packed-canvas draw,
+          // not a later DOM-only RAF pair.
+          if (!execution) {
+            const binding = presentationBindingRef.current;
+            const staticSurface = root.querySelector<HTMLElement>(
+              '[data-aod-reveal-surface]'
+            );
+            if (!binding || binding.reported || !staticSurface) return;
+            // The compositor invokes this only after drawing the packed
+            // frame. Defer reducer dispatch by one browser frame so it
+            // cannot synchronously re-enter a React layout projection.
+            staticSurface.dataset.aodStaticPoster = binding.key;
+            binding.reported = true;
+            binding.proofFrame = window.requestAnimationFrame(() => {
+              binding.proofFrame = null;
+              if (presentationBindingRef.current !== binding) return;
+              binding.report(phoneAodPresentationFrame(
+                binding.token,
+                ++binding.frameSequence,
+                performance.now(),
+                'leaf-post-paint'
+              ));
+            });
+            return;
+          }
+          if (!rendered) return;
           reportAodFrame(execution);
         }
       });
       compositorRef.current = compositor;
       return compositor;
-    }, [reducedMotion, reportAodFrame, requestBoundStaticPresentation]);
+    }, [reducedMotion, reportAodFrame]);
     progressListenerRef.current = onAodProgress;
     completeListenerRef.current = onAodComplete;
     frameListenerRef.current = onAodFrame;
@@ -427,10 +442,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         renderedFrameRef.current = false;
         admissionRef.current = [direction === 1 ? 0 : 1, false];
         executionFrameSequenceRef.current = 0;
-        delete rootRef.current?.dataset.phonePresentationFrame;
-        rootRef.current?.querySelector<HTMLElement>(
-          '[data-aod-figure-canvas]'
-        )?.removeAttribute('data-phone-presentation-frame');
         // The execution identity is read from the current runtime refs by
         // the frame callback. Keeping this warmed context avoids Safari
         // allocating a second WebGL canvas during the same AOD handoff.
@@ -458,8 +469,11 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           paintFrame: null,
           proofFrame: null
         };
-        requestBoundStaticPresentation();
-        if (reducedMotion) return;
+        renderRef.current?.(0);
+        if (reducedMotion) {
+          requestBoundStaticPresentation();
+          return;
+        }
         const compositor = ensureCompositor();
         compositor?.setActive(true);
         compositor?.render();
@@ -472,6 +486,12 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         ) {
           cancelAodPresentationFrames(binding);
           presentationBindingRef.current = null;
+          const staticSurface = rootRef.current?.querySelector<HTMLElement>(
+            '[data-aod-reveal-surface]'
+          );
+          if (staticSurface?.dataset.aodStaticPoster === binding.key) {
+            delete staticSurface.dataset.aodStaticPoster;
+          }
         }
       },
       resetAutoplay() {

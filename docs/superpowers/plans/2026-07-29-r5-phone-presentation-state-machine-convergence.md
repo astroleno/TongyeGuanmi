@@ -67,6 +67,78 @@ cursor, surface-role, DOM-rectangle, CSS-number, or late screenshot assertions
 cannot establish that a visible surface was continuously painted, that a media
 timeline advanced once, or that one and only one execution owner drove it.
 
+### Front-half acceptance reset — 2026-08-02
+
+`adf1e18` is a **local Method → Figure2 → Proof checkpoint**, not a safe
+integration baseline. Its browser case begins at `#method`, so it cannot
+establish the integrity of `Loading → Hero → Pattern → Star Map → AOD`.
+The formal route remains implementation **NO-GO** until the following
+front-half precondition closes. Freeze Figure2 and every later ledger while
+this precondition is active.
+
+The root causes are distinct but share the same invalid acceptance model:
+
+1. A manual reload hides the previous document, which persists `hidden-at`.
+   The new document treats that timestamp as background recovery and skips the
+   Loader. A new document must never infer recovery from `unload`,
+   `pagehide`, `visibilitychange`, or a persisted timestamp. Background/
+   foreground recovery belongs to the already-live authority; a normal root
+   reload is a fresh cold Loader run.
+2. Hero readiness currently follows decoded poster presentation. That is not
+   proof that the packed-alpha compositor—the surface exposed after Loader—is
+   painted. Loader exit must wait for the same visible compositor's exact
+   post-paint first frame; the poster may preload but cannot satisfy startup
+   readiness.
+3. The coverage assertion checks transparent host geometry instead of final
+   pixels. The top-level coverage host must continuously paint the dynamic
+   visual viewport behind content, and each stable surface must declare a
+   matching backing surface. A transparent canvas, its CSS dimensions, or a
+   z-index number is not coverage evidence.
+4. One touch sequence may contain many `touchmove` samples and following
+   native momentum. A per-epoch one-shot correction cannot be the scroll
+   contract: the coordinator must coalesce to the latest projected target
+   throughout that gesture while retaining one input epoch.
+
+Before any product change, add three known-red gates in existing test files:
+
+1. **Manual refresh Loader gate:** complete a genuine cold `/` run, invoke a
+   real reload, and observe a fresh Loader pixel/DOM phase before Hero. It
+   must fail if `portraitLoaderResume=skip` is derived from a hidden timestamp.
+2. **Dynamic viewport pixel gate:** at mobile viewport size, sample real
+   screenshot pixels in the bottom live-viewport band during stable Hero and
+   Pattern. Reject exposed document white and a Pattern backing colour that
+   differs from the declared Pattern surface; do not accept a transparent
+   stage-canvas rectangle as evidence.
+3. **Continuous touch gate:** issue one `touchstart`, multiple ordered
+   `touchmove`s, then a same-epoch native momentum/scroll sample. Require each
+   projected movement to remain effective and the front rail to advance rather
+   than creating new one-move gestures.
+
+The dynamic-viewport pixel gate is a **physical Safari gate**. WebKit engine
+emulation or `page.setViewportSize()` is useful only as a secondary regression
+check: neither exercises Safari's browser-chrome collapse, and a pass there
+does not turn the gate green. Do not replace this condition by assigning
+`window.visualViewport` in page code. If no trusted physical iPhone is
+attached, retain the gate as pending device evidence and do not begin a
+production cutover merely because the simulator passes.
+
+Only after those gates are observed red for the stated causes may the one
+front-half cutover change production code. Its fixed contracts are:
+
+- loader completion is document-scoped; only an in-place foreground resume may
+  retain the running authority;
+- Hero's packed-alpha leaf reports the one visible, token-bound post-paint
+  frame; no poster callback can release Loader;
+- the route coverage host paints the live viewport with the current declared
+  surface beneath local content layers;
+- one touch epoch uses a cancellable, latest-target native correction and
+  keeps its momentum attribution until the gesture window closes.
+
+The green gate is a fresh root-route journey through
+`Loading → Hero → Pattern → Star Map → AOD`, with every hold checked for
+machine state, input state, and rendered pixels. A local `#method` result
+cannot waive this precondition or reactivate the Figure2 ledger.
+
 ### Current execution-authority audit
 
 | Affected chain | Confirmed symptom | Current split writer / discontinuity | Required ownership after cutover |
@@ -94,10 +166,12 @@ only after its named gates are green.
 
 The only permitted order is:
 
-1. Hero + Star Map continuous opening execution.
-2. AOD → Method first-intent execution.
-3. Method → Figure2 → Proof single-media-writer execution.
-4. Re-run qualification; only then consider CDN/release/device work.
+1. Front-half acceptance reset: Loader/reload, real viewport pixels, and one
+   continuous touch/momentum sequence.
+2. Hero + Star Map continuous opening execution.
+3. AOD → Method first-intent execution.
+4. Method → Figure2 → Proof single-media-writer execution.
+5. Re-run qualification; only then consider CDN/release/device work.
 
 ### Task 8: Install the execution-regression gates before product changes
 

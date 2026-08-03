@@ -239,7 +239,7 @@ function compositedLuminanceRange(
 
 const PHONE_HOLD_CONTRACTS = {
   hero: { checkpoint: 'hero-entered', edge: 'hero', edgeSurface: '#07110e', stageOwner: 'front', stageScene: 'hero' },
-  pattern: { checkpoint: 'pattern-complete', edge: 'pattern', edgeSurface: '#8f7f61', stageOwner: 'front', stageScene: 'pattern' },
+  pattern: { checkpoint: 'pattern-complete', edge: 'pattern', edgeSurface: '#d9c08f', stageOwner: 'front', stageScene: 'pattern' },
   'star-map': { checkpoint: 'star-map-reading', edge: 'star', edgeSurface: '#06100d', stageOwner: 'front', stageScene: 'star-map' },
   'aod-animation': { checkpoint: 'aod-stage', edge: 'aod', edgeSurface: '#ede4d2', stageOwner: 'front', stageScene: 'aod-animation' },
   'method-top': { checkpoint: 'method-intro', edge: 'method', edgeSurface: '#ede4d2', stageOwner: 'native', stageScene: 'none' },
@@ -573,6 +573,42 @@ async function touchPhone(page: Page, deltaY: number): Promise<void> {
     dispatch('touchmove', [point(startY - inputDelta)]);
     dispatch('touchend', []);
   }, deltaY);
+}
+
+async function touchPhoneSequence(
+  page: Page,
+  deltas: readonly number[]
+): Promise<void> {
+  await page.evaluate((inputDeltas) => {
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    if (!root) throw new Error('Phone authority root unavailable for touch input');
+    const clientX = 195;
+    const startY = 650;
+    const point = (clientY: number) => ({
+      identifier: 1,
+      target: root,
+      clientX,
+      clientY,
+      pageX: clientX + window.scrollX,
+      pageY: clientY + window.scrollY,
+      screenX: clientX,
+      screenY: clientY
+    });
+    const dispatch = (type: 'touchstart' | 'touchmove' | 'touchend', touches: object[]) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, {
+        touches: { value: touches },
+        targetTouches: { value: touches },
+        changedTouches: { value: touches }
+      });
+      root.dispatchEvent(event);
+    };
+    dispatch('touchstart', [point(startY)]);
+    for (const deltaY of inputDeltas) {
+      dispatch('touchmove', [point(startY - deltaY)]);
+    }
+    dispatch('touchend', []);
+  }, [...deltas]);
 }
 
 async function inputPhoneDelta(page: Page, deltaY: number): Promise<void> {
@@ -2391,6 +2427,54 @@ test('[P0 real root] a cold physical-phone root mounts only the phone authority'
   });
 });
 
+test('[front-half gate] a manual root reload begins a new visible cold Loader run', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/', { waitUntil: 'commit' });
+  const loader = page.locator(LIVE_STORY_LOADER);
+  await expect(loader).toBeVisible();
+  await expect.poll(async () => loader.count()).toBe(0);
+
+  await page.reload({ waitUntil: 'commit' });
+  await expect(
+    loader,
+    'a user refresh is a new document: it must not infer resume=skip from the previous document becoming hidden'
+  ).toBeVisible();
+  await expect(loader).toHaveAttribute('data-loader-status', 'running');
+  await expect(page.locator(LIVE_PHONE_ROOT)).toHaveAttribute(
+    'data-portrait-loader-ready',
+    'false'
+  );
+  await expect.poll(async () => page.evaluate(() => (
+    document.documentElement.dataset.portraitLoaderResume ?? null
+  ))).not.toBe('skip');
+});
+
+test('[front-half gate] one continuous WebKit touch gesture reaches its final native scroll target', async ({ page }) => {
+  test.setTimeout(60_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/', 'hero');
+  const beforeY = await page.evaluate(() => window.scrollY);
+
+  await touchPhoneSequence(page, [40, 100, 160]);
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  }));
+
+  const after = await page.evaluate(() => ({
+    scrollY: window.scrollY,
+    cursor: document.querySelector<HTMLElement>('[data-phone-authority-id]')?.dataset.phoneCursor ?? null,
+    input: document.querySelector<HTMLElement>('[data-phone-authority-id]')?.dataset.phoneInput ?? null
+  }));
+  expect(
+    after.scrollY - beforeY,
+    `one touchstart with three moves must retain its latest target: ${JSON.stringify(after)}`
+  ).toBeGreaterThanOrEqual(150);
+  expect(after.cursor).toBe('hold:hero');
+  expect(after.input).toBe('free');
+});
+
 test('[execution topology] Loader covers an already-warming Hero stage before poster readiness', async ({ page }) => {
   test.setTimeout(30_000);
   await page.goto('/', { waitUntil: 'commit' });
@@ -2530,8 +2614,94 @@ test('[execution regression] Star Map advances real Perlin frames while its stab
     'stable Star Map must change final canvas pixels while its renderer is active'
   ).toBeGreaterThan(0);
 
+  await page.evaluate(() => {
+    const target = window as typeof window & {
+      __starAodAdmissionProbe?: {
+        samples: Array<{
+          cursor: string | null;
+          sourceVisible: boolean;
+          targetCanvasProof: boolean;
+        }>;
+        stop(): void;
+      };
+    };
+    let sampling = true;
+    const samples: Array<{
+      cursor: string | null;
+      sourceVisible: boolean;
+      targetCanvasProof: boolean;
+    }> = [];
+    const sample = () => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      const source = document.querySelector<HTMLElement>(
+        '.portrait-scroll-spike__scene--star'
+      );
+      const targetSurface = document.querySelector<HTMLElement>(
+        '[data-aod-reveal-surface]'
+      );
+      const cursor = root?.dataset.phoneCursor ?? null;
+      const phase = root?.dataset.phoneTransitionPhase ?? null;
+      if (
+        cursor === 'transition:star-aod-scroll:0'
+        || phase === 'verifying-target'
+      ) {
+        const style = source ? getComputedStyle(source) : null;
+        samples.push({
+          cursor,
+          sourceVisible: Boolean(
+            source
+            && source.dataset.phoneSurfaceRole === 'transition-source'
+            && style?.visibility !== 'hidden'
+            && Number.parseFloat(style?.opacity ?? '0') > .01
+          ),
+          targetCanvasProof: Boolean(targetSurface?.dataset.aodStaticPoster)
+        });
+      }
+      if (sampling) window.requestAnimationFrame(sample);
+    };
+    target.__starAodAdmissionProbe = {
+      samples,
+      stop() {
+        sampling = false;
+      }
+    };
+    window.requestAnimationFrame(sample);
+  });
   await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
   await assertStablePhoneHold(page, 'aod-animation');
+  const aodAdmission = await page.evaluate(() => {
+    const target = window as typeof window & {
+      __starAodAdmissionProbe?: {
+        samples: Array<{
+          cursor: string | null;
+          sourceVisible: boolean;
+          targetCanvasProof: boolean;
+        }>;
+        stop(): void;
+      };
+    };
+    const probe = target.__starAodAdmissionProbe;
+    probe?.stop();
+    const transition = document.querySelector<HTMLElement>('[data-aod-transition]');
+    return {
+      samples: probe?.samples ?? [],
+      holdProgress: transition?.dataset.portraitAodBackdropProgress ?? null
+    };
+  });
+  expect(aodAdmission.holdProgress).toBe('0.0000');
+  expect(aodAdmission.samples).not.toEqual([]);
+  expect(
+    aodAdmission.samples.every((sample) => (
+      sample.targetCanvasProof || sample.sourceVisible
+    )),
+    `Star source retired before AOD's exact canvas proof: ${JSON.stringify(aodAdmission.samples)}`
+  ).toBe(true);
+  const aodFrame = decodePngScreenshot(await page.screenshot());
+  const aodRegion = { left: .08, top: .08, right: .92, bottom: .92 } as const;
+  expect(
+    compositedLuminanceRange(aodFrame, aodRegion),
+    'AOD hold must expose its authored packed canvas/cloud/sun content, not an empty paper endpoint'
+  ).toBeGreaterThan(12);
   const inactiveRevision = Number.parseInt(
     await canvas.getAttribute('data-portrait-star-perlin-revision') ?? '0',
     10
@@ -2774,6 +2944,113 @@ test('[execution regression] Method landing starts Figure2 playback before the P
       JSON.stringify(playheads, null, 2)
     ).toMatch(/^(retained-under-stage|retired)$/);
   }
+});
+
+test('[P0 Figure2 scroll] reverse jitter stays on the canonical forward half and Proof return keeps its endpoint', async ({ page }) => {
+  test.setTimeout(180_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/', 'hero');
+  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
+  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
+  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await driveAdjacentPhoneRun(page, 'aod-animation', 'method-top', 1, 70_000);
+  await driveAdjacentPhoneRun(page, 'method-top', 'figure2-animation', 1, 70_000);
+  await assertStablePhoneHold(page, 'figure2-animation');
+  await waitForNewWheelEpoch(page);
+
+  const scrollSamples: Array<{
+    direction: string | null;
+    generation: string | null;
+    target: number | null;
+    run: string | null;
+  }> = [];
+  for (const deltaY of [150, -2, 2]) {
+    await inputPhoneDelta(page, deltaY);
+    await page.waitForTimeout(100);
+    scrollSamples.push(await page.evaluate(() => {
+      const video = document.querySelector<HTMLVideoElement>(
+        '[data-figure2-combined-video]'
+      );
+      const target = Number.parseFloat(video?.dataset.timelineVideoTarget ?? '');
+      return {
+        direction: video?.dataset.timelineVideoDirection ?? null,
+        generation: video?.dataset.timelineVideoGeneration ?? null,
+        target: Number.isFinite(target) ? target : null,
+        run: video?.dataset.timelineVideoRun ?? null
+      };
+    }));
+  }
+  expect(scrollSamples.every((sample) => sample.direction === '1')).toBe(true);
+  expect(scrollSamples.every((sample) => sample.run === 'figure2-scroll')).toBe(true);
+  expect([...new Set(scrollSamples.map((sample) => sample.generation))]).toHaveLength(1);
+  expect(scrollSamples.every((sample) => (
+    sample.target !== null && sample.target >= 0 && sample.target < 2.6
+  ))).toBe(true);
+
+  await driveAdjacentPhoneRun(page, 'figure2-animation', 'figure2-proof', 1, 70_000);
+  await page.evaluate(() => {
+    const target = window as typeof window & {
+      __proofFigure2EndpointProbe?: {
+        samples: Array<{
+          currentTime: number | null;
+          cursor: string | null;
+          direction: string | null;
+        }>;
+        stop(): void;
+      };
+    };
+    let sampling = true;
+    const samples: Array<{
+      currentTime: number | null;
+      cursor: string | null;
+      direction: string | null;
+    }> = [];
+    const sample = () => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      const video = document.querySelector<HTMLVideoElement>(
+        '[data-figure2-combined-video]'
+      );
+      if (
+        root?.dataset.phoneCursor === 'transition:figure2-proof:0'
+        && root.dataset.phoneTransitionDirection === '-1'
+      ) {
+        samples.push({
+          currentTime: video ? video.currentTime : null,
+          cursor: root.dataset.phoneCursor,
+          direction: root.dataset.phoneTransitionDirection
+        });
+      }
+      if (sampling) window.requestAnimationFrame(sample);
+    };
+    target.__proofFigure2EndpointProbe = {
+      samples,
+      stop() {
+        sampling = false;
+      }
+    };
+    window.requestAnimationFrame(sample);
+  });
+  await driveAdjacentPhoneRun(page, 'figure2-proof', 'figure2-animation', -1, 70_000);
+  const endpointSamples = await page.evaluate(() => {
+    const target = window as typeof window & {
+      __proofFigure2EndpointProbe?: {
+        samples: Array<{
+          currentTime: number | null;
+          cursor: string | null;
+          direction: string | null;
+        }>;
+        stop(): void;
+      };
+    };
+    const probe = target.__proofFigure2EndpointProbe;
+    probe?.stop();
+    return probe?.samples ?? [];
+  });
+  expect(endpointSamples).not.toEqual([]);
+  expect(
+    endpointSamples.some((sample) => sample.currentTime !== null && sample.currentTime >= 2.5),
+    `Proof → Figure2 must retain its packed endpoint preparation: ${JSON.stringify(endpointSamples)}`
+  ).toBe(true);
 });
 
 test('[P0 real root pixels] cold Loader paints and changes compositor pixels', async ({ page }) => {

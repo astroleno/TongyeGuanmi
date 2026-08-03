@@ -243,10 +243,10 @@ describe('Route B proven front-half migration contract', () => {
     expect(heroSource).toContain('const ensureIntroInk = useCallback(() => {');
     expect(heroSource).toContain("ensureIntroInk()?.(['render', sample.progress]);");
     expect(heroSource).toContain("ensureIntroInk()?.(['prewarm']);");
-    const heroPrimeIndex = heroSource.indexOf('renderEntrance(0);');
-    const heroReadyIndex = heroSource.indexOf('onReady?.();', heroPrimeIndex);
-    expect(heroPrimeIndex).toBeGreaterThan(0);
-    expect(heroReadyIndex).toBeGreaterThan(heroPrimeIndex);
+    const heroPostPaintIndex = heroSource.indexOf('const schedulePackedAlphaPostPaint');
+    const heroReadyIndex = heroSource.indexOf('onReady?.();', heroPostPaintIndex);
+    expect(heroPostPaintIndex).toBeGreaterThan(0);
+    expect(heroReadyIndex).toBeGreaterThan(heroPostPaintIndex);
     expect(runtimeSource).toContain('heroAdapter.startEntrance()');
     for (const css of [heroCss, patternCss, starCss]) {
       expect(css).toContain('var(--portrait-readable-bottom-offset)');
@@ -275,7 +275,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(patternCss).not.toContain('portrait-scroll-spike__pattern-motion::after');
     expect(patternCss).not.toContain('data-phone-validation-mode="v47"');
     expect(edgeSurfaceSource).toContain(
-      "PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#8f7f61'"
+      "PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#d9c08f'"
     );
     expect(patternSource).toContain('centerForViewport: () => PATTERN_CENTER');
     expect(aodCss).toContain('--portrait-aod-bottom-mist-background');

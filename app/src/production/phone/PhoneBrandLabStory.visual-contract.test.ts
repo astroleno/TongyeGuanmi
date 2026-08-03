@@ -58,6 +58,10 @@ const aodSceneSource = readFileSync(
   new URL('./scenes/PhoneAod.tsx', import.meta.url),
   'utf8'
 );
+const figure2SceneSource = readFileSync(
+  new URL('./scenes/PhoneFigure2.tsx', import.meta.url),
+  'utf8'
+);
 const methodStyles = readFileSync(
   new URL('./scenes/PhoneMethodTop.css', import.meta.url),
   'utf8'
@@ -222,16 +226,53 @@ describe('Phone Brand → Lab visual contracts', () => {
       aodSceneSource.indexOf('disposePresentation(token)')
     );
     expect(aodStaticTargetProof).toContain('phoneRuntimePresentationTokenKey(token)');
-    expect(aodStaticTargetProof).toContain('requestBoundStaticPresentation()');
+    expect(aodStaticTargetProof).toContain('renderRef.current?.(0);');
+    expect(aodStaticTargetProof).toContain('if (reducedMotion) {');
+    expect(aodStaticTargetProof).toContain('requestBoundStaticPresentation();');
+    expect(aodStaticTargetProof).toContain('compositor?.render();');
+    // Both the reduced static proof and the full-motion canvas proof must
+    // describe the authored AOD hold. Star → AOD/direct entry may never
+    // project the AOD→Method exit endpoint before that runner owns playback.
+    expect(aodSceneSource).toContain('renderRef.current?.(0);');
+    expect(aodSceneSource).not.toContain('renderRef.current?.(1);');
     expect(aodSceneSource).toMatch(
-      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?renderRef\.current\?\.\(1\);[\s\S]*?staticSurface\.dataset\.aodStaticPoster\s*=\s*binding\.key;[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodStaticPresentationFrame\(/
+      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?renderRef\.current\?\.\(0\);[\s\S]*?staticSurface\.dataset\.aodStaticPoster\s*=\s*binding\.key;[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodPresentationFrame\(/
     );
+    const aodCompositorFrame = aodSceneSource.slice(
+      aodSceneSource.indexOf('onFrame: () =>'),
+      aodSceneSource.indexOf('compositorRef.current = compositor')
+    );
+    expect(aodCompositorFrame).toContain(
+      'staticSurface.dataset.aodStaticPoster = binding.key;'
+    );
+    expect(aodCompositorFrame).toContain(
+      'binding.proofFrame = window.requestAnimationFrame(() => {'
+    );
+    expect(aodCompositorFrame).toContain("'leaf-post-paint'");
+    expect(aodCompositorFrame).not.toContain('requestBoundStaticPresentation()');
     const reducedAutoplay = aodSceneSource.slice(
       aodSceneSource.indexOf('startAutoplay(execution)'),
       aodSceneSource.indexOf('releaseAutoplayAdmission(execution)')
     );
     expect(reducedAutoplay).toContain("if (reducedMotion) return Promise.resolve('error')");
     expect(reducedAutoplay).not.toContain('reportAodFrame(execution)');
+  });
+
+  it('[Figure2 handle gate] never recreates an unprepared surface from a changing snapshot inside its forwarded handle', () => {
+    const imperativeHandleStart = figure2SceneSource.indexOf(
+      'useImperativeHandle(forwardedRef'
+    );
+    const imperativeHandle = figure2SceneSource.slice(
+      imperativeHandleStart,
+      figure2SceneSource.indexOf('\n\n  return (', imperativeHandleStart)
+    );
+    expect(imperativeHandle).not.toMatch(/\[\s*[\s\S]*?\bmediaPlan\b[\s\S]*?\]/);
+    const presentation = imperativeHandle.slice(
+      imperativeHandle.indexOf('presentPresentation(token, report)'),
+      imperativeHandle.indexOf('disposePresentation(token)')
+    );
+    expect(presentation).toContain('const surface = packedSurfaceRef.current;');
+    expect(presentation).not.toContain('ensurePackedSurface(');
   });
 
   it('keeps one opaque edge owner behind every fixed-stage boundary', () => {

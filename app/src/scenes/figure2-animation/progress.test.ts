@@ -228,6 +228,31 @@ describe('Figure2 canonical media', () => {
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 
+  it('[P0 Figure2 scroll] keeps +150px → -2px → +2px on one canonical forward generation', () => {
+    const { root, video } = mediaRoot();
+    const mediaRun = { runId: 'figure2-scroll', direction: 1 as const };
+    const targets: number[] = [];
+    const generations: string[] = [];
+    for (const progress of [.098, .0966, .098]) {
+      renderFigure2AnimationProgress(root as unknown as HTMLElement, progress, {
+        videoMode: 'seek',
+        mediaRun
+      });
+      targets.push(Number(video.dataset.timelineVideoTarget));
+      const generation = video.dataset.timelineVideoGeneration;
+      if (generation === undefined) {
+        throw new Error('canonical Figure2 seek did not allocate a generation');
+      }
+      generations.push(generation);
+      expect(video.dataset.timelineVideoDirection).toBe('1');
+    }
+
+    expect(new Set(generations)).toEqual(new Set(['1']));
+    expect(targets.every((target) => target >= 0 && target < 2.6)).toBe(true);
+    expect(targets).toEqual([.2548, .2512, .2548]);
+    disposeFigure2Media(root as unknown as HTMLElement);
+  });
+
   it('requires a presented combined opening frame before target readiness', () => {
     expect(figure2AnimationScene.requiredHandles).toEqual([
       'stage',

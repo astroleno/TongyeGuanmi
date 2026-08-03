@@ -163,7 +163,7 @@
   visibility: visible;
 }
 
-.portrait-scroll-spike__hero-figure-parallax[data-portrait-figure-alpha="verified"] .portrait-scroll-spike__hero-figure-poster {
+.portrait-scroll-spike__hero-figure-parallax[data-portrait-figure-frame="ready"][data-portrait-figure-alpha="verified"]:has(.portrait-scroll-spike__hero-figure[data-packed-alpha-frame-ready="true"]) .portrait-scroll-spike__hero-figure-poster {
   visibility: hidden;
 }
 

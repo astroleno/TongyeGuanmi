@@ -39,7 +39,6 @@ export function usePhoneViewportGeometry(
       ? 'force'
       : 'reduce';
     delete documentElement.dataset.storyHydrated;
-    delete documentElement.dataset.portraitLoaderResume;
     return () => {
       root?.style.removeProperty('--portrait-live-height');
       root?.style.removeProperty('--portrait-live-width');
