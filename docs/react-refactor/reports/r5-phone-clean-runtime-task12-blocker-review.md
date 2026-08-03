@@ -67,6 +67,18 @@ HEAD, clean-tree, production-tree, `sourceCommit`, and `sourceDirty` checks
 before any Simulator or physical iPhone run. This closes the finding without
 starting Task 13 or changing candidate code.
 
+A follow-up review then reproduced a second bootstrap blocker: the new
+candidate worktree contained no `node_modules`, so
+`pnpm -C app exec vite --version` failed with `Command "vite" not found`.
+Step 13.1 now runs
+`pnpm install --frozen-lockfile` in the detached candidate worktree and repeats
+the HEAD, detached-state, clean-status, and production-tree checks before the
+build. That dependency bootstrap has been executed successfully from the
+frozen lockfile (`258` packages reused, none downloaded); Vite now resolves as
+`7.3.6`. The candidate remains detached and clean with the same production-tree
+hash, and no candidate manifest has been created. The actual Task 13 build and
+manifest freeze remain unstarted.
+
 ### Task 12 code correctness review
 
 ```json

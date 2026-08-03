@@ -5536,6 +5536,18 @@ test "$(git -C "$candidateWorktree" ls-tree -r HEAD -- \
   app assets package.json pnpm-lock.yaml pnpm-workspace.yaml | \
   shasum -a 256 | awk '{print $1}')" = "$expectedProductionTreeHash"
 
+pnpm -C "$candidateWorktree" install --frozen-lockfile
+
+# Dependency bootstrap may create only ignored node_modules state. Re-prove
+# immutable source identity before minting any candidate artifact.
+test "$(git -C "$candidateWorktree" rev-parse 'HEAD^{commit}')" = \
+  "$candidateCodeSha"
+test -z "$(git -C "$candidateWorktree" symbolic-ref -q HEAD 2>/dev/null || true)"
+test -z "$(git -C "$candidateWorktree" status --porcelain --untracked-files=all)"
+test "$(git -C "$candidateWorktree" ls-tree -r HEAD -- \
+  app assets package.json pnpm-lock.yaml pnpm-workspace.yaml | \
+  shasum -a 256 | awk '{print $1}')" = "$expectedProductionTreeHash"
+
 pnpm -C "$candidateWorktree/app" build
 node -e '
   const fs = require("node:fs");
