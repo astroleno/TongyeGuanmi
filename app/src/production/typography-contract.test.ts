@@ -61,6 +61,10 @@ describe('production typography contract', () => {
   it('keeps the font strategy local and preserves the single approved title asset', () => {
     expect(stylesheet.match(/@font-face/g)).toHaveLength(1);
     expect(stylesheet).toContain('qiji-title-subset.ttf');
+    expect(stylesheet).toContain(
+      '--font-traditional: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;'
+    );
+    expect(stylesheet).not.toMatch(/--font-traditional:[^;]*\bui-serif\b/);
     expect(stylesheet).not.toMatch(/https?:\/\//);
     expect(stylesheet).not.toMatch(/@import\s+url/);
   });
