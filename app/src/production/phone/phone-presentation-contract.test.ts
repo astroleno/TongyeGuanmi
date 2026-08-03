@@ -156,6 +156,22 @@ describe('R5 canonical presentation manifest', () => {
     }
   });
 
+  it('[front sampled static admission] declares the Safari touch-safe terminal proof in the manifest', () => {
+    for (const [to, segment] of [
+      ['star-map', 'pattern-star-map'],
+      ['aod-animation', 'star-map-aod']
+    ] as const) {
+      expect(phoneSegmentAdmissionStrategy(segment, 1, 'normal')).toMatchObject({
+        producer: 'static-leaf',
+        kind: 'static-poster',
+        targetScene: to,
+        landingResolver: 'front-corridor',
+        effectRole: 'none',
+        requiresLeafAdapter: true
+      });
+    }
+  });
+
   it('gives every canonical hold an explicit receiver, coverage owner, and real direct-entry probe', () => {
     for (const scene of canonicalSceneIds) {
       const contract = phoneScenePresentationContract(scene);

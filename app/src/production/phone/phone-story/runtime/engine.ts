@@ -461,11 +461,12 @@ export function createPhoneStoryRuntimeEngine(
     }
   };
   /**
-   * Pattern → Star Map uses one machine candidate but has no cinematic runner
-   * or direct-entry lifecycle. The target leaf receives the raw immutable
-   * frame token; this branch never reads readiness, commands a landing, or
-   * manufactures a browser frame. The current scroll position is the authored
-   * rail landing, so Safari must not be asked to fight an active touch scroll.
+   * A manifest-declared sampled static front admission has no cinematic
+   * runner or direct-entry lifecycle. The target leaf receives the raw
+   * immutable frame token; this branch never reads readiness, commands a
+   * landing, or manufactures a browser frame. The current scroll position is
+   * the authored rail landing, so Safari must not be asked to fight an active
+   * touch scroll after its exact leaf proof arrives.
    */
   const reportSampledTargetPresentation = (
     activeSession: PhoneOrchestratedRunSession,
@@ -501,9 +502,15 @@ export function createPhoneStoryRuntimeEngine(
     if (
       operation.run === null
       && operation.trigger === 'auto'
-      && operation.to === 'star-map'
-      && session.phase === (
-        session.reducedMotion ? 'preparing' : 'verifying-target'
+      && (
+        // Keep the already-qualified reduced Pattern → Star Map admission
+        // contract intact. Reduced static candidates begin in preparing.
+        (session.reducedMotion
+          && operation.to === 'star-map'
+          && session.phase === 'preparing')
+        || (!session.reducedMotion
+          && session.phase === 'verifying-target'
+          && (operation.to === 'star-map' || operation.to === 'aod-animation'))
       )
     ) {
       const activeSession = sessions.resume();

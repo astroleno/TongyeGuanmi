@@ -323,6 +323,25 @@ const directionalReduced = (
   reverse: PhoneAdmissionStrategyTuple
 ): PhoneDirectionalReducedAdmission => [forward, reverse];
 
+const patternStarStaticAdmission = admission(
+  'static-leaf',
+  'static-poster',
+  'front:star-map',
+  'star-map',
+  'front-corridor',
+  'none',
+  true
+);
+const starAodStaticAdmission = admission(
+  'static-leaf',
+  'static-poster',
+  'front:aod',
+  'aod-animation',
+  'front-corridor',
+  'none',
+  true
+);
+
 /**
  * This is intentionally a full Record rather than an inferred list. Omitting
  * a canonical segment is a TypeScript error, rather than an opt-in fallback at
@@ -339,14 +358,14 @@ const segmentAdmissionRows = {
     admission('static-leaf', 'static-poster', 'front:hero', 'hero', 'front-corridor', 'none', true)
   ),
   'pattern-star-map': segmentAdmission(
-    admission('effect-leaf', 'effect-frame', 'front:ink', 'star-map', 'front-corridor', 'above-both', true),
-    admission('static-leaf', 'static-poster', 'front:star-map', 'star-map', 'front-corridor', 'none', true),
+    patternStarStaticAdmission,
+    patternStarStaticAdmission,
     admission('effect-leaf', 'effect-frame', 'front:ink', 'pattern', 'front-corridor', 'above-both', true),
     admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true)
   ),
   'star-map-aod': segmentAdmission(
-    admission('effect-leaf', 'effect-frame', 'front:ink', 'aod-animation', 'front-corridor', 'above-both', true),
-    admission('static-leaf', 'static-poster', 'front:aod', 'aod-animation', 'front-corridor', 'none', true),
+    starAodStaticAdmission,
+    starAodStaticAdmission,
     admission('effect-leaf', 'effect-frame', 'front:ink', 'star-map', 'front-corridor', 'above-both', true),
     admission('static-leaf', 'static-poster', 'front:star-map', 'star-map', 'front-corridor', 'none', true)
   ),

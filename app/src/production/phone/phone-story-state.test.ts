@@ -1242,17 +1242,17 @@ describe('PhoneStorySnapshot reducer', () => {
       candidate,
       targetEvidence(candidate, identity, 'direct-entry', 1)
     ).snapshot;
-    candidate = api.reducePhoneStorySnapshot(candidate, {
-      type: 'TARGET_PRESENTED',
-      ...identity
-    }).snapshot;
 
     expect(candidate).toMatchObject({
-      session: { phase: 'releasing-layout' },
+      status: 'stable',
+      scene: 'aod-animation',
+      session: null,
+      scroll: { actualY: 720 },
       projection: {
         sourceSurface: null,
         coverageSurface: 'front:aod',
-        stageScene: 'aod-animation'
+        stageScene: 'aod-animation',
+        commitState: 'stable'
       }
     });
   });

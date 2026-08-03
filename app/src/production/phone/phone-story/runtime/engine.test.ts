@@ -350,6 +350,91 @@ describe('single phone story projector transaction', () => {
     expect(scrollCommands).toEqual([]);
   });
 
+  it('[StarMap→AOD physical touch cutover] keeps Star painted through the exact AOD canvas proof and never realigns an active touch scroll', () => {
+    const root = element();
+    const aod = element();
+    const directPreparation = vi.fn();
+    const scrollCommands: number[] = [];
+    let boundToken: PresentationToken | null = null;
+    let reportLeafFrame: ((frame: PhoneRenderedPresentationFrame) => void) | null = null;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'star-map',
+      root,
+      // This is the physical Safari rollback position: native momentum has
+      // already carried the rail beyond the authored AOD stop before the
+      // packed canvas returns its first frame.
+      scrollY: () => 2_864,
+      scrollTo: (y) => { scrollCommands.push(y); }
+    });
+    orchestrator.registerScrollCorridor({
+      id: 'front-rail',
+      scenes: ['star-map', 'aod-animation'],
+      sample: () => null,
+      boundary: () => null,
+      landing: () => 2_964
+    });
+    orchestrator.registerSurface({
+      id: 'front:aod',
+      scene: 'aod-animation',
+      kind: 'fixed',
+      root: () => aod,
+      coverageRoot: () => root,
+      presentation: () => [true, true, true, true, 'static-poster'],
+      adapter: {
+        present(token, report) {
+          boundToken = token;
+          reportLeafFrame = report;
+        }
+      },
+      prepareDirectEntry: directPreparation
+    });
+
+    orchestrator.dispatch({
+      type: 'SCROLL_SAMPLED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      actualY: 2_864,
+      corridor: 'front-rail',
+      scene: 'aod-animation',
+      progress: .8,
+      direction: 1,
+      reducedMotion: false
+    } as never);
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target', reducedMotion: false },
+      projection: {
+        semanticScene: 'aod-animation',
+        commitState: 'candidate',
+        sourceSurface: 'front:star-map',
+        coverageSurface: 'front:star-map'
+      }
+    });
+    expect(directPreparation).not.toHaveBeenCalled();
+    expect(boundToken).not.toBeNull();
+    expect(reportLeafFrame).not.toBeNull();
+
+    const emitLeafFrame = reportLeafFrame as ((frame: PhoneRenderedPresentationFrame) => void) | null;
+    if (!emitLeafFrame || !boundToken) {
+      throw new Error('Expected the AOD leaf to retain the exact packed-canvas token');
+    }
+    emitLeafFrame({
+      token: boundToken,
+      frameSequence: 1,
+      observedAt: 42,
+      origin: 'leaf-post-paint'
+    });
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'aod-animation',
+      session: null,
+      scroll: { actualY: 2_864 },
+      projection: { commitState: 'stable' }
+    });
+    expect(scrollCommands).toEqual([]);
+  });
+
   it('registers surfaces as pure handles and lets the projector select roles', () => {
     const root = element();
     const brand = element();
