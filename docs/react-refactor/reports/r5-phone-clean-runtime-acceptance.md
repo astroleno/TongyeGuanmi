@@ -1,10 +1,10 @@
 # R5 Phone Clean Runtime — Task 13 acceptance
 
 - Date: 2026-08-03
-- Status: **Step 13.1 candidate identity frozen; Steps 13.2–13.9 pending**
+- Status: **Step 13.2 RED; diagnostic discovery in progress; formal acceptance paused**
 - Current claim: **`Chunk-contract-complete`; not `Release-complete`**
 - Report branch: `codex/r5-phone-clean-runtime-convergence`
-- Candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139`
+- Diagnostic candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139`
 
 ## Frozen candidate identity
 
@@ -27,6 +27,11 @@
 the exact source commit. The report worktree's docs-only HEAD and its local
 `dist/` are not candidate identities and must never be served during Task 13.
 
+The frozen identity remains valid, but identity is not an acceptance result.
+The first Simulator observation displayed the runtime fault surface and
+therefore changed this artifact's disposition to **diagnostic candidate**.
+No later retry or successful Hero screenshot converts that row to passing.
+
 ## Tool and device record
 
 | Item | Value |
@@ -37,7 +42,7 @@ the exact source commit. The report worktree's docs-only HEAD and its local
 | Playwright | `1.61.1` |
 | Chromium | `149.0.7827.55`, Playwright revision `1228` |
 | WebKit | `26.5`, Playwright revision `2311` |
-| iOS Simulator model/runtime | pending Step 13.2 |
+| iOS Simulator model/runtime | iPhone 17 Pro / iOS 26.3, UUID `114786F4-1CAD-4FDC-8892-E196E2CF8E25` |
 | physical iPhone model | pending physical handoff |
 | physical iOS build / Safari | pending physical handoff |
 | network mode | pending each Simulator/device row |
@@ -106,7 +111,7 @@ artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-candidate-freez
 
 The evidence-directory `SHA256SUMS` verifies 5/5 entries.
 
-## Step 13.1 correctness review
+## Step 13.1 identity review
 
 ```json
 {
@@ -121,18 +126,44 @@ The evidence-directory `SHA256SUMS` verifies 5/5 entries.
     }
   ],
   "testing_gaps": [
-    "Task 13.2 iOS Simulator evidence has not run.",
+    "Task 13.2 acceptance is separate from this identity review.",
     "Physical iPhone Safari and deployed compression evidence have not run."
   ]
 }
 ```
 
+## Task 13.2 RED discovery record
+
+The first open of `http://127.0.0.1:4179/` displayed a black runtime fault
+surface with “重试加载故事.” Safari had not been terminated and that origin had
+previously served an older candidate. The page was terminated before its
+fault code, failed resource, runtime generation, or proof/frame state was
+captured. The screenshot is therefore valid RED evidence but insufficient to
+name a production root cause.
+
+Three controlled cold starts then terminated MobileSafari and used fresh
+origins on ports 4182, 4183, and 4184. All three reached stable Hero after 15
+seconds. This makes reused browsing-context state the leading hypothesis, but
+does not prove it and does not convert the original row to passing.
+
+Persistent ignored evidence is under:
+
+```text
+artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-simulator-8f39139/
+```
+
+Its `SHA256SUMS` verifies 6/6 files. Formal Simulator and physical acceptance
+is paused while discovery is batched in the
+[Task 13 defect ledger](r5-phone-clean-runtime-task13-defect-ledger.md).
+Production remains unchanged and no Task 12 or 227-case rerun is authorized
+until the discovery ledger is complete and root causes are confirmed.
+
 ## Remaining Task 13 matrix
 
 | Step | Status |
 | --- | --- |
-| 13.2 iOS Simulator | pending |
-| 13.3–13.7 physical iPhone Safari | pending user/device handoff |
+| 13.2 iOS Simulator | RED — discovery incomplete; formal rows paused |
+| 13.3–13.7 physical iPhone Safari | discovery pass pending device metadata and continuous recording |
 | 13.8 evidence consolidation | pending |
 | 13.8A deployed compression | pending deployed candidate endpoint |
 | 13.9 final evidence-only commit | pending all rows passing |

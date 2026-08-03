@@ -8,8 +8,10 @@
 > with all unit, type, architecture, frozen-input, build, bundle, and evidence
 > gates green. Task 13.1 is complete: the clean detached candidate was built
 > once, its 174-file manifest was independently verified, and its exact
-> `sourceCommit`/production/artifact identity is frozen. Task 13.2 must restart
-> from the replacement candidate; Simulator, physical iPhone, and deployed-
+> `sourceCommit`/production/artifact identity is frozen. Task 13.2 is now
+> **RED / diagnostic discovery** after its first Simulator observation entered
+> the runtime fault surface. Formal device acceptance is paused; this artifact
+> is not a passing release candidate. Simulator, physical iPhone, and deployed-
 > network acceptance remain open. See the
 > [Task 12 closure review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
 > Candidate identity and remaining device rows are recorded in the
@@ -5606,6 +5608,21 @@ This freezes the local device-test artifact only; Step 13.2 and every physical
 or deployed release row remain open.
 
 - [ ] **Step 13.2: Run iOS Simulator as simulator evidence**
+
+**Current execution status — RED / discovery only:** the first Simulator open
+displayed the runtime fault surface. Three later isolated cold starts reached
+Hero, but they do not retroactively pass the failed row because the original
+fault code and request were not captured. Keep `8f39139…` immutable as a
+diagnostic artifact and pause formal acceptance.
+
+Before another production fix or Task 12 rerun, complete one continuous
+Simulator/physical-device discovery pass and record every symptom in the
+[Task 13 defect ledger](../../react-refactor/reports/r5-phone-clean-runtime-task13-defect-ledger.md).
+Group the ledger into startup/Loader, viewport/safe-area, state-machine/gesture,
+and media/Canvas/chunk roots. Each confirmed root gets one focused regression
+and one focused fix. Only after the complete batch passes on one diagnostic
+build may the executor run the static gates, full Vitest, and exactly one
+227-case suite, freeze one replacement candidate, and restart Task 13.
 
 At minimum:
 

@@ -8,7 +8,7 @@
 - Current candidate code commit: `8f3913908cba95e150d464dfab12270efe9dbdc3`
 - Superseded pre-commit code-diff SHA-256: `3b40ea1c24d46e30191e6381c263b302e63267c4e2b7b4d6bc78562da0c01b5e`
 - Decision: **GO — Review approved; Task 12 is `Chunk-contract-complete`**
-- Subsequent status: **Task 13.1 replacement identity frozen; Task 13.2 must restart**
+- Subsequent status: **Task 13.2 RED; 8f39139 is now a diagnostic artifact**
 
 ## Task 12 closure disposition — 2026-08-03
 
@@ -101,6 +101,13 @@ a transient packed-alpha repaint miss was promoted to
 for progress repaint and leaves causal frame reporting as the only proof owner.
 The deterministic regression passed, the Grade A chain passed 10/10, and the
 single replacement release run passed 227/227 in 28.8 minutes.
+
+This remains valid Task 12 automated evidence, but it is not a Task 13 device
+pass. The first Simulator observation later entered the runtime fault surface.
+Formal device acceptance is paused and discovery is tracked in the
+[Task 13 defect ledger](r5-phone-clean-runtime-task13-defect-ledger.md); no
+additional production fix or full Task 12 rerun occurs until that discovery
+batch is complete.
 
 ### Task 12 code correctness review
 
