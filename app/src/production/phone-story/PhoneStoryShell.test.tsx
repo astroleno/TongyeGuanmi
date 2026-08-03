@@ -553,6 +553,24 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
+  it('exposes a terminal fault code only when diagnostics are enabled', () => {
+    const diagnostic = hostRoot();
+    act(() => diagnostic.root.render(
+      <PhoneStoryShell diagnostics chunkRecovery={chunkRecovery} />
+    ));
+    act(() => connectedEngine().publish(faultedSnapshot()));
+    expect(diagnostic.host.querySelector('.phone-story')?.getAttribute('data-phone-fault-code'))
+      .toBe('hero-terminal');
+    act(() => diagnostic.root.unmount());
+
+    const formal = hostRoot();
+    act(() => formal.root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    act(() => connectedEngine().publish(faultedSnapshot()));
+    expect(formal.host.querySelector('.phone-story')?.hasAttribute('data-phone-fault-code'))
+      .toBe(false);
+    act(() => formal.root.unmount());
+  });
+
   it('swaps semantic plane roles without remounting the committed leaf and closes rollback effects', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));

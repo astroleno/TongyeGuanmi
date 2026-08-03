@@ -450,12 +450,12 @@ export function PhoneStoryShell({
     <PhoneSceneLeaf key={entry.sceneId} sceneId={entry.sceneId} reports={entry.reports} />
   ));
   return (
-    <main ref={rootRef} className="phone-story"
-      data-phone-scope={scope}
+    <main ref={rootRef} className="phone-story" data-phone-scope={scope}
       data-phone-status={snapshot.status}
       data-phone-implementation={PHONE_IMPLEMENTATION_SIGNATURE}
       data-phone-interaction={snapshot.status === 'stable' ? 'enabled' : 'disabled'}
       data-phone-revision={diagnostics ? snapshot.stateRevision : undefined}
+      data-phone-fault-code={diagnostics && snapshot.status === 'faulted' ? snapshot.fault.code : undefined}
       data-phone-authority={diagnostics ? snapshot.authorityId : undefined}
       data-phone-phase={diagnostics && snapshot.status === 'transaction' ? snapshot.transaction.phase : undefined}
       data-phone-plane-revision={diagnostics ? snapshot.lastPlaneRevision : undefined}
