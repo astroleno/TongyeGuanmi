@@ -25,7 +25,7 @@ the complete batch passes focused verification.
 | isolated reproduction | 0/3 faults after terminating MobileSafari and using fresh origins `4182`, `4183`, `4184` |
 | leading hypothesis | reuse of the prior Safari document/cache/session lineage; not proven |
 | missing evidence | first fault code, failed module URL/request, transaction generation, proof/frame snapshot, Safari console/network |
-| production action | none until a captured failure identifies the root cause |
+| production action | diagnostics-only `data-phone-fault-code`; no runtime recovery change until a captured failure identifies the root cause |
 
 Persistent ignored evidence:
 
@@ -35,6 +35,38 @@ artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-simulator-8f391
 
 Its `SHA256SUMS` currently verifies 6/6 diagnostic records, including the
 original fault screenshot and all three isolated cold-root screenshots.
+
+Future cold-root capture must record the current URL plus
+`data-phone-revision` and `data-phone-fault-code` before retrying. The latter
+is omitted outside diagnostics mode and is populated only by an actual
+terminal `snapshot.fault.code`; it is not a new recovery path or telemetry
+system.
+
+### D13-002 — shared traditional-font fallback broke iOS Chinese glyphs
+
+| Field | Record |
+| --- | --- |
+| category | viewport / safe-area |
+| severity | P1 |
+| observed artifact | exact `8f39139` candidate in native iPhone 17 Pro Simulator Safari |
+| symptom | Education Chinese text rendered as question-mark boxes and widened the page; the shared token also serves Services and StoryNav |
+| confirmed root cause | `--font-traditional` included `ui-serif`; removing only that generic family restored the existing Songti/STSong chain |
+| regression | typography contract requires the exact approved stack and rejects `ui-serif` in this token |
+| diagnostic fix | removed `ui-serif` once in `styles.css`; no per-scene overrides |
+| focused verification | 25/25 Vitest, TypeScript, cutover architecture, complete build |
+| native verification | direct Services and Education screenshots show correct Chinese glyphs; visible StoryNav brand/menu/booking labels are also correct |
+| formal disposition | fixed in dirty diagnostic build; Task 13.2 remains RED and no replacement candidate is frozen |
+
+Persistent ignored evidence:
+
+```text
+artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-font-diagnostic/
+```
+
+The directory preserves the original failure, the temporary browser override,
+the two source-level diagnostic screenshots, a machine-readable summary, and
+SHA-256 hashes for the four screenshots. The post-fix screenshots visually
+show no clipping; they do not claim a new DOM `scrollWidth` measurement.
 
 ## Discovery intake
 

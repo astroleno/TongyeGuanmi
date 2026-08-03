@@ -155,8 +155,14 @@ artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-simulator-8f391
 Its `SHA256SUMS` verifies 6/6 files. Formal Simulator and physical acceptance
 is paused while discovery is batched in the
 [Task 13 defect ledger](r5-phone-clean-runtime-task13-defect-ledger.md).
-Production remains unchanged and no Task 12 or 227-case rerun is authorized
-until the discovery ledger is complete and root causes are confirmed.
+The frozen `8f39139` artifact remains unchanged. A separate dirty diagnostic
+build removes the confirmed shared `ui-serif` font failure and exposes the
+existing terminal fault code only through diagnostics mode. Native Simulator
+screenshots for Services, Education, and the visible StoryNav labels are
+preserved under `task13-font-diagnostic/`; they are corrective discovery
+evidence, not a new candidate or a formal passing row. No Task 12 or 227-case
+rerun is authorized until the discovery ledger is complete and root causes are
+confirmed.
 
 ## Remaining Task 13 matrix
 
