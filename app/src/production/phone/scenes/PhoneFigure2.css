@@ -26,7 +26,6 @@
 .phone-grade-a__surfaces .r4-figure2__media-stack--combined {
   position: relative;
   isolation: isolate;
-  background: var(--portrait-reading-paper);
 }
 
 .phone-grade-a__surfaces .r4-figure2__media-stack--combined::before {

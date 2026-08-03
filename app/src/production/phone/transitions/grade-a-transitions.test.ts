@@ -206,6 +206,14 @@ describe('phone Grade A transition contracts', () => {
     );
   });
 
+  it('[P0 packed-alpha] keeps the media stack transparent so compositor alpha reveals the authored depth field', () => {
+    const mediaStackRule = figure2Styles.match(
+      /\.r4-figure2__media-stack--combined\s*\{([\s\S]*?)\}/
+    )?.[1];
+    expect(mediaStackRule).toBeDefined();
+    expect(mediaStackRule).not.toMatch(/background\s*:/);
+  });
+
   it('keeps Proof visible until reduced-motion Brand boundary entry', () => {
     expect(phoneInkAdapterProgress(0, true, 'boundary')).toBe(0);
     expect(phoneInkAdapterProgress(0.001, true, 'boundary')).toBe(1);
