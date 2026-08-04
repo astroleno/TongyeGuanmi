@@ -102,6 +102,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
   const stageViewportRef = useRef<HTMLElement | null>(null);
+  const coverageRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
   const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
   const publishAdapterRevision = useCallback(() => {
@@ -157,6 +158,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const runtime = usePhoneStageRuntime({
     rootRef,
     railRef: stageRailRef,
+    coverageRef,
     stageRef,
     heroRef: heroAdapterRef,
     patternRef: patternAdapterRef,
@@ -200,6 +202,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       <PhoneStageRail
         railRef={stageRailRef}
         viewportRef={stageViewportRef}
+        coverageRef={coverageRef}
         stageRef={bindStageHost}
       >
         {Hero && (

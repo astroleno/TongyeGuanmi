@@ -646,18 +646,7 @@ function coversLiveViewport(element: HTMLElement): boolean {
     && rect.top <= top + epsilon
     && rect.right >= left + width - epsilon
     && rect.bottom >= top + height - epsilon) return true;
-  // Content hosts stay in the frozen layout coordinate space. When Safari's
-  // toolbar exposes a farther live edge, only the independent opaque route
-  // plane extends; inspect its computed geometry rather than moving a scene
-  // host or treating a CSS variable as proof.
-  const rail = element.closest?.('.portrait-scroll-spike')?.querySelector<HTMLElement>(
-    '.portrait-scroll-spike__stage-rail'
-  );
-  const plane = rail ? getComputedStyle(rail, '::before') : null;
-  const right = Number.parseFloat(plane?.width ?? '');
-  const bottom = Number.parseFloat(plane?.height ?? '');
-  return right >= left + width - epsilon
-    && bottom >= top + height - epsilon;
+  return false;
 }
 
 function intersectsLiveViewport(element: HTMLElement): boolean {
@@ -1820,14 +1809,14 @@ export function createPhoneStoryPresentation({
         data(routeRoot, 'portraitEdgeScene', projection.edge);
         data(routeRoot, 'portraitEdgeSurface', edgeSurface);
         routeRoot.style?.setProperty('--portrait-edge-surface', edgeSurface);
-        const stageViewport = routeRoot.querySelector?.(
-          '.portrait-scroll-spike__stage-viewport'
+        const viewportCoverage = routeRoot.querySelector?.(
+          '.portrait-scroll-spike__viewport-coverage'
         );
         if (
           typeof HTMLElement !== 'undefined'
-          && stageViewport instanceof HTMLElement
+          && viewportCoverage instanceof HTMLElement
         ) {
-          data(stageViewport, 'portraitEdgeScene', projection.edge);
+          data(viewportCoverage, 'portraitEdgeScene', projection.edge);
         }
         const page = documentRef();
         if (page) {

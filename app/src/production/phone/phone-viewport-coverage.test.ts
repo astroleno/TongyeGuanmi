@@ -11,8 +11,16 @@ const stageRailStyles = readFileSync(
   new URL('./PhoneStageRail.css', import.meta.url),
   'utf8'
 );
+const stageRailSource = readFileSync(
+  new URL('./PhoneStageRail.tsx', import.meta.url),
+  'utf8'
+);
 const presentationSource = readFileSync(
   new URL('./phone-story/presentation.ts', import.meta.url),
+  'utf8'
+);
+const presentationStyles = readFileSync(
+  new URL('./phone-story/presentation.css', import.meta.url),
   'utf8'
 );
 const patternStyles = readFileSync(
@@ -59,7 +67,7 @@ function fixture() {
 }
 
 describe('phone live viewport coverage', () => {
-  it('[front-half gate] makes the registered stage canvas an opaque live backing, not a transparent geometry-only proxy', () => {
+  it('[front-half gate] keeps the frozen stage canvas opaque while the live viewport backing is a separate DOM host', () => {
     const stageCanvas = stageRailStyles.slice(
       stageRailStyles.indexOf('.portrait-scroll-spike__stage-canvas {'),
       stageRailStyles.indexOf('/* The fixed stage warms from mount')
@@ -68,15 +76,17 @@ describe('phone live viewport coverage', () => {
     expect(stageCanvas).toContain('height: max(100%, var(--portrait-stage-canvas-height));');
     expect(stageCanvas).toContain('background: var(--portrait-edge-surface);');
     expect(stageCanvas).not.toContain('background: transparent;');
+    expect(presentationStyles).not.toContain('--portrait-coverage-height');
+    expect(presentationStyles).not.toContain('--portrait-stage-canvas-height');
   });
 
-  it('[P0 Safari coverage] freezes the content and route hosts while only the opaque backing may extend', () => {
+  it('[P0 Safari coverage] freezes the content and route hosts while a real DOM backdrop alone may extend', () => {
     const stage = stageRailStyles.slice(
       stageRailStyles.indexOf('.portrait-scroll-spike__stage {'),
-      stageRailStyles.indexOf('.portrait-scroll-spike__stage-rail::before {')
+      stageRailStyles.indexOf('.portrait-scroll-spike__viewport-coverage {')
     );
     const coverage = stageRailStyles.slice(
-      stageRailStyles.indexOf('.portrait-scroll-spike__stage-rail::before {'),
+      stageRailStyles.indexOf('.portrait-scroll-spike__viewport-coverage {'),
       stageRailStyles.indexOf('/* Above-both effects are route siblings,')
     );
     const overlay = stageRailStyles.slice(
@@ -91,13 +101,19 @@ describe('phone live viewport coverage', () => {
     expect(coverage).toContain('inset: 0 auto auto 0;');
     expect(coverage).toContain('width: max(100%, var(--portrait-coverage-right));');
     expect(coverage).toContain('height: max(100%, var(--portrait-coverage-bottom));');
+    expect(stageRailSource).toContain('data-phone-presentation-host="coverage"');
+    expect(stageRailStyles).not.toContain('.portrait-scroll-spike__stage-rail::before');
   });
 
-  it('[front-half gate] uses Pattern’s actual painted backing color for the route coverage plane', () => {
+  it('[P0 Safari coverage] paints front-half viewport backing with scene imagery, never only the fallback edge color', () => {
     expect(patternStyles).toContain('background: #d9c08f;');
     expect(presentationSource).toContain("PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#d9c08f'");
     expect(presentationSource).toContain('pattern: PHONE_PATTERN_TERMINAL_EDGE_SURFACE');
     expect(presentationSource).not.toContain('#8f7f61');
+    expect(stageRailStyles).toContain('url("../../../../assets/hero-back.webp")');
+    expect(stageRailStyles).toContain('url("../../../../assets/pattern-background.webp")');
+    expect(stageRailStyles).toContain('[data-portrait-edge-scene="hero"]');
+    expect(stageRailStyles).toContain('[data-portrait-edge-scene="pattern"]');
   });
 
   it('extends the live opaque backing from the frozen layout origin without moving its camera', () => {

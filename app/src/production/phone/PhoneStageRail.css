@@ -39,17 +39,56 @@
   background: transparent;
 }
 
-/* Safari samples one independent opaque host behind content. It can only
- * extend away from the frozen origin, never shift the content camera. */
-.portrait-scroll-spike__stage-rail::before {
-  content: "";
+/*
+ * Safari samples one independent DOM backdrop behind content. It can only
+ * extend away from the frozen origin, never shift the content camera. This
+ * is a physical presentation host, not a pseudo-element fallback: a token
+ * may use it for coverage only because this element itself paints the edge.
+ */
+.portrait-scroll-spike__viewport-coverage {
   position: fixed;
   z-index: var(--phone-host-plane-coverage);
   inset: 0 auto auto 0;
   width: max(100%, var(--portrait-coverage-right));
   height: max(100%, var(--portrait-coverage-bottom));
+  overflow: clip;
   background: var(--portrait-edge-surface);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   pointer-events: none;
+}
+
+/* These are the actual front-half scene backings, not a generic edge tint. */
+.portrait-scroll-spike[data-portrait-edge-scene="hero"] .portrait-scroll-spike__viewport-coverage {
+  background-color: #07110e;
+  background-image:
+    linear-gradient(180deg, rgba(4, 8, 7, .30), rgba(4, 8, 7, .82)),
+    url("../../../../assets/hero-back.webp");
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="pattern"] .portrait-scroll-spike__viewport-coverage {
+  background-color: #d9c08f;
+  background-image:
+    radial-gradient(circle at 50% 28%, rgba(249, 235, 198, .10), rgba(217, 192, 143, .16) 35%, rgba(35, 24, 20, .36) 100%),
+    url("../../../../assets/pattern-background.webp");
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="star"] .portrait-scroll-spike__viewport-coverage {
+  background:
+    radial-gradient(circle at 16% 22%, rgba(56, 166, 154, .12), transparent 32vw),
+    radial-gradient(circle at 84% 74%, rgba(183, 91, 52, .10), transparent 34vw),
+    linear-gradient(180deg, rgba(7, 17, 14, .96), #07110e),
+    #07110e;
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__viewport-coverage,
+.portrait-scroll-spike[data-portrait-edge-scene="method"] .portrait-scroll-spike__viewport-coverage {
+  background:
+    radial-gradient(72% 42% at 50% 72%, rgba(247, 237, 215, .26), transparent 70%),
+    radial-gradient(54% 42% at 22% 88%, rgba(120, 99, 41, .12), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, .10), transparent 32%, rgba(41, 41, 25, .055)),
+    #ede4d2;
 }
 
 /* Above-both effects are route siblings, never descendants of an endpoint. */
@@ -88,7 +127,7 @@
   height: var(--portrait-stage-height);
 }
 
-/* The retained layout/coverage canvas is the only outer clipping boundary. */
+/* The retained layout canvas is frozen; it is never the live-edge proof root. */
 .portrait-scroll-spike__stage-canvas {
   --portrait-readable-height: 100svh;
   --portrait-readable-height: 100dvh;
@@ -104,8 +143,8 @@
   height: max(100%, var(--portrait-stage-canvas-height));
   min-height: max(100%, var(--portrait-stage-canvas-height));
   overflow: clip;
-  /* This registered coverage root paints the live viewport itself. A scene
-   * may be transparent while its leaf is warming, but the host cannot be. */
+  /* This frozen content camera remains opaque while a leaf is warming. The
+   * separate viewport-coverage DOM host owns Safari live-edge proof. */
   background: var(--portrait-edge-surface);
 }
 

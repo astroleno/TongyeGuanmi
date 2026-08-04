@@ -279,8 +279,9 @@ describe('Phone Brand → Lab visual contracts', () => {
 
   it('keeps one opaque edge owner behind every fixed-stage boundary', () => {
     expect(stageStyles).toMatch(
-      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-host-plane-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
+      /portrait-scroll-spike__viewport-coverage\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-host-plane-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
+    expect(stageStyles).not.toContain('.portrait-scroll-spike__stage-rail::before');
     expect(stageStyles).toMatch(
       /portrait-scroll-spike__stage\s*\{[^}]*position:\s*fixed[^}]*background:\s*transparent/s
     );

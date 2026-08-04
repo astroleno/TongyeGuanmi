@@ -4,6 +4,8 @@ import './PhoneStageRail.css';
 export type PhoneStageRailProps = Readonly<{
   railRef: RefObject<HTMLElement | null>;
   viewportRef: RefObject<HTMLElement | null>;
+  /** Physical backing that expands with Safari's live visual viewport. */
+  coverageRef: Ref<HTMLDivElement>;
   stageRef: Ref<HTMLDivElement>;
   children: ReactNode;
 }>;
@@ -22,11 +24,18 @@ export function phoneRouteOverlayHostFor(
 export function PhoneStageRail({
   railRef,
   viewportRef,
+  coverageRef,
   stageRef,
   children
 }: PhoneStageRailProps) {
   return (
     <section ref={railRef} className="portrait-scroll-spike__stage-rail">
+      <div
+        ref={coverageRef}
+        className="portrait-scroll-spike__viewport-coverage"
+        data-phone-presentation-host="coverage"
+        aria-hidden="true"
+      />
       <section
         ref={viewportRef}
         className="portrait-scroll-spike__stage"

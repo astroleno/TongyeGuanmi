@@ -86,6 +86,7 @@ export function PhoneBrandLabStory({
   const rootRef = useRef<HTMLElement | null>(null);
   const stageRailRef = useRef<HTMLElement | null>(null);
   const stageViewportRef = useRef<HTMLElement | null>(null);
+  const coverageRef = useRef<HTMLDivElement | null>(null);
   const stageCanvasRef = useRef<HTMLDivElement | null>(null);
   const [stageHost, setStageHost] = useState<HTMLElement | null>(null);
   const applyLayoutViewport = useCallback((root: HTMLElement, viewport: PhoneLayoutViewport) => {
@@ -163,6 +164,7 @@ export function PhoneBrandLabStory({
         <PhoneStageRail
           railRef={stageRailRef}
           viewportRef={stageViewportRef}
+          coverageRef={coverageRef}
           stageRef={bindStageHost}
         >
           {null}

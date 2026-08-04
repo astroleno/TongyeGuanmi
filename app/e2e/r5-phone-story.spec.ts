@@ -464,9 +464,9 @@ async function readPhoneEvidence(page: Page) {
         )
       )
       : [];
-    const coverageElement = persistentStageCanvases[0]
-      ?? stableSurfaceElements[0]
-      ?? null;
+    const coverageElement = rootElement?.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__viewport-coverage'
+    ) ?? null;
     const visualViewport = window.visualViewport;
     const viewport = {
       left: visualViewport?.offsetLeft ?? 0,
@@ -560,8 +560,8 @@ function expectStablePhoneEvidence(
   expect(root.data.portraitEdgeScene).toBe(expected.edge);
   expect(evidence.colors.documentEdgeScene).toBe(expected.edge);
 
-  // Every stage-owned surface registers the one persistent canvas as its
-  // coverage owner; the semantic root may legitimately land mid-document.
+  // Every front surface registers the one physical DOM viewport backdrop as
+  // its coverage owner; the semantic root may legitimately land mid-document.
   expect(evidence.stableSurfaces).toHaveLength(1);
   expect(evidence.persistentStageCanvases).toHaveLength(1);
   const coverageRoot = evidence.coverageRoot;
@@ -827,7 +827,7 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
         };
       });
       const coverageElement = document.querySelector<HTMLElement>(
-        '.portrait-scroll-spike__stage-canvas'
+        '.portrait-scroll-spike__viewport-coverage'
       );
       const coverageRect = coverageElement?.getBoundingClientRect() ?? null;
       const state: PhoneTransitionTraceState = {
@@ -2000,7 +2000,7 @@ type TailPrefetchEvidence = Readonly<{
   craneLeaves: number;
   coverage: Readonly<{
     viewport: Readonly<{ left: number; top: number; right: number; bottom: number }>;
-    stage: Readonly<{ left: number; top: number; right: number; bottom: number }> | null;
+    host: Readonly<{ left: number; top: number; right: number; bottom: number }> | null;
   }>;
 }>;
 
@@ -2013,10 +2013,10 @@ async function readTailPrefetchEvidence(page: Page): Promise<TailPrefetchEvidenc
       right: (viewport?.offsetLeft ?? 0) + (viewport?.width ?? window.innerWidth),
       bottom: (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)
     };
-    const stage = document.querySelector<HTMLElement>(
-      '.portrait-scroll-spike__stage-canvas'
+    const coverageHost = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__viewport-coverage'
     );
-    const stageRect = stage?.getBoundingClientRect() ?? null;
+    const coverageRect = coverageHost?.getBoundingClientRect() ?? null;
     const viewportHit = document.elementFromPoint(
       Math.round((viewportBounds.left + viewportBounds.right) / 2),
       Math.round((viewportBounds.top + viewportBounds.bottom) / 2)
@@ -2038,11 +2038,11 @@ async function readTailPrefetchEvidence(page: Page): Promise<TailPrefetchEvidenc
       craneLeaves: document.querySelectorAll('[data-phone-scene="crane-animation"]').length,
       coverage: {
         viewport: viewportBounds,
-        stage: stageRect ? {
-          left: stageRect.left,
-          top: stageRect.top,
-          right: stageRect.right,
-          bottom: stageRect.bottom
+        host: coverageRect ? {
+          left: coverageRect.left,
+          top: coverageRect.top,
+          right: coverageRect.right,
+          bottom: coverageRect.bottom
         } : null
       }
     };
@@ -2244,7 +2244,7 @@ test('[P0 AOD admission] a first rejected play remains retryable until a real re
   ))).toBe(false);
 });
 
-test('[P0 Safari viewport pixels] freezes content hosts and keeps every live edge opaque', async ({
+test('[P0 Safari viewport pixels] freezes content hosts and proves a real DOM viewport backdrop at every live edge', async ({
   page
 }) => {
   test.setTimeout(45_000);
@@ -2265,11 +2265,12 @@ test('[P0 Safari viewport pixels] freezes content hosts and keeps every live edg
     const overlay = document.querySelector<HTMLElement>(
       '.portrait-scroll-spike__route-overlay'
     );
-    const rail = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-rail');
-    if (!viewport || !stage || !overlay || !rail) {
+    const coverage = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__viewport-coverage'
+    );
+    if (!viewport || !stage || !overlay || !coverage) {
       throw new Error('Missing live viewport presentation hosts');
     }
-    const pseudo = getComputedStyle(rail, '::before');
     return {
       viewport: {
         left: viewport.offsetLeft,
@@ -2279,12 +2280,9 @@ test('[P0 Safari viewport pixels] freezes content hosts and keeps every live edg
       },
       stage: stage.getBoundingClientRect().toJSON(),
       overlay: overlay.getBoundingClientRect().toJSON(),
-      coverage: {
-        left: Number.parseFloat(pseudo.left),
-        top: Number.parseFloat(pseudo.top),
-        width: Number.parseFloat(pseudo.width),
-        height: Number.parseFloat(pseudo.height)
-      }
+      coverage: coverage.getBoundingClientRect().toJSON(),
+      coverageHost: coverage.dataset.phonePresentationHost ?? null,
+      coverageEdge: coverage.dataset.portraitEdgeScene ?? null
     };
   });
   const before = await inspectViewportHosts();
@@ -2305,6 +2303,8 @@ test('[P0 Safari viewport pixels] freezes content hosts and keeps every live edg
   expect(extended.coverage.top).toBeCloseTo(0, 0);
   expect(extended.coverage.width).toBeGreaterThanOrEqual(extended.viewport.right - 1);
   expect(extended.coverage.height).toBeGreaterThanOrEqual(extended.viewport.bottom - 1);
+  expect(extended.coverageHost).toBe('coverage');
+  expect(extended.coverageEdge).toBe('hero');
   for (const sample of viewportEdgePixelWitnesses(
     decodePngScreenshot(await page.screenshot())
   )) {
@@ -2356,13 +2356,13 @@ test('tail prefetch keeps one formal phone authority when PH mounts', async ({ p
   await expect(page.locator('[data-phone-scene="ph-animation"]')).toHaveCount(1);
   await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]')).toHaveCount(1);
   expect(after.phLeaves).toBe(1);
-  expect(after.coverage.stage).not.toBeNull();
-  const stage = after.coverage.stage;
-  if (!stage) throw new Error('Tail prefetch unmounted the fixed stage coverage');
-  expect(stage.left).toBeLessThanOrEqual(after.coverage.viewport.left + 1);
-  expect(stage.top).toBeLessThanOrEqual(after.coverage.viewport.top + 1);
-  expect(stage.right).toBeGreaterThanOrEqual(after.coverage.viewport.right - 1);
-  expect(stage.bottom).toBeGreaterThanOrEqual(after.coverage.viewport.bottom - 1);
+  expect(after.coverage.host).not.toBeNull();
+  const coverageHost = after.coverage.host;
+  if (!coverageHost) throw new Error('Tail prefetch unmounted the DOM viewport coverage host');
+  expect(coverageHost.left).toBeLessThanOrEqual(after.coverage.viewport.left + 1);
+  expect(coverageHost.top).toBeLessThanOrEqual(after.coverage.viewport.top + 1);
+  expect(coverageHost.right).toBeGreaterThanOrEqual(after.coverage.viewport.right - 1);
+  expect(coverageHost.bottom).toBeGreaterThanOrEqual(after.coverage.viewport.bottom - 1);
 });
 
 test('tail prefetch direct Crane mount keeps its two packed hosts inside one authority', async ({
@@ -2395,13 +2395,13 @@ test('tail prefetch direct Crane mount keeps its two packed hosts inside one aut
   await expect(page.locator('[data-phone-packed-alpha-canvas="crane-figure"]')).toHaveCount(1);
   await expect(page.locator('[data-phone-packed-alpha-canvas="crane-flock"]')).toHaveCount(1);
   expect(after.craneLeaves).toBe(1);
-  expect(after.coverage.stage).not.toBeNull();
-  const stage = after.coverage.stage;
-  if (!stage) throw new Error('Direct Crane mount unmounted fixed stage coverage');
-  expect(stage.left).toBeLessThanOrEqual(after.coverage.viewport.left + 1);
-  expect(stage.top).toBeLessThanOrEqual(after.coverage.viewport.top + 1);
-  expect(stage.right).toBeGreaterThanOrEqual(after.coverage.viewport.right - 1);
-  expect(stage.bottom).toBeGreaterThanOrEqual(after.coverage.viewport.bottom - 1);
+  expect(after.coverage.host).not.toBeNull();
+  const coverageHost = after.coverage.host;
+  if (!coverageHost) throw new Error('Direct Crane mount unmounted the DOM viewport coverage host');
+  expect(coverageHost.left).toBeLessThanOrEqual(after.coverage.viewport.left + 1);
+  expect(coverageHost.top).toBeLessThanOrEqual(after.coverage.viewport.top + 1);
+  expect(coverageHost.right).toBeGreaterThanOrEqual(after.coverage.viewport.right - 1);
+  expect(coverageHost.bottom).toBeGreaterThanOrEqual(after.coverage.viewport.bottom - 1);
 });
 
 test('Task 10 gates a cold production formal Hero → Contact journey', async ({ page }) => {

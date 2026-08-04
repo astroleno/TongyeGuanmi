@@ -172,6 +172,8 @@ function requestPortraitFullscreen(root: HTMLElement): void {
 export type PhoneStageRuntimeOptions = Readonly<{
   rootRef: RefObject<HTMLElement | null>;
   railRef: RefObject<HTMLElement | null>;
+  /** The one physical DOM backdrop that covers Safari's live viewport. */
+  coverageRef: RefObject<HTMLElement | null>;
   stageRef: RefObject<HTMLElement | null>;
   heroRef: RefObject<PhoneHeroAdapterHandle | null>;
   patternRef: RefObject<PhoneSceneAdapterHandle | null>;
@@ -292,7 +294,7 @@ export function usePhoneStageRuntime(
         'hero',
         'fixed',
         () => options.heroRef.current?.root() ?? null,
-        () => options.stageRef.current,
+        () => options.coverageRef.current,
         undefined,
         {
           present(token, report) {
@@ -309,7 +311,7 @@ export function usePhoneStageRuntime(
         'pattern',
         'fixed',
         () => options.patternRef.current?.root() ?? null,
-        () => options.stageRef.current,
+        () => options.coverageRef.current,
         undefined,
         {
           present(token, report) {
@@ -326,7 +328,7 @@ export function usePhoneStageRuntime(
         'star-map',
         'fixed',
         () => options.starMapRef.current?.root() ?? null,
-        () => options.stageRef.current,
+        () => options.coverageRef.current,
         undefined,
         {
           present(token, report) {
@@ -343,7 +345,7 @@ export function usePhoneStageRuntime(
         'aod-animation',
         'fixed',
         () => options.aodRef.current?.root() ?? null,
-        () => options.stageRef.current,
+        () => options.coverageRef.current,
         undefined,
         {
           present(token, report, fail) {
@@ -360,7 +362,7 @@ export function usePhoneStageRuntime(
         'method-top',
         'native',
         () => options.methodRef.current?.root() ?? null,
-        () => options.stageRef.current,
+        () => options.coverageRef.current,
         undefined,
         {
           present(token, report) {

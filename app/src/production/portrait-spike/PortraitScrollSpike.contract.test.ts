@@ -136,10 +136,13 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__stage\s*\{[^}]*overflow:\s*visible[^}]*background:\s*transparent/s
     );
     expect(railSource).toContain('data-phone-presentation-host="content"');
+    expect(railSource).toContain('data-phone-presentation-host="coverage"');
     expect(railSource).toContain('data-phone-presentation-host="route-overlay"');
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-host-plane-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
+      /portrait-scroll-spike__viewport-coverage\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-host-plane-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s
     );
+    expect(railCss).not.toContain('.portrait-scroll-spike__stage-rail::before');
+    expect(storyPresentationSource).not.toContain("getComputedStyle(rail, '::before')");
     expect(phonePresentationHostPlaneOrder('coverage')).toBeLessThan(
       phonePresentationHostPlaneOrder('content')
     );
@@ -150,7 +153,7 @@ describe('Route B proven front-half migration contract', () => {
       /portrait-scroll-spike__route-overlay\s*\{[^}]*position:\s*fixed[^}]*inset:\s*0[^}]*overflow:\s*visible/s
     );
     expect(railCss).toMatch(
-      /portrait-scroll-spike__stage-rail::before\s*\{[^}]*inset:\s*0 auto auto 0[^}]*width:\s*max\(100%,\s*var\(--portrait-coverage-right\)\)[^}]*height:\s*max\(100%,\s*var\(--portrait-coverage-bottom\)\)/s
+      /portrait-scroll-spike__viewport-coverage\s*\{[^}]*inset:\s*0 auto auto 0[^}]*width:\s*max\(100%,\s*var\(--portrait-coverage-right\)\)[^}]*height:\s*max\(100%,\s*var\(--portrait-coverage-bottom\)\)/s
     );
     expect(railCss).not.toContain('.portrait-scroll-spike__stage::after');
     expect(railCss).toMatch(

@@ -144,12 +144,15 @@ describe('formal Unit7-B phone integration', () => {
     expect(tailBundleSource).not.toContain('requestPhoneRuntimeDirectEntry');
   });
 
-  it('registers stage-owned surfaces and the content-host AOD effect on the persistent canvas', () => {
+  it('registers front surfaces against the physical viewport backdrop and keeps the AOD effect in the frozen content host', () => {
+    expect(
+      stageRuntimeSource.match(/\(\) => options\.coverageRef\.current\b/g)
+    // Five front surfaces require the one real DOM live-viewport backing.
+    ).toHaveLength(5);
     expect(
       stageRuntimeSource.match(/\(\) => options\.stageRef\.current\b/g)
-    // Five stage-owned surfaces plus the AOD→Method effect, whose content-host
-    // registration keeps it below the route-overlay plane.
-    ).toHaveLength(6);
+    // The AOD→Method effect remains in the frozen content plane.
+    ).toHaveLength(1);
     expect(stageRuntimeSource).toContain(
       "'aod-to-method',\n      () => options.stageRef.current"
     );
@@ -270,8 +273,9 @@ describe('formal Unit7-B phone integration', () => {
   });
 
   it('[AOD↔Method reduced cutover] binds only target leaves to one post-paint static proof', () => {
+    expect(aodSource).toContain('presentPresentation(token, report, fail)');
+    expect(methodSource).toContain('presentPresentation(token, report)');
     for (const source of [aodSource, methodSource]) {
-      expect(source).toContain('presentPresentation(token, report)');
       expect(source).toContain("origin: 'leaf-static-poster'");
       expect(source).not.toMatch(
         /\b(?:reportRenderedFrame|presentationProofToken|proofForRenderedFrame|reportPresentationProof|reportPresentationFrame|reportEndpointCommit)\b/
@@ -344,11 +348,16 @@ describe('formal Unit7-B phone integration', () => {
     expect(gradeASource).toContain(
       'selectPhoneCinematicSnapshot(storySnapshot)'
     );
-    for (const source of [stageRuntimeSource, gradeASource]) {
-      expect(source).not.toMatch(
-        /\bsnapshot\.(?:projection|session|scroll|status|run|authorityId)\b/
-      );
-    }
+    // AOD admission reads the authority's current snapshot synchronously in
+    // the originating gesture stack; React's cinematic mirror is not used as
+    // its start authority.
+    expect(stageRuntimeSource).toContain(
+      'const snapshot = options.orchestrator.getSnapshot();'
+    );
+    expect(stageRuntimeSource).not.toContain('snapshotRef.current[9]');
+    expect(gradeASource).not.toMatch(
+      /\bsnapshot\.(?:projection|session|scroll|status|run|authorityId)\b/
+    );
     for (const legacyOwner of [
       'requestRun',
       'reconcileHold',

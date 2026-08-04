@@ -77,7 +77,7 @@ describe('phone presentation proof reader', () => {
     ]);
   });
 
-  it('[P0 Safari coverage] accepts the computed opaque route plane when a frozen content host ends before a live toolbar edge', () => {
+  it('[P0 Safari coverage] rejects a pseudo-element plane when the real coverage root ends before a live toolbar edge', () => {
     const root = element();
     const rail = {} as HTMLElement;
     const route = {
@@ -101,7 +101,7 @@ describe('phone presentation proof reader', () => {
       expect(readPhoneSurfacePresentation(root, root, 'preflight')).toEqual([
         true,
         true,
-        true,
+        false,
         false,
         null
       ]);
