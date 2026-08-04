@@ -12,6 +12,7 @@ import {
   registerPhoneRuntimeEffect,
   registerPhoneRuntimeSampledScrollCorridor,
   registerPhoneRuntimeSurface,
+  selectPhoneCinematicSnapshot,
   syncPhoneRuntimeDiagnostics,
   type PhoneAodFailureReason,
   type PhoneAodExecution,
@@ -572,11 +573,16 @@ export function usePhoneStageRuntime(
         ? aodSemanticPosition()
         : Math.max(stageScrollStart, stageScrollEnd - 1),
       (direction) => {
-        const snapshot = options.orchestrator.getSnapshot();
-        return snapshot.status === 'transaction'
-          && snapshot.session.operation.run === 'aod-method'
-          && snapshot.session.operation.direction === direction
-          && snapshot.session.phase === 'preparing'
+        // This read stays in the originating input stack, but the runtime
+        // selector owns named snapshot fields. The lazy stage chunk receives
+        // only positional data, so production property mangling cannot turn
+        // an otherwise valid AOD admission into a permanent false negative.
+        const [, , , , , , run, currentDirection, , phase, , status] =
+          selectPhoneCinematicSnapshot(options.orchestrator.getSnapshot());
+        return status === 'transaction'
+          && run === 'aod-method'
+          && currentDirection === direction
+          && phase === 'preparing'
           && aodRef.current !== null;
       },
       (execution) => {

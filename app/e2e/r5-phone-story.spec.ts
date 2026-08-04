@@ -2184,7 +2184,7 @@ test('Task 0 does not animate AOD when media liveness has no compositor frame', 
   ))).toBe(false);
 });
 
-test('[P0 AOD admission] a first rejected play remains retryable until a real retry reaches Method', async ({
+test('[P0 AOD admission] a rejected play rolls back through the session owner before a new forward intent reaches Method', async ({
   page
 }) => {
   test.setTimeout(120_000);
@@ -2198,8 +2198,16 @@ test('[P0 AOD admission] a first rejected play remains retryable until a real re
   await waitForNewWheelEpoch(page);
 
   await inputPhoneDelta(page, 50);
-  await page.waitForTimeout(600);
-  const blockedState = await page.evaluate(() => {
+  await expect.poll(async () => (
+    (await firstAodPlayBlockProbe(page))?.rejected ?? false
+  )).toBe(true);
+  const rejected = await firstAodPlayBlockProbe(page);
+  expect(rejected?.playCalls).toBe(1);
+
+  // A rejected `play()` must enter the one session-owned rollback path. It
+  // cannot remain an input-locked preparing candidate waiting for watchdog.
+  await assertStablePhoneHold(page, 'aod-animation', { timeout: 15_000 });
+  const failedState = await page.evaluate(() => {
     const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
     const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
     return {
@@ -2207,21 +2215,15 @@ test('[P0 AOD admission] a first rejected play remains retryable until a real re
       phase: root?.dataset.phoneTransitionPhase ?? null,
       input: root?.dataset.phoneInputState ?? null,
       retryable: root?.dataset.phoneRetryableRun ?? null,
-      progress: Number(root?.dataset.phoneTransitionProgress ?? Number.NaN),
-      paused: video?.paused ?? null,
-      time: video?.currentTime ?? null
+      paused: video?.paused ?? null
     };
   });
-  expect(blockedState).toMatchObject({
-    cursor: 'transition:aod-method:0',
-    phase: 'preparing',
-    input: 'locked',
+  expect(failedState).toMatchObject({
+    cursor: 'hold:aod-animation',
+    phase: null,
+    input: 'free',
     paused: true
   });
-
-  const blocked = await firstAodPlayBlockProbe(page);
-  expect(blocked?.playCalls).toBe(1);
-  expect(blocked?.rejected).toBe(true);
   const blockedTrace = await phoneRuntimeProbe(page);
   const aodAttempt = blockedTrace.stateEvents.filter((state) => (
     state.cursor === 'transition:aod-method:0'
@@ -2229,19 +2231,16 @@ test('[P0 AOD admission] a first rejected play remains retryable until a real re
   expect(aodAttempt).not.toEqual([]);
   expect(aodAttempt.some((state) => state.phase === 'animating')).toBe(false);
 
-  // The next input is the sole retry intent. It must start the same machine
-  // session without converting the failed first attempt into a progress
-  // watchdog transaction.
-  await page.mouse.move(195, 400);
-  await page.mouse.down();
-  await page.mouse.up();
+  // The next real forward intent owns retry. A pointer listener may not
+  // resurrect the discarded session or create a private media lifecycle.
+  await waitForNewWheelEpoch(page);
+  await inputPhoneDelta(page, 50);
   await assertStablePhoneHold(page, 'method-top', { timeout: 70_000 });
   const recovered = await firstAodPlayBlockProbe(page);
   expect(recovered?.playCalls).toBeGreaterThanOrEqual(2);
-  expect((await phoneRuntimeProbe(page)).stateEvents.some((state) => (
-    state.cursor === 'transition:aod-method:0'
-    && state.phase === 'rollback-rendering'
-  ))).toBe(false);
+  expect((await page.locator(LIVE_PHONE_ROOT).getAttribute(
+    'data-phone-input-state'
+  ))).toBe('free');
 });
 
 test('[P0 Safari viewport pixels] freezes content hosts and proves a real DOM viewport backdrop at every live edge', async ({

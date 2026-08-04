@@ -348,11 +348,17 @@ describe('formal Unit7-B phone integration', () => {
     expect(gradeASource).toContain(
       'selectPhoneCinematicSnapshot(storySnapshot)'
     );
-    // AOD admission reads the authority's current snapshot synchronously in
-    // the originating gesture stack; React's cinematic mirror is not used as
-    // its start authority.
+    // AOD admission reads the authority's current state synchronously in the
+    // originating gesture stack, but crosses the lazy-chunk boundary through
+    // the runtime-owned positional selector rather than raw snapshot fields.
     expect(stageRuntimeSource).toContain(
+      'selectPhoneCinematicSnapshot(options.orchestrator.getSnapshot())'
+    );
+    expect(stageRuntimeSource).not.toContain(
       'const snapshot = options.orchestrator.getSnapshot();'
+    );
+    expect(stageRuntimeSource).not.toMatch(
+      /\bsnapshot\.(?:session|status)\b/
     );
     expect(stageRuntimeSource).not.toContain('snapshotRef.current[9]');
     expect(gradeASource).not.toMatch(
