@@ -1116,26 +1116,25 @@ describe('PhoneStorySnapshot reducer', () => {
     });
   });
 
-  it('[Task 4] derives front holds and scroll-runs from one corridor sample', async () => {
+  it('[front playback hard cutover] treats Hero and Pattern rail samples as geometry only', async () => {
     const api = await snapshotApi();
     const stable = api.createPhoneStorySnapshot({
       authorityId: snapshotIdentity.authorityId,
       scene: 'hero',
       actualY: 0
     });
-    const scrolling = api.reducePhoneStorySnapshot(stable, {
+    const sampled = api.reducePhoneStorySnapshot(stable, {
       type: 'SCROLL_SAMPLED',
       authorityId: snapshotIdentity.authorityId,
       actualY: 180,
       corridor: 'front-rail',
-      run: 'hero-pattern-scroll',
       progress: 0.5,
       direction: 1
     }).snapshot;
 
-    expect(scrolling).toMatchObject({
-      status: 'scroll-run',
-      run: 'hero-pattern-scroll',
+    expect(sampled).toMatchObject({
+      status: 'stable',
+      scene: 'hero',
       session: null,
       scroll: {
         actualY: 180,
@@ -1145,36 +1144,20 @@ describe('PhoneStorySnapshot reducer', () => {
       }
     });
 
-    const settled = api.reducePhoneStorySnapshot(scrolling, {
+    const skippedPattern = api.reducePhoneStorySnapshot(sampled, {
       type: 'SCROLL_SAMPLED',
       authorityId: snapshotIdentity.authorityId,
-      actualY: 240,
+      actualY: 720,
       corridor: 'front-rail',
-      scene: 'pattern',
       progress: 1,
       direction: 1
     }).snapshot;
-    expect(settled).toMatchObject({
-      status: 'transaction',
-      session: {
-        operation: {
-          trigger: 'auto',
-          run: null,
-          from: 'hero',
-          to: 'pattern'
-        },
-        phase: 'verifying-target'
-      },
-      projection: {
-        commitState: 'candidate',
-        edge: 'hero',
-        receiverSurface: 'front:pattern',
-        sourceSurface: null,
-        coverageSurface: 'front:pattern',
-        stageScene: 'pattern'
-      },
+    expect(skippedPattern).toMatchObject({
+      status: 'stable',
+      scene: 'hero',
+      session: null,
       scroll: {
-        actualY: 240,
+        actualY: 720,
         corridor: 'front-rail',
         progress: 1,
         direction: 1

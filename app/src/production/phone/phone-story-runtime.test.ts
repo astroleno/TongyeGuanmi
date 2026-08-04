@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   createPhoneStoryRuntime,
   phoneRuntimeRunDependencies,
+  registerPhoneRuntimeFrontStageCapability,
   registerPhoneRuntimeSampledScrollCorridor,
   requestPhoneRuntimeDirectEntry,
   selectPhoneCinematicSnapshot
@@ -94,6 +96,15 @@ describe('phone story runtime factory', () => {
     runtime.dispose();
   });
 
+  it('[proof hard cutover] exposes no synthesized rendered-frame writer', () => {
+    const source = readFileSync(
+      new URL('./phone-story/runtime/session.ts', import.meta.url),
+      'utf8'
+    );
+    expect(source).not.toContain('reportRenderedFrame:');
+    expect(source).not.toContain('proofForRenderedFrame({');
+  });
+
   it('projects cinematic run legs and readiness through positional tuples', () => {
     expect(phoneRuntimeRunDependencies('lab-education', 1)).toEqual([
       'ph-animation',
@@ -107,6 +118,125 @@ describe('phone story runtime factory', () => {
       'lab-ph',
       'ph-education'
     ]);
+  });
+
+  it('[front playback hard cutover] owns Hero, Pattern checkpoint, and Ink clocks in one capability runner', () => {
+    const capabilities = new Map<string, {
+      start(direction: 1 | -1, session: Record<string, unknown>): boolean | void;
+    }>();
+    const registerRunCapability = vi.fn((
+      run: string,
+      _owner: string,
+      capability: { start(direction: 1 | -1, session: Record<string, unknown>): boolean | void }
+    ) => {
+      capabilities.set(run, capability);
+      return { dispose: () => undefined };
+    });
+    const updates = {
+      hero: vi.fn(),
+      pattern: vi.fn(),
+      star: vi.fn()
+    };
+    const effect = {
+      reporter: undefined as ((frame: Record<string, unknown>) => void) | undefined,
+      begin: vi.fn((_execution, reporter) => { effect.reporter = reporter; }),
+      prepareFirstFrame: vi.fn(() => effect.reporter?.({
+        token: token('effect-frame', 'front:ink'),
+        frameSequence: 1,
+        observedAt: 1,
+        origin: 'segment-first-frame'
+      })),
+      commitEndpoint: vi.fn(),
+      releaseEndpoint: vi.fn(),
+      render: vi.fn(),
+      enter: vi.fn(),
+      reverse: vi.fn()
+    };
+    const pattern = {
+      root: () => root(),
+      update: updates.pattern,
+      presentPresentation: vi.fn((presentationToken, report) => report({
+        // Leaf code may cross a lazy module boundary before it reports a
+        // value-identical immutable token. The runner must compare the full
+        // token contract, never object identity.
+        token: { ...presentationToken },
+        frameSequence: 1,
+        observedAt: 1,
+        origin: 'leaf-static-poster'
+      }))
+    };
+    const hero = { root: () => root(), update: updates.hero };
+    const starMap = { root: () => root(), update: updates.star };
+    const token = (kind: string, subject: string) => ({
+      authorityId: 'front-runtime-authority',
+      sessionId: 'front-runtime-session',
+      generation: 1,
+      leg: 0,
+      revision: 1,
+      kind,
+      subject
+    });
+    const animations: Array<readonly [number, number, number | undefined]> = [];
+    const session = {
+      authorityId: 'front-runtime-authority',
+      sessionId: 'front-runtime-session',
+      generation: 1,
+      leg: 0,
+      direction: 1 as const,
+      valid: () => true,
+      presentationFrameToken: (kind: string, subject: string) => token(kind, subject),
+      requestReducedTargetLayout: vi.fn(() => true),
+      reportPresentationFrame: vi.fn(() => true),
+      reportFailure: vi.fn(),
+      reportEndpoints: vi.fn(),
+      provideRelease: vi.fn(),
+      reportAnimationComplete: vi.fn(),
+      animate: vi.fn((start, end, duration, render, complete) => {
+        animations.push([start, end, duration]);
+        render(start);
+        render(end);
+        complete();
+      })
+    };
+    const registration = registerPhoneRuntimeFrontStageCapability(
+      { registerRunCapability } as never,
+      {
+        position: () => 100,
+        hero: () => hero as never,
+        pattern: () => pattern as never,
+        starMap: () => starMap as never,
+        heroPattern: () => effect as never,
+        patternStarMap: () => effect as never,
+        reducedMotion: false
+      }
+    );
+
+    expect(capabilities.get('hero-pattern')?.start(1, session)).toBe(true);
+    expect(animations).toEqual([
+      [0, 1 / 3, 900],
+      [1 / 3, 1, 1800]
+    ]);
+    expect(session.reportAnimationComplete).toHaveBeenCalledTimes(1);
+    expect(session.reportPresentationFrame).toHaveBeenCalledTimes(1);
+
+    animations.length = 0;
+    expect(capabilities.get('pattern-collapse')?.start(1, session)).toBe(true);
+    expect(animations).toEqual([[0, 1, 1800]]);
+    expect(pattern.presentPresentation).toHaveBeenCalledTimes(1);
+    expect(effect.begin).toHaveBeenCalledTimes(1);
+
+    animations.length = 0;
+    expect(capabilities.get('hero-pattern')?.start(-1, {
+      ...session,
+      direction: -1 as const
+    })).toBe(true);
+    expect(animations).toEqual([
+      [1, 1 / 3, 1800],
+      [1 / 3, 0, 900]
+    ]);
+    expect(effect.reverse).toHaveBeenCalledTimes(1);
+
+    registration.dispose();
   });
 
   it('adapts a lazy scroll sample tuple beside the runtime port', () => {
@@ -128,7 +258,7 @@ describe('phone story runtime factory', () => {
           12,
           'brand'
         ]);
-        return [actualY, 'brand', 'hero-pattern-scroll', 1, 0.75];
+        return [actualY, 'brand', 'star-aod-scroll', 1, 0.75];
       },
       () => 120,
       () => 180
@@ -145,7 +275,7 @@ describe('phone story runtime factory', () => {
       sample: {
         actualY: 96,
         scene: 'brand',
-        run: 'hero-pattern-scroll',
+        run: 'star-aod-scroll',
         direction: 1,
         progress: 0.75
       }

@@ -116,7 +116,6 @@ function session(
     },
     direction,
     valid: () => active.value,
-    reportRenderedFrame: vi.fn(() => true),
     reportPresentationFrame: vi.fn(() => true),
     reportPresentationProof: vi.fn(),
     reportPresentationReadiness: vi.fn(),
@@ -587,7 +586,6 @@ describe('phone composite runner snapshot execution', () => {
     runtime.runner.reportMediaFrame('figure3-animation', frame);
 
     expect(activeSession.reportPresentationFrame).toHaveBeenCalledWith(frame);
-    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
     expect(activeSession.presentationProofToken).not.toHaveBeenCalled();
   });
 
@@ -648,7 +646,6 @@ describe('phone composite runner snapshot execution', () => {
       expect(runtime.visual.prepareTargetPresentation).toHaveBeenCalledOnce();
     });
 
-    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
     expect(activeSession.reportProgress).not.toHaveBeenCalled();
     expect(activeSession.reportEndpointCommit).not.toHaveBeenCalled();
 
@@ -711,7 +708,6 @@ describe('phone composite runner snapshot execution', () => {
       const presentTarget = target.presentPresentation;
       if (!presentTarget) throw new Error('Expected a native static target');
       expect(activeSession.requestReducedTargetLayout).toHaveBeenCalledWith(landing);
-      expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
       expect(activeSession.reportProgress).not.toHaveBeenCalled();
       expect(activeSession.reportEndpointCommit).not.toHaveBeenCalled();
       expect(activeSession.animate).not.toHaveBeenCalled();
@@ -802,7 +798,6 @@ describe('phone composite runner snapshot execution', () => {
     expect(activeSession.requestReducedTargetLayout).toHaveBeenCalledTimes(3);
     expect(activeSession.requestReducedTargetLayout).toHaveBeenLastCalledWith(1_104);
     expect(presentTarget).toHaveBeenCalledOnce();
-    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
     expect(activeSession.reportProgress).not.toHaveBeenCalled();
     expect(activeSession.reportEndpointCommit).not.toHaveBeenCalled();
 
@@ -929,7 +924,6 @@ describe('phone composite runner snapshot execution', () => {
     runtime.runner.reportMediaFrame('figure3-animation', frame);
 
     expect(second.reportPresentationFrame).toHaveBeenCalledWith(frame);
-    expect(second.reportRenderedFrame).not.toHaveBeenCalled();
   });
 
   it('[R5] reports at most one accepted physical first frame for each active leg', async () => {
@@ -977,7 +971,6 @@ describe('phone composite runner snapshot execution', () => {
 
     expect(activeSession.reportPresentationFrame).toHaveBeenCalledTimes(1);
     expect(activeSession.reportPresentationFrame).toHaveBeenCalledWith(frame);
-    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
   });
 
   it('keeps forward ink and media under the same authority session', async () => {

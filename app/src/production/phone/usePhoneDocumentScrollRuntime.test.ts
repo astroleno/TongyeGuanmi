@@ -39,7 +39,7 @@ describe('authority-scoped document scroll runtime', () => {
     const registry = createPhoneScrollCorridorRegistry();
     const heroSample = vi.fn(() => ({
       actualY: 240,
-      run: 'hero-pattern-scroll' as const,
+      run: 'star-aod-scroll' as const,
       progress: .4,
       direction: 1 as const
     }));
@@ -92,7 +92,7 @@ describe('authority-scoped document scroll runtime', () => {
       240,
       'front',
       null,
-      'hero-pattern-scroll',
+      'star-aod-scroll',
       .4,
       1
     ]);

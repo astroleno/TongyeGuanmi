@@ -124,6 +124,8 @@ function visualFor(segment: SegmentId): SegmentVisual | undefined {
       return { type: 'ink', ink: 'left-rotate-expand' };
     case 'pattern-star-map':
       return { type: 'ink', ink: 'left-rotate-expand' };
+    case 'pattern-collapse':
+      return undefined;
     case 'star-map-aod':
     case 'method-bottom-figure2':
     case 'figure2-proof-brand':
@@ -229,6 +231,11 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
           [{ kind: 'gesture' }]
         ),
         virtualDuration: PATTERN_TOTAL_MS
+      };
+    case 'pattern-collapse':
+      return {
+        policy: snapPolicy(segment),
+        virtualDuration: PATTERN_COLLAPSE_MS
       };
     case 'star-map-aod':
     case 'figure2-proof-brand':

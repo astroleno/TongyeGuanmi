@@ -6,11 +6,12 @@ import type {
 } from './types';
 
 export type PhoneScrollRunId =
-  | 'hero-pattern-scroll'
-  | 'pattern-star-scroll'
   | 'star-aod-scroll';
 
 export type PhoneRunId =
+  | 'hero-pattern'
+  | 'pattern-collapse'
+  | 'pattern-star-map'
   | 'aod-method'
   | 'method-figure2'
   | 'figure2-proof'
@@ -24,6 +25,7 @@ export type PhoneCursorRunId = PhoneRunId | PhoneScrollRunId;
 
 export type PhoneRunLegKind =
   | 'timed-ink'
+  | 'timed-scene'
   | 'media-handoff'
   | 'media-dissolve';
 
@@ -35,6 +37,7 @@ export type PhoneRunLeg = Readonly<{
 }>;
 
 export type PhoneRunAnchorPolicy =
+  | 'front-corridor'
   | 'aod-semantic-edge'
   | 'authored-boundary'
   | 'preserve-composite';
@@ -94,19 +97,21 @@ function leg(
   };
 }
 
+/**
+ * Phone's Pattern compact checkpoint is intentionally not a desktop spine
+ * segment. Keep the explicit physical endpoints with the one phone runner
+ * rather than inventing a second scroll-owned state machine.
+ */
+function stagedLeg(
+  segment: SegmentId,
+  from: SceneId,
+  to: SceneId,
+  kind: PhoneRunLegKind
+): PhoneRunLeg {
+  return { segment, from, to, kind };
+}
+
 export const phoneScrollRuns = [
-  {
-    id: 'hero-pattern-scroll',
-    from: 'hero',
-    to: 'pattern',
-    segment: 'hero-pattern'
-  },
-  {
-    id: 'pattern-star-scroll',
-    from: 'pattern',
-    to: 'star-map',
-    segment: 'pattern-star-map'
-  },
   {
     id: 'star-aod-scroll',
     from: 'star-map',
@@ -115,12 +120,8 @@ export const phoneScrollRuns = [
   }
 ] as const;
 
-export function phoneScrollRun(id: PhoneScrollRunId) {
-  return phoneScrollRuns[
-    id === 'hero-pattern-scroll'
-      ? 0
-      : id === 'pattern-star-scroll' ? 1 : 2
-  ];
+export function phoneScrollRun(_id: PhoneScrollRunId) {
+  return phoneScrollRuns[0]!;
 }
 
 export function phoneScrollRunTuple(id: PhoneScrollRunId): PhoneScrollRunTuple {
@@ -134,6 +135,39 @@ export function phoneScrollSegment(id: PhoneScrollRunId): SegmentId {
 }
 
 export const phoneIntentRuns = [
+  {
+    id: 'hero-pattern',
+    from: 'hero',
+    to: 'pattern',
+    legs: [leg('hero-pattern', 'timed-ink')],
+    dependencies: {
+      scenes: ['hero', 'pattern'],
+      transitions: ['hero-pattern']
+    },
+    anchor: 'front-corridor'
+  },
+  {
+    id: 'pattern-collapse',
+    from: 'pattern',
+    to: 'pattern-compact',
+    legs: [stagedLeg('pattern-collapse', 'pattern', 'pattern-compact', 'timed-scene')],
+    dependencies: {
+      scenes: ['pattern'],
+      transitions: []
+    },
+    anchor: 'front-corridor'
+  },
+  {
+    id: 'pattern-star-map',
+    from: 'pattern-compact',
+    to: 'star-map',
+    legs: [stagedLeg('pattern-star-map', 'pattern-compact', 'star-map', 'timed-ink')],
+    dependencies: {
+      scenes: ['pattern', 'star-map'],
+      transitions: ['pattern-star-map']
+    },
+    anchor: 'front-corridor'
+  },
   {
     id: 'aod-method',
     from: 'aod-animation',

@@ -9,11 +9,14 @@ import {
 } from './phone-story-runs';
 
 describe('canonical phone story runs', () => {
-  it('groups only real adjacent canonical segments into the eight phone runs', () => {
+  it('groups each front checkpoint and canonical continuation into explicit machine runs', () => {
     expect(phoneIntentRuns.map(({ id, legs }) => ({
       id,
       legs: legs.map(({ segment }) => segment)
     }))).toEqual([
+      { id: 'hero-pattern', legs: ['hero-pattern'] },
+      { id: 'pattern-collapse', legs: ['pattern-collapse'] },
+      { id: 'pattern-star-map', legs: ['pattern-star-map'] },
       { id: 'aod-method', legs: ['aod-method-top'] },
       { id: 'method-figure2', legs: ['method-bottom-figure2'] },
       { id: 'figure2-proof', legs: ['figure2-distance-expand'] },
@@ -36,7 +39,7 @@ describe('canonical phone story runs', () => {
       }
     ]);
 
-    for (const run of phoneStoryRuns) {
+    for (const run of phoneStoryRuns.filter(({ id }) => id !== 'pattern-collapse' && id !== 'pattern-star-map')) {
       for (const leg of run.legs) {
         const canonical = canonicalSegments.find((candidate) => (
           candidate.id === leg.segment
@@ -50,19 +53,11 @@ describe('canonical phone story runs', () => {
     }
   });
 
-  it('models every front-half handoff as a scroll-owned canonical run', () => {
+  it('keeps only Star→AOD as a scroll-owned canonical run', () => {
     expect(phoneScrollRuns.map(({ id, segment }) => ({
       id,
       segment
     }))).toEqual([
-      {
-        id: 'hero-pattern-scroll',
-        segment: 'hero-pattern'
-      },
-      {
-        id: 'pattern-star-scroll',
-        segment: 'pattern-star-map'
-      },
       {
         id: 'star-aod-scroll',
         segment: 'star-map-aod'
@@ -70,7 +65,34 @@ describe('canonical phone story runs', () => {
     ]);
   });
 
+  it('[front playback hard cutover] routes Hero and Pattern through machine-owned runs, keeping only Star→AOD scroll-sampled', () => {
+    expect(phoneIntentRuns.slice(0, 3).map(({ id, from, to, legs }) => ({
+      id,
+      from,
+      to,
+      legs: legs.map(({ segment }) => segment)
+    }))).toEqual([
+      { id: 'hero-pattern', from: 'hero', to: 'pattern', legs: ['hero-pattern'] },
+      { id: 'pattern-collapse', from: 'pattern', to: 'pattern-compact', legs: ['pattern-collapse'] },
+      { id: 'pattern-star-map', from: 'pattern-compact', to: 'star-map', legs: ['pattern-star-map'] }
+    ]);
+    expect(phoneScrollRuns).toEqual([
+      {
+        id: 'star-aod-scroll',
+        from: 'star-map',
+        to: 'aod-animation',
+        segment: 'star-map-aod'
+      }
+    ]);
+  });
+
   it('maps each stable hold and direction to at most one adjacent run', () => {
+    expect(phoneRunForHold('hero', 1)?.id).toBe('hero-pattern');
+    expect(phoneRunForHold('pattern', 1)?.id).toBe('pattern-collapse');
+    expect(phoneRunForHold('pattern-compact' as never, 1)?.id).toBe('pattern-star-map');
+    expect(phoneRunForHold('star-map', -1)?.id).toBe('pattern-star-map');
+    expect(phoneRunForHold('pattern-compact' as never, -1)?.id).toBe('pattern-collapse');
+    expect(phoneRunForHold('pattern', -1)?.id).toBe('hero-pattern');
     expect(phoneRunForHold('brand', 1)?.id).toBe('brand-services');
     expect(phoneRunForHold('services', -1)?.id).toBe('brand-services');
     expect(phoneRunForHold('services', 1)?.id).toBe('services-lab');

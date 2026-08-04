@@ -567,6 +567,55 @@ describe('phone presentation proof reader', () => {
     })).toBeNull();
   });
 
+  it('[front reduced cutover] accepts Hero\'s actual packed post-paint only with its registered static marker', () => {
+    const root = element();
+    const heroStaticToken: PresentationToken = {
+      authorityId: 'presentation-authority',
+      sessionId: 'hero-reduced-session',
+      generation: 14,
+      leg: 0,
+      revision: 16,
+      subject: 'front:hero',
+      kind: 'static-poster'
+    };
+    let packedCanvasPresented = false;
+    const presentation = createPhoneStoryPresentation({
+      authorityId: heroStaticToken.authorityId,
+      scope: 'formal',
+      root: () => root
+    });
+    presentation.registerSurface({
+      id: 'front:hero',
+      scene: 'hero',
+      kind: 'fixed',
+      root: () => root,
+      coverageRoot: () => root,
+      presentation: () => [true, true, true, true, 'static-poster'],
+      staticPoster: (token) => packedCanvasPresented && token === heroStaticToken
+    });
+
+    expect(presentation.proofForRenderedFrame({
+      token: heroStaticToken,
+      frameSequence: 1,
+      observedAt: 42,
+      origin: 'leaf-post-paint'
+    })).toBeNull();
+
+    packedCanvasPresented = true;
+    expect(presentation.proofForRenderedFrame({
+      token: heroStaticToken,
+      frameSequence: 2,
+      observedAt: 43,
+      origin: 'leaf-post-paint'
+    })).toMatchObject({
+      token: heroStaticToken,
+      edge: 'hero',
+      connected: true,
+      visible: true,
+      coverageComplete: true
+    });
+  });
+
   it('[Figure2↔Proof reduced cutover] accepts a fixed Proof static poster only when its declared target marker matches', () => {
     const root = element();
     const proofStaticToken: PresentationToken = {

@@ -199,9 +199,13 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).not.toContain('viewport?.pageTop');
   });
 
-  it('publishes the frozen checkpoint timeline in both rail and AOD clocks', () => {
+  it('keeps rail geometry frozen while the front runner owns playback clocks', () => {
     expect(runtimeSource).toContain("from './phone-stage-timeline'");
-    expect(runtimeSource).toContain('phoneStageFrame(stageProgress, options.reducedMotion)');
+    expect(runtimeSource).toContain('registerPhoneRuntimeFrontStageCapability(');
+    expect(runtimeSource).toContain('phoneFrontSurfaceFrame(stableFrontPosition)');
+    expect(runtimeSource).not.toContain('phoneStageFrame(');
+    expect(runtimeSource).not.toContain("'hero-pattern-scroll'");
+    expect(runtimeSource).not.toContain("'pattern-star-scroll'");
     expect(runtimeSource).not.toContain('phoneAodCheckpointForMethodProgress');
     expect(runtimeSource).not.toContain('phoneAodCompletionCheckpoint');
     expect(phoneTransitionPresentationTuple([

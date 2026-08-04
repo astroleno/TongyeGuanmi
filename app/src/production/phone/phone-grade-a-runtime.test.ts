@@ -118,7 +118,6 @@ function session(onCommit?: () => void, onAbort?: () => void) {
     leg: 0,
     direction: 1,
     valid: () => active.value,
-    reportRenderedFrame: vi.fn(() => true),
     reportPresentationFrame: vi.fn(() => true),
     reportPresentationProof: vi.fn(),
     reportPresentationReadiness: vi.fn(),
@@ -391,7 +390,6 @@ describe('canonical Grade A run lifecycle', () => {
       subject,
       kind: 'static-poster'
     });
-    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
     expect(activeSession.presentationProofToken).not.toHaveBeenCalled();
     expect(activeSession.reportProgress).not.toHaveBeenCalled();
     expect(activeSession.animate).not.toHaveBeenCalled();
@@ -559,7 +557,6 @@ describe('canonical Grade A run lifecycle', () => {
       subject: 'grade-a:figure2',
       kind: 'static-poster'
     });
-    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
     expect(activeSession.presentationProofToken).not.toHaveBeenCalled();
     expect(activeSession.reportProgress).not.toHaveBeenCalled();
     expect(activeSession.animate).not.toHaveBeenCalled();
@@ -637,7 +634,6 @@ describe('canonical Grade A run lifecycle', () => {
     expect(adapter.commitEndpoint).toHaveBeenNthCalledWith(1, 0);
     expect(adapter.commitEndpoint).toHaveBeenLastCalledWith(1);
     expect(activeSession.reportPresentationFrame).toHaveBeenCalledTimes(1);
-    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
     expect(activeSession.reportProgress).toHaveBeenLastCalledWith(1);
     expect(activeSession).not.toHaveProperty('moveTo');
     expect(activeSession.provideRelease).toHaveBeenCalledWith(
@@ -687,7 +683,6 @@ describe('canonical Grade A run lifecycle', () => {
       observedAt: 41,
       origin: 'segment-first-frame'
     });
-    expect(activeSession.reportRenderedFrame).not.toHaveBeenCalled();
   });
 
   it('[R5] rolls back instead of advancing a Grade A timeline when its frame proof is rejected', async () => {

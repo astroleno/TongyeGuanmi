@@ -9,6 +9,7 @@ import type {
 } from './phone-story/runtime';
 import {
   registerPhoneRuntimeAodCapability,
+  registerPhoneRuntimeFrontStageCapability,
   registerPhoneRuntimeEffect,
   registerPhoneRuntimeSampledScrollCorridor,
   registerPhoneRuntimeSurface,
@@ -22,9 +23,8 @@ import {
 import {
   PHONE_STAGE_STOPS,
   phoneFrontRailSampleTuple,
-  phoneStageFrame
+  phoneFrontSurfaceFrame
 } from './phone-stage-timeline';
-import { renderPhoneStageTransitions } from './phone-transition-stage';
 import type {
   PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
@@ -93,6 +93,7 @@ function frontHoldProgress(scene: string): number | null {
   switch (scene) {
     case 'hero': return 0;
     case 'pattern': return PHONE_STAGE_STOPS.patternMotionStart;
+    case 'pattern-compact': return PHONE_STAGE_STOPS.patternMotionEnd;
     case 'star-map': return PHONE_STAGE_STOPS.patternStarEnd;
     case 'aod-animation': return PHONE_STAGE_STOPS.starAodEnd;
     default: return null;
@@ -120,27 +121,12 @@ function frontProgressForSnapshot(snapshot: PhoneCinematicSnapshot): number | nu
     scrollProgress,
     scrollRun
   ] = snapshot;
-  if (status === 'scroll-run') {
-    switch (scrollRun) {
-      case 'hero-pattern-scroll':
-        return interpolate(
-          PHONE_STAGE_STOPS.heroMotionEnd,
-          PHONE_STAGE_STOPS.heroPatternEnd,
-          scrollProgress
-        );
-      case 'pattern-star-scroll':
-        return interpolate(
-          PHONE_STAGE_STOPS.patternStarStart,
-          PHONE_STAGE_STOPS.patternStarEnd,
-          scrollProgress
-        );
-      case 'star-aod-scroll':
-        return interpolate(
-          PHONE_STAGE_STOPS.starAodStart,
-          PHONE_STAGE_STOPS.starAodEnd,
-          scrollProgress
-        );
-    }
+  if (status === 'scroll-run' && scrollRun === 'star-aod-scroll') {
+    return interpolate(
+      PHONE_STAGE_STOPS.starAodStart,
+      PHONE_STAGE_STOPS.starAodEnd,
+      scrollProgress
+    );
   }
   if (status === 'transaction' && transactionRun === 'aod-method') {
     // Keep the rail at the stable source semantic edge while the runner owns
@@ -148,10 +134,16 @@ function frontProgressForSnapshot(snapshot: PhoneCinematicSnapshot): number | nu
     // command or an alternative transaction owner.
     return PHONE_STAGE_STOPS.starAodEnd;
   }
+  if (
+    status === 'transaction'
+    && (
+      transactionRun === 'hero-pattern'
+      || transactionRun === 'pattern-collapse'
+      || transactionRun === 'pattern-star-map'
+    )
+  ) return null;
   if (stageOwner !== 'front') return null;
-  return scrollProgress > 0 || semanticScene === 'hero'
-    ? scrollProgress
-    : frontHoldProgress(semanticScene);
+  return frontHoldProgress(semanticScene);
 }
 
 type FullscreenElement = HTMLElement & {
@@ -304,7 +296,14 @@ export function usePhoneStageRuntime(
           dispose(token) {
             options.heroRef.current?.disposePresentation?.(token);
           }
-        }
+        },
+        (token) => (
+          token.kind === 'static-poster'
+          && token.subject === 'front:hero'
+          && options.heroRef.current?.root()?.querySelector<HTMLCanvasElement>(
+            '[data-portrait-figure-canvas]'
+          )?.dataset.packedAlphaFrameReady === 'true'
+        )
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -321,7 +320,14 @@ export function usePhoneStageRuntime(
           dispose(token) {
             options.patternRef.current?.disposePresentation?.(token);
           }
-        }
+        },
+        (token) => (
+          token.kind === 'static-poster'
+          && token.subject === 'front:pattern'
+          && options.patternRef.current?.root()?.querySelector<HTMLCanvasElement>(
+            '[data-portrait-pattern-bloom]'
+          )?.dataset.portraitPatternRenderer === 'ready'
+        )
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -338,7 +344,14 @@ export function usePhoneStageRuntime(
           dispose(token) {
             options.starMapRef.current?.disposePresentation?.(token);
           }
-        }
+        },
+        (token) => (
+          token.kind === 'static-poster'
+          && token.subject === 'front:star-map'
+          && options.starMapRef.current?.root()?.querySelector<HTMLCanvasElement>(
+            '[data-portrait-star-perlin]'
+          )?.dataset.portraitStarPerlin === 'ready'
+        )
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,
@@ -438,41 +451,33 @@ export function usePhoneStageRuntime(
       const starAdapter = options.starMapRef.current;
       const aodAdapter = aodRef.current;
       const methodAdapter = methodRef.current;
-      const heroPatternAdapter = options.heroPatternRef.current;
-      const patternStarAdapter = options.patternStarMapRef.current;
       const starAodAdapter = options.starMapAodRef.current;
 
-      const stageProgress = frontProgressForSnapshot(snapshot);
+      const stableFrontPosition = frontProgressForSnapshot(snapshot);
       if (
-        stageProgress !== null
+        stableFrontPosition !== null
         && heroAdapter
         && patternAdapter
         && starAdapter
-        && heroPatternAdapter
-        && patternStarAdapter
         && starAodAdapter
       ) {
-        const frame = phoneStageFrame(stageProgress, options.reducedMotion);
-        const [, , , heroProgress, patternProgress, starProgress] = frame;
+        const [heroProgress, patternProgress, starProgress, starAodProgress] =
+          phoneFrontSurfaceFrame(stableFrontPosition);
         if (import.meta.env.DEV) {
-          root.dataset.portraitStageProgress = stageProgress.toFixed(4);
+          root.dataset.portraitStageProgress = stableFrontPosition.toFixed(4);
         }
         heroAdapter.update(heroProgress);
         patternAdapter.update(patternProgress);
         starAdapter.update(starProgress);
-        renderPhoneStageTransitions(frame, {
-          heroPattern: heroPatternAdapter,
-          patternStar: patternStarAdapter,
-          starAod: starAodAdapter
-        });
+        starAodAdapter.render(starAodProgress);
         if (
           options.reducedMotion
-          && stageProgress >= PHONE_STAGE_STOPS.starAodEnd
+          && stableFrontPosition >= PHONE_STAGE_STOPS.starAodEnd
           && aodAdapter
         ) {
           aodAdapter.update(1);
         }
-        if (stageProgress > 0.003 && !completedHeroEntrance) {
+        if (stableFrontPosition > 0.003 && !completedHeroEntrance) {
           completedHeroEntrance = true;
           heroAdapter.completeEntrance();
         }
@@ -498,8 +503,9 @@ export function usePhoneStageRuntime(
       }
     };
 
-    // The document sampler is the sole publisher of progress. Native bounds
-    // keep Safari toolbar coverage changes from importing ScrollTrigger.
+    // The document sampler publishes only source intent/landing geometry and
+    // the frozen Star→AOD rail. Hero/Pattern playback clocks belong to their
+    // registered machine capability, never a sampled document percentage.
     refreshStageGeometry();
     phoneStageRefreshers.add(refreshStageGeometry);
     const resizeObserver = typeof ResizeObserver === 'undefined'
@@ -508,6 +514,37 @@ export function usePhoneStageRuntime(
     resizeObserver?.observe(stageRail);
     window.addEventListener('resize', refreshStageGeometry);
     window.addEventListener('orientationchange', refreshStageGeometry);
+
+    const frontStageRuntime = registerPhoneRuntimeFrontStageCapability(
+      options.orchestrator,
+      {
+        position(run, direction) {
+          const targetProgress = (() => {
+            switch (run) {
+              case 'hero-pattern':
+                return direction === 1
+                  ? PHONE_STAGE_STOPS.patternMotionStart
+                  : 0;
+              case 'pattern-collapse':
+                return direction === 1
+                  ? PHONE_STAGE_STOPS.patternMotionEnd
+                  : PHONE_STAGE_STOPS.patternMotionStart;
+              case 'pattern-star-map':
+                return direction === 1
+                  ? PHONE_STAGE_STOPS.patternStarEnd
+                  : PHONE_STAGE_STOPS.patternMotionEnd;
+            }
+          })();
+          return stagePosition(targetProgress);
+        },
+        hero: () => heroRef.current,
+        pattern: () => options.patternRef.current,
+        starMap: () => options.starMapRef.current,
+        heroPattern: () => options.heroPatternRef.current,
+        patternStarMap: () => options.patternStarMapRef.current,
+        reducedMotion: options.reducedMotion
+      }
+    );
 
     const effectLease = registerPhoneRuntimeEffect(
       options.orchestrator,
@@ -518,8 +555,8 @@ export function usePhoneStageRuntime(
     const corridorLease = registerPhoneRuntimeSampledScrollCorridor(
       options.orchestrator,
       'front-rail',
-      ['hero', 'pattern', 'star-map', 'aod-animation'],
-      (actualY) => {
+      ['hero', 'pattern', 'pattern-compact', 'star-map', 'aod-animation'],
+      (actualY, _width, _height, _offsetTop, snapshot) => {
         const delta = actualY - lastRailY;
         lastRailY = actualY;
         const direction = delta > .5 ? 1 : delta < -.5 ? -1 : 0;
@@ -537,20 +574,36 @@ export function usePhoneStageRuntime(
           direction,
           options.reducedMotion
         );
+        const starAodEligible = snapshot[0] === 'star-map'
+          || (snapshot[11] === 'scroll-run' && snapshot[17] === 'star-aod-scroll');
         return [
           actualY,
-          scene,
-          run,
+          starAodEligible ? scene : null,
+          starAodEligible ? run : null,
           sampledDirection,
           sampledProgress,
           sampledReducedMotion
         ];
       },
       (run, direction) => {
-        if (run !== 'aod-method') return null;
-        return direction === 1
-          ? aodSemanticPosition()
-          : Math.max(stageScrollStart, stageScrollEnd - 1);
+        switch (run) {
+          case 'hero-pattern':
+            return stagePosition(direction === 1 ? 0 : PHONE_STAGE_STOPS.patternMotionStart);
+          case 'pattern-collapse':
+            return stagePosition(direction === 1
+              ? PHONE_STAGE_STOPS.patternMotionStart
+              : PHONE_STAGE_STOPS.patternMotionEnd);
+          case 'pattern-star-map':
+            return stagePosition(direction === 1
+              ? PHONE_STAGE_STOPS.patternMotionEnd
+              : PHONE_STAGE_STOPS.patternStarEnd);
+          case 'aod-method':
+            return direction === 1
+              ? aodSemanticPosition()
+              : Math.max(stageScrollStart, stageScrollEnd - 1);
+          default:
+            return null;
+        }
       },
       (scene) => {
         if (scene === 'method-top') {
@@ -670,6 +723,7 @@ export function usePhoneStageRuntime(
       if (completeHandlerRef.current === completeAodRun) completeHandlerRef.current = undefined;
       if (frameHandlerRef.current === reportAodCompositorFrame) frameHandlerRef.current = undefined;
       if (failureHandlerRef.current === failAodRun) failureHandlerRef.current = undefined;
+      frontStageRuntime.dispose();
       disposeAodRuntime();
       const heroAdapter = heroRef.current;
       if (heroAdapter) heroAdapter.cancelEntrance();

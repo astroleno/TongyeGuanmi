@@ -28,6 +28,8 @@ export function resolvePhoneRunLanding({
   compositeY
 }: PhoneRunLandingRequest): number {
   switch (policy) {
+    case 'front-corridor':
+      return Math.max(0, targetY ?? boundaryY);
     case 'aod-semantic-edge':
       // The boundary starts and reverses AOD, but a completed forward run
       // must land its native Method target before its final proof/commit.

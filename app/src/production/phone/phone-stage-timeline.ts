@@ -1,42 +1,27 @@
-import {
-  FRONT_HALF_CHECKPOINT_IDS,
-  type FrontHalfCheckpointId
-} from '../../story/semantic-checkpoints';
+import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
 import type { PhoneScrollRunId } from './phone-story-runs';
 import type { PhoneStageSceneId } from './types';
 
+/**
+ * These are geometry anchors only. Hero/Pattern animation time is owned by
+ * the machine runner; the rail still needs the authored landing coordinates.
+ */
 export const PHONE_STAGE_STOPS = Object.freeze({
-  heroMotionEnd: 0.16,
-  heroPatternEnd: 0.25,
   patternMotionStart: 0.29,
   patternMotionEnd: 0.47,
-  patternStarStart: 0.52,
   patternStarEnd: 0.61,
   starAodStart: 0.71,
   starAodEnd: 0.80
 });
 
-/**
- * Browsers round a semantic rail position to device pixels. Keep a very small
- * landing band around a transition endpoint so a committed presentation does
- * not immediately resample as its preceding scroll run.
- */
+/** Browser-rounded Star↔AOD endpoints must not immediately re-sample a run. */
 export const PHONE_STAGE_SETTLE_EPSILON = 0.0005;
 
-export type PhoneStageOwnershipKey =
-  | 'hold-hero'
-  | 'handoff-hero-pattern'
-  | 'hold-pattern'
-  | 'handoff-pattern-star'
-  | 'hold-star'
-  | 'handoff-star-aod'
-  | 'hold-aod';
-
 /**
- * This timeline is emitted as a shared production chunk. Keep its frame
- * positional so the shell and every lazy consumer cannot disagree on mangled
- * object-property names.
+ * Small positional transport retained across the shell/lazy boundary. It
+ * describes stable physical front surfaces plus the one remaining rail-owned
+ * Star→AOD handoff; no Hero/Pattern Ink progress exists here anymore.
  */
 export type PhoneStageFrame = readonly [
   progress: number,
@@ -45,10 +30,15 @@ export type PhoneStageFrame = readonly [
   heroProgress: number,
   patternProgress: number,
   starProgress: number,
-  heroPatternProgress: number,
-  patternStarProgress: number,
-  starAodProgress: number,
-  ownershipKey: PhoneStageOwnershipKey
+  starAodProgress: number
+];
+
+/** The only front-stage frame transport consumed by the live phone runtime. */
+export type PhoneFrontSurfaceFrame = readonly [
+  heroProgress: number,
+  patternProgress: number,
+  starProgress: number,
+  starAodProgress: number
 ];
 
 export type PhoneFrontRailSample = Readonly<{
@@ -58,16 +48,12 @@ export type PhoneFrontRailSample = Readonly<{
   direction: -1 | 0 | 1;
 }>;
 
-/**
- * Positional transport for the independently minified timeline and lazy
- * stage chunks. Keep the named object entirely inside this module.
- */
+/** Positional transport for independently minified shell and stage chunks. */
 export type PhoneFrontRailSampleTuple = readonly [
   scene: PhoneStageSceneId | null,
   run: PhoneScrollRunId | null,
   direction: -1 | 0 | 1,
   progress: number,
-  /** Kept positional so the runtime bridge owns the named event field. */
   reducedMotion: boolean
 ];
 
@@ -75,39 +61,24 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function settledFrontRailProgress(
+function range(value: number, start: number, end: number): number {
+  return clamp((value - start) / Math.max(Number.EPSILON, end - start));
+}
+
+function settledStarAodProgress(
   rawProgress: number,
   direction: -1 | 0 | 1
 ): number {
   const progress = clamp(rawProgress);
-  const stops = PHONE_STAGE_STOPS;
-  const forwardHandoffEnds = [
-    stops.heroPatternEnd,
-    stops.patternStarEnd,
-    stops.starAodEnd
-  ];
-  const terminalEnd = forwardHandoffEnds.find((end) => (
-    progress < end && end - progress <= PHONE_STAGE_SETTLE_EPSILON
-  ));
-  if (terminalEnd !== undefined) {
-    return terminalEnd;
+  const { starAodStart, starAodEnd } = PHONE_STAGE_STOPS;
+  if (progress < starAodEnd && starAodEnd - progress <= PHONE_STAGE_SETTLE_EPSILON) {
+    return starAodEnd;
   }
-
-  if (direction !== -1) {
-    return progress;
-  }
-
-  const reverseHandoffStarts = [
-    stops.heroMotionEnd,
-    stops.patternStarStart,
-    stops.starAodStart
-  ];
-  const terminalStart = reverseHandoffStarts.find((start) => (
-    progress > start && progress - start <= PHONE_STAGE_SETTLE_EPSILON
-  ));
-  return terminalStart === undefined
-    ? progress
-    : Math.max(0, terminalStart - PHONE_STAGE_SETTLE_EPSILON);
+  return direction === -1
+    && progress > starAodStart
+    && progress - starAodStart <= PHONE_STAGE_SETTLE_EPSILON
+    ? Math.max(0, starAodStart - PHONE_STAGE_SETTLE_EPSILON)
+    : progress;
 }
 
 const PHONE_POST_METHOD_DIRECT_ENTRY_SCENES = new Set<SceneId>([
@@ -131,107 +102,132 @@ export function phoneDirectEntryCompletesAod(
   return Boolean(scene && PHONE_POST_METHOD_DIRECT_ENTRY_SCENES.has(scene));
 }
 
-export function phoneRangeProgress(value: number, start: number, end: number): number {
-  if (end <= start) {
-    return value >= end ? 1 : 0;
-  }
-  return clamp((value - start) / (end - start));
-}
-
 /**
- * The Route B rail only maps document distance to semantic presentation state.
- * Scene-specific DOM work stays inside adapters and named transitions.
+ * Resolves only stable physical scene poses and Star→AOD's retained rail
+ * frame. The optional motion argument is kept for lazy-call compatibility;
+ * reduced motion selects the same static poses through a short transaction.
  */
-export function phoneStageFrame(rawProgress: number, reducedMotion = false): PhoneStageFrame {
+export function phoneStageFrame(
+  rawProgress: number,
+  _reducedMotion = false
+): PhoneStageFrame {
   const progress = clamp(rawProgress);
   const stops = PHONE_STAGE_STOPS;
-  const heroProgress = phoneRangeProgress(progress, 0, stops.heroMotionEnd);
-  const heroPatternProgress = phoneRangeProgress(progress, stops.heroMotionEnd, stops.heroPatternEnd);
-  const patternProgress = phoneRangeProgress(progress, stops.patternMotionStart, stops.patternMotionEnd);
-  const patternStarProgress = phoneRangeProgress(progress, stops.patternStarStart, stops.patternStarEnd);
-  const starAodProgress = phoneRangeProgress(progress, stops.starAodStart, stops.starAodEnd);
-  const starProgress = progress >= stops.patternStarStart ? 1 : 0;
-
-  if (reducedMotion) {
-    if (progress < stops.heroPatternEnd) {
-      return [progress, 'hero-entered', 'hero', 1, 0, 0, 0, 0, 0, 'hold-hero'];
-    }
-    if (progress < stops.patternStarEnd) {
-      return [progress, 'pattern-complete', 'pattern', 1, 1, 0, 1, 0, 0, 'hold-pattern'];
-    }
-    if (progress < stops.starAodEnd) {
-      return [progress, 'star-map-reading', 'star-map', 1, 1, 1, 1, 1, 0, 'hold-star'];
-    }
-    return [progress, 'aod-stage', 'aod-animation', 1, 1, 1, 1, 1, 1, 'hold-aod'];
-  }
-
-  if (progress < stops.heroMotionEnd) {
-    return [progress, 'hero-entered', 'hero', heroProgress, 0, 0, 0, 0, 0, 'hold-hero'];
-  }
-  if (progress < stops.heroPatternEnd) {
+  const [heroProgress, patternProgress, starProgress, starAodProgress] =
+    phoneFrontSurfaceFrame(progress);
+  if (progress >= stops.starAodEnd) {
     return [
-      progress, 'hero-to-pattern', 'hero', 1, 0, 0,
-      heroPatternProgress, 0, 0, 'handoff-hero-pattern'
+      progress,
+      'aod-stage',
+      'aod-animation',
+      heroProgress,
+      patternProgress,
+      starProgress,
+      starAodProgress
     ];
   }
-  if (progress < stops.patternStarStart) {
-    return [progress, 'pattern-complete', 'pattern', 1, patternProgress, 0, 1, 0, 0, 'hold-pattern'];
-  }
-  if (progress < stops.patternStarEnd) {
+  if (progress >= stops.starAodStart) {
     return [
-      progress, 'pattern-to-star-map', 'pattern', 1, 1, starProgress,
-      1, patternStarProgress, 0, 'handoff-pattern-star'
+      progress,
+      'star-map-to-aod',
+      'star-map',
+      heroProgress,
+      patternProgress,
+      starProgress,
+      starAodProgress
     ];
   }
-  if (progress < stops.starAodStart) {
-    return [progress, 'star-map-reading', 'star-map', 1, 1, starProgress, 1, 1, 0, 'hold-star'];
-  }
-  if (progress < stops.starAodEnd) {
+  if (progress >= stops.patternStarEnd) {
     return [
-      progress, 'star-map-to-aod', 'star-map', 1, 1, starProgress,
-      1, 1, starAodProgress, 'handoff-star-aod'
+      progress,
+      'star-map-reading',
+      'star-map',
+      heroProgress,
+      patternProgress,
+      starProgress,
+      starAodProgress
+    ];
+  }
+  if (progress >= stops.patternMotionEnd) {
+    return [
+      progress,
+      'pattern-compact',
+      'pattern',
+      heroProgress,
+      patternProgress,
+      starProgress,
+      starAodProgress
+    ];
+  }
+  if (progress >= stops.patternMotionStart) {
+    return [
+      progress,
+      'pattern-complete',
+      'pattern',
+      heroProgress,
+      patternProgress,
+      starProgress,
+      starAodProgress
     ];
   }
   return [
     progress,
-    'aod-stage',
-    'aod-animation',
-    1,
-    1,
+    'hero-entered',
+    'hero',
+    heroProgress,
+    patternProgress,
     starProgress,
-    1,
-    1,
-    1,
-    'hold-aod'
+    starAodProgress
   ];
 }
 
 /**
- * Positional transport for the independently minified timeline and lazy
- * stage chunks. Keep the named sample object out of the production boundary.
+ * Live rendering only needs stable front surfaces plus Star→AOD's retained
+ * rail frame. Semantic checkpoint names stay in the v16 characterization
+ * export above and do not cross into the production render hot path.
+ */
+export function phoneFrontSurfaceFrame(
+  rawProgress: number
+): PhoneFrontSurfaceFrame {
+  const progress = clamp(rawProgress);
+  const { patternMotionStart, patternStarEnd, starAodStart, starAodEnd } =
+    PHONE_STAGE_STOPS;
+  return [
+    progress < patternMotionStart ? 0 : 1,
+    progress < patternMotionStart ? 0 : 1,
+    progress < patternStarEnd ? 0 : 1,
+    progress < starAodStart ? 0 : range(progress, starAodStart, starAodEnd)
+  ];
+}
+
+/**
+ * The rail may publish Star→AOD only. Earlier front geometry is intentionally
+ * opaque to the reducer so a coalesced Safari scroll cannot skip a machine
+ * transaction or write an animation frame.
  */
 export function phoneFrontRailSampleTuple(
   rawProgress: number,
   direction: -1 | 0 | 1,
   reducedMotion = false
 ): PhoneFrontRailSampleTuple {
-  const frame = phoneStageFrame(
-    reducedMotion ? rawProgress : settledFrontRailProgress(rawProgress, direction),
-    reducedMotion
-  );
-  switch (frame[9]) {
-    case 'handoff-hero-pattern':
-      return [null, 'hero-pattern-scroll', direction, frame[6], reducedMotion];
-    case 'handoff-pattern-star':
-      return [null, 'pattern-star-scroll', direction, frame[7], reducedMotion];
-    case 'handoff-star-aod':
-      return [null, 'star-aod-scroll', direction, frame[8], reducedMotion];
-    default:
-      return [frame[2], null, direction, frame[0], reducedMotion];
+  const progress = settledStarAodProgress(rawProgress, direction);
+  const { starAodStart, starAodEnd } = PHONE_STAGE_STOPS;
+  if (progress >= starAodStart && progress < starAodEnd) {
+    return [
+      null,
+      'star-aod-scroll',
+      direction,
+      range(progress, starAodStart, starAodEnd),
+      reducedMotion
+    ];
   }
+  if (progress >= starAodEnd) {
+    return ['aod-animation', null, direction, progress, reducedMotion];
+  }
+  return [null, null, direction, progress, reducedMotion];
 }
 
-/** Converts front rail geometry into the one semantic sample the authority consumes. */
+/** Converts geometry into the one semantic rail sample the authority consumes. */
 export function phoneFrontRailSample(
   rawProgress: number,
   direction: -1 | 0 | 1,
@@ -248,21 +244,4 @@ export function phoneFrontRailSample(
     direction: sampledDirection,
     progress
   };
-}
-
-export function frontHalfCheckpointIndex(id: FrontHalfCheckpointId): number {
-  return FRONT_HALF_CHECKPOINT_IDS.indexOf(id);
-}
-
-/**
- * The AOD runner owns the media clock after it claims the stable AOD semantic
- * edge. Method becomes a semantic handoff only once its adapter has a
- * non-zero entrance value, keeping the rail independent of AOD-local timing.
- */
-export function phoneAodCheckpointForMethodProgress(methodProgress: number): FrontHalfCheckpointId {
-  return clamp(methodProgress) > 0.001 ? 'aod-to-method' : 'aod-autoplay';
-}
-
-export function phoneAodCompletionCheckpoint(direction: 1 | -1): FrontHalfCheckpointId {
-  return direction === 1 ? 'method-intro' : 'aod-stage';
 }

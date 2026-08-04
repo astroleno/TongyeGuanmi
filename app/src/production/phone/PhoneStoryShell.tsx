@@ -188,7 +188,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-portrait-spike-media={directStoryEntry
         ? 'direct-entry-full-route-runtime'
         : 'figure1-packed-alpha-pattern-bloom-star-perlin-aod-packed-alpha-autoplay'}
-      data-portrait-spike-animation="gsap-scrolltrigger-native-fixed-stage"
+      data-portrait-spike-animation="machine-owned-front-stage-native-fixed"
       data-portrait-spike-motion={motionEnabled ? 'force' : 'reduce'}
       data-portrait-fixed-stage={fixedStageRegistered ? 'registered' : 'priming'}
       data-portrait-loader-ready={semanticBoolean(loaderHidden)}

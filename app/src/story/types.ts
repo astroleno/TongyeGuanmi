@@ -1,6 +1,10 @@
 export const SCENE_IDS = [
   'hero',
   'pattern',
+  // Phone Route B's explicit staged checkpoint. It reuses Pattern's physical
+  // surface but is a distinct machine hold, so one gesture cannot consume
+  // both the collapse and the following Ink handoff.
+  'pattern-compact',
   'star-map',
   'aod-animation',
   'method-top',
@@ -24,6 +28,8 @@ export const SCENE_IDS = [
 export const SEGMENT_IDS = [
   'hero-pattern',
   'pattern-star-map',
+  // Phone-only staged leg between Pattern's expanded and compact holds.
+  'pattern-collapse',
   'star-map-aod',
   'aod-method-top',
   'method-top-method-bottom',

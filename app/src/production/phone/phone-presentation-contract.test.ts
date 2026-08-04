@@ -131,11 +131,23 @@ describe('R5 canonical presentation manifest', () => {
               mode
             );
             expect(admission).not.toBeNull();
-            expect(admission?.targetScene).toBe(
-              mode === 'normal'
-                ? direction === 1 ? leg.to : leg.from
-                : direction === 1 ? run.to : run.from
-            );
+            // A normal leg admits its physical endpoint. Reduced motion
+            // intentionally uses the same endpoint for these one-leg front
+            // runs; multi-leg continuations retain their run terminal.
+            const expectedTarget = (
+              // The reverse Pattern→StarMap Ink still paints its canonical
+              // Pattern physical surface. The distinct `pattern-compact`
+              // machine hold is committed only after that Ink leg finishes.
+              run.id === 'pattern-star-map'
+              && direction === -1
+              && mode === 'normal'
+            )
+              ? 'pattern'
+              : mode === 'normal'
+              || run.legs.length === 1
+              ? direction === 1 ? leg.to : leg.from
+              : direction === 1 ? run.to : run.from;
+            expect(admission?.targetScene).toBe(expectedTarget);
           }
         }
       }
@@ -156,20 +168,31 @@ describe('R5 canonical presentation manifest', () => {
     }
   });
 
-  it('[front sampled static admission] declares the Safari touch-safe terminal proof in the manifest', () => {
-    for (const [to, segment] of [
-      ['star-map', 'pattern-star-map'],
-      ['aod-animation', 'star-map-aod']
-    ] as const) {
+  it('[front playback hard cutover] declares Ink only for timed front legs and static leaves only for reduced admission', () => {
+    for (const segment of ['hero-pattern', 'pattern-star-map'] as const) {
       expect(phoneSegmentAdmissionStrategy(segment, 1, 'normal')).toMatchObject({
+        producer: 'effect-leaf',
+        kind: 'effect-frame',
+        landingResolver: 'front-corridor',
+        effectRole: 'above-both',
+        requiresLeafAdapter: true
+      });
+      expect(phoneSegmentAdmissionStrategy(segment, 1, 'reduced')).toMatchObject({
         producer: 'static-leaf',
         kind: 'static-poster',
-        targetScene: to,
         landingResolver: 'front-corridor',
         effectRole: 'none',
         requiresLeafAdapter: true
       });
     }
+    expect(phoneSegmentAdmissionStrategy('star-map-aod', 1, 'normal')).toMatchObject({
+      producer: 'static-leaf',
+      kind: 'static-poster',
+      targetScene: 'aod-animation',
+      landingResolver: 'front-corridor',
+      effectRole: 'none',
+      requiresLeafAdapter: true
+    });
   });
 
   it('gives every canonical hold an explicit receiver, coverage owner, and real direct-entry probe', () => {

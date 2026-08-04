@@ -462,7 +462,7 @@ const hostPlaneOrder = {
  * callers must resolve that topology from the immutable segment contract.
  */
 export type PhoneTransitionLayerPlan = readonly [
-  segment: CanonicalPhoneSegmentId,
+  segment: SegmentId,
   source: PhoneSurfaceId,
   receiver: PhoneSurfaceId,
   effectRole: PhonePresentationLayer
@@ -1477,18 +1477,33 @@ export function createPhoneStoryPresentation({
     if (surface) {
       const contract = phoneScenePresentationTuple(surface.scene);
       const targetBinding = activeAdapters.get(frame.token.subject);
-      // The reduced runner invokes a native leaf directly, rather than
-      // installing a presentation-plane adapter. Its one post-layout frame is
-      // still a terminal physical fact, but only an explicitly identified
-      // native static poster may take that route. A fixed surface must expose
-      // an equally exact scene-local marker verifier; generic/no-origin
-      // callbacks remain transition-source candidates and cannot self-commit.
-      const declaredLeafStaticPoster = frame.origin === 'leaf-static-poster'
+      // A reduced runner invokes a leaf directly, rather than installing a
+      // presentation-plane adapter. Its one post-layout frame is still a
+      // terminal physical fact. A fixed surface must expose an exact
+      // scene-local marker, and a Hero-style packed compositor may label that
+      // stronger fact `leaf-post-paint`; generic/no-origin callbacks remain
+      // transition-source candidates and cannot self-commit.
+      const declaredLeafStaticPoster = (
+        frame.origin === 'leaf-static-poster'
+        || frame.origin === 'leaf-post-paint'
+      )
         && frame.token.kind === 'static-poster'
         && (
           surface.kind === 'native'
           || surface.staticPoster?.(frame.token) === true
         );
+      // `leaf-post-paint` is the stronger packed-compositor proof used by
+      // Hero. Unlike an ordinary active adapter callback, it must carry the
+      // fixed surface's declared marker before it can be treated as a static
+      // endpoint; otherwise a stale source canvas could impersonate Hero's
+      // reduced-motion terminal hold.
+      if (
+        frame.origin === 'leaf-post-paint'
+        && surface.scene === 'hero'
+        && !declaredLeafStaticPoster
+      ) {
+        return null;
+      }
       const edge = declaredLeafStaticPoster
         ? phoneScenePresentationTuple(surface.scene)[1]
         : phoneSurfaceRenderedProofEdge(

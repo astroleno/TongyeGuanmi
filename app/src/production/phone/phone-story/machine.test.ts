@@ -220,6 +220,78 @@ function reportReadiness(candidate: PhoneStorySnapshot): PhoneStorySnapshot {
 }
 
 describe('token-bound phone presentation proofs', () => {
+  it('[front staged checkpoint] consumes one gesture per Hero, Pattern collapse, and Pattern→StarMap leg, with a mirrored reverse path', () => {
+    const start = createPhoneStorySnapshot({
+      authorityId: 'front-staged-authority',
+      scene: 'hero',
+      actualY: 100
+    });
+    const intent = (
+      snapshot: PhoneStorySnapshot,
+      inputEpoch: number,
+      direction: 1 | -1,
+      run: string
+    ) => reducePhoneStorySnapshot(snapshot, {
+      type: 'INTENT_RESOLVED',
+      authorityId: snapshot.authorityId,
+      inputEpoch,
+      direction,
+      run,
+      anchorY: snapshot.scroll.actualY,
+      boundaryKnown: true,
+      crossedBoundary: true
+    } as never).snapshot;
+
+    const heroPattern = intent(start, 1, 1, 'hero-pattern');
+    const patternExpanded = settleCinematic(heroPattern);
+    expect(patternExpanded).toMatchObject({ status: 'stable', scene: 'pattern' });
+
+    // Momentum from the same physical touch sequence cannot cross the
+    // Pattern collapse checkpoint after Hero→Pattern has consumed its epoch.
+    expect(intent(patternExpanded, 1, 1, 'pattern-collapse')).toBe(patternExpanded);
+
+    const patternCollapse = settleCinematic(intent(
+      patternExpanded,
+      2,
+      1,
+      'pattern-collapse'
+    ));
+    expect(patternCollapse).toMatchObject({
+      status: 'stable',
+      scene: 'pattern-compact'
+    });
+
+    const starMap = settleCinematic(intent(
+      patternCollapse,
+      3,
+      1,
+      'pattern-star-map'
+    ));
+    expect(starMap).toMatchObject({ status: 'stable', scene: 'star-map' });
+
+    const compactAgain = settleCinematic(intent(
+      starMap,
+      4,
+      -1,
+      'pattern-star-map'
+    ));
+    const patternAgain = settleCinematic(intent(
+      compactAgain,
+      5,
+      -1,
+      'pattern-collapse'
+    ));
+    const heroAgain = settleCinematic(intent(
+      patternAgain,
+      6,
+      -1,
+      'hero-pattern'
+    ));
+    expect(compactAgain).toMatchObject({ status: 'stable', scene: 'pattern-compact' });
+    expect(patternAgain).toMatchObject({ status: 'stable', scene: 'pattern' });
+    expect(heroAgain).toMatchObject({ status: 'stable', scene: 'hero' });
+  });
+
   it('[Task 3] leaves preparing only for an exact active-leg physical frame proof', () => {
     const stable = createPhoneStorySnapshot({
       authorityId: 'first-frame-authority',

@@ -70,16 +70,6 @@ export type PhoneOrchestratedRunSession = PhoneTransitionSession & Readonly<{
   leg: number;
   direction: PhoneTransitionDirection;
   /**
-   * Only a renderer/compositor may publish this transition gate. The evidence
-   * travels with the same event, so prepare cannot inherit a stale frame.
-   */
-  reportRenderedFrame(
-    kind?: PhonePresentationProofKind,
-    subject?: PhoneSurfaceId,
-    /** Distinguishes a segment admission draw from a visual target draw. */
-    origin?: 'segment-first-frame'
-  ): boolean;
-  /**
    * A leaf forwards the complete immutable frame it actually painted. The
    * runtime validates that evidence, but never recreates its token.
    */

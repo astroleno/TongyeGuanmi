@@ -1,3 +1,10 @@
+import {
+  HERO_PATTERN_INK_MS,
+  HERO_PATTERN_MOTION_MS,
+  HERO_PATTERN_MOTION_STOP,
+  PATTERN_COLLAPSE_MS,
+  PATTERN_STAR_MAP_INK_MS
+} from '../../../story/timings';
 import type { SceneId } from '../../../story/types';
 import {
   phoneRunDependencies,
@@ -41,9 +48,15 @@ import type {
   PhoneStorySnapshot,
   PhoneFailureReason,
   PhoneTransactionPhase,
+  PhoneExecutionToken,
   PresentationToken
 } from './machine';
 import type { PhoneAodStartResult } from '../aod-autoplay';
+import type {
+  PhoneHeroAdapterHandle,
+  PhoneSceneAdapterHandle,
+  PhoneTransitionAdapterHandle
+} from '../types';
 
 export type {
   PhoneCapabilityLease,
@@ -262,11 +275,11 @@ export type PhoneCompositeSession = readonly [
   generation: number,
   leg: () => number,
   valid: () => boolean,
-  reportRenderedFrame: (
-    kind?: PhonePresentationProofKind,
-    subject?: PhoneSurfaceId,
-    origin?: 'segment-first-frame'
-  ) => boolean,
+  /**
+   * Tombstone retained for this positional lazy-chunk transport. New callers
+   * cannot synthesize a frame: every proof path uses slots 15/16 below.
+   */
+  retiredRenderedFrame: null,
   reportProgress: (progress: number) => void,
   animate: PhoneOrchestratedRunSession['animate'],
   reportEndpoints: (source: HTMLElement, receiver: HTMLElement) => void,
@@ -301,7 +314,7 @@ function compositeSession(
     session.generation,
     () => session.leg,
     session.valid,
-    session.reportRenderedFrame,
+    null,
     session.reportProgress,
     session.animate,
     session.reportEndpoints,
@@ -346,6 +359,375 @@ export function registerPhoneCompositeRunCapability(
       compositeSession(session)
     )
   });
+}
+
+const PHONE_FRONT_STAGE_ADMISSION_TIMEOUT_MS = 8_000;
+
+type PhoneFrontStageRunId = Extract<
+  PhoneRunId,
+  'hero-pattern' | 'pattern-collapse' | 'pattern-star-map'
+>;
+
+export type PhoneRuntimeFrontStageConfig = Readonly<{
+  position(
+    run: PhoneFrontStageRunId,
+    direction: PhoneTransitionDirection
+  ): number | null;
+  hero(): PhoneHeroAdapterHandle | null;
+  pattern(): PhoneSceneAdapterHandle | null;
+  starMap(): PhoneSceneAdapterHandle | null;
+  heroPattern(): PhoneTransitionAdapterHandle | null;
+  patternStarMap(): PhoneTransitionAdapterHandle | null;
+  reducedMotion: boolean;
+}>;
+
+export type PhoneRuntimeFrontStageRegistration = Readonly<{
+  dispose(): void;
+}>;
+
+type ActiveFrontStageRun = [
+  session: PhoneOrchestratedRunSession,
+  transition: PhoneTransitionAdapterHandle | null,
+  staticTarget: PhoneSceneAdapterHandle | null,
+  staticToken: PresentationToken | null,
+  admissionTimeout: ReturnType<typeof globalThis.setTimeout> | undefined
+];
+
+function frontStageTarget(
+  config: PhoneRuntimeFrontStageConfig,
+  run: PhoneFrontStageRunId,
+  direction: PhoneTransitionDirection
+): readonly [PhoneSceneAdapterHandle | null, PhoneSurfaceId] {
+  switch (run) {
+    case 'hero-pattern':
+      return direction === 1
+        ? [config.pattern(), 'front:pattern']
+        : [config.hero(), 'front:hero'];
+    case 'pattern-collapse':
+      return [config.pattern(), 'front:pattern'];
+    case 'pattern-star-map':
+      return direction === 1
+        ? [config.starMap(), 'front:star-map']
+        : [config.pattern(), 'front:pattern'];
+  }
+}
+
+function frontStageEndpoints(
+  config: PhoneRuntimeFrontStageConfig,
+  run: Exclude<PhoneFrontStageRunId, 'pattern-collapse'>,
+  direction: PhoneTransitionDirection
+): readonly [HTMLElement, HTMLElement, PhoneTransitionAdapterHandle] | null {
+  const transition = run === 'hero-pattern'
+    ? config.heroPattern()
+    : config.patternStarMap();
+  const forward = run === 'hero-pattern'
+    ? [config.hero(), config.pattern()]
+    : [config.pattern(), config.starMap()];
+  const [from, to] = direction === 1
+    ? forward
+    : [forward[1], forward[0]];
+  const source = from?.root() ?? null;
+  const receiver = to?.root() ?? null;
+  return transition && source && receiver
+    ? [source, receiver, transition]
+    : null;
+}
+
+/**
+ * The machine is the exact token validator. The runner only accepts a leaf
+ * static origin and forwards that original raw frame without rebuilding it.
+ */
+function isFrontStageStaticFrame(frame: PhoneRenderedPresentationFrame): boolean {
+  return frame.origin === 'leaf-static-poster'
+    || frame.origin === 'leaf-post-paint';
+}
+
+/**
+ * One machine-owned front-stage runner replaces the old scroll-percent
+ * writers. It owns admission, the authored playback clocks, terminal cleanup,
+ * and all cancellation. Leaves only render their exact token-bound frames.
+ */
+export function registerPhoneRuntimeFrontStageCapability(
+  port: PhoneStoryRuntimePort,
+  config: PhoneRuntimeFrontStageConfig
+): PhoneRuntimeFrontStageRegistration {
+  let active: ActiveFrontStageRun | null = null;
+  const leases: PhoneCapabilityLease[] = [];
+
+  const clearAdmissionTimeout = (record: ActiveFrontStageRun) => {
+    if (record[4] !== undefined) {
+      globalThis.clearTimeout(record[4]);
+      record[4] = undefined;
+    }
+  };
+  const release = (record: ActiveFrontStageRun) => {
+    if (active !== record) return;
+    active = null;
+    clearAdmissionTimeout(record);
+    record[1]?.releaseEndpoint();
+    if (record[2] && record[3]) {
+      record[2].disposePresentation?.(record[3]);
+    }
+  };
+  const owns = (record: ActiveFrontStageRun) => (
+    active === record && record[0].valid()
+  );
+  const fail = (record: ActiveFrontStageRun) => {
+    if (owns(record)) record[0].reportFailure('dependency-timeout');
+  };
+  const retain = (record: ActiveFrontStageRun) => {
+    record[0].provideRelease({
+      releaseGeometry: () => record[1]?.releaseEndpoint(),
+      releaseResources: () => release(record)
+    });
+  };
+  const armAdmissionTimeout = (record: ActiveFrontStageRun) => {
+    clearAdmissionTimeout(record);
+    record[4] = globalThis.setTimeout(() => fail(record),
+      PHONE_FRONT_STAGE_ADMISSION_TIMEOUT_MS);
+  };
+  const startStatic = (
+    target: PhoneSceneAdapterHandle,
+    subject: PhoneSurfaceId,
+    session: PhoneOrchestratedRunSession,
+    deadline: boolean,
+    accepted?: (record: ActiveFrontStageRun) => void
+  ): boolean => {
+    const token = session.presentationFrameToken('static-poster', subject);
+    if (!token) return false;
+    const record: ActiveFrontStageRun = [session, null, target, token, undefined];
+    active = record;
+    retain(record);
+    if (deadline) armAdmissionTimeout(record);
+    try {
+      target.presentPresentation?.(token, (frame) => {
+        if (
+          !owns(record)
+          || !isFrontStageStaticFrame(frame)
+          || !session.reportPresentationFrame(frame)
+        ) return;
+        clearAdmissionTimeout(record);
+        accepted?.(record);
+      });
+      return true;
+    } catch {
+      release(record);
+      return false;
+    }
+  };
+  const beginReducedStatic = (
+    run: PhoneFrontStageRunId,
+    direction: PhoneTransitionDirection,
+    session: PhoneOrchestratedRunSession
+  ): boolean => {
+    const [target, subject] = frontStageTarget(config, run, direction);
+    const targetY = config.position(run, direction);
+    if (
+      !target
+      || targetY === null
+      || !Number.isFinite(targetY)
+      || !session.requestReducedTargetLayout(targetY)
+    ) return false;
+    return startStatic(target, subject, session, false);
+  };
+  const startCollapse = (
+    direction: PhoneTransitionDirection,
+    session: PhoneOrchestratedRunSession
+  ): boolean => {
+    const pattern = config.pattern();
+    if (!pattern) return false;
+    return startStatic(
+      pattern,
+      'front:pattern',
+      session,
+      true,
+      (record) => {
+        session.animate(
+          direction === 1 ? 0 : 1,
+          direction === 1 ? 1 : 0,
+          PATTERN_COLLAPSE_MS,
+          (progress) => config.pattern()?.update(progress),
+          () => {
+            if (!owns(record)) return;
+            config.pattern()?.update(direction === 1 ? 1 : 0);
+            session.reportAnimationComplete();
+          }
+        );
+      }
+    );
+  };
+  const startInk = (
+    run: Exclude<PhoneFrontStageRunId, 'pattern-collapse'>,
+    direction: PhoneTransitionDirection,
+    session: PhoneOrchestratedRunSession
+  ): boolean => {
+    const endpoints = frontStageEndpoints(config, run, direction);
+    const token = session.presentationFrameToken('effect-frame', 'front:ink');
+    if (!endpoints || !token) return false;
+    const [source, receiver, transition] = endpoints;
+    const record: ActiveFrontStageRun = [session, transition, null, null, undefined];
+    active = record;
+    retain(record);
+    armAdmissionTimeout(record);
+    const execution: PhoneExecutionToken = [
+      session.authorityId,
+      session.sessionId,
+      session.generation,
+      session.leg,
+      direction,
+      token
+    ];
+    const completeInk = () => {
+      if (!owns(record)) return;
+      const endpoint = direction === 1 ? 1 : 0;
+      transition.render(endpoint);
+      transition.commitEndpoint(endpoint);
+      session.reportAnimationComplete();
+    };
+    const animatePatternInk = () => {
+      session.animate(
+        direction === 1 ? 0 : 1,
+        direction === 1 ? 1 : 0,
+        PATTERN_STAR_MAP_INK_MS,
+        (progress) => {
+          config.pattern()?.update(1);
+          config.starMap()?.update(progress);
+          transition.render(progress);
+        },
+        () => {
+          config.pattern()?.update(1);
+          config.starMap()?.update(direction === 1 ? 1 : 0);
+          completeInk();
+        }
+      );
+    };
+    const animateHeroPattern = () => {
+      if (direction === 1) {
+        session.animate(
+          0,
+          HERO_PATTERN_MOTION_STOP,
+          HERO_PATTERN_MOTION_MS,
+          (progress) => {
+            config.hero()?.update(progress / HERO_PATTERN_MOTION_STOP);
+            config.pattern()?.update(0);
+            transition.render(0);
+          },
+          () => {
+            if (!owns(record)) return;
+            transition.enter?.();
+            session.animate(
+              HERO_PATTERN_MOTION_STOP,
+              1,
+              HERO_PATTERN_INK_MS,
+              (progress) => {
+                config.hero()?.update(1);
+                config.pattern()?.update(0);
+                transition.render(
+                  (progress - HERO_PATTERN_MOTION_STOP)
+                  / (1 - HERO_PATTERN_MOTION_STOP)
+                );
+              },
+              completeInk
+            );
+          }
+        );
+        return;
+      }
+      transition.reverse?.();
+      session.animate(
+        1,
+        HERO_PATTERN_MOTION_STOP,
+        HERO_PATTERN_INK_MS,
+        (progress) => {
+          config.hero()?.update(1);
+          config.pattern()?.update(0);
+          transition.render(
+            (progress - HERO_PATTERN_MOTION_STOP)
+            / (1 - HERO_PATTERN_MOTION_STOP)
+          );
+        },
+        () => {
+          if (!owns(record)) return;
+          session.animate(
+            HERO_PATTERN_MOTION_STOP,
+            0,
+            HERO_PATTERN_MOTION_MS,
+            (progress) => {
+              config.hero()?.update(progress / HERO_PATTERN_MOTION_STOP);
+              config.pattern()?.update(0);
+              transition.render(0);
+            },
+            () => {
+              config.hero()?.update(0);
+              config.pattern()?.update(0);
+              completeInk();
+            }
+          );
+        }
+      );
+    };
+    try {
+      session.reportEndpoints(source, receiver);
+      transition.begin(execution, (frame) => {
+        if (!owns(record) || !frame || !session.reportPresentationFrame(frame)) {
+          fail(record);
+          return;
+        }
+        clearAdmissionTimeout(record);
+        if (run === 'hero-pattern') animateHeroPattern();
+        else {
+          if (direction === 1) transition.enter?.();
+          else transition.reverse?.();
+          animatePatternInk();
+        }
+      });
+      transition.commitEndpoint(direction === 1 ? 0 : 1);
+      transition.prepareFirstFrame?.(direction);
+      if (!transition.prepareFirstFrame) {
+        transition.render(direction === 1 ? .002 : .998);
+      }
+      return true;
+    } catch {
+      release(record);
+      return false;
+    }
+  };
+  const start = (
+    run: PhoneFrontStageRunId,
+    direction: PhoneTransitionDirection,
+    session: PhoneOrchestratedRunSession
+  ) => {
+    if (active) release(active);
+    if (config.reducedMotion) return beginReducedStatic(run, direction, session);
+    return run === 'pattern-collapse'
+      ? startCollapse(direction, session)
+      : startInk(run, direction, session);
+  };
+  for (const run of [
+    'hero-pattern',
+    'pattern-collapse',
+    'pattern-star-map'
+  ] as const satisfies readonly PhoneFrontStageRunId[]) {
+    leases.push(port.registerRunCapability(run, `front-stage:${run}`, {
+      reducedMotion: config.reducedMotion,
+      position: (direction) => config.position(run, direction),
+      canStart: () => {
+        if (run === 'pattern-collapse') return config.pattern() !== null;
+        return frontStageEndpoints(config, run, 1) !== null;
+      },
+      start: (direction, session) => start(
+        run,
+        direction,
+        session as PhoneOrchestratedRunSession
+      )
+    }));
+  }
+  return {
+    dispose() {
+      if (active) release(active);
+      for (const lease of leases) lease.dispose();
+    }
+  };
 }
 
 export const PHONE_AOD_PREPARE_TIMEOUT_MS = 6_000;

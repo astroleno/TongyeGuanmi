@@ -83,7 +83,7 @@ export type PhoneSegmentEffectPlacement =
 export type PhoneEffectHostPlane = 'content' | 'route-overlay';
 
 export type PhoneSegmentPresentationContract = Readonly<{
-  id: CanonicalPhoneSegmentId;
+  id: SegmentId;
   checkpoint: PhoneCheckpointId;
   from: SceneId;
   to: SceneId;
@@ -151,17 +151,14 @@ export type PhoneScenePresentationTuple = readonly [
 
 export type PhoneSegmentPresentationTuple = readonly [
   checkpoint: PhoneCheckpointId,
-  id: CanonicalPhoneSegmentId,
+  id: SegmentId,
   from: SceneId,
   to: SceneId,
   sourceSurface: PhoneSurfaceId,
   receiverSurface: PhoneSurfaceId,
   effectHost: PhoneSurfaceId,
   effectPlacement: PhoneSegmentEffectPlacement,
-  firstFrameKind: Extract<
-    PhonePresentationEvidenceKind,
-    'effect-frame' | 'packed-canvas-frame'
-  >,
+  firstFrameKind: PhonePresentationProofKind,
   firstFrameSubject: PhoneSurfaceId,
   effectHostPlane: PhoneEffectHostPlane
 ];
@@ -266,6 +263,9 @@ type PhoneDirectionalReducedAdmission = readonly [
 ];
 
 type PhoneRunReducedAdmissionRows = Readonly<{
+  'hero-pattern': readonly [PhoneDirectionalReducedAdmission];
+  'pattern-collapse': readonly [PhoneDirectionalReducedAdmission];
+  'pattern-star-map': readonly [PhoneDirectionalReducedAdmission];
   'aod-method': readonly [PhoneDirectionalReducedAdmission];
   'method-figure2': readonly [PhoneDirectionalReducedAdmission];
   'figure2-proof': readonly [PhoneDirectionalReducedAdmission];
@@ -332,6 +332,21 @@ const patternStarStaticAdmission = admission(
   'none',
   true
 );
+const patternCompactStaticAdmission = admission(
+  'static-leaf',
+  'static-poster',
+  'front:pattern',
+  'pattern-compact',
+  'front-corridor',
+  'none',
+  true
+);
+const patternCollapseAdmission = segmentAdmission(
+  patternCompactStaticAdmission,
+  patternCompactStaticAdmission,
+  admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true),
+  admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true)
+);
 const starAodStaticAdmission = admission(
   'static-leaf',
   'static-poster',
@@ -358,7 +373,7 @@ const segmentAdmissionRows = {
     admission('static-leaf', 'static-poster', 'front:hero', 'hero', 'front-corridor', 'none', true)
   ),
   'pattern-star-map': segmentAdmission(
-    patternStarStaticAdmission,
+    admission('effect-leaf', 'effect-frame', 'front:ink', 'star-map', 'front-corridor', 'above-both', true),
     patternStarStaticAdmission,
     admission('effect-leaf', 'effect-frame', 'front:ink', 'pattern', 'front-corridor', 'above-both', true),
     admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true)
@@ -449,6 +464,18 @@ const segmentAdmissionRows = {
  * an unavailable leg can never inherit a compatibility path.
  */
 const runReducedAdmissionRows = {
+  'hero-pattern': [directionalReduced(
+    admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true),
+    admission('static-leaf', 'static-poster', 'front:hero', 'hero', 'front-corridor', 'none', true)
+  )],
+  'pattern-collapse': [directionalReduced(
+    patternCompactStaticAdmission,
+    admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true)
+  )],
+  'pattern-star-map': [directionalReduced(
+    patternStarStaticAdmission,
+    patternCompactStaticAdmission
+  )],
   'aod-method': [directionalReduced(
     admission('static-leaf', 'static-poster', 'native:method', 'method-top', 'aod-semantic-edge', 'none', true),
     admission('static-leaf', 'static-poster', 'front:aod', 'aod-animation', 'aod-semantic-edge', 'none', true)
@@ -539,6 +566,8 @@ function sceneRowFor(sceneId: SceneId): SceneRowLookup {
     return [canonicalSceneIds[index]!, sceneRows[index]!, undefined];
   }
   switch (sceneId) {
+    case 'pattern-compact':
+      return ['pattern', sceneRows[1], 'pattern-compact'];
     case 'method-bottom':
       return ['method-top', sceneRows[4], 'method-to-figure2'];
     case 'figure2-proof-opening':
@@ -593,6 +622,13 @@ export function phoneSegmentAdmissionTuple(
   direction: 1 | -1,
   mode: PhoneAdmissionMode
 ): PhoneAdmissionStrategyTuple {
+  if (segmentId === 'pattern-collapse') {
+    return patternCollapseAdmission[
+      direction === 1
+        ? mode === 'normal' ? 0 : 1
+        : mode === 'normal' ? 2 : 3
+    ];
+  }
   const [definition] = segmentRowFor(segmentId);
   const row = segmentAdmissionRows[definition.id];
   return row[
@@ -693,6 +729,21 @@ export function phoneScenePresentationProofKind(
 export function phoneSegmentPresentationTuple(
   segmentId: SegmentId
 ): PhoneSegmentPresentationTuple {
+  if (segmentId === 'pattern-collapse') {
+    return [
+      'pattern-compact',
+      'pattern-collapse',
+      'pattern',
+      'pattern-compact',
+      'front:pattern',
+      'front:pattern',
+      'front:pattern',
+      'between',
+      'static-poster',
+      'front:pattern',
+      'content'
+    ];
+  }
   const [definition, row] = segmentRowFor(segmentId);
   const sourceSurface = phoneScenePresentationTuple(definition.from)[4];
   const receiverSurface = phoneScenePresentationTuple(definition.to)[4];

@@ -15,6 +15,7 @@ describe('front-half semantic checkpoints', () => {
       'hero-entered',
       'hero-to-pattern',
       'pattern-complete',
+      'pattern-compact',
       'pattern-to-star-map',
       'star-map-reading',
       'star-map-to-aod',

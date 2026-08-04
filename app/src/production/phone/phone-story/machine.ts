@@ -168,7 +168,7 @@ export type PhoneSnapshotSession = Readonly<{
   phase: PhoneTransactionPhase;
   progress: number;
   anchor: Readonly<{
-    policy: 'aod-semantic-edge' | 'authored-boundary' | 'preserve-composite' | 'entry-target';
+    policy: 'front-corridor' | 'aod-semantic-edge' | 'authored-boundary' | 'preserve-composite' | 'entry-target';
     y: number | null;
     geometryRevision: number | null;
   }>;
@@ -705,18 +705,26 @@ function reportPresentationProof(
   // Target and segment first-frame facts use the same immutable transport,
   // but they are never interchangeable. A segment proof can leave prepare;
   // only the target proof can publish a stable hold.
-  if (validPresentationProof(snapshot, session, proof, proof.observedAt)) {
-    return session.proof === proof ? session : { ...session, proof };
-  }
   // Reduced motion has the same immutable candidate, but no playback leg.
   // A source first-frame is therefore never admissible evidence: accepting it
   // would switch the transaction to `animating` and recreate the parallel
   // media lifecycle that this strategy intentionally removes.
-  if (session.reducedMotion) return null;
-  if (validFirstFrameProof(snapshot, session, proof, proof.observedAt)) {
+  if (
+    !session.reducedMotion
+    && session.phase === 'preparing'
+    // Only a registered machine run may promote a segment proof into its
+    // playback admission. A sampled static handoff (`run === null`) carries
+    // terminal target evidence instead; treating it as a first-frame proof
+    // would strand Star→AOD in `verifying-target`.
+    && session.operation.run !== null
+    && validFirstFrameProof(snapshot, session, proof, proof.observedAt)
+  ) {
     return session.firstFrameProof === proof
       ? session
       : { ...session, firstFrameProof: proof };
+  }
+  if (validPresentationProof(snapshot, session, proof, proof.observedAt)) {
+    return session.proof === proof ? session : { ...session, proof };
   }
   return null;
 }

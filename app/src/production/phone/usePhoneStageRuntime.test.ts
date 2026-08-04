@@ -20,6 +20,13 @@ const aodLeafSource = readFileSync(
 );
 
 describe('phone stage AOD resource selection', () => {
+  it('[front playback hard cutover] keeps front animation clocks in one machine capability, not sampled scroll progress', () => {
+    expect(stageRuntimeSource).toContain('registerPhoneRuntimeFrontStageCapability(');
+    expect(stageRuntimeSource).not.toContain("'hero-pattern-scroll'");
+    expect(stageRuntimeSource).not.toContain("'pattern-star-scroll'");
+    expect(stageRuntimeSource).not.toContain('phoneStageFrame(stageProgress, options.reducedMotion)');
+  });
+
   it('derives AOD ownership only from the immutable snapshot projection', () => {
     const aod = createPhoneStorySnapshot({
       authorityId: 'a',

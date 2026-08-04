@@ -303,6 +303,7 @@ function viewportEdgePixelWitnesses(
 const PHONE_HOLD_CONTRACTS = {
   hero: { checkpoint: 'hero-entered', edge: 'hero', edgeSurface: '#07110e', stageOwner: 'front', stageScene: 'hero' },
   pattern: { checkpoint: 'pattern-complete', edge: 'pattern', edgeSurface: '#d9c08f', stageOwner: 'front', stageScene: 'pattern' },
+  'pattern-compact': { checkpoint: 'pattern-compact', edge: 'pattern', edgeSurface: '#d9c08f', stageOwner: 'front', stageScene: 'pattern' },
   'star-map': { checkpoint: 'star-map-reading', edge: 'star', edgeSurface: '#06100d', stageOwner: 'front', stageScene: 'star-map' },
   'aod-animation': { checkpoint: 'aod-stage', edge: 'aod', edgeSurface: '#ede4d2', stageOwner: 'front', stageScene: 'aod-animation' },
   'method-top': { checkpoint: 'method-intro', edge: 'method', edgeSurface: '#ede4d2', stageOwner: 'native', stageScene: 'none' },
@@ -1546,47 +1547,157 @@ function assertLabEducationReducedStaticAdmissionTrace(
   expect(candidates.some((state) => state.projection === 'transition')).toBe(false);
 }
 
-const FRONT_SCROLL_RUNS = [
+/**
+ * Hero/Pattern no longer borrow document progress as an animation clock. A
+ * single input starts one machine run, and that run owns every intermediate
+ * frame until its stable checkpoint. Star→AOD remains the one semantic rail
+ * run while its dedicated AOD runner is frozen under this cutover.
+ */
+const FRONT_MACHINE_RUNS = [
   {
     from: 'hero',
     to: 'pattern',
-    id: 'hero-pattern-scroll'
+    id: 'hero-pattern',
+    kind: 'machine'
   },
   {
     from: 'pattern',
-    to: 'star-map',
-    id: 'pattern-star-scroll'
+    to: 'pattern-compact',
+    id: 'pattern-collapse',
+    kind: 'machine'
   },
+  {
+    from: 'pattern-compact',
+    to: 'star-map',
+    id: 'pattern-star-map',
+    kind: 'machine'
+  }
+] as const satisfies ReadonlyArray<Readonly<{
+  from: PhoneStableScene;
+  to: PhoneStableScene;
+  id: PhoneRunId;
+  kind: 'machine';
+}>>;
+
+const FRONT_SCROLL_RUNS = [
   {
     from: 'star-map',
     to: 'aod-animation',
-    id: 'star-aod-scroll'
+    id: 'star-aod-scroll',
+    kind: 'scroll'
   }
-] as const;
+] as const satisfies ReadonlyArray<Readonly<{
+  from: PhoneStableScene;
+  to: PhoneStableScene;
+  id: 'star-aod-scroll';
+  kind: 'scroll';
+}>>;
 
-type FrontScrollRun = (typeof FRONT_SCROLL_RUNS)[number];
+const FRONT_RUNS = [...FRONT_MACHINE_RUNS, ...FRONT_SCROLL_RUNS] as const;
 
-function frontScrollRun(
+type FrontRun = (typeof FRONT_RUNS)[number];
+
+function frontRun(
   from: PhoneStableScene,
   to: PhoneStableScene
-): FrontScrollRun {
-  const match = FRONT_SCROLL_RUNS.find((candidate) => (
+): FrontRun {
+  const match = FRONT_RUNS.find((candidate) => (
     (candidate.from === from && candidate.to === to)
     || (candidate.from === to && candidate.to === from)
   ));
-  if (!match) throw new Error(`Unknown front scroll run: ${from} → ${to}`);
+  if (!match) throw new Error(`Unknown front run: ${from} → ${to}`);
   return match;
 }
 
-function assertFrontScrollTrace(
+function assertFrontTransitionCoverage(state: PhoneTransitionTraceState): void {
+  const source = state.surfaces.filter((surface) => surface.role === 'transition-source');
+  const receiver = state.surfaces.filter((surface) => surface.role === 'transition-receiver');
+  const stateSummary = JSON.stringify({
+    cursor: state.cursor,
+    actualY: state.actualY,
+    progress: state.progress,
+    surfaces: state.surfaces.map((surface) => ({
+      className: surface.className,
+      role: surface.role,
+      endpoint: surface.endpoint
+    }))
+  });
+  expect(source, stateSummary).toHaveLength(1);
+  expect(receiver, stateSummary).toHaveLength(1);
+  const coverageRoot = state.coverageRoot;
+  expect(coverageRoot).toBeTruthy();
+  if (!coverageRoot) return;
+  expect(coverageRoot.left).toBeLessThanOrEqual(state.viewport.left + 1);
+  expect(coverageRoot.top).toBeLessThanOrEqual(state.viewport.top + 1);
+  expect(coverageRoot.right).toBeGreaterThanOrEqual(state.viewport.right - 1);
+  expect(coverageRoot.bottom).toBeGreaterThanOrEqual(state.viewport.bottom - 1);
+}
+
+function assertMachineFrontRunTrace(
+  states: readonly PhoneTransitionTraceState[],
+  run: Extract<FrontRun, Readonly<{ kind: 'machine' }>>,
+  target: PhoneStableScene,
+  direction: 1 | -1
+): void {
+  const transitionStartIndex = states.findIndex(
+    (state) => state.cursor === `transition:${run.id}:0`
+  );
+  expect(transitionStartIndex, `missing machine front trace for ${run.id}`)
+    .toBeGreaterThanOrEqual(0);
+  const finalStableIndex = states.findIndex((state, index) => (
+    index >= transitionStartIndex && state.cursor === `hold:${target}`
+  ));
+  expect(finalStableIndex, `missing Front terminal hold:${target}`).toBeGreaterThanOrEqual(0);
+  const runTrace = states.slice(transitionStartIndex, finalStableIndex + 1);
+  const trace = runTrace.filter((state) => state.cursor === `transition:${run.id}:0`);
+  expect(trace, `missing machine front trace for ${run.id}`).not.toEqual([]);
+  expect(new Set(trace.map((state) => state.authorityId)).size).toBe(1);
+  expect(trace.every((state) => state.session !== null && state.input === 'locked')).toBe(true);
+  expect(new Set(trace.map((state) => state.session)).size).toBe(1);
+  expect(new Set(trace.map((state) => state.generation)).size).toBe(1);
+  const prematureHolds = runTrace.slice(0, -1).filter((state) => (
+    state.cursor?.startsWith('hold:')
+  ));
+  expect(prematureHolds).toEqual([]);
+  const progresses = trace.flatMap((state) => (
+    state.progress === null || !Number.isFinite(state.progress)
+      ? []
+      : [state.progress]
+  ));
+  expect(progresses.some((progress) => progress > .05 && progress < .95)).toBe(true);
+  for (let index = 1; index < progresses.length; index += 1) {
+    if (direction === 1) {
+      expect(progresses[index]).toBeGreaterThanOrEqual(progresses[index - 1]! - .0001);
+    } else {
+      expect(progresses[index]).toBeLessThanOrEqual(progresses[index - 1]! + .0001);
+    }
+  }
+  const animated = trace.filter((state) => (
+    state.phase === 'animating' && state.projection === 'transition'
+  ));
+  expect(animated, `machine run ${run.id} must own an animated playback phase`)
+    .not.toEqual([]);
+  if (run.id !== 'pattern-collapse') {
+    const endpointFrames = animated.filter((state) => (
+      state.surfaces.some((surface) => surface.role === 'transition-source')
+      || state.surfaces.some((surface) => surface.role === 'transition-receiver')
+    ));
+    expect(endpointFrames, `${run.id} must expose route-hosted Ink endpoints`)
+      .not.toEqual([]);
+    for (const state of endpointFrames) assertFrontTransitionCoverage(state);
+  }
+}
+
+function assertStarAodScrollTrace(
   states: readonly PhoneTransitionTraceState[],
   from: PhoneStableScene,
   to: PhoneStableScene,
   direction: 1 | -1
 ): void {
-  const run = frontScrollRun(from, to).id;
+  const run = frontRun(from, to);
+  if (run.kind !== 'scroll') throw new Error(`Expected Star→AOD scroll run, received ${run.id}`);
   const transitionStartIndex = states.findIndex(
-    (state) => state.cursor === `transition:${run}:0`
+    (state) => state.cursor === `transition:${run.id}:0`
   );
   expect(transitionStartIndex, `missing front scroll trace for ${from} → ${to}`)
     .toBeGreaterThanOrEqual(0);
@@ -1595,15 +1706,11 @@ function assertFrontScrollTrace(
   ));
   expect(finalStableIndex, `missing Front terminal hold:${to}`).toBeGreaterThanOrEqual(0);
   const runTrace = states.slice(transitionStartIndex, finalStableIndex + 1);
-  const trace = runTrace.filter((state) => state.cursor === `transition:${run}:0`);
+  const trace = runTrace.filter((state) => state.cursor === `transition:${run.id}:0`);
   expect(trace, `missing front scroll trace for ${from} → ${to}`).not.toEqual([]);
   expect(new Set(trace.map((state) => state.authorityId)).size).toBe(1);
   expect(trace.every((state) => state.session === null && state.input === 'free')).toBe(true);
   expect(new Set(trace.map((state) => state.scrollCorridor))).toEqual(new Set(['front-rail']));
-  const prematureHolds = runTrace.slice(0, -1).filter((state) => (
-    state.cursor?.startsWith('hold:')
-  ));
-  expect(prematureHolds).toEqual([]);
   const progresses = trace.flatMap((state) => (
     state.scrollProgress === null || !Number.isFinite(state.scrollProgress)
       ? []
@@ -1617,32 +1724,24 @@ function assertFrontScrollTrace(
       expect(progresses[index]).toBeLessThanOrEqual(progresses[index - 1]! + .0001);
     }
   }
-  for (const state of trace) {
-    const source = state.surfaces.filter((surface) => surface.role === 'transition-source');
-    const receiver = state.surfaces.filter((surface) => surface.role === 'transition-receiver');
-    const stateSummary = JSON.stringify({
-      cursor: state.cursor,
-      actualY: state.actualY,
-      scrollProgress: state.scrollProgress,
-      surfaces: state.surfaces.map((surface) => ({
-        className: surface.className,
-        role: surface.role,
-        endpoint: surface.endpoint
-      }))
-    });
-    expect(source, stateSummary).toHaveLength(1);
-    expect(receiver, stateSummary).toHaveLength(1);
-    const coverageRoot = state.coverageRoot;
-    expect(coverageRoot).toBeTruthy();
-    if (!coverageRoot) continue;
-    expect(coverageRoot.left).toBeLessThanOrEqual(state.viewport.left + 1);
-    expect(coverageRoot.top).toBeLessThanOrEqual(state.viewport.top + 1);
-    expect(coverageRoot.right).toBeGreaterThanOrEqual(state.viewport.right - 1);
-    expect(coverageRoot.bottom).toBeGreaterThanOrEqual(state.viewport.bottom - 1);
-  }
+  for (const state of trace) assertFrontTransitionCoverage(state);
 }
 
-async function driveFrontScrollRun(
+function assertFrontRunTrace(
+  states: readonly PhoneTransitionTraceState[],
+  from: PhoneStableScene,
+  to: PhoneStableScene,
+  direction: 1 | -1
+): void {
+  const run = frontRun(from, to);
+  if (run.kind === 'scroll') {
+    assertStarAodScrollTrace(states, from, to, direction);
+    return;
+  }
+  assertMachineFrontRunTrace(states, run, to, direction);
+}
+
+async function driveFrontRun(
   page: Page,
   from: PhoneStableScene,
   to: PhoneStableScene,
@@ -1656,9 +1755,23 @@ async function driveFrontScrollRun(
     }).__phoneRuntimeProbe;
     if (probe) probe.stateEvents.length = 0;
   });
-  const run = frontScrollRun(from, to);
+  const run = frontRun(from, to);
   const expectedDirection = run.from === from ? 1 : -1;
   expect(direction).toBe(expectedDirection);
+
+  if (run.kind === 'machine') {
+    // This is the regression gate: one intent may start exactly one front
+    // transaction, but no amount of source scroll may clock or skip it.
+    await inputPhoneDelta(page, direction * 180);
+    await expect.poll(
+      async () => shell.getAttribute('data-phone-cursor'),
+      { timeout: 2_500, message: `one intent must start ${run.id}` }
+    ).toBe(`transition:${run.id}:0`);
+    await assertStablePhoneHold(page, to, { timeout: 15_000 });
+    assertFrontRunTrace((await phoneRuntimeProbe(page)).stateEvents, from, to, direction);
+    return;
+  }
+
   let sawTransition = false;
   let reachedTarget = false;
   for (let pulse = 0; pulse < 64; pulse += 1) {
@@ -1721,7 +1834,7 @@ async function driveFrontScrollRun(
     `front wheel input did not settle hold:${to}: ${JSON.stringify(inputDiagnostics)}`
   ).toBe(true);
   await assertStablePhoneHold(page, to, { timeout: 30_000 });
-  assertFrontScrollTrace((await phoneRuntimeProbe(page)).stateEvents, from, to, direction);
+  assertFrontRunTrace((await phoneRuntimeProbe(page)).stateEvents, from, to, direction);
 }
 
 function assertReducedFrontHoldTrace(
@@ -1730,13 +1843,16 @@ function assertReducedFrontHoldTrace(
   to: PhoneStableScene,
   direction: 1 | -1
 ): void {
-  const run = frontScrollRun(from, to).id;
+  const run = frontRun(from, to);
   const terminal = states.findIndex((state) => state.cursor === `hold:${to}`);
   expect(terminal, `missing reduced front terminal hold:${to}`).toBeGreaterThanOrEqual(0);
   const trace = states.slice(0, terminal + 1);
-  expect(trace.some((state) => state.cursor === `transition:${run}:0`)).toBe(false);
-  expect(trace.some((state) => state.scrollCorridor === 'front-rail')).toBe(true);
-  const candidates = trace.filter((state) => state.session !== null);
+  const candidates = trace.filter((state) => (
+    state.session !== null
+    && (run.kind === 'machine'
+      ? state.cursor === `transition:${run.id}:0`
+      : true)
+  ));
   expect(candidates, `missing reduced candidate for ${from} → ${to}`).not.toEqual([]);
   const candidateSession = candidates[0]!.session;
   const candidateProgress = direction === 1 ? 0 : 1;
@@ -1749,6 +1865,12 @@ function assertReducedFrontHoldTrace(
     && Math.abs(state.progress - candidateProgress) <= .05
   ))).toBe(true);
   expect(candidates.at(-1)!.at - candidates[0]!.at).toBeLessThan(2_000);
+  if (run.kind === 'machine') {
+    expect(trace.some((state) => state.cursor === `transition:${run.id}:0`)).toBe(true);
+  } else {
+    expect(trace.some((state) => state.cursor === `transition:${run.id}:0`)).toBe(false);
+    expect(trace.some((state) => state.scrollCorridor === 'front-rail')).toBe(true);
+  }
   expect(trace.every((state) => (
     state.session === null ? state.input === 'free' : state.input === 'locked'
   ))).toBe(true);
@@ -1771,6 +1893,20 @@ async function driveReducedFrontHold(
     if (probe) probe.stateEvents.length = 0;
   });
   const startY = await page.evaluate(() => window.scrollY);
+  const run = frontRun(from, to);
+  if (run.kind === 'machine') {
+    await inputPhoneDelta(page, direction * 180);
+    await assertStablePhoneHold(page, to, { timeout: 15_000 });
+    const targetY = await page.evaluate(() => window.scrollY);
+    expect(direction === 1 ? targetY > startY : targetY < startY).toBe(true);
+    assertReducedFrontHoldTrace(
+      (await phoneRuntimeProbe(page)).stateEvents,
+      from,
+      to,
+      direction
+    );
+    return;
+  }
   let reachedTarget = false;
   for (let pulse = 0; pulse < 64; pulse += 1) {
     await inputPhoneDelta(page, direction * 250);
@@ -1905,7 +2041,8 @@ async function driveAdjacentPhoneRun(
 
 const FORMAL_FORWARD_JOURNEY = [
   ['hero', 'pattern'],
-  ['pattern', 'star-map'],
+  ['pattern', 'pattern-compact'],
+  ['pattern-compact', 'star-map'],
   ['star-map', 'aod-animation'],
   ['aod-animation', 'method-top'],
   ['method-top', 'figure2-animation'],
@@ -1927,7 +2064,8 @@ const FORMAL_REVERSE_JOURNEY = [
   ['figure2-animation', 'method-top'],
   ['method-top', 'aod-animation'],
   ['aod-animation', 'star-map'],
-  ['star-map', 'pattern'],
+  ['star-map', 'pattern-compact'],
+  ['pattern-compact', 'pattern'],
   ['pattern', 'hero']
 ] as const satisfies ReadonlyArray<readonly [PhoneStableScene, PhoneStableScene]>;
 
@@ -1947,7 +2085,7 @@ const FORMAL_DIRECT_ENTRIES = [
 ] as const satisfies ReadonlyArray<readonly [string, PhoneStableScene]>;
 
 function isFrontJourneyLeg(from: PhoneStableScene, to: PhoneStableScene): boolean {
-  return FRONT_SCROLL_RUNS.some((run) => (
+  return FRONT_RUNS.some((run) => (
     (run.from === from && run.to === to)
     || (run.from === to && run.to === from)
   ));
@@ -1966,7 +2104,7 @@ async function driveJourney(
       if (options.reducedMotion) {
         await driveReducedFrontHold(page, from, to, direction);
       } else {
-        await driveFrontScrollRun(page, from, to, direction);
+        await driveFrontRun(page, from, to, direction);
       }
     } else {
       await driveAdjacentPhoneRun(
@@ -2153,9 +2291,10 @@ test('Task 0 does not animate AOD when media liveness has no compositor frame', 
   await installAodClockWithoutCompositorFrame(page);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/', 'hero');
-  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
-  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
-  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await driveFrontRun(page, 'hero', 'pattern', 1);
+  await driveFrontRun(page, 'pattern', 'pattern-compact', 1);
+  await driveFrontRun(page, 'pattern-compact', 'star-map', 1);
+  await driveFrontRun(page, 'star-map', 'aod-animation', 1);
   await waitForNewWheelEpoch(page);
 
   for (let pulse = 0; pulse < 8; pulse += 1) {
@@ -2190,9 +2329,10 @@ test('[P0 AOD admission] a rejected play rolls back through the session owner be
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/', 'hero');
-  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
-  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
-  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await driveFrontRun(page, 'hero', 'pattern', 1);
+  await driveFrontRun(page, 'pattern', 'pattern-compact', 1);
+  await driveFrontRun(page, 'pattern-compact', 'star-map', 1);
+  await driveFrontRun(page, 'star-map', 'aod-animation', 1);
   await assertStablePhoneHold(page, 'aod-animation');
   await blockFirstAodPlay(page);
   await waitForNewWheelEpoch(page);
@@ -2489,7 +2629,8 @@ test('[AOD↔Method reduced cutover] commits both target static endpoints withou
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/?portrait-spike-motion=reduce', 'hero');
   await driveReducedFrontHold(page, 'hero', 'pattern', 1);
-  await driveReducedFrontHold(page, 'pattern', 'star-map', 1);
+  await driveReducedFrontHold(page, 'pattern', 'pattern-compact', 1);
+  await driveReducedFrontHold(page, 'pattern-compact', 'star-map', 1);
   await driveReducedFrontHold(page, 'star-map', 'aod-animation', 1);
   const authorityId = await (await assertStablePhoneHold(page, 'aod-animation'))
     .getAttribute('data-phone-authority-id');
@@ -2671,7 +2812,7 @@ test('[Lab↔PH↔Education reduced/direct cutover] commits native leaves withou
   await assertDirectEntryPresentation(page, 'education');
 });
 
-test('[Pattern↔StarMap reduced cutover] repeats two static-proof cycles in one authority', async ({ page }) => {
+test('[Pattern collapse + StarMap reduced cutover] repeats two static-proof cycles in one authority', async ({ page }) => {
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/?portrait-spike-motion=reduce', 'hero');
@@ -2681,10 +2822,16 @@ test('[Pattern↔StarMap reduced cutover] repeats two static-proof cycles in one
   expect(authorityId).toBeTruthy();
 
   for (let cycle = 0; cycle < 2; cycle += 1) {
-    await driveReducedFrontHold(page, 'pattern', 'star-map', 1);
+    await driveReducedFrontHold(page, 'pattern', 'pattern-compact', 1);
+    await expect(await assertStablePhoneHold(page, 'pattern-compact'))
+      .toHaveAttribute('data-phone-authority-id', authorityId!);
+    await driveReducedFrontHold(page, 'pattern-compact', 'star-map', 1);
     await expect(await assertStablePhoneHold(page, 'star-map'))
       .toHaveAttribute('data-phone-authority-id', authorityId!);
-    await driveReducedFrontHold(page, 'star-map', 'pattern', -1);
+    await driveReducedFrontHold(page, 'star-map', 'pattern-compact', -1);
+    await expect(await assertStablePhoneHold(page, 'pattern-compact'))
+      .toHaveAttribute('data-phone-authority-id', authorityId!);
+    await driveReducedFrontHold(page, 'pattern-compact', 'pattern', -1);
     await expect(await assertStablePhoneHold(page, 'pattern'))
       .toHaveAttribute('data-phone-authority-id', authorityId!);
   }
@@ -2833,30 +2980,50 @@ test('[front-half gate] a manual root reload begins a new visible cold Loader ru
   ))).not.toBe('skip');
 });
 
-test('[front-half gate] one continuous WebKit touch gesture reaches its final native scroll target', async ({ page }) => {
+test('[front-half gate] continuous WebKit gestures run Hero ↔ Pattern without skipping its checkpoint', async ({ page }) => {
   test.setTimeout(60_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/', 'hero');
-  const beforeY = await page.evaluate(() => window.scrollY);
 
   await touchPhoneSequence(page, [40, 100, 160]);
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => resolve());
-    });
-  }));
+  await expect.poll(
+    async () => page.locator(LIVE_PHONE_ROOT).getAttribute('data-phone-cursor'),
+    { timeout: 2_500, message: 'the first continuous gesture must enter Hero → Pattern' }
+  ).toBe('transition:hero-pattern:0');
+  await assertStablePhoneHold(page, 'pattern', { timeout: 15_000 });
 
-  const after = await page.evaluate(() => ({
-    scrollY: window.scrollY,
-    cursor: document.querySelector<HTMLElement>('[data-phone-authority-id]')?.dataset.phoneCursor ?? null,
-    input: document.querySelector<HTMLElement>('[data-phone-authority-id]')?.dataset.phoneInput ?? null
-  }));
-  expect(
-    after.scrollY - beforeY,
-    `one touchstart with three moves must retain its latest target: ${JSON.stringify(after)}`
-  ).toBeGreaterThanOrEqual(150);
-  expect(after.cursor).toBe('hold:hero');
-  expect(after.input).toBe('free');
+  const states = (await phoneRuntimeProbe(page)).stateEvents;
+  assertMachineFrontRunTrace(
+    states,
+    frontRun('hero', 'pattern') as Extract<FrontRun, Readonly<{ kind: 'machine' }>>,
+    'pattern',
+    1
+  );
+  const frontRuns = [...new Set(states.flatMap((state) => (
+    state.cursor?.startsWith('transition:hero-pattern:')
+      ? ['hero-pattern']
+      : []
+  )))];
+  expect(frontRuns).toEqual(['hero-pattern']);
+
+  await page.evaluate(() => {
+    const probe = (window as typeof window & {
+      __phoneRuntimeProbe?: { stateEvents: unknown[] };
+    }).__phoneRuntimeProbe;
+    if (probe) probe.stateEvents.length = 0;
+  });
+  await touchPhoneSequence(page, [-40, -100, -160]);
+  await expect.poll(
+    async () => page.locator(LIVE_PHONE_ROOT).getAttribute('data-phone-cursor'),
+    { timeout: 2_500, message: 'the reverse gesture must enter Pattern → Hero' }
+  ).toBe('transition:hero-pattern:0');
+  await assertStablePhoneHold(page, 'hero', { timeout: 15_000 });
+  assertMachineFrontRunTrace(
+    (await phoneRuntimeProbe(page)).stateEvents,
+    frontRun('hero', 'pattern') as Extract<FrontRun, Readonly<{ kind: 'machine' }>>,
+    'hero',
+    -1
+  );
 });
 
 test('[execution topology] Loader covers an already-warming Hero stage before poster readiness', async ({ page }) => {
@@ -2971,8 +3138,9 @@ test('[execution regression] Star Map advances real Perlin frames while its stab
   test.setTimeout(75_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/', 'hero');
-  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
-  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
+  await driveFrontRun(page, 'hero', 'pattern', 1);
+  await driveFrontRun(page, 'pattern', 'pattern-compact', 1);
+  await driveFrontRun(page, 'pattern-compact', 'star-map', 1);
   await assertStablePhoneHold(page, 'star-map');
 
   const canvas = page.locator('[data-portrait-star-perlin]');
@@ -3051,7 +3219,7 @@ test('[execution regression] Star Map advances real Perlin frames while its stab
     };
     window.requestAnimationFrame(sample);
   });
-  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await driveFrontRun(page, 'star-map', 'aod-animation', 1);
   await assertStablePhoneHold(page, 'aod-animation');
   const aodAdmission = await page.evaluate(() => {
     const target = window as typeof window & {
@@ -3104,9 +3272,10 @@ test('[execution regression] first AOD forward input locks the runner before the
   test.setTimeout(90_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/', 'hero');
-  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
-  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
-  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await driveFrontRun(page, 'hero', 'pattern', 1);
+  await driveFrontRun(page, 'pattern', 'pattern-compact', 1);
+  await driveFrontRun(page, 'pattern-compact', 'star-map', 1);
+  await driveFrontRun(page, 'star-map', 'aod-animation', 1);
   await assertStablePhoneHold(page, 'aod-animation');
   await waitForNewWheelEpoch(page);
 
@@ -3157,9 +3326,10 @@ test('[AOD↔Method execution cutover] completes one exact forward and reverse p
   test.setTimeout(150_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/', 'hero');
-  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
-  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
-  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await driveFrontRun(page, 'hero', 'pattern', 1);
+  await driveFrontRun(page, 'pattern', 'pattern-compact', 1);
+  await driveFrontRun(page, 'pattern-compact', 'star-map', 1);
+  await driveFrontRun(page, 'star-map', 'aod-animation', 1);
   const authorityId = await (await assertStablePhoneHold(page, 'aod-animation'))
     .getAttribute('data-phone-authority-id');
 
@@ -3334,9 +3504,10 @@ test('[P0 Figure2 scroll] reverse jitter stays on the canonical forward half and
   test.setTimeout(180_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/', 'hero');
-  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
-  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
-  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  await driveFrontRun(page, 'hero', 'pattern', 1);
+  await driveFrontRun(page, 'pattern', 'pattern-compact', 1);
+  await driveFrontRun(page, 'pattern-compact', 'star-map', 1);
+  await driveFrontRun(page, 'star-map', 'aod-animation', 1);
   await driveAdjacentPhoneRun(page, 'aod-animation', 'method-top', 1, 70_000);
   await driveAdjacentPhoneRun(page, 'method-top', 'figure2-animation', 1, 70_000);
   await assertStablePhoneHold(page, 'figure2-animation');
@@ -3584,53 +3755,51 @@ test('[P0 route-overlay pixels] an above-both ink transition is painted by the r
   await waitForNewWheelEpoch(page);
 
   const before = decodePngScreenshot(await page.screenshot());
-  let transitionFrame: PngScreenshot | null = null;
-  let routeHostEvidence: unknown = null;
-  for (let pulse = 0; pulse < 64; pulse += 1) {
-    await inputPhoneDelta(page, 50);
-    await page.waitForTimeout(80);
-    if (await root.getAttribute('data-phone-cursor') !== 'transition:hero-pattern-scroll:0') {
-      continue;
-    }
-    const ink = page.locator(
-      '[data-phone-presentation-host="route-overlay"] > canvas'
+  // One input must initiate the whole Hero motion + Ink run. Sampling is
+  // allowed to observe its compositor frame; sending another intent is not.
+  await inputPhoneDelta(page, 180);
+  await expect.poll(
+    async () => root.getAttribute('data-phone-cursor'),
+    { timeout: 2_500, message: 'one input must start Hero→Pattern' }
+  ).toBe('transition:hero-pattern:0');
+  const ink = page.locator(
+    '[data-phone-presentation-host="route-overlay"] > canvas'
+  );
+  await expect.poll(async () => (
+    await ink.count() === 1
+    && await ink.getAttribute('data-phone-presentation-effect-frame') === 'ready'
+  ), {
+    timeout: 5_000,
+    message: 'Hero→Pattern must expose a route-overlay ink frame during its one owned run'
+  }).toBe(true);
+  const routeHostEvidence = await page.evaluate(() => {
+    const content = document.querySelector<HTMLElement>(
+      '[data-phone-presentation-host="content"]'
     );
-    if (await ink.count() !== 1) continue;
-    if (await ink.getAttribute('data-phone-presentation-effect-frame') !== 'ready') {
-      continue;
-    }
-    routeHostEvidence = await page.evaluate(() => {
-      const content = document.querySelector<HTMLElement>(
-        '[data-phone-presentation-host="content"]'
-      );
-      const route = document.querySelector<HTMLElement>(
-        '[data-phone-presentation-host="route-overlay"]'
-      );
-      const canvas = route?.querySelector<HTMLCanvasElement>(':scope > canvas');
-      const routeRect = route?.getBoundingClientRect();
-      const contentRect = content?.getBoundingClientRect();
-      return {
-        directRouteChild: canvas?.parentElement === route,
-        routeCoversContent: Boolean(
-          routeRect
-          && contentRect
-          && routeRect.left <= contentRect.left + 1
-          && routeRect.top <= contentRect.top + 1
-          && routeRect.right >= contentRect.right - 1
-          && routeRect.bottom >= contentRect.bottom - 1
-        )
-      };
-    });
-    transitionFrame = decodePngScreenshot(await page.screenshot());
-    break;
-  }
+    const route = document.querySelector<HTMLElement>(
+      '[data-phone-presentation-host="route-overlay"]'
+    );
+    const canvas = route?.querySelector<HTMLCanvasElement>(':scope > canvas');
+    const routeRect = route?.getBoundingClientRect();
+    const contentRect = content?.getBoundingClientRect();
+    return {
+      directRouteChild: canvas?.parentElement === route,
+      routeCoversContent: Boolean(
+        routeRect
+        && contentRect
+        && routeRect.left <= contentRect.left + 1
+        && routeRect.top <= contentRect.top + 1
+        && routeRect.right >= contentRect.right - 1
+        && routeRect.bottom >= contentRect.bottom - 1
+      )
+    };
+  });
+  const transitionFrame = decodePngScreenshot(await page.screenshot());
 
   expect(routeHostEvidence).toEqual({
     directRouteChild: true,
     routeCoversContent: true
   });
-  expect(transitionFrame, 'hero→Pattern must expose a real route-overlay ink frame').not.toBeNull();
-  if (!transitionFrame) return;
   expect(
     compositedPixelDelta(before, transitionFrame, {
       left: .04,
@@ -3641,15 +3810,5 @@ test('[P0 route-overlay pixels] an above-both ink transition is painted by the r
     'route-overlay ink must alter final compositor pixels above its endpoints'
   ).toBeGreaterThan(.005);
 
-  let settled = false;
-  for (let pulse = 0; pulse < 64; pulse += 1) {
-    await inputPhoneDelta(page, 50);
-    await page.waitForTimeout(80);
-    if (await root.getAttribute('data-phone-cursor') === 'hold:pattern') {
-      settled = true;
-      break;
-    }
-  }
-  expect(settled).toBe(true);
-  await assertStablePhoneHold(page, 'pattern');
+  await assertStablePhoneHold(page, 'pattern', { timeout: 15_000 });
 });

@@ -11,6 +11,8 @@ function importScene(id: SceneId): Promise<SceneModule> {
   switch (id) {
     case 'hero': return import('../scenes/hero').then(({ heroScene }) => heroScene);
     case 'pattern': return import('../scenes/pattern').then(({ patternScene }) => patternScene);
+    case 'pattern-compact':
+      return Promise.reject(new Error(`${id} is phone-only`));
     case 'star-map': return import('../scenes/star-map').then(({ starMapScene }) => starMapScene);
     case 'aod-animation': return import('../scenes/aod-animation').then(({ aodAnimationScene }) => aodAnimationScene);
     case 'method-top': return import('../scenes/method-top').then(({ methodTopScene }) => methodTopScene);
@@ -37,6 +39,8 @@ function importTransition(id: SegmentId): Promise<TransitionModule> {
   switch (id) {
     case 'hero-pattern': return import('../transitions/hero-pattern').then(({ createHeroPatternTransition }) => createHeroPatternTransition());
     case 'pattern-star-map': return import('../transitions/pattern-star-map').then(({ createPatternStarMapTransition }) => createPatternStarMapTransition());
+    case 'pattern-collapse':
+      return Promise.reject(new Error(`${id} is phone-only`));
     case 'star-map-aod': return import('../transitions/star-map-aod').then(({ createStarMapAodTransition }) => createStarMapAodTransition());
     case 'aod-method-top': return import('../transitions/aod-method-top').then(({ createAodMethodTopTransition }) => createAodMethodTopTransition());
     case 'method-bottom-figure2': return import('../transitions/method-bottom-figure2').then(({ createMethodBottomFigure2Transition }) => createMethodBottomFigure2Transition());

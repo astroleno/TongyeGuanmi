@@ -78,7 +78,6 @@ export function createPhoneOrchestratedSessionController(
   let active: ManagedPhoneActiveRun | null = null;
   let cancelAnimation: (() => void) | undefined;
   let scrollCommand = 0;
-  let renderedFrameSequence = 0;
   let releaseLease: PhoneReleaseLease | undefined;
   let geometryReleased = false;
   let reducedAdmissionTimeout: ReturnType<typeof globalThis.setTimeout> | undefined;
@@ -394,28 +393,6 @@ export function createPhoneOrchestratedSessionController(
     },
     direction: run.direction,
     valid: () => owns(run),
-    reportRenderedFrame: (kind, subject, origin) => {
-      if (
-        kind === undefined
-        || subject === undefined
-      ) return false;
-      const token = presentationFrameToken(kind, subject);
-      if (!token) return false;
-      const proof = options.proofForRenderedFrame({
-        token,
-        frameSequence: ++renderedFrameSequence,
-        observedAt: observationTime(),
-        ...(origin === undefined ? {} : { origin })
-      });
-      if (!proof) return false;
-      emit(run, 'PRESENTATION_PROOF_REPORTED', { proof });
-      const after = options.getSnapshot();
-      return after.status === 'transaction'
-        && (
-          after.session.firstFrameProof === proof
-          || after.session.proof === proof
-        );
-    },
     reportPresentationFrame: (frame: PhoneRenderedPresentationFrame) => {
       const proof = options.proofForRenderedFrame(frame);
       if (!proof) return false;
