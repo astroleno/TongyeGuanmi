@@ -8,11 +8,15 @@ export function attachPhoneMediaGestureLease(
   retryActiveTransaction: () => boolean
 ): () => void {
   if (!root) return () => undefined;
-  const retry = () => {
-    retryActiveTransaction();
-  };
-  root.addEventListener('pointerdown', retry, { passive: true });
-  return () => {
-    root.removeEventListener('pointerdown', retry);
-  };
+  const pointerEvents = ['pointerdown', 'pointermove'] as const;
+  // iOS maps a continuing finger to Pointer Events before its touchmove
+  // reaches the coordinator. A blocked run can therefore retry through the
+  // same runner during the active gesture without adding another touch owner
+  // or touching a media element here.
+  for (const event of pointerEvents) {
+    root.addEventListener(event, retryActiveTransaction, { passive: true });
+  }
+  return () => pointerEvents.forEach((event) => {
+    root.removeEventListener(event, retryActiveTransaction);
+  });
 }
