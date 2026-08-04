@@ -7,6 +7,7 @@ import {
   clearHorizontalInkDiagnostics,
   inkFieldOrigin,
   markHorizontalInkDiagnostics,
+  type HorizontalInkFieldFrame,
   type InkFieldFrame
 } from './inkField';
 
@@ -95,6 +96,10 @@ const INK_GENERATION = 'r4InkGeneration';
 const INK_RENDERER_ACTIVE = 'r4InkRendererActive';
 const INK_RENDERER_STATUS = 'r4InkRendererStatus';
 
+function isHorizontalInkFrame(frame: InkFieldFrame): frame is HorizontalInkFieldFrame {
+  return frame.spec.kind === 'horizontal';
+}
+
 function markGradePreset(
   canvas: HTMLCanvasElement,
   grade: InkGradePreset,
@@ -109,13 +114,16 @@ function markGradePreset(
 
 function markBoundaryFrame(canvas: HTMLCanvasElement, frame: InkFieldFrame): void {
   canvas.dataset.r4InkBoundaryKind = frame.spec.kind;
+  // Keep the exact rank observable across the DOM and GPU hosts. The rank is
+  // authored data, not a second presentation state or a CSS-only surrogate.
+  canvas.dataset.r4InkBoundaryRank = frame.boundaryRank.toFixed(6);
   if (!INK_DIAGNOSTICS) {
     return;
   }
   const origin = inkFieldOrigin(frame.spec);
   canvas.dataset.r4InkBoundaryOrigin = `${origin.x.toFixed(4)},${origin.y.toFixed(4)}`;
   canvas.dataset.r4InkBoundaryProgress = frame.progress.toFixed(4);
-  if (frame.spec.kind === 'horizontal' && 'revision' in frame) {
+  if (isHorizontalInkFrame(frame)) {
     markHorizontalInkDiagnostics(canvas, frame);
   } else {
     clearHorizontalInkDiagnostics(canvas);
@@ -124,6 +132,7 @@ function markBoundaryFrame(canvas: HTMLCanvasElement, frame: InkFieldFrame): voi
 
 function clearBoundaryFrameMark(canvas: HTMLCanvasElement): void {
   delete canvas.dataset.r4InkBoundaryKind;
+  delete canvas.dataset.r4InkBoundaryRank;
   if (!INK_DIAGNOSTICS) {
     return;
   }

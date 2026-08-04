@@ -353,7 +353,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private canvas!: HTMLCanvasElement | null;
   private inkRenderer!: InkFieldRenderer | null;
   private readonly fieldSpec: InkFieldSpec;
-  private readonly horizontalContour: HorizontalInkContour | null;
+  /** One packed contour transport for every non-depth field in this run. */
+  private readonly fieldContour: HorizontalInkContour | null;
   private readonly elevation: TransitionLayerElevation | null;
   private readonly attrsElement: HTMLElement | null;
   private readonly surfaceHost: HTMLElement | null;
@@ -434,12 +435,14 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.fieldSpec = typeof options.field === 'function'
       ? options.field(roots)
       : options.field;
-    this.horizontalContour = this.fieldSpec.kind === 'horizontal'
-      ? createHorizontalInkContour({
+    this.fieldContour = this.fieldSpec.kind === 'depth'
+      ? null
+      : createHorizontalInkContour({
           authoredSeed: this.fieldSpec.seed,
-          variationKey: context.runId
-        })
-      : null;
+          variationKey: this.fieldSpec.kind === 'horizontal'
+            ? context.runId
+            : `radial:${context.runId}`
+        });
     const grade = options.grade;
     const reusableSurface = (
       !context.prefersReducedMotion
@@ -476,7 +479,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
         this.fieldSpec,
         0.003,
         this.viewport,
-        this.horizontalContour ? { contour: this.horizontalContour } : {}
+        this.fieldContour ? { contour: this.fieldContour } : {}
       )
     );
     this.progress(context.direction === 1 ? 0 : 1);
@@ -573,7 +576,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       this.fieldSpec,
       fieldProgress,
       this.viewport,
-      this.horizontalContour ? { contour: this.horizontalContour } : {}
+      this.fieldContour ? { contour: this.fieldContour } : {}
     );
     const roots = this.fieldRoots(fromRoot, toRoot, activeSurfaceHost);
     const surfaces = this.options.ownershipSurfaces?.(roots) ?? {};

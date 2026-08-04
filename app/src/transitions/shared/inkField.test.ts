@@ -50,10 +50,9 @@ describe('InkFieldFrame', () => {
     expect(frame.ownership.revealClip).not.toContain('inset(');
     expect(frame.contour).toBe(contour);
     expect(frame.revision).toBe(contour.revision);
-    expect(frame.threshold).toBe(inkOwnershipGateProgress(0.5));
-    expect(frame.occlusion.gateRank).toBe(frame.ownership.edge);
-    expect(frame.occlusion.gateRank).toBeGreaterThanOrEqual(frame.occlusion.coreMin);
-    expect(frame.occlusion.gateRank).toBeLessThanOrEqual(frame.occlusion.coreMax);
+    expect(frame.boundaryRank).toBe(inkOwnershipGateProgress(0.5));
+    expect(frame.boundaryRank).toBeGreaterThanOrEqual(frame.occlusion.coreMin);
+    expect(frame.boundaryRank).toBeLessThanOrEqual(frame.occlusion.coreMax);
     expect(frame.occlusion.alphaMin).toBe(HORIZONTAL_INK_CORE_ALPHA_MIN);
     expect(frame.occlusion.coreMax - frame.occlusion.coreMin)
       .toBeCloseTo(HORIZONTAL_INK_CORE_HALF_WIDTH_PX * 2 / viewport.height, 8);
@@ -64,24 +63,44 @@ describe('InkFieldFrame', () => {
       'alphaMin',
       'coreMax',
       'coreMin',
-      'gateRank'
     ]);
   });
 
-  it('uses a hidden circle ownership gate for radial Ink', () => {
+  it('derives one deterministic noisy frontier from the radial boundary rank', () => {
     const frame = createInkFieldFrame(
       { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'hero-pattern' },
       0.5,
       viewport
     );
 
-    expect(frame.ownership.revealClip).toMatch(/^circle\(/);
+    expect(frame).toMatchObject({
+      boundaryRank: inkOwnershipGateProgress(0.5)
+    });
+    expect(frame.ownership).not.toHaveProperty('edge');
+    expect(frame.ownership.revealClip).toMatch(/^polygon\(/);
     expect(frame.ownership.concealClip).toBeNull();
-    expect(frame.ownership.revealClip).not.toContain('polygon(');
-    expect(frame.occlusion.gateRank).toBe(frame.ownership.edge);
-    expect(frame.occlusion.gateRank).toBeGreaterThanOrEqual(frame.occlusion.coreMin);
-    expect(frame.occlusion.gateRank).toBeLessThanOrEqual(frame.occlusion.coreMax);
+    expect(frame.ownership.revealClip).not.toContain('circle(');
+    expect(frame).toHaveProperty('contour');
+    expect((frame as typeof frame & {
+      boundaryRank: number;
+    }).boundaryRank).toBeGreaterThanOrEqual(frame.occlusion.coreMin);
+    expect((frame as typeof frame & {
+      boundaryRank: number;
+    }).boundaryRank).toBeLessThanOrEqual(frame.occlusion.coreMax);
     expect(frame.occlusion.alphaMin).toBe(0.92);
+
+    const same = createInkFieldFrame(
+      { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'hero-pattern' },
+      0.5,
+      viewport
+    );
+    const later = createInkFieldFrame(
+      { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'hero-pattern' },
+      0.7,
+      viewport
+    );
+    expect(frame.ownership.revealClip).toBe(same.ownership.revealClip);
+    expect(frame.ownership.revealClip).not.toBe(later.ownership.revealClip);
   });
 
   it('keeps the depth field texture transform in the frame without sampled geometry', () => {
@@ -109,12 +128,11 @@ describe('InkFieldFrame', () => {
 
     expect(frame.spec).toMatchObject({ kind: 'depth', transform });
     expect(frame.ownership.revealClip).toBeNull();
-    expect(frame.occlusion.gateRank).toBeCloseTo(0.5, 6);
+    expect(frame.boundaryRank).toBeCloseTo(0.5, 6);
     expect(Object.keys(frame.occlusion).sort()).toEqual([
       'alphaMin',
       'coreMax',
       'coreMin',
-      'gateRank'
     ]);
     expect(frame).not.toHaveProperty('profile');
     expect(frame).not.toHaveProperty('revision');
@@ -133,10 +151,10 @@ describe('InkFieldFrame', () => {
       transform
     } satisfies InkFieldSpec;
 
-    expect(createInkFieldFrame(spec, 0.03, viewport).occlusion.gateRank).toBe(0);
-    expect(createInkFieldFrame(spec, 0.1, viewport).occlusion.gateRank).toBeCloseTo((0.1 - 0.06) / 0.88, 6);
-    expect(createInkFieldFrame(spec, 0.9, viewport).occlusion.gateRank).toBeCloseTo((0.9 - 0.06) / 0.88, 6);
-    expect(createInkFieldFrame(spec, 0.97, viewport).occlusion.gateRank).toBe(1);
+    expect(createInkFieldFrame(spec, 0.03, viewport).boundaryRank).toBe(0);
+    expect(createInkFieldFrame(spec, 0.1, viewport).boundaryRank).toBeCloseTo((0.1 - 0.06) / 0.88, 6);
+    expect(createInkFieldFrame(spec, 0.9, viewport).boundaryRank).toBeCloseTo((0.9 - 0.06) / 0.88, 6);
+    expect(createInkFieldFrame(spec, 0.97, viewport).boundaryRank).toBe(1);
   });
 
   it('is deterministic for the same seed, progress, and viewport', () => {
@@ -167,7 +185,7 @@ describe('InkFieldFrame', () => {
     expect(early.contour).toBe(contour);
     expect(late.contour).toBe(contour);
     expect(early.revision).toBe(late.revision);
-    expect(early.threshold).toBeLessThan(late.threshold);
+    expect(early.boundaryRank).toBeLessThan(late.boundaryRank);
     expect(early.ownership.revealClip).not.toBe(late.ownership.revealClip);
     expect(early.ownership.concealClip).not.toBe(late.ownership.concealClip);
   });

@@ -1,5 +1,6 @@
 import {
   createHorizontalInkContour,
+  horizontalInkOffset,
   horizontalInkPolygon,
   type HorizontalInkContour
 } from './horizontalInkContour';
@@ -39,11 +40,12 @@ type InkFieldFrameBase<Spec extends InkFieldSpec> = Readonly<{
   spec: Spec;
   viewport: InkViewport;
   progress: number;
+  /** The sole ownership/frontier rank shared by DOM and GPU consumers. */
+  boundaryRank: number;
   seed: number;
   ownership: Readonly<{
     revealClip: string | null;
     concealClip: string | null;
-    edge: number;
   }>;
   occlusion: InkOcclusionBand;
 }>;
@@ -51,18 +53,23 @@ type InkFieldFrameBase<Spec extends InkFieldSpec> = Readonly<{
 export type HorizontalInkFieldFrame = InkFieldFrameBase<HorizontalInkFieldSpec> & Readonly<{
   contour: HorizontalInkContour;
   revision: string;
-  threshold: number;
 }>;
 
-export type NonHorizontalInkFieldFrame = InkFieldFrameBase<NonHorizontalInkFieldSpec>;
-export type InkFieldFrame = HorizontalInkFieldFrame | NonHorizontalInkFieldFrame;
+export type RadialInkFieldFrame = InkFieldFrameBase<Extract<InkFieldSpec, { kind: 'radial' }>> & Readonly<{
+  /** Reuses the shared packed contour transport, sampled around polar angle. */
+  contour: HorizontalInkContour;
+  revision: string;
+}>;
+
+export type DepthInkFieldFrame = InkFieldFrameBase<Extract<InkFieldSpec, { kind: 'depth' }>>;
+export type NonHorizontalInkFieldFrame = RadialInkFieldFrame | DepthInkFieldFrame;
+export type InkFieldFrame = HorizontalInkFieldFrame | RadialInkFieldFrame | DepthInkFieldFrame;
 
 export type InkFieldFrameOptions = Readonly<{
   contour?: HorizontalInkContour;
 }>;
 
 export type InkOcclusionBand = Readonly<{
-  gateRank: number;
   coreMin: number;
   coreMax: number;
   alphaMin: number;
@@ -79,6 +86,8 @@ const OCCLUSION_ALPHA_MIN = 0.92;
 export const HORIZONTAL_INK_CORE_HALF_WIDTH_PX = 10;
 export const HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX = 28;
 export const HORIZONTAL_INK_CORE_ALPHA_MIN = 1;
+/** Radial DOM and GPU consume this one contour amplitude. */
+export const RADIAL_INK_CONTOUR_AMPLITUDE = 0.108;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -97,23 +106,18 @@ function hashString(value: string): number {
   return hash >>> 0;
 }
 
-function percent(value: number): string {
-  return `${(value * 100).toFixed(3)}%`;
-}
-
 export function inkOwnershipGateProgress(progress: number): number {
   return clamp((progress - GATE_START) / (GATE_END - GATE_START));
 }
 
 function occlusionBand(
-  gateRank: number,
+  boundaryRank: number,
   halfWidth = CORE_HALF_WIDTH,
   alphaMin = OCCLUSION_ALPHA_MIN
 ): InkOcclusionBand {
-  const rank = clamp(gateRank);
+  const rank = clamp(boundaryRank);
   const width = Math.min(CORE_HALF_WIDTH, Math.max(0.0001, halfWidth));
   return {
-    gateRank: rank,
     coreMin: clamp(rank - width),
     coreMax: clamp(rank + width),
     alphaMin
@@ -137,7 +141,7 @@ export function markHorizontalInkDiagnostics(
 ): void {
   target.dataset.r4InkBoundaryRevision = frame.revision;
   target.dataset.r4InkContourRevision = frame.revision;
-  target.dataset.r4InkContourThreshold = frame.threshold.toFixed(6);
+  target.dataset.r4InkContourThreshold = frame.boundaryRank.toFixed(6);
   target.dataset.r4InkContourSeed = String(frame.contour.seed);
   target.dataset.r4InkContourDirection = frame.spec.direction;
   target.dataset.r4InkContourSamples = String(frame.contour.samples.length);
@@ -154,23 +158,78 @@ export function clearHorizontalInkDiagnostics(target: InkDiagnosticTarget): void
 
 function radialOwnership(
   spec: Extract<InkFieldSpec, { kind: 'radial' }>,
-  edge: number,
+  contour: HorizontalInkContour,
+  boundaryRank: number,
   viewport: InkViewport
 ): Pick<InkFieldFrame['ownership'], 'revealClip' | 'concealClip'> {
-  const width = finitePositive(viewport.width, 1);
-  const height = finitePositive(viewport.height, 1);
-  const originX = clamp(spec.origin.x) * width;
-  const originY = clamp(spec.origin.y) * height;
-  const maximumRadius = Math.max(
-    Math.hypot(originX, originY),
-    Math.hypot(width - originX, originY),
-    Math.hypot(originX, height - originY),
-    Math.hypot(width - originX, height - originY)
-  );
   return {
-    revealClip: `circle(${(maximumRadius * edge).toFixed(3)}px at ${percent(spec.origin.x)} ${percent(spec.origin.y)})`,
+    revealClip: radialInkPolygon(contour, spec.origin, viewport, boundaryRank),
     concealClip: null
   };
+}
+
+function radialMaximumRadius(origin: InkOrigin, viewport: InkViewport): number {
+  const aspect = finitePositive(viewport.width, 1) / finitePositive(viewport.height, 1);
+  const x = clamp(origin.x) * aspect;
+  const y = 1 - clamp(origin.y);
+  return Math.max(
+    Math.hypot(x, y),
+    Math.hypot(aspect - x, y),
+    Math.hypot(x, 1 - y),
+    Math.hypot(aspect - x, 1 - y),
+    0.0001
+  );
+}
+
+function radialViewportLimit(
+  origin: InkOrigin,
+  viewport: InkViewport,
+  angle: number,
+  maximum: number
+): number {
+  const aspect = finitePositive(viewport.width, 1) / finitePositive(viewport.height, 1);
+  const x = clamp(origin.x) * aspect;
+  const y = 1 - clamp(origin.y);
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const alongX = dx > 0.000001
+    ? (aspect - x) / dx
+    : dx < -0.000001 ? -x / dx : Number.POSITIVE_INFINITY;
+  const alongY = dy > 0.000001
+    ? (1 - y) / dy
+    : dy < -0.000001 ? -y / dy : Number.POSITIVE_INFINITY;
+  return Math.max(0.0001, Math.min(alongX, alongY) / maximum);
+}
+
+/**
+ * A radial clip is sampled from the same packed multiscale contour as the
+ * WebGL field.  Reusing this transport removes the old smooth CSS circle and
+ * a second radial texture/lifecycle without introducing another renderer.
+ */
+function radialInkPolygon(
+  contour: HorizontalInkContour,
+  origin: InkOrigin,
+  viewport: InkViewport,
+  boundaryRank: number
+): string {
+  const rank = clamp(boundaryRank);
+  const width = finitePositive(viewport.width, 1);
+  const height = finitePositive(viewport.height, 1);
+  const aspect = width / height;
+  const maximum = radialMaximumRadius(origin, viewport);
+  const envelope = Math.sin(rank * Math.PI);
+  const points = Array.from({ length: contour.samples.length }, (_, index) => {
+    const angleRank = (index + 0.5) / contour.samples.length;
+    const angle = angleRank * Math.PI * 2;
+    const radius = maximum
+      * radialViewportLimit(origin, viewport, angle, maximum)
+      * (1 + horizontalInkOffset(contour, angleRank) * RADIAL_INK_CONTOUR_AMPLITUDE * envelope)
+      * rank;
+    const x = clamp(origin.x) + Math.cos(angle) * radius / aspect;
+    const y = clamp(origin.y) - Math.sin(angle) * radius;
+    return `${(x * 100).toFixed(3)}% ${(y * 100).toFixed(3)}%`;
+  });
+  return `polygon(${points.join(', ')})`;
 }
 
 export function inkFieldOrigin(spec: InkFieldSpec): InkOrigin {
@@ -210,7 +269,7 @@ export function createInkFieldFrame(
   options: InkFieldFrameOptions = {}
 ): InkFieldFrame {
   const clampedProgress = clamp(Number.isFinite(progress) ? progress : 0);
-  const edge = inkOwnershipGateProgress(clampedProgress);
+  const boundaryRank = inkOwnershipGateProgress(clampedProgress);
   if (spec.kind === 'horizontal') {
     const contour = options.contour ?? createHorizontalInkContour({
       authoredSeed: spec.seed,
@@ -220,35 +279,49 @@ export function createInkFieldFrame(
       spec,
       viewport,
       progress: clampedProgress,
+      boundaryRank,
       seed: contour.seed,
       contour,
       revision: contour.revision,
-      threshold: edge,
       ownership: {
-        ...horizontalOwnership(spec, edge, contour),
-        edge
+        ...horizontalOwnership(spec, boundaryRank, contour)
       },
       occlusion: occlusionBand(
-        edge,
+        boundaryRank,
         HORIZONTAL_INK_CORE_HALF_WIDTH_PX / finitePositive(viewport.height, 1),
         HORIZONTAL_INK_CORE_ALPHA_MIN
       )
     };
   }
 
-  const clips = spec.kind === 'radial'
-    ? radialOwnership(spec, edge, viewport)
-    : { revealClip: null, concealClip: null };
+  if (spec.kind === 'radial') {
+    const contour = options.contour ?? createHorizontalInkContour({
+      authoredSeed: spec.seed,
+      variationKey: `radial:${spec.origin.x.toFixed(4)}:${spec.origin.y.toFixed(4)}`
+    });
+    return {
+      spec,
+      viewport,
+      progress: clampedProgress,
+      boundaryRank,
+      seed: contour.seed,
+      contour,
+      revision: contour.revision,
+      ownership: radialOwnership(spec, contour, boundaryRank, viewport),
+      occlusion: occlusionBand(boundaryRank)
+    };
+  }
 
   return {
     spec,
     viewport,
     progress: clampedProgress,
+    boundaryRank,
     seed: hashString(spec.seed),
     ownership: {
-      ...clips,
-      edge
+      revealClip: null,
+      concealClip: null
     },
-    occlusion: occlusionBand(edge)
+    occlusion: occlusionBand(boundaryRank)
   };
 }

@@ -366,7 +366,7 @@ describe('shared ink transition surface', () => {
     expect(inkSource).toContain('fieldProgress?:');
   });
 
-  it('keeps radial ownership unchanged without applying a horizontal source clip', async () => {
+  it('uses the shared noisy radial ownership contour without applying a source clip', async () => {
     const stage = new FakeElement();
     const fromElement = new FakeElement();
     const toElement = new FakeElement();
@@ -400,7 +400,8 @@ describe('shared ink transition surface', () => {
 
     timeline.progress(0.5);
 
-    expect(toElement.style.clipPath).toMatch(/^circle\(/);
+    expect(toElement.style.clipPath).toMatch(/^polygon\(/);
+    expect(toElement.style.clipPath).not.toContain('circle(');
     expect(fromElement.style.clipPath ?? '').toBe('');
     expect(fromElement.style.visibility).not.toBe('hidden');
     expect(fromElement.dataset.r4InkOwnership).toBeUndefined();

@@ -3772,6 +3772,66 @@ test('[P0 route-overlay pixels] an above-both ink transition is painted by the r
     timeout: 5_000,
     message: 'Hero→Pattern must expose a route-overlay ink frame during its one owned run'
   }).toBe(true);
+  await expect.poll(async () => page.evaluate(() => {
+    const receiver = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__scene--pattern'
+    );
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      '[data-phone-presentation-host="route-overlay"] > canvas'
+    );
+    return Boolean(
+      receiver?.dataset.r4InkBoundaryKind === 'radial'
+      && receiver?.dataset.r4InkBoundaryRank
+      && receiver.style.clipPath.startsWith('polygon(')
+      && canvas?.dataset.r4InkBoundaryKind === 'radial'
+      && canvas.dataset.r4InkBoundaryRank === receiver.dataset.r4InkBoundaryRank
+    );
+  }), {
+    timeout: 5_000,
+    message: 'the Pattern DOM mask and route ink field must expose one shared radial boundary rank'
+  }).toBe(true);
+  const frontierSamples: Array<Readonly<{
+    rank: string | null;
+    clipPath: string | null;
+    canvasRank: string | null;
+  }>> = [];
+  const frontierFrames: PngScreenshot[] = [];
+  for (let index = 0; index < 3; index += 1) {
+    frontierSamples.push(await page.evaluate(() => {
+      const receiver = document.querySelector<HTMLElement>(
+        '.portrait-scroll-spike__scene--pattern'
+      );
+      const canvas = document.querySelector<HTMLCanvasElement>(
+        '[data-phone-presentation-host="route-overlay"] > canvas'
+      );
+      return {
+        rank: receiver?.dataset.r4InkBoundaryRank ?? null,
+        clipPath: receiver?.style.clipPath ?? null,
+        canvasRank: canvas?.dataset.r4InkBoundaryRank ?? null
+      };
+    }));
+    frontierFrames.push(decodePngScreenshot(await page.screenshot()));
+    await page.waitForTimeout(75);
+  }
+  for (const sample of frontierSamples) {
+    expect(sample.rank).toMatch(/^0\.[0-9]{6}$/);
+    expect(sample.canvasRank).toBe(sample.rank);
+    expect(sample.clipPath).toMatch(/^polygon\(/);
+    expect(sample.clipPath).not.toContain('circle(');
+  }
+  const frontierRanks = frontierSamples.map((sample) => Number.parseFloat(sample.rank!));
+  expect(frontierRanks[2]! - frontierRanks[0]!).toBeGreaterThan(.01);
+  for (let index = 1; index < frontierFrames.length; index += 1) {
+    expect(
+      compositedPixelDelta(frontierFrames[index - 1]!, frontierFrames[index]!, {
+        left: .08,
+        top: .08,
+        right: .92,
+        bottom: .92
+      }, 10),
+      'each sampled Hero→Pattern frontier frame must change final compositor pixels'
+    ).toBeGreaterThan(.0002);
+  }
   const routeHostEvidence = await page.evaluate(() => {
     const content = document.querySelector<HTMLElement>(
       '[data-phone-presentation-host="content"]'

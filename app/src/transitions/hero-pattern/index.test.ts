@@ -178,8 +178,8 @@ describe('hero-pattern transition', () => {
 
     timeline.progress(0.5);
 
-    expect(receiver.style.clipPath).toMatch(/^circle\(/);
-    expect(receiver.style.clipPath).not.toContain('polygon(');
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('circle(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('radial');
     expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.5000,0.5000');
     expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();

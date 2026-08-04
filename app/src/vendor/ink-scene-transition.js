@@ -1,4 +1,7 @@
-import { HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX } from '../transitions/shared/inkField.ts';
+import {
+  HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX,
+  RADIAL_INK_CONTOUR_AMPLITUDE
+} from '../transitions/shared/inkField.ts';
 import { HORIZONTAL_INK_CONTOUR_AMPLITUDE } from '../transitions/shared/horizontalInkContour.ts';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -70,7 +73,7 @@ precision highp float;varying vec2 v;uniform vec2 R;uniform float P;uniform floa
 #if defined(FH)
 uniform float D;uniform sampler2D M;uniform float Q;uniform float K;uniform float H;
 #elif defined(FR)
-uniform vec2 O;uniform float Z;
+uniform vec2 O;uniform float Z;uniform sampler2D M;uniform float H;
 #if FT
 uniform sampler2D U;uniform vec2 J;uniform float X;
 #endif
@@ -81,7 +84,7 @@ uniform float B;uniform vec2 E;uniform float I;vec2 nu(vec2 p){vec2 so=vec2(S*73
 #if defined(FH)
 float hd(vec2 u,float d){return d<0.5?1.0-u.y:u.y;}vec4 hc(vec2 u){float sc=max(K,1.0);float cu=(clamp(u.x,0.0,1.0)*(sc-1.0)+0.5)/sc;return texture2D(M,vec2(cu,0.5));}
 #elif defined(FR)
-float rr(vec2 u,float as){vec2 d=(u-O)*vec2(as,1.0);return length(d)/max(Z,0.0001);}
+float rc(vec2 d,float as){float a=fract(atan(d.y,d.x)/6.2831853+1.0);vec3 hs=texture2D(M,vec2(a,0.5)).rgb*2.0-1.0;float n=dot(hs,vec3(0.50,0.31,0.19));float x=O.x*as;float tx=d.x>.000001?(as-x)/d.x:d.x<-.000001?-x/d.x:1e6;float ty=d.y>.000001?(1.0-O.y)/d.y:d.y<-.000001?-O.y/d.y:1e6;float l=min(tx,ty)/max(Z,0.0001);float e=sin(clamp(H,0.0,1.0)*3.14159265);return max(l*(1.0+n*${RADIAL_INK_CONTOUR_AMPLITUDE.toFixed(6)}*e),0.0001);}float rr(vec2 u,float as){vec2 d=(u-O)*vec2(as,1.0);return length(d)/max(Z*rc(d,as),0.0001);}
 #if FT
 vec2 ru(vec2 u){float sa=R.x/max(R.y,1.0);float ia=J.x/max(J.y,1.0);if(sa>ia){u.y=(u.y-0.5)*(ia/sa)+0.5;}else{u.x=(u.x-0.5)*(sa/ia)+0.5;}return u;}
 #endif
@@ -92,7 +95,7 @@ float oo(float r,float gr,vec2 c,float am,float w){float hw=max(max(gr-c.x,c.y-g
 #if defined(FH)
 vec4 hq=hc(u);vec4 hs=hq*2.0-1.0;float hmain=dot(hs.rgb,vec3(0.50,0.31,0.19));float hphase=sin(clamp(H,0.0,1.0)*3.14159265);float br=hd(u,D)+hmain*${HORIZONTAL_INK_CONTOUR_AMPLITUDE.toFixed(6)}*hphase*Q;float br2=br+(hs.b*0.018+sin((u.x+H*0.37)*20.0)*0.010)*hphase*Q;float bp=H;
 #elif defined(FR)
-float br=rr(u,as);float bp=p;
+float br=rr(u,as);float bp=H;
 #else
 float br=dr(u);float bp=p;
 #endif
@@ -106,7 +109,14 @@ float fs=0.58;float ts=0.64;
 #else
 float fs=1.0;float ts=1.0;
 #endif
-float e=bp+tn*(0.058+wt*0.116)*ts-(br+fi*fs);float b=smoothstep(-0.040,0.085,e);float ft=1.0-smoothstep(0.0,0.132,abs(e));float h=1.0-smoothstep(0.0,0.034,abs(e));float sb=1.0-smoothstep(0.034,0.112,abs(e));float pc=sb*I;float ow=clamp(1.0+fi*2.4+(wt-0.5)*0.35,0.62,1.38);float py=oo(br,B,E,I,ow);
+float e=bp+tn*(0.058+wt*0.116)*ts-(br+fi*fs);
+#if defined(FR)
+// The radial body frontier is the exact contour shared with DOM ownership.
+// Procedural sparks may cross this edge, but they cannot create a second
+// opaque surface boundary that drifts away from Pattern's mask.
+e=bp-br;
+#endif
+float b=smoothstep(-0.040,0.085,e);float ft=1.0-smoothstep(0.0,0.132,abs(e));float h=1.0-smoothstep(0.0,0.034,abs(e));float sb=1.0-smoothstep(0.034,0.112,abs(e));float pc=sb*I;float ow=clamp(1.0+fi*2.4+(wt-0.5)*0.35,0.62,1.38);float py=oo(br,B,E,I,ow);
 #if defined(FH)
 float ho=oo(br,B,E,I,1.0);float hh=max(max(B-E.x,E.y-B),0.0001);float sh=max(hh,${HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX.toFixed(1)}/max(R.y,1.0));float so=(1.0-smoothstep(hh,sh,abs(br-B)))*0.46;float s2=(1.0-smoothstep(0.003,0.034,abs(br2-B)))*(0.36+0.22*hphase)*Q;float hb=smoothstep(-0.180,0.085,e)*0.64*Q;ho=max(ho,max(so,s2));float se=max(ho,hb);
 #else
@@ -230,8 +240,14 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
   const depthTexture = fieldKind === 'depth'
     ? createTexture(gl.TEXTURE0, gl.CLAMP_TO_EDGE, 1, 1, new Uint8Array([255, 255, 255, 255]))
     : null;
-  const contourTexture = fieldKind === 'horizontal'
-    ? createTexture(gl.TEXTURE1, gl.CLAMP_TO_EDGE, 1, 1, new Uint8Array([128, 128, 128, 128]))
+  const contourTexture = fieldKind === 'horizontal' || fieldKind === 'radial'
+    ? createTexture(
+      gl.TEXTURE1,
+      fieldKind === 'radial' ? gl.REPEAT : gl.CLAMP_TO_EDGE,
+      1,
+      1,
+      new Uint8Array([128, 128, 128, 128])
+    )
     : null;
   const noiseTexture = createTexture(
     gl.TEXTURE2,
@@ -246,7 +262,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
     : null;
   if (
     (fieldKind === 'depth' && !depthTexture)
-    || (fieldKind === 'horizontal' && !contourTexture)
+    || ((fieldKind === 'horizontal' || fieldKind === 'radial') && !contourTexture)
     || !noiseTexture
     || (targetImage && !targetTexture)
   ) {
@@ -319,8 +335,13 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
     image.src = depthSource;
   };
 
-  const ensureHorizontalContour = (frame) => {
-    if (!contourTexture || frame?.spec?.kind !== 'horizontal' || !frame.contour) {
+  const ensureFieldContour = (frame) => {
+    if (
+      !contourTexture
+      || frame?.spec?.kind !== fieldKind
+      || (fieldKind !== 'horizontal' && fieldKind !== 'radial')
+      || !frame.contour
+    ) {
       return false;
     }
     if (frame.contour.revision === contourRevision) {
@@ -374,7 +395,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
       canvas.style.visibility = active ? 'visible' : 'hidden';
       canvas.style.opacity = active ? canvasOpacity.toFixed(4) : '0';
       ensureDepthMap(frame);
-      const contourReady = ensureHorizontalContour(frame);
+      const contourReady = ensureFieldContour(frame);
       if (!resize(frame)) return;
 
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -432,12 +453,12 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
         gl.uniform1i(uniforms.contourMap, 1);
         gl.uniform1f(uniforms.contourReady, contourReady ? 1 : 0);
         gl.uniform1f(uniforms.contourSampleCount, frame.contour ? frame.contour.samples.length : 1);
-        gl.uniform1f(uniforms.ownershipThreshold, typeof frame.threshold === 'number'
-          ? frame.threshold
-          : frame.occlusion.gateRank);
+        gl.uniform1f(uniforms.ownershipThreshold, frame.boundaryRank);
       } else if (spec.kind === 'radial') {
         gl.uniform2f(uniforms.fieldOrigin, origin.x, 1 - origin.y);
         gl.uniform1f(uniforms.fieldRadiusScale, radiusScale);
+        gl.uniform1i(uniforms.contourMap, 1);
+        gl.uniform1f(uniforms.ownershipThreshold, frame.boundaryRank);
         if (targetUniforms && targetTexture && targetImage) {
           gl.uniform1i(targetUniforms.map, targetTextureUnit - gl.TEXTURE0);
           gl.uniform2f(targetUniforms.size, targetImage.naturalWidth, targetImage.naturalHeight);
@@ -451,7 +472,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
         gl.uniform4f(uniforms.depthCamera, depthCamera.scale, depthCamera.translateX, depthCamera.translateY, 0);
         gl.uniform2f(uniforms.depthOrigin, depthCamera.originX, depthCamera.originY);
       }
-      gl.uniform1f(uniforms.ownershipGateRank, frame.occlusion.gateRank);
+      gl.uniform1f(uniforms.ownershipGateRank, frame.boundaryRank);
       gl.uniform2f(
         uniforms.ownershipCore,
         frame.occlusion.coreMin,

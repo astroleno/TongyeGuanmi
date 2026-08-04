@@ -3,6 +3,7 @@ import {
   type InkDepthTransform,
   type InkFieldSpec
 } from './inkField';
+import { createHorizontalInkContour } from './horizontalInkContour';
 import {
   applyConcealBoundary,
   applyRevealBoundary,
@@ -100,6 +101,21 @@ export function createPhoneInkRuntimeBridge([
   if (!surface || !host) {
     return () => undefined;
   }
+  // A radial field samples the same compact contour transport as horizontal
+  // ink. Retain it for this run instead of regenerating another radial mask
+  // on every compositor frame.
+  const contour = field.kind === 'depth'
+    ? null
+    : createHorizontalInkContour({
+        authoredSeed: field.seed,
+        variationKey: `${field.kind}:${id}`
+      });
+  const frameFor = (progress: number) => createInkFieldFrame(
+    field,
+    progress,
+    viewportFor(surface, host),
+    contour ? { contour } : {}
+  );
 
   const mountedCanvas = existingCanvas ? null : surface;
   const renderer = createInkFieldRenderer(surface, {
@@ -120,7 +136,7 @@ export function createPhoneInkRuntimeBridge([
     surface.dataset.phoneInkRenderer = renderer ? 'active' : 'unavailable';
   }
   if (renderer) {
-    renderer.prewarm(createInkFieldFrame(field, 0.003, viewportFor(surface, host)));
+    renderer.prewarm(frameFor(0.003));
   }
 
   const render = (rawProgress: number, force = false) => {
@@ -136,7 +152,7 @@ export function createPhoneInkRuntimeBridge([
     let rendered = false;
     surface.style.visibility = fieldActive ? 'visible' : 'hidden';
     surface.style.opacity = fieldActive ? '1' : '0';
-    const frame = createInkFieldFrame(field, progress, viewportFor(surface, host));
+    const frame = frameFor(progress);
     for (const source of sourceEndpoints) {
       if (
         field.kind === 'radial'

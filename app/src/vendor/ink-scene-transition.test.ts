@@ -58,6 +58,13 @@ describe('ink boundary shader contract', () => {
     expect(shaderSource).toMatch(/float e=[^;]*fi/);
   });
 
+  it('uses the same radial boundary rank and contour as DOM ownership', () => {
+    expect(shaderSource).toContain('float bp=H;');
+    expect(shaderSource).toContain('float rc(');
+    expect(shaderSource).toContain('float br=rr(u,as);float bp=H;');
+    expect(shaderSource).not.toContain('float br=rr(u,as);float bp=p;');
+  });
+
   it('covers the binary ownership clip with an opaque core and a wider soft edge', () => {
     expect(shaderSource).toContain('float sh=max(hh,');
     expect(shaderSource).toContain('float so=(1.0-smoothstep(hh,sh,abs(br-B)))*0.46');

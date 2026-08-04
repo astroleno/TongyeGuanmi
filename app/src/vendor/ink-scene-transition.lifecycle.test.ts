@@ -328,7 +328,7 @@ describe('ink WebGL resource lifecycle', () => {
 
     transition?.render(frame);
 
-    expect(gl.uniform1f).toHaveBeenCalledWith('B', frame.occlusion.gateRank);
+    expect(gl.uniform1f).toHaveBeenCalledWith('B', frame.boundaryRank);
     expect(gl.uniform2f).toHaveBeenCalledWith(
       'E',
       frame.occlusion.coreMin,
@@ -344,6 +344,34 @@ describe('ink WebGL resource lifecycle', () => {
       expect.anything(),
       expect.anything(),
       expect.anything()
+    );
+  });
+
+  it('feeds radial rendering the exact boundary rank that owns the DOM mask', () => {
+    const { canvas, gl } = webGlHarness();
+    const transition = createInkBoundaryTransition(canvas, { fieldKind: 'radial' });
+    const frame = createInkFieldFrame(
+      { kind: 'radial', origin: { x: 0.5, y: 0.5 }, seed: 'hero-pattern-frontier' },
+      0.5,
+      { width: 320, height: 180 }
+    );
+
+    transition?.render(frame);
+
+    const boundaryRank = (frame as typeof frame & { boundaryRank: number }).boundaryRank;
+    expect(boundaryRank).toBeDefined();
+    expect(gl.uniform1f).toHaveBeenCalledWith('H', boundaryRank);
+    expect(gl.uniform1f).toHaveBeenCalledWith('B', boundaryRank);
+    expect(gl.texImage2D).toHaveBeenCalledWith(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      expect.any(Number),
+      1,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      expect.any(Uint8Array)
     );
   });
 

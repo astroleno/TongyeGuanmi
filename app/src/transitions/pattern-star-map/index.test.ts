@@ -131,8 +131,8 @@ describe('pattern-star-map transition', () => {
 
     expect(setup.fromRoot.dataset.patternProgress).toBe('1.0000');
     expect(setup.toLayer.visibility.visible).toBe(true);
-    expect(receiver.style.clipPath).toMatch(/^circle\(/);
-    expect(receiver.style.clipPath).not.toContain('polygon(');
+    expect(receiver.style.clipPath).toMatch(/^polygon\(/);
+    expect(receiver.style.clipPath).not.toContain('circle(');
     expect(receiver.dataset.r4InkBoundaryKind).toBe('radial');
     expect(receiver.dataset.r4InkBoundaryOrigin).toBe('0.2400,0.5500');
     expect(receiver.dataset.r4InkBoundaryRevision).toBeUndefined();

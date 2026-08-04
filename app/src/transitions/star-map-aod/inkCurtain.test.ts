@@ -82,8 +82,8 @@ describe('star-map AOD one-boundary integration', () => {
     expect(revealSurface.dataset.r4InkContourRevision).toBe(frame.revision);
     expect(source.dataset.r4InkContourRevision).toBe(frame.revision);
     expect(canvas.dataset.r4InkContourRevision).toBe(frame.revision);
-    expect(revealSurface.dataset.r4InkContourThreshold).toBe(frame.threshold.toFixed(6));
-    expect(source.dataset.r4InkContourThreshold).toBe(frame.threshold.toFixed(6));
+    expect(revealSurface.dataset.r4InkContourThreshold).toBe(frame.boundaryRank.toFixed(6));
+    expect(source.dataset.r4InkContourThreshold).toBe(frame.boundaryRank.toFixed(6));
     expect(revealSurface.dataset.r4InkOwnership).toBe('reveal');
     expect(source.dataset.r4InkOwnership).toBe('conceal');
     expect(source.style.clipPath).toMatch(/^polygon\(/);

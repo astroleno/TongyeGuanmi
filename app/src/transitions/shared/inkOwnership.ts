@@ -18,6 +18,7 @@ export function clearBoundaryGeometry(element: HTMLElement | null | undefined): 
   element.removeAttribute('data-r4-reveal-progress');
   element.removeAttribute('data-r4-reveal-mode');
   element.removeAttribute('data-r4-ink-boundary-kind');
+  element.removeAttribute('data-r4-ink-boundary-rank');
   element.removeAttribute('data-r4-ink-ownership');
   if (!INK_DIAGNOSTICS) {
     return;
@@ -41,6 +42,10 @@ function applyBoundaryGeometry(
   element.style.clipPath = clipPath;
   element.style.setProperty('-webkit-clip-path', clipPath);
   element.dataset.r4InkBoundaryKind = frame.spec.kind;
+  // This is emitted in production too: it is the immutable rank shared by
+  // the DOM contour and the WebGL field, and lets pixel gates correlate both
+  // renderers without treating either element as visual authority.
+  element.dataset.r4InkBoundaryRank = frame.boundaryRank.toFixed(6);
   element.dataset.r4InkOwnership = ownership;
   if (!INK_DIAGNOSTICS) {
     return;

@@ -76,6 +76,7 @@ describe('shared ink renderer lifecycle', () => {
 
     expect(surface.dataset.r4InkContourRevision).toBe(contour.revision);
     expect(surface.dataset.r4InkContourThreshold).toBe('0.500000');
+    expect(surface.dataset.r4InkBoundaryRank).toBe('0.500000');
     expect(surface.dataset.r4InkContourSeed).toBe(String(contour.seed));
     expect(surface.dataset.r4InkContourSamples).toBe(String(HORIZONTAL_INK_CONTOUR_SAMPLES));
 
@@ -96,6 +97,7 @@ describe('shared ink renderer lifecycle', () => {
     expect(surface.dataset.r4InkRendererActive).toBe('false');
     expect(surface.dataset.r4InkContourRevision).toBeUndefined();
     expect(surface.dataset.r4InkContourThreshold).toBeUndefined();
+    expect(surface.dataset.r4InkBoundaryRank).toBeUndefined();
     expect(surface.dataset.r4InkContourSeed).toBeUndefined();
     expect(surface.dataset.r4InkContourSamples).toBeUndefined();
   });
@@ -150,7 +152,8 @@ describe('shared ink renderer lifecycle', () => {
     renderer?.render(frame);
 
     expect(surface.dataset.r4InkContourRevision).toBe(contour.revision);
-    expect(surface.dataset.r4InkContourThreshold).toBe(frame.threshold.toFixed(6));
+    expect(surface.dataset.r4InkContourThreshold).toBe(frame.boundaryRank.toFixed(6));
+    expect(surface.dataset.r4InkBoundaryRank).toBe(frame.boundaryRank.toFixed(6));
     expect(surface.dataset.r4InkContourSeed).toBe(String(contour.seed));
     expect(surface.dataset.r4InkContourSamples).toBe(String(HORIZONTAL_INK_CONTOUR_SAMPLES));
 
@@ -158,6 +161,7 @@ describe('shared ink renderer lifecycle', () => {
 
     expect(surface.dataset.r4InkContourRevision).toBeUndefined();
     expect(surface.dataset.r4InkContourThreshold).toBeUndefined();
+    expect(surface.dataset.r4InkBoundaryRank).toBeUndefined();
     expect(surface.dataset.r4InkContourSeed).toBeUndefined();
     expect(surface.dataset.r4InkContourSamples).toBeUndefined();
   });

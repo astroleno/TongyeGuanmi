@@ -1,6 +1,7 @@
 import { clearBoundaryGeometry } from './inkOwnership';
 import { semanticBoolean } from '../../runtime/semantic-data-attribute';
 import { createInkFieldFrame, type InkFieldSpec } from './inkField';
+import { createHorizontalInkContour } from './horizontalInkContour';
 import {
   createInkFieldRenderer,
   type InkFieldRenderer
@@ -40,6 +41,10 @@ export function createRadialInkIntroController(
   let disposed = false;
   let settled = false;
   let latestProgress = 1;
+  const contour = createHorizontalInkContour({
+    authoredSeed: options.field.seed,
+    variationKey: `radial:${options.generation}`
+  });
 
   const targetReady = () => !options.targetImage || (
     options.targetImage.complete
@@ -86,7 +91,8 @@ export function createRadialInkIntroController(
   const frameFor = (progress: number) => createInkFieldFrame(
     options.field,
     clamp(progress),
-    options.viewport()
+    options.viewport(),
+    { contour }
   );
   options.targetImage?.addEventListener('load', onTargetLoad);
   clearBoundaryGeometry(options.revealSurface);
