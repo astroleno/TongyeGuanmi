@@ -1355,10 +1355,20 @@ describe('PhoneStorySnapshot reducer', () => {
     });
     expect(withoutFrame.snapshot).toBe(current);
 
-    current = api.reducePhoneStorySnapshot(
-      current,
-      presentedFrame(current, snapshotIdentity)
-    ).snapshot;
+    const frame = presentedFrame(current, snapshotIdentity);
+    // Generic proof ingress cannot race past AOD autoplay confirmation.
+    expect(api.reducePhoneStorySnapshot(current, frame).snapshot).toBe(current);
+    current = api.reducePhoneStorySnapshot(current, {
+      ...frame,
+      type: 'AOD_FIRST_FRAME_PRESENTED'
+    }).snapshot;
+    expect(current).toMatchObject({
+      session: { phase: 'preparing', aod: { firstFramePresented: true } }
+    });
+    current = api.reducePhoneStorySnapshot(current, {
+      type: 'AOD_PLAY_CONFIRMED',
+      ...snapshotIdentity
+    }).snapshot;
 
     expect(current).toMatchObject({
       session: { phase: 'animating' }

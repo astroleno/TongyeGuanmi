@@ -18,7 +18,7 @@ type Harness = Readonly<{
   execution: PhoneAodExecution;
   events: string[];
   start: ReturnType<typeof vi.fn>;
-  release: ReturnType<typeof vi.fn>;
+  render: ReturnType<typeof vi.fn>;
   reset: ReturnType<typeof vi.fn>;
   presentStaticTarget: ReturnType<typeof vi.fn>;
   disposeStaticTarget: ReturnType<typeof vi.fn>;
@@ -28,6 +28,11 @@ type Harness = Readonly<{
     progress: ReturnType<typeof vi.fn>;
     complete: ReturnType<typeof vi.fn>;
     fail: ReturnType<typeof vi.fn>;
+    playConfirmed: ReturnType<typeof vi.fn>;
+    firstFrame: ReturnType<typeof vi.fn>;
+    observedProgress: ReturnType<typeof vi.fn>;
+    completed: ReturnType<typeof vi.fn>;
+    failed: ReturnType<typeof vi.fn>;
   }>;
   runner: ReturnType<typeof registerPhoneRuntimeAodCapability>;
   startRun(): boolean | void;
@@ -67,6 +72,10 @@ function createHarness(
   let settled = false;
   let stage: PhoneAodRunnerStage = 'admission';
   let progress = direction === 1 ? 0 : 1;
+  let playConfirmed = false;
+  let firstFramePresented = false;
+  let observedProgress: number | null = null;
+  let completed = false;
   let capability: PhoneRunCapability | undefined;
   const snapshot = () => settled
     ? {
@@ -90,7 +99,12 @@ function createHarness(
             : stage === 'playback' ? 'animating' : 'verifying-target',
           progress,
           aod: {
-            stage
+            stage,
+            playConfirmed,
+            firstFramePresented,
+            lastProgress: observedProgress,
+            completed,
+            failure: null
           },
           reducedMotion
         }
@@ -106,14 +120,9 @@ function createHarness(
       events.push('static-proof-accepted');
       return true;
     }
-    if (
-      stage !== 'admission'
-      || value.origin !== 'segment-first-frame'
-      || value.token !== token
-    ) return false;
-    stage = 'playback';
-    events.push('proof-accepted');
-    return true;
+    return stage === 'admission'
+      && value.origin === 'segment-first-frame'
+      && value.token === token;
   });
   const reportProgress = vi.fn((next: number) => {
     if (stage !== 'playback') return;
@@ -128,6 +137,58 @@ function createHarness(
     active = false;
     stage = 'settling';
     events.push(`fail:${reason}`);
+  });
+  const settleIfEndpointReached = () => {
+    const endpoint = direction === 1 ? progress >= .999 : progress <= .001;
+    if (stage === 'playback' && completed && endpoint) complete();
+  };
+  const joinAdmissionFacts = () => {
+    if (stage !== 'admission' || !playConfirmed || !firstFramePresented) return;
+    stage = 'playback';
+    progress = observedProgress ?? progress;
+    events.push('admission-joined');
+    settleIfEndpointReached();
+  };
+  const reportAodPlayConfirmed = vi.fn(() => {
+    if (stage !== 'admission' || playConfirmed) return false;
+    playConfirmed = true;
+    events.push('play-confirmed');
+    joinAdmissionFacts();
+    return true;
+  });
+  const reportAodFirstFrame = vi.fn((value) => {
+    if (!frame(value) || firstFramePresented) return false;
+    firstFramePresented = true;
+    events.push('first-frame');
+    joinAdmissionFacts();
+    return true;
+  });
+  const reportAodProgress = vi.fn((next: number) => {
+    if (stage !== 'admission' && stage !== 'playback') return false;
+    const prior = observedProgress ?? progress;
+    const monotonic = direction === 1 ? next >= prior : next <= prior;
+    if (!monotonic || (observedProgress !== null && next === prior)) return false;
+    observedProgress = next;
+    events.push(`observed-progress:${next}`);
+    if (stage === 'playback') {
+      progress = next;
+      events.push(`progress:${next}`);
+      settleIfEndpointReached();
+    }
+    return true;
+  });
+  const reportAodCompleted = vi.fn(() => {
+    if (stage !== 'admission' && stage !== 'playback') return false;
+    if (completed) return false;
+    completed = true;
+    events.push('completed');
+    settleIfEndpointReached();
+    return true;
+  });
+  const reportAodFailure = vi.fn((reason) => {
+    if (stage === 'settling') return false;
+    fail(reason);
+    return true;
   });
   const session = Object.assign({
     authorityId: token.authorityId,
@@ -144,6 +205,11 @@ function createHarness(
     )),
     requestReducedTargetLayout: vi.fn(() => true),
     reportPresentationFrame: frame,
+    reportAodPlayConfirmed,
+    reportAodFirstFrame,
+    reportAodProgress,
+    reportAodCompleted,
+    reportAodFailure,
     reportProgress,
     reportEndpointCommit: complete,
     reportFailure: fail
@@ -151,12 +217,22 @@ function createHarness(
     frame,
     progress: reportProgress,
     complete,
-    fail
+    fail,
+    playConfirmed: reportAodPlayConfirmed,
+    firstFrame: reportAodFirstFrame,
+    observedProgress: reportAodProgress,
+    completed: reportAodCompleted,
+    failed: reportAodFailure
   }) as unknown as PhoneAodRunSession & Readonly<{
     frame: typeof frame;
     progress: typeof reportProgress;
     complete: typeof complete;
     fail: typeof fail;
+    playConfirmed: typeof reportAodPlayConfirmed;
+    firstFrame: typeof reportAodFirstFrame;
+    observedProgress: typeof reportAodProgress;
+    completed: typeof reportAodCompleted;
+    failed: typeof reportAodFailure;
   }>;
   const port = {
     getSnapshot: snapshot,
@@ -191,7 +267,9 @@ function createHarness(
     if (!resolve) throw new Error('Expected a pending AOD autoplay attempt');
     resolve(result);
   };
-  const release = vi.fn(() => events.push('release-playback'));
+  const render = vi.fn((_, nextProgress: number) => {
+    events.push(`render:${nextProgress}`);
+  });
   const reset = vi.fn(() => events.push('reset-leaf'));
   const presentStaticTarget = vi.fn(() => true);
   const disposeStaticTarget = vi.fn(() => undefined);
@@ -200,7 +278,7 @@ function createHarness(
     () => 100,
     () => true,
     start,
-    release,
+    render,
     reset,
     reducedMotion,
     {
@@ -217,7 +295,7 @@ function createHarness(
     },
     events,
     start,
-    release,
+    render,
     reset,
     presentStaticTarget,
     disposeStaticTarget,
@@ -304,17 +382,19 @@ describe('AOD ↔ Method single runner cutover', () => {
     value.runner[5]();
   });
 
-  it('orders admission → accepted proof → playback → settle and suppresses pre-proof progress', async () => {
+  it('orders admission facts → runner-owned playback render → settle and preserves early progress', async () => {
     const value = createHarness();
 
     expect(value.startRun()).toBe(true);
     await Promise.resolve();
     value.runner[0](.45, value.execution);
     expect(value.session.progress).not.toHaveBeenCalled();
+    expect(value.session.observedProgress).toHaveBeenCalledWith(.45);
+    expect(value.render).not.toHaveBeenCalled();
 
     value.runner[1](frameFor(value.execution), value.execution);
     expect(value.session.frame).toHaveBeenCalledOnce();
-    expect(value.release).toHaveBeenCalledOnce();
+    expect(value.render).toHaveBeenCalledWith(value.execution, .45);
     expect(value.stage()).toBe('playback');
 
     value.runner[0](.45, value.execution);
@@ -323,14 +403,11 @@ describe('AOD ↔ Method single runner cutover', () => {
 
     value.runner[0](1, value.execution);
     value.runner[2](value.execution);
-    expect(value.events).toEqual([
-      'start',
-      'proof-accepted',
-      'release-playback',
-      'progress:0.45',
-      'progress:1',
-      'settle'
-    ]);
+    expect(value.render).toHaveBeenLastCalledWith(value.execution, 1);
+    expect(value.events).toContain('play-confirmed');
+    expect(value.events).toContain('first-frame');
+    expect(value.events).toContain('admission-joined');
+    expect(value.events).toContain('settle');
     value.runner[5]();
   });
 
@@ -345,10 +422,11 @@ describe('AOD ↔ Method single runner cutover', () => {
 
     value.runner[1](frameFor(stale), stale);
     expect(value.session.frame).not.toHaveBeenCalled();
-    expect(value.release).not.toHaveBeenCalled();
+    expect(value.render).not.toHaveBeenCalled();
 
     value.runner[1](frameFor(value.execution), value.execution);
     expect(value.session.frame).toHaveBeenCalledOnce();
+    expect(value.render).toHaveBeenCalledWith(value.execution, 0);
     value.runner[5]();
   });
 
@@ -363,16 +441,41 @@ describe('AOD ↔ Method single runner cutover', () => {
     // advance the machine out of admission.
     value.runner[1](frameFor(value.execution), value.execution);
     expect(value.stage()).toBe('admission');
-    expect(value.session.frame).not.toHaveBeenCalled();
-    expect(value.release).not.toHaveBeenCalled();
+    expect(value.session.frame).toHaveBeenCalledOnce();
+    expect(value.render).not.toHaveBeenCalled();
 
     value.settleStart('blocked');
     await Promise.resolve();
     expect(value.stage()).toBe('settling');
     expect(value.session.fail).toHaveBeenCalledWith('aod-autoplay-blocked');
-    expect(value.session.frame).not.toHaveBeenCalled();
-    expect(value.release).not.toHaveBeenCalled();
+    expect(value.session.frame).toHaveBeenCalledOnce();
+    expect(value.render).not.toHaveBeenCalled();
     expect(value.reset).toHaveBeenCalledOnce();
+    value.runner[5]();
+  });
+
+  it('[P0 AOD admission] records early progress/completion facts but cannot render until both admission facts arrive', async () => {
+    const value = createHarness(1, 'pending');
+
+    expect(value.startRun()).toBe(true);
+    await Promise.resolve();
+    value.runner[0](.72, value.execution);
+    value.runner[2](value.execution);
+
+    expect(value.session.observedProgress).toHaveBeenCalledWith(.72);
+    expect(value.session.completed).toHaveBeenCalledOnce();
+    expect(value.stage()).toBe('admission');
+    expect(value.render).not.toHaveBeenCalled();
+
+    value.settleStart('playing');
+    await Promise.resolve();
+    expect(value.stage()).toBe('admission');
+    expect(value.render).not.toHaveBeenCalled();
+
+    value.runner[1](frameFor(value.execution), value.execution);
+    expect(value.stage()).toBe('playback');
+    expect(value.render).toHaveBeenCalledWith(value.execution, .72);
+    expect(value.session.complete).not.toHaveBeenCalled();
     value.runner[5]();
   });
 

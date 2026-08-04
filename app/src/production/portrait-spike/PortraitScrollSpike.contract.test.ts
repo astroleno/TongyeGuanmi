@@ -67,6 +67,8 @@ const directEntryPositionSource = source(
   '../phone/phone-direct-entry-position.ts'
 );
 const storyEntrySource = source('../phone/usePhoneStoryEntry.ts');
+const navigationRuntimeSource = source('../phone/usePhoneStoryNavigationRuntime.ts');
+const storyEngineSource = source('../phone/phone-story/runtime/engine.ts');
 
 describe('Route B proven front-half migration contract', () => {
   it('keeps v16 thin and mounts the complete Loader → Method adapter group', () => {
@@ -325,6 +327,19 @@ describe('Route B proven front-half migration contract', () => {
     expect(shellSource).toContain(
       'data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}'
     );
+    // The shell consumes only this read-only diagnostic selector, rather than
+    // raw machine state that could grow into another lifecycle writer.
+    expect(shellSource).toContain('const [\n    aodExecution,\n    aodPhase,\n    aodStage,');
+    expect(shellSource).toContain('data-phone-aod-execution={aodExecution ?? undefined}');
+    expect(shellSource).toContain('data-phone-aod-phase={aodPhase}');
+    expect(shellSource).toContain('data-phone-aod-stage={aodStage}');
+    expect(shellSource).toContain('data-phone-aod-play-confirmed={aodPlayConfirmed !== null');
+    expect(shellSource).toContain('data-phone-aod-first-frame-presented={aodFirstFramePresented !== null');
+    expect(shellSource).toContain('data-phone-aod-last-progress={aodLastProgress?.toFixed(4)}');
+    expect(shellSource).toContain('data-phone-aod-rollback-reason={aodRollbackReason ?? undefined}');
+    expect(navigationRuntimeSource).toContain('() => port.readAodDiagnostics()');
+    expect(navigationRuntimeSource).not.toContain('session?.aod');
+    expect(storyEngineSource).toContain('const readAodDiagnostics = (): PhoneAodDiagnostics');
     expect(phoneMediaSource).toContain('figure1-rgb-alpha.mp4');
     expect(phoneMediaSource).toContain('aod-figure-motion-rgb-alpha.mp4');
     expect(phoneMediaSource).not.toContain('rgb-alpha-reverse');

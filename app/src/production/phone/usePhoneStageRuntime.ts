@@ -644,9 +644,9 @@ export function usePhoneStageRuntime(
           ? aodAdapter.startAutoplay(execution)
           : Promise.resolve('error');
       },
-      (execution) => {
+      (execution, progress) => {
         const aodAdapter = aodRef.current;
-        if (aodAdapter) aodAdapter.releaseAutoplayAdmission(execution);
+        if (aodAdapter) aodAdapter.renderAutoplayProgress(execution, progress);
       },
       () => {
         const aodAdapter = aodRef.current;

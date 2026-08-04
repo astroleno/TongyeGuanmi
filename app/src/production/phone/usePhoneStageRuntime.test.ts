@@ -98,8 +98,16 @@ describe('phone stage AOD resource selection', () => {
       coverageComplete: true,
       edge: 'method' as const
     };
-    const animating = reducePhoneStorySnapshot(prepared, {
-      type: 'PRESENTATION_PROOF_REPORTED',
+    const playConfirmed = reducePhoneStorySnapshot(prepared, {
+      type: 'AOD_PLAY_CONFIRMED',
+      authorityId: prepared.authorityId,
+      sessionId: session.sessionId,
+      generation: session.generation,
+      leg: session.operation.legIndex,
+      direction: session.operation.direction
+    }).snapshot;
+    const animating = reducePhoneStorySnapshot(playConfirmed, {
+      type: 'AOD_FIRST_FRAME_PRESENTED',
       authorityId: prepared.authorityId,
       sessionId: session.sessionId,
       generation: session.generation,
@@ -112,7 +120,7 @@ describe('phone stage AOD resource selection', () => {
     }
     const running = animating.session;
     const beforeCue = reducePhoneStorySnapshot(animating, {
-      type: 'PROGRESS_REPORTED',
+      type: 'AOD_PROGRESS_OBSERVED',
       authorityId: animating.authorityId,
       sessionId: running.sessionId,
       generation: running.generation,
@@ -130,7 +138,7 @@ describe('phone stage AOD resource selection', () => {
     }
     const cue = beforeCue.session;
     const afterCue = reducePhoneStorySnapshot(beforeCue, {
-      type: 'PROGRESS_REPORTED',
+      type: 'AOD_PROGRESS_OBSERVED',
       authorityId: beforeCue.authorityId,
       sessionId: cue.sessionId,
       generation: cue.generation,

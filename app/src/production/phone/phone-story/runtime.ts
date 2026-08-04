@@ -15,6 +15,7 @@ import {
 import { createPhoneStoryRuntimeEngine } from './runtime/engine';
 import type {
   PhoneAodExecution,
+  PhoneAodRunSession,
   PhoneCapabilityLease,
   PhoneOrchestratedRunSession,
   PhoneStoryRuntimePort
@@ -746,9 +747,8 @@ export type PhoneAodFailureReason = Extract<
 >;
 
 type ActiveAodRun = [
-  session: PhoneOrchestratedRunSession,
-  execution: PhoneAodExecution,
-  admission: PhoneRenderedPresentationFrame | true | null
+  session: PhoneAodRunSession,
+  execution: PhoneAodExecution
 ];
 
 /**
@@ -794,7 +794,8 @@ export function registerPhoneRuntimeAodCapability(
   position: (direction: PhoneTransitionDirection) => number | null,
   canStart: (direction: PhoneTransitionDirection) => boolean,
   startAutoplay: (execution: PhoneAodExecution) => Promise<PhoneAodStartResult>,
-  releasePlayback: (execution: PhoneAodExecution) => void,
+  /** Runner-owned render command; leaf cannot release itself from admission. */
+  renderPlayback: (execution: PhoneAodExecution, progress: number) => void,
   onReset: () => void,
   reducedMotion = false,
   staticTarget?: PhoneAodReducedStaticTarget
@@ -858,7 +859,7 @@ export function registerPhoneRuntimeAodCapability(
         !latest
         || !acceptsWatchdogStage(stage, latest)
       ) return;
-      record[0].reportFailure(
+      record[0].reportAodFailure(
         stage === 'admission' ? 'aod-prepare-timeout' : 'aod-progress-timeout'
       );
       retire(true);
@@ -866,40 +867,32 @@ export function registerPhoneRuntimeAodCapability(
       ? PHONE_AOD_PREPARE_TIMEOUT_MS
       : PHONE_AOD_PROGRESS_WATCHDOG_MS);
   };
-  const admitPendingFrame = (
-    record: ActiveAodRun,
-    frame: PhoneRenderedPresentationFrame
-  ) => {
+  /** Reducer facts join play/frame; only its playback stage grants rendering. */
+  const synchronizePlayback = (record: ActiveAodRun): boolean => {
     const current = stateFor(record);
-    if (!current || current.session.aod!.stage !== 'admission') return;
-    if (!record[0].reportPresentationFrame(frame)) return;
-    const accepted = stateFor(record);
-    if (!accepted || accepted.session.aod!.stage !== 'playback') return;
-    record[2] = null;
+    if (!current || current.session.aod!.stage !== 'playback') return false;
     armWatchdog('playback');
-    releasePlayback(record[1]);
+    renderPlayback(record[1], current.session.progress);
+    return true;
   };
   const attempt = (record: ActiveAodRun): boolean => {
     const current = stateFor(record);
     if (!current || current.session.aod!.stage !== 'admission') return false;
     const nonce = ++startNonce;
-    record[2] = null;
     armWatchdog('admission');
     const settleAutoplay = (result: PhoneAodStartResult) => {
       if (nonce !== startNonce || !stateFor(record)) return;
       if (result === 'playing') {
-        const frame = record[2];
-        if (frame && frame !== true) admitPendingFrame(record, frame);
-        else record[2] = true;
+        record[0].reportAodPlayConfirmed();
+        synchronizePlayback(record);
         return;
       }
-      record[2] = null;
       if (result === 'blocked') {
-        record[0].reportFailure('aod-autoplay-blocked');
+        record[0].reportAodFailure('aod-autoplay-blocked');
         retire(true);
         return;
       }
-      record[0].reportFailure('media-failed');
+      record[0].reportAodFailure('media-failed');
       retire(true);
     };
     void startAutoplay(record[1]).then(settleAutoplay, () => settleAutoplay('error'));
@@ -957,7 +950,7 @@ export function registerPhoneRuntimeAodCapability(
     position,
     canStart,
     start(direction, session) {
-      const aodSession = session as PhoneOrchestratedRunSession;
+      const aodSession = session as PhoneAodRunSession;
       const reduced = reducedFor(aodSession);
       const token = reduced
         ? aodSession.presentationFrameToken(
@@ -969,8 +962,7 @@ export function registerPhoneRuntimeAodCapability(
       retire(true);
       const record: ActiveAodRun = [
         aodSession,
-        [token, direction],
-        null
+        [token, direction]
       ];
       active = record;
       if (!reduced) return attempt(record);
@@ -987,17 +979,31 @@ export function registerPhoneRuntimeAodCapability(
       if (
         !record
         || !current
-        || current.session.aod!.stage !== 'playback'
+        || current.session.reducedMotion
+        || (current.session.aod!.stage !== 'admission'
+          && current.session.aod!.stage !== 'playback')
         || record[1] !== execution
       ) return;
       const before = current.session.progress;
-      record[0].reportProgress(progress);
+      const beforeObserved = current.session.aod!.lastProgress;
+      record[0].reportAodProgress(progress);
       const after = stateFor(record);
-      if (
-        after
-        && after.session.aod!.stage === 'playback'
-        && after.session.progress !== before
-      ) armWatchdog('playback');
+      if (!after || after.session.aod!.lastProgress !== progress) return;
+      // An endpoint sample can atomically advance playback into settle when
+      // completion arrived early. It is still a real, reducer-accepted
+      // physical frame, so render it once before retiring the runner. This
+      // avoids a terminal black/stale frame while keeping the leaf unable to
+      // render or settle on its own.
+      if (beforeObserved === after.session.aod!.lastProgress) return;
+      if (after.session.aod!.stage === 'playback') {
+        if (after.session.progress !== before) armWatchdog('playback');
+        renderPlayback(record[1], after.session.progress);
+        return;
+      }
+      if (after.session.aod!.stage === 'settling') {
+        renderPlayback(record[1], after.session.progress);
+        retire(false);
+      }
     },
     (frame, execution) => {
       const record = active;
@@ -1005,13 +1011,14 @@ export function registerPhoneRuntimeAodCapability(
       if (
         !record
         || !current
+        || current.session.reducedMotion
         || current.session.aod!.stage !== 'admission'
         || frame.origin !== 'segment-first-frame'
         || record[1] !== execution
         || frame.token !== execution[0]
       ) return;
-      if (record[2] === true) admitPendingFrame(record, frame);
-      else record[2] = frame;
+      record[0].reportAodFirstFrame(frame);
+      synchronizePlayback(record);
     },
     (execution) => {
       const record = active;
@@ -1019,23 +1026,21 @@ export function registerPhoneRuntimeAodCapability(
       if (
         !record
         || !current
-        || current.session.aod!.stage !== 'playback'
+        || current.session.reducedMotion
+        || (current.session.aod!.stage !== 'admission'
+          && current.session.aod!.stage !== 'playback')
         || record[1] !== execution
       ) return;
-      const progress = current.session.progress;
-      if (
-        (execution[1] === 1 && progress < .999)
-        || (execution[1] === -1 && progress > .001)
-      ) return;
-      record[0].reportEndpointCommit('receiver');
-      retire(false);
+      record[0].reportAodCompleted();
+      const after = stateFor(record);
+      if (!after || after.session.aod!.stage === 'settling') retire(false);
     },
     (execution, reason) => {
       const record = active;
       if (!record || !stateFor(record) || record[1] !== execution) {
         return;
       }
-      record[0].reportFailure(reason);
+      record[0].reportAodFailure(reason);
       retire(true);
     },
     () => {
@@ -1047,7 +1052,9 @@ export function registerPhoneRuntimeAodCapability(
       }
       if (current.session.aod!.stage === 'settling') {
         retire(record?.[1][0].kind === 'static-poster');
+        return;
       }
+      if (current.session.aod!.stage === 'playback') synchronizePlayback(record!);
     },
     () => {
       runtimeDocument?.removeEventListener('visibilitychange', onVisibilityChange);

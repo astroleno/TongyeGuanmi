@@ -158,6 +158,11 @@ export type PhoneAodRunnerStage =
 
 export type PhoneAodLifecycle = Readonly<{
   stage: PhoneAodRunnerStage;
+  playConfirmed: boolean;
+  firstFramePresented: boolean;
+  /** Raw media progress is retained even while admission deliberately holds. */
+  lastProgress: number | null;
+  completed: boolean;
 }>;
 
 export type PhoneSnapshotSession = Readonly<{
@@ -375,6 +380,12 @@ type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
   type:
     | 'PRESENTATION_READY_REPORTED'
     | 'PRESENTATION_PROOF_REPORTED'
+    /** AOD leaf facts; reducer, not runtime/leaf latches, joins them. */
+    | 'AOD_PLAY_CONFIRMED'
+    | 'AOD_FIRST_FRAME_PRESENTED'
+    | 'AOD_PROGRESS_OBSERVED'
+    | 'AOD_COMPLETED'
+    | 'AOD_FAILED'
     | 'PROGRESS_REPORTED'
     | 'LEG_COMPLETED'
     /** Direct candidates must align their real target before leaf proof. */
@@ -1105,8 +1116,77 @@ function nextRollback(
     firstFrameProof: null,
     proof: null,
     readiness: null,
-    aod: session.aod ? { ...session.aod, stage: 'settling' } : null
+    aod: session.aod ? {
+      ...session.aod,
+      stage: 'settling'
+    } : null
   });
+}
+
+/** One completion path shared by generic machine clocks and AOD fact streams. */
+function completeLeg(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession
+): PhoneTransactionSnapshot {
+  const operation = session.operation;
+  if (isTerminalLeg(operation)) {
+    return nextTransaction(snapshot, {
+      ...session,
+      phase: 'verifying-target',
+      presentationRevision: snapshot.revision + 1,
+      firstFrameProof: null,
+      proof: null,
+      readiness: null,
+      aod: session.aod ? { ...session.aod, stage: 'settling' } : null
+    });
+  }
+  const run = runForOperation(operation);
+  if (!run) return snapshot;
+  const legIndex = operation.legIndex + operation.direction;
+  if (legIndex < 0 || legIndex >= run[3]) return snapshot;
+  return nextTransaction(snapshot, {
+    ...session,
+    operation: { ...operation, legIndex },
+    phase: 'preparing',
+    progress: operation.direction === 1 ? 0 : 1,
+    presentationRevision: snapshot.revision + 1,
+    firstFrameProof: null,
+    proof: null,
+    readiness: null,
+    aod: null
+  });
+}
+
+function aodFactsReady(aod: PhoneAodLifecycle): boolean {
+  return aod.playConfirmed && aod.firstFramePresented;
+}
+
+function aodEndpointReached(session: PhoneSnapshotSession): boolean {
+  const progress = session.aod?.lastProgress ?? session.progress;
+  return session.operation.direction === 1 ? progress >= .999 : progress <= .001;
+}
+
+/**
+ * Admission facts can arrive in either order. This reducer-only join is the
+ * point at which playback becomes visible and the progress watchdog may arm.
+ */
+function advanceAodPlayback(
+  snapshot: PhoneTransactionSnapshot,
+  session: PhoneSnapshotSession
+): PhoneTransactionSnapshot {
+  const aod = session.aod;
+  if (!aod || session.phase !== 'preparing' || !aodFactsReady(aod)) {
+    return nextTransaction(snapshot, session);
+  }
+  const playing: PhoneSnapshotSession = {
+    ...session,
+    phase: 'animating',
+    progress: aod.lastProgress ?? session.progress,
+    aod: { ...aod, stage: 'playback' }
+  };
+  return playing.aod?.completed && aodEndpointReached(playing)
+    ? completeLeg(snapshot, playing)
+    : nextTransaction(snapshot, playing);
 }
 
 export function phoneExecutionOwnsSnapshot(
@@ -1137,8 +1217,16 @@ function isTerminalLeg(operation: PhoneStoryOperation): boolean {
     : operation.legIndex === 0;
 }
 
-function aodLifecycleFor(run: PhoneRunId | null): PhoneAodLifecycle | null {
-  return run === 'aod-method' ? { stage: 'admission' } : null;
+function aodLifecycleFor(
+  run: PhoneRunId | null
+): PhoneAodLifecycle | null {
+  return run === 'aod-method' ? {
+    stage: 'admission',
+    playConfirmed: false,
+    firstFramePresented: false,
+    lastProgress: null,
+    completed: false
+  } : null;
 }
 
 type PhoneAlignmentPhases = readonly [
@@ -1629,7 +1717,89 @@ export function reducePhoneStorySnapshot(
         ? reduced(snapshot)
         : reduced(nextTransaction(snapshot, nextSession));
     }
+    case 'AOD_PLAY_CONFIRMED': {
+      const aod = session.aod;
+      if (!aod || session.reducedMotion || session.phase !== 'preparing' || aod.playConfirmed) {
+        return reduced(snapshot);
+      }
+      const nextSession = {
+        ...session,
+        aod: { ...aod, playConfirmed: true }
+      };
+      return reduced(advanceAodPlayback(snapshot, nextSession));
+    }
+    case 'AOD_FIRST_FRAME_PRESENTED': {
+      const aod = session.aod;
+      const proof = event.proof;
+      if (
+        !aod
+        || session.reducedMotion
+        || session.phase !== 'preparing'
+        || aod.firstFramePresented
+        || !proof
+        || !validFirstFrameProof(snapshot, session, proof, proof.observedAt)
+      ) return reduced(snapshot);
+      const nextSession = {
+        ...session,
+        firstFrameProof: proof,
+        aod: { ...aod, firstFramePresented: true }
+      };
+      return reduced(advanceAodPlayback(snapshot, nextSession));
+    }
+    case 'AOD_PROGRESS_OBSERVED': {
+      const aod = session.aod;
+      if (
+        !aod
+        || session.reducedMotion
+        || (aod.stage !== 'admission' && aod.stage !== 'playback')
+        || event.progress === undefined
+      ) return reduced(snapshot);
+      const progress = clamp(event.progress);
+      const prior = aod.lastProgress ?? session.progress;
+      const monotonic = session.operation.direction === 1
+        ? progress >= prior
+        : progress <= prior;
+      if (!monotonic || (aod.lastProgress !== null && progress === prior)) {
+        return reduced(snapshot);
+      }
+      const nextAod = { ...aod, lastProgress: progress };
+      // Admission deliberately retains the source visual at its safe endpoint.
+      // The fact is durable, but projection and generic progress stay frozen
+      // until the second (play/frame) admission fact is accepted.
+      if (aod.stage !== 'playback' || session.phase !== 'animating') {
+        return reduced(nextTransaction(snapshot, { ...session, aod: nextAod }));
+      }
+      const nextSession = { ...session, progress, aod: nextAod };
+      return nextAod.completed && aodEndpointReached(nextSession)
+        ? reduced(completeLeg(snapshot, nextSession))
+        : reduced(nextTransaction(snapshot, nextSession));
+    }
+    case 'AOD_COMPLETED': {
+      const aod = session.aod;
+      if (
+        !aod
+        || session.reducedMotion
+        || (aod.stage !== 'admission' && aod.stage !== 'playback')
+        || aod.completed
+      ) return reduced(snapshot);
+      const nextSession = { ...session, aod: { ...aod, completed: true } };
+      return nextSession.aod.stage === 'playback'
+        && nextSession.phase === 'animating'
+        && aodEndpointReached(nextSession)
+        ? reduced(completeLeg(snapshot, nextSession))
+        : reduced(nextTransaction(snapshot, nextSession));
+    }
+    case 'AOD_FAILED': {
+      if (!session.aod || session.phase.startsWith('rollback-')) return reduced(snapshot);
+      return reduced(nextRollback(snapshot, session, event.reason ?? 'capability-failed'));
+    }
     case 'PRESENTATION_PROOF_REPORTED': {
+      // AOD's raw first frame is only allowed through AOD_FIRST_FRAME_PRESENTED.
+      // Letting the generic proof ingress here would recreate the old runtime
+      // latch: frame-first could advance playback before `play()` confirms.
+      if (session.aod !== null && !session.reducedMotion && session.phase === 'preparing') {
+        return reduced(snapshot);
+      }
       const nextSession = reportPresentationProof(snapshot, session, event);
       if (!nextSession || nextSession === session) return reduced(snapshot);
       // A manifest-declared sampled static front handoff is still admitted by
@@ -1680,7 +1850,7 @@ export function reducePhoneStorySnapshot(
       if (
         session.phase !== 'animating'
         || event.progress === undefined
-        || (session.aod !== null && session.aod.stage !== 'playback')
+        || session.aod !== null
       ) return reduced(snapshot);
       const progress = clamp(event.progress);
       const monotonic = operation.direction === 1
@@ -1693,35 +1863,9 @@ export function reducePhoneStorySnapshot(
     case 'LEG_COMPLETED': {
       if (
         session.phase !== 'animating'
-        || (session.aod !== null && session.aod.stage !== 'playback')
+        || session.aod !== null
       ) return reduced(snapshot);
-      if (isTerminalLeg(operation)) {
-        return reduced(nextTransaction(snapshot, {
-          ...session,
-          phase: 'verifying-target',
-          presentationRevision: snapshot.revision + 1,
-          firstFrameProof: null,
-          proof: null,
-          readiness: null,
-          aod: session.aod ? { ...session.aod, stage: 'settling' } : null
-        }));
-      }
-      const run = runForOperation(operation);
-      if (!run) return reduced(snapshot);
-      const legIndex = operation.legIndex + operation.direction;
-      return legIndex < 0 || legIndex >= run[3]
-        ? reduced(snapshot)
-        : reduced(nextTransaction(snapshot, {
-          ...session,
-          operation: { ...operation, legIndex },
-          phase: 'preparing',
-          progress: operation.direction === 1 ? 0 : 1,
-          presentationRevision: snapshot.revision + 1,
-          firstFrameProof: null,
-          proof: null,
-          readiness: null,
-          aod: null
-        }));
+      return reduced(completeLeg(snapshot, session));
     }
     case 'TARGET_LAYOUT_REQUESTED':
       return session.phase !== 'verifying-target'

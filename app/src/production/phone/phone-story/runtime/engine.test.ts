@@ -6,7 +6,10 @@ import {
   type PhoneRunCapability
 } from './engine';
 import { PHONE_REDUCED_ADMISSION_TIMEOUT_MS } from './session';
-import type { PhoneStoryRuntimeEngine as PhoneStoryOrchestrator } from './engine';
+import type {
+  PhoneAodRunSession,
+  PhoneStoryRuntimeEngine as PhoneStoryOrchestrator
+} from './types';
 import {
   phoneDirectEntryAdmissionTuple,
   phoneScenePresentationProofKind,
@@ -950,6 +953,94 @@ describe('single phone story projector transaction', () => {
       session: null
     });
     expect(root.dataset.phoneInputState).toBe('free');
+  });
+
+  it('[P0 AOD fact failure] completes rollback through the same session owner instead of leaving rollback-rendering locked', () => {
+    const root = element();
+    const frames: Array<() => void> = [];
+    let actualY = 100;
+    let session: PhoneAodRunSession | undefined;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'aod-animation',
+      root,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => { actualY = nextY; },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+    orchestrator.registerRunCapability('aod-method', 'aod-fact-failure', capability(
+      100,
+      (_direction, activeSession) => {
+        session = activeSession as PhoneAodRunSession;
+      }
+    ));
+    orchestrator.registerScrollCorridor({
+      id: 'test:aod-fact-failure',
+      scenes: ['aod-animation', 'method-top'],
+      sample: () => null,
+      boundary: (run) => run === 'aod-method' ? 100 : null,
+      landing: () => 100
+    });
+    registerReadySurface(orchestrator, 'aod-animation', (callback) => frames.push(callback));
+
+    expect(orchestrator.resolveIntent([1, 1, 100, 260])).toBe('claim-boundary');
+    expect(session?.reportAodFailure('aod-autoplay-blocked')).toBe(true);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'rollback-measuring-landing' },
+      diagnostics: { lastRollback: { reason: 'aod-autoplay-blocked' } }
+    });
+    while (frames.length > 0) frames.shift()?.();
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'aod-animation',
+      session: null
+    });
+    expect(root.dataset.phoneInputState).toBe('free');
+  });
+
+  it('[P0 AOD diagnostics] exposes one read-only reducer fact tuple without leaking the lifecycle object across the shell boundary', () => {
+    const root = element();
+    const frames: Array<() => void> = [];
+    let session: PhoneAodRunSession | undefined;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'aod-animation',
+      root,
+      scrollY: () => 100,
+      scrollTo: () => undefined,
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+    orchestrator.registerRunCapability('aod-method', 'aod-diagnostics', capability(
+      100,
+      (_direction, activeSession) => {
+        session = activeSession as PhoneAodRunSession;
+      }
+    ));
+    orchestrator.registerScrollCorridor({
+      id: 'test:aod-diagnostics',
+      scenes: ['aod-animation', 'method-top'],
+      sample: () => null,
+      boundary: (run) => run === 'aod-method' ? 100 : null,
+      landing: () => 100
+    });
+
+    expect(orchestrator.readAodDiagnostics()).toEqual([
+      null, 'idle', 'idle', null, null, null, null
+    ]);
+    expect(orchestrator.resolveIntent([1, 1, 100, 260])).toBe('claim-boundary');
+    expect(orchestrator.readAodDiagnostics()).toEqual([
+      expect.any(String), 'preparing', 'admission', false, false, null, null
+    ]);
+
+    session?.reportAodFailure('aod-autoplay-blocked');
+    expect(orchestrator.readAodDiagnostics()).toEqual([
+      expect.any(String),
+      'rollback-measuring-landing',
+      'settling',
+      false,
+      false,
+      null,
+      'aod-autoplay-blocked'
+    ]);
   });
 
   it('[Group45 reduced cutover] expires static admission through the machine, then admits the next input', async () => {

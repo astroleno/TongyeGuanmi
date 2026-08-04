@@ -138,6 +138,15 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const orchestrator = authority.port;
   const directAdmissionOpen = !props.startupLoaderActive;
   const navigation = usePhoneStoryNavigationRuntime(orchestrator, loaderHidden);
+  const [
+    aodExecution,
+    aodPhase,
+    aodStage,
+    aodPlayConfirmed,
+    aodFirstFramePresented,
+    aodLastProgress,
+    aodRollbackReason
+  ] = navigation.aodDiagnostics;
   const activeFrontSurface = (id: 'front:hero' | 'front:pattern' | 'front:star-map' | 'front:aod') => (
     navigation.cinematicSnapshot[1] === id
     || navigation.cinematicSnapshot[2] === id
@@ -195,6 +204,17 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       data-phone-validation-mode={props.validationMode}
       data-phone-aod-alpha-start={aodAlphaStartProgress?.toFixed(2)}
       data-phone-aod-alpha-end={aodAlphaEndProgress?.toFixed(2)}
+       data-phone-aod-execution={aodExecution ?? undefined}
+       data-phone-aod-phase={aodPhase}
+       data-phone-aod-stage={aodStage}
+       data-phone-aod-play-confirmed={aodPlayConfirmed !== null
+         ? semanticBoolean(aodPlayConfirmed)
+         : undefined}
+       data-phone-aod-first-frame-presented={aodFirstFramePresented !== null
+         ? semanticBoolean(aodFirstFramePresented)
+         : undefined}
+       data-phone-aod-last-progress={aodLastProgress?.toFixed(4)}
+       data-phone-aod-rollback-reason={aodRollbackReason ?? undefined}
       data-phone-direct-entry={directStoryEntry ? 'story' : undefined}
       data-phone-direct-entry-scene={entryScene ?? undefined}
       hidden={staticFallback}

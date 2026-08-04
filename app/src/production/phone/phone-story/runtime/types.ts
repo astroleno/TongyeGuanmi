@@ -1,10 +1,12 @@
 import type { SceneId } from '../../../../story/types';
 import type { PhoneRunId } from '../../phone-story-runs';
 import type {
+  PhoneAodRunnerStage,
   PhoneStoryEvent,
   PhoneStoryReduction,
   PhoneStorySnapshot,
   PhoneFailureReason,
+  PhoneTransactionPhase,
   PresentationProof,
   PresentationReadiness,
   PresentationToken
@@ -121,7 +123,29 @@ export type PhoneOrchestratedRunSession = PhoneTransitionSession & Readonly<{
 }>;
 
 /** AOD has no private event ingress; it uses the common session owner. */
-export type PhoneAodRunSession = PhoneOrchestratedRunSession;
+export type PhoneAodRunSession = PhoneOrchestratedRunSession & Readonly<{
+  /** AOD facts are reducer events; no runtime or leaf latch may join them. */
+  reportAodPlayConfirmed(): boolean;
+  reportAodFirstFrame(frame: PhoneRenderedPresentationFrame): boolean;
+  reportAodProgress(progress: number): boolean;
+  reportAodCompleted(): boolean;
+  reportAodFailure(reason: PhoneFailureReason): boolean;
+}>;
+
+/**
+ * Compact, read-only AOD observability transport.  It crosses from the
+ * runtime chunk to the shell without exposing the mutable reducer lifecycle
+ * record itself to a second presentation writer.
+ */
+export type PhoneAodDiagnostics = readonly [
+  execution: string | null,
+  phase: PhoneTransactionPhase | 'idle',
+  stage: PhoneAodRunnerStage | 'idle',
+  playConfirmed: boolean | null,
+  firstFramePresented: boolean | null,
+  lastProgress: number | null,
+  rollbackReason: PhoneFailureReason | null
+];
 
 export type PhoneRunCapability = Readonly<{
   /** Presentation strategy is part of the one machine transaction contract. */
@@ -155,6 +179,8 @@ export type PhoneStoryRuntimeEngineOptions = Readonly<{
 export type PhoneStoryRuntimePort = Readonly<{
   /** Canonical external-store read model. */
   getSnapshot(): PhoneStorySnapshot;
+  /** Reducer-owned AOD facts exposed without the lifecycle object. */
+  readAodDiagnostics(): PhoneAodDiagnostics;
   /**
    * The only state mutation entrance. Browser and adapter callbacks are
    * normalized to PhoneStoryEvent before they reach this method.

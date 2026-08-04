@@ -14,6 +14,7 @@ import type { PhoneRenderedPresentationFrame } from '../presentation';
 import type { PhoneTransitionDirection } from '../../phone-transition-coordinator';
 import { runPhoneProgressClock } from '../../phone-transition-coordinator';
 import type {
+  PhoneAodRunSession,
   PhoneOrchestratedRunSession,
   PhoneReleaseLease
 } from './types';
@@ -197,10 +198,11 @@ export function createPhoneOrchestratedSessionController(
   };
   const fail = (
     run: ManagedPhoneActiveRun,
-    reason: PhoneFailureReason = 'capability-failed'
-  ) => {
+    reason: PhoneFailureReason = 'capability-failed',
+    type: 'FAILED' | 'AOD_FAILED' = 'FAILED'
+  ): boolean => {
     const identity = identityFor(run);
-    if (!identity) return;
+    if (!identity) return false;
     clearReducedAdmissionTimeout();
     cancelAnimation?.();
     cancelAnimation = undefined;
@@ -211,15 +213,16 @@ export function createPhoneOrchestratedSessionController(
       // A throwing adapter cleanup must still invalidate stale evidence.
     }
     options.clearEndpoints();
-    options.dispatch({ ...identity, type: 'FAILED', reason });
+    options.dispatch({ ...identity, type, reason });
     if (
       !emit(run, 'ROLLBACK_RENDERED', {}, 'rollback')
       || !emit(run, 'ROLLBACK_LAYOUT_RELEASED', {}, 'rollback')
     ) {
       releaseAfterStable(run, lease);
-      return;
+      return false;
     }
     measure(run, lease, 'rollback');
+    return true;
   };
   const armReducedAdmissionTimeout = (run: ManagedPhoneActiveRun) => {
     clearReducedAdmissionTimeout();
@@ -364,7 +367,7 @@ export function createPhoneOrchestratedSessionController(
     run: ManagedPhoneActiveRun,
     initialLeg: number,
     fallbackAuthorityId: string
-  ): PhoneOrchestratedRunSession => {
+  ): PhoneAodRunSession => {
     const presentationFrameToken = (
       kind: Parameters<PhoneOrchestratedRunSession['presentationFrameToken']>[0],
       subject: Parameters<PhoneOrchestratedRunSession['presentationFrameToken']>[1]
@@ -405,6 +408,21 @@ export function createPhoneOrchestratedSessionController(
       ) clearReducedAdmissionTimeout();
       return accepted;
     },
+    reportAodPlayConfirmed: () => emit(run, 'AOD_PLAY_CONFIRMED'),
+    reportAodFirstFrame: (frame: PhoneRenderedPresentationFrame) => {
+      const proof = options.proofForRenderedFrame(frame);
+      return proof
+        ? emit(run, 'AOD_FIRST_FRAME_PRESENTED', { proof })
+        : false;
+    },
+    reportAodProgress: (progress: number) => (
+      emit(run, 'AOD_PROGRESS_OBSERVED', { progress })
+    ),
+    reportAodCompleted: () => emit(run, 'AOD_COMPLETED'),
+    // AOD failures retain their fact type for diagnostics, then immediately
+    // run the same rollback owner that releases geometry, resources and input.
+    // Dispatching the fact alone would strand the reducer in rollback-rendering.
+    reportAodFailure: (reason: PhoneFailureReason) => fail(run, reason, 'AOD_FAILED'),
     reportPresentationProof: (proof: PresentationProof) => {
       const snapshot = options.getSnapshot();
       if (snapshot.status !== 'transaction') return;

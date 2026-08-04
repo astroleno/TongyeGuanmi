@@ -31,6 +31,12 @@ export function usePhoneStoryNavigationRuntime(
     () => selectPhoneCinematicSnapshot(snapshot),
     [snapshot]
   );
+  // Diagnostics leave the runtime as an immutable positional fact transport;
+  // the shell never reads the mutable AOD lifecycle object itself.
+  const aodDiagnostics = useMemo(
+    () => port.readAodDiagnostics(),
+    [port, snapshot]
+  );
   const scene = cinematicSnapshot[12];
   const [menuOpen, setMenuOpen] = useState(false);
   const visible = loaderHidden && scene !== 'hero' && scene !== 'pattern';
@@ -64,6 +70,7 @@ export function usePhoneStoryNavigationRuntime(
   }, [navigate, resolveLocationTarget]);
   return {
     cinematicSnapshot,
+    aodDiagnostics,
     visible,
     menuOpen,
     setMenuOpen,

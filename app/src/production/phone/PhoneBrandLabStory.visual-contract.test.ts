@@ -180,7 +180,8 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(aodRunnerSource).not.toContain('reportRenderedFrame(');
     expect(aodRunnerSource).not.toContain('proofForRenderedFrame(');
     expect(stageRuntimeSource).toContain('aodAdapter.startAutoplay(');
-    expect(stageRuntimeSource).toContain('aodAdapter.releaseAutoplayAdmission(');
+    expect(stageRuntimeSource).toContain('aodAdapter.renderAutoplayProgress(');
+    expect(stageRuntimeSource).not.toContain('releaseAutoplayAdmission(');
     expect(stageRuntimeSource).toContain("'aod-method'");
     expect(stageRuntimeSource).not.toContain(
       "'phone-stage-runtime:aod-method'"
@@ -204,8 +205,13 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(aodRunnerSource).toContain('reportPresentationFrame(frame)');
     expect(aodRunnerSource).not.toContain('reportRenderedFrame(');
     expect(aodRunnerSource).not.toContain('proofForRenderedFrame(');
-    expect((aodRunnerSource.match(/\.reportProgress\(/g) ?? []).length).toBe(1);
-    expect(aodRunnerSource).toContain("reportFailure('aod-autoplay-blocked')");
+    expect(aodRunnerSource).not.toContain('record[2]');
+    expect(aodRunnerSource).not.toContain('.reportProgress(');
+    expect((aodRunnerSource.match(/\.reportAodProgress\(/g) ?? []).length).toBe(1);
+    expect(aodRunnerSource).toContain("reportAodFailure('aod-autoplay-blocked')");
+    expect(aodRunnerSource).toContain('reportAodPlayConfirmed()');
+    expect(aodRunnerSource).toContain('reportAodFirstFrame(frame)');
+    expect(aodRunnerSource).toContain('reportAodCompleted()');
     expect(aodRunnerSource).toContain("? 'aod-prepare-timeout' : 'aod-progress-timeout'");
     expect(aodRunnerSource).not.toContain('reportAodAutoplayBlocked(');
     expect(aodRunnerSource).not.toContain('requestAodGestureRetry(');
@@ -223,6 +229,9 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(aodSceneSource).not.toContain('reportProgress(');
     expect(aodSceneSource).not.toContain('reportPresentationProof(');
     expect(aodSceneSource).not.toContain('reportEndpointCommit(');
+    expect(aodSceneSource).not.toContain('admissionRef');
+    expect(aodSceneSource).not.toContain('releaseAutoplayAdmission');
+    expect(aodSceneSource).toContain('renderAutoplayProgress(execution, progress)');
     const aodStaticTargetProof = aodSceneSource.slice(
       aodSceneSource.indexOf('presentPresentation(token, report, fail)'),
       aodSceneSource.indexOf('disposePresentation(token)')
@@ -254,7 +263,7 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(aodCompositorFrame).not.toContain('requestBoundStaticPresentation()');
     const reducedAutoplay = aodSceneSource.slice(
       aodSceneSource.indexOf('startAutoplay(execution)'),
-      aodSceneSource.indexOf('releaseAutoplayAdmission(execution)')
+      aodSceneSource.indexOf('renderAutoplayProgress(execution, progress)')
     );
     expect(reducedAutoplay).toContain("if (reducedMotion) return Promise.resolve('error')");
     expect(reducedAutoplay).not.toContain('reportAodFrame(execution)');

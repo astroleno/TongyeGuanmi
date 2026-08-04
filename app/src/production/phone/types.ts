@@ -100,8 +100,11 @@ export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
 
 export type PhoneAodAdapterHandle = PhoneSceneAdapterHandle & {
   startAutoplay(execution: PhoneAodExecution): Promise<PhoneAodStartResult>;
-  /** The runner releases visual playback only after it accepted first proof. */
-  releaseAutoplayAdmission(execution: PhoneAodExecution): void;
+  /** The runner alone projects reducer-accepted media progress. */
+  renderAutoplayProgress(
+    execution: PhoneAodExecution,
+    progress: number
+  ): void;
   resetAutoplay(): void;
 };
 

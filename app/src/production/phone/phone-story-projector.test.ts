@@ -474,8 +474,8 @@ describe('phone story projector', () => {
     const leg = phoneRunLegTuple('aod-method', firstSession.operation.legIndex);
     if (!leg) throw new Error('Expected the AOD → Method leg');
     const frame = phoneSegmentPresentationTuple(leg[0]);
-    current = reducePhoneStorySnapshot(current, {
-      type: 'PRESENTATION_PROOF_REPORTED',
+    const firstFrame = {
+      type: 'AOD_FIRST_FRAME_PRESENTED' as const,
       authorityId: current.authorityId,
       sessionId: firstSession.sessionId,
       generation: firstSession.generation,
@@ -498,6 +498,15 @@ describe('phone story projector', () => {
         coverageComplete: true,
         edge: phoneScenePresentationTuple(frame[3])[1]
       }
+    };
+    current = reducePhoneStorySnapshot(current, firstFrame).snapshot;
+    current = reducePhoneStorySnapshot(current, {
+      type: 'AOD_PLAY_CONFIRMED',
+      authorityId: current.authorityId,
+      sessionId: firstSession.sessionId,
+      generation: firstSession.generation,
+      leg: firstSession.operation.legIndex,
+      direction: firstSession.operation.direction
     }).snapshot;
     if (current.status !== 'transaction') {
       throw new Error('Expected an animating AOD transaction');
@@ -505,7 +514,7 @@ describe('phone story projector', () => {
 
     const belowCue = current.session;
     current = reducePhoneStorySnapshot(current, {
-      type: 'PROGRESS_REPORTED',
+      type: 'AOD_PROGRESS_OBSERVED',
       authorityId: current.authorityId,
       sessionId: belowCue.sessionId,
       generation: belowCue.generation,
@@ -521,7 +530,7 @@ describe('phone story projector', () => {
     }
     const afterCue = current.session;
     current = reducePhoneStorySnapshot(current, {
-      type: 'PROGRESS_REPORTED',
+      type: 'AOD_PROGRESS_OBSERVED',
       authorityId: current.authorityId,
       sessionId: afterCue.sessionId,
       generation: afterCue.generation,

@@ -3,6 +3,7 @@ import {
   createPhoneStoryRuntimeEngine as createPhoneStoryOrchestrator,
   type PhoneOrchestratedRunSession
 } from './phone-story/runtime/engine';
+import type { PhoneAodRunSession } from './phone-story/runtime/types';
 import { resolvePhoneRunLanding } from './phone-run-landing';
 import { phoneRun, phoneStoryRuns } from './phone-story-runs';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
@@ -70,11 +71,28 @@ function reportCurrentLegFrame(
     snapshot.session.operation.legIndex
   ];
   if (!leg) throw new Error('Expected an active run leg');
+  const presentation = phoneSegmentPresentationTuple(leg.segment);
+  if (snapshot.session.operation.run === 'aod-method') {
+    const aod = session as PhoneAodRunSession;
+    const token = aod.presentationProofToken(presentation[8], presentation[9]);
+    if (!token) throw new Error('Expected an active AOD first-frame token');
+    // The exact canvas fact and confirmed play result are separate reducer
+    // facts. This deterministic driver deliberately keeps them distinct so
+    // it cannot recreate the old generic-proof admission shortcut.
+    aod.reportAodFirstFrame({
+      token,
+      frameSequence: 1,
+      observedAt: 1,
+      origin: 'segment-first-frame'
+    });
+    aod.reportAodPlayConfirmed();
+    return;
+  }
   reportProof(
     session,
-    phoneSegmentPresentationTuple(leg.segment)[3],
-    phoneSegmentPresentationTuple(leg.segment)[8],
-    phoneSegmentPresentationTuple(leg.segment)[9]
+    presentation[3],
+    presentation[8],
+    presentation[9]
   );
 }
 
@@ -200,10 +218,16 @@ describe('canonical phone story sequence', () => {
         const session = sessions.at(-1);
         if (!session) throw new Error('Expected a phone transaction session');
         reportCurrentLegFrame(orchestrator, session);
-        for (let index = 0; index < run.legs.length; index += 1) {
-          session.reportEndpointCommit('receiver');
-          if (index < run.legs.length - 1) {
-            reportCurrentLegFrame(orchestrator, session);
+        if (run.id === 'aod-method') {
+          const aod = session as PhoneAodRunSession;
+          aod.reportAodProgress(direction === 1 ? 1 : 0);
+          aod.reportAodCompleted();
+        } else {
+          for (let index = 0; index < run.legs.length; index += 1) {
+            session.reportEndpointCommit('receiver');
+            if (index < run.legs.length - 1) {
+              reportCurrentLegFrame(orchestrator, session);
+            }
           }
         }
         reportCurrentTargetProof(orchestrator, session);

@@ -16,6 +16,7 @@ import {
   createPackedAlphaVideoCompositor,
   renewPackedAlphaCanvas,
   type PackedAlphaRenderFailure,
+  type PackedAlphaRenderResult,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
 import {
@@ -121,11 +122,11 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     const renderRef = useRef<
       (
         progress: number,
-        execution?: PhoneAodExecution | null
-      ) => void
+        execution?: PhoneAodExecution | null,
+        reportProgress?: boolean
+      ) => PackedAlphaRenderResult | undefined
     >(undefined);
     const autoplayExecutionRef = useRef<PhoneAodExecution | null>(null);
-    const admissionRef = useRef<[latestProgress: number, pendingCompletion: boolean] | null>(null);
     const executionFrameSequenceRef = useRef(0);
     const presentationBindingRef = useRef<PhoneAodPresentationBinding | null>(null);
     const renderedFrameRef = useRef(false);
@@ -135,7 +136,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     const failureListenerRef = useRef(onAodFailure);
     const clearAutoplayExecution = useCallback(() => {
       autoplayExecutionRef.current = null;
-      admissionRef.current = null;
       executionFrameSequenceRef.current = 0;
       renderedFrameRef.current = false;
     }, []);
@@ -292,21 +292,12 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       let lastProgress = Number.NaN;
       const render = (
         rawProgress: number,
-        execution: PhoneAodExecution | null = null
+        execution: PhoneAodExecution | null = null,
+        reportProgress = false
       ) => {
         if (execution && execution !== autoplayExecutionRef.current) return;
         const latestProgress = clamp(rawProgress);
-        const admission = execution ? admissionRef.current : null;
-        const holdingAdmission = admission !== null;
-        // Reverse starts at an authored endpoint that can hide the source.
-        // Hold it one visible sample inside that endpoint until the exact
-        // packed-canvas frame has been accepted by the runner.
-        const progress = holdingAdmission
-          ? execution![1] === 1 ? 0 : .998
-          : latestProgress;
-        if (admission) {
-          admission[0] = latestProgress;
-        }
+        const progress = latestProgress;
         root.dataset.portraitAodAlpha = progress < PHONE_AOD_ALPHA_END_PROGRESS
           ? 'transparent'
           : 'opaque';
@@ -357,14 +348,15 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           transition.setAttribute('data-aod-exit-active', 'true');
         }
         if (execution) {
-          // The leaf reports only a real canvas draw. Before that draw is
-          // accepted, no playback progress may move the authored source back
-          // to an invisible endpoint or write transaction progress.
+          // This leaf can only report a real canvas draw. The runner asks it
+          // to render only after reducer-owned admission accepts the facts;
+          // decoder progress itself never gains a visual write here.
           renderedFrameRef.current = true;
-          compositorRef.current?.render();
-          if (!holdingAdmission) {
+          const result = compositorRef.current?.render();
+          if (reportProgress) {
             progressListenerRef.current?.(progress, execution);
           }
+          return result;
         }
       };
       renderRef.current = render;
@@ -410,17 +402,19 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           ]);
         },
         disposeReverseDriver: () => disposePhoneTimelineVideo(video),
-        onProgress: render,
+        onProgress: (progress, execution) => {
+          if (!execution || autoplayExecutionRef.current !== execution) return;
+          // Native media may report any fact order. This is data only; the
+          // AOD runner will issue the sole render command after its reducer
+          // has accepted admission and progress for this exact execution.
+          progressListenerRef.current?.(clamp(progress), execution);
+        },
         onComplete: (execution) => {
           if (!execution || autoplayExecutionRef.current !== execution) return;
-          const admission = admissionRef.current;
-          if (admission) {
-            admission[1] = true;
-            return;
-          }
-          autoplayExecutionRef.current = null;
-          admissionRef.current = null;
           completeListenerRef.current?.(execution);
+          if (autoplayExecutionRef.current === execution) {
+            clearAutoplayExecution();
+          }
         }
       });
       autoplayRef.current = autoplay;
@@ -472,7 +466,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         const [, direction] = execution;
         autoplayExecutionRef.current = execution;
         renderedFrameRef.current = false;
-        admissionRef.current = [direction === 1 ? 0 : 1, false];
         executionFrameSequenceRef.current = 0;
         // The execution identity is read from the current runtime refs by
         // the frame callback. Keeping this warmed context avoids Safari
@@ -480,20 +473,20 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         const compositor = ensureCompositor();
         if (!compositor) return Promise.resolve('error');
         compositor.setActive(true);
-        const result = compositor.render();
+        // This is the authored source-safe paint that may produce the first
+        // physical canvas fact. It intentionally cannot forward progress.
+        const result = renderRef.current?.(
+          direction === 1 ? 0 : .998,
+          execution
+        );
         if (result !== 'rendered' && result !== 'waiting') {
           return Promise.resolve('error');
         }
         return autoplayRef.current?.start(execution) ?? Promise.resolve('error');
       },
-      releaseAutoplayAdmission(execution) {
-        const admission = admissionRef.current;
-        if (!admission || autoplayExecutionRef.current !== execution) return;
-        admissionRef.current = null;
-        renderRef.current?.(admission[0], execution);
-        if (!admission[1]) return;
-        autoplayExecutionRef.current = null;
-        completeListenerRef.current?.(execution);
+      renderAutoplayProgress(execution, progress) {
+        if (autoplayExecutionRef.current !== execution) return;
+        renderRef.current?.(progress, execution);
       },
       presentPresentation(token, report, fail) {
         const prior = presentationBindingRef.current;

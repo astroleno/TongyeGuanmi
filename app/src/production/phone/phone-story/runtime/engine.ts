@@ -35,6 +35,7 @@ import {
   phoneScenePresentationTuple
 } from '../manifest';
 import type {
+  PhoneAodDiagnostics,
   PhoneOrchestratedRunSession,
   PhoneStoryRuntimeEngine,
   PhoneStoryRuntimeEngineOptions
@@ -379,6 +380,31 @@ export function createPhoneStoryRuntimeEngine(
     // immutable transaction here so cold deep links do not require a later
     // browser scroll sample to enter the normal landing/verification path.
     startPreparedOperation();
+  };
+  const readAodDiagnostics = (): PhoneAodDiagnostics => {
+    const snapshot = currentSnapshot;
+    const session = snapshot.status === 'transaction' ? snapshot.session : null;
+    const lifecycle = session?.aod ?? null;
+    const rollback = snapshot.diagnostics.lastRollback?.run === 'aod-method'
+      ? snapshot.diagnostics.lastRollback.reason
+      : null;
+    if (!session || !lifecycle) {
+      return [null, 'idle', 'idle', null, null, null, rollback];
+    }
+    return [
+      [
+        session.sessionId,
+        session.generation,
+        session.operation.legIndex,
+        session.operation.direction
+      ].join(':'),
+      session.phase,
+      lifecycle.stage,
+      lifecycle.playConfirmed,
+      lifecycle.firstFramePresented,
+      lifecycle.lastProgress,
+      rollback
+    ];
   };
   const sessions = createPhoneOrchestratedSessionController({
     getSnapshot: () => currentSnapshot,
@@ -744,6 +770,7 @@ export function createPhoneStoryRuntimeEngine(
 
   return {
     getSnapshot: () => currentSnapshot,
+    readAodDiagnostics,
     dispatch,
     subscribe(listener) {
       subscribers.add(listener);

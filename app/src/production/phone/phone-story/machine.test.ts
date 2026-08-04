@@ -553,8 +553,11 @@ describe('token-bound phone presentation proofs', () => {
       inputEpoch: 1
     }).snapshot;
 
-    candidate = reportProof(candidate, activeSegmentProof(candidate));
-    candidate = reduceOwned(candidate, 'PROGRESS_REPORTED', { progress: .81 });
+    candidate = reduceOwned(candidate, 'AOD_PLAY_CONFIRMED');
+    candidate = reduceOwned(candidate, 'AOD_FIRST_FRAME_PRESENTED', {
+      proof: activeSegmentProof(candidate)
+    });
+    candidate = reduceOwned(candidate, 'AOD_PROGRESS_OBSERVED', { progress: .81 });
     expect(candidate).toMatchObject({
       status: 'transaction',
       session: { phase: 'animating' },
@@ -567,8 +570,8 @@ describe('token-bound phone presentation proofs', () => {
         coverageSurface: 'front:aod'
       }
     });
-    candidate = reduceOwned(candidate, 'PROGRESS_REPORTED', { progress: 1 });
-    candidate = reduceOwned(candidate, 'LEG_COMPLETED');
+    candidate = reduceOwned(candidate, 'AOD_PROGRESS_OBSERVED', { progress: 1 });
+    candidate = reduceOwned(candidate, 'AOD_COMPLETED');
 
     expect(candidate).toMatchObject({
       status: 'transaction',
@@ -986,7 +989,7 @@ describe('token-bound phone presentation proofs', () => {
     }
   });
 
-  it('[AOD cutover] keeps admission, playback, and session-owned rollback in one reducer transaction', () => {
+  it('[AOD cutover] records play, frame, progress, completion, and failure as one reducer-owned fact stream', () => {
     const initial = createPhoneStorySnapshot({
       authorityId: 'aod-machine-authority',
       scene: 'aod-animation',
@@ -1012,46 +1015,119 @@ describe('token-bound phone presentation proofs', () => {
       direction: started.session.operation.direction
     } as const;
 
-    expect(started.session.aod).toEqual({ stage: 'admission' });
+    expect(started.session.aod).toMatchObject({
+      stage: 'admission',
+      playConfirmed: false,
+      firstFramePresented: false,
+      lastProgress: null,
+      completed: false
+    });
 
-    const leg = phoneRunLegTuple('aod-method', 0);
-    if (!leg) throw new Error('Expected AOD leg');
-    const frame = phoneSegmentPresentationTuple(leg[0]);
-    const animated = reducePhoneStorySnapshot(started, {
+    // A prepared canvas can report its exact frame before Safari resolves
+    // `video.play()`. It is a fact, not permission to enter playback.
+    const frameFirst = reducePhoneStorySnapshot(started, {
       ...identity,
-      type: 'PRESENTATION_PROOF_REPORTED',
-      proof: {
-        token: {
-          authorityId: started.authorityId,
-          sessionId: started.session.sessionId,
-          generation: started.session.generation,
-          leg: started.session.operation.legIndex,
-          revision: started.session.presentationRevision,
-          subject: frame[9],
-          kind: frame[8]
-        },
-        frameSequence: 1,
-        observedAt: 100,
-        connected: true,
-        visible: true,
-        coverageComplete: true,
-        edge: phoneScenePresentationTuple(frame[3])[1]
-      }
+      type: 'AOD_FIRST_FRAME_PRESENTED',
+      proof: activeSegmentProof(started)
     } as never).snapshot;
+    expect(frameFirst).toMatchObject({
+      session: {
+        phase: 'preparing',
+        progress: 0,
+        aod: { stage: 'admission', playConfirmed: false, firstFramePresented: true }
+      }
+    });
+    // A duplicated callback cannot become a second admission writer.
+    expect(reduceOwned(frameFirst, 'AOD_FIRST_FRAME_PRESENTED', {
+      proof: activeSegmentProof(frameFirst)
+    })).toBe(frameFirst);
+
+    const earlyProgress = reduceOwned(frameFirst, 'AOD_PROGRESS_OBSERVED', { progress: .45 });
+    const earlyCompletion = reduceOwned(earlyProgress, 'AOD_COMPLETED');
+    expect(earlyCompletion).toMatchObject({
+      session: {
+        phase: 'preparing',
+        progress: 0,
+        aod: { lastProgress: .45, completed: true, stage: 'admission' }
+      }
+    });
+
+    const animated = reduceOwned(earlyCompletion, 'AOD_PLAY_CONFIRMED');
     expect(animated).toMatchObject({
       status: 'transaction',
-      session: { phase: 'animating', aod: { stage: 'playback' } }
+      session: {
+        phase: 'animating',
+        progress: .45,
+        aod: { stage: 'playback', playConfirmed: true, firstFramePresented: true }
+      }
     });
+
+    const settling = reduceOwned(animated, 'AOD_PROGRESS_OBSERVED', { progress: 1 });
+    expect(settling).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target', aod: { stage: 'settling', completed: true } }
+    });
+
+    // Generic proof ingress cannot bypass the AOD fact gate.
+    expect(reduceOwned(started, 'PRESENTATION_PROOF_REPORTED', {
+      proof: activeSegmentProof(started)
+    })).toBe(started);
 
     const expired = reducePhoneStorySnapshot(started, {
       ...identity,
-      type: 'FAILED',
+      type: 'AOD_FAILED',
       reason: 'aod-prepare-timeout'
     }).snapshot;
     expect(expired).toMatchObject({
       status: 'transaction',
       diagnostics: { lastRollback: { reason: 'aod-prepare-timeout' } },
-      session: { phase: 'rollback-rendering', aod: { stage: 'settling' } }
+      session: {
+        phase: 'rollback-rendering',
+        aod: { stage: 'settling' }
+      }
+    });
+  });
+
+  it('[AOD cutover] accepts play-first facts only when the later frame has the current immutable token', () => {
+    const initial = createPhoneStorySnapshot({
+      authorityId: 'aod-play-first-authority',
+      scene: 'aod-animation',
+      actualY: 100
+    });
+    const started = reducePhoneStorySnapshot(initial, {
+      type: 'RUN_STARTED',
+      authorityId: initial.authorityId,
+      sessionId: 'aod-play-first-session',
+      generation: 7,
+      leg: 0,
+      direction: 1,
+      run: 'aod-method',
+      anchorY: 100,
+      inputEpoch: 1
+    }).snapshot;
+    if (started.status !== 'transaction') throw new Error('Expected AOD transaction');
+
+    const playing = reduceOwned(started, 'AOD_PLAY_CONFIRMED');
+    expect(playing).toMatchObject({
+      session: { phase: 'preparing', aod: { playConfirmed: true, firstFramePresented: false } }
+    });
+    if (playing.status !== 'transaction') throw new Error('Expected prepared AOD transaction');
+    const stale = reduceOwned(playing, 'AOD_FIRST_FRAME_PRESENTED', {
+      proof: {
+        ...activeSegmentProof(playing),
+        token: {
+          ...activeSegmentProof(playing).token,
+          revision: playing.session.presentationRevision + 1
+        }
+      }
+    });
+    expect(stale).toBe(playing);
+
+    const animated = reduceOwned(playing, 'AOD_FIRST_FRAME_PRESENTED', {
+      proof: activeSegmentProof(playing)
+    });
+    expect(animated).toMatchObject({
+      session: { phase: 'animating', aod: { stage: 'playback' } }
     });
   });
 

@@ -415,6 +415,9 @@ describe('formal Unit7-B phone integration', () => {
     expect(aodSource).toContain('`active` is strictly a decoder/compositor lease');
     expect(aodSource).toContain('const autoplayExecutionRef = useRef<PhoneAodExecution | null>(null)');
     expect(aodSource).toContain('startAutoplay(execution)');
+    expect(aodSource).toContain('renderAutoplayProgress(execution, progress)');
+    expect(aodSource).not.toContain('admissionRef');
+    expect(aodSource).not.toContain('releaseAutoplayAdmission');
     expect(aodSource).toContain('progressListenerRef.current?.(progress, execution)');
     expect(aodSource).toContain('completeListenerRef.current?.(execution)');
     expect(patternCss).not.toContain('.portrait-scroll-spike__pattern-motion::after');
