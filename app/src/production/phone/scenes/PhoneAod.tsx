@@ -15,6 +15,7 @@ import {
 import {
   createPackedAlphaVideoCompositor,
   renewPackedAlphaCanvas,
+  type PackedAlphaRenderFailure,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
 import {
@@ -30,6 +31,7 @@ import {
 import { phoneMediaUrlFor } from '../phone-media';
 import {
   phoneRuntimePresentationTokenKey,
+  type PhoneAodFailureReason,
   type PhoneAodExecution,
   type PhoneRenderedPresentationFrame,
   type PresentationToken
@@ -53,11 +55,23 @@ type PhoneAodPresentationBinding = {
   token: PresentationToken;
   key: string;
   report: (frame: PhoneRenderedPresentationFrame) => void;
+  fail: (reason: PhoneAodFailureReason) => void;
   frameSequence: number;
   reported: boolean;
   paintFrame: number | null;
   proofFrame: number | null;
 };
+
+function phoneAodFailureForPackedAlpha(
+  failure: PackedAlphaRenderFailure
+): PhoneAodFailureReason {
+  switch (failure) {
+    case 'webgl-unavailable': return 'aod-webgl-unavailable';
+    case 'upload-failed': return 'aod-frame-upload-failed';
+    case 'draw-failed': return 'aod-frame-draw-failed';
+    case 'context-lost': return 'aod-context-lost';
+  }
+}
 
 function cancelAodPresentationFrames(binding: PhoneAodPresentationBinding): void {
   if (typeof window === 'undefined') return;
@@ -132,6 +146,19 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         observedAt: performance.now(),
         origin: 'segment-first-frame'
       }, execution);
+    }, []);
+    /**
+     * Both moving AOD and static/direct AOD admission terminate through the
+     * one runtime session. A packed compositor can only report a physical
+     * fact; it never resets media, unlocks input, or enters rollback itself.
+     */
+    const reportAodFailure = useCallback((reason: PhoneAodFailureReason) => {
+      const execution = autoplayExecutionRef.current;
+      if (execution) {
+        failureListenerRef.current?.(execution, reason);
+        return;
+      }
+      presentationBindingRef.current?.fail(reason);
     }, []);
     const requestBoundStaticPresentation = useCallback(() => {
       const binding = presentationBindingRef.current;
@@ -231,11 +258,20 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           }
           if (!rendered) return;
           reportAodFrame(execution);
+        },
+        onFailure: (failure) => {
+          // A retired canvas may dispatch late WebGL events. The current
+          // compositor alone may turn them into the current session failure.
+          if (
+            rootRef.current !== root
+            || (compositorRef.current && compositorRef.current !== compositor)
+          ) return;
+          reportAodFailure(phoneAodFailureForPackedAlpha(failure));
         }
       });
       compositorRef.current = compositor;
       return compositor;
-    }, [reducedMotion, reportAodFrame]);
+    }, [reducedMotion, reportAodFailure, reportAodFrame]);
     progressListenerRef.current = onAodProgress;
     completeListenerRef.current = onAodComplete;
     frameListenerRef.current = onAodFrame;
@@ -248,10 +284,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       const canvas = root?.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
       if (!root || !transition || !video || !canvas) return;
 
-      const reportAodFailure = (reason: 'aod-context-lost' | 'media-failed') => {
-        const execution = autoplayExecutionRef.current;
-        if (execution) failureListenerRef.current?.(execution, reason);
-      };
       const onContextLost = () => reportAodFailure('aod-context-lost');
       const onMediaError = () => reportAodFailure('media-failed');
       canvas.addEventListener('webglcontextlost', onContextLost);
@@ -411,7 +443,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         if (import.meta.env.DEV) delete root.dataset.portraitAodProgress;
         delete transition.dataset.portraitAodBackdropProgress;
       };
-    }, [clearAutoplayExecution, onReady, reducedMotion, releaseCompositor]);
+    }, [clearAutoplayExecution, onReady, reducedMotion, releaseCompositor, reportAodFailure]);
 
     // `active` is strictly a decoder/compositor lease. Root visibility is
     // assigned synchronously by the story projector's surface role.
@@ -445,7 +477,13 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         // The execution identity is read from the current runtime refs by
         // the frame callback. Keeping this warmed context avoids Safari
         // allocating a second WebGL canvas during the same AOD handoff.
-        ensureCompositor()?.setActive(true);
+        const compositor = ensureCompositor();
+        if (!compositor) return Promise.resolve('error');
+        compositor.setActive(true);
+        const result = compositor.render();
+        if (result !== 'rendered' && result !== 'waiting') {
+          return Promise.resolve('error');
+        }
         return autoplayRef.current?.start(execution) ?? Promise.resolve('error');
       },
       releaseAutoplayAdmission(execution) {
@@ -457,13 +495,14 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         autoplayExecutionRef.current = null;
         completeListenerRef.current?.(execution);
       },
-      presentPresentation(token, report) {
+      presentPresentation(token, report, fail) {
         const prior = presentationBindingRef.current;
         if (prior) cancelAodPresentationFrames(prior);
         presentationBindingRef.current = {
           token,
           key: phoneRuntimePresentationTokenKey(token),
           report,
+          fail: (reason) => fail?.(reason),
           frameSequence: 0,
           reported: false,
           paintFrame: null,
@@ -475,8 +514,12 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           return;
         }
         const compositor = ensureCompositor();
-        compositor?.setActive(true);
-        compositor?.render();
+        if (!compositor) {
+          reportAodFailure('media-failed');
+          return;
+        }
+        compositor.setActive(true);
+        compositor.render();
       },
       disposePresentation(token) {
         const binding = presentationBindingRef.current;
@@ -517,6 +560,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       reducedMotion,
       releaseCompositor,
       reportAodFrame,
+      reportAodFailure,
       requestBoundStaticPresentation
     ]);
 

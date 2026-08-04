@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   PACKED_ALPHA_SOURCE_TYPE,
+  createPackedAlphaVideoCompositor,
   packedAlphaFrameProofSatisfied,
   packedAlphaFrameSize,
   releasePackedAlphaWebGlContext
@@ -43,6 +44,23 @@ describe('packed alpha video', () => {
     expect(packedAlphaFrameProofSatisfied(clean)).toBe(true);
     expect(packedAlphaFrameProofSatisfied(errored)).toBe(false);
     expect(packedAlphaFrameProofSatisfied(lost)).toBe(false);
+  });
+
+  it('[P0 AOD failure contract] returns a typed compositor failure instead of a false render sentinel', () => {
+    const canvas = {
+      dataset: {} as DOMStringMap,
+      getContext: vi.fn(() => null)
+    } as unknown as HTMLCanvasElement;
+    const onFailure = vi.fn();
+    const compositor = createPackedAlphaVideoCompositor({
+      video: {} as HTMLVideoElement,
+      canvas,
+      onFailure
+    });
+
+    expect(compositor.render()).toBe('webgl-unavailable');
+    expect(canvas.dataset.packedAlphaStatus).toBe('webgl-unavailable');
+    expect(onFailure).toHaveBeenCalledExactlyOnceWith('webgl-unavailable');
   });
 
   it('hard-releases the compositor context when a packed surface retires', () => {

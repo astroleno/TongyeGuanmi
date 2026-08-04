@@ -296,6 +296,44 @@ describe('phone presentation proof reader', () => {
     expect(dispose).toHaveBeenCalledWith(figure3Token);
   });
 
+  it('[P0 AOD failure contract] forwards a leaf compositor failure to the exact active session instead of waiting for a fabricated frame', () => {
+    const root = element();
+    const targetToken: PresentationToken = {
+      ...aodSegmentToken,
+      kind: 'static-poster'
+    };
+    const presentation = createPhoneStoryPresentation({
+      authorityId: targetToken.authorityId,
+      scope: 'formal',
+      root: () => root
+    });
+    presentation.registerSurface({
+      id: 'front:aod',
+      scene: 'aod-animation',
+      kind: 'fixed',
+      root: () => root,
+      coverageRoot: () => root,
+      presentation: () => [true, true, true, false, null],
+      adapter: {
+        present(_token, _report, fail) {
+          fail('aod-webgl-unavailable');
+        }
+      }
+    });
+    const report = vi.fn();
+    const fail = vi.fn();
+
+    presentation.activatePresentationAdapter(
+      'aod-animation',
+      targetToken,
+      report,
+      fail
+    );
+
+    expect(report).not.toHaveBeenCalled();
+    expect(fail).toHaveBeenCalledExactlyOnceWith('aod-webgl-unavailable');
+  });
+
   it('[Group67 static leaf cutover] re-arms one rejected post-paint frame with the same immutable token', () => {
     const root = element();
     const contactToken: PresentationToken = {

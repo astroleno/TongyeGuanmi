@@ -116,11 +116,12 @@ describe('phone WebGL allocation lifecycle', () => {
     const aod = source('./scenes/PhoneAod.tsx');
     const startAutoplay = aod.slice(
       aod.indexOf('startAutoplay(execution) {'),
-      aod.indexOf('presentPresentation(token, report) {')
+      aod.indexOf('presentPresentation(token, report, fail) {')
     );
 
     expect(startAutoplay).not.toContain('releaseCompositor();');
-    expect(startAutoplay).toContain('ensureCompositor()?.setActive(true);');
+    expect(startAutoplay).toContain('const compositor = ensureCompositor();');
+    expect(startAutoplay).toContain('compositor.setActive(true);');
   });
 
   it('keeps Hero GPU owners cold while a direct downstream route mounts the reversible graph', () => {

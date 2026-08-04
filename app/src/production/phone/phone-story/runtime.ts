@@ -8,7 +8,6 @@ import {
 import { createPhoneStoryRuntimeEngine } from './runtime/engine';
 import type {
   PhoneAodExecution,
-  PhoneAodRunSession,
   PhoneCapabilityLease,
   PhoneOrchestratedRunSession,
   PhoneStoryRuntimePort
@@ -40,7 +39,7 @@ import {
 import type { PhoneDocumentScrollSample } from '../usePhoneDocumentScrollRuntime';
 import type {
   PhoneStorySnapshot,
-  PhoneAodWatchdogStage,
+  PhoneFailureReason,
   PhoneTransactionPhase,
   PresentationToken
 } from './machine';
@@ -352,8 +351,20 @@ export function registerPhoneCompositeRunCapability(
 export const PHONE_AOD_PREPARE_TIMEOUT_MS = 6_000;
 export const PHONE_AOD_PROGRESS_WATCHDOG_MS = 2_400;
 
+export type PhoneAodFailureReason = Extract<
+  PhoneFailureReason,
+  | 'media-failed'
+  | 'aod-autoplay-blocked'
+  | 'aod-prepare-timeout'
+  | 'aod-progress-timeout'
+  | 'aod-webgl-unavailable'
+  | 'aod-frame-upload-failed'
+  | 'aod-frame-draw-failed'
+  | 'aod-context-lost'
+>;
+
 type ActiveAodRun = [
-  session: PhoneAodRunSession,
+  session: PhoneOrchestratedRunSession,
   execution: PhoneAodExecution,
   admission: PhoneRenderedPresentationFrame | true | null
 ];
@@ -374,8 +385,8 @@ type PhoneAodReducedStaticTarget = Readonly<{
 
 /**
  * The AOD runner is the only effect owner for admission → playback → settle.
- * Its durable stage, retry eligibility, watchdog identity, and rollback stay
- * in the reducer; the leaf can only forward actual decoder/canvas facts.
+ * The common session owner owns failure, rollback, and input release; the
+ * leaf can only forward actual decoder/canvas facts.
  */
 export type PhoneRuntimeAodRegistration = readonly [
   observeMediaProgress: (
@@ -389,9 +400,8 @@ export type PhoneRuntimeAodRegistration = readonly [
   complete: (execution: PhoneAodExecution) => void,
   fail: (
     execution: PhoneAodExecution,
-    reason: 'aod-context-lost' | 'media-failed'
+    reason: PhoneAodFailureReason
   ) => void,
-  retryFromGesture: () => boolean,
   /** Reconciles the effect lease to the current reducer-owned AOD state. */
   sync: () => void,
   dispose: () => void
@@ -433,7 +443,7 @@ export function registerPhoneRuntimeAodCapability(
     }
     if (prior && resetLeaf) onReset();
   };
-  const reducedFor = (session: PhoneAodRunSession) => {
+  const reducedFor = (session: PhoneOrchestratedRunSession) => {
     if (!reducedMotion) return false;
     const snapshot = port.getSnapshot();
     return snapshot.status === 'transaction'
@@ -443,19 +453,18 @@ export function registerPhoneRuntimeAodCapability(
       && snapshot.session.operation.run === 'aod-method';
   };
   const acceptsWatchdogStage = (
-    stage: PhoneAodWatchdogStage,
+    stage: 'admission' | 'playback',
     current: ReturnType<typeof stateFor>
   ) => current !== null && (
     stage === 'admission'
-      ? current.session.aod!.stage === 'admission' || current.session.aod!.stage === 'blocked'
+      ? current.session.aod!.stage === 'admission'
       : current.session.aod!.stage === 'playback'
   );
-  const armWatchdog = (stage: PhoneAodWatchdogStage) => {
+  const armWatchdog = (stage: 'admission' | 'playback') => {
     const record = active;
     const current = stateFor(record);
     if (!record || !current || !acceptsWatchdogStage(stage, current)) return;
     clearWatchdog();
-    const retry = current.session.aod!.retry;
     watchdog = globalThis.setTimeout(() => {
       watchdog = undefined;
       if (runtimeDocument?.hidden) {
@@ -466,10 +475,11 @@ export function registerPhoneRuntimeAodCapability(
       if (
         !latest
         || !acceptsWatchdogStage(stage, latest)
-        || latest.session.aod!.retry !== retry
       ) return;
-      record[0].reportAodWatchdog(stage);
-      if (!stateFor(record)) retire(true);
+      record[0].reportFailure(
+        stage === 'admission' ? 'aod-prepare-timeout' : 'aod-progress-timeout'
+      );
+      retire(true);
     }, stage === 'admission'
       ? PHONE_AOD_PREPARE_TIMEOUT_MS
       : PHONE_AOD_PROGRESS_WATCHDOG_MS);
@@ -503,7 +513,8 @@ export function registerPhoneRuntimeAodCapability(
       }
       record[2] = null;
       if (result === 'blocked') {
-        record[0].reportAodAutoplayBlocked();
+        record[0].reportFailure('aod-autoplay-blocked');
+        retire(true);
         return;
       }
       record[0].reportFailure('media-failed');
@@ -564,7 +575,7 @@ export function registerPhoneRuntimeAodCapability(
     position,
     canStart,
     start(direction, session) {
-      const aodSession = session as PhoneAodRunSession;
+      const aodSession = session as PhoneOrchestratedRunSession;
       const reduced = reducedFor(aodSession);
       const token = reduced
         ? aodSession.presentationFrameToken(
@@ -644,13 +655,6 @@ export function registerPhoneRuntimeAodCapability(
       }
       record[0].reportFailure(reason);
       retire(true);
-    },
-    () => {
-      const record = active;
-      const current = stateFor(record);
-      if (!record || !current || current.session.aod!.stage !== 'blocked') return false;
-      if (!record[0].requestAodGestureRetry()) return false;
-      return attempt(record);
     },
     () => {
       const record = active;

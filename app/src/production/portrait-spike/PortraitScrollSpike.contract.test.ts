@@ -291,7 +291,7 @@ describe('Route B proven front-half migration contract', () => {
       /data-portrait-edge-scene="aod"[^}]*stage-rail\s*\{[^}]*background:\s*#ede4d2/s
     );
     expect(aodCss).toContain('html[data-portrait-spike="b"][data-portrait-edge-scene="aod"]');
-    expect(runtimeSource).toContain('attachPhoneMediaGestureLease');
+    expect(runtimeSource).not.toContain('attachPhoneMediaGestureLease');
     expect(shellCss).toMatch(
       /site-nav\.has-scroll-edge-blur::before\s*\{[^}]*backdrop-filter:\s*blur\(20px\)/s
     );

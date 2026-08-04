@@ -896,6 +896,62 @@ describe('single phone story projector transaction', () => {
     expect(root.dataset.phoneInputState).toBe('free');
   });
 
+  it.each([
+    'aod-prepare-timeout',
+    'aod-autoplay-blocked',
+    'aod-webgl-unavailable',
+    'aod-frame-upload-failed',
+    'aod-frame-draw-failed',
+    'aod-context-lost',
+    'aod-progress-timeout'
+  ] as const)('[P0 AOD rollback ownership] returns %s to a stable, unlocked source hold', (reason) => {
+    const root = element();
+    const frames: Array<() => void> = [];
+    let actualY = 100;
+    let session: PhoneOrchestratedRunSession | undefined;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'aod-animation',
+      root,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => { actualY = nextY; },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+    orchestrator.registerRunCapability('aod-method', 'aod-session-owner', capability(
+      100,
+      (_direction, activeSession) => { session = activeSession; }
+    ));
+    orchestrator.registerScrollCorridor({
+      id: 'test:aod-method',
+      scenes: ['aod-animation', 'method-top'],
+      sample: () => null,
+      boundary: (run) => run === 'aod-method' ? 100 : null,
+      landing: () => 100
+    });
+    registerReadySurface(orchestrator, 'aod-animation', (callback) => frames.push(callback));
+
+    expect(orchestrator.resolveIntent([1, 1, 100, 260])).toBe('claim-boundary');
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'preparing', aod: { stage: 'admission' } }
+    });
+
+    session?.reportFailure(reason);
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'rollback-measuring-landing' },
+      diagnostics: { lastRollback: { reason } }
+    });
+    expect(root.dataset.phoneInputState).toBe('locked');
+    while (frames.length > 0) frames.shift()?.();
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'aod-animation',
+      session: null
+    });
+    expect(root.dataset.phoneInputState).toBe('free');
+  });
+
   it('[Group45 reduced cutover] expires static admission through the machine, then admits the next input', async () => {
     vi.useFakeTimers();
     try {

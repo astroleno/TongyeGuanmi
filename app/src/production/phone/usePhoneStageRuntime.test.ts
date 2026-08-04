@@ -205,4 +205,15 @@ describe('phone stage AOD resource selection', () => {
     expect(aodLeafSource).not.toMatch(/\n\s*leave\(\)\s*\{/);
     expect(aodLeafSource).not.toMatch(/\n\s*reverse\(\)\s*\{/);
   });
+
+  it('[P0 AOD session ownership] starts only from the current runtime transaction and has no gesture-lease retry writer', () => {
+    const registration = stageRuntimeSource.slice(
+      stageRuntimeSource.indexOf('registerPhoneRuntimeAodCapability('),
+      stageRuntimeSource.indexOf('progressHandlerRef.current = observeAodMediaProgress;')
+    );
+
+    expect(registration).not.toContain('snapshotRef.current');
+    expect(stageRuntimeSource).not.toContain('attachPhoneMediaGestureLease');
+    expect(stageRuntimeSource).not.toContain('retryAodFromGesture');
+  });
 });

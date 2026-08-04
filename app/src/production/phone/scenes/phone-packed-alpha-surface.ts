@@ -244,10 +244,16 @@ export function createPhonePackedAlphaSurface(
         root.dataset[statusDataset] = 'verified';
         options.onFrame?.(activeFrameToken);
         settle({ presentationToken: activePresentationToken });
+      },
+      // A compositor failure is terminal evidence, never a quietly false
+      // render result that waits for a timeout or lets a second owner retry.
+      onFailure: () => {
+        if (generation !== presentationGeneration) return;
+        failEndpoint();
       }
     });
     const status = canvas.dataset.packedAlphaStatus;
-    if (status === 'webgl-unavailable' || status === 'setup-failed') {
+    if (status === 'webgl-unavailable') {
       video.dataset.phonePackedAlphaOwner = layerName;
       setPackedAlphaVideoSource(video, options.packedSourceUrl);
       failEndpoint();

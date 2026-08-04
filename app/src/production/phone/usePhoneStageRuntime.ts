@@ -13,6 +13,7 @@ import {
   registerPhoneRuntimeSampledScrollCorridor,
   registerPhoneRuntimeSurface,
   syncPhoneRuntimeDiagnostics,
+  type PhoneAodFailureReason,
   type PhoneAodExecution,
   type PhoneCinematicSnapshot,
   type PhoneRenderedPresentationFrame
@@ -29,7 +30,6 @@ import type {
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
-import { attachPhoneMediaGestureLease } from './phone-media-gesture-lease';
 
 const phoneStageRefreshers = new Set<() => void>();
 
@@ -201,7 +201,7 @@ export type PhoneStageRuntime = Readonly<{
   ): void;
   onAodFailure(
     execution: PhoneAodExecution,
-    reason: 'aod-context-lost' | 'media-failed'
+    reason: PhoneAodFailureReason
   ): void;
 }>;
 
@@ -236,7 +236,7 @@ export function usePhoneStageRuntime(
   const failureHandlerRef = useRef<
     ((
       execution: PhoneAodExecution,
-      reason: 'aod-context-lost' | 'media-failed'
+      reason: PhoneAodFailureReason
     ) => void) | undefined
   >(undefined);
 
@@ -259,15 +259,15 @@ export function usePhoneStageRuntime(
   }, []);
   const onAodFailure = useCallback((
     execution: PhoneAodExecution,
-    reason: 'aod-context-lost' | 'media-failed'
+    reason: PhoneAodFailureReason
   ) => {
     failureHandlerRef.current?.(execution, reason);
   }, []);
 
   useLayoutEffect(() => {
     renderSnapshotRef.current?.(options.snapshot);
-    // Input dispatch starts synchronously before React refreshes snapshotRef.
-    // Retry after this layout pass so the capability sees the new session.
+    // Input dispatch starts synchronously before React refreshes this render
+    // mirror. The capability itself reads the orchestrator's current snapshot.
     if (options.enabled && options.snapshot[9] === 'preparing') {
       syncPhoneRuntimeDiagnostics(options.orchestrator);
     }
@@ -346,8 +346,8 @@ export function usePhoneStageRuntime(
         () => options.stageRef.current,
         undefined,
         {
-          present(token, report) {
-            options.aodRef.current?.presentPresentation?.(token, report);
+          present(token, report, fail) {
+            options.aodRef.current?.presentPresentation?.(token, report, fail);
           },
           dispose(token) {
             options.aodRef.current?.disposePresentation?.(token);
@@ -562,7 +562,6 @@ export function usePhoneStageRuntime(
       reportAodCompositorFrame,
       completeAodRun,
       failAodRun,
-      retryAodFromGesture,
       syncAodRuntime,
       disposeAodRuntime
     ] = registerPhoneRuntimeAodCapability(
@@ -571,11 +570,12 @@ export function usePhoneStageRuntime(
         ? aodSemanticPosition()
         : Math.max(stageScrollStart, stageScrollEnd - 1),
       (direction) => {
-        const snapshot = snapshotRef.current;
-        return snapshot[11] === 'transaction'
-          && snapshot[6] === 'aod-method'
-          && snapshot[7] === direction
-          && snapshot[9] === 'preparing';
+        const snapshot = options.orchestrator.getSnapshot();
+        return snapshot.status === 'transaction'
+          && snapshot.session.operation.run === 'aod-method'
+          && snapshot.session.operation.direction === direction
+          && snapshot.session.phase === 'preparing'
+          && aodRef.current !== null;
       },
       (execution) => {
         const aodAdapter = aodRef.current;
@@ -636,10 +636,6 @@ export function usePhoneStageRuntime(
     };
     root.addEventListener('pointerdown', onHeroPointerDown, { passive: true });
     root.addEventListener('click', onHeroClick);
-    const releaseMediaGestureLease = attachPhoneMediaGestureLease(
-      root,
-      () => retryAodFromGesture()
-    );
 
     const refresh = () => {
       if (active) refreshStageGeometry();
@@ -677,7 +673,6 @@ export function usePhoneStageRuntime(
       phoneStageRefreshers.delete(refreshStageGeometry);
       root.removeEventListener('pointerdown', onHeroPointerDown);
       root.removeEventListener('click', onHeroClick);
-      releaseMediaGestureLease();
       corridorLease.dispose();
       effectLease.dispose();
       if (import.meta.env.DEV) {

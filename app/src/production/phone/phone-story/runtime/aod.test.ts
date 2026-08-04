@@ -26,9 +26,6 @@ type Harness = Readonly<{
   session: PhoneAodRunSession & Readonly<{
     frame: ReturnType<typeof vi.fn>;
     progress: ReturnType<typeof vi.fn>;
-    blocked: ReturnType<typeof vi.fn>;
-    retry: ReturnType<typeof vi.fn>;
-    watchdog: ReturnType<typeof vi.fn>;
     complete: ReturnType<typeof vi.fn>;
     fail: ReturnType<typeof vi.fn>;
   }>;
@@ -70,7 +67,6 @@ function createHarness(
   let settled = false;
   let stage: PhoneAodRunnerStage = 'admission';
   let progress = direction === 1 ? 0 : 1;
-  let retryCount = 0;
   let capability: PhoneRunCapability | undefined;
   const snapshot = () => settled
     ? {
@@ -89,16 +85,12 @@ function createHarness(
             direction,
             legIndex: 0
           },
-          phase: stage === 'admission' || stage === 'blocked'
+          phase: stage === 'admission'
             ? 'preparing'
             : stage === 'playback' ? 'animating' : 'verifying-target',
           progress,
           aod: {
-            stage,
-            retry: retryCount,
-            watchdog: stage === 'admission' || stage === 'blocked'
-              ? 'admission' as const
-              : stage === 'playback' ? 'playback' as const : null
+            stage
           },
           reducedMotion
         }
@@ -128,22 +120,6 @@ function createHarness(
     progress = next;
     events.push(`progress:${next}`);
   });
-  const blocked = vi.fn(() => {
-    if (stage !== 'admission') return false;
-    stage = 'blocked';
-    events.push('blocked');
-    return true;
-  });
-  const retry = vi.fn(() => {
-    if (stage !== 'blocked') return false;
-    stage = 'admission';
-    retryCount += 1;
-    events.push('retry');
-    return true;
-  });
-  const watchdog = vi.fn((value) => {
-    events.push(`watchdog:${value}`);
-  });
   const complete = vi.fn(() => {
     stage = 'settling';
     events.push('settle');
@@ -169,25 +145,16 @@ function createHarness(
     requestReducedTargetLayout: vi.fn(() => true),
     reportPresentationFrame: frame,
     reportProgress,
-    reportAodAutoplayBlocked: blocked,
-    requestAodGestureRetry: retry,
-    reportAodWatchdog: watchdog,
     reportEndpointCommit: complete,
     reportFailure: fail
   }, {
     frame,
     progress: reportProgress,
-    blocked,
-    retry,
-    watchdog,
     complete,
     fail
   }) as unknown as PhoneAodRunSession & Readonly<{
     frame: typeof frame;
     progress: typeof reportProgress;
-    blocked: typeof blocked;
-    retry: typeof retry;
-    watchdog: typeof watchdog;
     complete: typeof complete;
     fail: typeof fail;
   }>;
@@ -323,7 +290,7 @@ describe('AOD ↔ Method single runner cutover', () => {
         origin: 'leaf-static-poster'
       }));
       expect(value.disposeStaticTarget).toHaveBeenCalledWith(execution);
-      value.runner[6]();
+      value.runner[5]();
     }
   );
 
@@ -334,7 +301,7 @@ describe('AOD ↔ Method single runner cutover', () => {
     await Promise.resolve();
 
     expect(value.requestReducedTargetLayout).toHaveBeenCalledWith(1_728);
-    value.runner[6]();
+    value.runner[5]();
   });
 
   it('orders admission → accepted proof → playback → settle and suppresses pre-proof progress', async () => {
@@ -364,7 +331,7 @@ describe('AOD ↔ Method single runner cutover', () => {
       'progress:1',
       'settle'
     ]);
-    value.runner[6]();
+    value.runner[5]();
   });
 
   it('uses the exact leaf-supplied token and rejects stale frame identities', async () => {
@@ -382,10 +349,10 @@ describe('AOD ↔ Method single runner cutover', () => {
 
     value.runner[1](frameFor(value.execution), value.execution);
     expect(value.session.frame).toHaveBeenCalledOnce();
-    value.runner[6]();
+    value.runner[5]();
   });
 
-  it('[P0 AOD admission] waits for confirmed playback before accepting an earlier exact frame', async () => {
+  it('[P0 AOD admission] does not let an earlier exact frame survive a rejected playback attempt', async () => {
     const value = createHarness(1, 'pending');
 
     expect(value.startRun()).toBe(true);
@@ -401,36 +368,24 @@ describe('AOD ↔ Method single runner cutover', () => {
 
     value.settleStart('blocked');
     await Promise.resolve();
-    expect(value.stage()).toBe('blocked');
+    expect(value.stage()).toBe('settling');
+    expect(value.session.fail).toHaveBeenCalledWith('aod-autoplay-blocked');
     expect(value.session.frame).not.toHaveBeenCalled();
     expect(value.release).not.toHaveBeenCalled();
-
-    expect(value.runner[4]()).toBe(true);
-    value.settleStart('playing');
-    await Promise.resolve();
-    expect(value.stage()).toBe('admission');
-
-    // A rejected attempt cannot recycle its old prepared frame. A new frame
-    // from the retry is required before the runner releases playback.
-    value.runner[1](frameFor(value.execution, 2), value.execution);
-    expect(value.stage()).toBe('playback');
-    expect(value.session.frame).toHaveBeenCalledOnce();
-    expect(value.release).toHaveBeenCalledOnce();
-    value.runner[6]();
+    expect(value.reset).toHaveBeenCalledOnce();
+    value.runner[5]();
   });
 
-  it('keeps blocked/retry state in the machine and only retries after a gesture intent', async () => {
+  it('has no private retry writer after an autoplay rejection', async () => {
     const value = createHarness(1, 'blocked');
     value.startRun();
     await Promise.resolve();
 
-    expect(value.stage()).toBe('blocked');
-    expect(value.runner[4]()).toBe(true);
-    await Promise.resolve();
-    expect(value.session.retry).toHaveBeenCalledOnce();
-    expect(value.start).toHaveBeenCalledTimes(2);
-    expect(value.events).toEqual(['start', 'blocked', 'retry', 'start']);
-    value.runner[6]();
+    expect(value.stage()).toBe('settling');
+    expect(value.session.fail).toHaveBeenCalledWith('aod-autoplay-blocked');
+    expect(value.start).toHaveBeenCalledOnce();
+    expect(value.runner).toHaveLength(6);
+    value.runner[5]();
   });
 
   it('rolls back when admission receives no compositor frame', async () => {
@@ -440,8 +395,8 @@ describe('AOD ↔ Method single runner cutover', () => {
       value.startRun();
       await Promise.resolve();
       vi.advanceTimersByTime(PHONE_AOD_PREPARE_TIMEOUT_MS);
-      expect(value.session.watchdog).toHaveBeenCalledWith('admission');
-      value.runner[6]();
+      expect(value.session.fail).toHaveBeenCalledWith('aod-prepare-timeout');
+      value.runner[5]();
     } finally {
       vi.useRealTimers();
     }
@@ -455,7 +410,7 @@ describe('AOD ↔ Method single runner cutover', () => {
       await Promise.resolve();
       value.runner[1](frameFor(value.execution), value.execution);
       vi.advanceTimersByTime(PHONE_AOD_PROGRESS_WATCHDOG_MS);
-      expect(value.session.watchdog).toHaveBeenCalledWith('playback');
+      expect(value.session.fail).toHaveBeenCalledWith('aod-progress-timeout');
 
       const failure = createHarness();
       failure.startRun();
@@ -463,8 +418,62 @@ describe('AOD ↔ Method single runner cutover', () => {
       failure.runner[3](failure.execution, 'aod-context-lost');
       expect(failure.session.fail).toHaveBeenCalledWith('aod-context-lost');
       expect(failure.reset).toHaveBeenCalledOnce();
-      failure.runner[6]();
-      value.runner[6]();
+      failure.runner[5]();
+      value.runner[5]();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    'aod-webgl-unavailable',
+    'aod-frame-upload-failed',
+    'aod-frame-draw-failed',
+    'aod-context-lost'
+  ] as const)('[P0 AOD compositor contract] retires a typed %s leaf failure through the session owner', async (reason) => {
+    const value = createHarness();
+    value.startRun();
+    await Promise.resolve();
+
+    value.runner[3](value.execution, reason);
+
+    expect(value.session.fail).toHaveBeenCalledExactlyOnceWith(reason);
+    expect(value.reset).toHaveBeenCalledOnce();
+    expect(value.stage()).toBe('settling');
+    value.runner[5]();
+  });
+
+  it('[P0 AOD session ownership] routes every terminal admission and playback failure through the session rollback owner', async () => {
+    vi.useFakeTimers();
+    try {
+      const noFrame = createHarness();
+      noFrame.startRun();
+      await Promise.resolve();
+      vi.advanceTimersByTime(PHONE_AOD_PREPARE_TIMEOUT_MS);
+
+      expect(noFrame.session.fail).toHaveBeenCalledWith('aod-prepare-timeout');
+      expect(noFrame.reset).toHaveBeenCalledOnce();
+      expect(noFrame.stage()).toBe('settling');
+
+      const stalledPlayback = createHarness();
+      stalledPlayback.startRun();
+      await Promise.resolve();
+      stalledPlayback.runner[1](frameFor(stalledPlayback.execution), stalledPlayback.execution);
+      vi.advanceTimersByTime(PHONE_AOD_PROGRESS_WATCHDOG_MS);
+
+      expect(stalledPlayback.session.fail).toHaveBeenCalledWith('aod-progress-timeout');
+      expect(stalledPlayback.reset).toHaveBeenCalledOnce();
+
+      const rejectedPlay = createHarness(1, 'blocked');
+      rejectedPlay.startRun();
+      await Promise.resolve();
+
+      expect(rejectedPlay.session.fail).toHaveBeenCalledWith('aod-autoplay-blocked');
+      expect(rejectedPlay.reset).toHaveBeenCalledOnce();
+
+      noFrame.runner[5]();
+      stalledPlayback.runner[5]();
+      rejectedPlay.runner[5]();
     } finally {
       vi.useRealTimers();
     }
@@ -481,13 +490,13 @@ describe('AOD ↔ Method single runner cutover', () => {
       visibilityDocument.hidden = true;
       visibilityDocument.dispatchEvent(new Event('visibilitychange'));
       vi.advanceTimersByTime(PHONE_AOD_PREPARE_TIMEOUT_MS * 2);
-      expect(value.session.watchdog).not.toHaveBeenCalled();
+      expect(value.session.fail).not.toHaveBeenCalled();
 
       visibilityDocument.hidden = false;
       visibilityDocument.dispatchEvent(new Event('visibilitychange'));
       vi.advanceTimersByTime(PHONE_AOD_PREPARE_TIMEOUT_MS);
-      expect(value.session.watchdog).toHaveBeenCalledWith('admission');
-      value.runner[6]();
+      expect(value.session.fail).toHaveBeenCalledWith('aod-prepare-timeout');
+      value.runner[5]();
     } finally {
       vi.unstubAllGlobals();
       vi.useRealTimers();
@@ -508,6 +517,6 @@ describe('AOD ↔ Method single runner cutover', () => {
     value.runner[2](value.execution);
     expect(value.progress()).toBe(0);
     expect(value.session.complete).toHaveBeenCalledOnce();
-    value.runner[6]();
+    value.runner[5]();
   });
 });

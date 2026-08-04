@@ -5,8 +5,17 @@ export type PackedAlphaFrameSize = Readonly<{
   height: number;
 }>;
 
+/** Terminal renderer facts are explicit; waiting for media is not a failure. */
+export type PackedAlphaRenderFailure =
+  | 'webgl-unavailable'
+  | 'upload-failed'
+  | 'draw-failed'
+  | 'context-lost';
+
+export type PackedAlphaRenderResult = 'rendered' | 'waiting' | PackedAlphaRenderFailure;
+
 export type PackedAlphaVideoCompositor = Readonly<{
-  render(): boolean;
+  render(): PackedAlphaRenderResult;
   setActive(active: boolean): void;
   dispose(): void;
 }>;
@@ -31,6 +40,7 @@ type PackedAlphaVideoOptions = Readonly<{
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
   onFrame?: () => void;
+  onFailure?: (failure: PackedAlphaRenderFailure) => void;
 }>;
 
 type VideoWithFrameCallbacks = HTMLVideoElement & {
@@ -185,7 +195,10 @@ export function createPackedAlphaVideoCompositor(
   if (!gl) {
     canvas.dataset.packedAlphaStatus = 'webgl-unavailable';
     return {
-      render: () => false,
+      render: () => {
+        options.onFailure?.('webgl-unavailable');
+        return 'webgl-unavailable';
+      },
       setActive: () => undefined,
       dispose: () => {
         delete canvas.dataset.packedAlphaStatus;
@@ -197,11 +210,14 @@ export function createPackedAlphaVideoCompositor(
   const buffer = gl.createBuffer();
   const texture = gl.createTexture();
   if (!shaders || !buffer || !texture) {
-    canvas.dataset.packedAlphaStatus = 'setup-failed';
+    canvas.dataset.packedAlphaStatus = 'webgl-unavailable';
     if (buffer) gl.deleteBuffer(buffer);
     if (texture) gl.deleteTexture(texture);
     return {
-      render: () => false,
+      render: () => {
+        options.onFailure?.('webgl-unavailable');
+        return 'webgl-unavailable';
+      },
       setActive: () => undefined,
       dispose: () => {
         releasePackedAlphaWebGlContext(gl);
@@ -221,6 +237,16 @@ export function createPackedAlphaVideoCompositor(
   let animationFrame = 0;
   let renderedFrames = 0;
   let contextLost = false;
+  let terminalFailureReason: PackedAlphaRenderFailure | null = null;
+
+  const terminalFailure = (failure: PackedAlphaRenderFailure): PackedAlphaRenderFailure => {
+    if (terminalFailureReason) return terminalFailureReason;
+    terminalFailureReason = failure;
+    canvas.dataset.packedAlphaStatus = failure;
+    delete canvas.dataset.packedAlphaFrameReady;
+    options.onFailure?.(failure);
+    return failure;
+  };
 
   gl.useProgram(program);
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -241,16 +267,20 @@ export function createPackedAlphaVideoCompositor(
   gl.uniform1i(packedFrameLocation, 0);
   gl.clearColor(0, 0, 0, 0);
 
-  const render = () => {
+  const render = (): PackedAlphaRenderResult => {
+    if (terminalFailureReason) return terminalFailureReason;
+    if (contextLost || gl.isContextLost()) {
+      contextLost = true;
+      return terminalFailure('context-lost');
+    }
     if (
       disposed
       || !active
-      || contextLost
       || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
       || video.videoWidth < 2
       || video.videoHeight < 1
     ) {
-      return false;
+      return 'waiting';
     }
 
     const frameSize = packedAlphaFrameSize(video.videoWidth, video.videoHeight);
@@ -264,11 +294,7 @@ export function createPackedAlphaVideoCompositor(
     gl.clear(gl.COLOR_BUFFER_BIT);
     if (!packedAlphaFrameProofSatisfied(gl)) {
       contextLost = gl.isContextLost();
-      canvas.dataset.packedAlphaStatus = contextLost
-        ? 'context-lost'
-        : 'frame-upload-failed';
-      delete canvas.dataset.packedAlphaFrameReady;
-      return false;
+      return terminalFailure(contextLost ? 'context-lost' : 'upload-failed');
     }
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -282,27 +308,18 @@ export function createPackedAlphaVideoCompositor(
         video
       );
     } catch {
-      canvas.dataset.packedAlphaStatus = 'frame-upload-failed';
-      return false;
+      return terminalFailure('upload-failed');
     }
     if (!packedAlphaFrameProofSatisfied(gl)) {
       contextLost = gl.isContextLost();
-      canvas.dataset.packedAlphaStatus = contextLost
-        ? 'context-lost'
-        : 'frame-upload-failed';
-      delete canvas.dataset.packedAlphaFrameReady;
-      return false;
+      return terminalFailure(contextLost ? 'context-lost' : 'upload-failed');
     }
     gl.useProgram(program);
     gl.uniform1f(texelLocation, 1 / Math.max(2, video.videoWidth));
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     if (!packedAlphaFrameProofSatisfied(gl)) {
       contextLost = gl.isContextLost();
-      canvas.dataset.packedAlphaStatus = contextLost
-        ? 'context-lost'
-        : 'frame-draw-failed';
-      delete canvas.dataset.packedAlphaFrameReady;
-      return false;
+      return terminalFailure(contextLost ? 'context-lost' : 'draw-failed');
     }
     renderedFrames += 1;
     canvas.dataset.packedAlphaStatus = 'ready';
@@ -310,7 +327,7 @@ export function createPackedAlphaVideoCompositor(
     canvas.dataset.packedAlphaFrame = String(renderedFrames);
     canvas.dataset.packedAlphaMediaTime = video.currentTime.toFixed(4);
     options.onFrame?.();
-    return true;
+    return 'rendered';
   };
 
   const schedule = () => {
@@ -346,7 +363,7 @@ export function createPackedAlphaVideoCompositor(
   const onContextLost = (event: Event) => {
     event.preventDefault();
     contextLost = true;
-    canvas.dataset.packedAlphaStatus = 'context-lost';
+    terminalFailure('context-lost');
   };
 
   video.addEventListener('loadeddata', renderAndSchedule);
@@ -393,7 +410,7 @@ export function createPackedAlphaVideoCompositor(
         return;
       }
       if (contextLost) {
-        canvas.dataset.packedAlphaStatus = 'context-lost';
+        terminalFailure('context-lost');
         return;
       }
       canvas.dataset.packedAlphaStatus = 'waiting';

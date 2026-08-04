@@ -30,6 +30,7 @@ import type {
   PhoneRenderedPresentationFrame,
   PresentationToken
 } from './phone-story/runtime';
+import type { PhoneFailureReason } from './phone-story/machine';
 
 export type PhoneStageSceneId = 'hero' | 'pattern' | 'star-map' | 'aod-animation';
 export type PhoneSceneAdapterId =
@@ -57,7 +58,9 @@ export type PhoneTransitionAdapterId =
 export type PhonePresentationAdapterHandle = Readonly<{
   presentPresentation(
     token: PresentationToken,
-    report: (frame: PhoneRenderedPresentationFrame) => void
+    report: (frame: PhoneRenderedPresentationFrame) => void,
+    /** Runtime registration always supplies this; direct callers may omit it. */
+    fail?: (reason: PhoneFailureReason) => void
   ): void;
   disposePresentation?(token: PresentationToken): void;
 }>;
@@ -121,7 +124,7 @@ export type PhoneSceneAdapterProps = Readonly<{
   /** Leaf-only failure fact; the runner decides rollback. */
   onAodFailure?: (
     execution: PhoneAodExecution,
-    reason: 'aod-context-lost' | 'media-failed'
+    reason: import('./phone-story/runtime').PhoneAodFailureReason
   ) => void;
 }>;
 

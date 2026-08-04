@@ -914,7 +914,7 @@ describe('token-bound phone presentation proofs', () => {
     }
   });
 
-  it('[AOD cutover] keeps admission, retry, playback, watchdog, and settle in one reducer session', () => {
+  it('[AOD cutover] keeps admission, playback, and session-owned rollback in one reducer transaction', () => {
     const initial = createPhoneStorySnapshot({
       authorityId: 'aod-machine-authority',
       scene: 'aod-animation',
@@ -940,39 +940,21 @@ describe('token-bound phone presentation proofs', () => {
       direction: started.session.operation.direction
     } as const;
 
-    const blocked = reducePhoneStorySnapshot(started, {
-      ...identity,
-      type: 'AOD_AUTOPLAY_BLOCKED'
-    }).snapshot;
-    expect(blocked).toMatchObject({
-      status: 'transaction',
-      session: { phase: 'preparing', aod: { stage: 'blocked', retry: 0 } }
-    });
-
-    const retried = reducePhoneStorySnapshot(blocked, {
-      ...identity,
-      type: 'AOD_GESTURE_RETRY_REQUESTED'
-    }).snapshot;
-    if (retried.status !== 'transaction') throw new Error('Expected retry transaction');
-    expect(retried.session.aod).toEqual({
-      stage: 'admission',
-      retry: 1,
-      watchdog: 'admission'
-    });
+    expect(started.session.aod).toEqual({ stage: 'admission' });
 
     const leg = phoneRunLegTuple('aod-method', 0);
     if (!leg) throw new Error('Expected AOD leg');
     const frame = phoneSegmentPresentationTuple(leg[0]);
-    const animated = reducePhoneStorySnapshot(retried, {
+    const animated = reducePhoneStorySnapshot(started, {
       ...identity,
       type: 'PRESENTATION_PROOF_REPORTED',
       proof: {
         token: {
-          authorityId: retried.authorityId,
-          sessionId: retried.session.sessionId,
-          generation: retried.session.generation,
-          leg: retried.session.operation.legIndex,
-          revision: retried.session.presentationRevision,
+          authorityId: started.authorityId,
+          sessionId: started.session.sessionId,
+          generation: started.session.generation,
+          leg: started.session.operation.legIndex,
+          revision: started.session.presentationRevision,
           subject: frame[9],
           kind: frame[8]
         },
@@ -986,13 +968,13 @@ describe('token-bound phone presentation proofs', () => {
     } as never).snapshot;
     expect(animated).toMatchObject({
       status: 'transaction',
-      session: { phase: 'animating', aod: { stage: 'playback', watchdog: 'playback' } }
+      session: { phase: 'animating', aod: { stage: 'playback' } }
     });
 
     const expired = reducePhoneStorySnapshot(started, {
       ...identity,
-      type: 'AOD_WATCHDOG_EXPIRED',
-      aodWatchdog: 'admission'
+      type: 'FAILED',
+      reason: 'aod-prepare-timeout'
     }).snapshot;
     expect(expired).toMatchObject({
       status: 'transaction',

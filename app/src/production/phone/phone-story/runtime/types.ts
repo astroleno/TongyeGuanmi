@@ -4,7 +4,6 @@ import type {
   PhoneStoryEvent,
   PhoneStoryReduction,
   PhoneStorySnapshot,
-  PhoneAodWatchdogStage,
   PhoneFailureReason,
   PresentationProof,
   PresentationReadiness,
@@ -131,17 +130,8 @@ export type PhoneOrchestratedRunSession = PhoneTransitionSession & Readonly<{
   reportFailure(reason?: PhoneFailureReason): void;
 }>;
 
-/**
- * Narrow AOD-only extension. Other runners cannot acquire its proof/retry
- * ingress, which keeps the cutover's extra writer surface out of generic
- * scene executors.
- */
-export type PhoneAodRunSession = PhoneOrchestratedRunSession & Readonly<{
-  /** AOD runner-only events; the machine owns durable retry/watchdog state. */
-  reportAodAutoplayBlocked(): boolean;
-  requestAodGestureRetry(): boolean;
-  reportAodWatchdog(stage: PhoneAodWatchdogStage): void;
-}>;
+/** AOD has no private event ingress; it uses the common session owner. */
+export type PhoneAodRunSession = PhoneOrchestratedRunSession;
 
 export type PhoneRunCapability = Readonly<{
   /** Presentation strategy is part of the one machine transaction contract. */

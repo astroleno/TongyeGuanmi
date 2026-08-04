@@ -205,9 +205,11 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(aodRunnerSource).not.toContain('reportRenderedFrame(');
     expect(aodRunnerSource).not.toContain('proofForRenderedFrame(');
     expect((aodRunnerSource.match(/\.reportProgress\(/g) ?? []).length).toBe(1);
-    expect(aodRunnerSource).toContain("reportAodAutoplayBlocked()");
-    expect(aodRunnerSource).toContain("requestAodGestureRetry()");
-    expect(aodRunnerSource).toContain("reportAodWatchdog(stage)");
+    expect(aodRunnerSource).toContain("reportFailure('aod-autoplay-blocked')");
+    expect(aodRunnerSource).toContain("? 'aod-prepare-timeout' : 'aod-progress-timeout'");
+    expect(aodRunnerSource).not.toContain('reportAodAutoplayBlocked(');
+    expect(aodRunnerSource).not.toContain('requestAodGestureRetry(');
+    expect(aodRunnerSource).not.toContain('reportAodWatchdog(');
     expect(aodRunnerSource).toContain('reducedMotion,');
     expect(aodRunnerSource).toContain("frame.origin !== 'leaf-static-poster'");
     expect(stageRuntimeSource).not.toContain('aodRuntime.reset(');
@@ -222,14 +224,14 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(aodSceneSource).not.toContain('reportPresentationProof(');
     expect(aodSceneSource).not.toContain('reportEndpointCommit(');
     const aodStaticTargetProof = aodSceneSource.slice(
-      aodSceneSource.indexOf('presentPresentation(token, report)'),
+      aodSceneSource.indexOf('presentPresentation(token, report, fail)'),
       aodSceneSource.indexOf('disposePresentation(token)')
     );
     expect(aodStaticTargetProof).toContain('phoneRuntimePresentationTokenKey(token)');
     expect(aodStaticTargetProof).toContain('renderRef.current?.(0);');
     expect(aodStaticTargetProof).toContain('if (reducedMotion) {');
     expect(aodStaticTargetProof).toContain('requestBoundStaticPresentation();');
-    expect(aodStaticTargetProof).toContain('compositor?.render();');
+    expect(aodStaticTargetProof).toContain('compositor.render();');
     // Both the reduced static proof and the full-motion canvas proof must
     // describe the authored AOD hold. Star → AOD/direct entry may never
     // project the AOD→Method exit endpoint before that runner owns playback.

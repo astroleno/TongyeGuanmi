@@ -434,6 +434,8 @@ export function createPhoneStoryRuntimeEngine(
     // no selector or dataset can manufacture that proof.
     presentation.activatePresentationAdapter(scene, token, (proof) => {
       activeSession.reportPresentationProof(proof);
+    }, (reason) => {
+      activeSession.reportFailure(reason);
     });
     const readiness = presentation.readPresentationReadiness(scene, token);
     if (readiness) activeSession.reportPresentationReadiness(readiness);
@@ -483,6 +485,8 @@ export function createPhoneStoryRuntimeEngine(
       if (!token) return;
       presentation.activatePresentationAdapter(scene, token, (proof) => {
         activeSession.reportPresentationProof(proof);
+      }, (reason) => {
+        activeSession.reportFailure(reason);
       });
     } finally {
       publishingTargetProof = false;

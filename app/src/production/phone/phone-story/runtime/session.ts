@@ -14,7 +14,6 @@ import type { PhoneRenderedPresentationFrame } from '../presentation';
 import type { PhoneTransitionDirection } from '../../phone-transition-coordinator';
 import { runPhoneProgressClock } from '../../phone-transition-coordinator';
 import type {
-  PhoneAodRunSession,
   PhoneOrchestratedRunSession,
   PhoneReleaseLease
 } from './types';
@@ -366,7 +365,7 @@ export function createPhoneOrchestratedSessionController(
     run: ManagedPhoneActiveRun,
     initialLeg: number,
     fallbackAuthorityId: string
-  ): PhoneAodRunSession => {
+  ): PhoneOrchestratedRunSession => {
     const presentationFrameToken = (
       kind: Parameters<PhoneOrchestratedRunSession['presentationFrameToken']>[0],
       subject: Parameters<PhoneOrchestratedRunSession['presentationFrameToken']>[1]
@@ -445,11 +444,6 @@ export function createPhoneOrchestratedSessionController(
       requestReducedTargetLayout(run, targetY)
     ),
     reportProgress: (progress) => { emit(run, 'PROGRESS_REPORTED', { progress }); },
-    reportAodAutoplayBlocked: () => emit(run, 'AOD_AUTOPLAY_BLOCKED'),
-    requestAodGestureRetry: () => emit(run, 'AOD_GESTURE_RETRY_REQUESTED'),
-    reportAodWatchdog: (stage) => {
-      emit(run, 'AOD_WATCHDOG_EXPIRED', { aodWatchdog: stage });
-    },
     animate: (start, end, durationMs, render, complete) => {
       if (!owns(run)) return;
       cancelAnimation?.();

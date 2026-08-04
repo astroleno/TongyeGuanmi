@@ -66,8 +66,12 @@ export type PhoneFailureReason =
   | 'dependency-timeout'
   | 'capability-failed'
   | 'media-failed'
+  | 'aod-autoplay-blocked'
   | 'aod-prepare-timeout'
   | 'aod-progress-timeout'
+  | 'aod-webgl-unavailable'
+  | 'aod-frame-upload-failed'
+  | 'aod-frame-draw-failed'
   | 'aod-context-lost'
   | 'reduced-proof-timeout'
   | 'projector-failed'
@@ -149,19 +153,11 @@ export type PresentationReadiness = Readonly<{
 /** Durable AOD state: the runtime runner only performs effects for this state. */
 export type PhoneAodRunnerStage =
   | 'admission'
-  | 'blocked'
   | 'playback'
   | 'settling';
 
-export type PhoneAodWatchdogStage = Extract<
-  PhoneAodRunnerStage,
-  'admission' | 'playback'
->;
-
 export type PhoneAodLifecycle = Readonly<{
   stage: PhoneAodRunnerStage;
-  retry: number;
-  watchdog: PhoneAodWatchdogStage | null;
 }>;
 
 export type PhoneSnapshotSession = Readonly<{
@@ -381,9 +377,6 @@ type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
     | 'PRESENTATION_PROOF_REPORTED'
     | 'PROGRESS_REPORTED'
     | 'LEG_COMPLETED'
-    | 'AOD_AUTOPLAY_BLOCKED'
-    | 'AOD_GESTURE_RETRY_REQUESTED'
-    | 'AOD_WATCHDOG_EXPIRED'
     /** Direct candidates must align their real target before leaf proof. */
     | 'TARGET_LAYOUT_REQUESTED'
     | 'TARGET_PRESENTED'
@@ -412,8 +405,6 @@ type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
   proof?: PresentationProof;
   /** Candidate-only connected/visible/covered fact for this exact token. */
   readiness?: PresentationReadiness;
-  /** The durable AOD watchdog stage whose exact revision expired. */
-  aodWatchdog?: PhoneAodWatchdogStage;
 }>;
 
 export type PhoneStoryEvent =
@@ -1106,9 +1097,7 @@ function nextRollback(
     firstFrameProof: null,
     proof: null,
     readiness: null,
-    aod: session.aod
-      ? { ...session.aod, stage: 'settling', watchdog: null }
-      : null
+    aod: session.aod ? { ...session.aod, stage: 'settling' } : null
   });
 }
 
@@ -1141,9 +1130,7 @@ function isTerminalLeg(operation: PhoneStoryOperation): boolean {
 }
 
 function aodLifecycleFor(run: PhoneRunId | null): PhoneAodLifecycle | null {
-  return run === 'aod-method'
-    ? { stage: 'admission', retry: 0, watchdog: 'admission' }
-    : null;
+  return run === 'aod-method' ? { stage: 'admission' } : null;
 }
 
 type PhoneAlignmentPhases = readonly [
@@ -1675,48 +1662,11 @@ export function reducePhoneStorySnapshot(
           aod: nextSession.aod
             ? {
                 ...nextSession.aod,
-                stage: 'playback',
-                watchdog: 'playback'
+                stage: 'playback'
               }
             : null
         }))
         : reduced(nextTransaction(snapshot, nextSession));
-    }
-    case 'AOD_AUTOPLAY_BLOCKED':
-      return !session.aod || session.aod.stage !== 'admission'
-        ? reduced(snapshot)
-        : reduced(nextTransaction(snapshot, {
-          ...session,
-          aod: { ...session.aod, stage: 'blocked' }
-        }));
-    case 'AOD_GESTURE_RETRY_REQUESTED':
-      return !session.aod || session.aod.stage !== 'blocked'
-        ? reduced(snapshot)
-        : reduced(nextTransaction(snapshot, {
-          ...session,
-          aod: {
-            ...session.aod,
-            stage: 'admission',
-            retry: session.aod.retry + 1
-          }
-        }));
-    case 'AOD_WATCHDOG_EXPIRED': {
-      const watchdog = event.aodWatchdog;
-      return !session.aod
-        || watchdog === undefined
-        || session.aod.watchdog !== watchdog
-        || (watchdog === 'admission' && !(
-          session.aod.stage === 'admission' || session.aod.stage === 'blocked'
-        ))
-        || (watchdog === 'playback' && session.aod.stage !== 'playback')
-        ? reduced(snapshot)
-        : reduced(nextRollback(
-          snapshot,
-          session,
-          watchdog === 'admission'
-            ? 'aod-prepare-timeout'
-            : 'aod-progress-timeout'
-        ));
     }
     case 'PROGRESS_REPORTED': {
       if (
@@ -1745,9 +1695,7 @@ export function reducePhoneStorySnapshot(
           firstFrameProof: null,
           proof: null,
           readiness: null,
-          aod: session.aod
-            ? { ...session.aod, stage: 'settling', watchdog: null }
-            : null
+          aod: session.aod ? { ...session.aod, stage: 'settling' } : null
         }));
       }
       const run = runForOperation(operation);

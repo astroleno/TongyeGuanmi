@@ -23,6 +23,7 @@ import {
   type PhoneSurfaceId
 } from './manifest';
 import type {
+  PhoneFailureReason,
   PhoneStoryCursor,
   PhoneTransactionPhase,
   PresentationProof,
@@ -1002,7 +1003,9 @@ export type PhoneRenderedPresentationFrame = Readonly<{
 export type PhonePresentationAdapter = Readonly<{
   present(
     token: PresentationToken,
-    report: (frame: PhoneRenderedPresentationFrame) => void
+    report: (frame: PhoneRenderedPresentationFrame) => void,
+    /** A leaf may report only a typed physical failure for this exact bind. */
+    fail: (reason: PhoneFailureReason) => void
   ): void;
   dispose?(token: PresentationToken): void;
 }>;
@@ -1010,6 +1013,7 @@ export type PhonePresentationAdapter = Readonly<{
 type PhoneActivePresentationAdapter = Readonly<{
   token: PresentationToken;
   report: (proof: PresentationProof) => void;
+  fail?: (reason: PhoneFailureReason) => void;
   dispose(): void;
   /** Static/reading bindings retry on the next projected browser paint. */
   requestFrame?(): void;
@@ -1120,7 +1124,8 @@ export type PhoneStoryPresentation = Readonly<{
   activatePresentationAdapter(
     scene: SceneId,
     token: PresentationToken,
-    report: (proof: PresentationProof) => void
+    report: (proof: PresentationProof) => void,
+    fail?: (reason: PhoneFailureReason) => void
   ): void;
   /** Turns an actual renderer/effect draw into a validated immutable proof. */
   proofForRenderedFrame(
@@ -1916,7 +1921,7 @@ export function createPhoneStoryPresentation({
       return registration.presentation?.('committed')
         ?? readPhoneScenePresentation(scene, surfaceRoot, coverageRoot, 'committed');
     },
-    activatePresentationAdapter(scene, presentationToken, report) {
+    activatePresentationAdapter(scene, presentationToken, report, fail) {
       const contract = phoneScenePresentationTuple(scene);
       const admission = phoneDirectEntryAdmissionTuple(scene);
       const receiver = contract[4];
@@ -1963,11 +1968,17 @@ export function createPhoneStoryPresentation({
             if (!proof) return;
             proofAccepted = true;
             binding.report(proof);
+          }, (reason) => {
+            framePending = false;
+            const current = activeAdapters.get(receiver);
+            if (current !== binding || proofAccepted) return;
+            binding.fail?.(reason);
           });
         };
         binding = {
           token: presentationToken,
           report,
+          ...(fail ? { fail } : {}),
           dispose: () => adapter.dispose?.(presentationToken),
           requestFrame
         };
