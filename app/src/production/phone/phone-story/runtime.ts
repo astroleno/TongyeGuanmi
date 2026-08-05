@@ -415,8 +415,7 @@ function frontStageTarget(
 
 function frontStageEndpoints(
   config: PhoneRuntimeFrontStageConfig,
-  run: Exclude<PhoneFrontStageRunId, 'pattern-collapse'>,
-  direction: PhoneTransitionDirection
+  run: Exclude<PhoneFrontStageRunId, 'pattern-collapse'>
 ): readonly [HTMLElement, HTMLElement, PhoneTransitionAdapterHandle] | null {
   const transition = run === 'hero-pattern'
     ? config.heroPattern()
@@ -563,7 +562,7 @@ export function registerPhoneRuntimeFrontStageCapability(
     direction: PhoneTransitionDirection,
     session: PhoneOrchestratedRunSession
   ): boolean => {
-    const endpoints = frontStageEndpoints(config, run, direction);
+    const endpoints = frontStageEndpoints(config, run);
     const token = session.presentationFrameToken('effect-frame', 'front:ink');
     if (!endpoints || !token) return false;
     const [from, to, transition] = endpoints;
@@ -720,7 +719,7 @@ export function registerPhoneRuntimeFrontStageCapability(
       position: (direction) => config.position(run, direction),
       canStart: () => {
         if (run === 'pattern-collapse') return config.pattern() !== null;
-        return frontStageEndpoints(config, run, 1) !== null;
+        return frontStageEndpoints(config, run) !== null;
       },
       start: (direction, session) => start(
         run,
