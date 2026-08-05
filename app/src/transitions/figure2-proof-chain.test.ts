@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { figure2AnimationScene, FIGURE2_INTRO_PLAYBACK_MS } from '../scenes/figure2-animation';
+import {
+  figure2AnimationScene,
+  FIGURE2_INTRO_PLAYBACK_MS,
+  figure2DepthTransformForProgress
+} from '../scenes/figure2-animation';
 import { storyManifest } from '../story/manifest';
 import type { SegmentId, SpineSegmentNode, TransitionModule } from '../story/types';
 import {
   createFigure2DistanceExpandTransition,
   FIGURE2_INTRO_END,
   figure2IntroProgress,
+  figure2ProofDepthTransformForProgress,
   figure2ProofRevealProgress,
   figure2VideoModeForProofTransition
 } from './figure2-distance-expand';
@@ -79,6 +84,18 @@ describe('Figure2 proof chain transitions', () => {
     expect(figure2VideoModeForProofTransition(0, 1)).toBe('seek');
     expect(figure2VideoModeForProofTransition(0, -1)).toBe('seek');
     expect(figure2VideoModeForProofTransition(0.02, -1)).toBe('seek');
+  });
+
+  it('anchors the proof depth clock to the exact Figure2 terminal transform', () => {
+    const fixture = createBackHalfDomContext('figure2-proof-brand', 'figure2-proof', 'brand');
+    const root = fixture.context.from.element;
+    const terminal = figure2DepthTransformForProgress(root, 1);
+
+    expect(figure2ProofDepthTransformForProgress(root, 0)).toEqual(terminal);
+    expect(figure2ProofDepthTransformForProgress(root, 0.5)).toEqual(terminal);
+    expect(figure2ProofDepthTransformForProgress(root, 1)).toEqual(terminal);
+    expect(figure2ProofRevealProgress(FIGURE2_INTRO_END)).toBe(0);
+    expect(figure2ProofRevealProgress(1)).toBe(1);
   });
 
   it('keeps the Figure2 transition media and timeline contracts equal to the manifest', () => {

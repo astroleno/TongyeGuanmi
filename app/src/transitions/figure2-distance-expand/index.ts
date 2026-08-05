@@ -284,6 +284,22 @@ export function figure2ProofTransitionProgress(progress: number): number {
   return range01(progress, FIGURE2_INTRO_END, 1);
 }
 
+/**
+ * The Figure2 source camera has already reached its authored terminal at the
+ * proof boundary. The second leg's z-depth is the atlas/frontier clock, not a
+ * second camera authority: keep the transform in that terminal coordinate
+ * system for every proof sample so the first mask frame is pixel-continuous
+ * with the source media. `progress` remains part of this contract to make the
+ * proof leg's independent depth clock explicit at the call site.
+ */
+export function figure2ProofDepthTransformForProgress(
+  root: HTMLElement | null,
+  progress: number
+): InkDepthTransform {
+  void progress;
+  return figure2DepthTransformForProgress(root, 1);
+}
+
 export function figure2VideoModeForProofTransition(
   transitionProgress: number,
   direction: Direction = 1
@@ -502,7 +518,10 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
 
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof');
-    const stagedDepthTransform = figure2DepthTransformForProgress(fromRoot, clamped);
+    const stagedDepthTransform = figure2ProofDepthTransformForProgress(
+      fromRoot,
+      transition
+    );
     if (this.ownsMedia && this.mediaRun) {
       // The source media remains under this execution lease for every
       // physical frame. It is intentionally sampled at its authored terminal
