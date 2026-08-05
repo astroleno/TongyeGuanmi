@@ -10,7 +10,7 @@ import { createPortal } from 'react-dom';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import type {
-  PhoneSceneAdapterHandle,
+  PhoneCinematicSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
 import type { PhoneExecutionToken } from '../../../production/phone/phone-story/runtime';
@@ -108,7 +108,7 @@ export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
  * The canonical PH video remains the only media element and native currentTime
  * drives every forward presentation sample after the scroll snap begins.
  */
-export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProps>(
+export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAdapterProps>(
   function PhonePh({
     active,
     onReady,
@@ -381,19 +381,9 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
       effectRoot: () => layerStackRef.current,
-      update(progress) {
-        stopRun();
-        renderPresentation(progress);
-      },
       play(direction: 1 | -1, request?: PhoneExecutionToken) {
         rootRef.current?.removeAttribute('aria-hidden');
         startRun(direction, request ?? null);
-      },
-      leave() {
-        stopRun();
-        presentationBindingRef.current = null;
-        parkPhonePhMedia(rootRef.current);
-        packedSurfaceRef.current?.(['release']);
       },
       presentPresentation(token, report) {
         const key = phoneRuntimePresentationTokenKey(token);
@@ -424,9 +414,7 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
     }), [
       ensurePackedSurface,
       prepareTargetPresentation,
-      renderPresentation,
       startRun,
-      stopRun,
       disposeRun
     ]);
 

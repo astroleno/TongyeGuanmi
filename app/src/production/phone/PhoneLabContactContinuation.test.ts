@@ -15,6 +15,14 @@ const runtimeSource = readFileSync(
   new URL('./phone-story/runtime.ts', import.meta.url),
   'utf8'
 );
+const phSource = readFileSync(
+  new URL('../../scenes/ph-animation/phone/PhonePh.tsx', import.meta.url),
+  'utf8'
+);
+const craneSource = readFileSync(
+  new URL('../../scenes/crane-animation/phone/PhoneCrane.tsx', import.meta.url),
+  'utf8'
+);
 
 describe('PhoneLabContactContinuation recovery contract', () => {
   it('waits for the canonical dependency closure of each composite run', () => {
@@ -118,6 +126,14 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).toMatch(
       /if \(storySnapshot\.status === 'transaction'\) return;[\s\S]*?educationRef\.current\?\.update\(1\)/
     );
+  });
+
+  it('keeps PH and Crane lifecycle decisions inside runner-issued play commands', () => {
+    for (const leaf of [phSource, craneSource]) {
+      const handle = leaf.slice(leaf.indexOf('useImperativeHandle'));
+      expect(handle).not.toMatch(/\b(update|enter|reverse|leave)\s*\(/);
+      expect(handle).toContain('play(direction: 1 | -1');
+    }
   });
 
   it('requires target presentation and releases failures back to the source', () => {

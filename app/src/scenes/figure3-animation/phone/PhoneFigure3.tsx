@@ -13,7 +13,9 @@ import {
   type PhoneTimelineVideoInput
 } from '../../../production/phone/phone-timeline-runtime';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import type { PhoneSceneAdapterHandle } from '../../../production/phone/types';
+import type {
+  PhoneCinematicSceneAdapterHandle
+} from '../../../production/phone/types';
 import {
   phoneRuntimePresentationTokenKey,
   type PhoneExecutionToken,
@@ -416,7 +418,7 @@ function figure3TimelineMediaInput(
  * been physically presented and painted into the one visible canvas.
  */
 export const PhoneFigure3 = forwardRef<
-  PhoneSceneAdapterHandle,
+  PhoneCinematicSceneAdapterHandle,
   PhoneFigure3Props
 >(function PhoneFigure3(
   {
@@ -1083,28 +1085,6 @@ export const PhoneFigure3 = forwardRef<
     startRun
   ]);
 
-  const requestPlaybackReconciliation = useCallback((
-    runDirection: 1 | -1
-  ) => {
-    activeRef.current = true;
-    directionRef.current = runDirection;
-    playbackIntentDirectionRef.current = runDirection;
-    if (reconcileFrameRef.current) {
-      window.cancelAnimationFrame(reconcileFrameRef.current);
-      reconcileFrameRef.current = 0;
-    }
-    const epoch = reconcileEpochRef.current;
-    reconcileFrameRef.current = window.requestAnimationFrame(() => {
-      reconcileFrameRef.current = 0;
-      if (
-        epoch !== reconcileEpochRef.current
-        || !activeRef.current
-        || playbackIntentDirectionRef.current !== runDirection
-      ) return;
-      reconcileMedia();
-    });
-  }, [reconcileMedia]);
-
   useEffect(() => {
     if (!mediaMounted) return;
     const root = rootRef.current;
@@ -1294,15 +1274,6 @@ export const PhoneFigure3 = forwardRef<
 
   useEffect(() => () => releaseMedia(), [releaseMedia]);
 
-  const update = useCallback((rawProgress: number) => {
-    if (import.meta.env.DEV) {
-      rootRef.current?.setAttribute(
-        'data-phone-figure3-scroll-progress',
-        clamp(rawProgress).toFixed(4)
-      );
-    }
-  }, []);
-
   const prepareTargetPresentation = useCallback((
     request: TargetPresentationRequest
   ): Promise<void> => {
@@ -1402,25 +1373,6 @@ export const PhoneFigure3 = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     effectRoot: () => canvasRef.current,
-    update,
-    enter() {
-      requestPlaybackReconciliation(1);
-    },
-    leave() {
-      activeRef.current = false;
-      pendingRunDirectionRef.current = null;
-      pendingRunTargetKeyRef.current = null;
-      playbackIntentDirectionRef.current = null;
-      reconcileEpochRef.current += 1;
-      if (reconcileFrameRef.current) {
-        window.cancelAnimationFrame(reconcileFrameRef.current);
-        reconcileFrameRef.current = 0;
-      }
-      reconcileMedia();
-    },
-    reverse() {
-      requestPlaybackReconciliation(-1);
-    },
     presentPresentation(token, report) {
       presentationBindingRef.current = {
         token,
@@ -1462,11 +1414,8 @@ export const PhoneFigure3 = forwardRef<
   }), [
     prepareTargetPresentation,
     mountMedia,
-    reconcileMedia,
-    requestPlaybackReconciliation,
     releaseMedia,
     renderFrame,
-    update
   ]);
 
   const mediaState = mediaFailed

@@ -15,7 +15,9 @@ import {
   type PhoneTimelineVideoInput
 } from '../../../production/phone/phone-timeline-runtime';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
-import type { PhoneSceneAdapterHandle } from '../../../production/phone/types';
+import type {
+  PhoneCinematicSceneAdapterHandle
+} from '../../../production/phone/types';
 import {
   phoneRuntimePresentationTokenKey,
   type PhoneExecutionToken,
@@ -513,7 +515,7 @@ function waitForPhoneTtgCurrentData(
  * dissolve instead of hiding that handoff inside media playback.
  */
 export const PhoneTtg = forwardRef<
-  PhoneSceneAdapterHandle,
+  PhoneCinematicSceneAdapterHandle,
   PhoneTtgProps
 >(function PhoneTtg(
   {
@@ -1275,15 +1277,6 @@ export const PhoneTtg = forwardRef<
 
   useEffect(() => () => releaseMedia(), [releaseMedia]);
 
-  const update = useCallback((rawProgress: number) => {
-    if (import.meta.env.DEV) {
-      rootRef.current?.setAttribute(
-        'data-phone-ttg-scroll-progress',
-        stableProgress(rawProgress).toFixed(4)
-      );
-    }
-  }, []);
-
   const prepareTargetPresentation = useCallback((
     request: TargetPresentationRequest
   ): Promise<void> => {
@@ -1405,12 +1398,6 @@ export const PhoneTtg = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     effectRoot: () => videoRef.current,
-    update,
-    leave() {
-      activeRef.current = false;
-      forwardRequestedRef.current = false;
-      reconcileMedia();
-    },
     presentPresentation(token, report) {
       clearPresentationFrameCallback();
       const key = phoneRuntimePresentationTokenKey(token);
@@ -1482,12 +1469,8 @@ export const PhoneTtg = forwardRef<
     prepareTargetPresentation,
     clearPresentationFrameCallback,
     armPreparedPresentationPostPaint,
-    reconcileMedia,
     releaseMedia,
-    renderFrame,
-    startRun,
-    reportPresentationFrame,
-    update
+    reportPresentationFrame
   ]);
 
   const mediaState = mediaFailed

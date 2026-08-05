@@ -10,7 +10,7 @@ import { createPortal } from 'react-dom';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import type {
-  PhoneSceneAdapterHandle,
+  PhoneCinematicSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
 import type { PhoneExecutionToken } from '../../../production/phone/phone-story/runtime';
@@ -133,7 +133,7 @@ export function applyPhoneCraneMediaFallback(
 
 /** Crane reuses AOD's native-clock/snap policy with two staggered owners. */
 export const PhoneCrane = forwardRef<
-  PhoneSceneAdapterHandle,
+  PhoneCinematicSceneAdapterHandle,
   PhoneSceneAdapterProps
 >(function PhoneCrane({
   onReady,
@@ -473,22 +473,9 @@ export const PhoneCrane = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     effectRoot: () => layerStackRef.current,
-    update(progress) {
-      stopRun();
-      renderPresentation(
-        progress >= 0.999 ? PHONE_CRANE_STABLE_HOLD_PROGRESS : progress
-      );
-    },
     play(direction: 1 | -1, request?: PhoneExecutionToken) {
       rootRef.current?.removeAttribute('aria-hidden');
       startRun(direction, request ?? null);
-    },
-    leave() {
-      stopRun();
-      cinematicPresentedFrameRef.current = null;
-      presentationBindingRef.current = null;
-      parkPhoneCraneMedia(rootRef.current);
-      for (const surface of packedSurfacesRef.current ?? []) surface(['release']);
     },
     presentPresentation(token, report) {
       const key = phoneRuntimePresentationTokenKey(token);
@@ -522,9 +509,7 @@ export const PhoneCrane = forwardRef<
   }), [
     ensurePackedSurfaces,
     prepareTargetPresentation,
-    renderPresentation,
     startRun,
-    stopRun,
     disposeRun
   ]);
 

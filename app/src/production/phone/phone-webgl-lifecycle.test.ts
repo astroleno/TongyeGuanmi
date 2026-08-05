@@ -62,24 +62,10 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(crane).not.toContain(
       "ensurePackedSurfaces(reducedMotion ? 'endpoint' : 'forward');"
     );
-    expect(ph).toMatch(
-      /leave\(\) \{[\s\S]*?packedSurfaceRef\.current\?\.\(\['release'\]\);/
-    );
-    expect(crane).toMatch(
-      /leave\(\) \{[\s\S]*?surface\(\['release'\]\);/
-    );
-    expect(
-      ph.slice(
-        ph.indexOf('update(progress)'),
-        ph.indexOf('play(direction: 1 | -1', ph.indexOf('update(progress)'))
-      )
-    ).not.toContain('ensurePackedSurface');
-    expect(
-      crane.slice(
-        crane.indexOf('update(progress)'),
-        crane.indexOf('play(direction: 1 | -1', crane.indexOf('update(progress)'))
-      )
-    ).not.toContain('ensurePackedSurfaces');
+    expect(ph).not.toMatch(/\n\s*update\(/);
+    expect(ph).not.toMatch(/\n\s*leave\(/);
+    expect(crane).not.toMatch(/\n\s*update\(/);
+    expect(crane).not.toMatch(/\n\s*leave\(/);
   });
 
   it('retires Hero and AOD packed contexts when their stable owner leaves', () => {

@@ -101,6 +101,10 @@ const ttgStyles = readFileSync(
   new URL('../../scenes/ttg-animation/phone/PhoneTtg.css', import.meta.url),
   'utf8'
 );
+const ttgScene = readFileSync(
+  new URL('../../scenes/ttg-animation/phone/PhoneTtg.tsx', import.meta.url),
+  'utf8'
+);
 const ttgLabTransition = readFileSync(
   new URL('../../transitions/ttg-lab/phone.ts', import.meta.url),
   'utf8'
@@ -306,6 +310,13 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(compositeRunnerSource).toContain(
       "The reducer's rollback projection clears the visual execution"
     );
+  });
+
+  it('[execution hard cutover] cinematic leaves expose no lifecycle writers', () => {
+    for (const source of [figure3Scene, ttgScene]) {
+      const handle = source.slice(source.indexOf('useImperativeHandle'));
+      expect(handle).not.toMatch(/\b(update|enter|reverse|leave)\s*\(/);
+    }
   });
 
   it('keeps one opaque edge owner behind every fixed-stage boundary', () => {
