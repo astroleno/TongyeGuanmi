@@ -93,6 +93,7 @@ describe('phone ink runtime bridge', () => {
   it('arms and proves the physical `from` receiver on reverse executions', () => {
     const host = new FakeElement();
     const source = new FakeElement();
+    const additionalSource = new FakeElement();
     const receiver = new FakeElement();
     const canvas = new FakeCanvas() as FakeCanvas & { clientWidth: number };
     canvas.clientWidth = 390;
@@ -102,7 +103,7 @@ describe('phone ink runtime bridge', () => {
       canvas as unknown as HTMLCanvasElement,
       'phone-method-bottom-figure2',
       source as unknown as HTMLElement,
-      null,
+      additionalSource as unknown as HTMLElement,
       receiver as unknown as HTMLElement,
       ['horizontal', 'method-bottom-figure2', 'top-to-bottom', null, null],
       'dark'
@@ -110,12 +111,16 @@ describe('phone ink runtime bridge', () => {
 
     bridge(['armEndpoint', -1]);
     expect(source.dataset.phoneInkAdmission).toBe('pending');
+    expect(additionalSource.dataset.phoneInkAdmission).toBe('pending');
     expect(receiver.dataset.phoneInkAdmission).toBeUndefined();
     expect(bridge(['render', .003])).toBe(true);
     expect(source.dataset.phoneInkFrame).toBe('ready');
+    expect(additionalSource.dataset.phoneInkFrame).toBe('ready');
     expect(receiver.dataset.phoneInkFrame).toBeUndefined();
     bridge(['releaseEndpoint']);
     expect(source.dataset.phoneInkAdmission).toBeUndefined();
     expect(source.dataset.phoneInkFrame).toBeUndefined();
+    expect(additionalSource.dataset.phoneInkAdmission).toBeUndefined();
+    expect(additionalSource.dataset.phoneInkFrame).toBeUndefined();
   });
 });

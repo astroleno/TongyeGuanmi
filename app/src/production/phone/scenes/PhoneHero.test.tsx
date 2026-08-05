@@ -116,4 +116,13 @@ describe('PhoneHero Route B adapter', () => {
     );
     expect(heroStyles).toContain('visibility: hidden;');
   });
+
+  it('restores the completed Hero endpoint after a reverse return', () => {
+    expect(heroSource).toContain('const heroEntranceCompletedRef = useRef(false);');
+    expect(heroSource).toContain('heroEntranceCompletedRef.current = true;');
+    expect(heroSource).toContain(
+      "rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');"
+    );
+    expect(heroSource).toContain('heroEntranceCompletedRef.current = false;');
+  });
 });

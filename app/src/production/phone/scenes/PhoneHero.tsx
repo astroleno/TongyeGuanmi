@@ -139,6 +139,11 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     const sceneActiveRef = useRef(false);
     const adapterReadyRef = useRef(false);
     const heroPackedFramePresentedRef = useRef(false);
+    // The entrance is a one-shot cold-start handoff, but Hero can be reached
+    // again by a reverse route. Keep that semantic fact after the GPU owners
+    // are disposed so the stable endpoint can be restored without replaying
+    // the entrance or exposing a rectangular fallback.
+    const heroEntranceCompletedRef = useRef(false);
     const packedAlphaPostPaintScheduledRef = useRef(false);
     const presentationBindingRef = useRef<Readonly<{
       token: PresentationToken;
@@ -304,6 +309,9 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       const owner = storyRoot();
       renderHeroProgress(root, sample.progress);
       ensureIntroInk()?.(['render', sample.progress]);
+      if (sample.complete) {
+        heroEntranceCompletedRef.current = true;
+      }
       if (owner) {
         owner.dataset.portraitHeroEntrance = sample.complete ? 'complete' : 'playing';
         if (sample.complete) {
@@ -333,6 +341,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     }, [motionDriver, storyRoot]);
     const completeEntrance = useCallback(() => {
       cancelEntrance();
+      heroEntranceCompletedRef.current = true;
       renderEntrance(1);
     }, [cancelEntrance, renderEntrance]);
     const startEntrance = useCallback(() => {
@@ -358,6 +367,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         onTitleActive: () => setTitleActive(true),
         onComplete: () => {
           disposeEntranceRef.current = undefined;
+          heroEntranceCompletedRef.current = true;
           owner.dataset.portraitHeroEntrance = 'complete';
         }
       });
@@ -436,6 +446,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       return () => {
         cancelled = true;
         adapterReadyRef.current = false;
+        heroEntranceCompletedRef.current = false;
         heroPackedFramePresentedRef.current = false;
         packedAlphaPostPaintScheduledRef.current = false;
         presentationBindingRef.current = null;
@@ -483,6 +494,9 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
       update(rawProgress) {
+        if (active && heroEntranceCompletedRef.current) {
+          rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');
+        }
         const progress = clamp(rawProgress);
         if (Math.abs(progress - lastProgressRef.current) < 0.003) return;
         lastProgressRef.current = progress;

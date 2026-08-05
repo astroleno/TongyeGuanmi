@@ -105,10 +105,12 @@ export function createPhoneInkTransition(
     const sources = nextDirection === 1
       ? sourceEndpoints
       : [options.to].filter((element): element is HTMLElement => Boolean(element));
-    const receiver = nextDirection === 1 ? options.to : options.from;
+    const receivers = nextDirection === 1
+      ? [options.to]
+      : [options.from, options.additionalFrom];
     return [
       ...sources,
-      ...(receiver ? [receiver] : [])
+      ...receivers.filter((element): element is HTMLElement => Boolean(element))
     ];
   };
 

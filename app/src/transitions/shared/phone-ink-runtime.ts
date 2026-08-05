@@ -137,17 +137,22 @@ export function createPhoneInkRuntimeBridge([
     )
   );
   let direction: 1 | -1 = 1;
-  let receiver: HTMLElement | null = to;
+  let receiverEndpoints = unique([to]);
   let sourceEndpoints = unique([from, additionalFrom]);
   const selectEndpoints = (nextDirection: 1 | -1) => {
     direction = nextDirection;
-    receiver = direction === 1 ? to : from;
+    // A reverse Figure2 → Method execution reveals both the paper receiver
+    // and the retained body/copy receiver. Keep them in one endpoint set so
+    // admission, clipping, and the first-frame proof cannot diverge.
+    receiverEndpoints = unique(
+      direction === 1 ? [to] : [from, additionalFrom]
+    );
     sourceEndpoints = unique(
       direction === 1 ? [from, additionalFrom] : [to]
     );
   };
   const clearEndpointMarkers = () => {
-    for (const endpoint of unique([from, to])) {
+    for (const endpoint of unique([from, additionalFrom, to])) {
       delete endpoint.dataset.phoneInkAdmission;
       delete endpoint.dataset.phoneInkFrame;
     }
@@ -155,7 +160,7 @@ export function createPhoneInkRuntimeBridge([
   const armEndpoint = (nextDirection: 1 | -1 = direction) => {
     selectEndpoints(nextDirection);
     clearEndpointMarkers();
-    if (receiver) {
+    for (const receiver of receiverEndpoints) {
       receiver.dataset.phoneInkAdmission = 'pending';
       delete receiver.dataset.phoneInkFrame;
     }
@@ -195,7 +200,7 @@ export function createPhoneInkRuntimeBridge([
         applyConcealBoundary(source, frame);
       }
     }
-    if (receiver) {
+    for (const receiver of receiverEndpoints) {
       applyRevealBoundary(receiver, frame);
     }
     if (rendererNeedsFrame) {
@@ -203,12 +208,18 @@ export function createPhoneInkRuntimeBridge([
     }
     if (rendered) {
       surface.dataset.phonePresentationEffectFrame = 'ready';
-      if (receiver) receiver.dataset.phoneInkFrame = 'ready';
+      for (const receiver of receiverEndpoints) {
+        receiver.dataset.phoneInkFrame = 'ready';
+      }
     } else if (!fieldActive) {
       delete surface.dataset.phonePresentationEffectFrame;
-      if (receiver) delete receiver.dataset.phoneInkFrame;
-    } else if (receiver) {
-      delete receiver.dataset.phoneInkFrame;
+      for (const receiver of receiverEndpoints) {
+        delete receiver.dataset.phoneInkFrame;
+      }
+    } else {
+      for (const receiver of receiverEndpoints) {
+        delete receiver.dataset.phoneInkFrame;
+      }
     }
     return rendered;
   };
