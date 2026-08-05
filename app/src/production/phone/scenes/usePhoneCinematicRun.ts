@@ -29,7 +29,6 @@ export type PhoneCinematicRunRequest = readonly [
   reverseRef: RefObject<PhoneCinematicPlayer | null>,
   reducedMotion: boolean,
   terminalProgress: number,
-  reverseTimeoutMs: number,
   reverseReady: () => boolean,
   activateSurface: (mode: 'forward' | 'endpoint') => void,
   render: (progress: number, direction?: PhoneCinematicDirection) => void,
@@ -42,7 +41,7 @@ export type PhoneCinematicRunRequest = readonly [
 
 export type PhoneCinematicRun = readonly [
   requestedRef: { current: PhoneCinematicDirection | null },
-  beginPreparedReverse: (force?: boolean) => void,
+  beginPreparedReverse: () => void,
   completeRun: (direction: PhoneCinematicDirection) => void,
   failRun: (direction: PhoneCinematicDirection) => void,
   publishPlaying: () => void,
@@ -69,7 +68,6 @@ export function usePhoneCinematicRun(
     reverseRef,
     reducedMotion,
     terminalProgress,
-    reverseTimeoutMs,
     reverseReady,
     activateSurface,
     render,
@@ -86,7 +84,6 @@ export function usePhoneCinematicRun(
     reverseRef,
     reducedMotion,
     terminalProgress,
-    reverseTimeoutMs,
     reverseReady,
     activateSurface,
     render,
@@ -100,12 +97,6 @@ export function usePhoneCinematicRun(
   const presentedFrameReportedRef = useRef(false);
   const frameSequenceRef = useRef(0);
   const reverseStartedRef = useRef(false);
-  const timerRef = useRef(0);
-  const clearTimer = useCallback(() => {
-    if (!timerRef.current) return;
-    window.clearTimeout(timerRef.current);
-    timerRef.current = 0;
-  }, []);
   const publish = useCallback((
     phase: 'playing' | 'presented' | 'progress' | 'complete' | 'failed',
     direction: PhoneCinematicDirection,
@@ -140,33 +131,29 @@ export function usePhoneCinematicRun(
     publish('progress', direction, progress);
   }, [options.render, publish]);
   const completeRun = useCallback((direction: PhoneCinematicDirection) => {
-    clearTimer();
     reverseStartedRef.current = false;
     requestedRef.current = null;
     publish('complete', direction);
     activeIdentityRef.current = null;
-  }, [clearTimer, publish]);
+  }, [publish]);
   const failRun = useCallback((direction: PhoneCinematicDirection) => {
-    clearTimer();
     reverseStartedRef.current = false;
     requestedRef.current = direction;
     publish('failed', direction);
     activeIdentityRef.current = null;
-  }, [clearTimer, publish]);
-  const beginPreparedReverse = useCallback((force = false) => {
+  }, [publish]);
+  const beginPreparedReverse = useCallback(() => {
     const root = options.rootRef.current;
     if (
       !root
       || requestedRef.current !== -1
       || reverseStartedRef.current
-      || (!force && !options.reverseReady())
+      || !options.reverseReady()
     ) return;
-    clearTimer();
     reverseStartedRef.current = true;
     options.reverseRef.current?.start();
     publish('playing', -1);
   }, [
-    clearTimer,
     options.reverseReady,
     options.reverseRef,
     options.rootRef,
@@ -177,10 +164,9 @@ export function usePhoneCinematicRun(
     presentedFrameReportedRef.current = false;
     activeIdentityRef.current = null;
     reverseStartedRef.current = false;
-    clearTimer();
     options.forwardRef.current?.stop();
     options.reverseRef.current?.stop();
-  }, [clearTimer, options.forwardRef, options.reverseRef]);
+  }, [options.forwardRef, options.reverseRef]);
   const startRun = useCallback((
     direction: PhoneCinematicDirection,
     identity?: PhoneExecutionToken | null
@@ -201,7 +187,6 @@ export function usePhoneCinematicRun(
       return;
     }
     if (direction === 1) {
-      clearTimer();
       reverseStartedRef.current = false;
       options.reverseRef.current?.stop();
       options.activateSurface('forward');
@@ -214,7 +199,6 @@ export function usePhoneCinematicRun(
       return;
     }
     options.forwardRef.current?.stop();
-    clearTimer();
     reverseStartedRef.current = false;
     options.beforeReverse?.();
     options.activateSurface('endpoint');
@@ -224,15 +208,9 @@ export function usePhoneCinematicRun(
     }
     if (options.reverseReady()) {
       beginPreparedReverse();
-    } else {
-      timerRef.current = window.setTimeout(
-        () => beginPreparedReverse(true),
-        options.reverseTimeoutMs
-      );
     }
   }, [
     beginPreparedReverse,
-    clearTimer,
     completeRun,
     options.activateSurface,
     options.beforeForward,
@@ -243,7 +221,6 @@ export function usePhoneCinematicRun(
     options.render,
     options.reverseReady,
     options.reverseRef,
-    options.reverseTimeoutMs,
     options.rootRef,
     options.terminalProgress,
     publish,

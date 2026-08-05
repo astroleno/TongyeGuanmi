@@ -47,7 +47,6 @@ import {
 } from './PhonePh.reverse';
 import './PhonePh.css';
 
-const PHONE_PH_REVERSE_READY_TIMEOUT_MS = 650;
 const PH_MEDIA_KEY = 'ph-figure-motion';
 const PH_BG_SRC = new URL(
   '../../../../../assets/ph_background.webp',
@@ -248,7 +247,6 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       reversePlaybackRef,
       reducedMotion,
       1,
-      PHONE_PH_REVERSE_READY_TIMEOUT_MS,
       reverseReady,
       ensurePackedSurface,
       renderPresentation,

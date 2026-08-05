@@ -97,7 +97,6 @@ const PHONE_CRANE_FLOCK_PACKED = phoneMediaUrlFor(
 // The previous intermediate seeks visibly froze both motion layers.
 const PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS;
 const PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS;
-const PHONE_CRANE_REVERSE_READY_TIMEOUT_MS = 700;
 
 export {
   PHONE_CRANE_STABLE_HOLD_PROGRESS,
@@ -346,10 +345,9 @@ export const PhoneCrane = forwardRef<
     rootRef,
     forwardRunRef,
     reversePlaybackRef,
-    reducedMotion,
-    PHONE_CRANE_STABLE_HOLD_PROGRESS,
-    PHONE_CRANE_REVERSE_READY_TIMEOUT_MS,
-    reverseReady,
+      reducedMotion,
+      PHONE_CRANE_STABLE_HOLD_PROGRESS,
+      reverseReady,
     ensurePackedSurfaces,
     renderPresentation,
     presentPreparedFrame,
