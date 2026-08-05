@@ -114,6 +114,12 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).not.toContain('publishStableRoles(entryScene)');
   });
 
+  it('never lets the snapshot bridge write native adapters during a transaction', () => {
+    expect(source).toMatch(
+      /if \(storySnapshot\.status === 'transaction'\) return;[\s\S]*?educationRef\.current\?\.update\(1\)/
+    );
+  });
+
   it('requires target presentation and releases failures back to the source', () => {
     expect(compositeRunnerSource).toContain(
       'const prepareTarget = config.visual.prepareTargetPresentation'

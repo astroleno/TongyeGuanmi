@@ -544,6 +544,7 @@ export function PhoneLabContactContinuation({
    * retains durable presentation truth locally.
   */
   useLayoutEffect(() => {
+    if (storySnapshot.status === 'transaction') return;
     educationRef.current?.update(1);
     contactRef.current?.update(1);
   }, [storySnapshot]);

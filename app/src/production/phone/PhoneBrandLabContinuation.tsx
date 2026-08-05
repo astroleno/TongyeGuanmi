@@ -543,9 +543,14 @@ export const PhoneBrandLabContinuation = forwardRef<
   /*
    * Snapshot -> adapter bridge. Geometry is sampled by the route's one
    * document runtime above; this bridge never installs a second scroll,
-   * resize, or orientation listener.
+   * resize, or orientation listener.  During an active transaction the
+   * execution lease is the only presentation writer; native reading adapters
+   * must not be re-projected from a React snapshot between admission and
+   * settle.  Their stable pose is re-established on the next non-transaction
+   * snapshot after the machine commits or rolls back.
   */
   useLayoutEffect(() => {
+    if (storySnapshot.status === 'transaction') return;
     brandRef.current?.update(1);
     servicesRef.current?.update(1);
     labRef.current?.update(1);

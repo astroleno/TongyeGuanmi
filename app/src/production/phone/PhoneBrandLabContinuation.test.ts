@@ -159,6 +159,16 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     expect(source).not.toContain('commit: () =>');
   });
 
+  it('never lets the snapshot bridge write native adapters during a transaction', () => {
+    const bridge = source.slice(source.indexOf('Snapshot -> adapter bridge'));
+    expect(bridge).toContain(
+      "if (storySnapshot.status === 'transaction') return;"
+    );
+    expect(bridge).toMatch(
+      /if \(storySnapshot\.status === 'transaction'\) return;[\s\S]*?brandRef\.current\?\.update\(1\)/
+    );
+  });
+
   it('uses the persistent stage canvas as coverage root for every Group 45 surface', () => {
     expect(source).toMatch(
       /'native:' \+ scene,[\s\S]*?\(\) => rootForScene\(scene\),\s*\(\) => stageHost(?:\s*,|\s*\))/
