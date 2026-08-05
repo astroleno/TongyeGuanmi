@@ -1038,8 +1038,8 @@ describe('phone composite runner snapshot execution', () => {
     expect(runtime.entry.reverse).toHaveBeenCalledOnce();
     clock.flush(1);
     clock.flush(701);
-    expect(runtime.visual.update).toHaveBeenLastCalledWith(0);
-    expect(runtime.visual.leave).toHaveBeenCalledOnce();
+    expect(runtime.visual.update).not.toHaveBeenCalled();
+    expect(runtime.visual.leave).not.toHaveBeenCalled();
     activeSession.flushRelease();
     expect(runtime.capabilities.retained()).toEqual([]);
   });
@@ -1183,7 +1183,7 @@ describe('phone composite runner snapshot execution', () => {
     });
     expect(media.commitEndpoint).toHaveBeenLastCalledWith(0);
     expect(media.releaseEndpoint).toHaveBeenCalledOnce();
-    expect(visual.update).toHaveBeenLastCalledWith(0);
+    expect(visual.update).not.toHaveBeenCalled();
     expect(capabilities.retained()).toEqual([]);
   });
 });

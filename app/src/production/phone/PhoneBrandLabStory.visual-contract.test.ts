@@ -300,6 +300,14 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
   });
 
+  it('[execution hard cutover] composite rollback never invokes visual lifecycle writers', () => {
+    expect(compositeRunnerSource).not.toContain('config.visual.update(');
+    expect(compositeRunnerSource).not.toContain('config.visual.leave?.(');
+    expect(compositeRunnerSource).toContain(
+      "The reducer's rollback projection clears the visual execution"
+    );
+  });
+
   it('keeps one opaque edge owner behind every fixed-stage boundary', () => {
     expect(stageStyles).toMatch(
       /portrait-scroll-spike__viewport-coverage\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-host-plane-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s

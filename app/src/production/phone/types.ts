@@ -74,10 +74,10 @@ export type PhoneSceneAdapterHandle = ScenePresentationAdapterHandle
  * presentation lifecycle contract.
  */
 export type PhoneCinematicSceneAdapterHandle = Omit<
-  ScenePresentationAdapterHandle,
-  'enter' | 'reverse'
+  PhoneSceneAdapterHandle,
+  'update' | 'enter' | 'reverse' | 'leave'
 > & {
-  /** Runner-issued media command; leaves do not expose independent enter/reverse writers. */
+  /** Runner-issued media command; leaves do not expose lifecycle writers. */
   play?(direction: 1 | -1, request?: PhoneCinematicRequest): void;
 };
 

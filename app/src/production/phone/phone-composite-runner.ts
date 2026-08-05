@@ -22,10 +22,13 @@ import type {
   PhoneCapabilityRetention
 } from './phone-transition-readiness';
 import type { PhoneTransitionAdapterHandle } from './types';
-import type { PhoneSceneAdapterHandle } from './types';
+import type {
+  PhoneCinematicSceneAdapterHandle,
+  PhoneSceneAdapterHandle
+} from './types';
 
 export type PhoneCompositeDirectConfig = Readonly<{
-  visual: PhoneSceneAdapterHandle;
+  visual: PhoneCinematicSceneAdapterHandle;
   final: PhoneSceneAdapterHandle;
   media: PhoneTransitionAdapterHandle;
 }>;
@@ -52,7 +55,7 @@ type ExecutionResources<Visual extends string> = {
     report: (frame: PhoneRenderedPresentationFrame) => boolean
   ] | null;
   /** Only reduced admission owns a one-paint static target binding. */
-  staticTarget: PhoneSceneAdapterHandle | null;
+  staticTarget: PhoneSceneAdapterHandle | PhoneCinematicSceneAdapterHandle | null;
 };
 
 type MediaStartContext<
@@ -308,10 +311,9 @@ export function createPhoneCompositeRunner<
       if (!resource.direct) (config as FullConfig).entry.commitEndpoint(endpoint);
       config.media.commitEndpoint(endpoint);
       releaseRoles(resource, 'source');
-      config.visual.update(endpoint);
-      // Visual adapters are transient bridge owners, never durable endpoint
-      // owners. A rollback must release a prepared decoder/compositor too.
-      config.visual.leave?.();
+      // The reducer's rollback projection clears the visual execution on the
+      // next render. The runner must not call a leaf lifecycle writer here:
+      // doing so would create a second terminal owner during this lease.
       releaseGeometry(resource, config);
     } else {
       releaseRoles(resource, 'source');
@@ -453,8 +455,6 @@ export function createPhoneCompositeRunner<
         if (resources !== resource) return;
         config.entry.commitEndpoint(endpoint);
         if (resource.direction === -1) {
-          config.visual.update(0);
-          config.visual.leave?.();
           commitTerminalEndpoint(resource, config);
           return;
         }
@@ -483,7 +483,6 @@ export function createPhoneCompositeRunner<
     const endpoint = resource.direction === 1 ? 1 : 0;
     config.media.commitEndpoint(endpoint);
     if (resource.direct || resource.direction === 1) {
-      config.visual.leave?.();
       commitTerminalEndpoint(resource, config);
       return;
     }
@@ -505,8 +504,8 @@ export function createPhoneCompositeRunner<
   };
   const releaseReducedAdmission = (resource: ExecutionResources<Visual>) => {
     if (resources !== resource) return;
-    const config = configFor(resource);
-    config?.visual.leave?.();
+    // Stable/retry projection retires the candidate execution. Do not ask the
+    // leaf to leave imperatively while the machine still owns this lease.
     releaseRoles(resource);
     releaseResources(resource);
   };
