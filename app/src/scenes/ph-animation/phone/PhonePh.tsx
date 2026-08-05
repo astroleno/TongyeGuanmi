@@ -10,10 +10,10 @@ import { createPortal } from 'react-dom';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import type {
-  PhoneCinematicRequest,
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
+import type { PhoneExecutionToken } from '../../../production/phone/phone-story/runtime';
 import {
   createPhoneNativeAutoplay,
   type PhoneNativeAutoplay
@@ -385,18 +385,15 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
         stopRun();
         renderPresentation(progress);
       },
-      enter(request?: PhoneCinematicRequest) {
+      play(direction: 1 | -1, request?: PhoneExecutionToken) {
         rootRef.current?.removeAttribute('aria-hidden');
-        startRun(1, request ?? null);
+        startRun(direction, request ?? null);
       },
       leave() {
         stopRun();
         presentationBindingRef.current = null;
         parkPhonePhMedia(rootRef.current);
         packedSurfaceRef.current?.(['release']);
-      },
-      reverse(request?: PhoneCinematicRequest) {
-        startRun(-1, request ?? null);
       },
       presentPresentation(token, report) {
         const key = phoneRuntimePresentationTokenKey(token);

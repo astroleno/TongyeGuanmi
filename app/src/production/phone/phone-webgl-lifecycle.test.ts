@@ -71,13 +71,13 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(
       ph.slice(
         ph.indexOf('update(progress)'),
-        ph.indexOf('enter(request?: PhoneCinematicRequest)', ph.indexOf('update(progress)'))
+        ph.indexOf('play(direction: 1 | -1', ph.indexOf('update(progress)'))
       )
     ).not.toContain('ensurePackedSurface');
     expect(
       crane.slice(
         crane.indexOf('update(progress)'),
-        crane.indexOf('enter(request?: PhoneCinematicRequest)', crane.indexOf('update(progress)'))
+        crane.indexOf('play(direction: 1 | -1', crane.indexOf('update(progress)'))
       )
     ).not.toContain('ensurePackedSurfaces');
   });

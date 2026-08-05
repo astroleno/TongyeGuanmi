@@ -10,10 +10,10 @@ import { createPortal } from 'react-dom';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import type {
-  PhoneCinematicRequest,
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
 } from '../../../production/phone/types';
+import type { PhoneExecutionToken } from '../../../production/phone/phone-story/runtime';
 import { phoneMediaUrlFor } from '../../../production/phone/phone-media';
 import {
   phoneRuntimePresentationTokenKey,
@@ -479,9 +479,9 @@ export const PhoneCrane = forwardRef<
         progress >= 0.999 ? PHONE_CRANE_STABLE_HOLD_PROGRESS : progress
       );
     },
-    enter(request?: PhoneCinematicRequest) {
+    play(direction: 1 | -1, request?: PhoneExecutionToken) {
       rootRef.current?.removeAttribute('aria-hidden');
-      startRun(1, request ?? null);
+      startRun(direction, request ?? null);
     },
     leave() {
       stopRun();
@@ -489,9 +489,6 @@ export const PhoneCrane = forwardRef<
       presentationBindingRef.current = null;
       parkPhoneCraneMedia(rootRef.current);
       for (const surface of packedSurfacesRef.current ?? []) surface(['release']);
-    },
-    reverse(request?: PhoneCinematicRequest) {
-      startRun(-1, request ?? null);
     },
     presentPresentation(token, report) {
       const key = phoneRuntimePresentationTokenKey(token);

@@ -77,8 +77,8 @@ export type PhoneCinematicSceneAdapterHandle = Omit<
   ScenePresentationAdapterHandle,
   'enter' | 'reverse'
 > & {
-  enter?(request?: PhoneCinematicRequest): void;
-  reverse?(request?: PhoneCinematicRequest): void;
+  /** Runner-issued media command; leaves do not expose independent enter/reverse writers. */
+  play?(direction: 1 | -1, request?: PhoneCinematicRequest): void;
 };
 
 export type PhoneMotionDriver = Readonly<{

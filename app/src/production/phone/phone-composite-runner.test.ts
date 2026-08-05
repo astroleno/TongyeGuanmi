@@ -92,6 +92,15 @@ function transition(options: Readonly<{
   };
 }
 
+function testStartMedia(context: Readonly<{
+  identity: PhoneExecutionToken;
+  config: Readonly<{ media: PhoneTransitionAdapterHandle }>;
+  prepareReverseMediaFirstFrame: () => void;
+}>): void {
+  if (context.identity[4] === 1) context.config.media.enter?.();
+  else context.prepareReverseMediaFirstFrame();
+}
+
 function session(
   direction: 1 | -1 = 1,
   initialLeg = direction === 1 ? 0 : 1,
@@ -305,7 +314,8 @@ function fullRunner(
     config: () => ({ prior, visual, final, entry, media }),
     directConfig: () => ({ visual, final, media }),
     position: (_scene, direction) => direction === 1 ? 120 : 100,
-    targetLanding: (_scene, _strategy, direction) => direction === 1 ? 260 : 80
+    targetLanding: (_scene, _strategy, direction) => direction === 1 ? 260 : 80,
+    startMedia: testStartMedia
   });
   return {
     prior,
@@ -360,7 +370,8 @@ function group45Runner(reducedMotion = false) {
     position: (_scene, direction) => direction === 1 ? 120 : 100,
     targetLanding: (_scene, _strategy, direction) => (
       direction === 1 ? 260 : 80
-    )
+    ),
+    startMedia: testStartMedia
   });
   return {
     prior,
@@ -401,7 +412,8 @@ function group67ReducedRunner(
     config: () => ({ prior, visual, final, entry, media }),
     directConfig: () => ({ visual, final, media }),
     position: (_scene, direction) => direction === 1 ? 120 : 100,
-    targetLanding: (_scene, _strategy, direction) => landingFor(direction)
+    targetLanding: (_scene, _strategy, direction) => landingFor(direction),
+    startMedia: testStartMedia
   });
   return {
     prior,
@@ -506,7 +518,10 @@ describe('phone composite runner snapshot execution', () => {
       'reducedAdmissionTargetPosition',
       'settleFrozenCompatibility',
       'reportRenderedFrame(',
-      'presentationProofToken('
+      'presentationProofToken(',
+      'config.visual.enter?.()',
+      'config.visual.reverse?.()',
+      'if (options.startMedia)'
     ]) {
       expect(runnerSource).not.toContain(forbidden);
     }
@@ -540,7 +555,8 @@ describe('phone composite runner snapshot execution', () => {
       config: () => null,
       directConfig: () => ({ visual, final, media }),
       position: () => 240,
-      targetLanding: () => 240
+      targetLanding: () => 240,
+      startMedia: testStartMedia
     });
     const activeSession = session(1, 1);
 
@@ -954,7 +970,8 @@ describe('phone composite runner snapshot execution', () => {
       config: () => null,
       directConfig: () => ({ visual, final, media }),
       position: () => 240,
-      targetLanding: () => 240
+      targetLanding: () => 240,
+      startMedia: testStartMedia
     });
     const activeSession = session(1, 1);
 
@@ -1155,7 +1172,8 @@ describe('phone composite runner snapshot execution', () => {
       config: () => null,
       directConfig: () => ({ visual, final, media }),
       position: () => 240,
-      targetLanding: () => 240
+      targetLanding: () => 240,
+      startMedia: testStartMedia
     });
     const activeSession = session(1, 1);
     registered.capability().startAtLeg?.(1, activeSession);

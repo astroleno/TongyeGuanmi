@@ -68,6 +68,12 @@ describe('PhonePh', () => {
     expect(source).toContain('presentPreparedFrame,');
   });
 
+  it('[execution hard cutover] exposes only the runner-issued play command', () => {
+    expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');
+    expect(source).not.toMatch(/\n\s*enter\(/);
+    expect(source).not.toMatch(/\n\s*reverse\(/);
+  });
+
   it('uses stable reduced-motion endpoints in canonical order', () => {
     expect(phonePhPresentationProgress(0.49, true)).toBe(0);
     expect(phonePhPresentationProgress(0.5, true)).toBe(1);
@@ -131,8 +137,8 @@ describe('PhonePh', () => {
     expect(source).toContain('beginPreparedReverse');
     expect(cinematicRunSource).toContain("publish('progress', direction, progress)");
     expect(source).toContain('renderProgress,');
-    expect(source).toContain('startRun(1, request ?? null)');
-    expect(source).toContain('startRun(-1, request ?? null)');
+    expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');
+    expect(source).toContain('startRun(direction, request ?? null)');
     expect(cinematicRunSource).toContain('options.reverseReady()');
     expect(motionSource).toContain("'presented-frame-reverse'");
     expect(reverseSource).toContain('createPhonePresentedReversePlayback');

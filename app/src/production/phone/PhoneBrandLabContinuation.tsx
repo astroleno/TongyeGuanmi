@@ -386,11 +386,9 @@ export const PhoneBrandLabContinuation = forwardRef<
       startMedia({ identity, config, prepareReverseMediaFirstFrame }) {
         if (identity[4] === 1) {
           config.media.enter?.();
-          config.visual.enter?.();
           return;
         }
         prepareReverseMediaFirstFrame();
-        config.visual.reverse?.();
       }
     });
     const surfaceLeases = [

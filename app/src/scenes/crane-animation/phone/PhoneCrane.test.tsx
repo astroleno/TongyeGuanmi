@@ -96,6 +96,12 @@ describe('PhoneCrane', () => {
     expect(source).toContain('presentPreparedFrame,');
   });
 
+  it('[execution hard cutover] exposes only the runner-issued play command', () => {
+    expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');
+    expect(source).not.toMatch(/\n\s*enter\(/);
+    expect(source).not.toMatch(/\n\s*reverse\(/);
+  });
+
   it('[framework admission closure] forwards a Crane runner frame only after both current-token canvases draw', () => {
     expect(source).toContain('cinematicPresentedFrameRef');
     expect(source).toContain('if (!pending || pending.key !== presentationKey) return;');
@@ -144,8 +150,8 @@ describe('PhoneCrane', () => {
     expect(cinematicRunSource).toContain('options.reverseReady()');
     expect(cinematicRunSource).toContain("publish('progress', direction, progress)");
     expect(source).toContain('renderProgress,');
-    expect(source).toContain('startRun(1, request ?? null)');
-    expect(source).toContain('startRun(-1, request ?? null)');
+    expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');
+    expect(source).toContain('startRun(direction, request ?? null)');
     expect(autoplaySource).toContain('figure.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE');
     expect(autoplaySource).toContain('figure.currentTime = CRANE_VIDEO_END_SECONDS');
     expect(autoplaySource).toContain("root.dataset.phoneCraneFigurePreroll = 'released'");

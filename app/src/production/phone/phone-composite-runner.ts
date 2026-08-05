@@ -103,11 +103,11 @@ export type PhoneCompositeRunnerOptions<
     direction: PhoneTransitionDirection
   ): number | null;
   /**
-   * Optional media resource starter. It receives an authority identity after
-   * the immutable snapshot has entered the media leg. It must not publish
-   * presentation state; visual components may instead read that snapshot.
+   * The sole media command bridge. It receives an authority identity after
+   * the immutable snapshot has entered the media leg; no compatibility
+   * fallback may start a visual outside this callback.
    */
-  startMedia?(context: MediaStartContext<Visual>): void;
+  startMedia(context: MediaStartContext<Visual>): void;
   acquireReverseEntry?(
     identity: PhoneExecutionToken,
     config: PhoneCompositeRuntimeConfig
@@ -424,23 +424,15 @@ export function createPhoneCompositeRunner<
       config.media.reverse?.();
       config.media.render(PHONE_REVERSE_RAW_FRAME_ADMISSION_PROGRESS);
     };
-    if (options.startMedia) {
-      options.startMedia({
-        scene: resource.scene,
-        identity: identityFor(resource),
-        config,
-        prepareReverseMediaFirstFrame,
-        animate: (start, end, durationMs, complete) => (
-          runAnimation(resource, config.media, start, end, durationMs, complete)
-        )
-      });
-    } else if (resource.direction === 1) {
-      config.media.enter?.();
-      config.visual.enter?.();
-    } else {
-      prepareReverseMediaFirstFrame();
-      config.visual.reverse?.();
-    }
+    options.startMedia({
+      scene: resource.scene,
+      identity: identityFor(resource),
+      config,
+      prepareReverseMediaFirstFrame,
+      animate: (start, end, durationMs, complete) => (
+        runAnimation(resource, config.media, start, end, durationMs, complete)
+      )
+    });
     armTimeout(resource);
   };
   const startEntry = (

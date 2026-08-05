@@ -337,7 +337,7 @@ export function PhoneLabContactContinuation({
       }) {
         if (identity[4] === 1) {
           config.media.enter?.();
-          (config.visual as PhoneCinematicSceneAdapterHandle).enter?.(identity);
+          (config.visual as PhoneCinematicSceneAdapterHandle).play?.(1, identity);
           return;
         }
         prepareReverseMediaFirstFrame();
@@ -348,10 +348,10 @@ export function PhoneLabContactContinuation({
             INTRA_CHAPTER_DISSOLVE_MS,
             () => (
               config.visual as PhoneCinematicSceneAdapterHandle
-            ).reverse?.(identity)
+            ).play?.(-1, identity)
           );
         } else {
-          (config.visual as PhoneCinematicSceneAdapterHandle).reverse?.(identity);
+          (config.visual as PhoneCinematicSceneAdapterHandle).play?.(-1, identity);
         }
       },
       acquireReverseEntry(identity, config) {
