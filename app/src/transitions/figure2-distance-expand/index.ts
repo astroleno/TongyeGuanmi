@@ -287,12 +287,13 @@ export function figure2ProofTransitionProgress(progress: number): number {
 export function figure2VideoModeForProofTransition(
   transitionProgress: number,
   direction: Direction = 1
-): 'native' | 'seek' | 'none' {
-  if (transitionProgress > 0.001) {
-    return 'none';
-  }
+): 'seek' {
+  // Figure2 → Proof is a single runner-owned depth execution. Keep the
+  // media driver attached for every sampled frame; `none` would leave only
+  // the mask/camera moving and recreate the direct-endpoint jump.
+  void transitionProgress;
   void direction;
-  return 'native';
+  return 'seek';
 }
 
 class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
@@ -509,7 +510,10 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       // from the staged snap to Proof.
       renderFigure2AnimationProgress(fromRoot, intro, {
         proofProgress: 0,
-        videoMode: 'seek',
+        videoMode: figure2VideoModeForProofTransition(
+          transition,
+          this.playbackDirection
+        ),
         mediaRun: {
           ...this.mediaRun,
           direction: this.playbackDirection,

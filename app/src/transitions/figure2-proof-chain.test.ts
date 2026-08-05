@@ -76,9 +76,9 @@ describe('Figure2 proof chain transitions', () => {
     expect(figure2IntroProgress(FIGURE2_INTRO_END)).toBe(1);
     expect(figure2ProofRevealProgress(FIGURE2_INTRO_END)).toBe(0);
     expect(figure2ProofRevealProgress(1)).toBe(1);
-    expect(figure2VideoModeForProofTransition(0, 1)).toBe('native');
-    expect(figure2VideoModeForProofTransition(0, -1)).toBe('native');
-    expect(figure2VideoModeForProofTransition(0.02, -1)).toBe('none');
+    expect(figure2VideoModeForProofTransition(0, 1)).toBe('seek');
+    expect(figure2VideoModeForProofTransition(0, -1)).toBe('seek');
+    expect(figure2VideoModeForProofTransition(0.02, -1)).toBe('seek');
   });
 
   it('keeps the Figure2 transition media and timeline contracts equal to the manifest', () => {
