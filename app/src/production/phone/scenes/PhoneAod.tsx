@@ -327,9 +327,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
             `${backdropPresentation.cloudYVh.toFixed(2)}dvh`
           );
           transition.dataset.portraitAodBackdropProgress = progress.toFixed(4);
-          const canonicalMistOpacity = Number.parseFloat(
-            transition.style.getPropertyValue('--aod-transition-bottom-mist-opacity')
-          ) || 0;
           transition.style.setProperty(
             '--portrait-aod-figure-cover-scale',
             presentation.figureScale.toFixed(4)
@@ -337,13 +334,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           transition.style.setProperty(
             '--portrait-aod-figure-shift-y',
             `${presentation.figureShiftYVh.toFixed(2)}dvh`
-          );
-          transition.style.setProperty(
-            '--aod-transition-bottom-mist-opacity',
-            Math.max(
-              canonicalMistOpacity,
-              presentation.bottomMistOpacity
-            ).toFixed(4)
           );
           transition.setAttribute('data-aod-exit-active', 'true');
         }

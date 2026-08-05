@@ -153,9 +153,14 @@ export function renderAodTransitionProgress(
     alphaEnd
   ));
   const backgroundFade = Math.min(1 - backdropExit, alphaBackdropFade);
-  const paperWash = surfaceReveal ? smoothStep(range01(p, 0.42, 0.86)) : 0;
-  const bottomMist = surfaceReveal ? smoothStep(range01(p, 0.56, 1)) : 0;
-  const paperSolid = surfaceReveal ? smoothStep(range01(p, 0.70, 1)) : 0;
+  // Paper ownership is one presentation track. The wash, mist, and solid
+  // backing are visual treatments of the same endpoint; independent reveal
+  // clocks created visible paper seams and let a stale leaf writer outrun the
+  // runner's AOD transaction.
+  const paperReveal = surfaceReveal ? smoothStep(range01(p, 0.42, 0.86)) : 0;
+  const paperWash = paperReveal;
+  const bottomMist = paperReveal;
+  const paperSolid = paperReveal;
   const methodEnter = smoothStep(range01(p, 0.44, 0.86));
   const figureScale = config.figureStartScale + fullscreen * (1 - config.figureStartScale);
   const figureY = (1 - fullscreen) * viewportHeight() * (config.figureStartYVh / 100);

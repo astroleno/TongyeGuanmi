@@ -155,6 +155,23 @@ describe('AOD alpha compositing', () => {
     expect(section.dataset.aodAlphaComposite).toBe('false');
   });
 
+  it('uses one paper ownership clock for wash, mist, and solid backing', () => {
+    const section = new FakeAodSection();
+    renderAodTransitionProgress(
+      section as unknown as HTMLElement,
+      0.7,
+      AOD_PHONE_TIMELINE_ALPHA_END,
+      AOD_PHONE_TIMELINE_ALPHA_START
+    );
+
+    const wash = Number(section.style.getPropertyValue('--aod-transition-paper-wash-opacity')) / 0.92;
+    const mist = Number(section.style.getPropertyValue('--aod-transition-bottom-mist-opacity')) / 0.96;
+    const solid = Number(section.style.getPropertyValue('--aod-transition-paper-solid-opacity'));
+    expect(wash).toBeGreaterThan(0);
+    expect(mist).toBeCloseTo(wash, 4);
+    expect(solid).toBeCloseTo(wash, 4);
+  });
+
   it('makes root, sticky, field, and reveal backings transparent without fading the whole layer', () => {
     expect(stylesheet).toMatch(
       /\[data-aod-exit-active="true"\][^}]*\[data-aod-alpha-composite="true"\][^}]*background:\s*transparent/s
