@@ -17,6 +17,19 @@ const phoneSourceFiles = (directory: string): string[] => readdirSync(directory,
     : [];
 });
 const phoneDirectory = new URL('./', import.meta.url).pathname;
+const phoneCrossChunkContract = JSON.parse(
+  readFileSync(
+    new URL('../../../build/phone-cross-chunk-contract.json', phoneRoot),
+    'utf8'
+  )
+) as {
+  reservedPropertyNames: readonly string[];
+  dynamicPropertyNames?: readonly string[];
+};
+const viteConfigSource = readFileSync(
+  new URL('../../../vite.config.ts', phoneRoot),
+  'utf8'
+);
 const coreIdentityOwners = new Set([
   'phone-story/machine.ts',
   'phone-story/runtime/engine.ts',
@@ -31,6 +44,32 @@ const lazyExecutionSources = [
 const bridgeSource = (relative: string) => source(relative);
 
 describe('phone cross-chunk execution contracts', () => {
+  it('keeps canonical dynamic scene keys out of property mangling', () => {
+    const dynamicPropertyNames = phoneCrossChunkContract.dynamicPropertyNames ?? [];
+    expect(dynamicPropertyNames).toEqual([
+      'hero',
+      'pattern',
+      'star',
+      'aod',
+      'method',
+      'figure2',
+      'proof',
+      'brand',
+      'figure3',
+      'services',
+      'ttg',
+      'lab',
+      'ph',
+      'education',
+      'crane',
+      'contact'
+    ]);
+    for (const propertyName of dynamicPropertyNames) {
+      expect(phoneCrossChunkContract.reservedPropertyNames).toContain(propertyName);
+    }
+    expect(viteConfigSource).not.toMatch(/(?:^|\|)aod(?:\||\$)/);
+  });
+
   it('keeps execution transport positional while presentation proofs stay structured', () => {
     expect(source('phone-story/machine.ts')).toContain(
       'export type PhoneExecutionToken = readonly ['
