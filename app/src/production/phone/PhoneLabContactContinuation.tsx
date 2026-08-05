@@ -33,12 +33,6 @@ import {
   acquirePhoneDocumentEndpointAlignment
 } from './phone-document-endpoint-alignment';
 import {
-  PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
-  phoneLabContactAutoplayFrame,
-  phoneLabContactAutoplayToken,
-  type PhoneLabContactAutoplayEvent
-} from './phone-lab-contact-timeline';
-import {
   phoneLabContactAdapterScene,
   phoneLabContactRunForVisual,
   phoneLabContactVisualProjection,
@@ -69,6 +63,7 @@ import {
 import { usePhoneCapabilityBinding } from './phone-adapter-binding';
 import type {
   PhoneCinematicSceneAdapterHandle,
+  PhoneCinematicFact,
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
 } from './types';
@@ -163,6 +158,10 @@ export function PhoneLabContactContinuation({
   const educationRef = useRef<PhoneSceneAdapterHandle | null>(null);
   const craneRef = useRef<PhoneSceneAdapterHandle | null>(null);
   const contactRef = useRef<PhoneSceneAdapterHandle | null>(null);
+  const mediaFactRef = useRef<(
+    scene: VisualScene,
+    fact: PhoneCinematicFact
+  ) => void>(() => undefined);
   const labPhRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const phEducationRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const educationCraneRef = useRef<PhoneTransitionAdapterHandle | null>(null);
@@ -483,24 +482,14 @@ export function PhoneLabContactContinuation({
       }
     );
 
-    const onMediaEvent = (event: Event) => {
-      const detail = (
-        event as CustomEvent<PhoneLabContactAutoplayEvent>
-      ).detail;
-      const identity = detail
-        ? phoneLabContactAutoplayToken(detail)
-        : null;
-      if (
-        !detail
-        || !identity
-      ) return;
-      const [scene, phase, direction, , progress] = detail;
+    const onMediaFact = (scene: VisualScene, fact: PhoneCinematicFact) => {
+      const [phase, direction, identity, progress, frame] = fact;
+      if (!identity) return;
       if (phase === 'playing') {
         runner.heartbeat(scene, identity);
         return;
       }
       if (phase === 'presented') {
-        const frame = phoneLabContactAutoplayFrame(detail);
         if (frame) runner.reportMediaFrame(scene, frame);
         return;
       }
@@ -538,14 +527,10 @@ export function PhoneLabContactContinuation({
       }
       runner.completeMedia(scene, identity);
     };
-
-    inputOwner.addEventListener(PHONE_LAB_CONTACT_AUTOPLAY_EVENT, onMediaEvent);
+    mediaFactRef.current = onMediaFact;
 
     return () => {
-      inputOwner.removeEventListener(
-        PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
-        onMediaEvent
-      );
+      mediaFactRef.current = () => undefined;
       corridorLease.dispose();
       for (const lease of effectLeases) lease.dispose();
       for (const lease of surfaceLeases) lease.dispose();
@@ -582,6 +567,12 @@ export function PhoneLabContactContinuation({
   const PhEducation = adapters.transitions['ph-education'];
   const EducationCrane = adapters.transitions['education-crane'];
   const CraneContact = adapters.transitions['crane-contact'];
+  const reportPhFact = useCallback((fact: PhoneCinematicFact) => {
+    mediaFactRef.current('ph-animation', fact);
+  }, []);
+  const reportCraneFact = useCallback((fact: PhoneCinematicFact) => {
+    mediaFactRef.current('crane-animation', fact);
+  }, []);
   const [, sourceSurface, receiverSurface] = cinematicSnapshot;
 
   const stageSurfaces = (
@@ -599,6 +590,7 @@ export function PhoneLabContactContinuation({
               ref={bindPh}
               active={phExecution !== null || phPrewarm}
               reducedMotion={reducedMotion}
+              onCinematicFact={reportPhFact}
             />
           ) : (
             <div className="phone-group67__stage-pending" aria-hidden="true" />
@@ -633,6 +625,7 @@ export function PhoneLabContactContinuation({
               ref={bindCrane}
               active={craneExecution !== null || cranePrewarm}
               reducedMotion={reducedMotion}
+              onCinematicFact={reportCraneFact}
             />
           ) : (
             <div className="phone-group67__stage-pending" aria-hidden="true" />

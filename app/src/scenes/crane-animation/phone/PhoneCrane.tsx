@@ -26,7 +26,10 @@ import {
   type PhonePackedAlphaSurface,
   type PhonePackedAlphaSurfaceMode
 } from '../../../production/phone/scenes/phone-packed-alpha-surface';
-import { usePhoneCinematicRun } from '../../../production/phone/scenes/usePhoneCinematicRun';
+import {
+  noopPhoneCinematicFactReporter,
+  usePhoneCinematicRun
+} from '../../../production/phone/scenes/usePhoneCinematicRun';
 import {
   createPhoneCraneForwardRun,
   createPhoneCranePresentedReverse,
@@ -132,7 +135,11 @@ export function applyPhoneCraneMediaFallback(
 export const PhoneCrane = forwardRef<
   PhoneSceneAdapterHandle,
   PhoneSceneAdapterProps
->(function PhoneCrane({ onReady, reducedMotion }, forwardedRef) {
+>(function PhoneCrane({
+  onReady,
+  onCinematicFact,
+  reducedMotion
+}, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const layerStackRef = useRef<HTMLDivElement | null>(null);
   const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -347,7 +354,8 @@ export const PhoneCrane = forwardRef<
     renderPresentation,
     presentPreparedFrame,
     null,
-    null
+    null,
+    onCinematicFact ?? noopPhoneCinematicFactReporter
   ]);
   beginPreparedReverseRef.current = beginPreparedReverse;
   presentedFrameRef.current = publishPresentedFrame;

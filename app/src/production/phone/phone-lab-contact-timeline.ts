@@ -5,13 +5,6 @@ import type {
 
 const EPSILON = 0.001;
 
-/**
- * PH and Crane are autonomous visual runs. The native document owns every
- * pixel outside a run; the fixed stage owns the one shared boundary while a
- * run is active.
- */
-export const PHONE_LAB_CONTACT_AUTOPLAY_EVENT = 'phone-lab-contact-autoplay';
-
 export type PhoneLabContactAutoplayEvent = readonly [
   scene: 'ph-animation' | 'crane-animation',
   phase: 'playing' | 'presented' | 'progress' | 'complete' | 'failed',
@@ -49,17 +42,6 @@ export type PhoneLabContactCinematicRunState =
 export type PhoneLabContactCinematicScene =
   | 'ph-animation'
   | 'crane-animation';
-
-export function dispatchPhoneLabContactAutoplay(
-  target: EventTarget | null | undefined,
-  detail: PhoneLabContactAutoplayEvent
-): void {
-  if (!target || typeof CustomEvent === 'undefined') return;
-  target.dispatchEvent(new CustomEvent<PhoneLabContactAutoplayEvent>(
-    PHONE_LAB_CONTACT_AUTOPLAY_EVENT,
-    { bubbles: true, detail }
-  ));
-}
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));

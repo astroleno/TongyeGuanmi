@@ -30,7 +30,10 @@ import {
   type PhonePackedAlphaSurface,
   type PhonePackedAlphaSurfaceMode
 } from '../../../production/phone/scenes/phone-packed-alpha-surface';
-import { usePhoneCinematicRun } from '../../../production/phone/scenes/usePhoneCinematicRun';
+import {
+  noopPhoneCinematicFactReporter,
+  usePhoneCinematicRun
+} from '../../../production/phone/scenes/usePhoneCinematicRun';
 import {
   PHONE_PH_FIGURE_END_SECONDS,
   phonePhRootFor,
@@ -106,7 +109,12 @@ export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
  * drives every forward presentation sample after the scroll snap begins.
  */
 export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProps>(
-  function PhonePh({ active, onReady, reducedMotion }, forwardedRef) {
+  function PhonePh({
+    active,
+    onReady,
+    onCinematicFact,
+    reducedMotion
+  }, forwardedRef) {
     const rootRef = useRef<HTMLElement | null>(null);
     const layerStackRef = useRef<HTMLDivElement | null>(null);
     const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -246,7 +254,8 @@ export const PhonePh = forwardRef<PhoneSceneAdapterHandle, PhoneSceneAdapterProp
       renderPresentation,
       presentPreparedFrame,
       beforeForward,
-      beforeReverse
+      beforeReverse,
+      onCinematicFact ?? noopPhoneCinematicFactReporter
     ]);
     beginPreparedReverseRef.current = beginPreparedReverse;
     presentedFrameRef.current = publishPresentedFrame;

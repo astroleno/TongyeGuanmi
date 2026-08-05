@@ -139,11 +139,11 @@ describe('PhoneLabContactContinuation recovery contract', () => {
   });
 
   it('rejects nullable or current-session media labels instead of relabeling stale events', () => {
-    expect(source).toContain('phoneLabContactAutoplayToken(detail)');
-    expect(source).toContain('phoneLabContactAutoplayFrame(detail)');
-    expect(source).toContain('const [scene, phase, direction, , progress] = detail;');
+    expect(source).toContain(
+      'const [phase, direction, identity, progress, frame] = fact;'
+    );
     expect(source).toContain('runner.reportMediaFrame(scene, frame)');
-    expect(source).not.toContain('runner.execution(detail.scene)');
+    expect(source).not.toContain('runner.execution(scene)');
   });
 
   it('keeps reverse document alignment leased through the commit frame', () => {
@@ -192,5 +192,13 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).toMatch(
       /scene === 'education' \|\| scene === 'contact'[\s\S]*?target\?\.presentPresentation\?\.\(token, report\)[\s\S]*?target\?\.disposePresentation\?\.\(token\)/
     );
+  });
+
+  it('[execution hard cutover] receives Group67 media facts directly, without a DOM event bus', () => {
+    expect(source).toContain('mediaFactRef');
+    expect(source).toContain('onCinematicFact');
+    expect(source).not.toContain('PHONE_LAB_CONTACT_AUTOPLAY_EVENT');
+    expect(source).not.toContain('addEventListener(');
+    expect(source).not.toContain('CustomEvent');
   });
 });

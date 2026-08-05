@@ -108,10 +108,22 @@ export type PhoneAodAdapterHandle = PhoneSceneAdapterHandle & {
   resetAutoplay(): void;
 };
 
+export type PhoneCinematicFact = readonly [
+  phase: 'playing' | 'presented' | 'progress' | 'complete' | 'failed',
+  direction: 1 | -1,
+  execution: PhoneExecutionToken | null,
+  progress: number | null,
+  frame: PhoneRenderedPresentationFrame | null
+];
+
+/** Direct leaf-to-runner fact handoff; no DOM event transport is allowed. */
+export type PhoneCinematicFactReporter = (fact: PhoneCinematicFact) => void;
+
 export type PhoneSceneAdapterProps = Readonly<{
   active: boolean;
   reducedMotion: boolean;
   onReady?: () => void;
+  onCinematicFact?: PhoneCinematicFactReporter;
   onAodProgress?: (
     progress: number,
     execution: PhoneAodExecution

@@ -5,9 +5,9 @@ import {
   type RefObject
 } from 'react';
 import {
-  dispatchPhoneLabContactAutoplay,
   type PhoneLabContactCinematicScene
 } from '../phone-lab-contact-timeline';
+import type { PhoneCinematicFactReporter } from '../types';
 import { phoneRuntimePresentationTokenKey } from '../phone-story/runtime';
 import type { PhoneExecutionToken } from '../phone-story/runtime';
 import type { PhoneRenderedPresentationFrame } from '../phone-story/runtime';
@@ -36,7 +36,8 @@ export type PhoneCinematicRunRequest = readonly [
   /** Draw again only after an immutable media identity has been installed. */
   presentPreparedFrame: (token: PresentationToken) => void,
   beforeForward: (() => void) | null,
-  beforeReverse: (() => void) | null
+  beforeReverse: (() => void) | null,
+  reportFact: PhoneCinematicFactReporter
 ];
 
 export type PhoneCinematicRun = readonly [
@@ -55,6 +56,11 @@ export type PhoneCinematicRun = readonly [
   disposeRun: () => void
 ];
 
+export const noopPhoneCinematicFactReporter: PhoneCinematicFactReporter = () => {
+  // Leaves can be mounted outside the Group 6–7 continuation in isolated
+  // previews; those callers still need a stable reporter identity.
+};
+
 export function usePhoneCinematicRun(
   [
     scene,
@@ -69,7 +75,8 @@ export function usePhoneCinematicRun(
     render,
     presentPreparedFrame,
     beforeForward,
-    beforeReverse
+    beforeReverse,
+    reportFact
   ]: PhoneCinematicRunRequest
 ): PhoneCinematicRun {
   const options = {
@@ -85,7 +92,8 @@ export function usePhoneCinematicRun(
     render,
     presentPreparedFrame,
     beforeForward,
-    beforeReverse
+    beforeReverse,
+    reportFact
   };
   const requestedRef = useRef<PhoneCinematicDirection | null>(null);
   const activeIdentityRef = useRef<PhoneExecutionToken | null>(null);
@@ -116,15 +124,14 @@ export function usePhoneCinematicRun(
           origin: 'segment-first-frame'
         }
       : null;
-    dispatchPhoneLabContactAutoplay(options.rootRef.current, [
-      options.scene,
+    options.reportFact([
       phase,
       direction,
       identity,
       progress ?? null,
       frame
     ]);
-  }, [options.rootRef, options.scene]);
+  }, [options.reportFact]);
   const renderProgress = useCallback((
     progress: number,
     direction: PhoneCinematicDirection = 1
