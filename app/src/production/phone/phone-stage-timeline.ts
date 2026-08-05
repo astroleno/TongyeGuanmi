@@ -190,11 +190,20 @@ export function phoneFrontSurfaceFrame(
   rawProgress: number
 ): PhoneFrontSurfaceFrame {
   const progress = clamp(rawProgress);
-  const { patternMotionStart, patternStarEnd, starAodStart, starAodEnd } =
+  const {
+    patternMotionStart,
+    patternMotionEnd,
+    patternStarEnd,
+    starAodStart,
+    starAodEnd
+  } =
     PHONE_STAGE_STOPS;
   return [
     progress < patternMotionStart ? 0 : 1,
-    progress < patternMotionStart ? 0 : 1,
+    // Pattern remains expanded at the Hero→Pattern hold.  Its collapse is a
+    // separate machine-owned leg ending at patternMotionEnd; projecting 1 at
+    // the earlier hold makes the next collapse play twice.
+    progress < patternMotionEnd ? 0 : 1,
     progress < patternStarEnd ? 0 : 1,
     progress < starAodStart ? 0 : range(progress, starAodStart, starAodEnd)
   ];

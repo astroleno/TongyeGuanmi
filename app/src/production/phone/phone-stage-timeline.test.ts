@@ -25,7 +25,7 @@ describe('phone stage timeline', () => {
       'hero-entered', 'hero', 0, 0, 0, 0
     ]);
     expect(phoneStageFrame(PHONE_STAGE_STOPS.patternMotionStart).slice(1)).toEqual([
-      'pattern-complete', 'pattern', 1, 1, 0, 0
+      'pattern-complete', 'pattern', 1, 0, 0, 0
     ]);
     expect(phoneStageFrame(PHONE_STAGE_STOPS.patternMotionEnd).slice(1)).toEqual([
       'pattern-compact', 'pattern', 1, 1, 0, 0
@@ -43,7 +43,7 @@ describe('phone stage timeline', () => {
 
   it('uses the same physical static poses for reduced motion', () => {
     expect(phoneStageFrame(.3, true).slice(1)).toEqual([
-      'pattern-complete', 'pattern', 1, 1, 0, 0
+      'pattern-complete', 'pattern', 1, 0, 0, 0
     ]);
     expect(phoneStageFrame(.9, true).slice(1)).toEqual([
       'aod-stage', 'aod-animation', 1, 1, 1, 1
