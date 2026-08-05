@@ -108,6 +108,7 @@ export function createPhoneInkTransition(
       [request[1], request[2]],
       clearBoundaryGeometry
     );
+    runtime(['armEndpoint']);
   };
 
   const render = (rawProgress: number, force = false): boolean => {
@@ -126,6 +127,7 @@ export function createPhoneInkTransition(
   const releaseEndpoint = () => {
     geometryLease?.releaseGeometry();
     geometryLease = undefined;
+    runtime(['releaseEndpoint']);
   };
 
   return (command) => {

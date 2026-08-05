@@ -43,10 +43,21 @@ describe('phone ink runtime bridge', () => {
       'dark'
     ]);
 
+    expect(receiver.dataset.phoneInkAdmission).toBe('pending');
+    expect(receiver.dataset.phoneInkFrame).toBeUndefined();
     expect(bridge(['render', .003])).toBe(true);
     expect(vendor.boundaryRender).toHaveBeenCalledOnce();
     expect(canvas.style.visibility).toBe('visible');
     expect(canvas.dataset.phonePresentationEffectFrame).toBe('ready');
+    expect(receiver.dataset.phoneInkFrame).toBe('ready');
+
+    bridge(['render', 0]);
+    expect(receiver.dataset.phoneInkFrame).toBeUndefined();
+    bridge(['releaseEndpoint']);
+    expect(receiver.dataset.phoneInkAdmission).toBeUndefined();
+    bridge(['armEndpoint']);
+    expect(receiver.dataset.phoneInkAdmission).toBe('pending');
+    expect(receiver.dataset.phoneInkFrame).toBeUndefined();
   });
 
   it('[R5] can force a real redraw at fixed progress while a first-frame proof is pending', () => {
@@ -71,5 +82,7 @@ describe('phone ink runtime bridge', () => {
     expect(bridge(['render', .92])).toBe(false);
     expect(bridge(['render', .92, true])).toBe(true);
     expect(vendor.boundaryRender).toHaveBeenCalledTimes(2);
+    bridge(['dispose']);
+    expect(receiver.dataset.phoneInkAdmission).toBeUndefined();
   });
 });

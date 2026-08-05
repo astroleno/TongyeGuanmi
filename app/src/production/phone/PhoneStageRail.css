@@ -225,6 +225,21 @@
   visibility: visible !important;
 }
 
+/* A receiver is admitted atomically, but its scene cannot become visible
+ * until the route-overlay ink runtime has painted the first real frame.  This
+ * closes the React-commit/WebGL-draw gap that otherwise exposes a full
+ * rectangular target behind a radial or horizontal reveal.  Native reading
+ * receivers do not carry the ink admission marker and remain unaffected. */
+.portrait-scroll-spike [data-phone-surface-role="transition-receiver"][data-phone-ink-admission="pending"] {
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+.portrait-scroll-spike [data-phone-surface-role="transition-receiver"][data-phone-ink-admission="pending"][data-phone-ink-frame="ready"] {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
 .portrait-scroll-spike [data-phone-surface-role="retired"],
 .portrait-scroll-spike [data-phone-surface-role="retained-under-stage"] {
   visibility: hidden !important;

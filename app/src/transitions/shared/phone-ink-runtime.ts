@@ -40,7 +40,9 @@ export type PhoneInkRuntimeRequest = readonly [
 ];
 
 export type PhoneInkRuntimeCommand =
+  | readonly ['armEndpoint']
   | readonly ['render', progress: number, force?: boolean]
+  | readonly ['releaseEndpoint']
   | readonly ['dispose'];
 
 export type PhoneInkRuntimeBridge = (command: PhoneInkRuntimeCommand) => boolean | void;
@@ -100,6 +102,14 @@ export function createPhoneInkRuntimeBridge([
   }, existingCanvas ?? undefined);
   if (!surface || !host) {
     return () => undefined;
+  }
+  // A transition receiver is a dormant DOM participant until the same ink
+  // runtime has drawn a real frame for this execution.  The projector may
+  // assign the receiver role during admission, but that role must not expose
+  // a rectangular scene between the React commit and the first WebGL draw.
+  if (to) {
+    to.dataset.phoneInkAdmission = 'pending';
+    delete to.dataset.phoneInkFrame;
   }
   // A radial field samples the same compact contour transport as horizontal
   // ink. Retain it for this run instead of regenerating another radial mask
@@ -173,8 +183,12 @@ export function createPhoneInkRuntimeBridge([
     }
     if (rendered) {
       surface.dataset.phonePresentationEffectFrame = 'ready';
+      if (to) to.dataset.phoneInkFrame = 'ready';
     } else if (!fieldActive) {
       delete surface.dataset.phonePresentationEffectFrame;
+      if (to) delete to.dataset.phoneInkFrame;
+    } else if (to) {
+      delete to.dataset.phoneInkFrame;
     }
     return rendered;
   };
@@ -182,6 +196,21 @@ export function createPhoneInkRuntimeBridge([
   return (command) => {
     if (command[0] === 'render') {
       return render(command[1], command[2]);
+    }
+    if (command[0] === 'armEndpoint') {
+      if (to) {
+        to.dataset.phoneInkAdmission = 'pending';
+        delete to.dataset.phoneInkFrame;
+      }
+      return;
+    }
+    if (command[0] === 'releaseEndpoint') {
+      if (to) {
+        delete to.dataset.phoneInkAdmission;
+        delete to.dataset.phoneInkFrame;
+      }
+      delete surface.dataset.phonePresentationEffectFrame;
+      return;
     }
     renderer?.destroy();
     surface.style.removeProperty('visibility');
@@ -191,6 +220,10 @@ export function createPhoneInkRuntimeBridge([
       delete surface.dataset.phoneInkProgress;
     }
     delete surface.dataset.phonePresentationEffectFrame;
+    if (to) {
+      delete to.dataset.phoneInkAdmission;
+      delete to.dataset.phoneInkFrame;
+    }
     mountedCanvas?.remove();
   };
 }
