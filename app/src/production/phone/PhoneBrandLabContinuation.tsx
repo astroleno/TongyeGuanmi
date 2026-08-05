@@ -382,13 +382,17 @@ export const PhoneBrandLabContinuation = forwardRef<
         ));
       },
       // The runner owns admission ordering. Leaf handles only record playback
-      // intent and reconcile after the runner has reset endpoint roles.
+      // intent and reconcile after the runner has reset endpoint roles. The
+      // command is explicit so a prop mirror cannot become a second playback
+      // writer when the same authority is reused.
       startMedia({ identity, config, prepareReverseMediaFirstFrame }) {
         if (identity[4] === 1) {
           config.media.enter?.();
+          config.visual.play?.(1, identity);
           return;
         }
         prepareReverseMediaFirstFrame();
+        config.visual.play?.(-1, identity);
       }
     });
     const surfaceLeases = [

@@ -16,6 +16,7 @@ import {
 } from '../../../production/phone/phone-timeline-runtime';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
 import type {
+  PhoneCinematicRequest,
   PhoneCinematicSceneAdapterHandle
 } from '../../../production/phone/types';
 import {
@@ -1398,6 +1399,21 @@ export const PhoneTtg = forwardRef<
   useImperativeHandle(forwardedRef, () => ({
     root: () => rootRef.current,
     effectRoot: () => videoRef.current,
+    play(runDirection: 1 | -1, request?: PhoneCinematicRequest) {
+      // Only the route runner may issue this token-bound playback intent.
+      // Reconciliation may finish endpoint preparation, but stale callers
+      // cannot replace the current execution identity.
+      if (
+        reducedMotionRef.current
+        || mediaFailedRef.current
+        || (request && runIdentityRef.current && !sameExecution(runIdentityRef.current, request))
+      ) return;
+      if (request) executionRef.current = request;
+      activeRef.current = true;
+      directionRef.current = runDirection;
+      forwardRequestedRef.current = true;
+      reconcileMedia();
+    },
     presentPresentation(token, report) {
       clearPresentationFrameCallback();
       const key = phoneRuntimePresentationTokenKey(token);
@@ -1470,7 +1486,8 @@ export const PhoneTtg = forwardRef<
     clearPresentationFrameCallback,
     armPreparedPresentationPostPaint,
     releaseMedia,
-    reportPresentationFrame
+    reportPresentationFrame,
+    reconcileMedia
   ]);
 
   const mediaState = mediaFailed

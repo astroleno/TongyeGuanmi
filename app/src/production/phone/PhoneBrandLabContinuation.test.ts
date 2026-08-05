@@ -226,4 +226,11 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
       "mediaErrorListenerRef.current?.('ttg-animation', identity);"
     );
   });
+
+  it('[Task 6] routes Group45 playback through the runner-issued token command', () => {
+    expect(source).toContain('config.visual.play?.(1, identity);');
+    expect(source).toContain('config.visual.play?.(-1, identity);');
+    expect(figure3Source).toContain('play(runDirection: 1 | -1');
+    expect(ttgSource).toContain('play(runDirection: 1 | -1');
+  });
 });
