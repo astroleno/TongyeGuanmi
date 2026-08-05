@@ -465,6 +465,7 @@ export const PhoneFigure3 = forwardRef<
   const pendingRunDirectionRef = useRef<1 | -1 | null>(null);
   const pendingRunTargetKeyRef = useRef<string | null>(null);
   const playbackIntentDirectionRef = useRef<1 | -1 | null>(null);
+  const playbackIntentIdentityRef = useRef<PhoneExecutionToken | null>(null);
   const reconcileFrameRef = useRef(0);
   const reconcileEpochRef = useRef(0);
   const requestedEndpointRef = useRef<PhoneFigure3Endpoint | null>(null);
@@ -612,6 +613,7 @@ export const PhoneFigure3 = forwardRef<
     pendingRunDirectionRef.current = null;
     pendingRunTargetKeyRef.current = null;
     playbackIntentDirectionRef.current = null;
+    playbackIntentIdentityRef.current = null;
     requestedEndpointRef.current = null;
     targetPreparationRef.current = null;
     armedTargetPreparationRef.current = null;
@@ -1008,6 +1010,7 @@ export const PhoneFigure3 = forwardRef<
     );
     if (action === 'discard-stale-target') {
       playbackIntentDirectionRef.current = null;
+      playbackIntentIdentityRef.current = null;
       pendingRunDirectionRef.current = null;
       pendingRunTargetKeyRef.current = null;
       if (targetPreparationRef.current === target) {
@@ -1059,8 +1062,11 @@ export const PhoneFigure3 = forwardRef<
         target
         && execution
         && playbackIntentDirectionRef.current === runDirection
+        && playbackIntentIdentityRef.current
+        && sameExecution(playbackIntentIdentityRef.current, execution)
       ) {
         playbackIntentDirectionRef.current = null;
+        playbackIntentIdentityRef.current = null;
         startRun(runDirection, execution, target);
       }
       return;
@@ -1258,7 +1264,14 @@ export const PhoneFigure3 = forwardRef<
       pendingRunDirectionRef.current = null;
       pendingRunTargetKeyRef.current = null;
       playbackIntentDirectionRef.current = null;
+      playbackIntentIdentityRef.current = null;
       runIdentityRef.current = null;
+    } else if (
+      playbackIntentIdentityRef.current
+      && !sameExecution(playbackIntentIdentityRef.current, execution)
+    ) {
+      playbackIntentDirectionRef.current = null;
+      playbackIntentIdentityRef.current = null;
     }
     reconcileMedia();
   }, [
@@ -1387,6 +1400,7 @@ export const PhoneFigure3 = forwardRef<
       activeRef.current = true;
       directionRef.current = runDirection;
       playbackIntentDirectionRef.current = runDirection;
+      playbackIntentIdentityRef.current = request ?? executionRef.current;
       reconcileMedia();
     },
     presentPresentation(token, report) {

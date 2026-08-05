@@ -554,10 +554,10 @@ export const PhoneTtg = forwardRef<
   const mediaRetiringRef = useRef(false);
   const hasForwardRunRef = useRef(false);
   const forwardRequestedRef = useRef(false);
+  const forwardIntentIdentityRef = useRef<PhoneExecutionToken | null>(null);
   const targetPreparationRef = useRef<PhoneTtgTargetPreparation | null>(null);
   const preparedEndpointRef = useRef<PhoneTtgPreparedEndpoint | null>(null);
   const completionReportedRef = useRef(false);
-  const propsReconciledRef = useRef(false);
   const runGenerationRef = useRef(0);
   const initialFrameGenerationRef = useRef(0);
   const initialFramePreparationRef = useRef<Promise<boolean> | null>(null);
@@ -791,6 +791,7 @@ export const PhoneTtg = forwardRef<
     cancelChapterTransition();
     mediaRetiringRef.current = true;
     forwardRequestedRef.current = false;
+    forwardIntentIdentityRef.current = null;
     targetPreparationRef.current = null;
     preparedEndpointRef.current = null;
     runIdentityRef.current = null;
@@ -1058,6 +1059,8 @@ export const PhoneTtg = forwardRef<
     );
     if (targetAction === 'discard-stale-target') {
       targetPreparationRef.current = null;
+      forwardRequestedRef.current = false;
+      forwardIntentIdentityRef.current = null;
       if (
         preparedEndpointRef.current?.presentationKey
           === phoneRuntimePresentationTokenKey(target!.token)
@@ -1089,8 +1092,17 @@ export const PhoneTtg = forwardRef<
     const playback = playbackRef.current;
     if (!playback) return;
     if (action === 'play-forward' || action === 'play-reverse') {
-      if (forwardRequestedRef.current) {
-        startRun(action === 'play-forward' ? 1 : -1);
+      const identity = executionRef.current;
+      if (
+        forwardRequestedRef.current
+        && forwardIntentIdentityRef.current
+        && identity
+        && sameExecution(forwardIntentIdentityRef.current, identity)
+      ) {
+        const runDirection = action === 'play-forward' ? 1 : -1;
+        forwardRequestedRef.current = false;
+        forwardIntentIdentityRef.current = null;
+        startRun(runDirection, identity);
       }
       return;
     }
@@ -1251,23 +1263,22 @@ export const PhoneTtg = forwardRef<
   ]);
 
   useEffect(() => {
-    const previousExecution = executionRef.current;
-    const firstReconcile = !propsReconciledRef.current;
-    propsReconciledRef.current = true;
     executionRef.current = execution;
     activeRef.current = execution !== null;
     directionRef.current = execution?.[4] ?? direction;
     prewarmRef.current = prewarm;
     reducedMotionRef.current = reducedMotion;
-    if (execution && (firstReconcile || !sameExecution(previousExecution, execution))) {
-      // Only reconciliation may release a prepared target to playback. The
-      // forward admission proof is leg 0 and TTG media is leg 1, so the
-      // lineage predicate permits that one successor only after physical prep.
-      forwardRequestedRef.current = true;
-    } else if (!execution) {
+    if (!execution) {
       forwardRequestedRef.current = false;
+      forwardIntentIdentityRef.current = null;
       runIdentityRef.current = null;
       executionFrameRef.current = null;
+    } else if (
+      forwardIntentIdentityRef.current
+      && !sameExecution(forwardIntentIdentityRef.current, execution)
+    ) {
+      forwardRequestedRef.current = false;
+      forwardIntentIdentityRef.current = null;
     }
     reconcileMedia();
   }, [direction, execution, prewarm, reconcileMedia, reducedMotion]);
@@ -1412,6 +1423,7 @@ export const PhoneTtg = forwardRef<
       activeRef.current = true;
       directionRef.current = runDirection;
       forwardRequestedRef.current = true;
+      forwardIntentIdentityRef.current = request ?? executionRef.current;
       reconcileMedia();
     },
     presentPresentation(token, report) {
