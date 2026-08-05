@@ -233,7 +233,10 @@ export async function createPhoneFigure2DistanceExpandBridge(
   const from = phoneFigure2Layer('figure2-animation', fromElement);
   const to = phoneFigure2Layer('figure2-proof', toElement);
   const timeline = await createFigure2DistanceExpandTransition({
-    ownsMedia: false,
+    // The proof adapter is the execution owner for the complete depth leg.
+    // Keeping this enabled prevents the leaf snapshot from publishing an
+    // endpoint before the z-depth timeline has actually advanced there.
+    ownsMedia: true,
     inkCanvas
   }).buildTimeline({
     segment: FIGURE2_DISTANCE_EXPAND_SEGMENT,
@@ -406,7 +409,6 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       this.ownsMedia
       && !this.context.prefersReducedMotion
       && isDepthLeg
-      && leg.direction === -1
     ) {
       await prepareFigure2TerminalPair(
         sceneRoot(this.context.from.element, 'figure2-animation'),
@@ -453,7 +455,6 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       this.ownsMedia
       && !this.context.prefersReducedMotion
       && isDepthLeg
-      && leg.direction === -1
     ) {
       commitFigure2TerminalPair(
         sceneRoot(this.context.from.element, 'figure2-animation'),
@@ -500,23 +501,28 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
 
     const fromRoot = sceneRoot(this.context.from.element, 'figure2-animation');
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof');
-    const depthTransform = this.ownsMedia
-      ? renderFigure2AnimationProgress(fromRoot, intro, {
+    const stagedDepthTransform = figure2DepthTransformForProgress(fromRoot, clamped);
+    if (this.ownsMedia && this.mediaRun) {
+      // The source media remains under this execution lease for every
+      // physical frame. It is intentionally sampled at its authored terminal
+      // intro frame while the second-stage camera/depth transform continues
+      // from the staged snap to Proof.
+      renderFigure2AnimationProgress(fromRoot, intro, {
         proofProgress: 0,
-        videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection),
+        videoMode: 'seek',
         mediaRun: {
-          ...(this.mediaRun ?? { runId: this.context.runId }),
+          ...this.mediaRun,
           direction: this.playbackDirection,
           reducedMotion: this.context.prefersReducedMotion
         }
-      }).depthTransform
-      : figure2DepthTransformForProgress(fromRoot, intro);
+      });
+    }
     const depthOwnership = inkOwnershipGateProgress(reveal);
-    this.depthMask?.render(depthOwnership, depthTransform);
+    this.depthMask?.render(depthOwnership, stagedDepthTransform);
     this.inkRuntime([
       'render',
       reveal,
-      phoneFigure2DepthTransformRequest(depthTransform)
+      phoneFigure2DepthTransformRequest(stagedDepthTransform)
     ]);
     const valueDomain = depthOwnership <= 0 ? '0' : depthOwnership >= 1 ? '1' : '1,0';
 

@@ -100,15 +100,27 @@ export function createPhoneInkTransition(
       Boolean(element) && elements.indexOf(element) === index
     )
   );
+  let direction: 1 | -1 = 1;
+  const endpointElements = (nextDirection: 1 | -1) => {
+    const sources = nextDirection === 1
+      ? sourceEndpoints
+      : [options.to].filter((element): element is HTMLElement => Boolean(element));
+    const receiver = nextDirection === 1 ? options.to : options.from;
+    return [
+      ...sources,
+      ...(receiver ? [receiver] : [])
+    ];
+  };
 
   const begin = (request: PhoneCinematicRequest) => {
+    direction = request[4];
     geometryLease?.releaseGeometry();
     geometryLease = acquirePhoneBoundaryGeometryLease(
-      [...sourceEndpoints, options.to],
+      endpointElements(direction),
       [request[1], request[2]],
       clearBoundaryGeometry
     );
-    runtime(['armEndpoint']);
+    runtime(['armEndpoint', direction]);
   };
 
   const render = (rawProgress: number, force = false): boolean => {

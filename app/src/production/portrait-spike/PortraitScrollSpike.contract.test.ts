@@ -452,7 +452,7 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeADistanceBridgeSource).toContain(
       'createFigure2DistanceExpandTransition({'
     );
-    expect(gradeADistanceBridgeSource).toContain('ownsMedia: false');
+    expect(gradeADistanceBridgeSource).toContain('ownsMedia: true');
     expect(gradeADistanceBridgeSource).toContain('inkCanvas');
     expect(gradeAGroupSource).toContain("'method-bottom-figure2'");
     expect(gradeAGroupSource).toContain("'figure2-distance-expand'");

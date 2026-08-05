@@ -89,7 +89,10 @@
   height: 132%;
   left: -16%;
   top: -16%;
-  opacity: var(--r4-hero-back-ink-opacity, 1);
+  /* The DOM texture is hidden until the same intro execution has produced a
+   * real GPU frame and completed its canvas handoff. A decoded image alone
+   * must never expose a rectangular Hero before the radial field. */
+  opacity: var(--r4-hero-back-ink-opacity, 0);
   object-fit: cover;
   filter:
     blur(calc(1.15px + 6.2px * (1 - var(--r4-hero-progress))))

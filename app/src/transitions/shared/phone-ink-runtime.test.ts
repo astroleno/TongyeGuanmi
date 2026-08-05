@@ -43,8 +43,12 @@ describe('phone ink runtime bridge', () => {
       'dark'
     ]);
 
-    expect(receiver.dataset.phoneInkAdmission).toBe('pending');
+    // Direction is bound by the execution token, not guessed from the
+    // structural `to` endpoint while the bridge is being constructed.
+    expect(receiver.dataset.phoneInkAdmission).toBeUndefined();
     expect(receiver.dataset.phoneInkFrame).toBeUndefined();
+    bridge(['armEndpoint', 1]);
+    expect(receiver.dataset.phoneInkAdmission).toBe('pending');
     expect(bridge(['render', .003])).toBe(true);
     expect(vendor.boundaryRender).toHaveBeenCalledOnce();
     expect(canvas.style.visibility).toBe('visible');
@@ -84,5 +88,34 @@ describe('phone ink runtime bridge', () => {
     expect(vendor.boundaryRender).toHaveBeenCalledTimes(2);
     bridge(['dispose']);
     expect(receiver.dataset.phoneInkAdmission).toBeUndefined();
+  });
+
+  it('arms and proves the physical `from` receiver on reverse executions', () => {
+    const host = new FakeElement();
+    const source = new FakeElement();
+    const receiver = new FakeElement();
+    const canvas = new FakeCanvas() as FakeCanvas & { clientWidth: number };
+    canvas.clientWidth = 390;
+
+    const bridge = createPhoneInkRuntimeBridge([
+      host as unknown as HTMLElement,
+      canvas as unknown as HTMLCanvasElement,
+      'phone-method-bottom-figure2',
+      source as unknown as HTMLElement,
+      null,
+      receiver as unknown as HTMLElement,
+      ['horizontal', 'method-bottom-figure2', 'top-to-bottom', null, null],
+      'dark'
+    ]);
+
+    bridge(['armEndpoint', -1]);
+    expect(source.dataset.phoneInkAdmission).toBe('pending');
+    expect(receiver.dataset.phoneInkAdmission).toBeUndefined();
+    expect(bridge(['render', .003])).toBe(true);
+    expect(source.dataset.phoneInkFrame).toBe('ready');
+    expect(receiver.dataset.phoneInkFrame).toBeUndefined();
+    bridge(['releaseEndpoint']);
+    expect(source.dataset.phoneInkAdmission).toBeUndefined();
+    expect(source.dataset.phoneInkFrame).toBeUndefined();
   });
 });

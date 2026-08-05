@@ -40,7 +40,7 @@ export type PhoneInkRuntimeRequest = readonly [
 ];
 
 export type PhoneInkRuntimeCommand =
-  | readonly ['armEndpoint']
+  | readonly ['armEndpoint', direction?: 1 | -1]
   | readonly ['render', progress: number, force?: boolean]
   | readonly ['releaseEndpoint']
   | readonly ['dispose'];
@@ -103,14 +103,10 @@ export function createPhoneInkRuntimeBridge([
   if (!surface || !host) {
     return () => undefined;
   }
-  // A transition receiver is a dormant DOM participant until the same ink
-  // runtime has drawn a real frame for this execution.  The projector may
-  // assign the receiver role during admission, but that role must not expose
-  // a rectangular scene between the React commit and the first WebGL draw.
-  if (to) {
-    to.dataset.phoneInkAdmission = 'pending';
-    delete to.dataset.phoneInkFrame;
-  }
+  // The direction is not available until the immutable execution token is
+  // bound by `begin`. Do not guess that `to` is the receiver here: on a
+  // reverse execution the physical receiver is `from`, and marking `to`
+  // would hide the source while leaving the real receiver unguarded.
   // A radial field samples the same compact contour transport as horizontal
   // ink. Retain it for this run instead of regenerating another radial mask
   // on every compositor frame.
@@ -135,11 +131,35 @@ export function createPhoneInkRuntimeBridge([
     removeCanvasOnDestroy: false,
     loseContextOnDestroy: false
   });
-  const sourceEndpoints = [from, additionalFrom].filter(
+  const unique = (elements: readonly (HTMLElement | null)[]) => elements.filter(
     (element, index, elements): element is HTMLElement => (
       Boolean(element) && elements.indexOf(element) === index
     )
   );
+  let direction: 1 | -1 = 1;
+  let receiver: HTMLElement | null = to;
+  let sourceEndpoints = unique([from, additionalFrom]);
+  const selectEndpoints = (nextDirection: 1 | -1) => {
+    direction = nextDirection;
+    receiver = direction === 1 ? to : from;
+    sourceEndpoints = unique(
+      direction === 1 ? [from, additionalFrom] : [to]
+    );
+  };
+  const clearEndpointMarkers = () => {
+    for (const endpoint of unique([from, to])) {
+      delete endpoint.dataset.phoneInkAdmission;
+      delete endpoint.dataset.phoneInkFrame;
+    }
+  };
+  const armEndpoint = (nextDirection: 1 | -1 = direction) => {
+    selectEndpoints(nextDirection);
+    clearEndpointMarkers();
+    if (receiver) {
+      receiver.dataset.phoneInkAdmission = 'pending';
+      delete receiver.dataset.phoneInkFrame;
+    }
+  };
   let lastProgress = Number.NaN;
 
   if (import.meta.env.DEV) {
@@ -175,20 +195,20 @@ export function createPhoneInkRuntimeBridge([
         applyConcealBoundary(source, frame);
       }
     }
-    if (to) {
-      applyRevealBoundary(to, frame);
+    if (receiver) {
+      applyRevealBoundary(receiver, frame);
     }
     if (rendererNeedsFrame) {
       rendered = fieldActive && (renderer?.render(frame) ?? false);
     }
     if (rendered) {
       surface.dataset.phonePresentationEffectFrame = 'ready';
-      if (to) to.dataset.phoneInkFrame = 'ready';
+      if (receiver) receiver.dataset.phoneInkFrame = 'ready';
     } else if (!fieldActive) {
       delete surface.dataset.phonePresentationEffectFrame;
-      if (to) delete to.dataset.phoneInkFrame;
-    } else if (to) {
-      delete to.dataset.phoneInkFrame;
+      if (receiver) delete receiver.dataset.phoneInkFrame;
+    } else if (receiver) {
+      delete receiver.dataset.phoneInkFrame;
     }
     return rendered;
   };
@@ -198,17 +218,11 @@ export function createPhoneInkRuntimeBridge([
       return render(command[1], command[2]);
     }
     if (command[0] === 'armEndpoint') {
-      if (to) {
-        to.dataset.phoneInkAdmission = 'pending';
-        delete to.dataset.phoneInkFrame;
-      }
+      armEndpoint(command[1] ?? direction);
       return;
     }
     if (command[0] === 'releaseEndpoint') {
-      if (to) {
-        delete to.dataset.phoneInkAdmission;
-        delete to.dataset.phoneInkFrame;
-      }
+      clearEndpointMarkers();
       delete surface.dataset.phonePresentationEffectFrame;
       return;
     }
@@ -220,10 +234,7 @@ export function createPhoneInkRuntimeBridge([
       delete surface.dataset.phoneInkProgress;
     }
     delete surface.dataset.phonePresentationEffectFrame;
-    if (to) {
-      delete to.dataset.phoneInkAdmission;
-      delete to.dataset.phoneInkFrame;
-    }
+    clearEndpointMarkers();
     mountedCanvas?.remove();
   };
 }

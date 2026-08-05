@@ -87,7 +87,12 @@ export function phoneFigure2MediaPlan(
 
   if (status === 'transaction') {
     if (run === 'method-figure2') return [io, 0, surfaceMode];
-    if (run === 'figure2-proof') return [io, 1, 'endpoint'];
+    // Figure2 → Proof is a runner-owned depth execution.  Do not publish the
+    // terminal media frame from the leaf when admission starts: the proof
+    // timeline must advance the source media and its z-depth together under
+    // the same execution lease.  The leaf resumes ownership at the stable
+    // Figure2 hold after the transaction has settled.
+    if (run === 'figure2-proof') return ['idle', 0, null];
     return ['idle', 0, null];
   }
   if (semanticScene !== 'figure2-animation') return ['idle', 0, null];

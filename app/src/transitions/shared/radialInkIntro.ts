@@ -70,7 +70,10 @@ export function createRadialInkIntroController(
     }
     const canvasOwnsTarget = Boolean(renderer?.isActive());
     if (!canvasOwnsTarget) {
-      options.revealSurface.style.removeProperty('--r4-hero-back-ink-opacity');
+      // Keep the target texture explicitly hidden until this execution owns a
+      // drawable frame. Removing the property would re-enter the CSS
+      // fallback and can flash the full rectangle during cold startup.
+      options.revealSurface.style.setProperty('--r4-hero-back-ink-opacity', '0');
       return;
     }
     // The target-texture renderer retains canvas ownership through 0.995;

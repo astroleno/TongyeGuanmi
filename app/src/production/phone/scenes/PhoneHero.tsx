@@ -405,7 +405,14 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         if (!cancelled) root.dataset.phoneHeroFirstFrame = 'failed';
       });
       if (reducedMotion) {
+        // Reduced motion has no radial intro execution. Its static Hero
+        // endpoint is still an explicit post-paint presentation, so opt the
+        // DOM texture in deliberately instead of relying on the hidden cold
+        // startup fallback used by animated intro runs.
+        root.style.setProperty('--r4-hero-back-ink-opacity', '1');
         renderHeroProgress(root, 1);
+      } else {
+        root.style.removeProperty('--r4-hero-back-ink-opacity');
       }
       const owner = storyRoot() ?? root;
       const playback = createPhoneFigurePlayback(
