@@ -733,16 +733,10 @@ export function PhoneGradeAStory({
               : direction === 1 ? 1 : 0;
             methodPaper?.style.setProperty('visibility', 'hidden');
             setMethodInkProgress(endpoint);
-            proofRef.current?.leave?.();
             setRetainedArchProgress(endpoint, 0);
             return;
           }
           setMethodInkProgress(progress);
-          proofRef.current?.leave?.();
-          methodFigure2Ref.current?.render(progress);
-          figure2ProofRef.current?.render(0);
-          proofBrandRef.current?.render(0);
-          proofRef.current?.update(0);
           setRetainedArchProgress(progress, 0);
           return;
         case 'figure2-proof':
@@ -752,26 +746,14 @@ export function PhoneGradeAStory({
             methodPaper?.style.setProperty('visibility', 'hidden');
             setMethodInkProgress(1);
             if (targetIsProof) {
-              proofRef.current?.enter?.();
-              proofRef.current?.update(0);
               setRetainedArchProgress(1, 1);
             } else {
-              proofRef.current?.leave?.();
               setRetainedArchProgress(1, 0);
             }
             return;
           }
-          const proofTransitionProgress = phoneGradeAProofTransitionProgress(
-            phase,
-            sessionProgress
-          );
           methodPaper?.style.setProperty('visibility', 'hidden');
           setMethodInkProgress(1);
-          proofRef.current?.enter?.();
-          methodFigure2Ref.current?.render(1);
-          figure2ProofRef.current?.render(progress);
-          proofBrandRef.current?.render(0);
-          proofRef.current?.update(proofTransitionProgress);
           setRetainedArchProgress(
             1,
             FIGURE2_PROOF_SPLIT
@@ -780,30 +762,13 @@ export function PhoneGradeAStory({
           return;
         case 'proof-brand':
           if (reducedMotion) {
-            const rollback = phase?.startsWith('rollback-') === true;
-            const targetIsBrand = direction === 1 ? !rollback : rollback;
             methodPaper?.style.setProperty('visibility', 'hidden');
             setMethodInkProgress(1);
-            if (targetIsBrand) {
-              proofRef.current?.leave?.();
-            } else {
-              proofRef.current?.enter?.();
-              proofRef.current?.update(0);
-            }
             setRetainedArchProgress(1, 1);
             return;
           }
-          const proofBrandTransitionProgress = phoneGradeAProofBrandTransitionProgress(
-            phase,
-            direction ?? 1
-          );
           methodPaper?.style.setProperty('visibility', 'hidden');
           setMethodInkProgress(1);
-          proofRef.current?.enter?.();
-          methodFigure2Ref.current?.render(1);
-          figure2ProofRef.current?.render(1);
-          proofBrandRef.current?.render(progress);
-          proofRef.current?.update(proofBrandTransitionProgress);
           setRetainedArchProgress(1, 1);
           return;
         default:

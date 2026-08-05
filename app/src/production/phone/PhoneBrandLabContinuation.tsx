@@ -149,21 +149,13 @@ export const PhoneBrandLabContinuation = forwardRef<
     'figure3-animation'
   );
   const [ttgRun, ttgSurface, ttgTarget] = phoneCompositeVisualSpec('ttg-animation');
-  const [
-    figure3Execution,
-    figure3Prewarm,
-    figure3Progress
-  ] = phoneCompositeVisualProjection(
+  const [figure3Execution, figure3Prewarm] = phoneCompositeVisualProjection(
     cinematicSnapshot,
     figure3Run,
     figure3Surface,
     figure3Target
   );
-  const [
-    ttgExecution,
-    ttgPrewarm,
-    ttgProgress
-  ] = phoneCompositeVisualProjection(
+  const [ttgExecution, ttgPrewarm] = phoneCompositeVisualProjection(
     cinematicSnapshot,
     ttgRun,
     ttgSurface,
@@ -559,12 +551,6 @@ export const PhoneBrandLabContinuation = forwardRef<
     brandRef.current?.update(1);
     servicesRef.current?.update(1);
     labRef.current?.update(1);
-    if (!figure3Execution) {
-      figure3Ref.current?.update(figure3Progress);
-    }
-    if (!ttgExecution) {
-      ttgRef.current?.update(ttgProgress);
-    }
   }, [storySnapshot]);
 
   useEffect(() => () => {

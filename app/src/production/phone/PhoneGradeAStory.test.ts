@@ -170,6 +170,17 @@ describe('phone Grade A orchestration ownership', () => {
     expect(figure2DistanceSource).not.toContain('figure2IntroProgress(');
   });
 
+  it('[execution hard cutover] never lets the snapshot bridge write adapter frames during a transaction', () => {
+    const transactionStart = source.indexOf("if (status === 'transaction')");
+    const stableStart = source.indexOf('switch (semanticScene)', transactionStart);
+    expect(transactionStart).toBeGreaterThanOrEqual(0);
+    expect(stableStart).toBeGreaterThan(transactionStart);
+    const transactionBridge = source.slice(transactionStart, stableStart);
+    expect(transactionBridge).not.toMatch(
+      /(?:methodFigure2|figure2Proof|proofBrand|proof)Ref\.current\?\.(?:render|update|enter|leave|reverse)\(/
+    );
+  });
+
   it('[normal Grade A hard cutover] forwards an immutable Ink frame instead of rebuilding a segment proof', () => {
     const start = gradeARuntimeSource.indexOf('const begin =');
     const end = gradeARuntimeSource.indexOf('const registrations =', start);
@@ -246,8 +257,8 @@ describe('phone Grade A orchestration ownership', () => {
     expect(end).toBeGreaterThan(start);
     const proofBrand = source.slice(start, end);
     expect(proofBrand).toMatch(/if \(reducedMotion\)[\s\S]*?return;/);
-    expect(proofBrand).toMatch(
-      /if \(targetIsBrand\)[\s\S]*?else \{[\s\S]*?proofRef\.current\?\.enter\?\.\(\);[\s\S]*?proofRef\.current\?\.update\(0\);/
+    expect(proofBrand).not.toMatch(
+      /(?:proofRef|proofBrand|figure2Proof|methodFigure2)\.current\?\.(?:render|update|enter|leave|reverse)\(/
     );
   });
 

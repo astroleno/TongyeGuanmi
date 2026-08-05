@@ -286,6 +286,20 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(presentation).not.toContain('ensurePackedSurface(');
   });
 
+  it('[execution hard cutover] snapshot projection never writes Group45 media leaves', () => {
+    const bridgeStart = storySource.indexOf(
+      'useLayoutEffect(() => {',
+      storySource.indexOf('Snapshot -> adapter bridge')
+    );
+    const bridgeEnd = storySource.indexOf('useEffect(() => () =>', bridgeStart);
+    expect(bridgeStart).toBeGreaterThanOrEqual(0);
+    expect(bridgeEnd).toBeGreaterThan(bridgeStart);
+    const bridge = storySource.slice(bridgeStart, bridgeEnd);
+    expect(bridge).not.toMatch(
+      /(?:figure3|ttg)Ref\.current\?\.(?:update|enter|reverse|leave)\(/
+    );
+  });
+
   it('keeps one opaque edge owner behind every fixed-stage boundary', () => {
     expect(stageStyles).toMatch(
       /portrait-scroll-spike__viewport-coverage\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*var\(--phone-host-plane-coverage\)[^}]*background:\s*var\(--portrait-edge-surface\)/s

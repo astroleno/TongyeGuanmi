@@ -136,11 +136,11 @@ export function PhoneLabContactContinuation({
     cinematicSnapshot,
     initialScene
   );
-  const [phExecution, phPrewarm, phProgress] = phoneLabContactVisualProjection(
+  const [phExecution, phPrewarm] = phoneLabContactVisualProjection(
     cinematicSnapshot,
     'ph-animation'
   );
-  const [craneExecution, cranePrewarm, craneProgress] = phoneLabContactVisualProjection(
+  const [craneExecution, cranePrewarm] = phoneLabContactVisualProjection(
     cinematicSnapshot,
     'crane-animation'
   );
@@ -561,12 +561,6 @@ export function PhoneLabContactContinuation({
   useLayoutEffect(() => {
     educationRef.current?.update(1);
     contactRef.current?.update(1);
-    if (!phExecution) {
-      phRef.current?.update(phProgress);
-    }
-    if (!craneExecution) {
-      craneRef.current?.update(craneProgress);
-    }
   }, [storySnapshot]);
 
   useEffect(() => () => {

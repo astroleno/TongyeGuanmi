@@ -174,6 +174,20 @@ describe('PhoneLabContactContinuation recovery contract', () => {
     expect(source).not.toContain('runner.reportRenderedFrame(');
   });
 
+  it('[execution hard cutover] snapshot projection never writes Group67 media leaves', () => {
+    const bridgeStart = source.indexOf(
+      'useLayoutEffect(() => {',
+      source.indexOf('Snapshot')
+    );
+    const bridgeEnd = source.indexOf('useEffect(() => () =>', bridgeStart);
+    expect(bridgeStart).toBeGreaterThanOrEqual(0);
+    expect(bridgeEnd).toBeGreaterThan(bridgeStart);
+    const bridge = source.slice(bridgeStart, bridgeEnd);
+    expect(bridge).not.toMatch(
+      /(?:ph|crane)Ref\.current\?\.(?:update|enter|reverse|leave)\(/
+    );
+  });
+
   it('[native direct-entry cutover] registers the manifest-required static leaves as presentation adapters', () => {
     expect(source).toMatch(
       /scene === 'education' \|\| scene === 'contact'[\s\S]*?target\?\.presentPresentation\?\.\(token, report\)[\s\S]*?target\?\.disposePresentation\?\.\(token\)/
