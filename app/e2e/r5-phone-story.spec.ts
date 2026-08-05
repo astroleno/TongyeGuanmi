@@ -42,6 +42,25 @@ type PixelEvidence = Readonly<{
   nonSurfaceRatio: number;
 }>;
 
+type RadialFrontierSample = Readonly<{
+  index: number;
+  alphaAtClip: number;
+  maxAlpha: number;
+  errorPx: number;
+}>;
+
+type RadialFrontierWitness = Readonly<{
+  rank: number;
+  samples: readonly RadialFrontierSample[];
+}>;
+
+type RadialFrontierProbe = Readonly<{
+  closest: readonly (RadialFrontierWitness | null)[];
+}>;
+
+const RADIAL_FRONTIER_RANKS = [.2, .5, .8] as const;
+const RADIAL_FRONTIER_SAMPLE_INDICES = [0, 32, 64, 96, 128, 160, 192, 224] as const;
+
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 function paethPredictor(left: number, up: number, upLeft: number): number {
@@ -218,6 +237,187 @@ function compositedPixelDelta(
     }
   }
   return changed / samples;
+}
+
+/**
+ * Captures the live WebGL alpha buffer immediately after the production
+ * radial shader draws.  Reading later is invalid because browsers are free
+ * to discard a non-preserved drawing buffer after composition.  This probe
+ * deliberately compares canvas alpha to the actual receiver clip geometry;
+ * it does not trust shared data attributes as visual evidence.
+ */
+async function installRadialFrontierProbe(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    type ProbeSample = Readonly<{
+      index: number;
+      alphaAtClip: number;
+      maxAlpha: number;
+      errorPx: number;
+    }>;
+    type ProbeWitness = Readonly<{
+      rank: number;
+      samples: readonly ProbeSample[];
+    }>;
+    type Probe = {
+      closest: Array<ProbeWitness | null>;
+    };
+    const target = window as typeof window & {
+      __r5RadialFrontierProbe?: Probe;
+    };
+    const targetRanks = [.2, .5, .8] as const;
+    const sampleIndices = [0, 32, 64, 96, 128, 160, 192, 224] as const;
+    const originalDrawArrays = WebGLRenderingContext.prototype.drawArrays;
+    target.__r5RadialFrontierProbe = { closest: [null, null, null] };
+
+    const parsePoint = (value: string): readonly [number, number] | null => {
+      const match = value.match(/^(-?[0-9.]+)% (-?[0-9.]+)%$/);
+      return match ? [Number(match[1]) / 100, Number(match[2]) / 100] : null;
+    };
+    const clamp = (value: number, maximum: number) => Math.max(0, Math.min(maximum, value));
+
+    WebGLRenderingContext.prototype.drawArrays = function drawArrays(
+      mode: GLenum,
+      first: GLint,
+      count: GLsizei
+    ): void {
+      originalDrawArrays.call(this, mode, first, count);
+      const canvas = this.canvas;
+      if (
+        !(canvas instanceof HTMLCanvasElement)
+        || canvas.dataset.r4InkBoundaryKind !== 'radial'
+        || canvas.dataset.r4InkSegment !== 'portrait-hero-pattern-ink'
+        || canvas.parentElement?.getAttribute('data-phone-presentation-host') !== 'route-overlay'
+      ) {
+        return;
+      }
+      const rank = Number(canvas.dataset.r4InkBoundaryRank);
+      const probe = target.__r5RadialFrontierProbe;
+      if (!probe || !Number.isFinite(rank)) return;
+      const closestIndex = targetRanks.reduce((bestIndex, targetRank, index) => (
+        Math.abs(rank - targetRank) < Math.abs(rank - targetRanks[bestIndex]!)
+          ? index
+          : bestIndex
+      ), 0);
+      const targetRank = targetRanks[closestIndex]!;
+      const rankError = Math.abs(rank - targetRank);
+      const previous = probe.closest[closestIndex];
+      // Avoid expensive readPixels work on every animation frame. The probe
+      // only samples a production draw once it is close enough to each
+      // required rank, then keeps replacing it only with a closer frame.
+      if (rankError > .075 || (
+        previous !== null && rankError >= Math.abs(previous.rank - targetRank)
+      )) {
+        return;
+      }
+      const receiver = document.querySelector<HTMLElement>(
+        '.portrait-scroll-spike__scene--pattern'
+      );
+      const clipPath = receiver?.style.clipPath
+        || receiver?.style.getPropertyValue('-webkit-clip-path')
+        || '';
+      const rawPoints = clipPath.match(/^polygon\((.*)\)$/)?.[1]?.split(', ') ?? [];
+      if (rawPoints.length < 225) return;
+      const points = rawPoints.map(parsePoint);
+      if (points.some((point) => point === null)) return;
+
+      const pixels = new Uint8Array(canvas.width * canvas.height * 4);
+      try {
+        this.readPixels(0, 0, canvas.width, canvas.height, this.RGBA, this.UNSIGNED_BYTE, pixels);
+      } catch {
+        return;
+      }
+      const originX = canvas.width * .5;
+      const originY = canvas.height * (1 - .44);
+      const alphaAt = (x: number, y: number) => {
+        let sum = 0;
+        let samples = 0;
+        for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+          for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+            const pixelX = clamp(Math.round(x + offsetX), canvas.width - 1);
+            const pixelY = clamp(Math.round(y + offsetY), canvas.height - 1);
+            sum += pixels[(pixelY * canvas.width + pixelX) * 4 + 3] ?? 0;
+            samples += 1;
+          }
+        }
+        return sum / samples;
+      };
+      const samples: ProbeSample[] = [];
+      for (const index of sampleIndices) {
+        const point = points[index];
+        if (!point) return;
+        const pointX = point[0] * canvas.width;
+        const pointY = (1 - point[1]) * canvas.height;
+        const deltaX = pointX - originX;
+        const deltaY = pointY - originY;
+        const radius = Math.hypot(deltaX, deltaY);
+        if (radius < 1) return;
+        const directionX = deltaX / radius;
+        const directionY = deltaY / radius;
+        const radialSamples: Array<readonly [number, number]> = [];
+        let maxAlpha = 0;
+        const from = Math.max(0, Math.floor(radius - 120));
+        const to = Math.ceil(radius + 120);
+        for (let distance = from; distance <= to; distance += 1) {
+          const alpha = alphaAt(
+            originX + directionX * distance,
+            originY + directionY * distance
+          );
+          radialSamples.push([distance, alpha]);
+          maxAlpha = Math.max(maxAlpha, alpha);
+        }
+        if (maxAlpha < 16) return;
+        // The rendered radial core is intentionally textured. A 94% local
+        // alpha threshold keeps that texture from masquerading as a shifted
+        // frontier while still rejecting the old squared-radius field.
+        const threshold = maxAlpha * .94;
+        const nearestCore = radialSamples
+          .filter(([, alpha]) => alpha >= threshold)
+          .reduce<readonly [number, number] | null>((nearest, sample) => (
+            nearest === null || Math.abs(sample[0] - radius) < Math.abs(nearest[0] - radius)
+              ? sample
+              : nearest
+          ), null);
+        if (!nearestCore) return;
+        samples.push({
+          index,
+          alphaAtClip: alphaAt(pointX, pointY),
+          maxAlpha,
+          errorPx: nearestCore[0] - radius
+        });
+      }
+      if (samples.length !== sampleIndices.length) return;
+      const witness: ProbeWitness = { rank, samples };
+      probe.closest[closestIndex] = witness;
+    };
+  });
+}
+
+function assertRadialFrontierAlphaEvidence(probe: RadialFrontierProbe): void {
+  expect(probe.closest).toHaveLength(RADIAL_FRONTIER_RANKS.length);
+  for (const [index, targetRank] of RADIAL_FRONTIER_RANKS.entries()) {
+    const witness = probe.closest[index];
+    expect(witness, `missing live radial alpha sample near rank ${targetRank}`).not.toBeNull();
+    if (!witness) continue;
+    // Production rAF can coalesce an exact timestamp, while the deterministic
+    // geometry test owns the exact .2/.5/.8 math. This browser probe samples
+    // the nearest live GPU draw for each rank and accepts at most 0.075 rank.
+    expect(
+      Math.abs(witness.rank - targetRank),
+      `missing live frame near rank ${targetRank}: ${JSON.stringify(witness)}`
+    ).toBeLessThanOrEqual(.075);
+    expect(witness.samples.map((sample) => sample.index)).toEqual(RADIAL_FRONTIER_SAMPLE_INDICES);
+    for (const sample of witness.samples) {
+      expect(sample.maxAlpha).toBeGreaterThanOrEqual(160);
+      expect(
+        sample.alphaAtClip,
+        `clip point ${sample.index} must land on the live radial alpha core at rank ${targetRank}`
+      ).toBeGreaterThanOrEqual(sample.maxAlpha * .94);
+      expect(
+        Math.abs(sample.errorPx),
+        `live alpha core may not drift more than 2px from clip point ${sample.index} at rank ${targetRank}`
+      ).toBeLessThanOrEqual(2);
+    }
+  }
 }
 
 /**
@@ -3746,6 +3946,7 @@ test('[P0 real root pixels] Figure1 alpha proof has matching non-edge compositor
 
 test('[P0 route-overlay pixels] an above-both ink transition is painted by the route host', async ({ page }) => {
   test.setTimeout(45_000);
+  await installRadialFrontierProbe(page);
   await installColdPhoneRuntimeProbe(page);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   const root = await assertStablePhoneHold(page, 'hero');
@@ -3779,9 +3980,11 @@ test('[P0 route-overlay pixels] an above-both ink transition is painted by the r
     const canvas = document.querySelector<HTMLCanvasElement>(
       '[data-phone-presentation-host="route-overlay"] > canvas'
     );
+    const receiverRank = Number(receiver?.dataset.r4InkBoundaryRank);
     return Boolean(
       receiver?.dataset.r4InkBoundaryKind === 'radial'
       && receiver?.dataset.r4InkBoundaryRank
+      && receiverRank > .01
       && receiver.style.clipPath.startsWith('polygon(')
       && canvas?.dataset.r4InkBoundaryKind === 'radial'
       && canvas.dataset.r4InkBoundaryRank === receiver.dataset.r4InkBoundaryRank
@@ -3790,48 +3993,6 @@ test('[P0 route-overlay pixels] an above-both ink transition is painted by the r
     timeout: 5_000,
     message: 'the Pattern DOM mask and route ink field must expose one shared radial boundary rank'
   }).toBe(true);
-  const frontierSamples: Array<Readonly<{
-    rank: string | null;
-    clipPath: string | null;
-    canvasRank: string | null;
-  }>> = [];
-  const frontierFrames: PngScreenshot[] = [];
-  for (let index = 0; index < 3; index += 1) {
-    frontierSamples.push(await page.evaluate(() => {
-      const receiver = document.querySelector<HTMLElement>(
-        '.portrait-scroll-spike__scene--pattern'
-      );
-      const canvas = document.querySelector<HTMLCanvasElement>(
-        '[data-phone-presentation-host="route-overlay"] > canvas'
-      );
-      return {
-        rank: receiver?.dataset.r4InkBoundaryRank ?? null,
-        clipPath: receiver?.style.clipPath ?? null,
-        canvasRank: canvas?.dataset.r4InkBoundaryRank ?? null
-      };
-    }));
-    frontierFrames.push(decodePngScreenshot(await page.screenshot()));
-    await page.waitForTimeout(75);
-  }
-  for (const sample of frontierSamples) {
-    expect(sample.rank).toMatch(/^0\.[0-9]{6}$/);
-    expect(sample.canvasRank).toBe(sample.rank);
-    expect(sample.clipPath).toMatch(/^polygon\(/);
-    expect(sample.clipPath).not.toContain('circle(');
-  }
-  const frontierRanks = frontierSamples.map((sample) => Number.parseFloat(sample.rank!));
-  expect(frontierRanks[2]! - frontierRanks[0]!).toBeGreaterThan(.01);
-  for (let index = 1; index < frontierFrames.length; index += 1) {
-    expect(
-      compositedPixelDelta(frontierFrames[index - 1]!, frontierFrames[index]!, {
-        left: .08,
-        top: .08,
-        right: .92,
-        bottom: .92
-      }, 10),
-      'each sampled Hero→Pattern frontier frame must change final compositor pixels'
-    ).toBeGreaterThan(.0002);
-  }
   const routeHostEvidence = await page.evaluate(() => {
     const content = document.querySelector<HTMLElement>(
       '[data-phone-presentation-host="content"]'
@@ -3871,4 +4032,11 @@ test('[P0 route-overlay pixels] an above-both ink transition is painted by the r
   ).toBeGreaterThan(.005);
 
   await assertStablePhoneHold(page, 'pattern', { timeout: 15_000 });
+  const radialFrontierProbe = await page.evaluate(() => {
+    const target = window as typeof window & {
+      __r5RadialFrontierProbe?: RadialFrontierProbe;
+    };
+    return target.__r5RadialFrontierProbe ?? { closest: [] };
+  });
+  assertRadialFrontierAlphaEvidence(radialFrontierProbe);
 });

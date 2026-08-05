@@ -84,7 +84,7 @@ uniform float B;uniform vec2 E;uniform float I;vec2 nu(vec2 p){vec2 so=vec2(S*73
 #if defined(FH)
 float hd(vec2 u,float d){return d<0.5?1.0-u.y:u.y;}vec4 hc(vec2 u){float sc=max(K,1.0);float cu=(clamp(u.x,0.0,1.0)*(sc-1.0)+0.5)/sc;return texture2D(M,vec2(cu,0.5));}
 #elif defined(FR)
-float rc(vec2 d,float as){float a=fract(atan(d.y,d.x)/6.2831853+1.0);vec3 hs=texture2D(M,vec2(a,0.5)).rgb*2.0-1.0;float n=dot(hs,vec3(0.50,0.31,0.19));float x=O.x*as;float tx=d.x>.000001?(as-x)/d.x:d.x<-.000001?-x/d.x:1e6;float ty=d.y>.000001?(1.0-O.y)/d.y:d.y<-.000001?-O.y/d.y:1e6;float l=min(tx,ty)/max(Z,0.0001);float e=sin(clamp(H,0.0,1.0)*3.14159265);return max(l*(1.0+n*${RADIAL_INK_CONTOUR_AMPLITUDE.toFixed(6)}*e),0.0001);}float rr(vec2 u,float as){vec2 d=(u-O)*vec2(as,1.0);return length(d)/max(Z*rc(d,as),0.0001);}
+float rc(vec2 d,float as){vec2 q=d/max(length(d),0.000001);if(length(d)<.000001)q=vec2(1.0,0.0);float a=fract(atan(q.y,q.x)/6.2831853);vec3 hs=texture2D(M,vec2(a,0.5)).rgb*2.0-1.0;float n=dot(hs,vec3(0.50,0.31,0.19));float x=O.x*as;float tx=q.x>.000001?(as-x)/q.x:q.x<-.000001?-x/q.x:1e6;float ty=q.y>.000001?(1.0-O.y)/q.y:q.y<-.000001?-O.y/q.y:1e6;float l=min(tx,ty)/max(Z,0.0001);float e=sin(clamp(H,0.0,1.0)*3.14159265);return max(l*(1.0+n*${RADIAL_INK_CONTOUR_AMPLITUDE.toFixed(6)}*e),0.0001);}float rr(vec2 u,float as){vec2 d=(u-O)*vec2(as,1.0);return length(d)/max(Z*rc(d,as),0.0001);}
 #if FT
 vec2 ru(vec2 u){float sa=R.x/max(R.y,1.0);float ia=J.x/max(J.y,1.0);if(sa>ia){u.y=(u.y-0.5)*(ia/sa)+0.5;}else{u.x=(u.x-0.5)*(sa/ia)+0.5;}return u;}
 #endif

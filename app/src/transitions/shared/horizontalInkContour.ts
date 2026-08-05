@@ -155,6 +155,27 @@ export function horizontalInkOffset(contour: HorizontalInkContour, x: number): n
   return clamp(left + (right - left) * blend, -1, 1);
 }
 
+/**
+ * Mirrors WebGL's REPEAT + LINEAR sampling for a contour texture addressed by
+ * polar angle. Unlike horizontal ownership, angle zero lies between the last
+ * and first texel and every `(index + .5) / count` is an exact texel center.
+ */
+export function circularInkOffset(contour: HorizontalInkContour, angleRank: number): number {
+  const count = contour.samples.length;
+  if (count === 0) return 0;
+  const rank = Number.isFinite(angleRank) ? angleRank - Math.floor(angleRank) : 0;
+  const position = rank * count - .5;
+  const leftIndex = Math.floor(position);
+  const blend = position - leftIndex;
+  const sampleAt = (index: number) => {
+    const wrapped = ((index % count) + count) % count;
+    return ((contour.samples[wrapped] ?? 128) / 255) * 2 - 1;
+  };
+  const left = sampleAt(leftIndex);
+  const right = sampleAt(leftIndex + 1);
+  return clamp(left + (right - left) * blend, -1, 1);
+}
+
 function percent(value: number): string {
   return `${(clamp(value) * 100).toFixed(3)}%`;
 }

@@ -1,6 +1,6 @@
 import {
+  circularInkOffset,
   createHorizontalInkContour,
-  horizontalInkOffset,
   horizontalInkPolygon,
   type HorizontalInkContour
 } from './horizontalInkContour';
@@ -223,7 +223,7 @@ function radialInkPolygon(
     const angle = angleRank * Math.PI * 2;
     const radius = maximum
       * radialViewportLimit(origin, viewport, angle, maximum)
-      * (1 + horizontalInkOffset(contour, angleRank) * RADIAL_INK_CONTOUR_AMPLITUDE * envelope)
+      * (1 + circularInkOffset(contour, angleRank) * RADIAL_INK_CONTOUR_AMPLITUDE * envelope)
       * rank;
     const x = clamp(origin.x) + Math.cos(angle) * radius / aspect;
     const y = clamp(origin.y) - Math.sin(angle) * radius;

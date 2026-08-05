@@ -5,12 +5,70 @@ import {
   HORIZONTAL_INK_CORE_HALF_WIDTH_PX,
   HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX,
   inkOwnershipGateProgress,
+  RADIAL_INK_CONTOUR_AMPLITUDE,
   type InkDepthTransform,
   type InkFieldSpec
 } from './inkField';
-import { createHorizontalInkContour } from './horizontalInkContour';
+import {
+  createHorizontalInkContour,
+  type HorizontalInkContour
+} from './horizontalInkContour';
 
 const viewport = { width: 1440, height: 900 } as const;
+
+function parseRadialClipPoint(clipPath: string, index: number): Readonly<{ x: number; y: number }> {
+  const points = clipPath.match(/^polygon\((.*)\)$/)?.[1]?.split(', ') ?? [];
+  const point = points[index];
+  const match = point?.match(/^(-?[0-9.]+)% (-?[0-9.]+)%$/);
+  if (!match) throw new Error(`missing radial polygon point ${index}`);
+  return {
+    x: Number.parseFloat(match[1]!) / 100,
+    y: Number.parseFloat(match[2]!) / 100
+  };
+}
+
+function circularContourOffset(contour: HorizontalInkContour, angleRank: number): number {
+  const count = contour.samples.length;
+  const position = ((angleRank % 1 + 1) % 1) * count - .5;
+  const left = Math.floor(position);
+  const blend = position - left;
+  const at = (index: number) => {
+    const wrapped = (index % count + count) % count;
+    return ((contour.samples[wrapped] ?? 128) / 255) * 2 - 1;
+  };
+  return at(left) + (at(left + 1) - at(left)) * blend;
+}
+
+function expectedRadialClipPoint(
+  contour: HorizontalInkContour,
+  boundaryRank: number,
+  viewportSize: Readonly<{ width: number; height: number }>,
+  origin: Readonly<{ x: number; y: number }>,
+  index: number
+): Readonly<{ x: number; y: number }> {
+  const aspect = viewportSize.width / viewportSize.height;
+  const originX = origin.x * aspect;
+  const originY = 1 - origin.y;
+  const angleRank = (index + .5) / contour.samples.length;
+  const angle = angleRank * Math.PI * 2;
+  const directionX = Math.cos(angle);
+  const directionY = Math.sin(angle);
+  const alongX = directionX > 0.000001
+    ? (aspect - originX) / directionX
+    : directionX < -0.000001 ? -originX / directionX : Number.POSITIVE_INFINITY;
+  const alongY = directionY > 0.000001
+    ? (1 - originY) / directionY
+    : directionY < -0.000001 ? -originY / directionY : Number.POSITIVE_INFINITY;
+  const edgeRadius = Math.min(alongX, alongY);
+  const envelope = Math.sin(boundaryRank * Math.PI);
+  const radius = edgeRadius
+    * (1 + circularContourOffset(contour, angleRank) * RADIAL_INK_CONTOUR_AMPLITUDE * envelope)
+    * boundaryRank;
+  return {
+    x: origin.x + Math.cos(angle) * radius / aspect,
+    y: origin.y - Math.sin(angle) * radius
+  };
+}
 
 describe('InkFieldFrame', () => {
   it('keeps Hero and Pattern radial origins as distinct authored contracts', () => {
@@ -102,6 +160,40 @@ describe('InkFieldFrame', () => {
     expect(frame.ownership.revealClip).toBe(same.ownership.revealClip);
     expect(frame.ownership.revealClip).not.toBe(later.ownership.revealClip);
   });
+
+  it.each([.2, .5, .8])(
+    'uses WebGL-equivalent circular texel centers for the radial frontier at rank %s',
+    (rank) => {
+      const contour = {
+        seed: 1,
+        revision: 'radial-center-contract',
+        samples: Uint8Array.from([0, 255, 0, 255, 0, 255, 0, 255]),
+        texture: new Uint8Array(8 * 4)
+      } satisfies HorizontalInkContour;
+      const radialViewport = { width: 393, height: 852 } as const;
+      const origin = { x: .5, y: .44 } as const;
+      const frame = createInkFieldFrame(
+        { kind: 'radial', origin, seed: 'hero-pattern' },
+        .06 + rank * .88,
+        radialViewport,
+        { contour }
+      );
+      const point = parseRadialClipPoint(frame.ownership.revealClip!, 0);
+      const expected = expectedRadialClipPoint(
+        contour,
+        frame.boundaryRank,
+        radialViewport,
+        origin,
+        0
+      );
+      const errorPx = Math.hypot(
+        (point.x - expected.x) * radialViewport.width,
+        (point.y - expected.y) * radialViewport.height
+      );
+
+      expect(errorPx).toBeLessThanOrEqual(.1);
+    }
+  );
 
   it('keeps the depth field texture transform in the frame without sampled geometry', () => {
     const transform = {

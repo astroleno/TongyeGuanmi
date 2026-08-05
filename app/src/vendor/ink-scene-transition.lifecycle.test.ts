@@ -375,6 +375,22 @@ describe('ink WebGL resource lifecycle', () => {
     );
   });
 
+  it('derives a radial frontier from a normalized ray and circular texel centers', () => {
+    const { canvas, gl } = webGlHarness();
+
+    createInkBoundaryTransition(canvas, { fieldKind: 'radial' });
+
+    const fragmentSource = gl.shaderSource.mock.calls
+      .map(([, source]) => String(source))
+      .find((source) => source.includes('precision highp float')) ?? '';
+    expect(fragmentSource).toContain('vec2 q=d/max(length(d),0.000001)');
+    expect(fragmentSource).toContain('float a=fract(atan(q.y,q.x)/6.2831853)');
+    expect(fragmentSource).toContain('float tx=q.x>.000001');
+    expect(fragmentSource).toContain('float ty=q.y>.000001');
+    expect(fragmentSource).not.toContain('float tx=d.x>.000001');
+    expect(fragmentSource).not.toContain('float ty=d.y>.000001');
+  });
+
   it('keeps the horizontal opaque core centered on the exact shared contour rank', () => {
     const { canvas, gl } = webGlHarness();
 
