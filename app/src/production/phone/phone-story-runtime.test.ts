@@ -189,6 +189,7 @@ describe('phone story runtime factory', () => {
       reportPresentationFrame: vi.fn(() => true),
       reportFailure: vi.fn(),
       reportEndpoints: vi.fn(),
+      reportEndpointRelease: vi.fn(),
       provideRelease: vi.fn(),
       reportAnimationComplete: vi.fn(),
       animate: vi.fn((start, end, duration, render, complete) => {
@@ -217,6 +218,7 @@ describe('phone story runtime factory', () => {
       [1 / 3, 1, 1800]
     ]);
     expect(session.reportAnimationComplete).toHaveBeenCalledTimes(1);
+    expect(session.reportEndpointRelease).toHaveBeenCalledTimes(1);
     expect(session.reportPresentationFrame).toHaveBeenCalledTimes(1);
 
     animations.length = 0;
@@ -235,6 +237,7 @@ describe('phone story runtime factory', () => {
       [1 / 3, 0, 900]
     ]);
     expect(effect.reverse).toHaveBeenCalledTimes(1);
+    expect(session.reportEndpointRelease).toHaveBeenCalledTimes(2);
 
     registration.dispose();
   });

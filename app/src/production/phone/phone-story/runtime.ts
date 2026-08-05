@@ -588,6 +588,12 @@ export function registerPhoneRuntimeFrontStageCapability(
       const endpoint = direction === 1 ? 1 : 0;
       transition.render(endpoint);
       transition.commitEndpoint(endpoint);
+      // The visual effect has reached its terminal endpoint. Retire the
+      // transition endpoint lease before publishing LEG_COMPLETED so the
+      // candidate projection can expose the target's own stable surface for
+      // its exact post-paint proof. Resource/media cleanup remains owned by
+      // the retained release lease and waits until the stable commit.
+      session.reportEndpointRelease();
       session.reportAnimationComplete();
     };
     const animatePatternInk = () => {
