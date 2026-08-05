@@ -121,6 +121,12 @@ describe('PhoneHero Route B adapter', () => {
     expect(heroSource).toContain('const heroEntranceCompletedRef = useRef(false);');
     expect(heroSource).toContain('heroEntranceCompletedRef.current = true;');
     expect(heroSource).toContain(
+      "if (sceneActiveRef.current && heroEntranceCompletedRef.current) {"
+    );
+    expect(heroSource).not.toContain(
+      "if (active && heroEntranceCompletedRef.current) {"
+    );
+    expect(heroSource).toContain(
       "rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');"
     );
     expect(heroSource).toContain('heroEntranceCompletedRef.current = false;');

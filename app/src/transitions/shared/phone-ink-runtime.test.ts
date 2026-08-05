@@ -90,7 +90,7 @@ describe('phone ink runtime bridge', () => {
     expect(receiver.dataset.phoneInkAdmission).toBeUndefined();
   });
 
-  it('arms and proves the physical `from` receiver on reverse executions', () => {
+  it('keeps structural geometry roles fixed while proving the physical reverse receiver', () => {
     const host = new FakeElement();
     const source = new FakeElement();
     const additionalSource = new FakeElement();
@@ -113,10 +113,21 @@ describe('phone ink runtime bridge', () => {
     expect(source.dataset.phoneInkAdmission).toBe('pending');
     expect(additionalSource.dataset.phoneInkAdmission).toBe('pending');
     expect(receiver.dataset.phoneInkAdmission).toBeUndefined();
-    expect(bridge(['render', .003])).toBe(true);
+    expect(bridge(['render', .92])).toBe(true);
+    expect(source.dataset.r4InkOwnership).toBe('conceal');
+    expect(additionalSource.dataset.r4InkOwnership).toBe('conceal');
+    expect(receiver.dataset.r4InkOwnership).toBe('reveal');
     expect(source.dataset.phoneInkFrame).toBe('ready');
     expect(additionalSource.dataset.phoneInkFrame).toBe('ready');
     expect(receiver.dataset.phoneInkFrame).toBeUndefined();
+    expect(bridge(['render', .5])).toBe(true);
+    expect(source.dataset.r4InkOwnership).toBe('conceal');
+    expect(receiver.dataset.r4InkOwnership).toBe('reveal');
+    expect(bridge(['render', .003])).toBe(true);
+    expect(source.dataset.r4InkOwnership).toBe('conceal');
+    expect(receiver.dataset.r4InkOwnership).toBe('reveal');
+    bridge(['render', 0]);
+    expect(source.style.visibility).toBe('visible');
     bridge(['releaseEndpoint']);
     expect(source.dataset.phoneInkAdmission).toBeUndefined();
     expect(source.dataset.phoneInkFrame).toBeUndefined();

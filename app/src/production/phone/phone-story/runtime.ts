@@ -424,9 +424,10 @@ function frontStageEndpoints(
   const forward = run === 'hero-pattern'
     ? [config.hero(), config.pattern()]
     : [config.pattern(), config.starMap()];
-  const [from, to] = direction === 1
-    ? forward
-    : [forward[1], forward[0]];
+  // Keep the transition's structural roles canonical in both directions. The
+  // runner reverses only the authored progress clock; swapping these endpoints
+  // here and again inside the ink bridge would invert the geometry twice.
+  const [from, to] = forward;
   const source = from?.root() ?? null;
   const receiver = to?.root() ?? null;
   return transition && source && receiver
@@ -565,7 +566,12 @@ export function registerPhoneRuntimeFrontStageCapability(
     const endpoints = frontStageEndpoints(config, run, direction);
     const token = session.presentationFrameToken('effect-frame', 'front:ink');
     if (!endpoints || !token) return false;
-    const [source, receiver, transition] = endpoints;
+    const [from, to, transition] = endpoints;
+    // Admission diagnostics still describe the physical source/receiver for
+    // this direction, but the transition receives canonical geometry roles.
+    const [source, receiver] = direction === 1
+      ? [from, to]
+      : [to, from];
     const record: ActiveFrontStageRun = [session, transition, null, null, undefined];
     active = record;
     retain(record);

@@ -101,24 +101,20 @@ export function createPhoneInkTransition(
     )
   );
   let direction: 1 | -1 = 1;
-  const endpointElements = (nextDirection: 1 | -1) => {
-    const sources = nextDirection === 1
-      ? sourceEndpoints
-      : [options.to].filter((element): element is HTMLElement => Boolean(element));
-    const receivers = nextDirection === 1
-      ? [options.to]
-      : [options.from, options.additionalFrom];
-    return [
-      ...sources,
-      ...receivers.filter((element): element is HTMLElement => Boolean(element))
-    ];
-  };
+  // Geometry is structural, not directional. The same from/additionalFrom
+  // conceal surfaces and to reveal surface are used while progress moves
+  // either 0→1 or 1→0. Direction is passed to the runtime only so admission
+  // proof can mark the physical receiver.
+  const endpointElements = () => [
+    ...sourceEndpoints,
+    ...[options.to].filter((element): element is HTMLElement => Boolean(element))
+  ];
 
   const begin = (request: PhoneCinematicRequest) => {
     direction = request[4];
     geometryLease?.releaseGeometry();
     geometryLease = acquirePhoneBoundaryGeometryLease(
-      endpointElements(direction),
+      endpointElements(),
       [request[1], request[2]],
       clearBoundaryGeometry
     );

@@ -494,7 +494,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
       update(rawProgress) {
-        if (active && heroEntranceCompletedRef.current) {
+        if (sceneActiveRef.current && heroEntranceCompletedRef.current) {
           rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');
         }
         const progress = clamp(rawProgress);

@@ -103,10 +103,11 @@ export function createPhoneInkRuntimeBridge([
   if (!surface || !host) {
     return () => undefined;
   }
-  // The direction is not available until the immutable execution token is
-  // bound by `begin`. Do not guess that `to` is the receiver here: on a
-  // reverse execution the physical receiver is `from`, and marking `to`
-  // would hide the source while leaving the real receiver unguarded.
+  // Geometry keeps the structural contract for both directions: `from` and
+  // `additionalFrom` are always concealed, while `to` is always revealed.
+  // Reverse playback is represented only by the runner sampling progress from
+  // 1 down to 0. Direction is retained separately for the physical admission
+  // receiver; it must never swap these geometry roles a second time.
   // A radial field samples the same compact contour transport as horizontal
   // ink. Retain it for this run instead of regenerating another radial mask
   // on every compositor frame.
@@ -137,19 +138,17 @@ export function createPhoneInkRuntimeBridge([
     )
   );
   let direction: 1 | -1 = 1;
-  let receiverEndpoints = unique([to]);
-  let sourceEndpoints = unique([from, additionalFrom]);
-  const selectEndpoints = (nextDirection: 1 | -1) => {
+  const sourceEndpoints = unique([from, additionalFrom]);
+  const receiverEndpoints = unique([to]);
+  let admissionReceiverEndpoints = receiverEndpoints;
+  const selectAdmissionReceiver = (nextDirection: 1 | -1) => {
     direction = nextDirection;
-    // A reverse Figure2 → Method execution reveals both the paper receiver
-    // and the retained body/copy receiver. Keep them in one endpoint set so
-    // admission, clipping, and the first-frame proof cannot diverge.
-    receiverEndpoints = unique(
-      direction === 1 ? [to] : [from, additionalFrom]
-    );
-    sourceEndpoints = unique(
-      direction === 1 ? [from, additionalFrom] : [to]
-    );
+    // Proof admission follows the physical receiver, independently from the
+    // fixed geometry roles above. On reverse this is the structural source
+    // surface(s), while the clip/reveal ownership remains unchanged.
+    admissionReceiverEndpoints = direction === 1
+      ? receiverEndpoints
+      : sourceEndpoints;
   };
   const clearEndpointMarkers = () => {
     for (const endpoint of unique([from, additionalFrom, to])) {
@@ -158,9 +157,9 @@ export function createPhoneInkRuntimeBridge([
     }
   };
   const armEndpoint = (nextDirection: 1 | -1 = direction) => {
-    selectEndpoints(nextDirection);
+    selectAdmissionReceiver(nextDirection);
     clearEndpointMarkers();
-    for (const receiver of receiverEndpoints) {
+    for (const receiver of admissionReceiverEndpoints) {
       receiver.dataset.phoneInkAdmission = 'pending';
       delete receiver.dataset.phoneInkFrame;
     }
@@ -208,16 +207,16 @@ export function createPhoneInkRuntimeBridge([
     }
     if (rendered) {
       surface.dataset.phonePresentationEffectFrame = 'ready';
-      for (const receiver of receiverEndpoints) {
+      for (const receiver of admissionReceiverEndpoints) {
         receiver.dataset.phoneInkFrame = 'ready';
       }
     } else if (!fieldActive) {
       delete surface.dataset.phonePresentationEffectFrame;
-      for (const receiver of receiverEndpoints) {
+      for (const receiver of admissionReceiverEndpoints) {
         delete receiver.dataset.phoneInkFrame;
       }
     } else {
-      for (const receiver of receiverEndpoints) {
+      for (const receiver of admissionReceiverEndpoints) {
         delete receiver.dataset.phoneInkFrame;
       }
     }
