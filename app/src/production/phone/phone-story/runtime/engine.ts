@@ -438,6 +438,34 @@ export function createPhoneStoryRuntimeEngine(
       operation.run ?? 'entry'
     ].join(':');
   };
+  const targetPresentationScene = (
+    snapshot: PhoneStorySnapshot,
+    logicalScene: SceneId
+  ): SceneId => {
+    if (snapshot.status !== 'transaction') return logicalScene;
+    const operation = snapshot.session.operation;
+    const run = operation.run;
+    if (!run) return logicalScene;
+    if (run !== 'education-contact') return logicalScene;
+    const direction = snapshot.session.phase.startsWith('rollback-')
+      ? operation.direction === 1 ? -1 : 1
+      : operation.direction;
+    const strategy = phoneRunLegAdmissionTuple(
+      run,
+      operation.legIndex,
+      direction,
+      snapshot.session.reducedMotion ? 'reduced' : 'normal'
+    );
+    if (!strategy || strategy[3] === logicalScene) return logicalScene;
+    // Composite terminal scenes may use a physical media leaf whose scene id
+    // differs from the semantic hold (Crane is the Contact → Education
+    // example). Only select that leaf once its mounted root is present; the
+    // deterministic runtime tests intentionally register the semantic target
+    // alone and must continue to exercise the DOM fallback contract.
+    return presentation.rootForScene(strategy[3])
+      ? strategy[3]
+      : logicalScene;
+  };
   /**
    * Requests a token-bound fact from the registered presentation boundary.
    * Engine owns reducer dispatch; presentation owns the concrete surface
@@ -470,12 +498,15 @@ export function createPhoneStoryRuntimeEngine(
         direction,
         snapshot.session.reducedMotion ? 'reduced' : 'normal'
       );
-      // Figure2 Proof is deliberately a DOM reading direct entry but a
-      // static-poster leaf during its normal/reduced segment. Keep the
-      // segment contract for that one shared physical endpoint; other
-      // terminal scenes continue to use their direct-entry kind here.
+      // Terminal verification uses the target scene's declared direct-entry
+      // proof contract. A normal Figure2 → Proof leg first proves its Ink
+      // effect, then the Proof leaf must re-arm as dom-reading; reusing the
+      // segment's effect-frame tuple here would address the Ink surface and
+      // leave the DOM target without an exact frame. Contact → Education is
+      // the one composite leg whose physical target differs from the
+      // semantic hold, so its Crane leaf keeps the run-leg contract.
       if (
-        scene === 'figure2-proof'
+        scene === 'crane-animation'
         && strategy
         && strategy[3] === scene
       ) {
@@ -688,7 +719,10 @@ export function createPhoneStoryRuntimeEngine(
       if (preparation.publishing) return;
       preparation.publishing = true;
       try {
-        reportTargetPresentation(activeSession, operation.to);
+        reportTargetPresentation(
+          activeSession,
+          targetPresentationScene(currentSnapshot, operation.to)
+        );
       } finally {
         if (directEntryPreparation === preparation) preparation.publishing = false;
       }
@@ -703,9 +737,12 @@ export function createPhoneStoryRuntimeEngine(
       if (activeSession?.valid()) {
         reportTargetPresentation(
           activeSession,
-          session.phase === 'rollback-verifying-stable'
-            ? operation.from
-            : operation.to
+          targetPresentationScene(
+            currentSnapshot,
+            session.phase === 'rollback-verifying-stable'
+              ? operation.from
+              : operation.to
+          )
         );
       }
       return;
