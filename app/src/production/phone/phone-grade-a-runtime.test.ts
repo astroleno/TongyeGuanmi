@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MediaPreparationError } from '../../media/media-preparation';
 import {
   createPhoneGradeARunner,
   phoneGradeABoundaryProgress,
@@ -646,6 +647,8 @@ describe('canonical Grade A run lifecycle', () => {
     expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');
     activeSession.flushRelease();
     expect(activeSession.reportEndpointRelease).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(activeSession.reportEndpointRelease).mock.invocationCallOrder[0]!)
+      .toBeLessThan(vi.mocked(activeSession.reportEndpointCommit).mock.invocationCallOrder[0]!);
     expect(lifecycle).toEqual(['commit']);
   });
 
@@ -883,13 +886,15 @@ describe('canonical Grade A run lifecycle', () => {
     expect(activeSession.reportEndpointCommit).toHaveBeenCalledWith('receiver');
     activeSession.flushRelease();
     expect(activeSession.reportEndpointRelease).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(activeSession.reportEndpointRelease).mock.invocationCallOrder[0]!)
+      .toBeLessThan(vi.mocked(activeSession.reportEndpointCommit).mock.invocationCallOrder[0]!);
   });
 
   it('rolls a reverse preparation failure back to its downstream source', async () => {
     const from = element();
     const to = element();
     const adapter = transition(vi.fn(async () => {
-      throw new Error('preparation failed');
+      throw new MediaPreparationError('MEDIA_SEEK_FAILED', 'preparation failed');
     }));
     const registered = orchestratorCapabilities();
     createPhoneGradeARunner({
@@ -902,7 +907,7 @@ describe('canonical Grade A run lifecycle', () => {
 
     registered.capabilities.get('method-figure2')?.start(-1, activeSession);
     await vi.waitFor(() => {
-      expect(activeSession.reportFailure).toHaveBeenCalledTimes(1);
+      expect(activeSession.reportFailure).toHaveBeenCalledWith('media-failed');
     });
 
     expect(activeSession.provideRelease).not.toHaveBeenCalled();

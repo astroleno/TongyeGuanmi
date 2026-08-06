@@ -219,6 +219,8 @@ describe('phone story runtime factory', () => {
     ]);
     expect(session.reportAnimationComplete).toHaveBeenCalledTimes(1);
     expect(session.reportEndpointRelease).toHaveBeenCalledTimes(1);
+    expect(session.reportEndpointRelease.mock.invocationCallOrder[0])
+      .toBeLessThan(session.reportAnimationComplete.mock.invocationCallOrder[0]!);
     expect(session.reportPresentationFrame).toHaveBeenCalledTimes(1);
 
     animations.length = 0;

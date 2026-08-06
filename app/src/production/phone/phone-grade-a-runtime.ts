@@ -1,6 +1,7 @@
 import { canonicalSceneIds } from '../../story/canonical-spine';
 import type { TargetPresentationRequest } from '../../story/presentation';
 import type { SceneId } from '../../story/types';
+import { MediaPreparationError } from '../../media/media-preparation';
 import type { PhoneStoryRuntimePort } from './phone-story/runtime';
 import {
   registerPhoneCompositeRunCapability,
@@ -17,6 +18,7 @@ import {
   phoneSegmentPresentationTuple,
   type PhoneSurfaceId
 } from './phone-story/manifest';
+import type { PhoneFailureReason } from './phone-story/machine';
 import type { PhoneTransitionDirection } from './phone-transition-coordinator';
 import type {
   PhonePresentationAdapterHandle,
@@ -265,7 +267,7 @@ export function createPhoneGradeARunner({
       preparation.abort();
       disposeResources.delete(cancel);
     };
-    const rollback = () => {
+    const rollback = (reason: PhoneFailureReason = 'capability-failed') => {
       if (terminal) return;
       terminal = true;
       clearTimeoutResource();
@@ -277,7 +279,7 @@ export function createPhoneGradeARunner({
         releaseEndpoint();
       }
       disposeResources.delete(cancel);
-      if (session[4]()) session[13]();
+      if (session[4]()) session[13](reason);
     };
     const complete = () => {
       if (terminal || !session[4]() || !transition) {
@@ -289,7 +291,11 @@ export function createPhoneGradeARunner({
       const endpoint = direction === 1 ? 1 : 0;
       session[6](endpoint);
       transition.commitEndpoint(endpoint);
+      // The endpoint lease is retired before the authority is told that the
+      // receiver completed. The release callback remains idempotent and is
+      // retained for the later resource-disposal phase.
       session[12](releaseEndpoint, releaseResources);
+      releaseEndpoint();
       session[9]('receiver');
       session[10]();
     };
@@ -368,8 +374,12 @@ export function createPhoneGradeARunner({
         if (!transition.prepareFirstFrame) {
           transition.render(direction === 1 ? .003 : .997);
         }
-      } catch {
-        rollback();
+      } catch (error) {
+        rollback(
+          error instanceof MediaPreparationError
+            ? 'media-failed'
+            : 'capability-failed'
+        );
       }
     };
     const cancel = () => rollback();

@@ -291,7 +291,7 @@ export type PhoneCompositeSession = readonly [
     releaseGeometry: () => void,
     releaseResources: () => void
   ) => void,
-  reportFailure: () => void,
+  reportFailure: (reason?: PhoneFailureReason) => void,
   presentationProofToken: (
     kind: PhonePresentationProofKind,
     subject: PhoneSurfaceId

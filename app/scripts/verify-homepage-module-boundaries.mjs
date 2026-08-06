@@ -81,6 +81,8 @@ export const phoneShellDebt = Object.freeze({
     'phone-ink.ts::../../transitions/shared/phone-ink-runtime',
     'phone-ink.ts::../../transitions/shared/sceneInk',
     'phone-timeline-runtime.ts::../../media/timeline-video-driver',
+    'phone-grade-a-runtime.ts::../../media/media-preparation',
+    'phone-grade-a-runtime.test.ts::../../media/media-preparation',
     'module-loaders.ts::../../scenes/brand/phone/PhoneBrand',
     'module-loaders.ts::../../scenes/figure3-animation/phone/PhoneFigure3',
     'module-loaders.ts::../../scenes/services/phone/PhoneServices',
