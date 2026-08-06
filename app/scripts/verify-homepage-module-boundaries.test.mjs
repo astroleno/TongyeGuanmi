@@ -100,6 +100,17 @@ const crossChunkExecutionSources = [
 ].map((relative) => {
   const url = new URL(relative, import.meta.url);
   return { file: fileURLToPath(url), source: readFileSync(url, 'utf8') };
+})).concat([
+  '../src/scenes/hero/index.tsx',
+  '../src/scenes/aod-animation/index.tsx',
+  '../src/scenes/figure2-animation/index.tsx',
+  '../src/scenes/figure3-animation/index.tsx',
+  '../src/scenes/ttg-animation/index.tsx',
+  '../src/scenes/ph-animation/index.tsx',
+  '../src/scenes/crane-animation/index.tsx'
+].map((relative) => {
+  const url = new URL(relative, import.meta.url);
+  return { file: fileURLToPath(url), source: readFileSync(url, 'utf8') };
 }));
 
 function violationsFor(source) {
@@ -467,6 +478,22 @@ describe('homepage phone-shell debt ratchet', () => {
     expect(phoneCrossChunkExecutionContractViolations(
       crossChunkExecutionSources
     )).toEqual([]);
+    const unsafeTimelineConsumer = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/scenes/future-animation/index.tsx',
+        source: [
+          'import { prepareTimelineVideoFrame } from "../../media/timeline-video-driver";',
+          'export async function prepare(video, input) {',
+          '  const frame = await prepareTimelineVideoFrame(video, input);',
+          '  return frame?.status === "ready";',
+          '}'
+        ].join('\n')
+      }
+    ]);
+    expect(unsafeTimelineConsumer).toContain(
+      'index.tsx: Timeline driver data must use phone-timeline-runtime tuples'
+    );
     expect(phoneCrossChunkExecutionContractViolations([
       ...crossChunkExecutionSources.filter((entry) => !entry.file.endsWith(
         '/phone-story/machine.ts'

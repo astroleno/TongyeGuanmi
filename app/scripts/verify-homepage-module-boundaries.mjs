@@ -1180,14 +1180,18 @@ export function phoneCrossChunkExecutionContractViolations(files) {
     'engine.ts',
     'session.ts'
   ]);
-  const phoneTimelineAdapterSuffixes = [
-    '/src/production/phone/scenes/PhoneHero.motion.ts',
-    '/src/production/phone/scenes/PhoneAod.tsx',
-    '/src/scenes/ttg-animation/phone/PhoneTtg.tsx',
-    '/src/scenes/ph-animation/phone/PhonePh.reverse.ts',
-    '/src/scenes/crane-animation/phone/PhoneCrane.autoplay.ts',
-    '/src/scenes/figure3-animation/phone/PhoneFigure3.tsx'
-  ];
+  // Prepared-frame evidence crosses independently minified chunks from both
+  // the phone adapters and the generic scene modules they lazy-load. Keep
+  // this path-based so a new scene cannot escape the ABI gate by using a new
+  // filename that was not added to a hand-maintained suffix list.
+  const phoneTimelineConsumerPath = (normalized) => (
+    normalized.includes('/src/production/phone/scenes/')
+    || normalized.includes('/src/production/phone/transitions/')
+    || /\/src\/scenes\/[^/]+\/index\.(?:ts|tsx)$/.test(normalized)
+    || /\/src\/scenes\/[^/]+\/phone\//.test(normalized)
+    || /\/src\/transitions\/[^/]+\/phone\.(?:ts|tsx)$/.test(normalized)
+  );
+  const namedTimelineEvidenceRead = /\b(?:frame|result)\??\.\s*(?:status|runId|direction|generation|targetTime)\b/;
   for (const [file, source] of entries) {
     const name = path.basename(file);
     const normalized = file.split(path.sep).join('/');
@@ -1247,8 +1251,9 @@ export function phoneCrossChunkExecutionContractViolations(files) {
       found.push(`${name}: Hero radial ink must delegate field objects through phone-ink-runtime`);
     }
     if (
-      phoneTimelineAdapterSuffixes.some((suffix) => normalized.endsWith(suffix))
-      && /\b(?:driveTimelineVideo|prepareTimelineVideoFrame|disposeTimelineVideoDriver|timelineVideoDriverFor|TimelineVideoDriveInput)\b/.test(source)
+      phoneTimelineConsumerPath(normalized)
+      && /\bprepareTimelineVideoFrame\b/.test(source)
+      && namedTimelineEvidenceRead.test(source)
     ) {
       found.push(`${name}: Timeline driver data must use phone-timeline-runtime tuples`);
     }

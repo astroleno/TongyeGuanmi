@@ -42,6 +42,7 @@ const lazyExecutionSources = [
   '../../scenes/crane-animation/phone/PhoneCrane.tsx'
 ];
 const bridgeSource = (relative: string) => source(relative);
+const timelineDriverSource = bridgeSource('../../media/timeline-video-driver.ts');
 
 describe('phone cross-chunk execution contracts', () => {
   it('keeps canonical dynamic scene keys out of property mangling', () => {
@@ -71,6 +72,12 @@ describe('phone cross-chunk execution contracts', () => {
   });
 
   it('keeps execution transport positional while presentation proofs stay structured', () => {
+    expect(timelineDriverSource).toContain(
+      'export type TimelineVideoFrameResult = readonly ['
+    );
+    expect(timelineDriverSource).not.toMatch(
+      /export type TimelineVideoFrameResult\s*=\s*Readonly<\{[\s\S]*?\bstatus\s*:/
+    );
     expect(source('phone-story/machine.ts')).toContain(
       'export type PhoneExecutionToken = readonly ['
     );
