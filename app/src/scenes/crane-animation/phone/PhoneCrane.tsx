@@ -116,6 +116,29 @@ export function parkPhoneCraneMedia(root: HTMLElement | null | undefined): void 
   }
 }
 
+/**
+ * A packed surface renews an externally-owned Canvas after release. React's
+ * callback ref still points at the retired node, so readiness must follow the
+ * currently mounted token-bound canvases in the Crane root rather than a
+ * stale ref. This is what lets a second Contact → Education admission start.
+ */
+export function phoneCranePackedCanvasesReady(
+  root: HTMLElement | null | undefined,
+  figureCanvas: HTMLCanvasElement | null | undefined,
+  flockCanvas: HTMLCanvasElement | null | undefined
+): boolean {
+  const currentCanvas = (
+    layer: 'crane-figure' | 'crane-flock',
+    fallback: HTMLCanvasElement | null | undefined
+  ) => root?.querySelector<HTMLCanvasElement>(
+    `[data-phone-packed-alpha-canvas="${layer}"]`
+  ) ?? fallback ?? null;
+  const figure = currentCanvas('crane-figure', figureCanvas);
+  const flock = currentCanvas('crane-flock', flockCanvas);
+  return figure?.dataset.packedAlphaFrameReady === 'true'
+    && flock?.dataset.packedAlphaFrameReady === 'true';
+}
+
 export function applyPhoneCraneMediaFallback(
   root: HTMLElement | null | undefined
 ): void {
@@ -327,8 +350,11 @@ export const PhoneCrane = forwardRef<
     const root = rootRef.current;
     return root?.dataset.phoneCraneFigureAlpha === 'verified'
       && root.dataset.phoneCraneFlockAlpha === 'verified'
-      && figureCanvasRef.current?.dataset.packedAlphaFrameReady === 'true'
-      && flockCanvasRef.current?.dataset.packedAlphaFrameReady === 'true';
+      && phoneCranePackedCanvasesReady(
+        root,
+        figureCanvasRef.current,
+        flockCanvasRef.current
+      );
   }, []);
   const [
     requestedRef,

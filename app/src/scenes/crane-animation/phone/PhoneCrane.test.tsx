@@ -9,6 +9,7 @@ import {
 import {
   applyPhoneCraneMediaFallback,
   parkPhoneCraneMedia,
+  phoneCranePackedCanvasesReady,
   PHONE_CRANE_STABLE_HOLD_PROGRESS,
   PhoneCrane,
   phoneCranePresentationProgress,
@@ -94,6 +95,30 @@ describe('PhoneCrane', () => {
     expect(source).toContain('const key = phoneRuntimePresentationTokenKey(token);');
     expect(source).toContain("surface(['present', key])");
     expect(source).toContain('presentPreparedFrame,');
+  });
+
+  it('[repeat-cycle] follows the renewed Canvas after a packed surface release', () => {
+    const root = new FakeElement();
+    const staleFigure = new FakeElement();
+    const staleFlock = new FakeElement();
+    const renewedFigure = new FakeElement();
+    const renewedFlock = new FakeElement();
+    renewedFigure.dataset.packedAlphaFrameReady = 'true';
+    renewedFlock.dataset.packedAlphaFrameReady = 'true';
+    root.connect(
+      '[data-phone-packed-alpha-canvas="crane-figure"]',
+      renewedFigure
+    );
+    root.connect(
+      '[data-phone-packed-alpha-canvas="crane-flock"]',
+      renewedFlock
+    );
+
+    expect(phoneCranePackedCanvasesReady(
+      root as unknown as HTMLElement,
+      staleFigure as unknown as HTMLCanvasElement,
+      staleFlock as unknown as HTMLCanvasElement
+    )).toBe(true);
   });
 
   it('[execution hard cutover] exposes only the runner-issued play command', () => {

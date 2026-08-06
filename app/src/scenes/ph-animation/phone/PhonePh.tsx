@@ -103,6 +103,21 @@ export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
 }
 
 /**
+ * A released packed surface renews its externally-owned Canvas node. The
+ * React callback ref still points at the retired node, so reverse admission
+ * must inspect the currently mounted token-bound canvas first.
+ */
+export function phonePhPackedCanvasReady(
+  root: HTMLElement | null | undefined,
+  figureCanvas: HTMLCanvasElement | null | undefined
+): boolean {
+  const currentCanvas = root?.querySelector<HTMLCanvasElement>(
+    '[data-phone-packed-alpha-canvas="ph-figure"]'
+  ) ?? figureCanvas ?? null;
+  return currentCanvas?.dataset.packedAlphaFrameReady === 'true';
+}
+
+/**
  * Figure2 supplies the stable phone composition; AOD supplies time ownership.
  * The canonical PH video remains the only media element and native currentTime
  * drives every forward presentation sample after the scroll snap begins.
@@ -215,7 +230,7 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
     const reverseReady = useCallback(() => {
       const root = rootRef.current;
       return root?.dataset.phonePhAlpha === 'verified'
-        && figureCanvasRef.current?.dataset.packedAlphaFrameReady === 'true';
+        && phonePhPackedCanvasReady(root, figureCanvasRef.current);
     }, []);
     const beforeForward = useCallback(() => {
       const root = rootRef.current;

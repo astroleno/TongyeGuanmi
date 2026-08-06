@@ -9,6 +9,7 @@ import {
 import {
   applyPhonePhMediaFallback,
   parkPhonePhMedia,
+  phonePhPackedCanvasReady,
   PhonePh,
   phonePhForegroundParallaxY,
   phonePhPresentationProgress,
@@ -59,13 +60,29 @@ describe('PhonePh', () => {
     expect(source).toContain(
       'setFigureCanvasHost((current) => current === host ? current : host);'
     );
-    expect(source.match(/data-phone-packed-alpha-canvas="ph-figure"/g)).toHaveLength(1);
+    expect(source.match(/data-phone-packed-alpha-canvas="ph-figure"/g)).toHaveLength(2);
   });
 
   it('[R5] redraws its prepared packed surface when an active media token starts', () => {
     expect(source).toContain('const presentPreparedFrame = useCallback((token: PresentationToken) => {');
     expect(source).toContain("surface?.(['present', phoneRuntimePresentationTokenKey(token)])");
     expect(source).toContain('presentPreparedFrame,');
+  });
+
+  it('[repeat-cycle] follows the renewed Canvas after a packed surface release', () => {
+    const root = new FakeElement();
+    const staleCanvas = new FakeElement();
+    const renewedCanvas = new FakeElement();
+    renewedCanvas.dataset.packedAlphaFrameReady = 'true';
+    root.connect(
+      '[data-phone-packed-alpha-canvas="ph-figure"]',
+      renewedCanvas
+    );
+
+    expect(phonePhPackedCanvasReady(
+      root as unknown as HTMLElement,
+      staleCanvas as unknown as HTMLCanvasElement
+    )).toBe(true);
   });
 
   it('[execution hard cutover] exposes only the runner-issued play command', () => {
