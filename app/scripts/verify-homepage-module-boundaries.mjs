@@ -1192,6 +1192,7 @@ export function phoneCrossChunkExecutionContractViolations(files) {
     || /\/src\/transitions\/[^/]+\/phone\.(?:ts|tsx)$/.test(normalized)
   );
   const namedTimelineEvidenceRead = /\b(?:frame|result)\??\.\s*(?:status|runId|direction|generation|targetTime)\b/;
+  const rawTimelineObjectCall = /\b(?:driveTimelineVideo|prepareTimelineVideoFrame)\s*\([^;\n]*,\s*\{/;
   for (const [file, source] of entries) {
     const name = path.basename(file);
     const normalized = file.split(path.sep).join('/');
@@ -1252,8 +1253,10 @@ export function phoneCrossChunkExecutionContractViolations(files) {
     }
     if (
       phoneTimelineConsumerPath(normalized)
-      && /\bprepareTimelineVideoFrame\b/.test(source)
-      && namedTimelineEvidenceRead.test(source)
+      && (
+        (/\bprepareTimelineVideoFrame\b/.test(source) && namedTimelineEvidenceRead.test(source))
+        || rawTimelineObjectCall.test(source)
+      )
     ) {
       found.push(`${name}: Timeline driver data must use phone-timeline-runtime tuples`);
     }

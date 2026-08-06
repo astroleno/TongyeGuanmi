@@ -209,7 +209,7 @@ async function prepareFigure2Pair(
     if (
       preparation.signal?.aborted
       || manager.generation !== generation
-      || frame?.status !== 'ready'
+      || frame?.[0] !== 'ready'
     ) {
       throw new Error('Figure2 media stale');
     }

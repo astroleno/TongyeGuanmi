@@ -57,13 +57,13 @@ describe('phone timeline runtime bridge', () => {
   });
 
   it('returns prepared-frame and snapshot evidence as positional data', async () => {
-    timeline.prepare.mockResolvedValue({
-      status: 'ready',
-      runId: 'phone-timeline:1',
-      direction: -1,
-      generation: 7,
-      targetTime: 1.2
-    });
+    timeline.prepare.mockResolvedValue([
+      'ready',
+      'phone-timeline:1',
+      -1,
+      7,
+      1.2
+    ]);
     timeline.snapshot.mockReturnValue({
       runId: 'phone-timeline:1',
       direction: -1,

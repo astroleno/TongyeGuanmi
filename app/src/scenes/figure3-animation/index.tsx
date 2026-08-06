@@ -116,7 +116,7 @@ export function prepareFigure3AnimationFrame(
     return Promise.reject(new Error('figure3 media unavailable'));
   }
   return prepareTimelineVideoFrame(video, figure3MediaInput(acceleratedProgress(rawProgress), mediaRun)).then((result) => {
-    if (result?.status !== 'ready') {
+    if (result?.[0] !== 'ready') {
       throw new Error('figure3 frame stale');
     }
   });

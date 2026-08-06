@@ -101,7 +101,7 @@ export function preparePhAnimationFrame(
     video,
     phMediaInput(phPlaybackProgress(rawProgress), mediaRun)
   ).then((result) => {
-    if (result?.status !== 'ready') {
+    if (result?.[0] !== 'ready') {
       throw new Error('PH media frame preparation became stale');
     }
   });

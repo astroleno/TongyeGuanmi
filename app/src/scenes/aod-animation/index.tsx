@@ -82,7 +82,7 @@ export async function prepareAodAnimationFrame(
   }
   try {
     const frame = await prepareTimelineVideoFrame(video, aodMediaInput(progress, mediaRun, 'timeline'));
-    if (frame?.status !== 'ready') {
+    if (frame?.[0] !== 'ready') {
       throw new Error('AOD frame stale');
     }
     mediaRunByVideo.set(video, mediaRun.runId);

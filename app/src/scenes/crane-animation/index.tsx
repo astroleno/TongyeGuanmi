@@ -142,7 +142,7 @@ export async function prepareCraneAnimationFrame(
         craneMediaInput(range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS), mediaRun, false)
       )
     ]);
-    if (frames.some((frame) => frame?.status !== 'ready')) {
+    if (frames.some((frame) => frame?.[0] !== 'ready')) {
       throw new Error('Crane media stale');
     }
     delete section.dataset.craneStaticMediaFallback;

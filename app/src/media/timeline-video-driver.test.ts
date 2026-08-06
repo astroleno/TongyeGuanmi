@@ -120,7 +120,13 @@ describe('timeline video driver', () => {
     await Promise.resolve();
     expect(settled).toBe(true);
 
-    await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+    await expect(readiness).resolves.toEqual([
+      'ready',
+      'media-endpoint-frame:1',
+      1,
+      1,
+      0
+    ]);
   });
 
   it('does not claim frame readiness when the frame callback has not fired', async () => {
@@ -147,7 +153,13 @@ describe('timeline video driver', () => {
       expect(driver.snapshot().frameReady).toBe(false);
 
       video.presentFrame();
-      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+      await expect(readiness).resolves.toEqual([
+        'ready',
+        'media-frame-strict:1',
+        1,
+        1,
+        4.99
+      ]);
     } finally {
       driver.dispose();
       vi.useRealTimers();
@@ -173,7 +185,13 @@ describe('timeline video driver', () => {
       expect(driver.snapshot().frameReady).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
 
-      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+      await expect(readiness).resolves.toEqual([
+        'ready',
+        'media-webkit-frame-stall:1',
+        1,
+        1,
+        4.99
+      ]);
       expect(driver.snapshot().frameReady).toBe(true);
       expect(video.dataset.timelineVideoFrameEvidence).toBe('seeked-fallback');
     } finally {
@@ -208,7 +226,13 @@ describe('timeline video driver', () => {
 
       video.readyState = 4;
       video.presentFrame();
-      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+      await expect(readiness).resolves.toEqual([
+        'ready',
+        'media-webkit-without-frame-data:1',
+        1,
+        1,
+        4.99
+      ]);
       expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
     } finally {
       driver.dispose();
@@ -232,7 +256,13 @@ describe('timeline video driver', () => {
       video.completeSeek();
       video.presentFrame();
 
-      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+      await expect(readiness).resolves.toEqual([
+        'ready',
+        'media-webkit-frame-callback:1',
+        1,
+        1,
+        4.99
+      ]);
       await vi.advanceTimersByTimeAsync(120);
       expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
     } finally {
@@ -258,7 +288,13 @@ describe('timeline video driver', () => {
       video.completeSeek();
       await vi.advanceTimersByTimeAsync(120);
 
-      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+      await expect(readiness).resolves.toEqual([
+        'ready',
+        'media-webkit-frame-api:1',
+        1,
+        1,
+        4.99
+      ]);
       expect(video.dataset.timelineVideoFrameEvidence).toBe('seeked-fallback');
     } finally {
       driver.dispose();
@@ -287,7 +323,13 @@ describe('timeline video driver', () => {
         durationFallbackSeconds: 10
       });
 
-      await expect(stale).resolves.toMatchObject({ status: 'stale' });
+      await expect(stale).resolves.toEqual([
+        'stale',
+        'media-webkit-stale:1',
+        1,
+        1,
+        4.99
+      ]);
       await vi.advanceTimersByTimeAsync(120);
       expect(driver.snapshot().frameReady).toBe(false);
       expect(video.dataset.timelineVideoFrameEvidence).toBeUndefined();
@@ -308,7 +350,13 @@ describe('timeline video driver', () => {
     });
     video.completeSeek();
     video.presentFrame();
-    await expect(first).resolves.toMatchObject({ status: 'ready' });
+    await expect(first).resolves.toEqual([
+      'ready',
+      'endpoint-reuse:1',
+      1,
+      1,
+      9.94008
+    ]);
     video.currentTime = 9.98;
     video.completeSeek();
     const seekWrites = video.currentTimeWrites.length;
@@ -320,7 +368,13 @@ describe('timeline video driver', () => {
     };
     driver.drive(nextInput);
 
-    await expect(driver.prepareFrame(nextInput)).resolves.toMatchObject({ status: 'ready', direction: -1 });
+    await expect(driver.prepareFrame(nextInput)).resolves.toEqual([
+      'ready',
+      'endpoint-reuse:2',
+      -1,
+      2,
+      9.98
+    ]);
     expect(video.currentTimeWrites).toHaveLength(seekWrites);
     driver.dispose();
   });
@@ -361,7 +415,13 @@ describe('timeline video driver', () => {
     const initial = driver.prepareFrame({ ...input, progress: 0.5 });
     video.completeSeek();
     video.presentFrame();
-    await expect(initial).resolves.toMatchObject({ status: 'ready' });
+    await expect(initial).resolves.toEqual([
+      'ready',
+      'media-ready-then-seek-error:1',
+      -1,
+      1,
+      4.99
+    ]);
     expect(video.dataset.timelineVideoFrameReady).toBe('true');
 
     video.throwOnCurrentTimeWrite = true;
@@ -376,7 +436,13 @@ describe('timeline video driver', () => {
     const recovered = driver.prepareFrame({ ...input, progress: 0.7 });
     video.completeSeek();
     video.presentFrame();
-    await expect(recovered).resolves.toMatchObject({ status: 'ready' });
+    await expect(recovered).resolves.toEqual([
+      'ready',
+      'media-ready-then-seek-error:1',
+      -1,
+      1,
+      6.986
+    ]);
     expect(video.dataset.timelineVideoFrameReady).toBe('true');
     expect(video.dataset.timelineVideoStaticFallback).toBeUndefined();
     driver.dispose();
@@ -480,7 +546,13 @@ describe('timeline video driver', () => {
       runId: 'media-presented-native:2',
       direction: -1,
       progress: 1
-    })).resolves.toMatchObject({ status: 'ready', direction: -1 });
+    })).resolves.toEqual([
+      'ready',
+      'media-presented-native:2',
+      -1,
+      2,
+      9.98
+    ]);
   });
 
   it('uses the transition direction and coalesces unresolved seeks to the latest progress', () => {
@@ -523,7 +595,14 @@ describe('timeline video driver', () => {
     driver.drive({ ...base, runId: 'media-test:2', direction: -1, progress: 0.8 });
     const final = driver.prepareFrame({ ...base, runId: 'media-test:3', direction: 1, progress: 0.6 });
 
-    await expect(stale).resolves.toMatchObject({ status: 'stale' });
+    const staleFrame = await stale;
+    expect(staleFrame.slice(0, 4)).toEqual([
+      'stale',
+      'media-test:1',
+      1,
+      1
+    ]);
+    expect(staleFrame[4]).toBeCloseTo(1.996, 10);
     expect(video.currentTimeWrites).toHaveLength(1);
 
     video.completeSeek();
@@ -532,11 +611,13 @@ describe('timeline video driver', () => {
     video.completeSeek();
     video.presentFrame();
 
-    await expect(final).resolves.toMatchObject({
-      status: 'ready',
-      runId: 'media-test:3',
-      direction: 1
-    });
+    await expect(final).resolves.toEqual([
+      'ready',
+      'media-test:3',
+      1,
+      3,
+      5.988
+    ]);
     expect(driver.snapshot()).toMatchObject({
       runId: 'media-test:3',
       direction: 1,

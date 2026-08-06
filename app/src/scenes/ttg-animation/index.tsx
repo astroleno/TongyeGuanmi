@@ -152,7 +152,7 @@ async function prepareMedia(
     if (
       mediaRun.signal?.aborted
       || manager.generation !== generation
-      || result?.status !== 'ready'
+      || result?.[0] !== 'ready'
     ) {
       throw new Error('TTG media stale');
     }

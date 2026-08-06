@@ -31,13 +31,18 @@ export type TimelineVideoDriveInput = Readonly<{
   signal?: AbortSignal | undefined;
 }>;
 
-export type TimelineVideoFrameResult = Readonly<{
-  status: 'ready' | 'stale';
-  runId: string;
-  direction: Direction;
-  generation: number;
-  targetTime: number;
-}>;
+/**
+ * Public prepared-frame evidence. This tuple crosses lazy chunks, so it must
+ * not expose property names that independent Terser passes can mangle
+ * differently in the producer and consumer chunks.
+ */
+export type TimelineVideoFrameResult = readonly [
+  status: 'ready' | 'stale',
+  runId: string,
+  direction: Direction,
+  generation: number,
+  targetTime: number
+];
 
 export type TimelineVideoDriverSnapshot = Readonly<{
   runId: string | undefined;
@@ -104,14 +109,14 @@ function finiteDuration(video: HTMLVideoElement, fallback: number): number {
     : Math.max(0.001, fallback);
 }
 
-function frameResult(frame: DesiredFrame, status: TimelineVideoFrameResult['status']): TimelineVideoFrameResult {
-  return {
+function frameResult(frame: DesiredFrame, status: TimelineVideoFrameResult[0]): TimelineVideoFrameResult {
+  return [
     status,
-    runId: frame.runId,
-    direction: frame.direction,
-    generation: frame.generation,
-    targetTime: frame.targetTime
-  };
+    frame.runId,
+    frame.direction,
+    frame.generation,
+    frame.targetTime
+  ];
 }
 
 class TimelineVideoDriverImpl implements TimelineVideoDriver {
@@ -711,7 +716,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
   }
 
-  private resolveWaiter(waiter: FrameWaiter, status: TimelineVideoFrameResult['status']): void {
+  private resolveWaiter(waiter: FrameWaiter, status: TimelineVideoFrameResult[0]): void {
     if (!this.waiters.delete(waiter)) {
       return;
     }

@@ -90,7 +90,7 @@ export async function preparePhoneTimelineVideoFrame(
   input: PhoneTimelineVideoInput
 ): Promise<PhoneTimelineVideoFrame> {
   const frame = await prepareTimelineVideoFrame(video, driverInput(input));
-  return frame ? [frame.status, frame.runId] : [null, null];
+  return frame ? [frame[0], frame[1]] : [null, null];
 }
 
 /** Hides the driver's mutable snapshot object behind a four-slot probe. */

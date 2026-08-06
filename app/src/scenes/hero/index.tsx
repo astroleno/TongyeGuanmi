@@ -207,7 +207,7 @@ export function prepareHeroPatternFrame(
     return Promise.reject(new Error('hero media unavailable'));
   }
   return prepareTimelineVideoFrame(video, heroPatternMediaInput(rawProgress, mediaRun)).then((result) => {
-    if (result?.status !== 'ready') {
+    if (result?.[0] !== 'ready') {
       throw new Error('hero frame stale');
     }
   });
