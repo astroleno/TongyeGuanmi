@@ -135,6 +135,7 @@ export const PhoneCrane = forwardRef<
   PhoneCinematicSceneAdapterHandle,
   PhoneSceneAdapterProps
 >(function PhoneCrane({
+  active,
   onReady,
   onCinematicFact,
   reducedMotion
@@ -427,6 +428,21 @@ export const PhoneCrane = forwardRef<
     startRun,
     stopRun
   ]);
+
+  useEffect(() => {
+    if (active) return;
+
+    // The continuation keeps the adapter mounted so it can be rebound to a
+    // later immutable token, but an inactive physical scene must not retain
+    // decoder/WebGL ownership. `release` is deliberately reusable: the next
+    // admission can activate the same player and surface without creating a
+    // second lifecycle or a stale callback owner.
+    stopRun();
+    for (const surface of packedSurfacesRef.current ?? []) {
+      surface(['release']);
+    }
+    parkPhoneCraneMedia(rootRef.current);
+  }, [active, stopRun]);
 
   const prepareTargetPresentation = useCallback(async (
     request: TargetPresentationRequest

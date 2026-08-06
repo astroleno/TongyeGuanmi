@@ -339,6 +339,17 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       }
     }, [active]);
 
+    useEffect(() => {
+      if (active) return;
+
+      // Keep the leaf adapter mounted for token re-binding, but release its
+      // decoder/compositor while it is not the admitted visual owner. The
+      // reusable surface is re-activated by the next runner admission.
+      stopRun();
+      packedSurfaceRef.current?.(['release']);
+      parkPhonePhMedia(rootRef.current);
+    }, [active, stopRun]);
+
     const prepareTargetPresentation = useCallback(async (
       request: TargetPresentationRequest
     ): Promise<void> => {
