@@ -1929,12 +1929,18 @@ export function createPhoneStoryPresentation({
       const contract = phoneScenePresentationTuple(scene);
       const admission = phoneDirectEntryAdmissionTuple(scene);
       const receiver = contract[4];
+      const registration = registrations.get(receiver);
+      const kindMatchesDirectEntry = presentationToken.kind === admission[1];
+      const normalSegmentStaticBind = (
+        presentationToken.kind === 'static-poster'
+        && admission[1] === 'dom-reading'
+        && Boolean(registration?.adapter)
+      );
       if (
         presentationToken.authorityId !== authorityId
         || presentationToken.subject !== receiver
-        || presentationToken.kind !== admission[1]
+        || (!kindMatchesDirectEntry && !normalSegmentStaticBind)
       ) return;
-      const registration = registrations.get(receiver);
       const active = activeAdapters.get(receiver);
       if (
         active

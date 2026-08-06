@@ -15,6 +15,14 @@ const phoneFigure2ProofStaticPresentationFrame = (
   }>
 ).phoneFigure2ProofStaticPresentationFrame;
 
+const phoneFigure2ProofPresentationTokenKindAccepted = (
+  proofModule as typeof proofModule & Readonly<{
+    phoneFigure2ProofPresentationTokenKindAccepted?: (
+      kind: PresentationToken['kind']
+    ) => boolean;
+  }>
+).phoneFigure2ProofPresentationTokenKindAccepted;
+
 describe('PhoneFigure2Proof', () => {
   it('keeps one canonical compound article and three internal panels', () => {
     const markup = renderToStaticMarkup(createElement(PhoneFigure2Proof, {
@@ -45,5 +53,13 @@ describe('PhoneFigure2Proof', () => {
       observedAt: 84,
       origin: 'leaf-static-poster'
     });
+  });
+
+  it('[P0 Proof reverse] accepts the normal dom-reading token as a leaf-owned post-paint bind', () => {
+    expect(phoneFigure2ProofPresentationTokenKindAccepted).toBeTypeOf('function');
+    if (!phoneFigure2ProofPresentationTokenKindAccepted) return;
+    expect(phoneFigure2ProofPresentationTokenKindAccepted('dom-reading')).toBe(true);
+    expect(phoneFigure2ProofPresentationTokenKindAccepted('static-poster')).toBe(true);
+    expect(phoneFigure2ProofPresentationTokenKindAccepted('packed-canvas-frame')).toBe(false);
   });
 });

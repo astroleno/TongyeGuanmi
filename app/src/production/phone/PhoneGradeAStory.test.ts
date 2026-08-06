@@ -233,6 +233,17 @@ describe('phone Grade A orchestration ownership', () => {
     expect(boundaryOne).toContain('reducedTargetPosition');
   });
 
+  it('[P0 Proof reverse] re-arms the real Proof leaf after Brand → Proof scroll alignment', () => {
+    const proofSurface = source.slice(
+      source.indexOf("'grade-a:proof'"),
+      source.indexOf('    const corridorLease = registerPhoneRuntimeSampledScrollCorridor')
+    );
+    expect(proofSurface).toContain('present(token, report)');
+    expect(proofSurface).toContain('proofRef.current?.presentPresentation?.(token, report)');
+    expect(proofSurface).toContain('dispose(token)');
+    expect(proofSurface).toContain('proofRef.current?.disposePresentation?.(token)');
+  });
+
   it('[Proof↔Brand reduced cutover] hands the canonical Brand leaf directly to boundary 2 without registering a second Brand surface', () => {
     const boundaryTwo = source.slice(source.indexOf('} : id === 2 ? {'));
     expect(boundaryTwo).toContain('reducedStaticSubject');

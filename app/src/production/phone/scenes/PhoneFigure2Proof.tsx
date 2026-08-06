@@ -52,8 +52,21 @@ export function phoneFigure2ProofStaticPresentationFrame(
     token,
     frameSequence,
     observedAt,
-    origin: 'leaf-static-poster'
+    origin: token.kind === 'dom-reading'
+      ? 'leaf-post-paint'
+      : 'leaf-static-poster'
   };
+}
+
+/**
+ * Proof is a reading endpoint for direct entries but a static leaf for the
+ * normal Figure2 → Proof segment. Both routes bind the same physical article;
+ * only packed media tokens are invalid for this DOM-owned adapter.
+ */
+export function phoneFigure2ProofPresentationTokenKindAccepted(
+  kind: PresentationToken['kind']
+): boolean {
+  return kind === 'dom-reading' || kind === 'static-poster';
 }
 
 /** One canonical Proof article; document progress moves its three panels. */
@@ -106,6 +119,12 @@ export const PhoneFigure2Proof = forwardRef<
       const root = rootRef.current;
       if (!root) return;
       renderFigure2ProofHold(root);
+      // A reverse Brand → Proof admission may reuse a leaf that was left at
+      // its closing panel. Re-arm the authored opening hold as part of the
+      // same token-bound paint command; the runtime must never write this
+      // visual state from its snapshot bridge.
+      root.style.setProperty('--phone-proof-translate-y', '0px');
+      root.dataset.phoneProofProgress = '0.0000';
       root.dataset.figure2ProofStaticPoster = binding.key;
       if (
         staticPresentationBindingRef.current !== binding
@@ -165,7 +184,7 @@ export const PhoneFigure2Proof = forwardRef<
     reverse() {},
     presentPresentation(token, report) {
       releaseStaticPresentation();
-      if (token.kind !== 'static-poster') return;
+      if (!phoneFigure2ProofPresentationTokenKindAccepted(token.kind)) return;
       staticPresentationBindingRef.current = {
         token,
         key: phoneRuntimePresentationTokenKey(token),

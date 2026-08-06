@@ -32,8 +32,10 @@ import {
 } from '../../phone-scroll-corridor-registry';
 import {
   phoneScenePresentationProofKind,
-  phoneScenePresentationTuple
+  phoneScenePresentationTuple,
+  phoneRunLegAdmissionTuple
 } from '../manifest';
+import type { PhonePresentationProofKind } from '../manifest';
 import type {
   PhoneAodDiagnostics,
   PhoneOrchestratedRunSession,
@@ -450,9 +452,40 @@ export function createPhoneStoryRuntimeEngine(
     publishingTargetProof = true;
     try {
     const contract = phoneScenePresentationTuple(scene);
+    const snapshot = currentSnapshot;
+    let proofKind: PhonePresentationProofKind = phoneScenePresentationProofKind(scene);
+    let proofSubject = contract[4];
+    const run = snapshot.status === 'transaction'
+      ? snapshot.session.operation.run
+      : null;
+    if (snapshot.status === 'transaction' && run) {
+      const operation = snapshot.session.operation;
+      const rollback = snapshot.session.phase.startsWith('rollback-');
+      const direction = rollback
+        ? operation.direction === 1 ? -1 : 1
+        : operation.direction;
+      const strategy = phoneRunLegAdmissionTuple(
+        run,
+        operation.legIndex,
+        direction,
+        snapshot.session.reducedMotion ? 'reduced' : 'normal'
+      );
+      // Figure2 Proof is deliberately a DOM reading direct entry but a
+      // static-poster leaf during its normal/reduced segment. Keep the
+      // segment contract for that one shared physical endpoint; other
+      // terminal scenes continue to use their direct-entry kind here.
+      if (
+        scene === 'figure2-proof'
+        && strategy
+        && strategy[3] === scene
+      ) {
+        proofKind = strategy[1];
+        proofSubject = strategy[2];
+      }
+    }
     const token = activeSession.presentationProofToken(
-      phoneScenePresentationProofKind(scene),
-      contract[4]
+      proofKind,
+      proofSubject
     );
     if (!token) return;
     // Visual leaves receive the immutable token after the candidate plane has
@@ -465,23 +498,23 @@ export function createPhoneStoryRuntimeEngine(
     });
     const readiness = presentation.readPresentationReadiness(scene, token);
     if (readiness) activeSession.reportPresentationReadiness(readiness);
-    const snapshot = currentSnapshot;
-    if (snapshot.status !== 'transaction') return;
+    const projectedSnapshot = currentSnapshot;
+    if (projectedSnapshot.status !== 'transaction') return;
     const hasTargetReadiness = Boolean(
-      readiness || snapshot.session.readiness
+      readiness || projectedSnapshot.session.readiness
     );
-    const hasTargetProof = Boolean(snapshot.session.proof);
+    const hasTargetProof = Boolean(projectedSnapshot.session.proof);
     // Candidate coverage can release alignment/landing geometry, but only a
     // token-bound renderer/post-paint proof may publish a stable scene.
-    if (snapshot.session.phase === 'verifying-target') {
+    if (projectedSnapshot.session.phase === 'verifying-target') {
       if (hasTargetReadiness || hasTargetProof) {
         activeSession.reportTargetPresented();
       }
       return;
     }
     if (
-      (snapshot.session.phase === 'verifying-stable'
-        || snapshot.session.phase === 'rollback-verifying-stable')
+      (projectedSnapshot.session.phase === 'verifying-stable'
+        || projectedSnapshot.session.phase === 'rollback-verifying-stable')
       && hasTargetProof
     ) activeSession.reportPresentationCommitted();
     } finally {

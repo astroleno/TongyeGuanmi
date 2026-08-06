@@ -428,7 +428,14 @@ export function PhoneGradeAStory({
         () => proofRef.current?.root() ?? null,
         () => stageHost,
         undefined,
-        undefined,
+        {
+          present(token, report) {
+            proofRef.current?.presentPresentation?.(token, report);
+          },
+          dispose(token) {
+            proofRef.current?.disposePresentation?.(token);
+          }
+        },
         (token) => (
           proofRef.current?.root()?.dataset.figure2ProofStaticPoster
             === phoneRuntimePresentationTokenKey(token)
