@@ -353,6 +353,47 @@ describe('single phone story projector transaction', () => {
     expect(scrollCommands).toEqual([]);
   });
 
+  it('[front machine intent] claims a coalesced reverse sample before its pixel marker', () => {
+    const root = element();
+    let started: PhoneOrchestratedRunSession | undefined;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'star-map',
+      root,
+      scrollY: () => 100,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerRunCapability(
+      'pattern-star-map',
+      'front-stage-test',
+      capability(0, (_direction, session) => {
+        started = session;
+      })
+    );
+    orchestrator.registerScrollCorridor({
+      id: 'front-machine-test',
+      scenes: ['pattern-compact', 'star-map'],
+      sample: () => null,
+      // The marker is deliberately behind the small reverse sample. A
+      // machine-owned front hold must still claim the first valid intent.
+      boundary: () => 0,
+      landing: () => 0
+    });
+
+    expect(orchestrator.resolveIntent([1, -1, 100, 90]))
+      .toBe('claim-boundary');
+    expect(started).toBeDefined();
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        operation: {
+          run: 'pattern-star-map',
+          direction: -1
+        },
+        phase: 'preparing'
+      }
+    });
+  });
+
   it('[StarMap→AOD physical touch cutover] keeps Star painted through the exact AOD canvas proof and never realigns an active touch scroll', () => {
     const root = element();
     const aod = element();
@@ -1521,6 +1562,44 @@ describe('single phone story projector transaction', () => {
       }
     });
     frontLease.dispose();
+  });
+
+  it('[Method↔AOD first-intent cutover] claims a coalesced reverse sample before the semantic edge', () => {
+    const methodBoundary = 3_162;
+    let starts = 0;
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'method-top',
+      scrollY: () => methodBoundary + 1,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerRunCapability('aod-method', 'aod:first-intent', capability(
+      methodBoundary,
+      () => { starts += 1; }
+    ));
+    orchestrator.registerScrollCorridor({
+      id: 'front-aod-first-intent-reverse',
+      scenes: ['hero', 'pattern', 'star-map', 'aod-animation'],
+      sample: () => null,
+      boundary: (run, direction) => (
+        run === 'aod-method' && direction === -1 ? methodBoundary : null
+      ),
+      landing: () => methodBoundary
+    });
+
+    expect(orchestrator.resolveIntent([
+      1,
+      -1,
+      methodBoundary + 1,
+      methodBoundary - 2
+    ])).toBe('claim-boundary');
+    expect(starts).toBe(1);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        operation: { run: 'aod-method', direction: -1 },
+        phase: 'preparing'
+      }
+    });
   });
 
   it('[AOD first-intent cutover] claims the stable AOD semantic edge before native scroll can drift', () => {
