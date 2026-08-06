@@ -45,6 +45,96 @@ function root(): HTMLElement {
 }
 
 describe('phone presentation transaction', () => {
+  it('[Star→AOD reduced cutover] routes the sampled candidate through the AOD leaf proof', () => {
+    const element = root();
+    const aod = root();
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'star-map',
+      root: element,
+      scrollY: () => 100,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerSurface({
+      id: 'front:aod',
+      scene: 'aod-animation',
+      kind: 'fixed',
+      root: () => aod,
+      presentation: () => [true, true, true, true, 'static-poster'],
+      adapter: {
+        present(token, report) {
+          report({
+            token: { ...token },
+            frameSequence: 1,
+            observedAt: 1,
+            origin: 'leaf-static-poster'
+          });
+        }
+      }
+    });
+
+    orchestrator.dispatch({
+      type: 'SCROLL_SAMPLED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      actualY: 720,
+      corridor: 'front-rail',
+      scene: 'aod-animation',
+      progress: 1,
+      direction: 1,
+      reducedMotion: true
+    });
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'aod-animation',
+      session: null
+    });
+  });
+
+  it('[AOD→Star Map reduced cutover] re-enters the same static transaction at the reverse endpoint', () => {
+    const element = root();
+    const starMap = root();
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'aod-animation',
+      root: element,
+      scrollY: () => 100,
+      scrollTo: () => undefined
+    });
+    orchestrator.registerSurface({
+      id: 'front:star-map',
+      scene: 'star-map',
+      kind: 'fixed',
+      root: () => starMap,
+      presentation: () => [true, true, true, true, 'static-poster'],
+      adapter: {
+        present(token, report) {
+          report({
+            token: { ...token },
+            frameSequence: 1,
+            observedAt: 1,
+            origin: 'leaf-static-poster'
+          });
+        }
+      }
+    });
+
+    orchestrator.dispatch({
+      type: 'SCROLL_SAMPLED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      actualY: 640,
+      corridor: 'front-rail',
+      scene: 'star-map',
+      progress: .7,
+      direction: -1,
+      reducedMotion: true
+    });
+
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'star-map',
+      session: null
+    });
+  });
+
   it('publishes the target as a locked candidate before the final stable hold', () => {
     const element = root();
     const services = root();

@@ -27,6 +27,11 @@ describe('phone stage AOD resource selection', () => {
     expect(stageRuntimeSource).not.toContain('phoneStageFrame(stageProgress, options.reducedMotion)');
   });
 
+  it('[Star→AOD reduced cutover] keeps the authored AOD hold at progress zero', () => {
+    expect(stageRuntimeSource).toContain('aodAdapter.update(0);');
+    expect(stageRuntimeSource).not.toContain('aodAdapter.update(1);');
+  });
+
   it('derives AOD ownership only from the immutable snapshot projection', () => {
     const aod = createPhoneStorySnapshot({
       authorityId: 'a',

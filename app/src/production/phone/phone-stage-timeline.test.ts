@@ -56,7 +56,11 @@ describe('phone stage timeline', () => {
     expect(source).not.toContain('hero-pattern-scroll');
     expect(source).not.toContain('pattern-star-scroll');
     expect(phoneFrontRailSample(.205, 1)).toEqual({ progress: .205, direction: 1 });
-    expect(phoneFrontRailSample(.54, -1)).toEqual({ progress: .54, direction: -1 });
+    expect(phoneFrontRailSample(.54, -1)).toEqual({
+      scene: 'star-map',
+      progress: .54,
+      direction: -1
+    });
   });
 
   it('serializes only the retained Star→AOD rail run', () => {
@@ -93,8 +97,21 @@ describe('phone stage timeline', () => {
       PHONE_STAGE_STOPS.starAodStart + drift,
       -1
     )).toEqual({
+      scene: 'star-map',
       direction: -1,
       progress: PHONE_STAGE_STOPS.starAodStart - PHONE_STAGE_SETTLE_EPSILON
+    });
+  });
+
+  it('[Star→AOD reverse cutover] publishes the Star Map endpoint for the static admission', () => {
+    expect(phoneFrontRailSample(
+      PHONE_STAGE_STOPS.starAodStart - .01,
+      -1,
+      true
+    )).toEqual({
+      scene: 'star-map',
+      direction: -1,
+      progress: PHONE_STAGE_STOPS.starAodStart - .01
     });
   });
 

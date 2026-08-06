@@ -233,6 +233,13 @@ export function phoneFrontRailSampleTuple(
   if (progress >= starAodEnd) {
     return ['aod-animation', null, direction, progress, reducedMotion];
   }
+  if (direction === -1 && progress < starAodStart) {
+    // Once the reverse rail has crossed the authored Star↔AOD boundary, the
+    // next stable endpoint is a real static admission. Publishing the Star
+    // Map scene here lets the same machine transaction claim its leaf proof;
+    // leaving the scene null strands a scroll-run at its AOD source forever.
+    return ['star-map', null, direction, progress, reducedMotion];
+  }
   return [null, null, direction, progress, reducedMotion];
 }
 

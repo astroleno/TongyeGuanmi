@@ -600,7 +600,7 @@ export function createPhoneStoryRuntimeEngine(
         // Keep the already-qualified reduced Pattern → Star Map admission
         // contract intact. Reduced static candidates begin in preparing.
         (session.reducedMotion
-          && operation.to === 'star-map'
+          && (operation.to === 'star-map' || operation.to === 'aod-animation')
           && session.phase === 'preparing')
         || (!session.reducedMotion
           && session.phase === 'verifying-target'

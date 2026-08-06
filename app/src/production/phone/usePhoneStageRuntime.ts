@@ -475,7 +475,7 @@ export function usePhoneStageRuntime(
           && stableFrontPosition >= PHONE_STAGE_STOPS.starAodEnd
           && aodAdapter
         ) {
-          aodAdapter.update(1);
+          aodAdapter.update(0);
         }
         if (stableFrontPosition > 0.003 && !completedHeroEntrance) {
           completedHeroEntrance = true;
@@ -575,6 +575,7 @@ export function usePhoneStageRuntime(
           options.reducedMotion
         );
         const starAodEligible = snapshot[0] === 'star-map'
+          || snapshot[0] === 'aod-animation'
           || (snapshot[11] === 'scroll-run' && snapshot[17] === 'star-aod-scroll');
         return [
           actualY,

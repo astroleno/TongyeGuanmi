@@ -2067,14 +2067,18 @@ function assertReducedFrontHoldTrace(
   expect(candidates.at(-1)!.at - candidates[0]!.at).toBeLessThan(2_000);
   if (run.kind === 'machine') {
     expect(trace.some((state) => state.cursor === `transition:${run.id}:0`)).toBe(true);
-  } else {
+  } else if (run.id !== 'star-aod-scroll') {
+    // Reduced Star→AOD uses the same short machine admission as every other
+    // static front endpoint. The positional scroll sample may still publish
+    // one scroll-run trace before the candidate is projected, but it must not
+    // be mistaken for the transaction that owns the leaf proof.
     expect(trace.some((state) => state.cursor === `transition:${run.id}:0`)).toBe(false);
     expect(trace.some((state) => state.scrollCorridor === 'front-rail')).toBe(true);
   }
   expect(trace.every((state) => (
     state.session === null ? state.input === 'free' : state.input === 'locked'
   ))).toBe(true);
-  expect(trace.some((state) => state.projection === 'transition')).toBe(false);
+  expect(trace.some((state) => state.session !== null && state.projection === 'transition')).toBe(false);
   expect(new Set(trace.map((state) => state.authorityId)).size).toBe(1);
 }
 
