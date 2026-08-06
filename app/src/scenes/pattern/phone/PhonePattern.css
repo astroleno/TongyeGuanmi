@@ -5,7 +5,7 @@
 }
 
 .portrait-scroll-spike__scene--pattern {
-  background: #d9c08f;
+  background: transparent;
   color: #211713;
 }
 
@@ -18,6 +18,14 @@
   user-select: none;
 }
 
+.portrait-scroll-spike__pattern-plate {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: #d9c08f;
+  pointer-events: none;
+}
+
 .portrait-scroll-spike__pattern-image {
   position: absolute;
   inset: 0;
@@ -28,11 +36,12 @@
   object-fit: cover;
   pointer-events: none;
   user-select: none;
+  will-change: opacity;
 }
 
 .portrait-scroll-spike__pattern-wash {
   position: absolute;
-  z-index: 3;
+  z-index: 1;
   inset: 0;
   pointer-events: none;
   background: var(--portrait-pattern-wash-background);
@@ -92,7 +101,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .portrait-scroll-spike__pattern-motion,
+  .portrait-scroll-spike__pattern-plate,
+  .portrait-scroll-spike__pattern-image,
   .portrait-scroll-spike__pattern-copy {
     transform: none !important;
     opacity: 1 !important;

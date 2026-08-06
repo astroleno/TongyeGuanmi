@@ -29,6 +29,7 @@ function LabContent({ reading }: Readonly<{ reading: boolean }>) {
       className="phone-lab"
       data-phone-scene="lab"
       data-phone-reading={reading ? 'lab' : undefined}
+      data-phone-input-owner={reading ? 'native-document' : undefined}
       data-phone-lab-stable-input="lab-ph"
       aria-labelledby={reading ? 'phone-lab-title-reading' : 'phone-lab-title'}
     >

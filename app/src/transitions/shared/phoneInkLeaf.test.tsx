@@ -57,12 +57,18 @@ describe('clean phone Ink leaf', () => {
     mount.registration()?.commands.rebind({
       reports: current.reports, frameToken: 'ink:frame:1'
     });
-    mount.registration()?.commands.render(.5);
+    const projected = mount.registration()?.commands.render(.5);
     expect(rendererProbe.rebindGeneration).toHaveBeenCalledWith('ink:frame:1');
     expect(rendererProbe.render).toHaveBeenCalledWith(expect.objectContaining({
       progress: .5,
       spec: expect.objectContaining({ kind: 'radial', seed: 'hero' })
     }));
+    expect(projected).toEqual({
+      ownership: expect.objectContaining({
+        revealClip: expect.stringMatching(/^circle\(/),
+        concealMask: expect.stringMatching(/^radial-gradient\(/)
+      })
+    });
     const canvas = host.querySelector('canvas')!;
     expect(canvas.style.visibility).toBe('visible');
     expect(canvas.style.opacity).toBe('1');

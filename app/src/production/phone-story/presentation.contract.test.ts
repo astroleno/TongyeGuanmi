@@ -55,7 +55,7 @@ describe('phone presentation leaf boundary', () => {
     expect(commands.activate({
       invocationId: 'fixture-activation',
       surfaceIds: ['fixture-surface'],
-      credit: 'direct-muted-autoplay'
+      credit: 'direct-muted-autoplay', playback: false
     })).toEqual({
       invocationId: 'fixture-activation',
       surfaceIds: ['fixture-surface'],

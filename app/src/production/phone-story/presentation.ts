@@ -6,8 +6,9 @@ import type {
   PhoneRuntimeResourceCounts, PhoneSurfaceId, PhoneTransaction,
   PhoneTransactionLeg, PhoneViewportSnapshot, PhoneVisualViewport, PhoneFailure
 } from './protocol';
-import { phoneManifest, phonePreparedSurfaceIds, phoneSceneById, type PhoneSceneId,
-  type PhoneSegmentId } from './manifest';
+import { phoneManifest, phonePreparedSurfaceIds, phoneSceneById,
+  type PhoneInkOwnership, type PhoneSceneId, type PhoneSegmentId,
+  type PhoneTransitionProjection } from './manifest';
 
 export type PhoneSurfaceKind = 'dom' | 'image' | 'video' | 'canvas-2d' | 'canvas-webgl';
 
@@ -27,6 +28,7 @@ export type PhoneActivationInvocation = Readonly<{
 
 export type PhoneActivationTarget<Owner> = Readonly<{
   owner: Owner; commands: PhoneLeafCommandHandle; surfaceIds: readonly PhoneSurfaceId[];
+  playback: boolean;
 }>;
 
 export type PhoneActivationBatch<Owner> = Readonly<{
@@ -98,9 +100,12 @@ export function bindPhoneLeafGeneration(
   beforeRebind?: (token: PhoneFrameToken) => void
 ): PhoneFrameToken {
   const generation = createPhoneLeafGenerationBinding(
-    reports, binding.attempt.transactionId, sequence
+    reports,
+    binding.attempt.transactionId,
+    sequence
   );
-  beforeRebind?.(generation.frameToken); if (rebindMount) mount.rebind(binding);
+  beforeRebind?.(generation.frameToken);
+  if (rebindMount) mount.rebind(binding);
   mount.commands.rebind(generation);
   return generation.frameToken;
 }
@@ -108,7 +113,8 @@ export function bindPhoneLeafGeneration(
 export type PhoneLeafCommandHandle = Readonly<{
   rebind(binding: PhoneLeafGenerationBinding): void;
   activate(command: PhoneLeafActivationCommand): PhoneActivationInvocation;
-  render(progress: number): void; settle(endpoint: 0 | 1): void;
+  render(progress: number): Readonly<{ ownership: PhoneInkOwnership }> | void;
+  settle(endpoint: 0 | 1): void;
   pause(reason: PhoneLeafPauseReason): void; dispose(reason: PhoneLeafDisposeReason): void;
 }>;
 
@@ -161,8 +167,8 @@ export function invokePhoneActivationBatch<Owner>(
   authorize(activeTargets);
   const invocations: readonly PhoneActivationInvocation[] | null = (() => {
     try {
-      return activeTargets.map(({ commands, surfaceIds }) => commands.activate({
-        invocationId, surfaceIds, credit
+      return activeTargets.map(({ commands, surfaceIds, playback }) => commands.activate({
+        invocationId, surfaceIds, credit, playback
       }));
     } catch { return null; }
   })();
@@ -310,7 +316,7 @@ export type PhonePlaneRequest = Readonly<{
   attempt: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>; stageIndex: number;
   leg: 'source' | 'target' | 'rollback'; sceneId: PhoneSceneId; planeRevision: number;
   viewport: PhoneViewportSnapshot; required: readonly PhoneEvidenceSlot[];
-  progress: number; loaderCovered: boolean; interactionEnabled: boolean;
+  progress: number; loaderCovered: boolean;
 }>;
 
 export type PhonePlaneApplyResult = Readonly<{ records: readonly PhoneEvidenceRecord[]; failure: PhoneFailure | null }>;
@@ -329,6 +335,7 @@ export type PhonePresentationDependencies = Readonly<{
 export type PhonePresentation = Readonly<{
   attachRoot(root: HTMLElement): () => void; sampleLayoutViewport(): PhoneLayoutViewport;
   sampleVisualViewport(): PhoneVisualViewport; verifyPrepared(request: PhonePreparedProofRequest): PhonePreparedProof;
+  applyTransitionFrame(frame: PhoneTransitionProjection | null): void;
   registerLeafMount(request: PhoneLeafMountRequest): PhoneLeafMountLease; applyPlane(request: PhonePlaneRequest): PhonePlaneApplyResult;
   verifyVisibleCandidate(request: PhoneVisibleCandidateProofRequest): PhonePlaneApplyResult;
   verifyReproject(request: PhoneReprojectProofRequest): PhonePlaneApplyResult;
@@ -351,8 +358,7 @@ export function createPhonePlaneRequest(
     attempt: transaction.attempt, stageIndex: transaction.stageIndex,
     leg: first.leg, sceneId, planeRevision: transaction.planeRevision,
     viewport, required, progress: transaction.progress,
-    loaderCovered: transaction.mode === 'boot' && !hasStableCommit,
-    interactionEnabled: false
+    loaderCovered: transaction.mode === 'boot' && !hasStableCommit
   }) : null;
 }
 
@@ -470,13 +476,14 @@ function intersectsVisualViewport(
 ): boolean {
   if (!nonEmptyRect(element)) return false;
   const bounds = element.getBoundingClientRect();
-  return bounds.right > viewport.offsetLeft && bounds.left < viewport.offsetLeft + viewport.width
-    && bounds.bottom > viewport.offsetTop && bounds.top < viewport.offsetTop + viewport.height;
+  return bounds.right > 0 && bounds.left < viewport.width
+    && bounds.bottom > 0 && bounds.top < viewport.height;
 }
 
 function containsPoint(element: HTMLElement, x: number, y: number): boolean {
   const bounds = element.getBoundingClientRect();
-  return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
+  return x >= bounds.left && x <= bounds.right
+    && y >= bounds.top && y <= bounds.bottom;
 }
 
 function visibleStyle(style: CSSStyleDeclaration): boolean {
@@ -693,6 +700,9 @@ export function createPhonePresentation(
     const segment = request.attempt.segmentId
       ? phoneManifest.segments.find(({ id }) => id === request.attempt.segmentId) : null;
     const expectedEffect = segment?.effectPlacement === 'above-both' ? 40 : 20;
+    const foreground = state.root?.getAttribute('data-phone-transition-foreground');
+    const expectedSource = foreground === 'source' ? 30 : 10;
+    const expectedReceiver = foreground === 'source' ? 10 : 30;
     topology.effect.style.setProperty('--phone-plane-z', String(expectedEffect));
     return topology.viewport.parentElement === state.root
       && topology.coverage.parentElement === topology.viewport
@@ -702,9 +712,38 @@ export function createPhonePresentation(
       && topology.receiver.parentElement === topology.planes
       && getStyle(topology.viewport).position === 'fixed'
       && getStyle(topology.viewport).isolation === 'isolate'
-      && Number.parseInt(getStyle(topology.source).zIndex, 10) === 10
+      && Number.parseInt(getStyle(topology.source).zIndex, 10) === expectedSource
       && Number.parseInt(getStyle(topology.effect).zIndex, 10) === expectedEffect
-      && Number.parseInt(getStyle(topology.receiver).zIndex, 10) === 30;
+      && Number.parseInt(getStyle(topology.receiver).zIndex, 10) === expectedReceiver;
+  };
+
+  const applyTransitionFrame: PhonePresentation['applyTransitionFrame'] = (frame) => {
+    const root = state.root, topology = root ? presentationTopology(root) : null;
+    if (!root || !topology) return;
+    const variables = ['--phone-source-opacity', '--phone-target-opacity',
+      '--phone-source-clip', '--phone-target-clip',
+      '--phone-source-mask', '--phone-target-mask'] as const;
+    if (!frame) {
+      root.removeAttribute('data-phone-transition-live');
+      root.removeAttribute('data-phone-transition-direction');
+      root.removeAttribute('data-phone-transition-foreground');
+      for (const variable of variables) root.style.removeProperty(variable);
+      return;
+    }
+    const reverse = frame.direction === 'reverse';
+    root.setAttribute('data-phone-transition-live', 'true');
+    root.setAttribute('data-phone-transition-direction', frame.direction);
+    root.setAttribute('data-phone-transition-foreground', frame.foregroundOwner);
+    topology.source.setAttribute('data-phone-exposed', 'true');
+    topology.receiver.setAttribute('data-phone-exposed', 'true');
+    const values = [frame.sourceOpacity, frame.targetOpacity,
+      reverse ? frame.ownership?.revealClip : frame.ownership?.concealClip,
+      reverse ? frame.ownership?.concealClip : frame.ownership?.revealClip,
+      reverse ? frame.ownership?.revealMask : frame.ownership?.concealMask,
+      reverse ? frame.ownership?.concealMask : frame.ownership?.revealMask];
+    variables.forEach((variable, index) => root.style.setProperty(
+      variable, String(values[index] ?? 'none')
+    ));
   };
 
   const applyVariables = (
@@ -725,20 +764,18 @@ export function createPhonePresentation(
     for (const [property, value] of variables) state.root?.style.setProperty(property, value);
     state.root?.style.setProperty('--phone-story-coverage', phoneSceneById(request.sceneId).edgeSurface);
     state.root?.setAttribute('data-phone-orientation', layout.orientation);
-    state.root?.setAttribute('data-phone-interaction',
-      request.interactionEnabled ? 'enabled' : 'disabled');
-    topology.source.style.setProperty('--phone-plane-z', '10');
-    topology.receiver.style.setProperty('--phone-plane-z', '30');
     topology.source.setAttribute('data-phone-retained', 'true');
-    if (request.leg !== 'target') {
-      topology.source.setAttribute('data-phone-exposed', 'true');
-      topology.receiver.setAttribute('data-phone-exposed', 'false');
-    } else {
-      topology.source.setAttribute('data-phone-exposed', 'false');
-      topology.receiver.setAttribute('data-phone-exposed', 'true');
+    if (!state.root?.hasAttribute('data-phone-transition-live')) {
+      topology.source.style.setProperty('--phone-plane-z', '10');
+      topology.receiver.style.setProperty('--phone-plane-z', '30');
+      if (request.leg !== 'target') {
+        topology.source.setAttribute('data-phone-exposed', 'true');
+        topology.receiver.setAttribute('data-phone-exposed', 'false');
+      } else {
+        topology.source.setAttribute('data-phone-exposed', 'false');
+        topology.receiver.setAttribute('data-phone-exposed', 'true');
+      }
     }
-    topology.reading.setAttribute('aria-hidden', 'false');
-    topology.reading.toggleAttribute('inert', !request.interactionEnabled);
     for (const record of state.mounts.values()) {
       record.root?.setAttribute('aria-hidden', 'true');
       record.root?.toggleAttribute('inert', true);
@@ -833,13 +870,11 @@ export function createPhonePresentation(
     topology: PhoneProjectorTopology
   ): boolean => {
     const visual = request.viewport.visual;
-    const right = visual.offsetLeft + visual.width;
-    const bottom = visual.offsetTop + visual.height;
     const points: readonly [number, number][] = [
-      [visual.offsetLeft + 0.25, visual.offsetTop + 0.25],
-      [right - 0.25, visual.offsetTop + 0.25],
-      [visual.offsetLeft + 0.25, bottom - 0.25],
-      [right - 0.25, bottom - 0.25]
+      [0.25, 0.25],
+      [visual.width - 0.25, 0.25],
+      [0.25, visual.height - 0.25],
+      [visual.width - 0.25, visual.height - 0.25]
     ];
     const active = request.leg !== 'target' ? topology.source : topology.receiver;
     return points.every(([x, y]) => containsPoint(topology.coverage, x, y)
@@ -919,6 +954,7 @@ export function createPhonePresentation(
   return Object.freeze({
     attachRoot,
     registerLeafMount,
+    applyTransitionFrame,
     sampleLayoutViewport: dependencies.sampleLayoutViewport,
     sampleVisualViewport: dependencies.sampleVisualViewport,
     verifyPrepared,

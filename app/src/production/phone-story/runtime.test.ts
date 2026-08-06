@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createPhoneStoryRuntime,
+  phoneReadingEdges,
   type PhoneDependencyLoadResult,
   type PhoneRuntimeHostEvent,
   type PhoneRuntimeLifecycleStep,
@@ -10,6 +11,7 @@ import {
   type PhoneStoryRuntime,
   type PhoneStoryRuntimeEnvironment
 } from './runtime';
+import { phoneTransactionActivationSurfaceIds } from './machine';
 import { phoneManifest, phoneSceneById } from './manifest';
 import type {
   PhoneLeafCommandHandle,
@@ -35,6 +37,15 @@ const initialViewport = (): PhoneViewportSnapshot => ({
   layoutRevision: 1,
   visualRevision: 1,
   supported: true
+});
+
+describe('phone native reading edge contract', () => {
+  it('derives both reading edges from the document scroll owner rather than viewport proxies', () => {
+    expect(phoneReadingEdges({ scrollTop: 0, clientHeight: 714, scrollHeight: 1_677 }))
+      .toEqual({ top: true, bottom: false });
+    expect(phoneReadingEdges({ scrollTop: 963, clientHeight: 714, scrollHeight: 1_677 }))
+      .toEqual({ top: false, bottom: true });
+  });
 });
 
 type EnvironmentFixture = Readonly<{
@@ -183,6 +194,7 @@ function createPresentationAuthority(
     },
     sampleLayoutViewport: () => readViewport().layout,
     sampleVisualViewport: () => readViewport().visual,
+    applyTransitionFrame: () => undefined,
     applyPlane: () => ({ records: [], failure: null }),
     verifyVisibleCandidate: () => ({ records: [], failure: null }),
     verifyReproject: () => ({ records: [], failure: null }),
@@ -249,10 +261,7 @@ function currentTransaction(runtime: PhoneStoryRuntime) {
 function requiresMediaActivation(
   transaction: ReturnType<typeof currentTransaction>
 ): boolean {
-  return transaction.mode === 'segment'
-    ? transaction.closure.mount.some((mount) => mount.includes('video'))
-    : phoneSceneById(transaction.candidateSceneId)
-      .directEntry.closure.resourceBudget.videos > 0;
+  return transaction.activation === 'offered';
 }
 
 function reportSlot(fixture: EnvironmentFixture, slot: PhoneEvidenceSlot): void {
@@ -520,6 +529,7 @@ describe('phone runtime input, history, viewport, and queue', () => {
       const fixture = createEnvironment();
       const runtime = createRuntime(fixture);
       const disconnect = runtime.connect();
+      registerCurrentLeaf(runtime, commandFixture().commands);
       proveCurrent(runtime, fixture);
       fixture.emit(event);
       expect(currentTransaction(runtime).mode).toBe('segment');
@@ -998,7 +1008,117 @@ function commandFixture(
   return { commands, rebindings };
 }
 
+function installDeprecatedStaticPrepare(commands: PhoneLeafCommandHandle) {
+  const prepare = vi.fn(() => ({ invoked: true }));
+  Object.defineProperty(commands, 'prepare', {
+    configurable: true,
+    value: prepare
+  });
+  return prepare;
+}
+
 describe('phone runtime projector bridge', () => {
+  it('holds a cold Hero at zero until Loader exit starts the one visible entrance', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#home');
+    const disconnect = runtime.connect();
+    const hero = commandFixture();
+    registerCurrentLeaf(runtime, hero.commands);
+    proveCurrent(runtime, fixture);
+    expect(hero.commands.settle).toHaveBeenLastCalledWith(0);
+    runtime.startVisibleEntrance();
+    runtime.startVisibleEntrance();
+    expect(hero.commands.settle).toHaveBeenLastCalledWith(1);
+    expect(hero.commands.settle).toHaveBeenCalledTimes(2);
+    disconnect();
+  });
+
+  it('maps one reducer progress into distinct endpoint, effect, and plane channels', () => {
+    const fixture = createEnvironment();
+    const applyTransitionFrame = vi.fn();
+    const presentation = {
+      ...createPresentationAuthority(fixture.port.readViewport),
+      applyTransitionFrame
+    } as PhonePresentation;
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#home', origin: 'initial' },
+      environment: fixture.port,
+      presentation
+    });
+    const disconnect = runtime.connect();
+    const source = commandFixture();
+    registerCurrentLeaf(runtime, source.commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    const target = commandFixture();
+    registerCurrentLeaf(runtime, target.commands);
+    const effect = commandFixture();
+    vi.mocked(effect.commands.render).mockImplementation(() => ({
+      ownership: {
+        revealClip: 'circle(10px)',
+        concealMask: 'radial-gradient(circle, transparent, #000)'
+      }
+    }) as never);
+    registerCurrentEffect(runtime, effect.commands);
+    reachPlaying(runtime, fixture);
+    fixture.advance(1500);
+    fixture.flushFrames();
+
+    expect(source.commands.render).toHaveBeenLastCalledWith(1);
+    expect(target.commands.render).toHaveBeenLastCalledWith(0);
+    expect(effect.commands.render).toHaveBeenLastCalledWith(expect.any(Number));
+    expect(vi.mocked(effect.commands.render).mock.calls.at(-1)?.[0]).toBeGreaterThan(0);
+    expect(applyTransitionFrame).toHaveBeenLastCalledWith({
+      sourceOpacity: 1,
+      targetOpacity: 1,
+      direction: 'forward',
+      foregroundOwner: 'target',
+      ownership: {
+        revealClip: 'circle(10px)',
+        concealMask: 'radial-gradient(circle, transparent, #000)'
+      }
+    });
+    disconnect();
+  });
+
+  it('clears a live choreography before a failed segment enters rollback', () => {
+    const fixture = createEnvironment();
+    const applyTransitionFrame = vi.fn();
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#home', origin: 'initial' },
+      environment: fixture.port,
+      presentation: {
+        ...createPresentationAuthority(fixture.port.readViewport),
+        applyTransitionFrame
+      } as PhonePresentation
+    });
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    reachPlaying(runtime, fixture);
+    expect(applyTransitionFrame).toHaveBeenCalledWith(expect.objectContaining({
+      direction: 'forward'
+    }));
+    const active = currentTransaction(runtime);
+    fixture.send({
+      type: 'failure-reported',
+      slot: active.requiredPrepared[0]!,
+      failure: { code: 'fixture-frame', message: 'fixture', recoverable: true }
+    });
+    expect(currentTransaction(runtime).mode).toBe('rollback');
+    expect(applyTransitionFrame).toHaveBeenLastCalledWith(null);
+    disconnect();
+  });
+
   it('renders the reducer-owned start endpoint before activating a newly mounted leaf', () => {
     const directFixture = createEnvironment();
     const directRuntime = createRuntime(directFixture, '#ph-animation');
@@ -1057,7 +1177,7 @@ describe('phone runtime projector bridge', () => {
     fixture.flushFrames();
     expect(verifyVisibleCandidate).toHaveBeenCalledTimes(1);
     expect(verifyVisibleCandidate.mock.calls[0]?.[0]).toMatchObject({
-      leg: 'target', sceneId: 'pattern', interactionEnabled: false
+      leg: 'target', sceneId: 'pattern'
     });
     expect(runtime.getSnapshot().status).toBe('stable');
     expect(fixture.effects.some(({ type }) => type === 'apply-presentation-plane')).toBe(false);
@@ -1118,6 +1238,45 @@ describe('phone runtime projector bridge', () => {
     fixture.flushFrames();
     expect(verifyReproject).toHaveBeenCalledTimes(1);
     expect(verifyReproject.mock.calls[0]?.[0].viewport).toEqual(live);
+    expect(runtime.getSnapshot().status).toBe('stable');
+    disconnect();
+  });
+
+  it('retries a transient toolbar coverage miss inside the bounded reproof deadline', () => {
+    const fixture = createEnvironment();
+    const verifyReproject = vi.fn()
+      .mockReturnValueOnce({
+        records: [],
+        failure: {
+          code: 'presentation-coverage-invalid',
+          message: 'dynamic toolbar geometry is still settling',
+          recoverable: true
+        }
+      })
+      .mockImplementation(exactPlaneResult);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#education', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority({ verifyReproject }, fixture.port.readViewport)
+    });
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.flushFrames();
+    const toolbar: PhoneViewportSnapshot = {
+      ...initialViewport(),
+      visual: { offsetLeft: 0, offsetTop: 153, width: 390, height: 753, scale: 1 },
+      visualRevision: 2
+    };
+    fixture.emit({ type: 'viewport', change: 'toolbar', viewport: toolbar });
+    fixture.flushFrames();
+    prepareCurrentPlane(runtime, fixture);
+    fixture.flushFrames();
+    expect(verifyReproject).toHaveBeenCalledTimes(1);
+    expect(runtime.getSnapshot().status).toBe('transaction');
+    expect(currentTransaction(runtime).deadline?.operation).toBe('planeApply');
+    expect(fixture.counts().frames).toBe(1);
+    fixture.flushFrames();
+    expect(verifyReproject).toHaveBeenCalledTimes(2);
     expect(runtime.getSnapshot().status).toBe('stable');
     disconnect();
   });
@@ -1258,15 +1417,238 @@ describe('phone runtime projector bridge', () => {
 });
 
 describe('phone runtime effects, media activation, and disposal', () => {
+  it('prewarms both manifest-adjacent closures while stable without mounting or activating them', async () => {
+    const fixture = createEnvironment();
+    const prewarmDependencies = vi.fn(async () => ({ status: 'loaded' as const }));
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#star-map', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { prewarmDependencies }
+    });
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    await vi.waitFor(() => expect(prewarmDependencies).toHaveBeenCalledTimes(1));
+    expect(prewarmDependencies).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'load-dependencies',
+        dependencies: expect.arrayContaining([
+          'transition:pattern-star-map', 'scene:pattern',
+          'transition:star-map-aod', 'scene:aod-animation',
+          'media:aod-figure-packed'
+        ])
+      }),
+      expect.any(AbortSignal)
+    );
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'star-map' }
+    });
+    disconnect();
+  });
+
+  it('reports an actual prewarm rejection through chunk recovery without faulting the committed scene', async () => {
+    const fixture = createEnvironment();
+    const reportRejectedChunk = vi.fn(async () => 'reloading' as const);
+    const prewarmDependencies = vi.fn(async (
+      effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>
+    ) => ({
+      status: 'rejected' as const,
+      dependency: effect.dependencies.find((dependency) => dependency.startsWith('scene:'))!,
+      moduleUrl: '/assets/prewarm-rejected.js',
+      reason: 'prewarm native import rejected'
+    }));
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#star-map', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { prewarmDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    });
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    await vi.waitFor(() => expect(reportRejectedChunk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        moduleUrl: '/assets/prewarm-rejected.js',
+        reason: 'prewarm native import rejected'
+      })
+    ));
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'star-map' }
+    });
+    disconnect();
+  });
+
+  it('keeps static Star-to-AOD arrival out of the touch activation path', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#star-map');
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 300, fresh: true,
+      trusted: true, target: 'story'
+    });
+    const started = currentTransaction(runtime);
+    expect(started).toMatchObject({
+      phase: 'preparing', candidateSceneId: 'aod-animation'
+    });
+    const target = commandFixture();
+    const deprecatedPrepare = installDeprecatedStaticPrepare(target.commands);
+    registerCurrentLeaf(runtime, target.commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    expect(deprecatedPrepare).not.toHaveBeenCalled();
+    let preparedBeforeTouchEnd = false;
+    for (let index = 0; index < 40; index += 1) {
+      const transaction = currentTransaction(runtime);
+      const missing = transaction.requiredPrepared.find((slot) => (
+        !transaction.evidence.some((record) => record.slot === slot)
+      ));
+      if (!missing) {
+        preparedBeforeTouchEnd = true;
+        break;
+      }
+      reportSlot(fixture, missing);
+    }
+    expect(preparedBeforeTouchEnd).toBe(true);
+    expect(currentTransaction(runtime)).toMatchObject({
+      phase: 'presenting-source', activation: 'none'
+    });
+    expect(target.commands.activate).not.toHaveBeenCalled();
+    fixture.emit({ type: 'activation', trusted: true });
+    const afterTouchEnd = currentTransaction(runtime);
+    expect(afterTouchEnd.attempt.transactionGeneration)
+      .toBe(started.attempt.transactionGeneration);
+    expect(afterTouchEnd.claimedPhysicalEpoch).toBe(started.claimedPhysicalEpoch);
+    expect(afterTouchEnd.activation).toBe('none');
+    expect(target.commands.activate).not.toHaveBeenCalled();
+    expect(fixture.effects.filter((effect) => (
+      effect.type === 'show-activation-cta' && effect.attempt.mode === 'segment'
+    ))).toEqual([]);
+    disconnect();
+  });
+
+  it('uses Method-to-Figure2 poster proof without touching a deprecated video preparation seam', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#method-top');
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 300, fresh: true,
+      trusted: true, target: 'story'
+    });
+    expect(currentTransaction(runtime)).toMatchObject({
+      phase: 'preparing', candidateSceneId: 'figure2-animation'
+    });
+    const target = commandFixture();
+    const deprecatedPrepare = installDeprecatedStaticPrepare(target.commands);
+    registerCurrentLeaf(runtime, target.commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+
+    expect(deprecatedPrepare).not.toHaveBeenCalled();
+    expect(target.commands.activate).not.toHaveBeenCalled();
+    const transaction = currentTransaction(runtime);
+    expect(transaction.activation).toBe('none');
+    expect(phoneTransactionActivationSurfaceIds(transaction)).toEqual([]);
+    disconnect();
+  });
+
+  it('does not invoke a deprecated static-video preparation seam for a reverse target', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#pattern');
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: -300, fresh: true,
+      trusted: true, target: 'story'
+    });
+    expect(currentTransaction(runtime)).toMatchObject({
+      phase: 'preparing', candidateSceneId: 'hero',
+      attempt: { segmentId: 'hero-pattern', direction: 'reverse' }
+    });
+    const target = commandFixture();
+    const deprecatedPrepare = installDeprecatedStaticPrepare(target.commands);
+    registerCurrentLeaf(runtime, target.commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+
+    expect(deprecatedPrepare).not.toHaveBeenCalled();
+    expect(target.commands.activate).not.toHaveBeenCalled();
+    expect(currentTransaction(runtime).activation).toBe('none');
+    disconnect();
+  });
+
+  it('gives the departing media clock to the source within the same touch epoch', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#crane-animation');
+    const disconnect = runtime.connect();
+    const source = commandFixture();
+    registerCurrentLeaf(runtime, source.commands);
+    proveCurrent(runtime, fixture);
+    vi.mocked(source.commands.activate).mockClear();
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 300, fresh: true,
+      trusted: true, target: 'story'
+    });
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    expect(source.commands.activate).toHaveBeenCalledTimes(1);
+    expect(source.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
+      playback: true, surfaceIds: ['crane-figure-video', 'crane-flock-video']
+    }));
+    disconnect();
+  });
+
+  it('consumes a completed Hero-to-Pattern touch epoch through Hero before Pattern proof', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#home');
+    const disconnect = runtime.connect();
+    const hero = commandFixture();
+    registerCurrentLeaf(runtime, hero.commands);
+    proveCurrent(runtime, fixture);
+    vi.mocked(hero.commands.activate).mockClear();
+
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 300, fresh: true,
+      trusted: true, target: 'story'
+    });
+    expect(currentTransaction(runtime)).toMatchObject({
+      phase: 'preparing', candidateSceneId: 'pattern',
+      attempt: { segmentId: 'hero-pattern', direction: 'forward' },
+      activation: 'spent'
+    });
+
+    const pattern = commandFixture();
+    registerCurrentLeaf(runtime, pattern.commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    expect(pattern.commands.activate).not.toHaveBeenCalled();
+
+    expect(hero.commands.activate).toHaveBeenCalledTimes(1);
+    expect(hero.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
+      credit: 'physical-epoch', playback: true, surfaceIds: ['hero-figure-video']
+    }));
+    expect(currentTransaction(runtime)).toMatchObject({
+      phase: 'preparing', activation: 'spent'
+    });
+
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'pattern' }
+    });
+    disconnect();
+  });
+
   it('accepts a causal frame reported synchronously from command rebind', () => {
     const fixture = createEnvironment();
     const runtime = createPhoneStoryRuntime({
-      initialEntry: { pathname: '/', hash: '#aod-animation', origin: 'initial' },
+      initialEntry: { pathname: '/', hash: '#hero', origin: 'initial' },
       environment: fixture.port,
       presentation: createFrameProofPresentationAuthority()
     });
     const disconnect = runtime.connect();
-    const canvasSurface = phoneSceneById('aod-animation').frame.surfaceIds[0]!;
+    const canvasSurface = phoneSceneById('hero').frame.surfaceIds[0]!;
     const commands = commandFixture().commands;
     vi.mocked(commands.rebind).mockImplementation((binding) => {
       binding.reports.reportFrame(canvasSurface, {
@@ -1516,7 +1898,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
         for (const slot of prepared) reportSlot(fixture, slot);
         expect(currentTransaction(runtime).phase).toBe('presenting-target');
         expect(commands.activate).toHaveBeenCalledTimes(
-          target.directEntry.closure.resourceBudget.videos > 0 ? 1 : 0
+          target.directEntry.mediaActivation.requiresPhysicalCredit ? 1 : 0
         );
         disconnect();
       }
@@ -1639,7 +2021,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
-  it('rebinds late effect and target ports across a retained activation retry', () => {
+  it('rolls back a rejected continuous activation and lets the next fresh gesture retry', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#figure3-animation');
     const disconnect = runtime.connect();
@@ -1651,86 +2033,70 @@ describe('phone runtime effects, media activation, and disposal', () => {
       type: 'input', kind: 'keyboard', key: 'ArrowDown', fresh: true,
       trusted: true, target: 'story'
     });
-    const waiting = currentTransaction(runtime);
-    expect(waiting.phase).toBe('awaiting-media-activation');
-    const segment = phoneManifest.segments.find(({ id }) => (
-      id === waiting.attempt.segmentId
-    ));
-    if (!segment || !waiting.attempt.direction) throw new Error('missing Figure3 segment');
-    const effectSurface = segment[waiting.attempt.direction].effectSurface;
-    const targetScene = phoneSceneById(waiting.candidateSceneId);
-    const lateEffect = runtime.createLeafReportPort({
-      attempt: waiting.attempt,
-      stageIndex: waiting.stageIndex,
-      leg: 'effect',
-      allowedReports: waiting.requiredPrepared.filter(({ leg }) => leg === 'effect')
-        .map(({ kind }) => kind),
-      allowedSurfaceIds: [effectSurface],
-      planeRevision: waiting.planeRevision
+    expect(currentTransaction(runtime)).toMatchObject({
+      mode: 'rollback', candidateSceneId: 'figure3-animation'
     });
-    const lateTarget = runtime.createLeafReportPort({
-      attempt: waiting.attempt,
-      stageIndex: waiting.stageIndex,
-      leg: 'target',
-      allowedReports: waiting.requiredPrepared.filter(({ leg }) => leg === 'target')
-        .map(({ kind }) => kind),
-      allowedSurfaceIds: targetScene.surfaces,
-      planeRevision: waiting.planeRevision
-    });
+    expect(fixture.effects.filter((effect) => (
+      effect.type === 'show-activation-cta' && effect.attempt.mode === 'segment'
+    ))).toEqual([]);
+    expect(source.commands.activate).toHaveBeenCalledTimes(2);
 
-    fixture.emit({ type: 'activation', trusted: true });
-    const active = currentTransaction(runtime);
-    expect(active.attempt.transactionGeneration)
-      .toBeGreaterThan(waiting.attempt.transactionGeneration);
-    const effect = commandFixture();
-    const target = commandFixture();
-    lateEffect.registerMount({
-      root: {} as HTMLElement,
-      surfaces: [{ id: effectSurface, element: {} as HTMLElement, kind: 'dom' }],
-      commands: effect.commands
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'figure3-animation' }
     });
-    lateTarget.registerMount({
-      root: {} as HTMLElement,
-      surfaces: targetScene.surfaces.map((id) => ({
-        id, element: {} as HTMLElement, kind: 'dom' as const
-      })),
-      commands: target.commands
+    fixture.emit({
+      type: 'input', kind: 'keyboard', key: 'ArrowDown', fresh: true,
+      trusted: true, target: 'story'
     });
-
-    expect(effect.rebindings[0]?.frameToken).toContain(active.attempt.transactionId);
-    expect(target.rebindings[0]?.frameToken).toContain(active.attempt.transactionId);
+    expect(currentTransaction(runtime)).toMatchObject({
+      mode: 'segment', candidateSceneId: 'services', activation: 'spent'
+    });
+    expect(source.commands.activate).toHaveBeenCalledTimes(3);
     disconnect();
   });
 
-  it('offers activation immediately when direct autoplay rejects before prepared proof', async () => {
+  it('keeps direct AOD poster entry out of autoplay and CTA recovery', async () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#aod-animation');
     const disconnect = runtime.connect();
     const { commands } = commandFixture();
-    vi.mocked(commands.activate).mockImplementation((command) => ({
-      invocationId: command.invocationId,
-      surfaceIds: command.surfaceIds,
-      invoked: true,
-      settlements: command.surfaceIds.map((surfaceId) => ({
-        surfaceId,
-        status: 'pending' as const,
-        settled: Promise.reject(new DOMException('gesture required', 'NotAllowedError'))
-      }))
+    registerCurrentLeaf(runtime, commands);
+    expect(commands.activate).not.toHaveBeenCalled();
+    expect(currentTransaction(runtime)).toMatchObject({
+      candidateSceneId: 'aod-animation', activation: 'none'
+    });
+    expect(fixture.effects).not.toContainEqual(expect.objectContaining({
+      type: 'show-activation-cta', enabled: true
+    }));
+    disconnect();
+  });
+
+  it('keeps Figure2 direct entry on muted autoplay, then gates CTA after rejection', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#figure2-animation');
+    const disconnect = runtime.connect();
+    const direct = commandFixture((call) => call > 1);
+    expect(fixture.effects).not.toContainEqual(expect.objectContaining({
+      type: 'show-activation-cta', enabled: true
     }));
 
-    registerCurrentLeaf(runtime, commands);
+    registerCurrentLeaf(runtime, direct.commands);
 
-    await vi.waitFor(() => expect(currentTransaction(runtime).phase)
-      .toBe('awaiting-media-activation'));
-    expect(currentTransaction(runtime).activation).toBe('awaiting');
-    expect(currentTransaction(runtime).retainedTopology).toBe(true);
+    expect(direct.commands.activate).toHaveBeenCalledTimes(1);
+    expect(direct.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
+      credit: 'direct-muted-autoplay', surfaceIds: ['figure2-pair-video']
+    }));
+    expect(currentTransaction(runtime)).toMatchObject({
+      phase: 'awaiting-media-activation', activation: 'awaiting', retainedTopology: true
+    });
     expect(fixture.effects).toContainEqual(expect.objectContaining({
       type: 'show-activation-cta', enabled: true
     }));
     disconnect();
   });
 
-  it('reveals segment activation only after the delayed video leaf registers', () => {
+  it('does not turn a delayed static target video into an activation CTA', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#star-map');
     const disconnect = runtime.connect();
@@ -1739,22 +2105,22 @@ describe('phone runtime effects, media activation, and disposal', () => {
       type: 'input', kind: 'wheel', delta: 100, fresh: true, target: 'story'
     });
     expect(currentTransaction(runtime).candidateSceneId).toBe('aod-animation');
-    expect(currentTransaction(runtime).phase).toBe('awaiting-media-activation');
-    expect(fixture.effects.at(-1)).toMatchObject({
-      type: 'show-activation-cta', enabled: false
+    expect(currentTransaction(runtime)).toMatchObject({
+      phase: 'preparing', activation: 'none'
     });
+    expect(fixture.effects).not.toContainEqual(expect.objectContaining({
+      type: 'show-activation-cta'
+    }));
 
     const { commands } = commandFixture();
     const { reports } = registerCurrentLeaf(runtime, commands);
-    expect(fixture.effects.at(-1)).toMatchObject({
-      type: 'show-activation-cta', enabled: true
-    });
     expect(commands.activate).not.toHaveBeenCalled();
     reportCurrentLeafFacts(runtime, reports);
-    expect(currentTransaction(runtime).phase).toBe('awaiting-media-activation');
-    expect(fixture.counts().timers).toBe(0);
-    fixture.advance(8_001);
-    expect(currentTransaction(runtime).phase).toBe('awaiting-media-activation');
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'aod-animation' }
+    });
+    expect(commands.activate).not.toHaveBeenCalled();
     disconnect();
   });
 
@@ -2012,6 +2378,33 @@ describe('phone runtime effects, media activation, and disposal', () => {
       surfaceIds: ['crane-figure-video', 'crane-flock-video']
     }));
     expect(commands.activate).toHaveBeenCalledTimes(2);
+    disconnect();
+  });
+
+  it('does not consume touchend activation for static choreography even when its closure mounts video', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#star-map');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot().status).toBe('stable');
+
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 100, fresh: true,
+      target: 'story', trusted: true
+    });
+    expect(currentTransaction(runtime).candidateSceneId).toBe('aod-animation');
+    expect(currentTransaction(runtime).activation).toBe('none');
+
+    const target = commandFixture();
+    registerCurrentLeaf(runtime, target.commands);
+
+    fixture.emit({ type: 'activation', trusted: true });
+    expect(currentTransaction(runtime).phase).toBe('preparing');
+    expect(currentTransaction(runtime).activation).toBe('none');
+    expect(target.commands.activate).not.toHaveBeenCalled();
+    expect(fixture.effects).not.toContainEqual(expect.objectContaining({
+      type: 'show-activation-cta', enabled: true
+    }));
     disconnect();
   });
 

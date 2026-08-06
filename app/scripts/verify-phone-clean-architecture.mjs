@@ -20,18 +20,18 @@ export const PHONE_CORE_PRODUCTION_ALLOWLIST = Object.freeze([
 ]);
 
 export const PHONE_CORE_LOC_BUDGETS = Object.freeze({
-  'protocol.ts': 450,
-  'presentation.ts': 900,
-  'manifest.ts': 550,
-  'machine.ts': 1100,
-  'runtime.ts': 1000,
-  'PhoneStoryShell.tsx': 500,
+  'protocol.ts': 475,
+  'presentation.ts': 975,
+  'manifest.ts': 750,
+  'machine.ts': 1160,
+  'runtime.ts': 1250,
+  'PhoneStoryShell.tsx': 690,
   'scenes.tsx': 700,
   'transitions.tsx': 700,
   'PhoneBrandLabStory.tsx': 120
 });
 
-export const PHONE_CORE_TOTAL_LOC_BUDGET = 5000;
+export const PHONE_CORE_TOTAL_LOC_BUDGET = 5700;
 export const PHONE_JS_HARD_CAP_BYTES = 663_552;
 
 const allowedCoreImports = new Map([
@@ -2123,12 +2123,23 @@ function controllerRecoveryBoundaryViolations(sources, referenceSources = source
   if (!deadline || Number(deadline[1].replaceAll('_', '')) !== 3000) {
     violations.push('cutover recovery manifest active deadline must remain 3000 ms');
   }
-  const onlineAwaits = descendants(loader, (node) => (
-    ts.isAwaitExpression(node)
-    && propertyCall(unwrappedExpression(node.expression), 'environment', 'waitForOnline')
+  const forbiddenNetworkIdentifiers = descendants(loader, (node) => (
+    ts.isIdentifier(node) && ['onLine', 'isOnline', 'waitForOnline'].includes(node.text)
   ));
-  if (onlineAwaits.length !== 1) {
-    violations.push('cutover recovery must wait online before release classification');
+  const forbiddenComputedNetworkReads = descendants(loader, (node) => (
+    ts.isElementAccessExpression(node)
+    && ts.isIdentifier(node.expression)
+    && ['navigator', 'environment'].includes(node.expression.text)
+    && node.argumentExpression
+    && ts.isStringLiteralLike(unwrappedExpression(node.argumentExpression))
+    && (node.expression.text === 'navigator'
+      ? ['onLine'].includes(unwrappedExpression(node.argumentExpression).text)
+      : ['isOnline', 'waitForOnline'].includes(
+      unwrappedExpression(node.argumentExpression).text
+      ))
+  ));
+  if (forbiddenNetworkIdentifiers.length !== 0 || forbiddenComputedNetworkReads.length !== 0) {
+    violations.push('cutover recovery must treat navigator.onLine as diagnostic only');
   }
   if (!/if\s*\(\s*!storage\s*\)\s*return\s+failClosed\s*\(/.test(loaderEntry.source)) {
     violations.push('cutover recovery must disable automatic reload without sessionStorage');

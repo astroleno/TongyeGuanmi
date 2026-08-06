@@ -111,6 +111,16 @@ describe('clean PhoneHero leaf', () => {
     ]);
   });
 
+  it('has no deprecated static-video preparation seam on Hero', async () => {
+    const fixture = reportFixture();
+    await act(async () => {
+      root.render(<PhoneHero reports={fixture.reports} />);
+    });
+    const commands = fixture.registration()?.commands as PhoneLeafCommandHandle;
+    expect(commands).not.toHaveProperty('prepare');
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+  });
+
   it('uses the current generation token and never lets a retired token prove a frame', async () => {
     const fixture = reportFixture();
     await act(async () => {

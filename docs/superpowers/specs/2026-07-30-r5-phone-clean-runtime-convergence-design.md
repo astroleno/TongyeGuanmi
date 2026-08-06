@@ -534,22 +534,25 @@ cannot redefine it by reporting whatever it happened to mount.
   single-use media activation credit.
 - Activation is limited to media in the active dependency closure. A global
   `play() → pause()` unlock sweep is forbidden.
-- If a lazy dependency is not ready before the Safari activation window
-  closes, runtime finishes loading it, mounts its media surface inert under
-  the source/Loader, retains that active closure in
-  `awaiting-media-activation`, and releases cinematic input. The accessible
-  CTA appears only after the exact surface is registered and a following
-  physical gesture can synchronously call `play()` from the same event stack.
-- That following gesture mints a new generation/token and retires stale frame
+- A continuous segment may never expose an activation CTA. If a dependency is
+  not ready before the Safari activation window closes, or a segment activation
+  rejects, runtime retains or rolls back to the proved source and releases
+  normal story input. The next normal directional gesture starts a fresh
+  identity-bound attempt; it is not a synthetic activation retry.
+- That next gesture mints a new generation/token and retires stale frame
   callbacks, ports, and activation credits, but it does not unmount, re-import,
-  or discard the just-prepared media topology. A synthetic retry may not
-  recreate user activation.
-- Cold direct entry to AOD, Figure2, Figure3, TTG, PH, or Crane first attempts
-  the manifest-declared `muted` + `playsInline` autoplay path. Rejection keeps
-  the Loader/safe cover, retains the prepared surface in
-  `awaiting-media-activation`, and exposes the same readiness-gated “tap to
-  continue” action. A declared static fallback is legal only when it
-  independently satisfies the scene frame contract.
+  or discard the prepared topology unless the normal closure/disposal rules
+  require it.
+- Cold direct entry to AOD is a static direct-entry exception: its immutable
+  poster is the prepared/visible proof, it does not autoplay, and it never
+  exposes a CTA. The AOD video decoder is activated only by the normal
+  AOD → Method outgoing physical gesture. Cold direct entry to Figure2,
+  Figure3, TTG, PH, or Crane still first attempts the manifest-declared
+  `muted` + `playsInline` autoplay path. Rejection keeps the Loader/safe cover,
+  retains the prepared surface in `awaiting-media-activation`, and may expose
+  a readiness-gated direct-entry “tap to continue” action only because no
+  proved committed story source exists. A declared static fallback is legal
+  only when it independently satisfies the scene frame contract.
 - `play()` resolution proves permission, never pixels. Media/compositor proof
   still requires the active frame/draw callback.
 - A leaf may own a video decode clock, frame callback, Canvas, or WebGL
@@ -599,11 +602,12 @@ persisted `pageshow` creates a new transaction generation, resamples the live
 viewport, and uses `reprojectCommittedPlane()` before input resumes. It may
 not attach duplicate listeners or reuse a media token.
 
-Successful module promises may be cached. Offline detected before an import is
-started waits for `online`, then performs that URL's first load in the current
-Document. Once a native dynamic import or Vite preload has rejected, clearing
-the application Promise reference is required for disposal/diagnostics but
-does not make the browser retry the same module URL in that Document.
+Successful module promises may be cached. `navigator.onLine` is a diagnostic
+hint only: an active transaction starts its native import immediately and does
+not wait for an `online` event. Once a native dynamic import or Vite preload
+has rejected, clearing the application Promise reference is required for
+disposal/diagnostics but does not make the browser retry the same module URL in
+that Document.
 `vite:preloadError` is intercepted and its default error path suppressed while
 recovery owns the surface.
 
@@ -632,10 +636,11 @@ The controller fetches the existing `/r5-release-manifest.json` with
 `cache: 'no-store'` under the authoritative 3,000 ms active-foreground
 `manifestFetch` deadline. Timeout, parse failure, fetch failure, or missing
 identity keeps Loader/source visible and reaches accessible fail-closed UI;
-it cannot wait indefinitely. If the rejection is observed while offline, the
-committed source or Loader stays visible and recovery waits for `online`
-before spending its one reload. User-invoked reload remains explicit but does
-not reset the exhausted lineage. Delayed successful responses remain
+it cannot wait indefinitely. If the rejection is observed with an offline hint,
+the committed source or Loader stays visible while the same recovery lineage
+is classified immediately; no `online` event is required before spending its
+one reload. User-invoked reload remains explicit but does not reset the
+exhausted lineage. Delayed successful responses remain
 attempt/generation-bound and cannot satisfy a newer transaction.
 
 ### ADR-13: Reducer input is one non-reentrant serial queue

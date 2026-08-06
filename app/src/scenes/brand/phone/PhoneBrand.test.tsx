@@ -36,6 +36,7 @@ describe('PhoneBrand', () => {
     expect(host.querySelector('video')).toBeNull();
     await act(async () => { root.render(<Reading sceneId="brand" />); });
     expect(host.querySelector('[data-phone-reading="brand"]')).not.toBeNull();
+    expect(host.querySelector('[data-phone-input-owner="native-document"]')).not.toBeNull();
   });
 
   it('keeps a readable stable receiver at both Proof → Brand endpoints', () => {

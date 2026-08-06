@@ -5,7 +5,7 @@ import type {
   PhoneLeafGenerationBinding,
   PhoneLeafReportPort
 } from '../../production/phone-story/presentation';
-import type { InkFieldSpec } from './inkField';
+import type { InkFieldFrame, InkFieldSpec } from './inkField';
 import { createInkFieldFrame } from './inkField';
 import {
   createInkFieldRenderer,
@@ -43,6 +43,16 @@ function setEffectVisible(canvas: HTMLCanvasElement | null, visible: boolean): v
   if (!canvas) return;
   canvas.style.visibility = visible ? 'visible' : 'hidden';
   canvas.style.opacity = visible ? '1' : '0';
+}
+
+function phoneInkOwnership(frame: InkFieldFrame) {
+  const reveal = frame.ownership.revealClip;
+  if (frame.spec.kind !== 'radial' || !reveal) return frame.ownership;
+  const match = /^circle\((.+) at (.+)\)$/.exec(reveal);
+  return match ? {
+    ...frame.ownership,
+    concealMask: `radial-gradient(circle at ${match[2]}, transparent 0 ${match[1]}, #000 ${match[1]})`
+  } : frame.ownership;
 }
 
 /**
@@ -100,11 +110,10 @@ export function createPhoneInkLeaf(
         if (!canvas) return;
         const visible = progress > .002 && progress < .999;
         setEffectVisible(canvas, visible);
-        if (!visible) return;
         const viewport = viewportFor(canvas);
-        rendererRef.current?.render(createInkFieldFrame(
-          fieldFor(options, viewport), progress, viewport
-        ));
+        const frame = createInkFieldFrame(fieldFor(options, viewport), progress, viewport);
+        if (visible) rendererRef.current?.render(frame);
+        return { ownership: phoneInkOwnership(frame) };
       },
       settle() { setEffectVisible(canvasRef.current, false); },
       pause() { setEffectVisible(canvasRef.current, false); },

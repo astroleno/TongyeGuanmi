@@ -1,6 +1,7 @@
 import {
   phoneAdjacentTarget, phoneEntryForLocation, phoneManifest, phoneSceneById,
-  phonePreparedSurfaceIds, phoneSegmentBetween, phoneWarmEntryPolicy,
+  phonePreparedSurfaceIds, phoneSegmentBetween, phoneSegmentChoreographyFrame,
+  phoneWarmEntryPolicy,
   type PhoneSceneId, type PhoneSegmentId
 } from './manifest';
 import {
@@ -122,6 +123,47 @@ function urlEffectFor(
   return 'none';
 }
 
+function activationSurfaceIdsFor(
+  mode: PhoneTransactionMode,
+  candidateSceneId: PhoneSceneId,
+  segmentId: PhoneSegmentId | null,
+  direction: PhoneDirection | null,
+  progress: number,
+  closure: PhoneTransaction<PhoneSceneId, PhoneSegmentId>['closure']
+): readonly PhoneSurfaceId[] {
+  if (mode === 'segment' && segmentId && direction) {
+    const owner = phoneSegmentChoreographyFrame(segmentId, progress, direction).mediaClockOwner;
+    // A physical gesture may only activate media that is already mounted as
+    // the departing plane. Incoming media enters on a prepared static frame;
+    // a reverse target is never allowed to turn a missing mount into a CTA.
+    if (owner !== 'source') return [];
+    const role = owner;
+    return closure.mount.flatMap((mount) => (
+      mount.startsWith(`${role}:`) && mount.includes('video')
+        ? [mount.slice(mount.indexOf(':') + 1) as PhoneSurfaceId] : []
+    ));
+  }
+  if (phoneSceneById(candidateSceneId).directEntry.mediaActivation.directEntry === 'none') {
+    return [];
+  }
+  return closure.mount.flatMap((mount) => (
+    mount.includes('video') ? [mount.slice(mount.indexOf(':') + 1) as PhoneSurfaceId] : []
+  ));
+}
+
+export function phoneTransactionActivationSurfaceIds(
+  transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>
+): readonly PhoneSurfaceId[] {
+  return activationSurfaceIdsFor(
+    transaction.mode,
+    transaction.candidateSceneId,
+    transaction.attempt.segmentId,
+    transaction.attempt.direction,
+    transaction.progress,
+    transaction.closure
+  );
+}
+
 function transactionFor(
   base: PhoneMachineSnapshot,
   options: TransactionOptions
@@ -156,6 +198,11 @@ function transactionFor(
     ? segment.rollback.deadlinePolicy
     : legPolicy?.deadlinePolicy ?? warmPolicy?.deadlinePolicy ?? scene.directEntry.deadlinePolicy);
   const deadlineOperation = options.mode === 'rollback' ? 'rollback' : 'moduleLoad';
+  const initialProgress = options.mode === 'segment' && options.direction === 'reverse' ? 1 : 0;
+  const activationSurfaceIds = activationSurfaceIdsFor(
+    options.mode, options.candidateSceneId, options.segmentId, options.direction,
+    initialProgress, closure
+  );
   return freezeOwned({
     mode: options.mode, phase: options.mode === 'rollback' ? 'rolling-back' : 'preparing',
     attempt, sourceSceneId: options.sourceSceneId, candidateSceneId: options.candidateSceneId,
@@ -175,9 +222,9 @@ function transactionFor(
       startedAtActiveMs: 0,
       suspended: false
     },
-    progress: options.mode === 'segment' && options.direction === 'reverse' ? 1 : 0,
+    progress: initialProgress,
     claimedPhysicalEpoch: options.physicalEpoch ?? null,
-    activation: options.activation && closure.resourceBudget.videos > 0
+    activation: options.activation && activationSurfaceIds.length > 0
       ? options.activation : 'none',
     retainedTopology: false,
     reducedMotion: options.reducedMotion ?? false,
@@ -204,8 +251,7 @@ function loadEffects(
     ...(transaction.activation === 'offered' ? [{
       type: 'activate-surfaces' as const, attempt: transaction.attempt,
       credit: 'physical-epoch' as const,
-      surfaceIds: transaction.closure.mount.filter((role) => role.includes('video'))
-        .map((role) => role.slice(role.indexOf(':') + 1))
+      surfaceIds: phoneTransactionActivationSurfaceIds(transaction)
     }] : [])
   ] satisfies readonly PhoneStoryEffect[]);
 }
@@ -792,6 +838,13 @@ function handleBoundaryAdvance(
 function awaitMediaActivation(
   snapshot: PhoneMachineTransactionSnapshot
 ): PhoneMachineResult {
+  if (snapshot.transaction.mode === 'segment') {
+    return failTransaction(snapshot, {
+      code: 'media-activation-rejected',
+      message: 'Continuous story media activation was rejected',
+      recoverable: true
+    });
+  }
   return reviseTransaction(snapshot, {
     phase: 'awaiting-media-activation', deadline: null, activation: 'awaiting', retainedTopology: true
   }, { input: emptyInput() }, [{
@@ -830,7 +883,16 @@ function handleActivationSettled(
   if (!sameAttempt(snapshot.transaction.attempt, event.attempt)) {
     return freezeOwned({ snapshot, effects: [] });
   }
-  if (!event.invoked) return awaitMediaActivation(snapshot);
+  if (!event.invoked) {
+    if (snapshot.transaction.mode === 'segment') {
+      return failTransaction(snapshot, {
+        code: 'media-activation-rejected',
+        message: 'Continuous story media activation was rejected',
+        recoverable: true
+      });
+    }
+    return awaitMediaActivation(snapshot);
+  }
   const prepared = quorumComplete(snapshot.transaction, snapshot.transaction.requiredPrepared);
   const settled = reviseTransaction(snapshot, {
     phase: 'preparing', activation: 'spent', retainedTopology: true
@@ -866,11 +928,7 @@ function handleEvidence(
     accepted.transaction.requiredFinal.length === 0
     && quorumComplete(accepted.transaction, accepted.transaction.requiredPrepared)
   ) {
-    if ((accepted.transaction.mode === 'segment'
-      ? accepted.transaction.closure.mount.some((mount) => mount.includes('video'))
-      : phoneSceneById(accepted.transaction.candidateSceneId)
-        .directEntry.closure.resourceBudget.videos > 0)
-      && accepted.transaction.activation !== 'spent') {
+    if (accepted.transaction.activation === 'offered') {
       return advanceEvidenceDeadline(accepted);
     }
     return beginFinalProof(accepted);

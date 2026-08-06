@@ -1,16 +1,17 @@
 # R5 Phone Clean Runtime — Task 13 acceptance
 
 - Date: 2026-08-03
-- Status: **Step 13.2 RED; diagnostic discovery in progress; formal acceptance paused**
-- Current claim: **`Chunk-contract-complete`; not `Release-complete`**
+- Status: **Task 12 reopened / NO-GO; corrective focused verification in
+  progress; formal acceptance paused**
+- Current claim: **NO-GO; neither `Chunk-contract-complete` nor `Release-complete`**
 - Report branch: `codex/r5-phone-clean-runtime-convergence`
 - Diagnostic candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139`
 
-## Frozen candidate identity
+## Invalidated historical candidate identity
 
 | Item | Value |
 | --- | --- |
-| candidate mode | detached, clean, immutable production source |
+| candidate mode | detached, clean, immutable historical diagnostic source; not eligible for a passing row |
 | `candidateCodeSha` | `8f3913908cba95e150d464dfab12270efe9dbdc3` |
 | `productionTreeHash` | `96b664cf88e88d207596256ca3adaf6b739b11e77d5f3d2ebe60293854c895e0` |
 | document build/recovery ID | `8f3913908cba95e150d464dfab12270efe9dbdc3` |
@@ -27,10 +28,13 @@
 the exact source commit. The report worktree's docs-only HEAD and its local
 `dist/` are not candidate identities and must never be served during Task 13.
 
-The frozen identity remains valid, but identity is not an acceptance result.
-The first Simulator observation displayed the runtime fault surface and
-therefore changed this artifact's disposition to **diagnostic candidate**.
-No later retry or successful Hero screenshot converts that row to passing.
+The artifact identity remains valid as history, but native findings later
+proved incorrect shared choreography, gesture activation, native reading, and
+Loader/Hero timing. It is therefore an **invalidated diagnostic candidate**.
+No later retry or successful screenshot converts any row to passing. Task 12C
+must close under the
+[physical choreography ADR](../decisions/r5-task13-physical-choreography-correction.md)
+before a replacement candidate is frozen.
 
 ## Tool and device record
 
@@ -89,7 +93,8 @@ this replacement artifact was frozen.
 
 ## Durable evidence
 
-Candidate artifact to serve for every remaining Task 13 row:
+Historical artifact retained for diagnosis only; do not serve it for a passing
+Task 13 row:
 
 ```text
 /Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139/dist/
@@ -160,15 +165,45 @@ build removes the confirmed shared `ui-serif` font failure and exposes the
 existing terminal fault code only through diagnostics mode. Native Simulator
 screenshots for Services, Education, and the visible StoryNav labels are
 preserved under `task13-font-diagnostic/`; they are corrective discovery
-evidence, not a new candidate or a formal passing row. No Task 12 or 227-case
-rerun is authorized until the discovery ledger is complete and root causes are
-confirmed.
+evidence, not a new candidate or a formal passing row. At that discovery
+checkpoint no Task 12 or 227-case rerun was authorized. The later shared-root
+batch below completed that diagnostic precondition.
+
+## Historical Task 12C automated evidence
+
+The prior corrective batch recorded 119/119 Node gate fixtures, 175 Vitest files /
+1,227 tests, TypeScript, architecture/frozen-input checks, the complete build,
+focused WebKit 20/20, and one complete 227/227 release suite in 29.1 minutes.
+The build remains below the unchanged phone JavaScript hard cap at 616,101 B;
+desktop JavaScript is 577,476 B and the largest lazy chunk is 50,887 B.
+
+This does not create a candidate identity. The source is still an uncommitted
+diagnostic WIP based on `34c306e…`. The corrected bounded probe reached
+Hero → Pattern → Star Map → AOD → Method at the scene/status control-flow
+level, including the two-stage Pattern intent. It did not sample visual
+composition, animation frames, pixel contribution, or AOD playback; the AOD
+snapshot was the intentional static direct-entry state. A forced
+`DELETE /session/{id}/actions` release returned 200, but a subsequent native
+Method-edge action produced no touch or pointer events. That is a
+SafariDriver capability boundary, not a Simulator-complete result. The
+continuous record, screenshot, and hashes are preserved under:
+
+```text
+artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-simulator-bounded-20260806/
+```
+
+This record supports only the statement “Hero → Method control flow is
+reachable.” It is not visual or media evidence, and it does not close Task
+13.2. Task 12 remains reopened; `candidateCodeSha` remains null until a
+fixed diagnostic checkpoint is committed and the trusted-touch device smoke
+diagnostic is complete.
 
 ## Remaining Task 13 matrix
 
 | Step | Status |
 | --- | --- |
-| 13.2 iOS Simulator | RED — discovery incomplete; formal rows paused |
+| 13.1R replacement candidate freeze | pending bounded native repeat and code commit |
+| 13.2 iOS Simulator | paused / RED — Task 12 focused contract correction is open |
 | 13.3–13.7 physical iPhone Safari | discovery pass pending device metadata and continuous recording |
 | 13.8 evidence consolidation | pending |
 | 13.8A deployed compression | pending deployed candidate endpoint |

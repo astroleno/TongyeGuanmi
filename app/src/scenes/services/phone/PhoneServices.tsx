@@ -29,6 +29,7 @@ function ServicesContent({ reading }: Readonly<{ reading: boolean }>) {
       className="phone-services"
       data-phone-scene="services"
       data-phone-reading={reading ? 'services' : undefined}
+      data-phone-input-owner={reading ? 'native-document' : undefined}
       aria-labelledby={reading ? 'phone-services-title-reading' : 'phone-services-title'}
     >
       <header className="phone-services__hero">

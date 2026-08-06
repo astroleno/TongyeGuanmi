@@ -42,6 +42,7 @@ function MethodContent({ reading }: Readonly<{ reading: boolean }>) {
       id="method"
       className="portrait-scroll-spike__reading phone-method-top"
       data-phone-reading={reading ? 'method-top' : undefined}
+      data-phone-input-owner={reading ? 'native-document' : undefined}
       aria-label="同野观幂 AI 落地五步"
     >
       <div className="portrait-scroll-spike__reading-intro portrait-scroll-spike__method-bridge">

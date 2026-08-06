@@ -13,6 +13,7 @@ import './PhoneStarMap.css';
 const STAR_MAP_IMAGE = phoneMediaUrlFor('star-map-source', 'star-map');
 const FRAME_INTERVAL_MS = 1000 / 12;
 const PHONE_STAR_CAMERA: StarFieldCamera = Object.freeze({ rotationDegrees: -90, zoom: 1 });
+const STAR_MAP_AMBIENT_PERIOD_SECONDS = 4.4;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -23,6 +24,19 @@ export function phoneStarMapFrame(rawProgress: number): Readonly<{
 }> {
   const progress = clamp(rawProgress);
   return { progress, opacity: progress, y: 18 * (1 - progress), washOpacity: progress };
+}
+
+/** Keeps the source plate fixed while the extracted Perlin glow visibly breathes. */
+export function phoneStarMapAmbientLayer(
+  timeSeconds: number,
+  reducedMotion: boolean
+): Readonly<{ strength: number; noiseFloor: number }> {
+  if (reducedMotion) return { strength: .72, noiseFloor: .02 };
+  const breathing = Math.sin(timeSeconds * Math.PI * 2 / STAR_MAP_AMBIENT_PERIOD_SECONDS);
+  return {
+    strength: 1.1 + breathing * .44,
+    noiseFloor: .035 + (breathing + 1) * .12
+  };
 }
 
 type PhoneStarMapMigrationControl = Readonly<{
@@ -72,12 +86,11 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       || (!force && now - lastPaintedAtRef.current < FRAME_INTERVAL_MS)) return false;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     const seconds = now / 1000;
-    const pulse = reducedMotion ? 0
-      : Math.sin(seconds * .34) * .08 + Math.sin(seconds * .17) * .05;
+    const ambient = phoneStarMapAmbientLayer(seconds, reducedMotion);
     reveal.renderBackground({
       timeSeconds: seconds,
-      strength: reducedMotion ? .72 : 1.05 + pulse,
-      noiseFloor: reducedMotion ? .02 : .028,
+      strength: ambient.strength,
+      noiseFloor: ambient.noiseFloor,
       camera: PHONE_STAR_CAMERA,
       drawSource: true
     });
@@ -178,10 +191,10 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
         revealDurationMs: 2800, loopTransitionMs: 1200, noiseMaskWidth: 420,
         highlight: { threshold: 120, gamma: 3.05, softness: 23 },
         glow: { wideBlur: 120, mediumBlur: 44, coreBlur: 10, screenBlur: 3,
-          wideAlpha: 1.08, mediumAlpha: .92, coreAlpha: .62, screenAlpha: .52 },
+          wideAlpha: 1.38, mediumAlpha: 1.2, coreAlpha: .78, screenAlpha: .64 },
         noise: { profile: 'desktop-r5', seed: 42.7, scale: 3.8, warpScale: 2.1,
-          warpAmount: .42, phaseSpeed: .46, driftX: .06, driftY: .34,
-          warpSpeedX: .09, warpSpeedY: .08, octaves: 4, lacunarity: 2.07,
+          warpAmount: .42, phaseSpeed: .66, driftX: .10, driftY: .46,
+          warpSpeedX: .14, warpSpeedY: .12, octaves: 4, lacunarity: 2.07,
           gain: .51, ridgeMix: .17, thresholdLow: .45, thresholdHigh: .55 }
       }
     });

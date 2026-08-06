@@ -1,15 +1,16 @@
-import { createPhoneStoryBoot, reducePhoneStory, sameAttempt, type PhoneMachineResult, type PhoneMachineSnapshot } from './machine';
-import { phoneManifest, phoneSceneById } from './manifest';
+import { createPhoneStoryBoot, reducePhoneStory, sameAttempt,
+  type PhoneMachineResult, type PhoneMachineSnapshot } from './machine';
+import { phoneManifest, phoneSceneById, phoneSceneStableHold,
+  phoneSegmentChoreographyFrame, type PhoneSegmentChoreographyFrame } from './manifest';
 import type { PhoneLeafMountRegistration, PhoneLeafReportBinding, PhoneLeafReportPort,
-  PhoneLeafMountLease, PhonePlaneApplyResult,
-  PhonePresentation } from './presentation';
+  PhoneLeafMountLease, PhonePlaneApplyResult, PhonePresentation } from './presentation';
 import { assertPhoneLeafReportBindingContract, bindPhoneLeafGeneration,
   claimPhoneActivationDecoders, clearPhoneOwnershipRegistries, closePhoneLeafReportBinding,
   createPhonePlaneRequest, createPhoneRetainedLeafBinding, createPhoneSupersedingLeafBinding,
   invokePhoneActivationBatch,
   phoneActivationSurfaceIds, phoneIdentitySignature, phoneLeafMountKey, phonePlaneResultIsExact,
-  phoneRetainedMountLeg, runPhoneCleanupSteps, runPhoneLeafRetirement,
-  settlePhoneActivationBatch } from './presentation';
+  phoneRetainedMountLeg, runPhoneLeafRetirement,
+  runPhoneCleanupSteps, settlePhoneActivationBatch } from './presentation';
 import type { PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneFailure,
   PhoneLeafDisposeReason, PhoneStoryEffect, PhoneRejectedChunkFailure,
   PhoneRuntimeLifecycleStep, PhoneRuntimeResourceCounts, PhoneRuntimeHostEvent,
@@ -21,7 +22,17 @@ export type { PhoneRejectedChunkFailure, PhoneRuntimeLifecycleStep, PhoneRuntime
 export type PhoneRuntimeTimerHandle = string | number | Readonly<{ id: string }>;
 export type PhoneChunkRecoveryPort = Readonly<{ reportRejectedChunk(failure: PhoneRejectedChunkFailure): Promise<'reloading' | 'fail-closed'>; markStable(proof: PhoneStableRecoveryProof): void }>;
 
-export type PhoneRuntimeEffectPorts = Readonly<{ loadDependencies?(effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>, signal: AbortSignal): Promise<PhoneDependencyLoadResult>; releaseDependencies?(dependencies: readonly PhoneDependencyRef[]): void }>;
+export type PhoneRuntimeEffectPorts = Readonly<{
+  loadDependencies?(
+    effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>,
+    signal: AbortSignal
+  ): Promise<PhoneDependencyLoadResult>;
+  prewarmDependencies?(
+    effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>,
+    signal: AbortSignal
+  ): Promise<PhoneDependencyLoadResult>;
+  releaseDependencies?(dependencies: readonly PhoneDependencyRef[]): void;
+}>;
 
 export type PhoneDependencyLoadResult = Readonly<{ status: 'loaded' }> | Readonly<{ status: 'rejected'; dependency: PhoneDependencyRef; moduleUrl: string; reason: string }>;
 
@@ -39,9 +50,28 @@ export type PhoneStoryRuntimeEnvironment = Readonly<{
 export type PhoneStoryRuntimeConfig = Readonly<{ initialEntry: PhoneEntryRequest; environment: PhoneStoryRuntimeEnvironment; presentation: PhonePresentation; ports?: PhoneRuntimeEffectPorts; chunkRecovery?: PhoneChunkRecoveryPort }>;
 
 export type PhoneStoryRuntime = Readonly<{
-  getSnapshot(): PhoneMachineSnapshot; subscribe(listener: () => void): () => void; connect(): () => void; requestEntry(entry: PhoneEntryRequest): void; retry(): void;
+  getSnapshot(): PhoneMachineSnapshot;
+  subscribe(listener: () => void): () => void;
+  connect(): () => void;
+  requestEntry(entry: PhoneEntryRequest): void;
+  retry(): void;
+  startVisibleEntrance(): void;
   createLeafReportPort(binding: PhoneLeafReportBinding): PhoneLeafReportPort;
 }>;
+
+export type PhoneReadingScrollOwner = Readonly<{
+  scrollTop: number;
+  clientHeight: number;
+  scrollHeight: number;
+}>;
+
+export function phoneReadingEdges(owner: PhoneReadingScrollOwner): Readonly<{
+  top: boolean;
+  bottom: boolean;
+}> {
+  const maximum = Math.max(0, owner.scrollHeight - owner.clientHeight);
+  return { top: owner.scrollTop <= 1, bottom: owner.scrollTop >= maximum - 1 };
+}
 
 type QueuedEvent = Readonly<{ sequence: number; event: PhoneStoryEvent }>;
 type DeadlineLease = Readonly<{ key: string; handle: PhoneRuntimeTimerHandle; connection: number }>;
@@ -54,27 +84,48 @@ type ActivationLease = Readonly<{ invocationId: string; attempt: PhoneAttemptKey
 
 function attemptIdentity(attempt: PhoneAttemptKey): string {
   return [
-    attempt.authorityId, attempt.transactionId, attempt.transactionGeneration, attempt.mode, attempt.segmentId ?? '', attempt.direction ?? ''
+    attempt.authorityId,
+    attempt.transactionId,
+    attempt.transactionGeneration,
+    attempt.mode,
+    attempt.segmentId ?? '',
+    attempt.direction ?? ''
   ].join('|');
 }
 
-const deadlineKey = (attempt: PhoneAttemptKey, operation: string) => `${attemptIdentity(attempt)}|${operation}`;
+const deadlineKey = (
+  attempt: PhoneAttemptKey,
+  operation: string
+) => `${attemptIdentity(attempt)}|${operation}`;
 
-function inputDirection(event: PhoneRuntimeInputEvent): 'forward' | 'reverse' | null {
+function inputDirection(
+  event: PhoneRuntimeInputEvent
+): 'forward' | 'reverse' | null {
   if (event.kind === 'keyboard') {
-    if (['ArrowDown', 'PageDown', ' ', 'Enter'].includes(event.key ?? '')) return 'forward';
+    if (['ArrowDown', 'PageDown', ' ', 'Enter'].includes(event.key ?? '')) {
+      return 'forward';
+    }
     if (['ArrowUp', 'PageUp'].includes(event.key ?? '')) return 'reverse';
     return null;
   }
-  const delta = event.delta ?? 0; return delta > 0 ? 'forward' : delta < 0 ? 'reverse' : null;
+  const delta = event.delta ?? 0;
+  return delta > 0 ? 'forward' : delta < 0 ? 'reverse' : null;
 }
 
-function invokePhoneProjector(project: () => PhonePlaneApplyResult): PhonePlaneApplyResult {
+function invokePhoneProjector(
+  project: () => PhonePlaneApplyResult
+): PhonePlaneApplyResult {
   try {
     return project();
   } catch (error) {
-    return { records: [], failure: { code: 'presentation-projector-threw',
-      message: error instanceof Error ? error.message : String(error), recoverable: true } };
+    return {
+      records: [],
+      failure: {
+        code: 'presentation-projector-threw',
+        message: error instanceof Error ? error.message : String(error),
+        recoverable: true
+      }
+    };
   }
 }
 
@@ -97,6 +148,36 @@ export function phoneEventPriority(event: PhoneStoryEvent): number {
   }
 }
 
+function adjacentPrewarmDependencies(sceneId: string): readonly PhoneDependencyRef[] {
+  return [...new Set(phoneManifest.segments.flatMap((segment) => (
+    segment.source === sceneId
+      ? segment.forward.closure.prewarm
+      : segment.target === sceneId
+        ? segment.reverse.closure.prewarm
+        : []
+  )))];
+}
+
+function progressForLeg(
+  frame: PhoneSegmentChoreographyFrame,
+  leg: PhoneLeafReportBinding['leg']
+): number {
+  if (leg === 'effect') return frame.effectProgress;
+  return leg === 'source' ? frame.sourceProgress : frame.targetProgress;
+}
+
+function commandProgress(
+  transaction: Extract<PhoneMachineSnapshot, { status: 'transaction' }>['transaction'],
+  leg: PhoneLeafReportBinding['leg']
+): number {
+  const { segmentId, direction } = transaction.attempt;
+  if (!segmentId || !direction) return transaction.progress;
+  return progressForLeg(
+    phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction),
+    leg
+  );
+}
+
 export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneStoryRuntime {
   const { environment, presentation } = config, ports = config.ports ?? {};
   const sampleViewport = (identity: PhoneViewportSnapshot): PhoneViewportSnapshot => ({
@@ -115,6 +196,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   let queue: QueuedEvent[] = [];
   let removeHostListener: (() => void) | null = null, sampleFrame: PhoneRuntimeTimerHandle | null = null;
   let playback: PlaybackLease | null = null, planeFrame: PhoneRuntimeTimerHandle | null = null;
+  let prewarmController: AbortController | null = null;
+  let visibleEntranceCommitSequence: number | null = null;
   let pendingViewport: Extract<PhoneRuntimeHostEvent, { type: 'viewport' }> | null = null;
   let pendingScroll: Extract<PhoneRuntimeHostEvent, { type: 'scroll' }> | null = null;
   let stableDependencyAttempt: PhoneAttemptKey | null = null;
@@ -165,7 +248,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   );
 
   const cancelPlayback = (): void => {
-    if (playback) environment.cancelFrame(playback.handle); playback = null;
+    if (playback) environment.cancelFrame(playback.handle);
+    playback = null;
   };
 
   const syncPlayback = (activeConnection: number): void => {
@@ -235,7 +319,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   };
 
   const mountedLease = (state: ReportState): LeafLease | null => (
-    [...leaves.values()].find((lease) => !lease.disposed && lease.reports === state) ?? null
+    [...leaves.values()].find((lease) => (
+      !lease.disposed && lease.reports === state
+    )) ?? null
   );
 
   const closeReports = (state: ReportState, observe = true): void => {
@@ -311,9 +397,13 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         bindLeafGeneration(lease, state, false);
         const active = snapshot.status === 'transaction' && sameAttempt(snapshot.transaction.attempt, state.binding.attempt)
           ? snapshot.transaction : null;
-        if (active) lease.mount.commands.render(active.progress);
+        if (active) {
+          lease.mount.commands.render(commandProgress(active, state.binding.leg));
+        }
         if (active && state.binding.leg === 'target' && mount.resources.videos > 0) {
-          if (['boot', 'entry'].includes(active.mode)) {
+          if (['boot', 'entry'].includes(active.mode)
+            && phoneSceneById(active.candidateSceneId).directEntry.mediaActivation.directEntry
+              === 'muted-plays-inline-then-covered-cta') {
             invokeActivation([lease], active.attempt, 'direct-muted-autoplay');
           } else if (active.phase === 'awaiting-media-activation') {
             environment.performEffect?.(
@@ -357,16 +447,37 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     requested?: readonly string[], activeConnection = connection
   ): void {
     const invocationId = `${attempt.transactionId}:activation:${++activationSequence}`;
-    const batch = invokePhoneActivationBatch(invocationId, credit, requested,
-      candidates.map((owner) => ({ owner, commands: owner.mount.commands,
-        surfaceIds: phoneActivationSurfaceIds(owner.mount, requested) })), (targets) => {
-        const additional = targets.reduce((sum, { owner, surfaceIds }) => (
+    const active = snapshot.status === 'transaction'
+      && sameAttempt(snapshot.transaction.attempt, attempt)
+      ? snapshot.transaction
+      : null;
+    const playbackOwner = active?.attempt.segmentId && active.attempt.direction
+      ? phoneSegmentChoreographyFrame(
+          active.attempt.segmentId,
+          active.progress,
+          active.attempt.direction
+        ).mediaClockOwner
+      : 'none';
+    const targets = candidates.map((owner) => ({
+      owner,
+      commands: owner.mount.commands,
+      surfaceIds: phoneActivationSurfaceIds(owner.mount, requested),
+      playback: owner.reports.binding.leg === playbackOwner
+    }));
+    const batch = invokePhoneActivationBatch(
+      invocationId,
+      credit,
+      requested,
+      targets,
+      (authorized) => {
+        const additional = authorized.reduce((sum, { owner, surfaceIds }) => (
           sum + Math.max(0, surfaceIds.length - owner.activeDecoders)
         ), 0);
         if (additional > 0) assertResourceBudget({
           ...resources, activeDecoders: resources.activeDecoders + additional
         });
-      });
+      }
+    );
     if (!ownsConnection(activeConnection)) return;
     const activation: ActivationLease | null = batch.invoked && batch.pending.length > 0
       ? { invocationId, attempt, surfaceIds: batch.surfaceIds,
@@ -525,7 +636,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       const bestPriority = phoneEventPriority(best.event);
       return priority < bestPriority
         || (priority === bestPriority && item.sequence < best.sequence)
-        ? item : best;
+        ? item
+        : best;
     });
     queue = queue.filter((item) => item !== selected);
     return selected;
@@ -632,7 +744,10 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       }
     }).catch((error: unknown) => {
       if (pendingLoads.get(key) === load) pendingLoads.delete(key);
-      if (controller.signal.aborted && (error === controller.signal.reason || (error instanceof Error && error.name === 'AbortError'))) return;
+      const errorName = error && typeof error === 'object' && 'name' in error
+        ? (error as { name?: unknown }).name : undefined;
+      if (controller.signal.aborted
+        && (error === controller.signal.reason || errorName === 'AbortError')) return;
       const reason = error instanceof Error ? error.message : String(error);
       reject({ moduleUrl: 'unknown-phone-module', reason });
     });
@@ -673,6 +788,11 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
             : transaction.commitIntent === 'reproject' ? presentation.verifyReproject(request)
               : presentation.verifyVisibleCandidate(request)
       ));
+      if (transaction.commitIntent === 'reproject'
+        && result.failure?.code === 'presentation-coverage-invalid') {
+        schedulePlane(effect, activeConnection);
+        return;
+      }
       if (result.failure || !phonePlaneResultIsExact(request, result)) enqueueFor({
         type: 'failure-reported', slot: first,
         failure: result.failure ?? {
@@ -772,34 +892,62 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     next: PhoneMachineSnapshot, activeConnection: number
   ): void => {
     if (previous.status !== 'transaction' || next.status !== 'transaction'
-      || !sameAttempt(previous.transaction.attempt, next.transaction.attempt)) return;
-    const leases = [...leaves.values()].filter((lease) => (
-      sameAttempt(lease.reports.binding.attempt, next.transaction.attempt)
+      || !sameAttempt(previous.transaction.attempt, next.transaction.attempt)) {
+      if (previous.status === 'transaction' && previous.transaction.attempt.segmentId) {
+        presentation.applyTransitionFrame(null);
+      }
+      return;
+    }
+    const transaction = next.transaction;
+    const leases = [...leaves.values()].filter(({ reports }) => (
+      sameAttempt(reports.binding.attempt, transaction.attempt)
     ));
-    if (previous.transaction.stageIndex !== next.transaction.stageIndex) {
+    if (previous.transaction.stageIndex !== transaction.stageIndex) {
       for (const lease of leases) {
         if (!ownsConnection(activeConnection)) return;
-        const binding: PhoneLeafReportBinding = {
+        renewLeaseBinding(lease, {
           ...lease.reports.binding,
-          stageIndex: next.transaction.stageIndex,
-          planeRevision: next.transaction.planeRevision
-        };
-        renewLeaseBinding(lease, binding);
+          stageIndex: transaction.stageIndex,
+          planeRevision: transaction.planeRevision
+        });
       }
     }
-    if (next.transaction.phase === 'playing'
+    if (transaction.phase === 'playing'
       && (previous.transaction.phase !== 'playing'
-        || previous.transaction.progress !== next.transaction.progress)) {
+        || previous.transaction.progress !== transaction.progress)) {
+      const { segmentId, direction } = transaction.attempt;
+      if (!segmentId || !direction) return;
+      const frame = phoneSegmentChoreographyFrame(
+        segmentId,
+        transaction.progress,
+        direction
+      );
+      let ownership = null;
       for (const lease of leases) {
         if (!ownsConnection(activeConnection)) return;
-        lease.mount.commands.render(next.transaction.progress);
+        const leg = lease.reports.binding.leg;
+        const result = lease.mount.commands.render(progressForLeg(frame, leg));
+        if (leg === 'effect' && result) ownership = result.ownership;
       }
+      presentation.applyTransitionFrame({
+        sourceOpacity: frame.sourceOpacity,
+        targetOpacity: frame.targetOpacity,
+        ownership,
+        direction,
+        foregroundOwner: frame.foregroundOwner
+      });
     }
-    if (next.transaction.phase === 'presenting-target'
+    if (transaction.phase === 'presenting-target'
       && previous.transaction.phase !== 'presenting-target') {
-      const endpoint = next.transaction.attempt.direction === 'reverse' ? 0 : 1;
+      presentation.applyTransitionFrame(null);
       for (const lease of leases) {
         if (!ownsConnection(activeConnection)) return;
+        const leg = lease.reports.binding.leg;
+        const endpoint = leg === 'effect'
+          ? transaction.attempt.direction === 'reverse' ? 0 : 1
+          : transaction.attempt.mode === 'boot' && transaction.candidateSceneId === 'hero' ? 0
+          : phoneSceneStableHold(leg === 'source' && transaction.sourceSceneId
+              ? transaction.sourceSceneId : transaction.candidateSceneId);
         lease.mount.commands.settle(endpoint);
       }
     }
@@ -835,6 +983,53 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         sceneId: next.stableCommit.sceneId,
         commitSequence: next.stableCommit.commitSequence
       }));
+      if (next.stableCommit !== previous.stableCommit && ports.prewarmDependencies) {
+        prewarmController?.abort();
+        const controller = new AbortController();
+        prewarmController = controller;
+        const dependencies = adjacentPrewarmDependencies(next.stableCommit.sceneId);
+        const effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }> = {
+          type: 'load-dependencies',
+          attempt: transaction.attempt,
+          dependencies
+        };
+        const prewarmKey = dependencyKey(dependencies);
+        if (dependencies.length === 0 || rejectedClosures.has(prewarmKey)
+          || dependencies.some((dependency) => rejectedLoads.has(dependency))) {
+          if (prewarmController === controller) prewarmController = null;
+          return;
+        }
+        void ports.prewarmDependencies(effect, controller.signal)
+          .then((result) => {
+            if (result.status !== 'rejected') return;
+            rejectedLoads.add(result.dependency);
+            void chunkRecovery.reportRejectedChunk({
+              authorityId: effect.attempt.authorityId,
+              transactionId: effect.attempt.transactionId,
+              moduleUrl: result.moduleUrl,
+              dependencies: effect.dependencies,
+              reason: result.reason
+            }).catch(() => undefined);
+          })
+          .catch((error: unknown) => {
+            const errorName = error && typeof error === 'object' && 'name' in error
+              ? (error as { name?: unknown }).name : undefined;
+            if (controller.signal.aborted && (
+              error === controller.signal.reason || errorName === 'AbortError'
+            )) return;
+            rejectedClosures.add(prewarmKey);
+            void chunkRecovery.reportRejectedChunk({
+              authorityId: effect.attempt.authorityId,
+              transactionId: effect.attempt.transactionId,
+              moduleUrl: 'unknown-phone-module',
+              dependencies: effect.dependencies,
+              reason: error instanceof Error ? error.message : String(error)
+            }).catch(() => undefined);
+          })
+          .finally(() => {
+            if (prewarmController === controller) prewarmController = null;
+          });
+      }
     } else if (next.status === 'faulted') {
       abortAttemptLoads(transaction.attempt);
       const stableSurfaces = next.stableCommit
@@ -921,6 +1116,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       () => cancelPlayback(),
       () => cancelSamples(),
       () => planeFrame !== null && environment.cancelFrame(planeFrame),
+      () => prewarmController?.abort(),
       ...[...pendingLoads.values()].map((load) => () => load.controller.abort()),
       ...[...leaves.values()].map((lease) => () => retireLease(lease, 'route-dispose')),
       ...[...reportStates].map((state) => () => closeReports(state, false)),
@@ -935,6 +1131,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         pendingViewport = null;
         pendingScroll = null;
         stableDependencyAttempt = null;
+        prewarmController = null;
         clearPhoneOwnershipRegistries([
           deadlines, pendingLoads, activations, leaves,
           reportStates, dependencyLeases, listeners
@@ -998,7 +1195,10 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       enqueueFor({ type: 'page-shown', persisted: event.persisted,
         viewport: sampleViewport(environment.readViewport()) }, expectedConnection);
     } else if (event.trusted) {
-      enqueueFor({ type: 'activation-requested', epoch: ++physicalEpoch }, expectedConnection);
+      enqueueFor(
+        { type: 'activation-requested', epoch: ++physicalEpoch },
+        expectedConnection
+      );
     }
   };
 
@@ -1007,6 +1207,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     const activeConnection = ++connection;
     connected = true;
     physicalEpoch = 0;
+    visibleEntranceCommitSequence = null;
     sequence = 0;
     queue = [];
     notifyResources();
@@ -1040,6 +1241,19 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       connection
     ),
     retry: () => enqueueFor({ type: 'retry-requested' }, connection),
+    startVisibleEntrance: () => {
+      if (!connected || snapshot.status !== 'stable'
+        || snapshot.stableCommit.sceneId !== 'hero'
+        || visibleEntranceCommitSequence === snapshot.stableCommit.commitSequence) {
+        return;
+      }
+      const surfaces = phoneIdentitySignature(phoneSceneById('hero').surfaces);
+      const hero = [...leaves.values()].find((lease) => !lease.disposed
+        && phoneIdentitySignature(lease.mount.surfaceIds) === surfaces);
+      if (!hero) return;
+      visibleEntranceCommitSequence = snapshot.stableCommit.commitSequence;
+      hero.mount.commands.settle(1);
+    },
     createLeafReportPort: (binding: PhoneLeafReportBinding) => {
       const closed = closePhoneLeafReportBinding(binding);
       if (!connected || snapshot.status !== 'transaction'

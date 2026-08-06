@@ -86,7 +86,7 @@ describe('clean PhonePh leaf', () => {
     const activation = commands.activate({
       invocationId: 'ph:activate:1',
       surfaceIds: ['ph-figure-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     expect(activation.invoked).toBe(true);
     await Promise.all(activation.settlements.flatMap((settlement) => (
@@ -108,7 +108,7 @@ describe('clean PhonePh leaf', () => {
     commands.activate({
       invocationId: 'ph:activate:2',
       surfaceIds: ['ph-figure-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     (surfaceProbe.options?.onFrame as ((frame: {
       canvas: HTMLCanvasElement; generation: number;
@@ -127,7 +127,7 @@ describe('clean PhonePh leaf', () => {
     commands.activate({
       invocationId: 'ph:activate:retained',
       surfaceIds: ['ph-figure-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     surfaceProbe.probe.mockClear();
     surfaceProbe.render.mockClear();
@@ -164,7 +164,7 @@ describe('clean PhonePh leaf', () => {
     commands.activate({
       invocationId: 'ph:activate:settle',
       surfaceIds: ['ph-figure-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     expect(surfaceProbe.activate).toHaveBeenCalledTimes(1);
 

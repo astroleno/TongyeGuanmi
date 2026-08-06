@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { phoneCleanArchitectureViolations } from './verify-phone-clean-architecture.mjs';
+import {
+  PHONE_CORE_LOC_BUDGETS,
+  PHONE_CORE_TOTAL_LOC_BUDGET,
+  phoneCleanArchitectureViolations
+} from './verify-phone-clean-architecture.mjs';
 
 const { afterEach, test } = process.env.VITEST
   ? await import('vitest')
@@ -223,10 +227,42 @@ test('rejects broken bindings and policy branches in the executable recovery con
       mainSource
     },
     {
-      expected: 'wait online before release classification',
+      expected: 'treat navigator.onLine as diagnostic only',
       recoverySource: recoverySource.replace(
-        'await environment.waitForOnline();',
-        'void environment.waitForOnline();'
+        'const deadline = activeDeadlineSignal(environment);',
+        'await environment.waitForOnline();\n    const deadline = activeDeadlineSignal(environment);'
+      ),
+      mainSource
+    },
+    {
+      expected: 'treat navigator.onLine as diagnostic only',
+      recoverySource: recoverySource.replace(
+        'const deadline = activeDeadlineSignal(environment);',
+        'if (!navigator.onLine) return failClosed(\'network hint\', lineage);\n    const deadline = activeDeadlineSignal(environment);'
+      ),
+      mainSource
+    },
+    {
+      expected: 'treat navigator.onLine as diagnostic only',
+      recoverySource: recoverySource.replace(
+        'const deadline = activeDeadlineSignal(environment);',
+        'if (!navigator[\'onLine\']) return failClosed(\'network hint\', lineage);\n    const deadline = activeDeadlineSignal(environment);'
+      ),
+      mainSource
+    },
+    {
+      expected: 'treat navigator.onLine as diagnostic only',
+      recoverySource: recoverySource.replace(
+        'const deadline = activeDeadlineSignal(environment);',
+        'if (!environment[\'waitForOnline\']) return failClosed(\'network hint\', lineage);\n    const deadline = activeDeadlineSignal(environment);'
+      ),
+      mainSource
+    },
+    {
+      expected: 'treat navigator.onLine as diagnostic only',
+      recoverySource: recoverySource.replace(
+        'const deadline = activeDeadlineSignal(environment);',
+        'const { onLine } = navigator;\n    if (!onLine) return failClosed(\'network hint\', lineage);\n    const deadline = activeDeadlineSignal(environment);'
       ),
       mainSource
     }
@@ -587,7 +623,7 @@ test('rejects numbered validation/query composition in the clean core', async ()
 
 test('rejects per-file and total core LOC overflow', async () => {
   const oversizedProtocol = Array.from(
-    { length: 451 },
+    { length: PHONE_CORE_LOC_BUDGETS['protocol.ts'] + 1 },
     (_, index) => `export type Line${index} = ${index};`
   ).join('\n');
   includes(await violations({
@@ -595,7 +631,7 @@ test('rejects per-file and total core LOC overflow', async () => {
   }), 'protocol.ts exceeds');
 
   const oversizedCore = {};
-  for (const file of [
+  const coreFiles = [
     'protocol.ts',
     'manifest.ts',
     'machine.ts',
@@ -605,9 +641,11 @@ test('rejects per-file and total core LOC overflow', async () => {
     'scenes.tsx',
     'transitions.tsx',
     'PhoneBrandLabStory.tsx'
-  ]) {
+  ];
+  const linesPerFile = Math.ceil(PHONE_CORE_TOTAL_LOC_BUDGET / coreFiles.length) + 1;
+  for (const file of coreFiles) {
     oversizedCore[`src/production/phone-story/${file}`] = Array.from(
-      { length: 560 },
+      { length: linesPerFile },
       (_, index) => `export type ${file.replace(/\W/g, '')}Line${index} = ${index};`
     ).join('\n');
   }
@@ -729,7 +767,7 @@ test('rejects a browser-effect God machine and an over-budget runtime', async ()
   }), 'machine.ts uses browser/DOM');
   includes(await violations({
     'src/production/phone-story/runtime.ts': Array.from(
-      { length: 1001 },
+      { length: PHONE_CORE_LOC_BUDGETS['runtime.ts'] + 1 },
       (_, index) => `export const runtimeLine${index} = ${index};`
     ).join('\n')
   }), 'runtime.ts exceeds');

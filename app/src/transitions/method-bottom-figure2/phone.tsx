@@ -1,9 +1,5 @@
 import { createPhoneInkLeaf } from '../shared/phoneInkLeaf';
 
-export function phoneMethodBottomFigure2Progress(progress: number): number {
-  return Math.min(1, Math.max(0, progress) / .8);
-}
-
 export const PHONE_METHOD_BOTTOM_FIGURE2_OPTIONS = Object.freeze({
   segmentId: 'method-bottom-figure2',
   surfaceId: 'fx:method-bottom-figure2' as const,
@@ -13,7 +9,6 @@ export const PHONE_METHOD_BOTTOM_FIGURE2_OPTIONS = Object.freeze({
     seed: 'method-bottom-figure2-phone'
   }),
   grade: 'dark' as const,
-  mapProgress: phoneMethodBottomFigure2Progress,
   canvasClassName: 'phone-grade-a__method-ink',
   portraitInk: 'method-figure2'
 });

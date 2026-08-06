@@ -153,7 +153,9 @@ export async function assertNoWhiteOrTransparentViewportEdges(page: Page): Promi
   for (const point of edgePoints(viewport.width, viewport.height)) {
     const actual = pixelAt(png, viewport.width, viewport.height, point);
     const white = actual[0] >= 250 && actual[1] >= 250 && actual[2] >= 250;
-    if (actual[3] !== 255 || white) {
+    // WebKit's PNG capture can quantize a fully composited animated Canvas
+    // edge to 254. Real gaps remain far below this one-step encoding variance.
+    if (actual[3] < 254 || white) {
       throw new Error(
         `Pattern viewport exposure at (${point.x}, ${point.y}): ${actual.join(',')}`
       );
@@ -257,6 +259,100 @@ export async function assertNoIntermediateWhiteOrBlackFrame(
     if (black || white) {
       throw new Error(`Intermediate frame ${index} is ${black ? 'black' : 'white'}`);
     }
+  }
+}
+
+/**
+ * Proves that a live Ink canvas changes the composited pixels, not merely that
+ * React attached a canvas element. The helper is intentionally test-only: it
+ * briefly hides the already-rendered effect and compares the same viewport.
+ */
+export async function assertInkIntermediateCompositeContribution(
+  page: Page,
+  selector: string
+): Promise<void> {
+  const canvas = page.locator(selector);
+  await expect(canvas).toBeVisible();
+  const handle = await canvas.elementHandle();
+  if (!handle) throw new Error(`Live Ink canvas disappeared before composite proof: ${selector}`);
+  await page.evaluate(() => {
+    const owner = window as typeof window & {
+      __r5InkCompositeFrameFreeze?: {
+        requestAnimationFrame: typeof window.requestAnimationFrame;
+        cancelAnimationFrame: typeof window.cancelAnimationFrame;
+        queued: Map<number, FrameRequestCallback>;
+        nextId: number;
+      };
+    };
+    if (owner.__r5InkCompositeFrameFreeze) return;
+    const requestAnimationFrame = window.requestAnimationFrame.bind(window);
+    const cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
+    const queued = new Map<number, FrameRequestCallback>();
+    const nextId = -1;
+    owner.__r5InkCompositeFrameFreeze = {
+      requestAnimationFrame, cancelAnimationFrame, queued, nextId
+    };
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      const id = owner.__r5InkCompositeFrameFreeze!.nextId--;
+      owner.__r5InkCompositeFrameFreeze!.queued.set(id, callback);
+      return id;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = ((id: number) => {
+      if (!owner.__r5InkCompositeFrameFreeze!.queued.delete(id)) cancelAnimationFrame(id);
+    }) as typeof window.cancelAnimationFrame;
+  });
+  const withInk = PNG.sync.read(await page.screenshot());
+  const saved = await handle.evaluate((element) => {
+    const style = element.style;
+    const properties = ['visibility', 'opacity'] as const;
+    const snapshot = properties.map((property) => ({
+      property,
+      value: style.getPropertyValue(property),
+      priority: style.getPropertyPriority(property)
+    }));
+    style.setProperty('visibility', 'hidden', 'important');
+    return snapshot;
+  });
+  try {
+    const withoutInk = PNG.sync.read(await page.screenshot());
+    const pixels = Math.min(withInk.width * withInk.height, withoutInk.width * withoutInk.height);
+    let changed = 0;
+    for (let index = 0; index < pixels; index += 1) {
+      const offset = index * 4;
+      const distance = Math.abs((withInk.data[offset] ?? 0) - (withoutInk.data[offset] ?? 0))
+        + Math.abs((withInk.data[offset + 1] ?? 0) - (withoutInk.data[offset + 1] ?? 0))
+        + Math.abs((withInk.data[offset + 2] ?? 0) - (withoutInk.data[offset + 2] ?? 0));
+      if (distance >= 36) changed += 1;
+    }
+    const minimum = Math.max(96, Math.floor(pixels * 0.001));
+    if (changed < minimum) {
+      throw new Error(
+        `Live Ink did not contribute enough composite pixels: ${changed} changed, expected at least ${minimum}`
+      );
+    }
+  } finally {
+    await handle.evaluate((element, snapshot) => {
+      for (const { property, value, priority } of snapshot) {
+        if (value) element.style.setProperty(property, value, priority);
+        else element.style.removeProperty(property);
+      }
+    }, saved);
+    await page.evaluate(() => {
+      const owner = window as typeof window & {
+        __r5InkCompositeFrameFreeze?: {
+          requestAnimationFrame: typeof window.requestAnimationFrame;
+          cancelAnimationFrame: typeof window.cancelAnimationFrame;
+          queued: Map<number, FrameRequestCallback>;
+        };
+      };
+      const freeze = owner.__r5InkCompositeFrameFreeze;
+      if (!freeze) return;
+      window.requestAnimationFrame = freeze.requestAnimationFrame;
+      window.cancelAnimationFrame = freeze.cancelAnimationFrame;
+      delete owner.__r5InkCompositeFrameFreeze;
+      for (const callback of freeze.queued.values()) freeze.requestAnimationFrame(callback);
+    });
+    await handle.dispose();
   }
 }
 

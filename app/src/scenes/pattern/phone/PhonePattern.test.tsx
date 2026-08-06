@@ -101,14 +101,22 @@ describe('clean PhonePattern leaf', () => {
     );
   });
 
-  it('renders the accepted Pattern mapping through the closed command seam', async () => {
+  it('lets the Bloom field and copy share one structural-collapse progress while base illumination stays', async () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhonePattern reports={mount.reports} />); });
     mount.registration()?.commands.render(0.78);
     const frame = phonePatternFrame(0.78);
-    expect(frame.copyProgress).toBe(1);
+    expect(frame.copyProgress).toBe(0.78);
     expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-copy')?.style.opacity)
-      .toBe('1');
+      .toBe('0.78');
+    expect(frame.textureOpacity).toBeCloseTo(0.22, 6);
+    expect(frame.washOpacity).toBe(0.54);
+    expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-plate')?.style.opacity)
+      .toBe('');
+    expect(host.querySelector<HTMLImageElement>('.portrait-scroll-spike__pattern-image')?.style.opacity)
+      .toBe('0.22');
+    expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-motion')?.style.transform)
+      .toBe('');
     expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(0.78, 0.78);
   });
 
@@ -117,10 +125,10 @@ describe('clean PhonePattern leaf', () => {
     await act(async () => { root.render(<PhonePattern reports={mount.reports} />); });
     mount.registration()?.commands.settle(0);
     expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-copy')?.style.opacity)
-      .toBe('1');
-    expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(1, 1);
+      .toBe('0');
+    expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(0, 0);
     mount.registration()?.commands.settle(1);
-    expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(1, 1);
+    expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(0, 0);
   });
 
   it('keeps edge ownership global and contains no scene-specific concealment', () => {
@@ -130,5 +138,9 @@ describe('clean PhonePattern leaf', () => {
     expect(css).not.toMatch(/pattern-motion::(?:before|after)/);
     expect(css).not.toMatch(/bottom:\s*-\d/);
     expect(css).not.toMatch(/overscan|toolbar-edge/);
+    expect(css).toMatch(/\.portrait-scroll-spike__pattern-plate\s*\{[^}]*background:\s*#d9c08f/s);
+    expect(css).not.toMatch(/\.portrait-scroll-spike__pattern-plate\s*\{[^}]*will-change:\s*opacity/s);
+    expect(css).toMatch(/\.portrait-scroll-spike__pattern-image\s*\{[^}]*will-change:\s*opacity/s);
+    expect(css).not.toMatch(/pattern-motion\s*\{[^}]*transform-origin/s);
   });
 });

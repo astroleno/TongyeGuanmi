@@ -148,7 +148,7 @@ export function PhonePh({ reports }: PhonePhProps) {
       try {
         settled = Promise.resolve(video.play()).then(() => {
           if (generation !== surfaceGenerationRef.current || disposedRef.current) return;
-          if (endpoint === 1) video.pause();
+          if (endpoint === 1 || !command.playback) video.pause();
         });
       } catch (error) {
         settled = Promise.reject(error);

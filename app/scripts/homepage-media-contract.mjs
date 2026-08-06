@@ -45,6 +45,7 @@ export const packedAlphaVideoSources = [
 ];
 
 export const portraitOnlyImageSources = [
+  'assets/aod-figure-opening.webp',
   'assets/figure2-pair-opening.webp',
   'assets/figure2-phone-foreground-arch.webp',
   'assets/figure3-initial-paper.webp',
@@ -219,6 +220,12 @@ export const frozenHomepageMedia = [
     category: 'adopted-webp',
     bytes: 1185246,
     sha256: 'eba69d18ba7c5e6e742de899abd88f32a9bfc869f9728e08f19add57e4e79527'
+  },
+  {
+    source: 'assets/aod-figure-opening.webp',
+    category: 'portrait-adopted-webp',
+    bytes: 333488,
+    sha256: 'd50dbe4cbc417dfa4eba4616d66dd145616000c4cb2724bb391a51d97c4a70c2'
   },
   {
     source: 'assets/figure2-phone-foreground-arch.webp',

@@ -2,8 +2,8 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
-import { phoneManifest, phoneSceneById, type PhoneSceneId,
-  type PhoneSegmentId } from './manifest';
+import { phoneManifest, phoneSceneById,
+  type PhoneSceneId, type PhoneSegmentId } from './manifest';
 import { createPhonePresentation, runPhoneCleanupSteps, type PhoneLeafReportBinding,
   type PhoneLeafReportPort, type PhonePresentation } from './presentation';
 import type {
@@ -11,9 +11,12 @@ import type {
   PhoneTransactionLeg, PhoneViewportSnapshot
 } from './protocol';
 import { createPhoneStoryRuntime, type PhoneChunkRecoveryPort,
-  type PhoneDependencyLoadResult, type PhoneStoryRuntimeEnvironment } from './runtime';
+  phoneReadingEdges, type PhoneDependencyLoadResult,
+  type PhoneStoryRuntimeEnvironment } from './runtime';
 import { createPhoneSceneTopology, loadPhoneSceneModule, PhoneSceneLeaf,
-  PhoneSceneReading, type PhonePlaneBuffer, type PhoneSceneRenderSlot } from './scenes';
+  PhoneSceneReading, phoneDiagnosticActivationSurfaces, phoneDiagnosticBlockedBy,
+  phoneDiagnosticFailureCode, phoneDiagnosticMissingProofs,
+  type PhonePlaneBuffer, type PhoneSceneRenderSlot } from './scenes';
 import { createPhoneEffectTopology, loadPhoneTransitionModule, PhoneTransitionLeaf,
   type PhoneEffectRenderSlot } from './transitions';
 import './styles.css';
@@ -28,6 +31,103 @@ export type PhoneStoryShellProps = Readonly<{
 type PhoneShellSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegmentId>;
 const WHEEL_GESTURE_GAP_MS = 240;
 const PHONE_IMPLEMENTATION_SIGNATURE = 'clean-v1';
+
+type PhoneTouchPoint = Readonly<{
+  identifier: number;
+  clientY: number;
+}>;
+
+function createPhoneTouchArbiter() {
+  type Direction = 'forward' | 'reverse';
+  type Claim = {
+    id: number;
+    y: number;
+    story: boolean;
+    nativeDocument: boolean;
+    startedEdges: ReturnType<typeof phoneReadingEdges>;
+    armedAtStart: Direction | null;
+    direction: Direction | null;
+    published: boolean;
+  };
+  let claim: Claim | null = null;
+  let armedReadingEdge: Direction | null = null;
+  const atEdge = (direction: Direction, edges: ReturnType<typeof phoneReadingEdges>) => (
+    direction === 'reverse' ? edges.top : edges.bottom
+  );
+  return Object.freeze({
+    start(
+      points: readonly PhoneTouchPoint[],
+      story: boolean,
+      nativeDocument: boolean,
+      edges: ReturnType<typeof phoneReadingEdges>
+    ) {
+      const point = points[0];
+      if (story) armedReadingEdge = null;
+      claim = point
+        ? {
+            id: point.identifier,
+            y: point.clientY,
+            story,
+            nativeDocument,
+            startedEdges: edges,
+            armedAtStart: story ? null : armedReadingEdge,
+            direction: null,
+            published: false
+          }
+        : null;
+    },
+    move(
+      points: readonly PhoneTouchPoint[],
+      edges: ReturnType<typeof phoneReadingEdges>
+    ): number | null {
+      const current = claim;
+      const point = current
+        ? points.find(({ identifier }) => identifier === current.id)
+        : null;
+      if (!current || !point || current.published) return null;
+      const delta = current.y - point.clientY;
+      if (Math.abs(delta) < 8) return null;
+      const direction: Direction = delta > 0 ? 'forward' : 'reverse';
+      current.direction = direction;
+      const publish = current.story || (
+        current.nativeDocument
+        && atEdge(direction, edges)
+        && (atEdge(direction, current.startedEdges)
+          || current.armedAtStart === direction)
+      );
+      if (!publish) {
+        if (current.nativeDocument) {
+          armedReadingEdge = atEdge(direction, edges) ? direction : null;
+        }
+        return null;
+      }
+      current.published = true;
+      armedReadingEdge = null;
+      return delta;
+    },
+    claimed(): boolean {
+      return claim?.published === true;
+    },
+    end(
+      points: readonly PhoneTouchPoint[],
+      edges: ReturnType<typeof phoneReadingEdges>
+    ): boolean {
+      const current = claim;
+      const completed = current
+        ? points.some(({ identifier }) => identifier === current.id)
+        : false;
+      if (completed && !current?.published && current?.nativeDocument && current.direction
+        && atEdge(current.direction, edges)) {
+        armedReadingEdge = current.direction;
+      }
+      claim = null;
+      return Boolean(completed && current?.published);
+    },
+    cancel() {
+      claim = null;
+    }
+  });
+}
 
 function sampleLayout() {
   const width = Math.max(0, window.innerWidth);
@@ -46,17 +146,23 @@ function sampleVisual() {
   };
 }
 
+function recordDiagnosticSnapshot(snapshot: PhoneStorySnapshot): void {
+  const target = window as typeof window & { __r5PhoneRuntimeLog?: PhoneStorySnapshot[] };
+  if (!target.__r5PhoneRuntimeLog) return;
+  target.__r5PhoneRuntimeLog = [...target.__r5PhoneRuntimeLog, snapshot].slice(-64);
+}
+
 function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope']>): PhoneStoryRuntimeEnvironment {
   let authoritySequence = 0;
   let layoutRevision = 0;
   let visualRevision = 0;
+  let layout = sampleLayout();
+  let visual = sampleVisual();
   const setActivationCta = (enabled: boolean) => {
     const cta = document.querySelector<HTMLButtonElement>(`.phone-story[data-phone-scope="${scope}"] [data-phone-activation]`);
     if (cta) { cta.hidden = !enabled; cta.disabled = !enabled; }
   };
   const readViewport = (): PhoneViewportSnapshot => {
-    const layout = sampleLayout();
-    const visual = sampleVisual();
     return {
       layout,
       visual,
@@ -84,21 +190,72 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
       };
       const inputTarget = (target: EventTarget | null) => {
         if (!(target instanceof Element)) return 'story' as const;
-        if (target.closest('[data-phone-contact-control], #contact input, #contact textarea')) {
-          return 'contact-control' as const;
+        const nativeDocument = target.closest('[data-phone-input-owner="native-document"]');
+        const contactControl = target.closest('[data-phone-contact-control], #contact input, #contact textarea');
+        if (nativeDocument && !nativeDocument.closest('[inert]')) return contactControl
+          ? 'contact-control' as const : 'native-corridor' as const;
+        if (target.closest('.phone-story[data-phone-interaction="disabled"]')) {
+          return 'disabled' as const;
         }
+        if (contactControl) return 'contact-control' as const;
         return target.closest([
           'a', 'button', 'input', 'textarea', 'select', '[contenteditable]',
           '[data-phone-native-corridor]', '[data-phone-input-owner="native-document"]'
         ].join(','))
           ? 'native-corridor' as const : 'story' as const;
       };
-      let claimedTouchScroll = false;
-      listen(window, 'touchstart', ((event: TouchEvent) => { claimedTouchScroll = inputTarget(event.target) === 'story'; }) as EventListener, { passive: true });
-      listen(window, 'touchmove', ((event: TouchEvent) => { if (claimedTouchScroll) event.preventDefault(); }) as EventListener, { passive: false });
+      const touchArbiter = createPhoneTouchArbiter();
+      let blockedTouch = false;
+      const nativeReadingEdges = () => phoneReadingEdges(document.scrollingElement ?? document.documentElement);
+      listen(window, 'touchstart', ((event: TouchEvent) => {
+        const target = inputTarget(event.target);
+        blockedTouch = target === 'disabled';
+        const nativeDocument = event.target instanceof Element
+          && Boolean(event.target.closest('[data-phone-input-owner="native-document"]'));
+        touchArbiter.start(
+          Array.from(event.touches),
+          target === 'story',
+          nativeDocument,
+          nativeReadingEdges()
+        );
+      }) as EventListener, { passive: true });
+      listen(window, 'touchmove', ((event: TouchEvent) => {
+        if (blockedTouch) {
+          event.preventDefault();
+          return;
+        }
+        const delta = touchArbiter.move(Array.from(event.touches ?? []), nativeReadingEdges());
+        if (touchArbiter.claimed()) event.preventDefault();
+        if (delta !== null) {
+          publish({
+            type: 'input',
+            kind: 'touch',
+            delta,
+            fresh: true,
+            trusted: event.isTrusted,
+            target: 'story'
+          });
+        }
+      }) as EventListener, { passive: false });
+      listen(window, 'touchend', ((event: TouchEvent) => {
+        if (blockedTouch) {
+          blockedTouch = false;
+          touchArbiter.cancel();
+          return;
+        }
+        touchArbiter.end(Array.from(event.changedTouches), nativeReadingEdges());
+      }) as EventListener, { passive: true });
+      listen(window, 'touchcancel', (() => {
+        blockedTouch = false;
+        touchArbiter.cancel();
+      }) as EventListener, { passive: true });
       let lastWheelAt = Number.NEGATIVE_INFINITY;
       listen(window, 'wheel', ((event: WheelEvent) => {
         const target = inputTarget(event.target);
+        if (target === 'disabled') {
+          event.preventDefault();
+          return;
+        }
         const gap = event.timeStamp - lastWheelAt;
         const fresh = gap < 0 || gap >= WHEEL_GESTURE_GAP_MS;
         lastWheelAt = event.timeStamp;
@@ -115,12 +272,19 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
       listen(window, 'click', publishActivation as EventListener);
       if ('PointerEvent' in window) {
         let start: Readonly<{
-          id: number; y: number; target: ReturnType<typeof inputTarget>;
+          id: number;
+          y: number;
+          target: Exclude<ReturnType<typeof inputTarget>, 'disabled'>;
         }> | null = null;
         listen(window, 'pointerdown', ((event: PointerEvent) => {
-          start = { id: event.pointerId, y: event.clientY, target: inputTarget(event.target) };
+          if (event.pointerType === 'touch') return;
+          const target = inputTarget(event.target);
+          start = target === 'disabled'
+            ? null
+            : { id: event.pointerId, y: event.clientY, target };
         }) as EventListener, { passive: true });
         listen(window, 'pointerup', ((event: PointerEvent) => {
+          if (event.pointerType === 'touch') return;
           const origin = start?.id === event.pointerId ? start : null;
           start = null;
           if (origin) publish({ type: 'input', kind: 'pointer',
@@ -129,33 +293,16 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
         }) as EventListener, { passive: true });
         listen(window, 'pointercancel', (() => { start = null; }) as EventListener,
           { passive: true });
-      } else {
-        let start: Readonly<{
-          id: number; y: number; target: ReturnType<typeof inputTarget>;
-        }> | null = null;
-        listen(window, 'touchstart', ((event: TouchEvent) => {
-          const touch = Array.from(event.touches)[0];
-          start = touch ? { id: touch.identifier, y: touch.clientY,
-            target: inputTarget(event.target) } : null;
-        }) as EventListener, { passive: true });
-        listen(window, 'touchend', ((event: TouchEvent) => {
-          const origin = start;
-          const touch = origin
-            ? Array.from(event.changedTouches).find(({ identifier }) => identifier === origin.id)
-            : null;
-          start = null;
-          if (origin && touch) publish({ type: 'input', kind: 'touch',
-            delta: origin.y - touch.clientY, fresh: true,
-            trusted: event.isTrusted, target: origin.target });
-        }) as EventListener, { passive: true });
-        listen(window, 'touchcancel', (() => { start = null; }) as EventListener,
-          { passive: true });
       }
       listen(window, 'keydown', ((event: KeyboardEvent) => {
         const delta = ['ArrowDown', 'PageDown', ' '].includes(event.key) ? 1
           : ['ArrowUp', 'PageUp'].includes(event.key) ? -1 : 0;
         if (delta === 0) return;
         const target = inputTarget(event.target);
+        if (target === 'disabled') {
+          event.preventDefault();
+          return;
+        }
         if (target === 'story') event.preventDefault();
         publish({ type: 'input', kind: 'keyboard', key: event.key, delta,
           fresh: !event.repeat, trusted: event.isTrusted, target });
@@ -170,17 +317,33 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
       listen(window, 'hashchange', (() => publishEntry('hash')) as EventListener);
       listen(window, 'popstate', (() => publishEntry('popstate')) as EventListener);
       listen(window, 'resize', (() => {
-        layoutRevision += 1;
+        const nextLayout = sampleLayout();
+        const change = nextLayout.width !== layout.width
+          || nextLayout.orientation !== layout.orientation ? 'layout' : 'toolbar';
+        if (change === 'layout') {
+          layout = nextLayout;
+          layoutRevision += 1;
+        }
+        visual = sampleVisual();
         visualRevision += 1;
-        publish({ type: 'viewport', viewport: readViewport(), change: 'layout' });
+        publish({ type: 'viewport', viewport: readViewport(), change });
       }) as EventListener);
       listen(document, 'fullscreenchange', (() => {
+        layout = sampleLayout();
+        visual = sampleVisual();
         layoutRevision += 1;
         visualRevision += 1;
         publish({ type: 'viewport', viewport: readViewport(), change: 'layout' });
       }) as EventListener);
       if (window.visualViewport) {
         const toolbar = () => {
+          const nextVisual = sampleVisual();
+          if (nextVisual.offsetLeft === visual.offsetLeft
+            && nextVisual.offsetTop === visual.offsetTop
+            && nextVisual.width === visual.width
+            && nextVisual.height === visual.height
+            && nextVisual.scale === visual.scale) return;
+          visual = nextVisual;
           visualRevision += 1;
           publish({ type: 'viewport', viewport: readViewport(), change: 'toolbar' });
         };
@@ -214,6 +377,7 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
       );
     },
     observePublish: (snapshot) => {
+      recordDiagnosticSnapshot(snapshot);
       if (snapshot.status !== 'transaction'
         || snapshot.transaction.phase !== 'awaiting-media-activation') setActivationCta(false);
     },
@@ -236,47 +400,42 @@ function createProjector(): PhonePresentation {
   });
 }
 
-function waitForOnline(signal: AbortSignal): Promise<void> {
-  if (navigator.onLine !== false) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const finish = () => {
-      window.removeEventListener('online', finish);
-      signal.removeEventListener('abort', abort);
-      resolve();
-    };
-    const abort = () => {
-      window.removeEventListener('online', finish);
-      reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
-    };
-    window.addEventListener('online', finish, { once: true });
-    signal.addEventListener('abort', abort, { once: true });
-  });
+function isExplicitAbort(error: unknown, signal: AbortSignal): boolean {
+  return signal.aborted && (error === signal.reason || Boolean(error && typeof error === 'object'
+    && 'name' in error && (error as { name?: unknown }).name === 'AbortError'));
 }
 
 async function loadPhoneDependencies(
   effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>,
   signal: AbortSignal
 ): Promise<PhoneDependencyLoadResult> {
-  await waitForOnline(signal);
-  const modules = effect.dependencies.filter((dependency) => (
-    dependency.startsWith('scene:') || dependency.startsWith('transition:')
-  ));
-  try {
-    await Promise.all(modules.map(async (dependency) => {
-      try {
-        await (dependency.startsWith('scene:')
-          ? loadPhoneSceneModule(dependency.slice('scene:'.length))
-          : loadPhoneTransitionModule(dependency.slice('transition:'.length)));
-      } catch (error) { throw { dependency, error }; }
-    }));
-    return { status: 'loaded' };
-  } catch (failure) {
-    const rejected = failure as Readonly<{ dependency: PhoneDependencyRef; error: unknown }>;
-    return {
-      status: 'rejected', dependency: rejected.dependency, moduleUrl: rejected.dependency,
-      reason: rejected.error instanceof Error ? rejected.error.message : String(rejected.error)
-    };
+  const modules = effect.dependencies.filter((dependency) => dependency.startsWith('scene:')
+    || dependency.startsWith('transition:'));
+  type LoadResult = Readonly<{ dependency: PhoneDependencyRef; error: unknown }> | null;
+  const pending = new Map<number, Promise<LoadResult>>();
+  modules.forEach((dependency, index) => pending.set(index, (async () => {
+    try {
+      await (dependency.startsWith('scene:')
+        ? loadPhoneSceneModule(dependency.slice('scene:'.length))
+        : loadPhoneTransitionModule(dependency.slice('transition:'.length)));
+      return null;
+    } catch (error) { return { dependency, error }; }
+  })()));
+  let aborted: Readonly<{ dependency: PhoneDependencyRef; error: unknown }> | null = null;
+  while (pending.size > 0) {
+    const winner = await Promise.race([...pending.entries()].map(async ([index, promise]) => (
+      { index, result: await promise })));
+    pending.delete(winner.index);
+    if (!winner.result) continue;
+    if (!isExplicitAbort(winner.result.error, signal)) {
+      return { status: 'rejected', dependency: winner.result.dependency,
+        moduleUrl: winner.result.dependency, reason: winner.result.error instanceof Error
+          ? winner.result.error.message : String(winner.result.error) };
+    }
+    aborted ??= winner.result;
   }
+  if (aborted) throw aborted.error;
+  return { status: 'loaded' };
 }
 
 function initialEntry(entry?: PhoneEntryRequest): PhoneEntryRequest {
@@ -326,13 +485,17 @@ export function PhoneStoryShell({
   const rootRef = useRef<HTMLElement | null>(null);
   const connectedRef = useRef(false);
   const reportPorts = useRef(new Map<string, PhoneLeafReportPort>());
+  const [loaderHidden, setLoaderHidden] = useState(false);
   const [owners] = useState(() => {
     const presentation = createProjector();
     const engine = createPhoneStoryRuntime({
       initialEntry: initialEntry(requestedEntry),
       environment: createBrowserEnvironment(scope),
       presentation,
-      ports: { loadDependencies: loadPhoneDependencies },
+      ports: {
+        loadDependencies: loadPhoneDependencies,
+        prewarmDependencies: loadPhoneDependencies
+      },
       chunkRecovery
     });
     return Object.freeze({
@@ -346,16 +509,19 @@ export function PhoneStoryShell({
     owners.engine.getSnapshot,
     owners.engine.getSnapshot
   );
+  const stableScene = snapshot.stableCommit?.sceneId ?? null;
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     document.documentElement.dataset.phonePreboot = 'mounted';
+    document.documentElement.dataset.storyHydrated = 'true';
     const detach = owners.presentation.attachRoot(root);
     connectedRef.current = true;
     const disconnect = owners.engine.connect();
     return () => {
       connectedRef.current = false;
       delete document.documentElement.dataset.phonePreboot;
+      delete document.documentElement.dataset.storyHydrated;
       runPhoneCleanupSteps('Phone shell cleanup failed', [
         disconnect, detach,
         () => reportPorts.current.clear(), owners.sceneTopology.clear,
@@ -363,7 +529,6 @@ export function PhoneStoryShell({
       ]);
     };
   }, [owners]);
-
   const reportPort = (binding: PhoneLeafReportBinding) => {
     const key = portKey(binding);
     const cached = reportPorts.current.get(key);
@@ -381,7 +546,6 @@ export function PhoneStoryShell({
   } else {
     reportPorts.current.clear();
   }
-  const stableScene = snapshot.stableCommit?.sceneId ?? null;
   const roles = bufferRoles(snapshot);
   const scenes: PhoneSceneRenderSlot<PhoneSceneId>[] = [];
   let effect: PhoneEffectRenderSlot<PhoneSegmentId> | null = null;
@@ -438,6 +602,23 @@ export function PhoneStoryShell({
   const faulted = connectedRef.current && snapshot.status === 'faulted';
   const navigationScene = stableScene ?? 'hero';
   const [menuOpen, setMenuOpen] = useState(false);
+  const interactionEnabled = loaderHidden && (snapshot.status === 'stable'
+    || snapshot.status === 'transaction'
+      && snapshot.transaction.phase === 'awaiting-leg-intent');
+  const reprojectingCommittedScene = snapshot.status === 'transaction'
+    && snapshot.transaction.commitIntent === 'reproject'
+    && snapshot.transaction.sourceSceneId === stableScene
+    && snapshot.transaction.candidateSceneId === stableScene;
+  const nativeReadingEnabled = loaderHidden && stableScene !== null
+    && phoneSceneById(stableScene).plane === 'native'
+    && (snapshot.status === 'stable' || reprojectingCommittedScene);
+  const navigationVisible = interactionEnabled && snapshot.status === 'stable'
+    && stableScene !== null && stableScene !== 'hero' && stableScene !== 'pattern';
+  const directActivationFallback = snapshot.status === 'transaction'
+    && snapshot.transaction.mode !== 'segment'
+    && snapshot.transaction.phase === 'awaiting-media-activation';
+  const reducedMotion = typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
   const navigate = (sceneId: PhoneSceneId) => {
     setMenuOpen(false);
     owners.engine.requestEntry({
@@ -453,9 +634,16 @@ export function PhoneStoryShell({
     <main ref={rootRef} className="phone-story" data-phone-scope={scope}
       data-phone-status={snapshot.status}
       data-phone-implementation={PHONE_IMPLEMENTATION_SIGNATURE}
-      data-phone-interaction={snapshot.status === 'stable' ? 'enabled' : 'disabled'}
+      data-phone-interaction={interactionEnabled ? 'enabled' : 'disabled'}
+      data-phone-reading={nativeReadingEnabled ? 'enabled' : 'disabled'}
       data-phone-revision={diagnostics ? snapshot.stateRevision : undefined}
+      data-phone-reduced-motion={diagnostics ? String(reducedMotion) : undefined}
       data-phone-fault-code={diagnostics && snapshot.status === 'faulted' ? snapshot.fault.code : undefined}
+      data-phone-last-failure={diagnostics ? phoneDiagnosticFailureCode(snapshot) : undefined}
+      data-phone-blocked-by={diagnostics ? phoneDiagnosticBlockedBy(snapshot) : undefined}
+      data-phone-activation-surfaces={diagnostics ? phoneDiagnosticActivationSurfaces(snapshot).join(',') : undefined}
+      data-phone-network-hint={diagnostics ? typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'online' : undefined}
+      data-phone-missing-proof={diagnostics ? phoneDiagnosticMissingProofs(snapshot).join(',') : undefined}
       data-phone-authority={diagnostics ? snapshot.authorityId : undefined}
       data-phone-phase={diagnostics && snapshot.status === 'transaction' ? snapshot.transaction.phase : undefined}
       data-phone-plane-revision={diagnostics ? snapshot.lastPlaneRevision : undefined}
@@ -468,6 +656,8 @@ export function PhoneStoryShell({
           ready={provenBoot}
           failed={faulted}
           allowSafetyExit={false}
+          onExitStart={owners.engine.startVisibleEntrance}
+          onHidden={() => setLoaderHidden(true)}
         />
       </div>
       <div className="phone-story__viewport">
@@ -488,17 +678,19 @@ export function PhoneStoryShell({
           </div>
         </div>
       </div>
-      <div className="phone-story__reading-flow" inert={snapshot.status !== 'stable'} aria-hidden={snapshot.status !== 'stable'}>
+      <div className="phone-story__reading-flow" inert={!nativeReadingEnabled} aria-hidden={!nativeReadingEnabled}>
         {stableScene ? <PhoneSceneReading sceneId={stableScene} /> : null}
       </div>
       <StoryNav
         currentScene={navigationScene}
-        visible={snapshot.status === 'stable'}
+        visible={navigationVisible}
         menuOpen={menuOpen}
         onToggleMenu={() => setMenuOpen((open) => !open)}
         onNavigate={navigate}
       />
-      <button type="button" className="phone-story__activation" data-phone-activation="true" hidden disabled>继续播放</button>
+      {directActivationFallback ? (
+        <button type="button" className="phone-story__activation" data-phone-activation="true">继续播放</button>
+      ) : null}
       {faulted ? (
         <button
           type="button"

@@ -2,14 +2,15 @@
 
 - Date opened: 2026-08-03
 - Candidate under discovery: `8f3913908cba95e150d464dfab12270efe9dbdc3`
-- Status: **Task 13.2 RED / diagnostic candidate / formal acceptance paused**
-- Release claim: **Task 12 remains `Chunk-contract-complete`; Task 13 is not complete**
+- Status: **Task 12 reopened / NO-GO / corrective focused verification in
+  progress / Task 13.2 paused**
+- Release claim: **NO-GO; no active passing candidate**
 
-This ledger batches Simulator and physical-iPhone discovery before another
-production change or expensive Task 12 closure. The current artifact remains
-immutable. Development may use a separate diagnostic build, but no new
-candidate is frozen until every discovered issue is grouped by root cause and
-the complete batch passes focused verification.
+The `8f39139…` artifact remains immutable as historical evidence. Development
+uses the report worktree as a diagnostic WIP, but no new candidate is frozen
+until every confirmed root passes the complete focused batch. The governing
+decision is the
+[Task 13 physical choreography ADR](../decisions/r5-task13-physical-choreography-correction.md).
 
 ## Active findings
 
@@ -67,6 +68,93 @@ The directory preserves the original failure, the temporary browser override,
 the two source-level diagnostic screenshots, a machine-readable summary, and
 SHA-256 hashes for the four screenshots. The post-fix screenshots visually
 show no clipping; they do not claim a new DOM `scrollWidth` measurement.
+
+### D13-003 — one undifferentiated progress destroyed segment choreography
+
+| Field | Record |
+| --- | --- |
+| category | media / Canvas / presentation |
+| severity | P0 |
+| observed artifact | exact `8f39139` candidate under native Simulator gestures |
+| symptom | Hero → Pattern switched only at commit; Pattern lacked its full-screen hold; Star/Perlin remained covered; AOD played before its own outgoing segment and reset at commit |
+| confirmed root cause | runtime broadcast the same progress to source, target, and effect while the projector exposed one whole plane; segment-specific endpoint holds, clocks, opacity, and Ink ownership were absent |
+| accepted correction | one exhaustive 15-segment choreography ledger; runtime leg projection; projector-owned complementary Ink boundary and semantic foreground; reducer remains the only authority |
+| regression set | exhaustive finite/bounded map, Hero/Pattern/Star/AOD order, reverse ownership, plane clips/masks/stack, per-leg runtime commands |
+| current disposition | corrective WIP; choreography projection and a real intermediate-Ink pixel oracle are under focused verification. No browser or native closure claim remains. |
+
+### D13-004 — touch host adapter broke activation and native reading
+
+| Field | Record |
+| --- | --- |
+| category | state machine / gesture |
+| severity | P0 |
+| observed artifact | exact `8f39139` candidate under native Simulator gestures |
+| symptom | warm Star → AOD entered `awaiting-media-activation`; Method had native scroll range but an upward gesture left `scrollY=0` and started the next story segment |
+| confirmed root cause | story intent was delayed until gesture end, adjacent manifest prewarm had no runtime consumer, and Method lacked native-document ownership plus a fresh edge latch |
+| accepted correction | begin once on directional `touchmove`; consume target activation on that same gesture stack; prewarm adjacent module/metadata closures; keep native reading pixels unprevented and require a new outward edge gesture. AOD cold direct entry is a static poster exception with no autoplay or CTA; its video activates only on the normal AOD → Method outgoing gesture. |
+| exclusions | no global media unlock sweep, no legacy runtime, no second input authority |
+| current disposition | corrective WIP; continuous segment CTA is forbidden, source-clock activation and native reading edge handoff are under focused verification. No bounded Simulator claim remains. |
+
+### D13-005 — Loader and Hero had independent visible clocks
+
+| Field | Record |
+| --- | --- |
+| category | startup / Loader |
+| severity | P1 |
+| observed artifact | exact `8f39139` candidate |
+| symptom | Hero progressed to completion behind the opaque Loader; pre-hydration text flashed before the React Ink Loader |
+| confirmed root cause | the static and React loaders both authored text, and Loader exit had no causal command into the Hero entrance |
+| accepted correction | textless static safety cover; React Loader is the sole text/Ink author; cold Hero settles at zero; Loader exit starts the one visible entrance; input remains disabled until hidden |
+| current disposition | corrective WIP; the Loader-hidden/stable/interaction and visible Hero-start contracts are under focused verification. No native acceptance claim remains. |
+
+## Task 12C corrective verification — 2026-08-04
+
+The centralized correction remains constrained to the existing reducer,
+runtime, input authority, projector, and core-file boundary. The following
+historical verification batch is retained for audit; it does not close the
+current findings:
+
+- affected deterministic set: 23 files / 260 tests;
+- Node gate fixtures: 119/119;
+- full Vitest: 175 files / 1,227 tests;
+- TypeScript, clean architecture, semantic-boolean, packed-alpha, frozen-input,
+  and `git diff --check`;
+- complete build: desktop JavaScript 577,476 B, phone JavaScript 616,101 B,
+  largest lazy JavaScript 50,887 B, and the unchanged 663,552-byte hard cap;
+- Loader timing plus Hero ↔ Pattern ↔ Star ↔ AOD focused WebKit repeats:
+  20/20 total;
+- corrected Contact adjacent-prewarm oracle: 10/10 Chromium;
+- final complete release suite: 227/227 in 29.1 minutes with one worker and
+  `--max-failures=1`.
+
+The first broad attempt stopped at its first failure after 107 passes. Its
+trace showed only the manifest-authorized adjacent module prewarm: Contact had
+no mounted video, decoder, Canvas, or WebGL owner. The stale test-only oracle
+was corrected, passed 10/10, and only then was the final complete suite run.
+No production behavior was changed for that oracle.
+
+Persistent ignored evidence is under:
+
+```text
+artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task12c-choreography-closure-20260803/
+```
+
+Its `SHA256SUMS` verifies 9/9 files, including the complete release log,
+Playwright final status, structured command/result summary, and bounded
+Simulator screenshots.
+
+The Simulator record is deliberately partial. A clean cold root reached Hero;
+the preserved Method first-edge probe reached `scrollY=963/maxScrollY=963`
+without leaving stable state; and a fresh trusted-touch probe did not turn the
+first Method gesture into a story transition. The sequential probe reached
+stable Pattern and Star Map without an activation CTA, then SafariDriver's
+native action channel stalled before Star → AOD and the reverse repeat. That
+driver stall is neither recorded as a product failure nor promoted to a pass.
+
+The report worktree is based on `34c306ed2c324256dcb81a9c5f47dd3a6b3b258d`,
+remains intentionally dirty, and has no replacement `candidateCodeSha`.
+Task 13 stays paused until the bounded native repeat completes and the code is
+committed as one replacement candidate.
 
 ## Discovery intake
 

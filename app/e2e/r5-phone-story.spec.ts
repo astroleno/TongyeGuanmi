@@ -160,7 +160,6 @@ test('platform reduced motion keeps the formal route and proves its direct targe
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/#figure2-animation', { waitUntil: 'domcontentloaded' });
   await expectCleanShell(page, 'formal', 'figure2-animation');
-  await expect(page.locator(
-    '[data-r4-scene="figure2-animation"] [data-figure2-packed-alpha-canvas]'
-  )).toBeVisible();
+  await expect(page.locator('[data-phone-figure2-poster]')).toBeVisible();
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
 });

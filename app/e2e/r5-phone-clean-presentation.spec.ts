@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   assertCompositeTargetContentVisible,
+  assertInkIntermediateCompositeContribution,
   assertSinglePhoneAuthority,
   assertLayerOrderAtPoints,
   assertNoWhiteOrTransparentViewportEdges,
@@ -11,17 +12,23 @@ import {
   waitForCommitSequence
 } from './r5-phone-clean-assertions';
 
+// Browser acceptance uses keyboard/pointer input; it is not physical iOS touch
+// acceptance. Native Simulator/physical-device evidence is recorded separately.
+// Motion-dependent acceptance always runs against the explicit normal platform
+// preference. Reduced motion has its own static-endpoint contract below.
+test.use({ reducedMotion: 'no-preference' });
+
 const FRONT_CONTENT = {
   hero: ['#portrait-spike-home'],
-  pattern: ['#portrait-spike-pattern-title'],
+  pattern: ['[data-portrait-pattern-bloom]'],
   'star-map': ['#portrait-spike-star-title'],
-  'aod-animation': ['[data-aod-figure-canvas]']
+  'aod-animation': ['[data-phone-aod-figure-poster]']
 } as const;
 
 const GRADE_A_CONTENT = {
   'method-top': ['#method #portrait-spike-method-title'],
   'figure2-animation': [
-    '[data-r4-scene="figure2-animation"] [data-figure2-packed-alpha-canvas]'
+    '[data-r4-scene="figure2-animation"] [data-phone-figure2-poster]'
   ],
   'figure2-proof': ['#figure2-proof-opening .r4-proof-opening__title'],
   brand: ['#phone-brand-title', '.phone-brand__definition p']
@@ -160,6 +167,12 @@ const BETWEEN_PLANE_SEGMENTS = new Set<CompleteStorySegment>([
   'crane-contact'
 ]);
 
+const FORMAL_INK_SEGMENTS = new Set<CompleteStorySegment>([
+  'hero-pattern', 'pattern-star-map', 'star-map-aod', 'method-bottom-figure2',
+  'figure2-distance-expand', 'figure2-proof-brand', 'brand-figure3', 'services-ttg',
+  'lab-ph', 'education-crane'
+]);
+
 type RuntimeResourceSample = Readonly<{
   videos: number;
   decoders: number;
@@ -176,6 +189,55 @@ type LifecycleProbeSample = Readonly<{
 
 async function nextAnimationFrame(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+}
+
+async function assertDecodedPoster(
+  page: import('@playwright/test').Page,
+  selector: string
+): Promise<void> {
+  await page.waitForFunction((imageSelector) => {
+    const image = document.querySelector<HTMLImageElement>(imageSelector);
+    return image?.complete === true && image.naturalWidth > 0 && image.naturalHeight > 0;
+  }, selector, { timeout: 10_000 });
+}
+
+async function assertFormalInkCompositeContribution(
+  page: import('@playwright/test').Page,
+  segment: CompleteStorySegment
+): Promise<void> {
+  if (!FORMAL_INK_SEGMENTS.has(segment)) return;
+  const selector = `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"]`;
+  await expect(page.locator(selector)).toBeVisible({ timeout: 10_000 });
+  for (let frame = 0; frame < 8; frame += 1) await nextAnimationFrame(page);
+  await assertInkIntermediateCompositeContribution(page, selector);
+}
+
+async function readStarPerlinLuminance(
+  page: import('@playwright/test').Page
+): Promise<Readonly<{ revision: number; meanLuminance: number }>> {
+  return page.locator<HTMLCanvasElement>('[data-portrait-star-perlin]').evaluate((canvas) => {
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context || canvas.width < 1 || canvas.height < 1) {
+      throw new Error('Star Map Canvas is not readable for visual motion proof');
+    }
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const stride = Math.max(4, Math.floor(pixels.length / 4 / 8_192) * 4);
+    let total = 0;
+    let count = 0;
+    for (let offset = 0; offset < pixels.length; offset += stride) {
+      const alpha = (pixels[offset + 3] ?? 0) / 255;
+      total += alpha * (
+        .2126 * (pixels[offset] ?? 0)
+        + .7152 * (pixels[offset + 1] ?? 0)
+        + .0722 * (pixels[offset + 2] ?? 0)
+      );
+      count += 1;
+    }
+    return {
+      revision: Number.parseInt(canvas.dataset.portraitStarPerlinRevision ?? '', 10),
+      meanLuminance: count === 0 ? Number.NaN : total / count
+    };
+  });
 }
 
 async function withholdRecoveryManifest(
@@ -197,12 +259,88 @@ async function sendFrontIntent(
   await page.keyboard.press(direction === 'forward' ? 'ArrowDown' : 'ArrowUp');
 }
 
+type ContinuousStoryState = Readonly<{
+  scene: string | undefined;
+  status: string | undefined;
+  phase: string | undefined;
+  interaction: string | undefined;
+  activation: boolean;
+}>;
+
+async function readContinuousStoryState(
+  page: import('@playwright/test').Page
+): Promise<ContinuousStoryState> {
+  return page.locator('.phone-story').evaluate((shell) => ({
+    scene: (shell as HTMLElement).dataset.phoneScene,
+    status: (shell as HTMLElement).dataset.phoneStatus,
+    phase: (shell as HTMLElement).dataset.phonePhase,
+    interaction: (shell as HTMLElement).dataset.phoneInteraction,
+    activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+  }));
+}
+
+async function failOnContinuousActivation(
+  page: import('@playwright/test').Page,
+  label: string
+): Promise<void> {
+  const state = await readContinuousStoryState(page);
+  if (state.activation || state.phase === 'awaiting-media-activation') {
+    throw new Error(
+      `Continuous story ${label} exposed activation fallback: ${JSON.stringify(state)}`
+    );
+  }
+}
+
+async function waitForContinuousStoryReady(
+  page: import('@playwright/test').Page
+): Promise<void> {
+  await expect(page.locator('[data-story-loader="true"]')).toHaveAttribute(
+    'data-loader-status', 'hidden', { timeout: 15_000 }
+  );
+  const shell = page.locator('.phone-story');
+  await expect(shell).toHaveAttribute('data-phone-status', 'stable');
+  await expect(shell).toHaveAttribute('data-phone-interaction', 'enabled');
+  await failOnContinuousActivation(page, 'before first gesture');
+}
+
+async function waitForContinuousSourceRestore(
+  page: import('@playwright/test').Page,
+  source: string,
+  sequence: number,
+  label: string
+): Promise<void> {
+  const outcome = await page.waitForFunction(({ expectedSource, expectedSequence }) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    const state = {
+      scene: shell?.dataset.phoneScene,
+      status: shell?.dataset.phoneStatus,
+      phase: shell?.dataset.phonePhase,
+      activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])')),
+      sequence: Number(shell?.dataset.phoneCommitSequence)
+    };
+    if (state.activation || state.phase === 'awaiting-media-activation') {
+      return { kind: 'activation' as const, state };
+    }
+    if (state.status === 'stable' && state.scene === expectedSource
+      && state.sequence === expectedSequence) {
+      return { kind: 'stable' as const, state };
+    }
+    return null;
+  }, { expectedSource: source, expectedSequence: sequence }, { timeout: 15_000 });
+  const result = await outcome.jsonValue();
+  if (result.kind !== 'stable') {
+    throw new Error(`Continuous story ${label} exposed activation fallback: ${JSON.stringify(result.state)}`);
+  }
+  await failOnContinuousActivation(page, label);
+}
+
 async function traverseGradeA(
   page: import('@playwright/test').Page,
   source: keyof typeof GRADE_A_CONTENT,
   target: keyof typeof GRADE_A_CONTENT,
   direction: 'forward' | 'reverse'
 ): Promise<void> {
+  await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   await sendFrontIntent(page, direction);
   const segment = GRADE_A_SEGMENT[`${source}:${target}` as keyof typeof GRADE_A_SEGMENT];
@@ -229,7 +367,8 @@ async function traverseGradeA(
       throw new Error(`Grade A ${source} → ${target} rolled back: ${JSON.stringify(state)}`);
     }
     if (state.phase === 'awaiting-media-activation') {
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+      await failOnContinuousActivation(page, `Grade A ${source} → ${target}`);
+      throw new Error(`Grade A ${source} → ${target} entered activation fallback`);
     } else if (state.phase === 'awaiting-leg-intent') {
       await sendFrontIntent(page, direction);
     }
@@ -246,6 +385,7 @@ async function traverseFigure3Slice(
   target: keyof typeof FIGURE3_SLICE_CONTENT,
   direction: 'forward' | 'reverse'
 ): Promise<Readonly<{ videos: number; canvases: number }>> {
+  await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   await sendFrontIntent(page, direction);
   await completeFigure3SliceAttempt(page, source, target, direction, before);
@@ -280,12 +420,15 @@ async function completeFigure3SliceAttempt(
           + `[data-phone-plane="effect"] [data-phone-transition="${expectedSegment}"]`
       )
       || document.querySelector('[data-phone-activation]:not([hidden])')
+      || shell?.dataset.phonePhase === 'awaiting-media-activation'
       || shell?.dataset.phonePhase === 'awaiting-leg-intent'
     );
   }, segment, { timeout: 10_000 });
   const initialPhase = await page.locator('.phone-story').getAttribute('data-phone-phase');
-  if (await page.locator('[data-phone-activation]:not([hidden])').count()) {
-    await page.locator('[data-phone-activation]:not([hidden])').click();
+  if (initialPhase === 'awaiting-media-activation'
+    || await page.locator('[data-phone-activation]:not([hidden])').count()) {
+    await failOnContinuousActivation(page, `Figure3 slice ${source} → ${target}`);
+    throw new Error(`Figure3 slice ${source} → ${target} entered activation fallback`);
   } else if (initialPhase === 'awaiting-leg-intent') {
     await sendFrontIntent(page, direction);
   }
@@ -314,7 +457,8 @@ async function completeFigure3SliceAttempt(
       throw new Error(`Figure3 slice ${source} → ${target} rolled back: ${JSON.stringify(state)}`);
     }
     if (state.phase === 'awaiting-media-activation') {
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+      await failOnContinuousActivation(page, `Figure3 slice ${source} → ${target}`);
+      throw new Error(`Figure3 slice ${source} → ${target} entered activation fallback`);
     } else if (state.phase === 'awaiting-leg-intent') {
       await sendFrontIntent(page, direction);
     }
@@ -337,11 +481,14 @@ async function completeGroup45Attempt(
       `[data-phone-plane="effect"] [data-r4-ink-segment="${expectedSegment}"], `
         + `[data-phone-plane="effect"] [data-phone-transition="${expectedSegment}"]`
     ) || document.querySelector('[data-phone-activation]:not([hidden])')
+      || shell?.dataset.phonePhase === 'awaiting-media-activation'
       || shell?.dataset.phonePhase === 'awaiting-leg-intent');
   }, segment, { timeout: 10_000 });
   const initialPhase = await page.locator('.phone-story').getAttribute('data-phone-phase');
-  if (await page.locator('[data-phone-activation]:not([hidden])').count()) {
-    await page.locator('[data-phone-activation]:not([hidden])').click();
+  if (initialPhase === 'awaiting-media-activation'
+    || await page.locator('[data-phone-activation]:not([hidden])').count()) {
+    await failOnContinuousActivation(page, `Group 4-5 ${source} → ${target}`);
+    throw new Error(`Group 4-5 ${source} → ${target} entered activation fallback`);
   } else if (initialPhase === 'awaiting-leg-intent') {
     await sendFrontIntent(page, direction);
   }
@@ -370,7 +517,8 @@ async function completeGroup45Attempt(
       throw new Error(`Group 4-5 ${source} → ${target} rolled back: ${JSON.stringify(current)}`);
     }
     if (current.phase === 'awaiting-media-activation') {
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+      await failOnContinuousActivation(page, `Group 4-5 ${source} → ${target}`);
+      throw new Error(`Group 4-5 ${source} → ${target} entered activation fallback`);
     } else if (current.phase === 'awaiting-leg-intent') {
       await sendFrontIntent(page, direction);
     }
@@ -385,6 +533,7 @@ async function traverseGroup45(
   target: Group45Scene,
   direction: 'forward' | 'reverse'
 ): Promise<Readonly<{ videos: number; canvases: number }>> {
+  await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   await sendFrontIntent(page, direction);
   await completeGroup45Attempt(page, source, target, direction, before);
@@ -408,7 +557,6 @@ async function expectGroup45Rollback(
   direction: 'forward' | 'reverse',
   before: number
 ): Promise<void> {
-  let handledActivation = false;
   let handledLegIntent = false;
   for (let sample = 0; sample < 300; sample += 1) {
     const state = await page.locator('.phone-story').evaluate((shell) => ({
@@ -425,9 +573,9 @@ async function expectGroup45Rollback(
     if (state.status === 'stable' && state.scene === target) {
       throw new Error(`Withheld Group 4-5 proof committed ${target}: ${JSON.stringify(state)}`);
     }
-    if (state.activation && !handledActivation) {
-      handledActivation = true;
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+    if (state.activation || state.phase === 'awaiting-media-activation') {
+      await failOnContinuousActivation(page, `withheld Group 4-5 ${source} → ${target}`);
+      throw new Error(`Withheld Group 4-5 ${source} → ${target} entered activation fallback`);
     } else if (state.phase === 'awaiting-leg-intent' && !handledLegIntent) {
       handledLegIntent = true;
       await sendFrontIntent(page, direction);
@@ -447,7 +595,6 @@ async function expectFigure3SliceRollback(
   direction: 'forward' | 'reverse',
   before: number
 ): Promise<void> {
-  let handledActivation = false;
   let handledLegIntent = false;
   for (let sample = 0; sample < 300; sample += 1) {
     const state = await page.locator('.phone-story').evaluate((shell) => ({
@@ -464,9 +611,9 @@ async function expectFigure3SliceRollback(
     if (state.status === 'stable' && state.scene === target) {
       throw new Error(`Withheld Figure3 proof committed ${target}: ${JSON.stringify(state)}`);
     }
-    if (state.activation && !handledActivation) {
-      handledActivation = true;
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+    if (state.activation || state.phase === 'awaiting-media-activation') {
+      await failOnContinuousActivation(page, `withheld Figure3 ${source} → ${target}`);
+      throw new Error(`Withheld Figure3 ${source} → ${target} entered activation fallback`);
     } else if (state.phase === 'awaiting-leg-intent' && !handledLegIntent) {
       handledLegIntent = true;
       await sendFrontIntent(page, direction);
@@ -495,8 +642,10 @@ async function completePhSliceAttempt(
       `[data-phone-plane="effect"] [data-r4-ink-segment="${expectedSegment}"], `
         + `[data-phone-plane="effect"] [data-phone-transition="${expectedSegment}"]`
     ) || document.querySelector('[data-phone-activation]:not([hidden])')
+      || shell?.dataset.phonePhase === 'awaiting-media-activation'
       || shell?.dataset.phonePhase === 'awaiting-leg-intent');
   }, segment, { timeout: 10_000 });
+  await failOnContinuousActivation(page, `PH slice ${source} → ${target}`);
   await expect(page.locator(effectSelector)).toBeAttached({ timeout: 10_000 });
   for (let boundary = 0; boundary < 5; boundary += 1) {
     const state = await page.waitForFunction(({ from, to, after }) => {
@@ -512,6 +661,7 @@ async function completePhSliceAttempt(
       return current.scene === to && current.sequence > after
         || current.status === 'stable' && current.scene === from
         || current.activation
+        || current.phase === 'awaiting-media-activation'
         || current.phase === 'awaiting-leg-intent'
         ? current : null;
     }, { from: source, to: target, after: before }, { timeout: 25_000 });
@@ -520,8 +670,9 @@ async function completePhSliceAttempt(
     if (current.status === 'stable') {
       throw new Error(`PH slice ${source} → ${target} rolled back: ${JSON.stringify(current)}`);
     }
-    if (current.activation) {
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+    if (current.activation || current.phase === 'awaiting-media-activation') {
+      await failOnContinuousActivation(page, `PH slice ${source} → ${target}`);
+      throw new Error(`PH slice ${source} → ${target} entered activation fallback`);
     } else if (current.phase === 'awaiting-leg-intent') {
       await sendFrontIntent(page, direction);
     }
@@ -536,6 +687,7 @@ async function traversePhSlice(
   target: PhSliceScene,
   direction: 'forward' | 'reverse'
 ): Promise<Readonly<{ videos: number; canvases: number }>> {
+  await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   await sendFrontIntent(page, direction);
   await completePhSliceAttempt(page, source, target, direction, before);
@@ -558,11 +710,11 @@ async function expectPhSliceRollback(
   target: PhSliceScene,
   before: number
 ): Promise<void> {
-  let handledActivation = false;
   for (let sample = 0; sample < 300; sample += 1) {
     const state = await page.locator('.phone-story').evaluate((shell) => ({
       scene: (shell as HTMLElement).dataset.phoneScene,
       status: (shell as HTMLElement).dataset.phoneStatus,
+      phase: (shell as HTMLElement).dataset.phonePhase,
       sequence: Number((shell as HTMLElement).dataset.phoneCommitSequence),
       activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
     }));
@@ -571,9 +723,9 @@ async function expectPhSliceRollback(
     if (state.status === 'stable' && state.scene === target) {
       throw new Error(`Withheld PH proof committed ${target}: ${JSON.stringify(state)}`);
     }
-    if (state.activation && !handledActivation) {
-      handledActivation = true;
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+    if (state.activation || state.phase === 'awaiting-media-activation') {
+      await failOnContinuousActivation(page, `withheld PH ${source} → ${target}`);
+      throw new Error(`Withheld PH ${source} → ${target} entered activation fallback`);
     }
     await page.waitForTimeout(100);
   }
@@ -596,8 +748,10 @@ async function completeCraneSliceAttempt(
     return Boolean(document.querySelector(
       `[data-phone-plane="effect"] [data-r4-ink-segment="${expectedSegment}"]`
     ) || document.querySelector('[data-phone-activation]:not([hidden])')
+      || shell?.dataset.phonePhase === 'awaiting-media-activation'
       || shell?.dataset.phonePhase === 'awaiting-leg-intent');
   }, segment, { timeout: 10_000 });
+  await failOnContinuousActivation(page, `Crane slice ${source} → ${target}`);
   await expect(page.locator(effectSelector)).toBeAttached({ timeout: 10_000 });
   await expect(page.locator('.phone-story')).toHaveAttribute(
     'data-phone-interaction', 'disabled'
@@ -615,6 +769,7 @@ async function completeCraneSliceAttempt(
       return current.scene === to && current.sequence > after
         || current.status === 'stable' && current.scene === from
         || current.activation
+        || current.phase === 'awaiting-media-activation'
         || current.phase === 'awaiting-leg-intent'
         ? current : null;
     }, { from: source, to: target, after: before }, { timeout: 25_000 });
@@ -623,8 +778,9 @@ async function completeCraneSliceAttempt(
     if (current.status === 'stable') {
       throw new Error(`Crane slice ${source} → ${target} rolled back: ${JSON.stringify(current)}`);
     }
-    if (current.activation) {
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+    if (current.activation || current.phase === 'awaiting-media-activation') {
+      await failOnContinuousActivation(page, `Crane slice ${source} → ${target}`);
+      throw new Error(`Crane slice ${source} → ${target} entered activation fallback`);
     } else if (current.phase === 'awaiting-leg-intent') {
       await sendFrontIntent(page, direction);
     }
@@ -642,6 +798,7 @@ async function traverseCraneSlice(
   target: CraneSliceScene,
   direction: 'forward' | 'reverse'
 ): Promise<Readonly<{ videos: number; canvases: number }>> {
+  await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   await sendFrontIntent(page, direction);
   await completeCraneSliceAttempt(page, source, target, direction, before);
@@ -670,11 +827,11 @@ async function expectCraneSliceRollback(
   target: CraneSliceScene,
   before: number
 ): Promise<void> {
-  let handledActivation = false;
   for (let sample = 0; sample < 300; sample += 1) {
     const state = await page.locator('.phone-story').evaluate((shell) => ({
       scene: (shell as HTMLElement).dataset.phoneScene,
       status: (shell as HTMLElement).dataset.phoneStatus,
+      phase: (shell as HTMLElement).dataset.phonePhase,
       sequence: Number((shell as HTMLElement).dataset.phoneCommitSequence),
       activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
     }));
@@ -683,9 +840,9 @@ async function expectCraneSliceRollback(
     if (state.status === 'stable' && state.scene === target) {
       throw new Error(`Withheld Crane proof committed ${target}: ${JSON.stringify(state)}`);
     }
-    if (state.activation && !handledActivation) {
-      handledActivation = true;
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+    if (state.activation || state.phase === 'awaiting-media-activation') {
+      await failOnContinuousActivation(page, `withheld Crane ${source} → ${target}`);
+      throw new Error(`Withheld Crane ${source} → ${target} entered activation fallback`);
     }
     await page.waitForTimeout(100);
   }
@@ -743,11 +900,11 @@ async function assertCompleteStoryFrame(
     await expect(page.locator('[data-portrait-star-perlin]'))
       .toHaveAttribute('data-portrait-star-perlin', 'ready');
   } else if (scene === 'aod-animation') {
-    await expect(page.locator('[data-aod-figure-canvas]'))
-      .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+    await expect(page.locator('[data-phone-aod-figure-poster]')).toBeVisible();
+    await assertDecodedPoster(page, '[data-phone-aod-figure-poster]');
   } else if (scene === 'figure2-animation') {
-    await expect(page.locator('[data-figure2-packed-alpha-canvas]'))
-      .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+    await expect(page.locator('[data-phone-figure2-poster]')).toBeVisible();
+    await assertDecodedPoster(page, '[data-phone-figure2-poster]');
   } else if (scene === 'figure3-animation') {
     await expect(page.locator('[data-phone-figure3-paper-canvas]'))
       .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
@@ -771,6 +928,7 @@ async function traverseCompleteStoryLeg(
   target: CompleteStoryScene,
   direction: 'forward' | 'reverse'
 ): Promise<RuntimeResourceSample> {
+  await waitForContinuousStoryReady(page);
   const segment = completeStorySegment(source, target);
   const beforeState = await page.locator('.phone-story').evaluate((shell) => ({
     revision: Number((shell as HTMLElement).dataset.phoneRevision),
@@ -811,6 +969,7 @@ async function traverseCompleteStoryLeg(
   await expect(page.locator(effectSelector)).toBeAttached({ timeout: 15_000 });
   await expect(page.locator(effectSelector)).toHaveCount(1);
   await assertSinglePhoneAuthority(page);
+  await assertFormalInkCompositeContribution(page, segment);
 
   for (let boundary = 0; boundary < 8; boundary += 1) {
     const handle = await page.waitForFunction(({ from, to, after }) => {
@@ -824,7 +983,8 @@ async function traverseCompleteStoryLeg(
       };
       return state.scene === to && state.sequence > after
         || state.status === 'stable' && state.scene === from
-        || state.activation || state.phase === 'awaiting-leg-intent'
+        || state.activation || ['awaiting-media-activation', 'awaiting-leg-intent']
+          .includes(state.phase ?? '')
         ? state : null;
     }, { from: source, to: target, after: before }, { timeout: 30_000 });
     const state = await handle.jsonValue();
@@ -834,8 +994,9 @@ async function traverseCompleteStoryLeg(
         `Complete story ${source} → ${target} rolled back: ${JSON.stringify(state)}`
       );
     }
-    if (state.activation) {
-      await page.locator('[data-phone-activation]:not([hidden])').click();
+    if (state.activation || state.phase === 'awaiting-media-activation') {
+      await failOnContinuousActivation(page, `complete story ${source} → ${target}`);
+      throw new Error(`Complete story ${source} → ${target} entered activation fallback`);
     } else if (state.phase === 'awaiting-leg-intent') {
       await sendFrontIntent(page, direction);
     }
@@ -1018,6 +1179,7 @@ async function traverseFront(
   direction: 'forward' | 'reverse',
   observePlaybackEffect = true
 ): Promise<Buffer[]> {
+  await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   await sendFrontIntent(page, direction);
   await page.waitForFunction(({ from, to }) => {
@@ -1025,28 +1187,72 @@ async function traverseFront(
     return shell?.dataset.phoneScene === to
       || shell?.dataset.phoneScene === from && shell.dataset.phoneStatus === 'transaction';
   }, { from: source, to: target });
-  const effect = page.locator('[data-phone-plane="effect"] [data-r4-ink-segment]');
+  const segment = completeStorySegment(source as CompleteStoryScene, target as CompleteStoryScene);
+  const effect = page.locator(
+    `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"]`
+  );
+  if (observePlaybackEffect && source === 'pattern' && target === 'star-map') {
+    const firstLegHandle = await page.waitForFunction(({ from, to }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const state = {
+        scene: shell?.dataset.phoneScene,
+        status: shell?.dataset.phoneStatus,
+        phase: shell?.dataset.phonePhase,
+        faultCode: shell?.dataset.phoneFaultCode
+      };
+      if (state.status === 'faulted'
+        || state.status === 'stable' && state.scene === from
+        || state.scene === to
+        || ['awaiting-leg-intent', 'awaiting-media-activation'].includes(state.phase ?? '')) {
+        return state;
+      }
+      return null;
+    }, { from: source, to: target }, { timeout: 20_000 });
+    const firstLeg = await firstLegHandle.jsonValue();
+    if (firstLeg.phase !== 'awaiting-leg-intent') {
+      throw new Error(
+        `Front ${source} → ${target} did not reach the Pattern collapse boundary: ${JSON.stringify(firstLeg)}`
+      );
+    }
+    await sendFrontIntent(page, direction);
+  }
   if (observePlaybackEffect) {
     await expect(effect).toBeAttached();
     await expect(effect).toHaveAttribute('data-r4-ink-effect-only', 'true');
+    await assertFormalInkCompositeContribution(page, segment);
   }
   const frames: Buffer[] = [await page.screenshot()];
   for (let index = 0; index < 10; index += 1) {
     await nextAnimationFrame(page);
     frames.push(await page.screenshot());
   }
-  await page.waitForFunction(({ to }) => {
+  const boundaryHandle = await page.waitForFunction(({ from, to }) => {
     const shell = document.querySelector<HTMLElement>('.phone-story');
-    return shell?.dataset.phoneScene === to
-      || ['awaiting-leg-intent', 'awaiting-media-activation']
-        .includes(shell?.dataset.phonePhase ?? '');
-  }, { to: target }, { timeout: 20_000 });
-  const boundary = await page.locator('.phone-story').getAttribute('data-phone-phase');
+    const state = {
+      scene: shell?.dataset.phoneScene,
+      status: shell?.dataset.phoneStatus,
+      phase: shell?.dataset.phonePhase,
+      faultCode: shell?.dataset.phoneFaultCode,
+      revision: shell?.dataset.phoneRevision,
+      activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+    };
+    return state.scene === to || state.status === 'faulted'
+      || state.status === 'stable' && state.scene === from
+      || ['awaiting-leg-intent', 'awaiting-media-activation'].includes(state.phase ?? '')
+      ? state : null;
+  }, { from: source, to: target }, { timeout: 20_000 });
+  const boundaryState = await boundaryHandle.jsonValue();
+  if (boundaryState.status === 'faulted') {
+    throw new Error(`Front ${source} → ${target} faulted: ${JSON.stringify(boundaryState)}`);
+  }
+  if (boundaryState.status === 'stable' && boundaryState.scene === source) {
+    throw new Error(`Front ${source} → ${target} rolled back: ${JSON.stringify(boundaryState)}`);
+  }
+  const boundary = boundaryState.phase;
   if (boundary === 'awaiting-leg-intent') await sendFrontIntent(page, direction);
   if (boundary === 'awaiting-media-activation') {
-    const activation = page.locator('[data-phone-activation]');
-    await expect(activation).toBeVisible();
-    await activation.click();
+    await failOnContinuousActivation(page, `Front ${source} → ${target}`);
+    throw new Error(`Front ${source} → ${target} entered activation fallback`);
   }
   try {
     await page.waitForFunction(({ scene, after }) => {
@@ -1137,6 +1343,12 @@ test('Hero Loader handoff starts at zero under one fixed opaque topology', async
   await expect(hero).toHaveAttribute('data-phone-hero-images', 'decoded');
   const loader = page.locator('[data-story-loader="true"]');
   await expect(loader).toHaveAttribute('data-loader-status', 'exiting', { timeout: 10_000 });
+  await page.waitForFunction(() => {
+    const loader = document.querySelector<HTMLElement>('[data-story-loader="true"]');
+    const hero = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--hero');
+    return loader?.dataset.loaderStatus === 'exiting'
+      && Number(hero?.dataset.heroProgress ?? 1) < 1;
+  }, undefined, { timeout: 2_000 });
   const allExitFrames: Buffer[] = [];
   for (let frame = 0; frame < 12; frame += 1) {
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
@@ -1190,7 +1402,7 @@ test('Pattern viewport and coverage stay globally owned through a live resize', 
   await waitForCommitSequence(page, 'pattern', 0);
   await expect(page.locator('.portrait-scroll-spike__scene--pattern'))
     .toHaveAttribute('data-phone-pattern-frame', 'ready');
-  await assertTargetContentVisible(page, ['#portrait-spike-pattern-title']);
+  await assertTargetContentVisible(page, FRONT_CONTENT.pattern);
 
   for (const size of [{ width: 393, height: 852 }, { width: 390, height: 720 }]) {
     await page.setViewportSize(size);
@@ -1217,8 +1429,82 @@ test('Front direct Star Map exposes a causal rotated Canvas frame and content', 
     .toHaveAttribute('data-portrait-star-perlin', 'ready');
   await expect(page.locator('[data-portrait-star-perlin]'))
     .toHaveAttribute('data-portrait-star-camera', 'rotate(-90deg) cover');
+  const samples = [await readStarPerlinLuminance(page)];
+  await page.waitForTimeout(1_100);
+  samples.push(await readStarPerlinLuminance(page));
+  await page.waitForTimeout(1_100);
+  samples.push(await readStarPerlinLuminance(page));
+  expect(samples.every(({ revision, meanLuminance }) => (
+    Number.isFinite(revision) && Number.isFinite(meanLuminance)
+  ))).toBe(true);
+  expect(samples.at(-1)!.revision).toBeGreaterThan(samples[0]!.revision);
+  const luminanceRange = Math.max(...samples.map(({ meanLuminance }) => meanLuminance))
+    - Math.min(...samples.map(({ meanLuminance }) => meanLuminance));
+  expect(luminanceRange, `Star Map Perlin samples: ${JSON.stringify(samples)}`).toBeGreaterThan(0.5);
   await assertTargetContentVisible(page, FRONT_CONTENT['star-map']);
   await assertNoWhiteOrTransparentViewportEdges(page);
+});
+
+test('AOD only advances its packed-alpha source after its outgoing trusted input', async ({
+  page
+}) => {
+  await page.goto('/#aod-animation', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'aod-animation', 0);
+  await expect(page.locator('[data-phone-aod-figure-poster]')).toBeVisible();
+  const playback = page.waitForFunction(() => new Promise<readonly {
+    currentTime: number; frame: number;
+  }[]>((resolve, reject) => {
+    const samples: { currentTime: number; frame: number }[] = [];
+    const deadline = window.setTimeout(() => {
+      reject(new Error(`AOD source playback did not advance: ${JSON.stringify({
+        shell: { ...document.querySelector<HTMLElement>('.phone-story')?.dataset },
+        activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])')),
+        video: (() => {
+          const node = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+          return node ? { currentTime: node.currentTime, paused: node.paused, dataset: { ...node.dataset } } : null;
+        })(),
+        canvas: (() => {
+          const node = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
+          return node ? { dataset: { ...node.dataset } } : null;
+        })()
+      })}`));
+    }, 10_000);
+    const sample = () => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+      const canvas = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
+      const frame = Number.parseInt(canvas?.dataset.packedAlphaFrame ?? '', 10);
+      if (shell?.dataset.phoneStatus === 'faulted'
+        || document.querySelector('[data-phone-activation]:not([hidden])')) {
+        clearTimeout(deadline);
+        reject(new Error('AOD playback entered a failure fallback'));
+        return;
+      }
+      if (video && !video.paused && video.currentTime > .01 && Number.isFinite(frame)) {
+        const previous = samples.at(-1);
+        if (!previous || previous.currentTime !== video.currentTime || previous.frame !== frame) {
+          samples.push({ currentTime: video.currentTime, frame });
+        }
+      }
+      const first = samples[0];
+      const latest = samples.at(-1);
+      if (samples.length >= 3 && first && latest
+        && latest.currentTime > first.currentTime
+        && latest.frame > first.frame) {
+        clearTimeout(deadline);
+        resolve(samples);
+        return;
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+  await sendFrontIntent(page, 'forward');
+  const samples = await (await playback).jsonValue();
+  expect(samples.at(-1)!.currentTime).toBeGreaterThan(samples[0]!.currentTime);
+  expect(samples.at(-1)!.frame).toBeGreaterThan(samples[0]!.frame);
+  await waitForCommitSequence(page, 'method-top', before);
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
 });
 
 test('Grade A direct entries expose the requested target before Loader retirement', async ({
@@ -1235,8 +1521,8 @@ test('Grade A direct entries expose the requested target before Loader retiremen
     await expect(page.locator('[data-story-loader="true"]'))
       .toHaveAttribute('data-loader-status', 'hidden');
     if (scene === 'figure2-animation') {
-      await expect(page.locator('[data-figure2-packed-alpha-canvas]'))
-        .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+      await expect(page.locator('[data-phone-figure2-poster]')).toBeVisible();
+      await assertDecodedPoster(page, '[data-phone-figure2-poster]');
       await expect(page.locator('[data-stage-retained-figure2-arch="true"]'))
         .toHaveCount(1);
       expect(await page.locator('[data-stage-retained-figure2-arch="true"]')
@@ -1369,36 +1655,30 @@ test('Figure3 slice rejects one native chunk URL without retrying it in the Docu
   }
 });
 
-test('Figure3 slice refuses a withheld terminal compositor frame', async ({ page }) => {
+test('Figure3 slice rolls back a withheld terminal compositor frame without a CTA', async ({ page }) => {
   const withhold = await withholdFigure3Endpoint(page, 'terminal');
   await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'brand', 0);
+  await waitForContinuousStoryReady(page);
   await withhold();
   await sendFrontIntent(page, 'forward');
   await expect(page.locator('[data-phone-figure3-paper-canvas]')).toBeAttached();
-  const activation = page.locator('[data-phone-activation]:not([hidden])');
-  await expect(activation).toBeVisible();
-  await activation.click();
-  await expect(activation).toBeVisible();
-  await expect(page.locator('.phone-story'))
-    .toHaveAttribute('data-phone-phase', 'awaiting-media-activation');
+  await waitForContinuousSourceRestore(page, 'brand', before, 'withheld Figure3 terminal');
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
   expect(await readCommitSequence(page)).toBe(before);
   await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.brand);
 });
 
-test('Figure3 slice refuses a withheld initial compositor frame on reverse', async ({ page }) => {
+test('Figure3 slice rolls back a withheld initial compositor frame without a CTA', async ({ page }) => {
   const withhold = await withholdFigure3Endpoint(page, 'initial');
   await page.goto('/#services', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'services', 0);
+  await waitForContinuousStoryReady(page);
   await withhold();
   await sendFrontIntent(page, 'reverse');
   await expect(page.locator('[data-phone-figure3-paper-canvas]')).toBeAttached();
-  const activation = page.locator('[data-phone-activation]:not([hidden])');
-  await expect(activation).toBeVisible();
-  await activation.click();
-  await expect(activation).toBeVisible();
-  await expect(page.locator('.phone-story'))
-    .toHaveAttribute('data-phone-phase', 'awaiting-media-activation');
+  await waitForContinuousSourceRestore(page, 'services', before, 'withheld Figure3 initial');
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
   expect(await readCommitSequence(page)).toBe(before);
   await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.services);
 });
@@ -1439,6 +1719,7 @@ test('Figure3 slice restores its proved source after background and foreground',
     waitUntil: 'domcontentloaded'
   });
   const before = await waitForCommitSequence(page, 'figure3-animation', 0);
+  await waitForContinuousStoryReady(page);
   await sendFrontIntent(page, 'forward');
   await expect(page.locator('[data-phone-transition="figure3-services"]')).toBeAttached();
   await page.evaluate(() => (
@@ -1453,23 +1734,9 @@ test('Figure3 slice restores its proved source after background and foreground',
       __r5SetVisibility(next: DocumentVisibilityState): void;
     }
   ).__r5SetVisibility('visible'));
-  for (let activationAttempt = 0; activationAttempt < 3; activationAttempt += 1) {
-    const state = await page.waitForFunction(({ sequence }) => {
-      const shell = document.querySelector<HTMLElement>('.phone-story');
-      if (shell?.dataset.phoneStatus === 'stable'
-        && Number(shell.dataset.phoneCommitSequence) === sequence) return 'stable';
-      if (document.querySelector('[data-phone-activation]:not([hidden])')) return 'activation';
-      return null;
-    }, { sequence: before }, { timeout: 15_000 });
-    if (await state.jsonValue() === 'stable') break;
-    await page.locator('[data-phone-activation]:not([hidden])').click();
-  }
-  await page.waitForFunction(({ sequence }) => {
-    const shell = document.querySelector<HTMLElement>('.phone-story');
-    return shell?.dataset.phoneStatus === 'stable'
-      && shell.dataset.phoneScene === 'figure3-animation'
-      && Number(shell.dataset.phoneCommitSequence) === sequence;
-  }, { sequence: before });
+  await waitForContinuousSourceRestore(
+    page, 'figure3-animation', before, 'Figure3 background restore'
+  );
   await expect(page.locator('[data-phone-figure3-paper-canvas]'))
     .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
   await traverseFigure3Slice(
@@ -1612,6 +1879,7 @@ test('Group 4-5 restores proved TTG after visibility and BFCache lifecycle event
   });
   await page.goto('/#ttg-animation', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'ttg-animation', 0);
+  await waitForContinuousStoryReady(page);
   await sendFrontIntent(page, 'forward');
   await expect(page.locator('[data-phone-transition="ttg-lab"]')).toBeAttached();
   await page.evaluate(() => {
@@ -1623,18 +1891,7 @@ test('Group 4-5 restores proved TTG after visibility and BFCache lifecycle event
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     api.__r5SetVisibility('visible');
   });
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const state = await page.waitForFunction(({ sequence }) => {
-      const shell = document.querySelector<HTMLElement>('.phone-story');
-      if (shell?.dataset.phoneStatus === 'stable'
-        && shell.dataset.phoneScene === 'ttg-animation'
-        && Number(shell.dataset.phoneCommitSequence) === sequence) return 'stable';
-      if (document.querySelector('[data-phone-activation]:not([hidden])')) return 'activation';
-      return null;
-    }, { sequence: before }, { timeout: 15_000 });
-    if (await state.jsonValue() === 'stable') break;
-    await page.locator('[data-phone-activation]:not([hidden])').click();
-  }
+  await waitForContinuousSourceRestore(page, 'ttg-animation', before, 'TTG background restore');
   await expect(page.locator('[data-ttg-figure-video]'))
     .toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
   await traverseGroup45(page, 'ttg-animation', 'lab', 'forward');
@@ -1995,7 +2252,7 @@ test('Crane slice re-proves both surfaces across visibility, BFCache, and orient
   await traverseCraneSlice(page, 'education', 'crane-animation', 'forward');
 });
 
-test('Group 6-7 direct Contact is minimal, post-paint visible, and natively interactive', async ({
+test('Group 6-7 direct Contact is resource-minimal, adjacent-prewarmed, and natively interactive', async ({
   page
 }) => {
   await page.goto('/#contact', {
@@ -2034,7 +2291,7 @@ test('Group 6-7 direct Contact is minimal, post-paint visible, and natively inte
     .map(({ name }) => name).filter((name) => /\/assets\/[^/]+\.js(?:$|\?)/.test(name)));
   expect(chunks.some((name) => /\/PhoneContact-[^/]+\.js/.test(name))).toBe(true);
   expect(chunks.some((name) => /\/(?:PhoneCrane|crane-contact)-[^/]+\.js/.test(name)))
-    .toBe(false);
+    .toBe(true);
 });
 
 test('Group 6-7 Crane ↔ Contact commits twice with native input release and no growth', async ({
@@ -2289,6 +2546,39 @@ test('withheld requestVideoFrameCallback cannot expose Figure3 and restores Bran
   }
 });
 
+test('Pattern advances its collapse leg before its radial Ink leg contributes pixels', async ({ page }) => {
+  await page.goto('/#pattern', { waitUntil: 'domcontentloaded' });
+  const before = await waitForCommitSequence(page, 'pattern', 0);
+  const effect = page.locator(
+    '[data-phone-plane="effect"] [data-r4-ink-segment="pattern-star-map"]'
+  );
+
+  await sendFrontIntent(page, 'forward');
+  const firstLegHandle = await page.waitForFunction(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    const state = {
+      scene: shell?.dataset.phoneScene,
+      status: shell?.dataset.phoneStatus,
+      phase: shell?.dataset.phonePhase,
+      faultCode: shell?.dataset.phoneFaultCode
+    };
+    return state.phase === 'awaiting-leg-intent' || state.status === 'faulted'
+      || state.status === 'stable' ? state : null;
+  }, undefined, { timeout: 20_000 });
+  const firstLeg = await firstLegHandle.jsonValue();
+  expect(firstLeg).toMatchObject({
+    scene: 'pattern', status: 'transaction', phase: 'awaiting-leg-intent'
+  });
+  await expect(effect).toBeAttached();
+  await expect(effect).toBeHidden();
+
+  await sendFrontIntent(page, 'forward');
+  await expect(effect).toBeVisible({ timeout: 10_000 });
+  await assertFormalInkCompositeContribution(page, 'pattern-star-map');
+  await waitForCommitSequence(page, 'star-map', before);
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+});
+
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {
   await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'hero', 0);
@@ -2304,8 +2594,11 @@ test('Front reduced motion still reaches one fully proven target hold', async ({
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'hero', 0);
+  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-reduced-motion', 'true');
   await traverseFront(page, 'hero', 'pattern', 'forward', false);
   await expect(page.locator('.portrait-scroll-spike__pattern-copy')).toHaveCSS('opacity', '1');
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'stable');
 });
 
 test('Front Ink failure rolls back to the fully proved source without committing target', async ({ page }) => {

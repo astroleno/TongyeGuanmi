@@ -7,6 +7,58 @@ import {
 } from 'react';
 import type { PhoneLeafReportPort } from './presentation';
 import type { PhoneSceneId } from './manifest';
+import type { PhoneStorySnapshot } from './protocol';
+
+export function phoneDiagnosticMissingProofs(snapshot: PhoneStorySnapshot): readonly string[] {
+  if (snapshot.status !== 'transaction') return [];
+  const required = snapshot.transaction.requiredFinal.length
+    ? snapshot.transaction.requiredFinal : snapshot.transaction.requiredPrepared;
+  return required.filter((slot) => !snapshot.transaction.evidence.some((record) => (
+    record.slot.kind === slot.kind && record.slot.leg === slot.leg
+      && record.slot.surfaceId === slot.surfaceId
+      && record.slot.planeRevision === slot.planeRevision
+  ))).map(({ kind }) => kind);
+}
+
+export function phoneDiagnosticActivationSurfaces(snapshot: PhoneStorySnapshot): readonly string[] {
+  if (snapshot.status !== 'transaction') return [];
+  return snapshot.transaction.closure.mount.filter((mount) => mount.includes('video') && (
+    snapshot.transaction.mode !== 'segment' || mount.startsWith('source:')
+  )).map((mount) => mount.slice(mount.indexOf(':') + 1));
+}
+
+export function phoneDiagnosticBlockedBy(snapshot: PhoneStorySnapshot):
+  'module' | 'activation' | 'prepared-proof' | 'frame-proof' | 'presentation' | 'none' {
+  if (snapshot.status === 'faulted') {
+    const code = snapshot.fault.code;
+    if (code.includes('module') || code.includes('chunk')) return 'module';
+    if (code.includes('activation')) return 'activation';
+    if (code.includes('media') || code.includes('firstFrame')) return 'prepared-proof';
+    if (code.includes('presentation') || code.includes('plane') || code.includes('scroll')) return 'presentation';
+    return 'none';
+  }
+  if (snapshot.status !== 'transaction') return 'none';
+  const missing = phoneDiagnosticMissingProofs(snapshot);
+  if (snapshot.transaction.phase === 'awaiting-media-activation'
+    || snapshot.transaction.activation === 'awaiting') return 'activation';
+  if (missing.includes('module-loaded')) return 'module';
+  if (missing.some((kind) => ['image-decoded', 'video-decoded', 'canvas-drawn', 'static-ready'].includes(kind))) return 'prepared-proof';
+  if (missing.some((kind) => ['frame-visible', 'content-visible', 'coverage-visible'].includes(kind))) return 'frame-proof';
+  return snapshot.transaction.requiredFinal.length ? 'presentation' : 'none';
+}
+
+export function phoneDiagnosticFailureCode(snapshot: PhoneStorySnapshot): string | undefined {
+  if (snapshot.status === 'faulted') return snapshot.fault.code;
+  if (snapshot.status !== 'transaction') return undefined;
+  if (snapshot.transaction.failure?.code) return snapshot.transaction.failure.code;
+  if (snapshot.transaction.phase === 'awaiting-media-activation') return 'media-activation-timeout';
+  switch (snapshot.transaction.deadline?.operation) {
+    case 'moduleLoad': return 'module-load-timeout';
+    case 'mediaPrepare': case 'firstFrame': return 'media-prepare-timeout';
+    case 'planeApply': case 'scrollConfirm': return 'presentation-proof-timeout';
+    default: return undefined;
+  }
+}
 
 export type PhoneSceneLeafProps = Readonly<{ reports: PhoneLeafReportPort }>;
 export type PhoneSceneReadingProps = Readonly<{ sceneId: string }>;

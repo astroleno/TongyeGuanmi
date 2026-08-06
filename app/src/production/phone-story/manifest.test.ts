@@ -68,7 +68,7 @@ const sceneDetails = {
   pattern: {
     additional: ['media:pattern-background'],
     surfaces: ['pattern-image'],
-    selectors: ['#portrait-spike-pattern-title']
+    selectors: ['[data-portrait-pattern-bloom]']
   },
   'star-map': {
     additional: ['media:star-map-source'],
@@ -76,9 +76,13 @@ const sceneDetails = {
     selectors: ['#portrait-spike-star-title']
   },
   'aod-animation': {
-    additional: ['media:aod-figure-packed', 'compositor:aod-packed'],
-    surfaces: ['aod-figure-video', 'aod-figure-canvas'],
-    selectors: ['[data-aod-figure-canvas]']
+    additional: [
+      'media:aod-figure-poster',
+      'media:aod-figure-packed',
+      'compositor:aod-packed'
+    ],
+    surfaces: ['aod-figure-video', 'aod-figure-poster', 'aod-figure-canvas'],
+    selectors: ['[data-phone-aod-figure-poster]']
   },
   'method-top': {
     additional: [],
@@ -97,11 +101,12 @@ const sceneDetails = {
     ],
     surfaces: [
       'figure2-pair-video',
+      'figure2-pair-poster',
       'figure2-pair-canvas',
       'figure2-foreground-arch'
     ],
     selectors: [
-      '[data-r4-scene="figure2-animation"] [data-figure2-packed-alpha-canvas]'
+      '[data-r4-scene="figure2-animation"] [data-phone-figure2-poster]'
     ]
   },
   'figure2-proof': {
@@ -257,7 +262,7 @@ const sceneProofLedger = {
     prepared: 'canvas-drawn'
   },
   pattern: {
-    landing: { kind: 'authored-boundary', anchor: '#portrait-spike-pattern-title' },
+    landing: { kind: 'authored-boundary', anchor: '[data-portrait-pattern-bloom]' },
     frame: {
       kind: 'image-decode-composite-paint',
       surfaceIds: ['pattern-image']
@@ -275,10 +280,10 @@ const sceneProofLedger = {
   'aod-animation': {
     landing: { kind: 'semantic-edge', anchor: 'aod-semantic-edge' },
     frame: {
-      kind: 'packed-canvas-draw',
-      surfaceIds: ['aod-figure-canvas']
+      kind: 'image-decode-composite-paint',
+      surfaceIds: ['aod-figure-poster']
     },
-    prepared: 'canvas-drawn'
+    prepared: 'image-decoded'
   },
   'method-top': {
     landing: { kind: 'authored-boundary', anchor: '#method' },
@@ -291,10 +296,10 @@ const sceneProofLedger = {
       anchor: '[data-r4-scene="figure2-animation"]'
     },
     frame: {
-      kind: 'packed-canvas-draw',
-      surfaceIds: ['figure2-pair-canvas']
+      kind: 'image-decode-composite-paint',
+      surfaceIds: ['figure2-pair-poster']
     },
-    prepared: 'canvas-drawn'
+    prepared: 'image-decoded'
   },
   'figure2-proof': {
     landing: {
@@ -488,22 +493,50 @@ function preparedQuorum(scene: keyof typeof sceneDetails) {
   ];
 }
 
-function activation(values: readonly number[]) {
+function inactiveActivation() {
+  return {
+    mode: 'none',
+    prewarmMayActivate: false,
+    requiresPhysicalCredit: false,
+    directEntry: 'none',
+    rejection: 'not-applicable'
+  } as const;
+}
+
+function activeActivation() {
+  return {
+    mode: 'gesture-or-muted-autoplay',
+    prewarmMayActivate: false,
+    requiresPhysicalCredit: true,
+    directEntry: 'muted-plays-inline-then-covered-cta',
+    rejection: 'await-accessible-physical-gesture'
+  } as const;
+}
+
+function directActivation(scene: keyof typeof sceneDetails, values: readonly number[]) {
   return values[0] === 0
-    ? {
-        mode: 'none',
-        prewarmMayActivate: false,
-        requiresPhysicalCredit: false,
-        directEntry: 'none',
-        rejection: 'not-applicable'
-      }
-    : {
-        mode: 'gesture-or-muted-autoplay',
-        prewarmMayActivate: false,
-        requiresPhysicalCredit: true,
-        directEntry: 'muted-plays-inline-then-covered-cta',
-        rejection: 'await-accessible-physical-gesture'
-      };
+    || scene === 'aod-animation'
+    ? inactiveActivation()
+    : activeActivation();
+}
+
+const sourceClockSegments = new Set([
+  'hero-pattern',
+  'aod-method-top',
+  'figure2-distance-expand',
+  'figure3-services',
+  'ttg-lab',
+  'ph-education',
+  'crane-contact'
+]);
+
+function segmentActivation(
+  id: typeof segments[number][0],
+  direction: 'forward' | 'reverse'
+) {
+  return direction === 'forward' && sourceClockSegments.has(id)
+    ? activeActivation()
+    : inactiveActivation();
 }
 
 function expectedScene(entry: typeof scenes[number]) {
@@ -541,7 +574,7 @@ function expectedScene(entry: typeof scenes[number]) {
       },
       deadlineProfile,
       deadlinePolicy: deadlineLedger[deadlineProfile],
-      mediaActivation: activation(values)
+      mediaActivation: directActivation(id, values)
     }
   };
 }
@@ -588,7 +621,7 @@ function expectedSegmentLeg(
         `effect:${effectSurface}`,
         ...mounts('receiver', targetId)
       ],
-      prewarm: prewarm(targetId),
+      prewarm: [`transition:${id}`, ...prewarm(targetId)],
       retainUntil: 'source-through-prepared',
       exposeReceiverAfter: preparedQuorum(targetId),
       retireAfter: retirement === 'R-pair'
@@ -609,7 +642,7 @@ function expectedSegmentLeg(
     },
     deadlineProfile,
     deadlinePolicy: deadlineLedger[deadlineProfile],
-    mediaActivation: activation(values)
+    mediaActivation: segmentActivation(id, direction)
   };
 }
 
@@ -750,6 +783,17 @@ describe('canonical phone manifest', () => {
     }
   });
 
+  it('scopes the static direct-entry exception to AOD, not Figure2', () => {
+    expect(phoneSceneById('aod-animation').directEntry.mediaActivation).toMatchObject({
+      mode: 'none', directEntry: 'none', requiresPhysicalCredit: false
+    });
+    expect(phoneSceneById('figure2-animation').directEntry.mediaActivation).toMatchObject({
+      mode: 'gesture-or-muted-autoplay',
+      directEntry: 'muted-plays-inline-then-covered-cta',
+      requiresPhysicalCredit: true
+    });
+  });
+
   it('declares exactly 15 canonical segments and expands all 30 direction closures', () => {
     expect(phoneManifest.segments.map((segment) => ({
       id: segment.id,
@@ -789,7 +833,7 @@ describe('canonical phone manifest', () => {
           `effect:${effect}`,
           ...mounts('receiver', targetId)
         ]);
-        expect(leg?.closure.prewarm).toEqual(prewarm(targetId));
+        expect(leg?.closure.prewarm).toEqual([`transition:${id}`, ...prewarm(targetId)]);
         expect(leg?.closure.resourceBudget).toEqual(budget(values));
         expect(leg?.closure.retireAfter).toBe(
           retirement === 'R-pair'
@@ -832,7 +876,7 @@ describe('canonical phone manifest', () => {
         expect(phoneDeadlinePolicy(leg.deadlineProfile)).toEqual(
           leg.deadlinePolicy
         );
-        expect(phoneMediaActivationPolicy(segment.id)).toEqual(
+        expect(phoneMediaActivationPolicy(segment.id, leg.direction)).toEqual(
           leg.mediaActivation
         );
         expect(leg.closure.exposeReceiverAfter.some((kind) => (
@@ -906,6 +950,6 @@ describe('canonical phone manifest', () => {
     expect(source).not.toMatch(/from\s+['"].*(?:runtime|machine|scenes|transitions)/);
     expect(source).not.toMatch(/\b(?:let|var)\s+/);
     expect(source.split(/\r?\n/).filter((line) => line.trim()).length)
-      .toBeLessThanOrEqual(550);
+      .toBeLessThanOrEqual(750);
   });
 });

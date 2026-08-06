@@ -61,21 +61,13 @@ test('initial phone core delay preserves the static Loader until one clean autho
   }
 });
 
-test('offline direct entry waits before its first native leaf import and resumes in-document', async ({
+test('offline hint does not block a reachable direct-entry native leaf import', async ({
   page
 }) => {
   await page.addInitScript(() => {
-    let online = false;
     Object.defineProperty(navigator, 'onLine', {
       configurable: true,
-      get: () => online
-    });
-    Object.defineProperty(window, '__r5RestoreOnline', {
-      configurable: true,
-      value: () => {
-        online = true;
-        window.dispatchEvent(new Event('online'));
-      }
+      get: () => false
     });
   });
   let requests = 0;
@@ -86,11 +78,6 @@ test('offline direct entry waits before its first native leaf import and resumes
   await page.goto('/#figure3-animation', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.phone-story')).toBeAttached();
   await expect(page.locator('[data-story-loader="true"]')).toBeVisible();
-  await page.waitForTimeout(500);
-  expect(requests).toBe(0);
-  await page.evaluate(() => (
-    window as typeof window & { __r5RestoreOnline(): void }
-  ).__r5RestoreOnline());
   await waitForCommitSequence(page, 'figure3-animation', 0);
   expect(requests).toBe(1);
   expect(await page.evaluate(() => performance.getEntriesByType('navigation').length)).toBe(1);
@@ -285,51 +272,43 @@ test('a superseded late scene response cannot satisfy or replace the newer direc
   }
 });
 
-test('AOD direct activation requires a causal packed Canvas draw', async ({ page }) => {
+test('AOD direct entry proves its immutable poster without touching the video decoder', async ({ page }) => {
   await page.goto('/#aod-animation', {
     waitUntil: 'domcontentloaded'
   });
   await waitForCommitSequence(page, 'aod-animation', 0);
   await assertSinglePhoneAuthority(page);
   const video = page.locator('[data-aod-figure-video]');
-  const canvas = page.locator('[data-aod-figure-canvas]');
+  const poster = page.locator('[data-phone-aod-figure-poster]');
   await expect(video).toHaveJSProperty('muted', true);
   await expect(video).toHaveJSProperty('playsInline', true);
-  await expect(canvas).toHaveAttribute('data-packed-alpha-frame-ready', 'true');
-  await expect(page.locator('.portrait-scroll-spike__scene--aod'))
-    .toHaveAttribute('data-phone-aod-frame', 'verified');
+  await expect(poster).toBeVisible();
+  await page.waitForFunction(() => {
+    const image = document.querySelector<HTMLImageElement>('[data-phone-aod-figure-poster]');
+    return image?.complete === true && image.naturalWidth > 0 && image.naturalHeight > 0;
+  });
+  expect(await video.evaluate((element) => element.currentSrc)).toBe('');
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
   await expect(page.locator('[data-story-loader="true"]'))
     .toHaveAttribute('data-loader-status', 'hidden');
 });
 
-test('AOD rejected autoplay stays inert until one real activation gesture', async ({ page }) => {
+test('AOD direct entry never invokes a rejected autoplay before a physical outgoing gesture', async ({ page }) => {
   await page.addInitScript(() => {
-    const originalPlay = HTMLMediaElement.prototype.play;
-    let rejected = false;
+    let calls = 0;
     HTMLMediaElement.prototype.play = function patchedPlay() {
-      if (!rejected && this.matches('[data-aod-figure-video]')) {
-        rejected = true;
-        return Promise.reject(new DOMException('gesture required', 'NotAllowedError'));
-      }
-      return originalPlay.call(this);
+      if (this.matches('[data-aod-figure-video]')) calls += 1;
+      return Promise.reject(new DOMException('gesture required', 'NotAllowedError'));
     };
+    Object.defineProperty(window, '__r5AodPlayCalls', { configurable: true, get: () => calls });
   });
   await page.goto('/#aod-animation', {
     waitUntil: 'domcontentloaded'
   });
-  const shell = page.locator('.phone-story');
-  const activation = page.locator('[data-phone-activation]');
-  await expect(shell).toHaveAttribute('data-phone-status', 'transaction');
-  await expect(page.locator('[data-aod-figure-video]')).toBeAttached();
-  await expect(page.locator('[data-aod-figure-canvas]')).toBeAttached();
-  await expect(activation).toBeVisible();
-  await expect(page.locator('[data-phone-plane="receiver"]'))
-    .toHaveAttribute('data-phone-exposed', 'false');
-  expect(await readCommitSequence(page)).toBe(0);
-
-  await activation.click();
   await waitForCommitSequence(page, 'aod-animation', 0);
-  await expect(page.locator('[data-aod-figure-canvas]'))
-    .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
-  await expect(activation).toBeHidden();
+  expect(await page.evaluate(() => (
+    window as typeof window & { __r5AodPlayCalls: number }
+  ).__r5AodPlayCalls)).toBe(0);
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'stable');
 });

@@ -16,6 +16,7 @@ describe('front-half product media', () => {
       'hero-figure-packed',
       'pattern-background',
       'star-map-source',
+      'aod-figure-poster',
       'aod-figure-packed'
     ]);
     expect(frontHalfProductMediaFor('star-map-source')).toMatchObject({
@@ -29,7 +30,13 @@ describe('front-half product media', () => {
       .toThrow('pattern cannot own hero-figure-packed');
   });
 
-  it('keeps the phone Figure2 packed-alpha source under the canonical scene owner', () => {
+  it('keeps frozen AOD/Figure2 static posters under their canonical scene owners', () => {
+    expect(phoneProductMediaFor('aod-figure-poster')).toEqual({
+      id: 'aod-figure-poster',
+      owner: 'aod-animation',
+      asset: 'aod-figure-opening.webp',
+      kind: 'image'
+    });
     expect(phoneProductMediaFor('figure2-pair-poster')).toEqual({
       id: 'figure2-pair-poster',
       owner: 'figure2-animation',

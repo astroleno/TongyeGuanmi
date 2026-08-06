@@ -73,11 +73,12 @@ describe('clean PhoneAod leaf', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
   });
 
-  it('registers the exact video/Canvas pair and invokes media only through activation', async () => {
+  it('registers a frozen poster before the packed pair and only plays media through activation', async () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
     expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
       ['aod-figure-video', 'video'],
+      ['aod-figure-poster', 'image'],
       ['aod-figure-canvas', 'canvas-webgl']
     ]);
     expect(Object.keys(mount.registration()?.commands ?? {}).sort()).toEqual([
@@ -95,7 +96,8 @@ describe('clean PhoneAod leaf', () => {
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'activation:1',
       surfaceIds: ['aod-figure-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch',
+      playback: false
     });
     expect(surfaceProbe.activate).toHaveBeenCalledTimes(1);
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
@@ -106,6 +108,7 @@ describe('clean PhoneAod leaf', () => {
     await expect(invocation?.settlements[0]?.status === 'pending'
       ? invocation.settlements[0].settled : Promise.reject()).resolves.toBeUndefined();
     expect(surfaceProbe.render).toHaveBeenCalledTimes(1);
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(1);
   });
 
   it('accepts only the current generation draw and tracks a renewed Canvas', async () => {
@@ -116,9 +119,10 @@ describe('clean PhoneAod leaf', () => {
     commands.rebind({ reports: current.reports, frameToken: 'aod:frame:1' });
     commands.activate({
       invocationId: 'activation:1', surfaceIds: ['aod-figure-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
-    const initialCanvas = mount.registration()!.surfaces[1]!.element;
+    expect(mount.registration()!.root.dataset.phoneAodPlaybackFrame).toBe('awaiting');
+    const initialCanvas = mount.registration()!.surfaces[2]!.element;
     surfaceProbe.options?.onFrame?.({
       canvas: initialCanvas as HTMLCanvasElement, generation: 0
     });
@@ -130,10 +134,36 @@ describe('clean PhoneAod leaf', () => {
       'aod-figure-canvas',
       expect.objectContaining({ token: 'aod:frame:1', presented: true })
     );
+    expect(mount.registration()!.root.dataset.phoneAodPlaybackFrame).toBe('ready');
 
     const renewed = document.createElement('canvas');
     surfaceProbe.options?.onCanvasRenewed?.(renewed);
-    expect(mount.registration()!.surfaces[1]!.element).toBe(renewed);
+    expect(mount.registration()!.surfaces[2]!.element).toBe(renewed);
+  });
+
+  it('uses the decoded frozen poster for a static arrival without touching the decoder', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const current = reportFixture();
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: current.reports, frameToken: 'aod:static:1' });
+
+    const poster = host.querySelector<HTMLImageElement>('[data-phone-aod-figure-poster]');
+    expect(poster).not.toBeNull();
+    await act(async () => {
+      poster?.dispatchEvent(new Event('load'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(current.reports.reportPrepared).toHaveBeenCalledWith(
+      'aod-figure-poster', expect.objectContaining({
+        kind: 'image-decoded', ready: true,
+        detail: expect.objectContaining({ posterDecoded: true })
+      })
+    );
+    expect(surfaceProbe.activate).not.toHaveBeenCalled();
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
   });
 
   it('reports compositor failure and contains no legacy autoplay authority', async () => {
@@ -155,7 +185,10 @@ describe('clean PhoneAod leaf', () => {
     ), 'utf8');
     expect(source).not.toMatch(/production\/phone\/(?:aod-autoplay|types|runtime)/);
     expect(source).not.toContain('setTimeout(');
-    expect(source).not.toContain('addEventListener(');
+    expect(source).not.toMatch(/(?:window|document)\.addEventListener\(/);
+    expect(readFileSync(resolve(
+      process.cwd(), 'src/scenes/aod-animation/phone/PhoneAod.css'
+    ), 'utf8')).toContain('[data-phone-aod-playback-frame="ready"]');
   });
 
   it('settles to the authored AOD hold from either transaction direction', async () => {
@@ -166,6 +199,26 @@ describe('clean PhoneAod leaf', () => {
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');
     mount.registration()?.commands.settle(1);
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');
+  });
+
+  it('keeps the canonical figure geometry and makes the first Canvas frame own the live surface', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const scene = host.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod')!;
+    const transition = scene.querySelector<HTMLElement>('[data-aod-transition]')!;
+    commands.render(0.5735);
+
+    expect(transition.style.getPropertyValue('--portrait-aod-figure-cover-scale')).toBe('');
+    expect(transition.style.getPropertyValue('--portrait-aod-figure-shift-y')).toBe('');
+    expect(transition.style.getPropertyValue('--aod-transition-figure-scale')).toBe('1.0000');
+
+    const css = readFileSync(resolve(
+      process.cwd(), 'src/scenes/aod-animation/phone/PhoneAod.css'
+    ), 'utf8');
+    expect(css).toMatch(/\[data-phone-aod-playback-frame="ready"\][\s\S]*?\.aod-transition__reveal-surface::before[\s\S]*?opacity:\s*0\s*!important/s);
+    expect(css).toMatch(/\[data-phone-aod-playback-frame="ready"\][\s\S]*?\.aod-transition__reveal-surface::after[\s\S]*?opacity:\s*0\s*!important/s);
+    expect(css).toMatch(/\[data-phone-aod-playback-frame="ready"\][\s\S]*?\.aod-transition__paper-solid[\s\S]*?opacity:\s*0\s*!important/s);
   });
 
   it('lets the stateless formal bridge await a real forward activation', async () => {

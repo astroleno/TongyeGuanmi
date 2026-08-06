@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PhoneLeafReportPort } from './presentation';
-import type { PhoneStoryEffect } from './protocol';
+import type { PhoneStoryEffect, PhoneStorySnapshot } from './protocol';
 import type {
   PhoneRuntimeHostEvent,
   PhoneStoryRuntimeConfig
@@ -21,6 +21,7 @@ type MockEngine = Readonly<{
   hostEvents: PhoneRuntimeHostEvent[];
   requestEntry: ReturnType<typeof vi.fn>;
   retry: ReturnType<typeof vi.fn>;
+  startVisibleEntrance: ReturnType<typeof vi.fn>;
   getSnapshot(): SnapshotRecord | null;
   subscribe(listener: () => void): () => void;
   connect(): () => void;
@@ -42,6 +43,12 @@ const probe = vi.hoisted(() => ({
 }));
 
 vi.mock('./runtime', () => ({
+  phoneReadingEdges: (owner: Readonly<{
+    scrollTop: number; clientHeight: number; scrollHeight: number;
+  }>) => ({
+    top: owner.scrollTop <= 1,
+    bottom: owner.scrollTop >= Math.max(0, owner.scrollHeight - owner.clientHeight) - 1
+  }),
   createPhoneStoryRuntime: vi.fn((config: PhoneStoryRuntimeConfig) => {
     const id = probe.engines.length + 1;
     const subscribers = new Set<() => void>();
@@ -59,6 +66,7 @@ vi.mock('./runtime', () => ({
       disconnectCount: 0,
       requestEntry: vi.fn(),
       retry: vi.fn(),
+      startVisibleEntrance: vi.fn(),
       getSnapshot: () => snapshot,
       subscribe: (listener: () => void) => {
         subscribers.add(listener);
@@ -95,6 +103,7 @@ vi.mock('./runtime', () => ({
       }),
       publish: (next: SnapshotRecord) => {
         snapshot = next;
+        config.environment.observePublish?.(next as PhoneStorySnapshot);
         subscribers.forEach((listener) => listener());
       }
     };
@@ -132,6 +141,10 @@ vi.mock('./scenes', async () => {
   const actual = await vi.importActual<typeof import('./scenes')>('./scenes');
   return {
     createPhoneSceneTopology: actual.createPhoneSceneTopology,
+    phoneDiagnosticActivationSurfaces: actual.phoneDiagnosticActivationSurfaces,
+    phoneDiagnosticBlockedBy: actual.phoneDiagnosticBlockedBy,
+    phoneDiagnosticFailureCode: actual.phoneDiagnosticFailureCode,
+    phoneDiagnosticMissingProofs: actual.phoneDiagnosticMissingProofs,
     loadPhoneSceneModule: vi.fn(async () => ({
       default: () => null,
       phoneSceneId: 'hero' as const
@@ -175,9 +188,10 @@ vi.mock('../StoryLoader', async () => {
 vi.mock('../StoryNav', async () => {
   const { createElement } = await import('react');
   return {
-    StoryNav: (props: Readonly<{ onNavigate(sceneId: string): void }>) => createElement('button', {
+    StoryNav: (props: Readonly<{ visible: boolean; onNavigate(sceneId: string): void }>) => createElement('button', {
       type: 'button',
       'data-phone-nav-contact': 'true',
+      'data-phone-nav-visible': String(props.visible),
       onClick: () => props.onNavigate('contact')
     }, 'contact')
   };
@@ -247,6 +261,36 @@ function stableSnapshot(): SnapshotRecord {
     presentationProof: { commitSequence: 1, planeRevision: 1 },
     scroll: { x: 0, y: 0, sampledAt: 0, origin: 'runtime' },
     input: { enabled: true }
+  };
+}
+
+function methodReadingSnapshot(): SnapshotRecord {
+  return {
+    ...stableSnapshot(),
+    stableCommit: { sceneId: 'method-top', landing: {}, commitSequence: 5 },
+    presentationProof: { commitSequence: 5, planeRevision: 5 },
+    lastPlaneRevision: 5
+  };
+}
+
+function methodToolbarReprojectSnapshot(): SnapshotRecord {
+  const stable = methodReadingSnapshot();
+  const activeAttempt = Object.freeze({
+    authorityId: 'test-authority', transactionId: 'test:6:method-toolbar',
+    transactionGeneration: 6, mode: 'recovery', sceneId: 'method-top',
+    segmentId: null, direction: null
+  });
+  return {
+    ...stable,
+    status: 'transaction',
+    stateRevision: 6,
+    transaction: {
+      mode: 'recovery', phase: 'presenting-source', attempt: activeAttempt,
+      sourceSceneId: 'method-top', candidateSceneId: 'method-top', stageIndex: 0,
+      planeRevision: 6, commitIntent: 'reproject',
+      requiredPrepared: [], requiredFinal: [], evidence: loadedEvidence(activeAttempt), progress: 0,
+      closure: { load: [], mount: [], prewarm: [], resourceBudget: {} }
+    }
   };
 }
 
@@ -429,6 +473,13 @@ function connectedEngine(): MockEngine {
   return engine;
 }
 
+function revealStableStory(engine = connectedEngine()): void {
+  act(() => engine.publish(stableSnapshot()));
+  const hidden = probe.loaderProps.at(-1)?.onHidden;
+  if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+  act(() => hidden('ready'));
+}
+
 function reportPortProbe(reportFailure = vi.fn()): PhoneLeafReportPort {
   return Object.freeze({
     registerMount: vi.fn(),
@@ -453,6 +504,13 @@ beforeEach(() => {
   probe.snapshot = bootSnapshot();
   document.body.replaceChildren();
   delete document.documentElement.dataset.phonePreboot;
+  delete document.documentElement.dataset.storyHydrated;
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: vi.fn(() => ({ matches: false } as MediaQueryList))
+  });
+  window.history.replaceState(null, '', '/');
+  delete (window as typeof window & { __r5PhoneRuntimeLog?: unknown }).__r5PhoneRuntimeLog;
   vi.clearAllMocks();
   vi.mocked(loadPhoneSceneModule).mockResolvedValue({
     default: () => null,
@@ -486,11 +544,13 @@ describe('clean PhoneStoryShell ownership', () => {
     ));
 
     expect(document.documentElement.dataset.phonePreboot).toBe('mounted');
+    expect(document.documentElement.dataset.storyHydrated).toBe('true');
     expect(host.querySelector('.phone-story')?.getAttribute('data-phone-implementation'))
       .toBe('clean-v1');
 
     act(() => root.unmount());
     expect(document.documentElement.dataset.phonePreboot).toBeUndefined();
+    expect(document.documentElement.dataset.storyHydrated).toBeUndefined();
   });
 
   it('replays real StrictMode layout effects without overlapping browser ownership', () => {
@@ -538,6 +598,148 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
+  it('starts Hero only with Loader exit and keeps story input disabled until hidden', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(stableSnapshot()));
+    const shell = host.querySelector('.phone-story');
+    expect(shell?.getAttribute('data-phone-interaction')).toBe('disabled');
+    const loader = probe.loaderProps.at(-1)!;
+    act(() => (loader.onExitStart as (reason: string) => void)('ready'));
+    expect(engine.startVisibleEntrance).toHaveBeenCalledTimes(1);
+    expect(shell?.getAttribute('data-phone-interaction')).toBe('disabled');
+    act(() => (loader.onHidden as (reason: string) => void)('ready'));
+    expect(engine.startVisibleEntrance).toHaveBeenCalledTimes(1);
+    expect(shell?.getAttribute('data-phone-interaction')).toBe('enabled');
+    act(() => root.unmount());
+  });
+
+  it('keeps a native Method document scrollable through a same-scene toolbar reproject', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(methodReadingSnapshot()));
+    const hidden = probe.loaderProps.at(-1)?.onHidden;
+    if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+    act(() => hidden('ready'));
+
+    const shell = host.querySelector<HTMLElement>('.phone-story');
+    const reading = host.querySelector<HTMLElement>('.phone-story__reading-flow');
+    if (!shell || !reading) throw new Error('missing native Method reading corridor');
+    reading.scrollTop = 240;
+    expect(shell.getAttribute('data-phone-interaction')).toBe('enabled');
+    expect(shell.getAttribute('data-phone-reading')).toBe('enabled');
+    expect(reading.hasAttribute('inert')).toBe(false);
+
+    act(() => engine.publish(methodToolbarReprojectSnapshot()));
+
+    expect(shell.getAttribute('data-phone-interaction')).toBe('disabled');
+    expect(shell.getAttribute('data-phone-reading')).toBe('enabled');
+    expect(reading.hasAttribute('inert')).toBe(false);
+    expect(reading.scrollTop).toBe(240);
+    act(() => root.unmount());
+  });
+
+  it('withholds Topbar chrome until Star Map is the committed scene', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    revealStableStory(engine);
+    const nav = host.querySelector('[data-phone-nav-contact]');
+    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('false');
+
+    act(() => engine.publish({
+      ...stableSnapshot(),
+      stableCommit: { sceneId: 'pattern', landing: {}, commitSequence: 2 },
+      presentationProof: { commitSequence: 2, planeRevision: 2 }
+    }));
+    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('false');
+
+    act(() => engine.publish({
+      ...stableSnapshot(),
+      stableCommit: { sceneId: 'star-map', landing: {}, commitSequence: 3 },
+      presentationProof: { commitSequence: 3, planeRevision: 3 }
+    }));
+    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('true');
+    act(() => root.unmount());
+  });
+
+  it('blocks browser scrolling and emits no story intent while Loader owns the viewport', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    const story = host.querySelector('.phone-story');
+    if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
+    const wheel = new WheelEvent('wheel', {
+      bubbles: true, cancelable: true, deltaY: 120
+    });
+    const key = new KeyboardEvent('keydown', {
+      bubbles: true, cancelable: true, key: 'ArrowDown'
+    });
+    const start = new Event('touchstart', { bubbles: true });
+    Object.defineProperty(start, 'touches', {
+      value: [{ identifier: 91, clientY: 600 }]
+    });
+    const move = new Event('touchmove', { bubbles: true, cancelable: true });
+    Object.defineProperty(move, 'touches', {
+      value: [{ identifier: 91, clientY: 300 }]
+    });
+    act(() => {
+      story.dispatchEvent(wheel);
+      story.dispatchEvent(key);
+      story.dispatchEvent(start);
+      story.dispatchEvent(move);
+    });
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(key.defaultPrevented).toBe(true);
+    expect(move.defaultPrevented).toBe(true);
+    expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+    act(() => root.unmount());
+  });
+
+  it('reopens the story input corridor at an authored gesture boundary', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    revealStableStory(engine);
+    const segment = segmentSnapshot();
+    const staged = {
+      ...segment,
+      transaction: {
+        ...(segment.transaction as Record<string, unknown>),
+        phase: 'awaiting-leg-intent'
+      }
+    };
+    act(() => engine.publish(staged));
+    const story = host.querySelector('.phone-story');
+    if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
+    expect(story.getAttribute('data-phone-interaction')).toBe('enabled');
+
+    const start = new Event('touchstart', { bubbles: true });
+    Object.defineProperty(start, 'touches', {
+      value: [{ identifier: 92, clientY: 600 }]
+    });
+    const move = new Event('touchmove', { bubbles: true, cancelable: true });
+    Object.defineProperty(move, 'touches', {
+      value: [{ identifier: 92, clientY: 300 }]
+    });
+    const end = new Event('touchend', { bubbles: true });
+    Object.defineProperty(end, 'changedTouches', {
+      value: [{ identifier: 92, clientY: 300 }]
+    });
+    act(() => {
+      story.dispatchEvent(start);
+      story.dispatchEvent(move);
+      story.dispatchEvent(end);
+    });
+    expect(engine.hostEvents.filter(({ type }) => type === 'input').at(-1)).toMatchObject({
+      kind: 'touch', delta: 300, fresh: true, target: 'story'
+    });
+    expect(engine.hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
+    act(() => root.unmount());
+  });
+
   it('exposes exact browser-harness diagnostics only when explicitly enabled', () => {
     const { host, root } = hostRoot();
     act(() => root.render(
@@ -550,7 +752,30 @@ describe('clean PhoneStoryShell ownership', () => {
     expect(shell?.getAttribute('data-phone-plane-revision')).toBe('1');
     expect(shell?.getAttribute('data-phone-commit-sequence')).toBe('1');
     expect(shell?.getAttribute('data-phone-scene')).toBe('hero');
+    expect(shell?.getAttribute('data-phone-blocked-by')).toBe('none');
+    expect(shell?.getAttribute('data-phone-network-hint')).toBe('online');
+    expect(shell?.getAttribute('data-phone-missing-proof')).toBe('');
+    expect(shell?.getAttribute('data-phone-activation-surfaces')).toBe('');
     act(() => root.unmount());
+  });
+
+  it('exposes the actual reduced-motion preference only through diagnostics', () => {
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: true } as MediaQueryList);
+    const diagnostic = hostRoot();
+    act(() => diagnostic.root.render(
+      <PhoneStoryShell diagnostics chunkRecovery={chunkRecovery} />
+    ));
+    expect(diagnostic.host.querySelector('.phone-story')?.getAttribute(
+      'data-phone-reduced-motion'
+    )).toBe('true');
+    act(() => diagnostic.root.unmount());
+
+    const formal = hostRoot();
+    act(() => formal.root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    expect(formal.host.querySelector('.phone-story')?.hasAttribute(
+      'data-phone-reduced-motion'
+    )).toBe(false);
+    act(() => formal.root.unmount());
   });
 
   it('exposes a terminal fault code only when diagnostics are enabled', () => {
@@ -561,6 +786,10 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => connectedEngine().publish(faultedSnapshot()));
     expect(diagnostic.host.querySelector('.phone-story')?.getAttribute('data-phone-fault-code'))
       .toBe('hero-terminal');
+    expect(diagnostic.host.querySelector('.phone-story')?.getAttribute('data-phone-last-failure'))
+      .toBe('hero-terminal');
+    expect(diagnostic.host.querySelector('.phone-story')?.getAttribute('data-phone-blocked-by'))
+      .toBe('none');
     act(() => diagnostic.root.unmount());
 
     const formal = hostRoot();
@@ -568,6 +797,38 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => connectedEngine().publish(faultedSnapshot()));
     expect(formal.host.querySelector('.phone-story')?.hasAttribute('data-phone-fault-code'))
       .toBe(false);
+    act(() => formal.root.unmount());
+  });
+
+  it('records complete runtime snapshots only when a test-owned sink is present', () => {
+    const trace = window as typeof window & {
+      __r5PhoneRuntimeLog?: readonly PhoneStorySnapshot[];
+    };
+    trace.__r5PhoneRuntimeLog = [];
+    const diagnostic = hostRoot();
+    act(() => diagnostic.root.render(
+      <PhoneStoryShell diagnostics chunkRecovery={chunkRecovery} />
+    ));
+    const engine = connectedEngine();
+    act(() => engine.publish(stableSnapshot()));
+    act(() => engine.publish(segmentSnapshot()));
+    expect(trace.__r5PhoneRuntimeLog).toMatchObject([
+      { status: 'stable', stableCommit: { sceneId: 'hero' } },
+      { status: 'transaction', transaction: {
+        phase: 'preparing', attempt: { segmentId: 'hero-pattern' }
+      } }
+    ]);
+    act(() => diagnostic.root.unmount());
+
+    delete trace.__r5PhoneRuntimeLog;
+    const formal = hostRoot();
+    act(() => formal.root.render(
+      <PhoneStoryShell diagnostics chunkRecovery={chunkRecovery} />
+    ));
+    const formalEngine = probe.engines.at(-1);
+    if (!formalEngine) throw new Error('missing non-diagnostic formal runtime');
+    act(() => formalEngine.publish(segmentSnapshot()));
+    expect(trace.__r5PhoneRuntimeLog).toBeUndefined();
     act(() => formal.root.unmount());
   });
 
@@ -741,40 +1002,43 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
-  it('projects the runtime-owned media activation CTA without giving leaves input authority', () => {
+  it('never renders an activation CTA for a continuous segment', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     const engine = connectedEngine();
-    const cta = host.querySelector('[data-phone-activation]');
-    if (!(cta instanceof HTMLButtonElement)) throw new Error('missing activation CTA');
-    expect(cta.hidden).toBe(true);
-    expect(cta.disabled).toBe(true);
-    const effect: Extract<PhoneStoryEffect, { type: 'show-activation-cta' }> = {
-      type: 'show-activation-cta', enabled: true,
-      attempt: {
-        authorityId: 'test-authority', transactionId: 'test:activation',
-        transactionGeneration: 2, mode: 'entry', sceneId: 'crane-animation',
-        segmentId: null, direction: null
+    const segment = segmentSnapshot();
+    act(() => engine.publish({
+      ...segment,
+      transaction: {
+        ...(segment.transaction as Record<string, unknown>),
+        phase: 'awaiting-media-activation'
       }
-    };
-    act(() => engine.config.environment.performEffect?.(effect, () => undefined));
-    expect(cta.hidden).toBe(false);
-    expect(cta.disabled).toBe(false);
-    act(() => engine.config.environment.performEffect?.(
-      { ...effect, enabled: false }, () => undefined
-    ));
-    expect(cta.hidden).toBe(true);
-    expect(cta.disabled).toBe(true);
+    }));
+    expect(host.querySelector('[data-phone-activation]')).toBeNull();
+
+    const direct = bootSnapshot();
+    act(() => engine.publish({
+      ...direct,
+      transaction: {
+        ...(direct.transaction as Record<string, unknown>),
+        phase: 'awaiting-media-activation'
+      }
+    }));
+    const fallback = host.querySelector('[data-phone-activation]');
+    if (!(fallback instanceof HTMLButtonElement)) throw new Error('missing direct activation CTA');
+    expect(fallback.hidden).toBe(false);
+    expect(fallback.disabled).toBe(false);
     act(() => root.unmount());
   });
 
-  it('uses pointer ownership without duplicating the same gesture through touch events', () => {
+  it('uses native touchmove and touchend even when Safari exposes Pointer Events', () => {
     const descriptor = Object.getOwnPropertyDescriptor(window, 'PointerEvent');
     Object.defineProperty(window, 'PointerEvent', { configurable: true, value: MouseEvent });
     const { host, root } = hostRoot();
     try {
       act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
       const engine = connectedEngine();
+      revealStableStory(engine);
       const story = host.querySelector('.phone-story');
       if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
       const touchStart = new Event('touchstart', { bubbles: true });
@@ -785,21 +1049,34 @@ describe('clean PhoneStoryShell ownership', () => {
       Object.defineProperty(touchEnd, 'changedTouches', {
         value: [{ identifier: 7, clientY: 240 }]
       });
+      const touchMove = new Event('touchmove', { bubbles: true, cancelable: true });
+      Object.defineProperty(touchMove, 'touches', {
+        value: [{ identifier: 7, clientY: 240 }]
+      });
+      const touchTail = new Event('touchmove', { bubbles: true, cancelable: true });
+      Object.defineProperty(touchTail, 'touches', {
+        value: [{ identifier: 7, clientY: 180 }]
+      });
+      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, clientY: 640 });
+      const pointerUp = new MouseEvent('pointerup', { bubbles: true, clientY: 240 });
+      Object.defineProperty(pointerDown, 'pointerType', { value: 'touch' });
+      Object.defineProperty(pointerUp, 'pointerType', { value: 'touch' });
       act(() => {
-        story.dispatchEvent(new MouseEvent('pointerdown', {
-          bubbles: true, clientY: 640
-        }));
+        story.dispatchEvent(pointerDown);
         story.dispatchEvent(touchStart);
-        story.dispatchEvent(new MouseEvent('pointerup', {
-          bubbles: true, clientY: 240
-        }));
+        story.dispatchEvent(touchMove);
+        story.dispatchEvent(touchTail);
+        story.dispatchEvent(pointerUp);
         story.dispatchEvent(touchEnd);
       });
       expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([
         expect.objectContaining({
-          kind: 'pointer', delta: 400, fresh: true, target: 'story'
+          kind: 'touch', delta: 400, fresh: true, target: 'story'
         })
       ]);
+      expect(engine.hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
+      expect(touchMove.defaultPrevented).toBe(true);
+      expect(touchTail.defaultPrevented).toBe(true);
     } finally {
       act(() => root.unmount());
       if (descriptor) Object.defineProperty(window, 'PointerEvent', descriptor);
@@ -814,6 +1091,7 @@ describe('clean PhoneStoryShell ownership', () => {
     try {
       act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
       const engine = connectedEngine();
+      revealStableStory(engine);
       const story = host.querySelector('.phone-story');
       if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
       const touchStart = new Event('touchstart', { bubbles: true });
@@ -825,15 +1103,19 @@ describe('clean PhoneStoryShell ownership', () => {
         value: [{ identifier: 9, clientY: 520 }]
       });
       const touchMove = new Event('touchmove', { bubbles: true, cancelable: true });
+      Object.defineProperty(touchMove, 'touches', {
+        value: [{ identifier: 9, clientY: 520 }]
+      });
       act(() => {
         story.dispatchEvent(touchStart);
         story.dispatchEvent(touchMove);
         story.dispatchEvent(touchEnd);
       });
       expect(touchMove.defaultPrevented).toBe(true);
-      expect(engine.hostEvents.at(-1)).toMatchObject({
+      expect(engine.hostEvents.filter(({ type }) => type === 'input').at(-1)).toMatchObject({
         type: 'input', kind: 'touch', delta: -320, fresh: true, target: 'story'
       });
+      expect(engine.hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
       const nativeButton = host.querySelector('[data-phone-nav-contact]');
       if (!(nativeButton instanceof HTMLButtonElement)) throw new Error('missing native corridor');
       const nativeStart = new Event('touchstart', { bubbles: true });
@@ -855,6 +1137,7 @@ describe('clean PhoneStoryShell ownership', () => {
   it('keeps every descendant of a native document outside cinematic prevention', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    revealStableStory();
     const story = host.querySelector('.phone-story');
     if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
     const reading = document.createElement('section');
@@ -889,10 +1172,134 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
+  it('hands a native reading document to the story only on a new outward edge gesture', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    revealStableStory();
+    const story = host.querySelector('.phone-story');
+    if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
+    const reading = document.createElement('section');
+    reading.dataset.phoneInputOwner = 'native-document';
+    story.append(reading);
+    const scrollingElement = document.createElement('main');
+    let scrollTop = 600;
+    Object.defineProperties(scrollingElement, {
+      scrollTop: { configurable: true, get: () => scrollTop },
+      clientHeight: { configurable: true, value: 844 },
+      scrollHeight: { configurable: true, value: 1544 }
+    });
+    const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    Object.defineProperty(document, 'scrollingElement', {
+      configurable: true, value: scrollingElement
+    });
+    const scrollY = 0;
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true, get: () => scrollY
+    });
+    Object.defineProperty(document.documentElement, 'scrollHeight', {
+      configurable: true, value: 1544
+    });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
+    const gesture = (identifier: number, reachEdge = false, continueAtEdge = false) => {
+      const start = new Event('touchstart', { bubbles: true });
+      Object.defineProperty(start, 'touches', { value: [{ identifier, clientY: 600 }] });
+      const move = new Event('touchmove', { bubbles: true, cancelable: true });
+      Object.defineProperty(move, 'touches', { value: [{ identifier, clientY: 300 }] });
+      const edgeMove = new Event('touchmove', { bubbles: true, cancelable: true });
+      Object.defineProperty(edgeMove, 'touches', { value: [{ identifier, clientY: 260 }] });
+      const end = new Event('touchend', { bubbles: true });
+      Object.defineProperty(end, 'changedTouches', { value: [{ identifier, clientY: 300 }] });
+      act(() => reading.dispatchEvent(start));
+      if (reachEdge) scrollTop = 700;
+      act(() => {
+        reading.dispatchEvent(move);
+        if (continueAtEdge) reading.dispatchEvent(edgeMove);
+        reading.dispatchEvent(end);
+      });
+      return { move, edgeMove };
+    };
+    try {
+      const first = gesture(31, true, true);
+      expect(first.move.defaultPrevented).toBe(false);
+      expect(first.edgeMove.defaultPrevented).toBe(false);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+      // The second native-document gesture is the real Method → Figure2
+      // outward handoff; it must consume the first edge latch exactly once.
+      const leave = gesture(40);
+      expect(leave.move.defaultPrevented).toBe(true);
+
+      // Re-enter Method at a non-edge position. The first gesture may scroll to
+      // the edge, but it must not inherit the previous scene's edge latch.
+      scrollTop = 600;
+      const returnFirst = gesture(41, true);
+      expect(returnFirst.move.defaultPrevented).toBe(false);
+      const second = gesture(42);
+      expect(second.move.defaultPrevented).toBe(true);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([
+        expect.objectContaining({ kind: 'touch', delta: 300, target: 'story', fresh: true }),
+        expect.objectContaining({ kind: 'touch', delta: 300, target: 'story', fresh: true })
+      ]);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
+    } finally {
+      if (originalScrollingElement) {
+        Object.defineProperty(document, 'scrollingElement', originalScrollingElement);
+      } else {
+        Reflect.deleteProperty(document, 'scrollingElement');
+      }
+      act(() => root.unmount());
+    }
+  });
+
+  it('classifies height-only Safari resize as toolbar geometry, not authored layout', () => {
+    const width = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    const height = Object.getOwnPropertyDescriptor(window, 'innerHeight');
+    const visualViewport = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+    const visual = Object.assign(new EventTarget(), {
+      offsetLeft: 0, offsetTop: 0, width: 390, height: 714, scale: 1
+    });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 714 });
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true, value: visual
+    });
+    const { root } = hostRoot();
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+      revealStableStory();
+      visual.height = 753;
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 753 });
+      act(() => window.dispatchEvent(new Event('resize')));
+      expect(connectedEngine().hostEvents.at(-1)).toMatchObject({
+        type: 'viewport', change: 'toolbar',
+        viewport: {
+          layout: { width: 390, height: 714, orientation: 'portrait' },
+          visual: { width: 390, height: 753 }
+        }
+      });
+
+      visual.width = 844;
+      visual.height = 390;
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 844 });
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 390 });
+      act(() => window.dispatchEvent(new Event('resize')));
+      expect(connectedEngine().hostEvents.at(-1)).toMatchObject({
+        type: 'viewport', change: 'layout',
+        viewport: { layout: { width: 844, height: 390, orientation: 'landscape' } }
+      });
+    } finally {
+      act(() => root.unmount());
+      if (width) Object.defineProperty(window, 'innerWidth', width);
+      if (height) Object.defineProperty(window, 'innerHeight', height);
+      if (visualViewport) Object.defineProperty(window, 'visualViewport', visualViewport);
+      else Reflect.deleteProperty(window, 'visualViewport');
+    }
+  });
+
   it('marks wheel momentum tails and repeated keys as non-fresh physical input', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     const engine = connectedEngine();
+    revealStableStory(engine);
     const story = host.querySelector('.phone-story');
     if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
     const wheel = (timeStamp: number) => {
@@ -945,7 +1352,56 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
-  it('waits in-document while offline before making the first native leaf request', async () => {
+  it('propagates an explicit loader abort instead of poisoning the native module cache', async () => {
+    const { root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    vi.mocked(loadPhoneSceneModule).mockRejectedValueOnce(
+      Object.assign(new Error('dependency load aborted'), { name: 'AbortError' })
+    );
+    const load = connectedEngine().config.ports?.loadDependencies;
+    if (!load) throw new Error('missing clean dependency loader');
+    const controller = new AbortController();
+    controller.abort();
+    await expect(load({
+      type: 'load-dependencies',
+      attempt: {
+        authorityId: 'test-authority', transactionId: 'test:abort',
+        transactionGeneration: 4, mode: 'entry', sceneId: 'hero',
+        segmentId: null, direction: null
+      },
+      dependencies: ['scene:hero']
+    }, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    act(() => root.unmount());
+  });
+
+  it('retains a real native rejection when another module aborts in the same batch', async () => {
+    const { root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    vi.mocked(loadPhoneSceneModule).mockRejectedValueOnce(
+      new TypeError('native scene rejection')
+    );
+    vi.mocked(loadPhoneTransitionModule).mockRejectedValueOnce(
+      Object.assign(new Error('dependency load aborted'), { name: 'AbortError' })
+    );
+    const load = connectedEngine().config.ports?.loadDependencies;
+    if (!load) throw new Error('missing clean dependency loader');
+    const controller = new AbortController();
+    controller.abort();
+    await expect(load({
+      type: 'load-dependencies',
+      attempt: {
+        authorityId: 'test-authority', transactionId: 'test:mixed-abort',
+        transactionGeneration: 5, mode: 'segment', sceneId: 'pattern',
+        segmentId: 'hero-pattern', direction: 'forward'
+      },
+      dependencies: ['scene:hero', 'transition:hero-pattern']
+    }, controller.signal)).resolves.toMatchObject({
+      status: 'rejected', dependency: 'scene:hero', reason: 'native scene rejection'
+    });
+    act(() => root.unmount());
+  });
+
+  it('treats the offline hint as non-authoritative and starts the first native leaf request', async () => {
     const { root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     const load = connectedEngine().config.ports?.loadDependencies;
@@ -961,10 +1417,6 @@ describe('clean PhoneStoryShell ownership', () => {
         },
         dependencies: ['scene:hero']
       }, new AbortController().signal);
-      await Promise.resolve();
-      expect(loadPhoneSceneModule).not.toHaveBeenCalled();
-      online.mockReturnValue(true);
-      window.dispatchEvent(new Event('online'));
       await expect(pending).resolves.toEqual({ status: 'loaded' });
       expect(loadPhoneSceneModule).toHaveBeenCalledTimes(1);
     } finally {

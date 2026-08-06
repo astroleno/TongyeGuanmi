@@ -53,9 +53,7 @@ function transaction(snapshot: PhoneMachineSnapshot): PhoneMachineTransactionSna
 function requiresMediaActivation(
   active: PhoneMachineTransactionSnapshot['transaction']
 ): boolean {
-  return active.mode === 'segment'
-    ? active.closure.mount.some((mount) => mount.includes('video'))
-    : phoneSceneById(active.candidateSceneId).directEntry.closure.resourceBudget.videos > 0;
+  return active.activation === 'offered';
 }
 
 function dispatch(
@@ -137,8 +135,7 @@ describe('phone story boot/direct-entry machine', () => {
       expect(transaction(partial.snapshot).transaction.phase).toBe('preparing');
 
       let prepared = reportSlot(partial.snapshot, withheld);
-      if (transaction(prepared.snapshot).transaction.closure.resourceBudget.videos > 0
-        && transaction(prepared.snapshot).transaction.activation !== 'spent') {
+      if (transaction(prepared.snapshot).transaction.activation === 'offered') {
         prepared = dispatch(prepared.snapshot, {
           type: 'activation-settled', invoked: true,
           attempt: transaction(prepared.snapshot).transaction.attempt
@@ -671,6 +668,30 @@ describe('phone event queue and revision semantics', () => {
     expect(reprojected.presentationProof.planeRevision).toBe(2);
     expect(reprojected.stateRevision).toBeGreaterThan(stable.stateRevision);
   });
+
+  it('re-proves native-reading toolbar geometry without replacing the stable commit', () => {
+    const stable = prove(boot('method-top', 'authority:native-reading-toolbar')).snapshot;
+    expect(stable.status).toBe('stable');
+    if (stable.status !== 'stable') throw new Error('expected native reading hold');
+    const nextViewport = {
+      ...viewport,
+      visual: { ...viewport.visual, height: 900 },
+      visualRevision: viewport.visualRevision + 1
+    };
+    const sampled = dispatch(stable, {
+      type: 'viewport-sampled', viewport: nextViewport, change: 'toolbar'
+    });
+    expect(sampled.snapshot.status).toBe('transaction');
+    expect(sampled.snapshot.viewport).toBe(nextViewport);
+    expect(sampled.snapshot.stableCommit).toBe(stable.stableCommit);
+    expect(transaction(sampled.snapshot).transaction.mode).toBe('recovery');
+    const restored = prove(sampled).snapshot;
+    expect(restored.status).toBe('stable');
+    if (restored.status !== 'stable') throw new Error('expected toolbar recovery hold');
+    expect(restored.stableCommit).toBe(stable.stableCommit);
+    expect(restored.stableCommit.commitSequence).toBe(stable.stableCommit.commitSequence);
+    expect(restored.presentationProof).not.toBe(stable.presentationProof);
+  });
 });
 
 function beginSegment(
@@ -721,6 +742,40 @@ function reachTargetPresentation(result: PhoneMachineResult): PhoneMachineResult
 }
 
 describe('phone segment transaction machine', () => {
+  it('does not spend a gesture activation credit for static-entry choreography', () => {
+    for (const [sourceId, direction] of [
+      ['star-map', 'forward'],
+      ['method-top', 'forward']
+    ] as const) {
+      const stable = prove(boot(sourceId, `authority:static-entry:${sourceId}`));
+      const started = dispatch(stable.snapshot, {
+        type: 'segment-requested', direction, physicalEpoch: 1, reducedMotion: false
+      });
+      const active = transaction(started.snapshot).transaction;
+      expect(active.activation, `${sourceId}:${direction}`).toBe('none');
+      expect(started.effects).not.toContainEqual(expect.objectContaining({
+        type: 'activate-surfaces'
+      }));
+    }
+  });
+
+  it('rolls a rejected continuous playback activation back to its committed source without a CTA', () => {
+    const stable = prove(boot('hero', 'authority:activation-rollback'));
+    const started = dispatch(stable.snapshot, {
+      type: 'segment-requested', direction: 'forward', physicalEpoch: 1, reducedMotion: false
+    });
+    const attempt = transaction(started.snapshot).transaction.attempt;
+    const rolledBack = dispatch(started.snapshot, {
+      type: 'activation-settled', invoked: false, attempt
+    });
+    const rollback = transaction(rolledBack.snapshot).transaction;
+    expect(rollback.mode).toBe('rollback');
+    expect(rollback.phase).toBe('rolling-back');
+    expect(rolledBack.effects).not.toContainEqual(expect.objectContaining({
+      type: 'show-activation-cta'
+    }));
+  });
+
   it('visits the canonical staged stops for all 15 segments in both directions', () => {
     for (const segment of phoneManifest.segments) {
       for (const direction of ['forward', 'reverse'] as const) {
@@ -772,20 +827,11 @@ describe('phone segment transaction machine', () => {
     const dwelling = dispatch(beforeDwell.snapshot, {
       type: 'transition-completed', attempt: transaction(beforeDwell.snapshot).transaction.attempt
     });
-    let awaitingMedia = beginSegment(media, 'forward', 63);
-    for (const slot of transaction(awaitingMedia.snapshot).transaction.requiredPrepared) {
-      awaitingMedia = reportSlot(awaitingMedia.snapshot, slot);
-    }
-    awaitingMedia = dispatch(awaitingMedia.snapshot, {
-      type: 'activation-settled', invoked: false,
-      attempt: transaction(awaitingMedia.snapshot).transaction.attempt
-    });
     const cases = [
       ['preparing', beginSegment(media, 'forward', 64)],
       ['playing', playing],
       ['dwelling', dwelling],
-      ['awaiting-leg-intent', awaitingLeg],
-      ['awaiting-media-activation', awaitingMedia]
+      ['awaiting-leg-intent', awaitingLeg]
     ] as const;
     const nextViewport = {
       ...viewport,

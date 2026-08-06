@@ -43,15 +43,17 @@ export function phonePatternFrame(rawProgress: number): Readonly<{
   progress: number;
   copyProgress: number;
   copyY: number;
+  textureOpacity: number;
   washOpacity: number;
 }> {
   const progress = clamp(rawProgress);
-  const copyProgress = clamp(progress / 0.78);
+  const copyProgress = progress;
   return {
     progress,
     copyProgress,
     copyY: 44 * (1 - copyProgress),
-    washOpacity: 0.54 + progress * 0.4
+    textureOpacity: 1 - progress,
+    washOpacity: 0.54
   };
 }
 
@@ -104,6 +106,7 @@ export function PhonePattern({ reports }: PhonePatternProps) {
   const render = useCallback((rawProgress: number) => {
     const frame = phonePatternFrame(rawProgress);
     rendererRef.current?.setFrameProgress(frame.progress, frame.progress);
+    if (imageRef.current) imageRef.current.style.opacity = frame.textureOpacity.toFixed(4);
     if (copyRef.current) {
       copyRef.current.style.transform = `translate3d(0, ${frame.copyY.toFixed(4)}px, 0)`;
       copyRef.current.style.opacity = frame.copyProgress.toFixed(4);
@@ -131,7 +134,7 @@ export function PhonePattern({ reports }: PhonePatternProps) {
         };
       },
       render,
-      settle() { render(1); },
+      settle() { render(0); },
       pause() {
         activeRef.current = false;
         rendererRef.current?.setRenderActive(false, false);
@@ -221,19 +224,21 @@ export function PhonePattern({ reports }: PhonePatternProps) {
       style={{ '--phone-pattern-progress': '0.0000' } as CSSProperties}
     >
       <div className="portrait-scroll-spike__pattern-motion" aria-hidden="true">
-        <img
-          ref={imageRef}
-          className="portrait-scroll-spike__pattern-image"
-          src={PATTERN_BACKGROUND_IMAGE}
-          alt=""
-        />
+        <div className="portrait-scroll-spike__pattern-plate">
+          <img
+            ref={imageRef}
+            className="portrait-scroll-spike__pattern-image"
+            src={PATTERN_BACKGROUND_IMAGE}
+            alt=""
+          />
+          <div ref={washRef} className="portrait-scroll-spike__pattern-wash" aria-hidden="true" />
+        </div>
         <canvas
           ref={canvasRef}
           className="portrait-scroll-spike__pattern-bloom"
           data-portrait-pattern-bloom
           aria-hidden="true"
         />
-        <div ref={washRef} className="portrait-scroll-spike__pattern-wash" aria-hidden="true" />
       </div>
       <div ref={copyRef} className="portrait-scroll-spike__pattern-copy">
         <p>{BELIEF_COPY[0]}</p>

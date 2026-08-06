@@ -72,6 +72,7 @@ describe('clean PhoneMethodTop leaf', () => {
     expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__method-bridge')?.style.opacity)
       .toBe('1');
     await act(async () => { root.render(<Reading sceneId="method-top" />); });
-    expect(host.querySelector('[data-phone-reading="method-top"]')).not.toBeNull();
+    expect(host.querySelector('[data-phone-reading="method-top"]')
+      ?.getAttribute('data-phone-input-owner')).toBe('native-document');
   });
 });

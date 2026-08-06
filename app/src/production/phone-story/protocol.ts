@@ -108,6 +108,7 @@ export type PhoneLeafActivationCommand = Readonly<{
   invocationId: string;
   surfaceIds: readonly PhoneSurfaceId[];
   credit: PhoneActivationCredit;
+  playback: boolean;
 }>;
 
 export type PhoneLeafPauseReason =

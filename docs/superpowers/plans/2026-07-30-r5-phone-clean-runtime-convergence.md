@@ -1,25 +1,23 @@
 # R5 Phone Clean Runtime Convergence Implementation Plan
 
-> **Status:** architecture and execution contracts are frozen. Tasks 0–12 and
-> their corrective reviews are complete. Task 12 is
-> **GO / `Chunk-contract-complete`** on candidate-code input
-> `8f3913908cba95e150d464dfab12270efe9dbdc3`: the corrective Figure2 Grade A
-> path passed 10/10 and the single final release run passed 227/227,
-> with all unit, type, architecture, frozen-input, build, bundle, and evidence
-> gates green. Task 13.1 is complete: the clean detached candidate was built
-> once, its 174-file manifest was independently verified, and its exact
-> `sourceCommit`/production/artifact identity is frozen. Task 13.2 is now
-> **RED / diagnostic discovery** after its first Simulator observation entered
-> the runtime fault surface. Formal device acceptance is paused; this artifact
-> is not a passing release candidate. Simulator, physical iPhone, and deployed-
-> network acceptance remain open. See the
+> **Status:** Tasks 0–11 remain historically complete. Task 12 is
+> **reopened / NO-GO**: later Simulator reproduction invalidated the former
+> centralized choreography, continuous-CTA, viewport, and Loader/input
+> acceptance contracts. Their focused corrections are WIP; historical
+> 119/119 Node-gate, 1,227-test, and 227-case results are audit evidence, not
+> current closure. No replacement `candidateCodeSha` exists, candidate
+> `8f39139…` remains historical only, and Task 13 is paused. See the
+> [physical choreography ADR](../../react-refactor/decisions/r5-task13-physical-choreography-correction.md),
+> the [canonical network/activation ADR](../../react-refactor/decisions/r5-task13-network-activation-correction.md),
+> the
 > [Task 12 closure review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
 > Candidate identity and remaining device rows are recorded in the
 > [Task 13 acceptance report](../../react-refactor/reports/r5-phone-clean-runtime-acceptance.md).
 > The
 > verification cadence below removes redundant full-suite reruns without weakening any
-> authority, chunk, presentation, or physical-device release gate. Do not
-> reopen broad design review unless Appendix C is triggered.
+> authority, chunk, presentation, or physical-device release gate. Appendix C
+> has been triggered and resolved for this correction by the linked
+> user-approved ADR; its amended core budgets are authoritative.
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
@@ -183,16 +181,16 @@ be exceeded:
 
 | File | Maximum non-blank production lines |
 | --- | ---: |
-| `protocol.ts` | 450 |
-| `presentation.ts` | 900 |
-| `manifest.ts` | 550 |
-| `machine.ts` | 1,100 |
-| `runtime.ts` | 1,000 |
-| `PhoneStoryShell.tsx` | 500 |
+| `protocol.ts` | 475 |
+| `presentation.ts` | 975 |
+| `manifest.ts` | 750 |
+| `machine.ts` | 1,160 |
+| `runtime.ts` | 1,250 |
+| `PhoneStoryShell.tsx` | 690 |
 | `scenes.tsx` | 700 |
 | `transitions.tsx` | 700 |
 | `PhoneBrandLabStory.tsx` | 120 |
-| Total TypeScript/TSX in the ten-file core | 5,000 |
+| Total TypeScript/TSX in the ten-file core | 5,700 |
 
 `PhoneBrandLabStory.tsx` should be a thin wrapper, not a second shell. CSS does
 not count toward the TypeScript limit but must remain one coherent stylesheet;
@@ -214,12 +212,13 @@ The architecture gate enforces this direction and the total budget. It must
 reject both an eleventh file and an attempt to merge pure machine plus browser
 effects into an over-budget God file.
 
-The 5,000-line total is the authoritative ceiling. The per-file maxima sum to
-6,020 only to provide local allocation headroom; they are not an alternative
-total budget. The manifest must normalize repeated closure/deadline profiles
+The 5,700-line total is the authoritative ceiling amended by the
+[Task 13 physical choreography ADR](../../react-refactor/decisions/r5-task13-physical-choreography-correction.md).
+The per-file maxima provide local allocation headroom; they are not an
+alternative total budget. The manifest must normalize repeated closure/deadline profiles
 instead of duplicating 46 verbose records. If the authoritative Appendix E
-matrix cannot be represented honestly under both the 550-line manifest cap
-and 5,000-line total, stop before Task 3 implementation and use Appendix C;
+matrix and the exhaustive choreography ledger cannot be represented honestly
+under both the 750-line manifest cap and 5,700-line total, use Appendix C;
 do not compress field names or hide semantics in tuples.
 
 ### 1.2 The only authority
@@ -934,31 +933,39 @@ offer one single-use activation credit to media inside the current dependency
 closure. It may not unlock unrelated videos and may never perform a global
 `play() → pause()` sweep.
 
-If chunk preparation misses Safari's activation window:
+For a continuous segment, if chunk preparation misses Safari's activation
+window or segment activation rejects:
 
 ```text
 keep committed source visible (or Loader/safe cover during boot)
 finish native module loading
 mount the target root and media surface inert beneath the source/Loader
 retain the active closure and enter awaiting-media-activation
-release cinematic input while keeping only the runtime-owned CTA actionable
-show the CTA only after the exact media surface is registered and synchronously activatable
-wait for the next real physical gesture
-mint a new transaction generation/frame token without unmounting the prepared topology
-synchronously consume activation against that registered surface in the CTA event stack
+release cinematic input; never render an activation CTA for the segment
+rollback or retain the proved source according to the active transaction policy
+wait for the next normal directional gesture
+mint a new transaction generation/frame token without unmounting prepared topology
+synchronously consume activation against the current closure in that gesture stack
 ```
 
 The retained DOM/media registration is transaction topology, not evidence.
-When the second gesture renews generation, runtime retires old frame callbacks,
-ports, and tokens, rebinds the already-registered surface, and calls its
-activation method synchronously; it does not wait for another React render or
-dynamic import. If registration is lost, the CTA is disabled/hidden until a
-surface is registered again.
+When the next normal directional gesture renews generation, runtime retires
+old frame callbacks, ports, and tokens, rebinds the already-registered
+surface, and calls its activation method synchronously; it does not wait for
+another React render or dynamic import.
+If registration is lost, the segment remains covered or rolls
+back and the next normal directional gesture starts a fresh bounded attempt.
+A CTA is permitted only for cold direct-entry media when no committed story
+source exists; it is readiness-gated on the registered surface and consumed by
+that direct-entry gesture.
 
-Synthetic events and timers cannot spend activation. Cold direct entries to
-media holds attempt manifest-declared `muted` + `playsInline` autoplay.
-Rejection keeps the cover and enters the same prepared
-`awaiting-media-activation` state. A static fallback is valid only if the
+Synthetic events and timers cannot spend activation. Cold direct AOD uses its
+immutable poster as static proof: it does not autoplay or expose a CTA, and
+its video starts only on the normal AOD → Method outgoing gesture. Cold direct
+Figure2, Figure3, TTG, PH, and Crane entries may attempt manifest-declared
+`muted` + `playsInline` autoplay; rejection keeps the cover and enters the same
+prepared `awaiting-media-activation` state, where a readiness-gated CTA is
+permitted only for that direct entry. A static fallback is valid only if the
 manifest declares it and it passes independent content/frame/coverage proof.
 
 `play()` resolution is permission evidence only. Video decode clocks and
@@ -1062,7 +1069,7 @@ type PhoneChunkRecoveryLineage = Readonly<{
   failedModuleUrl: string | null;
   failedModuleClass: 'phone-core' | 'scene-leaf' | 'transition-leaf';
   automaticReloadCount: 0 | 1;
-  status: 'classifying' | 'waiting-online' | 'reloaded' | 'fail-closed';
+  status: 'classifying' | 'reloaded' | 'fail-closed';
 }>;
 ```
 
@@ -1070,8 +1077,9 @@ Changing build IDs or hashed URLs after reload does not mint a new lineage.
 Only a proven stable cold boot/warm entry clears it. If session storage is
 unavailable, automatic reload is forbidden. `manifestFetch` has a 3,000 ms
 active-foreground deadline; timeout, HTTP/parse failure, or missing identity
-reaches fail-closed UI. Offline pauses classification until `online` without
-spending the reload. A manual user reload does not reset an exhausted lineage.
+reaches fail-closed UI. An offline hint does not pause classification or mint a
+new retry path; the native import/recovery result remains authoritative. A
+manual user reload does not reset an exhausted lineage.
 
 ## 5. Evidence levels and release language
 
@@ -1146,7 +1154,7 @@ self-review is not a user-approval pause. Mandatory review nodes are:
 | Review node | Reviewer and decision |
 | --- | --- |
 | Task 3 contract freeze | Code/architecture review of protocol, manifest, Appendix E, and dependency direction; completed for the current branch |
-| Task 4D closure | Completed on 2026-08-01: unified review of machine, runtime, activation, queue, rollback, and disposal; no separate stop occurred after 4A |
+| Task 4D closure | Historical / superseded closure on 2026-08-01: unified review of machine, runtime, activation, queue, rollback, and disposal; no separate stop occurred after 4A |
 | Task 6 closure | Completed on 2026-08-01: unified review of projector, real React StrictMode ownership, Loader, and lazy boundaries; blockers closed and execution stopped before Task 7 |
 | After Task 10, before Task 11 | Completed on 2026-08-01: clean gates pass, the accepted old-formal oracle baseline is unchanged, registries are complete, and the deletion ledger is ready |
 | Task 12 closure | Automated release-candidate review and `candidateCodeSha` freeze readiness |
@@ -2341,10 +2349,10 @@ union algorithm. The executor may not infer selectors, surface IDs, resource
 maxima, or deadlines from whatever a new leaf happens to render.
 
 Before implementation, estimate the normalized `manifest.ts` and ten-file
-total LOC. The 5,000 total wins over summed per-file headroom. If the honest
-matrix is projected to exceed 550 manifest lines or the total ceiling, trigger
-Appendix C before writing compressed tuples or spilling policy into another
-file.
+total LOC. The amended 5,700 total wins over summed per-file headroom. If the
+honest matrix plus the Task 13 choreography ledger is projected to exceed 750
+manifest lines or the total ceiling, trigger Appendix C before writing
+compressed tuples or spilling policy into another file.
 
 - [x] **Step 3.4: Verify no timing/media drift**
 
@@ -2601,6 +2609,13 @@ git commit -m "feat(r5): unify phone input history and page lifecycle"
 
 ### Slice 4D — effect interpreter, media activation, and disposal
 
+> **Historical / superseded implementation notes.** The CTA-based continuous
+> segment contract in this slice predates the canonical physical-choreography
+> and network/activation ADRs. Retain the checklist and closure records for
+> audit, but do not implement or re-open a CTA for continuous segments. The
+> current contract is: continuous segments never render CTA; only cold
+> direct-entry media may expose a readiness-gated CTA.
+
 - [x] **Step 4D.1: Write RED effect and activation tests**
 
 The deterministic ports cover module loading, presentation application,
@@ -2613,10 +2628,12 @@ Assert:
 - chunk-not-ready loses the first activation but completes module load and
   inert media-surface registration, retains the active closure in
   `awaiting-media-activation`, and releases cinematic input;
-- CTA remains hidden/disabled until the registered media surface can be
-  activated synchronously;
-- the next real CTA gesture renews generation/frame token and calls `play()`
-  synchronously without another import, mount, or React commit;
+- continuous segments keep CTA hidden/disabled; the next normal directional
+  gesture renews generation/frame token and calls activation synchronously
+  without another import, mount, or React commit;
+- a non-AOD cold direct-entry media CTA remains hidden/disabled until the
+  registered surface can be activated synchronously, then consumes that one
+  direct-entry gesture;
 - old callbacks/ports/tokens retire while the prepared DOM/media topology
   remains mounted;
 - one mount registration exposes all manifest-declared surface IDs and one
@@ -2628,8 +2645,10 @@ Assert:
   and the leaf never receives attempt/slot/dispatch;
 - disposal follows invalidate → pause/cancel → dispose/unregister → release
   resource-count order;
-- direct media entry tries declared muted/playsInline autoplay, then remains
-  covered with accessible tap-to-continue on rejection;
+- direct media entry follows the scene-specific contract: AOD uses its
+  immutable poster as a static proof with no autoplay or CTA, while Figure2,
+  Figure3, TTG, PH, and Crane may try declared muted/playsInline autoplay and
+  remain covered with an accessible tap-to-continue action on rejection;
 - `play()` success never fills a frame slot;
 - leaf progress/frame/complete callbacks cannot directly change phase/commit.
 
@@ -2692,7 +2711,7 @@ git add app/src/production/phone-story
 git commit -m "feat(r5): centralize phone effects and media activation"
 ```
 
-**Initial Task 4D closure record (2026-08-01):**
+**Initial Task 4D closure record (historical / superseded, 2026-08-01):**
 
 - Focused machine/runtime verification passed 54/54 tests; the complete suite
   passed 181 files / 1139 tests, followed by TypeScript and the complete
@@ -2715,7 +2734,7 @@ git commit -m "feat(r5): centralize phone effects and media activation"
   corrective record below supersedes its no-finding statement. Task 5 was not
   started.
 
-**Task 4D corrective closure record (2026-08-01):**
+**Task 4D corrective closure record (historical / superseded, 2026-08-01):**
 
 - Surface-bound prepared slots now require both Crane Canvas draws; all
   D-static prepared orderings reject a `0ms` media deadline; every ordered
@@ -2747,7 +2766,7 @@ git commit -m "feat(r5): centralize phone effects and media activation"
 - The complete machine/runtime, rollback, activation, queue, and disposal
   review is closed. Task 5 remains unstarted.
 
-**Task 4D second corrective closure record (2026-08-01):**
+**Task 4D second corrective closure record (historical / superseded, 2026-08-01):**
 
 - Activation is now derived from the actual entry target or exact segment
   mount roles, never from a warm union capacity. A runtime/mount seam covers
@@ -3224,9 +3243,8 @@ Do not dynamically import `protocol.ts`, `manifest.ts`, `machine.ts`,
 Chunk cache/recovery contract:
 
 - cache fulfilled module promises;
-- if runtime detects offline **before** invoking native `import()`, retain
-  Loader/source, wait for `online`, and perform the first import without a
-  reload;
+- `navigator.onLine` is a diagnostic hint only; an active transaction invokes
+  native `import()` immediately and does not wait for an `online` event;
 - once native `import()` or Vite preload has rejected, clear the application
   promise reference for disposal/diagnostics but never retry the same module
   URL in the same Document; browser module-fetch state is not an
@@ -3245,9 +3263,9 @@ Chunk cache/recovery contract:
 - clear the lineage only after the requested cold boot/warm entry reaches a
   proven stable commit; manifest fetch has the 3,000 ms bounded terminal
   contract;
-- if the native rejection occurs while offline, keep the Loader/source and
-  wait for `online` before spending that one guarded reload; do not burn the
-  guard against a known-offline fetch;
+- a native rejection observed with an offline hint keeps the Loader/source,
+  enters the same guarded recovery lineage immediately, and never retries the
+  rejected URL in the current Document;
 - after the guarded reload, a second rejection remains fail-closed under
   Loader/source with an accessible retry/reload action; it never loops;
 - delayed module resolution from a superseded, non-rejected attempt remains
@@ -3345,9 +3363,9 @@ git commit -m "feat(r5): wire one clean phone story shell"
 - exactly one production runtime factory call site exists;
 - Loader cannot time out into unproven pixels;
 - core modules are eager together and only visual leaves are lazy;
-- pre-import offline recovery stays in-document; any native import rejection
-  joins one cross-reload lineage with at most one automatic reload and can
-  never loop;
+- `navigator.onLine` is diagnostic only; active native imports start
+  immediately, and any native rejection joins one cross-reload lineage with at
+  most one automatic reload and can never loop;
 - clean shell remains unreachable from formal `/`;
 - absent leaves fail closed without creating a compatibility lifecycle.
 - real jsdom StrictMode effect replay proves old connection cleanup before the
@@ -3778,6 +3796,11 @@ git commit -m "fix(r5): close global phone viewport coverage"
 
 ### Slice 7D — AOD and iOS media activation
 
+> **Historical / superseded implementation notes.** This slice records the
+> former CTA-based activation retry. The canonical protocol now forbids CTA
+> for continuous segments; only a cold direct-entry media hold may expose a
+> readiness-gated CTA when no committed source exists.
+
 - [x] **Step 7D.1: Make AOD frame proof causal and fail fast**
 
 Update the packed-alpha surface API so:
@@ -3794,13 +3817,14 @@ Update the packed-alpha surface API so:
 - a late frame from the retired Canvas is rejected.
 
 Additionally prove AOD receives activation only through the runtime's current
-closure. When a delayed chunk misses the first activation window, the loaded
-AOD media surface mounts inert beneath source/Loader and remains in
-`awaiting-media-activation`; CTA appears only after registration, and the
-second real gesture renews token/generation and synchronously activates that
-same topology. Direct entry follows muted/playsInline → prepared accessible
-real-gesture retry, and `play()` success does not prove a Canvas frame. Remove
-any assertion where
+closure. Its cold direct entry uses the immutable poster as static proof: it
+does not autoplay and never exposes a CTA. The video surface mounts inert
+beneath the poster until the normal AOD → Method outgoing gesture renews the
+token/generation and synchronously activates that same topology. For other
+media direct entries, a delayed chunk may mount inert beneath source/Loader
+and remain in `awaiting-media-activation`; a readiness-gated CTA is permitted
+only after registration because no committed source exists. `play()` success
+does not prove a Canvas frame. Remove any assertion where
 “still preparing after 500 ms” counts as success. Add tests that cross the old
 six-second watchdog boundary.
 
@@ -3823,7 +3847,7 @@ git add app
 git commit -m "fix(r5): make AOD activation and frame proof causal"
 ```
 
-**Slice 7D closure record (2026-08-01):**
+**Slice 7D closure record (historical / superseded, 2026-08-01):**
 
 - The genuine AOD leaf, packed-alpha surface, and phone media resolver moved to
   their canonical scene/media paths. The old formal route reaches the same AOD
@@ -3940,10 +3964,12 @@ git commit -m "feat(r5): converge Front transitions on clean runtime"
   during command rebind is accepted only after its lease token is installed;
   paused packed-alpha surfaces retain the last causal rollback frame while
   terminal disposal still clears and hard-retires resources.
-- Delayed AOD media registration re-exposes the activation CTA only for the
-  matching active attempt and never auto-activates. The clean Front browser
-  matrix proves both directions of Hero ↔ Pattern ↔ Star Map ↔ AOD, real Ink
-  effect ownership, reduced-motion target proof, and Ink-failure rollback.
+- Delayed AOD media registration retains the inert topology without exposing a
+  CTA for continuous segments; the next normal directional gesture renews the
+  matching active attempt and never auto-activates unrelated media. The clean
+  Front browser matrix proves both directions of Hero ↔ Pattern ↔ Star Map ↔
+  AOD, real Ink effect ownership, reduced-motion target proof, and Ink-failure
+  rollback.
 - The focused clean suite passed 16 files / 181 tests; the complete Vitest
   suite passed 191 files / 1249 tests. TypeScript, focused ESLint, architecture,
   homepage boundary, packed-alpha, raw harness build, complete production
@@ -4907,7 +4933,8 @@ Tests cover:
 initial phone core 404/native import reject
 vite:preloadError before runtime exists
 static Loader continuity
-manifest fetch success, timeout, HTTP/parse failure, and offline wait
+manifest fetch success, timeout, HTTP/parse failure, and an offline hint that
+does not block recovery classification
 one automatic reload across changed build IDs/hashed URLs
 second rejection in the same unresolved lineage → accessible fail-closed UI
 sessionStorage unavailable → no automatic reload
@@ -5189,7 +5216,8 @@ Use Playwright network routing to:
 - delay/reject a transition leaf;
 - complete an old delayed-but-not-rejected response after a superseding entry
   created a new generation;
-- simulate offline then online recovery;
+- force `navigator.onLine=false` while keeping a same-origin module reachable;
+  verify native import/recovery proceeds without an `online` event;
 - serve old HTML/build ID against removed new-deployment chunk URLs;
 - reject a same-build module request under poor network;
 - repeat both same-build and build-mismatch rejection after their one allowed
@@ -5203,15 +5231,15 @@ Assertions:
 - initial core rejection is handled by the eager App/bootstrap boundary while
   runtime is absent;
 - no black gap or target leak;
-- offline detected before import waits for `online`, then performs its first
-  native import in the same Document successfully;
+- `navigator.onLine` is diagnostic only; a reachable native import starts
+  immediately even when the hint is `false`;
 - a native import rejection clears only the application reference and never
   retries that URL in the same Document;
 - `vite:preloadError` is prevented and handled by the same policy;
 - same-build network rejection and version mismatch join one recovery lineage
   with at most one automatic page reload;
-- a native rejection observed offline waits for `online` before consuming the
-  guarded reload;
+- a native rejection observed with an offline hint follows the same guarded
+  reload lineage without waiting for an `online` event;
 - the reloaded page reconstructs the direct-entry/committed route from URL and
   proves it normally;
 - input unlocks after rollback;
@@ -5328,7 +5356,7 @@ slice runtimes = 0
 formal QA imports = 0
 ```
 
-Enforce the per-file and 5,000-line core limits from Section 1.1. If a file
+Enforce the per-file and 5,700-line core limits from Section 1.1. If a file
 exceeds budget, stop and review the abstraction; do not bypass the gate or
 create an unapproved eleventh file. The gate must separately prove
 `machine.ts` has no browser effects and `runtime.ts` has no second reducer or
@@ -5412,8 +5440,8 @@ git commit -m "test(r5): validate phone runtime and presentation gates"
 **Task 12 acceptance:**
 
 - chunk failures cannot create black gaps or stale commits;
-- pre-import offline recovery and post-rejection guarded reload behave as two
-  distinct paths; initial core and leaf failures share one bounded lineage
+- non-authoritative offline hints and post-rejection guarded reload behave as
+  one bounded recovery path; initial core and leaf failures share one lineage
   without a reload loop;
 - BFCache/page lifecycle restores one re-proven authority;
 - all holds/segments share global content/frame/coverage/layer gates;
@@ -5428,10 +5456,12 @@ This is `Chunk-contract-complete` automated evidence only. Do not describe
 chunks as “closed” and do not claim `Release-complete` until the physical
 chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
 
-**Task 12 closure review record (updated 2026-08-03):**
+**Historical Task 12 closure record (superseded by physical evidence on
+2026-08-03):**
 
-- Decision: **GO / Review approved / `Chunk-contract-complete`**. Task 13 has
-  started; Step 13.1 is complete and Step 13.2 Simulator acceptance is next.
+- At that checkpoint only, the decision was **GO / Review approved /
+  `Chunk-contract-complete`** and the original Step 13.1 completed. This claim
+  is now superseded and cannot authorize device acceptance.
 - The generic timeline driver once again requires physical playhead agreement
   for proof reuse. The former Crane reverse regressions pass 16/16, and Hero's
   prewarm/first consumer share one named generation without a global semantic
@@ -5463,12 +5493,61 @@ chunk/network/media rows in Task 13 also pass on the exact candidate artifact.
   verification details, historical blocker records, and hashes are in the
   [Task 12 closure review](../../react-refactor/reports/r5-phone-clean-runtime-task12-blocker-review.md).
 
+### Task 12C: Close the physical-device contradiction before resuming Task 13
+
+The native Simulator findings trigger Appendix C and invalidate the prior GO
+claim without erasing its historical evidence. The
+[accepted choreography ADR](../../react-refactor/decisions/r5-task13-physical-choreography-correction.md)
+and the [canonical network/activation ADR](../../react-refactor/decisions/r5-task13-network-activation-correction.md)
+authorize this bounded correction and the amended Section 1.1 budgets.
+
+The remaining closure order is fixed: record the corrected bounded Simulator
+control-flow capability boundary, create one fixed diagnostic checkpoint from
+the current source, run one trusted-touch physical-device smoke diagnostic on
+that checkpoint, and only then run exactly one final 227-case release suite
+and freeze the resulting `candidateCodeSha`. Historical 227/227 evidence does
+not satisfy this current-tree gate.
+
+- [x] Record the shared choreography, input/activation, reading, and Loader
+  roots in the Task 13 defect ledger.
+- [x] Drive all 15 segments through one central source/target/effect/stable-
+  hold/media-clock/foreground choreography ledger.
+- [x] Apply one Ink ownership field to source and receiver, including radial
+  WebKit complement masks, and retain one presentation projector.
+- [x] Start a trusted touch transaction on directional `touchmove`, consume
+  activation on that same `touchmove` stack, and let `touchend` only close the
+  claim; prewarm adjacent closures and
+  restore native reading plus fresh edge handoff.
+- [x] Keep cold Hero at zero while the Loader is running; let Loader exit start
+  the one visible entrance and keep input disabled until Loader hidden.
+- [x] Pass affected deterministic tests, TypeScript, architecture/frozen-input
+  gates, and build without changing the 663,552-byte hard cap.
+- [x] Record the corrected bounded Simulator control-flow journey through
+  Hero → Pattern → Star Map → AOD → Method with forced W3C action release.
+  This proves reachability only; it is not visual, media, reverse, or native
+  reading evidence. SafariDriver produced no touch/pointer events on the
+  native Method surface, which is now treated as a capability boundary.
+- [ ] Create a fixed diagnostic checkpoint by running the static gates,
+  TypeScript, and build, then committing the current WIP. Serve that exact
+  SHA for one trusted-touch physical-device smoke diagnostic; do not run the
+  227-case suite before this checkpoint smoke.
+- [ ] After the smoke path is usable, run full Vitest and exactly one final
+  complete release suite. The earlier 175-file / 1,227-test and 227/227
+  results remain historical audit evidence only.
+- [ ] Freeze one new `candidateCodeSha`, then restart Task 13 from Step 13.1R.
+  The diagnostic checkpoint is not a release candidate.
+
 ---
 
 ## Task 13: Run Simulator and physical iPhone release acceptance
 
 This is the critical visual verification for which browser/device automation
 is required. Unit tests and desktop Playwright are not substitutes.
+
+**Current state:** Task 13 is paused and there is no active passing candidate.
+The `8f39139…` build below is an immutable historical diagnostic artifact, not
+an input to any remaining acceptance row. Complete Task 12C, freeze one
+replacement candidate, and then restart this task at Step 13.1R.
 
 This is the only scheduled human visual-acceptance task. Tasks 7–10 provide
 automated engine/pixel baselines and do not require the user to inspect every
@@ -5489,14 +5568,15 @@ Task 13 uses two deliberately separate worktrees:
 
 | Role | Path | Allowed work |
 | --- | --- | --- |
-| Candidate artifact | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139` | Detached at exact `candidateCodeSha`; build, serve, Simulator, and physical-device testing only. Never edit or commit here. |
+| Historical diagnostic artifact | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139` | Preserve only; do not use it for a passing row. |
+| Replacement candidate artifact | pending Task 12C | Create detached at the new exact `candidateCodeSha`; build, serve, Simulator, and physical-device testing only. Never edit or commit here. |
 | Report branch | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime` | Acceptance report and plan bookkeeping only. Never build a candidate artifact from its docs-only HEAD. |
 
 All Task 13 test servers must serve the detached candidate worktree's `dist/`.
 The report worktree's `dist/` is non-candidate scratch output and must not be
 used as device evidence.
 
-- [x] **Step 13.1: Freeze the candidate identity**
+- [ ] **Step 13.1R: Freeze the replacement candidate identity**
 
 Record:
 
@@ -5516,7 +5596,9 @@ network mode
 reduced-motion setting
 ```
 
-The immutable Task 12 inputs are:
+The replacement Task 12 inputs are pending Task 12C. The following values and
+command transcript are retained only as the historical `8f39139…` freeze
+record; do not execute them as the replacement Step 13.1R:
 
 ```text
 candidateCodeSha   = 8f3913908cba95e150d464dfab12270efe9dbdc3
@@ -5586,7 +5668,7 @@ Definitions:
   bookkeeping. It is never substituted for `candidateCodeSha` in physical
   evidence.
 
-**Step 13.1 execution record — 2026-08-03:**
+**Invalidated historical Step 13.1 execution record — 2026-08-03:**
 
 ```text
 candidateCodeSha:          8f3913908cba95e150d464dfab12270efe9dbdc3
@@ -5604,25 +5686,31 @@ manifest inventory:        174 files / 83,612,514 bytes; 174/174 verified
 
 The build and all identity checks passed. Persistent hashes are under
 `artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-candidate-freeze-8f39139/`.
-This freezes the local device-test artifact only; Step 13.2 and every physical
-or deployed release row remain open.
+This once froze a local device-test artifact. Native findings later invalidated
+its passing disposition; Step 13.1R, Step 13.2, and every physical or deployed
+release row remain open.
 
 - [ ] **Step 13.2: Run iOS Simulator as simulator evidence**
 
-**Current execution status — RED / discovery only:** the first Simulator open
-displayed the runtime fault surface. Three later isolated cold starts reached
-Hero, but they do not retroactively pass the failed row because the original
-fault code and request were not captured. Keep `8f39139…` immutable as a
-diagnostic artifact and pause formal acceptance.
+**Current execution status — RED / diagnostic checkpoint pending:** the first
+Simulator open displayed the runtime fault surface. Three later isolated cold
+starts reached Hero, but they do not retroactively pass the failed row because
+the original fault code and request were not captured. The corrected bounded
+run now proves only scene/status control-flow reachability through Method;
+visual/media and native-reading acceptance remain unproven. Keep `8f39139…`
+immutable as a diagnostic artifact and pause formal acceptance.
 
-Before another production fix or Task 12 rerun, complete one continuous
-Simulator/physical-device discovery pass and record every symptom in the
+The shared choreography, input/activation, native-reading, and Loader/Hero
+roots are implemented as one Task 12C batch and recorded in the
 [Task 13 defect ledger](../../react-refactor/reports/r5-phone-clean-runtime-task13-defect-ledger.md).
-Group the ledger into startup/Loader, viewport/safe-area, state-machine/gesture,
-and media/Canvas/chunk roots. Each confirmed root gets one focused regression
-and one focused fix. Only after the complete batch passes on one diagnostic
-build may the executor run the static gates, full Vitest, and exactly one
-227-case suite, freeze one replacement candidate, and restart Task 13.
+Static gates, focused Vitest, and focused WebKit are green; the final 227-case
+suite has not been rerun after the network/activation correction. The corrected
+bounded probe reached Hero → Pattern → Star → AOD → Method only at the
+scene/status control-flow level. It did not prove visual composition or media
+playback, and SafariDriver produced no native touch/pointer events at the
+Method edge even after explicit action release. Stop extending this probe;
+perform one trusted-touch physical-device diagnostic from the fixed checkpoint
+before considering the final 227-case suite or a replacement candidate.
 
 At minimum:
 
@@ -5695,11 +5783,15 @@ For AOD, Figure2, Figure3, TTG, PH, and Crane:
 
 - enter forward and reverse;
 - test a cold direct entry before any prior site gesture;
-- reject the first autoplay attempt, then use the visible tap-to-continue
-  action with one real physical gesture;
-- delay the leaf chunk until the original gesture activation window is gone,
-  verify the media surface mounts inert beneath source/Loader, then use the CTA
-  with a second real gesture without another import/mount;
+- for cold direct AOD entry, show the immutable poster without autoplay or CTA;
+  start its video only on the normal AOD → Method outgoing gesture;
+- for cold direct Figure2/Figure3/TTG/PH/Crane entry, reject the first
+  autoplay attempt, then use the readiness-gated tap-to-continue action with
+  one real physical gesture;
+- for continuous forward/reverse, delay the leaf chunk until the original
+  activation window is gone and verify the media surface remains inert beneath
+  source/Loader without exposing a CTA; the next normal directional gesture
+  starts a fresh bounded attempt without another import/mount;
 - background for more than six seconds;
 - foreground and continue;
 - lock and unlock the phone;
@@ -5714,7 +5806,8 @@ Required:
 - only current-closure media activates; unrelated videos never play/pause as
   an unlock sweep;
 - play permission alone never releases Loader or commits stable;
-- CTA is absent until the registered media surface can synchronously activate;
+- continuous segments never expose a CTA; a direct-entry CTA is absent until
+  the registered media surface can synchronously activate;
 - second gesture renews generation/token, retains topology, and starts media
   within that physical event stack;
 - no permanent `preparing`;
@@ -6021,9 +6114,9 @@ No item may be marked “kept for compatibility.”
 | Unit 7B leaf improvements get lost or lifecycle leaks in | exhaustive `c808e06` per-hunk disposition + separate donor trace | Tasks 0, 10, 14 |
 | `/brand-lab` cannot become another product runtime | thin wrapper, separate object, same shell | Tasks 2, 11 |
 | chunk/property-name failures | synchronous core closure, normal ESM, no property mangle | Tasks 1, 2, 6, 12 |
-| chunk retry loops/old deployment mismatch | offline-before-import first load; native reject uses existing release manifest + one cross-reload lineage allowance, never same-Document re-import | Tasks 6, 11, 12 |
+| chunk retry loops/old deployment mismatch | native import starts regardless of the `navigator.onLine` hint; native reject uses existing release manifest + one cross-reload lineage allowance, never same-Document re-import | Tasks 6, 11, 12 |
 | source/receiver disappears during preparation | per-direction/direct-entry closure + retain/expose/retire proof | Tasks 3, 4, 7–12 |
-| Safari activation expires or unlocks unrelated media | one runtime-scoped gesture credit + retained inert media topology + readiness-gated CTA | Tasks 3, 4, 7, 10, 12, 13 |
+| Safari activation expires or unlocks unrelated media | one runtime-scoped gesture credit + retained inert media topology; continuous segments never expose CTA, while direct-entry CTA is readiness-gated | Tasks 3, 4, 7, 10, 12, 13 |
 | receiver proof depends on being exposed | prepared proof → candidate plane → projector-owned visible proof | Tasks 3–5, 7–12 |
 | viewport repaint is mistaken for stable commit | stable commit/proof split + four distinct revisions + proof-only reproject branch | Tasks 2, 4, 5, 12 |
 | warm menu/hash/popstate clears the stable source | separate `mode: entry` + retained stable anchor + URL rollback matrix | Tasks 3, 4, 12 |
@@ -6113,7 +6206,8 @@ This work is done only when all statements are true:
   complete dependency closures and resource maxima;
 - [ ] runtime exclusively scopes iOS media activation to the current closure;
   a missed activation retains the prepared inert media topology until a
-  readiness-gated physical CTA synchronously consumes a new token;
+  continuous segments never expose CTA; only a cold direct-entry readiness-
+  gated physical CTA may synchronously consume a new token;
 - [ ] leaf decode clocks report facts but cannot commit; every leaf uses the
   frozen report-port/command-handle contract, and lazy leaves cannot receive
   runtime/dispatch, construct evidence slots, or submit content proof;
@@ -6123,7 +6217,7 @@ This work is done only when all statements are true:
   passes dependency/per-file/total LOC limits;
 - [ ] no property mangling, generated cross-chunk policy, compatibility
   wrapper, or numbered validation route remains;
-- [ ] offline-before-import waits and performs a first load; once native
+- [ ] `navigator.onLine` never blocks a first native load; once native
   import/preload rejects, the same URL is never retried in the same Document,
   the existing release manifest classifies recovery, initial core and leaf
   failures share one cross-reload lineage, one automatic reload cannot loop,

@@ -189,7 +189,7 @@ describe('clean PhoneTtg leaf', () => {
       invocation = mount.registration()?.commands.activate({
         invocationId: 'ttg:activation-owner:invocation',
         surfaceIds: ['ttg-figure-video'],
-        credit: 'physical-epoch'
+        credit: 'physical-epoch', playback: false
       });
       await Promise.all(invocation?.settlements.flatMap((settlement) => (
         settlement.status === 'pending' ? [settlement.settled] : []
@@ -224,7 +224,7 @@ describe('clean PhoneTtg leaf', () => {
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'ttg:stale-activation:invocation',
       surfaceIds: ['ttg-figure-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     const settlement = invocation?.settlements[0];
     if (!settlement || settlement.status !== 'pending') {
@@ -269,7 +269,7 @@ describe('clean PhoneTtg leaf', () => {
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'ttg:pending-activation:invocation',
       surfaceIds: ['ttg-figure-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     const settlement = invocation?.settlements[0];
     if (!settlement || settlement.status !== 'pending') {
@@ -312,7 +312,7 @@ describe('clean PhoneTtg leaf', () => {
 
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'ttg:webkit-start:activate:1',
-      surfaceIds: ['ttg-figure-video'], credit: 'physical-epoch'
+      surfaceIds: ['ttg-figure-video'], credit: 'physical-epoch', playback: false
     });
     await act(async () => {
       await Promise.all(invocation?.settlements.flatMap((settlement) => (

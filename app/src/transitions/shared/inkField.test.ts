@@ -76,7 +76,7 @@ describe('InkFieldFrame', () => {
     );
 
     expect(frame.ownership.revealClip).toMatch(/^circle\(/);
-    expect(frame.ownership.concealClip).toBeNull();
+    expect(frame.ownership).not.toHaveProperty('concealClip');
     expect(frame.ownership.revealClip).not.toContain('polygon(');
     expect(frame.occlusion.gateRank).toBe(frame.ownership.edge);
     expect(frame.occlusion.gateRank).toBeGreaterThanOrEqual(frame.occlusion.coreMin);
@@ -108,7 +108,7 @@ describe('InkFieldFrame', () => {
     );
 
     expect(frame.spec).toMatchObject({ kind: 'depth', transform });
-    expect(frame.ownership.revealClip).toBeNull();
+    expect(frame.ownership).not.toHaveProperty('revealClip');
     expect(frame.occlusion.gateRank).toBeCloseTo(0.5, 6);
     expect(Object.keys(frame.occlusion).sort()).toEqual([
       'alphaMin',

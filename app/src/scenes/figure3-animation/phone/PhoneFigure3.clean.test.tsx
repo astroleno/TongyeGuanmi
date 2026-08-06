@@ -119,7 +119,7 @@ describe('clean PhoneFigure3 leaf', () => {
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'figure3:activate:2',
       surfaceIds: ['figure3-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     expect(invocation).toMatchObject({ invoked: true, surfaceIds: ['figure3-video'] });
     await act(async () => {
@@ -267,7 +267,7 @@ describe('clean PhoneFigure3 leaf', () => {
       invocation = mount.registration()?.commands.activate({
         invocationId: 'figure3:activation-owner:invocation',
         surfaceIds: ['figure3-video'],
-        credit: 'physical-epoch'
+        credit: 'physical-epoch', playback: false
       });
       await Promise.all(invocation?.settlements.flatMap((settlement) => (
         settlement.status === 'pending' ? [settlement.settled] : []
@@ -311,7 +311,7 @@ describe('clean PhoneFigure3 leaf', () => {
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'figure3:causal-paint:activation',
       surfaceIds: ['figure3-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     const settlement = invocation?.settlements[0];
     if (!settlement || settlement.status !== 'pending') {
@@ -342,7 +342,7 @@ describe('clean PhoneFigure3 leaf', () => {
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'figure3:stale-activation:invocation',
       surfaceIds: ['figure3-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     const settlement = invocation?.settlements[0];
     if (!settlement || settlement.status !== 'pending') {
@@ -387,7 +387,7 @@ describe('clean PhoneFigure3 leaf', () => {
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'figure3:pending-activation:invocation',
       surfaceIds: ['figure3-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     const settlement = invocation?.settlements[0];
     if (!settlement || settlement.status !== 'pending') {

@@ -29,7 +29,10 @@ export type PhoneLanding = Readonly<{
   kind: 'front-corridor' | 'authored-boundary' | 'semantic-edge' | 'persistent-compositor';
   anchor: string;
 }>;
-export type PhoneContentProof = Readonly<{ mode: 'all-visible'; selectors: readonly string[] }>;
+export type PhoneContentProof = Readonly<{
+  mode: 'all-visible';
+  selectors: readonly string[];
+}>;
 export type PhoneFrameProof = Readonly<{
   kind: 'decoded-or-static-post-paint' | 'image-decode-composite-paint'
     | 'canvas-or-static-post-paint' | 'packed-canvas-draw'
@@ -94,6 +97,200 @@ export type PhoneSegmentManifest = Readonly<{
   forward: PhoneSegmentLeg; reverse: PhoneSegmentLeg; rollback: PhoneRollbackPolicy
 }>;
 
+type PhoneProgressCurve = 0 | 1 | 'linear' | Readonly<[
+  'range' | 'inverse-range' | 'smooth' | 'fade' | 'step', number, number?
+]>;
+export type PhoneSegmentChoreography = Readonly<{
+  sourceProgress: PhoneProgressCurve;
+  targetProgress: PhoneProgressCurve;
+  effectProgress: PhoneProgressCurve;
+  sourceOpacity: PhoneProgressCurve;
+  targetOpacity: PhoneProgressCurve;
+  mediaClockOwner: 'none' | 'source' | 'target';
+  foregroundOwner: 'canonical-source' | 'canonical-target';
+}>;
+export type PhoneSegmentChoreographyFrame = Readonly<{
+  sourceProgress: number;
+  targetProgress: number;
+  effectProgress: number;
+  sourceOpacity: number;
+  targetOpacity: number;
+  stableHold: Readonly<{ source: 0 | 1; target: 0 | 1 }>;
+  mediaClockOwner: PhoneSegmentChoreography['mediaClockOwner'];
+  foregroundOwner: 'source' | 'target';
+}>;
+export type PhoneInkOwnership = Readonly<{
+  revealClip?: string;
+  concealClip?: string;
+  revealMask?: string;
+  concealMask?: string;
+}>;
+export type PhoneTransitionProjection = Readonly<{
+  sourceOpacity: number;
+  targetOpacity: number;
+  ownership: PhoneInkOwnership | null;
+  direction: PhoneDirection;
+  foregroundOwner: 'source' | 'target';
+}>;
+
+function freezeCurve(curve: PhoneProgressCurve): PhoneProgressCurve {
+  return Array.isArray(curve) ? Object.freeze([...curve]) as PhoneProgressCurve : curve;
+}
+
+function choreography(
+  sourceProgress: PhoneProgressCurve,
+  targetProgress: PhoneProgressCurve,
+  effectProgress: PhoneProgressCurve,
+  mediaClockOwner: PhoneSegmentChoreography['mediaClockOwner'],
+  sourceOpacity: PhoneProgressCurve = 1,
+  targetOpacity: PhoneProgressCurve = 1,
+  foregroundOwner: PhoneSegmentChoreography['foregroundOwner'] = 'canonical-target'
+): PhoneSegmentChoreography {
+  return Object.freeze({
+    sourceProgress: freezeCurve(sourceProgress),
+    targetProgress: freezeCurve(targetProgress),
+    effectProgress: freezeCurve(effectProgress),
+    sourceOpacity: freezeCurve(sourceOpacity),
+    targetOpacity: freezeCurve(targetOpacity),
+    mediaClockOwner,
+    foregroundOwner
+  });
+}
+
+const heroMotionStop = HERO_PATTERN_MOTION_MS / HERO_PATTERN_TOTAL_MS;
+const ttgPlaybackStop = TTG_PLAYBACK_MS
+  / (TTG_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS);
+const phPlaybackStop = PH_PLAYBACK_MS
+  / (PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS);
+
+export const phoneSegmentChoreography = Object.freeze({
+  'hero-pattern': choreography(
+    ['range', 0, heroMotionStop], 0, ['range', heroMotionStop, 1], 'source'
+  ),
+  'pattern-star-map': choreography(
+    ['range', 0, PATTERN_COLLAPSE_STOP], 1,
+    ['range', PATTERN_COLLAPSE_STOP, 1], 'none'
+  ),
+  'star-map-aod': choreography(1, 0, 'linear', 'none'),
+  'aod-method-top': choreography(
+    'linear', ['step', .8], 'linear', 'source', ['fade', .7, 1], 1,
+    'canonical-source'
+  ),
+  'method-bottom-figure2': choreography(
+    1, 0, ['range', 0, .8], 'none'
+  ),
+  'figure2-distance-expand': choreography(
+    ['range', 0, .72], 0, ['smooth', .748, .9832], 'source',
+    1, ['smooth', .748, .9832]
+  ),
+  'figure2-proof-brand': choreography(0, 1, 'linear', 'none'),
+  'brand-figure3': choreography(1, 0, 'linear', 'none'),
+  'figure3-services': choreography(
+    ['smooth', 0, .96], ['smooth', .8, .94], 'linear', 'source',
+    ['fade', .9, .98], ['smooth', .8, .96]
+  ),
+  'services-ttg': choreography(1, 0, 'linear', 'none'),
+  'ttg-lab': choreography(
+    ['range', 0, ttgPlaybackStop], 1, 'linear', 'source',
+    ['inverse-range', ttgPlaybackStop, 1], ['range', ttgPlaybackStop, 1]
+  ),
+  'lab-ph': choreography(1, 0, 'linear', 'none'),
+  'ph-education': choreography(
+    ['range', 0, phPlaybackStop], 1, 'linear', 'source',
+    ['inverse-range', phPlaybackStop, 1], ['range', phPlaybackStop, 1]
+  ),
+  'education-crane': choreography(1, 0, 'linear', 'none'),
+  'crane-contact': choreography(
+    'linear', ['range', .8, 1], 'linear', 'source',
+    ['fade', .999, 1], ['step', .8]
+  )
+} satisfies Readonly<Record<PhoneSegmentId, PhoneSegmentChoreography>>);
+
+const phoneStableHolds = Object.freeze({
+  hero: 0,
+  pattern: 0,
+  'star-map': 1,
+  'aod-animation': 0,
+  'method-top': 1,
+  'figure2-animation': 0,
+  'figure2-proof': 0,
+  brand: 1,
+  'figure3-animation': 0,
+  services: 1,
+  'ttg-animation': 0,
+  lab: 1,
+  'ph-animation': 0,
+  education: 1,
+  'crane-animation': 0,
+  contact: 1
+} as const satisfies Readonly<Record<PhoneSceneId, 0 | 1>>);
+
+const phoneSegmentEndpoints = Object.freeze(Object.fromEntries(
+  canonicalSegments.map(({ id, from, to }) => [id, Object.freeze({ from, to })])
+) as Readonly<Record<PhoneSegmentId, Readonly<{
+  from: PhoneSceneId;
+  to: PhoneSceneId;
+}>>>);
+
+export function phoneSceneStableHold(scene: PhoneSceneId): 0 | 1 {
+  return phoneStableHolds[scene];
+}
+
+function projectPhoneCurve(curve: PhoneProgressCurve, rawProgress: number): number {
+  const progress = Math.min(1, Math.max(0, rawProgress));
+  if (typeof curve === 'number') return curve;
+  if (curve === 'linear') return progress;
+  const [kind, start, suppliedEnd] = curve;
+  if (kind === 'step') return progress >= start ? 1 : 0;
+  const value = Math.min(1, Math.max(0,
+    (progress - start) / Math.max(.0001, (suppliedEnd ?? 1) - start)
+  ));
+  const eased = value * value * (3 - 2 * value);
+  if (kind === 'smooth') return eased;
+  if (kind === 'fade') return 1 - eased;
+  return kind === 'inverse-range' ? 1 - value : value;
+}
+
+export function phoneSegmentChoreographyFrame(
+  segmentId: PhoneSegmentId,
+  progress: number,
+  direction: PhoneDirection = 'forward'
+): PhoneSegmentChoreographyFrame {
+  const spec = phoneSegmentChoreography[segmentId];
+  const endpoint = phoneSegmentEndpoints[segmentId];
+  const canonical: PhoneSegmentChoreographyFrame = {
+    sourceProgress: projectPhoneCurve(spec.sourceProgress, progress),
+    targetProgress: projectPhoneCurve(spec.targetProgress, progress),
+    effectProgress: projectPhoneCurve(spec.effectProgress, progress),
+    sourceOpacity: projectPhoneCurve(spec.sourceOpacity, progress),
+    targetOpacity: projectPhoneCurve(spec.targetOpacity, progress),
+    stableHold: Object.freeze({
+      source: phoneSceneStableHold(endpoint.from),
+      target: phoneSceneStableHold(endpoint.to)
+    }),
+    mediaClockOwner: spec.mediaClockOwner,
+    foregroundOwner: spec.foregroundOwner === 'canonical-source'
+      ? 'source'
+      : 'target'
+  };
+  if (direction === 'forward') return Object.freeze(canonical);
+  return Object.freeze({
+    ...canonical,
+    sourceProgress: canonical.targetProgress,
+    targetProgress: canonical.sourceProgress,
+    sourceOpacity: canonical.targetOpacity,
+    targetOpacity: canonical.sourceOpacity,
+    stableHold: Object.freeze({
+      source: canonical.stableHold.target,
+      target: canonical.stableHold.source
+    }),
+    mediaClockOwner: canonical.mediaClockOwner === 'none'
+      ? 'none'
+      : canonical.mediaClockOwner === 'source' ? 'target' : 'source',
+    foregroundOwner: canonical.foregroundOwner === 'source' ? 'target' : 'source'
+  });
+}
+
 const canonicalTimingValues = {
   CRANE_CONTACT_DURATION_MS, FIGURE3_SERVICES_DURATION_MS,
   HERO_PATTERN_INK_MS, HERO_PATTERN_MOTION_MS, HERO_PATTERN_TOTAL_MS,
@@ -143,11 +340,11 @@ type SceneSeed = Readonly<Omit<
 
 const sceneSeeds: Readonly<Record<PhoneSceneId, SceneSeed>> = {
   hero: { id: 'hero', checkpoint: 'hero-entered', edgeSurface: '#07110e', plane: 'front', landing: { kind: 'front-corridor', anchor: '#portrait-spike-home' }, frame: { kind: 'decoded-or-static-post-paint', surfaceIds: ['hero-figure-canvas', 'hero-figure-poster'] }, additionalDependencies: ['media:hero-back', 'media:hero-middle', 'media:hero-figure-poster', 'media:hero-figure-packed', 'compositor:hero-packed'], surfaces: ['hero-back-image', 'hero-middle-image', 'hero-figure-poster', 'hero-figure-video', 'hero-figure-canvas', 'hero-intro-ink'], contentSelectors: ['#portrait-spike-home'], resourceBudget: budget(1, 1, 2, 1), deadlineProfile: 'D-single-media' },
-  pattern: { id: 'pattern', checkpoint: 'pattern-complete', edgeSurface: '#8f7f61', plane: 'front', landing: { kind: 'authored-boundary', anchor: '#portrait-spike-pattern-title' }, frame: { kind: 'image-decode-composite-paint', surfaceIds: ['pattern-image'] }, additionalDependencies: ['media:pattern-background'], surfaces: ['pattern-image'], contentSelectors: ['#portrait-spike-pattern-title'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
+  pattern: { id: 'pattern', checkpoint: 'pattern-complete', edgeSurface: '#8f7f61', plane: 'front', landing: { kind: 'authored-boundary', anchor: '[data-portrait-pattern-bloom]' }, frame: { kind: 'image-decode-composite-paint', surfaceIds: ['pattern-image'] }, additionalDependencies: ['media:pattern-background'], surfaces: ['pattern-image'], contentSelectors: ['[data-portrait-pattern-bloom]'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
   'star-map': { id: 'star-map', checkpoint: 'star-map-reading', edgeSurface: '#06100d', plane: 'front', landing: { kind: 'authored-boundary', anchor: '#portrait-spike-star-title' }, frame: { kind: 'canvas-or-static-post-paint', surfaceIds: ['star-map-canvas'] }, additionalDependencies: ['media:star-map-source'], surfaces: ['star-map-canvas'], contentSelectors: ['#portrait-spike-star-title'], resourceBudget: budget(0, 0, 1, 0), deadlineProfile: 'D-static' },
-  'aod-animation': { id: 'aod-animation', checkpoint: 'aod-stage', edgeSurface: '#ede4d2', plane: 'front', landing: { kind: 'semantic-edge', anchor: 'aod-semantic-edge' }, frame: { kind: 'packed-canvas-draw', surfaceIds: ['aod-figure-canvas'] }, additionalDependencies: ['media:aod-figure-packed', 'compositor:aod-packed'], surfaces: ['aod-figure-video', 'aod-figure-canvas'], contentSelectors: ['[data-aod-figure-canvas]'], resourceBudget: budget(1, 1, 1, 1), deadlineProfile: 'D-single-media' },
+  'aod-animation': { id: 'aod-animation', checkpoint: 'aod-stage', edgeSurface: '#ede4d2', plane: 'front', landing: { kind: 'semantic-edge', anchor: 'aod-semantic-edge' }, frame: { kind: 'image-decode-composite-paint', surfaceIds: ['aod-figure-poster'] }, additionalDependencies: ['media:aod-figure-poster', 'media:aod-figure-packed', 'compositor:aod-packed'], surfaces: ['aod-figure-video', 'aod-figure-poster', 'aod-figure-canvas'], contentSelectors: ['[data-phone-aod-figure-poster]'], resourceBudget: budget(1, 1, 1, 1), deadlineProfile: 'D-single-media' },
   'method-top': { id: 'method-top', checkpoint: 'method-intro', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#method' }, frame: { kind: 'content-post-paint', surfaceIds: ['method-root'] }, additionalDependencies: [], surfaces: ['method-root'], contentSelectors: ['#method #portrait-spike-method-title', '#method .portrait-scroll-spike__method-bridge-content p'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
-  'figure2-animation': { id: 'figure2-animation', checkpoint: 'figure2-stage', edgeSurface: '#e2dac9', plane: 'grade-a', landing: { kind: 'authored-boundary', anchor: '[data-r4-scene="figure2-animation"]' }, frame: { kind: 'packed-canvas-draw', surfaceIds: ['figure2-pair-canvas'] }, additionalDependencies: ['media:figure2-pair-poster', 'media:figure2-foreground-arch', 'media:figure2-pair-packed', 'compositor:figure2-packed'], surfaces: ['figure2-pair-video', 'figure2-pair-canvas', 'figure2-foreground-arch'], contentSelectors: ['[data-r4-scene="figure2-animation"] [data-figure2-packed-alpha-canvas]'], resourceBudget: budget(1, 1, 1, 1), deadlineProfile: 'D-single-media' },
+  'figure2-animation': { id: 'figure2-animation', checkpoint: 'figure2-stage', edgeSurface: '#e2dac9', plane: 'grade-a', landing: { kind: 'authored-boundary', anchor: '[data-r4-scene="figure2-animation"]' }, frame: { kind: 'image-decode-composite-paint', surfaceIds: ['figure2-pair-poster'] }, additionalDependencies: ['media:figure2-pair-poster', 'media:figure2-foreground-arch', 'media:figure2-pair-packed', 'compositor:figure2-packed'], surfaces: ['figure2-pair-video', 'figure2-pair-poster', 'figure2-pair-canvas', 'figure2-foreground-arch'], contentSelectors: ['[data-r4-scene="figure2-animation"] [data-phone-figure2-poster]'], resourceBudget: budget(1, 1, 1, 1), deadlineProfile: 'D-single-media' },
   'figure2-proof': { id: 'figure2-proof', checkpoint: 'figure2-proof-opening', edgeSurface: '#ede4d2', plane: 'grade-a', landing: { kind: 'authored-boundary', anchor: '#figure2-proof-opening' }, frame: { kind: 'content-post-paint', surfaceIds: ['figure2-proof-root'] }, additionalDependencies: [], surfaces: ['figure2-proof-root'], contentSelectors: ['#figure2-proof-opening .r4-proof-opening__title'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
   brand: { id: 'brand', checkpoint: 'brand-reading', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#phone-brand-title' }, frame: { kind: 'content-post-paint', surfaceIds: ['brand-root'] }, additionalDependencies: [], surfaces: ['brand-root'], contentSelectors: ['#phone-brand-title', '.phone-brand__definition p'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
   'figure3-animation': { id: 'figure3-animation', checkpoint: 'figure3-stage', edgeSurface: '#ede4d2', plane: 'group45', landing: { kind: 'persistent-compositor', anchor: '[data-phone-scene="figure3-animation"]' }, frame: { kind: 'decoded-composited-frame', surfaceIds: ['figure3-paper-canvas'] }, additionalDependencies: ['media:figure3-motion', 'compositor:figure3-paper'], surfaces: ['figure3-video', 'figure3-paper-canvas'], contentSelectors: ['[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-canvas]'], resourceBudget: budget(1, 1, 1, 0), deadlineProfile: 'D-single-media' },
@@ -216,8 +413,10 @@ function preparedEvidence(id: PhoneSceneId): readonly PhonePreparedEvidenceKind[
     'layout-measurable', 'resource-budget-valid'
   ];
 }
-function mediaActivation(resourceBudget: PhoneResourceBudget): PhoneMediaActivationPolicy {
-  return resourceBudget.videos === 0
+function mediaActivation(
+  resourceBudget: PhoneResourceBudget, needsPhysicalActivation = resourceBudget.videos > 0
+): PhoneMediaActivationPolicy {
+  return !needsPhysicalActivation
     ? {
         mode: 'none', prewarmMayActivate: false, requiresPhysicalCredit: false,
         directEntry: 'none', rejection: 'not-applicable'
@@ -252,7 +451,11 @@ function directEntry(seed: SceneSeed): PhoneDirectEntryPolicy {
       required: PHONE_FINAL_EVIDENCE_KINDS, retirementProof: 'loader-after-stable'
     },
     deadlineProfile: seed.deadlineProfile, deadlinePolicy: deadlineProfiles[seed.deadlineProfile],
-    mediaActivation: mediaActivation(seed.resourceBudget)
+    mediaActivation: mediaActivation(
+      seed.resourceBudget,
+      seed.resourceBudget.videos > 0
+        && seed.id !== 'aod-animation'
+    )
   };
 }
 
@@ -331,7 +534,7 @@ function segmentClosure(
   return {
     load: [...sceneDependencies(source), `transition:${id}`, ...sceneDependencies(target)],
     mount: [...sceneMounts('source', source), `effect:${profile.effectSurface}`, ...sceneMounts('receiver', target)],
-    prewarm: prewarmDependencies(target), retainUntil: 'source-through-prepared',
+    prewarm: [`transition:${id}`, ...prewarmDependencies(target)], retainUntil: 'source-through-prepared',
     exposeReceiverAfter: preparedEvidence(target),
     retireAfter, resourceBudget: profile.resourceBudget
   };
@@ -354,7 +557,11 @@ function segmentLeg(
       canonicalPolicy: timing.policy
     },
     deadlineProfile: profile.deadlineProfile, deadlinePolicy: deadlineProfiles[profile.deadlineProfile],
-    mediaActivation: mediaActivation(profile.resourceBudget)
+    mediaActivation: mediaActivation(
+      profile.resourceBudget,
+      phoneSegmentChoreographyFrame(id, 0, direction).mediaClockOwner === 'source'
+        && sceneSeeds[source].resourceBudget.videos > 0
+    )
   };
 }
 
@@ -423,13 +630,14 @@ export function phoneSegmentClosure(
 export const phoneDeadlinePolicy = (profile: PhoneDeadlineProfileId): PhoneDeadlinePolicy =>
   deadlineProfiles[profile];
 export function phoneMediaActivationPolicy(
-  sceneOrSegment: PhoneSceneId | PhoneSegmentId
+  sceneOrSegment: PhoneSceneId | PhoneSegmentId,
+  direction: PhoneDirection = 'forward'
 ): PhoneMediaActivationPolicy {
   const scene = phoneManifest.scenes.find((entry) => entry.id === sceneOrSegment);
   if (scene) return scene.directEntry.mediaActivation;
   const segment = phoneManifest.segments.find((entry) => entry.id === sceneOrSegment);
   if (!segment) throw new Error(`Unknown phone scene or segment: ${sceneOrSegment}`);
-  return segment.forward.mediaActivation;
+  return segment[direction].mediaActivation;
 }
 
 function assertDifferentEntryScenes(source: PhoneSceneId, target: PhoneSceneId): void {

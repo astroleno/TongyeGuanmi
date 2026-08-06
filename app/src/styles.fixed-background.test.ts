@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const stylesheet = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+const phoneStoryStylesheet = readFileSync(
+  new URL('./production/phone-story/styles.css', import.meta.url),
+  'utf8'
+);
 
 function rule(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -25,6 +29,12 @@ describe('viewport background contract', () => {
     expect(noJsRule).toContain('overscroll-behavior: auto');
     expect(shellRule).toContain('position: fixed');
     expect(shellRule).toContain('inset: 0');
+  });
+
+  it('releases the hydrated document only for the Shell-owned native reading corridor', () => {
+    expect(phoneStoryStylesheet).toMatch(
+      /html\[data-story-hydrated="true"\]:has\(\.phone-story\[data-phone-reading="enabled"\] \[data-phone-input-owner="native-document"\]\),[\s\S]*?\{[^}]*height:\s*auto[^}]*overflow-y:\s*auto[^}]*overscroll-behavior-y:\s*auto/s
+    );
   });
 
   it('keeps the canonical Star-map grade identical during transition and hold', () => {

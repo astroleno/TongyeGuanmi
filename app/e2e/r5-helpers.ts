@@ -194,17 +194,21 @@ export async function reachReadingEdge(page: Page, direction: 1 | -1): Promise<v
     await page.evaluate(({ direction: value, pixels: distance }) => {
       const target = document.querySelector<HTMLElement>('.story-app');
       if (!target) throw new Error('story app missing');
-      const dispatchTouch = (type: string, clientY: number | undefined) => {
+      const dispatchTouch = (type: string, clientY: number, ended = false) => {
         const event = new Event(type, { bubbles: true, cancelable: true });
+        const touch = { identifier: 1, clientX: 32, clientY };
         Object.defineProperty(event, 'touches', {
-          value: clientY === undefined ? [] : [{ clientX: 32, clientY }]
+          value: ended ? [] : [touch]
+        });
+        Object.defineProperty(event, 'changedTouches', {
+          value: [touch]
         });
         target.dispatchEvent(event);
       };
       const startY = value === 1 ? distance + 32 : 32;
       dispatchTouch('touchstart', startY);
       dispatchTouch('touchmove', startY - value * distance);
-      dispatchTouch('touchend', undefined);
+      dispatchTouch('touchend', startY - value * distance, true);
     }, { direction, pixels });
   }
   throw new Error(`Reading scene ${initial.scene} did not reach its ${direction === 1 ? 'bottom' : 'top'} edge`);
@@ -230,10 +234,14 @@ export async function moveOneHold(page: Page, direction: 1 | -1): Promise<Browse
         await page.evaluate((value) => {
           const target = document.querySelector<HTMLElement>('.story-app');
           if (!target) throw new Error('story app missing');
-          const dispatchTouch = (type: string, clientY: number | undefined) => {
+          const dispatchTouch = (type: string, clientY: number, ended = false) => {
             const event = new Event(type, { bubbles: true, cancelable: true });
+            const touch = { identifier: 1, clientX: 24, clientY };
             Object.defineProperty(event, 'touches', {
-              value: clientY === undefined ? [] : [{ clientX: 24, clientY }]
+              value: ended ? [] : [touch]
+            });
+            Object.defineProperty(event, 'changedTouches', {
+              value: [touch]
             });
             target.dispatchEvent(event);
           };
@@ -241,7 +249,7 @@ export async function moveOneHold(page: Page, direction: 1 | -1): Promise<Browse
           const startY = value === 1 ? window.innerHeight * 0.75 : window.innerHeight * 0.25;
           dispatchTouch('touchstart', startY);
           dispatchTouch('touchmove', startY - value * distance);
-          dispatchTouch('touchend', undefined);
+          dispatchTouch('touchend', startY - value * distance, true);
         }, direction);
       } else {
         await page.keyboard.press(key);

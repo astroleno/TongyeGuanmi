@@ -31,6 +31,7 @@ function BrandContent({ reading }: Readonly<{ reading: boolean }>) {
       className="phone-brand"
       data-phone-scene="brand"
       data-phone-reading={reading ? 'brand' : undefined}
+      data-phone-input-owner={reading ? 'native-document' : undefined}
       aria-labelledby={reading ? 'phone-brand-title-reading' : 'phone-brand-title'}
     >
       <div className="phone-brand__content">

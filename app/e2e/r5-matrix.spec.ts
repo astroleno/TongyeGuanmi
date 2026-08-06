@@ -75,7 +75,7 @@ test('desktop wheel requires a fresh touchpad burst at the Pattern compact check
   expect((await moveOneHold(page, -1)).current).toBe('pattern');
 });
 
-test('mobile pointer swipe drives the clean normalized input contract', async ({ page }) => {
+test('browser pointer swipe drives the clean normalized input contract', async ({ page }) => {
   const before = await bootCleanPhone(page, 'hero');
   await dispatchPhonePointerIntent(page, 1);
   await waitForCommitSequence(page, 'pattern', before);
@@ -96,28 +96,25 @@ test('portrait phones enter the clean story without an orientation prompt', asyn
     .toBeVisible();
 });
 
-test('iPhone bypasses orientation prompts and touch unlocks clean AOD activation', async ({ page }) => {
+test('iPhone bypasses orientation prompts and keeps a direct AOD entry static until its outgoing gesture', async ({ page }) => {
   await page.addInitScript(() => {
-    const originalPlay = HTMLMediaElement.prototype.play;
-    let rejected = false;
+    let calls = 0;
     HTMLMediaElement.prototype.play = function patchedPlay() {
-      if (!rejected && this.matches('[data-aod-figure-video]')) {
-        rejected = true;
-        return Promise.reject(new DOMException('gesture required', 'NotAllowedError'));
-      }
-      return originalPlay.call(this);
+      if (this.matches('[data-aod-figure-video]')) calls += 1;
+      return Promise.reject(new DOMException('gesture required', 'NotAllowedError'));
     };
+    Object.defineProperty(window, '__r5AodPlayCalls', { configurable: true, get: () => calls });
   });
   await page.setViewportSize({ width: 734, height: 343 });
   await page.goto('/#aod-animation', { waitUntil: 'domcontentloaded' });
   await assertSinglePhoneAuthority(page);
   await expect(page.locator('[data-mobile-landscape-gate]')).toHaveCount(0);
-  const activation = page.locator('[data-phone-activation]:not([hidden])');
-  await expect(activation).toBeVisible();
-  await activation.tap();
   await waitForCommitSequence(page, 'aod-animation', 0);
-  await expect(page.locator('[data-aod-figure-canvas]'))
-    .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+  await expect(page.locator('[data-phone-aod-figure-poster]')).toBeVisible();
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+  expect(await page.evaluate(() => (
+    window as typeof window & { __r5AodPlayCalls: number }
+  ).__r5AodPlayCalls)).toBe(0);
 });
 
 test('iPhone WebKit clean direct-entry matrix keeps one authority and no media timeout', async ({ page }) => {

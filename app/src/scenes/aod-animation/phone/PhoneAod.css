@@ -24,8 +24,6 @@
   --aod-transition-scene-width: calc(var(--phone-visual-height) * 1.16);
   --aod-transition-sun-width: calc(var(--phone-visual-height) * 1.00);
   --aod-transition-cloud-width: calc(var(--phone-visual-height) * 1.16);
-  --portrait-aod-figure-cover-scale: 1;
-  --portrait-aod-figure-shift-y: 9dvh;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -36,16 +34,43 @@
   opacity: 0 !important;
 }
 
-.portrait-scroll-spike__scene--aod .aod-transition__figure-canvas {
-  inset: auto;
-  left: 50%;
-  top: 50%;
-  width: max(100%, calc(var(--phone-visual-height) * 1.45546));
-  height: auto;
-  filter: none;
+.portrait-scroll-spike__scene--aod .aod-transition__figure-poster {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  opacity: 0;
+  object-fit: cover;
+  object-position: center center;
+  user-select: none;
+  pointer-events: none;
   transform:
-    translate3d(-50%, calc(-50% + var(--portrait-aod-figure-shift-y)), 0)
-    scale(var(--portrait-aod-figure-cover-scale));
+    translate3d(0, var(--aod-transition-figure-y), 0)
+    scale(var(--aod-transition-figure-scale));
+  transform-origin: 50% 50%;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.portrait-scroll-spike__scene--aod .aod-transition__figure-poster {
+  opacity: 1 !important;
+}
+
+.portrait-scroll-spike__scene--aod[data-phone-aod-playback-frame="ready"]
+  .aod-transition__figure-poster {
+  opacity: 0 !important;
+}
+
+.portrait-scroll-spike__scene--aod[data-phone-aod-playback-frame="ready"]
+  .aod-transition__reveal-surface::before,
+.portrait-scroll-spike__scene--aod[data-phone-aod-playback-frame="ready"]
+  .aod-transition__reveal-surface::after,
+.portrait-scroll-spike__scene--aod[data-phone-aod-playback-frame="ready"]
+  .aod-transition__paper-solid {
+  opacity: 0 !important;
 }
 
 .portrait-scroll-spike__scene--aod .aod-transition__reveal-surface::before {

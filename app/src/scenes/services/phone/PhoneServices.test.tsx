@@ -20,6 +20,7 @@ describe('PhoneServices', () => {
 
     expect(markup).toContain('id="services"');
     expect(readingMarkup).toContain('data-phone-reading="services"');
+    expect(readingMarkup).toContain('data-phone-input-owner="native-document"');
     expect(markup).toContain(SERVICES_COPY[3]);
     expect(markup.match(/phone-services__row/g)).toHaveLength(4);
     expect(markup).not.toContain('<video');

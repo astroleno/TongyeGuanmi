@@ -1,4 +1,5 @@
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   createPhonePackedAlphaSurface,
   type PhonePackedAlphaSurface,
@@ -23,6 +24,7 @@ import './PhoneAod.css';
 const AOD_FIGURE_PACKED_ALPHA_VIDEO = phoneMediaUrlFor(
   'aod-figure-packed', 'aod-animation'
 );
+const AOD_FIGURE_POSTER = phoneMediaUrlFor('aod-figure-poster', 'aod-animation');
 const AodScene = aodAnimationScene.Component;
 export const PHONE_AOD_ALPHA_END_PROGRESS = AOD_PHONE_TIMELINE_ALPHA_END;
 export const PHONE_AOD_ALPHA_START_PROGRESS = AOD_PHONE_TIMELINE_ALPHA_START;
@@ -31,41 +33,31 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function smoothstep(value: number): number {
-  const progress = clamp(value);
-  return progress * progress * (3 - 2 * progress);
+function waitForDecodedImage(image: HTMLImageElement): Promise<void> {
+  if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+    return Promise.resolve();
+  }
+  if (typeof image.decode === 'function') return image.decode();
+  return new Promise((resolve, reject) => {
+    const clear = () => {
+      image.removeEventListener('load', loaded);
+      image.removeEventListener('error', failed);
+    };
+    const loaded = () => { clear(); resolve(); };
+    const failed = () => { clear(); reject(new Error('AOD poster decode failed')); };
+    image.addEventListener('load', loaded, { once: true });
+    image.addEventListener('error', failed, { once: true });
+  });
 }
 
 function renderPhoneAod(root: HTMLElement, rawProgress: number): void {
   const progress = clamp(rawProgress);
-  const transition = root.querySelector<HTMLElement>('[data-aod-transition]');
-  if (!transition) return;
   root.dataset.portraitAodAlpha = progress < PHONE_AOD_ALPHA_END_PROGRESS
     ? 'transparent' : 'opaque';
   root.dataset.portraitAodProgress = progress.toFixed(4);
   renderAodTransitionProgress(
     root, progress, PHONE_AOD_ALPHA_END_PROGRESS, PHONE_AOD_ALPHA_START_PROGRESS
   );
-  const coverProgress = smoothstep(progress / 0.72);
-  const mistProgress = smoothstep(
-    (progress - PHONE_AOD_ALPHA_START_PROGRESS)
-      / (0.68 - PHONE_AOD_ALPHA_START_PROGRESS)
-  );
-  const cloudProgress = smoothstep(progress / 0.38);
-  const sunProgress = smoothstep(progress / 0.47);
-  transition.style.setProperty('--aod-transition-sun-y', `${(-108 * sunProgress).toFixed(2)}dvh`);
-  transition.style.setProperty('--aod-transition-cloud-y', `${(-124 * cloudProgress).toFixed(2)}dvh`);
-  transition.style.setProperty('--portrait-aod-figure-cover-scale', (1 + coverProgress * 0.46).toFixed(4));
-  transition.style.setProperty('--portrait-aod-figure-shift-y', '9.00dvh');
-  const canonicalMist = Number.parseFloat(
-    transition.style.getPropertyValue('--aod-transition-bottom-mist-opacity')
-  ) || 0;
-  transition.style.setProperty(
-    '--aod-transition-bottom-mist-opacity',
-    Math.max(canonicalMist, mistProgress * 0.96).toFixed(4)
-  );
-  transition.dataset.portraitAodBackdropProgress = progress.toFixed(4);
-  transition.setAttribute('data-aod-exit-active', 'true');
 }
 
 type PhoneAodMigrationControl = Readonly<{
@@ -90,16 +82,21 @@ export type PhoneAodProps = Readonly<{ reports: PhoneLeafReportPort }>;
 export function PhoneAod({ reports }: PhoneAodProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const posterRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const surfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
   const surfaceGenerationRef = useRef(0);
   const frameSequenceRef = useRef(0);
+  const posterReadyRef = useRef(false);
+  const reportedPosterTokenRef = useRef<string | null>(null);
   const disposedRef = useRef(false);
+  const [posterHost, setPosterHost] = useState<HTMLElement | null>(null);
 
   const reportFailure = useCallback((failure: PhonePackedAlphaSurfaceFailure) => {
     if (failure.generation < surfaceGenerationRef.current || disposedRef.current) return;
     surfaceGenerationRef.current = failure.generation;
+    delete rootRef.current?.dataset.phoneAodPlaybackFrame;
     bindingRef.current?.reports.reportFailure({
       code: `aod-${failure.code}`,
       message: failure.message,
@@ -113,11 +110,26 @@ export function PhoneAod({ reports }: PhoneAodProps) {
     if (root) renderPhoneAod(root, progress);
   }, []);
 
+  const reportPoster = useCallback(() => {
+    const binding = bindingRef.current;
+    if (!posterReadyRef.current || !binding || disposedRef.current
+      || reportedPosterTokenRef.current === binding.frameToken) return;
+    reportedPosterTokenRef.current = binding.frameToken;
+    binding.reports.reportPrepared('aod-figure-poster', {
+      kind: 'image-decoded',
+      token: `aod:poster:${binding.frameToken}`,
+      ready: true,
+      detail: { posterDecoded: true }
+    });
+  }, []);
+
   const commands = useMemo(() => {
     const commandHandle: PhoneAodMigrationCommands = {
       rebind(binding) {
         bindingRef.current = binding;
         frameSequenceRef.current = 0;
+        reportedPosterTokenRef.current = null;
+        reportPoster();
       },
       activate(command): PhoneActivationInvocation {
         const expected = ['aod-figure-video'];
@@ -132,12 +144,15 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         };
         const generation = surface.activate('forward');
         surfaceGenerationRef.current = generation;
+        const root = rootRef.current;
+        if (root) root.dataset.phoneAodPlaybackFrame = 'awaiting';
         let settled: Promise<void>;
         try {
           settled = Promise.resolve(video.play()).then(() => {
             if (generation !== surfaceGenerationRef.current || !surface.render()) {
               throw new Error('AOD compositor did not present the activated frame');
             }
+            if (!command.playback) video.pause();
           });
         } catch (error) {
           settled = Promise.reject(error);
@@ -156,6 +171,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       pause() {
         surfaceGenerationRef.current = 0;
         surfaceRef.current?.release();
+        delete rootRef.current?.dataset.phoneAodPlaybackFrame;
       },
       dispose() {
         disposedRef.current = true;
@@ -163,6 +179,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         surfaceRef.current?.dispose('terminal');
         surfaceRef.current = null;
         bindingRef.current = null;
+        delete rootRef.current?.dataset.phoneAodPlaybackFrame;
       },
       [PHONE_AOD_MIGRATION_CONTROL]: {
         enter() {
@@ -170,7 +187,8 @@ export function PhoneAod({ reports }: PhoneAodProps) {
           const invocation = commandHandle.activate({
             invocationId: 'legacy-aod:enter',
             surfaceIds: ['aod-figure-video'],
-            credit: 'physical-epoch'
+            credit: 'physical-epoch',
+            playback: true
           });
           for (const settlement of invocation.settlements) {
             if (settlement.status === 'pending') void settlement.settled.catch(() => undefined);
@@ -187,7 +205,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
           const invocation = commandHandle.activate({
             invocationId: 'legacy-aod:autoplay',
             surfaceIds: ['aod-figure-video'],
-            credit: 'physical-epoch'
+            credit: 'physical-epoch', playback: true
           });
           if (!invocation.invoked || invocation.settlements.some(({
             status
@@ -204,16 +222,23 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       }
     };
     return Object.freeze(commandHandle);
-  }, [render]);
+  }, [render, reportPoster]);
+
+  useLayoutEffect(() => {
+    setPosterHost(rootRef.current?.querySelector<HTMLElement>('[data-aod-reveal-surface]') ?? null);
+  }, []);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
     const video = root?.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+    const poster = posterRef.current;
     const canvas = root?.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
     const container = canvas?.parentElement;
-    if (!root || !video || !canvas || !container) return;
+    if (!root || !video || !poster || !canvas || !container) return;
     disposedRef.current = false;
     videoRef.current = video;
+    posterReadyRef.current = false;
+    reportedPosterTokenRef.current = null;
     canvasRef.current = canvas;
     render(0);
     const surface = createPhonePackedAlphaSurface({
@@ -232,6 +257,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         const binding = bindingRef.current;
         if (!binding || disposedRef.current || generation !== surfaceGenerationRef.current
           || drawnCanvas !== canvasRef.current) return;
+        root.dataset.phoneAodPlaybackFrame = 'ready';
         binding.reports.reportFrame('aod-figure-canvas', {
           kind: 'frame',
           token: binding.frameToken,
@@ -252,22 +278,41 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       root,
       surfaces: [
         { id: 'aod-figure-video', element: video, kind: 'video' },
+        { id: 'aod-figure-poster', element: poster, kind: 'image' },
         canvasSurface
       ],
       commands
     });
+    let current = true;
+    void waitForDecodedImage(poster).then(() => {
+      if (!current || disposedRef.current || posterRef.current !== poster) return;
+      posterReadyRef.current = true;
+      reportPoster();
+    }, (error: unknown) => {
+      if (!current || disposedRef.current || posterRef.current !== poster) return;
+      bindingRef.current?.reports.reportFailure({
+        code: 'aod-poster-decode-rejected',
+        message: error instanceof Error ? error.message : String(error),
+        recoverable: true
+      });
+    });
     return () => {
+      current = false;
       disposedRef.current = true;
       surfaceGenerationRef.current = 0;
+      posterReadyRef.current = false;
+      reportedPosterTokenRef.current = null;
       surface.dispose('reactivatable');
       if (surfaceRef.current === surface) surfaceRef.current = null;
       videoRef.current = null;
+      posterRef.current = null;
       canvasRef.current = null;
       bindingRef.current = null;
       delete root.dataset.portraitAodAlpha;
       delete root.dataset.portraitAodProgress;
+      delete root.dataset.phoneAodPlaybackFrame;
     };
-  }, [commands, render, reportFailure, reports]);
+  }, [commands, posterHost, render, reportFailure, reportPoster, reports]);
 
   return (
     <div
@@ -276,6 +321,17 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       aria-hidden="true"
     >
       <AodScene scene="aod-animation" hidden={false} />
+      {posterHost ? createPortal(
+        <img
+          ref={posterRef}
+          className="aod-transition__figure-poster"
+          data-phone-aod-figure-poster
+          src={AOD_FIGURE_POSTER}
+          alt=""
+          aria-hidden="true"
+        />,
+        posterHost
+      ) : null}
     </div>
   );
 }

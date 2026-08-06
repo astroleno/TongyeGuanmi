@@ -28,12 +28,8 @@ function recoveryFixture(options: Readonly<{
   storage?: PhoneChunkRecoveryEnvironment['storage'];
   currentBuildId?: string;
   deployedBuildId?: string;
-  online?: boolean;
 }> = {}) {
   const storage = options.storage === undefined ? new MemoryStorage() : options.storage;
-  let online = options.online ?? true;
-  let releaseOnline: () => void = () => undefined;
-  let onlinePromise = new Promise<void>((resolve) => { releaseOnline = resolve; });
   const reload = vi.fn();
   const fetchReleaseManifest = vi.fn(async (): Promise<unknown> => ({
     sourceCommit: options.deployedBuildId ?? 'build-deployed'
@@ -42,8 +38,6 @@ function recoveryFixture(options: Readonly<{
     currentBuildId: options.currentBuildId ?? 'build-document',
     entryUrl: 'https://tongye.test/#figure3-animation',
     storage,
-    isOnline: () => online,
-    waitForOnline: () => onlinePromise,
     fetchReleaseManifest,
     reload,
     createLineageId: () => 'lineage-1'
@@ -53,13 +47,6 @@ function recoveryFixture(options: Readonly<{
     fetchReleaseManifest,
     reload,
     storage,
-    setOnline(next: boolean) {
-      online = next;
-      if (next) releaseOnline();
-    },
-    resetOnlineWait() {
-      onlinePromise = new Promise<void>((resolve) => { releaseOnline = resolve; });
-    }
   };
 }
 
@@ -138,26 +125,23 @@ describe('presentation shell loaders', () => {
     });
   });
 
-  it('waits online without spending the reload allowance', async () => {
-    const fixture = recoveryFixture({ online: false });
+  it('does not block recovery classification before manifest fetch', async () => {
+    const fixture = recoveryFixture();
     const controller = createPhoneChunkRecoveryController(fixture.environment);
     const recovery = controller.port.reportRejectedChunk({
       authorityId: 'authority-1',
       transactionId: 'transaction-1',
       moduleUrl: '/assets/transition.js',
       dependencies: ['transition:brand-figure3'],
-      reason: 'offline rejection'
+      reason: 'offline-hint rejection'
     });
 
-    await vi.waitFor(() => expect(controller.getSnapshot().status).toBe('waiting-online'));
-    expect(fixture.fetchReleaseManifest).not.toHaveBeenCalled();
-    expect(storedLineage(fixture.storage as MemoryStorage)).toMatchObject({
-      automaticReloadCount: 0,
-      status: 'waiting-online'
-    });
-
-    fixture.setOnline(true);
     await expect(recovery).resolves.toBe('reloading');
+    expect(fixture.fetchReleaseManifest).toHaveBeenCalledTimes(1);
+    expect(storedLineage(fixture.storage as MemoryStorage)).toMatchObject({
+      automaticReloadCount: 1,
+      status: 'reloaded'
+    });
     expect(fixture.reload).toHaveBeenCalledTimes(1);
   });
 

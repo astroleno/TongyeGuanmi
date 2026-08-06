@@ -2,7 +2,7 @@
 
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   PhoneLeafMountRegistration,
   PhoneLeafReportPort
@@ -53,7 +53,18 @@ function reportFixture() {
 }
 
 describe('clean PhoneFigure2 leaf', () => {
-  it('registers one packed pair plus the retained foreground arch', async () => {
+  beforeEach(() => {
+    probe.surfaceOptions = null;
+    probe.activate.mockReset().mockReturnValue(1);
+    probe.renderSurface.mockReset().mockReturnValue(true);
+    probe.probeSurface.mockReset().mockReturnValue(true);
+    probe.release.mockReset();
+    probe.disposeSurface.mockReset();
+    probe.renderProgress.mockReset();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+  });
+
+  it('registers a decoded poster, packed pair, and retained foreground arch', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -61,9 +72,11 @@ describe('clean PhoneFigure2 leaf', () => {
     await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
     expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
       ['figure2-pair-video', 'video'],
+      ['figure2-pair-poster', 'image'],
       ['figure2-pair-canvas', 'canvas-webgl'],
       ['figure2-foreground-arch', 'image']
     ]);
+    expect(host.querySelector('[data-phone-figure2-poster]')).not.toBeNull();
     expect(host.querySelectorAll('[data-stage-retained-figure2-arch="true"]')).toHaveLength(1);
     expect(host.querySelector('[data-stage-retained-figure2-arch="true"]')
       ?.closest('[data-figure2-depth-ranked-field="true"]')).toBeNull();
@@ -81,7 +94,7 @@ describe('clean PhoneFigure2 leaf', () => {
     });
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'figure2:activate:1',
-      surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch'
+      surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch', playback: false
     });
     expect(invocation?.invoked).toBe(true);
     expect(current.reports.reportFrame).not.toHaveBeenCalled();
@@ -98,9 +111,36 @@ describe('clean PhoneFigure2 leaf', () => {
     expect(probe.renderProgress).toHaveBeenCalled();
   });
 
+  it('proves its static entry from the decoded poster without touching video playback', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+    const current = reportFixture();
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: current.reports, frameToken: 'figure2:static:1' });
+
+    expect(commands).not.toHaveProperty('prepare');
+    const poster = host.querySelector<HTMLImageElement>('[data-phone-figure2-poster]');
+    expect(poster).not.toBeNull();
+    await act(async () => {
+      poster?.dispatchEvent(new Event('load'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(current.reports.reportPrepared).toHaveBeenCalledWith(
+      'figure2-pair-poster', expect.objectContaining({
+        kind: 'image-decoded', ready: true,
+        detail: expect.objectContaining({ posterDecoded: true })
+      })
+    );
+    expect(probe.activate).not.toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
+  });
+
   it('keeps a transient reactivation repaint miss non-terminal until a causal frame', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
-    probe.activate.mockReturnValue(1);
     probe.renderSurface.mockReset().mockReturnValue(false);
     probe.probeSurface.mockReset().mockReturnValue(false);
     const host = document.createElement('div');
@@ -114,7 +154,7 @@ describe('clean PhoneFigure2 leaf', () => {
 
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'figure2:reactivate',
-      surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch'
+      surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch', playback: false
     });
     const settlement = invocation?.settlements[0];
     expect(settlement?.status).toBe('pending');

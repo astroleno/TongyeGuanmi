@@ -251,7 +251,6 @@
   .site-nav .nav-links { display: none; flex: 1 0 100%; justify-content: flex-start; overflow-x: auto; padding: 4px 0 2px; gap: clamp(14px, 4vw, 22px); }
   .site-nav[data-menu-open="true"] .nav-links { display: flex; }
   .site-nav .nav-cta { min-width: 84px; }
-  .scroll-edge-blur__layer:nth-child(6), .scroll-edge-blur__layer:nth-child(7) { display: none; }
 }
 
 @media (max-width: 520px) {

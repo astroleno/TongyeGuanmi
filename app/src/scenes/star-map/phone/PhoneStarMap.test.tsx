@@ -28,7 +28,11 @@ vi.mock('../starFieldReveal', () => ({
   })
 }));
 
-import { PhoneStarMap, phoneStarMapFrame } from './PhoneStarMap';
+import {
+  PhoneStarMap,
+  phoneStarMapAmbientLayer,
+  phoneStarMapFrame
+} from './PhoneStarMap';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -102,5 +106,17 @@ describe('clean PhoneStarMap leaf', () => {
     mount.registration()?.commands.settle(1);
     expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__star-copy')?.style.opacity)
       .toBe('1');
+  });
+
+  it('gives only the ambient Perlin layer a visible breathing range over its 4.4s cycle', () => {
+    const layers = [0, 1.1, 2.2].map((seconds) => (
+      phoneStarMapAmbientLayer(seconds, false)
+    ));
+    const strengths = layers.map(({ strength }) => strength);
+    const noiseFloors = layers.map(({ noiseFloor }) => noiseFloor);
+
+    expect(Math.max(...strengths) - Math.min(...strengths)).toBeGreaterThan(0.4);
+    expect(Math.max(...noiseFloors) - Math.min(...noiseFloors)).toBeGreaterThan(0.1);
+    expect(phoneStarMapAmbientLayer(2.2, true)).toEqual({ strength: .72, noiseFloor: .02 });
   });
 });

@@ -55,6 +55,12 @@ describe('StoryNav', () => {
     expect(markup.match(/class="scroll-edge-blur__tint"/g)).toHaveLength(1);
   });
 
+  it('keeps Topbar and its edge blur in the same full physical viewport on mobile', () => {
+    expect(stylesheet).toMatch(/\.site-nav\s*\{[^}]*position:\s*fixed[^}]*top:\s*0[^}]*left:\s*0[^}]*width:\s*100vw/s);
+    expect(stylesheet).toMatch(/\.scroll-edge-blur\s*\{[^}]*position:\s*fixed[^}]*top:\s*0[^}]*right:\s*0[^}]*left:\s*0[^}]*width:\s*100vw/s);
+    expect(stylesheet).not.toMatch(/\.scroll-edge-blur__layer:nth-child\((?:6|7)\)\s*\{[^}]*display:\s*none/s);
+  });
+
   it('lets a partial shell omit destinations it cannot render', () => {
     const markup = renderToStaticMarkup(createElement(StoryNav, {
       currentScene: 'method-top',

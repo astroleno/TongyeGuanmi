@@ -41,8 +41,8 @@ type InkFieldFrameBase<Spec extends InkFieldSpec> = Readonly<{
   progress: number;
   seed: number;
   ownership: Readonly<{
-    revealClip: string | null;
-    concealClip: string | null;
+    revealClip?: string;
+    concealClip?: string;
     edge: number;
   }>;
   occlusion: InkOcclusionBand;
@@ -124,7 +124,7 @@ function horizontalOwnership(
   spec: HorizontalInkFieldSpec,
   edge: number,
   contour: HorizontalInkContour
-): Pick<InkFieldFrame['ownership'], 'revealClip' | 'concealClip'> {
+): Omit<InkFieldFrame['ownership'], 'edge'> {
   return {
     revealClip: horizontalInkPolygon(contour, spec.direction, edge, 'reveal'),
     concealClip: horizontalInkPolygon(contour, spec.direction, edge, 'conceal')
@@ -156,7 +156,7 @@ function radialOwnership(
   spec: Extract<InkFieldSpec, { kind: 'radial' }>,
   edge: number,
   viewport: InkViewport
-): Pick<InkFieldFrame['ownership'], 'revealClip' | 'concealClip'> {
+): Omit<InkFieldFrame['ownership'], 'edge'> {
   const width = finitePositive(viewport.width, 1);
   const height = finitePositive(viewport.height, 1);
   const originX = clamp(spec.origin.x) * width;
@@ -168,8 +168,7 @@ function radialOwnership(
     Math.hypot(width - originX, height - originY)
   );
   return {
-    revealClip: `circle(${(maximumRadius * edge).toFixed(3)}px at ${percent(spec.origin.x)} ${percent(spec.origin.y)})`,
-    concealClip: null
+    revealClip: `circle(${(maximumRadius * edge).toFixed(3)}px at ${percent(spec.origin.x)} ${percent(spec.origin.y)})`
   };
 }
 
@@ -238,7 +237,7 @@ export function createInkFieldFrame(
 
   const clips = spec.kind === 'radial'
     ? radialOwnership(spec, edge, viewport)
-    : { revealClip: null, concealClip: null };
+    : {};
 
   return {
     spec,

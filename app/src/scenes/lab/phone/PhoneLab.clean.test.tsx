@@ -45,6 +45,7 @@ describe('clean PhoneLab leaf', () => {
     expect(Reading).toBeTypeOf('function');
     await act(async () => { root.render(createElement(Reading!, { sceneId: 'lab' })); });
     expect(host.querySelector('[data-phone-reading="lab"]')).not.toBeNull();
+    expect(host.querySelector('[data-phone-input-owner="native-document"]')).not.toBeNull();
     act(() => root.unmount());
   });
 });

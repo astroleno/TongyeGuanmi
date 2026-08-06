@@ -5,14 +5,156 @@
 - Branch: `codex/r5-phone-clean-runtime-convergence`
 - Reviewed base HEAD: `49e06fc164c0ba17c6037332be94629a8773011d`
 - Superseded candidate code commit: `a4ba41feaf76fb2f40afbcf222f1565216fac648`
-- Current candidate code commit: `8f3913908cba95e150d464dfab12270efe9dbdc3`
+- Historical candidate code commit: `8f3913908cba95e150d464dfab12270efe9dbdc3`
 - Superseded pre-commit code-diff SHA-256: `3b40ea1c24d46e30191e6381c263b302e63267c4e2b7b4d6bc78562da0c01b5e`
-- Decision: **GO — Review approved; Task 12 is `Chunk-contract-complete`**
-- Subsequent status: **Task 13.2 RED; 8f39139 is now a diagnostic artifact**
+- Historical decision: **GO — Review approved; Task 12 was `Chunk-contract-complete`**
+- Current status: **REOPENED / NO-GO**. The latest Simulator reproduction
+  invalidated the former shared-contract implementation claim; focused
+  corrections are WIP, no replacement candidate identity is frozen, and Task
+  13 remains paused.
+
+This report preserves the exact evidence behind the former GO decision. It is
+not current authorization for Task 13. The corrective scope and amended core
+budgets are governed by the
+[Task 13 physical choreography ADR](../decisions/r5-task13-physical-choreography-correction.md).
+
+## Network/import and same-stack activation correction — 2026-08-05
+
+The diagnostic WIP now applies the superseding
+[network/activation ADR](../decisions/r5-task13-network-activation-correction.md):
+
+- `navigator.onLine` is exposed only as a diagnostics hint. Both the eager
+  phone-core recovery boundary and active leaf transactions start their native
+  import/recovery work immediately; no `online` event is required.
+- fulfilled dependency entries are recorded only after native import success;
+  native rejection is reported through the existing recovery lineage and is
+  not retried in the same Document. Obsolete prewarm aborts are ignored, while
+  real prewarm rejection is reported through that same port.
+- the first trusted `touchmove` owns the physical epoch and consumes the
+  already-mounted source activation synchronously; `touchend` only closes the
+  touch claim. No deferred touch activation marker remains.
+- diagnostics-only shell attributes expose failure code, blocking proof,
+  activation surfaces, network hint, and missing proof without adding a
+  telemetry system.
+
+Focused evidence after this correction: 125/125 focused Vitest tests across
+the bootstrap recovery, PhoneStoryShell, and runtime suites; 75/75 architecture
+fixtures; TypeScript; `git diff --check`; the complete static build and its
+embedded gates; and the offline-hint direct-entry WebKit test (1/1). The AOD
+trusted-input WebKit probe remains bounded: its test-only sampler now waits for
+both media-clock and compositor-frame advancement, and the focused rerun passed
+(1/1). No full 227-case suite, long loop, candidate freeze, or Task 13
+authorization is claimed here.
+
+## Task 12C corrective work in progress — 2026-08-04
+
+The current WIP corrects the existing clean runtime in place: one exhaustive
+15-segment choreography ledger, complementary Ink ownership, same-epoch touch
+preparation/activation, adjacent module-only prewarm, native-document reading
+with a fresh edge latch, and one causal Loader → Hero visual clock. This is not
+a Task 12 closure claim: the latest physical reproduction showed that the
+former contract and its automated oracle could still accept an incorrect
+continuous experience.
+
+Historical automated evidence, retained for audit only, previously recorded:
+
+- affected deterministic set: 23 files / 260 tests;
+- Node gate fixtures: 119/119;
+- full Vitest: 175 files / 1,227 tests;
+- TypeScript, architecture, semantic-boolean, packed-alpha, frozen-input, and
+  `git diff --check`;
+- complete build: desktop JavaScript 577,476 B, phone JavaScript 616,101 B,
+  largest lazy chunk 50,887 B, initial CSS 76,790 B, and the unchanged
+  663,552-byte phone hard cap;
+- Loader plus front choreography focused WebKit: 20/20;
+- Contact adjacent-prewarm oracle focused Chromium: 10/10;
+- one final complete release suite: 227/227 in 29.1 minutes, one worker,
+  `--max-failures=1`, trace retained on failure.
+
+An earlier broad attempt stopped after 107 passes at a stale Contact oracle.
+Its retained trace proved only the manifest-authorized adjacent module
+prewarm; Contact still had zero mounted video, decoder, Canvas, and WebGL
+owners. The test-only oracle was corrected, passed 10/10, and only then was the
+single final complete 227-case run executed. This did not change production.
+
+Persistent evidence is under:
+
+```text
+artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task12c-choreography-closure-20260803/
+```
+
+`SHA256SUMS` verifies 9/9 files. The complete release log hash is
+`b618e1ce60a3cea43fc7a53dff8ca526bd4d02e9e2f0e0405f1461a49c3af889`.
+
+The former stop condition is superseded. Simulator reproduction identified
+four shared contract failures: continuous CTA acceptance, double-applied
+viewport coordinates, reprojection clearing live Ink / Pattern progress
+desynchronization, and media-clock ownership. Focused unit and browser
+regressions must close those contracts before any new Simulator repeat,
+static-gate batch, or release suite run.
+
+The source remains an uncommitted WIP based on
+`34c306ed2c324256dcb81a9c5f47dd3a6b3b258d`; `candidateCodeSha` is null. Task
+12C is reopened and remains red. Task 13 remains paused until the focused
+contract suite, bounded Simulator repeat, static gates, one release suite, and
+one replacement candidate freeze all complete in that order.
+
+### Native SafariDriver input limitation — 2026-08-04
+
+The test-only runtime recorder captured a Hero → Pattern attempt which reached
+the complete prepared proof quorum but remained `activation: offered` and then
+rolled back on `deadline:mediaPrepare`. A paired control run placed the same
+W3C touch action on a full-screen native-document corridor that bypassed the
+story input bridge. Both the story and control runs delivered `pointerdown`,
+`touchstart`, `pointermove`, `touchmove`, and `pointermove`, but neither
+delivered `pointerup` or `touchend`. The SafariDriver action backend therefore
+cannot exercise the completed-touch activation path, independently of the
+application's input ownership.
+
+The hash-verified record is at:
+
+```text
+artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task12-blocker-review/
+  native-safaridriver-touch-contract-20260804/
+```
+
+This is a diagnostic-tool limitation, not proof of a new production input
+defect; no production input code was changed from this trace. The deterministic
+runtime regression covers the intended completed-touch path. Task 12 remains
+**REOPENED / NO-GO** and Task 13 remains paused: a manual physical touch or a
+native tool that delivers a complete touch sequence is required for the next
+device-level validation.
+
+### Corrected bounded probe — 2026-08-06
+
+The bounded script was corrected to release W3C actions with
+`DELETE /session/{id}/actions` in `finally`, and the release endpoint returned
+HTTP 200 after every forward swipe. One continuous session then reached Hero,
+Pattern (including the second-leg intent), Star Map, AOD, and Method with
+stable scene/status snapshots and no CTA or missing-proof diagnostic. This is
+only **Hero → Method control-flow reachability**. The script did not inspect
+visual composition, animation frames, Ink pixels, Perlin brightness, or AOD
+playback; the AOD `paused=true/currentTime=0` sample is the intentional static
+direct-entry state and says nothing about the AOD → Method gesture.
+
+After scrolling Method to its native bottom edge, the same session recorded
+zero `touch*` and `pointer*` events from SafariDriver's native action. The
+driver capability boundary is now explicitly recorded and is not treated as a
+product failure or as Simulator-complete evidence. The continuous structured
+record, screenshot, and SHA-256 manifest are under:
+
+```text
+artifacts/react-refactor/r5-phone-clean-runtime-task0/raw/task13-simulator-bounded-20260806/
+```
+
+Do not continue expanding this SafariDriver probe. The next diagnostic is one
+trusted-touch physical-device run on a fixed diagnostic checkpoint; only after
+that smoke path is usable may the final 227-case suite be considered.
 
 ## Task 12 closure disposition — 2026-08-03
 
-All Task 12 blockers are closed on the current candidate:
+At the recorded historical checkpoint, all then-known Task 12 blockers were
+closed on `8f39139…`:
 
 - the shared timeline driver again requires bounded agreement between its
   proof and the physical playhead, so an old generation cannot skip a real

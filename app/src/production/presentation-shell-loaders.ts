@@ -21,7 +21,7 @@ export type PhoneChunkRecoveryLineage = Readonly<{
   failedModuleUrl: string | null;
   failedModuleClass: PhoneChunkFailureClass;
   automaticReloadCount: 0 | 1;
-  status: 'classifying' | 'waiting-online' | 'reloaded' | 'fail-closed';
+  status: 'classifying' | 'reloaded' | 'fail-closed';
 }>;
 
 type RecoveryStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -30,8 +30,6 @@ export type PhoneChunkRecoveryEnvironment = Readonly<{
   currentBuildId: string;
   entryUrl: string;
   storage: RecoveryStorage | null;
-  isOnline(): boolean;
-  waitForOnline(): Promise<void>;
   fetchReleaseManifest(url: string, init: RequestInit): Promise<unknown>;
   reload(entryUrl?: string): void;
   createLineageId(): string;
@@ -45,7 +43,7 @@ export type PhoneChunkRecoveryEnvironment = Readonly<{
 export type PhoneChunkRecoverySnapshot =
   | Readonly<{ status: 'idle' }>
   | Readonly<{
-      status: 'classifying' | 'waiting-online' | 'reloading' | 'fail-closed';
+      status: 'classifying' | 'reloading' | 'fail-closed';
       lineage: PhoneChunkRecoveryLineage | null;
       message: string;
     }>;
@@ -85,7 +83,7 @@ function validLineage(value: unknown): value is PhoneChunkRecoveryLineage {
     && ['phone-core', 'scene-leaf', 'transition-leaf']
       .includes(String(record.failedModuleClass))
     && (record.automaticReloadCount === 0 || record.automaticReloadCount === 1)
-    && ['classifying', 'waiting-online', 'reloaded', 'fail-closed']
+    && ['classifying', 'reloaded', 'fail-closed']
       .includes(String(record.status));
 }
 
@@ -212,16 +210,6 @@ export function createPhoneChunkRecoveryController(
       return failClosed('自动恢复不可用，请手动重新加载。', null, false);
     }
     publish({ status: 'classifying', lineage, message: '正在检查发布版本…' });
-    if (!environment.isOnline()) {
-      const waiting = Object.freeze({ ...lineage, status: 'waiting-online' as const });
-      try {
-        storage.setItem(lineageStorageKey, JSON.stringify(waiting));
-      } catch {
-        return failClosed('自动恢复不可用，请手动重新加载。', null, false);
-      }
-      publish({ status: 'waiting-online', lineage: waiting, message: '网络恢复后将继续。' });
-      await environment.waitForOnline();
-    }
     const deadline = activeDeadlineSignal(environment);
     let manifest: unknown;
     try {
@@ -303,10 +291,6 @@ export function createBrowserPhoneChunkRecoveryController(): PhoneChunkRecoveryC
     currentBuildId: import.meta.env.VITE_R5_DOCUMENT_BUILD_ID || 'development',
     entryUrl: window.location.href,
     storage,
-    isOnline: () => navigator.onLine !== false,
-    waitForOnline: () => new Promise((resolve) => {
-      window.addEventListener('online', () => resolve(), { once: true });
-    }),
     fetchReleaseManifest: async (url, init) => {
       const response = await fetch(url, init);
       if (!response.ok) throw new Error(`release manifest HTTP ${response.status}`);

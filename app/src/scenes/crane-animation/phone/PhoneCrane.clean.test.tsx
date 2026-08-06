@@ -88,7 +88,7 @@ describe('clean PhoneCrane leaf', () => {
     const activation = commands.activate({
       invocationId: 'crane:activate:1',
       surfaceIds: ['crane-figure-video', 'crane-flock-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     expect(activation.invoked).toBe(true);
     expect(activation.settlements).toHaveLength(2);
@@ -115,7 +115,7 @@ describe('clean PhoneCrane leaf', () => {
     commands.activate({
       invocationId: 'crane:activate:2',
       surfaceIds: ['crane-figure-video', 'crane-flock-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     (packedProbe.options[0]?.onFrame as ((frame: {
       canvas: HTMLCanvasElement; generation: number;
@@ -134,7 +134,7 @@ describe('clean PhoneCrane leaf', () => {
     commands.activate({
       invocationId: 'crane:activate:retained',
       surfaceIds: ['crane-figure-video', 'crane-flock-video'],
-      credit: 'physical-epoch'
+      credit: 'physical-epoch', playback: false
     });
     commands.pause('outside-closure');
     for (const surface of packedProbe.surfaces) {

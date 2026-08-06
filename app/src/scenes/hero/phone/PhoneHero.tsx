@@ -273,6 +273,10 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         try {
           settled = Promise.resolve(video.play()).then(() => {
             if (activeRef.current) compositorRef.current?.render();
+            if (!command.playback) {
+              video.pause();
+              playbackRef.current?.setActive(false);
+            }
           });
         } catch (error) {
           settled = Promise.reject(error);
@@ -298,8 +302,17 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         }
       },
       settle(endpoint) {
-        if (!renderedRef.current && endpoint === 1) startEntrance();
-        else commandHandle.render(endpoint);
+        if (endpoint === 0) {
+          commandHandle.render(0);
+          playbackRef.current?.settle();
+          return;
+        }
+        playbackRef.current?.setActive(true);
+        if (!renderedRef.current) startEntrance();
+        else {
+          commandHandle.render(0);
+          completeEntrance();
+        }
         playbackRef.current?.settle();
       },
       pause() {

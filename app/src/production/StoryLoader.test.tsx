@@ -120,6 +120,9 @@ describe('StoryLoader', () => {
     const rootIndex = html.indexOf('id="root"');
     expect(loaderIndex).toBeGreaterThan(0);
     expect(loaderIndex).toBeLessThan(rootIndex);
+    const staticCover = html.slice(loaderIndex, html.indexOf('<noscript>', loaderIndex));
+    expect(staticCover).not.toContain('story-loader__word');
+    expect(staticCover).not.toMatch(/同人于野|观象知幂/);
     expect(html).toContain('data-loader-ink-fallback="true"');
     expect(html).not.toContain('mobile-landscape-entry-static');
     expect(html).toContain('#story-loader-static { display: none !important; }');

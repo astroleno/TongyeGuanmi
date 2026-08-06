@@ -261,7 +261,7 @@ function planeRequest(
     attempt, stageIndex: 0, leg, sceneId, planeRevision,
     viewport, required: slotsFor(attempt, leg, planeRevision, kinds),
     progress: attempt.direction === 'reverse' ? 1 : 0,
-    loaderCovered: attempt.mode === 'boot', interactionEnabled: false
+    loaderCovered: attempt.mode === 'boot'
   };
 }
 
@@ -316,6 +316,65 @@ function registerScene(
 }
 
 describe('phone presentation semantic plane', () => {
+  it('projects complementary Ink ownership onto both live planes and clears it atomically', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    fixture.presentation.applyTransitionFrame({
+      sourceOpacity: .7,
+      targetOpacity: .4,
+      direction: 'forward',
+      foregroundOwner: 'target',
+      ownership: {
+        revealClip: 'circle(42px at 50% 50%)',
+        concealClip: 'polygon(0 0, 80% 0, 70% 100%, 0 100%)',
+        concealMask: 'radial-gradient(circle, transparent 42px, #000 42px)'
+      }
+    });
+    expect(fixture.source.getAttribute('data-phone-exposed')).toBe('true');
+    expect(fixture.receiver.getAttribute('data-phone-exposed')).toBe('true');
+    expect(fixture.story.style.getPropertyValue('--phone-source-clip')).toContain('polygon');
+    expect(fixture.story.style.getPropertyValue('--phone-target-clip')).toContain('circle');
+    expect(fixture.story.style.getPropertyValue('--phone-source-mask'))
+      .toContain('radial-gradient');
+    expect(fixture.story.style.getPropertyValue('--phone-source-opacity')).toBe('0.7');
+    expect(fixture.story.style.getPropertyValue('--phone-target-opacity')).toBe('0.4');
+    expect(fixture.story.getAttribute('data-phone-transition-foreground')).toBe('target');
+
+    fixture.presentation.applyTransitionFrame(null);
+    expect(fixture.story.style.getPropertyValue('--phone-source-clip')).toBe('');
+    expect(fixture.story.style.getPropertyValue('--phone-target-clip')).toBe('');
+    expect(fixture.story.style.getPropertyValue('--phone-source-mask')).toBe('');
+    expect(fixture.story.style.getPropertyValue('--phone-source-opacity')).toBe('');
+    expect(fixture.story.style.getPropertyValue('--phone-target-opacity')).toBe('');
+    expect(fixture.story.getAttribute('data-phone-transition-foreground')).toBeNull();
+  });
+
+  it('preserves live Ink ownership during a projector reproof', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const attempt = attemptFor(
+      'method-top', 'segment', 'aod-method-top', 'forward'
+    );
+    registerScene(fixture, 'method-top', attempt);
+    fixture.presentation.applyTransitionFrame({
+      sourceOpacity: .5,
+      targetOpacity: 1,
+      direction: 'forward',
+      foregroundOwner: 'source',
+      ownership: null
+    });
+    fixture.setStyle(fixture.source, computedStyle({ zIndex: '30' }));
+    fixture.setStyle(fixture.receiver, computedStyle({ zIndex: '10' }));
+    expect(fixture.presentation.applyPlane(planeRequest(
+      'method-top', attempt, 'target', ['plane-acknowledged']
+    )).failure).toBeNull();
+    expect(fixture.story.getAttribute('data-phone-transition-live')).toBe('true');
+    expect(fixture.story.getAttribute('data-phone-transition-foreground')).toBe('source');
+    expect(fixture.story.style.getPropertyValue('--phone-source-opacity')).toBe('0.5');
+    expect(fixture.source.getAttribute('data-phone-exposed')).toBe('true');
+    expect(fixture.receiver.getAttribute('data-phone-exposed')).toBe('true');
+  });
+
   it('applies the documented stack in both directions of all 15 segments', () => {
     for (const segment of phoneManifest.segments) {
       for (const direction of ['forward', 'reverse'] as const) {
@@ -419,9 +478,12 @@ describe('phone presentation semantic plane', () => {
       .toBe('presentation-proof-identity-invalid');
   });
 
-  it('keeps visual endpoints inert through candidate exposure and leaves reading interaction disabled', () => {
+  it('keeps visual endpoints inert without taking Shell ownership of reading or interaction', () => {
     const fixture = createStoryFixture();
     fixture.presentation.attachRoot(fixture.story);
+    fixture.story.setAttribute('data-phone-interaction', 'enabled');
+    fixture.reading.setAttribute('aria-hidden', 'false');
+    fixture.reading.toggleAttribute('inert', false);
     const { lease, root, binding } = registerScene(fixture, 'pattern');
     const prepared = fixture.presentation.verifyPrepared({ binding, lease, fact: null });
     expect(prepared.records.map(({ slot }) => slot.kind)).toEqual(expect.arrayContaining([
@@ -435,7 +497,8 @@ describe('phone presentation semantic plane', () => {
     expect(root.getAttribute('aria-hidden')).toBe('true');
     expect(root.hasAttribute('inert')).toBe(true);
     expect(fixture.reading.getAttribute('aria-hidden')).toBe('false');
-    expect(fixture.story.getAttribute('data-phone-interaction')).toBe('disabled');
+    expect(fixture.reading.hasAttribute('inert')).toBe(false);
+    expect(fixture.story.getAttribute('data-phone-interaction')).toBe('enabled');
   });
 
   it('re-proves rollback from the retained source plane instead of exposing the receiver', () => {
@@ -476,7 +539,7 @@ describe('phone presentation viewport and coverage', () => {
       ? { width: 844, height: 390, orientation: 'landscape' }
       : { width: 390, height: 844, orientation: 'portrait' };
     const fixture = createStoryFixture(layout, visual);
-    const liveRect = rect(visual.offsetLeft, visual.offsetTop, visual.width, visual.height);
+    const liveRect = rect(0, 0, visual.width, visual.height);
     setRect(fixture.coverage, liveRect);
     setRect(fixture.receiver, liveRect);
     fixture.presentation.attachRoot(fixture.story);
@@ -729,6 +792,21 @@ describe('phone presentation fixed topology and Hero zero contract', () => {
     expect(styles).toContain('--phone-visual-offset-top');
     expect(styles).toContain('--phone-visual-scale');
     expect(styles).toContain('--phone-layout-width');
+  });
+
+  it('keeps fixed overlays and BCR proof in one physical visual-viewport space', () => {
+    const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('./presentation.ts', import.meta.url), 'utf8');
+    const viewport = styles.match(/\.phone-story__viewport\s*\{([^}]+)\}/)?.[1] ?? '';
+
+    expect(viewport).toContain('left: var(--phone-visual-offset-left)');
+    expect(viewport).toContain('top: var(--phone-visual-offset-top)');
+    expect(viewport).toContain('width: var(--phone-visual-width)');
+    expect(viewport).toContain('height: var(--phone-visual-height)');
+    expect(viewport).not.toContain('inset: 0');
+    expect(source).not.toMatch(/bounds\.(?:left|top|right|bottom)\s*\+\s*viewport\.offset/);
+    expect(source).not.toMatch(/visual\.offset(?:Left|Top)\s*\+\s*0\.25/);
+    expect(source).not.toMatch(/containsPoint\([\s\S]*?visual\.offsetLeft,\s*visual\.offsetTop/);
   });
 
   it('applies Hero progress zero before a candidate proof can release Loader', () => {
