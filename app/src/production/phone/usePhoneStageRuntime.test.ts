@@ -217,10 +217,16 @@ describe('phone stage AOD resource selection', () => {
     expect(stageRuntimeSource).toContain(
       'window.scrollY + method.getBoundingClientRect().top'
     );
+    expect(stageRuntimeSource).toMatch(
+      /case 'aod-method':[\s\S]*?direction === 1[\s\S]*?: methodDocumentPosition\(\)/
+    );
   });
 
   it('[AOD first-intent cutover] admits playback through the one runner bridge', () => {
     expect(stageRuntimeSource.match(/aodAdapter\.startAutoplay\(/g)).toHaveLength(1);
+    expect(aodLeafSource).toContain('canStartAutoplay: () => Boolean(');
+    expect(aodLeafSource).toContain('autoplayRef.current');
+    expect(aodLeafSource).toContain('renderRef.current');
     expect(aodLeafSource).not.toMatch(/\n\s*enter\(\)\s*\{/);
     expect(aodLeafSource).not.toMatch(/\n\s*leave\(\)\s*\{/);
     expect(aodLeafSource).not.toMatch(/\n\s*reverse\(\)\s*\{/);

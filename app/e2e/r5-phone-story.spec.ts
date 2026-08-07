@@ -2448,6 +2448,7 @@ async function driveAdjacentPhoneRun(
       const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
       const canvas = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
       const root = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod');
+      const authority = document.querySelector<HTMLElement>('.portrait-scroll-spike');
       return video ? {
         video: {
           readyState: video.readyState,
@@ -2470,7 +2471,16 @@ async function driveAdjacentPhoneRun(
           mediaTime: canvas.dataset.packedAlphaMediaTime ?? null,
           active: canvas.dataset.packedAlphaCompositorActive ?? null
         } : null,
-        rootDataset: root ? { ...root.dataset } : null
+        rootDataset: root ? { ...root.dataset } : null,
+        authorityDataset: authority ? {
+          phoneAodExecution: authority.dataset.phoneAodExecution ?? null,
+          phoneAodPhase: authority.dataset.phoneAodPhase ?? null,
+          phoneAodStage: authority.dataset.phoneAodStage ?? null,
+          phoneAodPlayConfirmed: authority.dataset.phoneAodPlayConfirmed ?? null,
+          phoneAodFirstFramePresented: authority.dataset.phoneAodFirstFramePresented ?? null,
+          phoneAodLastProgress: authority.dataset.phoneAodLastProgress ?? null,
+          phoneAodRollbackReason: authority.dataset.phoneAodRollbackReason ?? null
+        } : null
       } : null;
     });
     throw new Error(

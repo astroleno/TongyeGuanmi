@@ -99,6 +99,8 @@ export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
 };
 
 export type PhoneAodAdapterHandle = PhoneSceneAdapterHandle & {
+  /** True only after the leaf has installed its runner-owned autoplay lease. */
+  canStartAutoplay(): boolean;
   startAutoplay(execution: PhoneAodExecution): Promise<PhoneAodStartResult>;
   /** The runner alone projects reducer-accepted media progress. */
   renderAutoplayProgress(

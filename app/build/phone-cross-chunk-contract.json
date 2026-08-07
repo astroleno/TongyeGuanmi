@@ -48,6 +48,7 @@
     "contact",
     "begin",
     "canvas",
+    "canStartAutoplay",
     "cancelEntrance",
     "centerForViewport",
     "clearTransitionEndpoints",

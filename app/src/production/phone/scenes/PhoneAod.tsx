@@ -468,6 +468,11 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       effectRoot: () => rootRef.current?.querySelector<HTMLCanvasElement>(
         '[data-aod-figure-canvas]'
       ) ?? null,
+      canStartAutoplay: () => Boolean(
+        autoplayRef.current
+        && renderRef.current
+        && rootRef.current?.isConnected
+      ),
       update(progress) {
         renderRef.current?.(progress);
       },

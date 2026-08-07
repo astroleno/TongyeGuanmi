@@ -309,7 +309,12 @@ describe('Route B proven front-half migration contract', () => {
   });
 
   it('keeps one packed-alpha owner and the phone-only 0.49 → 0.59 mapping', () => {
-    expect(heroSource).toContain('createPackedAlphaVideoCompositor');
+    // Hero delegates its packed decoder/canvas pair to the surface owner. The
+    // leaf must not construct a second compositor around a React-owned node.
+    expect(heroSource).toContain('createPhonePackedAlphaSurface');
+    expect(heroSource).not.toContain('createPackedAlphaVideoCompositor');
+    expect(packedSurfaceSource).toContain('createPackedAlphaVideoCompositor');
+    expect(packedSurfaceSource).toContain('canvas.remove()');
     expect(aodSource).toContain('createPackedAlphaVideoCompositor');
     expect(heroSource).toContain(
       "phoneMediaUrlFor('hero-figure-packed', 'hero')"

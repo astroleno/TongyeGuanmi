@@ -494,6 +494,14 @@ export function PhoneGradeAStory({
         return [actualY, null, null, direction, null];
       },
       (run, direction) => {
+        // Direct Method entries do not mount the front fixed-stage corridor.
+        // The Method leaf still owns the physical reverse boundary, so expose
+        // that authored document coordinate from the Grade-A corridor instead
+        // of letting the engine fall back to pass-native with no boundary.
+        if (run === 'aod-method' && direction === -1) {
+          const method = document.getElementById('method');
+          return method ? elementDocumentTop(method) : null;
+        }
         if (run === 'method-figure2') return boundaryPosition(0, direction);
         if (run === 'figure2-proof') return boundaryPosition(1, direction);
         if (run === 'proof-brand') return boundaryPosition(2, direction);

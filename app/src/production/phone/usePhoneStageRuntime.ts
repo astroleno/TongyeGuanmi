@@ -601,7 +601,12 @@ export function usePhoneStageRuntime(
           case 'aod-method':
             return direction === 1
               ? aodSemanticPosition()
-              : Math.max(stageScrollStart, stageScrollEnd - 1);
+              // Method is a native reading surface on the reverse leg. Its
+              // input claim must use the authored Method top in document
+              // coordinates, not the frozen front-rail edge. Direct-entry
+              // routes can mount the rail with a zero scroll distance while
+              // Method is already the visible stable surface.
+              : methodDocumentPosition();
           default:
             return null;
         }
@@ -637,7 +642,7 @@ export function usePhoneStageRuntime(
           && run === 'aod-method'
           && currentDirection === direction
           && phase === 'preparing'
-          && aodRef.current !== null;
+          && aodRef.current?.canStartAutoplay() === true;
       },
       (execution) => {
         const aodAdapter = aodRef.current;

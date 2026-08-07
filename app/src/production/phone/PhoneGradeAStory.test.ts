@@ -129,6 +129,17 @@ describe('phone Grade A document progress', () => {
     expect(mode?.('reverse', -1)).toBe('completed-edge');
     expect(mode?.('rollback', 1)).toBe('completed-edge');
   });
+
+  it('[Method→AOD reverse] keeps the authored Method document boundary available to direct entries', () => {
+    const boundary = source.indexOf("if (run === 'aod-method' && direction === -1)");
+    expect(boundary).toBeGreaterThanOrEqual(0);
+    const branch = source.slice(boundary, source.indexOf(
+      "if (run === 'method-figure2')",
+      boundary
+    ));
+    expect(branch).toContain("document.getElementById('method')");
+    expect(branch).toContain('elementDocumentTop(method)');
+  });
 });
 
 describe('phone Grade A orchestration ownership', () => {
