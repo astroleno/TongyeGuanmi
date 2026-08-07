@@ -275,7 +275,7 @@ const sceneProofLedger = {
       kind: 'image-decode-composite-paint',
       surfaceIds: ['star-map-source', 'star-map-canvas']
     },
-    prepared: 'image-decoded'
+    prepared: ['image-decoded', 'canvas-drawn']
   },
   'aod-animation': {
     landing: { kind: 'semantic-edge', anchor: 'aod-semantic-edge' },
@@ -484,10 +484,13 @@ function prewarm(scene: keyof typeof sceneDetails) {
 }
 
 function preparedQuorum(scene: keyof typeof sceneDetails) {
+  const visualProof = scene === 'star-map'
+    ? ['image-decoded', 'canvas-drawn'] as const
+    : [sceneProofLedger[scene].prepared];
   return [
     'module-loaded',
     'root-connected',
-    sceneProofLedger[scene].prepared,
+    ...visualProof,
     ...(scene === 'figure2-proof' ? ['image-decoded'] : []),
     'layout-measurable',
     'resource-budget-valid'

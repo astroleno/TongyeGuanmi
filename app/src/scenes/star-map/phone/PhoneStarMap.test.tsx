@@ -83,7 +83,13 @@ describe('clean PhoneStarMap leaf', () => {
     expect(current.reports.reportFrame).not.toHaveBeenCalled();
 
     await act(async () => {
-      host.querySelector('[data-portrait-star-source]')?.dispatchEvent(new Event('load'));
+      const source = host.querySelector<HTMLImageElement>('[data-portrait-star-source]');
+      if (source) Object.defineProperties(source, {
+        complete: { configurable: true, value: true },
+        naturalWidth: { configurable: true, value: 1672 },
+        naturalHeight: { configurable: true, value: 941 }
+      });
+      source?.dispatchEvent(new Event('load'));
       await Promise.resolve();
     });
     revealProbe.instance!.ready = true;
@@ -137,7 +143,13 @@ describe('clean PhoneStarMap leaf', () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneStarMap reports={mount.reports} />); });
     await act(async () => {
-      host.querySelector('[data-portrait-star-source]')?.dispatchEvent(new Event('load'));
+      const source = host.querySelector<HTMLImageElement>('[data-portrait-star-source]');
+      if (source) Object.defineProperties(source, {
+        complete: { configurable: true, value: true },
+        naturalWidth: { configurable: true, value: 1672 },
+        naturalHeight: { configurable: true, value: 941 }
+      });
+      source?.dispatchEvent(new Event('load'));
       await Promise.resolve();
     });
     revealProbe.instance!.ready = true;

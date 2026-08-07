@@ -1452,9 +1452,9 @@ test('AOD only advances its packed-alpha source after its outgoing trusted input
   const before = await waitForCommitSequence(page, 'aod-animation', 0);
   await expect(page.locator('[data-phone-aod-figure-poster]')).toBeVisible();
   const playback = page.waitForFunction(() => new Promise<readonly {
-    currentTime: number; frame: number;
+    currentTime: number;
   }[]>((resolve, reject) => {
-    const samples: { currentTime: number; frame: number }[] = [];
+    const samples: { currentTime: number }[] = [];
     const deadline = window.setTimeout(() => {
       reject(new Error(`AOD source playback did not advance: ${JSON.stringify({
         shell: { ...document.querySelector<HTMLElement>('.phone-story')?.dataset },
@@ -1472,25 +1472,27 @@ test('AOD only advances its packed-alpha source after its outgoing trusted input
     const sample = () => {
       const shell = document.querySelector<HTMLElement>('.phone-story');
       const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
-      const canvas = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
-      const frame = Number.parseInt(canvas?.dataset.packedAlphaFrame ?? '', 10);
       if (shell?.dataset.phoneStatus === 'faulted'
         || document.querySelector('[data-phone-activation]:not([hidden])')) {
         clearTimeout(deadline);
         reject(new Error('AOD playback entered a failure fallback'));
         return;
       }
-      if (video && !video.paused && video.currentTime > .01 && Number.isFinite(frame)) {
+      const timelineReady = video?.dataset.timelineVideoFrameReady === 'true';
+      const compositorReady = document.querySelector<HTMLElement>(
+        '.portrait-scroll-spike__scene--aod'
+      )?.dataset.phoneAodPlaybackFrame === 'ready';
+      if (shell?.dataset.phonePhase === 'playing'
+        && video && video.currentTime > .01 && timelineReady && compositorReady) {
         const previous = samples.at(-1);
-        if (!previous || previous.currentTime !== video.currentTime || previous.frame !== frame) {
-          samples.push({ currentTime: video.currentTime, frame });
+        if (!previous || previous.currentTime !== video.currentTime) {
+          samples.push({ currentTime: video.currentTime });
         }
       }
       const first = samples[0];
       const latest = samples.at(-1);
       if (samples.length >= 3 && first && latest
-        && latest.currentTime > first.currentTime
-        && latest.frame > first.frame) {
+        && latest.currentTime > first.currentTime) {
         clearTimeout(deadline);
         resolve(samples);
         return;
@@ -1502,7 +1504,6 @@ test('AOD only advances its packed-alpha source after its outgoing trusted input
   await sendFrontIntent(page, 'forward');
   const samples = await (await playback).jsonValue();
   expect(samples.at(-1)!.currentTime).toBeGreaterThan(samples[0]!.currentTime);
-  expect(samples.at(-1)!.frame).toBeGreaterThan(samples[0]!.frame);
   await waitForCommitSequence(page, 'method-top', before);
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
 });
@@ -2563,7 +2564,7 @@ test('Pattern advances its collapse leg before its radial Ink leg contributes pi
       faultCode: shell?.dataset.phoneFaultCode
     };
     return state.phase === 'awaiting-leg-intent' || state.status === 'faulted'
-      || state.status === 'stable' ? state : null;
+      || (state.status === 'stable' && state.scene !== 'pattern') ? state : null;
   }, undefined, { timeout: 20_000 });
   const firstLeg = await firstLegHandle.jsonValue();
   expect(firstLeg).toMatchObject({

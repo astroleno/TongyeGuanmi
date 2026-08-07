@@ -24,16 +24,30 @@ function waitForDecodedImage(image: HTMLImageElement): Promise<void> {
   if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
     return Promise.resolve();
   }
-  if (typeof image.decode === 'function') return image.decode();
   return new Promise((resolve, reject) => {
-    const loaded = () => { clear(); resolve(); };
-    const failed = () => { clear(); reject(new Error('Star Map source decode failed')); };
+    let pollId: number | undefined;
     const clear = () => {
+      if (pollId !== undefined) window.clearTimeout(pollId);
       image.removeEventListener('load', loaded);
       image.removeEventListener('error', failed);
     };
+    const failed = () => { clear(); reject(new Error('Star Map source decode failed')); };
+    const loaded = () => {
+      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+        clear();
+        resolve();
+      }
+    };
+    const poll = () => {
+      if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+        loaded();
+        return;
+      }
+      pollId = window.setTimeout(poll, 50);
+    };
     image.addEventListener('load', loaded, { once: true });
     image.addEventListener('error', failed, { once: true });
+    poll();
   });
 }
 

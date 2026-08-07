@@ -401,7 +401,7 @@ function prewarmDependencies(id: PhoneSceneId): readonly PhoneDependencyRef[] {
 function preparedEvidence(id: PhoneSceneId): readonly PhonePreparedEvidenceKind[] {
   const kind = sceneSeeds[id].frame.kind;
   const readiness: PhonePreparedEvidenceKind = kind === 'image-decode-composite-paint' ? 'image-decoded' : kind === 'content-post-paint' ? 'static-ready' : kind === 'decoded-composited-frame' && sceneSeeds[id].resourceBudget.canvases === 0 ? 'video-decoded' : 'canvas-drawn';
-  return ['module-loaded', 'root-connected', readiness, ...(id === 'figure2-proof' ? ['image-decoded' as const] : []), 'layout-measurable', 'resource-budget-valid'];
+  return ['module-loaded', 'root-connected', ...(id === 'star-map' ? ['image-decoded', 'canvas-drawn'] as const : [readiness]), ...(id === 'figure2-proof' ? ['image-decoded' as const] : []), 'layout-measurable', 'resource-budget-valid'];
 }
 function mediaActivation(
   resourceBudget: PhoneResourceBudget, needsPhysicalActivation = resourceBudget.videos > 0
@@ -590,6 +590,7 @@ export function phonePreparedSurfaceIds(
   const scene = phoneSceneById(sceneId);
   if (kind === 'module-loaded' || kind === 'resource-budget-valid') return [null];
   if (kind === 'root-connected' || kind === 'layout-measurable') return [`root:${sceneId}`];
+  if (scene.id === 'star-map') return kind === 'image-decoded' ? ['star-map-source'] : kind === 'canvas-drawn' ? ['star-map-canvas'] : scene.frame.surfaceIds;
   if (scene.frame.kind === 'packed-canvas-draw') return scene.frame.surfaceIds;
   if (kind === 'image-decoded' && scene.id === 'figure2-proof') {
     return ['figure2-foreground-arch'];
