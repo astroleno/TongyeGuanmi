@@ -129,6 +129,16 @@ describe('PhoneHero Route B adapter', () => {
     expect(heroSource).toContain(
       "rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');"
     );
+    const activeLease = heroSource.slice(
+      heroSource.indexOf('useLayoutEffect(() => {\n      sceneActiveRef.current = active;'),
+      heroSource.indexOf('\n    useImperativeHandle(', heroSource.indexOf(
+        'useLayoutEffect(() => {\n      sceneActiveRef.current = active;'
+      ))
+    );
+    expect(activeLease).toContain('if (heroEntranceCompletedRef.current)');
+    expect(activeLease).toContain(
+      "rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');"
+    );
     expect(heroSource).toContain('heroEntranceCompletedRef.current = false;');
   });
 });

@@ -29,11 +29,14 @@ export function releasePackedAlphaWebGlContext(
 export function renewPackedAlphaCanvas(
   canvas: HTMLCanvasElement
 ): HTMLCanvasElement {
-  const renewed = canvas.cloneNode(false) as HTMLCanvasElement;
-  renewed.width = 1;
-  renewed.height = 1;
-  canvas.replaceWith(renewed);
-  return renewed;
+  // React owns the Hero/AOD canvas nodes. Reset the drawing buffer in place so
+  // the compositor can retire its WebGL resources without replacing the DOM
+  // node behind React's ref/Fiber. Group 6/7 surfaces have a separate owner
+  // and create/remove their canvas themselves; this helper is deliberately
+  // only for the React-owned scenes.
+  canvas.width = 1;
+  canvas.height = 1;
+  return canvas;
 }
 
 type PackedAlphaVideoOptions = Readonly<{

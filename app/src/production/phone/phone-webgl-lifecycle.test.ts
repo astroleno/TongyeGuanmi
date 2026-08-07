@@ -157,9 +157,13 @@ describe('phone WebGL allocation lifecycle', () => {
 
   it('keeps packed Canvas ownership inside the surface lifecycle', () => {
     const surface = source('./scenes/phone-packed-alpha-surface.ts');
+    const packedVideo = source('../../media/packed-alpha-video.ts');
 
     expect(surface).not.toContain('renewPackedAlphaCanvas');
     expect(surface).not.toContain('externalCanvas');
     expect(surface).toContain('canvas.remove();');
+    expect(packedVideo).not.toContain('cloneNode');
+    expect(packedVideo).not.toContain('replaceWith');
+    expect(packedVideo).toContain('canvas.width = 1;');
   });
 });

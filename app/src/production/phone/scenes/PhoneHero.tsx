@@ -470,6 +470,14 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     useLayoutEffect(() => {
       sceneActiveRef.current = active;
       if (active) {
+        // `radialInkIntro.dispose()` clears the handoff property when Hero is
+        // retired. A reverse route can reactivate the already-completed Hero
+        // without replaying the one-shot entrance, so restore the authored
+        // stable endpoint in the same activation commit rather than waiting
+        // for a later scroll sample to call update().
+        if (heroEntranceCompletedRef.current) {
+          rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');
+        }
         ensureCompositor()?.setActive(true);
         if (!reducedMotion) {
           ensureIntroInk()?.(['prewarm']);
