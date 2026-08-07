@@ -575,6 +575,10 @@ type PhoneRuntimeResourceSample = Readonly<{
 
 type PhoneLegTimeline = Readonly<{
   run: string;
+  authorityId: string;
+  sessionId: string;
+  generation: string;
+  leg: string;
   from: PhoneStableScene;
   to: PhoneStableScene;
   direction: 1 | -1;
@@ -1251,21 +1255,24 @@ async function recordPhoneLegTimeline(
   direction: 1 | -1
 ): Promise<PhoneLegTimeline> {
   const probe = await phoneRuntimeProbe(page);
-  const startState = probe.stateEvents.find((state) => (
-    state.cursor?.startsWith('transition:')
+  const previousReleaseAt = Math.max(
+    0,
+    ...probe.legTimelines.map((timeline) => timeline.releaseAt)
+  );
+  const startIndex = probe.stateEvents.findIndex((state) => (
+    state.at > previousReleaseAt
+    && state.cursor?.startsWith('transition:')
+    && state.direction === String(direction)
   ));
+  const startState = startIndex >= 0
+    ? probe.stateEvents[startIndex]
+    : undefined;
   const startCursor = startState?.cursor ?? null;
   if (!startCursor) {
     throw new Error(`Missing transition cursor in ${from} → ${to} leg timeline`);
   }
   const run = startCursor.split(':')[1];
   if (!run) throw new Error(`Missing run id in ${startCursor}`);
-  const startIndex = probe.stateEvents.findIndex(
-    (state) => state.cursor === startCursor
-  );
-  if (startIndex < 0) {
-    throw new Error(`Missing ${startCursor} in leg timeline`);
-  }
   const commitIndex = probe.stateEvents.findIndex((state, index) => (
     index >= startIndex && state.cursor === `hold:${to}`
   ));
@@ -1295,11 +1302,55 @@ async function recordPhoneLegTimeline(
   const startAt = probe.stateEvents[startIndex]!.at;
   const commitAt = probe.stateEvents[commitIndex]!.at;
   const releaseAt = probe.stateEvents[releaseIndex]!.at;
+  const start = probe.stateEvents[startIndex]!;
+  if (
+    !start.authorityId
+    || !start.session
+    || !start.generation
+    || !start.leg
+  ) {
+    throw new Error(
+      `Incomplete execution identity in ${startCursor}: `
+      + `${JSON.stringify({
+        authorityId: start.authorityId,
+        session: start.session,
+        generation: start.generation,
+        leg: start.leg
+      })}`
+    );
+  }
+  const terminal = probe.stateEvents[commitIndex]!;
+  if (
+    terminal.authorityId !== start.authorityId
+    || terminal.session !== null
+    || terminal.input !== 'free'
+  ) {
+    throw new Error(
+      `Invalid execution handoff for ${startCursor}: `
+      + `${JSON.stringify({
+        start: {
+          authorityId: start.authorityId,
+          session: start.session,
+          generation: start.generation,
+          leg: start.leg
+        },
+        terminal: {
+          authorityId: terminal.authorityId,
+          session: terminal.session,
+          input: terminal.input
+        }
+      })}`
+    );
+  }
   const samples = probe.resourceSamples.filter((sample) => (
     sample.at >= startAt && sample.at <= releaseAt
   ));
   const timeline: PhoneLegTimeline = {
     run,
+    authorityId: start.authorityId,
+    sessionId: start.session,
+    generation: start.generation,
+    leg: start.leg,
     from,
     to,
     direction,
@@ -1313,6 +1364,10 @@ async function recordPhoneLegTimeline(
   expect(timeline.firstFrameAt).toBeGreaterThanOrEqual(timeline.startAt);
   expect(timeline.commitAt).toBeGreaterThanOrEqual(timeline.firstFrameAt);
   expect(timeline.releaseAt).toBeGreaterThanOrEqual(timeline.commitAt);
+  expect(timeline.authorityId).toBe(start.authorityId);
+  expect(timeline.sessionId).toBe(start.session);
+  expect(timeline.generation).toBe(start.generation);
+  expect(timeline.leg).toBe(start.leg);
   await page.evaluate((nextTimeline) => {
     const probe = (window as typeof window & {
       __phoneRuntimeProbe?: { legTimelines: PhoneLegTimeline[] };
@@ -2953,6 +3008,23 @@ test('Task 10 completes two full-motion formal round trips in one authority', as
     && timeline.firstFrameAt <= timeline.commitAt
     && timeline.commitAt <= timeline.releaseAt
     && timeline.activeWebglAtMax <= 4
+  ))).toBe(true);
+  expect(new Set(probe.legTimelines.map((timeline) => timeline.authorityId))).toEqual(
+    new Set([authorityId])
+  );
+  expect(new Set(probe.legTimelines.map((timeline) => (
+    [
+      timeline.sessionId,
+      timeline.generation,
+      timeline.leg,
+      timeline.direction,
+      timeline.run
+    ].join(':')
+  ))).size).toBe(expectedLegCount);
+  expect(probe.legTimelines.every((timeline) => (
+    timeline.sessionId.length > 0
+    && timeline.generation.length > 0
+    && timeline.leg.length > 0
   ))).toBe(true);
   expect(probe.maxActive).toBeLessThanOrEqual(4);
 });
