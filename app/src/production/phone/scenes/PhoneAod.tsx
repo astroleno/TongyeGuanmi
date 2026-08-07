@@ -14,7 +14,8 @@ import {
 } from '../../../scenes/aod-animation';
 import {
   createPackedAlphaVideoCompositor,
-  renewPackedAlphaCanvas,
+  releasePackedAlphaWebGlContext,
+  restorePackedAlphaWebGlContext,
   type PackedAlphaRenderFailure,
   type PackedAlphaRenderResult,
   type PackedAlphaVideoCompositor
@@ -119,6 +120,12 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     const rootRef = useRef<HTMLDivElement | null>(null);
     const autoplayRef = useRef<PhoneAodAutoplay | undefined>(undefined);
     const compositorRef = useRef<PackedAlphaVideoCompositor | undefined>(undefined);
+    const compositorRestorePendingRef = useRef(false);
+    const compositorNeedsRestoreRef = useRef(false);
+    const compositorRestorePollRef = useRef<
+      ReturnType<typeof globalThis.setTimeout> | undefined
+    >(undefined);
+    const activeRef = useRef(active);
     const renderRef = useRef<
       (
         progress: number,
@@ -205,20 +212,34 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         });
       });
     }, []);
-    const releaseCompositor = useCallback(() => {
+    const releaseCompositor = useCallback((hardLose = false) => {
       const compositor = compositorRef.current;
-      const canvas = rootRef.current?.querySelector<HTMLCanvasElement>(
-        '[data-aod-figure-canvas]'
-      );
       const staticSurface = rootRef.current?.querySelector<HTMLElement>(
         '[data-aod-reveal-surface]'
       );
       delete staticSurface?.dataset.aodStaticPoster;
       delete rootRef.current?.dataset.phoneInkFrame;
-      if (!compositor) return;
+      if (compositorRestorePollRef.current !== undefined) {
+        globalThis.clearTimeout(compositorRestorePollRef.current);
+        compositorRestorePollRef.current = undefined;
+      }
+      if (!compositor) {
+        compositorRestorePendingRef.current = false;
+        return;
+      }
+      compositorNeedsRestoreRef.current = hardLose;
       compositor.dispose();
+      if (hardLose) {
+        const canvas = rootRef.current?.querySelector<HTMLCanvasElement>(
+          '[data-aod-figure-canvas]'
+        );
+        const context = canvas?.getContext('webgl');
+        if (context) releasePackedAlphaWebGlContext(context);
+      }
       compositorRef.current = undefined;
-      if (canvas) renewPackedAlphaCanvas(canvas);
+      // Keep the React-owned canvas dimensions intact. Resizing a canvas
+      // immediately after WEBGL_lose_context destroys the restorable context
+      // in WebKit; the next AOD lease must restore this same node.
     }, []);
     const ensureCompositor = useCallback(() => {
       if (reducedMotion) return undefined;
@@ -231,14 +252,62 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         '[data-aod-figure-canvas]'
       );
       if (!root || !video || !canvas) return undefined;
+      const context = canvas.getContext('webgl');
+      const contextLost = context?.isContextLost?.() === true;
+      // WEBGL_lose_context is asynchronous. Some browsers deliver the loss
+      // event and restore the context before the next lease asks for it; in
+      // that case `needsRestore` is only a stale lifecycle marker, not proof
+      // that a restore event is still pending.
+      if (compositorNeedsRestoreRef.current && !contextLost) {
+        compositorNeedsRestoreRef.current = false;
+      }
+      if (compositorNeedsRestoreRef.current || contextLost) {
+        if (!compositorRestorePendingRef.current) {
+          compositorRestorePendingRef.current = true;
+          const deadline = Date.now() + 250;
+          const restore = () => {
+            const current = canvas.getContext('webgl');
+            if (current?.isContextLost()) {
+              const restored = restorePackedAlphaWebGlContext(canvas, () => {
+                compositorRestorePendingRef.current = false;
+                compositorNeedsRestoreRef.current = false;
+                if (rootRef.current !== root || !activeRef.current) return;
+                const restoredCompositor = ensureCompositor();
+                restoredCompositor?.setActive(!reducedMotion);
+                // A reverse target may have installed its immutable
+                // presentation binding while the context was restoring. The
+                // binding must stay pending until this same compositor draws;
+                // never turn the asynchronous restore gap into a media-failed
+                // rollback merely because the first present call saw no
+                // compositor yet.
+                restoredCompositor?.render();
+                onReady?.();
+              });
+              if (restored) return;
+            }
+            if (Date.now() < deadline) {
+              compositorRestorePollRef.current = globalThis.setTimeout(restore, 0);
+              return;
+            }
+            compositorRestorePendingRef.current = false;
+            // The browser failed to deliver a restorable context. Keep this
+            // fact typed and terminal instead of leaving the machine waiting
+            // in preparing forever.
+            compositorNeedsRestoreRef.current = false;
+            reportAodFailure('aod-context-lost');
+          };
+          restore();
+        }
+        return undefined;
+      }
       let compositor: PackedAlphaVideoCompositor | undefined;
       compositor = createPackedAlphaVideoCompositor({
         video,
         canvas,
-        // AOD keeps its React-owned context warmed across the front/back
-        // handoff. Hero is the cold-start owner that retires its context when
-        // inactive; making both route anchors hard-lose here would require a
-        // second restoration protocol and would reintroduce split ownership.
+        // AOD's compositor is scoped to the AOD↔Method lease. Dispose its
+        // shader/texture resources at the boundary, but keep the one
+        // React-owned WebGL context reusable for the next reverse admission;
+        // terminal component disposal is the only place that hard-loses it.
         releaseContextOnDispose: false,
         onFrame: () => {
           const execution = autoplayExecutionRef.current;
@@ -286,8 +355,9 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         }
       });
       compositorRef.current = compositor;
+      compositorNeedsRestoreRef.current = false;
       return compositor;
-    }, [reducedMotion, reportAodFailure, reportAodFrame]);
+    }, [onReady, reducedMotion, reportAodFailure, reportAodFrame]);
     progressListenerRef.current = onAodProgress;
     completeListenerRef.current = onAodComplete;
     frameListenerRef.current = onAodFrame;
@@ -300,7 +370,14 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       const canvas = root?.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
       if (!root || !transition || !video || !canvas) return;
 
-      const onContextLost = () => reportAodFailure('aod-context-lost');
+      const onContextLost = () => {
+        // releaseCompositor(true) deliberately retires this React-owned
+        // canvas between AOD↔Method leases. That synthetic loss is a resource
+        // boundary, not a failed current execution; only an unexpected loss
+        // while the compositor is active may fail the machine transaction.
+        if (compositorNeedsRestoreRef.current) return;
+        reportAodFailure('aod-context-lost');
+      };
       const onMediaError = () => reportAodFailure('media-failed');
       canvas.addEventListener('webglcontextlost', onContextLost);
       video.addEventListener('error', onMediaError);
@@ -359,13 +436,16 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           // decoder progress itself never gains a visual write here.
           // `render()` may invoke the compositor's onFrame callback
           // synchronously (WebKit does this for an explicit reverse seek).
-          // Mark the render attempt before entering the compositor so that
-          // that callback cannot lose the exact first-frame fact to a stale
-          // false value. A failed/waiting draw clears the marker again; only
-          // the compositor's successful draw can publish the frame.
+          // Mark the render attempt before entering the compositor so that a
+          // later loadeddata/seeked draw can publish the same exact token.
+          // `waiting` is not failure: clearing the marker there would lose
+          // the first physical frame when Safari decodes asynchronously.
           renderedFrameRef.current = true;
           const result = compositorRef.current?.render();
-          if (result !== 'rendered') renderedFrameRef.current = false;
+          if (
+            result !== 'rendered'
+            && result !== 'waiting'
+          ) renderedFrameRef.current = false;
           if (reportProgress) {
             progressListenerRef.current?.(progress, execution);
           }
@@ -376,7 +456,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
 
       if (reducedMotion) {
         render(0);
-        onReady?.();
         return () => {
           canvas.removeEventListener('webglcontextlost', onContextLost);
           video.removeEventListener('error', onMediaError);
@@ -432,7 +511,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       });
       autoplayRef.current = autoplay;
       autoplay.reset();
-      onReady?.();
 
       return () => {
         canvas.removeEventListener('webglcontextlost', onContextLost);
@@ -443,36 +521,59 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         }
         presentationBindingRef.current = null;
         autoplay.dispose();
-        releaseCompositor();
+        releaseCompositor(true);
         if (autoplayRef.current === autoplay) autoplayRef.current = undefined;
         if (renderRef.current === render) renderRef.current = undefined;
         delete root.dataset.portraitAodAlpha;
         if (import.meta.env.DEV) delete root.dataset.portraitAodProgress;
         delete transition.dataset.portraitAodBackdropProgress;
       };
-    }, [clearAutoplayExecution, onReady, reducedMotion, releaseCompositor, reportAodFailure]);
+    }, [clearAutoplayExecution, reducedMotion, releaseCompositor, reportAodFailure]);
 
     // `active` is strictly a decoder/compositor lease. Root visibility is
     // assigned synchronously by the story projector's surface role.
     useEffect(() => {
+      activeRef.current = active;
       if (active) {
         ensureCompositor()?.setActive(!reducedMotion);
+        // The setup effect above installs the runner capability before this
+        // active lease is opened. Notify the runtime only after that ordering
+        // point so a preparing AOD transaction cannot observe a half-created
+        // autoplay/compositor handle.
+        onReady?.();
         return;
       }
       compositorRef.current?.setActive(false);
+      // Keep the React-owned AOD context reusable across the next reverse
+      // admission. Terminal component cleanup still hard-releases it; doing
+      // a synthetic loss at every stable Method handoff is not reliable on
+      // WebKit and can strand the next same-authority AOD transaction in
+      // preparing.
       releaseCompositor();
-    }, [active, ensureCompositor, reducedMotion, releaseCompositor]);
+    }, [active, ensureCompositor, onReady, reducedMotion]);
 
     useImperativeHandle(forwardedRef, () => ({
       root: () => rootRef.current,
       effectRoot: () => rootRef.current?.querySelector<HTMLCanvasElement>(
         '[data-aod-figure-canvas]'
       ) ?? null,
-      canStartAutoplay: () => Boolean(
-        autoplayRef.current
-        && renderRef.current
-        && rootRef.current?.isConnected
-      ),
+      canStartAutoplay: () => {
+        // The runner may probe readiness in the same commit that promotes the
+        // AOD surface to its receiver role. Re-arm the route-owned compositor
+        // synchronously here instead of leaving a false probe stranded until
+        // a later React effect. Context restoration remains asynchronous and
+        // therefore still reports false until its restored callback fires.
+        if (activeRef.current && !compositorRef.current) {
+          ensureCompositor()?.setActive(true);
+        }
+        const ready = Boolean(
+          autoplayRef.current
+          && renderRef.current
+          && !compositorRestorePendingRef.current
+          && rootRef.current?.isConnected
+        );
+        return ready;
+      },
       update(progress) {
         renderRef.current?.(progress);
       },
@@ -500,7 +601,9 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         if (result !== 'rendered' && result !== 'waiting') {
           return Promise.resolve('error');
         }
-        return autoplayRef.current?.start(execution) ?? Promise.resolve('error');
+        const startResult = autoplayRef.current?.start(execution)
+          ?? Promise.resolve('error');
+        return startResult;
       },
       renderAutoplayProgress(execution, progress) {
         if (autoplayExecutionRef.current !== execution) return;
@@ -526,7 +629,13 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         }
         const compositor = ensureCompositor();
         if (!compositor) {
-          reportAodFailure('media-failed');
+          // Context restoration is an asynchronous part of the same AOD
+          // lease. Keep the binding pending; ensureCompositor() will either
+          // re-enter this path from its restored callback or report a typed
+          // terminal context failure after its bounded deadline.
+          if (!compositorRestorePendingRef.current) {
+            reportAodFailure('media-failed');
+          }
           return;
         }
         compositor.setActive(true);
@@ -563,7 +672,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         }
         presentationBindingRef.current = null;
         autoplayRef.current?.dispose();
-        releaseCompositor();
+        releaseCompositor(true);
       }
     }), [
       ensureCompositor,

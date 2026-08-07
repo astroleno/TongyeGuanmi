@@ -89,18 +89,22 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(hero).not.toContain('restorePackedAlphaWebGlContext');
     expect(hero).not.toMatch(/\n\s*leave\(\) \{/);
     expect(hero).not.toMatch(/\n\s*reverse\(\) \{/);
-    expect(heroProjectionLease).toContain('releaseGpuOwners();');
+    expect(heroProjectionLease).toContain("packedSurfaceRef.current?.(['retire']);");
     expect(heroProjectionLease).toContain("ensurePackedSurface('forward');");
     expect(heroProjectionLease).toContain('if (presentationBindingRef.current)');
     expect(heroProjectionLease).not.toContain('compositorRef.current');
     expect(aod).toContain('const ensureCompositor = useCallback(');
-    expect(aod).toContain('renewPackedAlphaCanvas');
+    expect(aod).not.toContain('renewPackedAlphaCanvas');
+    // AOD keeps its one React-owned compositor suspended across the
+    // AOD↔Method handoff; terminal dispose still releases it.
     expect(aod).toContain('releaseContextOnDispose: false');
     expect(aod).toContain("root.dataset.phoneInkFrame = 'ready'");
-    expect(aod).toContain("if (result !== 'rendered') renderedFrameRef.current = false;");
+    expect(aod).toMatch(/result !== 'rendered'[\s\S]*result !== 'waiting'/);
     expect(aod).not.toMatch(/\n\s*leave\(\) \{/);
     expect(aod).not.toMatch(/\n\s*reverse\(\) \{/);
+    expect(aodProjectionLease).toContain('compositorRef.current?.setActive(false);');
     expect(aodProjectionLease).toContain('releaseCompositor();');
+    expect(aod).toContain('releaseCompositor(true);');
     expect(aod).toMatch(/startAutoplay\(execution\) \{[\s\S]*?ensureCompositor\(\)/);
   });
 
@@ -155,7 +159,7 @@ describe('phone WebGL allocation lifecycle', () => {
     );
 
     expect(activeLease).toContain('cancelEntrance();');
-    expect(activeLease).toContain('releaseGpuOwners();');
+    expect(activeLease).toContain("packedSurfaceRef.current?.(['retire']);");
     expect(hero).toContain("packedSurfaceRef.current?.(['release']);");
     expect(releaseGpuOwners).toContain('releasePackedSurface();');
     expect(releaseGpuOwners).toContain("introInkRef.current?.(['dispose']);");
@@ -168,7 +172,7 @@ describe('phone WebGL allocation lifecycle', () => {
 
     expect(surface).not.toContain('renewPackedAlphaCanvas');
     expect(surface).not.toContain('externalCanvas');
-    expect(surface).toContain('canvas.remove();');
+    expect(surface).toContain('canvas?.remove();');
     expect(packedVideo).not.toContain('cloneNode');
     expect(packedVideo).not.toContain('replaceWith');
     expect(packedVideo).toContain('canvas.width = 1;');

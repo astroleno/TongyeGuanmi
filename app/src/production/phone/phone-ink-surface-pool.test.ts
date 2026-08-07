@@ -69,11 +69,13 @@ describe('phone ink surface pool', () => {
     expect(firstHost.children).toHaveLength(0);
     expect(secondHost.children).toEqual([second.canvas]);
     expect(second.canvas.dataset.portraitInk).toBe('lab-ph');
-    expect(first.canvas.remove).toHaveBeenCalledOnce();
+    expect(first.canvas.remove).not.toHaveBeenCalled();
+    expect(first.canvas.style.visibility).toBe('hidden');
 
     first.release();
     second.release();
-    expect(second.canvas.remove).toHaveBeenCalledTimes(2);
+    expect(second.canvas.remove).not.toHaveBeenCalled();
+    expect(second.canvas.style.visibility).toBe('hidden');
   });
 
   it('releases only the matching lease and retires its canvas', () => {
@@ -88,6 +90,7 @@ describe('phone ink surface pool', () => {
     lease.release();
 
     expect(revoke).toHaveBeenCalledOnce();
-    expect(lease.canvas.remove).toHaveBeenCalledOnce();
+    expect(lease.canvas.remove).not.toHaveBeenCalled();
+    expect(lease.canvas.style.visibility).toBe('hidden');
   });
 });

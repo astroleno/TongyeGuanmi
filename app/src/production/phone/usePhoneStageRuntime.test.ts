@@ -224,7 +224,7 @@ describe('phone stage AOD resource selection', () => {
 
   it('[AOD first-intent cutover] admits playback through the one runner bridge', () => {
     expect(stageRuntimeSource.match(/aodAdapter\.startAutoplay\(/g)).toHaveLength(1);
-    expect(aodLeafSource).toContain('canStartAutoplay: () => Boolean(');
+    expect(aodLeafSource).toContain('canStartAutoplay: () => {');
     expect(aodLeafSource).toContain('autoplayRef.current');
     expect(aodLeafSource).toContain('renderRef.current');
     expect(aodLeafSource).not.toMatch(/\n\s*enter\(\)\s*\{/);

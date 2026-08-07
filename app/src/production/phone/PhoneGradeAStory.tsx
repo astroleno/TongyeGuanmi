@@ -809,12 +809,21 @@ export function PhoneGradeAStory({
     }
   }, [adapterRevision, cinematicSnapshot, reducedMotion]);
 
-  const figure2Active = surfaceIsProjected(
+  // Grade-A packed media is a local Figure2↔Proof lease. A downstream stable
+  // scene must not keep the last source surface alive merely because the
+  // projector retains its structural role while the next lazy group mounts.
+  // Target preparation/presentation can still acquire the surface while the
+  // semantic scene is changing; once the commit lands, the leaf hard-retires
+  // its decoder/context and Group 6/7 can claim their two owners.
+  const gradeAActiveScene = semanticScene === 'method-top'
+    || semanticScene === 'figure2-animation'
+    || semanticScene === 'figure2-proof';
+  const figure2Active = gradeAActiveScene && surfaceIsProjected(
     sourceSurface,
     receiverSurface,
     'grade-a:figure2'
   );
-  const proofActive = surfaceIsProjected(
+  const proofActive = gradeAActiveScene && surfaceIsProjected(
     sourceSurface,
     receiverSurface,
     'grade-a:proof'

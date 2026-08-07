@@ -60,7 +60,11 @@ export function createRadialInkIntroController(
       grade: 'edge-only',
       generation: options.generation,
       ...(options.targetImage ? { targetImage: options.targetImage } : {}),
-      removeCanvasOnDestroy: false
+      removeCanvasOnDestroy: false,
+      // The intro is a one-shot cold-start owner. Its terminal path explicitly
+      // loses the Canvas context after renderer resources are released so
+      // downstream Group 6/7 media does not inherit a dormant WebGL owner.
+      loseContextOnDestroy: false
     });
     return renderer;
   };
@@ -88,6 +92,16 @@ export function createRadialInkIntroController(
       const frame = frameFor(latestProgress);
       renderer.render(frame);
       applySurfaceHandoff(frame.progress);
+    }
+  };
+
+  const disposeRenderer = (loseContext: boolean) => {
+    renderer?.destroy();
+    renderer = null;
+    if (!loseContext) return;
+    const context = options.canvas.getContext?.('webgl');
+    if (context && !context.isContextLost?.()) {
+      context.getExtension?.('WEBGL_lose_context')?.loseContext?.();
     }
   };
 
@@ -124,8 +138,7 @@ export function createRadialInkIntroController(
       );
       if (frame.progress >= 0.999) {
         settled = true;
-        renderer?.destroy();
-        renderer = null;
+        disposeRenderer(true);
       }
     },
     dispose() {
@@ -134,8 +147,7 @@ export function createRadialInkIntroController(
       }
       disposed = true;
       options.targetImage?.removeEventListener('load', onTargetLoad);
-      renderer?.destroy();
-      renderer = null;
+      disposeRenderer(true);
       options.canvas.removeAttribute('data-hero-intro-ink-active');
       options.revealSurface.style.removeProperty('--r4-hero-back-ink-opacity');
       clearBoundaryGeometry(options.revealSurface);

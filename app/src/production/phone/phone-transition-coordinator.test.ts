@@ -199,6 +199,58 @@ describe('phone transition coordinator', () => {
     expect(intents.map(([inputEpoch]) => inputEpoch)).toEqual([1, 1]);
   });
 
+  it('keeps split touch sequences in one epoch during the momentum window', () => {
+    const { root, testWindow } = installCoordinatorEnvironment();
+    let now = 0;
+    const intents: PhoneIntent[] = [];
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      (intent) => {
+        intents.push(intent);
+        return 'pass-native';
+      },
+      {
+        now: () => now,
+        scrollY: () => testWindow.scrollY
+      }
+    );
+
+    const touch = (clientY: number) => {
+      root.dispatch('touchstart', { touches: [{ clientY: 600 }] });
+      root.dispatch('touchmove', {
+        target: null,
+        touches: [{ clientY }],
+        preventDefault: vi.fn(),
+        stopImmediatePropagation: vi.fn()
+      });
+      root.dispatch('touchend', { touches: [] });
+    };
+
+    touch(560);
+    now = 300;
+    touch(520);
+    now = 1_501;
+    touch(480);
+
+    expect(intents.map(([inputEpoch]) => inputEpoch)).toEqual([1, 1, 2]);
+  });
+
+  it('publishes the touch epoch before native scroll sampling', () => {
+    const { root } = installCoordinatorEnvironment();
+    const epochs: number[] = [];
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      () => 'pass-native',
+      {
+        onInputEpoch: (epoch) => epochs.push(epoch)
+      }
+    );
+
+    root.dispatch('touchstart', { touches: [{ clientY: 600 }] });
+
+    expect(epochs).toEqual([1]);
+  });
+
   it.each([
     ['pass-native', false],
     ['claim-boundary', true],

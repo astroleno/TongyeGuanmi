@@ -745,7 +745,10 @@ export function registerPhoneRuntimeFrontStageCapability(
 }
 
 export const PHONE_AOD_PREPARE_TIMEOUT_MS = 6_000;
-export const PHONE_AOD_PROGRESS_WATCHDOG_MS = 2_400;
+// Reverse AOD is a 2.567s authored timeline. Leave enough budget for its
+// terminal frame; a 2.4s watchdog could expire while the runner was still
+// making real progress on the same execution.
+export const PHONE_AOD_PROGRESS_WATCHDOG_MS = 3_600;
 
 export type PhoneAodFailureReason = Extract<
   PhoneFailureReason,
@@ -1300,6 +1303,10 @@ export function createPhoneStoryRuntime(
           visualViewport: pageWindow.visualViewport,
           registry: engine.scrollCorridors,
           getSnapshot: port.getSnapshot,
+          // Keep the physical epoch on every native momentum sample. The
+          // coordinator replaces it when a genuinely new touch/wheel burst
+          // begins; clearing it merely because the reducer reached stable
+          // allows the same Safari tail to claim the next checkpoint.
           getInputEpoch: () => activeInputEpoch,
           reportSample: (sample) => reportPhoneRuntimeScrollSample(port, sample),
           requestFrame: pageWindow.requestAnimationFrame.bind(pageWindow),
@@ -1322,7 +1329,8 @@ export function createPhoneStoryRuntime(
                 corridor: snapshot.scroll.corridor
               };
             },
-            onNativeScrollCorrection: scrollRuntime.sampleNow
+            onNativeScrollCorrection: scrollRuntime.sampleNow,
+            onInputEpoch: (inputEpoch) => activeInputEpoch = inputEpoch
           }
         ).dispose;
       }

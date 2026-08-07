@@ -163,6 +163,12 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       heroPackedFramePresentedRef.current = false;
       packedAlphaPostPaintScheduledRef.current = false;
     }, []);
+    const disposePackedSurface = useCallback(() => {
+      packedSurfaceRef.current?.(['dispose']);
+      packedSurfaceRef.current = null;
+      heroPackedFramePresentedRef.current = false;
+      packedAlphaPostPaintScheduledRef.current = false;
+    }, []);
     const releaseGpuOwners = useCallback(() => {
       releasePackedSurface();
       introInkRef.current?.(['dispose']);
@@ -175,7 +181,11 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     // not claim Hero's two WebGL contexts. The adapter is always present for
     // reverse travel, while its GPU owners remain cold until Hero is active.
     const ensureIntroInk = useCallback(() => {
-      if (reducedMotion || introInkRef.current) return introInkRef.current;
+      if (
+        reducedMotion
+        || heroEntranceCompletedRef.current
+        || introInkRef.current
+      ) return introInkRef.current;
       const root = rootRef.current;
       const backImage = backImageRef.current;
       const introInkCanvas = introInkCanvasRef.current;
@@ -388,11 +398,13 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       setTitleActive(false);
     }, [motionDriver, storyRoot]);
     const completeEntrance = useCallback(() => {
+      if (!sceneActiveRef.current && !presentationBindingRef.current) return;
       cancelEntrance();
       heroEntranceCompletedRef.current = true;
       renderEntrance(1);
     }, [cancelEntrance, renderEntrance]);
     const startEntrance = useCallback(() => {
+      if (!sceneActiveRef.current && !presentationBindingRef.current) return;
       if (reducedMotion) {
         completeEntrance();
         return;
@@ -525,7 +537,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');
         }
         ensurePackedSurface('forward');
-        if (!reducedMotion) {
+        if (!reducedMotion && !heroEntranceCompletedRef.current) {
           ensureIntroInk()?.(['prewarm']);
         }
       } else {
@@ -537,7 +549,15 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           ensurePackedSurface('forward');
         } else {
           cancelEntrance();
-          releaseGpuOwners();
+          // Keep the full-motion surface-owned Canvas for the later reverse
+          // leg, but retire its context so a downstream media group cannot
+          // inherit a dormant WebGL owner. Reduced motion has no playback
+          // lease to restore, so it uses a fresh static surface instead of
+          // asking Safari to restore a deliberately lost context.
+          if (reducedMotion) disposePackedSurface();
+          else packedSurfaceRef.current?.(['retire']);
+          introInkRef.current?.(['dispose']);
+          introInkRef.current = undefined;
         }
       }
       playbackRef.current?.setActive(active && !reducedMotion);
@@ -547,7 +567,8 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       ensurePackedSurface,
       ensureIntroInk,
       reducedMotion,
-      releaseGpuOwners
+      releaseGpuOwners,
+      disposePackedSurface
     ]);
 
     useImperativeHandle(forwardedRef, () => ({
@@ -626,6 +647,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       motionDriver,
       reducedMotion,
       releaseGpuOwners,
+      disposePackedSurface,
       requestPresentedHeroFrame,
       startEntrance
     ]);

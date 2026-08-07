@@ -28,10 +28,16 @@ export function initialPresentationFamily(): PresentationFamily {
     return 'desktop';
   }
   const viewport = window.visualViewport;
+  // Chromium's mobile emulation exposes touch input through
+  // `maxTouchPoints` while leaving the pointer media feature at its desktop
+  // default. Treat that as the same coarse/non-hover capability the physical
+  // phone has; otherwise a release build can silently mount DesktopStoryShell
+  // at `/` and all phone acceptance evidence becomes irrelevant.
+  const touchCapable = navigator.maxTouchPoints > 0;
   return presentationFamilyFor({
     width: viewport?.width ?? window.innerWidth,
     height: viewport?.height ?? window.innerHeight,
-    pointerCoarse: window.matchMedia('(pointer: coarse)').matches,
-    hoverNone: window.matchMedia('(hover: none)').matches
+    pointerCoarse: window.matchMedia('(pointer: coarse)').matches || touchCapable,
+    hoverNone: window.matchMedia('(hover: none)').matches || touchCapable
   });
 }

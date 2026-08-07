@@ -328,11 +328,17 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
     useEffect(() => {
       if (active) return;
 
-      // Keep the leaf adapter mounted for token re-binding, but release its
-      // decoder/compositor while it is not the admitted visual owner. The
-      // reusable surface is re-activated by the next runner admission.
+      // Keep the adapter mounted for token re-binding, but retire the packed
+      // decoder/context once it is no longer the admitted visual owner. The
+      // surface retains its Canvas owner and restores that same context on a
+      // later reverse admission; recreating a new surface on every round is
+      // what made cumulative WebKit context creation exceed the route cap.
       stopRun();
-      packedSurfaceRef.current?.(['release']);
+      if (presentationBindingRef.current) {
+        packedSurfaceRef.current?.(['release']);
+      } else {
+        packedSurfaceRef.current?.(['retire']);
+      }
       parkPhonePhMedia(rootRef.current);
     }, [active, stopRun]);
 

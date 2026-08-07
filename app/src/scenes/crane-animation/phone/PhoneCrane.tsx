@@ -400,12 +400,15 @@ export const PhoneCrane = forwardRef<
 
     // The continuation keeps the adapter mounted so it can be rebound to a
     // later immutable token, but an inactive physical scene must not retain
-    // decoder/WebGL ownership. `release` is deliberately reusable: the next
-    // admission can activate the same player and surface without creating a
-    // second lifecycle or a stale callback owner.
+    // active decoder/WebGL ownership. Retire the packed surfaces after a
+    // committed handoff; each surface keeps its Canvas owner and restores that
+    // same context on the next admission instead of creating another context
+    // on every round trip.
     stopRun();
-    for (const surface of packedSurfacesRef.current ?? []) {
-      surface(['release']);
+    if (presentationBindingRef.current) {
+      for (const surface of packedSurfacesRef.current ?? []) surface(['release']);
+    } else {
+      for (const surface of packedSurfacesRef.current ?? []) surface(['retire']);
     }
     parkPhoneCraneMedia(rootRef.current);
   }, [active, stopRun]);

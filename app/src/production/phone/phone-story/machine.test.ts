@@ -344,6 +344,113 @@ describe('token-bound phone presentation proofs', () => {
     expect(tail.inputDisposition).toBe('consume-completed-epoch-tail');
   });
 
+  it('[same touch epoch] preserves reverse scroll-run direction across zero samples', () => {
+    const initial = createPhoneStorySnapshot({
+      authorityId: 'reverse-scroll-epoch-authority',
+      scene: 'aod-animation',
+      actualY: 3113
+    });
+    const scrolling = reducePhoneStorySnapshot(initial, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: initial.authorityId,
+      actualY: 2513,
+      corridor: 'front-rail',
+      run: 'star-aod-scroll',
+      progress: .94,
+      direction: -1,
+      inputEpoch: 9
+    } as never).snapshot;
+    const zeroSample = reducePhoneStorySnapshot(scrolling, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: initial.authorityId,
+      actualY: 2513,
+      corridor: 'front-rail',
+      run: 'star-aod-scroll',
+      progress: .94,
+      direction: 0,
+      inputEpoch: 9
+    } as never).snapshot;
+
+    expect(zeroSample).toMatchObject({
+      status: 'scroll-run',
+      scroll: { direction: -1 }
+    });
+
+    const candidate = reducePhoneStorySnapshot(zeroSample, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: initial.authorityId,
+      actualY: 2213,
+      corridor: 'front-rail',
+      scene: 'star-map',
+      progress: .70,
+      direction: -1,
+      inputEpoch: 9
+    }).snapshot;
+    expect(candidate).toMatchObject({
+      status: 'transaction',
+      input: { completedEpoch: 9 },
+      session: {
+        inputEpoch: 9,
+        operation: { from: 'aod-animation', to: 'star-map', run: null }
+      }
+    });
+
+    const stable = reportProof(candidate, targetProof(candidate));
+    expect(stable).toMatchObject({
+      status: 'stable',
+      scene: 'star-map',
+      input: { completedEpoch: 9 }
+    });
+    const tail = reducePhoneStorySnapshot(stable, {
+      type: 'INTENT_RESOLVED',
+      authorityId: initial.authorityId,
+      inputEpoch: 9,
+      direction: -1,
+      run: 'pattern-star-map',
+      anchorY: null,
+      boundaryKnown: true,
+      crossedBoundary: true,
+      claimReason: 'crossed-boundary'
+    });
+    expect(tail.snapshot).toBe(stable);
+    expect(tail.inputDisposition).toBe('consume-completed-epoch-tail');
+  });
+
+  it('[same touch epoch] carries a reconciled scroll-run epoch into its next hold', () => {
+    const initial = createPhoneStorySnapshot({
+      authorityId: 'reconciled-scroll-epoch-authority',
+      scene: 'star-map',
+      actualY: 640
+    });
+    const run = reducePhoneStorySnapshot(initial, {
+      type: 'SCROLL_RUN_RECONCILED',
+      authorityId: initial.authorityId,
+      run: 'star-aod-scroll',
+      direction: 1,
+      progress: 1,
+      actualY: 720,
+      corridor: 'front-rail',
+      inputEpoch: 27
+    }).snapshot;
+    expect(run).toMatchObject({
+      status: 'scroll-run',
+      input: { completedEpoch: 27 }
+    });
+
+    const tail = reducePhoneStorySnapshot(run, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: initial.authorityId,
+      actualY: 760,
+      corridor: 'front-rail',
+      scene: 'pattern-compact',
+      progress: .2,
+      direction: -1,
+      inputEpoch: 27
+    });
+    expect(tail.snapshot).toBe(run);
+    expect(tail.inputDisposition).toBe('consume-completed-epoch-tail');
+  });
+
   it('[Task 3] leaves preparing only for an exact active-leg physical frame proof', () => {
     const stable = createPhoneStorySnapshot({
       authorityId: 'first-frame-authority',

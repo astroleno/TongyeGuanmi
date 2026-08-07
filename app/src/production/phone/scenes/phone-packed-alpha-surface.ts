@@ -1,5 +1,7 @@
 import {
   createPackedAlphaVideoCompositor,
+  releasePackedAlphaWebGlContext,
+  restorePackedAlphaWebGlContext,
   setPackedAlphaVideoSource,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
@@ -38,6 +40,8 @@ export type PhonePackedAlphaSurfaceCommand =
   /** Read the currently mounted canvas without taking ownership of it. */
   | readonly ['canvas']
   | readonly ['release']
+  /** Retire the current compositor/context while retaining this surface owner. */
+  | readonly ['retire']
   | readonly ['dispose'];
 
 /** Callable bridge keeps the mutable decoder/compositor in its owner chunk. */
@@ -47,6 +51,7 @@ export type PhonePackedAlphaSurface = {
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['present', ...unknown[]]>): void;
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['canvas']>): HTMLCanvasElement | null;
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['release']>): void;
+  (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['retire']>): void;
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['dispose']>): void;
 };
 
@@ -121,6 +126,12 @@ export function createPhonePackedAlphaSurface(
   let activePresentationToken: string | null = null;
   let activeFrameToken: string | null = null;
   let presentationGeneration = 0;
+  let activationReady: Promise<void> | null = null;
+  let resolveActivationReady: (() => void) | null = null;
+  let restorePoll: ReturnType<typeof globalThis.setTimeout> | undefined;
+  let needsContextRestore = false;
+  // `undefined` means no queued present command; `null` is a real token value.
+  let queuedPresentationToken: string | null | undefined;
 
   const settle = (
     target: PreparationSettlement,
@@ -156,14 +167,35 @@ export function createPhonePackedAlphaSurface(
   };
   const retireCanvas = () => {
     if (!canvas) return;
-    canvas.remove();
-    canvas = undefined;
+    // Keep the owner node mounted while the browser dispatches the synthetic
+    // context-lost event. Removing it in the same task as loseContext() makes
+    // WebKit drop the restoration event and forces the next lease to allocate
+    // a fresh context. The surface remains the sole owner; it is merely
+    // hidden until its token-bound compositor is rearmed.
+    canvas.style.visibility = 'hidden';
+    canvas.style.opacity = '0';
+    canvas.dataset.phonePackedAlphaRetired = 'true';
+  };
+  const settleActivation = () => {
+    if (restorePoll !== undefined) globalThis.clearTimeout(restorePoll);
+    restorePoll = undefined;
+    const resolve = resolveActivationReady;
+    resolveActivationReady = null;
+    activationReady = null;
+    resolve?.();
   };
   const clearPresentation = () => {
     if (timeout !== undefined) globalThis.clearTimeout(timeout);
     timeout = undefined;
     clearSeek();
-    compositor?.dispose();
+    if (compositor) {
+      // Release shader/texture resources at every lease boundary. Ordinary
+      // release keeps the context reusable; `retire()` is the explicit
+      // non-terminal path that also hard-loses it while retaining this Canvas
+      // owner for a later restore.
+      needsContextRestore = false;
+      compositor.dispose();
+    }
     compositor = undefined;
     retireCanvas();
     delete root.dataset[statusDataset];
@@ -179,8 +211,10 @@ export function createPhonePackedAlphaSurface(
   };
   const release = () => {
     presentationGeneration += 1;
+    settleActivation();
     activePresentationToken = null;
     activeFrameToken = null;
+    queuedPresentationToken = undefined;
     settle('all', new DOMException(
       `${layerName} packed-alpha presentation retired`,
       'AbortError'
@@ -205,34 +239,29 @@ export function createPhonePackedAlphaSurface(
     // physical draw after this rebind can settle its own preparation.
     compositor?.render();
   };
-  const activate = (
-    nextMode: PhonePackedAlphaSurfaceMode = 'forward',
-    presentationToken?: string | null
+  const setupActive = (
+    nextMode: PhonePackedAlphaSurfaceMode,
+    generation: number
   ) => {
-    if (disposed) return;
-    if (mode === nextMode) {
-      if (presentationToken !== undefined) {
-        rebindPresentationToken(presentationToken);
-      }
-      return;
-    }
-    release();
-    mode = nextMode;
-    activePresentationToken = presentationToken ?? null;
-    activeFrameToken = presentationToken ?? null;
-    const generation = ++presentationGeneration;
-    canvas = root.ownerDocument.createElement('canvas');
+    if (
+      disposed
+      || generation !== presentationGeneration
+      || mode !== nextMode
+      || !canvas
+    ) return;
     canvas.className = options.canvasClassName;
     canvas.setAttribute('aria-hidden', 'true');
     canvas.dataset.phonePackedAlphaCanvas = layerName;
-    container.append(canvas);
+    if (canvas.parentNode !== container) container.append(canvas);
+    canvas.style.visibility = '';
+    canvas.style.opacity = '';
+    delete canvas.dataset.phonePackedAlphaRetired;
+    needsContextRestore = false;
     compositor = createPackedAlphaVideoCompositor({
       video,
       canvas,
       onFrame: () => {
-        if (
-          generation !== presentationGeneration
-        ) return;
+        if (generation !== presentationGeneration) return;
         if (video.dataset.packedAlphaSource !== 'rgb-alpha-side-by-side') return;
         if (
           mode === 'endpoint'
@@ -245,6 +274,11 @@ export function createPhonePackedAlphaSurface(
         options.onFrame?.(activeFrameToken);
         settle({ presentationToken: activePresentationToken });
       },
+      // A packed surface owns its Canvas and reuses its one WebGL context
+      // across boundary leases. Terminal dispose below performs the only hard
+      // context release, so a reverse loop cannot accumulate contexts or rely
+      // on repeated WebKit restoration events.
+      releaseContextOnDispose: false,
       // A compositor failure is terminal evidence, never a quietly false
       // render result that waits for a timeout or lets a second owner retry.
       onFailure: () => {
@@ -257,6 +291,7 @@ export function createPhonePackedAlphaSurface(
       video.dataset.phonePackedAlphaOwner = layerName;
       setPackedAlphaVideoSource(video, options.packedSourceUrl);
       failEndpoint();
+      settleActivation();
       return;
     }
     root.dataset[statusDataset] = nextMode === 'forward'
@@ -294,6 +329,126 @@ export function createPhonePackedAlphaSurface(
         // loadeddata owns the first native playback frame.
       }
     }
+    if (queuedPresentationToken !== undefined) {
+      const token = queuedPresentationToken;
+      queuedPresentationToken = undefined;
+      rebindPresentationToken(token);
+      compositor?.render();
+    }
+    settleActivation();
+  };
+  const initializeCanvas = (nextCanvas: HTMLCanvasElement) => {
+    // Stamp ownership before the first retained-context probe. WebKit can
+    // create the GL context during that probe, before setupActive() gets a
+    // chance to assign the class/data marker; early diagnostics must still
+    // identify the single surface owner rather than an anonymous canvas.
+    nextCanvas.className = options.canvasClassName;
+    nextCanvas.setAttribute('aria-hidden', 'true');
+    nextCanvas.dataset.phonePackedAlphaCanvas = options.layerName;
+  };
+  const waitForRetainedContext = (
+    nextMode: PhonePackedAlphaSurfaceMode,
+    generation: number
+  ) => {
+    const retained = canvas;
+    if (!retained) {
+      canvas = root.ownerDocument.createElement('canvas');
+      initializeCanvas(canvas);
+      setupActive(nextMode, generation);
+      return;
+    }
+    const getContext = retained.getContext?.bind(retained);
+    const context = getContext?.('webgl');
+    // Detached test canvases and browsers without WebGL are still valid
+    // surface owners; there is no context to restore in that case.
+    if (!getContext || (!needsContextRestore && !context?.isContextLost?.())) {
+      setupActive(nextMode, generation);
+      return;
+    }
+    const deadline = Date.now() + 250;
+    const poll = () => {
+      if (
+        disposed
+        || generation !== presentationGeneration
+        || mode !== nextMode
+      ) {
+        settleActivation();
+        return;
+      }
+      const current = canvas;
+      const gl = current?.getContext?.('webgl');
+      if (gl?.isContextLost?.()) {
+        const restored = current
+          ? restorePackedAlphaWebGlContext(current, () => {
+              if (
+                disposed
+                || generation !== presentationGeneration
+                || mode !== nextMode
+              ) {
+                settleActivation();
+                return;
+              }
+              setupActive(nextMode, generation);
+            })
+          : false;
+        if (restored) return;
+        current?.remove();
+        canvas = root.ownerDocument.createElement('canvas');
+        initializeCanvas(canvas);
+        needsContextRestore = false;
+        setupActive(nextMode, generation);
+        return;
+      }
+      if (!needsContextRestore) {
+        setupActive(nextMode, generation);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        // A browser that never delivers contextlost has already retired the
+        // old resources; use a fresh owner rather than waiting forever.
+        current?.remove();
+        canvas = root.ownerDocument.createElement('canvas');
+        initializeCanvas(canvas);
+        needsContextRestore = false;
+        setupActive(nextMode, generation);
+        return;
+      }
+      restorePoll = globalThis.setTimeout(poll, 0);
+    };
+    poll();
+  };
+  const activate = (
+    nextMode: PhonePackedAlphaSurfaceMode = 'forward',
+    presentationToken?: string | null
+  ) => {
+    if (disposed) return;
+    if (mode === nextMode) {
+      if (presentationToken !== undefined) {
+        rebindPresentationToken(presentationToken);
+      }
+      return;
+    }
+    const restorePending = needsContextRestore;
+    release();
+    // `release()` clears the active compositor lease, but a prior `retire()`
+    // deliberately left the Canvas in a restorable lost-context state. Carry
+    // that fact across the mode reset so activation waits for restoration
+    // instead of probing a dead context as if it were fresh.
+    needsContextRestore = restorePending;
+    mode = nextMode;
+    activePresentationToken = presentationToken ?? null;
+    activeFrameToken = presentationToken ?? null;
+    const generation = ++presentationGeneration;
+    if (!canvas) {
+      canvas = root.ownerDocument.createElement('canvas');
+      initializeCanvas(canvas);
+    }
+    if (needsContextRestore) {
+      activationReady = new Promise<void>((resolve) => {
+        resolveActivationReady = resolve;
+      });
+    }
+    waitForRetainedContext(nextMode, generation);
   };
 
   const prepare = (
@@ -318,21 +473,32 @@ export function createPhonePackedAlphaSurface(
         && root.dataset[statusDataset] === 'static-fallback'
       ) release();
       activate(nextMode, presentationToken);
-      if (nextMode === 'forward' && !requirePresentedFrame) {
-        return Promise.resolve();
-      }
-      if (root.dataset[statusDataset] === 'verified') return Promise.resolve();
-      if (root.dataset[statusDataset] === 'static-fallback') {
-        return Promise.reject(new Error(
-          `${layerName} packed-alpha presentation failed`
-        ));
-      }
-      if (timeout !== undefined) globalThis.clearTimeout(timeout);
-      timeout = globalThis.setTimeout(
-        failEndpoint,
-        options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS
-      );
-      return new Promise<void>((resolve, reject) => {
+      const waitForActivation = activationReady ?? Promise.resolve();
+      return waitForActivation.then(() => {
+        if (signal?.aborted) {
+          throw new DOMException(
+            `${layerName} packed-alpha presentation aborted`,
+            'AbortError'
+          );
+        }
+        if (mode !== nextMode || !compositor) {
+          throw new Error(`${layerName} packed-alpha surface unavailable`);
+        }
+        if (nextMode === 'forward' && !requirePresentedFrame) {
+          return undefined;
+        }
+        if (root.dataset[statusDataset] === 'verified') return undefined;
+        if (root.dataset[statusDataset] === 'static-fallback') {
+          throw new Error(
+            `${layerName} packed-alpha presentation failed`
+          );
+        }
+        if (timeout !== undefined) globalThis.clearTimeout(timeout);
+        timeout = globalThis.setTimeout(
+          failEndpoint,
+          options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS
+        );
+        return new Promise<void>((resolve, reject) => {
         const preparation: Preparation = {
           presentationToken,
           resolve,
@@ -348,15 +514,42 @@ export function createPhonePackedAlphaSurface(
         };
         preparations.add(preparation);
         signal?.addEventListener('abort', preparation.abort, { once: true });
+        });
       });
   };
   const dispose = () => {
     if (disposed) return;
     release();
+    const terminalContext = canvas?.getContext?.('webgl');
+    if (terminalContext) releasePackedAlphaWebGlContext(terminalContext);
+    canvas?.remove();
+    if (canvas) delete canvas.dataset.phonePackedAlphaRetired;
+    canvas = undefined;
+    needsContextRestore = false;
     disposed = true;
   };
+  const retire = () => {
+    if (disposed) return;
+    // A route may leave a packed-alpha scene for several legs while the
+    // adapter remains mounted for a later reverse admission. Retiring loses
+    // the context so it no longer counts against Safari's active budget, but
+    // keeps the surface-owned Canvas and callable alive. The next activation
+    // restores this same owner before creating a new compositor; terminal
+    // disposal remains the only path that removes the Canvas.
+    release();
+    const context = canvas?.getContext?.('webgl');
+    if (context && !context.isContextLost?.()) {
+      needsContextRestore = true;
+      releasePackedAlphaWebGlContext(context);
+    }
+    retireCanvas();
+  };
   const present = (presentationToken: string | null) => {
-    if (disposed || !compositor) return;
+    if (disposed) return;
+    if (!compositor) {
+      queuedPresentationToken = presentationToken;
+      return;
+    }
     // The token is armed before `render()` so a retained endpoint must draw
     // again for the new immutable revision; an old successful frame cannot be
     // relabelled as proof for a newer transaction.
@@ -384,6 +577,9 @@ export function createPhonePackedAlphaSurface(
         return canvas ?? null;
       case 'release':
         release();
+        return;
+      case 'retire':
+        retire();
         return;
       case 'dispose':
         dispose();

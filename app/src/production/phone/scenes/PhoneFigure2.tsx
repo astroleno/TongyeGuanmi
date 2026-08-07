@@ -243,6 +243,13 @@ export const PhoneFigure2 = forwardRef<
     packedSurfaceRef.current?.(['release']);
     if (root) parkFigure2Media(root);
   }, []);
+  const disposePackedSurface = useCallback(() => {
+    const root = rootRef.current;
+    presentationBindingRef.current = null;
+    packedSurfaceRef.current?.(['dispose']);
+    packedSurfaceRef.current = undefined;
+    if (root) parkFigure2Media(root);
+  }, []);
   const ensurePackedSurface = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
     const root = rootRef.current;
     const video = root?.querySelector<HTMLVideoElement>(
@@ -271,9 +278,14 @@ export const PhoneFigure2 = forwardRef<
     if (!root || sceneActiveRef.current === active) return;
     sceneActiveRef.current = active;
     if (!active) {
-      releasePackedSurface();
+      // Once Figure2 is neither source nor receiver, no token-bound target
+      // lease can still be admitted. Retire the surface-owned context while
+      // retaining its Canvas/decoder owner for the next reverse leg; creating
+      // a fresh context on every round is what exhausts WebKit's cumulative
+      // context budget. Terminal component cleanup remains the only dispose.
+      packedSurfaceRef.current?.(['retire']);
     }
-  }, [releasePackedSurface]);
+  }, []);
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'stage') {
       const root = element?.closest<HTMLElement>('[data-r4-scene="figure2-animation"]') ?? null;
@@ -324,15 +336,13 @@ export const PhoneFigure2 = forwardRef<
     onReady?.();
     return () => {
       releaseStaticPresentation();
-      releasePackedSurface();
-      packedSurfaceRef.current?.(['dispose']);
-      packedSurfaceRef.current = undefined;
+      disposePackedSurface();
       disposeFigure2Media(root);
       root.style.removeProperty('--phone-figure2-poster-image');
       delete root.dataset.phoneFigure2Alpha;
       if (import.meta.env.DEV) delete root.dataset.phoneFigure2Ready;
     };
-  }, [onReady, releasePackedSurface, releaseStaticPresentation]);
+  }, [disposePackedSurface, onReady, releasePackedSurface, releaseStaticPresentation]);
 
   /*
    * Active is a decoder / packed-alpha resource lease only. The authority
@@ -417,12 +427,15 @@ export const PhoneFigure2 = forwardRef<
     },
     dispose() {
       releaseStaticPresentation();
+      // Runtime disposal retires the current lease, not the mounted leaf.
+      // Keeping the surface instance lets a second same-authority round reuse
+      // its restored Canvas instead of allocating another WebGL context. The
+      // React effect cleanup remains the sole terminal owner disposal point.
       releasePackedSurface();
-      packedSurfaceRef.current?.(['dispose']);
-      packedSurfaceRef.current = undefined;
       disposeFigure2Media(rootRef.current);
     }
   }), [
+    disposePackedSurface,
     releasePackedSurface,
     releaseStaticPresentation,
     requestBoundStaticPresentation,

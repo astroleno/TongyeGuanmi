@@ -485,6 +485,8 @@ export type PhoneStoryEvent =
       progress: number;
       actualY: number;
       corridor?: PhoneScrollCorridorId | null;
+      /** Physical gesture identity retained until this sampled run settles. */
+      inputEpoch?: number | undefined;
     }>
   | Readonly<{
       type: 'SCROLL_SAMPLED';
@@ -1013,6 +1015,7 @@ type PhoneScrollRunEvidence = Readonly<{
   progress: number;
   actualY: number;
   corridor: PhoneScrollCorridorId | null;
+  inputEpoch?: number | null;
 }>;
 
 function nextScrollRun(
@@ -1030,7 +1033,20 @@ function nextScrollRun(
       direction: evidence.direction,
       sampleRevision: snapshot.scroll.sampleRevision + 1
     },
-    input: snapshot.input,
+    input: !(
+      evidence.inputEpoch !== undefined
+      && evidence.inputEpoch !== null
+      && (
+        evidence.direction === 1
+          ? evidence.progress >= .999
+          : evidence.progress <= .001
+      )
+    )
+      ? snapshot.input
+      : {
+        completedEpoch: evidence.inputEpoch,
+        completedEpochUntil: evidence.inputEpoch
+      },
     projection: phoneStableProjection(
       phoneScrollRunTuple(evidence.run)[0],
       'candidate',
@@ -1053,11 +1069,17 @@ function nextSampledScroll(
   snapshot: Exclude<PhoneStorySnapshot, PhoneTransactionSnapshot>,
   event: Extract<PhoneStoryEvent, { type: 'SCROLL_SAMPLED' }>
 ): PhoneStorySnapshot {
+  // Native Safari frequently emits a zero-delta sample immediately after a
+  // touch correction. A zero direction is an observation, not a reversal of
+  // the active scroll-run. Preserve the run's physical direction so the next
+  // endpoint scene is compared against the correct committed side.
   const scroll = {
     actualY: event.actualY,
     corridor: event.corridor ?? snapshot.scroll.corridor,
     progress: event.progress === undefined ? snapshot.scroll.progress : clamp(event.progress),
-    direction: event.direction ?? snapshot.scroll.direction,
+    direction: event.run
+      ? event.direction || snapshot.scroll.direction || 1
+      : event.direction ?? snapshot.scroll.direction,
     sampleRevision: snapshot.scroll.sampleRevision + 1
   };
   if (event.run) {
@@ -1066,7 +1088,8 @@ function nextSampledScroll(
       direction: scroll.direction === -1 ? -1 : 1,
       progress: scroll.progress,
       actualY: scroll.actualY,
-      corridor: scroll.corridor
+      corridor: scroll.corridor,
+      inputEpoch: event.inputEpoch ?? null
     });
   }
   if (event.scene) {
@@ -1686,7 +1709,8 @@ export function reducePhoneStorySnapshot(
       direction: event.direction,
       progress: event.progress,
       actualY: event.actualY,
-      corridor: event.corridor ?? null
+      corridor: event.corridor ?? null,
+      inputEpoch: event.inputEpoch ?? null
     }));
   }
 

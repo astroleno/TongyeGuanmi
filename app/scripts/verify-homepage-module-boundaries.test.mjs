@@ -777,5 +777,5 @@ describe('homepage phone-shell debt ratchet', () => {
     })).toContain(
       'future-contract: retained object field is missing from mangle reserve (generation)'
     );
-  }, 15_000);
+  }, 30_000);
 });

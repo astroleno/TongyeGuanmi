@@ -11,15 +11,51 @@ const LIVE_STORY_LOADER = '.story-loader[data-story-loader="true"]';
 const WHEEL_QUIET_MS = 1_250;
 const PHONE_COVERAGE_RGB = [7, 17, 14] as const;
 const phonePageErrors = new WeakMap<Page, string[]>();
+const phoneWebGlIssues = new WeakMap<Page, string[]>();
 const stableAuthorityIds = new WeakMap<Page, string>();
 
 test.beforeEach(({ page }) => {
   const errors: string[] = [];
+  const webGlIssues: string[] = [];
   phonePageErrors.set(page, errors);
+  phoneWebGlIssues.set(page, webGlIssues);
   page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    const text = message.text();
+    if (
+      /too many active webgl contexts/i.test(text)
+      || /webgl.*context.*lost/i.test(text)
+      || /shader\s+(?:compile|link)\s+failed/i.test(text)
+      || /webgl.*invalid_operation.*losecontext/i.test(text)
+    ) webGlIssues.push(text);
+  });
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) stableAuthorityIds.delete(page);
   });
+});
+
+const MAX_PHONE_WEBGL_CONTEXTS = 12;
+// Four route-owned contexts is the formal upper bound. AOD and packed media
+// are retired outside their admitted lease; increasing this threshold would
+// hide a lifecycle leak rather than prove the route is resource-safe.
+const MAX_ACTIVE_PHONE_WEBGL_CONTEXTS = 4;
+
+test.afterEach(async ({ page }, testInfo) => {
+  if (!testInfo.title.startsWith('Task 10')) return;
+  const issues = phoneWebGlIssues.get(page) ?? [];
+  expect(issues, `WebGL lifecycle warnings in ${testInfo.title}`).toEqual([]);
+  const probe = await page.evaluate(() => {
+    const runtime = (window as typeof window & {
+      __phoneRuntimeProbe?: { created?: unknown[] };
+    }).__phoneRuntimeProbe;
+    return runtime?.created ?? null;
+  });
+  if (probe !== null) {
+    expect(
+      probe.length,
+      `cumulative WebGL context count in ${testInfo.title}: ${JSON.stringify(probe)}`
+    ).toBeLessThanOrEqual(MAX_PHONE_WEBGL_CONTEXTS);
+  }
 });
 
 type PngScreenshot = Readonly<{
@@ -2448,7 +2484,6 @@ async function driveAdjacentPhoneRun(
       const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
       const canvas = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
       const root = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod');
-      const authority = document.querySelector<HTMLElement>('.portrait-scroll-spike');
       return video ? {
         video: {
           readyState: video.readyState,
@@ -2471,16 +2506,7 @@ async function driveAdjacentPhoneRun(
           mediaTime: canvas.dataset.packedAlphaMediaTime ?? null,
           active: canvas.dataset.packedAlphaCompositorActive ?? null
         } : null,
-        rootDataset: root ? { ...root.dataset } : null,
-        authorityDataset: authority ? {
-          phoneAodExecution: authority.dataset.phoneAodExecution ?? null,
-          phoneAodPhase: authority.dataset.phoneAodPhase ?? null,
-          phoneAodStage: authority.dataset.phoneAodStage ?? null,
-          phoneAodPlayConfirmed: authority.dataset.phoneAodPlayConfirmed ?? null,
-          phoneAodFirstFramePresented: authority.dataset.phoneAodFirstFramePresented ?? null,
-          phoneAodLastProgress: authority.dataset.phoneAodLastProgress ?? null,
-          phoneAodRollbackReason: authority.dataset.phoneAodRollbackReason ?? null
-        } : null
+        rootDataset: root ? { ...root.dataset } : null
       } : null;
     });
     throw new Error(
@@ -2505,8 +2531,8 @@ async function driveAdjacentPhoneRun(
     active: runtime.active,
     maxActive: runtime.maxActive,
     created: runtime.created
-  })}`).toBeLessThanOrEqual(4);
-  expect(runtime.maxActive).toBeLessThanOrEqual(4);
+  })}`).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
+  expect(runtime.maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 }
 
 const FORMAL_FORWARD_JOURNEY = [
@@ -3041,7 +3067,7 @@ test('Task 10 gates a cold production formal Hero → Contact journey', async ({
 
   const probe = await phoneRuntimeProbe(page);
   expect(probe.maxLoaderCount).toBe(1);
-  expect(probe.maxActive).toBeLessThanOrEqual(4);
+  expect(probe.maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
   expect(webGlWarnings).toEqual([]);
   const booleanContract = await cssBooleanContractViolations(page);
   expect(booleanContract.contractCount).toBeGreaterThan(10);
@@ -3052,6 +3078,11 @@ test('Task 10 gates a production Contact → Hero reverse journey', async ({ pag
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/#contact', 'contact');
+  const directContactProbe = await phoneRuntimeProbe(page);
+  expect(
+    directContactProbe.created.filter(({ label }) => /hero/i.test(label)),
+    'direct Contact must not create Hero WebGL owners before reverse admission'
+  ).toEqual([]);
   const authorityId = await page.locator(LIVE_PHONE_ROOT).getAttribute(
     'data-phone-authority-id'
   );
@@ -3059,14 +3090,27 @@ test('Task 10 gates a production Contact → Hero reverse journey', async ({ pag
   await driveJourney(page, FORMAL_REVERSE_JOURNEY);
   const hero = await assertStablePhoneHold(page, 'hero');
   await expect(hero).toHaveAttribute('data-phone-authority-id', authorityId!);
-  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(4);
+  const reverseProbe = await phoneRuntimeProbe(page);
+  expect(
+    reverseProbe.maxActive,
+    `reverse WebGL contexts: ${JSON.stringify({
+      maxActive: reverseProbe.maxActive,
+      active: reverseProbe.active,
+      created: reverseProbe.created,
+      samples: reverseProbe.resourceSamples.slice(-8)
+    })}`
+  ).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 });
 
-test('Task 10 completes two full-motion formal round trips in one authority', async ({ page }) => {
-  // Retain the real inter-epoch quiet window on every leg. Two complete
-  // production round trips therefore exceed the ordinary per-spec budget;
-  // shortening the cadence would stop exercising momentum separation.
-  test.setTimeout(300_000);
+test('Task 10 completes two full-motion formal round trips in one authority', async ({
+  page,
+  browserName
+}) => {
+  // Retain the real inter-epoch quiet window on every leg. WebKit's native
+  // touch/momentum cadence measured just over 300s for two healthy rounds;
+  // Chromium remains on the original budget. This is a measured browser
+  // allowance, not a retry or a relaxed terminal assertion.
+  test.setTimeout(browserName === 'webkit' ? 330_000 : 300_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/?round-trip=two', 'hero');
   const authorityId = await page.locator(LIVE_PHONE_ROOT).getAttribute(
@@ -3093,7 +3137,7 @@ test('Task 10 completes two full-motion formal round trips in one authority', as
     timeline.startAt <= timeline.firstFrameAt
     && timeline.firstFrameAt <= timeline.commitAt
     && timeline.commitAt <= timeline.releaseAt
-    && timeline.activeWebglAtMax <= 4
+    && timeline.activeWebglAtMax <= MAX_ACTIVE_PHONE_WEBGL_CONTEXTS
   ))).toBe(true);
   expect(new Set(probe.legTimelines.map((timeline) => timeline.authorityId))).toEqual(
     new Set([authorityId])
@@ -3112,13 +3156,15 @@ test('Task 10 completes two full-motion formal round trips in one authority', as
     && timeline.generation.length > 0
     && timeline.leg.length > 0
   ))).toBe(true);
-  expect(probe.maxActive).toBeLessThanOrEqual(4);
+  expect(probe.maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 });
 
 test('Task 10 lets a direct Contact hold claim its Group67 reverse boundary', async ({ page }) => {
   test.setTimeout(60_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/#contact', 'contact');
+  const directContactProbe = await phoneRuntimeProbe(page);
+  expect(directContactProbe.created.filter(({ label }) => /hero/i.test(label))).toEqual([]);
   await driveAdjacentPhoneRun(page, 'contact', 'education', -1);
 });
 
@@ -3133,7 +3179,7 @@ test('Task 10 repeats the complete reduced-motion production round trip', async 
   await driveJourney(page, FORMAL_FORWARD_JOURNEY, { reducedMotion: true });
   await driveJourney(page, FORMAL_REVERSE_JOURNEY, { reducedMotion: true });
   await assertStablePhoneHold(page, 'hero');
-  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(4);
+  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 });
 
 test('[AOD↔Method reduced cutover] commits both target static endpoints without media playback', async ({ page }) => {
@@ -3176,7 +3222,7 @@ test('[AOD↔Method reduced cutover] commits both target static endpoints withou
   );
   await expect(await assertStablePhoneHold(page, 'aod-animation'))
     .toHaveAttribute('data-phone-authority-id', authorityId!);
-  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(4);
+  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 });
 
 test('[Method↔Figure2↔Proof↔Brand reduced cutover] commits all static endpoints without playback', async ({ page }) => {
@@ -3275,7 +3321,7 @@ test('[Method↔Figure2↔Proof↔Brand reduced cutover] commits all static endp
   );
   await expect(await assertStablePhoneHold(page, 'method-top'))
     .toHaveAttribute('data-phone-authority-id', authorityId!);
-  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(4);
+  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 });
 
 test('[Lab↔PH↔Education reduced/direct cutover] commits native leaves without PH playback and renders #education directly', async ({ page }) => {
@@ -3348,7 +3394,7 @@ test('[Pattern collapse + StarMap reduced cutover] repeats two static-proof cycl
       .toHaveAttribute('data-phone-authority-id', authorityId!);
   }
 
-  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(4);
+  expect((await phoneRuntimeProbe(page)).maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 });
 
 test('Task 10 verifies every formal direct entry plus hash, menu, and history', async ({ page }) => {
@@ -3851,7 +3897,7 @@ test('[AOD↔Method execution cutover] completes one exact forward and reverse p
   await expect(await assertStablePhoneHold(page, 'aod-animation'))
     .toHaveAttribute('data-phone-authority-id', authorityId!);
   const probe = await phoneRuntimeProbe(page);
-  expect(probe.maxActive).toBeLessThanOrEqual(4);
+  expect(probe.maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 });
 
 test('[execution regression] Method landing starts Figure2 playback before the Proof boundary', async ({ page }) => {

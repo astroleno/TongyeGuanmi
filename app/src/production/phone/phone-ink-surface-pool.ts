@@ -37,7 +37,11 @@ function retireCanvas(pool: PhoneInkSurfacePool): void {
   if (!canvas) return;
   canvas.style.visibility = 'hidden';
   canvas.style.opacity = '0';
-  canvas.remove();
+  // Keep the pooled owner mounted between boundary leases. Removing a WebGL
+  // canvas during every release makes WebKit retire the context before the
+  // next claim can rebind it, which turns one route-level owner into a stream
+  // of cumulative contexts. A later claim moves this same node to its new
+  // host; terminal route teardown removes it with that host.
 }
 
 function contextWasLost(canvas: HTMLCanvasElement): boolean {

@@ -314,7 +314,7 @@ describe('Route B proven front-half migration contract', () => {
     expect(heroSource).toContain('createPhonePackedAlphaSurface');
     expect(heroSource).not.toContain('createPackedAlphaVideoCompositor');
     expect(packedSurfaceSource).toContain('createPackedAlphaVideoCompositor');
-    expect(packedSurfaceSource).toContain('canvas.remove()');
+    expect(packedSurfaceSource).toContain('canvas?.remove();');
     expect(aodSource).toContain('createPackedAlphaVideoCompositor');
     expect(heroSource).toContain(
       "phoneMediaUrlFor('hero-figure-packed', 'hero')"

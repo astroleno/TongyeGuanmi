@@ -12,6 +12,7 @@ vi.mock('../../../media/packed-alpha-video', () => ({
     compositorProbe.canvases.push(canvas);
     return { render: () => false, dispose: vi.fn() };
   }),
+  releasePackedAlphaWebGlContext: vi.fn(),
   setPackedAlphaVideoSource: vi.fn((video, sourceUrl) => {
     const source = video.ownerDocument.createElement('source');
     source.src = sourceUrl;
@@ -171,7 +172,7 @@ describe('phone packed-alpha surface', () => {
     surface(['dispose']);
   });
 
-  it('mounts a packed decoder/Canvas pair and removes both on release', () => {
+  it('keeps the surface-owned Canvas hidden on release and removes it on dispose', () => {
     const { container, video, surface } = fixture();
 
     surface(['activate', 'forward']);
@@ -180,12 +181,14 @@ describe('phone packed-alpha surface', () => {
     expect(video.querySelector('source')?.src).toBe('/packed.mp4');
     expect(video.dataset.packedAlphaSource).toBe('rgb-alpha-side-by-side');
     surface(['release']);
-    expect(container.querySelector('canvas')).toBeNull();
+    expect(container.querySelector('canvas')).toBeTruthy();
+    expect(container.querySelector('canvas')?.dataset.phonePackedAlphaRetired).toBe('true');
     expect(video.querySelector('source')).toBeNull();
     surface(['dispose']);
+    expect(container.querySelector('canvas')).toBeNull();
   });
 
-  it('keeps Canvas ownership inside the packed surface across release/reacquire', () => {
+  it('reuses one surface-owned Canvas across release/reacquire', () => {
     const ownerDocument = new FakeDocument();
     const root = ownerDocument.createElement('section');
     const container = ownerDocument.createElement('div');
@@ -210,14 +213,15 @@ describe('phone packed-alpha surface', () => {
     expect(firstCanvas).not.toBeNull();
     surface(['release']);
 
-    expect(container.querySelector('canvas')).toBeNull();
+    expect(container.querySelector('canvas')).toBe(firstCanvas);
+    expect(firstCanvas?.dataset.phonePackedAlphaRetired).toBe('true');
     expect(video.querySelector('source')).toBeNull();
 
     surface(['activate', 'endpoint']);
     const secondCanvas = container.querySelector('canvas');
     expect(secondCanvas).not.toBeNull();
-    expect(secondCanvas).not.toBe(firstCanvas);
-    expect(compositorProbe.canvases).toEqual([firstCanvas, secondCanvas]);
+    expect(secondCanvas).toBe(firstCanvas);
+    expect(compositorProbe.canvases).toEqual([firstCanvas, firstCanvas]);
     surface(['dispose']);
   });
 

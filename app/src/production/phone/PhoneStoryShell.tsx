@@ -147,9 +147,13 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     aodLastProgress,
     aodRollbackReason
   ] = navigation.aodDiagnostics;
+  const directEntryHeroGpuAllowed = !directStoryEntry
+    || entryScene === 'hero'
+    || navigation.cinematicSnapshot[7] === -1
+      && navigation.cinematicSnapshot.slice(1, 3).includes('front:hero');
   const activeFrontSurface = (id: 'front:hero' | 'front:pattern' | 'front:star-map' | 'front:aod') => (
-    navigation.cinematicSnapshot[1] === id
-    || navigation.cinematicSnapshot[2] === id
+    (navigation.cinematicSnapshot[1] === id || navigation.cinematicSnapshot[2] === id)
+    && !(id === 'front:hero' && !directEntryHeroGpuAllowed)
   );
   const methodExecutionActive = loaderHidden
     && modulesReady
@@ -180,7 +184,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     orchestrator,
     snapshot: navigation.cinematicSnapshot,
     enabled: fixedStageRegistered && openingExecutionOpen
-      && ready
+      && (directStoryEntry || ready)
       && aodAlphaEndProgress !== undefined
       && !staticFallback,
     reducedMotion: !motionEnabled,
@@ -256,6 +260,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
             ref={bindAodAdapter}
             active={loaderHidden && activeFrontSurface('front:aod')}
             reducedMotion={!motionEnabled}
+            onReady={orchestrator.syncDiagnostics}
             onAodProgress={runtime.onAodProgress}
             onAodComplete={runtime.onAodComplete}
             onAodFrame={runtime.onAodFrame}

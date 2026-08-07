@@ -20,6 +20,19 @@ export type PackedAlphaVideoCompositor = Readonly<{
   dispose(): void;
 }>;
 
+type PackedAlphaLoseContextExtension = Readonly<{
+  loseContext(): void;
+  restoreContext(): void;
+}>;
+
+// Browsers return null from getExtension() once a WebGL context is already
+// lost. Retain the extension object before loss so the same Canvas can be
+// restored without allocating a new context on the next route lease.
+const restorableContextExtensions = new WeakMap<
+  HTMLCanvasElement,
+  PackedAlphaLoseContextExtension
+>();
+
 export function releasePackedAlphaWebGlContext(
   gl: WebGLRenderingContext
 ): void {
@@ -28,10 +41,23 @@ export function releasePackedAlphaWebGlContext(
   // synthetic loss without a preventDefault() listener as permanent, leaving
   // the same DOM canvas unusable on the next route activation.
   const canvas = gl.canvas as (HTMLCanvasElement | OffscreenCanvas | undefined);
+  const extension = gl.getExtension('WEBGL_lose_context') as
+    | PackedAlphaLoseContextExtension
+    | null;
+  if (
+    canvas
+    && typeof (canvas as HTMLCanvasElement).addEventListener === 'function'
+    && extension
+  ) {
+    restorableContextExtensions.set(
+      canvas as HTMLCanvasElement,
+      extension
+    );
+  }
   canvas?.addEventListener('webglcontextlost', (event) => {
     event.preventDefault();
   }, { once: true });
-  gl.getExtension('WEBGL_lose_context')?.loseContext();
+  extension?.loseContext();
 }
 
 /**
@@ -45,9 +71,15 @@ export function restorePackedAlphaWebGlContext(
 ): boolean {
   const gl = canvas.getContext('webgl');
   if (!gl || !gl.isContextLost()) return false;
-  const extension = gl.getExtension('WEBGL_lose_context');
+  const extension = restorableContextExtensions.get(canvas)
+    ?? gl.getExtension('WEBGL_lose_context') as
+      | PackedAlphaLoseContextExtension
+      | null;
   if (!extension) return false;
-  canvas.addEventListener('webglcontextrestored', onRestored, { once: true });
+  canvas.addEventListener('webglcontextrestored', () => {
+    restorableContextExtensions.delete(canvas);
+    onRestored();
+  }, { once: true });
   extension.restoreContext();
   return true;
 }

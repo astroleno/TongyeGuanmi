@@ -34,6 +34,8 @@ export type PhoneIntentCoordinatorOptions = Readonly<{
   cancelFrame?: (frame: number) => void;
   scrollState?: () => Readonly<{ revision: number; corridor: string | null }>;
   onNativeScrollCorrection?: () => void;
+  /** Publish physical gesture identity before native scroll sampling runs. */
+  onInputEpoch?: (inputEpoch: number) => void;
   wheelQuietMs?: number;
   momentumWindowMs?: number;
 }>;
@@ -171,13 +173,20 @@ export function createPhoneIntentCoordinator(
       momentum = null;
       return;
     }
-    const identity = nextIdentity();
+    const occurredAt = now();
+    // A browser may split one physical drag into several touch sequences
+    // while its momentum tail is still settling. Keep the original epoch in
+    // that quiet window so a synthetic/native tail cannot claim the next
+    // stable scene after the first boundary has committed.
+    const inputEpoch = momentum && occurredAt <= momentum.until
+      ? momentum.inputEpoch
+      : nextIdentity().inputEpoch;
     touch = {
-      ...identity,
+      inputEpoch,
       startY: scrollY(),
       clientY: first.clientY
     };
-    momentum = null;
+    options.onInputEpoch?.(inputEpoch);
   };
   const onTouchMove = (event: TouchEvent) => {
     const first = event.touches[0];
