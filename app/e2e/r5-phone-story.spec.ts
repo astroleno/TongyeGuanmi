@@ -565,6 +565,7 @@ type PhoneTransitionTraceState = Readonly<{
     bottom: number;
     left: number;
   }>>;
+}>;
 
 type PhoneRuntimeResourceSample = Readonly<{
   at: number;
@@ -583,7 +584,6 @@ type PhoneLegTimeline = Readonly<{
   releaseAt: number;
   activeMediaAtMax: number;
   activeWebglAtMax: number;
-}>;
 }>;
 
 const PHONE_NAV_HASH: Partial<Record<PhoneStableScene, string>> = {
@@ -1250,9 +1250,16 @@ async function recordPhoneLegTimeline(
   to: PhoneStableScene,
   direction: 1 | -1
 ): Promise<PhoneLegTimeline> {
-  const run = frontRun(from, to);
   const probe = await phoneRuntimeProbe(page);
-  const startCursor = `transition:${run.id}:0`;
+  const startState = probe.stateEvents.find((state) => (
+    state.cursor?.startsWith('transition:')
+  ));
+  const startCursor = startState?.cursor ?? null;
+  if (!startCursor) {
+    throw new Error(`Missing transition cursor in ${from} → ${to} leg timeline`);
+  }
+  const run = startCursor.split(':')[1];
+  if (!run) throw new Error(`Missing run id in ${startCursor}`);
   const startIndex = probe.stateEvents.findIndex(
     (state) => state.cursor === startCursor
   );
@@ -1292,7 +1299,7 @@ async function recordPhoneLegTimeline(
     sample.at >= startAt && sample.at <= releaseAt
   ));
   const timeline: PhoneLegTimeline = {
-    run: run.id,
+    run,
     from,
     to,
     direction,
