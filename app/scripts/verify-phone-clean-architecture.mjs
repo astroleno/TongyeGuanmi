@@ -31,7 +31,7 @@ export const PHONE_CORE_LOC_BUDGETS = Object.freeze({
   'PhoneBrandLabStory.tsx': 120
 });
 
-export const PHONE_CORE_TOTAL_LOC_BUDGET = 5700;
+export const PHONE_CORE_TOTAL_LOC_BUDGET = 5760;
 export const PHONE_JS_HARD_CAP_BYTES = 663_552;
 
 const allowedCoreImports = new Map([

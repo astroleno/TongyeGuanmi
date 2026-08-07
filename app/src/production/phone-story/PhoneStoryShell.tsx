@@ -652,6 +652,10 @@ export function PhoneStoryShell({
       data-phone-authority={diagnostics ? snapshot.authorityId : undefined} data-phone-phase={diagnostics && snapshot.status === 'transaction' ? snapshot.transaction.phase : undefined}
       data-phone-plane-revision={diagnostics ? snapshot.lastPlaneRevision : undefined} data-phone-commit-sequence={diagnostics ? snapshot.stableCommit?.commitSequence ?? 0 : undefined}
       data-phone-scene={stableScene ?? undefined}
+      data-phone-source-scene={snapshot.status === 'transaction'
+        ? snapshot.transaction.sourceSceneId ?? undefined : undefined}
+      data-phone-candidate-scene={snapshot.status === 'transaction'
+        ? snapshot.transaction.candidateSceneId : undefined}
     >
       <div data-phone-loader="true">
         <StoryLoader mode={snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}

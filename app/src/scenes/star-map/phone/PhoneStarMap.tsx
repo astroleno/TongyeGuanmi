@@ -171,10 +171,16 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
 
   const syncAmbientOwnership = useCallback(() => {
     const shell = rootRef.current?.closest<HTMLElement>('.phone-story');
-    const stable = shell?.dataset.phoneStatus === 'stable'
-      && shell.dataset.phoneScene === 'star-map';
-    activeRef.current = stable;
-    if (stable) startAmbient();
+    const data = shell?.dataset;
+    // Ambient motion belongs to visibility, not to reducer status: keep the
+    // Perlin layer breathing while star-map is stable OR participates in a
+    // transition as source/candidate. Only fault rest stops it outright.
+    const involved = data?.phoneScene === 'star-map'
+      || data?.phoneSourceScene === 'star-map'
+      || data?.phoneCandidateScene === 'star-map';
+    const running = involved && data?.phoneStatus !== 'faulted';
+    activeRef.current = running;
+    if (running) startAmbient();
     else stopAmbient();
   }, [startAmbient, stopAmbient]);
 
@@ -291,7 +297,9 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     const observer = shell && typeof MutationObserver !== 'undefined'
       ? new MutationObserver(syncAmbientOwnership) : null;
     observer?.observe(shell!, {
-      attributes: true, attributeFilter: ['data-phone-status', 'data-phone-scene']
+      attributes: true,
+      attributeFilter: ['data-phone-status', 'data-phone-scene',
+        'data-phone-source-scene', 'data-phone-candidate-scene']
     });
     syncAmbientOwnership();
     return () => {

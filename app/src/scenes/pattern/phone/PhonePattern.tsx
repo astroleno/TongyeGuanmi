@@ -105,9 +105,10 @@ export function PhonePattern({ reports }: PhonePatternProps) {
 
   const render = useCallback((rawProgress: number) => {
     const frame = phonePatternFrame(rawProgress);
-    // Transition frames are reducer-owned; render them without reviving the
-    // renderer's ambient clock. Rebind must never start a new visual clock.
-    rendererRef.current?.setRenderActive(true, false);
+    // Transition frames are reducer-owned for structural phase, but the
+    // ambient motion clock must keep running so petal rotation stays
+    // continuous through the transition instead of freezing mid-frame.
+    rendererRef.current?.setRenderActive(true, true);
     rendererRef.current?.setFrameProgress(frame.progress, frame.progress);
     if (imageRef.current) imageRef.current.style.opacity = frame.textureOpacity.toFixed(4);
     if (copyRef.current) {

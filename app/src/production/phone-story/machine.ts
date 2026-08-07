@@ -1107,15 +1107,9 @@ function handleViewport(
     });
   }
   if (event.change === 'toolbar' && snapshot.status === 'stable' && snapshot.stableCommit) {
-    // A toolbar collapse/expansion only shifts visual geometry. The committed
-    // plane stays valid, so refresh the CSS viewport variables instead of
-    // opening a recovery transaction that would disable interaction and
-    // demand a landing/scroll quorum the reader cannot satisfy mid-scene.
-    return freezeOwned({
-      snapshot: { ...snapshot, stateRevision: snapshot.stateRevision + 1,
-        viewport: event.viewport },
-      effects: [{ type: 'refresh-stable-viewport' }]
-    });
+    // Toolbar shifts only change visual geometry; refresh CSS variables in place.
+    const next = { ...snapshot, stateRevision: snapshot.stateRevision + 1, viewport: event.viewport };
+    return freezeOwned({ snapshot: next, effects: [{ type: 'refresh-stable-viewport' }] });
   }
   if (event.change === 'toolbar' && snapshot.status === 'transaction') return reprojectActivePlane(snapshot, event.viewport);
   const invalidated = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null;
