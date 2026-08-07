@@ -239,7 +239,8 @@ describe('token-bound phone presentation proofs', () => {
       run,
       anchorY: snapshot.scroll.actualY,
       boundaryKnown: true,
-      crossedBoundary: true
+      crossedBoundary: true,
+      claimReason: 'crossed-boundary'
     } as never).snapshot;
 
     const heroPattern = intent(start, 1, 1, 'hero-pattern');
@@ -836,6 +837,7 @@ describe('token-bound phone presentation proofs', () => {
       anchorY: 100,
       boundaryKnown: true,
       crossedBoundary: true,
+      claimReason: 'crossed-boundary',
       reducedMotion: true
     }).snapshot;
     expect(retry).toMatchObject({
@@ -1282,6 +1284,7 @@ describe('token-bound phone presentation proofs', () => {
       anchorY: 100,
       boundaryKnown: true,
       crossedBoundary: true,
+      claimReason: 'crossed-boundary',
       reducedMotion: true
     }).snapshot;
     expect(retry).toMatchObject({

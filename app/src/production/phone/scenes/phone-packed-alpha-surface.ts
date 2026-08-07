@@ -1,6 +1,5 @@
 import {
   createPackedAlphaVideoCompositor,
-  renewPackedAlphaCanvas,
   setPackedAlphaVideoSource,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
@@ -10,7 +9,6 @@ export type PhonePackedAlphaSurfaceMode = 'forward' | 'endpoint';
 export type PhonePackedAlphaSurfaceRequest = readonly [
   root: HTMLElement,
   container: HTMLElement,
-  canvas: HTMLCanvasElement | null,
   video: HTMLVideoElement,
   packedSourceUrl: string,
   endpointSeconds: number,
@@ -84,7 +82,6 @@ export function createPhonePackedAlphaSurface(
   [
     root,
     container,
-    requestCanvas,
     video,
     packedSourceUrl,
     endpointSeconds,
@@ -101,18 +98,15 @@ export function createPhonePackedAlphaSurface(
     video,
     statusDataset,
     layerName,
-    canvas: requestCanvas ?? undefined,
     packedSourceUrl,
     endpointSeconds,
     canvasClassName,
     frameTimeoutMs: frameTimeoutMs ?? undefined,
     onFrame: onFrame ?? undefined
   };
-  const ownsCanvas = !options.canvas;
   const preparations = new Set<Preparation>();
   let disposed = false;
   let mode: PhonePackedAlphaSurfaceMode | undefined;
-  let externalCanvas = options.canvas;
   let canvas: HTMLCanvasElement | undefined;
   let compositor: PackedAlphaVideoCompositor | undefined;
   let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
@@ -155,8 +149,7 @@ export function createPhonePackedAlphaSurface(
   };
   const retireCanvas = () => {
     if (!canvas) return;
-    if (ownsCanvas) canvas.remove();
-    else externalCanvas = renewPackedAlphaCanvas(canvas);
+    canvas.remove();
     canvas = undefined;
   };
   const clearPresentation = () => {
@@ -221,11 +214,11 @@ export function createPhonePackedAlphaSurface(
     activePresentationToken = presentationToken ?? null;
     activeFrameToken = presentationToken ?? null;
     const generation = ++presentationGeneration;
-    canvas = externalCanvas ?? root.ownerDocument.createElement('canvas');
+    canvas = root.ownerDocument.createElement('canvas');
     canvas.className = options.canvasClassName;
     canvas.setAttribute('aria-hidden', 'true');
     canvas.dataset.phonePackedAlphaCanvas = layerName;
-    if (ownsCanvas) container.append(canvas);
+    container.append(canvas);
     compositor = createPackedAlphaVideoCompositor({
       video,
       canvas,

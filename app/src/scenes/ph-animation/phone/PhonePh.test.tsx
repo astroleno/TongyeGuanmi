@@ -9,7 +9,6 @@ import {
 import {
   applyPhonePhMediaFallback,
   parkPhonePhMedia,
-  phonePhPackedCanvasReady,
   PhonePh,
   phonePhForegroundParallaxY,
   phonePhPresentationProgress,
@@ -51,16 +50,11 @@ describe('PhonePh', () => {
     expect(markup).toContain('preload="auto"');
   });
 
-  it('binds its sole packed canvas host through a stable callback ref', () => {
-    expect(source).toMatch(
-      /const bindFigureVideoHost = useCallback\(\s*\(element: HTMLVideoElement \| null\) => \{/s
-    );
-    expect(source).toContain('ref={bindFigureVideoHost}');
-    expect(source).not.toMatch(/ref=\{\(element\) => \{/);
-    expect(source).toContain(
-      'setFigureCanvasHost((current) => current === host ? current : host);'
-    );
-    expect(source.match(/data-phone-packed-alpha-canvas="ph-figure"/g)).toHaveLength(2);
+  it('lets the packed surface own its Canvas instead of a React Portal', () => {
+    expect(source).not.toContain('createPortal');
+    expect(source).not.toContain('figureCanvasRef');
+    expect(source).not.toContain('figureCanvasHost');
+    expect(source).toContain('createPhonePackedAlphaSurface');
   });
 
   it('[R5] redraws its prepared packed surface when an active media token starts', () => {
@@ -69,21 +63,6 @@ describe('PhonePh', () => {
     expect(source).toContain('presentPreparedFrame,');
   });
 
-  it('[repeat-cycle] follows the renewed Canvas after a packed surface release', () => {
-    const root = new FakeElement();
-    const staleCanvas = new FakeElement();
-    const renewedCanvas = new FakeElement();
-    renewedCanvas.dataset.packedAlphaFrameReady = 'true';
-    root.connect(
-      '[data-phone-packed-alpha-canvas="ph-figure"]',
-      renewedCanvas
-    );
-
-    expect(phonePhPackedCanvasReady(
-      root as unknown as HTMLElement,
-      staleCanvas as unknown as HTMLCanvasElement
-    )).toBe(true);
-  });
 
   it('[execution hard cutover] exposes only the runner-issued play command', () => {
     expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');
@@ -127,8 +106,8 @@ describe('PhonePh', () => {
   it('reuses the AOD native-time policy and Figure2 stable-surface policy', () => {
     expect(source).toContain('createPhoneNativeAutoplay');
     expect(source).toContain('createPhonePackedAlphaSurface');
-    expect(source).toContain('createPortal');
-    expect(source).toContain('figureCanvasRef');
+    expect(source).not.toContain('createPortal');
+    expect(source).not.toContain('figureCanvasRef');
     expect(source).toContain("phoneMediaUrlFor('ph-figure-packed'");
     expect(source).toContain('usePhoneCinematicRun([');
     expect(source).toContain('ensurePackedSurface,');

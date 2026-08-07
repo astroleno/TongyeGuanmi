@@ -155,10 +155,11 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(releaseGpuOwners).toContain('introInkRef.current = undefined;');
   });
 
-  it('renews hard-released packed canvases before reverse reacquires WebGL', () => {
+  it('keeps packed Canvas ownership inside the surface lifecycle', () => {
     const surface = source('./scenes/phone-packed-alpha-surface.ts');
 
-    expect(surface).toContain('renewPackedAlphaCanvas');
-    expect(surface).toContain('externalCanvas = renewPackedAlphaCanvas(canvas)');
+    expect(surface).not.toContain('renewPackedAlphaCanvas');
+    expect(surface).not.toContain('externalCanvas');
+    expect(surface).toContain('canvas.remove();');
   });
 });

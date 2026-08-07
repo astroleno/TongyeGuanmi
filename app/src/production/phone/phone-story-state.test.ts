@@ -784,7 +784,8 @@ describe('PhoneStorySnapshot reducer', () => {
       run: 'brand-services',
       anchorY: 480,
       boundaryKnown: true,
-      crossedBoundary: true
+      crossedBoundary: true,
+      claimReason: 'crossed-boundary'
     });
 
     expect(claimed).toMatchObject({ inputDisposition: 'claim-boundary' });
@@ -811,7 +812,8 @@ describe('PhoneStorySnapshot reducer', () => {
       run: 'brand-services',
       anchorY: 480,
       boundaryKnown: true,
-      crossedBoundary: true
+      crossedBoundary: true,
+      claimReason: 'crossed-boundary'
     })).toMatchObject({ inputDisposition: 'block-active-session' });
     expect(api.reducePhoneStorySnapshot(stable, {
       type: 'INTENT_RESOLVED',
@@ -821,7 +823,8 @@ describe('PhoneStorySnapshot reducer', () => {
       run: null,
       anchorY: null,
       boundaryKnown: false,
-      crossedBoundary: false
+      crossedBoundary: false,
+      claimReason: 'none'
     })).toMatchObject({ inputDisposition: 'pass-native' });
   });
 

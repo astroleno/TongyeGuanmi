@@ -495,7 +495,10 @@ export function renderFigure2Hold(root: HTMLElement | null): void {
   renderFigure2AnimationProgress(root, 0, { videoMode: 'none' });
 }
 
-function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
+function Figure2AnimationScene({
+  registerHandle,
+  packedCanvasOwner = 'scene'
+}: SceneComponentProps) {
   const rootRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -568,11 +571,13 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
                     hevc={FIGURE2_HEVC_ALPHA_VIDEO}
                   />
                 </video>
-                <canvas
-                  className="r4-figure2__packed-alpha-canvas"
-                  data-figure2-packed-alpha-canvas
-                  aria-hidden="true"
-                />
+                {packedCanvasOwner === 'scene' ? (
+                  <canvas
+                    className="r4-figure2__packed-alpha-canvas"
+                    data-figure2-packed-alpha-canvas
+                    aria-hidden="true"
+                  />
+                ) : null}
               </div>
               <figcaption>子问老子</figcaption>
             </figure>

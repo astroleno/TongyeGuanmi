@@ -9,7 +9,6 @@ import {
 import {
   applyPhoneCraneMediaFallback,
   parkPhoneCraneMedia,
-  phoneCranePackedCanvasesReady,
   PHONE_CRANE_STABLE_HOLD_PROGRESS,
   PhoneCrane,
   phoneCranePresentationProgress,
@@ -64,24 +63,13 @@ describe('PhoneCrane', () => {
     expect(markup).toContain('data-phone-scene="crane-animation"');
   });
 
-  it('binds both packed canvas hosts through stable callback refs', () => {
-    expect(source).toMatch(
-      /const bindFigureVideoHost = useCallback\(\s*\(element: HTMLVideoElement \| null\) => \{/s
-    );
-    expect(source).toMatch(
-      /const bindFlockVideoHost = useCallback\(\s*\(element: HTMLVideoElement \| null\) => \{/s
-    );
-    expect(source).toContain('ref={bindFigureVideoHost}');
-    expect(source).toContain('ref={bindFlockVideoHost}');
-    expect(source).not.toMatch(/ref=\{\(element\) => \{/);
-    expect(source).toContain(
-      'setFigureCanvasHost((current) => current === host ? current : host);'
-    );
-    expect(source).toContain(
-      'setFlockCanvasHost((current) => current === host ? current : host);'
-    );
-    expect(source.match(/data-phone-packed-alpha-canvas="crane-figure"/g)).toHaveLength(1);
-    expect(source.match(/data-phone-packed-alpha-canvas="crane-flock"/g)).toHaveLength(1);
+  it('lets both packed surfaces own their Canvases instead of React Portals', () => {
+    expect(source).not.toContain('createPortal');
+    expect(source).not.toContain('figureCanvasRef');
+    expect(source).not.toContain('flockCanvasRef');
+    expect(source).not.toContain('figureCanvasHost');
+    expect(source).not.toContain('flockCanvasHost');
+    expect(source).toContain('createPhonePackedAlphaSurface');
   });
 
   it('uses the formal packed flock media on every route', () => {
@@ -97,29 +85,6 @@ describe('PhoneCrane', () => {
     expect(source).toContain('presentPreparedFrame,');
   });
 
-  it('[repeat-cycle] follows the renewed Canvas after a packed surface release', () => {
-    const root = new FakeElement();
-    const staleFigure = new FakeElement();
-    const staleFlock = new FakeElement();
-    const renewedFigure = new FakeElement();
-    const renewedFlock = new FakeElement();
-    renewedFigure.dataset.packedAlphaFrameReady = 'true';
-    renewedFlock.dataset.packedAlphaFrameReady = 'true';
-    root.connect(
-      '[data-phone-packed-alpha-canvas="crane-figure"]',
-      renewedFigure
-    );
-    root.connect(
-      '[data-phone-packed-alpha-canvas="crane-flock"]',
-      renewedFlock
-    );
-
-    expect(phoneCranePackedCanvasesReady(
-      root as unknown as HTMLElement,
-      staleFigure as unknown as HTMLCanvasElement,
-      staleFlock as unknown as HTMLCanvasElement
-    )).toBe(true);
-  });
 
   it('[execution hard cutover] exposes only the runner-issued play command', () => {
     expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');
@@ -150,9 +115,9 @@ describe('PhoneCrane', () => {
     );
     expect(source).toContain('failRun(1)');
     expect(source).toContain('failRun(-1)');
-    expect(source).toContain('createPortal');
-    expect(source).toContain('figureCanvasRef');
-    expect(source).toContain('flockCanvasRef');
+    expect(source).not.toContain('createPortal');
+    expect(source).not.toContain('figureCanvasRef');
+    expect(source).not.toContain('flockCanvasRef');
     expect(source).toContain("'crane-figure-packed'");
     expect(source).toContain("'crane-flock-packed'");
     expect(source).not.toContain(

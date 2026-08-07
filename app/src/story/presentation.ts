@@ -123,6 +123,8 @@ export type TransitionPresentationAdapterHandle = PresentationAdapterLifecycle &
 export type SceneComponentProps = {
   scene: SceneId;
   hidden: boolean;
+  /** Packed-alpha phone surfaces may create their own Canvas after mount. */
+  packedCanvasOwner?: 'scene' | 'surface';
   role?: StageLayerRole;
   children?: ReactNode;
   copyCueActive?: boolean;

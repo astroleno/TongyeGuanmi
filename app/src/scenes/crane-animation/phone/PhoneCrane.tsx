@@ -3,10 +3,8 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useRef,
-  useState
+  useRef
 } from 'react';
-import { createPortal } from 'react-dom';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import type {
@@ -116,29 +114,6 @@ export function parkPhoneCraneMedia(root: HTMLElement | null | undefined): void 
   }
 }
 
-/**
- * A packed surface renews an externally-owned Canvas after release. React's
- * callback ref still points at the retired node, so readiness must follow the
- * currently mounted token-bound canvases in the Crane root rather than a
- * stale ref. This is what lets a second Contact → Education admission start.
- */
-export function phoneCranePackedCanvasesReady(
-  root: HTMLElement | null | undefined,
-  figureCanvas: HTMLCanvasElement | null | undefined,
-  flockCanvas: HTMLCanvasElement | null | undefined
-): boolean {
-  const currentCanvas = (
-    layer: 'crane-figure' | 'crane-flock',
-    fallback: HTMLCanvasElement | null | undefined
-  ) => root?.querySelector<HTMLCanvasElement>(
-    `[data-phone-packed-alpha-canvas="${layer}"]`
-  ) ?? fallback ?? null;
-  const figure = currentCanvas('crane-figure', figureCanvas);
-  const flock = currentCanvas('crane-flock', flockCanvas);
-  return figure?.dataset.packedAlphaFrameReady === 'true'
-    && flock?.dataset.packedAlphaFrameReady === 'true';
-}
-
 export function applyPhoneCraneMediaFallback(
   root: HTMLElement | null | undefined
 ): void {
@@ -165,28 +140,6 @@ export const PhoneCrane = forwardRef<
 }, forwardedRef) {
   const rootRef = useRef<HTMLElement | null>(null);
   const layerStackRef = useRef<HTMLDivElement | null>(null);
-  const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const flockCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [figureCanvasHost, setFigureCanvasHost] =
-    useState<HTMLElement | null>(null);
-  const [flockCanvasHost, setFlockCanvasHost] =
-    useState<HTMLElement | null>(null);
-  const bindFigureVideoHost = useCallback(
-    (element: HTMLVideoElement | null) => {
-      const host = element?.parentElement;
-      if (!host) return;
-      setFigureCanvasHost((current) => current === host ? current : host);
-    },
-    []
-  );
-  const bindFlockVideoHost = useCallback(
-    (element: HTMLVideoElement | null) => {
-      const host = element?.parentElement;
-      if (!host) return;
-      setFlockCanvasHost((current) => current === host ? current : host);
-    },
-    []
-  );
   const forwardRunRef = useRef<PhoneCraneForwardRun | null>(null);
   const reversePlaybackRef = useRef<PhoneCranePresentedReverse | null>(null);
   const packedSurfacesRef = useRef<readonly [
@@ -263,22 +216,17 @@ export const PhoneCrane = forwardRef<
     const [figure, flock] = phoneCraneVideos(root);
     const figureContainer = figure?.parentElement;
     const flockContainer = flock?.parentElement;
-    const figureCanvas = figureCanvasRef.current;
-    const flockCanvas = flockCanvasRef.current;
     if (
       !root
       || !figure
       || !flock
       || !figureContainer
       || !flockContainer
-      || !figureCanvas
-      || !flockCanvas
     ) return null;
     if (!packedSurfacesRef.current) {
       const figureSurface = createPhonePackedAlphaSurface([
         root,
         figureContainer,
-        figureCanvas,
         figure,
         PHONE_CRANE_FIGURE_PACKED,
         PHONE_CRANE_FIGURE_ENDPOINT_SECONDS,
@@ -297,7 +245,6 @@ export const PhoneCrane = forwardRef<
       const flockSurface = createPhonePackedAlphaSurface([
         root,
         flockContainer,
-        flockCanvas,
         flock,
         PHONE_CRANE_FLOCK_PACKED,
         PHONE_CRANE_FLOCK_ENDPOINT_SECONDS,
@@ -350,11 +297,12 @@ export const PhoneCrane = forwardRef<
     const root = rootRef.current;
     return root?.dataset.phoneCraneFigureAlpha === 'verified'
       && root.dataset.phoneCraneFlockAlpha === 'verified'
-      && phoneCranePackedCanvasesReady(
-        root,
-        figureCanvasRef.current,
-        flockCanvasRef.current
-      );
+      && root.querySelector<HTMLCanvasElement>(
+        '[data-phone-packed-alpha-canvas="crane-figure"]'
+      )?.dataset.packedAlphaFrameReady === 'true'
+      && root.querySelector<HTMLCanvasElement>(
+        '[data-phone-packed-alpha-canvas="crane-flock"]'
+      )?.dataset.packedAlphaFrameReady === 'true';
   }, []);
   const [
     requestedRef,
@@ -387,7 +335,7 @@ export const PhoneCrane = forwardRef<
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || !figureCanvasRef.current || !flockCanvasRef.current) return;
+    if (!root) return;
     renderPresentation(0);
     const forwardRun = createPhoneCraneForwardRun(
       root,
@@ -441,8 +389,6 @@ export const PhoneCrane = forwardRef<
   }, [
     ensurePackedSurfaces,
     presentPreparedFrame,
-    figureCanvasHost,
-    flockCanvasHost,
     onReady,
     reducedMotion,
     renderPresentation,
@@ -588,7 +534,6 @@ export const PhoneCrane = forwardRef<
                   />
                   <div className="crane-video-transition crane-video-transition--figure">
                     <video
-                      ref={bindFigureVideoHost}
                       className="crane-figure-video"
                       data-crane-figure-video
                       data-media-key={CRANE_FIGURE_MEDIA_KEY}
@@ -619,7 +564,6 @@ export const PhoneCrane = forwardRef<
                   />
                   <div className="crane-video-transition crane-video-transition--front">
                     <video
-                      ref={bindFlockVideoHost}
                       className="crane-figure-video crane-figure-video--front"
                       data-crane-figure-front-video
                       data-media-key={CRANE_FLOCK_MEDIA_KEY}
@@ -642,24 +586,6 @@ export const PhoneCrane = forwardRef<
           </section>
         </article>
       </div>
-      {figureCanvasHost ? createPortal(
-        <canvas
-          ref={figureCanvasRef}
-          className="crane-figure-video phone-crane__figure-canvas"
-          data-phone-packed-alpha-canvas="crane-figure"
-          aria-hidden="true"
-        />,
-        figureCanvasHost
-      ) : null}
-      {flockCanvasHost ? createPortal(
-        <canvas
-          ref={flockCanvasRef}
-          className="crane-figure-video crane-figure-video--front phone-crane__flock-canvas"
-          data-phone-packed-alpha-canvas="crane-flock"
-          aria-hidden="true"
-        />,
-        flockCanvasHost
-      ) : null}
     </>
   );
 });

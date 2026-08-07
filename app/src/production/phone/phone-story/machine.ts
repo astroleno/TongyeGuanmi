@@ -439,6 +439,7 @@ export type PhoneStoryEvent =
       anchorY: number | null;
       boundaryKnown: boolean;
       crossedBoundary: boolean;
+      claimReason: 'none' | 'crossed-boundary' | 'first-intent';
       reducedMotion?: boolean;
     }>
   | Readonly<{
@@ -1432,7 +1433,7 @@ function startedInputRun(
 ): PhoneStoryReduction {
   if (
     !event.boundaryKnown
-    || !event.crossedBoundary
+    || event.claimReason === 'none'
     || !event.run
     || event.anchorY === null
   ) return reduced(snapshot, 'pass-native');

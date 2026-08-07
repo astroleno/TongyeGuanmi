@@ -262,6 +262,37 @@ type PhoneDirectionalReducedAdmission = readonly [
   reverse: PhoneAdmissionStrategyTuple
 ];
 
+export type PhoneIntentClaimPolicy = 'first-intent' | 'cross-boundary';
+
+/**
+ * Input claiming is a directional manifest contract. AOD's source hold may
+ * claim the first forward gesture, while Method must remain native until the
+ * reverse gesture actually crosses its authored top boundary.
+ */
+const runIntentClaimRows = {
+  'hero-pattern': ['first-intent', 'first-intent'],
+  'pattern-collapse': ['first-intent', 'first-intent'],
+  'pattern-star-map': ['first-intent', 'first-intent'],
+  'aod-method': ['first-intent', 'cross-boundary'],
+  'method-figure2': ['cross-boundary', 'cross-boundary'],
+  'figure2-proof': ['cross-boundary', 'cross-boundary'],
+  'proof-brand': ['cross-boundary', 'cross-boundary'],
+  'brand-services': ['cross-boundary', 'cross-boundary'],
+  'services-lab': ['cross-boundary', 'cross-boundary'],
+  'lab-education': ['cross-boundary', 'cross-boundary'],
+  'education-contact': ['cross-boundary', 'cross-boundary']
+} as const satisfies Readonly<Record<PhoneRunId, readonly [
+  forward: PhoneIntentClaimPolicy,
+  reverse: PhoneIntentClaimPolicy
+]>>;
+
+export function phoneRunIntentClaimPolicy(
+  runId: PhoneRunId,
+  direction: 1 | -1
+): PhoneIntentClaimPolicy {
+  return runIntentClaimRows[runId][direction === 1 ? 0 : 1];
+}
+
 type PhoneRunReducedAdmissionRows = Readonly<{
   'hero-pattern': readonly [PhoneDirectionalReducedAdmission];
   'pattern-collapse': readonly [PhoneDirectionalReducedAdmission];

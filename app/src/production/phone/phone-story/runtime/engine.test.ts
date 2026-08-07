@@ -1564,7 +1564,7 @@ describe('single phone story projector transaction', () => {
     frontLease.dispose();
   });
 
-  it('[Method↔AOD first-intent cutover] claims a coalesced reverse sample before the semantic edge', () => {
+  it('[Method↔AOD boundary contract] passes an in-Method reverse sample to native scroll', () => {
     const methodBoundary = 3_162;
     let starts = 0;
     const orchestrator = createPhoneStoryOrchestrator({
@@ -1588,6 +1588,19 @@ describe('single phone story projector transaction', () => {
 
     expect(orchestrator.resolveIntent([
       1,
+      -1,
+      methodBoundary + 120,
+      methodBoundary + 118
+    ])).toBe('pass-native');
+    expect(starts).toBe(0);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'method-top',
+      session: null
+    });
+
+    expect(orchestrator.resolveIntent([
+      2,
       -1,
       methodBoundary + 1,
       methodBoundary - 2

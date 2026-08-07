@@ -33,6 +33,7 @@ import {
 import {
   phoneScenePresentationProofKind,
   phoneScenePresentationTuple,
+  phoneRunIntentClaimPolicy,
   phoneRunLegAdmissionTuple
 } from '../manifest';
 import type { PhonePresentationProofKind } from '../manifest';
@@ -786,21 +787,12 @@ export function createPhoneStoryRuntimeEngine(
         run: null,
         anchorY: null,
         boundaryKnown: false,
-        crossedBoundary: false
+        crossedBoundary: false,
+        claimReason: 'none'
       }).inputDisposition ?? 'block-active-session';
     }
     if (snapshot.status !== 'stable') return 'pass-native';
     const definition = phoneRunForHoldTuple(snapshot.scene, direction);
-    // Front-stage runs are time-owned machine transactions.  A stable hold
-    // is already the authored boundary for these scenes, so the first valid
-    // directional intent must claim the run even when the browser reports a
-    // small/coalesced delta that has not crossed the measured pixel marker.
-    // Waiting for `crossedBoundary` here lets a reverse touch/wheel sample
-    // pass native and strand the user at the source hold indefinitely.
-    const isFrontMachineRun = definition?.[0] === 'hero-pattern'
-      || definition?.[0] === 'pattern-collapse'
-      || definition?.[0] === 'pattern-star-map'
-      || definition?.[0] === 'aod-method';
     const reducedMotion = definition
       ? capabilities.get(definition[0])?.reducedMotion === true
       : false;
@@ -814,8 +806,15 @@ export function createPhoneStoryRuntimeEngine(
       boundaryY,
       direction
     );
-    const claimsFrontMachineIntent = Boolean(isFrontMachineRun);
-    const claimsBoundary = crossedBoundary || claimsFrontMachineIntent;
+    const claimPolicy = definition
+      ? phoneRunIntentClaimPolicy(definition[0], direction)
+      : 'cross-boundary';
+    const claimReason = crossedBoundary
+      ? 'crossed-boundary'
+      : claimPolicy === 'first-intent'
+        ? 'first-intent'
+        : 'none';
+    const claimsBoundary = claimReason !== 'none';
     const reason: PhoneLandingReason = direction === 1 ? 'forward' : 'reverse';
     const compositeY = definition
       ? scrollCorridors.landing(
@@ -843,7 +842,8 @@ export function createPhoneStoryRuntimeEngine(
       run: definition?.[0] ?? null,
       anchorY,
       boundaryKnown,
-      crossedBoundary: claimsBoundary,
+      crossedBoundary,
+      claimReason,
       reducedMotion
     }).inputDisposition ?? 'pass-native';
     if (disposition === 'claim-boundary') startPreparedOperation(definition?.[0]);

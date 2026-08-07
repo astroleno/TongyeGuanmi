@@ -140,7 +140,6 @@ function fixture(onFrame: ((presentationToken: string | null) => void) | null = 
   const surface = createPhonePackedAlphaSurface([
     root as unknown as HTMLElement,
     container as unknown as HTMLElement,
-    null,
     video as unknown as HTMLVideoElement,
     '/packed.mp4',
     1.25,
@@ -186,19 +185,16 @@ describe('phone packed-alpha surface', () => {
     surface(['dispose']);
   });
 
-  it('renews a React-owned Canvas after hard release before reacquiring WebGL', () => {
+  it('keeps Canvas ownership inside the packed surface across release/reacquire', () => {
     const ownerDocument = new FakeDocument();
     const root = ownerDocument.createElement('section');
     const container = ownerDocument.createElement('div');
     const video = ownerDocument.createElement('video') as FakeVideo;
-    const canvas = ownerDocument.createElement('canvas');
     root.append(container);
     container.append(video);
-    container.append(canvas);
     const surface = createPhonePackedAlphaSurface([
       root as unknown as HTMLElement,
       container as unknown as HTMLElement,
-      canvas as unknown as HTMLCanvasElement,
       video as unknown as HTMLVideoElement,
       '/packed.mp4',
       1.25,
@@ -210,16 +206,18 @@ describe('phone packed-alpha surface', () => {
     ]);
 
     surface(['activate', 'forward']);
+    const firstCanvas = container.querySelector('canvas');
+    expect(firstCanvas).not.toBeNull();
     surface(['release']);
 
-    const renewed = container.querySelector('canvas');
-    expect(renewed).not.toBe(canvas);
-    expect(renewed?.width).toBe(1);
-    expect(renewed?.height).toBe(1);
+    expect(container.querySelector('canvas')).toBeNull();
     expect(video.querySelector('source')).toBeNull();
 
     surface(['activate', 'endpoint']);
-    expect(compositorProbe.canvases).toEqual([canvas, renewed]);
+    const secondCanvas = container.querySelector('canvas');
+    expect(secondCanvas).not.toBeNull();
+    expect(secondCanvas).not.toBe(firstCanvas);
+    expect(compositorProbe.canvases).toEqual([firstCanvas, secondCanvas]);
     surface(['dispose']);
   });
 
@@ -235,7 +233,6 @@ describe('phone packed-alpha surface', () => {
       const surface = createPhonePackedAlphaSurface([
         root as unknown as HTMLElement,
         container as unknown as HTMLElement,
-        null,
         video as unknown as HTMLVideoElement,
         '/packed.mp4',
         1.25,

@@ -248,15 +248,11 @@ export const PhoneFigure2 = forwardRef<
     const video = root?.querySelector<HTMLVideoElement>(
       '[data-figure2-combined-video]'
     );
-    const canvas = root?.querySelector<HTMLCanvasElement>(
-      '[data-figure2-packed-alpha-canvas]'
-    );
     const container = video?.parentElement;
-    if (!root || !video || !canvas || !container) return undefined;
+    if (!root || !video || !container) return undefined;
     const surface = packedSurfaceRef.current ?? createPhonePackedAlphaSurface([
       root,
       container,
-      canvas,
       video,
       FIGURE2_PACKED_ALPHA_VIDEO,
       FIGURE2_ENDPOINT_SECONDS,
@@ -311,8 +307,7 @@ export const PhoneFigure2 = forwardRef<
     const root = rootRef.current;
     if (!root) return;
     const video = root.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
-    const canvas = root.querySelector<HTMLCanvasElement>('[data-figure2-packed-alpha-canvas]');
-    if (!video || !canvas) {
+    if (!video) {
       if (import.meta.env.DEV) root.dataset.phoneFigure2Ready = 'failed';
       return;
     }
@@ -438,6 +433,7 @@ export const PhoneFigure2 = forwardRef<
     <Figure2Surface
       scene="figure2-animation"
       hidden={false}
+      packedCanvasOwner="surface"
       registerHandle={registerHandle}
     />
   );

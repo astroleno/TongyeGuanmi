@@ -3,10 +3,8 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useRef,
-  useState
+  useRef
 } from 'react';
-import { createPortal } from 'react-dom';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import type {
@@ -103,21 +101,6 @@ export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
 }
 
 /**
- * A released packed surface renews its externally-owned Canvas node. The
- * React callback ref still points at the retired node, so reverse admission
- * must inspect the currently mounted token-bound canvas first.
- */
-export function phonePhPackedCanvasReady(
-  root: HTMLElement | null | undefined,
-  figureCanvas: HTMLCanvasElement | null | undefined
-): boolean {
-  const currentCanvas = root?.querySelector<HTMLCanvasElement>(
-    '[data-phone-packed-alpha-canvas="ph-figure"]'
-  ) ?? figureCanvas ?? null;
-  return currentCanvas?.dataset.packedAlphaFrameReady === 'true';
-}
-
-/**
  * Figure2 supplies the stable phone composition; AOD supplies time ownership.
  * The canonical PH video remains the only media element and native currentTime
  * drives every forward presentation sample after the scroll snap begins.
@@ -131,17 +114,6 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
   }, forwardedRef) {
     const rootRef = useRef<HTMLElement | null>(null);
     const layerStackRef = useRef<HTMLDivElement | null>(null);
-    const figureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const [figureCanvasHost, setFigureCanvasHost] =
-      useState<HTMLElement | null>(null);
-    const bindFigureVideoHost = useCallback(
-      (element: HTMLVideoElement | null) => {
-        const host = element?.parentElement;
-        if (!host) return;
-        setFigureCanvasHost((current) => current === host ? current : host);
-      },
-      []
-    );
     const nativeAutoplayRef = useRef<PhoneNativeAutoplay | null>(null);
     const reversePlaybackRef = useRef<PhonePhPresentedReverse | null>(null);
     const packedSurfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
@@ -181,13 +153,11 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       const root = rootRef.current;
       const video = root?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
       const container = root?.querySelector<HTMLElement>('.ph-layer-stack');
-      const canvas = figureCanvasRef.current;
-      if (!root || !video || !container || !canvas) return null;
+      if (!root || !video || !container) return null;
       if (!packedSurfaceRef.current) {
         packedSurfaceRef.current = createPhonePackedAlphaSurface([
           root,
           container,
-          canvas,
           video,
           PHONE_PH_PACKED_VIDEO,
           PHONE_PH_FIGURE_END_SECONDS,
@@ -230,7 +200,9 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
     const reverseReady = useCallback(() => {
       const root = rootRef.current;
       return root?.dataset.phonePhAlpha === 'verified'
-        && phonePhPackedCanvasReady(root, figureCanvasRef.current);
+        && root.querySelector<HTMLCanvasElement>(
+          '[data-phone-packed-alpha-canvas="ph-figure"]'
+        )?.dataset.packedAlphaFrameReady === 'true';
     }, []);
     const beforeForward = useCallback(() => {
       const root = rootRef.current;
@@ -276,7 +248,7 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
     useEffect(() => {
       const root = rootRef.current;
       const video = root?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
-      if (!root || !video || !figureCanvasRef.current) return;
+      if (!root || !video) return;
 
       // Retire the canonical cold-frame driver before native Route-B playback
       // takes ownership. This is the same one-owner boundary used by AOD.
@@ -335,7 +307,6 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
     }, [
       ensurePackedSurface,
       presentPreparedFrame,
-      figureCanvasHost,
       onReady,
       renderPresentation,
       requestedRef,
@@ -474,7 +445,6 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
                       alt=""
                     />
                     <video
-                      ref={bindFigureVideoHost}
                       className="ph-layer ph-layer--figure"
                       data-ph-alpha-video
                       data-media-key={PH_MEDIA_KEY}
@@ -496,15 +466,6 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
             </div>
           </article>
         </div>
-        {figureCanvasHost ? createPortal(
-          <canvas
-            ref={figureCanvasRef}
-            className="ph-layer ph-layer--figure phone-ph__figure-canvas"
-            data-phone-packed-alpha-canvas="ph-figure"
-            aria-hidden="true"
-          />,
-          figureCanvasHost
-        ) : null}
       </>
     );
   }
