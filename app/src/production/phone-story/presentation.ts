@@ -337,6 +337,7 @@ export type PhonePresentation = Readonly<{
   sampleVisualViewport(): PhoneVisualViewport; verifyPrepared(request: PhonePreparedProofRequest): PhonePreparedProof;
   applyTransitionFrame(frame: PhoneTransitionProjection | null): void;
   registerLeafMount(request: PhoneLeafMountRequest): PhoneLeafMountLease; applyPlane(request: PhonePlaneRequest): PhonePlaneApplyResult;
+  refreshStableViewport(viewport: PhoneViewportSnapshot): void;
   verifyVisibleCandidate(request: PhoneVisibleCandidateProofRequest): PhonePlaneApplyResult;
   verifyReproject(request: PhoneReprojectProofRequest): PhonePlaneApplyResult;
   verifyRollback(request: PhoneRollbackProofRequest): PhoneRollbackProof;
@@ -787,6 +788,23 @@ export function createPhonePresentation(
     }
   };
 
+  const refreshStableViewport: PhonePresentation['refreshStableViewport'] = (viewport) => {
+    const root = state.root;
+    if (!root) return;
+    const { layout, visual } = viewport;
+    const variables: readonly [string, string][] = [
+      ['--phone-visual-offset-left', `${visual.offsetLeft}px`],
+      ['--phone-visual-offset-top', `${visual.offsetTop}px`],
+      ['--phone-visual-width', `${visual.width}px`],
+      ['--phone-visual-height', `${visual.height}px`],
+      ['--phone-visual-scale', String(visual.scale)],
+      ['--phone-layout-width', `${layout.width}px`],
+      ['--phone-layout-height', `${layout.height}px`]
+    ];
+    for (const [property, value] of variables) root.style.setProperty(property, value);
+    root.setAttribute('data-phone-orientation', layout.orientation);
+  };
+
   const contentFailure = (
     request: PhonePlaneRequest,
     record: PhoneMountRecord,
@@ -960,6 +978,7 @@ export function createPhonePresentation(
     sampleLayoutViewport: dependencies.sampleLayoutViewport,
     sampleVisualViewport: dependencies.sampleVisualViewport,
     verifyPrepared,
+    refreshStableViewport,
     applyPlane: (request: PhonePlaneRequest) => provePlane(request, false),
     verifyVisibleCandidate: (request: PhoneVisibleCandidateProofRequest) => (
       provePlane(request, true)

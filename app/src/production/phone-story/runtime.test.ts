@@ -196,6 +196,7 @@ function createPresentationAuthority(
     sampleLayoutViewport: () => readViewport().layout,
     sampleVisualViewport: () => readViewport().visual,
     applyTransitionFrame: () => undefined,
+    refreshStableViewport: () => undefined,
     applyPlane: () => ({ records: [], failure: null }),
     verifyVisibleCandidate: () => ({ records: [], failure: null }),
     verifyReproject: () => ({ records: [], failure: null }),
@@ -372,7 +373,8 @@ function exactPlaneResult(request: PhonePlaneRequest): PhonePlaneApplyResult {
 
 function createProjectorAuthority(
   methods: Partial<Pick<PhonePresentation,
-    'applyPlane' | 'verifyVisibleCandidate' | 'verifyReproject' | 'verifyRollback'>> = {},
+    'applyPlane' | 'verifyVisibleCandidate' | 'verifyReproject' | 'verifyRollback'
+    | 'refreshStableViewport'>> = {},
   readViewport: () => PhoneViewportSnapshot = initialViewport
 ): PhonePresentation {
   return { ...createPresentationAuthority(readViewport), ...methods };
@@ -629,9 +631,16 @@ describe('phone runtime input, history, viewport, and queue', () => {
     disconnect();
   });
 
-  it('coalesces toolbar samples and reprojects without changing semantic commit', () => {
+  it('coalesces toolbar samples and refreshes stable geometry without reopening a transaction', () => {
     const fixture = createEnvironment();
-    const runtime = createRuntime(fixture, '#education');
+    const refreshStableViewport = vi.fn();
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#education', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority(
+        { refreshStableViewport }, fixture.port.readViewport
+      )
+    });
     const disconnect = runtime.connect();
     proveCurrent(runtime, fixture);
     const stable = runtime.getSnapshot();
@@ -648,16 +657,15 @@ describe('phone runtime input, history, viewport, and queue', () => {
     fixture.emit({ type: 'viewport', viewport: latest, change: 'toolbar' });
     expect(fixture.counts().frames).toBe(1);
     fixture.flushFrames();
-    expect(currentTransaction(runtime).mode).toBe('recovery');
-    expect(runtime.getSnapshot().viewport).toEqual(latest);
-    proveCurrent(runtime, fixture);
-    const recovered = runtime.getSnapshot();
-    expect(recovered.status).toBe('stable');
-    if (recovered.status !== 'stable') throw new Error('expected stable');
-    expect(recovered.stableCommit).toBe(commit);
-    expect(recovered.stableCommit.commitSequence).toBe(commit.commitSequence);
-    expect(recovered.presentationProof).not.toBe(proof);
-    expect(recovered.presentationProof.planeRevision).toBeGreaterThan(proof.planeRevision);
+    const refreshed = runtime.getSnapshot();
+    expect(refreshed.status).toBe('stable');
+    expect(refreshed.viewport).toEqual(latest);
+    if (refreshed.status !== 'stable') throw new Error('expected stable');
+    expect(refreshed.stableCommit).toBe(commit);
+    expect(refreshed.stableCommit.commitSequence).toBe(commit.commitSequence);
+    expect(refreshed.presentationProof).toBe(proof);
+    expect(refreshStableViewport).toHaveBeenCalledTimes(1);
+    expect(refreshStableViewport.mock.calls[0]?.[0]).toEqual(latest);
     disconnect();
   });
 
@@ -1327,13 +1335,16 @@ describe('phone runtime projector bridge', () => {
     disconnect();
   });
 
-  it('uses verifyReproject with runtime-sampled live toolbar geometry', () => {
+  it('refreshes stable geometry with runtime-sampled live toolbar viewport', () => {
     const fixture = createEnvironment();
     const verifyReproject = vi.fn(exactPlaneResult);
+    const refreshStableViewport = vi.fn();
     const runtime = createPhoneStoryRuntime({
       initialEntry: { pathname: '/', hash: '#education', origin: 'initial' },
       environment: fixture.port,
-      presentation: createProjectorAuthority({ verifyReproject }, fixture.port.readViewport)
+      presentation: createProjectorAuthority(
+        { verifyReproject, refreshStableViewport }, fixture.port.readViewport
+      )
     });
     const disconnect = runtime.connect();
     proveCurrent(runtime, fixture);
@@ -1345,22 +1356,21 @@ describe('phone runtime projector bridge', () => {
     };
     fixture.emit({ type: 'viewport', change: 'toolbar', viewport: live });
     fixture.flushFrames();
-    prepareCurrentPlane(runtime, fixture);
-    fixture.flushFrames();
-    expect(verifyReproject).toHaveBeenCalledTimes(1);
-    expect(verifyReproject.mock.calls[0]?.[0].viewport).toEqual(live);
+    expect(refreshStableViewport).toHaveBeenCalledTimes(1);
+    expect(refreshStableViewport.mock.calls[0]?.[0]).toEqual(live);
+    expect(verifyReproject).not.toHaveBeenCalled();
     expect(runtime.getSnapshot().status).toBe('stable');
     disconnect();
   });
 
-  it('retries a transient toolbar coverage miss inside the bounded reproof deadline', () => {
+  it('retries a transient reproject coverage miss inside the bounded reproof deadline', () => {
     const fixture = createEnvironment();
     const verifyReproject = vi.fn()
       .mockReturnValueOnce({
         records: [],
         failure: {
           code: 'presentation-coverage-invalid',
-          message: 'dynamic toolbar geometry is still settling',
+          message: 'dynamic layout geometry is still settling',
           recoverable: true
         }
       })
@@ -1373,13 +1383,12 @@ describe('phone runtime projector bridge', () => {
     const disconnect = runtime.connect();
     proveCurrent(runtime, fixture);
     fixture.flushFrames();
-    const toolbar: PhoneViewportSnapshot = {
+    const shifted: PhoneViewportSnapshot = {
       ...initialViewport(),
       visual: { offsetLeft: 0, offsetTop: 153, width: 390, height: 753, scale: 1 },
       visualRevision: 2
     };
-    fixture.emit({ type: 'viewport', change: 'toolbar', viewport: toolbar });
-    fixture.flushFrames();
+    fixture.emit({ type: 'viewport', change: 'layout', viewport: shifted });
     prepareCurrentPlane(runtime, fixture);
     fixture.flushFrames();
     expect(verifyReproject).toHaveBeenCalledTimes(1);
@@ -2711,10 +2720,9 @@ describe('phone runtime effects, media activation, and disposal', () => {
     registerCurrentLeaf(runtime, commands);
     proveCurrent(runtime, fixture);
     fixture.emit({
-      type: 'viewport', change: 'toolbar',
+      type: 'viewport', change: 'layout',
       viewport: { ...initialViewport(), visualRevision: 2 }
     });
-    fixture.flushFrames();
     const recovery = currentTransaction(runtime);
     fixture.send({
       type: 'failure-reported', slot: recovery.requiredPrepared[0]!,

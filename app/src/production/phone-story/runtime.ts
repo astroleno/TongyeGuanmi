@@ -830,6 +830,10 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       dependencyLeases.set(attemptIdentity(effect.attempt), effect.dependencies);
       rebindRetainedClosure(effect);
       loadDependencies(effect, activeConnection);
+    } else if (effect.type === 'refresh-stable-viewport') {
+      if (snapshot.status === 'stable' && snapshot.stableCommit) {
+        presentation.refreshStableViewport(sampleViewport(snapshot.viewport));
+      }
     } else if (effect.type === 'schedule-deadline') {
       if (effect.timeoutMs <= 0) return;
       const key = deadlineKey(effect.attempt, effect.operation);

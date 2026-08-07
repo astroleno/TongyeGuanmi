@@ -470,6 +470,7 @@ export type PhoneStoryEffect =
       dependencies: readonly PhoneDependencyRef[];
     }>
   | Readonly<{ type: 'invalidate-attempt'; attempt: PhoneAttemptKey }>
+  | Readonly<{ type: 'refresh-stable-viewport' }>
   | Readonly<{ type: 'push-url'; pathname: string; hash: string }>
   | Readonly<{ type: 'replace-url'; pathname: string; hash: string }>
   | Readonly<{ type: 'cancel-deadline'; attempt: PhoneAttemptKey; operation: string }>

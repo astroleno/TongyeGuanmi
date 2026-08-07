@@ -669,7 +669,7 @@ describe('phone event queue and revision semantics', () => {
     expect(reprojected.stateRevision).toBeGreaterThan(stable.stateRevision);
   });
 
-  it('re-proves native-reading toolbar geometry without replacing the stable commit', () => {
+  it('refreshes native-reading toolbar geometry in place without reopening a transaction', () => {
     const stable = prove(boot('method-top', 'authority:native-reading-toolbar')).snapshot;
     expect(stable.status).toBe('stable');
     if (stable.status !== 'stable') throw new Error('expected native reading hold');
@@ -681,16 +681,22 @@ describe('phone event queue and revision semantics', () => {
     const sampled = dispatch(stable, {
       type: 'viewport-sampled', viewport: nextViewport, change: 'toolbar'
     });
-    expect(sampled.snapshot.status).toBe('transaction');
+    expect(sampled.snapshot.status).toBe('stable');
     expect(sampled.snapshot.viewport).toBe(nextViewport);
     expect(sampled.snapshot.stableCommit).toBe(stable.stableCommit);
-    expect(transaction(sampled.snapshot).transaction.mode).toBe('recovery');
-    const restored = prove(sampled).snapshot;
-    expect(restored.status).toBe('stable');
-    if (restored.status !== 'stable') throw new Error('expected toolbar recovery hold');
-    expect(restored.stableCommit).toBe(stable.stableCommit);
-    expect(restored.stableCommit.commitSequence).toBe(stable.stableCommit.commitSequence);
-    expect(restored.presentationProof).not.toBe(stable.presentationProof);
+    expect(sampled.snapshot.input).toBe(stable.input);
+    expect(sampled.effects).toContainEqual({ type: 'refresh-stable-viewport' });
+    expect(sampled.effects).not.toContainEqual(expect.objectContaining({
+      type: 'apply-presentation-plane'
+    }));
+    const repeated = dispatch(sampled.snapshot, {
+      type: 'viewport-sampled',
+      viewport: { ...nextViewport, visualRevision: nextViewport.visualRevision + 1 },
+      change: 'toolbar'
+    });
+    expect(repeated.snapshot.status).toBe('stable');
+    expect(repeated.snapshot.stableCommit).toBe(stable.stableCommit);
+    expect(repeated.effects).toContainEqual({ type: 'refresh-stable-viewport' });
   });
 });
 
