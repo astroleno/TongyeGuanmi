@@ -93,4 +93,44 @@ describe('phone AOD autoplay lifecycle', () => {
     expect(onComplete).toHaveBeenCalledWith(value);
     controller.dispose();
   });
+
+  it('keeps reverse admission alive when WebKit delays the first decoder frame', async () => {
+    const video = new FakeVideo();
+    video.readyState = 0;
+    const callbacks: FrameRequestCallback[] = [];
+    const driveReverseFrame = vi.fn();
+    const controller = createPhoneAodAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 1,
+        onProgress: vi.fn(),
+        driveReverseFrame,
+        requestFrame: (callback) => {
+          callbacks.push(callback);
+          return callbacks.length;
+        },
+        cancelFrame: vi.fn()
+      }
+    );
+
+    let settled = false;
+    const result = controller.start(execution(-1)).then((value) => {
+      settled = true;
+      return value;
+    });
+
+    expect(callbacks).toHaveLength(1);
+    callbacks.shift()!(16);
+    expect(callbacks).toHaveLength(1);
+    expect(settled).toBe(false);
+
+    video.readyState = 2;
+    callbacks.shift()!(32);
+    await expect(result).resolves.toBe('playing');
+    expect(driveReverseFrame).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.stringMatching(/^phone-aod-reverse:/)
+    );
+    controller.dispose();
+  });
 });

@@ -257,12 +257,28 @@ export function createPhoneAodAutoplay(
         if (import.meta.env.DEV) {
           video.dataset.phoneAodAutoplay = 'waiting-reverse-frame';
         }
+        // `loadeddata`/`canplay` are advisory evidence, not a reliable clock
+        // on iOS after a source is rebound. Keep the same execution alive and
+        // poll on the route-owned frame clock until the decoder can expose a
+        // real reverse frame. Returning without re-arming here strands the
+        // admission promise forever when WebKit misses the media event.
+        frame = requestFrame(tick);
         return;
       }
       reverseStartedAt ??= timestamp;
       const elapsedSeconds = Math.max(0, timestamp - reverseStartedAt) / 1000;
       const progress = reverseAnchorProgress - elapsedSeconds / duration;
       renderReverseFrame(progress);
+      // The frame clock is the fallback evidence path when WebKit does not
+      // emit loadeddata/canplay after a source rebind. Once the decoder is
+      // actually ready and this tick has submitted its physical frame, join
+      // the playback fact instead of leaving the admission promise pending.
+      if (resolveStart) {
+        if (import.meta.env.DEV) {
+          video.dataset.phoneAodAutoplay = 'playing-reverse-timeline';
+        }
+        settleStart('playing');
+      }
       if (reverseProgress <= 0.001) {
         completeRun();
         return;
