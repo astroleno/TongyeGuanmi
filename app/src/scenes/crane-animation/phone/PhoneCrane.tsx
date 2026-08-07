@@ -296,13 +296,7 @@ export const PhoneCrane = forwardRef<
   const reverseReady = useCallback(() => {
     const root = rootRef.current;
     return root?.dataset.phoneCraneFigureAlpha === 'verified'
-      && root.dataset.phoneCraneFlockAlpha === 'verified'
-      && root.querySelector<HTMLCanvasElement>(
-        '[data-phone-packed-alpha-canvas="crane-figure"]'
-      )?.dataset.packedAlphaFrameReady === 'true'
-      && root.querySelector<HTMLCanvasElement>(
-        '[data-phone-packed-alpha-canvas="crane-flock"]'
-      )?.dataset.packedAlphaFrameReady === 'true';
+      && root.dataset.phoneCraneFlockAlpha === 'verified';
   }, []);
   const [
     requestedRef,

@@ -69,6 +69,7 @@ describe('PhoneCrane', () => {
     expect(source).not.toContain('flockCanvasRef');
     expect(source).not.toContain('figureCanvasHost');
     expect(source).not.toContain('flockCanvasHost');
+    expect(source).not.toContain('querySelector<HTMLCanvasElement>');
     expect(source).toContain('createPhonePackedAlphaSurface');
   });
 

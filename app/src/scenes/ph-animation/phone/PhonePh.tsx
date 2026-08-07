@@ -199,10 +199,10 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
 
     const reverseReady = useCallback(() => {
       const root = rootRef.current;
-      return root?.dataset.phonePhAlpha === 'verified'
-        && root.querySelector<HTMLCanvasElement>(
-          '[data-phone-packed-alpha-canvas="ph-figure"]'
-        )?.dataset.packedAlphaFrameReady === 'true';
+      // The packed surface is the sole Canvas owner. Its root status is set
+      // by the compositor's real draw callback and cleared on release; the
+      // leaf must not rediscover or mutate a Canvas node behind that owner.
+      return root?.dataset.phonePhAlpha === 'verified';
     }, []);
     const beforeForward = useCallback(() => {
       const root = rootRef.current;

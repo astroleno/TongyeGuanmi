@@ -54,6 +54,7 @@ describe('PhonePh', () => {
     expect(source).not.toContain('createPortal');
     expect(source).not.toContain('figureCanvasRef');
     expect(source).not.toContain('figureCanvasHost');
+    expect(source).not.toContain('querySelector<HTMLCanvasElement>');
     expect(source).toContain('createPhonePackedAlphaSurface');
   });
 
