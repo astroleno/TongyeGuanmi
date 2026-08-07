@@ -11,8 +11,13 @@ const MiB = 1024 * KiB;
 // desktop regression guard.
 const desktopJsHardCapBytes = 568 * KiB;
 const phoneJsHardCapBytes = 648 * KiB;
+// Candidate/release artifacts must leave the 4 KiB safety margin required by
+// the cross-chunk contract plan. Development builds retain the historical
+// cap and report the missing margin as a warning for local iteration.
+const phoneJsReleaseHardCapBytes = 644 * KiB;
 const totalJsHardCapBytes = phoneJsHardCapBytes;
 const recommendedJsHeadroomBytes = 4 * KiB;
+const releaseProfile = process.env.R5_REQUIRE_RELEASE_IDENTITY === '1';
 const budgets = {
   initialJsRawBytes: 360 * KiB,
   initialJsGzipBytes: 112 * KiB,
@@ -172,6 +177,20 @@ for (const [name, budget] of Object.entries(budgets)) {
 const desktopJsHeadroomBytes = desktopJsHardCapBytes - actual.desktopJsRawBytes;
 const phoneJsHeadroomBytes = phoneJsHardCapBytes - actual.phoneJsRawBytes;
 const totalJsHeadroomBytes = totalJsHardCapBytes - actual.totalJsRawBytes;
+const phoneJsReleaseHeadroomBytes = phoneJsReleaseHardCapBytes - actual.phoneJsRawBytes;
+if (releaseProfile) {
+  if (actual.phoneJsRawBytes > phoneJsReleaseHardCapBytes) {
+    throw new Error(
+      `release phoneJsRawBytes exceeded: ${actual.phoneJsRawBytes} > ${phoneJsReleaseHardCapBytes}`
+    );
+  }
+  if (phoneJsReleaseHeadroomBytes < recommendedJsHeadroomBytes) {
+    throw new Error(
+      `release phoneJsHeadroomBytes below required headroom: `
+      + `${phoneJsReleaseHeadroomBytes} < ${recommendedJsHeadroomBytes}`
+    );
+  }
+}
 const warnings = [
   headroomWarning(
     'desktopJsHeadroomBytes',
@@ -203,7 +222,10 @@ const report = {
     recommendedJsHeadroomBytes,
     desktopJsHeadroomBytes,
     phoneJsHeadroomBytes,
-    totalJsHeadroomBytes
+    totalJsHeadroomBytes,
+    phoneJsReleaseHardCapBytes,
+    phoneJsReleaseHeadroomBytes,
+    releaseProfile
   },
   warnings,
   actual,

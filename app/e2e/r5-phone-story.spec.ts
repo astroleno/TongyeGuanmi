@@ -565,6 +565,25 @@ type PhoneTransitionTraceState = Readonly<{
     bottom: number;
     left: number;
   }>>;
+
+type PhoneRuntimeResourceSample = Readonly<{
+  at: number;
+  activeMedia: number;
+  activeWebgl: number;
+}>;
+
+type PhoneLegTimeline = Readonly<{
+  run: string;
+  from: PhoneStableScene;
+  to: PhoneStableScene;
+  direction: 1 | -1;
+  startAt: number;
+  firstFrameAt: number;
+  commitAt: number;
+  releaseAt: number;
+  activeMediaAtMax: number;
+  activeWebglAtMax: number;
+}>;
 }>;
 
 const PHONE_NAV_HASH: Partial<Record<PhoneStableScene, string>> = {
@@ -942,6 +961,8 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
         retryable: string | null;
       }>;
       stateEvents: PhoneTransitionTraceState[];
+      resourceSamples: PhoneRuntimeResourceSample[];
+      legTimelines: PhoneLegTimeline[];
     };
     const target = window as typeof window & {
       __phoneRuntimeProbe?: Probe;
@@ -958,7 +979,9 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
       maxLoaderCount: 0,
       wheelEvents: [],
       cursorEvents: [],
-      stateEvents: []
+      stateEvents: [],
+      resourceSamples: [],
+      legTimelines: []
     };
     const sampleActive = () => {
       probe.maxActive = Math.max(
@@ -1006,6 +1029,17 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
           '.story-loader[data-story-loader="true"]'
         ).length
       );
+    };
+    const sampleResources = () => {
+      probe.resourceSamples.push({
+        at: performance.now(),
+        activeMedia: Array.from(document.querySelectorAll('video'))
+          .filter((video) => !video.paused && !video.ended).length,
+        activeWebgl: probe.contexts.filter(
+          (context) => !context.isContextLost()
+        ).length
+      });
+      if (probe.resourceSamples.length > 2_000) probe.resourceSamples.shift();
     };
     let lastStateKey = '';
     const sampleState = () => {
@@ -1071,6 +1105,7 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
         } : null,
         surfaces
       };
+      sampleResources();
       const key = JSON.stringify([
         state.revision,
         state.cursor,
@@ -1137,6 +1172,8 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
       ]
     });
     sampleState();
+    sampleResources();
+    window.setInterval(sampleResources, 50);
     window.addEventListener('wheel', (event) => {
       const record = {
         at: performance.now(),
@@ -1184,6 +1221,8 @@ async function phoneRuntimeProbe(page: Page) {
             retryable: string | null;
           }>;
           stateEvents: PhoneTransitionTraceState[];
+          resourceSamples: PhoneRuntimeResourceSample[];
+          legTimelines: PhoneLegTimeline[];
         };
       }
     ).__phoneRuntimeProbe;
@@ -1198,9 +1237,83 @@ async function phoneRuntimeProbe(page: Page) {
       created: probe.created,
       wheelEvents: probe.wheelEvents,
       cursorEvents: probe.cursorEvents,
-      stateEvents: probe.stateEvents
+      stateEvents: probe.stateEvents,
+      resourceSamples: probe.resourceSamples,
+      legTimelines: probe.legTimelines
     };
   });
+}
+
+async function recordPhoneLegTimeline(
+  page: Page,
+  from: PhoneStableScene,
+  to: PhoneStableScene,
+  direction: 1 | -1
+): Promise<PhoneLegTimeline> {
+  const run = frontRun(from, to);
+  const probe = await phoneRuntimeProbe(page);
+  const startCursor = `transition:${run.id}:0`;
+  const startIndex = probe.stateEvents.findIndex(
+    (state) => state.cursor === startCursor
+  );
+  if (startIndex < 0) {
+    throw new Error(`Missing ${startCursor} in leg timeline`);
+  }
+  const commitIndex = probe.stateEvents.findIndex((state, index) => (
+    index >= startIndex && state.cursor === `hold:${to}`
+  ));
+  if (commitIndex < 0) {
+    throw new Error(`Missing hold:${to} commit in ${startCursor} timeline`);
+  }
+  const releaseIndex = probe.stateEvents.findIndex((state, index) => (
+    index >= commitIndex
+    && state.session === null
+    && state.input === 'free'
+  ));
+  if (releaseIndex < 0) {
+    throw new Error(`Missing input release after hold:${to} commit`);
+  }
+  const firstFrameIndex = probe.stateEvents.findIndex((state, index) => (
+    index >= startIndex
+    && index <= commitIndex
+    && (
+      state.phase === 'presented-frame-ready'
+      || state.phase === 'animating'
+      || (state.projection === 'candidate' && state.session !== null)
+    )
+  ));
+  if (firstFrameIndex < 0) {
+    throw new Error(`Missing presented-frame evidence in ${startCursor} timeline`);
+  }
+  const startAt = probe.stateEvents[startIndex]!.at;
+  const commitAt = probe.stateEvents[commitIndex]!.at;
+  const releaseAt = probe.stateEvents[releaseIndex]!.at;
+  const samples = probe.resourceSamples.filter((sample) => (
+    sample.at >= startAt && sample.at <= releaseAt
+  ));
+  const timeline: PhoneLegTimeline = {
+    run: run.id,
+    from,
+    to,
+    direction,
+    startAt,
+    firstFrameAt: probe.stateEvents[firstFrameIndex]!.at,
+    commitAt,
+    releaseAt,
+    activeMediaAtMax: Math.max(0, ...samples.map((sample) => sample.activeMedia)),
+    activeWebglAtMax: Math.max(0, ...samples.map((sample) => sample.activeWebgl))
+  };
+  expect(timeline.firstFrameAt).toBeGreaterThanOrEqual(timeline.startAt);
+  expect(timeline.commitAt).toBeGreaterThanOrEqual(timeline.firstFrameAt);
+  expect(timeline.releaseAt).toBeGreaterThanOrEqual(timeline.commitAt);
+  await page.evaluate((nextTimeline) => {
+    const probe = (window as typeof window & {
+      __phoneRuntimeProbe?: { legTimelines: PhoneLegTimeline[] };
+    }).__phoneRuntimeProbe;
+    if (!probe) throw new Error('Phone runtime probe is unavailable');
+    probe.legTimelines.push(nextTimeline);
+  }, timeline);
+  return timeline;
 }
 
 type HeroEntranceSample = Readonly<{
@@ -1968,6 +2081,7 @@ async function driveFrontRun(
       { timeout: 2_500, message: `one intent must start ${run.id}` }
     ).toBe(`transition:${run.id}:0`);
     await assertStablePhoneHold(page, to, { timeout: 15_000 });
+    await recordPhoneLegTimeline(page, from, to, direction);
     assertFrontRunTrace((await phoneRuntimeProbe(page)).stateEvents, from, to, direction);
     return;
   }
@@ -2034,6 +2148,7 @@ async function driveFrontRun(
     `front wheel input did not settle hold:${to}: ${JSON.stringify(inputDiagnostics)}`
   ).toBe(true);
   await assertStablePhoneHold(page, to, { timeout: 30_000 });
+  await recordPhoneLegTimeline(page, from, to, direction);
   assertFrontRunTrace((await phoneRuntimeProbe(page)).stateEvents, from, to, direction);
 }
 
@@ -2103,6 +2218,7 @@ async function driveReducedFrontHold(
     await assertStablePhoneHold(page, to, { timeout: 15_000 });
     const targetY = await page.evaluate(() => window.scrollY);
     expect(direction === 1 ? targetY > startY : targetY < startY).toBe(true);
+    await recordPhoneLegTimeline(page, from, to, direction);
     assertReducedFrontHoldTrace(
       (await phoneRuntimeProbe(page)).stateEvents,
       from,
@@ -2124,6 +2240,7 @@ async function driveReducedFrontHold(
   expect(reachedTarget, `reduced front input did not settle hold:${to}`).toBe(true);
   expect(direction === 1 ? targetY > startY : targetY < startY).toBe(true);
   await assertStablePhoneHold(page, to, { timeout: 30_000 });
+  await recordPhoneLegTimeline(page, from, to, direction);
   assertReducedFrontHoldTrace(
     (await phoneRuntimeProbe(page)).stateEvents,
     from,
@@ -2229,6 +2346,7 @@ async function driveAdjacentPhoneRun(
     );
   }
   await page.waitForTimeout(50);
+  await recordPhoneLegTimeline(page, from, to, direction);
   const probe = await phoneRuntimeProbe(page);
   assertTransitionTrace(probe.stateEvents, from, to, direction, options);
   const runtime = await phoneRuntimeProbe(page);
@@ -2304,21 +2422,33 @@ async function driveJourney(
     const direction: 1 | -1 = FORMAL_FORWARD_JOURNEY.some(([source, target]) => (
       source === from && target === to
     )) ? 1 : -1;
-    if (isFrontJourneyLeg(from, to)) {
-      if (options.reducedMotion) {
-        await driveReducedFrontHold(page, from, to, direction);
+    try {
+      if (isFrontJourneyLeg(from, to)) {
+        if (options.reducedMotion) {
+          await driveReducedFrontHold(page, from, to, direction);
+        } else {
+          await driveFrontRun(page, from, to, direction);
+        }
       } else {
-        await driveFrontRun(page, from, to, direction);
+        await driveAdjacentPhoneRun(
+          page,
+          from,
+          to,
+          direction,
+          45_000,
+          'formal',
+          options
+        );
       }
-    } else {
-      await driveAdjacentPhoneRun(
-        page,
-        from,
-        to,
-        direction,
-        45_000,
-        'formal',
-        options
+    } catch (error) {
+      const probe = await phoneRuntimeProbe(page);
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)}\n`
+        + `leg telemetry (${from} → ${to}): ${JSON.stringify({
+          completed: probe.legTimelines,
+          resources: probe.resourceSamples.slice(-20),
+          states: probe.stateEvents.slice(-32)
+        })}`
       );
     }
   }
@@ -2804,6 +2934,19 @@ test('Task 10 completes two full-motion formal round trips in one authority', as
   }
 
   const probe = await phoneRuntimeProbe(page);
+  const expectedLegCount = 2 * (
+    FORMAL_FORWARD_JOURNEY.length + FORMAL_REVERSE_JOURNEY.length
+  );
+  expect(
+    probe.legTimelines,
+    `two-round leg telemetry: ${JSON.stringify(probe.legTimelines)}`
+  ).toHaveLength(expectedLegCount);
+  expect(probe.legTimelines.every((timeline) => (
+    timeline.startAt <= timeline.firstFrameAt
+    && timeline.firstFrameAt <= timeline.commitAt
+    && timeline.commitAt <= timeline.releaseAt
+    && timeline.activeWebglAtMax <= 4
+  ))).toBe(true);
   expect(probe.maxActive).toBeLessThanOrEqual(4);
 });
 
