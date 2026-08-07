@@ -215,6 +215,11 @@ for (const warning of warnings) {
 const report = {
   schemaVersion: 5,
   budgets,
+  releaseBudgets: {
+    phoneJsRawBytes: phoneJsReleaseHardCapBytes,
+    requiredHeadroomBytes: recommendedJsHeadroomBytes
+  },
+  releaseProfile,
   headroom: {
     desktopJsHardCapBytes,
     phoneJsHardCapBytes,
