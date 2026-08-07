@@ -140,6 +140,16 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       renderedFrameRef.current = false;
     }, []);
     const reportAodFrame = useCallback((execution: PhoneAodExecution) => {
+      const root = rootRef.current;
+      if (root) {
+        // AOD's reverse receiver is also the physical source endpoint for
+        // the shared Ink geometry. Its packed canvas draw is the exact
+        // admission frame, so release the generic pending receiver veil
+        // immediately before forwarding that fact to the runner. The marker
+        // is cleared by the next endpoint arm/disposal; it never commits a
+        // machine state on its own.
+        root.dataset.phoneInkFrame = 'ready';
+      }
       frameListenerRef.current?.({
         token: execution[0],
         frameSequence: ++executionFrameSequenceRef.current,
@@ -204,6 +214,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         '[data-aod-reveal-surface]'
       );
       delete staticSurface?.dataset.aodStaticPoster;
+      delete rootRef.current?.dataset.phoneInkFrame;
       if (!compositor) return;
       compositor.dispose();
       compositorRef.current = undefined;
@@ -224,6 +235,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       compositor = createPackedAlphaVideoCompositor({
         video,
         canvas,
+        releaseContextOnDispose: false,
         onFrame: () => {
           const execution = autoplayExecutionRef.current;
           const rendered = renderedFrameRef.current;
@@ -341,8 +353,15 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           // This leaf can only report a real canvas draw. The runner asks it
           // to render only after reducer-owned admission accepts the facts;
           // decoder progress itself never gains a visual write here.
+          // `render()` may invoke the compositor's onFrame callback
+          // synchronously (WebKit does this for an explicit reverse seek).
+          // Mark the render attempt before entering the compositor so that
+          // that callback cannot lose the exact first-frame fact to a stale
+          // false value. A failed/waiting draw clears the marker again; only
+          // the compositor's successful draw can publish the frame.
           renderedFrameRef.current = true;
           const result = compositorRef.current?.render();
+          if (result !== 'rendered') renderedFrameRef.current = false;
           if (reportProgress) {
             progressListenerRef.current?.(progress, execution);
           }

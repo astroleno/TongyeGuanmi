@@ -44,6 +44,12 @@ type PackedAlphaVideoOptions = Readonly<{
   canvas: HTMLCanvasElement;
   onFrame?: () => void;
   onFailure?: (failure: PackedAlphaRenderFailure) => void;
+  /**
+   * Surface-owned canvases are removed on release and can hard-lose their
+   * context. React-owned canvases stay mounted and must be reusable by the
+   * same ref, so their owner only deletes GL resources.
+   */
+  releaseContextOnDispose?: boolean;
 }>;
 
 type VideoWithFrameCallbacks = HTMLVideoElement & {
@@ -437,7 +443,9 @@ export function createPackedAlphaVideoCompositor(
       gl.deleteProgram(program);
       gl.deleteShader(vertex);
       gl.deleteShader(fragment);
-      releasePackedAlphaWebGlContext(gl);
+      if (options.releaseContextOnDispose !== false) {
+        releasePackedAlphaWebGlContext(gl);
+      }
       delete canvas.dataset.packedAlphaStatus;
       delete canvas.dataset.packedAlphaFrameReady;
       delete canvas.dataset.packedAlphaFrame;

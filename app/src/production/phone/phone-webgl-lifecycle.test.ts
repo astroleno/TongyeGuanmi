@@ -86,12 +86,16 @@ describe('phone WebGL allocation lifecycle', () => {
 
     expect(hero).toContain('const releaseCompositor = useCallback(');
     expect(hero).toContain('renewPackedAlphaCanvas');
+    expect(hero).toContain('releaseContextOnDispose: false');
     expect(hero).not.toMatch(/\n\s*leave\(\) \{/);
     expect(hero).not.toMatch(/\n\s*reverse\(\) \{/);
     expect(heroProjectionLease).toContain('releaseGpuOwners();');
     expect(heroProjectionLease).toContain('ensureCompositor()?.setActive(true);');
     expect(aod).toContain('const ensureCompositor = useCallback(');
     expect(aod).toContain('renewPackedAlphaCanvas');
+    expect(aod).toContain('releaseContextOnDispose: false');
+    expect(aod).toContain("root.dataset.phoneInkFrame = 'ready'");
+    expect(aod).toContain("if (result !== 'rendered') renderedFrameRef.current = false;");
     expect(aod).not.toMatch(/\n\s*leave\(\) \{/);
     expect(aod).not.toMatch(/\n\s*reverse\(\) \{/);
     expect(aodProjectionLease).toContain('releaseCompositor();');

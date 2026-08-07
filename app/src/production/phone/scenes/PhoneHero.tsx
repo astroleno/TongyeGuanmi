@@ -290,6 +290,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       const compositor = createPackedAlphaVideoCompositor({
         video: figureVideo,
         canvas: figureCanvas,
+        releaseContextOnDispose: false,
         onFrame: () => {
           figureVideo.dataset.portraitFigureAlpha = 'verified';
           figureParallax.dataset.portraitFigureAlpha = 'verified';

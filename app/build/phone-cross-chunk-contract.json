@@ -205,6 +205,7 @@
     "quickTo",
     "ready",
     "release",
+    "releaseContextOnDispose",
     "renderBackground",
     "revealDurationMs",
     "revealReadingSteps",
@@ -251,7 +252,7 @@
         "src/production/phone/scenes/PhoneAod.tsx",
         "src/production/phone/scenes/phone-packed-alpha-surface.ts"
       ],
-      "propertyNames": ["video", "canvas", "onFrame", "onFailure", "render", "setActive", "dispose"]
+      "propertyNames": ["video", "canvas", "onFrame", "onFailure", "releaseContextOnDispose", "render", "setActive", "dispose"]
     },
     {
       "name": "phone-story-presentation-facade",

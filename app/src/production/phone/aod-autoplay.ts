@@ -424,8 +424,8 @@ export function createPhoneAodAutoplay(
   video.addEventListener('error', onError);
   visibilityDocument?.addEventListener('visibilitychange', onVisibilityChange);
 
-  const selectSource = () => {
-    if (sourceSelected) {
+  const selectSource = (force = false) => {
+    if (sourceSelected && !force) {
       return;
     }
     if (options.sourceUrl) {
@@ -465,7 +465,12 @@ export function createPhoneAodAutoplay(
       const result = beginStartResult();
       direction = nextDirection;
       execution = nextExecution;
-      selectSource();
+      // Safari can discard decoded data after the forward leg retires its
+      // compositor. Rebind the source before a reverse leg when no decoder
+      // frame is currently available; otherwise the reverse timeline can
+      // wait forever for a loadeddata event that belongs to the old source
+      // generation.
+      selectSource(direction === -1 && video.readyState < 2);
       runRevision += 1;
       publishPlaybackOwnership(direction === 1 ? 'forward' : 'reverse');
       active = true;

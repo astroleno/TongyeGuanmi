@@ -2376,6 +2376,8 @@ async function driveAdjacentPhoneRun(
         documentTop: window.scrollY + element.getBoundingClientRect().top
       };
     });
+    const aodVideo = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+    const aodCanvas = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
     return {
       y: window.scrollY,
       cursor: document.querySelector('[data-phone-cursor]')
@@ -2385,6 +2387,16 @@ async function driveAdjacentPhoneRun(
       wheelEvents: probe?.wheelEvents.slice(-8),
       cursorEvents: probe?.cursorEvents.slice(-12),
       stateEvents: probe?.stateEvents.slice(-24),
+      aod: aodVideo ? {
+        readyState: aodVideo.readyState,
+        networkState: aodVideo.networkState,
+        currentTime: aodVideo.currentTime,
+        paused: aodVideo.paused,
+        dataset: { ...aodVideo.dataset },
+        canvasStatus: aodCanvas?.dataset.packedAlphaStatus ?? null,
+        canvasFrameReady: aodCanvas?.dataset.packedAlphaFrameReady ?? null,
+        canvasCount: document.querySelectorAll('[data-aod-figure-canvas]').length
+      } : null,
       landmarks
     };
   });
@@ -2398,12 +2410,42 @@ async function driveAdjacentPhoneRun(
     await assertStablePhoneHold(page, to, { timeout: settleTimeout, scope });
   } catch (error) {
     const failedProbe = await phoneRuntimeProbe(page);
+    const failedAod = await page.evaluate(() => {
+      const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+      const canvas = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
+      const root = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod');
+      return video ? {
+        video: {
+          readyState: video.readyState,
+          networkState: video.networkState,
+          currentTime: video.currentTime,
+          paused: video.paused,
+          duration: video.duration,
+          error: video.error ? {
+            code: video.error.code,
+            message: video.error.message
+          } : null,
+          dataset: { ...video.dataset }
+        },
+        canvas: canvas ? {
+          width: canvas.width,
+          height: canvas.height,
+          status: canvas.dataset.packedAlphaStatus ?? null,
+          frameReady: canvas.dataset.packedAlphaFrameReady ?? null,
+          frame: canvas.dataset.packedAlphaFrame ?? null,
+          mediaTime: canvas.dataset.packedAlphaMediaTime ?? null,
+          active: canvas.dataset.packedAlphaCompositorActive ?? null
+        } : null,
+        rootDataset: root ? { ...root.dataset } : null
+      } : null;
+    });
     throw new Error(
       `${error instanceof Error ? error.message : String(error)}\n`
       + `transition trace: ${JSON.stringify({
         wheels: failedProbe.wheelEvents.slice(-8),
         cursors: failedProbe.cursorEvents.slice(-12),
-        states: failedProbe.stateEvents.slice(-32)
+        states: failedProbe.stateEvents.slice(-32),
+        aod: failedAod
       })}`
     );
   }
