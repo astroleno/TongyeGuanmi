@@ -18,7 +18,6 @@ import {
   parkFigure2Media,
   renderFigure2AnimationProgress
 } from '..';
-import { PhoneFigure2Arch } from './PhoneFigure2Arch';
 import './PhoneFigure2.css';
 
 const Figure2Surface = figure2AnimationScene.Component;
@@ -49,7 +48,8 @@ function waitForDecodedImage(image: HTMLImageElement): Promise<void> {
 
 export type PhoneFigure2Props = Readonly<{ reports: PhoneLeafReportPort }>;
 
-/** Genuine Figure2 leaf with one decoded source, one visible Canvas, and one retained arch. */
+/** Genuine Figure2 leaf with one decoded source and one visible Canvas.
+ * The foreground arch is presentation-owned so it can survive into Proof. */
 export function PhoneFigure2({ reports }: PhoneFigure2Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<HTMLElement | null>(null);
@@ -172,8 +172,10 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
     const poster = posterRef.current;
     const canvas = scene?.querySelector<HTMLCanvasElement>('[data-figure2-packed-alpha-canvas]');
     const container = canvas?.parentElement;
-    const arch = root?.querySelector<HTMLImageElement>('[data-stage-retained-figure2-arch="true"]');
-    if (!root || !scene || !video || !poster || !canvas || !container || !arch) return;
+    if (!root || !scene || !video || !poster || !canvas || !container) return;
+    const arch = document.querySelector<HTMLImageElement>(
+      '[data-stage-retained-figure2-arch="true"]'
+    );
     disposedRef.current = false;
     videoRef.current = video;
     posterReadyRef.current = false;
@@ -216,7 +218,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
         { id: 'figure2-pair-video', element: video, kind: 'video' },
         { id: 'figure2-pair-poster', element: poster, kind: 'image' },
         canvasSurface,
-        { id: 'figure2-foreground-arch', element: arch, kind: 'image' }
+        ...(arch ? [{ id: 'figure2-foreground-arch', element: arch, kind: 'image' as const }] : [])
       ],
       commands
     });
@@ -268,7 +270,6 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
         />,
         posterHost
       ) : null}
-      <PhoneFigure2Arch />
     </div>
   );
 }

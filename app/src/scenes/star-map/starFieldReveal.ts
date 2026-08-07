@@ -231,9 +231,7 @@ export class StarFieldReveal {
       this.image = image;
       this.prepareSource();
       this.ready = true;
-      if (this.autoplay) {
-        this.renderBackground();
-      }
+      if (this.autoplay) this.renderBackground();
     }, { once: true });
     image.src = this.sourceUrl;
   }
@@ -242,22 +240,22 @@ export class StarFieldReveal {
     if (!this.image) {
       return;
     }
-    this.sourceCanvas = createCanvas(this.image.naturalWidth, this.image.naturalHeight);
+    const sourceWidth = this.image.naturalWidth || this.image.width || 1;
+    const sourceHeight = this.image.naturalHeight || this.image.height || 1;
+    this.sourceCanvas = createCanvas(sourceWidth, sourceHeight);
     const sourceCtx = this.sourceCanvas.getContext('2d', { willReadFrequently: true });
-    if (!sourceCtx) {
-      return;
-    }
+    if (!sourceCtx) return;
     sourceCtx.drawImage(this.image, 0, 0);
     this.sourceData = sourceCtx.getImageData(0, 0, this.sourceCanvas.width, this.sourceCanvas.height);
 
-    this.highlightCanvas = createCanvas(this.image.naturalWidth, this.image.naturalHeight);
+    this.highlightCanvas = createCanvas(sourceWidth, sourceHeight);
     this.buildHighlightSource();
 
-    this.dynamicHighlightCanvas = createCanvas(this.image.naturalWidth, this.image.naturalHeight);
+    this.dynamicHighlightCanvas = createCanvas(sourceWidth, sourceHeight);
     this.cameraHighlightCanvas = createCanvas(1, 1);
     this.noiseMaskCanvas = createCanvas(
       this.config.noiseMaskWidth,
-      Math.round(this.config.noiseMaskWidth * this.image.naturalHeight / this.image.naturalWidth)
+      Math.round(this.config.noiseMaskWidth * sourceHeight / sourceWidth)
     );
     this.resizeOutput();
   }

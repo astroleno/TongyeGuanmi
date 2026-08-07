@@ -350,7 +350,7 @@ records, not packed numeric arrays.
 | 4 | `aod-animation` | `aod-stage` | `#ede4d2` | `front` | `aod-semantic-edge` | successful packed-Canvas draw |
 | 5 | `method-top` | `method-intro` | `#ede4d2` | `native` | authored boundary; title and lead selectors | target content + post-paint |
 | 6 | `figure2-animation` | `figure2-stage` | `#e2dac9` | `grade-a` | authored boundary | successful packed-Canvas draw |
-| 7 | `figure2-proof` | `figure2-proof-opening` | `#ede4d2` | `grade-a` | `#figure2-proof-opening .r4-proof-opening__title` | target content + post-paint |
+| 7 | `figure2-proof` | `figure2-proof-opening` | `#ede4d2` | `native` | `#figure2-proof-opening .r4-proof-opening__title` | retained arch image decode + target content + post-paint |
 | 8 | `brand` | `brand-reading` | `#ede4d2` | `native` | `#phone-brand-title`; definition paragraph | target content + post-paint |
 | 9 | `figure3-animation` | `figure3-stage` | `#ede4d2` | `group45` | persistent compositor landing | decoded/composited frame |
 | 10 | `services` | `services-reading` | `#ede4d2` | `native` | title and hero paragraph | target content + post-paint |
@@ -6327,8 +6327,8 @@ inside the registered root and pass visible-content proof.
 | `star-map` | `media:star-map-source` | `star-map-canvas` | `#portrait-spike-star-title` | `(0,0,1,0)` | `D-static` |
 | `aod-animation` | `media:aod-figure-packed`, `compositor:aod-packed` | `aod-figure-video`, `aod-figure-canvas` | `[data-aod-figure-canvas]` | `(1,1,1,1)` | `D-single-media` |
 | `method-top` | none | `method-root` | `#method #portrait-spike-method-title`, `#method .portrait-scroll-spike__method-bridge-content p` | `(0,0,0,0)` | `D-static` |
-| `figure2-animation` | `media:figure2-pair-poster`, `media:figure2-foreground-arch`, `media:figure2-pair-packed`, `compositor:figure2-packed` | `figure2-pair-video`, `figure2-pair-canvas`, `figure2-foreground-arch` | `[data-r4-scene="figure2-animation"] [data-figure2-packed-alpha-canvas]` | `(1,1,1,1)` | `D-single-media` |
-| `figure2-proof` | none | `figure2-proof-root` | `#figure2-proof-opening .r4-proof-opening__title` | `(0,0,0,0)` | `D-static` |
+| `figure2-animation` | `media:figure2-pair-poster`, `media:figure2-foreground-arch`, `media:figure2-pair-packed`, `compositor:figure2-packed` | `figure2-pair-video`, `figure2-pair-poster`, `figure2-pair-canvas`, `figure2-foreground-arch` | `[data-r4-scene="figure2-animation"] [data-figure2-packed-alpha-canvas]` | `(1,1,1,1)` | `D-single-media` |
+| `figure2-proof` | `media:figure2-foreground-arch` | `figure2-proof-root`, `figure2-foreground-arch` | `#figure2-proof-opening .r4-proof-opening__title` | `(0,0,0,0)` | `D-static` |
 | `brand` | none | `brand-root` | `#phone-brand-title`, `.phone-brand__definition p` | `(0,0,0,0)` | `D-static` |
 | `figure3-animation` | `media:figure3-motion`, `compositor:figure3-paper` | `figure3-video`, `figure3-paper-canvas` | `[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-canvas]` | `(1,1,1,0)` | `D-single-media` |
 | `services` | none | `services-root` | `#phone-services-title`, `.phone-services__hero > p:last-child` | `(0,0,0,0)` | `D-static` |

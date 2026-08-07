@@ -15,10 +15,10 @@ const MiB = KiB * KiB;
 const HOMEPAGE_RUNTIME_MEDIA_BYTES_MAX = 80 * MiB;
 const HERO_BEFORE_FIRST_SCROLL_TRANSFER_MAX = 4 * MiB;
 const PRESENTATION_WEBP_BYTES_MAX = 4 * MiB;
-// Task 13's physical Safari correction adds one immutable AOD first-frame
-// poster. This is an exact frozen total, not a general allowance for future
-// WebP growth; its source SHA-256 remains enforced by the media contract.
-const ALL_WEBP_BYTES_MAX = 11_866_072;
+// The Star Map highlight mask is an immutable presentation asset. This is an
+// exact frozen total, not a general allowance for future WebP growth; every
+// source SHA-256 remains enforced by the media contract.
+const ALL_WEBP_BYTES_MAX = 11_918_982;
 const DESKTOP_STATIC_PATH_BYTES_MAX = 32 * MiB;
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
@@ -191,12 +191,12 @@ const inventorySources = [
 const frozenMediaBySource = new Map(
   frozenHomepageMedia.map((entry) => [entry.source, entry])
 );
-assert(inventorySources.length === 57, `expected 57 homepage source entries, found ${inventorySources.length}`);
-assert(frozenHomepageMedia.length === 57, `expected 57 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
+assert(inventorySources.length === 58, `expected 58 homepage source entries, found ${inventorySources.length}`);
+assert(frozenHomepageMedia.length === 58, `expected 58 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
 assert(frozenMediaBySource.size === frozenHomepageMedia.length, 'frozen homepage media sources must be unique');
 assert(frozenMediaBySource.size === inventorySources.length, 'frozen homepage media contract must cover the full inventory');
 assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, found ${adoptedWebpSources.length}`);
-assert(portraitOnlyImageSources.length === 5, `expected 5 portrait-only WebP sources, found ${portraitOnlyImageSources.length}`);
+assert(portraitOnlyImageSources.length === 6, `expected 6 portrait-only WebP sources, found ${portraitOnlyImageSources.length}`);
 assert(semanticLosslessWebpSources.length === 4, `expected 4 semantic lossless WebP sources, found ${semanticLosslessWebpSources.length}`);
 assert(presentationWebpSources.length === 15, `expected 15 presentation WebP sources, found ${presentationWebpSources.length}`);
 assert(animationWebmSources.length === 8, `expected 8 animation WebM sources, found ${animationWebmSources.length}`);
@@ -259,10 +259,10 @@ const emittedMp4 = emittedEntries.filter((entry) => mediaExtension(entry.path) =
 const emittedWebp = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webp');
 const emittedJpg = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.jpg');
 const emittedPng = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.png');
-assert(emittedMedia.length === 57, `expected exactly 57 emitted homepage media files, found ${emittedMedia.length}`);
+assert(emittedMedia.length === 58, `expected exactly 58 emitted homepage media files, found ${emittedMedia.length}`);
 assert(emittedWebm.length === 8, `expected exactly 8 emitted animation WebM files, found ${emittedWebm.length}`);
 assert(emittedMp4.length === 14, `expected exactly 14 emitted animation MP4 files, found ${emittedMp4.length}`);
-assert(emittedWebp.length === 35, `expected exactly 35 emitted WebP files, found ${emittedWebp.length}`);
+assert(emittedWebp.length === 36, `expected exactly 36 emitted WebP files, found ${emittedWebp.length}`);
 assert(emittedJpg.length === 0, `production JPG emit is forbidden, found ${emittedJpg.length}`);
 assert(emittedPng.length === 0, `production PNG emit is forbidden, found ${emittedPng.length}`);
 for (const entry of emittedEntries) {

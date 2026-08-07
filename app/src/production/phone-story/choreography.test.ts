@@ -119,6 +119,15 @@ describe('phone segment choreography', () => {
     ).foregroundOwner).toBe('target');
   });
 
+  it('projects Proof to its closing frame before the Brand handoff', () => {
+    expect(phoneSegmentChoreographyFrame('figure2-proof-brand', 0)).toMatchObject({
+      sourceProgress: 1, targetProgress: 1, mediaClockOwner: 'none'
+    });
+    expect(phoneSegmentChoreographyFrame('figure2-proof-brand', 1)).toMatchObject({
+      sourceProgress: 1, targetProgress: 1
+    });
+  });
+
   it('reverses canonical time and swaps actual source and target ownership', () => {
     const start = phoneSegmentChoreographyFrame(
       'pattern-star-map', 1, 'reverse'

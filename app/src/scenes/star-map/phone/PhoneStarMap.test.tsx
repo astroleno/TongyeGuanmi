@@ -86,7 +86,7 @@ describe('clean PhoneStarMap leaf', () => {
     await act(async () => { frames.shift()?.(16); });
     expect(revealProbe.instance?.renderBackground).toHaveBeenCalledWith(
       expect.objectContaining({
-        camera: { rotationDegrees: -90, zoom: 1 }, drawSource: true
+        camera: { rotationDegrees: -90, zoom: 1 }, drawSource: false
       })
     );
     expect(current.reports.reportFrame).toHaveBeenCalledWith(
@@ -118,5 +118,19 @@ describe('clean PhoneStarMap leaf', () => {
     expect(Math.max(...strengths) - Math.min(...strengths)).toBeGreaterThan(0.4);
     expect(Math.max(...noiseFloors) - Math.min(...noiseFloors)).toBeGreaterThan(0.1);
     expect(phoneStarMapAmbientLayer(2.2, true)).toEqual({ strength: .72, noiseFloor: .02 });
+  });
+
+  it('does not schedule ambient frames while the Star Map is a hidden target', async () => {
+    const shell = document.createElement('main');
+    shell.className = 'phone-story';
+    shell.dataset.phoneStatus = 'transaction';
+    shell.dataset.phoneScene = 'pattern';
+    shell.append(host);
+    document.body.replaceChildren(shell);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneStarMap reports={mount.reports} />); });
+    revealProbe.instance!.ready = true;
+    await act(async () => { frames.shift()?.(16); });
+    expect(frames).toHaveLength(0);
   });
 });

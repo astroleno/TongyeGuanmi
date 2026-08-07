@@ -108,7 +108,7 @@ describe('clean PhoneAod leaf', () => {
     await expect(invocation?.settlements[0]?.status === 'pending'
       ? invocation.settlements[0].settled : Promise.reject()).resolves.toBeUndefined();
     expect(surfaceProbe.render).toHaveBeenCalledTimes(1);
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(1);
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(2);
   });
 
   it('accepts only the current generation draw and tracks a renewed Canvas', async () => {
@@ -198,7 +198,27 @@ describe('clean PhoneAod leaf', () => {
     mount.registration()?.commands.settle(0);
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');
     mount.registration()?.commands.settle(1);
-    expect(scene.dataset.portraitAodProgress).toBe('0.0000');
+    expect(scene.dataset.portraitAodProgress).toBe('1.0000');
+  });
+
+  it('projects playing progress onto the paused video clock', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const video = host.querySelector<HTMLVideoElement>('[data-aod-figure-video]')!;
+    Object.defineProperty(video, 'duration', { configurable: true, value: 2.567 });
+    Object.defineProperty(video, 'currentTime', { configurable: true, writable: true, value: 0 });
+    commands.rebind({ reports: reportFixture().reports, frameToken: 'aod:clock:1' });
+    const invocation = commands.activate({
+      invocationId: 'activation:clock', surfaceIds: ['aod-figure-video'],
+      credit: 'physical-epoch', playback: true
+    });
+    const settlement = invocation.settlements[0];
+    if (settlement?.status === 'pending') await settlement.settled;
+    commands.render(.75);
+    expect(video.currentTime).toBeGreaterThan(0);
+    expect(video.currentTime).toBeLessThan(2.567);
+    expect(surfaceProbe.render).toHaveBeenCalled();
   });
 
   it('keeps the canonical figure geometry and makes the first Canvas frame own the live surface', async () => {
@@ -216,9 +236,9 @@ describe('clean PhoneAod leaf', () => {
     const css = readFileSync(resolve(
       process.cwd(), 'src/scenes/aod-animation/phone/PhoneAod.css'
     ), 'utf8');
-    expect(css).toMatch(/\[data-phone-aod-playback-frame="ready"\][\s\S]*?\.aod-transition__reveal-surface::before[\s\S]*?opacity:\s*0\s*!important/s);
-    expect(css).toMatch(/\[data-phone-aod-playback-frame="ready"\][\s\S]*?\.aod-transition__reveal-surface::after[\s\S]*?opacity:\s*0\s*!important/s);
-    expect(css).toMatch(/\[data-phone-aod-playback-frame="ready"\][\s\S]*?\.aod-transition__paper-solid[\s\S]*?opacity:\s*0\s*!important/s);
+    expect(css).toMatch(/\[data-aod-alpha-composite="true"\][\s\S]*?\.aod-transition__reveal-surface::before[\s\S]*?opacity:\s*0\s*!important/s);
+    expect(css).toMatch(/\[data-aod-alpha-composite="true"\][\s\S]*?\.aod-transition__reveal-surface::after[\s\S]*?opacity:\s*0\s*!important/s);
+    expect(css).toMatch(/\[data-aod-alpha-composite="true"\][\s\S]*?\.aod-transition__paper-solid[\s\S]*?opacity:\s*0\s*!important/s);
   });
 
   it('lets the stateless formal bridge await a real forward activation', async () => {

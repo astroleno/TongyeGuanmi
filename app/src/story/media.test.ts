@@ -16,12 +16,17 @@ describe('front-half product media', () => {
       'hero-figure-packed',
       'pattern-background',
       'star-map-source',
+      'star-map-highlight-mask',
       'aod-figure-poster',
       'aod-figure-packed'
     ]);
     expect(frontHalfProductMediaFor('star-map-source')).toMatchObject({
       owner: 'star-map',
       asset: 'back2.webp'
+    });
+    expect(frontHalfProductMediaFor('star-map-highlight-mask')).toMatchObject({
+      owner: 'star-map',
+      asset: 'star-map-highlight-mask.webp'
     });
   });
 

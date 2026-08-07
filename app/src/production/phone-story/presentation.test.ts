@@ -783,8 +783,12 @@ describe('phone presentation fixed topology and Hero zero contract', () => {
   it('keeps one fixed isolated topology with coverage below all story planes', () => {
     const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
     expect(styles).toMatch(/\.phone-story__viewport\s*\{[^}]*position:\s*fixed/s);
+    expect(styles).toMatch(/\.phone-story__viewport\s*\{[^}]*overflow:\s*visible/s);
+    expect(styles).toMatch(/\.phone-story__planes\s*\{[^}]*overflow:\s*hidden/s);
     expect(styles).not.toMatch(/\.phone-story__viewport\s*\{[^}]*position:\s*absolute/s);
     expect(styles).toMatch(/\.phone-story__coverage\s*\{[^}]*z-index:\s*0/s);
+    expect(styles).toMatch(/\.phone-story__coverage\s*\{[^}]*inset:\s*-2px/s);
+    expect(styles).toMatch(/\.stage-proof-retained-arch\[data-phone-figure2-arch-ready="false"\]\s*\{[^}]*visibility:\s*hidden/s);
     expect(styles).toMatch(/\[data-phone-plane="source"\][^{]*\{[^}]*z-index:\s*10/s);
     expect(styles).toMatch(/\[data-phone-plane="receiver"\][^{]*\{[^}]*z-index:\s*30/s);
     expect(styles).not.toMatch(/\.phone-story__coverage::(?:before|after)/);

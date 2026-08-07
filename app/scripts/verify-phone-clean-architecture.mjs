@@ -76,7 +76,8 @@ const allowedExternalCoreImports = new Map([
     './styles.css',
     '../StoryLoader',
     '../StoryNav',
-    '../navigation'
+    '../navigation',
+    '../../stage/PhoneRetainedFigure2Arch'
   ])],
   ['PhoneBrandLabStory.tsx', new Set()]
 ]);

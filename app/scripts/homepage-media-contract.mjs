@@ -49,7 +49,8 @@ export const portraitOnlyImageSources = [
   'assets/figure2-pair-opening.webp',
   'assets/figure2-phone-foreground-arch.webp',
   'assets/figure3-initial-paper.webp',
-  'assets/figure3-terminal-paper.webp'
+  'assets/figure3-terminal-paper.webp',
+  'assets/star-map-highlight-mask.webp'
 ];
 
 export const frozenHomepageMedia = [
@@ -292,6 +293,12 @@ export const frozenHomepageMedia = [
     category: 'presentation-webp',
     bytes: 784596,
     sha256: 'fdfd4fbda1abb39c2384b467c8160151e7a47871e7fd4b5c98574c38519f6403'
+  },
+  {
+    source: 'assets/star-map-highlight-mask.webp',
+    category: 'portrait-adopted-webp',
+    bytes: 52910,
+    sha256: '8d660f8824a42b516a67e051a0ca6585ab3d8ab9f9c461e281191184d5ab506d'
   },
   {
     source: 'assets/figure2-middle-depth.webp',

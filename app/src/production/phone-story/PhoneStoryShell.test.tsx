@@ -21,6 +21,8 @@ type MockEngine = Readonly<{
   hostEvents: PhoneRuntimeHostEvent[];
   requestEntry: ReturnType<typeof vi.fn>;
   retry: ReturnType<typeof vi.fn>;
+  reportPresentationPrepared: ReturnType<typeof vi.fn>;
+  reportPresentationFailure: ReturnType<typeof vi.fn>;
   startVisibleEntrance: ReturnType<typeof vi.fn>;
   getSnapshot(): SnapshotRecord | null;
   subscribe(listener: () => void): () => void;
@@ -66,6 +68,8 @@ vi.mock('./runtime', () => ({
       disconnectCount: 0,
       requestEntry: vi.fn(),
       retry: vi.fn(),
+      reportPresentationPrepared: vi.fn(),
+      reportPresentationFailure: vi.fn(),
       startVisibleEntrance: vi.fn(),
       getSnapshot: () => snapshot,
       subscribe: (listener: () => void) => {
@@ -881,6 +885,62 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
+  it('retains Figure2 arch in one presentation layer above the reading flow', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    const entering = segmentSnapshot();
+    const transaction = entering.transaction as Record<string, unknown>;
+    act(() => engine.publish({
+      ...entering,
+      transaction: {
+        ...transaction,
+        candidateSceneId: 'figure2-animation',
+        attempt: { ...(transaction.attempt as Record<string, unknown>),
+          sceneId: 'figure2-animation', segmentId: 'method-bottom-figure2' }
+      }
+    }));
+    act(() => engine.publish({
+      ...stableSnapshot(),
+      stableCommit: { sceneId: 'figure2-animation', landing: {}, commitSequence: 2 },
+      presentationProof: { commitSequence: 2, planeRevision: 2 }
+    }));
+    const arch = host.querySelector('[data-stage-retained-figure2-arch="true"]');
+    expect(arch).not.toBeNull();
+    expect(arch?.getAttribute('data-phone-figure2-arch-ready')).toBe('true');
+    act(() => arch?.dispatchEvent(new Event('load')));
+    expect(arch?.getAttribute('data-phone-figure2-arch-ready')).toBe('true');
+    expect(arch?.parentElement?.classList).toContain('phone-story__retained-figure2-arch-layer');
+    expect(arch?.closest('.phone-story__reading-flow')).toBeNull();
+    act(() => root.unmount());
+  });
+
+  it('keeps the arch shared across Figure2 and Proof and reports decode failure', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    const entering = segmentSnapshot();
+    const transaction = entering.transaction as Record<string, unknown>;
+    act(() => engine.publish({
+      ...entering,
+      transaction: {
+        ...transaction,
+        sourceSceneId: 'figure2-animation', candidateSceneId: 'figure2-proof',
+        attempt: { ...(transaction.attempt as Record<string, unknown>),
+          sceneId: 'figure2-proof', segmentId: 'figure2-animation-proof', direction: 'forward' }
+      }
+    }));
+    const layer = host.querySelector('.phone-story__retained-figure2-arch-layer');
+    expect(layer?.getAttribute('data-phone-figure2-arch-owner')).toBe('shared');
+    const arch = host.querySelector('[data-stage-retained-figure2-arch="true"]');
+    act(() => arch?.dispatchEvent(new Event('error')));
+    expect(engine.reportPresentationFailure).toHaveBeenCalledWith(expect.objectContaining({
+      surfaceId: 'figure2-foreground-arch',
+      failure: expect.objectContaining({ code: 'figure2-arch-decode' })
+    }));
+    act(() => root.unmount());
+  });
+
   it('retains one Figure3 pair topology and report port across the immediate reverse', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
@@ -1172,7 +1232,7 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
-  it('hands a native reading document to the story only on a new outward edge gesture', () => {
+  it('hands a native reading document to the story only when the gesture starts at an edge', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     revealStableStory();
@@ -1200,7 +1260,12 @@ describe('clean PhoneStoryShell ownership', () => {
       configurable: true, value: 1544
     });
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
-    const gesture = (identifier: number, reachEdge = false, continueAtEdge = false) => {
+    const gesture = (
+      identifier: number,
+      reachEdge = false,
+      continueAtEdge = false,
+      rubberBand = false
+    ) => {
       const start = new Event('touchstart', { bubbles: true });
       Object.defineProperty(start, 'touches', { value: [{ identifier, clientY: 600 }] });
       const move = new Event('touchmove', { bubbles: true, cancelable: true });
@@ -1211,6 +1276,7 @@ describe('clean PhoneStoryShell ownership', () => {
       Object.defineProperty(end, 'changedTouches', { value: [{ identifier, clientY: 300 }] });
       act(() => reading.dispatchEvent(start));
       if (reachEdge) scrollTop = 700;
+      if (rubberBand) scrollTop = 680;
       act(() => {
         reading.dispatchEvent(move);
         if (continueAtEdge) reading.dispatchEvent(edgeMove);
@@ -1223,9 +1289,9 @@ describe('clean PhoneStoryShell ownership', () => {
       expect(first.move.defaultPrevented).toBe(false);
       expect(first.edgeMove.defaultPrevented).toBe(false);
       expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
-      // The second native-document gesture is the real Method → Figure2
-      // outward handoff; it must consume the first edge latch exactly once.
-      const leave = gesture(40);
+      // The next gesture starts at the edge, so it is the real Method → Figure2
+      // outward handoff. Reaching an edge during a gesture never arms a later one.
+      const leave = gesture(40, false, false, true);
       expect(leave.move.defaultPrevented).toBe(true);
 
       // Re-enter Method at a non-edge position. The first gesture may scroll to
@@ -1233,6 +1299,7 @@ describe('clean PhoneStoryShell ownership', () => {
       scrollTop = 600;
       const returnFirst = gesture(41, true);
       expect(returnFirst.move.defaultPrevented).toBe(false);
+      scrollTop = 700;
       const second = gesture(42);
       expect(second.move.defaultPrevented).toBe(true);
       expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([

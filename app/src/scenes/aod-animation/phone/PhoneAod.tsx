@@ -17,6 +17,7 @@ import {
   AOD_PHONE_TIMELINE_ALPHA_END,
   AOD_PHONE_TIMELINE_ALPHA_START,
   aodAnimationScene,
+  mapAodTimelineToMediaProgress,
   renderAodTransitionProgress
 } from '..';
 import './PhoneAod.css';
@@ -108,6 +109,24 @@ export function PhoneAod({ reports }: PhoneAodProps) {
   const render = useCallback((progress: number) => {
     const root = rootRef.current;
     if (root) renderPhoneAod(root, progress);
+    const video = videoRef.current;
+    const surface = surfaceRef.current;
+    if (!video || !surface || surfaceGenerationRef.current <= 0) return;
+    const mediaProgress = mapAodTimelineToMediaProgress(
+      progress, AOD_PHONE_TIMELINE_ALPHA_END
+    );
+    const duration = Number.isFinite(video.duration) && video.duration > 0
+      ? Math.min(AOD_FIGURE_END_SECONDS, video.duration)
+      : AOD_FIGURE_END_SECONDS;
+    const nextTime = mediaProgress * duration;
+    try {
+      if (Math.abs(video.currentTime - nextTime) > 1 / 120) video.currentTime = nextTime;
+      video.pause();
+    } catch {
+      // Safari may reject a seek while a source is being replaced; the next
+      // reducer-owned frame will retry without creating a second clock.
+    }
+    surface.render();
   }, []);
 
   const reportPoster = useCallback(() => {
@@ -148,11 +167,19 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         if (root) root.dataset.phoneAodPlaybackFrame = 'awaiting';
         let settled: Promise<void>;
         try {
-          settled = Promise.resolve(video.play()).then(() => {
-            if (generation !== surfaceGenerationRef.current || !surface.render()) {
+          // Consume the trusted activation window, then immediately pause. All
+          // subsequent media time is projected from transaction.progress.
+          const playPromise = video.play();
+          video.pause();
+          settled = Promise.resolve(playPromise).then(() => {
+            if (generation !== surfaceGenerationRef.current) {
               throw new Error('AOD compositor did not present the activated frame');
             }
-            if (!command.playback) video.pause();
+            video.pause();
+            try { video.currentTime = 0; } catch { /* source metadata may lag */ }
+            if (!surface.render()) {
+              throw new Error('AOD compositor did not present the activated frame');
+            }
           });
         } catch (error) {
           settled = Promise.reject(error);
@@ -167,7 +194,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         };
       },
       render,
-      settle() { render(0); },
+      settle(endpoint) { render(endpoint); },
       pause() {
         surfaceGenerationRef.current = 0;
         surfaceRef.current?.release();

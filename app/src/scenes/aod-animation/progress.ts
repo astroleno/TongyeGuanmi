@@ -28,8 +28,10 @@ export const AOD_FIRST_FULL_ALPHA_FRAME = 16;
 export const AOD_SOURCE_ALPHA_END = AOD_FIRST_FULL_ALPHA_FRAME / (AOD_ALPHA_FRAME_COUNT - 1);
 export const AOD_ALPHA_BACKGROUND_HOLD_PROGRESS = 1 / 3;
 export const AOD_TIMELINE_ALPHA_END = 0.48;
-export const AOD_PHONE_TIMELINE_ALPHA_START = 0.49;
-export const AOD_PHONE_TIMELINE_ALPHA_END = 0.59;
+// Phone and desktop share one authored handoff. Keeping these aliases avoids
+// a second mobile-only alpha clock while preserving the public contract.
+export const AOD_PHONE_TIMELINE_ALPHA_START = AOD_TIMELINE_ALPHA_END;
+export const AOD_PHONE_TIMELINE_ALPHA_END = AOD_TIMELINE_ALPHA_END;
 export const AOD_FIRST_FULL_ALPHA_PROGRESS = AOD_TIMELINE_ALPHA_END;
 export const AOD_BACKDROP_ALPHA_EXIT_START_PROGRESS = AOD_ALPHA_BACKGROUND_HOLD_PROGRESS;
 
@@ -67,9 +69,8 @@ export function mapAodMediaToTimelineProgress(
 
 /**
  * Native playback keeps the authored alpha portion through the selected point
- * of the reversible AOD timeline (48% by default, 59% on phone). The first
- * source segment slows down and the opaque segment catches up without
- * changing the total duration.
+ * of the reversible AOD timeline. The first source segment slows down and the
+ * opaque segment catches up without changing the total duration.
  */
 export function aodPlaybackRateForMediaProgress(
   rawMediaProgress: number,
@@ -129,9 +130,7 @@ export function renderAodTransitionProgress(
   const mediaProgress = mapAodTimelineToMediaProgress(raw, alphaEnd);
   const alphaComposite = raw < alphaEnd;
   /*
-   * The phone figure keeps decoded alpha through 59%, while its paper/mist
-   * ownership begins at the independently selected 49% boundary. Desktop
-   * keeps the canonical 48% default for both values.
+   * The phone figure and paper/mist layers share the canonical 48% handoff.
    */
   const surfaceReveal = raw >= surfaceRevealStart;
   const config = HOMEPAGE_AOD_CONFIG;

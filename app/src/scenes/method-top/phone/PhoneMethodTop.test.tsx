@@ -75,4 +75,46 @@ describe('clean PhoneMethodTop leaf', () => {
     expect(host.querySelector('[data-phone-reading="method-top"]')
       ?.getAttribute('data-phone-input-owner')).toBe('native-document');
   });
+
+  it('mirrors the native document scroll before the fixed visual copy is exposed', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    Object.defineProperty(document, 'scrollingElement', {
+      configurable: true, value: { scrollTop: 963 }
+    });
+    await act(async () => { root.render(<PhoneMethodTop reports={mount.reports} />); });
+    expect(mount.registration()?.root.dataset.phoneMethodNativeScrollY).toBe('963.00');
+    expect(mount.registration()?.root.style.getPropertyValue('--phone-method-native-scroll-y'))
+      .toBe('963.00px');
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: null });
+  });
+
+  it('freezes the last native scroll sample when reading is disabled', async () => {
+    const scrollOwner = { scrollTop: 963 };
+    Object.defineProperty(document, 'scrollingElement', {
+      configurable: true, value: scrollOwner
+    });
+    const shell = document.createElement('main');
+    shell.className = 'phone-story';
+    shell.dataset.phoneReading = 'enabled';
+    document.body.append(shell);
+    const root = createRoot(shell);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneMethodTop reports={mount.reports} />); });
+    const visual = mount.registration()?.root;
+    expect(visual?.dataset.phoneMethodNativeScrollY).toBe('963.00');
+
+    shell.dataset.phoneReading = 'disabled';
+    scrollOwner.scrollTop = 0;
+    await act(async () => { await Promise.resolve(); });
+    expect(visual?.dataset.phoneMethodNativeScrollY).toBe('963.00');
+
+    shell.dataset.phoneReading = 'enabled';
+    await act(async () => { await Promise.resolve(); });
+    expect(visual?.dataset.phoneMethodNativeScrollY).toBe('0.00');
+    act(() => root.unmount());
+    shell.remove();
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: null });
+  });
 });

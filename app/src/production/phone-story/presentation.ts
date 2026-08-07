@@ -573,8 +573,9 @@ export function createPhonePresentation(
     if (!state.root || !state.root.contains(request.registration.root)) {
       throw new Error('Phone leaf root is outside the attached presentation root');
     }
-    if (request.registration.surfaces.some(({ element }) => (
+    if (request.registration.surfaces.some(({ id, element }) => (
       !request.registration.root.contains(element)
+      && !(id === 'figure2-foreground-arch' && state.root?.contains(element))
     ))) throw new Error('Phone leaf surface is outside its registered root');
     const descriptor = describePhoneLeafMount(request);
     const ownerKey = phoneLeafMountKey(request.binding);
@@ -582,7 +583,7 @@ export function createPhonePresentation(
       throw new Error(`Phone leaf mount already registered: ${ownerKey}`);
     }
     for (const surfaceId of descriptor.surfaceIds) {
-      if (state.surfaceOwners.has(surfaceId)) {
+      if (state.surfaceOwners.has(surfaceId) && surfaceId !== 'figure2-foreground-arch') {
         throw new Error(`Phone leaf surface already registered: ${surfaceId}`);
       }
     }
@@ -849,18 +850,19 @@ export function createPhonePresentation(
 
   const frameIsVisible = (request: PhonePlaneRequest, record: PhoneMountRecord): boolean => {
     const scene = phoneSceneById(request.sceneId);
-    const requiredSurfaces = scene.frame.kind === 'packed-canvas-draw'
-      ? scene.frame.surfaceIds : scene.frame.surfaceIds.slice(0, 1);
-    const expectedFact = scene.frame.kind === 'image-decode-composite-paint'
-      ? 'image-decoded' : scene.frame.kind === 'content-post-paint'
-        ? 'static-ready' : scene.frame.kind === 'decoded-composited-frame'
-          && scene.directEntry.closure.resourceBudget.canvases === 0
-          ? 'video-decoded' : 'canvas-drawn';
+    const requiredSurfaces = scene.id === 'figure2-animation' || scene.id === 'figure2-proof' || scene.frame.kind === 'packed-canvas-draw' ? scene.frame.surfaceIds : scene.frame.surfaceIds.slice(0, 1);
     const surfaces = requiredSurfaces.map((id) => record.surfaces.get(id)?.element);
-    return surfaces.length > 0 && surfaces.every((surface, index) => !!surface && !!record.root
-      && record.facts.get(requiredSurfaces[index]!)?.has(expectedFact) === true
-      && intersectsVisualViewport(surface, request.viewport.visual)
-      && visibleThroughAncestors(surface, record.root, getStyle, surfaces.length === 1))
+    const expectedFact = (id: string): string => id === 'figure2-foreground-arch' || scene.frame.kind === 'image-decode-composite-paint' ? 'image-decoded' : scene.frame.kind === 'content-post-paint' ? 'static-ready' : scene.frame.kind === 'decoded-composited-frame' && scene.directEntry.closure.resourceBudget.canvases === 0 ? 'video-decoded' : 'canvas-drawn';
+    return surfaces.length > 0 && surfaces.every((surface, index) => {
+      const id = requiredSurfaces[index]!;
+      const ownerRoot = id === 'figure2-foreground-arch' ? state.root : record.root;
+      const fact = id === 'figure2-foreground-arch'
+        ? surface?.getAttribute('data-phone-figure2-arch-ready') === 'true'
+        : record.facts.get(id)?.has(expectedFact(id)) === true;
+      return !!surface && !!ownerRoot && fact
+        && intersectsVisualViewport(surface, request.viewport.visual)
+        && visibleThroughAncestors(surface, ownerRoot, getStyle, surfaces.length === 1);
+    })
       && (surfaces.length === 1 || surfaces.some((surface) =>
         !!surface && visibleStyle(getStyle(surface))));
   };

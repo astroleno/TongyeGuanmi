@@ -5,7 +5,7 @@ import type {
   PhoneLeafGenerationBinding,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
-import { figure2ProofScene, renderFigure2ProofHold } from '..';
+import { Figure2ProofScene, figure2ProofScene, renderFigure2ProofHold } from '..';
 import './PhoneFigure2Proof.css';
 
 const Figure2ProofSurface = figure2ProofScene.Component;
@@ -65,9 +65,9 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
         invoked: false, settlements: [] };
     },
     render,
-    settle() {
+    settle(endpoint) {
       renderFigure2ProofHold(rootRef.current);
-      render(0);
+      render(endpoint);
     },
     pause() {},
     dispose() {
@@ -87,9 +87,15 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
     disposedRef.current = false;
     renderFigure2ProofHold(root);
     render(0);
+    const arch = document.querySelector<HTMLImageElement>(
+      '[data-stage-retained-figure2-arch="true"]'
+    );
     reports.registerMount({
       root,
-      surfaces: [{ id: 'figure2-proof-root', element: root, kind: 'dom' }],
+      surfaces: [
+        { id: 'figure2-proof-root', element: root, kind: 'dom' },
+        ...(arch ? [{ id: 'figure2-foreground-arch', element: arch, kind: 'image' as const }] : [])
+      ],
       commands
     });
     return () => {
@@ -106,6 +112,11 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
       registerHandle={registerHandle}
     />
   );
+}
+
+export function Reading(props: Readonly<{ sceneId?: string }> = {}) {
+  void props;
+  return <Figure2ProofScene scene="figure2-proof" hidden={false} reading />;
 }
 
 export default PhoneFigure2Proof;

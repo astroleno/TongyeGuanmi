@@ -106,16 +106,16 @@ describe('AOD alpha compositing', () => {
     expect(section.style.getPropertyValue('--aod-transition-sun-opacity')).toBe('0.0000');
   });
 
-  it('keeps the phone surface/alpha handoff in the 49% → 59% interval', () => {
+  it('keeps the phone surface/alpha handoff on the canonical 48% boundary', () => {
     expect(AOD_TIMELINE_ALPHA_END).toBe(0.48);
-    expect(AOD_PHONE_TIMELINE_ALPHA_START).toBe(0.49);
-    expect(AOD_PHONE_TIMELINE_ALPHA_END).toBe(0.59);
+    expect(AOD_PHONE_TIMELINE_ALPHA_START).toBe(AOD_TIMELINE_ALPHA_END);
+    expect(AOD_PHONE_TIMELINE_ALPHA_END).toBe(AOD_TIMELINE_ALPHA_END);
     expect(
       mapAodTimelineToMediaProgress(
         AOD_PHONE_TIMELINE_ALPHA_START,
         AOD_PHONE_TIMELINE_ALPHA_END
       )
-    ).toBeLessThan(AOD_SOURCE_ALPHA_END);
+    ).toBeCloseTo(AOD_SOURCE_ALPHA_END, 8);
     expect(
       mapAodTimelineToMediaProgress(
         AOD_PHONE_TIMELINE_ALPHA_END,
@@ -142,7 +142,7 @@ describe('AOD alpha compositing', () => {
       AOD_PHONE_TIMELINE_ALPHA_END,
       AOD_PHONE_TIMELINE_ALPHA_START
     );
-    expect(section.dataset.aodAlphaComposite).toBe('true');
+    expect(section.dataset.aodAlphaComposite).toBe('false');
     expect(
       Number(section.style.getPropertyValue('--aod-transition-paper-wash-opacity'))
     ).toBeGreaterThan(0);

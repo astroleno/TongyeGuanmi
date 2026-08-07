@@ -183,7 +183,7 @@ export const phoneSegmentChoreography = Object.freeze({
     ['range', 0, .72], 0, ['smooth', .748, .9832], 'source',
     1, ['smooth', .748, .9832]
   ),
-  'figure2-proof-brand': choreography(0, 1, 'linear', 'none'),
+  'figure2-proof-brand': choreography(1, 1, 'linear', 'none'),
   'brand-figure3': choreography(1, 0, 'linear', 'none'),
   'figure3-services': choreography(
     ['smooth', 0, .96], ['smooth', .8, .94], 'linear', 'source',
@@ -341,11 +341,11 @@ type SceneSeed = Readonly<Omit<
 const sceneSeeds: Readonly<Record<PhoneSceneId, SceneSeed>> = {
   hero: { id: 'hero', checkpoint: 'hero-entered', edgeSurface: '#07110e', plane: 'front', landing: { kind: 'front-corridor', anchor: '#portrait-spike-home' }, frame: { kind: 'decoded-or-static-post-paint', surfaceIds: ['hero-figure-canvas', 'hero-figure-poster'] }, additionalDependencies: ['media:hero-back', 'media:hero-middle', 'media:hero-figure-poster', 'media:hero-figure-packed', 'compositor:hero-packed'], surfaces: ['hero-back-image', 'hero-middle-image', 'hero-figure-poster', 'hero-figure-video', 'hero-figure-canvas', 'hero-intro-ink'], contentSelectors: ['#portrait-spike-home'], resourceBudget: budget(1, 1, 2, 1), deadlineProfile: 'D-single-media' },
   pattern: { id: 'pattern', checkpoint: 'pattern-complete', edgeSurface: '#8f7f61', plane: 'front', landing: { kind: 'authored-boundary', anchor: '[data-portrait-pattern-bloom]' }, frame: { kind: 'image-decode-composite-paint', surfaceIds: ['pattern-image'] }, additionalDependencies: ['media:pattern-background'], surfaces: ['pattern-image'], contentSelectors: ['[data-portrait-pattern-bloom]'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
-  'star-map': { id: 'star-map', checkpoint: 'star-map-reading', edgeSurface: '#06100d', plane: 'front', landing: { kind: 'authored-boundary', anchor: '#portrait-spike-star-title' }, frame: { kind: 'canvas-or-static-post-paint', surfaceIds: ['star-map-canvas'] }, additionalDependencies: ['media:star-map-source'], surfaces: ['star-map-canvas'], contentSelectors: ['#portrait-spike-star-title'], resourceBudget: budget(0, 0, 1, 0), deadlineProfile: 'D-static' },
+  'star-map': { id: 'star-map', checkpoint: 'star-map-reading', edgeSurface: '#06100d', plane: 'front', landing: { kind: 'authored-boundary', anchor: '#portrait-spike-star-title' }, frame: { kind: 'canvas-or-static-post-paint', surfaceIds: ['star-map-canvas'] }, additionalDependencies: ['media:star-map-source', 'media:star-map-highlight-mask'], surfaces: ['star-map-canvas'], contentSelectors: ['#portrait-spike-star-title'], resourceBudget: budget(0, 0, 1, 0), deadlineProfile: 'D-static' },
   'aod-animation': { id: 'aod-animation', checkpoint: 'aod-stage', edgeSurface: '#ede4d2', plane: 'front', landing: { kind: 'semantic-edge', anchor: 'aod-semantic-edge' }, frame: { kind: 'image-decode-composite-paint', surfaceIds: ['aod-figure-poster'] }, additionalDependencies: ['media:aod-figure-poster', 'media:aod-figure-packed', 'compositor:aod-packed'], surfaces: ['aod-figure-video', 'aod-figure-poster', 'aod-figure-canvas'], contentSelectors: ['[data-phone-aod-figure-poster]'], resourceBudget: budget(1, 1, 1, 1), deadlineProfile: 'D-single-media' },
   'method-top': { id: 'method-top', checkpoint: 'method-intro', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#method' }, frame: { kind: 'content-post-paint', surfaceIds: ['method-root'] }, additionalDependencies: [], surfaces: ['method-root'], contentSelectors: ['#method #portrait-spike-method-title', '#method .portrait-scroll-spike__method-bridge-content p'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
-  'figure2-animation': { id: 'figure2-animation', checkpoint: 'figure2-stage', edgeSurface: '#e2dac9', plane: 'grade-a', landing: { kind: 'authored-boundary', anchor: '[data-r4-scene="figure2-animation"]' }, frame: { kind: 'image-decode-composite-paint', surfaceIds: ['figure2-pair-poster'] }, additionalDependencies: ['media:figure2-pair-poster', 'media:figure2-foreground-arch', 'media:figure2-pair-packed', 'compositor:figure2-packed'], surfaces: ['figure2-pair-video', 'figure2-pair-poster', 'figure2-pair-canvas', 'figure2-foreground-arch'], contentSelectors: ['[data-r4-scene="figure2-animation"] [data-phone-figure2-poster]'], resourceBudget: budget(1, 1, 1, 1), deadlineProfile: 'D-single-media' },
-  'figure2-proof': { id: 'figure2-proof', checkpoint: 'figure2-proof-opening', edgeSurface: '#ede4d2', plane: 'grade-a', landing: { kind: 'authored-boundary', anchor: '#figure2-proof-opening' }, frame: { kind: 'content-post-paint', surfaceIds: ['figure2-proof-root'] }, additionalDependencies: [], surfaces: ['figure2-proof-root'], contentSelectors: ['#figure2-proof-opening .r4-proof-opening__title'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
+  'figure2-animation': { id: 'figure2-animation', checkpoint: 'figure2-stage', edgeSurface: '#e2dac9', plane: 'grade-a', landing: { kind: 'authored-boundary', anchor: '[data-r4-scene="figure2-animation"]' }, frame: { kind: 'image-decode-composite-paint', surfaceIds: ['figure2-pair-poster', 'figure2-foreground-arch'] }, additionalDependencies: ['media:figure2-pair-poster', 'media:figure2-foreground-arch', 'media:figure2-pair-packed', 'compositor:figure2-packed'], surfaces: ['figure2-pair-video', 'figure2-pair-poster', 'figure2-pair-canvas', 'figure2-foreground-arch'], contentSelectors: ['[data-r4-scene="figure2-animation"] [data-phone-figure2-poster]'], resourceBudget: budget(1, 1, 1, 1), deadlineProfile: 'D-single-media' },
+  'figure2-proof': { id: 'figure2-proof', checkpoint: 'figure2-proof-opening', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#figure2-proof-opening' }, frame: { kind: 'content-post-paint', surfaceIds: ['figure2-proof-root', 'figure2-foreground-arch'] }, additionalDependencies: ['media:figure2-foreground-arch'], surfaces: ['figure2-proof-root', 'figure2-foreground-arch'], contentSelectors: ['#figure2-proof-opening .r4-proof-opening__title'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
   brand: { id: 'brand', checkpoint: 'brand-reading', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#phone-brand-title' }, frame: { kind: 'content-post-paint', surfaceIds: ['brand-root'] }, additionalDependencies: [], surfaces: ['brand-root'], contentSelectors: ['#phone-brand-title', '.phone-brand__definition p'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
   'figure3-animation': { id: 'figure3-animation', checkpoint: 'figure3-stage', edgeSurface: '#ede4d2', plane: 'group45', landing: { kind: 'persistent-compositor', anchor: '[data-phone-scene="figure3-animation"]' }, frame: { kind: 'decoded-composited-frame', surfaceIds: ['figure3-paper-canvas'] }, additionalDependencies: ['media:figure3-motion', 'compositor:figure3-paper'], surfaces: ['figure3-video', 'figure3-paper-canvas'], contentSelectors: ['[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-canvas]'], resourceBudget: budget(1, 1, 1, 0), deadlineProfile: 'D-single-media' },
   services: { id: 'services', checkpoint: 'services-reading', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#phone-services-title' }, frame: { kind: 'content-post-paint', surfaceIds: ['services-root'] }, additionalDependencies: [], surfaces: ['services-root'], contentSelectors: ['#phone-services-title', '.phone-services__hero > p:last-child'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
@@ -400,18 +400,8 @@ function prewarmDependencies(id: PhoneSceneId): readonly PhoneDependencyRef[] {
 }
 function preparedEvidence(id: PhoneSceneId): readonly PhonePreparedEvidenceKind[] {
   const kind = sceneSeeds[id].frame.kind;
-  const readiness: PhonePreparedEvidenceKind = kind === 'image-decode-composite-paint'
-    ? 'image-decoded'
-    : kind === 'content-post-paint'
-      ? 'static-ready'
-      : kind === 'decoded-composited-frame'
-        && sceneSeeds[id].resourceBudget.canvases === 0
-        ? 'video-decoded'
-        : 'canvas-drawn';
-  return [
-    'module-loaded', 'root-connected', readiness,
-    'layout-measurable', 'resource-budget-valid'
-  ];
+  const readiness: PhonePreparedEvidenceKind = kind === 'image-decode-composite-paint' ? 'image-decoded' : kind === 'content-post-paint' ? 'static-ready' : kind === 'decoded-composited-frame' && sceneSeeds[id].resourceBudget.canvases === 0 ? 'video-decoded' : 'canvas-drawn';
+  return ['module-loaded', 'root-connected', readiness, ...(id === 'figure2-proof' ? ['image-decoded' as const] : []), 'layout-measurable', 'resource-budget-valid'];
 }
 function mediaActivation(
   resourceBudget: PhoneResourceBudget, needsPhysicalActivation = resourceBudget.videos > 0
@@ -600,7 +590,11 @@ export function phonePreparedSurfaceIds(
   const scene = phoneSceneById(sceneId);
   if (kind === 'module-loaded' || kind === 'resource-budget-valid') return [null];
   if (kind === 'root-connected' || kind === 'layout-measurable') return [`root:${sceneId}`];
-  return scene.frame.kind === 'packed-canvas-draw'
+  if (scene.frame.kind === 'packed-canvas-draw') return scene.frame.surfaceIds;
+  if (kind === 'image-decoded' && scene.id === 'figure2-proof') {
+    return ['figure2-foreground-arch'];
+  }
+  return scene.frame.kind === 'image-decode-composite-paint'
     ? scene.frame.surfaceIds : [scene.frame.surfaceIds[0] ?? null];
 }
 export function phoneSegmentBetween(

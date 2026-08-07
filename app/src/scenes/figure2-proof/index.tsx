@@ -48,7 +48,11 @@ export function figure2ProofPanelElement(
   return panel(root, name);
 }
 
-function Figure2ProofScene({ registerHandle }: SceneComponentProps) {
+export function Figure2ProofScene({
+  registerHandle,
+  reading = false
+}: SceneComponentProps & Readonly<{ reading?: boolean }>) {
+  const suffix = reading ? '-reading' : '';
   return (
     <article
       ref={(element) => registerHandle?.('copy', element)}
@@ -56,9 +60,11 @@ function Figure2ProofScene({ registerHandle }: SceneComponentProps) {
       data-r4-scene="figure2-proof"
       data-r4-proof-compound="true"
       data-reading-scrollport="true"
+      data-phone-reading={reading ? 'figure2-proof' : undefined}
+      data-phone-input-owner={reading ? 'native-document' : undefined}
     >
       <section
-        id="figure2-proof-opening"
+        id={`figure2-proof-opening${suffix}`}
         className="r4-proof-panel r4-proof-opening"
         data-r4-proof-panel="opening"
         data-r4-proof-overlay="opening"
@@ -75,7 +81,7 @@ function Figure2ProofScene({ registerHandle }: SceneComponentProps) {
       </section>
 
       <section
-        id="figure2-proof-cards"
+        id={`figure2-proof-cards${suffix}`}
         className="r4-proof-panel r4-proof-cards"
         data-r4-proof-panel="cards"
         data-r4-proof-overlay="cards"
@@ -94,7 +100,7 @@ function Figure2ProofScene({ registerHandle }: SceneComponentProps) {
       </section>
 
       <section
-        id="figure2-proof-closing"
+        id={`figure2-proof-closing${suffix}`}
         className="r4-proof-panel r4-proof-closing"
         data-r4-proof-panel="closing"
         data-r4-proof-overlay="closing"

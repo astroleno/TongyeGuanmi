@@ -10,6 +10,15 @@
   transform: translate3d(0, var(--phone-proof-translate-y), 0);
 }
 
+.phone-story__reading-flow .r4-proof-compound {
+  position: relative;
+  inset: auto;
+  height: calc(var(--phone-visual-height, 100vh) * 3);
+  min-height: 0;
+  overflow: visible;
+  transform: none;
+}
+
 .phone-story .r4-proof-panel {
   height: var(--phone-visual-height, 100vh);
   min-height: var(--phone-visual-height, 100vh);
@@ -30,4 +39,10 @@
   grid-column: 2;
   font-size: 15px;
   line-height: 1.65;
+}
+
+.phone-story .r4-proof-scroll__content--opening,
+.phone-story .r4-proof-scroll__content--cards,
+.phone-story .r4-proof-scroll__content--closing {
+  top: 50%;
 }

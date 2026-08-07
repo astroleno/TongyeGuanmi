@@ -68,7 +68,8 @@ function MethodContent({ reading }: Readonly<{ reading: boolean }>) {
   );
 }
 
-export function Reading(_props: Readonly<{ sceneId: string }>) {
+export function Reading(props: Readonly<{ sceneId?: string }> = {}) {
+  void props;
   return <MethodContent reading />;
 }
 
@@ -82,6 +83,18 @@ export function PhoneMethodTop({ reports }: PhoneMethodTopProps) {
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
   const paintFrameRef = useRef<number | null>(null);
   const disposedRef = useRef(false);
+  const nativeScrollYRef = useRef(0);
+  const nativeScrollFrozenRef = useRef(false);
+
+  const syncNativeScroll = useCallback(() => {
+    const root = rootRef.current;
+    if (!root || typeof document === 'undefined') return;
+    const scrollOwner = document.scrollingElement;
+    const scrollTop = Math.max(0, scrollOwner?.scrollTop ?? window.scrollY ?? 0);
+    nativeScrollYRef.current = scrollTop;
+    root.style.setProperty('--phone-method-native-scroll-y', `${scrollTop.toFixed(2)}px`);
+    root.dataset.phoneMethodNativeScrollY = scrollTop.toFixed(2);
+  }, []);
 
   const cancelPaint = useCallback(() => {
     if (paintFrameRef.current !== null) cancelAnimationFrame(paintFrameRef.current);
@@ -150,6 +163,41 @@ export function PhoneMethodTop({ reports }: PhoneMethodTopProps) {
       bindingRef.current = null;
     };
   }, [cancelPaint, commands, render, reports]);
+
+  useLayoutEffect(() => {
+    syncNativeScroll();
+    const host = rootRef.current?.closest<HTMLElement>('.phone-story');
+    const freeze = () => {
+      const root = rootRef.current;
+      if (!root) return;
+      nativeScrollFrozenRef.current = true;
+      const captured = Number(root.dataset.phoneMethodNativeScrollY);
+      const value = (Number.isFinite(captured) ? captured : nativeScrollYRef.current).toFixed(2);
+      root.style.setProperty('--phone-method-native-scroll-y', `${value}px`);
+      root.dataset.phoneMethodNativeScrollY = value;
+    };
+    const release = () => {
+      nativeScrollFrozenRef.current = false;
+      syncNativeScroll();
+    };
+    const readingEnabled = () => host?.getAttribute('data-phone-reading') === 'enabled';
+    if (readingEnabled()) release(); else freeze();
+    const observer = host && typeof MutationObserver !== 'undefined'
+      ? new MutationObserver(() => (readingEnabled() ? release() : freeze())) : null;
+    if (observer && host) observer.observe(host, {
+      attributes: true, attributeFilter: ['data-phone-reading']
+    });
+    const onScroll = () => (readingEnabled() ? syncNativeScroll() : freeze());
+    const onResize = () => { if (readingEnabled()) syncNativeScroll(); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onResize, { passive: true });
+    return () => {
+      observer?.disconnect();
+      nativeScrollFrozenRef.current = false;
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [syncNativeScroll]);
 
   return (
     <div ref={(element) => {

@@ -64,7 +64,7 @@ describe('clean PhoneFigure2 leaf', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
   });
 
-  it('registers a decoded poster, packed pair, and retained foreground arch', async () => {
+  it('registers a decoded poster and packed pair while leaving the arch to presentation ownership', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -73,13 +73,24 @@ describe('clean PhoneFigure2 leaf', () => {
     expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
       ['figure2-pair-video', 'video'],
       ['figure2-pair-poster', 'image'],
-      ['figure2-pair-canvas', 'canvas-webgl'],
-      ['figure2-foreground-arch', 'image']
+      ['figure2-pair-canvas', 'canvas-webgl']
     ]);
     expect(host.querySelector('[data-phone-figure2-poster]')).not.toBeNull();
-    expect(host.querySelectorAll('[data-stage-retained-figure2-arch="true"]')).toHaveLength(1);
-    expect(host.querySelector('[data-stage-retained-figure2-arch="true"]')
-      ?.closest('[data-figure2-depth-ranked-field="true"]')).toBeNull();
+    expect(host.querySelector('[data-stage-retained-figure2-arch="true"]')).toBeNull();
+  });
+
+  it('includes the shared presentation arch when the Shell has mounted it', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    const arch = document.createElement('img');
+    arch.setAttribute('data-stage-retained-figure2-arch', 'true');
+    document.body.appendChild(arch);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+    expect(mount.registration()?.surfaces.map(({ id }) => id)).toContain('figure2-foreground-arch');
+    act(() => root.unmount());
+    arch.remove();
   });
 
   it('accepts only a successful active Canvas draw for the current token', async () => {

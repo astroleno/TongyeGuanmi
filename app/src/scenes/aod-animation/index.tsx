@@ -12,6 +12,7 @@ export {
   AOD_PHONE_TIMELINE_ALPHA_START,
   AOD_PHONE_TIMELINE_ALPHA_END,
   AOD_TIMELINE_ALPHA_END,
+  mapAodTimelineToMediaProgress,
   renderAodTransitionProgress
 } from './progress';
 

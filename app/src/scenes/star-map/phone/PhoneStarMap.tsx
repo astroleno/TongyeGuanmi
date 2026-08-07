@@ -11,6 +11,7 @@ import { phoneMediaUrlFor } from '../../../media/phone-media';
 import './PhoneStarMap.css';
 
 const STAR_MAP_IMAGE = phoneMediaUrlFor('star-map-source', 'star-map');
+const STAR_MAP_HIGHLIGHT_MASK = phoneMediaUrlFor('star-map-highlight-mask', 'star-map');
 const FRAME_INTERVAL_MS = 1000 / 12;
 const PHONE_STAR_CAMERA: StarFieldCamera = Object.freeze({ rotationDegrees: -90, zoom: 1 });
 const STAR_MAP_AMBIENT_PERIOD_SECONDS = 4.4;
@@ -75,7 +76,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     binding.reports.reportFrame('star-map-canvas', {
       kind: 'frame', token: binding.frameToken, presented: true,
       frameId: `star-map:${revisionRef.current}`,
-      detail: { sourceDrawn: true, camera: 'rotate(-90deg) cover' }
+      detail: { sourceDrawn: false, staticSource: true, camera: 'rotate(-90deg) cover' }
     });
   }, []);
 
@@ -92,7 +93,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       strength: ambient.strength,
       noiseFloor: ambient.noiseFloor,
       camera: PHONE_STAR_CAMERA,
-      drawSource: true
+      drawSource: false
     });
     firstFramePaintedRef.current = true;
     lastPaintedAtRef.current = now;
@@ -120,6 +121,15 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     liveFrameRef.current = window.requestAnimationFrame(tick);
   }, [paint]);
 
+  const syncAmbientOwnership = useCallback(() => {
+    const shell = rootRef.current?.closest<HTMLElement>('.phone-story');
+    const stable = shell?.dataset.phoneStatus === 'stable'
+      && shell.dataset.phoneScene === 'star-map';
+    activeRef.current = stable;
+    if (stable) startAmbient();
+    else stopAmbient();
+  }, [startAmbient, stopAmbient]);
+
   const render = useCallback((rawProgress: number) => {
     const frame = phoneStarMapFrame(rawProgress);
     if (canvasRef.current) {
@@ -137,12 +147,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       rebind(binding) {
         bindingRef.current = binding;
         reportedTokenRef.current = null;
-        activeRef.current = true;
-        if (firstFramePaintedRef.current) {
-          paint(performance.now(), true);
-          reportCurrentFrame();
-        }
-        startAmbient();
+        reportCurrentFrame();
       },
       activate(command): PhoneActivationInvocation {
         return { invocationId: command.invocationId, surfaceIds: command.surfaceIds,
@@ -179,7 +184,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     revisionRef.current = 0;
     render(0);
     const reveal = initStarFieldReveal({
-      canvas, sourceUrl: STAR_MAP_IMAGE, autoplay: false,
+      canvas, sourceUrl: STAR_MAP_HIGHLIGHT_MASK, autoplay: false,
       viewport: () => {
         const scale = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
         return {
@@ -211,14 +216,21 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
         return;
       }
       paint(time, true);
-      startAmbient();
     };
     readyFrameRef.current = window.requestAnimationFrame(awaitReady);
+    const shell = root.closest<HTMLElement>('.phone-story');
+    const observer = shell && typeof MutationObserver !== 'undefined'
+      ? new MutationObserver(syncAmbientOwnership) : null;
+    observer?.observe(shell!, {
+      attributes: true, attributeFilter: ['data-phone-status', 'data-phone-scene']
+    });
+    syncAmbientOwnership();
     return () => {
       disposedRef.current = true;
       activeRef.current = false;
       window.cancelAnimationFrame(readyFrameRef.current);
       stopAmbient();
+      observer?.disconnect();
       reveal.dispose();
       if (revealRef.current === reveal) revealRef.current = null;
       bindingRef.current = null;
@@ -234,6 +246,8 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       className="portrait-scroll-spike__scene portrait-scroll-spike__scene--star"
       aria-labelledby="portrait-spike-star-title">
       <div className="portrait-scroll-spike__star-motion" aria-hidden="true">
+        <img className="portrait-scroll-spike__star-source" data-portrait-star-source
+          src={STAR_MAP_IMAGE} alt="" aria-hidden="true" />
         <canvas ref={canvasRef} className="portrait-scroll-spike__star-perlin"
           data-portrait-star-perlin aria-hidden="true" />
       </div>

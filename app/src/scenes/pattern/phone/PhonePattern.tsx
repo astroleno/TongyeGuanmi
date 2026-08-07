@@ -105,6 +105,9 @@ export function PhonePattern({ reports }: PhonePatternProps) {
 
   const render = useCallback((rawProgress: number) => {
     const frame = phonePatternFrame(rawProgress);
+    // Transition frames are reducer-owned; render them without reviving the
+    // renderer's ambient clock. Rebind must never start a new visual clock.
+    rendererRef.current?.setRenderActive(true, false);
     rendererRef.current?.setFrameProgress(frame.progress, frame.progress);
     if (imageRef.current) imageRef.current.style.opacity = frame.textureOpacity.toFixed(4);
     if (copyRef.current) {
@@ -121,8 +124,6 @@ export function PhonePattern({ reports }: PhonePatternProps) {
         bindingRef.current = binding;
         generationRef.current += 1;
         reportedGenerationRef.current = 0;
-        activeRef.current = true;
-        rendererRef.current?.setRenderActive(true, true);
         reportPrepared();
       },
       activate(command): PhoneActivationInvocation {
@@ -134,7 +135,12 @@ export function PhonePattern({ reports }: PhonePatternProps) {
         };
       },
       render,
-      settle() { render(0); },
+      settle(endpoint) {
+        render(endpoint);
+        rendererRef.current?.renderProgress(endpoint);
+        activeRef.current = false;
+        rendererRef.current?.setRenderActive(false, false);
+      },
       pause() {
         activeRef.current = false;
         rendererRef.current?.setRenderActive(false, false);

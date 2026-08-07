@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createPhoneStoryRuntime,
+  segmentEndpoint,
   phoneReadingEdges,
   type PhoneDependencyLoadResult,
   type PhoneRuntimeHostEvent,
@@ -12,7 +13,7 @@ import {
   type PhoneStoryRuntimeEnvironment
 } from './runtime';
 import { phoneTransactionActivationSurfaceIds } from './machine';
-import { phoneManifest, phoneSceneById } from './manifest';
+import { phoneManifest, phoneSceneById, phoneSegmentChoreographyFrame } from './manifest';
 import type {
   PhoneLeafCommandHandle,
   PhoneLeafGenerationBinding,
@@ -1018,6 +1019,91 @@ function installDeprecatedStaticPrepare(commands: PhoneLeafCommandHandle) {
 }
 
 describe('phone runtime projector bridge', () => {
+  it('settles each segment at its real forward or reverse transaction endpoint', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#pattern');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    const active = currentTransaction(runtime);
+    const forwardEnd = { ...active, progress: 1 };
+    const reverseEnd = {
+      ...active,
+      progress: 0,
+      attempt: { ...active.attempt, direction: 'reverse' as const }
+    };
+    expect(segmentEndpoint(forwardEnd, 'source')).toBe(1);
+    expect(segmentEndpoint(reverseEnd, 'target')).toBe(0);
+    expect(segmentEndpoint({ ...reverseEnd, progress: 1 }, 'target')).toBe(1);
+    disconnect();
+  });
+
+  it('covers direction-aware endpoints across the complete segment table', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#pattern');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story' });
+    const seed = currentTransaction(runtime);
+    for (const segment of phoneManifest.segments) for (const direction of ['forward', 'reverse'] as const) {
+      const endProgress = direction === 'forward' ? 1 : 0;
+      const transaction = { ...seed, mode: 'segment' as const, progress: endProgress,
+        attempt: { ...seed.attempt, segmentId: segment.id, direction } };
+      const frame = phoneSegmentChoreographyFrame(segment.id, endProgress, direction);
+      expect(segmentEndpoint(transaction, 'source')).toBe(frame.sourceProgress >= .5 ? 1 : 0);
+      expect(segmentEndpoint(transaction, 'target')).toBe(frame.targetProgress >= .5 ? 1 : 0);
+    }
+    disconnect();
+  });
+
+  it('drops a stale arch failure instead of faulting the newer transaction', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#home');
+    const disconnect = runtime.connect();
+    const oldAttempt = currentTransaction(runtime).attempt;
+    proveCurrent(runtime, fixture);
+    runtime.requestEntry({ pathname: '/', hash: '#figure2-proof', origin: 'menu' });
+    const active = currentTransaction(runtime);
+    runtime.reportPresentationFailure({
+      surfaceId: 'figure2-foreground-arch', attempt: oldAttempt,
+      generation: oldAttempt.transactionGeneration,
+      failure: { code: 'stale-arch', message: 'stale', recoverable: true }
+    });
+    expect(currentTransaction(runtime).failure).toBeNull();
+    runtime.reportPresentationFailure({
+      surfaceId: 'figure2-foreground-arch', attempt: active.attempt,
+      generation: active.attempt.transactionGeneration,
+      failure: { code: 'current-arch', message: 'current', recoverable: true }
+    });
+    expect(currentTransaction(runtime).failure?.code).toBe('current-arch');
+    disconnect();
+  });
+
+  it('projects a retained Proof source to its closing frame before Brand preparation', async () => {
+    const fixture = createEnvironment();
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#figure2-proof', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies: async () => ({ status: 'loaded' as const }) }
+    });
+    const disconnect = runtime.connect();
+    const source = commandFixture();
+    registerCurrentLeaf(runtime, source.commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    await vi.waitFor(() => expect(source.commands.render).toHaveBeenCalledWith(1));
+    expect(currentTransaction(runtime).attempt.segmentId).toBe('figure2-proof-brand');
+    disconnect();
+  });
+
   it('holds a cold Hero at zero until Loader exit starts the one visible entrance', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#home');
@@ -1115,6 +1201,31 @@ describe('phone runtime projector bridge', () => {
       failure: { code: 'fixture-frame', message: 'fixture', recoverable: true }
     });
     expect(currentTransaction(runtime).mode).toBe('rollback');
+    expect(applyTransitionFrame).toHaveBeenLastCalledWith(null);
+    disconnect();
+  });
+
+  it('keeps the final Ink projection through target presentation until stable commit', () => {
+    const fixture = createEnvironment();
+    const applyTransitionFrame = vi.fn();
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#home', origin: 'initial' },
+      environment: fixture.port,
+      presentation: { ...createPresentationAuthority(fixture.port.readViewport), applyTransitionFrame } as PhonePresentation
+    });
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    reachPlaying(runtime, fixture);
+    applyTransitionFrame.mockClear();
+    const playing = currentTransaction(runtime);
+    fixture.send({ type: 'transition-completed', attempt: playing.attempt });
+    expect(applyTransitionFrame).not.toHaveBeenCalledWith(null);
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot().status).toBe('stable');
     expect(applyTransitionFrame).toHaveBeenLastCalledWith(null);
     disconnect();
   });

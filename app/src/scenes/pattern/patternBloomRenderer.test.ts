@@ -209,7 +209,7 @@ describe('PatternBloomRenderer', () => {
     renderer.destroy();
   });
 
-  it('caps the full-screen animated canvas at CSS-pixel resolution', async () => {
+  it('uses a bounded Retina backing store for the full-screen animated canvas', async () => {
     const harness = installRendererDom(2);
     const renderer = new PatternBloomRenderer(harness.canvas);
 
@@ -217,8 +217,8 @@ describe('PatternBloomRenderer', () => {
     renderer.setMotionEnabled(true);
     harness.flushRaf();
 
-    expect(harness.canvas.width).toBe(1280);
-    expect(harness.canvas.height).toBe(720);
+    expect(harness.canvas.width).toBe(2560);
+    expect(harness.canvas.height).toBe(1440);
     renderer.destroy();
   });
 

@@ -16,6 +16,7 @@ const rendererProbe = vi.hoisted(() => ({
     prepareStaticFrame: ReturnType<typeof vi.fn>;
     setFrameProgress: ReturnType<typeof vi.fn>;
     setRenderActive: ReturnType<typeof vi.fn>;
+    renderProgress: ReturnType<typeof vi.fn>;
     start: ReturnType<typeof vi.fn>;
   }>
 }));
@@ -32,6 +33,7 @@ vi.mock('../patternBloomRenderer', async () => {
         prepareStaticFrame: vi.fn().mockResolvedValue(undefined),
         setFrameProgress: vi.fn(),
         setRenderActive: vi.fn(),
+        renderProgress: vi.fn(),
         start: vi.fn().mockResolvedValue(undefined)
       };
       rendererProbe.instances.push(instance);
@@ -80,10 +82,13 @@ describe('clean PhonePattern leaf', () => {
       'activate', 'dispose', 'pause', 'rebind', 'render', 'settle'
     ]);
     const current = reportFixture();
+    const renderActiveCalls = rendererProbe.instances[0]?.setRenderActive.mock.calls.length ?? 0;
     mount.registration()?.commands.rebind({
       reports: current.reports,
       frameToken: 'pattern:frame:1'
     });
+    expect(rendererProbe.instances[0]?.setRenderActive.mock.calls.length)
+      .toBe(renderActiveCalls);
     expect(current.reports.reportPrepared).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -127,8 +132,12 @@ describe('clean PhonePattern leaf', () => {
     expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-copy')?.style.opacity)
       .toBe('0');
     expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(0, 0);
+    expect(rendererProbe.instances[0]?.renderProgress).toHaveBeenLastCalledWith(0);
     mount.registration()?.commands.settle(1);
-    expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(0, 0);
+    expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-copy')?.style.opacity)
+      .toBe('1');
+    expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(1, 1);
+    expect(rendererProbe.instances[0]?.renderProgress).toHaveBeenLastCalledWith(1);
   });
 
   it('keeps edge ownership global and contains no scene-specific concealment', () => {

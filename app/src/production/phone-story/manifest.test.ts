@@ -34,7 +34,7 @@ const scenes = [
   ['aod-animation', 'aod-stage', '#ede4d2', 'front', [1, 1, 1, 1], 'D-single-media'],
   ['method-top', 'method-intro', '#ede4d2', 'native', [0, 0, 0, 0], 'D-static'],
   ['figure2-animation', 'figure2-stage', '#e2dac9', 'grade-a', [1, 1, 1, 1], 'D-single-media'],
-  ['figure2-proof', 'figure2-proof-opening', '#ede4d2', 'grade-a', [0, 0, 0, 0], 'D-static'],
+  ['figure2-proof', 'figure2-proof-opening', '#ede4d2', 'native', [0, 0, 0, 0], 'D-static'],
   ['brand', 'brand-reading', '#ede4d2', 'native', [0, 0, 0, 0], 'D-static'],
   ['figure3-animation', 'figure3-stage', '#ede4d2', 'group45', [1, 1, 1, 0], 'D-single-media'],
   ['services', 'services-reading', '#ede4d2', 'native', [0, 0, 0, 0], 'D-static'],
@@ -71,7 +71,7 @@ const sceneDetails = {
     selectors: ['[data-portrait-pattern-bloom]']
   },
   'star-map': {
-    additional: ['media:star-map-source'],
+    additional: ['media:star-map-source', 'media:star-map-highlight-mask'],
     surfaces: ['star-map-canvas'],
     selectors: ['#portrait-spike-star-title']
   },
@@ -110,8 +110,8 @@ const sceneDetails = {
     ]
   },
   'figure2-proof': {
-    additional: [],
-    surfaces: ['figure2-proof-root'],
+    additional: ['media:figure2-foreground-arch'],
+    surfaces: ['figure2-proof-root', 'figure2-foreground-arch'],
     selectors: ['#figure2-proof-opening .r4-proof-opening__title']
   },
   brand: {
@@ -297,7 +297,7 @@ const sceneProofLedger = {
     },
     frame: {
       kind: 'image-decode-composite-paint',
-      surfaceIds: ['figure2-pair-poster']
+      surfaceIds: ['figure2-pair-poster', 'figure2-foreground-arch']
     },
     prepared: 'image-decoded'
   },
@@ -308,7 +308,7 @@ const sceneProofLedger = {
     },
     frame: {
       kind: 'content-post-paint',
-      surfaceIds: ['figure2-proof-root']
+      surfaceIds: ['figure2-proof-root', 'figure2-foreground-arch']
     },
     prepared: 'static-ready'
   },
@@ -488,6 +488,7 @@ function preparedQuorum(scene: keyof typeof sceneDetails) {
     'module-loaded',
     'root-connected',
     sceneProofLedger[scene].prepared,
+    ...(scene === 'figure2-proof' ? ['image-decoded'] : []),
     'layout-measurable',
     'resource-budget-valid'
   ];
@@ -792,6 +793,17 @@ describe('canonical phone manifest', () => {
       directEntry: 'muted-plays-inline-then-covered-cta',
       requiresPhysicalCredit: true
     });
+  });
+
+  it('binds the shared Figure2 arch to both direct-entry frame quorums', () => {
+    for (const id of ['figure2-animation', 'figure2-proof'] as const) {
+      const scene = phoneSceneById(id);
+      expect(scene.surfaces).toContain('figure2-foreground-arch');
+      expect(scene.frame.surfaceIds).toContain('figure2-foreground-arch');
+      expect(scene.directEntry.closure.load).toContain('media:figure2-foreground-arch');
+    }
+    expect(phoneSceneById('figure2-proof').directEntry.closure.exposeReceiverAfter)
+      .toContain('image-decoded');
   });
 
   it('declares exactly 15 canonical segments and expands all 30 direction closures', () => {

@@ -64,11 +64,11 @@
   opacity: 0 !important;
 }
 
-.portrait-scroll-spike__scene--aod[data-phone-aod-playback-frame="ready"]
+.portrait-scroll-spike__scene--aod [data-aod-transition][data-aod-alpha-composite="true"]
   .aod-transition__reveal-surface::before,
-.portrait-scroll-spike__scene--aod[data-phone-aod-playback-frame="ready"]
+.portrait-scroll-spike__scene--aod [data-aod-transition][data-aod-alpha-composite="true"]
   .aod-transition__reveal-surface::after,
-.portrait-scroll-spike__scene--aod[data-phone-aod-playback-frame="ready"]
+.portrait-scroll-spike__scene--aod [data-aod-transition][data-aod-alpha-composite="true"]
   .aod-transition__paper-solid {
   opacity: 0 !important;
 }

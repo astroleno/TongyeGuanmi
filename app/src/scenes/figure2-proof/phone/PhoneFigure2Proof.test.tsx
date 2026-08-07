@@ -11,6 +11,13 @@ import type {
 const renderHold = vi.hoisted(() => vi.fn());
 vi.mock('../index', () => ({
   renderFigure2ProofHold: renderHold,
+  Figure2ProofScene: ({ reading }: { reading?: boolean }) => createElement('article', {
+    'data-r4-scene': 'figure2-proof',
+    'data-r4-proof-compound': 'true',
+    'data-phone-input-owner': reading ? 'native-document' : undefined
+  }, createElement('section', { 'data-r4-proof-panel': 'opening' }),
+  createElement('section', { 'data-r4-proof-panel': 'cards' }),
+  createElement('section', { 'data-r4-proof-panel': 'closing' })),
   figure2ProofScene: {
     Component: ({ registerHandle }: { registerHandle(name: string, value: HTMLElement | null): void }) =>
       createElement('article', {
@@ -23,7 +30,7 @@ vi.mock('../index', () => ({
   }
 }));
 
-import { PhoneFigure2Proof, phoneFigure2ProofFrame } from './PhoneFigure2Proof';
+import { PhoneFigure2Proof, phoneFigure2ProofFrame, Reading } from './PhoneFigure2Proof';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -65,6 +72,21 @@ describe('clean PhoneFigure2Proof leaf', () => {
       .not.toBeNull();
   });
 
+  it('registers the global retained arch as part of the proof surface quorum', async () => {
+    const arch = document.createElement('img');
+    arch.setAttribute('data-stage-retained-figure2-arch', 'true');
+    document.body.appendChild(arch);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2Proof reports={mount.reports} />); });
+    expect(mount.registration()?.surfaces.map(({ id }) => id)).toEqual([
+      'figure2-proof-root', 'figure2-foreground-arch'
+    ]);
+    act(() => root.unmount());
+    arch.remove();
+  });
+
   it('always settles to the authored opening hold', async () => {
     expect(phoneFigure2ProofFrame(1, 800)).toEqual({ progress: 1, translateY: -1600 });
     const host = document.createElement('div');
@@ -75,6 +97,16 @@ describe('clean PhoneFigure2Proof leaf', () => {
     expect(host.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]')
       ?.style.getPropertyValue('--phone-proof-translate-y')).toBe('-1536.00px');
     mount.registration()?.commands.settle(1);
+    expect(host.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]')
+      ?.style.getPropertyValue('--phone-proof-translate-y')).toBe('-1536.00px');
     expect(renderHold).toHaveBeenCalled();
+  });
+
+  it('provides the full three-panel compound as the native reading owner', () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    act(() => { root.render(<Reading sceneId="figure2-proof" />); });
+    expect(host.querySelector('[data-phone-input-owner="native-document"]')).not.toBeNull();
+    expect(host.querySelectorAll('[data-r4-proof-panel]')).toHaveLength(3);
   });
 });

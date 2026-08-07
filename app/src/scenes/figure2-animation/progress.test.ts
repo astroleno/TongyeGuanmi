@@ -121,6 +121,15 @@ class FakeStage {
   }
 }
 
+class FakePhoneStory {
+  constructor(private readonly retainedArch: FakeImage | null = null) {}
+
+  querySelector(selector: string): FakeImage | null {
+    return selector === '[data-stage-retained-figure2-arch="true"]'
+      ? this.retainedArch : null;
+  }
+}
+
 class FakeRoot {
   readonly style = new FakeStyle();
   readonly attributes = new Map<string, string>();
@@ -131,7 +140,8 @@ class FakeRoot {
   constructor(
     readonly videos: readonly FakeVideo[] = [],
     readonly images: readonly FakeImage[] = [],
-    private readonly stage: FakeStage | null = null
+    private readonly stage: FakeStage | null = null,
+    private readonly phoneStory: FakePhoneStory | null = null
   ) {}
 
   querySelector(selector: string): FakeVideo | null {
@@ -145,8 +155,10 @@ class FakeRoot {
     return selector === 'img' ? this.images : [];
   }
 
-  closest(selector: string): FakeStage | null {
-    return selector === '[data-testid="r2-stage"]' ? this.stage : null;
+  closest(selector: string): FakeStage | FakePhoneStory | null {
+    if (selector === '.phone-story') return this.phoneStory;
+    if (selector === '[data-testid="r2-stage"]') return this.stage;
+    return null;
   }
 
   setAttribute(name: string, value: string): void {
@@ -208,6 +220,19 @@ describe('Figure2 canonical media', () => {
     renderFigure2AnimationProgress(depthRoot as unknown as HTMLElement, 1);
     expect(depthArch.style.values.get('--r4-figure2-near-arch-scale')).toBe('1.1350');
     expect(depthArch.style.values.get('--r4-figure2-near-arch-blur')).toBe('3.60px');
+
+    const sharedArch = new FakeImage();
+    const sharedRoot = new FakeRoot([], [], null, new FakePhoneStory(sharedArch));
+    renderFigure2AnimationProgress(sharedRoot as unknown as HTMLElement, 1);
+    expect(sharedArch.style.values.get('--r4-figure2-near-arch-scale')).toBe('1.1350');
+    expect(sharedArch.style.values.get('--r4-figure2-near-arch-blur')).toBe('3.60px');
+
+    const nearestStage = new FakeImage();
+    const outerPhoneStory = new FakeImage();
+    const nestedRoot = new FakeRoot([], [], new FakeStage(nearestStage), new FakePhoneStory(outerPhoneStory));
+    renderFigure2AnimationProgress(nestedRoot as unknown as HTMLElement, 1);
+    expect(outerPhoneStory.style.values.get('--r4-figure2-near-arch-scale')).toBe('1.1350');
+    expect(nearestStage.style.values.has('--r4-figure2-near-arch-scale')).toBe(false);
   });
 
   it('maps document scrub progress into the authored forward and reverse halves', () => {

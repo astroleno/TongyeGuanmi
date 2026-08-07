@@ -2,21 +2,19 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
+import { PHONE_FIGURE2_ARCH_SRC, RetainedFigure2Arch } from '../../stage/PhoneRetainedFigure2Arch';
 import { phoneManifest, phoneSceneById,
   type PhoneSceneId, type PhoneSegmentId } from './manifest';
 import { createPhonePresentation, runPhoneCleanupSteps, type PhoneLeafReportBinding,
   type PhoneLeafReportPort, type PhonePresentation } from './presentation';
-import type {
-  PhoneDependencyRef, PhoneEntryRequest, PhoneStoryEffect, PhoneStorySnapshot,
-  PhoneTransactionLeg, PhoneViewportSnapshot
-} from './protocol';
-import { createPhoneStoryRuntime, type PhoneChunkRecoveryPort,
-  phoneReadingEdges, type PhoneDependencyLoadResult,
-  type PhoneStoryRuntimeEnvironment } from './runtime';
-import { createPhoneSceneTopology, loadPhoneSceneModule, PhoneSceneLeaf,
-  PhoneSceneReading, phoneDiagnosticActivationSurfaces, phoneDiagnosticBlockedBy,
-  phoneDiagnosticFailureCode, phoneDiagnosticMissingProofs,
-  type PhonePlaneBuffer, type PhoneSceneRenderSlot } from './scenes';
+import type { PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneStoryEffect, PhoneStorySnapshot,
+  PhoneTransactionLeg, PhoneViewportSnapshot } from './protocol';
+import { createPhoneStoryRuntime, type PhoneChunkRecoveryPort, phoneReadingEdges,
+  type PhoneDependencyLoadResult, type PhoneStoryRuntimeEnvironment } from './runtime';
+import { createPhoneSceneTopology, loadPhoneSceneModule, PhoneSceneLeaf, PhoneSceneReading,
+  phoneDiagnosticActivationSurfaces, phoneDiagnosticBlockedBy, phoneDiagnosticFailureCode,
+  phoneDiagnosticMissingProofs, type PhonePlaneBuffer,
+  type PhoneSceneRenderSlot } from './scenes';
 import { createPhoneEffectTopology, loadPhoneTransitionModule, PhoneTransitionLeaf,
   type PhoneEffectRenderSlot } from './transitions';
 import './styles.css';
@@ -31,6 +29,7 @@ export type PhoneStoryShellProps = Readonly<{
 type PhoneShellSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegmentId>;
 const WHEEL_GESTURE_GAP_MS = 240;
 const PHONE_IMPLEMENTATION_SIGNATURE = 'clean-v1';
+const PHONE_FIGURE2_ARCH_SCENES = new Set<PhoneSceneId>(['figure2-animation', 'figure2-proof']);
 
 type PhoneTouchPoint = Readonly<{
   identifier: number;
@@ -45,12 +44,10 @@ function createPhoneTouchArbiter() {
     story: boolean;
     nativeDocument: boolean;
     startedEdges: ReturnType<typeof phoneReadingEdges>;
-    armedAtStart: Direction | null;
     direction: Direction | null;
     published: boolean;
   };
   let claim: Claim | null = null;
-  let armedReadingEdge: Direction | null = null;
   const atEdge = (direction: Direction, edges: ReturnType<typeof phoneReadingEdges>) => (
     direction === 'reverse' ? edges.top : edges.bottom
   );
@@ -62,7 +59,6 @@ function createPhoneTouchArbiter() {
       edges: ReturnType<typeof phoneReadingEdges>
     ) {
       const point = points[0];
-      if (story) armedReadingEdge = null;
       claim = point
         ? {
             id: point.identifier,
@@ -70,15 +66,13 @@ function createPhoneTouchArbiter() {
             story,
             nativeDocument,
             startedEdges: edges,
-            armedAtStart: story ? null : armedReadingEdge,
             direction: null,
             published: false
           }
         : null;
     },
     move(
-      points: readonly PhoneTouchPoint[],
-      edges: ReturnType<typeof phoneReadingEdges>
+      points: readonly PhoneTouchPoint[]
     ): number | null {
       const current = claim;
       const point = current
@@ -91,35 +85,27 @@ function createPhoneTouchArbiter() {
       current.direction = direction;
       const publish = current.story || (
         current.nativeDocument
-        && atEdge(direction, edges)
-        && (atEdge(direction, current.startedEdges)
-          || current.armedAtStart === direction)
+        && atEdge(direction, current.startedEdges)
       );
       if (!publish) {
-        if (current.nativeDocument) {
-          armedReadingEdge = atEdge(direction, edges) ? direction : null;
-        }
         return null;
       }
       current.published = true;
-      armedReadingEdge = null;
       return delta;
     },
     claimed(): boolean {
       return claim?.published === true;
     },
+    claimedNativeDocument(): boolean {
+      return claim?.published === true && claim.nativeDocument;
+    },
     end(
-      points: readonly PhoneTouchPoint[],
-      edges: ReturnType<typeof phoneReadingEdges>
+      points: readonly PhoneTouchPoint[]
     ): boolean {
       const current = claim;
       const completed = current
         ? points.some(({ identifier }) => identifier === current.id)
         : false;
-      if (completed && !current?.published && current?.nativeDocument && current.direction
-        && atEdge(current.direction, edges)) {
-        armedReadingEdge = current.direction;
-      }
       claim = null;
       return Boolean(completed && current?.published);
     },
@@ -207,6 +193,16 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
       const touchArbiter = createPhoneTouchArbiter();
       let blockedTouch = false;
       const nativeReadingEdges = () => phoneReadingEdges(document.scrollingElement ?? document.documentElement);
+      const freezeNativeReadingBeforePublish = () => {
+        const reading = document.querySelector<HTMLElement>(
+          '.phone-story__reading-flow [data-phone-input-owner="native-document"]'
+        );
+        if (!reading) return;
+        const scrollOwner = document.scrollingElement ?? document.documentElement; const scrollTop = Math.max(0, scrollOwner.scrollTop || window.scrollY || 0);
+        const visualRoot = reading.closest<HTMLElement>('.phone-method-top__visual') ?? reading;
+        const value = scrollTop.toFixed(2); visualRoot.style.setProperty('--phone-method-native-scroll-y', `${value}px`);
+        visualRoot.dataset.phoneMethodNativeScrollY = value;
+      };
       listen(window, 'touchstart', ((event: TouchEvent) => {
         const target = inputTarget(event.target);
         blockedTouch = target === 'disabled';
@@ -224,9 +220,10 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
           event.preventDefault();
           return;
         }
-        const delta = touchArbiter.move(Array.from(event.touches ?? []), nativeReadingEdges());
+        const delta = touchArbiter.move(Array.from(event.touches ?? []));
         if (touchArbiter.claimed()) event.preventDefault();
         if (delta !== null) {
+          if (touchArbiter.claimedNativeDocument()) freezeNativeReadingBeforePublish();
           publish({
             type: 'input',
             kind: 'touch',
@@ -243,7 +240,7 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
           touchArbiter.cancel();
           return;
         }
-        touchArbiter.end(Array.from(event.changedTouches), nativeReadingEdges());
+        touchArbiter.end(Array.from(event.changedTouches));
       }) as EventListener, { passive: true });
       listen(window, 'touchcancel', (() => {
         blockedTouch = false;
@@ -455,6 +452,10 @@ function bufferRoles(snapshot: PhoneShellSnapshot) {
     : { source: committed, receiver: other };
 }
 
+function phoneFigure2ArchOwner(snapshot: PhoneShellSnapshot): 'source' | 'target' | 'shared' | undefined {
+  if (snapshot.status !== 'transaction') return undefined; const sourceOwns = Boolean(snapshot.transaction.sourceSceneId && PHONE_FIGURE2_ARCH_SCENES.has(snapshot.transaction.sourceSceneId)); const targetOwns = PHONE_FIGURE2_ARCH_SCENES.has(snapshot.transaction.candidateSceneId); return sourceOwns && targetOwns ? 'shared' : sourceOwns ? 'source' : targetOwns ? 'target' : undefined;
+}
+
 function bindingFor(
   snapshot: Extract<PhoneShellSnapshot, { status: 'transaction' }>,
   leg: PhoneTransactionLeg,
@@ -619,6 +620,11 @@ export function PhoneStoryShell({
     && snapshot.transaction.phase === 'awaiting-media-activation';
   const reducedMotion = typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  const retainedFigure2ArchMounted = connectedRef.current
+    && scenes.some(({ sceneId }) => PHONE_FIGURE2_ARCH_SCENES.has(sceneId));
+  const retainedFigure2ArchOwner = phoneFigure2ArchOwner(snapshot);
+  const retainedFigure2ArchAttempt: PhoneAttemptKey | null = snapshot.status === 'transaction'
+    ? snapshot.transaction.attempt : null;
   const navigate = (sceneId: PhoneSceneId) => {
     setMenuOpen(false);
     owners.engine.requestEntry({
@@ -630,35 +636,26 @@ export function PhoneStoryShell({
   const renderScenes = (entries: readonly PhoneSceneRenderSlot[]) => entries.map((entry) => (
     <PhoneSceneLeaf key={entry.sceneId} sceneId={entry.sceneId} reports={entry.reports} />
   ));
+  const reportArchReady = () => { const attempt = retainedFigure2ArchAttempt; if (attempt) owners.engine.reportPresentationPrepared({ surfaceId: 'figure2-foreground-arch', attempt, generation: attempt.transactionGeneration, token: `${attempt.transactionId}:arch` }); };
+  const reportArchFailure = (error: unknown) => { const attempt = retainedFigure2ArchAttempt; if (attempt) owners.engine.reportPresentationFailure({ surfaceId: 'figure2-foreground-arch', attempt, generation: attempt.transactionGeneration, failure: { code: 'figure2-arch-decode', message: error instanceof Error ? error.message : String(error), recoverable: true } }); };
   return (
     <main ref={rootRef} className="phone-story" data-phone-scope={scope}
       data-phone-status={snapshot.status}
       data-phone-implementation={PHONE_IMPLEMENTATION_SIGNATURE}
       data-phone-interaction={interactionEnabled ? 'enabled' : 'disabled'}
       data-phone-reading={nativeReadingEnabled ? 'enabled' : 'disabled'}
-      data-phone-revision={diagnostics ? snapshot.stateRevision : undefined}
-      data-phone-reduced-motion={diagnostics ? String(reducedMotion) : undefined}
-      data-phone-fault-code={diagnostics && snapshot.status === 'faulted' ? snapshot.fault.code : undefined}
-      data-phone-last-failure={diagnostics ? phoneDiagnosticFailureCode(snapshot) : undefined}
-      data-phone-blocked-by={diagnostics ? phoneDiagnosticBlockedBy(snapshot) : undefined}
-      data-phone-activation-surfaces={diagnostics ? phoneDiagnosticActivationSurfaces(snapshot).join(',') : undefined}
-      data-phone-network-hint={diagnostics ? typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'online' : undefined}
-      data-phone-missing-proof={diagnostics ? phoneDiagnosticMissingProofs(snapshot).join(',') : undefined}
-      data-phone-authority={diagnostics ? snapshot.authorityId : undefined}
-      data-phone-phase={diagnostics && snapshot.status === 'transaction' ? snapshot.transaction.phase : undefined}
-      data-phone-plane-revision={diagnostics ? snapshot.lastPlaneRevision : undefined}
-      data-phone-commit-sequence={diagnostics ? snapshot.stableCommit?.commitSequence ?? 0 : undefined}
+      data-phone-revision={diagnostics ? snapshot.stateRevision : undefined} data-phone-reduced-motion={diagnostics ? String(reducedMotion) : undefined}
+      data-phone-fault-code={diagnostics && snapshot.status === 'faulted' ? snapshot.fault.code : undefined} data-phone-last-failure={diagnostics ? phoneDiagnosticFailureCode(snapshot) : undefined}
+      data-phone-blocked-by={diagnostics ? phoneDiagnosticBlockedBy(snapshot) : undefined} data-phone-activation-surfaces={diagnostics ? phoneDiagnosticActivationSurfaces(snapshot).join(',') : undefined}
+      data-phone-network-hint={diagnostics ? typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'online' : undefined} data-phone-missing-proof={diagnostics ? phoneDiagnosticMissingProofs(snapshot).join(',') : undefined}
+      data-phone-authority={diagnostics ? snapshot.authorityId : undefined} data-phone-phase={diagnostics && snapshot.status === 'transaction' ? snapshot.transaction.phase : undefined}
+      data-phone-plane-revision={diagnostics ? snapshot.lastPlaneRevision : undefined} data-phone-commit-sequence={diagnostics ? snapshot.stableCommit?.commitSequence ?? 0 : undefined}
       data-phone-scene={diagnostics ? stableScene ?? undefined : undefined}
     >
       <div data-phone-loader="true">
-        <StoryLoader
-          mode={snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}
-          ready={provenBoot}
-          failed={faulted}
-          allowSafetyExit={false}
-          onExitStart={owners.engine.startVisibleEntrance}
-          onHidden={() => setLoaderHidden(true)}
-        />
+        <StoryLoader mode={snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}
+          ready={provenBoot} failed={faulted} allowSafetyExit={false}
+          onExitStart={owners.engine.startVisibleEntrance} onHidden={() => setLoaderHidden(true)} />
       </div>
       <div className="phone-story__viewport">
         <div className="phone-story__coverage" />
@@ -678,16 +675,12 @@ export function PhoneStoryShell({
           </div>
         </div>
       </div>
+      {retainedFigure2ArchMounted ? <div className="phone-story__retained-figure2-arch-layer" data-phone-figure2-arch-owner={retainedFigure2ArchOwner}><RetainedFigure2Arch mounted visible ownerKey={retainedFigure2ArchAttempt?.transactionId ?? null} src={PHONE_FIGURE2_ARCH_SRC} motion="depth" onDecodeReady={reportArchReady} onDecodeFailure={reportArchFailure} /></div> : null}
       <div className="phone-story__reading-flow" inert={!nativeReadingEnabled} aria-hidden={!nativeReadingEnabled}>
         {stableScene ? <PhoneSceneReading sceneId={stableScene} /> : null}
       </div>
-      <StoryNav
-        currentScene={navigationScene}
-        visible={navigationVisible}
-        menuOpen={menuOpen}
-        onToggleMenu={() => setMenuOpen((open) => !open)}
-        onNavigate={navigate}
-      />
+      <StoryNav currentScene={navigationScene} visible={navigationVisible} menuOpen={menuOpen}
+        onToggleMenu={() => setMenuOpen((open) => !open)} onNavigate={navigate} />
       {directActivationFallback ? (
         <button type="button" className="phone-story__activation" data-phone-activation="true">继续播放</button>
       ) : null}

@@ -159,7 +159,9 @@ function managerFor(root: HTMLElement): Figure2MediaManager {
 }
 
 function retainedFigure2Arch(root: HTMLElement | null | undefined): HTMLImageElement | null | undefined {
-  return root?.closest?.('[data-testid="r2-stage"]')
+  const phoneStory = root?.closest?.('.phone-story');
+  const stage = root?.closest?.('[data-testid="r2-stage"]');
+  return (phoneStory ?? stage)
     ?.querySelector<HTMLImageElement>('[data-stage-retained-figure2-arch="true"]');
 }
 

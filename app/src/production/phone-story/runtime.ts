@@ -48,6 +48,8 @@ export type PhoneStoryRuntimeEnvironment = Readonly<{
 }>;
 
 export type PhoneStoryRuntimeConfig = Readonly<{ initialEntry: PhoneEntryRequest; environment: PhoneStoryRuntimeEnvironment; presentation: PhonePresentation; ports?: PhoneRuntimeEffectPorts; chunkRecovery?: PhoneChunkRecoveryPort }>;
+export type PhonePresentationPreparedReport = Readonly<{ surfaceId: string; attempt: PhoneAttemptKey; generation: number; token: string }>;
+export type PhonePresentationFailureReport = Readonly<{ surfaceId: string; attempt: PhoneAttemptKey; generation: number; failure: PhoneFailure }>;
 
 export type PhoneStoryRuntime = Readonly<{
   getSnapshot(): PhoneMachineSnapshot;
@@ -55,6 +57,7 @@ export type PhoneStoryRuntime = Readonly<{
   connect(): () => void;
   requestEntry(entry: PhoneEntryRequest): void;
   retry(): void;
+  reportPresentationPrepared(report: PhonePresentationPreparedReport): void; reportPresentationFailure(report: PhonePresentationFailureReport): void;
   startVisibleEntrance(): void;
   createLeafReportPort(binding: PhoneLeafReportBinding): PhoneLeafReportPort;
 }>;
@@ -177,6 +180,8 @@ function commandProgress(
     leg
   );
 }
+
+export const segmentEndpoint = (transaction: Extract<PhoneMachineSnapshot, { status: 'transaction' }>['transaction'], leg: PhoneLeafReportBinding['leg']): 0 | 1 | null => { const { segmentId, direction } = transaction.attempt; if (transaction.mode !== 'segment' || leg === 'effect' || !segmentId || !direction) return null; return progressForLeg(phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction), leg) >= .5 ? 1 : 0; };
 
 export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneStoryRuntime {
   const { environment, presentation } = config, ports = config.ports ?? {};
@@ -626,6 +631,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       }
       const binding = createPhoneRetainedLeafBinding(transaction, leg, actual);
       renewLeaseBinding(lease, binding, true);
+      if (transaction.mode === 'segment' && transaction.attempt.segmentId && transaction.attempt.direction && leg !== 'effect') lease.mount.commands.render(commandProgress(transaction, leg));
     }
   };
 
@@ -893,9 +899,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   ): void => {
     if (previous.status !== 'transaction' || next.status !== 'transaction'
       || !sameAttempt(previous.transaction.attempt, next.transaction.attempt)) {
-      if (previous.status === 'transaction' && previous.transaction.attempt.segmentId) {
-        presentation.applyTransitionFrame(null);
-      }
+      if (previous.status === 'transaction' && next.status === 'transaction' && next.transaction.mode === 'rollback') presentation.applyTransitionFrame(null);
       return;
     }
     const transaction = next.transaction;
@@ -939,15 +943,15 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     }
     if (transaction.phase === 'presenting-target'
       && previous.transaction.phase !== 'presenting-target') {
-      presentation.applyTransitionFrame(null);
       for (const lease of leases) {
         if (!ownsConnection(activeConnection)) return;
         const leg = lease.reports.binding.leg;
+        const choreographedEndpoint = segmentEndpoint(transaction, leg);
         const endpoint = leg === 'effect'
           ? transaction.attempt.direction === 'reverse' ? 0 : 1
-          : transaction.attempt.mode === 'boot' && transaction.candidateSceneId === 'hero' ? 0
+          : choreographedEndpoint ?? (transaction.attempt.mode === 'boot' && transaction.candidateSceneId === 'hero' ? 0
           : phoneSceneStableHold(leg === 'source' && transaction.sourceSceneId
-              ? transaction.sourceSceneId : transaction.candidateSceneId);
+              ? transaction.sourceSceneId : transaction.candidateSceneId));
         lease.mount.commands.settle(endpoint);
       }
     }
@@ -978,6 +982,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         if (retainPair || lease.reports.binding.leg === retainedLeg) closeReports(lease.reports);
         else retireLease(lease, 'closure-retired');
       }
+      presentation.applyTransitionFrame(null);
       if (next.stableCommit !== previous.stableCommit) chunkRecovery.markStable(Object.freeze({
         authorityId: next.authorityId,
         sceneId: next.stableCommit.sceneId,
@@ -1229,6 +1234,16 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     return () => disconnectConnection(activeConnection);
   };
 
+  const reportPresentationPrepared = (report: PhonePresentationPreparedReport): void => {
+    if (!connected || report.generation !== report.attempt.transactionGeneration || snapshot.status !== 'transaction' || !sameAttempt(snapshot.transaction.attempt, report.attempt)) return;
+    [...snapshot.transaction.requiredPrepared, ...snapshot.transaction.requiredFinal].filter((candidate) => candidate.surfaceId === report.surfaceId && candidate.kind === 'image-decoded' && sameAttempt(candidate.attempt, report.attempt)).forEach((slot) => enqueueFor({ type: 'evidence-reported', slot, report: { kind: 'image-decoded', token: report.token, accepted: true, detail: { surfaceId: report.surfaceId, generation: report.generation } } }, connection));
+  };
+  const reportPresentationFailure = (report: PhonePresentationFailureReport): void => {
+    if (!connected || report.generation !== report.attempt.transactionGeneration || snapshot.status !== 'transaction' || !sameAttempt(snapshot.transaction.attempt, report.attempt)) return;
+    const slot = [...snapshot.transaction.requiredPrepared, ...snapshot.transaction.requiredFinal].find((candidate) => candidate.surfaceId === report.surfaceId && sameAttempt(candidate.attempt, report.attempt));
+    if (slot) enqueueFor({ type: 'failure-reported', slot, failure: report.failure }, connection);
+  };
+
   return Object.freeze({
     getSnapshot: () => snapshot,
     subscribe: (listener: () => void) => {
@@ -1240,7 +1255,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       { type: 'entry-requested', request: entry },
       connection
     ),
-    retry: () => enqueueFor({ type: 'retry-requested' }, connection),
+    retry: () => enqueueFor({ type: 'retry-requested' }, connection), reportPresentationPrepared, reportPresentationFailure,
     startVisibleEntrance: () => {
       if (!connected || snapshot.status !== 'stable'
         || snapshot.stableCommit.sceneId !== 'hero'

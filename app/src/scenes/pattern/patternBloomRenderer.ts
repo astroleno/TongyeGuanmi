@@ -1,4 +1,4 @@
-const DPR_LIMIT = 1;
+const DPR_LIMIT = 2;
 const SOURCE_SIZE = 1152;
 const TAU = Math.PI * 2;
 const FINAL_ROTATION = 120 * Math.PI / 180;
