@@ -232,6 +232,12 @@ describe('phone stage AOD resource selection', () => {
     expect(aodLeafSource).not.toMatch(/\n\s*reverse\(\)\s*\{/);
   });
 
+  it('[AOD reduced cutover] uses static target readiness instead of the autoplay lease', () => {
+    expect(stageRuntimeSource).toContain('ready(direction) {');
+    expect(stageRuntimeSource).toContain('target?.root()?.isConnected');
+    expect(stageRuntimeSource).toContain('target.presentPresentation');
+  });
+
   it('[P0 AOD session ownership] starts only from the current runtime transaction and has no gesture-lease retry writer', () => {
     const registration = stageRuntimeSource.slice(
       stageRuntimeSource.indexOf('registerPhoneRuntimeAodCapability('),

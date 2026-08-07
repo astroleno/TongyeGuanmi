@@ -660,6 +660,15 @@ export function usePhoneStageRuntime(
       },
       options.reducedMotion,
       {
+        ready(direction) {
+          const target = direction === 1
+            ? methodRef.current
+            : aodRef.current;
+          return Boolean(
+            target?.root()?.isConnected
+            && target.presentPresentation
+          );
+        },
         position(direction) {
           if (direction !== 1) {
             return aodSemanticPosition();

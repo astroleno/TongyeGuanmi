@@ -184,10 +184,13 @@ if (releaseProfile) {
       `release phoneJsRawBytes exceeded: ${actual.phoneJsRawBytes} > ${phoneJsReleaseHardCapBytes}`
     );
   }
-  if (phoneJsReleaseHeadroomBytes < recommendedJsHeadroomBytes) {
+  // The release cap already equals the global hard cap minus the required
+  // 4 KiB margin (663552 - 4096 = 659456). Do not subtract that margin a
+  // second time from the reduced release cap; validate the global headroom.
+  if (phoneJsHeadroomBytes < recommendedJsHeadroomBytes) {
     throw new Error(
       `release phoneJsHeadroomBytes below required headroom: `
-      + `${phoneJsReleaseHeadroomBytes} < ${recommendedJsHeadroomBytes}`
+      + `${phoneJsHeadroomBytes} < ${recommendedJsHeadroomBytes}`
     );
   }
 }

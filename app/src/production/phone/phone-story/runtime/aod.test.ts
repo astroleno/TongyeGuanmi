@@ -35,6 +35,7 @@ type Harness = Readonly<{
     failed: ReturnType<typeof vi.fn>;
   }>;
   runner: ReturnType<typeof registerPhoneRuntimeAodCapability>;
+  canStart(): boolean;
   startRun(): boolean | void;
   settleStart(result: 'playing' | 'blocked' | 'error'): void;
   reducedStrategy(): boolean | undefined;
@@ -276,12 +277,13 @@ function createHarness(
   const runner = registerPhoneRuntimeAodCapability(
     port,
     () => 100,
-    () => true,
+    () => !reducedMotion,
     start,
     render,
     reset,
     reducedMotion,
     {
+      ready: () => true,
       position: reducedTargetPosition,
       present: presentStaticTarget,
       dispose: disposeStaticTarget
@@ -302,6 +304,7 @@ function createHarness(
     requestReducedTargetLayout: session.requestReducedTargetLayout as ReturnType<typeof vi.fn>,
     session,
     runner,
+    canStart: () => capability?.canStart(direction) ?? false,
     startRun: () => capability?.start(direction, session),
     settleStart,
     reducedStrategy: () => capability?.reducedMotion,
@@ -328,6 +331,9 @@ describe('AOD ↔ Method single runner cutover', () => {
     async (direction) => {
       const value = createHarness(direction, 'playing', true);
 
+      // The dynamic autoplay readiness is deliberately false in reduced
+      // motion; static target readiness must be the independent gate.
+      expect(value.canStart()).toBe(true);
       expect(value.startRun()).toBe(true);
       await Promise.resolve();
 

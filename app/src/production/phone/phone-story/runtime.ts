@@ -768,6 +768,8 @@ type ActiveAodRun = [
  * AOD lifecycle or proof builder.
  */
 type PhoneAodReducedStaticTarget = Readonly<{
+  /** Static admission readiness is independent from media autoplay readiness. */
+  ready(direction: PhoneTransitionDirection): boolean;
   position(direction: PhoneTransitionDirection): number | null;
   present(
     execution: PhoneAodExecution,
@@ -959,7 +961,15 @@ export function registerPhoneRuntimeAodCapability(
   const capability = port.registerRunCapability('aod-method', 'aod:method', {
     reducedMotion,
     position,
-    canStart,
+    // Reduced motion still uses the same transaction, but it never creates a
+    // media autoplay lease. Keep that readiness contract separate from the
+    // dynamic decoder path so a static target can admit while PhoneAod's
+    // autoplayRef is intentionally absent.
+    canStart(direction) {
+      return reducedMotion
+        ? staticTarget?.ready(direction) === true
+        : canStart(direction);
+    },
     start(direction, session) {
       const aodSession = session as PhoneAodRunSession;
       const reduced = reducedFor(aodSession);
