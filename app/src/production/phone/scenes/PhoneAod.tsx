@@ -235,6 +235,10 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       compositor = createPackedAlphaVideoCompositor({
         video,
         canvas,
+        // AOD keeps its React-owned context warmed across the front/back
+        // handoff. Hero is the cold-start owner that retires its context when
+        // inactive; making both route anchors hard-lose here would require a
+        // second restoration protocol and would reintroduce split ownership.
         releaseContextOnDispose: false,
         onFrame: () => {
           const execution = autoplayExecutionRef.current;

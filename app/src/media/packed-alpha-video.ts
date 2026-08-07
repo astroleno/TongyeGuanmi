@@ -23,7 +23,33 @@ export type PackedAlphaVideoCompositor = Readonly<{
 export function releasePackedAlphaWebGlContext(
   gl: WebGLRenderingContext
 ): void {
+  // `loseContext()` is intentionally used as a bounded resource release for
+  // React-owned canvases.  Keep the loss restorable: WebGL otherwise treats a
+  // synthetic loss without a preventDefault() listener as permanent, leaving
+  // the same DOM canvas unusable on the next route activation.
+  const canvas = gl.canvas as (HTMLCanvasElement | OffscreenCanvas | undefined);
+  canvas?.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+  }, { once: true });
   gl.getExtension('WEBGL_lose_context')?.loseContext();
+}
+
+/**
+ * Re-arm a React-owned canvas after the compositor deliberately retired its
+ * context.  The caller remains the lifecycle owner: this helper only waits
+ * for the browser's restore fact and never creates a compositor itself.
+ */
+export function restorePackedAlphaWebGlContext(
+  canvas: HTMLCanvasElement,
+  onRestored: () => void
+): boolean {
+  const gl = canvas.getContext('webgl');
+  if (!gl || !gl.isContextLost()) return false;
+  const extension = gl.getExtension('WEBGL_lose_context');
+  if (!extension) return false;
+  canvas.addEventListener('webglcontextrestored', onRestored, { once: true });
+  extension.restoreContext();
+  return true;
 }
 
 export function renewPackedAlphaCanvas(

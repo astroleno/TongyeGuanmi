@@ -74,7 +74,7 @@ describe('PhoneHero Route B adapter', () => {
   it('[front-half gate] confirms Hero readiness only after a successful packed-alpha draw survives browser presentation', () => {
     const postPaintPath = heroSource.slice(
       heroSource.indexOf('const schedulePackedAlphaPostPaint'),
-      heroSource.indexOf('const ensureCompositor')
+      heroSource.indexOf('const ensureCompositor = useCallback')
     );
     expect(postPaintPath).toContain('canvas.dataset.packedAlphaFrameReady !== \'true\'');
     expect(postPaintPath).toContain('void nextBrowserPresentation().then(() => {');

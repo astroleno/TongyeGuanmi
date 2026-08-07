@@ -9,6 +9,7 @@ import {
 import { TextReveal, TextRevealItem } from '../../../components/TextReveal';
 import {
   createPackedAlphaVideoCompositor,
+  restorePackedAlphaWebGlContext,
   renewPackedAlphaCanvas,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
@@ -132,6 +133,9 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     const vignetteRef = useRef<HTMLDivElement | null>(null);
     const playbackRef = useRef<PhoneFigurePlayback | undefined>(undefined);
     const compositorRef = useRef<PackedAlphaVideoCompositor | undefined>(undefined);
+    const compositorRestoreSerialRef = useRef(0);
+    const restoringCompositorRef = useRef(false);
+    const ensureCompositorRef = useRef<(() => PackedAlphaVideoCompositor | undefined) | undefined>(undefined);
     const parallaxRef = useRef<PhoneDeviceParallax | undefined>(undefined);
     const introInkRef = useRef<PhoneHeroRadialInkBridge | undefined>(undefined);
     const disposeEntranceRef = useRef<(() => void) | undefined>(undefined);
@@ -154,9 +158,13 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     const lastProgressRef = useRef(Number.NaN);
     const [titleActive, setTitleActive] = useState(reducedMotion);
     const releaseCompositor = useCallback(() => {
+      compositorRestoreSerialRef.current += 1;
+      restoringCompositorRef.current = false;
       const compositor = compositorRef.current;
       const canvas = figureCanvasRef.current;
-      if (!compositor) return;
+      if (!compositor) {
+        return;
+      }
       compositor.dispose();
       compositorRef.current = undefined;
       heroPackedFramePresentedRef.current = false;
@@ -260,9 +268,10 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         packedAlphaPostPaintScheduledRef.current = false;
         const visibleRoot = rootRef.current;
         const visibleCanvas = figureCanvasRef.current;
+        const hasPresentationBinding = presentationBindingRef.current !== null;
         if (
           !adapterReadyRef.current
-          || !sceneActiveRef.current
+          || (!sceneActiveRef.current && !hasPresentationBinding)
           || heroPackedFramePresentedRef.current
           || !visibleRoot
           || !visibleCanvas
@@ -278,19 +287,32 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         heroPackedFramePresentedRef.current = true;
         visibleRoot.dataset.phoneHeroFirstFrame = 'packed-alpha-post-paint';
         requestPresentedHeroFrame();
-        onReady?.();
+        if (sceneActiveRef.current) onReady?.();
       });
     }, [onReady, requestPresentedHeroFrame]);
     const ensureCompositor = useCallback(() => {
       if (compositorRef.current) return compositorRef.current;
+      if (restoringCompositorRef.current) return undefined;
       const figureVideo = figureVideoRef.current;
       const figureCanvas = figureCanvasRef.current;
       const figureParallax = figureParallaxRef.current;
       if (!figureVideo || !figureCanvas || !figureParallax) return undefined;
+      const restoreSerial = compositorRestoreSerialRef.current;
+      if (restorePackedAlphaWebGlContext(figureCanvas, () => {
+        if (restoreSerial !== compositorRestoreSerialRef.current) return;
+        restoringCompositorRef.current = false;
+        if (!sceneActiveRef.current && !presentationBindingRef.current) return;
+        const restored = ensureCompositorRef.current?.();
+        restored?.setActive(sceneActiveRef.current || presentationBindingRef.current !== null);
+        restored?.render();
+      })) {
+        restoringCompositorRef.current = true;
+        return undefined;
+      }
       const compositor = createPackedAlphaVideoCompositor({
         video: figureVideo,
         canvas: figureCanvas,
-        releaseContextOnDispose: false,
+        releaseContextOnDispose: true,
         onFrame: () => {
           figureVideo.dataset.portraitFigureAlpha = 'verified';
           figureParallax.dataset.portraitFigureAlpha = 'verified';
@@ -298,10 +320,11 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           schedulePackedAlphaPostPaint();
         }
       });
-      compositor.setActive(sceneActiveRef.current);
+      compositor.setActive(sceneActiveRef.current || presentationBindingRef.current !== null);
       compositorRef.current = compositor;
       return compositor;
     }, [schedulePackedAlphaPostPaint]);
+    ensureCompositorRef.current = ensureCompositor;
     const renderEntrance = useCallback((rawProgress: number) => {
       const root = rootRef.current;
       const cue = cueRef.current;
@@ -484,8 +507,14 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           ensureIntroInk()?.(['prewarm']);
         }
       } else {
-        compositorRef.current?.setActive(false);
-        if (!active) {
+        // A reduced/direct target can be admitted before the projector marks
+        // it as the active front surface. Keep that exact presentation lease
+        // alive until its raw frame is accepted; otherwise the next React
+        // commit retires the freshly restored compositor mid-admission.
+        if (presentationBindingRef.current) {
+          compositorRef.current?.setActive(true);
+        } else {
+          compositorRef.current?.setActive(false);
           cancelEntrance();
           releaseGpuOwners();
         }
@@ -537,6 +566,9 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           frameSequence: 0,
           scheduled: false
         };
+        const compositor = ensureCompositor();
+        compositor?.setActive(true);
+        compositor?.render();
         requestPresentedHeroFrame();
       },
       disposePresentation(token) {

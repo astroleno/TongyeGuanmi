@@ -74,4 +74,31 @@ describe('packed alpha video', () => {
     expect(getExtension).toHaveBeenCalledWith('WEBGL_lose_context');
     expect(loseContext).toHaveBeenCalledOnce();
   });
+
+  it('keeps a React-owned context loss restorable', () => {
+    const loseContext = vi.fn();
+    const preventDefault = vi.fn();
+    let lostListener: ((event: Event) => void) | undefined;
+    const canvas = {
+      addEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
+        if (type === 'webglcontextlost') {
+          lostListener = listener as (event: Event) => void;
+        }
+      })
+    };
+    releasePackedAlphaWebGlContext({
+      canvas,
+      getExtension: vi.fn(() => ({ loseContext }))
+    } as unknown as WebGLRenderingContext);
+
+    lostListener?.({ preventDefault } as unknown as Event);
+
+    expect(canvas.addEventListener).toHaveBeenCalledWith(
+      'webglcontextlost',
+      expect.any(Function),
+      { once: true }
+    );
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(loseContext).toHaveBeenCalledOnce();
+  });
 });
