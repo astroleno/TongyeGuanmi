@@ -425,8 +425,22 @@ export function createPhoneOrchestratedSessionController(
     reportAodFailure: (reason: PhoneFailureReason) => fail(run, reason, 'AOD_FAILED'),
     reportPresentationProof: (proof: PresentationProof) => {
       const snapshot = options.getSnapshot();
-      if (snapshot.status !== 'transaction') return;
+      if (snapshot.status !== 'transaction') return false;
+      const beforeRevision = snapshot.revision;
       emit(run, 'PRESENTATION_PROOF_REPORTED', { proof });
+      const after = options.getSnapshot();
+      // A dispatch can be well-formed yet rejected by the reducer because the
+      // candidate is still aligning or the proof belongs to a prior phase.
+      // The presentation adapter must be able to re-arm the same token in
+      // that case; reporting only that the event was emitted would consume
+      // the one-shot leaf binding permanently.
+      return after.status === 'transaction'
+        && after.revision !== beforeRevision
+        && (
+          after.session.proof === proof
+          || after.session.firstFrameProof === proof
+          || after.session.phase !== snapshot.session.phase
+        );
     },
     reportPresentationReadiness: (readiness: PresentationReadiness) => {
       const snapshot = options.getSnapshot();

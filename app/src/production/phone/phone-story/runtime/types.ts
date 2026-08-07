@@ -77,7 +77,8 @@ export type PhoneOrchestratedRunSession = PhoneTransitionSession & Readonly<{
    */
   reportPresentationFrame(frame: PhoneRenderedPresentationFrame): boolean;
   /** The only runtime ingress for a renderer-owned token-bound proof. */
-  reportPresentationProof(proof: PresentationProof): void;
+  /** Returns false when the reducer rejected the proof in its current phase. */
+  reportPresentationProof(proof: PresentationProof): boolean;
   /** Candidate coverage can release layout but can never publish stable. */
   reportPresentationReadiness(readiness: PresentationReadiness): void;
   /** Returns the immutable object token required by presentation adapters. */

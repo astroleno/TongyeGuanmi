@@ -1001,7 +1001,8 @@ export type PhonePresentationAdapter = Readonly<{
 
 type PhoneActivePresentationAdapter = Readonly<{
   token: PresentationToken;
-  report: (proof: PresentationProof) => void;
+  /** False means the reducer rejected this proof for its current phase. */
+  report: (proof: PresentationProof) => boolean;
   fail?: (reason: PhoneFailureReason) => void;
   dispose(): void;
   /** Static/reading bindings retry on the next projected browser paint. */
@@ -1113,7 +1114,7 @@ export type PhoneStoryPresentation = Readonly<{
   activatePresentationAdapter(
     scene: SceneId,
     token: PresentationToken,
-    report: (proof: PresentationProof) => void,
+    report: (proof: PresentationProof) => boolean | void,
     fail?: (reason: PhoneFailureReason) => void
   ): void;
   /** Turns an actual renderer/effect draw into a validated immutable proof. */
@@ -1976,8 +1977,12 @@ export function createPhoneStoryPresentation({
             // may request another real leaf paint.  This never synthesizes a
             // proof and leaves a missing callback fail-closed on its timeout.
             if (!proof) return;
-            proofAccepted = true;
-            binding.report(proof);
+            // A valid physical frame can still arrive before the reducer has
+            // reached the phase that accepts it (for example after landing
+            // alignment on a reverse admission). Keep the same adapter alive
+            // and let the engine request the exact token again instead of
+            // permanently consuming this binding on a rejected proof.
+            if (binding.report(proof)) proofAccepted = true;
           }, (reason) => {
             framePending = false;
             const current = activeAdapters.get(receiver);
@@ -1987,7 +1992,7 @@ export function createPhoneStoryPresentation({
         };
         binding = {
           token: presentationToken,
-          report,
+          report: (proof) => report(proof) !== false,
           ...(fail ? { fail } : {}),
           dispose: () => adapter.dispose?.(presentationToken),
           requestFrame
@@ -2025,7 +2030,7 @@ export function createPhoneStoryPresentation({
       };
       const binding = {
         token: presentationToken,
-        report,
+        report: (proof: PresentationProof) => report(proof) !== false,
         dispose: () => cancel(),
         requestFrame
       } as const;

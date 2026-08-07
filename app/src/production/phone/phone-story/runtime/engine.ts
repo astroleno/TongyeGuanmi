@@ -524,7 +524,7 @@ export function createPhoneStoryRuntimeEngine(
     // been projected. Their next real draw reports back through this closure;
     // no selector or dataset can manufacture that proof.
     presentation.activatePresentationAdapter(scene, token, (proof) => {
-      activeSession.reportPresentationProof(proof);
+      return activeSession.reportPresentationProof(proof);
     }, (reason) => {
       activeSession.reportFailure(reason);
     });
@@ -575,7 +575,7 @@ export function createPhoneStoryRuntimeEngine(
       );
       if (!token) return;
       presentation.activatePresentationAdapter(scene, token, (proof) => {
-        activeSession.reportPresentationProof(proof);
+        return activeSession.reportPresentationProof(proof);
       }, (reason) => {
         activeSession.reportFailure(reason);
       });

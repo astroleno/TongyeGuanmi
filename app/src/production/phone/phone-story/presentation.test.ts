@@ -406,6 +406,61 @@ describe('phone presentation proof reader', () => {
     }));
   });
 
+  it('[P0 proof phase gate] re-arms an already-painted token when the reducer rejects the first proof', () => {
+    const root = element();
+    const token: PresentationToken = {
+      authorityId: 'presentation-authority',
+      sessionId: 'phase-rearm-session',
+      generation: 7,
+      leg: 0,
+      revision: 11,
+      subject: 'native:contact',
+      kind: 'static-poster'
+    };
+    const bindings: Array<(frame: Readonly<{
+      token: PresentationToken;
+      frameSequence: number;
+      observedAt: number;
+      origin: 'leaf-static-poster';
+    }>) => void> = [];
+    const presentation = createPhoneStoryPresentation({
+      authorityId: token.authorityId,
+      scope: 'formal',
+      root: () => root
+    });
+    presentation.registerSurface({
+      id: 'native:contact',
+      scene: 'contact',
+      kind: 'native',
+      root: () => root,
+      coverageRoot: () => root,
+      presentation: () => [true, true, true, true, 'static-poster'],
+      adapter: {
+        present: (_token, report) => { bindings.push(report); }
+      }
+    });
+    let accepted = false;
+    const report = vi.fn(() => accepted);
+
+    presentation.activatePresentationAdapter('contact', token, report);
+    const first = bindings.at(0);
+    if (!first) throw new Error('Expected the first phase-gated binding');
+    first({ token, frameSequence: 1, observedAt: 42, origin: 'leaf-static-poster' });
+    expect(report).toHaveBeenCalledTimes(1);
+
+    // The same immutable target is requested again after landing alignment.
+    // A proof that was physically real but rejected by the reducer must not
+    // poison the active adapter's one-shot latch.
+    presentation.activatePresentationAdapter('contact', token, report);
+    const retry = bindings.at(1);
+    if (!retry) throw new Error('Expected the same-token phase retry');
+    accepted = true;
+    retry({ token, frameSequence: 2, observedAt: 43, origin: 'leaf-static-poster' });
+
+    expect(bindings).toHaveLength(2);
+    expect(report).toHaveBeenCalledTimes(2);
+  });
+
   it('[R5] accepts AOD’s declared packed-canvas segment frame before its static visual hold', () => {
     const root = element();
     const presentation = createPhoneStoryPresentation({
