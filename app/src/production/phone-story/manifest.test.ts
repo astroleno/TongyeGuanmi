@@ -72,7 +72,7 @@ const sceneDetails = {
   },
   'star-map': {
     additional: ['media:star-map-source', 'media:star-map-highlight-mask'],
-    surfaces: ['star-map-canvas'],
+    surfaces: ['star-map-source', 'star-map-canvas'],
     selectors: ['#portrait-spike-star-title']
   },
   'aod-animation': {
@@ -272,10 +272,10 @@ const sceneProofLedger = {
   'star-map': {
     landing: { kind: 'authored-boundary', anchor: '#portrait-spike-star-title' },
     frame: {
-      kind: 'canvas-or-static-post-paint',
-      surfaceIds: ['star-map-canvas']
+      kind: 'image-decode-composite-paint',
+      surfaceIds: ['star-map-source', 'star-map-canvas']
     },
-    prepared: 'canvas-drawn'
+    prepared: 'image-decoded'
   },
   'aod-animation': {
     landing: { kind: 'semantic-edge', anchor: 'aod-semantic-edge' },

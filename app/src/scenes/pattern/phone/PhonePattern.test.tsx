@@ -133,11 +133,13 @@ describe('clean PhonePattern leaf', () => {
       .toBe('0');
     expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(0, 0);
     expect(rendererProbe.instances[0]?.renderProgress).toHaveBeenLastCalledWith(0);
+    expect(rendererProbe.instances[0]?.setRenderActive).toHaveBeenLastCalledWith(true, true);
     mount.registration()?.commands.settle(1);
     expect(host.querySelector<HTMLElement>('.portrait-scroll-spike__pattern-copy')?.style.opacity)
       .toBe('1');
     expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(1, 1);
     expect(rendererProbe.instances[0]?.renderProgress).toHaveBeenLastCalledWith(1);
+    expect(rendererProbe.instances[0]?.setRenderActive).toHaveBeenLastCalledWith(false, false);
   });
 
   it('keeps edge ownership global and contains no scene-specific concealment', () => {

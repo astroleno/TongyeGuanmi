@@ -138,8 +138,9 @@ export function PhonePattern({ reports }: PhonePatternProps) {
       settle(endpoint) {
         render(endpoint);
         rendererRef.current?.renderProgress(endpoint);
-        activeRef.current = false;
-        rendererRef.current?.setRenderActive(false, false);
+        const stableHold = endpoint === 0;
+        activeRef.current = stableHold;
+        rendererRef.current?.setRenderActive(stableHold, stableHold);
       },
       pause() {
         activeRef.current = false;

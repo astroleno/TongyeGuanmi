@@ -20,6 +20,23 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+function waitForDecodedImage(image: HTMLImageElement): Promise<void> {
+  if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+    return Promise.resolve();
+  }
+  if (typeof image.decode === 'function') return image.decode();
+  return new Promise((resolve, reject) => {
+    const loaded = () => { clear(); resolve(); };
+    const failed = () => { clear(); reject(new Error('Star Map source decode failed')); };
+    const clear = () => {
+      image.removeEventListener('load', loaded);
+      image.removeEventListener('error', failed);
+    };
+    image.addEventListener('load', loaded, { once: true });
+    image.addEventListener('error', failed, { once: true });
+  });
+}
+
 export function phoneStarMapFrame(rawProgress: number): Readonly<{
   progress: number; opacity: number; y: number; washOpacity: number;
 }> {
@@ -54,6 +71,7 @@ export type PhoneStarMapMigrationCommands = PhoneLeafCommandHandle & Readonly<{
 
 export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPort }>) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const sourceRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const washRef = useRef<HTMLDivElement | null>(null);
   const copyRef = useRef<HTMLDivElement | null>(null);
@@ -64,19 +82,35 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
   const lastPaintedAtRef = useRef(-Infinity);
   const revisionRef = useRef(0);
   const firstFramePaintedRef = useRef(false);
+  const sourceReadyRef = useRef(false);
   const reportedTokenRef = useRef<string | null>(null);
+  const reportedSourceTokenRef = useRef<string | null>(null);
   const activeRef = useRef(false);
   const disposedRef = useRef(false);
 
   const reportCurrentFrame = useCallback(() => {
     const binding = bindingRef.current;
-    if (!binding || !firstFramePaintedRef.current || disposedRef.current
+    if (!binding || !sourceReadyRef.current || !firstFramePaintedRef.current || disposedRef.current
       || reportedTokenRef.current === binding.frameToken) return;
     reportedTokenRef.current = binding.frameToken;
     binding.reports.reportFrame('star-map-canvas', {
       kind: 'frame', token: binding.frameToken, presented: true,
       frameId: `star-map:${revisionRef.current}`,
-      detail: { sourceDrawn: false, staticSource: true, camera: 'rotate(-90deg) cover' }
+      detail: {
+        sourceDrawn: false, staticSource: true, sourceDecoded: true,
+        camera: 'rotate(-90deg) cover'
+      }
+    });
+  }, []);
+
+  const reportSourcePrepared = useCallback(() => {
+    const binding = bindingRef.current;
+    if (!binding || !sourceReadyRef.current || disposedRef.current
+      || reportedSourceTokenRef.current === binding.frameToken) return;
+    reportedSourceTokenRef.current = binding.frameToken;
+    binding.reports.reportPrepared('star-map-source', {
+      kind: 'image-decoded', token: `star-map:source:${binding.frameToken}`,
+      ready: true, detail: { sourceDecoded: true }
     });
   }, []);
 
@@ -147,6 +181,8 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       rebind(binding) {
         bindingRef.current = binding;
         reportedTokenRef.current = null;
+        reportedSourceTokenRef.current = null;
+        reportSourcePrepared();
         reportCurrentFrame();
       },
       activate(command): PhoneActivationInvocation {
@@ -176,11 +212,14 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
 
   useLayoutEffect(() => {
     const root = rootRef.current;
+    const source = sourceRef.current;
     const canvas = canvasRef.current;
-    if (!root || !canvas) return;
+    if (!root || !source || !canvas) return;
     disposedRef.current = false;
+    sourceReadyRef.current = false;
     firstFramePaintedRef.current = false;
     reportedTokenRef.current = null;
+    reportedSourceTokenRef.current = null;
     revisionRef.current = 0;
     render(0);
     const reveal = initStarFieldReveal({
@@ -205,18 +244,33 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     });
     revealRef.current = reveal;
     reports.registerMount({
-      root, surfaces: [{ id: 'star-map-canvas', element: canvas, kind: 'canvas-2d' }],
+      root, surfaces: [
+        { id: 'star-map-source', element: source, kind: 'image' },
+        { id: 'star-map-canvas', element: canvas, kind: 'canvas-2d' }
+      ],
       commands
     });
     const awaitReady = (time: number) => {
       readyFrameRef.current = 0;
       if (disposedRef.current) return;
-      if (!reveal.ready) {
+      if (!sourceReadyRef.current || !reveal.ready) {
         readyFrameRef.current = window.requestAnimationFrame(awaitReady);
         return;
       }
       paint(time, true);
     };
+    void waitForDecodedImage(source).then(() => {
+      if (disposedRef.current) return;
+      sourceReadyRef.current = true;
+      reportSourcePrepared();
+      if (!readyFrameRef.current) readyFrameRef.current = window.requestAnimationFrame(awaitReady);
+    }, (error: unknown) => {
+      if (!disposedRef.current) bindingRef.current?.reports.reportFailure({
+        code: 'star-map-source-decode-rejected',
+        message: error instanceof Error ? error.message : String(error),
+        recoverable: true
+      });
+    });
     readyFrameRef.current = window.requestAnimationFrame(awaitReady);
     const shell = root.closest<HTMLElement>('.phone-story');
     const observer = shell && typeof MutationObserver !== 'undefined'
@@ -228,25 +282,27 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     return () => {
       disposedRef.current = true;
       activeRef.current = false;
+      sourceReadyRef.current = false;
       window.cancelAnimationFrame(readyFrameRef.current);
       stopAmbient();
       observer?.disconnect();
       reveal.dispose();
       if (revealRef.current === reveal) revealRef.current = null;
       bindingRef.current = null;
+      sourceRef.current = null;
       delete canvas.dataset.portraitStarPerlin;
       delete canvas.dataset.portraitStarCamera;
       delete canvas.dataset.portraitStarPerlinRevision;
       delete canvas.dataset.portraitStarPerlinProgress;
     };
-  }, [commands, paint, render, reports, startAmbient, stopAmbient]);
+  }, [commands, paint, render, reportSourcePrepared, reports, startAmbient, stopAmbient]);
 
   return (
     <section ref={rootRef}
       className="portrait-scroll-spike__scene portrait-scroll-spike__scene--star"
       aria-labelledby="portrait-spike-star-title">
       <div className="portrait-scroll-spike__star-motion" aria-hidden="true">
-        <img className="portrait-scroll-spike__star-source" data-portrait-star-source
+        <img ref={sourceRef} className="portrait-scroll-spike__star-source" data-portrait-star-source
           src={STAR_MAP_IMAGE} alt="" aria-hidden="true" />
         <canvas ref={canvasRef} className="portrait-scroll-spike__star-perlin"
           data-portrait-star-perlin aria-hidden="true" />

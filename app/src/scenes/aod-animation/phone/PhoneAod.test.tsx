@@ -22,6 +22,21 @@ const surfaceProbe = vi.hoisted(() => ({
   dispose: vi.fn()
 }));
 
+const timelineProbe = vi.hoisted(() => ({
+  prepare: vi.fn(async (
+    video: HTMLVideoElement,
+    input: Readonly<{ progress: number }>
+  ) => {
+    try { video.currentTime = input.progress * 2.567; } catch { /* detached media */ }
+    return {
+      status: 'ready' as const,
+      runId: 'aod:test', direction: 1 as const, generation: 1,
+      targetTime: input.progress * 2.567
+    };
+  }),
+  dispose: vi.fn()
+}));
+
 vi.mock('../../../media/phone-packed-alpha-surface', () => ({
   createPhonePackedAlphaSurface: vi.fn((options) => {
     surfaceProbe.options = options;
@@ -32,6 +47,11 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
       dispose: surfaceProbe.dispose
     };
   })
+}));
+
+vi.mock('../../../media/timeline-video-driver', () => ({
+  prepareTimelineVideoFrame: timelineProbe.prepare,
+  disposeTimelineVideoDriver: timelineProbe.dispose
 }));
 
 import {
@@ -65,6 +85,18 @@ describe('clean PhoneAod leaf', () => {
     surfaceProbe.render.mockReset().mockReturnValue(true);
     surfaceProbe.release.mockReset();
     surfaceProbe.dispose.mockReset();
+    timelineProbe.prepare.mockReset().mockImplementation(async (
+      video: HTMLVideoElement,
+      input: Readonly<{ progress: number }>
+    ) => {
+      try { video.currentTime = input.progress * 2.567; } catch { /* detached media */ }
+      return {
+        status: 'ready' as const,
+        runId: 'aod:test', direction: 1 as const, generation: 1,
+        targetTime: input.progress * 2.567
+      };
+    });
+    timelineProbe.dispose.mockReset();
     host = document.createElement('div');
     document.body.replaceChildren(host);
     root = createRoot(host);
@@ -108,7 +140,10 @@ describe('clean PhoneAod leaf', () => {
     await expect(invocation?.settlements[0]?.status === 'pending'
       ? invocation.settlements[0].settled : Promise.reject()).resolves.toBeUndefined();
     expect(surfaceProbe.render).toHaveBeenCalledTimes(1);
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(2);
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(1);
+    expect(timelineProbe.prepare).toHaveBeenCalledWith(
+      expect.any(HTMLVideoElement), expect.objectContaining({ progress: 0 })
+    );
   });
 
   it('accepts only the current generation draw and tracks a renewed Canvas', async () => {
@@ -215,7 +250,10 @@ describe('clean PhoneAod leaf', () => {
     });
     const settlement = invocation.settlements[0];
     if (settlement?.status === 'pending') await settlement.settled;
-    commands.render(.75);
+    await act(async () => {
+      commands.render(.75);
+      await Promise.resolve();
+    });
     expect(video.currentTime).toBeGreaterThan(0);
     expect(video.currentTime).toBeLessThan(2.567);
     expect(surfaceProbe.render).toHaveBeenCalled();
@@ -254,6 +292,7 @@ describe('clean PhoneAod leaf', () => {
 
     expect(completion).toBeInstanceOf(Promise);
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');
+    expect(HTMLMediaElement.prototype.pause).not.toHaveBeenCalled();
     releasePlayback();
     await expect(completion).resolves.toBeUndefined();
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');

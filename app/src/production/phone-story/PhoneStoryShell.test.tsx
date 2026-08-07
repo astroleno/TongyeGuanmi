@@ -1238,9 +1238,12 @@ describe('clean PhoneStoryShell ownership', () => {
     revealStableStory();
     const story = host.querySelector('.phone-story');
     if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
+    const visual = document.createElement('div');
+    visual.className = 'phone-method-top__visual';
+    story.querySelector('.phone-story__viewport')?.append(visual);
     const reading = document.createElement('section');
     reading.dataset.phoneInputOwner = 'native-document';
-    story.append(reading);
+    story.querySelector('.phone-story__reading-flow')?.append(reading);
     const scrollingElement = document.createElement('main');
     let scrollTop = 600;
     Object.defineProperties(scrollingElement, {
@@ -1293,6 +1296,8 @@ describe('clean PhoneStoryShell ownership', () => {
       // outward handoff. Reaching an edge during a gesture never arms a later one.
       const leave = gesture(40, false, false, true);
       expect(leave.move.defaultPrevented).toBe(true);
+      expect(visual.dataset.phoneMethodNativeScrollY).toBe('680.00');
+      expect(visual.style.getPropertyValue('--phone-method-native-scroll-y')).toBe('680.00px');
 
       // Re-enter Method at a non-edge position. The first gesture may scroll to
       // the edge, but it must not inherit the previous scene's edge latch.

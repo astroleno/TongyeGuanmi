@@ -6,6 +6,11 @@ import {
   type PhonePackedAlphaSurfaceFailure
 } from '../../../media/phone-packed-alpha-surface';
 import { phoneMediaUrlFor } from '../../../media/phone-media';
+import {
+  disposeTimelineVideoDriver,
+  prepareTimelineVideoFrame
+} from '../../../media/timeline-video-driver';
+import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
 import type {
   PhoneActivationInvocation,
   PhoneLeafCommandHandle,
@@ -92,6 +97,10 @@ export function PhoneAod({ reports }: PhoneAodProps) {
   const posterReadyRef = useRef(false);
   const reportedPosterTokenRef = useRef<string | null>(null);
   const disposedRef = useRef(false);
+  const desiredProgressRef = useRef(0);
+  const desiredSequenceRef = useRef(0);
+  const lastRequestedProgressRef = useRef(0);
+  const mediaPreparationRef = useRef<Promise<void> | null>(null);
   const [posterHost, setPosterHost] = useState<HTMLElement | null>(null);
 
   const reportFailure = useCallback((failure: PhonePackedAlphaSurfaceFailure) => {
@@ -106,28 +115,85 @@ export function PhoneAod({ reports }: PhoneAodProps) {
     });
   }, []);
 
+  const reportPreparationFailure = useCallback((error: unknown, generation: number) => {
+    const binding = bindingRef.current;
+    if (!binding || disposedRef.current || generation !== surfaceGenerationRef.current) return;
+    binding.reports.reportFailure({
+      code: 'aod-frame-preparation-failed',
+      message: error instanceof Error ? error.message : String(error),
+      recoverable: true,
+      detail: { generation }
+    });
+  }, []);
+
+  const prepareDecodedFrame = useCallback(async (
+    generation: number,
+    progress: number
+  ): Promise<'ready' | 'stale'> => {
+    const video = videoRef.current;
+    const surface = surfaceRef.current;
+    const binding = bindingRef.current;
+    if (!video || !surface || !binding || generation !== surfaceGenerationRef.current
+      || disposedRef.current) return 'stale';
+    const direction = progress >= lastRequestedProgressRef.current ? 1 : -1;
+    lastRequestedProgressRef.current = progress;
+    const result = await prepareTimelineVideoFrame(video, {
+      runId: `${binding.frameToken}:aod:${generation}`,
+      direction,
+      progress: clamp(progress),
+      durationFallbackSeconds: AOD_FIGURE_END_SECONDS,
+      startSeconds: 0,
+      endSeconds: AOD_FIGURE_END_SECONDS,
+      timelineDurationMs: AOD_FIGURE_END_SECONDS * 1000,
+      mode: 'timeline',
+      nativePlaybackDirection: 1,
+      allowSeekedFrameFallback: browserPrefersHevcAlpha()
+    });
+    if (generation !== surfaceGenerationRef.current || disposedRef.current
+      || result?.status !== 'ready') return 'stale';
+    if (!surface.render()) {
+      throw new Error('AOD compositor did not draw the decoded frame');
+    }
+    video.pause();
+    return 'ready';
+  }, []);
+
+  const scheduleDecodedFrame = useCallback((progress: number): Promise<void> => {
+    desiredProgressRef.current = clamp(progress);
+    desiredSequenceRef.current += 1;
+    if (mediaPreparationRef.current) return mediaPreparationRef.current;
+    const generation = surfaceGenerationRef.current;
+    if (!generation || disposedRef.current) return Promise.resolve();
+    const pump = async () => {
+      while (generation === surfaceGenerationRef.current && !disposedRef.current) {
+        const sequence = desiredSequenceRef.current;
+        const result = await prepareDecodedFrame(generation, desiredProgressRef.current);
+        if (result === 'ready' && sequence === desiredSequenceRef.current) return;
+        if (result === 'stale') return;
+      }
+    };
+    const preparation = pump().catch((error: unknown) => {
+      reportPreparationFailure(error, generation);
+    }).finally(() => {
+      if (mediaPreparationRef.current === preparation) mediaPreparationRef.current = null;
+    });
+    mediaPreparationRef.current = preparation;
+    return preparation;
+  }, [prepareDecodedFrame, reportPreparationFailure]);
+
   const render = useCallback((progress: number) => {
     const root = rootRef.current;
     if (root) renderPhoneAod(root, progress);
     const video = videoRef.current;
     const surface = surfaceRef.current;
     if (!video || !surface || surfaceGenerationRef.current <= 0) return;
-    const mediaProgress = mapAodTimelineToMediaProgress(
+    // The timeline driver owns seek/compositor completion. Never treat a
+    // currentTime assignment followed by an immediate WebGL upload as proof.
+    // A single coalesced preparation consumes the latest reducer progress.
+    void scheduleDecodedFrame(mapAodTimelineToMediaProgress(
       progress, AOD_PHONE_TIMELINE_ALPHA_END
-    );
-    const duration = Number.isFinite(video.duration) && video.duration > 0
-      ? Math.min(AOD_FIGURE_END_SECONDS, video.duration)
-      : AOD_FIGURE_END_SECONDS;
-    const nextTime = mediaProgress * duration;
-    try {
-      if (Math.abs(video.currentTime - nextTime) > 1 / 120) video.currentTime = nextTime;
-      video.pause();
-    } catch {
-      // Safari may reject a seek while a source is being replaced; the next
-      // reducer-owned frame will retry without creating a second clock.
-    }
-    surface.render();
-  }, []);
+    ));
+  }, [scheduleDecodedFrame]);
 
   const reportPoster = useCallback(() => {
     const binding = bindingRef.current;
@@ -148,6 +214,9 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         bindingRef.current = binding;
         frameSequenceRef.current = 0;
         reportedPosterTokenRef.current = null;
+        desiredProgressRef.current = 0;
+        desiredSequenceRef.current = 0;
+        lastRequestedProgressRef.current = 0;
         reportPoster();
       },
       activate(command): PhoneActivationInvocation {
@@ -161,25 +230,23 @@ export function PhoneAod({ reports }: PhoneAodProps) {
           invoked: false,
           settlements: []
         };
-        const generation = surface.activate('forward');
-        surfaceGenerationRef.current = generation;
+        disposeTimelineVideoDriver(video);
+        const activatedGeneration = surface.activate('forward');
+        surfaceGenerationRef.current = activatedGeneration;
         const root = rootRef.current;
         if (root) root.dataset.phoneAodPlaybackFrame = 'awaiting';
         let settled: Promise<void>;
         try {
-          // Consume the trusted activation window, then immediately pause. All
-          // subsequent media time is projected from transaction.progress.
+          // Consume the trusted activation window. The timeline driver waits
+          // for a decoded/compositor frame before pausing the decoder.
           const playPromise = video.play();
-          video.pause();
-          settled = Promise.resolve(playPromise).then(() => {
-            if (generation !== surfaceGenerationRef.current) {
-              throw new Error('AOD compositor did not present the activated frame');
+          settled = Promise.resolve(playPromise).then(async () => {
+            if (activatedGeneration !== surfaceGenerationRef.current) {
+              throw new Error('AOD activation was superseded before frame preparation');
             }
-            video.pause();
-            try { video.currentTime = 0; } catch { /* source metadata may lag */ }
-            if (!surface.render()) {
-              throw new Error('AOD compositor did not present the activated frame');
-            }
+            desiredProgressRef.current = 0;
+            desiredSequenceRef.current += 1;
+            await scheduleDecodedFrame(0);
           });
         } catch (error) {
           settled = Promise.reject(error);
@@ -187,8 +254,8 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         return {
           invocationId: command.invocationId,
           surfaceIds: expected,
-          invoked: generation > 0,
-          settlements: generation > 0
+          invoked: activatedGeneration > 0,
+          settlements: activatedGeneration > 0
             ? [{ surfaceId: expected[0]!, status: 'pending', settled }]
             : []
         };
@@ -197,12 +264,16 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       settle(endpoint) { render(endpoint); },
       pause() {
         surfaceGenerationRef.current = 0;
+        const video = videoRef.current;
+        if (video) disposeTimelineVideoDriver(video);
         surfaceRef.current?.release();
         delete rootRef.current?.dataset.phoneAodPlaybackFrame;
       },
       dispose() {
         disposedRef.current = true;
         surfaceGenerationRef.current = 0;
+        const video = videoRef.current;
+        if (video) disposeTimelineVideoDriver(video);
         surfaceRef.current?.dispose('terminal');
         surfaceRef.current = null;
         bindingRef.current = null;
@@ -249,7 +320,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       }
     };
     return Object.freeze(commandHandle);
-  }, [render, reportPoster]);
+  }, [render, reportPoster, scheduleDecodedFrame]);
 
   useLayoutEffect(() => {
     setPosterHost(rootRef.current?.querySelector<HTMLElement>('[data-aod-reveal-surface]') ?? null);
@@ -327,6 +398,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       current = false;
       disposedRef.current = true;
       surfaceGenerationRef.current = 0;
+      disposeTimelineVideoDriver(video);
       posterReadyRef.current = false;
       reportedPosterTokenRef.current = null;
       surface.dispose('reactivatable');

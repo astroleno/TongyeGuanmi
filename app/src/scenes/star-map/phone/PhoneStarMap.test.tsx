@@ -71,7 +71,7 @@ describe('clean PhoneStarMap leaf', () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneStarMap reports={mount.reports} />); });
     expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
-      ['star-map-canvas', 'canvas-2d']
+      ['star-map-source', 'image'], ['star-map-canvas', 'canvas-2d']
     ]);
     expect(Object.keys(mount.registration()?.commands ?? {}).sort()).toEqual([
       'activate', 'dispose', 'pause', 'rebind', 'render', 'settle'
@@ -82,8 +82,15 @@ describe('clean PhoneStarMap leaf', () => {
     });
     expect(current.reports.reportFrame).not.toHaveBeenCalled();
 
+    await act(async () => {
+      host.querySelector('[data-portrait-star-source]')?.dispatchEvent(new Event('load'));
+      await Promise.resolve();
+    });
     revealProbe.instance!.ready = true;
     await act(async () => { frames.shift()?.(16); });
+    expect(current.reports.reportPrepared).toHaveBeenCalledWith(
+      'star-map-source', expect.objectContaining({ kind: 'image-decoded', ready: true })
+    );
     expect(revealProbe.instance?.renderBackground).toHaveBeenCalledWith(
       expect.objectContaining({
         camera: { rotationDegrees: -90, zoom: 1 }, drawSource: false
@@ -129,6 +136,10 @@ describe('clean PhoneStarMap leaf', () => {
     document.body.replaceChildren(shell);
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneStarMap reports={mount.reports} />); });
+    await act(async () => {
+      host.querySelector('[data-portrait-star-source]')?.dispatchEvent(new Event('load'));
+      await Promise.resolve();
+    });
     revealProbe.instance!.ready = true;
     await act(async () => { frames.shift()?.(16); });
     expect(frames).toHaveLength(0);

@@ -199,7 +199,8 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
         );
         if (!reading) return;
         const scrollOwner = document.scrollingElement ?? document.documentElement; const scrollTop = Math.max(0, scrollOwner.scrollTop || window.scrollY || 0);
-        const visualRoot = reading.closest<HTMLElement>('.phone-method-top__visual') ?? reading;
+        const shell = reading.closest<HTMLElement>('.phone-story');
+        const visualRoot = shell?.querySelector<HTMLElement>('.phone-story__viewport .phone-method-top__visual') ?? reading;
         const value = scrollTop.toFixed(2); visualRoot.style.setProperty('--phone-method-native-scroll-y', `${value}px`);
         visualRoot.dataset.phoneMethodNativeScrollY = value;
       };
@@ -650,7 +651,7 @@ export function PhoneStoryShell({
       data-phone-network-hint={diagnostics ? typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'online' : undefined} data-phone-missing-proof={diagnostics ? phoneDiagnosticMissingProofs(snapshot).join(',') : undefined}
       data-phone-authority={diagnostics ? snapshot.authorityId : undefined} data-phone-phase={diagnostics && snapshot.status === 'transaction' ? snapshot.transaction.phase : undefined}
       data-phone-plane-revision={diagnostics ? snapshot.lastPlaneRevision : undefined} data-phone-commit-sequence={diagnostics ? snapshot.stableCommit?.commitSequence ?? 0 : undefined}
-      data-phone-scene={diagnostics ? stableScene ?? undefined : undefined}
+      data-phone-scene={stableScene ?? undefined}
     >
       <div data-phone-loader="true">
         <StoryLoader mode={snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}
