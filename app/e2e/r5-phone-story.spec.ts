@@ -571,6 +571,7 @@ type PhoneRuntimeResourceSample = Readonly<{
   at: number;
   activeMedia: number;
   activeWebgl: number;
+  activeWebglLabels?: ReadonlyArray<string>;
 }>;
 
 type PhoneLegTimeline = Readonly<{
@@ -588,6 +589,7 @@ type PhoneLegTimeline = Readonly<{
   releaseAt: number;
   activeMediaAtMax: number;
   activeWebglAtMax: number;
+  activeWebglLabelsAtMax?: ReadonlyArray<string>;
 }>;
 
 const PHONE_NAV_HASH: Partial<Record<PhoneStableScene, string>> = {
@@ -1041,7 +1043,10 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
           .filter((video) => !video.paused && !video.ended).length,
         activeWebgl: probe.contexts.filter(
           (context) => !context.isContextLost()
-        ).length
+        ).length,
+        activeWebglLabels: probe.contexts.flatMap((context, index) => (
+          context.isContextLost() ? [] : [probe.created[index]?.label ?? `context-${index}`]
+        ))
       });
       if (probe.resourceSamples.length > 2_000) probe.resourceSamples.shift();
     };
@@ -1359,7 +1364,13 @@ async function recordPhoneLegTimeline(
     commitAt,
     releaseAt,
     activeMediaAtMax: Math.max(0, ...samples.map((sample) => sample.activeMedia)),
-    activeWebglAtMax: Math.max(0, ...samples.map((sample) => sample.activeWebgl))
+    activeWebglAtMax: Math.max(0, ...samples.map((sample) => sample.activeWebgl)),
+    activeWebglLabelsAtMax: samples.reduce<ReadonlyArray<string>>(
+      (labels, sample) => sample.activeWebgl > labels.length
+        ? sample.activeWebglLabels ?? labels
+        : labels,
+      []
+    )
   };
   expect(timeline.firstFrameAt).toBeGreaterThanOrEqual(timeline.startAt);
   expect(timeline.commitAt).toBeGreaterThanOrEqual(timeline.firstFrameAt);
