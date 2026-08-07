@@ -35,13 +35,20 @@ export type PhonePackedAlphaSurfaceCommand =
   ]
   /** Rebind one already-mounted compositor to a fresh proof token and draw. */
   | readonly ['present', presentationToken: string | null]
+  /** Read the currently mounted canvas without taking ownership of it. */
+  | readonly ['canvas']
   | readonly ['release']
   | readonly ['dispose'];
 
 /** Callable bridge keeps the mutable decoder/compositor in its owner chunk. */
-export type PhonePackedAlphaSurface = (
-  command: PhonePackedAlphaSurfaceCommand
-) => Promise<void> | void;
+export type PhonePackedAlphaSurface = {
+  (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['activate', ...unknown[]]>): void;
+  (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['prepare', ...unknown[]]>): Promise<void>;
+  (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['present', ...unknown[]]>): void;
+  (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['canvas']>): HTMLCanvasElement | null;
+  (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['release']>): void;
+  (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['dispose']>): void;
+};
 
 type Preparation = Readonly<{
   presentationToken: string | null;
@@ -358,7 +365,7 @@ export function createPhonePackedAlphaSurface(
     compositor.render();
   };
 
-  return (command) => {
+  const surface = (command: PhonePackedAlphaSurfaceCommand) => {
     switch (command[0]) {
       case 'activate':
         activate(command[1], command[2]);
@@ -373,6 +380,8 @@ export function createPhonePackedAlphaSurface(
       case 'present':
         present(command[1]);
         return;
+      case 'canvas':
+        return canvas ?? null;
       case 'release':
         release();
         return;
@@ -380,4 +389,5 @@ export function createPhonePackedAlphaSurface(
         dispose();
     }
   };
+  return surface as PhonePackedAlphaSurface;
 }

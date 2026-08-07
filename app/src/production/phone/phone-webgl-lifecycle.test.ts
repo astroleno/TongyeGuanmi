@@ -68,7 +68,7 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(crane).not.toMatch(/\n\s*leave\(/);
   });
 
-  it('retires Hero and AOD packed contexts when their stable owner leaves', () => {
+  it('keeps Hero Canvas ownership inside the packed surface lifecycle', () => {
     const hero = source('./scenes/PhoneHero.tsx');
     const aod = source('./scenes/PhoneAod.tsx');
     const heroProjectionLease = hero.slice(
@@ -84,16 +84,15 @@ describe('phone WebGL allocation lifecycle', () => {
       ))
     );
 
-    expect(hero).toContain('const releaseCompositor = useCallback(');
-    expect(hero).toContain('renewPackedAlphaCanvas');
-    expect(hero).toContain('releaseContextOnDispose: true');
-    expect(hero).toContain('restorePackedAlphaWebGlContext');
+    expect(hero).toContain('createPhonePackedAlphaSurface');
+    expect(hero).not.toContain('renewPackedAlphaCanvas');
+    expect(hero).not.toContain('restorePackedAlphaWebGlContext');
     expect(hero).not.toMatch(/\n\s*leave\(\) \{/);
     expect(hero).not.toMatch(/\n\s*reverse\(\) \{/);
     expect(heroProjectionLease).toContain('releaseGpuOwners();');
-    expect(heroProjectionLease).toContain('ensureCompositor()?.setActive(true);');
+    expect(heroProjectionLease).toContain("ensurePackedSurface('forward');");
     expect(heroProjectionLease).toContain('if (presentationBindingRef.current)');
-    expect(heroProjectionLease).toContain('compositorRef.current?.setActive(true);');
+    expect(heroProjectionLease).not.toContain('compositorRef.current');
     expect(aod).toContain('const ensureCompositor = useCallback(');
     expect(aod).toContain('renewPackedAlphaCanvas');
     expect(aod).toContain('releaseContextOnDispose: false');
@@ -131,7 +130,7 @@ describe('phone WebGL allocation lifecycle', () => {
     // Loader handoff real; only playback/parallax stay disabled. Direct
     // downstream routes remain cold because `active` is false there.
     expect(hero).toContain('if (active) {');
-    expect(hero).toContain('ensureCompositor()?.setActive(true);');
+    expect(hero).toContain("ensurePackedSurface('forward');");
     expect(hero).toContain("ensureIntroInk()?.(['prewarm']);");
     expect(hero).toContain('playbackRef.current?.setActive(active && !reducedMotion);');
   });
@@ -152,12 +151,13 @@ describe('phone WebGL allocation lifecycle', () => {
     // breach the global cap when a later Group67 ink field is admitted.
     const releaseGpuOwners = hero.slice(
       hero.indexOf('const releaseGpuOwners = useCallback('),
-      hero.indexOf('const ensureCompositor = useCallback(')
+      hero.indexOf('const storyRoot = useCallback(')
     );
 
     expect(activeLease).toContain('cancelEntrance();');
     expect(activeLease).toContain('releaseGpuOwners();');
-    expect(releaseGpuOwners).toContain('releaseCompositor();');
+    expect(hero).toContain("packedSurfaceRef.current?.(['release']);");
+    expect(releaseGpuOwners).toContain('releasePackedSurface();');
     expect(releaseGpuOwners).toContain("introInkRef.current?.(['dispose']);");
     expect(releaseGpuOwners).toContain('introInkRef.current = undefined;');
   });

@@ -301,7 +301,7 @@ export function usePhoneStageRuntime(
           token.kind === 'static-poster'
           && token.subject === 'front:hero'
           && options.heroRef.current?.root()?.querySelector<HTMLCanvasElement>(
-            '[data-portrait-figure-canvas]'
+            '[data-phone-packed-alpha-canvas="hero-figure"]'
           )?.dataset.packedAlphaFrameReady === 'true'
         )
       ),

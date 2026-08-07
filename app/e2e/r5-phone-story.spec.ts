@@ -852,7 +852,30 @@ async function assertStablePhoneHold(
       expectStablePhoneRuntimeGates(page, evidence);
       return null;
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      const diagnostics = await page.evaluate(() => {
+        const root = document.querySelector<HTMLElement>('.portrait-scroll-spike');
+        const hero = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--hero');
+        const canvas = hero?.querySelector<HTMLCanvasElement>(
+          '[data-phone-packed-alpha-canvas="hero-figure"]'
+        );
+        const video = hero?.querySelector<HTMLVideoElement>('[data-portrait-figure-video]');
+        return {
+          heroActive: hero?.getAttribute('data-phone-scene-active') ?? null,
+          heroFirstFrame: hero?.dataset.phoneHeroFirstFrame ?? null,
+          heroEntrance: root?.dataset.portraitHeroEntrance ?? null,
+          canvasStatus: canvas?.dataset.packedAlphaStatus ?? null,
+          canvasReady: canvas?.dataset.packedAlphaFrameReady ?? null,
+          canvasSize: canvas ? [canvas.width, canvas.height] : null,
+          videoReadyState: video?.readyState ?? null,
+          videoCurrentTime: video?.currentTime ?? null,
+          videoPaused: video?.paused ?? null,
+          videoSource: video?.dataset.phoneFigureSource ?? null,
+          videoPlayback: video?.dataset.phoneFigurePlayback ?? null,
+          videoTimelineReady: video?.dataset.timelineVideoFrameReady ?? null
+        };
+      });
+      const message = error instanceof Error ? error.message : String(error);
+      return `${message}\nhero diagnostics: ${JSON.stringify(diagnostics)}`;
     }
   }, {
     timeout,
@@ -4174,14 +4197,18 @@ test('[P0 real root pixels] Figure1 alpha proof has matching non-edge compositor
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   const root = page.locator(LIVE_PHONE_ROOT);
-  const figureCanvas = page.locator('[data-portrait-figure-canvas]');
+  const figureCanvas = page.locator(
+    '[data-phone-packed-alpha-canvas="hero-figure"]'
+  );
   const figureParallax = page.locator('.portrait-scroll-spike__hero-figure-parallax');
   await expect(root).toHaveCount(1);
   await expect.poll(async () => page.locator(LIVE_STORY_LOADER).count()).toBe(0);
   await expect(root).toHaveAttribute('data-portrait-loader-ready', 'true');
   await expect(figureCanvas).toHaveCount(1);
   await expect.poll(async () => page.evaluate(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>('[data-portrait-figure-canvas]');
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas="hero-figure"]'
+    );
     const parallax = document.querySelector<HTMLElement>(
       '.portrait-scroll-spike__hero-figure-parallax'
     );

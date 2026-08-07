@@ -43,7 +43,7 @@ describe('PhoneHero Route B adapter', () => {
     expect(markup).toContain('data-portrait-hero-intro-ink="true"');
     expect(markup).toContain('data-portrait-figure-poster="true"');
     expect(markup).toContain('decoding="async"');
-    expect(markup).toContain('data-portrait-figure-canvas="true"');
+    expect(markup).not.toContain('data-portrait-figure-canvas="true"');
     expect(markup).toContain('data-portrait-figure-video="true"');
     expect(markup).toContain('data-portrait-gyro-permission="true"');
     expect(markup).toContain('轻触开启体感与全屏');
@@ -74,7 +74,7 @@ describe('PhoneHero Route B adapter', () => {
   it('[front-half gate] confirms Hero readiness only after a successful packed-alpha draw survives browser presentation', () => {
     const postPaintPath = heroSource.slice(
       heroSource.indexOf('const schedulePackedAlphaPostPaint'),
-      heroSource.indexOf('const ensureCompositor = useCallback')
+      heroSource.indexOf('const renderEntrance = useCallback')
     );
     expect(postPaintPath).toContain('canvas.dataset.packedAlphaFrameReady !== \'true\'');
     expect(postPaintPath).toContain('void nextBrowserPresentation().then(() => {');
@@ -82,6 +82,15 @@ describe('PhoneHero Route B adapter', () => {
     expect(postPaintPath).toContain('heroPackedFramePresentedRef.current = true;');
     expect(postPaintPath).toContain("visibleRoot.dataset.phoneHeroFirstFrame = 'packed-alpha-post-paint'");
     expect(heroSource).toContain('onReady?.();');
+  });
+
+  it('[ownership hard cutover] lets the packed surface create and retire Hero Canvas', () => {
+    expect(heroSource).toContain('createPhonePackedAlphaSurface');
+    expect(heroSource).not.toContain('createPackedAlphaVideoCompositor');
+    expect(heroSource).not.toContain('figureCanvasRef');
+    expect(heroSource).not.toContain('renewPackedAlphaCanvas');
+    expect(heroSource).not.toContain('restorePackedAlphaWebGlContext');
+    expect(heroSource).toContain("surface?.(['canvas'])");
   });
 
   it('[Task 5] binds the post-painted Hero canvas to the active presentation token before reporting', () => {
