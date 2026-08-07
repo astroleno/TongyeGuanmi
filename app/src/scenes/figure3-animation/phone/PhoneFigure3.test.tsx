@@ -553,6 +553,16 @@ describe('PhoneFigure3', () => {
     expect(handle).not.toMatch(/reverse\(\)\s*\{[\s\S]*?startRun\(/);
   });
 
+  it('[Group45 repeat-run cutover] rebases a new machine identity instead of rejecting it behind a retired leaf run', () => {
+    const play = phoneFigure3Source.slice(
+      phoneFigure3Source.indexOf('play(runDirection'),
+      phoneFigure3Source.indexOf('presentPresentation(token', phoneFigure3Source.indexOf('play(runDirection'))
+    );
+    expect(play).toContain('runIdentityRef.current = null;');
+    expect(play).toContain('playbackIntentIdentityRef.current = null;');
+    expect(play).not.toContain('!sameExecution(runIdentityRef.current, request))\n      ) return;');
+  });
+
   it('disposes the retired video source and decoder', () => {
     const firstSource = { removeAttribute: vi.fn() };
     const secondSource = { removeAttribute: vi.fn() };

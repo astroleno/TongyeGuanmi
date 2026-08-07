@@ -1391,12 +1391,26 @@ export const PhoneFigure3 = forwardRef<
       // The route runner is the only caller allowed to issue a playback
       // intent. Keep this command token-bound; prop reconciliation may still
       // finish endpoint preparation, but it cannot invent a new execution.
-      if (
-        reducedMotionRef.current
-        || mediaFailedRef.current
-        || (request && runIdentityRef.current && !sameExecution(runIdentityRef.current, request))
-      ) return;
-      if (request) executionRef.current = request;
+      if (reducedMotionRef.current || mediaFailedRef.current) return;
+      if (request) {
+        // A new machine leg is allowed to replace the retired decoder identity.
+        // The previous implementation rejected the command while
+        // runIdentityRef still held the prior leg, which left the reducer in
+        // `animating` with its canonical progress at the endpoint. Rebase the
+        // leaf command here; the runner still validates the exact presentation
+        // token before it can admit a frame.
+        if (
+          runIdentityRef.current
+          && !sameExecution(runIdentityRef.current, request)
+        ) {
+          runIdentityRef.current = null;
+          pendingRunDirectionRef.current = null;
+          pendingRunTargetKeyRef.current = null;
+          playbackIntentDirectionRef.current = null;
+          playbackIntentIdentityRef.current = null;
+        }
+        executionRef.current = request;
+      }
       activeRef.current = true;
       directionRef.current = runDirection;
       playbackIntentDirectionRef.current = runDirection;
