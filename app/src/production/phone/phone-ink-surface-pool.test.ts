@@ -44,7 +44,7 @@ class FakeDocument {
 }
 
 describe('phone ink surface pool', () => {
-  it('retires the old surface before a new fixed-stage owner acquires one', () => {
+  it('reuses one route-level surface while changing the active fixed-stage owner', () => {
     const document = new FakeDocument();
     const firstHost = document.host();
     const secondHost = document.host();
@@ -63,8 +63,8 @@ describe('phone ink surface pool', () => {
       onRevoke: vi.fn()
     });
 
-    expect(first.canvas).not.toBe(second.canvas);
-    expect(document.createElement).toHaveBeenCalledTimes(2);
+    expect(first.canvas).toBe(second.canvas);
+    expect(document.createElement).toHaveBeenCalledTimes(1);
     expect(revokeFirst).toHaveBeenCalledOnce();
     expect(firstHost.children).toHaveLength(0);
     expect(secondHost.children).toEqual([second.canvas]);
@@ -73,7 +73,7 @@ describe('phone ink surface pool', () => {
 
     first.release();
     second.release();
-    expect(second.canvas.remove).toHaveBeenCalledOnce();
+    expect(second.canvas.remove).toHaveBeenCalledTimes(2);
   });
 
   it('releases only the matching lease and retires its canvas', () => {

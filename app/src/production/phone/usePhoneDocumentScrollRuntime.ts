@@ -28,7 +28,9 @@ export type PhoneDocumentScrollSample = readonly [
   progress: number | undefined,
   direction: -1 | 0 | 1 | undefined,
   /** Optional for frozen corridors that do not select a motion strategy. */
-  reducedMotion?: boolean
+  reducedMotion?: boolean,
+  /** Physical touch/wheel epoch retained through native momentum tail. */
+  inputEpoch?: number
 ];
 
 export type PhoneDocumentScrollRuntime = Readonly<{
@@ -46,6 +48,7 @@ export type CreatePhoneDocumentScrollRuntimeOptions = Readonly<{
   visualViewport: (EventTargetLike & Readonly<{ offsetTop: number }>) | null;
   registry: PhoneScrollCorridorRegistry;
   getSnapshot: PhoneDocumentScrollPort['getSnapshot'];
+  getInputEpoch?: () => number | null;
   reportSample: PhoneDocumentScrollPort['reportSample'];
   requestFrame(callback: () => void): number;
   cancelFrame(frame: number): void;
@@ -97,7 +100,15 @@ export function createPhoneDocumentScrollRuntime(
         sample.direction,
         sample.reducedMotion
       ] as const satisfies PhoneDocumentScrollSample;
-    options.reportSample(report);
+    const inputEpoch = options.getInputEpoch?.() ?? null;
+    const reportWithEpoch: PhoneDocumentScrollSample = inputEpoch === null
+      ? report
+      : [
+        ...report,
+        ...(sample?.reducedMotion === undefined ? [undefined] : []),
+        inputEpoch
+      ] as unknown as PhoneDocumentScrollSample;
+    options.reportSample(reportWithEpoch);
   };
   const schedule = () => {
     if (disposed || frame) return;

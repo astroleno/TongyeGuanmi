@@ -293,6 +293,57 @@ describe('token-bound phone presentation proofs', () => {
     expect(heroAgain).toMatchObject({ status: 'stable', scene: 'hero' });
   });
 
+  it('[same touch epoch] consumes momentum after a scroll endpoint is admitted', () => {
+    const initial = createPhoneStorySnapshot({
+      authorityId: 'scroll-epoch-authority',
+      scene: 'star-map',
+      actualY: 640
+    });
+    const scrolling = reducePhoneStorySnapshot(initial, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: initial.authorityId,
+      actualY: 700,
+      corridor: 'front-rail',
+      run: 'star-aod-scroll',
+      progress: .9,
+      direction: 1,
+      inputEpoch: 9
+    } as never).snapshot;
+    const candidateReduction = reducePhoneStorySnapshot(scrolling, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: initial.authorityId,
+      actualY: 720,
+      corridor: 'front-rail',
+      scene: 'aod-animation',
+      progress: 1,
+      direction: 1,
+      inputEpoch: 9
+    } as never);
+    const candidate = candidateReduction.snapshot;
+
+    expect(candidate).toMatchObject({
+      status: 'transaction',
+      input: { completedEpoch: 9 },
+      session: { inputEpoch: 9 }
+    });
+
+    const stable = reportProof(candidate, targetProof(candidate));
+    expect(stable).toMatchObject({ status: 'stable', scene: 'aod-animation' });
+
+    const tail = reducePhoneStorySnapshot(stable, {
+      type: 'SCROLL_SAMPLED',
+      authorityId: initial.authorityId,
+      actualY: 610,
+      corridor: 'front-rail',
+      run: 'star-aod-scroll',
+      progress: .2,
+      direction: -1,
+      inputEpoch: 9
+    } as never);
+    expect(tail.snapshot).toBe(stable);
+    expect(tail.inputDisposition).toBe('consume-completed-epoch-tail');
+  });
+
   it('[Task 3] leaves preparing only for an exact active-leg physical frame proof', () => {
     const stable = createPhoneStorySnapshot({
       authorityId: 'first-frame-authority',

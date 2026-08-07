@@ -38,14 +38,22 @@ function retireCanvas(pool: PhoneInkSurfacePool): void {
   canvas.style.visibility = 'hidden';
   canvas.style.opacity = '0';
   canvas.remove();
-  pool.canvas = undefined;
+}
+
+function contextWasLost(canvas: HTMLCanvasElement): boolean {
+  const getContext = canvas.getContext?.bind(canvas) as
+    | ((kind: string) => { isContextLost?: () => boolean } | null)
+    | undefined;
+  if (!getContext) return false;
+  const context = getContext('webgl') ?? getContext('webgl2');
+  return context?.isContextLost?.() === true;
 }
 
 /**
- * The phone story owns one active ink surface for the whole document. Each
- * boundary gets a fresh canvas lease so releasing a WebGL renderer retires
- * the DOM node and its context together. A later reverse leg acquires a new
- * surface instead of reviving a stale React or WebGL owner.
+ * The phone story owns one active ink surface for the whole document. Boundary
+ * leases only change the host and renderer resources; the detached canvas and
+ * its WebGL context stay reusable for the next leg. A replacement is created
+ * only after the browser has actually lost the pooled context.
  */
 export function claimPhoneInkSurface(
   document: Document,
@@ -60,7 +68,12 @@ export function claimPhoneInkSurface(
     active.onRevoke();
     retireCanvas(pool);
   }
-  const canvas = pool.canvas ?? createCanvas(document);
+  const canvas = pool.canvas && !contextWasLost(pool.canvas)
+    ? pool.canvas
+    : createCanvas(document);
+  if (pool.canvas && canvas !== pool.canvas) {
+    pool.canvas.remove();
+  }
   pool.canvas = canvas;
   pool.active = { ...claim, token };
   canvas.className = claim.className;

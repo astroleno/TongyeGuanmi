@@ -130,10 +130,10 @@ export function createPhoneInkRuntimeBridge([
     grade: requestGrade ?? 'dark',
     generation: `phone-story:${id}`,
     removeCanvasOnDestroy: false,
-    // The pool retires this canvas with the endpoint lease. Lose the context
-    // at the same boundary so a detached WebGL owner cannot survive into the
-    // next Group 6/7 media admission.
-    loseContextOnDestroy: true
+    // The document-scoped pool retains this canvas/context between boundary
+    // leases. Renderer resources are destroyed per execution, while the
+    // authority owns final context disposal.
+    loseContextOnDestroy: false
   });
   const unique = (elements: readonly (HTMLElement | null)[]) => elements.filter(
     (element, index, elements): element is HTMLElement => (
@@ -406,11 +406,9 @@ export function createPhoneFigure2DepthInkRuntimeBridge([
     grade: 'edge-only',
     generation,
     removeCanvasOnDestroy: ownsCanvas,
-    // Figure2 supplies a pool-owned canvas, but the renderer still owns the
-    // WebGL context for this execution. Retire that context with the depth
-    // lease; the pool removes the canvas after disposal and the next leg gets
-    // a fresh surface.
-    loseContextOnDestroy: true,
+    // Figure2 supplies a pool-owned canvas. Dispose only execution resources;
+    // the document pool retains the context for the next boundary lease.
+    loseContextOnDestroy: false,
     onInvalidated(nextFailure) {
       failure = nextFailure;
     }

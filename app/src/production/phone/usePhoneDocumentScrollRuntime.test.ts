@@ -138,4 +138,46 @@ describe('authority-scoped document scroll runtime', () => {
     ]);
     runtime.dispose();
   });
+
+  it('carries the active touch epoch through the sampled scroll ABI', () => {
+    const page = Object.assign(new EventTargetStub(), {
+      scrollY: 88,
+      innerWidth: 390,
+      innerHeight: 844
+    });
+    const registry = createPhoneScrollCorridorRegistry();
+    registry.register({
+      id: 'front',
+      scenes: ['hero'],
+      sample: () => ({ actualY: 88, progress: .1, direction: 1 as const }),
+      boundary: () => 100,
+      landing: () => 100
+    });
+    const reportSample = vi.fn();
+    const runtime = createPhoneDocumentScrollRuntime({
+      page: page as unknown as Window,
+      document: new EventTargetStub() as unknown as Document,
+      visualViewport: null,
+      registry,
+      getSnapshot: () => createPhoneStorySnapshot({ authorityId: 'a', scene: 'hero' }),
+      getInputEpoch: () => 7,
+      reportSample,
+      requestFrame: () => 1,
+      cancelFrame: () => undefined
+    });
+
+    runtime.sampleNow();
+
+    expect(reportSample.mock.calls[0]?.[0]).toEqual([
+      88,
+      'front',
+      null,
+      null,
+      .1,
+      1,
+      undefined,
+      7
+    ]);
+    runtime.dispose();
+  });
 });

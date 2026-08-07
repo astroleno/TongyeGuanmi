@@ -497,6 +497,8 @@ export type PhoneStoryEvent =
       run?: PhoneScrollRunId | undefined;
       /** Positional front-rail fact; only reduced samples enter static admission. */
       reducedMotion?: boolean | undefined;
+      /** Physical touch/wheel epoch retained through native momentum tail. */
+      inputEpoch?: number | undefined;
     }>;
 
 export type PhoneStoryEffect = never;
@@ -1516,6 +1518,7 @@ type PhoneHoldCandidateSample = Readonly<{
   progress: number;
   direction: -1 | 0 | 1;
   reducedMotion: boolean;
+  inputEpoch: number | null;
 }>;
 
 function committedSceneFor(
@@ -1547,7 +1550,7 @@ function startedHoldCandidate(
   const direction = directionForHoldCandidate(from, target, sample.direction);
   const session: PhoneSnapshotSession = {
     ...identity,
-    inputEpoch: null,
+    inputEpoch: sample.inputEpoch,
     operation: {
       trigger: 'auto',
       run: null,
@@ -1591,8 +1594,15 @@ function startedHoldCandidate(
     status: 'transaction',
     session
   };
+  const input = sample.inputEpoch === null
+    ? snapshot.input
+    : {
+      completedEpoch: sample.inputEpoch,
+      completedEpochUntil: sample.inputEpoch
+    };
   return reduced({
     ...provisional,
+    input,
     projection: projectionForTransaction(provisional)
   });
 }
@@ -1658,7 +1668,8 @@ export function reducePhoneStorySnapshot(
       corridor: snapshot.scroll.corridor,
       progress: 1,
       direction: 0,
-      reducedMotion: false
+      reducedMotion: false,
+      inputEpoch: null
     });
   }
 
@@ -1693,6 +1704,13 @@ export function reducePhoneStorySnapshot(
         });
     }
     if (
+      event.inputEpoch !== undefined
+      && event.inputEpoch !== null
+      && snapshot.input.completedEpoch === event.inputEpoch
+    ) {
+      return reduced(snapshot, 'consume-completed-epoch-tail');
+    }
+    if (
       event.scene
       && event.scene !== committedSceneFor(snapshot)
     ) {
@@ -1701,7 +1719,8 @@ export function reducePhoneStorySnapshot(
         corridor: event.corridor ?? snapshot.scroll.corridor,
         progress: event.progress === undefined ? snapshot.scroll.progress : clamp(event.progress),
         direction: event.direction ?? snapshot.scroll.direction,
-        reducedMotion: event.reducedMotion === true
+        reducedMotion: event.reducedMotion === true,
+        inputEpoch: event.inputEpoch ?? null
       });
     }
     return reduced(nextSampledScroll(snapshot, event));

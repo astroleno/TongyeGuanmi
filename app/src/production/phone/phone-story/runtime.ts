@@ -176,7 +176,8 @@ export function reportPhoneRuntimeScrollSample(
     run,
     progress,
     direction,
-    reducedMotion
+    reducedMotion,
+    inputEpoch
   ]: PhoneDocumentScrollSample
 ): void {
   port.dispatch({
@@ -188,7 +189,8 @@ export function reportPhoneRuntimeScrollSample(
     ...(run === null ? {} : { run }),
     progress,
     direction,
-    ...(reducedMotion === undefined ? {} : { reducedMotion })
+    ...(reducedMotion === undefined ? {} : { reducedMotion }),
+    ...(inputEpoch === undefined ? {} : { inputEpoch })
   });
 }
 
@@ -1264,6 +1266,7 @@ export function createPhoneStoryRuntime(
   let disposeCoordinator: (() => void) | undefined;
   let disposeDocumentScrollRuntime: (() => void) | undefined;
   let disposeBrowserReapply: (() => void) | undefined;
+  let activeInputEpoch: number | null = null;
 
   const authority: PhoneStoryAuthority = {
     authorityId,
@@ -1297,6 +1300,7 @@ export function createPhoneStoryRuntime(
           visualViewport: pageWindow.visualViewport,
           registry: engine.scrollCorridors,
           getSnapshot: port.getSnapshot,
+          getInputEpoch: () => activeInputEpoch,
           reportSample: (sample) => reportPhoneRuntimeScrollSample(port, sample),
           requestFrame: pageWindow.requestAnimationFrame.bind(pageWindow),
           cancelFrame: pageWindow.cancelAnimationFrame.bind(pageWindow)
@@ -1304,7 +1308,10 @@ export function createPhoneStoryRuntime(
         disposeDocumentScrollRuntime = scrollRuntime.dispose;
         disposeCoordinator = createPhoneIntentCoordinator(
           root,
-          engine.resolveIntent,
+          (intent) => {
+            activeInputEpoch = intent[0];
+            return engine.resolveIntent(intent);
+          },
           {
             scrollY: options.scrollY,
             scrollTo: options.scrollTo,
