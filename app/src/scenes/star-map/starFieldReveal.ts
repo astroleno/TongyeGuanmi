@@ -2,6 +2,13 @@ type StarFieldRevealOptions = {
   canvas: HTMLCanvasElement;
   sourceUrl: string;
   autoplay?: boolean;
+  /**
+   * 'extract' (default) derives the highlight layer from the source luminance
+   * via the threshold/gamma/softness curve. 'precomputed-alpha' trusts the
+   * source image's own alpha channel as the highlight layer, for assets that
+   * were baked offline — the extraction curve is skipped entirely.
+   */
+  highlightSource?: 'extract' | 'precomputed-alpha';
   config?: Partial<StarFieldRevealConfig>;
   /**
    * Optional presentation viewport. The source and Perlin layers are both
@@ -170,6 +177,7 @@ export class StarFieldReveal {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D | null;
   readonly sourceUrl: string;
+  readonly highlightSource: 'extract' | 'precomputed-alpha';
   readonly config: StarFieldRevealConfig;
   readonly autoplay: boolean;
   readonly viewport: StarFieldRevealOptions['viewport'];
@@ -188,6 +196,7 @@ export class StarFieldReveal {
     this.canvas = options.canvas;
     this.ctx = this.canvas.getContext('2d');
     this.sourceUrl = options.sourceUrl;
+    this.highlightSource = options.highlightSource ?? 'extract';
     this.config = mergeConfig(DEFAULT_CONFIG, options.config ?? {});
     this.autoplay = options.autoplay ?? true;
     this.viewport = options.viewport;
@@ -310,16 +319,24 @@ export class StarFieldReveal {
     const src = this.sourceData.data;
     const dst = output.data;
     const { threshold, gamma, softness } = this.config.highlight;
+    const precomputed = this.highlightSource === 'precomputed-alpha';
 
     for (let index = 0; index < src.length; index += 4) {
-      const r = src[index] ?? 0;
-      const g = src[index + 1] ?? 0;
-      const b = src[index + 2] ?? 0;
-      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      const value = Math.max(r, g, b);
-      const score = luma * .58 + value * .42;
-      const normalized = clamp((score - threshold) / softness, 0, 1);
-      const alpha = Math.pow(normalized, gamma);
+      let alpha: number;
+      if (precomputed) {
+        // The baked mask encodes the highlight in its alpha channel; its RGB
+        // is a near-white plate and must never reach the extraction curve.
+        alpha = (src[index + 3] ?? 0) / 255;
+      } else {
+        const r = src[index] ?? 0;
+        const g = src[index + 1] ?? 0;
+        const b = src[index + 2] ?? 0;
+        const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        const value = Math.max(r, g, b);
+        const score = luma * .58 + value * .42;
+        const normalized = clamp((score - threshold) / softness, 0, 1);
+        alpha = Math.pow(normalized, gamma);
+      }
 
       if (alpha <= .001) {
         dst[index + 3] = 0;

@@ -238,6 +238,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     render(0);
     const reveal = initStarFieldReveal({
       canvas, sourceUrl: STAR_MAP_HIGHLIGHT_MASK, autoplay: false,
+      highlightSource: 'precomputed-alpha',
       viewport: () => {
         const scale = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
         return {
