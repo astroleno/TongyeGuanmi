@@ -5544,10 +5544,29 @@ not satisfy this current-tree gate.
 This is the critical visual verification for which browser/device automation
 is required. Unit tests and desktop Playwright are not substitutes.
 
-**Current state:** Task 13 is paused and there is no active passing candidate.
-The `8f39139…` build below is an immutable historical diagnostic artifact, not
-an input to any remaining acceptance row. Complete Task 12C, freeze one
-replacement candidate, and then restart this task at Step 13.1R.
+**Current state:** the Task 12C focused regression closure is **ready for
+bounded physical acceptance**. No clean physical-device candidate is frozen;
+the iPhone matrix remains pending. The `8f39139…` build below is an immutable
+historical diagnostic artifact, not an input to any remaining acceptance row.
+The next step is to freeze one replacement candidate at Step 13.1R.
+
+### Focused closure checkpoint — 2026-08-08
+
+The report worktree passed the focused deterministic and WebKit gates without
+retry: 11 deterministic files / 260 tests, plus 7 targeted WebKit cases in the
+initial run and 5 consecutive runs (35/35 case-runs). TypeScript, targeted
+ESLint, cutover architecture, module/media/frozen-input validators, build, and
+`git diff --check` passed. The resulting build measured Phone JS `633,547 B`,
+largest lazy chunk `50,887 B`, initial CSS `76,790 B`, and Phone JS headroom
+`30,005 B` against the `663,552 B` Phone JS cap.
+
+The eight dispositions are recorded in the
+[Task 13 defect ledger](../../react-refactor/reports/r5-phone-clean-runtime-task13-defect-ledger.md).
+This checkpoint is not a candidate freeze, Simulator completion, physical
+acceptance, or `Release-complete` claim. Because the report worktree was dirty
+while it was built, its `dist/` and source commit `7447571b…` are development
+artifacts only; Step 13.1R must create and prove a clean detached candidate
+before any device evidence is recorded.
 
 This is the only scheduled human visual-acceptance task. Tasks 7–10 provide
 automated engine/pixel baselines and do not require the user to inspect every

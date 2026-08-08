@@ -1279,6 +1279,81 @@ async function traverseFront(
   return frames;
 }
 
+async function startAodAlphaRecorder(page: import('@playwright/test').Page): Promise<void> {
+  await page.evaluate(() => {
+    const owner = window as typeof window & {
+      __r5AodAlphaSamples?: string[];
+      __r5AodAlphaRecorder?: number;
+    };
+    const samples: string[] = [];
+    const sample = () => {
+      const alpha = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod')
+        ?.dataset.portraitAodAlpha;
+      if (alpha) samples.push(alpha);
+      owner.__r5AodAlphaSamples = samples;
+      owner.__r5AodAlphaRecorder = requestAnimationFrame(sample);
+    };
+    owner.__r5AodAlphaSamples = samples;
+    owner.__r5AodAlphaRecorder = requestAnimationFrame(sample);
+  });
+}
+
+async function stopAodAlphaRecorder(page: import('@playwright/test').Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const owner = window as typeof window & {
+      __r5AodAlphaSamples?: string[];
+      __r5AodAlphaRecorder?: number;
+    };
+    if (owner.__r5AodAlphaRecorder !== undefined) {
+      cancelAnimationFrame(owner.__r5AodAlphaRecorder);
+      delete owner.__r5AodAlphaRecorder;
+    }
+    return [...(owner.__r5AodAlphaSamples ?? [])];
+  });
+}
+
+async function completeAodMethodAttempt(
+  page: import('@playwright/test').Page,
+  source: 'aod-animation' | 'method-top',
+  target: 'aod-animation' | 'method-top',
+  direction: 'forward' | 'reverse',
+  before: number
+): Promise<void> {
+  for (let boundary = 0; boundary < 5; boundary += 1) {
+    const handle = await page.waitForFunction(({ from, to, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const state = {
+        scene: shell?.dataset.phoneScene,
+        status: shell?.dataset.phoneStatus,
+        phase: shell?.dataset.phonePhase,
+        sequence: Number(shell?.dataset.phoneCommitSequence),
+        activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+      };
+      return state.scene === to && state.sequence > after
+        || state.status === 'stable' && state.scene === from
+        || state.status === 'faulted'
+        || state.activation
+        || ['awaiting-media-activation', 'awaiting-leg-intent'].includes(state.phase ?? '')
+        ? state : null;
+    }, { from: source, to: target, after: before }, { timeout: 25_000 });
+    const state = await handle.jsonValue();
+    if (state.scene === target && state.sequence > before) break;
+    if (state.status === 'stable') {
+      throw new Error(`AOD ${source} → ${target} rolled back: ${JSON.stringify(state)}`);
+    }
+    if (state.status === 'faulted') {
+      throw new Error(`AOD ${source} → ${target} faulted: ${JSON.stringify(state)}`);
+    }
+    if (state.activation || state.phase === 'awaiting-media-activation') {
+      await failOnContinuousActivation(page, `AOD ${source} → ${target}`);
+      throw new Error(`AOD ${source} → ${target} entered activation fallback`);
+    }
+    if (state.phase === 'awaiting-leg-intent') await sendFrontIntent(page, direction);
+  }
+  await waitForCommitSequence(page, target, before);
+  expect(await readCommitSequence(page)).toBe(before + 1);
+}
+
 async function patternViewportProof(page: import('@playwright/test').Page) {
   return page.evaluate(() => {
     const visual = window.visualViewport;
@@ -1336,6 +1411,7 @@ function luma(pixel: readonly [number, number, number, number]): number {
   return .2126 * pixel[0] + .7152 * pixel[1] + .0722 * pixel[2];
 }
 
+test.describe('Task 13 eight-regression closure', () => {
 test('Hero coverage matches its bottom vignette through a toolbar-sized resize', async ({ page }) => {
   let releaseVideo = () => undefined;
   const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });
@@ -1374,6 +1450,185 @@ test('Hero coverage matches its bottom vignette through a toolbar-sized resize',
       expect(luma(bottom)).toBeLessThanOrEqual(luma(above) + 32);
     }
   }
+});
+
+test('Hero to Pattern keeps the incoming structure drawing and turning after commit', async ({ page }) => {
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'hero', 0);
+  await sendFrontIntent(page, 'forward');
+  await page.waitForFunction(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return shell?.dataset.phoneCandidateScene === 'pattern'
+      && Boolean(document.querySelector('[data-portrait-pattern-bloom]'));
+  }, undefined, { timeout: 20_000 });
+  const canvas = page.locator<HTMLCanvasElement>('[data-portrait-pattern-bloom]');
+  await expect(canvas).toHaveAttribute('data-ink-texture-ready', 'true', { timeout: 15_000 });
+  const incomingRevision = Number(await canvas.getAttribute('data-ink-texture-revision'));
+  await page.waitForFunction((previous) => {
+    const value = Number(document.querySelector<HTMLCanvasElement>(
+      '[data-portrait-pattern-bloom]'
+    )?.dataset.inkTextureRevision);
+    return Number.isFinite(value) && value > previous;
+  }, incomingRevision, { timeout: 5_000 });
+  await waitForCommitSequence(page, 'pattern', 0);
+  const stableRevision = Number(await canvas.getAttribute('data-ink-texture-revision'));
+  await page.waitForTimeout(500);
+  expect(Number(await canvas.getAttribute('data-ink-texture-revision')))
+    .toBeGreaterThan(stableRevision);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+});
+
+test('Pattern collapse crosses the former switch points without a blank frame or ambient stall', async ({ page }) => {
+  await page.goto('/#pattern', { waitUntil: 'domcontentloaded' });
+  await waitForContinuousStoryReady(page);
+  const canvas = page.locator<HTMLCanvasElement>('[data-portrait-pattern-bloom]');
+  await expect(canvas)
+    .toHaveAttribute('data-ink-texture-ready', 'true', { timeout: 15_000 });
+  const stableRevision = Number(await canvas.getAttribute('data-ink-texture-revision'));
+  await page.waitForTimeout(500);
+  expect(Number(await canvas.getAttribute('data-ink-texture-revision')))
+    .toBeGreaterThan(stableRevision);
+  const frames = await traverseFront(page, 'pattern', 'star-map', 'forward', false);
+  expect(frames.length).toBeGreaterThanOrEqual(10);
+  await assertNoIntermediateWhiteOrBlackFrame(frames, { tolerance: 3 });
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+});
+
+test('Star Map uses the baked alpha mask and keeps a sparse breathing Perlin field', async ({ page }) => {
+  await page.goto('/#star-map', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'star-map', 0);
+  const mask = await page.evaluate(async () => {
+    const url = performance.getEntriesByType('resource').map((entry) => entry.name)
+      .find((name) => name.includes('star-map-highlight-mask'));
+    if (!url) throw new Error('baked Star Map highlight mask was not requested');
+    const image = new Image();
+    const loaded = new Promise<void>((resolve, reject) => {
+      image.addEventListener('load', () => resolve(), { once: true });
+      image.addEventListener('error', () => reject(new Error('baked mask decode failed')), { once: true });
+    });
+    image.src = url;
+    await loaded;
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) throw new Error('baked mask canvas unavailable');
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let transparent = 0;
+    let nonZero = 0;
+    let opaque = 0;
+    for (let index = 3; index < pixels.length; index += 4) {
+      const alpha = pixels[index] ?? 0;
+      if (alpha <= 8) transparent += 1;
+      if (alpha > 0) nonZero += 1;
+      if (alpha >= 250) opaque += 1;
+    }
+    const total = pixels.length / 4;
+    return {
+      transparentRatio: transparent / total,
+      nonZeroRatio: nonZero / total,
+      opaqueRatio: opaque / total
+    };
+  });
+  expect(mask.transparentRatio).toBeGreaterThan(.5);
+  expect(mask.nonZeroRatio).toBeGreaterThan(.001);
+  expect(mask.opaqueRatio).toBeLessThan(.5);
+
+  const canvas = page.locator<HTMLCanvasElement>('[data-portrait-star-perlin]');
+  await expect(canvas).toHaveAttribute('data-portrait-star-perlin', 'ready');
+  const samples = [await readStarPerlinLuminance(page)];
+  await page.waitForTimeout(500);
+  samples.push(await readStarPerlinLuminance(page));
+  expect(samples[1]!.revision).toBeGreaterThan(samples[0]!.revision);
+  const sparse = await canvas.evaluate((node) => {
+    const context = node.getContext('2d', { willReadFrequently: true });
+    if (!context) throw new Error('Star Map canvas unavailable');
+    const data = context.getImageData(0, 0, node.width, node.height).data;
+    let lit = 0;
+    for (let index = 3; index < data.length; index += 4) {
+      if ((data[index] ?? 0) > 12) lit += 1;
+    }
+    return lit / (data.length / 4);
+  });
+  expect(sparse).toBeGreaterThan(.001);
+  expect(sparse).toBeLessThan(.85);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+});
+
+test('Star to AOD keeps the Star Map ambient revision alive inside Ink', async ({ page }) => {
+  await page.goto('/#star-map', { waitUntil: 'domcontentloaded' });
+  await waitForContinuousStoryReady(page);
+  const canvas = page.locator<HTMLCanvasElement>('[data-portrait-star-perlin]');
+  const before = Number(await canvas.getAttribute('data-portrait-star-perlin-revision'));
+  await sendFrontIntent(page, 'forward');
+  await page.waitForFunction(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return shell?.dataset.phoneSourceScene === 'star-map'
+      && shell.dataset.phoneCandidateScene === 'aod-animation';
+  }, undefined, { timeout: 20_000 });
+  await page.waitForFunction((previous) => Number(
+    document.querySelector<HTMLCanvasElement>('[data-portrait-star-perlin]')
+      ?.dataset.portraitStarPerlinRevision
+  ) > previous, before, { timeout: 5_000 });
+  await failOnContinuousActivation(page, 'Star → AOD');
+  await waitForCommitSequence(page, 'aod-animation', 0);
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+});
+
+test('AOD forward and reverse preserve transparent alpha and the reverse endpoint', async ({ page }) => {
+  await page.goto('/#aod-animation', { waitUntil: 'domcontentloaded' });
+  const forwardBefore = await waitForCommitSequence(page, 'aod-animation', 0);
+  await sendFrontIntent(page, 'forward');
+  await page.waitForFunction(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return shell?.dataset.phoneSourceScene === 'aod-animation'
+      && shell.dataset.phoneCandidateScene === 'method-top';
+  }, undefined, { timeout: 20_000 });
+  await startAodAlphaRecorder(page);
+  await completeAodMethodAttempt(page, 'aod-animation', 'method-top', 'forward', forwardBefore);
+  const alphaSamples = await stopAodAlphaRecorder(page);
+  expect(alphaSamples).toContain('transparent');
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+
+  await page.goto('/#method-top', { waitUntil: 'domcontentloaded' });
+  const reverseBefore = await waitForCommitSequence(page, 'method-top', 0);
+  await waitForContinuousStoryReady(page);
+  await sendFrontIntent(page, 'reverse');
+  await page.waitForFunction(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return shell?.dataset.phoneSourceScene === 'method-top'
+      && shell.dataset.phoneCandidateScene === 'aod-animation'
+      && Boolean(document.querySelector('.portrait-scroll-spike__scene--aod'));
+  }, undefined, { timeout: 20_000 });
+  await expect(page.locator('.portrait-scroll-spike__scene--aod'))
+    .toHaveAttribute('data-portrait-aod-progress', '1.0000');
+  await failOnContinuousActivation(page, 'Method → AOD');
+  await completeAodMethodAttempt(page, 'method-top', 'aod-animation', 'reverse', reverseBefore);
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+  await assertNoWhiteOrTransparentViewportEdges(page);
+});
+
+test('Method keeps its native corridor through toolbar geometry before Figure2 handoff', async ({ page }) => {
+  await page.goto('/#method-top', { waitUntil: 'domcontentloaded' });
+  await waitForContinuousStoryReady(page);
+  const before = await readCommitSequence(page);
+  const reading = page.locator('[data-phone-input-owner="native-document"]');
+  await expect(reading).toBeAttached();
+  const scrollState = await page.evaluate(() => {
+    const owner = document.scrollingElement ?? document.documentElement;
+    window.scrollTo(0, owner.scrollHeight);
+    return { scrollTop: owner.scrollTop, max: owner.scrollHeight - owner.clientHeight };
+  });
+  expect(Math.abs(scrollState.scrollTop - scrollState.max)).toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 390, height: 720 });
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+  expect(await readCommitSequence(page)).toBe(before);
+  await traverseGradeA(page, 'method-top', 'figure2-animation', 'forward');
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+});
 });
 
 test('Hero Loader handoff starts at zero under one fixed opaque topology', async ({ page }) => {

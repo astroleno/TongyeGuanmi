@@ -283,8 +283,10 @@ describe('clean PhoneAod leaf', () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
     const scene = host.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod')!;
+    scene.dataset.phoneAodPlaybackFrame = 'ready';
     mount.registration()?.commands.settle(0);
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');
+    expect(scene.dataset.phoneAodPlaybackFrame).toBeUndefined();
     mount.registration()?.commands.settle(1);
     expect(scene.dataset.portraitAodProgress).toBe('1.0000');
   });

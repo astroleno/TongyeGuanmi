@@ -87,10 +87,7 @@ const sceneDetails = {
   'method-top': {
     additional: [],
     surfaces: ['method-root'],
-    selectors: [
-      '#method #portrait-spike-method-title',
-      '#method .portrait-scroll-spike__method-bridge-content p'
-    ]
+    selectors: ['#method']
   },
   'figure2-animation': {
     additional: [
@@ -538,6 +535,7 @@ function segmentActivation(
   id: typeof segments[number][0],
   _direction: 'forward' | 'reverse'
 ) {
+  void _direction;
   // The media clock owner plays in both directions: canonical source media
   // is the reverse leg's incoming owner, so it activates on the way back too.
   return sourceClockSegments.has(id) ? activeActivation() : inactiveActivation();

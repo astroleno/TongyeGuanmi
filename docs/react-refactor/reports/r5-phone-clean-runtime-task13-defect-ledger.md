@@ -2,9 +2,9 @@
 
 - Date opened: 2026-08-03
 - Candidate under discovery: `8f3913908cba95e150d464dfab12270efe9dbdc3`
-- Status: **Task 12 reopened / NO-GO / corrective focused verification in
-  progress / Task 13.2 paused**
-- Release claim: **NO-GO; no active passing candidate**
+- Status: **ready for bounded physical acceptance / physical iPhone evidence
+  pending**
+- Release claim: **NO-GO; no physical candidate is frozen**
 
 The `8f39139…` artifact remains immutable as historical evidence. Development
 uses the report worktree as a diagnostic WIP, but no new candidate is frozen
@@ -155,6 +155,48 @@ The report worktree is based on `34c306ed2c324256dcb81a9c5f47dd3a6b3b258d`,
 remains intentionally dirty, and has no replacement `candidateCodeSha`.
 Task 13 stays paused until the bounded native repeat completes and the code is
 committed as one replacement candidate.
+
+## Focused regression closure — 2026-08-08
+
+This checkpoint supersedes the corrective-WIP wording for D13-003 and D13-004
+only. It does not freeze a device candidate and does not call Task 13 complete.
+
+- Status: `ready for bounded physical acceptance`
+- Focused closure commit: pending the closing commit for this report checkpoint;
+  the exact hash is bound immediately after that commit is created.
+- Deterministic batch: 11 files / 260 tests passed.
+- Static gates: TypeScript, targeted ESLint, phone cutover architecture,
+  boolean-data, homepage module boundaries, packed-alpha masters, media
+  inventory, release-build validation, performance budgets, and `git diff
+  --check` passed.
+- Focused WebKit: 7 regression cases passed once, then 5 consecutive runs
+  passed without retry; 35/35 case-runs passed.
+- Build/budget: Phone JS `633,547 B` under `663,552 B`; largest lazy chunk
+  `50,887 B` under `65,536 B`; initial CSS `76,790 B` under `76,800 B`;
+  phone JS headroom `30,005 B`. Frozen input, module provenance, and media
+  inventory validators passed.
+- Candidate identity: the build was produced from this intentionally dirty
+  report worktree and reports source commit `7447571b…`; it is not a frozen
+  physical-device candidate. A clean candidate must be created before device
+  evidence is recorded.
+
+### Eight dispositions
+
+| # | Symptom | Focused disposition | Evidence |
+| --- | --- | --- | --- |
+| 1 | Hero bottom seam | Closed in the focused Hero coverage/vignette pixel case across a toolbar-sized resize. | Task 13 focused WebKit case 1; `109f47b` |
+| 2 | Pattern stops rotating after collapse | Closed; the structural ring layers remain continuously rendered and the ambient revision continues after stable collapse. | Case 3; `d7c16a1` |
+| 3 | Pattern does not rotate while incoming from Hero | Closed; incoming Pattern structure draws and turns after commit. | Case 2; `d7c16a1` |
+| 4 | Pattern collapse flashes | Closed; the former six switch points no longer create discrete texture hard cuts or a blank frame. | Case 3; `d7c16a1` |
+| 5 | Star Map Perlin becomes a full bright field | Closed; browser-decoded baked alpha is read as alpha, with sparse/highlighted distribution and breathing frame samples. | Case 4; `e22cc6d` |
+| 6 | Star Map ambient stops at AOD handoff | Closed; Star Map source revision continues inside the Ink transaction and leaf lifecycle is command-owned. | Case 5; `e22cc6d` |
+| 7 | AOD reverse fails or exposes the wrong endpoint | Closed in focused verification; forward/reverse both cross transparent alpha, reverse starts from the endpoint, and the zero endpoint releases stale packed playback state. | Case 6; `a7f26d4` plus focused AOD endpoint fix |
+| 8 | Method remains at “03 共创” after toolbar geometry changes | Closed in focused verification; native document scroll remains stable through resize and a fresh bottom-edge gesture hands off once to Figure2. | Case 7; `7447571` plus focused Method proof/container fix |
+
+The related AOD mid-segment white-background symptom is covered by disposition
+7's transparent-ancestor and `data-aod-exit-active` contract. The next allowed
+step is a bounded, trusted-touch physical iPhone matrix on one clean candidate;
+the full release suite remains gated on that evidence.
 
 ## Discovery intake
 

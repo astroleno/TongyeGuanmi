@@ -274,6 +274,13 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       render,
       settle(endpoint) {
         render(endpoint);
+        if (endpoint === 0) {
+          surfaceGenerationRef.current = 0;
+          const video = videoRef.current;
+          if (video) disposeTimelineVideoDriver(video);
+          surfaceRef.current?.release();
+          delete rootRef.current?.dataset.phoneAodPlaybackFrame;
+        }
         setAodExitActive(rootRef.current, false);
       },
       pause() {
