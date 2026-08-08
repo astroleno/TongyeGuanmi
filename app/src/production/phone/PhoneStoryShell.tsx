@@ -147,10 +147,11 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     aodLastProgress,
     aodRollbackReason
   ] = navigation.aodDiagnostics;
+  const heroProjection = navigation.cinematicSnapshot.slice(1, 3).includes('front:hero'), entrySettled = navigation.cinematicSnapshot[11] === 'stable' && heroProjection && navigation.cinematicSnapshot[18] !== null;
   const directEntryHeroGpuAllowed = !directStoryEntry
     || entryScene === 'hero'
-    || navigation.cinematicSnapshot[7] === -1
-      && navigation.cinematicSnapshot.slice(1, 3).includes('front:hero');
+    || entrySettled
+    || navigation.cinematicSnapshot[7] === -1 && heroProjection;
   const activeFrontSurface = (id: 'front:hero' | 'front:pattern' | 'front:star-map' | 'front:aod') => (
     (navigation.cinematicSnapshot[1] === id || navigation.cinematicSnapshot[2] === id)
     && !(id === 'front:hero' && !directEntryHeroGpuAllowed)

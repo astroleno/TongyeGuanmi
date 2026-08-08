@@ -2,10 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const compositorProbe = vi.hoisted(() => ({
   onFrame: null as (() => void) | null,
-  canvases: [] as FakeNode[]
+  canvases: [] as FakeNode[],
+  restoreOwner: {
+    isPending: vi.fn(() => false),
+    markPending: vi.fn(),
+    retire: vi.fn(),
+    wait: vi.fn(() => false),
+    cancel: vi.fn(),
+    clear: vi.fn()
+  }
 }));
 
 vi.mock('../../../media/packed-alpha-video', () => ({
+  createPackedAlphaWebGlRestoreOwner: vi.fn(() => compositorProbe.restoreOwner),
   createPackedAlphaVideoCompositor: vi.fn(({ canvas, onFrame }) => {
     canvas.dataset.packedAlphaStatus = 'waiting';
     compositorProbe.onFrame = onFrame ?? null;
@@ -157,6 +166,7 @@ describe('phone packed-alpha surface', () => {
   beforeEach(() => {
     compositorProbe.onFrame = null;
     compositorProbe.canvases.length = 0;
+    for (const method of Object.values(compositorProbe.restoreOwner)) method.mockClear();
     vi.unstubAllGlobals();
   });
 
@@ -222,6 +232,19 @@ describe('phone packed-alpha surface', () => {
     expect(secondCanvas).not.toBeNull();
     expect(secondCanvas).toBe(firstCanvas);
     expect(compositorProbe.canvases).toEqual([firstCanvas, firstCanvas]);
+    surface(['dispose']);
+  });
+
+  it('routes terminal surface retirement through the shared restore owner', () => {
+    const { container, surface } = fixture();
+    surface(['activate', 'forward']);
+    const canvas = container.querySelector('canvas');
+
+    surface(['retire']);
+
+    expect(canvas).not.toBeNull();
+    expect(compositorProbe.restoreOwner.retire).toHaveBeenCalledWith(canvas);
+    expect(canvas?.dataset.phonePackedAlphaRetired).toBe('true');
     surface(['dispose']);
   });
 

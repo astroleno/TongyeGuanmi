@@ -84,6 +84,69 @@ export function restorePackedAlphaWebGlContext(
   return true;
 }
 
+/** Shared retire/restore lifecycle for retained packed-alpha canvases. */
+export type PackedAlphaWebGlRestoreOwner = Readonly<{
+  isPending(): boolean;
+  markPending(): void;
+  retire(canvas: HTMLCanvasElement): void;
+  wait(canvas: HTMLCanvasElement, onRestored: () => void, onFallback: () => void): boolean;
+  cancel(): void;
+  clear(): void;
+}>;
+
+export function createPackedAlphaWebGlRestoreOwner(
+  timeoutMs = 250
+): PackedAlphaWebGlRestoreOwner {
+  let pending = false;
+  let poll: ReturnType<typeof globalThis.setTimeout> | undefined;
+  const clearPoll = () => {
+    if (poll !== undefined) globalThis.clearTimeout(poll);
+    poll = undefined;
+  };
+  return {
+    isPending: () => pending,
+    markPending: () => { pending = true; },
+    retire: (canvas) => {
+      pending = true;
+      const context = canvas.getContext('webgl');
+      if (context && !context.isContextLost()) releasePackedAlphaWebGlContext(context);
+    },
+    wait: (canvas, onRestored, onFallback) => {
+      if (!pending) return false;
+      clearPoll();
+      const deadline = Date.now() + timeoutMs;
+      let settled = false;
+      const finish = (callback: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearPoll();
+        pending = false;
+        callback();
+      };
+      const pollRestore = () => {
+        if (settled) return;
+        const context = canvas.getContext('webgl');
+        if (context?.isContextLost()) {
+          const restored = restorePackedAlphaWebGlContext(canvas, () => finish(onRestored));
+          if (restored) return;
+        }
+        if (Date.now() >= deadline) {
+          finish(onFallback);
+          return;
+        }
+        poll = globalThis.setTimeout(pollRestore, 0);
+      };
+      pollRestore();
+      return true;
+    },
+    cancel: clearPoll,
+    clear: () => {
+      clearPoll();
+      pending = false;
+    }
+  };
+}
+
 export function renewPackedAlphaCanvas(
   canvas: HTMLCanvasElement
 ): HTMLCanvasElement {

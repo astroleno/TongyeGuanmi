@@ -199,7 +199,7 @@ describe('phone transition coordinator', () => {
     expect(intents.map(([inputEpoch]) => inputEpoch)).toEqual([1, 1]);
   });
 
-  it('keeps split touch sequences in one epoch during the momentum window', () => {
+  it('allocates a new epoch for every touch while retaining the old native tail', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
     let now = 0;
     const intents: PhoneIntent[] = [];
@@ -232,12 +232,12 @@ describe('phone transition coordinator', () => {
     now = 1_501;
     touch(480);
 
-    expect(intents.map(([inputEpoch]) => inputEpoch)).toEqual([1, 1, 2]);
+    expect(intents.map(([inputEpoch]) => inputEpoch)).toEqual([1, 2, 3]);
   });
 
   it('publishes the touch epoch before native scroll sampling', () => {
     const { root } = installCoordinatorEnvironment();
-    const epochs: number[] = [];
+    const epochs: Array<number | null> = [];
     createPhoneIntentCoordinator(
       root as unknown as HTMLElement,
       () => 'pass-native',
@@ -249,6 +249,34 @@ describe('phone transition coordinator', () => {
     root.dispatch('touchstart', { touches: [{ clientY: 600 }] });
 
     expect(epochs).toEqual([1]);
+  });
+
+  it('clears the active epoch when the native momentum window expires', () => {
+    const { root, testWindow } = installCoordinatorEnvironment();
+    let now = 0;
+    const epochs: Array<number | null> = [];
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      () => 'pass-native',
+      {
+        now: () => now,
+        scrollY: () => testWindow.scrollY,
+        momentumWindowMs: 1200,
+        onInputEpoch: (epoch) => epochs.push(epoch)
+      }
+    );
+
+    root.dispatch('touchstart', { touches: [{ clientY: 600 }] });
+    root.dispatch('touchmove', {
+      target: null,
+      touches: [{ clientY: 560 }],
+      preventDefault: vi.fn(),
+      stopImmediatePropagation: vi.fn()
+    });
+    now = 1_201;
+    testWindow.dispatch('scroll', {});
+
+    expect(epochs).toEqual([1, null]);
   });
 
   it.each([

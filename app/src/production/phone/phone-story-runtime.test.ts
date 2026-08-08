@@ -96,6 +96,32 @@ describe('phone story runtime factory', () => {
     runtime.dispose();
   });
 
+  it('does not treat the bootstrap Hero hold as a settled direct-entry target', () => {
+    const runtime = createPhoneStoryRuntime({
+      scope: 'formal',
+      initialScene: 'hero',
+      root: () => root(),
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+    const bootstrap = selectPhoneCinematicSnapshot(runtime.port.getSnapshot());
+    expect(bootstrap[11]).toBe('stable');
+    expect(bootstrap[12]).toBe('hero');
+    expect(bootstrap[18]).toBeNull();
+
+    const committed = {
+      ...runtime.port.getSnapshot(),
+      revision: 1,
+      projection: {
+        ...runtime.port.getSnapshot().projection,
+        revision: 1
+      }
+    };
+    const settled = selectPhoneCinematicSnapshot(committed);
+    expect(settled[18]).toBe(1);
+    runtime.dispose();
+  });
+
   it('[proof hard cutover] exposes no synthesized rendered-frame writer', () => {
     const source = readFileSync(
       new URL('./phone-story/runtime/session.ts', import.meta.url),

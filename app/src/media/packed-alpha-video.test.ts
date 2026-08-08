@@ -4,6 +4,7 @@ import {
   createPackedAlphaVideoCompositor,
   packedAlphaFrameProofSatisfied,
   packedAlphaFrameSize,
+  createPackedAlphaWebGlRestoreOwner,
   releasePackedAlphaWebGlContext
 } from './packed-alpha-video';
 
@@ -100,5 +101,45 @@ describe('packed alpha video', () => {
     );
     expect(preventDefault).toHaveBeenCalledOnce();
     expect(loseContext).toHaveBeenCalledOnce();
+  });
+
+  it('owns the same-canvas retire → restore token window and bounded fallback', () => {
+    vi.useFakeTimers();
+    let lost = false;
+    const listeners = new Map<string, EventListener>();
+    const extension = {
+      loseContext: vi.fn(() => { lost = true; }),
+      restoreContext: vi.fn(() => {
+        lost = false;
+        listeners.get('webglcontextrestored')?.(new Event('webglcontextrestored'));
+      })
+    };
+    const context = {
+      isContextLost: () => lost,
+      getExtension: () => extension
+    };
+    const canvas = {
+      getContext: vi.fn(() => context),
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners.set(type, listener);
+      })
+    } as unknown as HTMLCanvasElement;
+
+    const owner = createPackedAlphaWebGlRestoreOwner();
+    const restored = vi.fn();
+    const fallback = vi.fn();
+    owner.retire(canvas);
+    expect(owner.isPending()).toBe(true);
+    expect(owner.wait(canvas, restored, fallback)).toBe(true);
+    expect(restored).toHaveBeenCalledOnce();
+    expect(fallback).not.toHaveBeenCalled();
+    expect(owner.isPending()).toBe(false);
+
+    owner.markPending();
+    owner.wait(canvas, restored, fallback);
+    vi.advanceTimersByTime(251);
+    expect(fallback).toHaveBeenCalledOnce();
+    expect(owner.isPending()).toBe(false);
+    vi.useRealTimers();
   });
 });

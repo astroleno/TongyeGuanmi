@@ -14,8 +14,7 @@ import {
 } from '../../../scenes/aod-animation';
 import {
   createPackedAlphaVideoCompositor,
-  releasePackedAlphaWebGlContext,
-  restorePackedAlphaWebGlContext,
+  createPackedAlphaWebGlRestoreOwner,
   type PackedAlphaRenderFailure,
   type PackedAlphaRenderResult,
   type PackedAlphaVideoCompositor
@@ -120,11 +119,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     const rootRef = useRef<HTMLDivElement | null>(null);
     const autoplayRef = useRef<PhoneAodAutoplay | undefined>(undefined);
     const compositorRef = useRef<PackedAlphaVideoCompositor | undefined>(undefined);
-    const compositorRestorePendingRef = useRef(false);
-    const compositorNeedsRestoreRef = useRef(false);
-    const compositorRestorePollRef = useRef<
-      ReturnType<typeof globalThis.setTimeout> | undefined
-    >(undefined);
+    const compositorRestoreOwnerRef = useRef(createPackedAlphaWebGlRestoreOwner());
     const activeRef = useRef(active);
     const renderRef = useRef<
       (
@@ -219,22 +214,21 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       );
       delete staticSurface?.dataset.aodStaticPoster;
       delete rootRef.current?.dataset.phoneInkFrame;
-      if (compositorRestorePollRef.current !== undefined) {
-        globalThis.clearTimeout(compositorRestorePollRef.current);
-        compositorRestorePollRef.current = undefined;
-      }
       if (!compositor) {
-        compositorRestorePendingRef.current = false;
+        if (hardLose) {
+          const canvas = rootRef.current?.querySelector<HTMLCanvasElement>(
+            '[data-aod-figure-canvas]'
+          );
+          if (canvas) compositorRestoreOwnerRef.current.retire(canvas);
+        }
         return;
       }
-      compositorNeedsRestoreRef.current = hardLose;
       compositor.dispose();
       if (hardLose) {
         const canvas = rootRef.current?.querySelector<HTMLCanvasElement>(
           '[data-aod-figure-canvas]'
         );
-        const context = canvas?.getContext('webgl');
-        if (context) releasePackedAlphaWebGlContext(context);
+        if (canvas) compositorRestoreOwnerRef.current.retire(canvas);
       }
       compositorRef.current = undefined;
       // Keep the React-owned canvas dimensions intact. Resizing a canvas
@@ -254,50 +248,22 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       if (!root || !video || !canvas) return undefined;
       const context = canvas.getContext('webgl');
       const contextLost = context?.isContextLost?.() === true;
-      // WEBGL_lose_context is asynchronous. Some browsers deliver the loss
-      // event and restore the context before the next lease asks for it; in
-      // that case `needsRestore` is only a stale lifecycle marker, not proof
-      // that a restore event is still pending.
-      if (compositorNeedsRestoreRef.current && !contextLost) {
-        compositorNeedsRestoreRef.current = false;
-      }
-      if (compositorNeedsRestoreRef.current || contextLost) {
-        if (!compositorRestorePendingRef.current) {
-          compositorRestorePendingRef.current = true;
-          const deadline = Date.now() + 250;
-          const restore = () => {
-            const current = canvas.getContext('webgl');
-            if (current?.isContextLost()) {
-              const restored = restorePackedAlphaWebGlContext(canvas, () => {
-                compositorRestorePendingRef.current = false;
-                compositorNeedsRestoreRef.current = false;
-                if (rootRef.current !== root || !activeRef.current) return;
-                const restoredCompositor = ensureCompositor();
-                restoredCompositor?.setActive(!reducedMotion);
-                // A reverse target may have installed its immutable
-                // presentation binding while the context was restoring. The
-                // binding must stay pending until this same compositor draws;
-                // never turn the asynchronous restore gap into a media-failed
-                // rollback merely because the first present call saw no
-                // compositor yet.
-                restoredCompositor?.render();
-                onReady?.();
-              });
-              if (restored) return;
-            }
-            if (Date.now() < deadline) {
-              compositorRestorePollRef.current = globalThis.setTimeout(restore, 0);
-              return;
-            }
-            compositorRestorePendingRef.current = false;
-            // The browser failed to deliver a restorable context. Keep this
-            // fact typed and terminal instead of leaving the machine waiting
-            // in preparing forever.
-            compositorNeedsRestoreRef.current = false;
-            reportAodFailure('aod-context-lost');
-          };
-          restore();
-        }
+      if (contextLost) compositorRestoreOwnerRef.current.markPending();
+      if (compositorRestoreOwnerRef.current.isPending()) {
+        compositorRestoreOwnerRef.current.wait(
+          canvas,
+          () => {
+            if (rootRef.current !== root || !activeRef.current) return;
+            const restoredCompositor = ensureCompositor();
+            restoredCompositor?.setActive(!reducedMotion);
+            // A reverse target may have installed its immutable presentation
+            // binding while the context was restoring. Keep that binding
+            // pending until this same compositor draws.
+            restoredCompositor?.render();
+            onReady?.();
+          },
+          () => reportAodFailure('aod-context-lost')
+        );
         return undefined;
       }
       let compositor: PackedAlphaVideoCompositor | undefined;
@@ -355,7 +321,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         }
       });
       compositorRef.current = compositor;
-      compositorNeedsRestoreRef.current = false;
       return compositor;
     }, [onReady, reducedMotion, reportAodFailure, reportAodFrame]);
     progressListenerRef.current = onAodProgress;
@@ -375,7 +340,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         // canvas between AOD↔Method leases. That synthetic loss is a resource
         // boundary, not a failed current execution; only an unexpected loss
         // while the compositor is active may fail the machine transaction.
-        if (compositorNeedsRestoreRef.current) return;
+        if (compositorRestoreOwnerRef.current.isPending()) return;
         reportAodFailure('aod-context-lost');
       };
       const onMediaError = () => reportAodFailure('media-failed');
@@ -522,6 +487,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         presentationBindingRef.current = null;
         autoplay.dispose();
         releaseCompositor(true);
+        compositorRestoreOwnerRef.current.clear();
         if (autoplayRef.current === autoplay) autoplayRef.current = undefined;
         if (renderRef.current === render) renderRef.current = undefined;
         delete root.dataset.portraitAodAlpha;
@@ -569,7 +535,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         const ready = Boolean(
           autoplayRef.current
           && renderRef.current
-          && !compositorRestorePendingRef.current
+          && !compositorRestoreOwnerRef.current.isPending()
           && rootRef.current?.isConnected
         );
         return ready;
@@ -633,7 +599,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           // lease. Keep the binding pending; ensureCompositor() will either
           // re-enter this path from its restored callback or report a typed
           // terminal context failure after its bounded deadline.
-          if (!compositorRestorePendingRef.current) {
+          if (!compositorRestoreOwnerRef.current.isPending()) {
             reportAodFailure('media-failed');
           }
           return;
@@ -673,6 +639,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         presentationBindingRef.current = null;
         autoplayRef.current?.dispose();
         releaseCompositor(true);
+        compositorRestoreOwnerRef.current.clear();
       }
     }), [
       ensureCompositor,

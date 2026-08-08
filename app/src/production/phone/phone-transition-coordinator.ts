@@ -35,7 +35,7 @@ export type PhoneIntentCoordinatorOptions = Readonly<{
   scrollState?: () => Readonly<{ revision: number; corridor: string | null }>;
   onNativeScrollCorrection?: () => void;
   /** Publish physical gesture identity before native scroll sampling runs. */
-  onInputEpoch?: (inputEpoch: number) => void;
+  onInputEpoch?: (inputEpoch: number | null) => void;
   wheelQuietMs?: number;
   momentumWindowMs?: number;
 }>;
@@ -96,6 +96,8 @@ export function createPhoneIntentCoordinator(
     inputEpoch: number;
     until: number;
   }> | null = null;
+  let momentumExpiryTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+  let publishedEpoch: number | null = null;
   const nativeProbeFrames = new Map<number, {
     expected: Readonly<{ revision: number; corridor: string | null }>;
     frame: number;
@@ -106,6 +108,31 @@ export function createPhoneIntentCoordinator(
   const nextIdentity = () => {
     sequence += 1;
     return { inputEpoch: sequence };
+  };
+  const publishInputEpoch = (inputEpoch: number | null) => {
+    publishedEpoch = inputEpoch;
+    options.onInputEpoch?.(inputEpoch);
+  };
+  const clearMomentumExpiryTimer = () => {
+    if (momentumExpiryTimer !== undefined) {
+      globalThis.clearTimeout(momentumExpiryTimer);
+      momentumExpiryTimer = undefined;
+    }
+  };
+  const expireMomentum = (inputEpoch?: number) => {
+    if (inputEpoch !== undefined && momentum?.inputEpoch !== inputEpoch) return;
+    momentum = null;
+    clearMomentumExpiryTimer();
+    if (publishedEpoch !== null && (inputEpoch === undefined || publishedEpoch === inputEpoch)) {
+      publishInputEpoch(null);
+    }
+  };
+  const scheduleMomentumExpiry = (inputEpoch: number, until: number) => {
+    clearMomentumExpiryTimer();
+    momentumExpiryTimer = globalThis.setTimeout(() => {
+      if (momentum?.inputEpoch !== inputEpoch) return;
+      expireMomentum(inputEpoch);
+    }, Math.max(0, until - now()));
   };
   const block = (event: Event) => {
     event.preventDefault();
@@ -170,23 +197,21 @@ export function createPhoneIntentCoordinator(
     const first = event.touches[0];
     if (event.touches.length !== 1 || !first) {
       touch = null;
-      momentum = null;
+      expireMomentum();
       return;
     }
-    const occurredAt = now();
-    // A browser may split one physical drag into several touch sequences
-    // while its momentum tail is still settling. Keep the original epoch in
-    // that quiet window so a synthetic/native tail cannot claim the next
-    // stable scene after the first boundary has committed.
-    const inputEpoch = momentum && occurredAt <= momentum.until
-      ? momentum.inputEpoch
-      : nextIdentity().inputEpoch;
+    // A touchstart is always a new physical gesture. Only native scroll
+    // events after touchend retain the prior epoch as momentum tail; a second
+    // touch must never inherit it merely because it arrived within the quiet
+    // window.
+    expireMomentum();
+    const inputEpoch = nextIdentity().inputEpoch;
     touch = {
       inputEpoch,
       startY: scrollY(),
       clientY: first.clientY
     };
-    options.onInputEpoch?.(inputEpoch);
+    publishInputEpoch(inputEpoch);
   };
   const onTouchMove = (event: TouchEvent) => {
     const first = event.touches[0];
@@ -202,6 +227,7 @@ export function createPhoneIntentCoordinator(
       inputEpoch: touch.inputEpoch,
       until: occurredAt + momentumWindowMs
     };
+    scheduleMomentumExpiry(touch.inputEpoch, momentum.until);
     const disposition = emit(touch, touch.startY, projectedY);
     if (disposition === 'pass-native') {
       scheduleNativeScrollProbe(touch, touch.startY, projectedY);
@@ -212,6 +238,10 @@ export function createPhoneIntentCoordinator(
   const onTouchEnd = (event: TouchEvent) => {
     if (!event.touches.length) touch = null;
   };
+  const onTouchCancel = () => {
+    touch = null;
+    expireMomentum();
+  };
   const onWheel = (event: WheelEvent) => {
     if (eventTargetIsInteractive(event)) return;
     const occurredAt = now();
@@ -220,6 +250,7 @@ export function createPhoneIntentCoordinator(
     } else {
       wheel = { ...wheel, lastAt: occurredAt };
     }
+    publishInputEpoch(wheel.inputEpoch);
     const startY = scrollY();
     const projectedY = startY
       + event.deltaY * (event.deltaMode ? 16 : 1);
@@ -237,7 +268,11 @@ export function createPhoneIntentCoordinator(
     const previousY = observedScrollY;
     observedScrollY = currentY;
     const occurredAt = now();
-    if (!momentum || occurredAt > momentum.until) return;
+    if (!momentum) return;
+    if (occurredAt > momentum.until) {
+      expireMomentum(momentum.inputEpoch);
+      return;
+    }
     emit(momentum, previousY, currentY);
   };
 
@@ -245,7 +280,7 @@ export function createPhoneIntentCoordinator(
   root.addEventListener('touchstart', onTouchStart, true);
   root.addEventListener('touchmove', onTouchMove, blocking);
   root.addEventListener('touchend', onTouchEnd, true);
-  root.addEventListener('touchcancel', onTouchEnd, true);
+  root.addEventListener('touchcancel', onTouchCancel, true);
   root.addEventListener('wheel', onWheel, blocking);
   window.addEventListener('scroll', onScroll, { passive: true });
 
@@ -254,13 +289,16 @@ export function createPhoneIntentCoordinator(
       root.removeEventListener('touchstart', onTouchStart, true);
       root.removeEventListener('touchmove', onTouchMove, blocking);
       root.removeEventListener('touchend', onTouchEnd, true);
-      root.removeEventListener('touchcancel', onTouchEnd, true);
+      root.removeEventListener('touchcancel', onTouchCancel, true);
       root.removeEventListener('wheel', onWheel, blocking);
       window.removeEventListener('scroll', onScroll);
       if (cancelFrame) {
         for (const { frame } of nativeProbeFrames.values()) cancelFrame(frame);
       }
       nativeProbeFrames.clear();
+      expireMomentum();
+      wheel = null;
+      if (publishedEpoch !== null) publishInputEpoch(null);
     }
   };
 }

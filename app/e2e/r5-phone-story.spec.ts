@@ -41,21 +41,46 @@ const MAX_PHONE_WEBGL_CONTEXTS = 12;
 const MAX_ACTIVE_PHONE_WEBGL_CONTEXTS = 4;
 
 test.afterEach(async ({ page }, testInfo) => {
-  if (!testInfo.title.startsWith('Task 10')) return;
-  const issues = phoneWebGlIssues.get(page) ?? [];
-  expect(issues, `WebGL lifecycle warnings in ${testInfo.title}`).toEqual([]);
   const probe = await page.evaluate(() => {
     const runtime = (window as typeof window & {
-      __phoneRuntimeProbe?: { created?: unknown[] };
+      __phoneRuntimeProbe?: {
+        created?: unknown[];
+        contexts?: Array<WebGLRenderingContext | WebGL2RenderingContext>;
+        maxActive?: number;
+        expectedWebGlIssues?: boolean;
+      };
     }).__phoneRuntimeProbe;
-    return runtime?.created ?? null;
+    if (!runtime) return null;
+    return {
+      total: runtime.created?.length ?? 0,
+      active: runtime.contexts?.filter((context) => !context.isContextLost()).length ?? 0,
+      maxActive: runtime.maxActive ?? 0,
+      expectedWebGlIssues: runtime.expectedWebGlIssues === true
+    };
   });
-  if (probe !== null) {
+  if (probe === null) return;
+  if (!probe.expectedWebGlIssues) {
     expect(
-      probe.length,
-      `cumulative WebGL context count in ${testInfo.title}: ${JSON.stringify(probe)}`
-    ).toBeLessThanOrEqual(MAX_PHONE_WEBGL_CONTEXTS);
+      phonePageErrors.get(page) ?? [],
+      `page errors in ${testInfo.title}`
+    ).toEqual([]);
+    expect(
+      phoneWebGlIssues.get(page) ?? [],
+      `WebGL lifecycle warnings in ${testInfo.title}`
+    ).toEqual([]);
   }
+  expect(
+    probe.active,
+    `active WebGL contexts in ${testInfo.title}`
+  ).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
+  expect(
+    probe.maxActive,
+    `peak WebGL contexts in ${testInfo.title}`
+  ).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
+  expect(
+    probe.total,
+    `cumulative WebGL context count in ${testInfo.title}`
+  ).toBeLessThanOrEqual(MAX_PHONE_WEBGL_CONTEXTS);
 });
 
 type PngScreenshot = Readonly<{
@@ -3090,6 +3115,11 @@ test('Task 10 gates a production Contact → Hero reverse journey', async ({ pag
   await driveJourney(page, FORMAL_REVERSE_JOURNEY);
   const hero = await assertStablePhoneHold(page, 'hero');
   await expect(hero).toHaveAttribute('data-phone-authority-id', authorityId!);
+  await expect(hero.locator('#portrait-spike-home')).toBeVisible();
+  await expect(hero.locator('.portrait-scroll-spike__hero-subtitle p')).toBeVisible();
+  await expect(
+    hero.locator('[data-phone-packed-alpha-canvas="hero-figure"]')
+  ).toHaveAttribute('data-packed-alpha-frame-ready', 'true');
   const reverseProbe = await phoneRuntimeProbe(page);
   expect(
     reverseProbe.maxActive,

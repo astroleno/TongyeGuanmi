@@ -229,7 +229,7 @@ export type PhoneCinematicSnapshot = readonly [
   scrollCorridor: PhoneStorySnapshot['scroll']['corridor'],
   scrollProgress: number,
   scrollRun: PhoneScrollRunId | null,
-  /** Immutable revision carried by raw leaf frame tokens. */
+  /** Immutable revision carried by raw leaf frame tokens; a committed stable revision is also retained as the machine-owned entry-settled marker. */
   presentationRevision: number | null
 ];
 
@@ -264,7 +264,10 @@ export function selectPhoneCinematicSnapshot(
     snapshot.scroll.corridor,
     snapshot.scroll.progress,
     snapshot.status === 'scroll-run' ? snapshot.run : null,
-    session?.presentationRevision ?? null
+    session?.presentationRevision
+      ?? (snapshot.status === 'stable' && snapshot.projection.revision > 0
+        ? snapshot.projection.revision
+        : null)
   ];
 }
 

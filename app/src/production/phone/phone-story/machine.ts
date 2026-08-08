@@ -211,7 +211,6 @@ type PhoneSnapshotBase = Readonly<{
   }>;
   input: Readonly<{
     completedEpoch: number | null;
-    completedEpochUntil: number | null;
   }>;
   projection: PhonePresentationProjection;
 }>;
@@ -535,8 +534,7 @@ export function createPhoneStorySnapshot({
       sampleRevision: 0
     },
     input: {
-      completedEpoch: null,
-      completedEpochUntil: null
+      completedEpoch: null
     },
     projection: phoneStableProjection(scene),
     status: 'stable',
@@ -1044,8 +1042,7 @@ function nextScrollRun(
     )
       ? snapshot.input
       : {
-        completedEpoch: evidence.inputEpoch,
-        completedEpochUntil: evidence.inputEpoch
+        completedEpoch: evidence.inputEpoch
       },
     projection: phoneStableProjection(
       phoneScrollRunTuple(evidence.run)[0],
@@ -1428,8 +1425,7 @@ function startedRun(
       direction: event.direction
     },
     input: {
-      completedEpoch: event.inputEpoch,
-      completedEpochUntil: event.inputEpoch
+      completedEpoch: event.inputEpoch
     },
     projection: phoneStableProjection(leg[1], 'candidate'),
     status: 'transaction',
@@ -1522,8 +1518,7 @@ function startedEntry(
     diagnostics: { lastRollback: null },
     scroll: snapshot.scroll,
     input: {
-      completedEpoch: null,
-      completedEpochUntil: null
+      completedEpoch: null
     },
     projection: phoneStableProjection(event.fallbackScene, 'candidate'),
     status: 'transaction',
@@ -1620,8 +1615,7 @@ function startedHoldCandidate(
   const input = sample.inputEpoch === null
     ? snapshot.input
     : {
-      completedEpoch: sample.inputEpoch,
-      completedEpochUntil: sample.inputEpoch
+      completedEpoch: sample.inputEpoch
     };
   return reduced({
     ...provisional,
