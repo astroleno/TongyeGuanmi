@@ -139,6 +139,32 @@ describe('clean PhonePattern leaf', () => {
       .toBe('1');
     expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(1, 1);
     expect(rendererProbe.instances[0]?.renderProgress).toHaveBeenLastCalledWith(1);
+    expect(rendererProbe.instances[0]?.setRenderActive).toHaveBeenLastCalledWith(true, true);
+  });
+
+  it('keeps ambient motion active for incoming, collapsed, and stable Pattern commands', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePattern reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.render(0);
+    commands.settle(0);
+    expect(rendererProbe.instances[0]?.setRenderActive).toHaveBeenLastCalledWith(true, true);
+    commands.render(1);
+    expect(rendererProbe.instances[0]?.setRenderActive).toHaveBeenLastCalledWith(true, true);
+    commands.pause('outside-closure');
+    expect(rendererProbe.instances[0]?.setRenderActive).toHaveBeenLastCalledWith(false, false);
+  });
+
+  it('renders the reducer-owned structural frame once and stops RAF for reduced motion', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn().mockReturnValue({ matches: true })
+    });
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePattern reports={mount.reports} />); });
+    mount.registration()?.commands.render(.5);
+    expect(rendererProbe.instances[0]?.setRenderActive).toHaveBeenCalledWith(true, false);
+    expect(rendererProbe.instances[0]?.renderProgress).toHaveBeenLastCalledWith(.5);
     expect(rendererProbe.instances[0]?.setRenderActive).toHaveBeenLastCalledWith(false, false);
   });
 

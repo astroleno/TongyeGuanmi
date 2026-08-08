@@ -21,6 +21,12 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 function waitForDecodedImage(image: HTMLImageElement): Promise<void> {
   if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
     return Promise.resolve();
@@ -105,11 +111,17 @@ export function PhonePattern({ reports }: PhonePatternProps) {
 
   const render = useCallback((rawProgress: number) => {
     const frame = phonePatternFrame(rawProgress);
+    const reducedMotion = prefersReducedMotion();
+    activeRef.current = true;
     // Transition frames are reducer-owned for structural phase, but the
     // ambient motion clock must keep running so petal rotation stays
     // continuous through the transition instead of freezing mid-frame.
-    rendererRef.current?.setRenderActive(true, true);
+    rendererRef.current?.setRenderActive(true, !reducedMotion);
     rendererRef.current?.setFrameProgress(frame.progress, frame.progress);
+    if (reducedMotion) {
+      rendererRef.current?.renderProgress(frame.progress);
+      rendererRef.current?.setRenderActive(false, false);
+    }
     if (imageRef.current) imageRef.current.style.opacity = frame.textureOpacity.toFixed(4);
     if (copyRef.current) {
       copyRef.current.style.transform = `translate3d(0, ${frame.copyY.toFixed(4)}px, 0)`;
@@ -139,9 +151,7 @@ export function PhonePattern({ reports }: PhonePatternProps) {
       settle(endpoint) {
         render(endpoint);
         rendererRef.current?.renderProgress(endpoint);
-        const stableHold = endpoint === 0;
-        activeRef.current = stableHold;
-        rendererRef.current?.setRenderActive(stableHold, stableHold);
+        if (prefersReducedMotion()) rendererRef.current?.setRenderActive(false, false);
       },
       pause() {
         activeRef.current = false;
@@ -191,7 +201,7 @@ export function PhonePattern({ reports }: PhonePatternProps) {
       surfaces: [{ id: 'pattern-image', element: image, kind: 'image' }],
       commands
     });
-    renderer.setRenderActive(activeRef.current, activeRef.current);
+    renderer.setRenderActive(activeRef.current, activeRef.current && !prefersReducedMotion());
     let current = true;
     void Promise.all([
       waitForDecodedImage(image),

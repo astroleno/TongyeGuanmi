@@ -111,12 +111,10 @@ type BloomRing = {
 };
 
 type RingCache = {
-  startCanvas: HTMLCanvasElement;
-  endCanvas: HTMLCanvasElement;
+  canvas: HTMLCanvasElement;
   drawSize: number;
   rotationBase: number;
   spin: number;
-  switchPoint: number;
 };
 
 type ObjectMetrics = {
@@ -344,7 +342,6 @@ export class PatternBloomRenderer {
   private readonly flowerCanvas = document.createElement('canvas');
   private readonly flowerContext = this.flowerCanvas.getContext('2d');
   private readonly ringCanvases = bloomRings.map(() => document.createElement('canvas'));
-  private readonly terminalRingCanvases = bloomRings.map(() => document.createElement('canvas'));
   private width = 0;
   private height = 0;
   private dpr = 1;
@@ -378,11 +375,6 @@ export class PatternBloomRenderer {
     this.flowerCanvas.dataset.patternTextureRole = 'source-flower';
     for (const ringCanvas of this.ringCanvases) {
       ringCanvas.dataset.patternTextureRole = 'ring';
-      ringCanvas.dataset.patternTextureEndpoint = 'start';
-    }
-    for (const ringCanvas of this.terminalRingCanvases) {
-      ringCanvas.dataset.patternTextureRole = 'ring';
-      ringCanvas.dataset.patternTextureEndpoint = 'end';
     }
   }
 
@@ -508,8 +500,7 @@ export class PatternBloomRenderer {
     for (const canvas of [
       this.petalCanvas,
       this.flowerCanvas,
-      ...this.ringCanvases,
-      ...this.terminalRingCanvases
+      ...this.ringCanvases
     ]) {
       canvas.width = 0;
       canvas.height = 0;
@@ -536,7 +527,7 @@ export class PatternBloomRenderer {
       this.canvas.width = width;
       this.canvas.height = height;
       this.ringStructuralKey = '';
-      this.ringTextureIndex = hadViewport ? bloomRings.length * 2 : 0;
+      this.ringTextureIndex = hadViewport ? bloomRings.length : 0;
     }
 
     const metrics = this.getObjectMetrics();
@@ -552,7 +543,7 @@ export class PatternBloomRenderer {
       this.lastFlowerPhase = Number.NaN;
       this.lastFlowerTextureSize = 0;
       this.ringStructuralKey = '';
-      this.ringTextureIndex = hadTextures ? bloomRings.length * 2 : 0;
+      this.ringTextureIndex = hadTextures ? bloomRings.length : 0;
     }
   }
 
@@ -714,52 +705,35 @@ export class PatternBloomRenderer {
       ring.spin
     );
     context.restore();
+    canvas.dataset.patternStructuralPhase = structuralPhase.toFixed(4);
   }
 
   private refreshRingTextures(
-    _structuralPhase: number,
+    structuralPhase: number,
     metrics: ObjectMetrics
   ): void {
-    const key = `endpoints:${Math.round(metrics.size)}`;
-    if (
-      key === this.ringStructuralKey
-      && [...this.ringCanvases, ...this.terminalRingCanvases]
-        .every((canvas) => canvas.width > 0)
-    ) return;
+    const key = `structural:${Math.round(metrics.size)}:${structuralPhase.toFixed(4)}`;
+    if (key === this.ringStructuralKey && this.ringCanvases.every((canvas) => canvas.width > 0)) return;
 
     for (let index = 0; index < bloomRings.length; index += 1) {
-      const startCanvas = this.ringCanvases[index];
-      const endCanvas = this.terminalRingCanvases[index];
-      if (startCanvas && endCanvas) {
-        this.drawRingTexture(startCanvas, index, 0, metrics);
-        this.drawRingTexture(endCanvas, index, PATTERN_STRUCTURAL_PHASE, metrics);
-      }
+      const canvas = this.ringCanvases[index];
+      if (canvas) this.drawRingTexture(canvas, index, structuralPhase, metrics);
     }
-    this.ringTextureIndex = bloomRings.length * 2;
+    this.ringTextureIndex = bloomRings.length;
     this.ringStructuralKey = key;
   }
 
   private buildNextRingTexture(): void {
-    const endpointCount = bloomRings.length * 2;
-    if (!this.textureSize || this.ringTextureIndex >= endpointCount) return;
+    if (!this.textureSize || this.ringTextureIndex >= bloomRings.length) return;
     const metrics = this.getObjectMetrics();
-    const endpointIndex = this.ringTextureIndex;
+    const index = this.ringTextureIndex;
     this.ringTextureIndex += 1;
-    const terminal = endpointIndex >= bloomRings.length;
-    const index = terminal ? endpointIndex - bloomRings.length : endpointIndex;
-    const canvas = terminal
-      ? this.terminalRingCanvases[index]
-      : this.ringCanvases[index];
+    const canvas = this.ringCanvases[index];
     if (canvas) {
-      this.drawRingTexture(
-        canvas,
-        index,
-        terminal ? PATTERN_STRUCTURAL_PHASE : 0,
-        metrics
-      );
+      this.drawRingTexture(canvas, index, 0, metrics);
     }
-    if (this.ringTextureIndex === endpointCount) {
-      this.ringStructuralKey = `endpoints:${Math.round(metrics.size)}`;
+    if (this.ringTextureIndex === bloomRings.length) {
+      this.ringStructuralKey = `structural:${Math.round(metrics.size)}:0.0000`;
     }
   }
 
@@ -805,28 +779,15 @@ export class PatternBloomRenderer {
 
     return bloomRings.flatMap((ring, index) => {
       const drawSize = metrics.size * interpolate(ring.scale, ring.endScale, collapse);
-      const startCanvas = this.ringCanvases[index];
-      const endCanvas = this.terminalRingCanvases[index];
-      if (
-        drawSize < 2
-        || !startCanvas?.width
-        || !startCanvas.height
-        || !endCanvas?.width
-        || !endCanvas.height
-      ) {
+      const canvas = this.ringCanvases[index];
+      if (drawSize < 2 || !canvas?.width || !canvas.height) {
         return [];
       }
       return [{
-        startCanvas,
-        endCanvas,
+        canvas,
         drawSize,
         rotationBase: ring.rotation * Math.PI / 180 + fieldRotation * ring.spin,
-        spin: ring.spin,
-        // Stagger the opaque texture swap per ring so the collapse midpoint
-        // reads as six small steps instead of one simultaneous jump. The
-        // sharpest inner rings swap nearest the midpoint, where endpointMix
-        // moves fastest and motion masks the pop.
-        switchPoint: 0.5 + (index - (bloomRings.length - 1) / 2) * 0.055
+        spin: ring.spin
       }];
     });
   }
@@ -836,20 +797,14 @@ export class PatternBloomRenderer {
     if (!context) {
       return;
     }
-    const endpointMix = smoothstep(0.02, 1, progress);
     for (const ring of this.buildRingCache(progress, rotationProgress, metrics)) {
       const rotation = ring.rotationBase + phase * 0.028 * ring.spin;
-      // The zoom is a geometry change, not a dissolve. Drawing one opaque
-      // structural texture avoids the semi-transparent petals created by a
-      // conventional start/end crossfade while size and rotation stay
-      // continuously scroll-driven.
-      const texture = endpointMix < ring.switchPoint ? ring.startCanvas : ring.endCanvas;
       context.save();
       context.translate(metrics.centerX, metrics.centerY);
       context.rotate(rotation);
       context.globalAlpha = 1;
       context.drawImage(
-        texture,
+        ring.canvas,
         -ring.drawSize / 2,
         -ring.drawSize / 2,
         ring.drawSize,
@@ -896,7 +851,7 @@ export class PatternBloomRenderer {
     }
     this.rafId = window.requestAnimationFrame((now) => {
       this.rafId = 0;
-      const prewarming = this.ringTextureIndex < bloomRings.length * 2;
+      const prewarming = this.ringTextureIndex < bloomRings.length;
       if (prewarming) {
         this.buildNextRingTexture();
       }
@@ -916,7 +871,7 @@ export class PatternBloomRenderer {
       if (
         (this.renderActive && (this.framePending || this.animateMotion))
         || this.staticFrameRequested
-        || this.ringTextureIndex < bloomRings.length * 2
+        || this.ringTextureIndex < bloomRings.length
       ) {
         this.requestRender();
       }

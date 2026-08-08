@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   PatternBloomRenderer,
   patternFramePhases,
@@ -176,7 +177,7 @@ describe('PatternBloomRenderer', () => {
     renderer.destroy();
   });
 
-  it('prewarms ring textures while hidden without redrawing the scene during the transition', async () => {
+  it('prewarms six live ring textures while hidden without redrawing the scene during the transition', async () => {
     const harness = installRendererDom();
     const renderer = new PatternBloomRenderer(harness.canvas);
 
@@ -189,7 +190,7 @@ describe('PatternBloomRenderer', () => {
       .filter((canvas) => canvas.dataset.patternTextureRole === 'ring' && canvas.width > 0)
       .length;
     let previousBuilt = builtRingCount();
-    for (let frame = 0; frame < 16 && harness.rafCount(); frame += 1) {
+    for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
       harness.flushRaf(frame * 16.67);
       const nextBuilt = builtRingCount();
       expect(nextBuilt - previousBuilt).toBeLessThanOrEqual(1);
@@ -197,7 +198,7 @@ describe('PatternBloomRenderer', () => {
       expect(harness.canvas.dataset.inkTextureRevision).toBeUndefined();
     }
 
-    expect(previousBuilt).toBe(12);
+    expect(previousBuilt).toBe(6);
     expect(harness.rafCount()).toBe(0);
     renderer.setMotionEnabled(true);
     expect(harness.rafCount()).toBe(1);
@@ -316,7 +317,7 @@ describe('PatternBloomRenderer', () => {
 
     await renderer.start();
     renderer.setRenderActive(true, false);
-    for (let frame = 0; frame < 16 && harness.rafCount(); frame += 1) {
+    for (let frame = 0; frame < 8 && harness.rafCount(); frame += 1) {
       harness.flushRaf(frame * 16.67);
     }
 
@@ -324,7 +325,7 @@ describe('PatternBloomRenderer', () => {
       .map(({ value }) => value as FakeCanvas)
       .filter((canvas) => canvas.dataset.patternTextureRole === 'ring' && canvas.width > 0)
       .length;
-    expect(builtRingCount).toBe(12);
+    expect(builtRingCount).toBe(6);
     expect(Number(harness.canvas.dataset.inkTextureRevision)).toBe(1);
     expect(harness.canvas.dataset.inkTextureReady).toBe('true');
     expect(harness.rafCount()).toBe(0);
@@ -354,7 +355,7 @@ describe('PatternBloomRenderer', () => {
     renderer.destroy();
   });
 
-  it('prebuilds endpoint ring textures and reuses them for structural progress and idle motion', async () => {
+  it('rebuilds the same six ring textures for each structural phase', async () => {
     const harness = installRendererDom();
     const renderer = new PatternBloomRenderer(harness.canvas);
     await renderer.start();
@@ -370,17 +371,17 @@ describe('PatternBloomRenderer', () => {
       .reduce((sum, canvas) => sum + canvas.context.clearRectCount, 0);
 
     const initial = ringBuilds();
-    renderer.setFrameProgress(1, 1);
-    harness.flushRaf(480);
+    renderer.setFrameProgress(.45, .45);
+    harness.flushRaf(1_000);
     const compact = ringBuilds();
-    harness.flushRaf(528);
+    harness.flushRaf(1_048);
 
-    expect(compact - initial).toBe(0);
-    expect(ringBuilds()).toBe(compact);
+    expect(compact).toBeGreaterThan(initial);
+    expect(ringCanvases()).toHaveLength(6);
     renderer.destroy();
   });
 
-  it('bakes Main filters into six 320px terminal ring caches', async () => {
+  it('keeps one filtered live cache per ring at the compact endpoint', async () => {
     const harness = installRendererDom();
     const renderer = new PatternBloomRenderer(harness.canvas);
 
@@ -391,16 +392,47 @@ describe('PatternBloomRenderer', () => {
     }
 
     renderer.setFrameProgress(1, 1);
-    harness.flushRaf(480);
+    harness.flushRaf(1_000);
     const ringCanvases = harness.createElement.mock.results
       .map(({ value }) => value as FakeCanvas)
       .filter((canvas) => canvas.dataset.patternTextureEndpoint === 'end');
     const outputContext = (harness.canvas as unknown as FakeCanvas).context;
 
-    expect(ringCanvases.map((canvas) => canvas.width)).toEqual([320, 320, 320, 320, 320, 320]);
-    expect(ringCanvases.every((canvas) => canvas.context.filteredDrawCount > 0)).toBe(true);
+    expect(ringCanvases).toHaveLength(0);
+    const liveRingCanvases = harness.createElement.mock.results
+      .map(({ value }) => value as FakeCanvas)
+      .filter((canvas) => canvas.dataset.patternTextureRole === 'ring');
+    expect(liveRingCanvases.map((canvas) => canvas.width)).toEqual([320, 320, 320, 320, 320, 320]);
+    expect(liveRingCanvases.every((canvas) => canvas.dataset.patternStructuralPhase === '4.2000')).toBe(true);
+    expect(liveRingCanvases.every((canvas) => canvas.context.filteredDrawCount > 0)).toBe(true);
     expect(outputContext.filteredDrawCount).toBe(0);
     expect(outputContext.shadowBlur).toBeGreaterThan(0);
+    renderer.destroy();
+  });
+
+  it('advances one continuous structural phase through the collapse midpoint', async () => {
+    const harness = installRendererDom();
+    const renderer = new PatternBloomRenderer(harness.canvas);
+    await renderer.start();
+    for (let frame = 0; frame < 6 && harness.rafCount(); frame += 1) {
+      harness.flushRaf(frame * 48);
+    }
+    renderer.setRenderActive(true, false);
+    harness.flushRaf(1000);
+    const ringCanvases = () => harness.createElement.mock.results
+      .map(({ value }) => value as FakeCanvas)
+      .filter((canvas) => canvas.dataset.patternTextureRole === 'ring');
+    let previous = -Infinity;
+    for (const [index, progress] of [.45, .49, .50, .51, .55].entries()) {
+      renderer.setFrameProgress(progress, progress);
+      harness.flushRaf(1_200 + index * 60);
+      const phases = ringCanvases().map((canvas) => Number(canvas.dataset.patternStructuralPhase));
+      expect(phases.every((phase) => phase > previous)).toBe(true);
+      previous = phases[0] ?? previous;
+    }
+    const source = readFileSync(new URL('./patternBloomRenderer.ts', import.meta.url), 'utf8');
+    expect(source).not.toContain('terminalRingCanvases');
+    expect(source).not.toContain('switchPoint');
     renderer.destroy();
   });
 
