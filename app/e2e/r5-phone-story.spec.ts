@@ -1024,6 +1024,25 @@ async function inputPhoneDelta(page: Page, deltaY: number): Promise<void> {
   await page.mouse.wheel(0, deltaY);
 }
 
+/**
+ * Sends one continuous intent with multiple touch moves. The runtime must
+ * claim the boundary during this sequence; tests must not manufacture a
+ * transition by repeatedly ending and restarting 50px pulses.
+ */
+async function inputPhoneIntent(
+  page: Page,
+  direction: 1 | -1,
+  distance = 520
+): Promise<void> {
+  const deltas = [80, 220, distance].map((delta) => direction * delta);
+  if (page.context().browser()?.browserType().name() === 'webkit') {
+    await touchPhoneSequence(page, deltas);
+    return;
+  }
+  await page.mouse.move(195, 180);
+  await page.mouse.wheel(0, direction * distance);
+}
+
 async function waitForNewWheelEpoch(page: Page): Promise<void> {
   await page.waitForTimeout(WHEEL_QUIET_MS);
 }
@@ -2020,8 +2039,8 @@ function assertLabEducationReducedStaticAdmissionTrace(
 /**
  * Hero/Pattern no longer borrow document progress as an animation clock. A
  * single input starts one machine run, and that run owns every intermediate
- * frame until its stable checkpoint. Star→AOD remains the one semantic rail
- * run while its dedicated AOD runner is frozen under this cutover.
+ * frame until its stable checkpoint. The front rail supplies only the
+ * boundary/landing sample; Star→AOD is an ordinary timed-ink transaction.
  */
 const FRONT_MACHINE_RUNS = [
   {
@@ -2041,6 +2060,12 @@ const FRONT_MACHINE_RUNS = [
     to: 'star-map',
     id: 'pattern-star-map',
     kind: 'machine'
+  },
+  {
+    from: 'star-map',
+    to: 'aod-animation',
+    id: 'star-map-aod',
+    kind: 'machine'
   }
 ] as const satisfies ReadonlyArray<Readonly<{
   from: PhoneStableScene;
@@ -2049,21 +2074,7 @@ const FRONT_MACHINE_RUNS = [
   kind: 'machine';
 }>>;
 
-const FRONT_SCROLL_RUNS = [
-  {
-    from: 'star-map',
-    to: 'aod-animation',
-    id: 'star-aod-scroll',
-    kind: 'scroll'
-  }
-] as const satisfies ReadonlyArray<Readonly<{
-  from: PhoneStableScene;
-  to: PhoneStableScene;
-  id: 'star-aod-scroll';
-  kind: 'scroll';
-}>>;
-
-const FRONT_RUNS = [...FRONT_MACHINE_RUNS, ...FRONT_SCROLL_RUNS] as const;
+const FRONT_RUNS = FRONT_MACHINE_RUNS;
 
 type FrontRun = (typeof FRONT_RUNS)[number];
 
@@ -2158,45 +2169,6 @@ function assertMachineFrontRunTrace(
   }
 }
 
-function assertStarAodScrollTrace(
-  states: readonly PhoneTransitionTraceState[],
-  from: PhoneStableScene,
-  to: PhoneStableScene,
-  direction: 1 | -1
-): void {
-  const run = frontRun(from, to);
-  if (run.kind !== 'scroll') throw new Error(`Expected Star→AOD scroll run, received ${run.id}`);
-  const transitionStartIndex = states.findIndex(
-    (state) => state.cursor === `transition:${run.id}:0`
-  );
-  expect(transitionStartIndex, `missing front scroll trace for ${from} → ${to}`)
-    .toBeGreaterThanOrEqual(0);
-  const finalStableIndex = states.findIndex((state, index) => (
-    index >= transitionStartIndex && state.cursor === `hold:${to}`
-  ));
-  expect(finalStableIndex, `missing Front terminal hold:${to}`).toBeGreaterThanOrEqual(0);
-  const runTrace = states.slice(transitionStartIndex, finalStableIndex + 1);
-  const trace = runTrace.filter((state) => state.cursor === `transition:${run.id}:0`);
-  expect(trace, `missing front scroll trace for ${from} → ${to}`).not.toEqual([]);
-  expect(new Set(trace.map((state) => state.authorityId)).size).toBe(1);
-  expect(trace.every((state) => state.session === null && state.input === 'free')).toBe(true);
-  expect(new Set(trace.map((state) => state.scrollCorridor))).toEqual(new Set(['front-rail']));
-  const progresses = trace.flatMap((state) => (
-    state.scrollProgress === null || !Number.isFinite(state.scrollProgress)
-      ? []
-      : [state.scrollProgress]
-  ));
-  expect(progresses.some((progress) => progress > .05 && progress < .95)).toBe(true);
-  for (let index = 1; index < progresses.length; index += 1) {
-    if (direction === 1) {
-      expect(progresses[index]).toBeGreaterThanOrEqual(progresses[index - 1]! - .0001);
-    } else {
-      expect(progresses[index]).toBeLessThanOrEqual(progresses[index - 1]! + .0001);
-    }
-  }
-  for (const state of trace) assertFrontTransitionCoverage(state);
-}
-
 function assertFrontRunTrace(
   states: readonly PhoneTransitionTraceState[],
   from: PhoneStableScene,
@@ -2204,10 +2176,6 @@ function assertFrontRunTrace(
   direction: 1 | -1
 ): void {
   const run = frontRun(from, to);
-  if (run.kind === 'scroll') {
-    assertStarAodScrollTrace(states, from, to, direction);
-    return;
-  }
   assertMachineFrontRunTrace(states, run, to, direction);
 }
 
@@ -2229,82 +2197,14 @@ async function driveFrontRun(
   const expectedDirection = run.from === from ? 1 : -1;
   expect(direction).toBe(expectedDirection);
 
-  if (run.kind === 'machine') {
-    // This is the regression gate: one intent may start exactly one front
-    // transaction, but no amount of source scroll may clock or skip it.
-    await inputPhoneDelta(page, direction * 180);
-    await expect.poll(
-      async () => shell.getAttribute('data-phone-cursor'),
-      { timeout: 2_500, message: `one intent must start ${run.id}` }
-    ).toBe(`transition:${run.id}:0`);
-    await assertStablePhoneHold(page, to, { timeout: 15_000 });
-    await recordPhoneLegTimeline(page, from, to, direction);
-    assertFrontRunTrace((await phoneRuntimeProbe(page)).stateEvents, from, to, direction);
-    return;
-  }
-
-  let sawTransition = false;
-  let reachedTarget = false;
-  for (let pulse = 0; pulse < 64; pulse += 1) {
-    // Keep every synthetic input below the narrowest Front handoff span.
-    // The contract must observe an actual transition sample, not merely land
-    // in the following hold after a browser-coalesced wheel jump.
-    await inputPhoneDelta(page, direction * 50);
-    await page.waitForTimeout(100);
-    const cursor = await shell.getAttribute('data-phone-cursor');
-    sawTransition ||= cursor === `transition:${run.id}:0`;
-    if (cursor === `hold:${to}`) {
-      reachedTarget = true;
-      break;
-    }
-  }
-  const inputDiagnostics = await page.evaluate(() => {
-    const probe = (window as typeof window & {
-      __phoneRuntimeProbe?: {
-        wheelEvents: unknown[];
-        cursorEvents: unknown[];
-        stateEvents: unknown[];
-      };
-    }).__phoneRuntimeProbe;
-    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
-    const rail = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-rail');
-    const stage = document.querySelector<HTMLElement>('.portrait-scroll-spike__stage-canvas');
-    const railRect = rail?.getBoundingClientRect() ?? null;
-    const stageRect = stage?.getBoundingClientRect() ?? null;
-    return {
-      y: window.scrollY,
-      cursor: root?.dataset.phoneCursor ?? null,
-      scrollProgress: root?.dataset.phoneScrollProgress ?? null,
-      scrollCorridor: root?.dataset.phoneScrollCorridor ?? null,
-      geometry: {
-        innerWidth: window.innerWidth,
-        innerHeight: window.innerHeight,
-        devicePixelRatio: window.devicePixelRatio,
-        visualViewport: window.visualViewport ? {
-          width: window.visualViewport.width,
-          height: window.visualViewport.height,
-          scale: window.visualViewport.scale
-        } : null,
-        railTop: railRect ? railRect.top + window.scrollY : null,
-        railHeight: railRect?.height ?? null,
-        stageHeight: stageRect?.height ?? null,
-        configuredDistance: root?.style.getPropertyValue('--portrait-stage-scroll-distance') ?? null
-      },
-      wheelEvents: probe?.wheelEvents.slice(-8),
-      cursorEvents: probe?.cursorEvents.slice(-12),
-      stateEventsHead: probe?.stateEvents.slice(0, 12),
-      stateEvents: probe?.stateEvents.slice(-24)
-    };
-  });
-  expect(
-    sawTransition,
-    `front wheel input did not enter ${run.id}: ${JSON.stringify(inputDiagnostics)}`
-  ).toBe(true);
-  expect(
-    reachedTarget,
-    `front wheel input did not settle hold:${to}: ${JSON.stringify(inputDiagnostics)}`
-  ).toBe(true);
-  await assertStablePhoneHold(page, to, { timeout: 30_000 });
+  // This is the regression gate: one large intent may start exactly one front
+  // transaction, but document scroll can never clock or skip its authored run.
+  await inputPhoneDelta(page, direction * 180);
+  await expect.poll(
+    async () => shell.getAttribute('data-phone-cursor'),
+    { timeout: 2_500, message: `one intent must start ${run.id}` }
+  ).toBe(`transition:${run.id}:0`);
+  await assertStablePhoneHold(page, to, { timeout: 15_000 });
   await recordPhoneLegTimeline(page, from, to, direction);
   assertFrontRunTrace((await phoneRuntimeProbe(page)).stateEvents, from, to, direction);
 }
@@ -2321,9 +2221,7 @@ function assertReducedFrontHoldTrace(
   const trace = states.slice(0, terminal + 1);
   const candidates = trace.filter((state) => (
     state.session !== null
-    && (run.kind === 'machine'
-      ? state.cursor === `transition:${run.id}:0`
-      : true)
+    && state.cursor === `transition:${run.id}:0`
   ));
   expect(candidates, `missing reduced candidate for ${from} → ${to}`).not.toEqual([]);
   const candidateSession = candidates[0]!.session;
@@ -2337,16 +2235,7 @@ function assertReducedFrontHoldTrace(
     && Math.abs(state.progress - candidateProgress) <= .05
   ))).toBe(true);
   expect(candidates.at(-1)!.at - candidates[0]!.at).toBeLessThan(2_000);
-  if (run.kind === 'machine') {
-    expect(trace.some((state) => state.cursor === `transition:${run.id}:0`)).toBe(true);
-  } else if (run.id !== 'star-aod-scroll') {
-    // Reduced Star→AOD uses the same short machine admission as every other
-    // static front endpoint. The positional scroll sample may still publish
-    // one scroll-run trace before the candidate is projected, but it must not
-    // be mistaken for the transaction that owns the leaf proof.
-    expect(trace.some((state) => state.cursor === `transition:${run.id}:0`)).toBe(false);
-    expect(trace.some((state) => state.scrollCorridor === 'front-rail')).toBe(true);
-  }
+  expect(trace.some((state) => state.cursor === `transition:${run.id}:0`)).toBe(true);
   expect(trace.every((state) => (
     state.session === null ? state.input === 'free' : state.input === 'locked'
   ))).toBe(true);
@@ -2360,7 +2249,7 @@ async function driveReducedFrontHold(
   to: PhoneStableScene,
   direction: 1 | -1
 ): Promise<void> {
-  const shell = await assertStablePhoneHold(page, from);
+  await assertStablePhoneHold(page, from);
   await waitForNewWheelEpoch(page);
   await page.evaluate(() => {
     const probe = (window as typeof window & {
@@ -2369,34 +2258,10 @@ async function driveReducedFrontHold(
     if (probe) probe.stateEvents.length = 0;
   });
   const startY = await page.evaluate(() => window.scrollY);
-  const run = frontRun(from, to);
-  if (run.kind === 'machine') {
-    await inputPhoneDelta(page, direction * 180);
-    await assertStablePhoneHold(page, to, { timeout: 15_000 });
-    const targetY = await page.evaluate(() => window.scrollY);
-    expect(direction === 1 ? targetY > startY : targetY < startY).toBe(true);
-    await recordPhoneLegTimeline(page, from, to, direction);
-    assertReducedFrontHoldTrace(
-      (await phoneRuntimeProbe(page)).stateEvents,
-      from,
-      to,
-      direction
-    );
-    return;
-  }
-  let reachedTarget = false;
-  for (let pulse = 0; pulse < 64; pulse += 1) {
-    await inputPhoneDelta(page, direction * 250);
-    await page.waitForTimeout(100);
-    if (await shell.getAttribute('data-phone-cursor') === `hold:${to}`) {
-      reachedTarget = true;
-      break;
-    }
-  }
+  await inputPhoneDelta(page, direction * 180);
   const targetY = await page.evaluate(() => window.scrollY);
-  expect(reachedTarget, `reduced front input did not settle hold:${to}`).toBe(true);
   expect(direction === 1 ? targetY > startY : targetY < startY).toBe(true);
-  await assertStablePhoneHold(page, to, { timeout: 30_000 });
+  await assertStablePhoneHold(page, to, { timeout: 15_000 });
   await recordPhoneLegTimeline(page, from, to, direction);
   assertReducedFrontHoldTrace(
     (await phoneRuntimeProbe(page)).stateEvents,
@@ -2438,15 +2303,9 @@ async function driveAdjacentPhoneRun(
     probe.stateEvents.length = 0;
   });
   const startY = await page.evaluate(() => window.scrollY);
-  let leftSource = false;
-  for (let pulse = 0; pulse < 64; pulse += 1) {
-    await inputPhoneDelta(page, direction * 250);
-    await page.waitForTimeout(100);
-    if (await shell.getAttribute('data-phone-cursor') !== `hold:${from}`) {
-      leftSource = true;
-      break;
-    }
-  }
+  await inputPhoneIntent(page, direction);
+  await page.waitForTimeout(100);
+  const leftSource = await shell.getAttribute('data-phone-cursor') !== `hold:${from}`;
   const inputDiagnostics = await page.evaluate(() => {
     const probe = (
       window as typeof window & {
@@ -2649,6 +2508,54 @@ async function driveJourney(
           states: probe.stateEvents.slice(-32)
         })}`
       );
+    }
+  }
+}
+
+/**
+ * A release gate for the real interaction shape: one continuous intent per
+ * authored boundary, with no pulse loop used to manufacture intermediate
+ * states. The stable checkpoint is still the handoff between gestures, but
+ * every gesture itself contains multiple touch moves on WebKit.
+ */
+async function driveContinuousJourney(
+  page: Page,
+  legs: ReadonlyArray<readonly [PhoneStableScene, PhoneStableScene]>
+): Promise<void> {
+  for (const [from, to] of legs) {
+    const direction: 1 | -1 = FORMAL_FORWARD_JOURNEY.some(([source, target]) => (
+      source === from && target === to
+    )) ? 1 : -1;
+    const shell = await assertStablePhoneHold(page, from);
+    await waitForNewWheelEpoch(page);
+    await page.evaluate(() => {
+      const probe = (window as typeof window & {
+        __phoneRuntimeProbe?: {
+          cursorEvents: unknown[];
+          stateEvents: unknown[];
+        };
+      }).__phoneRuntimeProbe;
+      if (!probe) return;
+      probe.cursorEvents.length = 0;
+      probe.stateEvents.length = 0;
+    });
+
+    await inputPhoneIntent(page, direction);
+    await expect.poll(
+      async () => shell.getAttribute('data-phone-cursor'),
+      { timeout: 2_500, message: `continuous intent did not claim ${from} → ${to}` }
+    ).toMatch(/^transition:/);
+    await assertStablePhoneHold(page, to, { timeout: 15_000 });
+    const timeline = await recordPhoneLegTimeline(page, from, to, direction);
+    expect(
+      timeline.commitAt - timeline.startAt,
+      `${from} → ${to} must settle within one bounded preparation/playback lease`
+    ).toBeLessThanOrEqual(8_000);
+    const states = (await phoneRuntimeProbe(page)).stateEvents;
+    if (isFrontJourneyLeg(from, to)) {
+      assertFrontRunTrace(states, from, to, direction);
+    } else {
+      assertTransitionTrace(states, from, to, direction);
     }
   }
 }
@@ -3097,6 +3004,33 @@ test('Task 10 gates a cold production formal Hero → Contact journey', async ({
   const booleanContract = await cssBooleanContractViolations(page);
   expect(booleanContract.contractCount).toBeGreaterThan(10);
   expect(booleanContract.violations).toEqual([]);
+});
+
+test('[P0 unsegmented journey] one continuous intent per boundary completes the full route in both directions', async ({
+  page,
+  browserName
+}) => {
+  test.setTimeout(browserName === 'webkit' ? 240_000 : 180_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/', 'hero');
+
+  await driveContinuousJourney(page, FORMAL_FORWARD_JOURNEY);
+  await assertStablePhoneHold(page, 'contact');
+  await driveContinuousJourney(page, FORMAL_REVERSE_JOURNEY);
+  await assertStablePhoneHold(page, 'hero');
+
+  const probe = await phoneRuntimeProbe(page);
+  expect(probe.legTimelines).toHaveLength(
+    FORMAL_FORWARD_JOURNEY.length + FORMAL_REVERSE_JOURNEY.length
+  );
+  expect(probe.legTimelines.every((timeline) => (
+    timeline.startAt <= timeline.firstFrameAt
+    && timeline.firstFrameAt <= timeline.commitAt
+    && timeline.commitAt <= timeline.releaseAt
+    && timeline.commitAt - timeline.startAt <= 8_000
+  ))).toBe(true);
+  expect(new Set(probe.legTimelines.map((timeline) => timeline.authorityId)).size).toBe(1);
+  expect(probe.maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 });
 
 test('Task 10 gates a production Contact → Hero reverse journey', async ({ page }) => {
@@ -3792,7 +3726,7 @@ test('[execution regression] Star Map advances real Perlin frames while its stab
       const cursor = root?.dataset.phoneCursor ?? null;
       const phase = root?.dataset.phoneTransitionPhase ?? null;
       if (
-        cursor === 'transition:star-aod-scroll:0'
+        cursor === 'transition:star-map-aod:0'
         || phase === 'verifying-target'
       ) {
         const style = source ? getComputedStyle(source) : null;

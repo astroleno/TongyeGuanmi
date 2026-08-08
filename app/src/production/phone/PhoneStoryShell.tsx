@@ -159,7 +159,6 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
   const methodExecutionActive = loaderHidden
     && modulesReady
     && phoneSnapshotOwnsMethod(navigation.cinematicSnapshot, mapAodToMethod);
-
   usePhoneViewportGeometry(rootRef, motionEnabled);
 
   usePhoneStoryEntryLifecycle(
