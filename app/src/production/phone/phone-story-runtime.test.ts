@@ -121,7 +121,7 @@ describe('phone story runtime factory', () => {
       }
     };
     const settled = selectPhoneCinematicSnapshot(committed);
-    expect(settled[18]).toBe(1);
+    expect(settled[18]).toBeNull();
     expect(settled[19]).toBe(true);
     runtime.dispose();
   });

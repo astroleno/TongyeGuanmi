@@ -267,10 +267,7 @@ export function selectPhoneCinematicSnapshot(
     snapshot.scroll.corridor,
     snapshot.scroll.progress,
     snapshot.status === 'scroll-run' ? snapshot.run : null,
-    session?.presentationRevision
-      ?? (entrySettled
-        ? snapshot.projection.revision
-        : null),
+    session?.presentationRevision ?? null,
     entrySettled
   ];
 }

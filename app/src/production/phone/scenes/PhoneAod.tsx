@@ -264,7 +264,10 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           },
           () => reportAodFailure('aod-context-lost')
         );
-        return undefined;
+        // `wait()` may settle synchronously when Safari restored the context
+        // before this presentation lease arrived. Re-read the ref so the
+        // caller cannot mistake that healthy compositor for media failure.
+        return compositorRef.current;
       }
       let compositor: PackedAlphaVideoCompositor | undefined;
       compositor = createPackedAlphaVideoCompositor({
@@ -555,7 +558,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         // The execution identity is read from the current runtime refs by
         // the frame callback. Keeping this warmed context avoids Safari
         // allocating a second WebGL canvas during the same AOD handoff.
-        const compositor = ensureCompositor();
+        const compositor = ensureCompositor() ?? compositorRef.current;
         if (!compositor) return Promise.resolve('error');
         compositor.setActive(true);
         // This is the authored source-safe paint that may produce the first
@@ -593,7 +596,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           requestBoundStaticPresentation();
           return;
         }
-        const compositor = ensureCompositor();
+        const compositor = ensureCompositor() ?? compositorRef.current;
         if (!compositor) {
           // Context restoration is an asynchronous part of the same AOD
           // lease. Keep the binding pending; ensureCompositor() will either

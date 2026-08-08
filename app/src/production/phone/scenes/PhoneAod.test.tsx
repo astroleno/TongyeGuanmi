@@ -1,9 +1,17 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   PhoneAod,
   phoneAodPresentationFrame
 } from './PhoneAod';
+
+const aodSource = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), 'PhoneAod.tsx'),
+  'utf8'
+);
 
 describe('PhoneAod Route B adapter', () => {
   it('keeps its stable root mounted and reserves active for decoder resources', () => {
@@ -54,6 +62,21 @@ describe('PhoneAod Route B adapter', () => {
       observedAt: 48,
       origin: 'leaf-post-paint'
     });
+  });
+
+  it('keeps a synchronously restored compositor for the pending presentation lease', () => {
+    const ensureCompositor = aodSource.slice(
+      aodSource.indexOf('const ensureCompositor'),
+      aodSource.indexOf('progressListenerRef.current')
+    );
+    expect(ensureCompositor).toContain('return compositorRef.current;');
+    const presentationPath = aodSource.slice(
+      aodSource.indexOf('presentPresentation(token'),
+      aodSource.indexOf('disposePresentation(token')
+    );
+    expect(presentationPath).toContain(
+      'ensureCompositor() ?? compositorRef.current'
+    );
   });
 
 });
