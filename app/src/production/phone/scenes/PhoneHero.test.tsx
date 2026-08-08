@@ -69,6 +69,11 @@ describe('PhoneHero Route B adapter', () => {
     expect(storyShellSource).not.toContain(
       "active={loaderHidden && activeFrontSurface('front:hero')}"
     );
+    expect(storyShellSource).toContain('heroEntranceAllowed: loaderHidden');
+    expect(storyShellSource).toContain(
+      'enabled: fixedStageRegistered && openingExecutionOpen'
+    );
+    expect(storyShellSource).toContain('heroEntranceAllowed');
   });
 
   it('[front-half gate] confirms Hero readiness only after a successful packed-alpha draw survives browser presentation', () => {
@@ -110,6 +115,8 @@ describe('PhoneHero Route B adapter', () => {
   });
 
   it('keeps StoryLoader as the only startup visual cover instead of a poster-decoded stage gate', () => {
+    expect(heroSource).toContain("ensurePackedSurface('forward')");
+    expect(heroSource).toContain("ensureIntroInk()?.(['prewarm'])");
     expect(storyShellSource).not.toContain('data-phone-hero-first-frame');
     expect(stageRailStyles).not.toContain('data-phone-hero-first-frame');
     expect(stageRailStyles).not.toContain('[data-portrait-loader-ready="false"]');

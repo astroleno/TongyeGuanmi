@@ -211,7 +211,11 @@ describe('InkFieldFrame', () => {
       .split(', ')
       .map((point) => point.split(' ').map((value) => Number.parseFloat(value)));
 
-    expect(points.some(([x, y]) => x < 0 || x > 100 || y < 0 || y > 100)).toBe(true);
+    expect(points.some((point) => {
+      const x = point[0] ?? 0;
+      const y = point[1] ?? 0;
+      return x < 0 || x > 100 || y < 0 || y > 100;
+    })).toBe(true);
   });
 
   it('keeps the depth field texture transform in the frame without sampled geometry', () => {
