@@ -1413,10 +1413,17 @@ test('Pattern viewport and coverage stay globally owned through a live resize', 
     expect(proof.frame).toBe('ready');
     expect(proof.coverageColor).toBe('#8f7f61');
     expect(proof.patternAfter).toBe('none');
-    for (const bounds of [proof.viewport, proof.coverage, proof.active, proof.pattern]) {
+    for (const bounds of [proof.viewport, proof.active, proof.pattern]) {
       expect(bounds).not.toBeNull();
       bounds?.forEach((value, index) => expect(value).toBeCloseTo(proof.visual[index]!, 0));
     }
+    expect(proof.coverage).not.toBeNull();
+    // The coverage layer overshoots the visual viewport on every edge so a
+    // transient toolbar-animation seam stays painted with the edge color.
+    expect(proof.coverage![0]).toBeLessThanOrEqual(proof.visual[0]!);
+    expect(proof.coverage![1]).toBeLessThanOrEqual(proof.visual[1]!);
+    expect(proof.coverage![2]).toBeGreaterThanOrEqual(proof.visual[2]!);
+    expect(proof.coverage![3]).toBeGreaterThanOrEqual(proof.visual[3]!);
     await assertNoWhiteOrTransparentViewportEdges(page);
   }
 });
