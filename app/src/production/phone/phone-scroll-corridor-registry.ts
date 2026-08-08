@@ -1,5 +1,5 @@
 import type { SceneId } from '../../story/types';
-import { phoneRunTuple, type PhoneRunId, type PhoneScrollRunId } from './phone-story-runs';
+import { phoneRunTuple, type PhoneRunId } from './phone-story-runs';
 import type {
   PhoneStorySnapshot
 } from './phone-story/machine';
@@ -15,7 +15,7 @@ export type PhoneScrollViewport = Readonly<{
 export type PhoneScrollCorridorSample = Readonly<{
   actualY?: number;
   scene?: SceneId;
-  run?: PhoneScrollRunId;
+  run?: PhoneRunId;
   direction?: -1 | 0 | 1;
   progress?: number;
   /** Presentation strategy is a sampled fact, never a second controller. */

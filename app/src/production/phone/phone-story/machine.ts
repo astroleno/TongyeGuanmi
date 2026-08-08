@@ -3,11 +3,9 @@ import type { SceneId, SegmentId } from '../../../story/types';
 import {
   phoneRunLegTuple,
   phoneRunTuple,
-  phoneScrollRunTuple,
   type PhoneCursorRunId,
   type PhoneRunId,
-  type PhoneRunTuple,
-  type PhoneScrollRunId
+  type PhoneRunTuple
 } from '../phone-story-runs';
 import {
   phoneStableProjectionTuple,
@@ -221,12 +219,6 @@ export type PhoneStableSnapshot = PhoneSnapshotBase & Readonly<{
   session: null;
 }>;
 
-export type PhoneScrollRunSnapshot = PhoneSnapshotBase & Readonly<{
-  status: 'scroll-run';
-  run: PhoneScrollRunId;
-  session: null;
-}>;
-
 export type PhoneTransactionSnapshot = PhoneSnapshotBase & Readonly<{
   status: 'transaction';
   session: PhoneSnapshotSession;
@@ -234,7 +226,6 @@ export type PhoneTransactionSnapshot = PhoneSnapshotBase & Readonly<{
 
 export type PhoneStorySnapshot =
   | PhoneStableSnapshot
-  | PhoneScrollRunSnapshot
   | PhoneTransactionSnapshot;
 
 /**
@@ -250,7 +241,7 @@ export function phonePresentationSnapshot(
     snapshot.status,
     snapshot.revision,
     snapshot.status === 'stable' ? snapshot.scene : null,
-    snapshot.status === 'scroll-run' ? snapshot.run : null,
+    null,
     snapshot.scroll.corridor,
     snapshot.scroll.progress,
     snapshot.scroll.direction,
@@ -477,17 +468,6 @@ export type PhoneStoryEvent =
       source: 'hash' | 'menu' | 'history';
     }>
   | Readonly<{
-      type: 'SCROLL_RUN_RECONCILED';
-      authorityId: string;
-      run: PhoneScrollRunId;
-      direction: 1 | -1;
-      progress: number;
-      actualY: number;
-      corridor?: PhoneScrollCorridorId | null;
-      /** Physical gesture identity retained until this sampled run settles. */
-      inputEpoch?: number | undefined;
-    }>
-  | Readonly<{
       type: 'SCROLL_SAMPLED';
       authorityId: string;
       actualY: number;
@@ -495,7 +475,7 @@ export type PhoneStoryEvent =
       progress?: number | undefined;
       direction?: -1 | 0 | 1 | undefined;
       scene?: SceneId | undefined;
-      run?: PhoneScrollRunId | undefined;
+      run?: PhoneRunId | undefined;
       /** Positional front-rail fact; only reduced samples enter static admission. */
       reducedMotion?: boolean | undefined;
       /** Physical touch/wheel epoch retained through native momentum tail. */
@@ -953,30 +933,11 @@ function projectionForTransaction(
   return { ...projection, revision };
 }
 
-function scrollRunCursor(snapshot: PhoneScrollRunSnapshot): PhoneStoryTransition {
-  const [from, to, segment] = phoneScrollRunTuple(snapshot.run);
-  const direction = snapshot.scroll.direction === -1 ? -1 : 1;
-  return {
-    kind: 'transition',
-    sessionId: `phone-scroll-${snapshot.scroll.sampleRevision}`,
-    run: snapshot.run,
-    legIndex: 0,
-    runSource: direction === 1 ? from : to,
-    segment,
-    from,
-    to,
-    direction,
-    phase: 'animating',
-    progress: snapshot.scroll.progress
-  };
-}
-
 /** Compatibility selector. Production state is PhoneStorySnapshot only. */
 export function selectPhoneStoryCursor(snapshot: PhoneStorySnapshot): PhoneStoryCursor {
   if (snapshot.status === 'stable') {
     return { kind: 'hold', scene: snapshot.scene };
   }
-  if (snapshot.status === 'scroll-run') return scrollRunCursor(snapshot);
   const cursor = transactionCursor(snapshot);
   return cursor ?? { kind: 'hold', scene: operationSource(snapshot.session.operation) };
 }
@@ -1007,69 +968,13 @@ function nextStable(
   };
 }
 
-type PhoneScrollRunEvidence = Readonly<{
-  run: PhoneScrollRunId;
-  direction: 1 | -1;
-  progress: number;
-  actualY: number;
-  corridor: PhoneScrollCorridorId | null;
-  inputEpoch?: number | null;
-}>;
-
-function nextScrollRun(
-  snapshot: Exclude<PhoneStorySnapshot, PhoneTransactionSnapshot>,
-  evidence: PhoneScrollRunEvidence
-): PhoneScrollRunSnapshot {
-  const virtual: PhoneScrollRunSnapshot = {
-    authorityId: snapshot.authorityId,
-    revision: snapshot.revision + 1,
-    diagnostics: snapshot.diagnostics,
-    scroll: {
-      actualY: evidence.actualY,
-      corridor: evidence.corridor,
-      progress: clamp(evidence.progress),
-      direction: evidence.direction,
-      sampleRevision: snapshot.scroll.sampleRevision + 1
-    },
-    input: !(
-      evidence.inputEpoch !== undefined
-      && evidence.inputEpoch !== null
-      && (
-        evidence.direction === 1
-          ? evidence.progress >= .999
-          : evidence.progress <= .001
-      )
-    )
-      ? snapshot.input
-      : {
-        completedEpoch: evidence.inputEpoch
-      },
-    projection: phoneStableProjection(
-      phoneScrollRunTuple(evidence.run)[0],
-      'candidate',
-      snapshot.revision + 1
-    ),
-    status: 'scroll-run',
-    run: evidence.run,
-    session: null
-  };
-  return {
-    ...virtual,
-    projection: {
-      ...phoneStoryPresentation(scrollRunCursor(virtual)),
-      revision: virtual.revision
-    }
-  };
-}
-
 function nextSampledScroll(
   snapshot: Exclude<PhoneStorySnapshot, PhoneTransactionSnapshot>,
   event: Extract<PhoneStoryEvent, { type: 'SCROLL_SAMPLED' }>
 ): PhoneStorySnapshot {
   // Native Safari frequently emits a zero-delta sample immediately after a
   // touch correction. A zero direction is an observation, not a reversal of
-  // the active scroll-run. Preserve the run's physical direction so the next
-  // endpoint scene is compared against the correct committed side.
+  // the current boundary intent.
   const scroll = {
     actualY: event.actualY,
     corridor: event.corridor ?? snapshot.scroll.corridor,
@@ -1080,14 +985,22 @@ function nextSampledScroll(
     sampleRevision: snapshot.scroll.sampleRevision + 1
   };
   if (event.run) {
-    return nextScrollRun(snapshot, {
-      run: event.run,
+    const identity = nextGeneratedIdentity(snapshot);
+    const started = startedRun(snapshot, {
+      type: 'RUN_STARTED',
+      authorityId: snapshot.authorityId,
+      ...identity,
+      leg: scroll.direction === -1 ? phoneRunTuple(event.run)[3] - 1 : 0,
       direction: scroll.direction === -1 ? -1 : 1,
-      progress: scroll.progress,
-      actualY: scroll.actualY,
-      corridor: scroll.corridor,
-      inputEpoch: event.inputEpoch ?? null
+      run: event.run,
+      anchorY: scroll.actualY,
+      inputEpoch: event.inputEpoch ?? null,
+      trigger: 'input',
+      reducedMotion: event.reducedMotion === true
     });
+    return started.snapshot === snapshot
+      ? snapshot
+      : started.snapshot;
   }
   if (event.scene) {
     return {
@@ -1542,9 +1455,7 @@ type PhoneHoldCandidateSample = Readonly<{
 function committedSceneFor(
   snapshot: Exclude<PhoneStorySnapshot, PhoneTransactionSnapshot>
 ): SceneId {
-  if (snapshot.status === 'stable') return snapshot.scene;
-  const [from, to] = phoneScrollRunTuple(snapshot.run);
-  return snapshot.scroll.direction === -1 ? to : from;
+  return snapshot.scene;
 }
 
 function directionForHoldCandidate(
@@ -1696,18 +1607,6 @@ export function reducePhoneStorySnapshot(
     return reduced(snapshot);
   }
 
-  if (event.type === 'SCROLL_RUN_RECONCILED') {
-    if (snapshot.status === 'transaction') return reduced(snapshot);
-    return reduced(nextScrollRun(snapshot, {
-      run: event.run,
-      direction: event.direction,
-      progress: event.progress,
-      actualY: event.actualY,
-      corridor: event.corridor ?? null,
-      inputEpoch: event.inputEpoch ?? null
-    }));
-  }
-
   if (event.type === 'SCROLL_SAMPLED') {
     if (snapshot.status === 'transaction') {
       return reduced({
@@ -1727,6 +1626,9 @@ export function reducePhoneStorySnapshot(
       && snapshot.input.completedEpoch === event.inputEpoch
     ) {
       return reduced(snapshot, 'consume-completed-epoch-tail');
+    }
+    if (event.run) {
+      return reduced(nextSampledScroll(snapshot, event));
     }
     if (
       event.scene

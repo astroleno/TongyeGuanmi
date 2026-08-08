@@ -113,64 +113,6 @@ function reportCurrentTargetProof(
   );
 }
 
-/**
- * Star↔AOD is the one retained rail-sampled bridge. Keep it explicit in the
- * full story sequence rather than pretending it is an intent run alongside
- * the machine-owned Hero/Pattern transactions.
- */
-function settleFrontRailTarget(
-  orchestrator: ReturnType<typeof createPhoneStoryOrchestrator>,
-  target: 'star-map' | 'aod-animation',
-  direction: PhoneTransitionDirection
-): void {
-  const before = orchestrator.getSnapshot();
-  if (before.status !== 'stable') throw new Error('Expected a stable front rail source');
-  const candidate = orchestrator.dispatch({
-    type: 'SCROLL_SAMPLED',
-    authorityId: before.authorityId,
-    actualY: 100,
-    corridor: 'sequence',
-    scene: target,
-    progress: 1,
-    direction
-  }).snapshot;
-  if (candidate.status !== 'transaction') {
-    throw new Error(`Expected sampled ${target} candidate`);
-  }
-  const { session } = candidate;
-  const token = {
-    authorityId: candidate.authorityId,
-    sessionId: session.sessionId,
-    generation: session.generation,
-    leg: session.operation.legIndex,
-    revision: session.presentationRevision,
-    subject: phoneScenePresentationTuple(target)[4],
-    kind: phoneScenePresentationProofKind(target)
-  } as const;
-  orchestrator.dispatch({
-    type: 'PRESENTATION_PROOF_REPORTED',
-    authorityId: candidate.authorityId,
-    sessionId: session.sessionId,
-    generation: session.generation,
-    leg: session.operation.legIndex,
-    direction: session.operation.direction,
-    proof: {
-      token,
-      frameSequence: 1,
-      observedAt: 1,
-      connected: true,
-      visible: true,
-      coverageComplete: true,
-      edge: phoneScenePresentationTuple(target)[1]
-    }
-  });
-  expect(orchestrator.getSnapshot()).toMatchObject({
-    status: 'stable',
-    scene: target,
-    session: null
-  });
-}
-
 describe('canonical phone story sequence', () => {
   it('runs the full forward and reverse story under one snapshot transaction contract', () => {
     const sessions: PhoneOrchestratedRunSession[] = [];
@@ -206,12 +148,6 @@ describe('canonical phone story sequence', () => {
     const drive = (direction: PhoneTransitionDirection) => {
       const runs = direction === 1 ? phoneStoryRuns : [...phoneStoryRuns].reverse();
       for (const run of runs) {
-        if (direction === 1 && run.id === 'aod-method') {
-          settleFrontRailTarget(orchestrator, 'aod-animation', 1);
-        }
-        if (direction === -1 && run.id === 'pattern-star-map') {
-          settleFrontRailTarget(orchestrator, 'star-map', -1);
-        }
         const target = direction === 1 ? run.to : run.from;
         expect(orchestrator.resolveIntent(intent(++epoch, direction)), `${run.id} ${direction}`)
           .toBe('claim-boundary');

@@ -9,8 +9,7 @@ import type { SceneId } from '../../../story/types';
 import {
   phoneRunDependencies,
   phoneRunLegTuple,
-  type PhoneRunId,
-  type PhoneScrollRunId
+  type PhoneRunId
 } from '../phone-story-runs';
 import { createPhoneStoryRuntimeEngine } from './runtime/engine';
 import type {
@@ -54,6 +53,7 @@ import type {
 } from './machine';
 import type { PhoneAodStartResult } from '../aod-autoplay';
 import type {
+  PhoneAodAdapterHandle,
   PhoneHeroAdapterHandle,
   PhoneSceneAdapterHandle,
   PhoneTransitionAdapterHandle
@@ -228,7 +228,7 @@ export type PhoneCinematicSnapshot = readonly [
   scrollActualY: number,
   scrollCorridor: PhoneStorySnapshot['scroll']['corridor'],
   scrollProgress: number,
-  scrollRun: PhoneScrollRunId | null,
+  sampledRun: PhoneRunId | null,
   /** Immutable revision carried by raw leaf frame tokens. */
   presentationRevision: number | null,
   /** Explicit machine-owned stable entry marker; never infer this from a token revision. */
@@ -266,7 +266,7 @@ export function selectPhoneCinematicSnapshot(
     snapshot.scroll.actualY,
     snapshot.scroll.corridor,
     snapshot.scroll.progress,
-    snapshot.status === 'scroll-run' ? snapshot.run : null,
+    null,
     session?.presentationRevision ?? null,
     entrySettled
   ];
@@ -372,7 +372,7 @@ const PHONE_FRONT_STAGE_ADMISSION_TIMEOUT_MS = 8_000;
 
 type PhoneFrontStageRunId = Extract<
   PhoneRunId,
-  'hero-pattern' | 'pattern-collapse' | 'pattern-star-map'
+  'hero-pattern' | 'pattern-collapse' | 'pattern-star-map' | 'star-map-aod'
 >;
 
 export type PhoneRuntimeFrontStageConfig = Readonly<{
@@ -383,8 +383,10 @@ export type PhoneRuntimeFrontStageConfig = Readonly<{
   hero(): PhoneHeroAdapterHandle | null;
   pattern(): PhoneSceneAdapterHandle | null;
   starMap(): PhoneSceneAdapterHandle | null;
+  aod(): PhoneAodAdapterHandle | null;
   heroPattern(): PhoneTransitionAdapterHandle | null;
   patternStarMap(): PhoneTransitionAdapterHandle | null;
+  starMapAod(): PhoneTransitionAdapterHandle | null;
   reducedMotion: boolean;
 }>;
 
@@ -416,6 +418,10 @@ function frontStageTarget(
       return direction === 1
         ? [config.starMap(), 'front:star-map']
         : [config.pattern(), 'front:pattern'];
+    case 'star-map-aod':
+      return direction === 1
+        ? [config.aod(), 'front:aod']
+        : [config.starMap(), 'front:star-map'];
   }
 }
 
@@ -425,10 +431,14 @@ function frontStageEndpoints(
 ): readonly [HTMLElement, HTMLElement, PhoneTransitionAdapterHandle] | null {
   const transition = run === 'hero-pattern'
     ? config.heroPattern()
-    : config.patternStarMap();
+    : run === 'pattern-star-map'
+      ? config.patternStarMap()
+      : config.starMapAod();
   const forward = run === 'hero-pattern'
     ? [config.hero(), config.pattern()]
-    : [config.pattern(), config.starMap()];
+    : run === 'pattern-star-map'
+      ? [config.pattern(), config.starMap()]
+      : [config.starMap(), config.aod()];
   // Keep the transition's structural roles canonical in both directions. The
   // runner reverses only the authored progress clock; swapping these endpoints
   // here and again inside the ink bridge would invert the geometry twice.
@@ -619,6 +629,23 @@ export function registerPhoneRuntimeFrontStageCapability(
         }
       );
     };
+    const animateStarAodInk = () => {
+      session.animate(
+        direction === 1 ? 0 : 1,
+        direction === 1 ? 1 : 0,
+        PATTERN_STAR_MAP_INK_MS,
+        (progress) => {
+          config.aod()?.update(0);
+          config.starMap()?.update(direction === 1 ? 1 : progress);
+          transition.render(progress);
+        },
+        () => {
+          config.aod()?.update(0);
+          config.starMap()?.update(direction === 1 ? 1 : 0);
+          completeInk();
+        }
+      );
+    };
     const animateHeroPattern = () => {
       if (direction === 1) {
         session.animate(
@@ -696,7 +723,8 @@ export function registerPhoneRuntimeFrontStageCapability(
         else {
           if (direction === 1) transition.enter?.();
           else transition.reverse?.();
-          animatePatternInk();
+          if (run === 'star-map-aod') animateStarAodInk();
+          else animatePatternInk();
         }
       });
       transition.commitEndpoint(direction === 1 ? 0 : 1);
@@ -724,7 +752,8 @@ export function registerPhoneRuntimeFrontStageCapability(
   for (const run of [
     'hero-pattern',
     'pattern-collapse',
-    'pattern-star-map'
+    'pattern-star-map',
+    'star-map-aod'
   ] as const satisfies readonly PhoneFrontStageRunId[]) {
     leases.push(port.registerRunCapability(run, `front-stage:${run}`, {
       reducedMotion: config.reducedMotion,
@@ -1180,7 +1209,7 @@ export function registerPhoneRuntimeScrollCorridor(
 export type PhoneRuntimeScrollSample = readonly [
   actualY: number,
   scene: SceneId | null,
-  run: PhoneScrollRunId | null,
+  run: PhoneRunId | null,
   direction: -1 | 0 | 1,
   progress: number | null,
   /** Optional for frozen corridor callers; front rail always supplies it. */

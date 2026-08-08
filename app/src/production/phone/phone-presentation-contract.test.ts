@@ -186,11 +186,11 @@ describe('R5 canonical presentation manifest', () => {
       });
     }
     expect(phoneSegmentAdmissionStrategy('star-map-aod', 1, 'normal')).toMatchObject({
-      producer: 'static-leaf',
-      kind: 'static-poster',
+      producer: 'effect-leaf',
+      kind: 'effect-frame',
       targetScene: 'aod-animation',
       landingResolver: 'front-corridor',
-      effectRole: 'none',
+      effectRole: 'above-both',
       requiresLeafAdapter: true
     });
   });

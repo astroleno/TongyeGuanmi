@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  PHONE_STAGE_SETTLE_EPSILON,
   PHONE_STAGE_STOPS,
   phoneDirectEntryCompletesAod,
   phoneFrontRailSample,
@@ -58,28 +57,30 @@ describe('phone stage timeline', () => {
     expect(phoneFrontRailSample(.205, 1)).toEqual({ progress: .205, direction: 1 });
     expect(phoneFrontRailSample(.54, -1)).toEqual({
       scene: 'star-map',
-      progress: .54,
+      run: 'star-map-aod',
+      progress: 0,
       direction: -1
     });
   });
 
-  it('serializes only the retained Star→AOD rail run', () => {
+  it('serializes the Star→AOD boundary as a normal machine run', () => {
     expect(phoneFrontRailSampleTuple(.755, -1, true)).toEqual([
       null,
-      'star-aod-scroll',
+      'star-map-aod',
       -1,
       .5,
       true
     ]);
     expect(phoneFrontRailSample(.755, -1)).toMatchObject({
-      run: 'star-aod-scroll',
+      run: 'star-map-aod',
       direction: -1,
       progress: .5
     });
     expect(phoneFrontRailSample(PHONE_STAGE_STOPS.starAodEnd, 1)).toEqual({
       scene: 'aod-animation',
+      run: 'star-map-aod',
       direction: 1,
-      progress: PHONE_STAGE_STOPS.starAodEnd
+      progress: 1
     });
   });
 
@@ -90,16 +91,18 @@ describe('phone stage timeline', () => {
       1
     )).toEqual({
       scene: 'aod-animation',
+      run: 'star-map-aod',
       direction: 1,
-      progress: PHONE_STAGE_STOPS.starAodEnd
+      progress: 1
     });
     expect(phoneFrontRailSample(
       PHONE_STAGE_STOPS.starAodStart + drift,
       -1
     )).toEqual({
       scene: 'star-map',
+      run: 'star-map-aod',
       direction: -1,
-      progress: PHONE_STAGE_STOPS.starAodStart - PHONE_STAGE_SETTLE_EPSILON
+      progress: 0
     });
   });
 
@@ -110,8 +113,9 @@ describe('phone stage timeline', () => {
       true
     )).toEqual({
       scene: 'star-map',
+      run: 'star-map-aod',
       direction: -1,
-      progress: PHONE_STAGE_STOPS.starAodStart - .01
+      progress: 0
     });
   });
 

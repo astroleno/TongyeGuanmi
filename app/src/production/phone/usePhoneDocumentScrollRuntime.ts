@@ -1,5 +1,5 @@
 import type { SceneId } from '../../story/types';
-import type { PhoneScrollRunId } from './phone-story-runs';
+import type { PhoneRunId } from './phone-story-runs';
 import type {
   PhoneScrollCorridorId,
   PhoneStorySnapshot
@@ -24,7 +24,7 @@ export type PhoneDocumentScrollSample = readonly [
   actualY: number,
   corridor: PhoneScrollCorridorId | null,
   scene: SceneId | null,
-  run: PhoneScrollRunId | null,
+  run: PhoneRunId | null,
   progress: number | undefined,
   direction: -1 | 0 | 1 | undefined,
   /** Optional for frozen corridors that do not select a motion strategy. */

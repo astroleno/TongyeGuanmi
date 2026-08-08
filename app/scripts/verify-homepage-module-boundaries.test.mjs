@@ -439,12 +439,9 @@ describe('homepage phone-shell debt ratchet', () => {
     expect(phoneMachineSource).toContain(
       'export function phonePresentationSnapshot('
     );
-    expect(phonePresentationSource).toContain('phoneScrollSegment(');
     expect(phonePresentationSource).toContain('phoneRunLegSegment(');
-    expect(runDefinitionsSource).toContain('export type PhoneScrollRunTuple = readonly [');
     expect(runDefinitionsSource).toContain('export type PhoneRunTuple = readonly [');
     expect(runDefinitionsSource).toContain('export type PhoneRunLegTuple = readonly [');
-    expect(runDefinitionsSource).toContain('export function phoneScrollRunTuple(');
     expect(runDefinitionsSource).toContain('export function phoneRunTuple(');
     expect(runDefinitionsSource).toContain('export function phoneRunLegTuple(');
     expect(runDefinitionsSource).toContain('export function phoneRunForHoldTuple(');

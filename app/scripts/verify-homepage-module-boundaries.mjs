@@ -1080,17 +1080,12 @@ export function phoneCrossChunkExecutionContractViolations(files) {
   const runDefinitions = sourceForSuffix(
     'src/production/phone/phone-story-runs.ts'
   );
-  if (!runDefinitions?.includes('export function phoneScrollSegment(')) {
-    found.push('phone-story-runs.ts: scroll presentation segment bridge must remain primitive');
-  }
   if (!runDefinitions?.includes('export function phoneRunLegSegment(')) {
     found.push('phone-story-runs.ts: run-leg presentation segment bridge must remain primitive');
   }
   const runTupleContracts = [
-    'export type PhoneScrollRunTuple = readonly [',
     'export type PhoneRunTuple = readonly [',
     'export type PhoneRunLegTuple = readonly [',
-    'export function phoneScrollRunTuple(',
     'export function phoneRunTuple(',
     'export function phoneRunLegTuple(',
     'export function phoneRunForHoldTuple('
@@ -1103,8 +1098,7 @@ export function phoneCrossChunkExecutionContractViolations(files) {
     }
   }
   if (presentationFacade && (
-    !presentationFacade.includes('phoneScrollSegment(')
-    || !presentationFacade.includes('phoneRunLegSegment(')
+    !presentationFacade.includes('phoneRunLegSegment(')
     || /\bphoneScrollRun\s*\(/.test(presentationFacade)
     || /\bphoneRun\s*\(/.test(presentationFacade)
   )) {

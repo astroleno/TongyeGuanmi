@@ -1,6 +1,6 @@
 import type { FrontHalfCheckpointId } from '../../story/semantic-checkpoints';
 import type { SceneId } from '../../story/types';
-import type { PhoneScrollRunId } from './phone-story-runs';
+import type { PhoneRunId } from './phone-story-runs';
 import type { PhoneStageSceneId } from './types';
 
 /**
@@ -20,8 +20,8 @@ export const PHONE_STAGE_SETTLE_EPSILON = 0.0005;
 
 /**
  * Small positional transport retained across the shell/lazy boundary. It
- * describes stable physical front surfaces plus the one remaining rail-owned
- * Star→AOD handoff; no Hero/Pattern Ink progress exists here anymore.
+ * describes stable physical front surfaces plus the boundary sample that
+ * starts the machine-owned Star→AOD run; no playback progress is owned here.
  */
 export type PhoneStageFrame = readonly [
   progress: number,
@@ -43,7 +43,7 @@ export type PhoneFrontSurfaceFrame = readonly [
 
 export type PhoneFrontRailSample = Readonly<{
   scene?: PhoneStageSceneId;
-  run?: PhoneScrollRunId;
+  run?: PhoneRunId;
   progress: number;
   direction: -1 | 0 | 1;
 }>;
@@ -51,7 +51,7 @@ export type PhoneFrontRailSample = Readonly<{
 /** Positional transport for independently minified shell and stage chunks. */
 export type PhoneFrontRailSampleTuple = readonly [
   scene: PhoneStageSceneId | null,
-  run: PhoneScrollRunId | null,
+  run: PhoneRunId | null,
   direction: -1 | 0 | 1,
   progress: number,
   reducedMotion: boolean
@@ -210,9 +210,9 @@ export function phoneFrontSurfaceFrame(
 }
 
 /**
- * The rail may publish Star→AOD only. Earlier front geometry is intentionally
- * opaque to the reducer so a coalesced Safari scroll cannot skip a machine
- * transaction or write an animation frame.
+ * The rail publishes only a boundary intent. The reducer turns the declared
+ * Star→AOD run into the same ordinary transaction as every other leg; the
+ * rail never owns a playback clock.
  */
 export function phoneFrontRailSampleTuple(
   rawProgress: number,
@@ -224,21 +224,17 @@ export function phoneFrontRailSampleTuple(
   if (progress >= starAodStart && progress < starAodEnd) {
     return [
       null,
-      'star-aod-scroll',
+      'star-map-aod',
       direction,
       range(progress, starAodStart, starAodEnd),
       reducedMotion
     ];
   }
   if (progress >= starAodEnd) {
-    return ['aod-animation', null, direction, progress, reducedMotion];
+    return ['aod-animation', 'star-map-aod', direction, 1, reducedMotion];
   }
   if (direction === -1 && progress < starAodStart) {
-    // Once the reverse rail has crossed the authored Star↔AOD boundary, the
-    // next stable endpoint is a real static admission. Publishing the Star
-    // Map scene here lets the same machine transaction claim its leaf proof;
-    // leaving the scene null strands a scroll-run at its AOD source forever.
-    return ['star-map', null, direction, progress, reducedMotion];
+    return ['star-map', 'star-map-aod', direction, 0, reducedMotion];
   }
   return [null, null, direction, progress, reducedMotion];
 }

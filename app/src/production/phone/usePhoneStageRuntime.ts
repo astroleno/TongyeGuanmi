@@ -85,10 +85,6 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-function interpolate(start: number, end: number, progress: number): number {
-  return start + (end - start) * clamp(progress);
-}
-
 function frontHoldProgress(scene: string): number | null {
   switch (scene) {
     case 'hero': return 0;
@@ -118,16 +114,9 @@ function frontProgressForSnapshot(snapshot: PhoneCinematicSnapshot): number | nu
     stageOwner,
     ,
     ,
-    scrollProgress,
-    scrollRun
+    _scrollProgress,
+    _scrollRun
   ] = snapshot;
-  if (status === 'scroll-run' && scrollRun === 'star-aod-scroll') {
-    return interpolate(
-      PHONE_STAGE_STOPS.starAodStart,
-      PHONE_STAGE_STOPS.starAodEnd,
-      scrollProgress
-    );
-  }
   if (status === 'transaction' && transactionRun === 'aod-method') {
     // Keep the rail at the stable source semantic edge while the runner owns
     // AOD admission and playback. A rail percentage is never an autoplay
@@ -140,6 +129,7 @@ function frontProgressForSnapshot(snapshot: PhoneCinematicSnapshot): number | nu
       transactionRun === 'hero-pattern'
       || transactionRun === 'pattern-collapse'
       || transactionRun === 'pattern-star-map'
+      || transactionRun === 'star-map-aod'
     )
   ) return null;
   if (stageOwner !== 'front') return null;
@@ -544,6 +534,10 @@ export function usePhoneStageRuntime(
                 return direction === 1
                   ? PHONE_STAGE_STOPS.patternStarEnd
                   : PHONE_STAGE_STOPS.patternMotionEnd;
+              case 'star-map-aod':
+                return direction === 1
+                  ? PHONE_STAGE_STOPS.starAodEnd
+                  : PHONE_STAGE_STOPS.patternStarEnd;
             }
           })();
           return stagePosition(targetProgress);
@@ -551,8 +545,10 @@ export function usePhoneStageRuntime(
         hero: () => heroRef.current,
         pattern: () => options.patternRef.current,
         starMap: () => options.starMapRef.current,
+        aod: () => aodRef.current,
         heroPattern: () => options.heroPatternRef.current,
         patternStarMap: () => options.patternStarMapRef.current,
+        starMapAod: () => options.starMapAodRef.current,
         reducedMotion: options.reducedMotion
       }
     );
@@ -586,8 +582,7 @@ export function usePhoneStageRuntime(
           options.reducedMotion
         );
         const starAodEligible = snapshot[0] === 'star-map'
-          || snapshot[0] === 'aod-animation'
-          || (snapshot[11] === 'scroll-run' && snapshot[17] === 'star-aod-scroll');
+          || snapshot[0] === 'aod-animation';
         return [
           actualY,
           starAodEligible ? scene : null,

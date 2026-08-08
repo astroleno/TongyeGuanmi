@@ -236,12 +236,15 @@ describe('phone story runtime factory', () => {
         hero: () => hero as never,
         pattern: () => pattern as never,
         starMap: () => starMap as never,
+        aod: () => null,
         heroPattern: () => effect as never,
         patternStarMap: () => effect as never,
+        starMapAod: () => null,
         reducedMotion: false
       }
     );
 
+    expect(capabilities.has('star-map-aod')).toBe(true);
     expect(capabilities.get('hero-pattern')?.start(1, session)).toBe(true);
     expect(animations).toEqual([
       [0, 1 / 3, 900],
@@ -293,7 +296,7 @@ describe('phone story runtime factory', () => {
           12,
           'brand'
         ]);
-        return [actualY, 'brand', 'star-aod-scroll', 1, 0.75];
+        return [actualY, 'brand', 'star-map-aod', 1, 0.75];
       },
       () => 120,
       () => 180
@@ -310,7 +313,7 @@ describe('phone story runtime factory', () => {
       sample: {
         actualY: 96,
         scene: 'brand',
-        run: 'star-aod-scroll',
+        run: 'star-map-aod',
         direction: 1,
         progress: 0.75
       }

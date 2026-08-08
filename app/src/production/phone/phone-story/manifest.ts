@@ -273,6 +273,7 @@ const runIntentClaimRows = {
   'hero-pattern': ['first-intent', 'first-intent'],
   'pattern-collapse': ['first-intent', 'first-intent'],
   'pattern-star-map': ['first-intent', 'first-intent'],
+  'star-map-aod': ['first-intent', 'first-intent'],
   'aod-method': ['first-intent', 'cross-boundary'],
   'method-figure2': ['cross-boundary', 'cross-boundary'],
   'figure2-proof': ['cross-boundary', 'cross-boundary'],
@@ -297,6 +298,7 @@ type PhoneRunReducedAdmissionRows = Readonly<{
   'hero-pattern': readonly [PhoneDirectionalReducedAdmission];
   'pattern-collapse': readonly [PhoneDirectionalReducedAdmission];
   'pattern-star-map': readonly [PhoneDirectionalReducedAdmission];
+  'star-map-aod': readonly [PhoneDirectionalReducedAdmission];
   'aod-method': readonly [PhoneDirectionalReducedAdmission];
   'method-figure2': readonly [PhoneDirectionalReducedAdmission];
   'figure2-proof': readonly [PhoneDirectionalReducedAdmission];
@@ -387,6 +389,15 @@ const starAodStaticAdmission = admission(
   'none',
   true
 );
+const starAodEffectAdmission = admission(
+  'effect-leaf',
+  'effect-frame',
+  'front:ink',
+  'aod-animation',
+  'front-corridor',
+  'above-both',
+  true
+);
 
 /**
  * This is intentionally a full Record rather than an inferred list. Omitting
@@ -410,7 +421,7 @@ const segmentAdmissionRows = {
     admission('static-leaf', 'static-poster', 'front:pattern', 'pattern', 'front-corridor', 'none', true)
   ),
   'star-map-aod': segmentAdmission(
-    starAodStaticAdmission,
+    starAodEffectAdmission,
     starAodStaticAdmission,
     admission('effect-leaf', 'effect-frame', 'front:ink', 'star-map', 'front-corridor', 'above-both', true),
     admission('static-leaf', 'static-poster', 'front:star-map', 'star-map', 'front-corridor', 'none', true)
@@ -506,6 +517,10 @@ const runReducedAdmissionRows = {
   'pattern-star-map': [directionalReduced(
     patternStarStaticAdmission,
     patternCompactStaticAdmission
+  )],
+  'star-map-aod': [directionalReduced(
+    starAodStaticAdmission,
+    admission('static-leaf', 'static-poster', 'front:star-map', 'star-map', 'front-corridor', 'none', true)
   )],
   'aod-method': [directionalReduced(
     admission('static-leaf', 'static-poster', 'native:method', 'method-top', 'aod-semantic-edge', 'none', true),

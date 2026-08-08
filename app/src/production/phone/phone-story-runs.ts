@@ -5,13 +5,11 @@ import type {
   PhoneTransitionAdapterId
 } from './types';
 
-export type PhoneScrollRunId =
-  | 'star-aod-scroll';
-
 export type PhoneRunId =
   | 'hero-pattern'
   | 'pattern-collapse'
   | 'pattern-star-map'
+  | 'star-map-aod'
   | 'aod-method'
   | 'method-figure2'
   | 'figure2-proof'
@@ -21,7 +19,7 @@ export type PhoneRunId =
   | 'lab-education'
   | 'education-contact';
 
-export type PhoneCursorRunId = PhoneRunId | PhoneScrollRunId;
+export type PhoneCursorRunId = PhoneRunId;
 
 export type PhoneRunLegKind =
   | 'timed-ink'
@@ -53,16 +51,6 @@ export type PhoneRunDefinition = Readonly<{
   }>;
   anchor: PhoneRunAnchorPolicy;
 }>;
-
-/**
- * Positional run views are the only production transport for definitions that
- * may otherwise be emitted into a separately property-mangled chunk.
- */
-export type PhoneScrollRunTuple = readonly [
-  from: SceneId,
-  to: SceneId,
-  segment: SegmentId
-];
 
 export type PhoneRunTuple = readonly [
   id: PhoneRunId,
@@ -111,29 +99,6 @@ function stagedLeg(
   return { segment, from, to, kind };
 }
 
-export const phoneScrollRuns = [
-  {
-    id: 'star-aod-scroll',
-    from: 'star-map',
-    to: 'aod-animation',
-    segment: 'star-map-aod'
-  }
-] as const;
-
-export function phoneScrollRun(_id: PhoneScrollRunId) {
-  return phoneScrollRuns[0]!;
-}
-
-export function phoneScrollRunTuple(id: PhoneScrollRunId): PhoneScrollRunTuple {
-  const run = phoneScrollRun(id);
-  return [run.from, run.to, run.segment];
-}
-
-/** Primitive bridge for consumers that may be emitted into another chunk. */
-export function phoneScrollSegment(id: PhoneScrollRunId): SegmentId {
-  return phoneScrollRunTuple(id)[2];
-}
-
 export const phoneIntentRuns = [
   {
     id: 'hero-pattern',
@@ -165,6 +130,17 @@ export const phoneIntentRuns = [
     dependencies: {
       scenes: ['pattern', 'star-map'],
       transitions: ['pattern-star-map']
+    },
+    anchor: 'front-corridor'
+  },
+  {
+    id: 'star-map-aod',
+    from: 'star-map',
+    to: 'aod-animation',
+    legs: [leg('star-map-aod', 'timed-ink')],
+    dependencies: {
+      scenes: ['star-map', 'aod-animation'],
+      transitions: ['star-map-aod']
     },
     anchor: 'front-corridor'
   },

@@ -5,9 +5,7 @@ import { phoneAodMethodProgress } from '../transitions/aod-method-top';
 import type { PhoneRouteScope } from '../phone-route-scope';
 import {
   phoneRunLegSegment,
-  phoneScrollSegment,
-  type PhoneRunId,
-  type PhoneScrollRunId
+  type PhoneRunId
 } from '../phone-story-runs';
 import {
   phoneSurfaceRenderedProofEdge,
@@ -144,10 +142,10 @@ export type PhonePresentationSessionSnapshot = readonly [
  * Terser can mangle named fields independently in Rollup's emitted chunks.
  */
 export type PhonePresentationSnapshot = readonly [
-  status: 'stable' | 'scroll-run' | 'transaction',
+  status: 'stable' | 'transaction',
   revision: number,
   stableScene: SceneId | null,
-  scrollRun: PhoneScrollRunId | null,
+  sampledRun: PhoneRunId | null,
   scrollCorridor: string | null,
   scrollProgress: number,
   scrollDirection: -1 | 0 | 1,
@@ -160,7 +158,7 @@ type PhonePresentationSnapshotView = Readonly<{
   status: PhonePresentationSnapshot[0];
   revision: number;
   stableScene: SceneId | null;
-  scrollRun: PhoneScrollRunId | null;
+  sampledRun: PhoneRunId | null;
   scroll: Readonly<{
     corridor: string | null;
     progress: number;
@@ -188,7 +186,7 @@ function presentationSnapshotView(
     status,
     revision,
     stableScene,
-    scrollRun,
+    sampledRun,
     scrollCorridor,
     scrollProgress,
     scrollDirection,
@@ -231,7 +229,7 @@ function presentationSnapshotView(
     status,
     revision,
     stableScene,
-    scrollRun,
+    sampledRun,
     scroll: {
       corridor: scrollCorridor,
       progress: scrollProgress,
@@ -1291,14 +1289,6 @@ function transitionLayerPlanFor(
 ): PhoneTransitionLayerPlan | null {
   if (aodMethodKeepsTargetDormant(snapshot)) return null;
   if (snapshot.projection.commitState !== 'transition') return null;
-  if (snapshot.status === 'scroll-run') {
-    if (!snapshot.scrollRun) return null;
-    return phoneTransitionLayerPlan(
-      phoneSegmentPresentationTuple(phoneScrollSegment(snapshot.scrollRun)),
-      snapshot.scroll.direction === -1 ? -1 : 1,
-      snapshot.scroll.progress
-    );
-  }
   if (snapshot.status !== 'transaction' || !snapshot.session) return null;
   const operation = snapshot.session.operation;
   if (!operation.run) return null;
@@ -1778,9 +1768,7 @@ export function createPhoneStoryPresentation({
           : null;
         const cursor = snapshot.status === 'stable'
           ? `hold:${snapshot.stableScene ?? projection.semanticScene}`
-          : snapshot.status === 'scroll-run'
-            ? `transition:${snapshot.scrollRun ?? 'scroll'}:0`
-            : `transition:${execution?.run ?? 'entry'}:${execution?.legIndex ?? 0}`;
+          : `transition:${execution?.run ?? 'entry'}:${execution?.legIndex ?? 0}`;
         const session = snapshot.status === 'transaction' ? snapshot.session : null;
         const edgeSurface = phoneEdgeSurfaceForScene(projection.edge);
         data(routeRoot, 'phoneAuthorityId', authorityId);
