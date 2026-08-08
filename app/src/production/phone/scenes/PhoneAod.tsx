@@ -558,7 +558,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         // The execution identity is read from the current runtime refs by
         // the frame callback. Keeping this warmed context avoids Safari
         // allocating a second WebGL canvas during the same AOD handoff.
-        const compositor = ensureCompositor() ?? compositorRef.current;
+        const compositor = ensureCompositor();
         if (!compositor) return Promise.resolve('error');
         compositor.setActive(true);
         // This is the authored source-safe paint that may produce the first
