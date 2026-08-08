@@ -116,6 +116,7 @@ type RingCache = {
   drawSize: number;
   rotationBase: number;
   spin: number;
+  switchPoint: number;
 };
 
 type ObjectMetrics = {
@@ -525,13 +526,17 @@ export class PatternBloomRenderer {
 
     const viewportChanged = width !== this.width || height !== this.height || dpr !== this.dpr;
     if (viewportChanged) {
+      // A mid-session resize (e.g. the iOS toolbar collapsing) must rebuild
+      // ring textures synchronously on the next frame; restarting the hidden
+      // prewarm would leave rings undrawn for its full multi-frame cycle.
+      const hadViewport = this.width > 0;
       this.width = width;
       this.height = height;
       this.dpr = dpr;
       this.canvas.width = width;
       this.canvas.height = height;
       this.ringStructuralKey = '';
-      this.ringTextureIndex = 0;
+      this.ringTextureIndex = hadViewport ? bloomRings.length * 2 : 0;
     }
 
     const metrics = this.getObjectMetrics();
@@ -540,13 +545,14 @@ export class PatternBloomRenderer {
       Math.min(MAX_FLOWER_TEXTURE_SIZE, Math.round(metrics.size))
     );
     if (textureSize !== this.textureSize) {
+      const hadTextures = this.textureSize > 0;
       this.textureSize = textureSize;
       this.flowerCanvas.width = textureSize;
       this.flowerCanvas.height = textureSize;
       this.lastFlowerPhase = Number.NaN;
       this.lastFlowerTextureSize = 0;
       this.ringStructuralKey = '';
-      this.ringTextureIndex = 0;
+      this.ringTextureIndex = hadTextures ? bloomRings.length * 2 : 0;
     }
   }
 
@@ -815,7 +821,12 @@ export class PatternBloomRenderer {
         endCanvas,
         drawSize,
         rotationBase: ring.rotation * Math.PI / 180 + fieldRotation * ring.spin,
-        spin: ring.spin
+        spin: ring.spin,
+        // Stagger the opaque texture swap per ring so the collapse midpoint
+        // reads as six small steps instead of one simultaneous jump. The
+        // sharpest inner rings swap nearest the midpoint, where endpointMix
+        // moves fastest and motion masks the pop.
+        switchPoint: 0.5 + (index - (bloomRings.length - 1) / 2) * 0.055
       }];
     });
   }
@@ -832,7 +843,7 @@ export class PatternBloomRenderer {
       // structural texture avoids the semi-transparent petals created by a
       // conventional start/end crossfade while size and rotation stay
       // continuously scroll-driven.
-      const texture = endpointMix < 0.5 ? ring.startCanvas : ring.endCanvas;
+      const texture = endpointMix < ring.switchPoint ? ring.startCanvas : ring.endCanvas;
       context.save();
       context.translate(metrics.centerX, metrics.centerY);
       context.rotate(rotation);
