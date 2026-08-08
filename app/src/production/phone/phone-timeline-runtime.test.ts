@@ -77,7 +77,10 @@ describe('phone timeline runtime bridge', () => {
 
     await expect(preparePhoneTimelineVideoFrame(video, input)).resolves.toEqual([
       'ready',
-      'phone-timeline:1'
+      'phone-timeline:1',
+      -1,
+      7,
+      1.2
     ]);
     expect(phoneTimelineVideoSnapshot(video)).toEqual([
       'phone-timeline:1',

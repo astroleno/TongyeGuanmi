@@ -7,7 +7,7 @@ import {
   PhoneFigure3,
   PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS,
   phoneFigure3CanStartPreparedRun,
-  phoneFigure3EndpointIsPresented,
+  phoneFigure3EndpointFrameMatches,
   phoneFigure3Frame,
   phoneFigure3HasPresentedPaperFrame,
   phoneFigure3HeldEndpoint,
@@ -151,13 +151,52 @@ describe('PhoneFigure3', () => {
     );
   });
 
-  it('accepts a decoded Safari endpoint without waiting for a frame callback', () => {
-    expect(phoneFigure3EndpointIsPresented(0, 0, 2, false)).toBe(true);
-    expect(phoneFigure3EndpointIsPresented(0, .04, 2, false)).toBe(true);
-    expect(phoneFigure3EndpointIsPresented(0, .06, 2, false)).toBe(false);
-    expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, false)).toBe(true);
-    expect(phoneFigure3EndpointIsPresented(1, 2.567, 1, false)).toBe(false);
-    expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, true)).toBe(false);
+  it('[Group45 endpoint admission] uses the immutable timeline frame identity plus paper paint', () => {
+    const finish = phoneFigure3Source.slice(
+      phoneFigure3Source.indexOf('const finishEndpointPresentation'),
+      phoneFigure3Source.indexOf('const prepareEndpoint')
+    );
+    const preparedFrame = phoneFigure3Source.slice(
+      phoneFigure3Source.indexOf('void preparePhoneTimelineVideoFrame'),
+      phoneFigure3Source.indexOf('  }, [', phoneFigure3Source.indexOf('void preparePhoneTimelineVideoFrame'))
+    );
+
+    // A WebKit rVFC can prove the target while currentTime/seeking still
+    // reports the previous decoder state. Admission must consume the stable
+    // run key and the canvas paint, not re-check those mutable properties.
+    expect(finish).toContain('endpointFrameEvidenceRef.current');
+    expect(finish).not.toContain('phoneFigure3EndpointIsPresented(');
+    expect(finish).toContain('if (!frameAlreadyPainted) return false;');
+    expect(preparedFrame).toContain('phoneFigure3EndpointFrameMatches(');
+    expect(preparedFrame).toContain('endpointFrameEvidenceRef.current = frame;');
+  });
+
+  it('[Group45 WebKit timing] accepts target rVFC evidence while mutable playhead flags lag', () => {
+    const runId = 'authority|session|603|1|604|group45%3Afigure3|packed-canvas-frame';
+    expect(phoneFigure3EndpointFrameMatches(
+      ['ready', runId, -1, 7, 2.567],
+      runId,
+      -1,
+      1
+    )).toBe(true);
+    expect(phoneFigure3EndpointFrameMatches(
+      ['ready', runId, -1, 7, 2.567],
+      runId,
+      1,
+      1
+    )).toBe(false);
+    expect(phoneFigure3EndpointFrameMatches(
+      ['stale', runId, -1, 7, 2.567],
+      runId,
+      -1,
+      1
+    )).toBe(false);
+    expect(phoneFigure3EndpointFrameMatches(
+      ['ready', runId, -1, 7, 2.4],
+      runId,
+      -1,
+      1
+    )).toBe(false);
   });
 
   it('requires a painted paper canvas before a direct Figure3 hold is presentable', () => {

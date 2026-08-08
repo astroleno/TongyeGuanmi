@@ -31,7 +31,10 @@ export type PhoneTimelineVideoInput = readonly [
 /** Prepared-frame evidence is also positional; no driver snapshot leaks out. */
 export type PhoneTimelineVideoFrame = readonly [
   status: 'ready' | 'stale' | null,
-  runId: string | null
+  runId: string | null,
+  direction: Direction | null,
+  generation: number | null,
+  targetTime: number | null
 ];
 
 /** Small read-only probe used by TTG endpoint verification. */
@@ -90,7 +93,9 @@ export async function preparePhoneTimelineVideoFrame(
   input: PhoneTimelineVideoInput
 ): Promise<PhoneTimelineVideoFrame> {
   const frame = await prepareTimelineVideoFrame(video, driverInput(input));
-  return frame ? [frame[0], frame[1]] : [null, null];
+  return frame
+    ? [frame[0], frame[1], frame[2], frame[3], frame[4]]
+    : [null, null, null, null, null];
 }
 
 /** Hides the driver's mutable snapshot object behind a four-slot probe. */

@@ -23,6 +23,7 @@ import {
   type PhoneRenderedPresentationFrame,
   type PresentationToken
 } from '../../../production/phone/phone-story/runtime';
+import type { PhoneTimelineVideoFrame } from '../../../production/phone/phone-timeline-runtime';
 import {
   waitForPhonePresentationEvidence
 } from '../../../production/phone/phone-transition-readiness';
@@ -187,6 +188,31 @@ function playbackLabel(
 }
 
 export type PhoneFigure3Endpoint = 0 | 1;
+
+const PHONE_FIGURE3_FRAME_TOLERANCE_SECONDS = .05;
+
+/**
+ * The timeline bridge returns the immutable decoder evidence as a tuple. The
+ * endpoint gate consumes that tuple and a successful paper-canvas draw; it
+ * deliberately does not consult mutable HTMLMediaElement playhead flags.
+ */
+export function phoneFigure3EndpointFrameMatches(
+  frame: PhoneTimelineVideoFrame | null,
+  expectedRunId: string,
+  expectedDirection: 1 | -1,
+  expectedEndpoint: PhoneFigure3Endpoint
+): boolean {
+  const [status, runId, direction, generation, targetTime] = frame
+    ?? [null, null, null, null, null] as const;
+  const endpointTime = expectedEndpoint === 1 ? FIGURE3_END_SECONDS : 0;
+  return status === 'ready'
+    && runId === expectedRunId
+    && direction === expectedDirection
+    && generation !== null
+    && targetTime !== null
+    && Math.abs(targetTime - endpointTime)
+      <= PHONE_FIGURE3_FRAME_TOLERANCE_SECONDS;
+}
 
 export type PhoneFigure3TargetPreparation = Readonly<{
   endpoint: PhoneFigure3Endpoint;
@@ -356,28 +382,7 @@ export function phoneFigure3CanStartPreparedRun(
     && (targetRunId === null || targetRunId === readyRunId);
 }
 
-const PHONE_FIGURE3_ENDPOINT_TOLERANCE_SECONDS = .05;
 export const PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS = 240;
-
-/**
- * A paused WebKit HEVC frame is usable once the one visible canvas has drawn
- * it. requestVideoFrameCallback may remain pending even after that physical
- * draw, so endpoint ownership follows decoded playhead evidence as well as the
- * shared timeline driver's promise.
- */
-export function phoneFigure3EndpointIsPresented(
-  endpoint: PhoneFigure3Endpoint,
-  currentTime: number,
-  readyState: number,
-  seeking: boolean
-): boolean {
-  const targetTime = endpoint === 0 ? 0 : FIGURE3_END_SECONDS;
-  return Number.isFinite(currentTime)
-    && readyState >= 2
-    && !seeking
-    && Math.abs(currentTime - targetTime)
-      <= PHONE_FIGURE3_ENDPOINT_TOLERANCE_SECONDS;
-}
 
 /** Direct entry needs a physical paper-canvas paint, not decoder readiness. */
 export function phoneFigure3HasPresentedPaperFrame(
@@ -473,6 +478,10 @@ export const PhoneFigure3 = forwardRef<
   const armedTargetPreparationRef = useRef<PhoneFigure3TargetPreparation | null>(null);
   const readyEndpointRef = useRef<PhoneFigure3Endpoint | null>(null);
   const readyEndpointRunIdRef = useRef<string | null>(null);
+  // Timeline readiness is the immutable decoder fact for the endpoint. Keep
+  // it separate from the video element's mutable currentTime/seeking flags;
+  // WebKit can update those DOM properties after the frame callback arrives.
+  const endpointFrameEvidenceRef = useRef<PhoneTimelineVideoFrame | null>(null);
   const endpointPreparationRef = useRef<Readonly<{
     endpoint: PhoneFigure3Endpoint;
     direction: 1 | -1;
@@ -594,6 +603,7 @@ export const PhoneFigure3 = forwardRef<
   const clearEndpointPresentation = useCallback((retainRunId = false) => {
     readyEndpointRef.current = null;
     if (!retainRunId) readyEndpointRunIdRef.current = null;
+    endpointFrameEvidenceRef.current = null;
     const root = rootRef.current;
     if (root) {
       delete root.dataset.phoneFigure3EndpointReady;
@@ -713,21 +723,17 @@ export const PhoneFigure3 = forwardRef<
     frameAlreadyPainted = false
   ): boolean => {
     let preparation = endpointPreparationRef.current;
-    const video = videoRef.current;
     if (
       mediaRetiringRef.current
       || preparation?.generation !== generation
       || preparation.endpoint !== endpoint
       || preparation.runId !== runId
-      || (compositor && (
-        !video
-        || !phoneFigure3EndpointIsPresented(
-          endpoint,
-          video.currentTime,
-          video.readyState,
-          video.seeking
-        )
-      ))
+      || !phoneFigure3EndpointFrameMatches(
+        endpointFrameEvidenceRef.current,
+        runId,
+        preparation.direction,
+        endpoint
+      )
     ) return false;
 
     if (compositor && !frameAlreadyPainted) {
@@ -740,7 +746,12 @@ export const PhoneFigure3 = forwardRef<
         || preparation.endpoint !== endpoint
         || preparation.runId !== runId
       ) return true;
+      frameAlreadyPainted = true;
     }
+    // Admission requires both immutable timeline evidence and a successful
+    // draw into the one visible paper canvas. No mutable media-element state
+    // participates in this decision.
+    if (!frameAlreadyPainted) return false;
 
     if (endpointFallbackTimerRef.current) {
       clearTimeout(endpointFallbackTimerRef.current);
@@ -844,14 +855,20 @@ export const PhoneFigure3 = forwardRef<
     void preparePhoneTimelineVideoFrame(
       video,
       figure3TimelineMediaInput(runId, preparationDirection, endpoint)
-    ).then(([status]) => {
+    ).then((frame) => {
       const preparation = endpointPreparationRef.current;
       if (
-        status !== 'ready'
+        !phoneFigure3EndpointFrameMatches(
+          frame,
+          runId,
+          preparationDirection,
+          endpoint
+        )
         || preparation?.generation !== generation
         || preparation.endpoint !== endpoint
         || preparation.runId !== runId
       ) return;
+      endpointFrameEvidenceRef.current = frame;
       finishEndpointPresentation(
         generation,
         endpoint,
@@ -859,15 +876,9 @@ export const PhoneFigure3 = forwardRef<
         compositor
       );
     }).catch((error) => {
-      // A rejected frame callback is not a failed HEVC decode. The canvas
-      // compositor can still prove the endpoint through loadeddata/seeked;
-      // genuine media errors are owned by the media element and shell timeout.
-      finishEndpointPresentation(
-        generation,
-        endpoint,
-        runId,
-        compositor
-      );
+      // Without exact timeline evidence the canvas may paint, but it cannot
+      // satisfy admission. Leave the preparation fail-closed for the shell's
+      // typed media error/rollback path.
       void error;
     });
   }, [
