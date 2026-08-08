@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { initStarFieldReveal, starFieldCoverTransform } from './starFieldReveal';
+import {
+  initStarFieldReveal,
+  starFieldCoverTransform,
+  starHighlightAlphaAt
+} from './starFieldReveal';
 
 const source = readFileSync(new URL('./starFieldReveal.ts', import.meta.url), 'utf8');
 
@@ -9,6 +13,17 @@ afterEach(() => {
 });
 
 describe('StarFieldReveal', () => {
+  it('uses baked alpha instead of near-white RGB for highlight pixels', () => {
+    const config = { threshold: 120, gamma: 3.05, softness: 23 };
+
+    expect(starHighlightAlphaAt(
+      new Uint8ClampedArray([255, 255, 255, 0]), 0, 'precomputed-alpha', config
+    )).toBe(0);
+    expect(starHighlightAlphaAt(
+      new Uint8ClampedArray([0, 0, 0, 192]), 0, 'precomputed-alpha', config
+    )).toBeCloseTo(192 / 255, 6);
+  });
+
   it('uses a single 90-degree cover transform for a horizontal map on portrait', () => {
     const transform = starFieldCoverTransform(1672, 941, 390, 844, {
       rotationDegrees: -90,

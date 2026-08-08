@@ -46,6 +46,21 @@ function reportFixture() {
   return { reports, registration: () => registration };
 }
 
+async function prepareReadySource(host: HTMLDivElement, frames: FrameRequestCallback[]) {
+  await act(async () => {
+    const source = host.querySelector<HTMLImageElement>('[data-portrait-star-source]');
+    if (source) Object.defineProperties(source, {
+      complete: { configurable: true, value: true },
+      naturalWidth: { configurable: true, value: 1672 },
+      naturalHeight: { configurable: true, value: 941 }
+    });
+    source?.dispatchEvent(new Event('load'));
+    await Promise.resolve();
+  });
+  revealProbe.instance!.ready = true;
+  await act(async () => { frames.shift()?.(16); });
+}
+
 describe('clean PhoneStarMap leaf', () => {
   let host: HTMLDivElement;
   let root: Root;
@@ -82,18 +97,7 @@ describe('clean PhoneStarMap leaf', () => {
     });
     expect(current.reports.reportFrame).not.toHaveBeenCalled();
 
-    await act(async () => {
-      const source = host.querySelector<HTMLImageElement>('[data-portrait-star-source]');
-      if (source) Object.defineProperties(source, {
-        complete: { configurable: true, value: true },
-        naturalWidth: { configurable: true, value: 1672 },
-        naturalHeight: { configurable: true, value: 941 }
-      });
-      source?.dispatchEvent(new Event('load'));
-      await Promise.resolve();
-    });
-    revealProbe.instance!.ready = true;
-    await act(async () => { frames.shift()?.(16); });
+    await prepareReadySource(host, frames);
     expect(current.reports.reportPrepared).toHaveBeenCalledWith(
       'star-map-source', expect.objectContaining({ kind: 'image-decoded', ready: true })
     );
@@ -133,27 +137,34 @@ describe('clean PhoneStarMap leaf', () => {
     expect(phoneStarMapAmbientLayer(2.2, true)).toEqual({ strength: .72, noiseFloor: .02 });
   });
 
-  it('does not schedule ambient frames while the Star Map is a hidden target', async () => {
-    const shell = document.createElement('main');
-    shell.className = 'phone-story';
-    shell.dataset.phoneStatus = 'transaction';
-    shell.dataset.phoneScene = 'pattern';
-    shell.append(host);
-    document.body.replaceChildren(shell);
+  it('keeps one ambient clock across stable and cross-transition command lifecycles', async () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneStarMap reports={mount.reports} />); });
+    await prepareReadySource(host, frames);
+    const commands = mount.registration()!.commands;
+    const canvas = () => host.querySelector<HTMLCanvasElement>('[data-portrait-star-perlin]');
+    const revision = () => Number(canvas()?.dataset.portraitStarPerlinRevision ?? 0);
+
+    for (const [progress, time] of [[1, 1000], [1, 1500], [0, 2000]] as const) {
+      const before = revision();
+      await act(async () => { commands.render(progress); });
+      expect(frames).toHaveLength(1);
+      await act(async () => { frames.shift()?.(time); });
+      expect(revision()).toBeGreaterThan(before);
+    }
+
+    const pending = frames.length;
+    const rebound = reportFixture();
     await act(async () => {
-      const source = host.querySelector<HTMLImageElement>('[data-portrait-star-source]');
-      if (source) Object.defineProperties(source, {
-        complete: { configurable: true, value: true },
-        naturalWidth: { configurable: true, value: 1672 },
-        naturalHeight: { configurable: true, value: 941 }
-      });
-      source?.dispatchEvent(new Event('load'));
-      await Promise.resolve();
+      commands.rebind({ reports: rebound.reports, frameToken: 'star:frame:2' });
     });
-    revealProbe.instance!.ready = true;
-    await act(async () => { frames.shift()?.(16); });
+    expect(frames).toHaveLength(pending);
+
+    const beforePause = revision();
+    const pendingCallbacks = frames.splice(0);
+    await act(async () => { commands.pause('outside-closure'); });
+    await act(async () => { pendingCallbacks.forEach((callback) => callback(2500)); });
+    expect(revision()).toBe(beforePause);
     expect(frames).toHaveLength(0);
   });
 });

@@ -1,3 +1,11 @@
+export type StarHighlightSource = 'extract' | 'precomputed-alpha';
+
+export type StarHighlightConfig = Readonly<{
+  threshold: number;
+  gamma: number;
+  softness: number;
+}>;
+
 type StarFieldRevealOptions = {
   canvas: HTMLCanvasElement;
   sourceUrl: string;
@@ -8,7 +16,7 @@ type StarFieldRevealOptions = {
    * source image's own alpha channel as the highlight layer, for assets that
    * were baked offline — the extraction curve is skipped entirely.
    */
-  highlightSource?: 'extract' | 'precomputed-alpha';
+  highlightSource?: StarHighlightSource;
   config?: Partial<StarFieldRevealConfig>;
   /**
    * Optional presentation viewport. The source and Perlin layers are both
@@ -22,11 +30,7 @@ type StarFieldRevealConfig = {
   revealDurationMs: number;
   loopTransitionMs: number;
   noiseMaskWidth: number;
-  highlight: {
-    threshold: number;
-    gamma: number;
-    softness: number;
-  };
+  highlight: StarHighlightConfig;
   glow: {
     wideBlur: number;
     mediumBlur: number;
@@ -92,6 +96,26 @@ const OCTAVE_ROTATIONS = Object.freeze([
   Object.freeze({ cosine: -.9239, sine: .3827 }),
   Object.freeze({ cosine: -.5736, sine: -.8192 })
 ]);
+
+export function starHighlightAlphaAt(
+  source: Uint8ClampedArray,
+  offset: number,
+  mode: StarHighlightSource,
+  config: StarHighlightConfig
+): number {
+  if (mode === 'precomputed-alpha') {
+    return (source[offset + 3] ?? 0) / 255;
+  }
+
+  const r = source[offset] ?? 0;
+  const g = source[offset + 1] ?? 0;
+  const b = source[offset + 2] ?? 0;
+  const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const value = Math.max(r, g, b);
+  const score = luma * .58 + value * .42;
+  const normalized = clamp((score - config.threshold) / config.softness, 0, 1);
+  return Math.pow(normalized, config.gamma);
+}
 
 /**
  * Derives one uniform cover transform for every raster that belongs to the
@@ -177,7 +201,7 @@ export class StarFieldReveal {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D | null;
   readonly sourceUrl: string;
-  readonly highlightSource: 'extract' | 'precomputed-alpha';
+  readonly highlightSource: StarHighlightSource;
   readonly config: StarFieldRevealConfig;
   readonly autoplay: boolean;
   readonly viewport: StarFieldRevealOptions['viewport'];
@@ -318,25 +342,10 @@ export class StarFieldReveal {
     const output = highlightCtx.createImageData(this.sourceData.width, this.sourceData.height);
     const src = this.sourceData.data;
     const dst = output.data;
-    const { threshold, gamma, softness } = this.config.highlight;
-    const precomputed = this.highlightSource === 'precomputed-alpha';
-
     for (let index = 0; index < src.length; index += 4) {
-      let alpha: number;
-      if (precomputed) {
-        // The baked mask encodes the highlight in its alpha channel; its RGB
-        // is a near-white plate and must never reach the extraction curve.
-        alpha = (src[index + 3] ?? 0) / 255;
-      } else {
-        const r = src[index] ?? 0;
-        const g = src[index + 1] ?? 0;
-        const b = src[index + 2] ?? 0;
-        const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        const value = Math.max(r, g, b);
-        const score = luma * .58 + value * .42;
-        const normalized = clamp((score - threshold) / softness, 0, 1);
-        alpha = Math.pow(normalized, gamma);
-      }
+      const alpha = starHighlightAlphaAt(
+        src, index, this.highlightSource, this.config.highlight
+      );
 
       if (alpha <= .001) {
         dst[index + 3] = 0;

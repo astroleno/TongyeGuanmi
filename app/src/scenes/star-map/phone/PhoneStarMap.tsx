@@ -158,8 +158,11 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     liveFrameRef.current = 0;
   }, []);
   const startAmbient = useCallback(() => {
-    if (!activeRef.current || liveFrameRef.current
-      || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (!activeRef.current || liveFrameRef.current) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      paint(performance.now(), true);
+      return;
+    }
     const tick = (time: number) => {
       liveFrameRef.current = 0;
       if (!activeRef.current || disposedRef.current) return;
@@ -169,22 +172,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     liveFrameRef.current = window.requestAnimationFrame(tick);
   }, [paint]);
 
-  const syncAmbientOwnership = useCallback(() => {
-    const shell = rootRef.current?.closest<HTMLElement>('.phone-story');
-    const data = shell?.dataset;
-    // Ambient motion belongs to visibility, not to reducer status: keep the
-    // Perlin layer breathing while star-map is stable OR participates in a
-    // transition as source/candidate. Only fault rest stops it outright.
-    const involved = data?.phoneScene === 'star-map'
-      || data?.phoneSourceScene === 'star-map'
-      || data?.phoneCandidateScene === 'star-map';
-    const running = involved && data?.phoneStatus !== 'faulted';
-    activeRef.current = running;
-    if (running) startAmbient();
-    else stopAmbient();
-  }, [startAmbient, stopAmbient]);
-
-  const render = useCallback((rawProgress: number) => {
+  const applyProgress = useCallback((rawProgress: number) => {
     const frame = phoneStarMapFrame(rawProgress);
     if (canvasRef.current) {
       canvasRef.current.dataset.portraitStarPerlinProgress = frame.progress.toFixed(4);
@@ -195,6 +183,11 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       copyRef.current.style.opacity = frame.opacity.toFixed(4).replace(/\.0+$/, '');
     }
   }, []);
+  const render = useCallback((rawProgress: number) => {
+    activeRef.current = true;
+    applyProgress(rawProgress);
+    startAmbient();
+  }, [applyProgress, startAmbient]);
 
   const commands = useMemo(() => {
     const handle: PhoneStarMapMigrationCommands = {
@@ -222,13 +215,13 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
         bindingRef.current = null;
       },
       [PHONE_STAR_MAP_MIGRATION_CONTROL]: {
-        enter() { activeRef.current = true; render(1); startAmbient(); },
+        enter() { render(1); },
         leave() { handle.pause('outside-closure'); },
-        reverse() { activeRef.current = true; render(1); startAmbient(); }
+        reverse() { render(1); }
       }
     };
     return Object.freeze(handle);
-  }, [paint, render, reportCurrentFrame, startAmbient, stopAmbient]);
+  }, [render, reportCurrentFrame, stopAmbient]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -241,7 +234,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     reportedTokenRef.current = null;
     reportedSourceTokenRef.current = null;
     revisionRef.current = 0;
-    render(0);
+    applyProgress(0);
     const reveal = initStarFieldReveal({
       canvas, sourceUrl: STAR_MAP_HIGHLIGHT_MASK, autoplay: false,
       highlightSource: 'precomputed-alpha',
@@ -293,22 +286,12 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       });
     });
     readyFrameRef.current = window.requestAnimationFrame(awaitReady);
-    const shell = root.closest<HTMLElement>('.phone-story');
-    const observer = shell && typeof MutationObserver !== 'undefined'
-      ? new MutationObserver(syncAmbientOwnership) : null;
-    observer?.observe(shell!, {
-      attributes: true,
-      attributeFilter: ['data-phone-status', 'data-phone-scene',
-        'data-phone-source-scene', 'data-phone-candidate-scene']
-    });
-    syncAmbientOwnership();
     return () => {
       disposedRef.current = true;
       activeRef.current = false;
       sourceReadyRef.current = false;
       window.cancelAnimationFrame(readyFrameRef.current);
       stopAmbient();
-      observer?.disconnect();
       reveal.dispose();
       if (revealRef.current === reveal) revealRef.current = null;
       bindingRef.current = null;
@@ -318,7 +301,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       delete canvas.dataset.portraitStarPerlinRevision;
       delete canvas.dataset.portraitStarPerlinProgress;
     };
-  }, [commands, paint, render, reportSourcePrepared, reports, startAmbient, stopAmbient]);
+  }, [applyProgress, commands, paint, reportSourcePrepared, reports, stopAmbient]);
 
   return (
     <section ref={rootRef}
