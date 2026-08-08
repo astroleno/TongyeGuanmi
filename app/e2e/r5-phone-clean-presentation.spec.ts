@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { PNG } from 'pngjs';
 import {
   assertCompositeTargetContentVisible,
   assertInkIntermediateCompositeContribution,
@@ -1306,6 +1307,74 @@ async function patternViewportProof(page: import('@playwright/test').Page) {
     };
   });
 }
+
+type HeroEdgeSample = Readonly<{
+  bottom: readonly [number, number, number, number];
+  above: readonly [number, number, number, number];
+}>;
+
+async function heroBottomSamples(
+  page: import('@playwright/test').Page
+): Promise<readonly HeroEdgeSample[]> {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error('Hero edge sampling requires a fixed viewport');
+  const png = PNG.sync.read(await page.screenshot());
+  const pixel = (x: number, y: number): readonly [number, number, number, number] => {
+    const px = Math.max(0, Math.min(png.width - 1, Math.floor(x / viewport.width * png.width)));
+    const py = Math.max(0, Math.min(png.height - 1, Math.floor(y / viewport.height * png.height)));
+    const offset = (py * png.width + px) * 4;
+    return [png.data[offset] ?? 0, png.data[offset + 1] ?? 0,
+      png.data[offset + 2] ?? 0, png.data[offset + 3] ?? 0];
+  };
+  return [4, viewport.width / 2, viewport.width - 4].map((x) => ({
+    bottom: pixel(x, viewport.height - 2),
+    above: pixel(x, viewport.height - 10)
+  }));
+}
+
+function luma(pixel: readonly [number, number, number, number]): number {
+  return .2126 * pixel[0] + .7152 * pixel[1] + .0722 * pixel[2];
+}
+
+test('Hero coverage matches its bottom vignette through a toolbar-sized resize', async ({ page }) => {
+  let releaseVideo = () => undefined;
+  const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });
+  await page.route(/figure1-rgb-alpha.*\.mp4/, async (route) => {
+    await videoGate;
+    await route.continue();
+  });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.portrait-scroll-spike__scene--hero')).toBeAttached();
+
+  const cold = await heroBottomSamples(page);
+  expect(cold.every(({ bottom }) => bottom[3] >= 254)).toBe(true);
+  releaseVideo();
+  await waitForCommitSequence(page, 'hero', 0);
+  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'stable');
+  const coverageColor = await page.locator('.phone-story').evaluate((shell) => (
+    getComputedStyle(shell).getPropertyValue('--phone-story-coverage').trim()
+  ));
+  expect(coverageColor).toBe('#040807');
+
+  const beforeToolbar = await heroBottomSamples(page);
+  await page.setViewportSize({ width: 390, height: 720 });
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+  const toolbar = await heroBottomSamples(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+  const afterToolbar = await heroBottomSamples(page);
+
+  for (const samples of [cold, beforeToolbar, toolbar, afterToolbar]) {
+    for (const { bottom, above } of samples) {
+      expect(bottom[3]).toBeGreaterThanOrEqual(254);
+      expect(luma(bottom)).toBeLessThanOrEqual(luma(above) + 32);
+    }
+  }
+});
 
 test('Hero Loader handoff starts at zero under one fixed opaque topology', async ({ page }) => {
   let releaseVideo = () => undefined;

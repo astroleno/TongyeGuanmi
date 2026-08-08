@@ -556,6 +556,16 @@ describe('phone presentation viewport and coverage', () => {
     expect(fixture.story.style.getPropertyValue('--phone-story-coverage')).toBe('#8f7f61');
   });
 
+  it('uses the Hero bottom vignette color as its canonical coverage surface', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    registerScene(fixture, 'hero');
+    const result = fixture.presentation.verifyVisibleCandidate(planeRequest('hero'));
+
+    expect(result.failure).toBeNull();
+    expect(fixture.story.style.getPropertyValue('--phone-story-coverage')).toBe('#040807');
+  });
+
   it.each([
     ['right', rect(0, 0, 389, 844)],
     ['bottom', rect(0, 0, 390, 843)]

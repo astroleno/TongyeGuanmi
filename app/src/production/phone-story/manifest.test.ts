@@ -28,7 +28,7 @@ import {
 const source = readFileSync(new URL('./manifest.ts', import.meta.url), 'utf8');
 
 const scenes = [
-  ['hero', 'hero-entered', '#07110e', 'front', [1, 1, 2, 1], 'D-single-media'],
+  ['hero', 'hero-entered', '#040807', 'front', [1, 1, 2, 1], 'D-single-media'],
   ['pattern', 'pattern-complete', '#8f7f61', 'front', [0, 0, 0, 0], 'D-static'],
   ['star-map', 'star-map-reading', '#06100d', 'front', [0, 0, 1, 0], 'D-static'],
   ['aod-animation', 'aod-stage', '#ede4d2', 'front', [1, 1, 1, 1], 'D-single-media'],
