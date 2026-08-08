@@ -3115,8 +3115,18 @@ test('Task 10 gates a production Contact → Hero reverse journey', async ({ pag
   await driveJourney(page, FORMAL_REVERSE_JOURNEY);
   const hero = await assertStablePhoneHold(page, 'hero');
   await expect(hero).toHaveAttribute('data-phone-authority-id', authorityId!);
+  await expect(hero).toHaveAttribute('data-portrait-hero-entrance', 'complete');
+  await expect(hero).toHaveAttribute('data-portrait-hero-text-entrance', 'complete');
+  const heroScene = page.locator('.portrait-scroll-spike__scene--hero');
+  await expect(heroScene).toHaveAttribute('data-phone-scene-active', 'true');
+  await expect(heroScene).toHaveAttribute('data-portrait-hero-title-active', 'true');
   await expect(hero.locator('#portrait-spike-home')).toBeVisible();
   await expect(hero.locator('.portrait-scroll-spike__hero-subtitle p')).toBeVisible();
+  const glyphOpacities = await hero.locator('[data-text-reveal-item]').evaluateAll((nodes) => (
+    nodes.map((node) => Number(window.getComputedStyle(node).opacity))
+  ));
+  expect(glyphOpacities.length).toBeGreaterThan(0);
+  expect(Math.min(...glyphOpacities)).toBeGreaterThanOrEqual(.99);
   await expect(
     hero.locator('[data-phone-packed-alpha-canvas="hero-figure"]')
   ).toHaveAttribute('data-packed-alpha-frame-ready', 'true');

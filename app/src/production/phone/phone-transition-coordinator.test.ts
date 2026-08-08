@@ -251,6 +251,56 @@ describe('phone transition coordinator', () => {
     expect(epochs).toEqual([1]);
   });
 
+  it('does not claim an interactive touch or leave a tap-only epoch active', () => {
+    const { root } = installCoordinatorEnvironment();
+    const epochs: Array<number | null> = [];
+    createPhoneIntentCoordinator(
+      root as unknown as HTMLElement,
+      () => 'pass-native',
+      { onInputEpoch: (epoch) => epochs.push(epoch) }
+    );
+
+    root.dispatch('touchstart', {
+      target: { closest: () => ({}) },
+      touches: [{ clientY: 600 }]
+    });
+    root.dispatch('touchend', { touches: [] });
+    expect(epochs).toEqual([]);
+
+    root.dispatch('touchstart', {
+      target: null,
+      touches: [{ clientY: 600 }]
+    });
+    root.dispatch('touchend', { touches: [] });
+    expect(epochs).toEqual([1, null]);
+  });
+
+  it('expires a quiet wheel epoch without waiting for a later input', () => {
+    vi.useFakeTimers();
+    try {
+      const { root } = installCoordinatorEnvironment();
+      let now = 0;
+      const epochs: Array<number | null> = [];
+      createPhoneIntentCoordinator(
+        root as unknown as HTMLElement,
+        () => 'pass-native',
+        {
+          now: () => now,
+          onInputEpoch: (epoch) => epochs.push(epoch),
+          wheelQuietMs: 1_200
+        }
+      );
+
+      root.dispatch('wheel', wheelEvent());
+      now = 1_200;
+      vi.advanceTimersByTime(1_200);
+
+      expect(epochs).toEqual([1, null]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('clears the active epoch when the native momentum window expires', () => {
     const { root, testWindow } = installCoordinatorEnvironment();
     let now = 0;

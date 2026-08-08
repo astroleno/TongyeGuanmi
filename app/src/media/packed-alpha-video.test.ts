@@ -131,14 +131,81 @@ describe('packed alpha video', () => {
     owner.retire(canvas);
     expect(owner.isPending()).toBe(true);
     expect(owner.wait(canvas, restored, fallback)).toBe(true);
+    vi.advanceTimersByTime(0);
     expect(restored).toHaveBeenCalledOnce();
     expect(fallback).not.toHaveBeenCalled();
     expect(owner.isPending()).toBe(false);
 
+    const fallbackCanvas = {
+      getContext: vi.fn(() => ({
+        isContextLost: () => true,
+        getExtension: () => null
+      })),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    } as unknown as HTMLCanvasElement;
     owner.markPending();
-    owner.wait(canvas, restored, fallback);
+    owner.wait(fallbackCanvas, restored, fallback);
     vi.advanceTimersByTime(251);
     expect(fallback).toHaveBeenCalledOnce();
+    expect(owner.isPending()).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('invalidates a cancelled restore callback before a new wait lease', () => {
+    vi.useFakeTimers();
+    let listeners: Array<EventListener> = [];
+    const extension = {
+      loseContext: vi.fn(),
+      restoreContext: vi.fn()
+    };
+    const context = {
+      isContextLost: () => true,
+      getExtension: () => extension
+    };
+    const canvas = {
+      getContext: vi.fn(() => context),
+      addEventListener: vi.fn((_type: string, listener: EventListener) => {
+        listeners.push(listener);
+      }),
+      removeEventListener: vi.fn((_type: string, listener: EventListener) => {
+        listeners = listeners.filter((candidate) => candidate !== listener);
+      })
+    } as unknown as HTMLCanvasElement;
+    const owner = createPackedAlphaWebGlRestoreOwner();
+    const first = vi.fn();
+    const second = vi.fn();
+    owner.markPending();
+    owner.wait(canvas, first, vi.fn());
+    vi.advanceTimersByTime(0);
+    const stale = listeners[0];
+    owner.cancel();
+    owner.markPending();
+    owner.wait(canvas, second, vi.fn());
+    vi.advanceTimersByTime(0);
+    const current = listeners[listeners.length - 1];
+    stale?.(new Event('webglcontextrestored'));
+    expect(first).not.toHaveBeenCalled();
+    current?.(new Event('webglcontextrestored'));
+    expect(second).toHaveBeenCalledOnce();
+    expect(owner.isPending()).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('accepts an already healthy context as the pending restore fact', () => {
+    vi.useFakeTimers();
+    const context = {
+      isContextLost: () => false
+    };
+    const canvas = {
+      getContext: vi.fn(() => context)
+    } as unknown as HTMLCanvasElement;
+    const owner = createPackedAlphaWebGlRestoreOwner();
+    const restored = vi.fn();
+    owner.markPending();
+    owner.wait(canvas, restored, vi.fn());
+    vi.advanceTimersByTime(0);
+    expect(restored).toHaveBeenCalledOnce();
     expect(owner.isPending()).toBe(false);
     vi.useRealTimers();
   });

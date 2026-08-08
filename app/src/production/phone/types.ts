@@ -93,7 +93,8 @@ export type PhoneMotionDriver = Readonly<{
 
 export type PhoneHeroAdapterHandle = PhoneSceneAdapterHandle & {
   startEntrance(): void;
-  completeEntrance(): void;
+  /** Returns true only when the active Hero committed its stable endpoint. */
+  completeEntrance(): boolean;
   cancelEntrance(): void;
   unlockFromGesture(): void;
 };

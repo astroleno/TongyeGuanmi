@@ -1,6 +1,7 @@
 import {
   createPackedAlphaVideoCompositor,
   createPackedAlphaWebGlRestoreOwner,
+  releasePackedAlphaWebGlContext,
   setPackedAlphaVideoSource,
   type PackedAlphaVideoCompositor
 } from '../../../media/packed-alpha-video';
@@ -492,6 +493,13 @@ export function createPhonePackedAlphaSurface(
   const dispose = () => {
     if (disposed) return;
     release();
+    // This surface owns its Canvas outside React. Terminal disposal must be
+    // the one place that hard-releases its context before removing the node;
+    // ordinary lease release deliberately keeps the context reusable.
+    const terminalContext = canvas?.getContext?.('webgl');
+    if (terminalContext && !terminalContext.isContextLost()) {
+      releasePackedAlphaWebGlContext(terminalContext);
+    }
     restoreOwner.clear();
     canvas?.remove();
     if (canvas) delete canvas.dataset.phonePackedAlphaRetired;

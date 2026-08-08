@@ -64,7 +64,8 @@ function cinematicSnapshot(
     overrides.scrollCorridor ?? null,
     overrides.scrollProgress ?? 0,
     null,
-    null
+    null,
+    false
   ];
 }
 

@@ -229,8 +229,10 @@ export type PhoneCinematicSnapshot = readonly [
   scrollCorridor: PhoneStorySnapshot['scroll']['corridor'],
   scrollProgress: number,
   scrollRun: PhoneScrollRunId | null,
-  /** Immutable revision carried by raw leaf frame tokens; a committed stable revision is also retained as the machine-owned entry-settled marker. */
-  presentationRevision: number | null
+  /** Immutable revision carried by raw leaf frame tokens. */
+  presentationRevision: number | null,
+  /** Explicit machine-owned stable entry marker; never infer this from a token revision. */
+  entrySettled: boolean
 ];
 
 export function selectPhoneCinematicSnapshot(
@@ -245,6 +247,7 @@ export function selectPhoneCinematicSnapshot(
   } = snapshot.projection;
   const session = snapshot.status === 'transaction' ? snapshot.session : null;
   const operation = session?.operation;
+  const entrySettled = snapshot.status === 'stable' && snapshot.projection.revision > 0;
   return [
     semanticScene,
     sourceSurface,
@@ -265,9 +268,10 @@ export function selectPhoneCinematicSnapshot(
     snapshot.scroll.progress,
     snapshot.status === 'scroll-run' ? snapshot.run : null,
     session?.presentationRevision
-      ?? (snapshot.status === 'stable' && snapshot.projection.revision > 0
+      ?? (entrySettled
         ? snapshot.projection.revision
-        : null)
+        : null),
+    entrySettled
   ];
 }
 

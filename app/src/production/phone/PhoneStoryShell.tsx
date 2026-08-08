@@ -147,7 +147,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
     aodLastProgress,
     aodRollbackReason
   ] = navigation.aodDiagnostics;
-  const heroProjection = navigation.cinematicSnapshot.slice(1, 3).includes('front:hero'), entrySettled = navigation.cinematicSnapshot[11] === 'stable' && heroProjection && navigation.cinematicSnapshot[18] !== null;
+  const heroProjection = navigation.cinematicSnapshot.slice(1, 3).includes('front:hero'), entrySettled = navigation.cinematicSnapshot[19] && heroProjection;
   const directEntryHeroGpuAllowed = !directStoryEntry
     || entryScene === 'hero'
     || entrySettled

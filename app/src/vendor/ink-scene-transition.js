@@ -139,7 +139,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      console.warn('Ink field shader compile failed:', gl.getShaderInfoLog(shader));
+      globalThis.console?.warn('Ink field shader compile failed:', gl.getShaderInfoLog(shader));
       gl.deleteShader(shader);
       return null;
     }
@@ -162,7 +162,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.warn('Ink field shader link failed:', gl.getProgramInfoLog(program));
+    globalThis.console?.warn('Ink field shader link failed:', gl.getProgramInfoLog(program));
     releaseInkWebGlResources(gl, { program, shaders: [vertexShader, fragmentShader] });
     return null;
   }

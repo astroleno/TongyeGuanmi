@@ -56,7 +56,8 @@ describe('phone story runtime factory', () => {
       null,
       0,
       null,
-      null
+      null,
+      false
     ]);
 
     runtime.port.dispatch({
@@ -91,7 +92,8 @@ describe('phone story runtime factory', () => {
       15: null,
       16: 0,
       17: null,
-      18: 1
+      18: 1,
+      19: false
     });
     runtime.dispose();
   });
@@ -108,6 +110,7 @@ describe('phone story runtime factory', () => {
     expect(bootstrap[11]).toBe('stable');
     expect(bootstrap[12]).toBe('hero');
     expect(bootstrap[18]).toBeNull();
+    expect(bootstrap[19]).toBe(false);
 
     const committed = {
       ...runtime.port.getSnapshot(),
@@ -119,6 +122,7 @@ describe('phone story runtime factory', () => {
     };
     const settled = selectPhoneCinematicSnapshot(committed);
     expect(settled[18]).toBe(1);
+    expect(settled[19]).toBe(true);
     runtime.dispose();
   });
 

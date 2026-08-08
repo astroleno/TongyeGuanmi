@@ -76,10 +76,7 @@ export function restorePackedAlphaWebGlContext(
       | PackedAlphaLoseContextExtension
       | null;
   if (!extension) return false;
-  canvas.addEventListener('webglcontextrestored', () => {
-    restorableContextExtensions.delete(canvas);
-    onRestored();
-  }, { once: true });
+  canvas.addEventListener('webglcontextrestored', onRestored, { once: true });
   extension.restoreContext();
   return true;
 }
@@ -99,35 +96,52 @@ export function createPackedAlphaWebGlRestoreOwner(
 ): PackedAlphaWebGlRestoreOwner {
   let pending = false;
   let poll: ReturnType<typeof globalThis.setTimeout> | undefined;
+  let generation = 0;
   const clearPoll = () => {
     if (poll !== undefined) globalThis.clearTimeout(poll);
     poll = undefined;
   };
+  const invalidate = () => {
+    generation += 1;
+    clearPoll();
+  };
   return {
     isPending: () => pending,
-    markPending: () => { pending = true; },
+    markPending: () => {
+      invalidate();
+      pending = true;
+    },
     retire: (canvas) => {
+      invalidate();
       pending = true;
       const context = canvas.getContext('webgl');
       if (context && !context.isContextLost()) releasePackedAlphaWebGlContext(context);
     },
     wait: (canvas, onRestored, onFallback) => {
       if (!pending) return false;
-      clearPoll();
+      invalidate();
+      const waitGeneration = generation;
       const deadline = Date.now() + timeoutMs;
-      let settled = false;
       const finish = (callback: () => void) => {
-        if (settled) return;
-        settled = true;
+        if (waitGeneration !== generation) return;
         clearPoll();
         pending = false;
         callback();
       };
       const pollRestore = () => {
-        if (settled) return;
+        if (waitGeneration !== generation) return;
         const context = canvas.getContext('webgl');
+      // A browser may have restored the retained context before the owner
+      // was asked to wait. Treat that healthy context as the restore fact.
+        if (context && !context.isContextLost()) {
+          finish(onRestored);
+          return;
+        }
         if (context?.isContextLost()) {
-          const restored = restorePackedAlphaWebGlContext(canvas, () => finish(onRestored));
+          const restored = restorePackedAlphaWebGlContext(
+            canvas,
+            () => finish(onRestored)
+          );
           if (restored) return;
         }
         if (Date.now() >= deadline) {
@@ -139,9 +153,9 @@ export function createPackedAlphaWebGlRestoreOwner(
       pollRestore();
       return true;
     },
-    cancel: clearPoll,
+    cancel: invalidate,
     clear: () => {
-      clearPoll();
+      invalidate();
       pending = false;
     }
   };

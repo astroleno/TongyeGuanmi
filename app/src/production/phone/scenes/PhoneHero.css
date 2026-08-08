@@ -232,6 +232,13 @@
   margin: 0;
 }
 
+.portrait-scroll-spike[data-portrait-hero-text-entrance="complete"] [data-text-reveal-item] {
+  animation: none;
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
 .portrait-scroll-spike__gyro-permission {
   position: absolute;
   z-index: 5;

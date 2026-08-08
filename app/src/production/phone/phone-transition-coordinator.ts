@@ -122,6 +122,7 @@ export function createPhoneIntentCoordinator(
   const expireMomentum = (inputEpoch?: number) => {
     if (inputEpoch !== undefined && momentum?.inputEpoch !== inputEpoch) return;
     momentum = null;
+    wheel = null;
     clearMomentumExpiryTimer();
     if (publishedEpoch !== null && (inputEpoch === undefined || publishedEpoch === inputEpoch)) {
       publishInputEpoch(null);
@@ -194,6 +195,11 @@ export function createPhoneIntentCoordinator(
   };
 
   const onTouchStart = (event: TouchEvent) => {
+    if (eventTargetIsInteractive(event)) {
+      touch = null;
+      expireMomentum();
+      return;
+    }
     const first = event.touches[0];
     if (event.touches.length !== 1 || !first) {
       touch = null;
@@ -223,6 +229,7 @@ export function createPhoneIntentCoordinator(
     ) return;
     const occurredAt = now();
     const projectedY = touch.startY + touch.clientY - first.clientY;
+    if (Math.abs(projectedY - touch.startY) < 0.5) return;
     momentum = {
       inputEpoch: touch.inputEpoch,
       until: occurredAt + momentumWindowMs
@@ -236,14 +243,27 @@ export function createPhoneIntentCoordinator(
     }
   };
   const onTouchEnd = (event: TouchEvent) => {
-    if (!event.touches.length) touch = null;
+    if (!event.touches.length) {
+      const inputEpoch = touch?.inputEpoch;
+      touch = null;
+      if (
+        inputEpoch !== undefined
+        && momentum?.inputEpoch !== inputEpoch
+        && publishedEpoch === inputEpoch
+      ) {
+        publishInputEpoch(null);
+      }
+    }
   };
   const onTouchCancel = () => {
     touch = null;
     expireMomentum();
   };
   const onWheel = (event: WheelEvent) => {
-    if (eventTargetIsInteractive(event)) return;
+    if (eventTargetIsInteractive(event)) {
+      expireMomentum();
+      return;
+    }
     const occurredAt = now();
     if (!wheel || occurredAt - wheel.lastAt > wheelQuietMs) {
       wheel = { ...nextIdentity(), lastAt: occurredAt };
@@ -251,6 +271,11 @@ export function createPhoneIntentCoordinator(
       wheel = { ...wheel, lastAt: occurredAt };
     }
     publishInputEpoch(wheel.inputEpoch);
+    clearMomentumExpiryTimer();
+    momentumExpiryTimer = globalThis.setTimeout(
+      expireMomentum,
+      wheelQuietMs
+    );
     const startY = scrollY();
     const projectedY = startY
       + event.deltaY * (event.deltaMode ? 16 : 1);
@@ -297,7 +322,6 @@ export function createPhoneIntentCoordinator(
       }
       nativeProbeFrames.clear();
       expireMomentum();
-      wheel = null;
       if (publishedEpoch !== null) publishInputEpoch(null);
     }
   };

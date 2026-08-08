@@ -41,6 +41,7 @@ vi.mock('../../../media/packed-alpha-video', () => ({
 import {
   createPhonePackedAlphaSurface
 } from './phone-packed-alpha-surface';
+import { releasePackedAlphaWebGlContext } from '../../../media/packed-alpha-video';
 
 class FakeNode {
   readonly children: FakeNode[] = [];
@@ -56,6 +57,8 @@ class FakeNode {
   alt = '';
   decoding = '';
   draggable = true;
+  webglContext: { isContextLost: () => boolean } | null = null;
+  readonly getContext = vi.fn(() => this.webglContext);
 
   append(child: FakeNode) {
     child.parentNode = this;
@@ -167,6 +170,7 @@ describe('phone packed-alpha surface', () => {
     compositorProbe.onFrame = null;
     compositorProbe.canvases.length = 0;
     for (const method of Object.values(compositorProbe.restoreOwner)) method.mockClear();
+    vi.mocked(releasePackedAlphaWebGlContext).mockClear();
     vi.unstubAllGlobals();
   });
 
@@ -246,6 +250,18 @@ describe('phone packed-alpha surface', () => {
     expect(compositorProbe.restoreOwner.retire).toHaveBeenCalledWith(canvas);
     expect(canvas?.dataset.phonePackedAlphaRetired).toBe('true');
     surface(['dispose']);
+  });
+
+  it('hard-releases the surface-owned WebGL context exactly at terminal dispose', () => {
+    const { container, surface } = fixture();
+    surface(['activate', 'forward']);
+    const canvas = container.querySelector('canvas') as FakeNode;
+    const context = { isContextLost: () => false };
+    canvas.webglContext = context;
+
+    surface(['dispose']);
+
+    expect(releasePackedAlphaWebGlContext).toHaveBeenCalledWith(context);
   });
 
   it('retains the forward decoder and Canvas while Safari waits for a gesture frame', () => {

@@ -477,14 +477,10 @@ export function usePhoneStageRuntime(
         ) {
           aodAdapter.update(0);
         }
-        if (stableFrontPosition > 0.003 && !completedHeroEntrance) {
-          completedHeroEntrance = true;
-          heroAdapter.completeEntrance();
-        }
       }
 
       const [
-        ,
+        semanticScene,
         ,
         ,
         ,
@@ -497,6 +493,21 @@ export function usePhoneStageRuntime(
         sessionProgress,
         status
       ] = snapshot;
+      // A reverse leg may publish its stable Hero projection after the one
+      // sampled frame that attempted completion while Hero was inactive. The
+      // adapter reports whether it actually committed; a rejected inactive
+      // call must remain retryable for the real receiver endpoint.
+      const committedHeroEndpoint = status === 'stable'
+        && semanticScene === 'hero'
+        && snapshot[19];
+      if (
+        heroAdapter
+        && !completedHeroEntrance
+        && (committedHeroEndpoint || (stableFrontPosition !== null && stableFrontPosition > 0.003))
+        && heroAdapter.completeEntrance()
+      ) {
+        completedHeroEntrance = true;
+      }
       if (status === 'transaction' && run === 'aod-method' && methodAdapter) {
         const progress = sessionProgress ?? 0;
         methodAdapter.update(options.mapAodToMethod(progress));

@@ -398,10 +398,11 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       setTitleActive(false);
     }, [motionDriver, storyRoot]);
     const completeEntrance = useCallback(() => {
-      if (!sceneActiveRef.current && !presentationBindingRef.current) return;
+      if (!sceneActiveRef.current) return false;
       cancelEntrance();
       heroEntranceCompletedRef.current = true;
       renderEntrance(1);
+      return true;
     }, [cancelEntrance, renderEntrance]);
     const startEntrance = useCallback(() => {
       if (!sceneActiveRef.current && !presentationBindingRef.current) return;
@@ -527,6 +528,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
 
     useLayoutEffect(() => {
       sceneActiveRef.current = active;
+      rootRef.current?.setAttribute('data-phone-scene-active', String(active));
       if (active) {
         // `radialInkIntro.dispose()` clears the handoff property when Hero is
         // retired. A reverse route can reactivate the already-completed Hero

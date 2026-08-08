@@ -193,6 +193,8 @@ export default defineConfig({
       compress: {
         ecma: 2020,
         passes: 10,
+        keep_fargs: false,
+        hoist_funs: true,
         unsafe_arrows: true,
         unsafe: true,
         unsafe_comps: true,
@@ -201,6 +203,7 @@ export default defineConfig({
         unsafe_proto: true,
         unsafe_regexp: true,
         unsafe_undefined: true,
+        drop_console: true,
         pure_getters: true
       },
       format: { ecma: 2020 },
