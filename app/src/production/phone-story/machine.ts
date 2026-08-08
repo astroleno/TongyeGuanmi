@@ -13,7 +13,7 @@ import {
   type PhoneStoryEvent, type PhoneStorySnapshot, type PhoneTransaction,
   type PhoneTransactionLeg, type PhoneTransactionMode,
   type PhoneTransactionSnapshot, type PhoneViewportSnapshot,
-  type PhoneDeadlinePolicy, type PhoneSurfaceId
+  type PhoneActivationCredit, type PhoneDeadlinePolicy, type PhoneSurfaceId
 } from './protocol';
 
 export type PhoneMachineSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegmentId>;
@@ -133,9 +133,6 @@ function activationSurfaceIdsFor(
 ): readonly PhoneSurfaceId[] {
   if (mode === 'segment' && segmentId && direction) {
     const owner = phoneSegmentChoreographyFrame(segmentId, progress, direction).mediaClockOwner;
-    // Both planes may own the media clock: departing media is already mounted
-    // and activates inside the gesture window, while incoming owner media
-    // (a reverse target) activates as soon as its receiver mount lands.
     if (owner === 'none') return [];
     const prefix = owner === 'source' ? 'source:' : 'receiver:';
     return closure.mount.flatMap((mount) => (
@@ -164,13 +161,20 @@ export function phoneTransactionActivationSurfaceIds(
   );
 }
 
+export function phoneTransactionActivationCredit(transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>): PhoneActivationCredit | null {
+  if (transaction.mode !== 'segment') return phoneSceneById(transaction.candidateSceneId).directEntry.mediaActivation.requiresPhysicalCredit ? 'physical-epoch' : null;
+  const { segmentId, direction } = transaction.attempt;
+  if (!segmentId || !direction) return null;
+  const owner = phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction).mediaClockOwner;
+  return owner === 'source' ? 'physical-epoch' : owner === 'target' ? 'direct-muted-autoplay' : null;
+}
+
 function transactionFor(
   base: PhoneMachineSnapshot,
   options: TransactionOptions
 ): PhoneTransaction<PhoneSceneId, PhoneSegmentId> {
   const attempt = attemptFor(base.authorityId, options);
   const scene = phoneSceneById(options.candidateSceneId);
-  const warm = options.sourceSceneId !== null;
   const segment = options.segmentId
     ? phoneManifest.segments.find((candidate) => candidate.id === options.segmentId) ?? null
     : null;
@@ -197,12 +201,8 @@ function transactionFor(
   const deadlinePolicy = options.deadlinePolicy ?? (options.mode === 'rollback' && segment
     ? segment.rollback.deadlinePolicy
     : legPolicy?.deadlinePolicy ?? warmPolicy?.deadlinePolicy ?? scene.directEntry.deadlinePolicy);
-  const deadlineOperation = options.mode === 'rollback' ? 'rollback' : 'moduleLoad';
   const initialProgress = options.mode === 'segment' && options.direction === 'reverse' ? 1 : 0;
-  const activationSurfaceIds = activationSurfaceIdsFor(
-    options.mode, options.candidateSceneId, options.segmentId, options.direction,
-    initialProgress, closure
-  );
+  const activationSurfaceIds = activationSurfaceIdsFor(options.mode, options.candidateSceneId, options.segmentId, options.direction, initialProgress, closure);
   return freezeOwned({
     mode: options.mode, phase: options.mode === 'rollback' ? 'rolling-back' : 'preparing',
     attempt, sourceSceneId: options.sourceSceneId, candidateSceneId: options.candidateSceneId,
@@ -211,14 +211,15 @@ function transactionFor(
     requestedEntry: options.request,
     canonicalPathname: options.request.pathname, canonicalHash: scene.directEntry.canonicalHash,
     urlEffect: options.canonicalizeUrlOnCommit
-      ? 'replace' : urlEffectFor(options.request, scene.directEntry.canonicalHash, warm),
+      ? 'replace' : urlEffectFor(options.request, scene.directEntry.canonicalHash, options.sourceSceneId !== null),
     restoreUrlOnRollback: options.restoreUrlOnRollback
-      ?? (warm && (options.request.origin === 'hash' || options.request.origin === 'popstate')),
+      ?? (options.sourceSceneId !== null
+        && (options.request.origin === 'hash' || options.request.origin === 'popstate')),
     fallbackFromSceneId: options.fallbackFromSceneId ?? null, commitIntent: options.commitIntent,
     pendingEntry: options.pendingEntry ?? null, deadlinePolicy,
     deadline: {
-      operation: deadlineOperation,
-      remainingMs: deadlinePolicy[deadlineOperation],
+      operation: options.mode === 'rollback' ? 'rollback' : 'moduleLoad',
+      remainingMs: deadlinePolicy[options.mode === 'rollback' ? 'rollback' : 'moduleLoad'],
       startedAtActiveMs: 0,
       suspended: false
     },
@@ -235,7 +236,7 @@ function transactionFor(
 function loadEffects(
   transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>
 ): readonly PhoneStoryEffect[] {
-  const deadline = transaction.deadline;
+  const deadline = transaction.deadline, activationCredit = phoneTransactionActivationCredit(transaction);
   return freezeOwned([
     {
       type: 'load-dependencies',
@@ -248,9 +249,9 @@ function loadEffects(
       operation: deadline?.operation ?? 'moduleLoad',
       timeoutMs: deadline?.remainingMs ?? 0
     },
-    ...(transaction.activation === 'offered' ? [{
+    ...(transaction.activation === 'offered' && activationCredit ? [{
       type: 'activate-surfaces' as const, attempt: transaction.attempt,
-      credit: 'physical-epoch' as const,
+      credit: activationCredit,
       surfaceIds: phoneTransactionActivationSurfaceIds(transaction)
     }] : [])
   ] satisfies readonly PhoneStoryEffect[]);
@@ -1107,7 +1108,6 @@ function handleViewport(
     });
   }
   if (event.change === 'toolbar' && snapshot.status === 'stable' && snapshot.stableCommit) {
-    // Toolbar shifts only change visual geometry; refresh CSS variables in place.
     const next = { ...snapshot, stateRevision: snapshot.stateRevision + 1, viewport: event.viewport };
     return freezeOwned({ snapshot: next, effects: [{ type: 'refresh-stable-viewport' }] });
   }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createPhoneStoryBoot,
+  phoneTransactionActivationCredit,
   phoneTransactionActivationSurfaceIds,
   reducePhoneStory,
   selectPhoneCheckpoint,
@@ -749,6 +750,28 @@ function reachTargetPresentation(result: PhoneMachineResult): PhoneMachineResult
 }
 
 describe('phone segment transaction machine', () => {
+  it('assigns activation credit from the media-clock owner', () => {
+    const cases = [
+      ['aod-animation', 'method-top', 'forward', 'physical-epoch'],
+      ['method-top', 'aod-animation', 'reverse', 'direct-muted-autoplay'],
+      ['star-map', 'aod-animation', 'forward', null]
+    ] as const;
+
+    for (const [source, target, direction, expected] of cases) {
+      const segment = phoneSegmentBetween(source, target);
+      if (!segment) throw new Error(`missing segment ${source} -> ${target}`);
+      const started = beginSegment(segment, direction);
+      const active = transaction(started.snapshot).transaction;
+      expect(phoneTransactionActivationCredit(active), `${source} -> ${target}`).toBe(expected);
+      const effect = started.effects.find((candidate) => candidate.type === 'activate-surfaces');
+      if (expected === null) {
+        expect(effect).toBeUndefined();
+      } else {
+        expect(effect).toEqual(expect.objectContaining({ credit: expected }));
+      }
+    }
+  });
+
   it('does not spend a gesture activation credit for static-entry choreography', () => {
     for (const [sourceId, direction] of [
       ['star-map', 'forward'],

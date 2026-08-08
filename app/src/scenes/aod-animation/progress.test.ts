@@ -46,6 +46,7 @@ class FakeAodSection {
 }
 
 const stylesheet = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
+const phoneStylesheet = readFileSync(new URL('./phone/PhoneAod.css', import.meta.url), 'utf8');
 
 describe('AOD alpha compositing', () => {
   it('holds every AOD background layer through the first third and source alpha through 48%', () => {
@@ -162,6 +163,36 @@ describe('AOD alpha compositing', () => {
     expect(stylesheet).not.toMatch(
       /\[data-aod-exit-active="true"\][^}]*\[data-aod-alpha-composite="true"\][^}]*opacity:\s*0\./s
     );
+    expect(phoneStylesheet).toMatch(
+      /\.portrait-scroll-spike__scene--aod\s*\{[^}]*background:\s*transparent/s
+    );
+  });
+
+  it('keeps every ancestor transparent through the authored alpha handoff', () => {
+    const samples = [0, 1 / 3, AOD_TIMELINE_ALPHA_END - 0.0001, AOD_TIMELINE_ALPHA_END];
+    for (const progress of samples) {
+      const section = new FakeAodSection();
+      renderAodTransitionProgress(
+        section as unknown as HTMLElement,
+        progress,
+        AOD_TIMELINE_ALPHA_END,
+        AOD_TIMELINE_ALPHA_END
+      );
+      expect(section.dataset.aodAlphaComposite).toBe(
+        progress < AOD_TIMELINE_ALPHA_END ? 'true' : 'false'
+      );
+      if (progress === AOD_TIMELINE_ALPHA_END) {
+        expect(Number(section.dataset.aodMediaProgress)).toBeCloseTo(16 / 77, 3);
+      }
+    }
+
+    const forward = new FakeAodSection();
+    const reverse = new FakeAodSection();
+    renderAodTransitionProgress(forward as unknown as HTMLElement, .48);
+    renderAodTransitionProgress(reverse as unknown as HTMLElement, .48);
+    expect(reverse.dataset).toEqual(forward.dataset);
+    expect(reverse.style.getPropertyValue('--aod-transition-progress'))
+      .toBe(forward.style.getPropertyValue('--aod-transition-progress'));
   });
 
   it('keeps scene presentation pure and leaves media time to the presented-frame driver', () => {

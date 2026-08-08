@@ -133,6 +133,8 @@ describe('clean PhoneAod leaf', () => {
     });
     expect(surfaceProbe.activate).toHaveBeenCalledTimes(1);
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
+    expect(host.querySelector<HTMLElement>('[data-aod-transition]')
+      ?.getAttribute('data-aod-exit-active')).toBe('true');
     expect(invocation).toMatchObject({
       invocationId: 'activation:1', invoked: true,
       surfaceIds: ['aod-figure-video']
@@ -141,9 +143,60 @@ describe('clean PhoneAod leaf', () => {
       ? invocation.settlements[0].settled : Promise.reject()).resolves.toBeUndefined();
     expect(surfaceProbe.render).toHaveBeenCalledTimes(1);
     expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(1);
+    mount.registration()?.commands.pause('outside-closure');
+    expect(host.querySelector<HTMLElement>('[data-aod-transition]')
+      ?.getAttribute('data-aod-exit-active')).toBeNull();
     expect(timelineProbe.prepare).toHaveBeenCalledWith(
       expect.any(HTMLVideoElement), expect.objectContaining({ progress: 0 })
     );
+  });
+
+  it('latches the reverse endpoint before the packed surface activates', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const current = reportFixture();
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: current.reports, frameToken: 'aod:reverse:1' });
+
+    commands.render(1);
+    const invocation = commands.activate({
+      invocationId: 'activation:reverse',
+      surfaceIds: ['aod-figure-video'],
+      credit: 'direct-muted-autoplay',
+      playback: true
+    });
+    const settlement = invocation.settlements[0];
+    if (settlement?.status !== 'pending') throw new Error('missing activation settlement');
+
+    await expect(settlement.settled).resolves.toBeUndefined();
+    expect(timelineProbe.prepare).toHaveBeenCalledWith(
+      expect.any(HTMLVideoElement), expect.objectContaining({ progress: 1 })
+    );
+    expect(surfaceProbe.render).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects activation when frame preparation fails and reports the failure', async () => {
+    timelineProbe.prepare.mockRejectedValueOnce(new Error('decode failed'));
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const current = reportFixture();
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: current.reports, frameToken: 'aod:reject:1' });
+    const invocation = commands.activate({
+      invocationId: 'activation:reject',
+      surfaceIds: ['aod-figure-video'],
+      credit: 'direct-muted-autoplay',
+      playback: true
+    });
+    const settlement = invocation.settlements[0];
+    if (settlement?.status !== 'pending') throw new Error('missing activation settlement');
+
+    await expect(settlement.settled).rejects.toThrow('decode failed');
+    expect(current.reports.reportFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'aod-frame-preparation-failed',
+      message: 'decode failed'
+    }));
+    expect(surfaceProbe.render).not.toHaveBeenCalled();
   });
 
   it('accepts only the current generation draw and tracks a renewed Canvas', async () => {

@@ -1698,9 +1698,60 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(deprecatedPrepare).not.toHaveBeenCalled();
     expect(target.commands.activate).toHaveBeenCalledTimes(1);
     expect(target.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
-      credit: 'physical-epoch', playback: true, surfaceIds: ['hero-figure-video']
+      credit: 'direct-muted-autoplay', playback: true, surfaceIds: ['hero-figure-video']
     }));
     expect(currentTransaction(runtime).activation).toBe('spent');
+    disconnect();
+  });
+
+  it('rejects an incomplete physical-epoch activation immediately instead of deferring it', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#home');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 300, fresh: true,
+      trusted: true, target: 'story'
+    });
+
+    expect(currentTransaction(runtime)).toMatchObject({
+      mode: 'rollback', phase: 'rolling-back', candidateSceneId: 'hero'
+    });
+    expect(fixture.effects.filter((effect) => (
+      effect.type === 'show-activation-cta' && effect.attempt.mode === 'segment'
+    ))).toEqual([]);
+    disconnect();
+  });
+
+  it('defers direct muted autoplay until the receiver mounts once, then rolls back without a CTA', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#pattern');
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: -300, fresh: true,
+      trusted: true, target: 'story'
+    });
+    expect(currentTransaction(runtime)).toMatchObject({
+      mode: 'segment', candidateSceneId: 'hero', activation: 'offered'
+    });
+
+    const target = commandFixture(() => false);
+    registerCurrentLeaf(runtime, target.commands);
+
+    expect(target.commands.activate).toHaveBeenCalledTimes(1);
+    expect(target.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
+      credit: 'direct-muted-autoplay', playback: true,
+      surfaceIds: ['hero-figure-video']
+    }));
+    expect(currentTransaction(runtime)).toMatchObject({
+      mode: 'rollback', phase: 'rolling-back'
+    });
+    expect(fixture.effects.filter((effect) => (
+      effect.type === 'show-activation-cta' && effect.attempt.mode === 'segment'
+    ))).toEqual([]);
     disconnect();
   });
 

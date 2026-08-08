@@ -66,6 +66,15 @@ function renderPhoneAod(root: HTMLElement, rawProgress: number): void {
   );
 }
 
+function setAodExitActive(root: HTMLElement | null, active: boolean): void {
+  const section = root?.matches('[data-aod-transition]')
+    ? root
+    : root?.querySelector<HTMLElement>('[data-aod-transition]') ?? null;
+  if (!section) return;
+  if (active) section.setAttribute('data-aod-exit-active', 'true');
+  else section.removeAttribute('data-aod-exit-active');
+}
+
 type PhoneAodMigrationControl = Readonly<{
   enter(): void;
   leave(): void;
@@ -174,6 +183,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
     };
     const preparation = pump().catch((error: unknown) => {
       reportPreparationFailure(error, generation);
+      throw error;
     }).finally(() => {
       if (mediaPreparationRef.current === preparation) mediaPreparationRef.current = null;
     });
@@ -184,15 +194,12 @@ export function PhoneAod({ reports }: PhoneAodProps) {
   const render = useCallback((progress: number) => {
     const root = rootRef.current;
     if (root) renderPhoneAod(root, progress);
-    const video = videoRef.current;
-    const surface = surfaceRef.current;
-    if (!video || !surface || surfaceGenerationRef.current <= 0) return;
     // The timeline driver owns seek/compositor completion. Never treat a
     // currentTime assignment followed by an immediate WebGL upload as proof.
     // A single coalesced preparation consumes the latest reducer progress.
     void scheduleDecodedFrame(mapAodTimelineToMediaProgress(
       progress, AOD_PHONE_TIMELINE_ALPHA_END
-    ));
+    )).catch(() => undefined);
   }, [scheduleDecodedFrame]);
 
   const reportPoster = useCallback(() => {
@@ -234,7 +241,10 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         const activatedGeneration = surface.activate('forward');
         surfaceGenerationRef.current = activatedGeneration;
         const root = rootRef.current;
-        if (root) root.dataset.phoneAodPlaybackFrame = 'awaiting';
+        if (root && activatedGeneration > 0) {
+          root.dataset.phoneAodPlaybackFrame = 'awaiting';
+          setAodExitActive(root, true);
+        }
         let settled: Promise<void>;
         try {
           // Consume the trusted activation window. The timeline driver waits
@@ -262,13 +272,17 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         };
       },
       render,
-      settle(endpoint) { render(endpoint); },
+      settle(endpoint) {
+        render(endpoint);
+        setAodExitActive(rootRef.current, false);
+      },
       pause() {
         surfaceGenerationRef.current = 0;
         const video = videoRef.current;
         if (video) disposeTimelineVideoDriver(video);
         surfaceRef.current?.release();
         delete rootRef.current?.dataset.phoneAodPlaybackFrame;
+        setAodExitActive(rootRef.current, false);
       },
       dispose() {
         disposedRef.current = true;
@@ -279,6 +293,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         surfaceRef.current = null;
         bindingRef.current = null;
         delete rootRef.current?.dataset.phoneAodPlaybackFrame;
+        setAodExitActive(rootRef.current, false);
       },
       [PHONE_AOD_MIGRATION_CONTROL]: {
         enter() {
@@ -411,6 +426,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       delete root.dataset.portraitAodAlpha;
       delete root.dataset.portraitAodProgress;
       delete root.dataset.phoneAodPlaybackFrame;
+      setAodExitActive(root, false);
     };
   }, [commands, posterHost, render, reportFailure, reportPoster, reports]);
 

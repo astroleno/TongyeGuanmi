@@ -900,10 +900,16 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         if (activationCoverageComplete(candidates, effect.surfaceIds)) {
           deferredActivation = null;
           invokeActivation(candidates, attempt, effect.credit, effect.surfaceIds, activeConnection);
-        } else {
-          // Incoming owner media is not mounted yet; hold the gesture credit
-          // and activate once the receiver lease registers.
+        } else if (effect.credit === 'direct-muted-autoplay') {
+          // Muted inline autoplay may wait for the incoming receiver mount,
+          // but it must be spent exactly once for this attempt.
           deferredActivation = { attempt, credit: effect.credit, surfaceIds: effect.surfaceIds };
+        } else {
+          // A physical Safari gesture credit cannot cross an asynchronous
+          // receiver mount. Fail the continuous segment immediately so the
+          // machine enters its existing bounded rollback path.
+          deferredActivation = null;
+          enqueueFor({ type: 'activation-settled', invoked: false, attempt }, activeConnection);
         }
       }
     } else if (effect.type === 'show-activation-cta') {
