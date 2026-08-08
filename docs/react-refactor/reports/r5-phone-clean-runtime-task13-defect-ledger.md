@@ -162,8 +162,7 @@ This checkpoint supersedes the corrective-WIP wording for D13-003 and D13-004
 only. It does not freeze a device candidate and does not call Task 13 complete.
 
 - Status: `ready for bounded physical acceptance`
-- Focused closure commit: pending the closing commit for this report checkpoint;
-  the exact hash is bound immediately after that commit is created.
+- Focused closure commit: `da236ee23fce8aa4e26fa553e53d9dad4da6b82b`
 - Deterministic batch: 11 files / 260 tests passed.
 - Static gates: TypeScript, targeted ESLint, phone cutover architecture,
   boolean-data, homepage module boundaries, packed-alpha masters, media
