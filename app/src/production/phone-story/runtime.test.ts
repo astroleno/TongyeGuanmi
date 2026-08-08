@@ -47,6 +47,31 @@ describe('phone native reading edge contract', () => {
     expect(phoneReadingEdges({ scrollTop: 963, clientHeight: 714, scrollHeight: 1_677 }))
       .toEqual({ top: false, bottom: true });
   });
+
+  it('starts one Method-bottom Figure2 transaction after the fresh edge handoff', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#method-top');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    const stable = runtime.getSnapshot();
+    expect(stable.status).toBe('stable');
+    expect(stable.stableCommit?.sceneId).toBe('method-top');
+
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 300, fresh: true,
+      trusted: true, target: 'story'
+    });
+
+    expect(currentTransaction(runtime)).toMatchObject({
+      mode: 'segment', sourceSceneId: 'method-top', candidateSceneId: 'figure2-animation',
+      attempt: { segmentId: 'method-bottom-figure2', direction: 'forward' }
+    });
+    expect(fixture.effects).not.toContainEqual(expect.objectContaining({
+      type: 'show-activation-cta'
+    }));
+    expect(runtime.getSnapshot().stableCommit).toBe(stable.stableCommit);
+    disconnect();
+  });
 });
 
 type EnvironmentFixture = Readonly<{
@@ -664,6 +689,7 @@ describe('phone runtime input, history, viewport, and queue', () => {
     expect(refreshed.stableCommit).toBe(commit);
     expect(refreshed.stableCommit.commitSequence).toBe(commit.commitSequence);
     expect(refreshed.presentationProof).toBe(proof);
+    expect(refreshed.input).toBe(stable.input);
     expect(refreshStableViewport).toHaveBeenCalledTimes(1);
     expect(refreshStableViewport.mock.calls[0]?.[0]).toEqual(latest);
     disconnect();

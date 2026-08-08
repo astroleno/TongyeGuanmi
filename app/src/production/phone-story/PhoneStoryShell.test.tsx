@@ -645,6 +645,120 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
+  it('completes the Method toolbar and fresh-edge handoff inside its scoped shell', () => {
+    const decoy = document.createElement('main');
+    decoy.className = 'phone-story';
+    decoy.dataset.phoneScope = 'brand-lab';
+    const decoyViewport = document.createElement('div');
+    decoyViewport.className = 'phone-story__viewport';
+    const decoyVisual = document.createElement('div');
+    decoyVisual.className = 'phone-method-top__visual';
+    const decoyReadingFlow = document.createElement('div');
+    decoyReadingFlow.className = 'phone-story__reading-flow';
+    const decoyReading = document.createElement('section');
+    decoyReading.dataset.phoneInputOwner = 'native-document';
+    decoyReadingFlow.append(decoyReading);
+    decoyViewport.append(decoyVisual);
+    decoy.append(decoyViewport, decoyReadingFlow);
+    document.body.append(decoy);
+
+    const visualViewportDescriptor = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+    const visualViewport = Object.assign(new EventTarget(), {
+      offsetLeft: 0, offsetTop: 0, width: 390, height: 844, scale: 1
+    });
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true, value: visualViewport
+    });
+    const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    const scrollingElement = document.createElement('main');
+    let scrollTop = 100;
+    Object.defineProperties(scrollingElement, {
+      scrollTop: { configurable: true, get: () => scrollTop },
+      clientHeight: { configurable: true, value: 714 },
+      scrollHeight: { configurable: true, value: 1_677 }
+    });
+    Object.defineProperty(document, 'scrollingElement', {
+      configurable: true, value: scrollingElement
+    });
+
+    const { host, root } = hostRoot();
+    try {
+      act(() => root.render(
+        <PhoneStoryShell scope="formal" chunkRecovery={chunkRecovery} />
+      ));
+      const engine = connectedEngine();
+      act(() => engine.publish(methodReadingSnapshot()));
+      const hidden = probe.loaderProps.at(-1)?.onHidden;
+      if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+      act(() => hidden('ready'));
+
+      const shell = host.querySelector<HTMLElement>('.phone-story');
+      const viewport = shell?.querySelector('.phone-story__viewport');
+      const visual = document.createElement('div');
+      visual.className = 'phone-method-top__visual';
+      const reading = document.createElement('section');
+      reading.dataset.phoneInputOwner = 'native-document';
+      shell?.querySelector('.phone-story__reading-flow')?.append(reading);
+      viewport?.append(visual);
+      if (!shell || !viewport) throw new Error('missing formal Method shell');
+      expect(shell.dataset.phoneReading).toBe('enabled');
+
+      visualViewport.height = 714;
+      visualViewport.dispatchEvent(new Event('resize'));
+      expect(engine.hostEvents.at(-1)).toMatchObject({
+        type: 'viewport', change: 'toolbar',
+        viewport: { visual: { width: 390, height: 714 } }
+      });
+      act(() => engine.publish(methodToolbarReprojectSnapshot()));
+      expect(engine.getSnapshot()?.stableCommit).toMatchObject({
+        sceneId: 'method-top', commitSequence: 5
+      });
+      expect(engine.getSnapshot()?.stableCommit).not.toBeNull();
+      expect(shell.dataset.phoneReading).toBe('enabled');
+      expect(reading.hasAttribute('inert')).toBe(false);
+
+      const gesture = (identifier: number, reachBottom: boolean) => {
+        const start = new Event('touchstart', { bubbles: true });
+        Object.defineProperty(start, 'touches', { value: [{ identifier, clientY: 600 }] });
+        const move = new Event('touchmove', { bubbles: true, cancelable: true });
+        Object.defineProperty(move, 'touches', { value: [{ identifier, clientY: 300 }] });
+        const end = new Event('touchend', { bubbles: true });
+        Object.defineProperty(end, 'changedTouches', { value: [{ identifier, clientY: 300 }] });
+        act(() => reading.dispatchEvent(start));
+        if (reachBottom) scrollTop = 963;
+        act(() => {
+          reading.dispatchEvent(move);
+          reading.dispatchEvent(end);
+        });
+        return move;
+      };
+
+      const first = gesture(51, true);
+      expect(first.defaultPrevented).toBe(false);
+      expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+      const leave = gesture(52, false);
+      expect(leave.defaultPrevented).toBe(true);
+      expect(visual.dataset.phoneMethodNativeScrollY).toBe('963.00');
+      expect(decoyVisual.dataset.phoneMethodNativeScrollY).toBeUndefined();
+      expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([
+        expect.objectContaining({ kind: 'touch', delta: 300, fresh: true, target: 'story' })
+      ]);
+      expect(host.querySelector('[data-phone-activation]:not([hidden])')).toBeNull();
+    } finally {
+      act(() => root.unmount());
+      if (originalScrollingElement) {
+        Object.defineProperty(document, 'scrollingElement', originalScrollingElement);
+      } else {
+        Reflect.deleteProperty(document, 'scrollingElement');
+      }
+      if (visualViewportDescriptor) {
+        Object.defineProperty(window, 'visualViewport', visualViewportDescriptor);
+      } else {
+        Reflect.deleteProperty(window, 'visualViewport');
+      }
+    }
+  });
+
   it('withholds Topbar chrome until Star Map is the committed scene', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));

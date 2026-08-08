@@ -194,12 +194,14 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
       let blockedTouch = false;
       const nativeReadingEdges = () => phoneReadingEdges(document.scrollingElement ?? document.documentElement);
       const freezeNativeReadingBeforePublish = () => {
-        const reading = document.querySelector<HTMLElement>(
+        const shell = document.querySelector<HTMLElement>(
+          `.phone-story[data-phone-scope="${scope}"]`
+        );
+        const reading = shell?.querySelector<HTMLElement>(
           '.phone-story__reading-flow [data-phone-input-owner="native-document"]'
         );
-        if (!reading) return;
+        if (!reading || !shell) return;
         const scrollOwner = document.scrollingElement ?? document.documentElement; const scrollTop = Math.max(0, scrollOwner.scrollTop || window.scrollY || 0);
-        const shell = reading.closest<HTMLElement>('.phone-story');
         const visualRoot = shell?.querySelector<HTMLElement>('.phone-story__viewport .phone-method-top__visual') ?? reading;
         const value = scrollTop.toFixed(2); visualRoot.style.setProperty('--phone-method-native-scroll-y', `${value}px`);
         visualRoot.dataset.phoneMethodNativeScrollY = value;
