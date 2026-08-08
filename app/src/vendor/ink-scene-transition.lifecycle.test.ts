@@ -375,7 +375,7 @@ describe('ink WebGL resource lifecycle', () => {
     );
   });
 
-  it('derives a radial frontier from a normalized ray and circular texel centers', () => {
+  it('derives an organic radial frontier from a normalized ray and texel centers', () => {
     const { canvas, gl } = webGlHarness();
 
     createInkBoundaryTransition(canvas, { fieldKind: 'radial' });
@@ -385,10 +385,9 @@ describe('ink WebGL resource lifecycle', () => {
       .find((source) => source.includes('precision highp float')) ?? '';
     expect(fragmentSource).toContain('vec2 q=d/max(length(d),0.000001)');
     expect(fragmentSource).toContain('float a=fract(atan(q.y,q.x)/6.2831853)');
-    expect(fragmentSource).toContain('float tx=q.x>.000001');
-    expect(fragmentSource).toContain('float ty=q.y>.000001');
-    expect(fragmentSource).not.toContain('float tx=d.x>.000001');
-    expect(fragmentSource).not.toContain('float ty=d.y>.000001');
+    expect(fragmentSource).toContain('return max(1.0+n*0.108000*e,0.0001)');
+    expect(fragmentSource).not.toContain('float tx=');
+    expect(fragmentSource).not.toContain('float ty=');
   });
 
   it('keeps the horizontal opaque core centered on the exact shared contour rank', () => {

@@ -181,26 +181,6 @@ function radialMaximumRadius(origin: InkOrigin, viewport: InkViewport): number {
   );
 }
 
-function radialViewportLimit(
-  origin: InkOrigin,
-  viewport: InkViewport,
-  angle: number,
-  maximum: number
-): number {
-  const aspect = finitePositive(viewport.width, 1) / finitePositive(viewport.height, 1);
-  const x = clamp(origin.x) * aspect;
-  const y = 1 - clamp(origin.y);
-  const dx = Math.cos(angle);
-  const dy = Math.sin(angle);
-  const alongX = dx > 0.000001
-    ? (aspect - x) / dx
-    : dx < -0.000001 ? -x / dx : Number.POSITIVE_INFINITY;
-  const alongY = dy > 0.000001
-    ? (1 - y) / dy
-    : dy < -0.000001 ? -y / dy : Number.POSITIVE_INFINITY;
-  return Math.max(0.0001, Math.min(alongX, alongY) / maximum);
-}
-
 /**
  * A radial clip is sampled from the same packed multiscale contour as the
  * WebGL field.  Reusing this transport removes the old smooth CSS circle and
@@ -221,8 +201,11 @@ function radialInkPolygon(
   const points = Array.from({ length: contour.samples.length }, (_, index) => {
     const angleRank = (index + 0.5) / contour.samples.length;
     const angle = angleRank * Math.PI * 2;
+    // The authored radial field is a camera-space organic radius, not a
+    // rectangle intersection.  Both DOM and WebGL use the same corner radius
+    // and contour sample, so the frontier may intentionally run past a live
+    // viewport edge while the ink particles continue to feather outward.
     const radius = maximum
-      * radialViewportLimit(origin, viewport, angle, maximum)
       * (1 + circularInkOffset(contour, angleRank) * RADIAL_INK_CONTOUR_AMPLITUDE * envelope)
       * rank;
     const x = clamp(origin.x) + Math.cos(angle) * radius / aspect;

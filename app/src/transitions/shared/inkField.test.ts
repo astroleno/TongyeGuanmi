@@ -51,15 +51,12 @@ function expectedRadialClipPoint(
   const originY = 1 - origin.y;
   const angleRank = (index + .5) / contour.samples.length;
   const angle = angleRank * Math.PI * 2;
-  const directionX = Math.cos(angle);
-  const directionY = Math.sin(angle);
-  const alongX = directionX > 0.000001
-    ? (aspect - originX) / directionX
-    : directionX < -0.000001 ? -originX / directionX : Number.POSITIVE_INFINITY;
-  const alongY = directionY > 0.000001
-    ? (1 - originY) / directionY
-    : directionY < -0.000001 ? -originY / directionY : Number.POSITIVE_INFINITY;
-  const edgeRadius = Math.min(alongX, alongY);
+  const edgeRadius = Math.max(
+    Math.hypot(originX, originY),
+    Math.hypot(aspect - originX, originY),
+    Math.hypot(originX, 1 - originY),
+    Math.hypot(aspect - originX, 1 - originY)
+  );
   const envelope = Math.sin(boundaryRank * Math.PI);
   const radius = edgeRadius
     * (1 + circularContourOffset(contour, angleRank) * RADIAL_INK_CONTOUR_AMPLITUDE * envelope)
@@ -162,7 +159,7 @@ describe('InkFieldFrame', () => {
   });
 
   it.each([.2, .5, .8])(
-    'uses WebGL-equivalent circular texel centers for the radial frontier at rank %s',
+    'uses WebGL-equivalent organic radial texel centers for the frontier at rank %s',
     (rank) => {
       const contour = {
         seed: 1,
@@ -194,6 +191,28 @@ describe('InkFieldFrame', () => {
       expect(errorPx).toBeLessThanOrEqual(.1);
     }
   );
+
+  it('keeps the organic radial contract independent of rectangle clipping', () => {
+    const contour = {
+      seed: 1,
+      revision: 'radial-overflow-contract',
+      samples: Uint8Array.from({ length: 32 }, () => 255),
+      texture: new Uint8Array(32 * 4)
+    } satisfies HorizontalInkContour;
+    const radialViewport = { width: 393, height: 852 } as const;
+    const frame = createInkFieldFrame(
+      { kind: 'radial', origin: { x: .5, y: .5 }, seed: 'hero-pattern' },
+      1,
+      radialViewport,
+      { contour }
+    );
+    const points = frame.ownership.revealClip!
+      .match(/^polygon\((.*)\)$/)![1]!
+      .split(', ')
+      .map((point) => point.split(' ').map((value) => Number.parseFloat(value)));
+
+    expect(points.some(([x, y]) => x < 0 || x > 100 || y < 0 || y > 100)).toBe(true);
+  });
 
   it('keeps the depth field texture transform in the frame without sampled geometry', () => {
     const transform = {
