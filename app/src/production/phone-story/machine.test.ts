@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createPhoneStoryBoot,
+  phoneTransactionActivationSurfaceIds,
   reducePhoneStory,
   selectPhoneCheckpoint,
   selectPhoneEdgeSurface,
@@ -763,6 +764,20 @@ describe('phone segment transaction machine', () => {
         type: 'activate-surfaces'
       }));
     }
+  });
+
+  it('offers the incoming owner media clock to a reverse target', () => {
+    const stable = prove(boot('method-top', 'authority:reverse-owner-activation'));
+    const started = dispatch(stable.snapshot, {
+      type: 'segment-requested', direction: 'reverse', physicalEpoch: 1, reducedMotion: false
+    });
+    const active = transaction(started.snapshot).transaction;
+    expect(active.candidateSceneId).toBe('aod-animation');
+    expect(active.activation).toBe('offered');
+    expect(phoneTransactionActivationSurfaceIds(active)).toEqual(['aod-figure-video']);
+    expect(started.effects).toContainEqual(expect.objectContaining({
+      type: 'activate-surfaces', surfaceIds: ['aod-figure-video']
+    }));
   });
 
   it('rolls a rejected continuous playback activation back to its committed source without a CTA', () => {

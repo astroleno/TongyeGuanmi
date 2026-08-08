@@ -244,9 +244,10 @@ export function PhoneAod({ reports }: PhoneAodProps) {
             if (activatedGeneration !== surfaceGenerationRef.current) {
               throw new Error('AOD activation was superseded before frame preparation');
             }
-            desiredProgressRef.current = 0;
-            desiredSequenceRef.current += 1;
-            await scheduleDecodedFrame(0);
+            // Prepare whichever frame the reducer most recently requested
+            // (reverse entries begin from the media endpoint, forward from 0)
+            // instead of forcing the forward first frame.
+            await scheduleDecodedFrame(desiredProgressRef.current);
           });
         } catch (error) {
           settled = Promise.reject(error);

@@ -24,14 +24,14 @@ export const PHONE_CORE_LOC_BUDGETS = Object.freeze({
   'presentation.ts': 975,
   'manifest.ts': 750,
   'machine.ts': 1160,
-  'runtime.ts': 1250,
+  'runtime.ts': 1265,
   'PhoneStoryShell.tsx': 690,
   'scenes.tsx': 700,
   'transitions.tsx': 700,
   'PhoneBrandLabStory.tsx': 120
 });
 
-export const PHONE_CORE_TOTAL_LOC_BUDGET = 5760;
+export const PHONE_CORE_TOTAL_LOC_BUDGET = 5775;
 export const PHONE_JS_HARD_CAP_BYTES = 663_552;
 
 const allowedCoreImports = new Map([

@@ -14,7 +14,7 @@ import { assertPhoneLeafReportBindingContract, bindPhoneLeafGeneration,
 import type { PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneFailure,
   PhoneLeafDisposeReason, PhoneStoryEffect, PhoneRejectedChunkFailure,
   PhoneRuntimeLifecycleStep, PhoneRuntimeResourceCounts, PhoneRuntimeHostEvent,
-  PhoneRuntimeInputEvent, PhoneStableRecoveryProof,
+  PhoneRuntimeInputEvent, PhoneStableRecoveryProof, PhoneSurfaceId,
   PhoneStoryEvent, PhoneStorySnapshot, PhoneViewportSnapshot
 } from './protocol';
 export type { PhoneRejectedChunkFailure, PhoneRuntimeLifecycleStep, PhoneRuntimeHostEvent, PhoneRuntimeInputEvent, PhoneRuntimeResourceCounts, PhoneStableRecoveryProof } from './protocol';
@@ -206,6 +206,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   let pendingViewport: Extract<PhoneRuntimeHostEvent, { type: 'viewport' }> | null = null;
   let pendingScroll: Extract<PhoneRuntimeHostEvent, { type: 'scroll' }> | null = null;
   let stableDependencyAttempt: PhoneAttemptKey | null = null;
+  type DeferredActivation = Readonly<{ attempt: PhoneAttemptKey; surfaceIds: readonly PhoneSurfaceId[];
+    credit: Extract<PhoneStoryEffect, { type: 'activate-surfaces' }>['credit'] }>;
+  let deferredActivation: DeferredActivation | null = null;
   const listeners = new Set<() => void>();
   const deadlines = new Map<string, DeadlineLease>();
   const leaves = new Map<string, LeafLease>();
@@ -405,6 +408,16 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         if (active) {
           lease.mount.commands.render(commandProgress(active, state.binding.leg));
         }
+        if (active && deferredActivation
+          && sameAttempt(deferredActivation.attempt, active.attempt)) {
+          const { credit, surfaceIds } = deferredActivation;
+          const candidates = rebindForActivation(active.attempt, surfaceIds);
+          if (activationCoverageComplete(candidates, surfaceIds)) {
+            // The deferred receiver mount landed; spend the held gesture credit.
+            deferredActivation = null;
+            invokeActivation(candidates, active.attempt, credit, surfaceIds, connection);
+          }
+        }
         if (active && state.binding.leg === 'target' && mount.resources.videos > 0) {
           if (['boot', 'entry'].includes(active.mode)
             && phoneSceneById(active.candidateSceneId).directEntry.mediaActivation.directEntry
@@ -566,6 +579,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   };
 
   const invalidateAttempt = (attempt: PhoneAttemptKey): void => {
+    if (deferredActivation && sameAttempt(deferredActivation.attempt, attempt)) deferredActivation = null;
     for (const [invocationId, activation] of activations) {
       if (sameAttempt(activation.attempt, attempt)) activations.delete(invocationId);
     }
@@ -591,6 +605,15 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         retireLease(lease, 'generation-replaced', true);
       }
     }
+  };
+
+  const activationCoverageComplete = (
+    candidates: readonly LeafLease[], surfaceIds: readonly PhoneSurfaceId[]
+  ): boolean => {
+    const covered = new Set(candidates.flatMap((lease) => (
+      phoneActivationSurfaceIds(lease.mount, surfaceIds)
+    )));
+    return surfaceIds.every((id) => covered.has(id));
   };
 
   const rebindForActivation = (
@@ -874,7 +897,14 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         && sameAttempt(snapshot.transaction.attempt, effect.attempt)) {
         const attempt = snapshot.transaction.attempt;
         const candidates = rebindForActivation(attempt, effect.surfaceIds);
-        invokeActivation(candidates, attempt, effect.credit, effect.surfaceIds, activeConnection);
+        if (activationCoverageComplete(candidates, effect.surfaceIds)) {
+          deferredActivation = null;
+          invokeActivation(candidates, attempt, effect.credit, effect.surfaceIds, activeConnection);
+        } else {
+          // Incoming owner media is not mounted yet; hold the gesture credit
+          // and activate once the receiver lease registers.
+          deferredActivation = { attempt, credit: effect.credit, surfaceIds: effect.surfaceIds };
+        }
       }
     } else if (effect.type === 'show-activation-cta') {
       const hasRegisteredVideo = [...leaves.values()].some((lease) => (
@@ -1140,6 +1170,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         pendingViewport = null;
         pendingScroll = null;
         stableDependencyAttempt = null;
+        deferredActivation = null;
         prewarmController = null;
         clearPhoneOwnershipRegistries([
           deadlines, pendingLoads, activations, leaves,

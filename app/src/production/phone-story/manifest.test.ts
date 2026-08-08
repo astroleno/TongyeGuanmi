@@ -536,11 +536,11 @@ const sourceClockSegments = new Set([
 
 function segmentActivation(
   id: typeof segments[number][0],
-  direction: 'forward' | 'reverse'
+  _direction: 'forward' | 'reverse'
 ) {
-  return direction === 'forward' && sourceClockSegments.has(id)
-    ? activeActivation()
-    : inactiveActivation();
+  // The media clock owner plays in both directions: canonical source media
+  // is the reverse leg's incoming owner, so it activates on the way back too.
+  return sourceClockSegments.has(id) ? activeActivation() : inactiveActivation();
 }
 
 function expectedScene(entry: typeof scenes[number]) {

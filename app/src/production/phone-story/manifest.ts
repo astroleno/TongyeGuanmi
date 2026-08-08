@@ -549,8 +549,10 @@ function segmentLeg(
     deadlineProfile: profile.deadlineProfile, deadlinePolicy: deadlineProfiles[profile.deadlineProfile],
     mediaActivation: mediaActivation(
       profile.resourceBudget,
-      phoneSegmentChoreographyFrame(id, 0, direction).mediaClockOwner === 'source'
-        && sceneSeeds[source].resourceBudget.videos > 0
+      (phoneSegmentChoreographyFrame(id, 0, direction).mediaClockOwner === 'source'
+        && sceneSeeds[source].resourceBudget.videos > 0)
+        || (phoneSegmentChoreographyFrame(id, 0, direction).mediaClockOwner === 'target'
+          && sceneSeeds[target].resourceBudget.videos > 0)
     )
   };
 }

@@ -133,13 +133,13 @@ function activationSurfaceIdsFor(
 ): readonly PhoneSurfaceId[] {
   if (mode === 'segment' && segmentId && direction) {
     const owner = phoneSegmentChoreographyFrame(segmentId, progress, direction).mediaClockOwner;
-    // A physical gesture may only activate media that is already mounted as
-    // the departing plane. Incoming media enters on a prepared static frame;
-    // a reverse target is never allowed to turn a missing mount into a CTA.
-    if (owner !== 'source') return [];
-    const role = owner;
+    // Both planes may own the media clock: departing media is already mounted
+    // and activates inside the gesture window, while incoming owner media
+    // (a reverse target) activates as soon as its receiver mount lands.
+    if (owner === 'none') return [];
+    const prefix = owner === 'source' ? 'source:' : 'receiver:';
     return closure.mount.flatMap((mount) => (
-      mount.startsWith(`${role}:`) && mount.includes('video')
+      mount.startsWith(prefix) && mount.includes('video')
         ? [mount.slice(mount.indexOf(':') + 1) as PhoneSurfaceId] : []
     ));
   }

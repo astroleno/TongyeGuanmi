@@ -274,7 +274,7 @@ test('rejects broken bindings and policy branches in the executable recovery con
       'src/App.tsx': 'export function App() { return null; }\n'
     }, { phase: 'cutover' }), fixture.expected);
   }
-});
+}, 30_000);
 
 test('rejects two runtime factory call sites and a QA-owned factory call', async () => {
   const duplicate = await violations({

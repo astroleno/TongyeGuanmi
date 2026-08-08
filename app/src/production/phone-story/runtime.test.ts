@@ -1675,7 +1675,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
-  it('does not invoke a deprecated static-video preparation seam for a reverse target', () => {
+  it('activates incoming owner media as soon as the reverse target mounts', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#pattern');
     const disconnect = runtime.connect();
@@ -1687,7 +1687,8 @@ describe('phone runtime effects, media activation, and disposal', () => {
     });
     expect(currentTransaction(runtime)).toMatchObject({
       phase: 'preparing', candidateSceneId: 'hero',
-      attempt: { segmentId: 'hero-pattern', direction: 'reverse' }
+      attempt: { segmentId: 'hero-pattern', direction: 'reverse' },
+      activation: 'offered'
     });
     const target = commandFixture();
     const deprecatedPrepare = installDeprecatedStaticPrepare(target.commands);
@@ -1695,8 +1696,11 @@ describe('phone runtime effects, media activation, and disposal', () => {
     registerCurrentEffect(runtime, commandFixture().commands);
 
     expect(deprecatedPrepare).not.toHaveBeenCalled();
-    expect(target.commands.activate).not.toHaveBeenCalled();
-    expect(currentTransaction(runtime).activation).toBe('none');
+    expect(target.commands.activate).toHaveBeenCalledTimes(1);
+    expect(target.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
+      credit: 'physical-epoch', playback: true, surfaceIds: ['hero-figure-video']
+    }));
+    expect(currentTransaction(runtime).activation).toBe('spent');
     disconnect();
   });
 
