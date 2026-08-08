@@ -14,6 +14,10 @@ const storyShellSource = readFileSync(
   join(sceneDirectory, '../PhoneStoryShell.tsx'),
   'utf8'
 );
+const stageRuntimeSource = readFileSync(
+  join(sceneDirectory, '../usePhoneStageRuntime.ts'),
+  'utf8'
+);
 const stageRailStyles = readFileSync(
   join(sceneDirectory, '../PhoneStageRail.css'),
   'utf8'
@@ -69,11 +73,11 @@ describe('PhoneHero Route B adapter', () => {
     expect(storyShellSource).not.toContain(
       "active={loaderHidden && activeFrontSurface('front:hero')}"
     );
-    expect(storyShellSource).toContain('heroEntranceAllowed: loaderHidden');
+    expect(storyShellSource).toContain('open: loaderHidden');
     expect(storyShellSource).toContain(
       'enabled: fixedStageRegistered && openingExecutionOpen'
     );
-    expect(storyShellSource).toContain('heroEntranceAllowed');
+    expect(stageRuntimeSource).toContain('options.open');
   });
 
   it('[front-half gate] confirms Hero readiness only after a successful packed-alpha draw survives browser presentation', () => {

@@ -242,7 +242,6 @@ export function createPhoneStoryRuntimeEngine(
       || snapshot.session.operation.run === null
     ) return null;
     return [
-      snapshot.authorityId,
       snapshot.session.sessionId,
       snapshot.session.generation,
       snapshot.session.operation.run,

@@ -187,7 +187,7 @@ export function PhoneStoryShell(props: PhoneStoryShellProps = {}) {
       && (directStoryEntry || ready)
       && aodAlphaEndProgress !== undefined
       && !staticFallback,
-    heroEntranceAllowed: loaderHidden,
+    open: loaderHidden,
     reducedMotion: !motionEnabled,
     adapterRevision,
     mapAodToMethod

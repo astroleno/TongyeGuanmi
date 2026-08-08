@@ -170,7 +170,7 @@ export type PhoneStageRuntimeOptions = Readonly<{
   snapshot: PhoneCinematicSnapshot;
   enabled: boolean;
   /** Loader may cover a warmed fixed stage, but it owns the opening clock. */
-  heroEntranceAllowed: boolean;
+  open: boolean;
   reducedMotion: boolean;
   adapterRevision: number;
   mapAodToMethod(progress: number): number;
@@ -735,7 +735,7 @@ export function usePhoneStageRuntime(
     renderSnapshotRef.current = renderSnapshot;
     renderSnapshot(snapshotRef.current);
     if (
-      options.heroEntranceAllowed
+      options.open
       && frontProgressForSnapshot(snapshotRef.current) === 0
     ) {
       const heroAdapter = heroRef.current;
@@ -771,7 +771,7 @@ export function usePhoneStageRuntime(
     };
   }, [
     options.enabled,
-    options.heroEntranceAllowed,
+    options.open,
     options.orchestrator,
     options.reducedMotion
   ]);
