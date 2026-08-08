@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createPhoneStoryRuntimeEngine as createPhoneStoryOrchestrator,
+  PHONE_PREPARATION_LEASE_TIMEOUT_MS,
   type PhoneOrchestratedRunSession,
   type PhoneRunCapability
 } from './engine';
@@ -1914,6 +1915,123 @@ describe('single phone story projector transaction', () => {
       leg: 0,
       direction: 1
     });
+  });
+
+  it('[P0 preparation lease] rolls back a claimed run whose capability never becomes ready', () => {
+    vi.useFakeTimers();
+    try {
+      const root = element();
+      const frames: Array<() => void> = [];
+      let actualY = 0;
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'brand',
+        root,
+        scrollY: () => actualY,
+        scrollTo: (nextY) => { actualY = nextY; },
+        scheduleFrame: (callback) => frames.push(callback)
+      });
+      registerCorridor(orchestrator);
+      registerReadySurface(orchestrator, 'brand', (callback) => frames.push(callback));
+      let starts = 0;
+      orchestrator.registerRunCapability('brand-services', 'never-ready', {
+        position: () => 100,
+        canStart: () => false,
+        start: () => { starts += 1; }
+      });
+
+      expect(orchestrator.resolveIntent(intent())).toBe('claim-boundary');
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'preparing' }
+      });
+      expect(starts).toBe(0);
+
+      vi.advanceTimersByTime(PHONE_PREPARATION_LEASE_TIMEOUT_MS - 1);
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'preparing' }
+      });
+
+      vi.advanceTimersByTime(1);
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'rollback-measuring-landing' },
+        diagnostics: { lastRollback: { reason: 'dependency-timeout' } }
+      });
+      expect(root.dataset.phoneInputState).toBe('locked');
+
+      while (frames.length > 0) frames.shift()?.();
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'stable',
+        scene: 'brand',
+        session: null
+      });
+      expect(root.dataset.phoneInputState).toBe('free');
+      expect(starts).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('[P0 AOD preparation lease] establishes the session before a late compositor readiness result', () => {
+    vi.useFakeTimers();
+    try {
+      const root = element();
+      const frames: Array<() => void> = [];
+      let actualY = 100;
+      let session: PhoneOrchestratedRunSession | undefined;
+      let ready = false;
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'aod-animation',
+        root,
+        scrollY: () => actualY,
+        scrollTo: (nextY) => { actualY = nextY; },
+        scheduleFrame: (callback) => frames.push(callback)
+      });
+      orchestrator.registerScrollCorridor({
+        id: 'test:aod-preparation-lease',
+        scenes: ['aod-animation', 'method-top'],
+        sample: () => null,
+        boundary: (run) => run === 'aod-method' ? 100 : null,
+        landing: () => 100
+      });
+      orchestrator.registerRunCapability('aod-method', 'late-compositor', {
+        position: () => 100,
+        canStart: () => ready,
+        start: (_direction, activeSession) => { session = activeSession; }
+      });
+
+      expect(orchestrator.resolveIntent([1, 1, 100, 260])).toBe('claim-boundary');
+      expect(session).toBeUndefined();
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'preparing', aod: { stage: 'admission' } }
+      });
+
+      // A late readiness event may arrive before the preparation lease expires;
+      // the same transaction/session is then allowed to start normally.
+      ready = true;
+      orchestrator.syncDiagnostics();
+      expect(session).toMatchObject({
+        sessionId: expect.any(String),
+        generation: expect.any(Number),
+        direction: 1
+      });
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'preparing', aod: { stage: 'admission' } }
+      });
+
+      vi.advanceTimersByTime(PHONE_PREPARATION_LEASE_TIMEOUT_MS);
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'rollback-measuring-landing' },
+        diagnostics: { lastRollback: { reason: 'aod-prepare-timeout' } }
+      });
+      while (frames.length > 0) frames.shift()?.();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not replay an unclaimed input when a corridor appears later', () => {

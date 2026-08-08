@@ -62,6 +62,12 @@ export type {
 
 let authoritySequence = 0;
 const ADMISSION_TIMEOUT_MS = 8_000;
+/**
+ * Every claimed cinematic run owns a bounded preparation lease.  A leaf may
+ * become ready later (for example after a WebGL restore), but a transaction
+ * must never keep the input lock while waiting without an owner-side clock.
+ */
+export const PHONE_PREPARATION_LEASE_TIMEOUT_MS = ADMISSION_TIMEOUT_MS;
 
 type DirectEntryPreparation = {
   key: string;
@@ -188,6 +194,10 @@ export function createPhoneStoryRuntimeEngine(
     | undefined;
   const subscribers = new Set<() => void>();
   let directEntryPreparation: DirectEntryPreparation | null = null;
+  let preparationLease: {
+    key: string;
+    timeout: ReturnType<typeof globalThis.setTimeout>;
+  } | null = null;
   /** Prevent synchronous proof dispatch from recursively re-observing it. */
   let publishingTargetProof = false;
 
@@ -217,6 +227,52 @@ export function createPhoneStoryRuntimeEngine(
     globalThis.clearTimeout(preparation.timeout);
     preparation.controller.abort();
     directEntryPreparation = null;
+  };
+  const clearPreparationLease = () => {
+    if (!preparationLease) return;
+    globalThis.clearTimeout(preparationLease.timeout);
+    preparationLease = null;
+  };
+  const preparationLeaseKey = (
+    snapshot: PhoneStorySnapshot
+  ): string | null => {
+    if (
+      snapshot.status !== 'transaction'
+      || snapshot.session.phase !== 'preparing'
+      || snapshot.session.operation.run === null
+    ) return null;
+    return [
+      snapshot.authorityId,
+      snapshot.session.sessionId,
+      snapshot.session.generation,
+      snapshot.session.operation.run,
+      snapshot.session.operation.direction
+    ].join(':');
+  };
+  const syncPreparationLease = () => {
+    const key = preparationLeaseKey(currentSnapshot);
+    if (!key) {
+      clearPreparationLease();
+      return;
+    }
+    if (preparationLease?.key === key) return;
+    clearPreparationLease();
+    const lease = {
+      key,
+      timeout: globalThis.setTimeout(() => {
+        if (preparationLease !== lease) return;
+        preparationLease = null;
+        if (preparationLeaseKey(currentSnapshot) !== key) return;
+        const activeSession = sessions.resume();
+        if (!activeSession?.valid()) return;
+        const reason = currentSnapshot.status === 'transaction'
+          && currentSnapshot.session.operation.run === 'aod-method'
+          ? 'aod-prepare-timeout'
+          : 'dependency-timeout';
+        activeSession.reportFailure(reason);
+      }, PHONE_PREPARATION_LEASE_TIMEOUT_MS)
+    };
+    preparationLease = lease;
   };
   const clearPendingTerminalCompletion = () => {
     if (pendingTerminalCompletionTimeout !== undefined) {
@@ -322,6 +378,7 @@ export function createPhoneStoryRuntimeEngine(
     if (event.type === 'DIRECT_ENTRY_REQUESTED') pendingDirectEntry = null;
     retireStaleTerminalCompletion();
     if (currentSnapshot.status !== 'transaction') startedCapabilitySession = null;
+    syncPreparationLease();
     afterDispatch();
     return reduction;
   };
@@ -584,6 +641,7 @@ export function createPhoneStoryRuntimeEngine(
     }
   };
   const startPreparedOperation = (onlyRun?: PhoneRunId) => {
+    syncPreparationLease();
     const directKey = directEntryPreparationKey(currentSnapshot);
     if (
       directEntryPreparation
@@ -752,9 +810,17 @@ export function createPhoneStoryRuntimeEngine(
     const key = transactionKey();
     if (!key || startedCapabilitySession === key) return;
     const capability = capabilities.get(operation.run);
-    if (!capability || !capability.canStart(operation.direction)) return;
     const activeSession = sessions.resume();
     if (!activeSession?.valid()) return;
+    if (!capability) return;
+    let ready = false;
+    try {
+      ready = capability.canStart(operation.direction);
+    } catch {
+      activeSession.reportFailure('capability-failed');
+      return;
+    }
+    if (!ready) return;
     startedCapabilitySession = key;
     try {
       const started = operation.trigger === 'entry'
@@ -893,6 +959,7 @@ export function createPhoneStoryRuntimeEngine(
       if (disposed) return;
       disposed = true;
       clearDirectEntryPreparation();
+      clearPreparationLease();
       pendingDirectEntry = null;
       clearPendingTerminalCompletion();
       capabilities.clear();
