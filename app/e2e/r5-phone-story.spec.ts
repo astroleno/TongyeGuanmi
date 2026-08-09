@@ -1573,6 +1573,7 @@ async function recordPhoneLegTimeline(
 }
 
 type HeroEntranceSample = Readonly<{
+  at: number;
   loaderReady: string | null;
   progress: number | null;
 }>;
@@ -1589,6 +1590,7 @@ async function installHeroEntranceProbe(page: Page): Promise<void> {
         ?? (hero ? getComputedStyle(hero).getPropertyValue('--r4-hero-progress') : '');
       const parsed = Number.parseFloat(rawProgress);
       const sample: HeroEntranceSample = {
+        at: performance.now(),
         loaderReady: root?.dataset.portraitLoaderReady ?? null,
         progress: Number.isFinite(parsed) ? parsed : null
       };
@@ -3742,7 +3744,7 @@ test('[execution topology] Loader covers an already-warming Hero stage before po
   ).not.toBeNull();
 });
 
-test('[execution regression] Loader fade reveals one continuous non-empty Hero surface', async ({ page }) => {
+test('[execution regression] Loader handoff starts one authored Hero entrance', async ({ page }) => {
   test.setTimeout(45_000);
   await installHeroEntranceProbe(page);
   await page.goto('/', { waitUntil: 'commit' });
@@ -3751,10 +3753,14 @@ test('[execution regression] Loader fade reveals one continuous non-empty Hero s
   await expect.poll(async () => loader.getAttribute('data-loader-status')).toBe('exiting');
   await expect(
     page.locator(LIVE_PHONE_ROOT),
-    'the runner must start the retained Hero during Loader fade, not after onHidden'
-  ).toHaveAttribute('data-portrait-hero-entrance', 'playing');
+    'Loader owns the opening clock until its visual plane is released'
+  ).toHaveAttribute('data-portrait-hero-entrance', 'primed');
   await expect.poll(async () => loader.count()).toBe(0);
   await expect(page.locator(LIVE_PHONE_ROOT)).toHaveAttribute('data-portrait-loader-ready', 'true');
+  await expect(page.locator(LIVE_PHONE_ROOT)).toHaveAttribute(
+    'data-portrait-hero-entrance',
+    'playing'
+  );
 
   const openingFrames: PngScreenshot[] = [];
   for (let index = 0; index < 12; index += 1) {
@@ -3775,7 +3781,17 @@ test('[execution regression] Loader fade reveals one continuous non-empty Hero s
   const exposed = (await heroEntranceSamples(page)).filter((sample) => (
     sample.loaderReady === 'true' && sample.progress !== null
   ));
-  expect(exposed.length).toBeGreaterThan(1);
+  expect(exposed.length).toBeGreaterThan(20);
+  expect(exposed[0]?.progress).toBeLessThanOrEqual(.01);
+  expect(exposed.at(-1)?.progress).toBeGreaterThanOrEqual(.999);
+  expect(
+    (exposed.at(-1)?.at ?? 0) - (exposed[0]?.at ?? 0),
+    'cold Hero must retain its authored 2700ms clock instead of being completed by stable projection'
+  ).toBeGreaterThanOrEqual(2_500);
+  expect(exposed.every((sample, index) => (
+    index === 0
+    || sample.progress! + .002 >= exposed[index - 1]!.progress!
+  ))).toBe(true);
   const entranceSamples = (await heroEntranceSamples(page)).filter((sample) => (
     sample.progress !== null
   ));

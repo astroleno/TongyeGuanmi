@@ -74,10 +74,12 @@ describe('PhoneHero Route B adapter', () => {
       "active={loaderHidden && activeFrontSurface('front:hero')}"
     );
     expect(storyShellSource).toContain('open: loaderHidden');
+    expect(storyShellSource).toContain('cold: !directStoryEntry');
     expect(storyShellSource).toContain(
       'enabled: fixedStageRegistered && openingExecutionOpen'
     );
     expect(stageRuntimeSource).toContain('options.open');
+    expect(stageRuntimeSource).not.toContain('snapshot[19]');
   });
 
   it('[front-half gate] confirms Hero readiness only after a successful packed-alpha draw survives browser presentation', () => {

@@ -171,6 +171,8 @@ export type PhoneStageRuntimeOptions = Readonly<{
   enabled: boolean;
   /** Loader may cover a warmed fixed stage, but it owns the opening clock. */
   open: boolean;
+  /** Only the un-routed full-motion Hero entry plays the authored intro. */
+  cold: boolean;
   reducedMotion: boolean;
   adapterRevision: number;
   mapAodToMethod(progress: number): number;
@@ -408,6 +410,7 @@ export function usePhoneStageRuntime(
     let stageScrollEnd = 1;
     let lastRailY = snapshotRef.current[14];
     let completedHeroEntrance = false;
+    let restoreHeroEndpoint = options.reducedMotion || !options.cold;
     const stagePosition = (progress: number) => stageScrollStart
       + (stageScrollEnd - stageScrollStart) * progress;
     const aodSemanticPosition = () => stagePosition(PHONE_STAGE_STOPS.starAodEnd);
@@ -479,23 +482,30 @@ export function usePhoneStageRuntime(
         ,
         ,
         run,
-        ,
+        direction,
         ,
         ,
         sessionProgress,
         status
       ] = snapshot;
-      // A reverse leg may publish its stable Hero projection after the one
-      // sampled frame that attempted completion while Hero was inactive. The
-      // adapter reports whether it actually committed; a rejected inactive
-      // call must remain retryable for the real receiver endpoint.
-      const committedHeroEndpoint = status === 'stable'
-        && semanticScene === 'hero'
-        && snapshot[19];
+      // Cold intro and endpoint restoration are different commands. A stable
+      // bootstrap projection must never complete the authored 2700ms clock.
+      // Direct/reduced entry starts at the endpoint; a reverse Hero leg makes
+      // the same endpoint request sticky until the receiver becomes active.
+      if (
+        status === 'transaction'
+        && run === 'hero-pattern'
+        && direction === -1
+      ) restoreHeroEndpoint = true;
       if (
         heroAdapter
         && !completedHeroEntrance
-        && (committedHeroEndpoint || (stableFrontPosition !== null && stableFrontPosition > 0.003))
+        && restoreHeroEndpoint
+        && (
+          semanticScene === 'hero'
+          || snapshot[1] === 'front:hero'
+          || snapshot[2] === 'front:hero'
+        )
         && heroAdapter.completeEntrance()
       ) {
         completedHeroEntrance = true;
@@ -741,9 +751,13 @@ export function usePhoneStageRuntime(
     if (
       options.open
       && frontProgressForSnapshot(snapshotRef.current) === 0
+      && !completedHeroEntrance
     ) {
       const heroAdapter = heroRef.current;
-      if (heroAdapter) heroAdapter.startEntrance();
+      if (heroAdapter) {
+        if (options.cold && !options.reducedMotion) heroAdapter.startEntrance();
+        else if (heroAdapter.completeEntrance()) completedHeroEntrance = true;
+      }
     }
 
     return () => {
@@ -775,6 +789,7 @@ export function usePhoneStageRuntime(
     };
   }, [
     options.enabled,
+    options.cold,
     options.open,
     options.orchestrator,
     options.reducedMotion
