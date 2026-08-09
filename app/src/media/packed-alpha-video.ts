@@ -97,9 +97,20 @@ export function createPackedAlphaWebGlRestoreOwner(
   let pending = false;
   let poll: ReturnType<typeof globalThis.setTimeout> | undefined;
   let generation = 0;
+  let retiredCanvas: HTMLCanvasElement | undefined;
+  let retireLossAcknowledged = true;
+  let retireLossListener: EventListener | undefined;
   const clearPoll = () => {
     if (poll !== undefined) globalThis.clearTimeout(poll);
     poll = undefined;
+  };
+  const clearRetireLossObservation = () => {
+    if (retiredCanvas && retireLossListener) {
+      retiredCanvas.removeEventListener('webglcontextlost', retireLossListener);
+    }
+    retiredCanvas = undefined;
+    retireLossListener = undefined;
+    retireLossAcknowledged = true;
   };
   const invalidate = () => {
     generation += 1;
@@ -113,9 +124,23 @@ export function createPackedAlphaWebGlRestoreOwner(
     },
     retire: (canvas) => {
       invalidate();
+      clearRetireLossObservation();
       pending = true;
       const context = canvas.getContext('webgl');
-      if (context && !context.isContextLost()) releasePackedAlphaWebGlContext(context);
+      if (!context || context.isContextLost()) {
+        retireLossAcknowledged = true;
+        return;
+      }
+      retiredCanvas = canvas;
+      retireLossAcknowledged = false;
+      retireLossListener = () => {
+        retireLossAcknowledged = true;
+      };
+      // WebKit rejects restoreContext() until the synthetic loss event has
+      // been dispatched and cancelled. Observe that fact before issuing the
+      // loss; polling isContextLost() alone becomes true too early.
+      canvas.addEventListener('webglcontextlost', retireLossListener, { once: true });
+      releasePackedAlphaWebGlContext(context);
     },
     wait: (canvas, onRestored, onFallback) => {
       if (!pending) return false;
@@ -127,6 +152,7 @@ export function createPackedAlphaWebGlRestoreOwner(
         if (waitGeneration !== generation) return;
         clearPoll();
         pending = false;
+        clearRetireLossObservation();
         callback();
       };
       const pollRestore = () => {
@@ -139,7 +165,9 @@ export function createPackedAlphaWebGlRestoreOwner(
           return;
         }
         if (context?.isContextLost()) {
-          if (!restoreRequested) {
+          const waitingForRetireLoss = retiredCanvas === canvas
+            && !retireLossAcknowledged;
+          if (!waitingForRetireLoss && !restoreRequested) {
             restoreRequested = restorePackedAlphaWebGlContext(
               canvas,
               () => finish(onRestored)
@@ -163,6 +191,7 @@ export function createPackedAlphaWebGlRestoreOwner(
     clear: () => {
       invalidate();
       pending = false;
+      clearRetireLossObservation();
     }
   };
 }

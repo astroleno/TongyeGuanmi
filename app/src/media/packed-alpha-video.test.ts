@@ -106,12 +106,20 @@ describe('packed alpha video', () => {
   it('owns the same-canvas retire → restore token window and bounded fallback', () => {
     vi.useFakeTimers();
     let lost = false;
-    const listeners = new Map<string, EventListener>();
+    const listeners = new Map<string, EventListener[]>();
+    const dispatch = (type: string) => {
+      for (const listener of listeners.get(type) ?? []) {
+        listener({ preventDefault: vi.fn() } as unknown as Event);
+      }
+    };
     const extension = {
-      loseContext: vi.fn(() => { lost = true; }),
+      loseContext: vi.fn(() => {
+        lost = true;
+        dispatch('webglcontextlost');
+      }),
       restoreContext: vi.fn(() => {
         lost = false;
-        listeners.get('webglcontextrestored')?.(new Event('webglcontextrestored'));
+        dispatch('webglcontextrestored');
       })
     };
     const context = {
@@ -121,7 +129,13 @@ describe('packed alpha video', () => {
     const canvas = {
       getContext: vi.fn(() => context),
       addEventListener: vi.fn((type: string, listener: EventListener) => {
-        listeners.set(type, listener);
+        listeners.set(type, [...(listeners.get(type) ?? []), listener]);
+      }),
+      removeEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners.set(
+          type,
+          (listeners.get(type) ?? []).filter((candidate) => candidate !== listener)
+        );
       })
     } as unknown as HTMLCanvasElement;
 
@@ -149,6 +163,55 @@ describe('packed alpha video', () => {
     vi.advanceTimersByTime(251);
     expect(fallback).toHaveBeenCalledOnce();
     expect(owner.isPending()).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('waits for the context-lost event before asking WebKit to restore', () => {
+    vi.useFakeTimers();
+    let lost = false;
+    const listeners = new Map<string, EventListener[]>();
+    const dispatch = (type: string) => {
+      for (const listener of listeners.get(type) ?? []) {
+        listener({ preventDefault: vi.fn() } as unknown as Event);
+      }
+    };
+    const extension = {
+      loseContext: vi.fn(() => { lost = true; }),
+      restoreContext: vi.fn(() => {
+        lost = false;
+        dispatch('webglcontextrestored');
+      })
+    };
+    const context = {
+      isContextLost: () => lost,
+      getExtension: () => extension
+    };
+    const canvas = {
+      getContext: vi.fn(() => context),
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners.set(type, [...(listeners.get(type) ?? []), listener]);
+      }),
+      removeEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners.set(
+          type,
+          (listeners.get(type) ?? []).filter((candidate) => candidate !== listener)
+        );
+      })
+    } as unknown as HTMLCanvasElement;
+    const owner = createPackedAlphaWebGlRestoreOwner();
+    const restored = vi.fn();
+    const fallback = vi.fn();
+
+    owner.retire(canvas);
+    owner.wait(canvas, restored, fallback);
+    vi.advanceTimersByTime(0);
+    expect(extension.restoreContext).not.toHaveBeenCalled();
+
+    dispatch('webglcontextlost');
+    vi.advanceTimersByTime(1);
+    expect(extension.restoreContext).toHaveBeenCalledOnce();
+    expect(restored).toHaveBeenCalledOnce();
+    expect(fallback).not.toHaveBeenCalled();
     vi.useRealTimers();
   });
 
