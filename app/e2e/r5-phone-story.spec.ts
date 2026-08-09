@@ -635,6 +635,14 @@ type PhoneRuntimeResourceSample = Readonly<{
   activeWebglLabels?: ReadonlyArray<string>;
 }>;
 
+type PhoneVisualFrameSample = Readonly<{
+  at: number;
+  cursor: string;
+  session: string;
+  generation: string;
+  signature: string;
+}>;
+
 type PhoneLegTimeline = Readonly<{
   run: string;
   authorityId: string;
@@ -1077,6 +1085,7 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
         retryable: string | null;
       }>;
       stateEvents: PhoneTransitionTraceState[];
+      visualFrames: PhoneVisualFrameSample[];
       resourceSamples: PhoneRuntimeResourceSample[];
       legTimelines: PhoneLegTimeline[];
     };
@@ -1096,6 +1105,7 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
       wheelEvents: [],
       cursorEvents: [],
       stateEvents: [],
+      visualFrames: [],
       resourceSamples: [],
       legTimelines: []
     };
@@ -1293,6 +1303,46 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
     sampleState();
     sampleResources();
     window.setInterval(sampleResources, 50);
+    let lastVisualFrameKey = '';
+    const sampleVisualFrame = () => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      const cursor = root?.dataset.phoneCursor;
+      const session = root?.dataset.phoneSession;
+      const generation = root?.dataset.phoneTransitionGeneration;
+      if (
+        cursor?.startsWith('transition:')
+        && session
+        && generation
+        && root?.dataset.phoneTransitionPhase === 'animating'
+      ) {
+        const signature = JSON.stringify(Array.from(document.querySelectorAll<HTMLElement>(
+          '[data-phone-surface-role="transition-source"],'
+          + '[data-phone-surface-role="transition-receiver"]'
+        )).map((element) => [
+          element.dataset.phoneSurfaceRole ?? null,
+          element.className,
+          element.style.clipPath,
+          element.style.maskImage,
+          element.style.opacity,
+          element.style.visibility,
+          element.style.transform
+        ]));
+        const key = `${session}:${generation}:${signature}`;
+        if (key !== lastVisualFrameKey) {
+          lastVisualFrameKey = key;
+          probe.visualFrames.push({
+            at: performance.now(),
+            cursor,
+            session,
+            generation,
+            signature
+          });
+          if (probe.visualFrames.length > 1_000) probe.visualFrames.shift();
+        }
+      }
+      window.requestAnimationFrame(sampleVisualFrame);
+    };
+    window.requestAnimationFrame(sampleVisualFrame);
     window.addEventListener('wheel', (event) => {
       const record = {
         at: performance.now(),
@@ -1340,6 +1390,7 @@ async function phoneRuntimeProbe(page: Page) {
             retryable: string | null;
           }>;
           stateEvents: PhoneTransitionTraceState[];
+          visualFrames: PhoneVisualFrameSample[];
           resourceSamples: PhoneRuntimeResourceSample[];
           legTimelines: PhoneLegTimeline[];
         };
@@ -1357,6 +1408,7 @@ async function phoneRuntimeProbe(page: Page) {
       wheelEvents: probe.wheelEvents,
       cursorEvents: probe.cursorEvents,
       stateEvents: probe.stateEvents,
+      visualFrames: probe.visualFrames,
       resourceSamples: probe.resourceSamples,
       legTimelines: probe.legTimelines
     };
@@ -1377,6 +1429,7 @@ async function attachPhoneJourneyTelemetry(
       createdWebgl: probe.created,
       legs: probe.legTimelines,
       finalStates: probe.stateEvents.slice(-24),
+      finalVisualFrames: probe.visualFrames.slice(-24),
       finalResources: probe.resourceSamples.slice(-24)
     }, null, 2),
     contentType: 'application/json'
@@ -1778,7 +1831,8 @@ function assertTransitionTrace(
   from: PhoneStableScene,
   to: PhoneStableScene,
   direction: 1 | -1,
-  options: Readonly<{ reducedMotion?: boolean }> = {}
+  options: Readonly<{ reducedMotion?: boolean }> = {},
+  visualFrames: readonly PhoneVisualFrameSample[] = []
 ): void {
   const transactionStates = states.filter((state) => (
     state.cursor?.startsWith('transition:')
@@ -1836,7 +1890,24 @@ function assertTransitionTrace(
     } else {
       expect(progresses.some((progress) => Math.abs(progress - start) <= 0.05)).toBe(true);
       expect(progresses.some((progress) => Math.abs(progress - terminal) <= 0.05)).toBe(true);
-      expect(progresses.some((progress) => progress > 0.05 && progress < 0.95)).toBe(true);
+      const projectedIntermediate = progresses.some((progress) => (
+        progress > 0.05 && progress < 0.95
+      ));
+      const renderedFrames = visualFrames.filter((frame) => (
+        frame.session === first.session
+        && frame.generation === first.generation
+        && frame.cursor === first.cursor
+      ));
+      const renderedIntermediate = new Set(
+        renderedFrames.map((frame) => frame.signature)
+      ).size >= 3;
+      expect(
+        projectedIntermediate || renderedIntermediate,
+        `missing intermediate machine or rendered frame for ${runId} leg ${leg}: ${JSON.stringify({
+          progresses,
+          renderedFrames
+        })}`
+      ).toBe(true);
     }
     for (let index = 1; index < progresses.length; index += 1) {
       if (direction === 1) {
@@ -2437,7 +2508,14 @@ async function driveAdjacentPhoneRun(
   await page.waitForTimeout(50);
   await recordPhoneLegTimeline(page, from, to, direction);
   const probe = await phoneRuntimeProbe(page);
-  assertTransitionTrace(probe.stateEvents, from, to, direction, options);
+  assertTransitionTrace(
+    probe.stateEvents,
+    from,
+    to,
+    direction,
+    options,
+    probe.visualFrames
+  );
   const runtime = await phoneRuntimeProbe(page);
   // Figure2 legitimately owns its packed-alpha canvas alongside the shared
   // stage resources. The production invariant is the global hard ceiling,
@@ -2564,11 +2642,13 @@ async function driveContinuousJourney(
         __phoneRuntimeProbe?: {
           cursorEvents: unknown[];
           stateEvents: unknown[];
+          visualFrames: unknown[];
         };
       }).__phoneRuntimeProbe;
       if (!probe) return;
       probe.cursorEvents.length = 0;
       probe.stateEvents.length = 0;
+      probe.visualFrames.length = 0;
     });
 
     const starAodLeg = (from === 'star-map' && to === 'aod-animation')
@@ -2594,11 +2674,12 @@ async function driveContinuousJourney(
       timeline.commitAt - timeline.startAt,
       `${from} → ${to} must settle within one bounded preparation/playback lease`
     ).toBeLessThanOrEqual(8_000);
-    const states = (await phoneRuntimeProbe(page)).stateEvents;
+    const probe = await phoneRuntimeProbe(page);
+    const states = probe.stateEvents;
     if (isFrontJourneyLeg(from, to)) {
       assertFrontRunTrace(states, from, to, direction);
     } else {
-      assertTransitionTrace(states, from, to, direction);
+      assertTransitionTrace(states, from, to, direction, {}, probe.visualFrames);
     }
   }
 }
