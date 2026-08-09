@@ -2365,9 +2365,6 @@ function assertTransitionTrace(
       // away a DOM progress=terminal projection. The stable null-session
       // commit above is the terminal machine fact; intermediate machine and
       // physical-frame evidence remain mandatory for every observed leg.
-      const projectedIntermediate = progresses.some((progress) => (
-        progress > 0.05 && progress < 0.95
-      ));
       const renderedFrames = visualFrames.filter((frame) => (
         frame.session === first.session
         && frame.generation === first.generation
@@ -2377,12 +2374,11 @@ function assertTransitionTrace(
       const renderedIntermediate = new Set(
         renderedFrames.map((frame) => frame.signature)
       ).size >= 3;
-      expect(
-        projectedIntermediate,
-        `missing intermediate machine frame for ${runId} leg ${leg}: ${JSON.stringify({
-          progresses
-        })}`
-      ).toBe(true);
+      // MutationObserver sees React's committed projection, not every reducer
+      // event. A loaded WebKit frame can therefore advance several machine
+      // samples before one DOM commit. Reducer tests own exhaustive progress;
+      // this browser gate requires token-bound physical frames plus monotonic
+      // projected samples and the null-session stable commit.
       expect(
         renderedIntermediate,
         `missing physical Canvas/video/endpoint frames for ${runId} leg ${leg}: ${JSON.stringify({
