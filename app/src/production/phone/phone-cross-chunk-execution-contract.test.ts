@@ -71,6 +71,26 @@ describe('phone cross-chunk execution contracts', () => {
     expect(viteConfigSource).not.toMatch(/(?:^|\|)aod(?:\||\$)/);
   });
 
+  it('reserves the complete TextReveal prop ABI used by lazy phone scenes', () => {
+    for (const propertyName of [
+      'active',
+      'as',
+      'blurPx',
+      'children',
+      'delayMs',
+      'durationMs',
+      'effects',
+      'scaleX',
+      'staggerMs',
+      'style',
+      'variant',
+      'yPx',
+      'index'
+    ]) {
+      expect(phoneCrossChunkContract.reservedPropertyNames).toContain(propertyName);
+    }
+  });
+
   it('keeps execution transport positional while presentation proofs stay structured', () => {
     expect(timelineDriverSource).toContain(
       'export type TimelineVideoFrameResult = readonly ['
