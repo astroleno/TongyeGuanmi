@@ -129,11 +129,14 @@ describe('phone live viewport coverage', () => {
     expect(stageRailStyles).toContain(
       'url("../../../../assets/figure2-middle-building.webp")'
     );
+    expect(stageRailStyles).toMatch(
+      /data-portrait-edge-scene="figure2"[^}]+background-position:\s*50% 0;[^}]+background-size:\s*max\(100vw, calc\(var\(--portrait-stage-height\) \* 16 \/ 9\)\)\s*max\(var\(--portrait-stage-height\), calc\(100vw \* 9 \/ 16\)\);/s
+    );
   });
 
   it('[P0 Figure2 floor] fills the complete frozen stage before live coverage extends it', () => {
     const root = figure2Styles.slice(
-      figure2Styles.indexOf('.portrait-scroll-spike__scene--figure2 {'),
+      figure2Styles.indexOf('.phone-grade-a__surfaces > .r4-figure2 {'),
       figure2Styles.indexOf(
         '.portrait-scroll-spike__scene--figure2 .r4-figure2__middle-window'
       )

@@ -97,6 +97,10 @@
 .portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage {
   background-color: #e2dac9;
   background-image: url("../../../../assets/figure2-middle-building.webp");
+  background-position: 50% 0;
+  background-size:
+    max(100vw, calc(var(--portrait-stage-height) * 16 / 9))
+    max(var(--portrait-stage-height), calc(100vw * 9 / 16));
 }
 
 /* Above-both effects are route siblings, never descendants of an endpoint. */

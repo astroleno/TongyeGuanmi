@@ -350,7 +350,7 @@ export type PhoneFigure2DepthInkRuntimeCommand =
 
 export type PhoneFigure2DepthInkRuntimeBridge = (
   command: PhoneFigure2DepthInkRuntimeCommand
-) => HTMLCanvasElement | null | void;
+) => HTMLCanvasElement | null | boolean | void;
 
 function depthTransformFor([
   viewportWidth,
@@ -473,9 +473,10 @@ export function createPhoneFigure2DepthInkRuntimeBridge([
     const rendered = visible && (renderer?.render(frame) ?? false);
     if (canvas && rendered) {
       canvas.dataset.phonePresentationEffectFrame = 'ready';
-    } else if (canvas && !visible) {
+    } else if (canvas) {
       delete canvas.dataset.phonePresentationEffectFrame;
     }
+    return rendered;
   };
 
   return (command) => {
@@ -490,8 +491,7 @@ export function createPhoneFigure2DepthInkRuntimeBridge([
         renderer?.prewarm(frameFor(command[1], command[2]));
         return;
       case 'render':
-        render(command[1], command[2]);
-        return;
+        return render(command[1], command[2]);
       case 'dispose':
         dispose();
     }

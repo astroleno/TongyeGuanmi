@@ -98,7 +98,11 @@ export type PhoneFigure2DistanceExpandBridgeCommand =
 
 export type PhoneFigure2DistanceExpandBridge = (
   command: PhoneFigure2DistanceExpandBridgeCommand
-) => Promise<void> | void;
+) => Promise<void> | boolean | void;
+
+type PhoneFigure2Timeline = SegmentTimelineHandle & Readonly<{
+  physicalDepthFrame(): boolean;
+}>;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -248,7 +252,7 @@ export async function createPhoneFigure2DistanceExpandBridge(
     prepareToken,
     prefersReducedMotion,
     reportMilestone() {}
-  });
+  }) as PhoneFigure2Timeline;
   let disposed = false;
   return (command) => {
     if (command[0] === 'dispose') {
@@ -261,7 +265,7 @@ export async function createPhoneFigure2DistanceExpandBridge(
     if (disposed) return;
     if (command[0] === 'render') {
       timeline.progress(command[1]);
-      return;
+      return timeline.physicalDepthFrame();
     }
     const leg = phoneFigure2Leg(command);
     if (command[0] === 'prepare') {
@@ -331,6 +335,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   private readonly inkCanvas: HTMLCanvasElement | null;
   private readonly inkRuntime: PhoneFigure2DepthInkRuntimeBridge;
   private mediaRun: Figure2MediaPreparation | undefined;
+  private lastDepthFrameRendered = false;
 
   constructor(
     private readonly context: TransitionContext,
@@ -542,11 +547,11 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     }
     const depthOwnership = inkOwnershipGateProgress(reveal);
     this.depthMask?.render(depthOwnership, stagedDepthTransform);
-    this.inkRuntime([
+    this.lastDepthFrameRendered = this.inkRuntime([
       'render',
       reveal,
       phoneFigure2DepthTransformRequest(stagedDepthTransform)
-    ]);
+    ]) === true;
     const valueDomain = depthOwnership <= 0 ? '0' : depthOwnership >= 1 ? '1' : '1,0';
 
     this.context.to.element?.setAttribute('data-r4-transition', 'figure2-proof-binary-depth');
@@ -577,6 +582,10 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
 
   effectCanvases(): readonly HTMLCanvasElement[] {
     return this.inkCanvas ? [this.inkCanvas] : [];
+  }
+
+  physicalDepthFrame(): boolean {
+    return this.lastDepthFrameRendered;
   }
 
   dispose(): void {

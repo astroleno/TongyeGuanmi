@@ -70,7 +70,7 @@ describe('phone ink surface pool', () => {
     expect(secondHost.children).toEqual([second.canvas]);
     expect(second.canvas.dataset.portraitInk).toBe('lab-ph');
     expect(first.canvas.remove).not.toHaveBeenCalled();
-    expect(first.canvas.style.visibility).toBe('hidden');
+    expect(first.canvas.style.visibility).toBe('');
 
     first.release();
     second.release();

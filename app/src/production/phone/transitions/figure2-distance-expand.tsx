@@ -26,6 +26,7 @@ import {
 } from '../PhoneStoryRuntimeContext';
 import { phoneRouteOverlayHostFor } from '../PhoneStageRail';
 import {
+  phoneRuntimePresentationTokenKey,
   registerPhoneRuntimeEffect,
   type PresentationToken
 } from '../phone-story/runtime';
@@ -38,6 +39,13 @@ import type {
 
 const PHONE_FIGURE2_RUN = 'phone-grade-a:1' as SegmentRunId;
 const PHONE_FIGURE2_PREPARE = 'phone-grade-a:prepare:1' as PrepareToken;
+
+type PhoneFigure2EffectPresentation = readonly [
+  token: PresentationToken,
+  tokenKey: string,
+  claimGeneration: number | null,
+  report: PhonePresentedFrameReporter
+];
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -97,8 +105,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   >> | null>(null);
   const leaseRef = useRef<PhoneInkSurfaceLease | undefined>(undefined);
   const effectRegistrationRef = useRef<{ dispose(): void } | undefined>(undefined);
-  const presentedFrameRef = useRef<PhonePresentedFrameReporter | undefined>(undefined);
-  const presentedTokenRef = useRef<PresentationToken | undefined>(undefined);
+  const presentedLeaseRef = useRef<PhoneFigure2EffectPresentation | undefined>(undefined);
   const presentedFrameSequenceRef = useRef(0);
   const firstFrameRetryCancelRef = useRef<(() => void) | undefined>(undefined);
   const cancelFirstFrameRetry = useCallback(() => {
@@ -117,8 +124,7 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     timelineRef.current = null;
     buildRef.current = null;
     leaseRef.current = undefined;
-    presentedFrameRef.current = undefined;
-    presentedTokenRef.current = undefined;
+    presentedLeaseRef.current = undefined;
     presentedFrameSequenceRef.current = 0;
   }, [cancelFirstFrameRetry, releaseEffectRegistration]);
   const releaseTimeline = useCallback(() => {
@@ -139,6 +145,16 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
       onRevoke: retireTimeline
     });
     leaseRef.current = lease;
+    const presentation = presentedLeaseRef.current;
+    if (presentation) {
+      const [token, tokenKey, , report] = presentation;
+      presentedLeaseRef.current = [token, tokenKey, lease.generation, report];
+      delete lease.canvas.dataset.phonePresentationEffectFrame;
+      lease.canvas.dataset.phonePresentationEffectToken = tokenKey;
+      lease.canvas.dataset.phonePresentationEffectGeneration = String(
+        lease.generation
+      );
+    }
     if (runtime) {
       releaseEffectRegistration();
       effectRegistrationRef.current = registerPhoneRuntimeEffect(
@@ -200,13 +216,22 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     const sampled = phoneFigure2ProofTimelineProgress(canonical);
     const timeline = timelineRef.current;
     if (!timeline) return;
-    timeline(['render', sampled]);
-    if (leaseRef.current?.canvas.dataset.phonePresentationEffectFrame === 'ready') {
+    const rendered = timeline(['render', sampled]) === true;
+    const lease = leaseRef.current;
+    const presentation = presentedLeaseRef.current;
+    if (
+      rendered
+      && lease
+      && presentation
+      && presentation[2] === lease.generation
+      && lease.canvas.dataset.phonePresentationEffectToken === presentation[1]
+      && lease.canvas.dataset.phonePresentationEffectGeneration
+        === String(lease.generation)
+    ) {
       cancelFirstFrameRetry();
-      const report = presentedFrameRef.current;
-      const token = presentedTokenRef.current;
-      presentedFrameRef.current = undefined;
-      presentedTokenRef.current = undefined;
+      presentedLeaseRef.current = undefined;
+      const report = presentation[3];
+      const token = presentation[0];
       report?.(token ? {
         token,
         frameSequence: ++presentedFrameSequenceRef.current,
@@ -219,13 +244,13 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
   const scheduleFirstFrameRetry = useCallback(() => {
     cancelFirstFrameRetry();
     const cancel = schedulePhoneFigure2FirstFrameRetry(
-      () => Boolean(presentedFrameRef.current),
+      () => Boolean(presentedLeaseRef.current),
       () => render(.5)
     );
-    if (presentedFrameRef.current) {
-      cancel();
-    } else {
+    if (presentedLeaseRef.current) {
       firstFrameRetryCancelRef.current = cancel;
+    } else {
+      cancel();
     }
   }, [cancelFirstFrameRetry, render]);
 
@@ -240,8 +265,26 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
     prepare,
     begin(owner: PhoneCinematicRequest, onPresentedFrame) {
       cancelFirstFrameRetry();
-      presentedFrameRef.current = onPresentedFrame;
-      presentedTokenRef.current = owner[5];
+      const token = owner[5];
+      if (!token || !onPresentedFrame) {
+        presentedLeaseRef.current = undefined;
+        return;
+      }
+      const tokenKey = phoneRuntimePresentationTokenKey(token);
+      const lease = leaseRef.current;
+      presentedLeaseRef.current = [
+        token,
+        tokenKey,
+        lease?.generation ?? null,
+        onPresentedFrame
+      ];
+      if (lease) {
+        delete lease.canvas.dataset.phonePresentationEffectFrame;
+        lease.canvas.dataset.phonePresentationEffectToken = tokenKey;
+        lease.canvas.dataset.phonePresentationEffectGeneration = String(
+          lease.generation
+        );
+      }
       presentedFrameSequenceRef.current = 0;
     },
     prepareFirstFrame() {

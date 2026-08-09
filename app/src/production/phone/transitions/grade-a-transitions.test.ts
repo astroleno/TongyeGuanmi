@@ -199,7 +199,9 @@ describe('phone Grade A transition contracts', () => {
   });
 
   it('[Method→Figure2→Proof execution cutover] sends canonical progress only to the Ink bridge', () => {
-    expect(figure2DistanceSource).toContain("timeline(['render', sampled]);");
+    expect(figure2DistanceSource).toContain(
+      "const rendered = timeline(['render', sampled]) === true;"
+    );
     expect(figure2DistanceSource).not.toContain('fallbackFrame(');
     expect(figure2DistanceSource).not.toContain('renderFigure2AnimationProgress');
     expect(figure2DistanceSource).not.toContain('figure2IntroProgress(');

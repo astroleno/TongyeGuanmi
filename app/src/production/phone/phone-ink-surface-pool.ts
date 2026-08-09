@@ -7,6 +7,7 @@ type PhoneInkSurfaceClaim = Readonly<{
 
 export type PhoneInkSurfaceLease = Readonly<{
   canvas: HTMLCanvasElement;
+  generation: number;
   release(): void;
 }>;
 
@@ -15,6 +16,7 @@ type ActiveClaim = PhoneInkSurfaceClaim & Readonly<{ token: symbol }>;
 type PhoneInkSurfacePool = {
   canvas: HTMLCanvasElement | undefined;
   active: ActiveClaim | undefined;
+  generation: number;
 };
 
 const pools = new WeakMap<Document, PhoneInkSurfacePool>();
@@ -22,7 +24,8 @@ const pools = new WeakMap<Document, PhoneInkSurfacePool>();
 function createPool(): PhoneInkSurfacePool {
   return {
     canvas: undefined,
-    active: undefined
+    active: undefined,
+    generation: 0
   };
 }
 
@@ -42,6 +45,24 @@ function retireCanvas(pool: PhoneInkSurfacePool): void {
   // next claim can rebind it, which turns one route-level owner into a stream
   // of cumulative contexts. A later claim moves this same node to its new
   // host; terminal route teardown removes it with that host.
+}
+
+function scrubCanvas(canvas: HTMLCanvasElement): void {
+  for (const key of Object.keys(canvas.dataset)) {
+    if (
+      key.startsWith('phonePresentation')
+      || key.startsWith('phoneInk')
+      || key.startsWith('r4Ink')
+    ) delete canvas.dataset[key];
+  }
+  canvas.style.visibility = '';
+  canvas.style.opacity = '';
+  canvas.style.clipPath = '';
+  (canvas.style as CSSStyleDeclaration & { webkitClipPath: string })
+    .webkitClipPath = '';
+  canvas.style.maskImage = '';
+  canvas.style.webkitMaskImage = '';
+  canvas.style.transform = '';
 }
 
 function contextWasLost(canvas: HTMLCanvasElement): boolean {
@@ -78,7 +99,9 @@ export function claimPhoneInkSurface(
   if (pool.canvas && canvas !== pool.canvas) {
     pool.canvas.remove();
   }
+  scrubCanvas(canvas);
   pool.canvas = canvas;
+  const generation = ++pool.generation;
   pool.active = { ...claim, token };
   canvas.className = claim.className;
   if (claim.portraitInk) {
@@ -89,6 +112,7 @@ export function claimPhoneInkSurface(
   claim.host.append(canvas);
   return {
     canvas,
+    generation,
     release() {
       if (pool.active?.token !== token) return;
       pool.active = undefined;

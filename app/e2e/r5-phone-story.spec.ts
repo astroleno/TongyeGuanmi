@@ -739,6 +739,19 @@ type PhoneVisualLeaseFrame = Readonly<{
   }> | null;
 }>;
 
+type PhoneVisualLeaseDraw = Readonly<{
+  at: number;
+  cursor: string | null;
+  session: string | null;
+  generation: string | null;
+  leg: string | null;
+  owner: string;
+  hash: string;
+  effectToken: string | null;
+  effectGeneration: string | null;
+  packedToken: string | null;
+}>;
+
 type PhoneLegTimeline = Readonly<{
   run: string;
   authorityId: string;
@@ -1605,15 +1618,18 @@ async function phoneRuntimeProbe(page: Page) {
  */
 async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    type Probe = { frames: PhoneVisualLeaseFrame[] };
+    type Probe = {
+      frames: PhoneVisualLeaseFrame[];
+      draws: PhoneVisualLeaseDraw[];
+    };
     const target = window as typeof window & {
       __phoneVisualLeaseProbe?: Probe;
     };
-    const probe: Probe = { frames: [] };
+    const probe: Probe = { frames: [], draws: [] };
     target.__phoneVisualLeaseProbe = probe;
     const output = document.createElement('canvas');
-    output.width = 12;
-    output.height = 12;
+    output.width = 48;
+    output.height = 48;
     const context = output.getContext('2d', { willReadFrequently: true });
     const visible = (element: Element) => {
       if (!(element instanceof HTMLElement) || !element.isConnected) return false;
@@ -1632,9 +1648,9 @@ async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
     const pixelHash = (source: CanvasImageSource) => {
       if (!context) return null;
       try {
-        context.clearRect(0, 0, 12, 12);
-        context.drawImage(source, 0, 0, 12, 12);
-        const pixels = context.getImageData(0, 0, 12, 12).data;
+        context.clearRect(0, 0, 48, 48);
+        context.drawImage(source, 0, 0, 48, 48);
+        const pixels = context.getImageData(0, 0, 48, 48).data;
         let hash = 2166136261;
         for (let index = 0; index < pixels.length; index += 1) {
           hash = Math.imul(hash ^ pixels[index]!, 16777619);
@@ -1681,6 +1697,44 @@ async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
       const value = Number.parseFloat(style.getPropertyValue(name));
       return Number.isFinite(value) ? value : 0;
     };
+    const recordDraw = (context: WebGLRenderingContext | WebGL2RenderingContext) => {
+      const canvas = context.canvas;
+      if (!(canvas instanceof HTMLCanvasElement) || !visible(canvas)) return;
+      const hash = pixelHash(canvas);
+      if (hash === null) return;
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      probe.draws.push({
+        at: performance.now(),
+        cursor: root?.dataset.phoneCursor ?? null,
+        session: root?.dataset.phoneSession ?? null,
+        generation: root?.dataset.phoneTransitionGeneration ?? null,
+        leg: root?.dataset.phoneTransitionLeg ?? null,
+        owner: ownerLabel(canvas),
+        hash,
+        effectToken: canvas.dataset.phonePresentationEffectToken ?? null,
+        effectGeneration: canvas.dataset.phonePresentationEffectGeneration ?? null,
+        packedToken: canvas.dataset.phonePackedAlphaPresentationToken ?? null
+      });
+      if (probe.draws.length > 12_000) probe.draws.shift();
+    };
+    const wrapDraws = <Context extends WebGLRenderingContext | WebGL2RenderingContext>(
+      prototype: Context
+    ) => {
+      const originalDrawArrays = prototype.drawArrays;
+      prototype.drawArrays = function drawArrays(mode, first, count) {
+        originalDrawArrays.call(this, mode, first, count);
+        recordDraw(this);
+      };
+      const originalDrawElements = prototype.drawElements;
+      prototype.drawElements = function drawElements(mode, count, type, offset) {
+        originalDrawElements.call(this, mode, count, type, offset);
+        recordDraw(this);
+      };
+    };
+    wrapDraws(WebGLRenderingContext.prototype);
+    if (typeof WebGL2RenderingContext !== 'undefined') {
+      wrapDraws(WebGL2RenderingContext.prototype);
+    }
     const sample = () => {
       const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
       if (root) {
@@ -1763,9 +1817,15 @@ async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
 async function resetPhoneVisualLeaseProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
     const probe = (window as typeof window & {
-      __phoneVisualLeaseProbe?: { frames: PhoneVisualLeaseFrame[] };
+      __phoneVisualLeaseProbe?: {
+        frames: PhoneVisualLeaseFrame[];
+        draws: PhoneVisualLeaseDraw[];
+      };
     }).__phoneVisualLeaseProbe;
-    if (probe) probe.frames.length = 0;
+    if (probe) {
+      probe.frames.length = 0;
+      probe.draws.length = 0;
+    }
   });
 }
 
@@ -1775,6 +1835,14 @@ async function phoneVisualLeaseFrames(page: Page): Promise<PhoneVisualLeaseFrame
       __phoneVisualLeaseProbe?: { frames: PhoneVisualLeaseFrame[] };
     }
   ).__phoneVisualLeaseProbe?.frames ?? []);
+}
+
+async function phoneVisualLeaseDraws(page: Page): Promise<PhoneVisualLeaseDraw[]> {
+  return page.evaluate(() => (
+    window as typeof window & {
+      __phoneVisualLeaseProbe?: { draws: PhoneVisualLeaseDraw[] };
+    }
+  ).__phoneVisualLeaseProbe?.draws ?? []);
 }
 
 async function attachPhoneJourneyTelemetry(
@@ -4457,7 +4525,7 @@ test('[AOD↔Method execution cutover] completes one exact forward and reverse p
   expect(probe.maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
 });
 
-test('[execution regression] Method landing starts Figure2 playback before the Proof boundary', async ({ page }) => {
+test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof boundary and survives reload', async ({ page }) => {
   test.setTimeout(90_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/#method', 'method-top');
@@ -5105,7 +5173,7 @@ test('[P0 Arch retirement][downstream handoff flash] retires Figure2 Arch and at
   ).toEqual([]);
 });
 
-test('[P0 Figure2 physical lease] z-depth paints current-token pixels and fills the viewport floor', async ({ page }) => {
+test('[P0 Figure2 physical z-depth][Figure2 bottom coverage] paints current-token pixels and fills the viewport floor', async ({ page }) => {
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
   await installPhoneVisualLeaseProbe(page);
@@ -5131,11 +5199,9 @@ test('[P0 Figure2 physical lease] z-depth paints current-token pixels and fills 
   assertTexturedBottomBand(middle, [226, 218, 201], 'mid-z-depth Figure2 bottom band');
   await assertStablePhoneHold(page, 'figure2-proof', { timeout: 70_000 });
 
-  const frames = (await phoneVisualLeaseFrames(page)).filter(
-    (frame) => frame.cursor === 'transition:figure2-proof:0'
-  );
-  const effect = frames.flatMap((frame) => frame.canvases.filter(
-    (canvas) => /r4-figure2-proof-ink-canvas/.test(canvas.owner)
+  const effect = (await phoneVisualLeaseDraws(page)).filter((draw) => (
+    draw.cursor === 'transition:figure2-proof:0'
+    && /r4-figure2-proof-ink-canvas/.test(draw.owner)
   ));
   expect(
     new Set(effect.map((sample) => sample.hash)).size,
