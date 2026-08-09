@@ -726,7 +726,6 @@ type PhoneVisualLeaseFrame = Readonly<{
     owner: string;
     hash: string;
     effectToken: string | null;
-    effectGeneration: string | null;
     packedToken: string | null;
   }>>;
   videos: ReadonlyArray<Readonly<{
@@ -751,7 +750,6 @@ type PhoneVisualLeaseDraw = Readonly<{
   owner: string;
   hash: string;
   effectToken: string | null;
-  effectGeneration: string | null;
   packedToken: string | null;
 }>;
 
@@ -1715,7 +1713,6 @@ async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
         owner: ownerLabel(canvas),
         hash,
         effectToken: canvas.dataset.phonePresentationEffectToken ?? null,
-        effectGeneration: canvas.dataset.phonePresentationEffectGeneration ?? null,
         packedToken: canvas.dataset.phonePackedAlphaPresentationToken ?? null
       });
       if (probe.draws.length > 12_000) probe.draws.shift();
@@ -1757,7 +1754,6 @@ async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
               owner: ownerLabel(canvas),
               hash,
               effectToken: canvas.dataset.phonePresentationEffectToken ?? null,
-              effectGeneration: canvas.dataset.phonePresentationEffectGeneration ?? null,
               packedToken: canvas.dataset.phonePackedAlphaPresentationToken ?? null
             }];
           });
@@ -5223,11 +5219,13 @@ test('[P0 Figure2 physical z-depth][Figure2 bottom coverage] paints current-toke
     'Figure2 → Proof needs three distinct physical depth Canvas frames'
   ).toBeGreaterThanOrEqual(3);
   expect(effect.length).toBeGreaterThanOrEqual(3);
-  expect(effect.every((sample) => (
-    sample.effectToken !== null && sample.effectGeneration !== null
-  )), 'every Figure2 depth frame must carry the current immutable lease').toBe(true);
+  expect(effect.every((sample) => {
+    const token = sample.effectToken?.split('|').map(decodeURIComponent);
+    return token?.[1] === sample.session
+      && token[2] === sample.generation
+      && token[3] === sample.leg;
+  }), 'every Figure2 depth frame must carry its current session/generation/leg token').toBe(true);
   expect(new Set(effect.map((sample) => sample.effectToken)).size).toBe(1);
-  expect(new Set(effect.map((sample) => sample.effectGeneration)).size).toBe(1);
 });
 
 test('[TTG presented reverse][Services reverse release] two same-authority returns advance only on presented decoder frames and release Services', async ({ page }) => {
