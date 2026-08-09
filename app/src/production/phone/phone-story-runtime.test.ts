@@ -197,6 +197,7 @@ describe('phone story runtime factory', () => {
     };
     const hero = { root: () => root(), update: updates.hero };
     const starMap = { root: () => root(), update: updates.star };
+    const aod = { root: () => root(), update: vi.fn() };
     const token = (kind: string, subject: string) => ({
       authorityId: 'front-runtime-authority',
       sessionId: 'front-runtime-session',
@@ -236,10 +237,10 @@ describe('phone story runtime factory', () => {
         hero: () => hero as never,
         pattern: () => pattern as never,
         starMap: () => starMap as never,
-        aod: () => null,
+        aod: () => aod as never,
         heroPattern: () => effect as never,
         patternStarMap: () => effect as never,
-        starMapAod: () => null,
+        starMapAod: () => effect as never,
         reducedMotion: false
       }
     );
@@ -273,6 +274,15 @@ describe('phone story runtime factory', () => {
     ]);
     expect(effect.reverse).toHaveBeenCalledTimes(1);
     expect(session.reportEndpointRelease).toHaveBeenCalledTimes(2);
+
+    animations.length = 0;
+    updates.star.mockClear();
+    expect(capabilities.get('star-map-aod')?.start(-1, {
+      ...session,
+      direction: -1 as const
+    })).toBe(true);
+    expect(animations).toEqual([[1, 0, 1800]]);
+    expect(updates.star.mock.calls.map(([progress]) => progress)).toEqual([0, 1, 1]);
 
     registration.dispose();
   });

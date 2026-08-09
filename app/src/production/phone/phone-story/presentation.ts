@@ -669,13 +669,12 @@ function elementForProbe(root: HTMLElement, selector: string): HTMLElement | nul
 function hasTextProbe(
   root: HTMLElement,
   selectors: readonly string[],
-  reading: boolean,
   mode: PhoneSurfacePresentationReadMode
 ): boolean {
   return selectors.length > 0 && selectors.every((selector) => {
     const element = elementForProbe(root, selector);
     if (!element?.textContent?.trim()) return false;
-    return !reading || (visible(element, mode) && intersectsLiveViewport(element));
+    return visible(element, mode) && intersectsLiveViewport(element);
   });
 }
 
@@ -721,7 +720,7 @@ export function readPhoneScenePresentation(
   const coverageVisible = coverageConnected && visible(coverageRoot, mode);
   const visualProbe = probeKind === 'visual' || probeKind === 'static-visual';
   const textContent = rootVisible && !visualProbe
-    && hasTextProbe(root, selectors, probeKind === 'reading', mode);
+    && hasTextProbe(root, selectors, mode);
   const framePresented = rootVisible && visualProbe && hasFrameProbe(root, selectors, mode);
   const content = visualProbe ? framePresented : textContent;
   const frameKind = (

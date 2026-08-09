@@ -352,6 +352,10 @@ export function PhoneGradeAStory({
       1,
       surfaces.clientHeight || fallback || window.innerHeight
     );
+    const brandLandingPosition = () => {
+      const brand = brandBoundaryRoot();
+      return brand ? elementDocumentTop(brand) : null;
+    };
     const boundaryPosition = (
       id: GradeAInkBoundaryId,
       direction: PhoneTransitionDirection
@@ -365,9 +369,8 @@ export function PhoneGradeAStory({
         return elementDocumentTop(proofTrack)
           - direction * ACTIVE_EDGE_TOLERANCE_PX * 2;
       }
-      const brandBoundary = brandBoundaryRoot();
-      if (!brandBoundary) return null;
-      const brandTop = elementDocumentTop(brandBoundary);
+      const brandTop = brandLandingPosition();
+      if (brandTop === null) return null;
       return direction === 1 ? brandTop - height : brandTop;
     };
     const figure2LandingPosition = (
@@ -518,6 +521,9 @@ export function PhoneGradeAStory({
         if (scene === 'figure2-proof') {
           return boundaryPosition(1, direction);
         }
+        if (scene === 'brand') {
+          return brandLandingPosition();
+        }
         return null;
       }
     );
@@ -564,7 +570,7 @@ export function PhoneGradeAStory({
         } : id === 2 ? {
           reducedTargetPosition: (direction: PhoneTransitionDirection) => (
             direction === 1
-              ? boundaryPosition(2, direction)
+              ? brandLandingPosition()
               : boundaryPosition(1, direction)
           ),
           reducedStaticSubject: (direction: PhoneTransitionDirection) => (

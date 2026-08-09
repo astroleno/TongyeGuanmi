@@ -503,7 +503,12 @@ export const PhoneBrandLabContinuation = forwardRef<
         if (phoneScenePresentationTuple(targetScene)[5] === 'native-reading') {
           return phoneDocumentTop(rootForScene(targetScene));
         }
-        if (scene === 'brand' || scene === 'figure3-animation' || scene === 'services') {
+        // Brand's Figure3 boundary is only the trigger. Both Proof → Brand and
+        // Services → Brand must settle with Brand copy inside the viewport.
+        if (scene === 'brand') {
+          return phoneDocumentTop(rootForScene(targetScene));
+        }
+        if (scene === 'figure3-animation' || scene === 'services') {
           return boundaryPosition('figure3-animation', direction);
         }
         if (scene === 'ttg-animation' || scene === 'lab') {

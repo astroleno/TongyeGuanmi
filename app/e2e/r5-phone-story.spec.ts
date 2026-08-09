@@ -640,6 +640,7 @@ type PhoneVisualFrameSample = Readonly<{
   cursor: string;
   session: string;
   generation: string;
+  leg: string;
   signature: string;
 }>;
 
@@ -1304,37 +1305,124 @@ async function installColdPhoneRuntimeProbe(page: Page): Promise<void> {
     sampleResources();
     window.setInterval(sampleResources, 50);
     let lastVisualFrameKey = '';
+    let lastVisualSampleAt = -Infinity;
+    const outputCanvas = document.createElement('canvas');
+    outputCanvas.width = 12;
+    outputCanvas.height = 12;
+    const outputContext = outputCanvas.getContext('2d', {
+      willReadFrequently: true
+    });
+    const canvasPixels = (canvas: HTMLCanvasElement) => {
+      if (!outputContext || canvas.width <= 0 || canvas.height <= 0) return null;
+      try {
+        outputContext.clearRect(0, 0, 12, 12);
+        outputContext.drawImage(canvas, 0, 0, 12, 12);
+        const pixels = outputContext.getImageData(0, 0, 12, 12).data;
+        let hash = 2166136261;
+        for (let index = 0; index < pixels.length; index += 1) {
+          hash = Math.imul(hash ^ pixels[index]!, 16777619);
+        }
+        return `${canvas.width}x${canvas.height}:${hash >>> 0}`;
+      } catch {
+        return null;
+      }
+    };
     const sampleVisualFrame = () => {
+      const now = performance.now();
       const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
       const cursor = root?.dataset.phoneCursor;
       const session = root?.dataset.phoneSession;
       const generation = root?.dataset.phoneTransitionGeneration;
+      const leg = root?.dataset.phoneTransitionLeg;
       if (
         cursor?.startsWith('transition:')
         && session
         && generation
+        && leg
         && root?.dataset.phoneTransitionPhase === 'animating'
+        && now - lastVisualSampleAt >= 80
       ) {
-        const signature = JSON.stringify(Array.from(document.querySelectorAll<HTMLElement>(
+        lastVisualSampleAt = now;
+        const endpoints = Array.from(document.querySelectorAll<HTMLElement>(
           '[data-phone-surface-role="transition-source"],'
           + '[data-phone-surface-role="transition-receiver"]'
-        )).map((element) => [
-          element.dataset.phoneSurfaceRole ?? null,
-          element.className,
-          element.style.clipPath,
-          element.style.maskImage,
-          element.style.opacity,
-          element.style.visibility,
-          element.style.transform
-        ]));
-        const key = `${session}:${generation}:${signature}`;
-        if (key !== lastVisualFrameKey) {
+        ));
+        const effectCanvases = Array.from(document.querySelectorAll<HTMLCanvasElement>(
+          '[data-phone-presentation-host="route-overlay"] canvas,'
+          + 'canvas[data-phone-presentation-effect-frame="ready"]'
+        ));
+        const canvases = new Set<HTMLCanvasElement>(effectCanvases);
+        if (canvases.size === 0) {
+          for (const endpoint of endpoints) {
+            if (endpoint instanceof HTMLCanvasElement) canvases.add(endpoint);
+            for (const canvas of endpoint.querySelectorAll('canvas')) canvases.add(canvas);
+          }
+        }
+        const canvasFrames = [...canvases].flatMap((canvas) => {
+          const rect = canvas.getBoundingClientRect();
+          const style = getComputedStyle(canvas);
+          if (
+            rect.width <= 0
+            || rect.height <= 0
+            || style.display === 'none'
+            || style.visibility === 'hidden'
+            || Number.parseFloat(style.opacity || '1') <= .01
+          ) return [];
+          const pixels = canvasPixels(canvas);
+          return pixels === null ? [] : [[canvas.className, pixels]];
+        });
+        const videoFrames = endpoints.flatMap((endpoint) => (
+          [...endpoint.querySelectorAll<HTMLVideoElement>('video')].flatMap((video) => (
+            video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+              ? [[
+                  video.currentSrc,
+                  video.currentTime.toFixed(3),
+                  video.videoWidth,
+                  video.videoHeight
+                ]]
+              : []
+          ))
+        ));
+        // DOM-backed transitions expose their physical reveal/conceal through
+        // the computed clip, mask and opacity of the actual endpoint nodes.
+        // Sample those compositor inputs alongside real Canvas/video frames;
+        // never substitute machine progress or transition-root inline style.
+        const endpointFrames = endpoints.map((endpoint) => {
+          const style = getComputedStyle(endpoint);
+          const rect = endpoint.getBoundingClientRect();
+          return [
+            endpoint.dataset.phoneSurfaceRole ?? '',
+            endpoint.className,
+            style.visibility,
+            style.opacity,
+            style.clipPath,
+            style.getPropertyValue('-webkit-clip-path'),
+            style.maskImage,
+            style.transform,
+            style.filter,
+            rect.left.toFixed(2),
+            rect.top.toFixed(2),
+            rect.width.toFixed(2),
+            rect.height.toFixed(2)
+          ];
+        });
+        const signature = JSON.stringify([
+          canvasFrames,
+          videoFrames,
+          endpointFrames
+        ]);
+        const key = `${session}:${generation}:${leg}:${signature}`;
+        if (
+          (canvasFrames.length > 0 || videoFrames.length > 0 || endpointFrames.length > 0)
+          && key !== lastVisualFrameKey
+        ) {
           lastVisualFrameKey = key;
           probe.visualFrames.push({
-            at: performance.now(),
+            at: now,
             cursor,
             session,
             generation,
+            leg,
             signature
           });
           if (probe.visualFrames.length > 1_000) probe.visualFrames.shift();
@@ -1898,14 +1986,21 @@ function assertTransitionTrace(
       const renderedFrames = visualFrames.filter((frame) => (
         frame.session === first.session
         && frame.generation === first.generation
-        && frame.cursor === first.cursor
+        && frame.leg === String(leg)
+        && frame.cursor === `transition:${runId}:${leg}`
       ));
       const renderedIntermediate = new Set(
         renderedFrames.map((frame) => frame.signature)
       ).size >= 3;
       expect(
-        projectedIntermediate || renderedIntermediate,
-        `missing intermediate machine or rendered frame for ${runId} leg ${leg}: ${JSON.stringify({
+        projectedIntermediate,
+        `missing intermediate machine frame for ${runId} leg ${leg}: ${JSON.stringify({
+          progresses
+        })}`
+      ).toBe(true);
+      expect(
+        renderedIntermediate,
+        `missing physical Canvas/video/endpoint frames for ${runId} leg ${leg}: ${JSON.stringify({
           progresses,
           renderedFrames
         })}`
@@ -2624,12 +2719,11 @@ async function driveJourney(
 }
 
 /**
- * A release gate for the real interaction shape: one continuous intent per
- * authored boundary, with no pulse loop used to manufacture intermediate
- * states. The stable checkpoint is still the handoff between gestures, but
- * every gesture itself contains multiple touch moves on WebKit.
+ * Deterministic synthetic transaction gate. One untrusted multi-move event
+ * sequence claims each authored boundary without pulse-looping intermediate
+ * states; physical iPhone gesture qualification remains a separate gate.
  */
-async function driveContinuousJourney(
+async function driveDeterministicTransactionJourney(
   page: Page,
   legs: ReadonlyArray<readonly [PhoneStableScene, PhoneStableScene]>
 ): Promise<void> {
@@ -2681,7 +2775,14 @@ async function driveContinuousJourney(
     if (isFrontJourneyLeg(from, to)) {
       assertFrontRunTrace(states, from, to, direction);
     } else {
-      assertTransitionTrace(states, from, to, direction, {}, probe.visualFrames);
+      assertTransitionTrace(
+        states,
+        from,
+        to,
+        direction,
+        {},
+        probe.visualFrames
+      );
     }
   }
 }
@@ -3132,7 +3233,7 @@ test('Task 10 gates a cold production formal Hero → Contact journey', async ({
   expect(booleanContract.violations).toEqual([]);
 });
 
-test('[P0 unsegmented journey] one continuous intent per boundary completes the full route in both directions', async ({
+test('[deterministic transaction journey] one synthetic multi-move intent per boundary completes both directions', async ({
   page,
   browserName
 }) => {
@@ -3140,9 +3241,9 @@ test('[P0 unsegmented journey] one continuous intent per boundary completes the 
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/', 'hero');
 
-  await driveContinuousJourney(page, FORMAL_FORWARD_JOURNEY);
+  await driveDeterministicTransactionJourney(page, FORMAL_FORWARD_JOURNEY);
   await assertStablePhoneHold(page, 'contact');
-  await driveContinuousJourney(page, FORMAL_REVERSE_JOURNEY);
+  await driveDeterministicTransactionJourney(page, FORMAL_REVERSE_JOURNEY);
   await assertStablePhoneHold(page, 'hero');
 
   const probe = await phoneRuntimeProbe(page);
@@ -3377,6 +3478,28 @@ test('[Method↔Figure2↔Proof↔Brand reduced cutover] commits all static endp
     (await phoneRuntimeProbe(page)).stateEvents,
     1
   );
+  const brandLanding = await page.evaluate(() => {
+    const viewport = window.visualViewport;
+    const top = viewport?.offsetTop ?? 0;
+    const bottom = top + (viewport?.height ?? window.innerHeight);
+    const brand = document.getElementById('brand');
+    const probes = [
+      document.getElementById('phone-brand-title'),
+      document.querySelector<HTMLElement>('.phone-brand__definition > p')
+    ];
+    return {
+      rootTop: brand?.getBoundingClientRect().top ?? null,
+      viewportTop: top,
+      textVisible: probes.every((probe) => {
+        if (!probe) return false;
+        const rect = probe.getBoundingClientRect();
+        return rect.bottom > top && rect.top < bottom;
+      })
+    };
+  });
+  expect(brandLanding.rootTop).not.toBeNull();
+  expect(Math.abs(brandLanding.rootTop! - brandLanding.viewportTop)).toBeLessThanOrEqual(2);
+  expect(brandLanding.textVisible).toBe(true);
 
   await driveAdjacentPhoneRun(
     page,
@@ -3761,6 +3884,16 @@ test('[execution regression] Loader handoff starts one authored Hero entrance', 
     'data-portrait-hero-entrance',
     'playing'
   );
+  const heroTextEffects = await page.locator(
+    `${LIVE_PHONE_ROOT} [data-text-reveal]`
+  ).evaluateAll((elements) => elements.map((element) => ({
+    effects: element.getAttribute('data-text-reveal-effects'),
+    mangledEffects: element.getAttribute('r')
+  })));
+  expect(heroTextEffects).toEqual([
+    { effects: 'stagger blur-to-clear rise-up', mangledEffects: null },
+    { effects: 'stagger blur-to-clear rise-up', mangledEffects: null }
+  ]);
 
   const openingFrames: PngScreenshot[] = [];
   for (let index = 0; index < 12; index += 1) {
@@ -3938,6 +4071,42 @@ test('[execution regression] Star Map advances real Perlin frames while its stab
     ),
     'leaving Star Map must stop its leaf-owned Perlin frame loop'
   ).toBe(inactiveRevision);
+
+  await page.evaluate(() => {
+    const samples: number[] = [];
+    let active = true;
+    const sample = () => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      const wash = document.querySelector<HTMLElement>('.portrait-scroll-spike__star-wash');
+      if (root?.dataset.phoneCursor === 'transition:star-map-aod:0' && wash) {
+        const opacity = Number.parseFloat(getComputedStyle(wash).opacity);
+        if (Number.isFinite(opacity) && Math.abs(opacity - (samples.at(-1) ?? -1)) >= .01) {
+          samples.push(opacity);
+        }
+      }
+      if (active) window.requestAnimationFrame(sample);
+    };
+    (window as typeof window & {
+      __starReverseRevealProbe?: { samples: number[]; stop(): void };
+    }).__starReverseRevealProbe = {
+      samples,
+      stop() { active = false; }
+    };
+    window.requestAnimationFrame(sample);
+  });
+  await driveFrontRun(page, 'aod-animation', 'star-map', -1);
+  const reverseReveal = await page.evaluate(() => {
+    const probe = (window as typeof window & {
+      __starReverseRevealProbe?: { samples: number[]; stop(): void };
+    }).__starReverseRevealProbe;
+    probe?.stop();
+    return probe?.samples ?? [];
+  });
+  expect(reverseReveal.length).toBeGreaterThanOrEqual(5);
+  for (let index = 1; index < reverseReveal.length; index += 1) {
+    expect(reverseReveal[index]).toBeGreaterThanOrEqual(reverseReveal[index - 1]! - .02);
+  }
+  expect(reverseReveal.at(-1)).toBeGreaterThanOrEqual(.98);
 });
 
 test('[execution regression] first AOD forward input locks the runner before the rail can advance', async ({ page }) => {

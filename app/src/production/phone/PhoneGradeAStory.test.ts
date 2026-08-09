@@ -264,12 +264,19 @@ describe('phone Grade A orchestration ownership', () => {
     expect(boundaryTwo).toContain('brandPresentationRef.current');
     expect(boundaryTwo).toContain('proofRef.current');
     expect(boundaryTwo).toMatch(
-      /reducedTargetPosition:\s*\(direction: PhoneTransitionDirection\) => \(\s*direction === 1\s*\? boundaryPosition\(2, direction\)\s*:\s*boundaryPosition\(1, direction\)\s*\)/
+      /reducedTargetPosition:\s*\(direction: PhoneTransitionDirection\) => \(\s*direction === 1\s*\? brandLandingPosition\(\)\s*:\s*boundaryPosition\(1, direction\)\s*\)/
     );
     expect(source).toContain('onBrandPresentationChange={bindBrandPresentation}');
     expect(source).not.toContain("registerPhoneRuntimeSurface(\n        orchestrator,\n        'native:brand'");
     expect(tailBundleSource).toContain('onBrandPresentationChange');
     expect(brandContinuationSource).toContain('onBrandPresentationChange?.(');
+  });
+
+  it('[Proof→Brand landing] separates the trigger edge from the visible Brand terminal', () => {
+    expect(source).toContain('const brandLandingPosition = () =>');
+    expect(source).toMatch(
+      /if \(scene === 'brand'\) \{\s*return brandLandingPosition\(\);\s*\}/
+    );
   });
 
   it('[Proof↔Brand reduced cutover] projects only stable endpoints before the Brand proof and never starts the Ink adapter', () => {

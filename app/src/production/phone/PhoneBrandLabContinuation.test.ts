@@ -149,6 +149,12 @@ describe('PhoneBrandLabContinuation direct entry presentation', () => {
     );
   });
 
+  it('[Services→Brand landing] separates the Figure3 trigger from the visible Brand terminal', () => {
+    expect(source).toMatch(
+      /if \(scene === 'brand'\) \{\s*return phoneDocumentTop\(rootForScene\(targetScene\)\);\s*\}/
+    );
+  });
+
   it('does not overwrite a neighbouring transition surface owner', () => {
     expect(source).toContain('registerPhoneRuntimeSurface(');
     expect(source).toContain('usePhoneStorySnapshot');

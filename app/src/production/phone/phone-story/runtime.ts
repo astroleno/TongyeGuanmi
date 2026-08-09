@@ -636,12 +636,12 @@ export function registerPhoneRuntimeFrontStageCapability(
         PATTERN_STAR_MAP_INK_MS,
         (progress) => {
           config.aod()?.update(0);
-          config.starMap()?.update(direction === 1 ? 1 : progress);
+          config.starMap()?.update(direction === 1 ? 1 : 1 - progress);
           transition.render(progress);
         },
         () => {
           config.aod()?.update(0);
-          config.starMap()?.update(direction === 1 ? 1 : 0);
+          config.starMap()?.update(1);
           completeInk();
         }
       );

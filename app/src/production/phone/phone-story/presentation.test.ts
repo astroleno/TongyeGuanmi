@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PresentationToken } from './machine';
 import {
   createPhoneStoryPresentation,
+  readPhoneScenePresentation,
   readPhoneSurfacePresentation
 } from './presentation';
 
@@ -64,6 +65,41 @@ const aodSegmentToken: PresentationToken = {
 };
 
 describe('phone presentation proof reader', () => {
+  it('[stable text visibility] rejects offscreen text from a static Brand proof', () => {
+    const root = element();
+    const offscreenText = {
+      ...element(),
+      textContent: 'Brand content',
+      getBoundingClientRect: () => ({
+        left: 0,
+        top: 844,
+        right: 390,
+        bottom: 900,
+        width: 390,
+        height: 56
+      })
+    } as HTMLElement;
+    Object.assign(root, {
+      matches: () => false,
+      querySelector: () => offscreenText
+    });
+    vi.stubGlobal('window', {
+      innerWidth: 390,
+      innerHeight: 844,
+      visualViewport: { offsetLeft: 0, offsetTop: 0, width: 390, height: 844 }
+    });
+    vi.stubGlobal('getComputedStyle', () => ({
+      display: 'block',
+      visibility: 'visible',
+      opacity: '1'
+    }));
+    try {
+      expect(readPhoneScenePresentation('brand', root, root)[3]).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('[R5] treats an interaction-inert transition receiver as physically visible', () => {
     const root = element();
     root.inert = true;
