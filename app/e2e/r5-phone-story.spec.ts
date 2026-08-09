@@ -3333,7 +3333,15 @@ test('Task 0 rejects a visible Hero completed-to-zero reset on cold WebKit load'
     sample.loaderReady === 'true' && sample.progress !== null
   ));
   expect(exposed.length).toBeGreaterThan(1);
-  expect(exposed[0]?.progress).toBeLessThanOrEqual(.001);
+  // Hero now owns one continuous opening clock beneath the Loader fade. The
+  // first exposed WebKit frame must therefore continue that in-flight run,
+  // not restart at zero when the Loader unmounts.
+  expect(exposed[0]?.progress).toBeGreaterThan(.001);
+  expect(exposed[0]?.progress).toBeLessThan(1);
+  expect(exposed.every((sample, index) => (
+    index === 0
+    || sample.progress! + .002 >= exposed[index - 1]!.progress!
+  ))).toBe(true);
 
   const resetIndex = exposed.findIndex((sample, index) => (
     index > 0
