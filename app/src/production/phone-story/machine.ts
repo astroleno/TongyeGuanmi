@@ -20,9 +20,8 @@ export type PhoneMachineSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegment
 export type PhoneMachineTransactionSnapshot = PhoneTransactionSnapshot<PhoneSceneId, PhoneSegmentId>;
 export type PhoneMachineResult = PhoneReduceResult<PhoneSceneId, PhoneSegmentId>;
 
-type BootOptions = Readonly<{
-  authorityId: string; request: PhoneEntryRequest; viewport: PhoneViewportSnapshot;
-}>;
+type BootOptions = Readonly<{ authorityId: string; request: PhoneEntryRequest;
+  viewport: PhoneViewportSnapshot; reducedMotion?: boolean }>;
 
 type TransactionOptions = Readonly<{
   mode: PhoneTransactionMode; sourceSceneId: PhoneSceneId | null;
@@ -31,7 +30,7 @@ type TransactionOptions = Readonly<{
   commitIntent: 'semantic' | 'reproject' | 'rollback'; generation: number;
   fallbackFromSceneId?: PhoneSceneId | null; pendingEntry?: PhoneEntryRequest | null;
   restoreUrlOnRollback?: boolean;
-  deadlinePolicy?: PhoneDeadlinePolicy; canonicalizeUrlOnCommit?: boolean;
+  deadlinePolicy?: PhoneDeadlinePolicy; canonicalizeUrlOnCommit?: boolean; reprojectLanding?: 'request';
   physicalEpoch?: number | null; reducedMotion?: boolean; activation?: 'offered' | 'spent';
   failure?: PhoneFailure | null;
 }>;
@@ -215,8 +214,7 @@ function transactionFor(
     restoreUrlOnRollback: options.restoreUrlOnRollback
       ?? (options.sourceSceneId !== null
         && (options.request.origin === 'hash' || options.request.origin === 'popstate')),
-    fallbackFromSceneId: options.fallbackFromSceneId ?? null, commitIntent: options.commitIntent,
-    pendingEntry: options.pendingEntry ?? null, deadlinePolicy,
+    fallbackFromSceneId: options.fallbackFromSceneId ?? null, commitIntent: options.commitIntent, ...(options.reprojectLanding ? { reprojectLanding: options.reprojectLanding } : {}), pendingEntry: options.pendingEntry ?? null, deadlinePolicy,
     deadline: {
       operation: options.mode === 'rollback' ? 'rollback' : 'moduleLoad',
       remainingMs: deadlinePolicy[options.mode === 'rollback' ? 'rollback' : 'moduleLoad'],
@@ -306,7 +304,8 @@ export function createPhoneStoryBoot(options: BootOptions): PhoneMachineResult {
     segmentId: null,
     direction: null,
     request: options.request,
-    commitIntent: 'semantic'
+    commitIntent: 'semantic',
+    ...(options.reducedMotion === undefined ? {} : { reducedMotion: options.reducedMotion })
   });
 }
 
@@ -488,10 +487,10 @@ export function commitStableCandidate(
   snapshot: PhoneMachineTransactionSnapshot
 ): PhoneMachineResult {
   const transaction = snapshot.transaction;
-  const commitSequence = (snapshot.stableCommit?.commitSequence ?? 0) + 1;
-  const scene = phoneSceneById(transaction.candidateSceneId);
+  const commitSequence = (snapshot.stableCommit?.commitSequence ?? 0) + 1; const scene = phoneSceneById(transaction.candidateSceneId); const entry = transaction.mode === 'segment' ? null : phoneEntryForLocation(transaction.requestedEntry.pathname, transaction.requestedEntry.hash);
   const stableCommit: PhoneStableCommit<PhoneSceneId> = freezeOwned({
-    sceneId: scene.id, landing: scene.landing, commitSequence
+    sceneId: scene.id, landing: scene.landing, commitSequence,
+    direction: transaction.attempt.direction, landingAlias: entry?.landingAlias ?? null
   });
   const proof = presentationProof(transaction, commitSequence, 'committed');
   const stable = freezeOwned({
@@ -511,11 +510,13 @@ function finishReproject(snapshot: PhoneMachineTransactionSnapshot): PhoneMachin
     code: 'missing-rollback-anchor', message: 'Cannot settle proof without a stable commit',
     recoverable: false
   });
-  const rollback = snapshot.transaction.commitIntent === 'rollback';
-  const proof = presentationProof(snapshot.transaction, stableCommit.commitSequence,
+  const rollback = snapshot.transaction.commitIntent === 'rollback'; const entry = phoneEntryForLocation(snapshot.transaction.requestedEntry.pathname, snapshot.transaction.requestedEntry.hash); const updateLanding = snapshot.transaction.reprojectLanding === 'request';
+  const landingAlias = updateLanding && entry.sceneId === stableCommit.sceneId ? entry.landingAlias : stableCommit.landingAlias;
+  const nextStableCommit = rollback || !updateLanding || (stableCommit.direction === null && stableCommit.landingAlias === landingAlias) ? stableCommit : freezeOwned({ ...stableCommit, direction: null, landingAlias });
+  const proof = presentationProof(snapshot.transaction, nextStableCommit.commitSequence,
     rollback ? 'rollback' : 'committed');
   const stable = freezeOwned({
-    ...snapshot, status: 'stable', stableCommit, presentationProof: proof, transaction: null,
+    ...snapshot, status: 'stable', stableCommit: nextStableCommit, presentationProof: proof, transaction: null,
     scroll: snapshot.scroll ?? { x: 0, y: 0, sampledAt: 0, origin: 'runtime' },
     input: {
       enabled: true, claimedEpoch: snapshot.transaction.claimedPhysicalEpoch,
@@ -537,7 +538,7 @@ function finishReproject(snapshot: PhoneMachineTransactionSnapshot): PhoneMachin
 
 export function reprojectCommittedPlane(
   snapshot: PhoneMachineSnapshot,
-  request: PhoneEntryRequest = snapshot.originalEntry
+  request: PhoneEntryRequest = snapshot.originalEntry, reprojectLanding?: 'request', pendingEntry?: PhoneEntryRequest
 ): PhoneMachineResult {
   if (!snapshot.stableCommit) return freezeOwned({ snapshot, effects: [] });
   return beginTransaction(snapshot, {
@@ -547,7 +548,7 @@ export function reprojectCommittedPlane(
     segmentId: null,
     direction: null,
     request,
-    commitIntent: 'reproject',
+    commitIntent: 'reproject', ...(reprojectLanding ? { reprojectLanding } : {}), pendingEntry: pendingEntry ?? null,
     physicalEpoch: snapshot.input.claimedEpoch,
     activation: 'spent'
   });
@@ -598,7 +599,7 @@ function startWarmEntry(
       commitIntent: 'semantic', canonicalizeUrlOnCommit: urlWasReplaced
     }, invalidatedAttempt ? [{ type: 'invalidate-attempt', attempt: invalidatedAttempt }] : []);
   }
-  if (source.sceneId === target) return reprojectCommittedPlane(snapshot, request);
+  if (source.sceneId === target) return reprojectCommittedPlane(snapshot, request, 'request');
   return beginTransaction(snapshot, {
     mode: 'entry',
     sourceSceneId: source.sceneId,
@@ -1055,7 +1056,7 @@ function recoverForViewport(
     }, prefix);
   }
   if (base.stableCommit) {
-    const recovery = reprojectCommittedPlane(base);
+    const aliasRecovery = base.status === 'transaction' && base.transaction.mode === 'recovery' && base.transaction.reprojectLanding === 'request' ? base.transaction : null; const pendingEntry = base.status === 'transaction' && base.transaction.mode === 'entry' && ['hash', 'popstate'].includes(base.transaction.requestedEntry.origin) ? base.transaction.requestedEntry : undefined; const recovery = reprojectCommittedPlane(base, aliasRecovery?.requestedEntry, aliasRecovery ? 'request' : undefined, pendingEntry);
     return freezeOwned({ snapshot: recovery.snapshot, effects: [...prefix, ...recovery.effects] });
   }
   const candidate = base.status === 'transaction'

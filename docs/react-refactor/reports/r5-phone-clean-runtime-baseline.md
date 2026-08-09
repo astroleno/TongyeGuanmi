@@ -854,3 +854,209 @@ git diff --exit-code 9652fbe -- \
 - No production source has changed.
 
 Task 1 is not authorized by this report. Execution stops at Review 1.
+
+## 10. 2026-08-09 P0 continuity acceptance update
+
+This section is a later execution record. It does not rewrite the historical
+Task 0 baseline above.
+
+Status: **automated acceptance complete; physical iPhone acceptance pending**.
+The branch must not be described as P0-complete until the physical matrix in
+section 10.4 is accepted.
+
+This status was superseded by the correctness-review reopening recorded in
+section 11.
+
+### 10.1 Candidate identity
+
+| Field | Recorded value |
+| --- | --- |
+| Worktree | `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime` |
+| Branch | `codex/r5-phone-clean-runtime-convergence` |
+| Base `HEAD` | `fef2af87de9f14466b28de37a9910e8f442ed070` |
+| Source state | uncommitted implementation and acceptance changes; no commit or PR created |
+| Automated acceptance date | 2026-08-09 (Asia/Shanghai) |
+
+### 10.2 Implemented P0 contracts
+
+- Brand → Figure3 and Figure3 → Brand commit the decoded static initial poster.
+  Figure3 video/Canvas ownership is reserved for Figure3 ↔ Services, which keeps
+  the authored 2.6-second playback and bounded rollback behavior.
+- Hero preboot, document, shell coverage, and stable edge ownership use
+  `#040807`; the cold path no longer begins on `#07110e`.
+- Figure2 forward media plays to 2.6 seconds, then remains paused at that frame
+  through dwell and z-depth. Reverse staging holds the same boundary before the
+  authored reverse media leg.
+- Reduced-motion Figure2 cold entry uses its decoded static poster without a
+  media CTA, while reduced cinematic segments retain their required endpoint
+  proof and skip only playback sampling.
+- Direct media-entry browser tests now honor the manifest's covered activation
+  fallback rather than assuming muted WebKit autoplay always succeeds.
+- Transition-chunk fail-closed results remain bound to the failed transaction
+  and stable rollback anchor; boot, prewarm, cached rejection, lifecycle
+  replacement, and manual recovery paths remain covered.
+
+### 10.3 Automated acceptance matrix
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Production build, typecheck, architecture, media inventory, release verification, budgets | pass | `pnpm --dir app build`; phone JS 642,436 B, 21,116 B hard-cap headroom |
+| Serialized Vitest | pass | 176 files, 1,313 tests, 76.42 s |
+| Phone portrait WebKit full suite | pass | 94/94 tests, one worker, 10.2 min |
+| Complete story endurance | pass | 60 forward/reverse segment traversals, one authority, no resource growth; final full-suite run 2.8 min |
+| Brand/Figure3 cycle | pass | static incoming poster, outgoing/reverse media, failure rollback, two-cycle resource stability |
+| Figure2 staged media | pass | paused at approximately 2.6 s throughout dwell/z-depth; stable checkpoint preserved |
+| Hero cold continuity | pass in controlled WebKit | preboot token, bottom edge, Loader handoff, and toolbar-sized resize assertions |
+| PH/Crane lifecycle | pass | direct activation, Canvas proof, context loss, visibility, BFCache, orientation, and replay |
+| Reduced motion | pass | Figure2 direct static proof and Hero → Pattern terminal proof; no visible activation CTA |
+| Chunk recovery | pass | delayed/cached rejection, one bounded reload, rollback, fail-closed, and accessible manual retry |
+| Whitespace/error check | pass | `git diff --check` |
+
+Additional stability evidence gathered while resolving WebKit pressure:
+
+- the Group 4–5 two-cycle test passed three independent repeat runs and both
+  later full-suite runs;
+- the complete 60-segment story passed four completed runs, including the final
+  94-test suite;
+- the reduced-motion direct target passed three consecutive focused WebKit runs
+  after the cold-entry fix.
+
+### 10.4 Mandatory physical-iPhone acceptance
+
+No physical device was available to this execution environment. Fill and accept
+this matrix on a genuinely cold Safari tab with the toolbar expanded:
+
+| Scenario | Required observation | Status |
+| --- | --- | --- |
+| Device identity | Record iPhone model, iOS version, Safari build, orientation, toolbar state, reduced-motion state, URL, and candidate identity | pending |
+| Cold Hero | No bottom color band before React, during Loader handoff, after stable commit, or on the first toolbar resize | pending |
+| Brand ↔ Figure3 ↔ Services | Two forward/reverse cycles; no rollback loop, CTA, blank frame, replay, or soft poster/Canvas swap | pending |
+| Figure2 ↔ Proof | Forward and reverse media/stage sequence; dwell and z-depth visibly hold the 2.6-second terminal frame | pending |
+| Original visual regressions | No A/B flash, Figure2 ghosting/arch blur, Figure3 softness, or viewport bounce | pending |
+
+Automated WebKit establishes the state, ownership, decode, frame, rollback, and
+resource contracts. It does not prove the final physical-device appearance.
+
+## 11. 2026-08-09 correctness-review implementation and remaining asset gate
+
+This section supersedes section 10's readiness status.
+
+Status: **three runtime findings closed; the Figure3 motion-resolution finding
+and physical-iPhone acceptance remain blocking**. Automated acceptance may be
+used for functional review, but the branch must not be described as visually or
+P0-complete.
+
+### 11.1 Correctness fixes
+
+- The `vite:preloadError` controller now recognizes native `Error` payloads
+  through `message`/`cause`, only prevents the browser default after proving
+  that the failed URL belongs to the phone core, and leaves unknown or leaf
+  preload failures observable.
+- Figure3 separates replay-safe effect cleanup from hard decoder retirement.
+  StrictMode effect replay keeps the motion sources intact; real retirement
+  still removes them. A late compositor callback can no longer re-enable the
+  Canvas and hide the stable initial poster after Services → Figure3 settles.
+- Figure2 reverse media resume rejection now reports a recoverable
+  `figure2-reverse-playback-rejected` failure instead of silently advancing a
+  frozen frame.
+- Figure2 reverse z-depth warmup no longer inherits a stale visible-Canvas
+  proof. The Canvas stays gated while the physical `play()` unlock is pending,
+  and is exposed only after playback is paused, the media is pinned back to
+  2.6 seconds, and a non-seeking endpoint repaint proves the same activation
+  generation.
+- Figure3 keeps the existing 640×360 poster as the decoded static handoff
+  surface. The unconfirmed 1920×1080 poster-only replacement, rebuild source,
+  script, hash, and budget increase were withdrawn so the candidate does not
+  imply visual parity with the 1280×720 motion encodes.
+
+### 11.2 Fresh automated evidence
+
+| Gate | Result | Fresh evidence |
+| --- | --- | --- |
+| Vitest | pass | 176 files, 1,319 tests, serialized with one worker, 112.55 s |
+| Production build and budgets | pass | typecheck, boolean contract, cutover architecture, module boundaries, packed-alpha masters, Vite, media inventory, release verification, and budgets; phone JS 643,399 B with 20,153 B hard-cap headroom |
+| Phone portrait WebKit full suite | pass | 96/96 tests, one worker, 10.9 min |
+| Figure3 and Group 4–5 repeat gate | pass | both two-cycle tests repeated three times, 6/6, 3.4 min |
+| Complete-story repeat gate | pass | two independent 60-segment runs, 2/2, 5.6 min; the final full suite added another passing run |
+| Figure2 reverse endpoint visibility | pass | delayed warmup is hidden until paused endpoint reproves; forward hold, reverse hold, and reverse rejection WebKit cases repeated three times, 9/9, 57.7 s |
+| Figure2 reverse rejection | pass | real leaf reports the rejected reverse `play()` and reaches stable rollback or an accessible controlled fault without committing a frozen target |
+
+### 11.3 Blocking visual asset and device evidence
+
+Both shipped Figure3 motion encodes are still 1280×720 (`VP9` WebM and `HEVC`
+MP4). Repository-history inspection found no genuine motion master above
+1440×810. The retained static poster is 640×360. Canvas DPR and high-quality
+smoothing cannot recover source detail, and independently replacing or
+upscaling any one derivative would not close the reported blur or visual jump.
+
+To close this gate, provide the genuine Figure3 motion master at no less than
+the effective 2× portrait requirement (a 16:9 4K master is sufficient for 2×;
+full 3× at a 390×844 viewport requires approximately 4501×2532), regenerate
+the first-frame poster and both browser encodes from that same master, update
+the frozen media inventory, and repeat the poster-to-Canvas sharpness
+comparison on a physical iPhone.
+
+The physical matrix in section 10.4 also remains pending, including low-power
+mode, background/foreground recovery, toolbar geometry, touch input, A/B flash,
+Figure2 ghosting/arch blur, Figure3 poster-to-Canvas continuity, and viewport
+bounce.
+
+### 11.4 Causal scope audit before candidate freeze
+
+The final scope audit contains 45 modified tracked files plus this P0 plan. The
+following unrelated or misleading ranges were removed:
+
+- the unconfirmed 1920×1080 Figure3 poster, its source PNG, rebuild command,
+  frozen hash, media test, and budget increase;
+- direct-entry browser changes that did not establish any of the original P0
+  visual paths;
+- the Figure3 DPR/smoothing increase, which could not recover source detail.
+
+The retained files map to one of five evidenced contracts: atomic A/B and
+shared-foreground presentation; Proof landing/history and rollback recovery;
+native Vite preload fail-closed recovery; Figure2 endpoint/warmup behavior; or
+Figure3 static proof, replay-safe media lifetime, and two-cycle traversal. Hero
+changes are limited to the cold ownership color and a phone-preboot-scoped
+Loader rule. No new general runtime, viewport geometry, global gradient, or
+unrelated media owner remains in the candidate range.
+
+The complete WebKit gate proved that the initially removed target-media owners
+for Services → TTG, Lab → PH, and Education → Crane are compatibility-critical,
+not optional expansion. These three receivers have no immutable static poster;
+with strict runtime ownership set to `none`, each target could not prove its
+first media frame and rolled back. Their incoming legs therefore own target
+media preparation while keeping target progress at the authored initial hold.
+The focused two-cycle, delayed-chunk, lifecycle, and complete-story failures all
+passed after restoring only these three manifest declarations.
+
+The complete WebKit gate also exposed legacy direct-entry helpers that still
+waited only for muted autoplay and timed out when the production shell correctly
+exposed its covered “继续播放” activation. The existing media, matrix, lifecycle,
+and all-hash boot helpers now call the shared `waitForDirectEntryCommit`; no
+production behavior changed. The AOD poster test now checks that playback stays
+paused at time zero instead of requiring `currentSrc` to be empty despite its
+authored `preload="auto"`. All eleven originally failing focused WebKit cases
+then passed 11/11 before the complete suite was restarted.
+
+### 11.5 Controlled 60fps visual preflight
+
+Six production-preview WebKit paths were recorded at CFR 60fps and reviewed as
+full recordings, 15fps contact sheets, clean checkpoints, and five consecutive
+frames centered on each targeted stable handoff. The evidence root is
+`app/output/playwright/phone-p0-visual-preflight/`; it is intentionally ignored
+from source control and carries its own SHA-256 inventory and report.
+
+| Path | Result |
+| --- | --- |
+| Cold Hero, Loader, stable Hero, toolbar resize/restore | pass after pre-freeze correction; Loader first pixel is exact `#040807` |
+| Hero → Pattern → Star Map → AOD → Method | no early target exposure or empty A/B frame found |
+| Figure2 → Proof, reverse, and delayed reverse warmup | no duplicate figure, cross-scope arch, opening-poster leak, or moving z-depth frame found |
+| Proof → Brand | no post-commit rebound found |
+| Brand → Figure3 → Services → Figure3 → Brand, twice | commit sequence 1→9, no rollback, blank frame, stuck card, or replay/reset jump |
+
+The Figure3 path is a functional/compositor pass only. The reviewed recording
+still exposes the expected sharpness/tone difference between the 640×360 poster
+and 1280×720 motion derivatives. It therefore supplies no clarity approval and
+does not change the blocking status in section 11.3. Physical iPhone Safari
+remains the final owner of touch, media-policy, lifecycle, toolbar, and visual
+acceptance.

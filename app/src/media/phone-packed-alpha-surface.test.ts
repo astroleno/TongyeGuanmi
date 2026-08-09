@@ -162,6 +162,42 @@ describe('canonical phone packed-alpha surface', () => {
     current.surface.dispose('terminal');
   });
 
+  it('waits for current media data before priming an endpoint frame', () => {
+    const current = fixture();
+    Object.defineProperty(current.video, 'readyState', {
+      configurable: true, value: HTMLMediaElement.HAVE_METADATA
+    });
+    current.surface.activate('endpoint');
+    current.video.dispatchEvent(new Event('loadedmetadata'));
+    expect(current.onFailure).not.toHaveBeenCalled();
+
+    Object.defineProperty(current.video, 'readyState', {
+      configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA
+    });
+    current.video.dispatchEvent(new Event('loadeddata'));
+    expect(current.onFailure).not.toHaveBeenCalled();
+    current.surface.dispose('terminal');
+  });
+
+  it('does not prove an endpoint compositor frame while its seek is pending', () => {
+    const current = fixture();
+    current.surface.activate('endpoint');
+    current.video.currentTime = 1.25;
+    Object.defineProperty(current.video, 'seeking', {
+      configurable: true, value: true
+    });
+
+    compositorProbe.callbacks[0]?.();
+    expect(current.onFrame).not.toHaveBeenCalled();
+
+    Object.defineProperty(current.video, 'seeking', {
+      configurable: true, value: false
+    });
+    compositorProbe.callbacks[0]?.();
+    expect(current.onFrame).toHaveBeenCalledOnce();
+    current.surface.dispose('terminal');
+  });
+
   it('reports setup and context loss immediately and retires their token', () => {
     compositorProbe.setupFailure = true;
     const setup = fixture();

@@ -19,9 +19,10 @@ describe('Figure3 phone paper compositor', () => {
 
   it('multiplies a decoded frame into the canonical desktop paper', () => {
     const compositions: string[] = [];
+    const drawImage = vi.fn();
     const context = {
       clearRect: vi.fn(),
-      drawImage: vi.fn(),
+      drawImage,
       fillRect: vi.fn(),
       fillStyle: '',
       setTransform: vi.fn()
@@ -35,7 +36,7 @@ describe('Figure3 phone paper compositor', () => {
       height: 0,
       clientWidth: 390,
       clientHeight: 844,
-      dataset: {} as DOMStringMap,
+      dataset: { phoneFigure3PaperScale: '1.05' } as DOMStringMap,
       getBoundingClientRect: () => ({ width: 390, height: 844 }),
       getContext: vi.fn(() => context)
     } as unknown as HTMLCanvasElement;
@@ -48,13 +49,15 @@ describe('Figure3 phone paper compositor', () => {
     expect(paintPhoneFigure3PaperFrame(video, canvas)).toBe(true);
     expect(context.fillStyle).toBe(PHONE_FIGURE3_PAPER_COLOR);
     expect(compositions).toContain('multiply');
-    expect(context.drawImage).toHaveBeenCalledWith(
+    expect(drawImage).toHaveBeenCalledWith(
       video,
       0,
       expect.any(Number),
       expect.any(Number),
-      844
+      expect.any(Number)
     );
+    expect(drawImage.mock.calls[0]?.[3] as number)
+      .toBeGreaterThan(phoneFigure3PaperCoverRect(1280, 720, 390, 844).width);
     expect(canvas.dataset.phoneFigure3PaperFrame).toBe('ready');
   });
 

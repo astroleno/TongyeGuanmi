@@ -19,10 +19,20 @@ function parsedDiagnostic(value: string | null, label: string): number {
 
 export async function assertSinglePhoneAuthority(page: Page): Promise<void> {
   const shells = page.locator('.phone-story');
-  await expect(shells).toHaveCount(1);
-  const authority = await shells.getAttribute('data-phone-authority');
-  expect(authority?.trim(), 'clean harness authority identity').toBeTruthy();
-  await expect(page.locator(`.phone-story[data-phone-authority="${authority}"]`)).toHaveCount(1);
+  await expect.poll(() => shells.evaluateAll((nodes) => {
+    const authorities = nodes.map((node) => (
+      (node as HTMLElement).dataset.phoneAuthority?.trim() ?? ''
+    )).filter(Boolean);
+    return {
+      shells: nodes.length,
+      authorities: authorities.length,
+      distinctAuthorities: new Set(authorities).size
+    };
+  }), { message: 'one clean route-local authority' }).toEqual({
+    shells: 1,
+    authorities: 1,
+    distinctAuthorities: 1
+  });
 }
 
 export async function readPlaneRevision(page: Page): Promise<number> {
@@ -356,15 +366,108 @@ export async function assertInkIntermediateCompositeContribution(
   }
 }
 
+export async function readPhoneStoryDiagnostic(page: Page): Promise<Readonly<{
+  url: string;
+  shell: Readonly<Record<string, string>> | null;
+  loader: Readonly<Record<string, string>> | null;
+  activation: Readonly<Record<string, string>> | null;
+  media: readonly Readonly<Record<string, unknown>>[];
+  canvases: readonly Readonly<Record<string, unknown>>[];
+  images: readonly Readonly<Record<string, unknown>>[];
+}>> {
+  return page.evaluate(() => {
+    const describe = (element: HTMLElement | null) => element
+      ? Object.freeze({ ...element.dataset })
+      : null;
+    const media = [...document.querySelectorAll<HTMLVideoElement>('.phone-story video')]
+      .map((video) => ({
+        dataset: { ...video.dataset },
+        currentTime: video.currentTime,
+        duration: video.duration,
+        readyState: video.readyState,
+        paused: video.paused,
+        seeking: video.seeking,
+        networkState: video.networkState,
+        error: video.error?.code ?? null
+      }));
+    const canvases = [...document.querySelectorAll<HTMLCanvasElement>('.phone-story canvas')]
+      .map((canvas) => ({
+        dataset: { ...canvas.dataset },
+        width: canvas.width,
+        height: canvas.height,
+        rect: (() => {
+          const bounds = canvas.getBoundingClientRect();
+          return [bounds.left, bounds.top, bounds.right, bounds.bottom];
+        })()
+      }));
+    const images = [...document.querySelectorAll<HTMLImageElement>('.phone-story img')]
+      .map((image) => ({
+        dataset: { ...image.dataset },
+        src: image.currentSrc || image.src,
+        complete: image.complete,
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+        rect: (() => {
+          const bounds = image.getBoundingClientRect();
+          return [bounds.left, bounds.top, bounds.right, bounds.bottom];
+        })(),
+        style: (() => {
+          const computed = getComputedStyle(image);
+          return {
+            display: computed.display,
+            visibility: computed.visibility,
+            opacity: computed.opacity,
+            zIndex: computed.zIndex
+          };
+        })()
+      }));
+    return {
+      url: location.href,
+      shell: describe(document.querySelector<HTMLElement>('.phone-story')),
+      loader: describe(document.querySelector<HTMLElement>('[data-story-loader="true"]')),
+      activation: describe(document.querySelector<HTMLElement>('[data-phone-activation]:not([hidden])')),
+      media,
+      canvases,
+      images
+    };
+  });
+}
+
 export async function waitForCommitSequence(
   page: Page,
   sceneId: string,
-  afterSequence: number
+  afterSequence: number,
+  timeoutMs = 30_000
 ): Promise<number> {
-  await page.waitForFunction(({ scene, after }) => {
+  try {
+    await page.waitForFunction(({ scene, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const sequence = Number.parseInt(shell?.dataset.phoneCommitSequence ?? '', 10);
+      return shell?.dataset.phoneScene === scene && sequence > after;
+    }, { scene: sceneId, after: afterSequence }, { timeout: timeoutMs });
+  } catch (error) {
+    const diagnostic = await readPhoneStoryDiagnostic(page);
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\n`
+      + `Phone story diagnostic: ${JSON.stringify(diagnostic)}`);
+  }
+  return readCommitSequence(page);
+}
+
+export async function waitForDirectEntryCommit(
+  page: Page,
+  sceneId: string,
+  afterSequence = 0
+): Promise<number> {
+  const boundary = await page.waitForFunction(({ scene, after }) => {
     const shell = document.querySelector<HTMLElement>('.phone-story');
     const sequence = Number.parseInt(shell?.dataset.phoneCommitSequence ?? '', 10);
-    return shell?.dataset.phoneScene === scene && sequence > after;
-  }, { scene: sceneId, after: afterSequence });
-  return readCommitSequence(page);
+    if (shell?.dataset.phoneScene === scene && sequence > after) return 'committed';
+    return shell?.dataset.phonePhase === 'awaiting-media-activation'
+      || document.querySelector('[data-phone-activation]:not([hidden])')
+      ? 'activation' : null;
+  }, { scene: sceneId, after: afterSequence }, { timeout: 30_000 });
+  if (await boundary.jsonValue() === 'activation') {
+    await page.locator('[data-phone-activation]:not([hidden])').click();
+  }
+  return waitForCommitSequence(page, sceneId, afterSequence);
 }

@@ -4,10 +4,11 @@ import type {
   PhoneLeafActivationCommand, PhoneLeafDisposeReason, PhoneLeafPauseReason,
   PhoneLayoutViewport, PhonePreparedReport, PhoneDependencyClosure,
   PhoneRuntimeResourceCounts, PhoneSurfaceId, PhoneTransaction,
-  PhoneTransactionLeg, PhoneViewportSnapshot, PhoneVisualViewport, PhoneFailure
+  PhoneTransactionLeg, PhoneViewportSnapshot, PhoneVisualViewport, PhoneFailure,
+  PhoneStableCommit
 } from './protocol';
 import { phoneManifest, phonePreparedSurfaceIds, phoneSceneById,
-  type PhoneInkOwnership, type PhoneSceneId, type PhoneSegmentId,
+  phoneEntryForLocation, type PhoneInkOwnership, type PhoneSceneId, type PhoneSegmentId,
   type PhoneTransitionProjection } from './manifest';
 
 export type PhoneSurfaceKind = 'dom' | 'image' | 'video' | 'canvas-2d' | 'canvas-webgl';
@@ -78,16 +79,16 @@ export type PhoneLeafReportPort = Readonly<{
   reportFailure(failure: PhoneFailure): void;
 }>;
 
-export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken }>;
+export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken; segmentId?: string | null; stageIndex?: number; direction?: 'forward' | 'reverse' | null }>;
 
 export function createPhoneLeafGenerationBinding(
   reports: PhoneLeafReportPort,
-  transactionId: string,
-  sequence: number
+  transactionId: string, sequence: number, segmentId: string | null = null,
+  stageIndex?: number, direction?: 'forward' | 'reverse' | null
 ): PhoneLeafGenerationBinding {
   return Object.freeze({
-    reports,
-    frameToken: `${transactionId}:frame:${sequence}`
+    reports, frameToken: `${transactionId}:frame:${sequence}`, segmentId,
+    ...(stageIndex === undefined ? {} : { stageIndex }), ...(direction === undefined ? {} : { direction })
   });
 }
 
@@ -100,9 +101,8 @@ export function bindPhoneLeafGeneration(
   beforeRebind?: (token: PhoneFrameToken) => void
 ): PhoneFrameToken {
   const generation = createPhoneLeafGenerationBinding(
-    reports,
-    binding.attempt.transactionId,
-    sequence
+    reports, binding.attempt.transactionId, sequence, binding.attempt.segmentId,
+    binding.stageIndex, binding.attempt.direction
   );
   beforeRebind?.(generation.frameToken);
   if (rebindMount) mount.rebind(binding);
@@ -316,7 +316,7 @@ export type PhonePlaneRequest = Readonly<{
   attempt: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>; stageIndex: number;
   leg: 'source' | 'target' | 'rollback'; sceneId: PhoneSceneId; planeRevision: number;
   viewport: PhoneViewportSnapshot; required: readonly PhoneEvidenceSlot[];
-  progress: number; loaderCovered: boolean;
+  progress: number; loaderCovered: boolean; landingAlias?: 'opening' | 'cards' | 'closing' | null;
 }>;
 
 export type PhonePlaneApplyResult = Readonly<{ records: readonly PhoneEvidenceRecord[]; failure: PhoneFailure | null }>;
@@ -335,7 +335,7 @@ export type PhonePresentationDependencies = Readonly<{
 export type PhonePresentation = Readonly<{
   attachRoot(root: HTMLElement): () => void; sampleLayoutViewport(): PhoneLayoutViewport;
   sampleVisualViewport(): PhoneVisualViewport; verifyPrepared(request: PhonePreparedProofRequest): PhonePreparedProof;
-  applyTransitionFrame(frame: PhoneTransitionProjection | null): void;
+  applyTransitionFrame(frame: PhoneTransitionProjection | null): void; commitStablePlane(sourceBuffer: 'a' | 'b'): void;
   registerLeafMount(request: PhoneLeafMountRequest): PhoneLeafMountLease; applyPlane(request: PhonePlaneRequest): PhonePlaneApplyResult;
   refreshStableViewport(viewport: PhoneViewportSnapshot): void;
   verifyVisibleCandidate(request: PhoneVisibleCandidateProofRequest): PhonePlaneApplyResult;
@@ -346,7 +346,8 @@ export type PhonePresentation = Readonly<{
 export function createPhonePlaneRequest(
   transaction: PhoneTransaction<PhoneSceneId, PhoneSegmentId>,
   viewport: PhoneViewportSnapshot,
-  hasStableCommit: boolean
+  hasStableCommit: boolean,
+  stableCommit: PhoneStableCommit<PhoneSceneId> | null = null
 ): PhonePlaneRequest | null {
   const required = transaction.requiredFinal;
   const first = required[0];
@@ -355,11 +356,13 @@ export function createPhonePlaneRequest(
       || slot.planeRevision !== transaction.planeRevision)) return null;
   const sceneId = first.leg === 'source'
     ? transaction.sourceSceneId : transaction.candidateSceneId;
+  const entryAlias = transaction.mode === 'segment' ? null : phoneEntryForLocation(transaction.requestedEntry.pathname, transaction.requestedEntry.hash).landingAlias;
+  const landingAlias = stableCommit?.sceneId === sceneId ? stableCommit.landingAlias ?? (stableCommit.direction === 'reverse' ? 'closing' : 'opening') : entryAlias ?? (transaction.attempt.direction === 'reverse' ? 'closing' : 'opening');
   return sceneId && transaction.planeRevision !== null ? Object.freeze({
     attempt: transaction.attempt, stageIndex: transaction.stageIndex,
     leg: first.leg, sceneId, planeRevision: transaction.planeRevision,
     viewport, required, progress: transaction.progress,
-    loaderCovered: transaction.mode === 'boot' && !hasStableCommit
+    loaderCovered: transaction.mode === 'boot' && !hasStableCommit, landingAlias
   }) : null;
 }
 
@@ -719,33 +722,30 @@ export function createPhonePresentation(
       && Number.parseInt(getStyle(topology.receiver).zIndex, 10) === expectedReceiver;
   };
 
+  const transitionVariables = ['--phone-source-opacity', '--phone-target-opacity', '--phone-source-clip', '--phone-target-clip', '--phone-source-mask', '--phone-target-mask'] as const;
+
+  const clearTransitionFrame = (root: HTMLElement, source?: HTMLElement, receiver?: HTMLElement): void => {
+    for (const attribute of ['data-phone-transition-live', 'data-phone-transition-direction', 'data-phone-transition-foreground'] as const) root.removeAttribute(attribute); for (const variable of transitionVariables) root.style.removeProperty(variable); if (!source || !receiver) return;
+    source.setAttribute('data-phone-exposed', 'true'); receiver.setAttribute('data-phone-exposed', 'false'); source.style.setProperty('--phone-plane-z', '10'); receiver.style.setProperty('--phone-plane-z', '30');
+  };
+
   const applyTransitionFrame: PhonePresentation['applyTransitionFrame'] = (frame) => {
     const root = state.root, topology = root ? presentationTopology(root) : null;
     if (!root || !topology) return;
-    const variables = ['--phone-source-opacity', '--phone-target-opacity',
-      '--phone-source-clip', '--phone-target-clip',
-      '--phone-source-mask', '--phone-target-mask'] as const;
-    if (!frame) {
-      root.removeAttribute('data-phone-transition-live');
-      root.removeAttribute('data-phone-transition-direction');
-      root.removeAttribute('data-phone-transition-foreground');
-      for (const variable of variables) root.style.removeProperty(variable);
-      return;
-    }
+    if (!frame) { clearTransitionFrame(root, topology.source, topology.receiver); return; }
     const reverse = frame.direction === 'reverse';
     root.setAttribute('data-phone-transition-live', 'true');
     root.setAttribute('data-phone-transition-direction', frame.direction);
     root.setAttribute('data-phone-transition-foreground', frame.foregroundOwner);
     topology.source.setAttribute('data-phone-exposed', 'true');
     topology.receiver.setAttribute('data-phone-exposed', 'true');
-    const values = [frame.sourceOpacity, frame.targetOpacity,
-      reverse ? frame.ownership?.revealClip : frame.ownership?.concealClip,
-      reverse ? frame.ownership?.concealClip : frame.ownership?.revealClip,
-      reverse ? frame.ownership?.revealMask : frame.ownership?.concealMask,
-      reverse ? frame.ownership?.concealMask : frame.ownership?.revealMask];
-    variables.forEach((variable, index) => root.style.setProperty(
-      variable, String(values[index] ?? 'none')
-    ));
+    const values = [frame.sourceOpacity, frame.targetOpacity, reverse ? frame.ownership?.revealClip : frame.ownership?.concealClip, reverse ? frame.ownership?.concealClip : frame.ownership?.revealClip, reverse ? frame.ownership?.revealMask : frame.ownership?.concealMask, reverse ? frame.ownership?.concealMask : frame.ownership?.revealMask];
+    transitionVariables.forEach((variable, index) => root.style.setProperty(variable, String(values[index] ?? 'none')));
+  };
+
+  const commitStablePlane: PhonePresentation['commitStablePlane'] = (sourceBuffer) => {
+    const root = state.root; if (!root) return; const source = root.querySelector<HTMLElement>(`[data-phone-buffer="${sourceBuffer}"]`); const receiver = root.querySelector<HTMLElement>(`[data-phone-buffer="${sourceBuffer === 'a' ? 'b' : 'a'}"]`); if (!source || !receiver) return;
+    clearTransitionFrame(root, source, receiver); root.setAttribute('data-phone-stable-buffer', sourceBuffer);
   };
 
   const applyVariables = (
@@ -816,7 +816,8 @@ export function createPhonePresentation(
     const visual = request.viewport.visual;
     const scene = phoneSceneById(request.sceneId);
     const authoredComposite = scene.frame.surfaceIds.length > 1;
-    const elements = scene.content.selectors.map((selector) => (
+    const selectors = scene.id === 'figure2-proof' ? [`[data-r4-proof-panel="${request.landingAlias ?? 'opening'}"]`] : scene.content.selectors;
+    const elements = selectors.map((selector) => (
       record.root?.querySelector<HTMLElement>(selector) ?? null
     ));
     if (elements.some((element) => !element)) return presentationFailure(
@@ -870,7 +871,7 @@ export function createPhonePresentation(
     const scene = phoneSceneById(request.sceneId);
     const requiredSurfaces = scene.id === 'figure2-animation' || scene.id === 'figure2-proof' || scene.frame.kind === 'packed-canvas-draw' ? scene.frame.surfaceIds : scene.frame.surfaceIds.slice(0, 1);
     const surfaces = requiredSurfaces.map((id) => record.surfaces.get(id)?.element);
-    const expectedFact = (id: string): string => id === 'figure2-foreground-arch' || scene.frame.kind === 'image-decode-composite-paint' ? 'image-decoded' : scene.frame.kind === 'content-post-paint' ? 'static-ready' : scene.frame.kind === 'decoded-composited-frame' && scene.directEntry.closure.resourceBudget.canvases === 0 ? 'video-decoded' : 'canvas-drawn';
+    const expectedFact = (id: string): string => id === 'figure2-foreground-arch' || scene.frame.kind === 'image-decode-composite-paint' || scene.frame.kind === 'canvas-or-static-post-paint' ? 'image-decoded' : scene.frame.kind === 'content-post-paint' ? 'static-ready' : scene.frame.kind === 'decoded-composited-frame' && scene.directEntry.closure.resourceBudget.canvases === 0 ? 'video-decoded' : 'canvas-drawn';
     return surfaces.length > 0 && surfaces.every((surface, index) => {
       const id = requiredSurfaces[index]!;
       const ownerRoot = id === 'figure2-foreground-arch' ? state.root : record.root;
@@ -904,7 +905,7 @@ export function createPhonePresentation(
   const landingIsVisible = (request: PhonePlaneRequest, record: PhoneMountRecord): boolean => {
     if (!record.root) return false;
     const anchor = phoneSceneById(request.sceneId).landing.anchor;
-    const selector = anchor.startsWith('#') || anchor.startsWith('[')
+    const selector = request.sceneId === 'figure2-proof' ? `[data-r4-proof-panel="${request.landingAlias ?? 'opening'}"]` : anchor.startsWith('#') || anchor.startsWith('[')
       ? anchor : `[data-phone-landing="${anchor}"]`;
     const element = record.root.querySelector<HTMLElement>(selector);
     return !!element && intersectsVisualViewport(element, request.viewport.visual)
@@ -975,6 +976,7 @@ export function createPhonePresentation(
     attachRoot,
     registerLeafMount,
     applyTransitionFrame,
+    commitStablePlane,
     sampleLayoutViewport: dependencies.sampleLayoutViewport,
     sampleVisualViewport: dependencies.sampleVisualViewport,
     verifyPrepared,

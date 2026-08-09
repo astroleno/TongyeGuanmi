@@ -70,6 +70,32 @@ function failureMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function vitePreloadModuleUrl(payload: unknown): string | null {
+  const visited = new Set<unknown>();
+  const candidates: string[] = [];
+  const collect = (value: unknown): void => {
+    if (value === null || value === undefined || visited.has(value)) return;
+    visited.add(value);
+    if (typeof value === 'string') {
+      candidates.push(value);
+      return;
+    }
+    if (typeof value !== 'object') return;
+    const record = value as Record<string, unknown>;
+    if (typeof record.url === 'string') candidates.push(record.url);
+    if (typeof record.message === 'string') candidates.push(record.message);
+    collect(record.cause);
+  };
+  collect(payload);
+  for (const candidate of candidates) {
+    const match = candidate.match(
+      /(?:https?:\/\/|\/)[^\s"'<>]+?\.(?:m?js|css)(?:\?[^\s"'<>]*)?/
+    );
+    if (match) return match[0];
+  }
+  return null;
+}
+
 function validLineage(value: unknown): value is PhoneChunkRecoveryLineage {
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
@@ -246,8 +272,8 @@ export function createPhoneChunkRecoveryController(
     pending = recover(failure).finally(() => { pending = null; });
     return pending;
   };
-  const markStable = (_proof: PhoneStableRecoveryProof) => {
-    try { environment.storage?.removeItem(lineageStorageKey); } catch {}
+  const markStable = (proof: PhoneStableRecoveryProof) => {
+    try { const stored = environment.storage?.getItem(lineageStorageKey); if (proof.commitSequence === 1 && stored) { const lineage: unknown = JSON.parse(stored); if (validLineage(lineage) && lineage.failedModuleClass === 'transition-leaf') return; } environment.storage?.removeItem(lineageStorageKey); } catch {}
     publish({ status: 'idle' });
   };
   const port: PhoneChunkRecoveryPort = Object.freeze({
@@ -256,7 +282,8 @@ export function createPhoneChunkRecoveryController(
       moduleClass: leafFailureClass(failure),
       reason: failure.reason
     }),
-    markStable
+    markStable,
+    manualReload: environment.reload
   });
   const controller: PhoneChunkRecoveryController = Object.freeze({
     port,
@@ -271,13 +298,12 @@ export function createPhoneChunkRecoveryController(
       reason: failureMessage(error)
     }),
     handlePreloadError(event) {
-      event.preventDefault();
       const payload = (event as Event & { payload?: unknown }).payload;
-      const moduleUrl = payload && typeof payload === 'object'
-        && typeof (payload as Record<string, unknown>).url === 'string'
-        ? String((payload as Record<string, unknown>).url)
-        : 'unknown-phone-preload';
-      void controller.reportPhoneCoreRejection(event, moduleUrl);
+      const moduleUrl = vitePreloadModuleUrl(payload);
+      if (!moduleUrl || !/(?:^|\/)(?:PhoneStoryShell|PhoneBrandLabStory)-[^/?]+\.(?:js|css)(?:$|\?)/
+        .test(moduleUrl)) return;
+      event.preventDefault();
+      void controller.reportPhoneCoreRejection(payload, moduleUrl);
     },
     manualReload: environment.reload
   });

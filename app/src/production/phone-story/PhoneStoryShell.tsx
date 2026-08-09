@@ -31,6 +31,14 @@ const WHEEL_GESTURE_GAP_MS = 240;
 const PHONE_IMPLEMENTATION_SIGNATURE = 'clean-v1';
 const PHONE_FIGURE2_ARCH_SCENES = new Set<PhoneSceneId>(['figure2-animation', 'figure2-proof']);
 
+function nativeReadingTarget(shell: HTMLElement, commit: NonNullable<PhoneShellSnapshot['stableCommit']>): number {
+  const owner = document.scrollingElement ?? document.documentElement; const bottom = Math.max(0, owner.scrollHeight - owner.clientHeight);
+  const cards = commit.sceneId === 'figure2-proof' && commit.landingAlias === 'cards'
+    ? shell.querySelector<HTMLElement>('.phone-story__reading-flow [data-r4-proof-panel="cards"]') : null;
+  return cards ? cards.offsetTop > 0 ? cards.offsetTop : Math.max(0, cards.getBoundingClientRect().top + owner.scrollTop)
+    : commit.direction === 'reverse' || commit.landingAlias === 'closing' ? bottom : 0;
+}
+
 type PhoneTouchPoint = Readonly<{
   identifier: number;
   clientY: number;
@@ -486,9 +494,7 @@ export function PhoneStoryShell({
   diagnostics = false,
   chunkRecovery
 }: PhoneStoryShellProps) {
-  const rootRef = useRef<HTMLElement | null>(null);
-  const connectedRef = useRef(false);
-  const reportPorts = useRef(new Map<string, PhoneLeafReportPort>());
+  const rootRef = useRef<HTMLElement | null>(null); const reportPorts = useRef(new Map<string, PhoneLeafReportPort>()); const connectedRef = useRef(false); const lastStableCommitKeyRef = useRef<string | null>(null);
   const [loaderHidden, setLoaderHidden] = useState(false);
   const [owners] = useState(() => {
     const presentation = createProjector();
@@ -512,8 +518,7 @@ export function PhoneStoryShell({
     owners.engine.subscribe,
     owners.engine.getSnapshot,
     owners.engine.getSnapshot
-  );
-  const stableScene = snapshot.stableCommit?.sceneId ?? null;
+  ); const stableScene = snapshot.stableCommit?.sceneId ?? null;
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -524,8 +529,7 @@ export function PhoneStoryShell({
     const disconnect = owners.engine.connect();
     return () => {
       connectedRef.current = false;
-      delete document.documentElement.dataset.phonePreboot;
-      delete document.documentElement.dataset.storyHydrated;
+      delete document.documentElement.dataset.phonePreboot; delete document.documentElement.dataset.storyHydrated;
       runPhoneCleanupSteps('Phone shell cleanup failed', [
         disconnect, detach,
         () => reportPorts.current.clear(), owners.sceneTopology.clear,
@@ -534,11 +538,9 @@ export function PhoneStoryShell({
     };
   }, [owners]);
   const reportPort = (binding: PhoneLeafReportBinding) => {
-    const key = portKey(binding);
-    const cached = reportPorts.current.get(key);
+    const key = portKey(binding); const cached = reportPorts.current.get(key);
     if (cached) return cached;
-    const created = owners.engine.createLeafReportPort(binding);
-    reportPorts.current.set(key, created);
+    const created = owners.engine.createLeafReportPort(binding); reportPorts.current.set(key, created);
     return created;
   };
   if (connectedRef.current && snapshot.status === 'transaction') {
@@ -547,12 +549,16 @@ export function PhoneStoryShell({
     for (const key of reportPorts.current.keys()) {
       if (!key.startsWith(`${prefix}|`)) reportPorts.current.delete(key);
     }
-  } else {
-    reportPorts.current.clear();
-  }
-  const roles = bufferRoles(snapshot);
-  const scenes: PhoneSceneRenderSlot<PhoneSceneId>[] = [];
-  let effect: PhoneEffectRenderSlot<PhoneSegmentId> | null = null;
+  } else reportPorts.current.clear();
+  const roles = bufferRoles(snapshot); const stableCommitKey = snapshot.stableCommit ? `${snapshot.stableCommit.commitSequence}|${snapshot.stableCommit.direction}|${snapshot.stableCommit.landingAlias}` : null;
+  useLayoutEffect(() => {
+    if (!connectedRef.current || snapshot.status !== 'stable' || !stableScene || stableCommitKey === null) return;
+    owners.presentation.commitStablePlane(roles.source); if (lastStableCommitKeyRef.current === stableCommitKey) return; lastStableCommitKeyRef.current = stableCommitKey;
+    if (phoneSceneById(stableScene).plane !== 'native') return;
+    const shell = document.querySelector<HTMLElement>(`.phone-story[data-phone-scope="${scope}"]`); const target = shell ? nativeReadingTarget(shell, snapshot.stableCommit) : 0;
+    for (const owner of [document.scrollingElement, document.documentElement, document.body]) try { if (owner) owner.scrollTop = target; } catch { continue; }
+  }, [owners, roles.source, snapshot.status, stableCommitKey, stableScene, scope]);
+  const scenes: PhoneSceneRenderSlot<PhoneSceneId>[] = []; let effect: PhoneEffectRenderSlot<PhoneSegmentId> | null = null;
   if (connectedRef.current && snapshot.status === 'transaction') {
     const transaction = snapshot.transaction;
     const dependenciesLoaded = transaction.evidence.some(({ slot }) =>
@@ -617,19 +623,14 @@ export function PhoneStoryShell({
     && phoneSceneById(stableScene).plane === 'native'
     && (snapshot.status === 'stable' || reprojectingCommittedScene);
   const navigationVisible = interactionEnabled && snapshot.status === 'stable'
-    && stableScene !== null && stableScene !== 'hero' && stableScene !== 'pattern';
-  const directActivationFallback = snapshot.status === 'transaction'
+    && stableScene !== null && stableScene !== 'hero' && stableScene !== 'pattern'; const directActivationFallback = snapshot.status === 'transaction'
     && snapshot.transaction.mode !== 'segment'
     && snapshot.transaction.phase === 'awaiting-media-activation';
-  const reducedMotion = typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  const moduleFault = faulted && snapshot.status === 'faulted' && (snapshot.fault.code.includes('module') || snapshot.fault.code.includes('chunk')); const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
   const retainedFigure2ArchMounted = connectedRef.current
-    && scenes.some(({ sceneId }) => PHONE_FIGURE2_ARCH_SCENES.has(sceneId));
-  const retainedFigure2ArchOwner = phoneFigure2ArchOwner(snapshot);
-  const retainedFigure2ArchAttempt: PhoneAttemptKey | null = snapshot.status === 'transaction'
-    ? snapshot.transaction.attempt : null;
-  const navigate = (sceneId: PhoneSceneId) => {
-    setMenuOpen(false);
+    && scenes.some(({ sceneId }) => PHONE_FIGURE2_ARCH_SCENES.has(sceneId)); const retainedFigure2ArchOwner = phoneFigure2ArchOwner(snapshot);
+  const retainedFigure2ArchAttempt: PhoneAttemptKey | null = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null;
+  const navigate = (sceneId: PhoneSceneId) => { setMenuOpen(false);
     owners.engine.requestEntry({
       pathname: window.location.pathname,
       hash: hashForScene(sceneId),
@@ -682,7 +683,7 @@ export function PhoneStoryShell({
           </div>
         </div>
       </div>
-      {retainedFigure2ArchMounted ? <div className="phone-story__retained-figure2-arch-layer" data-phone-figure2-arch-owner={retainedFigure2ArchOwner}><RetainedFigure2Arch mounted visible ownerKey={retainedFigure2ArchAttempt?.transactionId ?? null} src={PHONE_FIGURE2_ARCH_SRC} motion="depth" onDecodeReady={reportArchReady} onDecodeFailure={reportArchFailure} /></div> : null}
+      {retainedFigure2ArchMounted ? <div className="phone-story__retained-figure2-arch-layer" data-phone-figure2-arch-owner={retainedFigure2ArchOwner}><RetainedFigure2Arch mounted visible ownerKey={retainedFigure2ArchAttempt?.transactionId ?? (stableScene && PHONE_FIGURE2_ARCH_SCENES.has(stableScene) ? `stable:${snapshot.stableCommit?.commitSequence ?? 0}` : null)} src={PHONE_FIGURE2_ARCH_SRC} motion="depth" onDecodeReady={reportArchReady} onDecodeFailure={reportArchFailure} /></div> : null}
       <div className="phone-story__reading-flow" inert={!nativeReadingEnabled} aria-hidden={!nativeReadingEnabled}>
         {stableScene ? <PhoneSceneReading sceneId={stableScene} /> : null}
       </div>
@@ -696,9 +697,10 @@ export function PhoneStoryShell({
           type="button"
           className="phone-story__retry"
           data-phone-retry="true"
-          onClick={() => owners.engine.retry()}
+          data-phone-recovery-reload={moduleFault ? 'true' : undefined}
+          onClick={() => moduleFault && chunkRecovery.manualReload ? chunkRecovery.manualReload() : owners.engine.retry()}
         >
-          重试加载故事
+          {moduleFault ? '重新加载最新版本' : '重试加载故事'}
         </button>
       ) : null}
     </main>

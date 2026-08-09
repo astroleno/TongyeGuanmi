@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   assertSinglePhoneAuthority,
-  waitForCommitSequence
+  waitForDirectEntryCommit
 } from './r5-phone-clean-assertions';
 
 const CLEAN_IMPLEMENTATION = 'clean-v1';
@@ -17,7 +17,7 @@ async function expectCleanShell(
   scope: 'formal' | 'brand-lab',
   scene: string
 ) {
-  await waitForCommitSequence(page, scene, 0);
+  await waitForDirectEntryCommit(page, scene);
   await assertSinglePhoneAuthority(page);
   const shell = page.locator('.phone-story');
   await expect(shell).toHaveAttribute('data-phone-scope', scope);

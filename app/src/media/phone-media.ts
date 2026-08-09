@@ -32,6 +32,8 @@ export function phoneMediaUrlFor(id: PhoneProductMediaId, owner: SceneId): strin
       return new URL('../../../assets/figure2-pair-opening.webp', import.meta.url).href;
     case 'figure2-foreground-arch':
       return new URL('../../../assets/figure2-phone-foreground-arch.webp', import.meta.url).href;
+    case 'figure3-initial-poster':
+      return new URL('../../../assets/figure3-initial-paper.webp', import.meta.url).href;
     case 'ph-figure-packed':
       return new URL('../../../assets/ph-figure-motion-rgb-alpha.mp4', import.meta.url).href;
     case 'crane-figure-packed':

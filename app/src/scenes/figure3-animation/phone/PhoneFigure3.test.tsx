@@ -19,7 +19,7 @@ describe('PhoneFigure3', () => {
     reportProgress: vi.fn(), reportComplete: vi.fn(), reportFailure: vi.fn()
   } satisfies PhoneLeafReportPort;
 
-  it('owns one persistent Figure3 video and one visible paper Canvas', () => {
+  it('owns one static poster plus one persistent Figure3 video and paper Canvas', () => {
     const motionMarkup = renderToStaticMarkup(createElement(PhoneFigure3, {
       reports
     }));
@@ -27,6 +27,8 @@ describe('PhoneFigure3', () => {
     expect(motionMarkup.match(/data-media-key="figure3-motion"/g)).toHaveLength(1);
     expect(motionMarkup.match(/<video/g)).toHaveLength(1);
     expect(motionMarkup.match(/<canvas/g)).toHaveLength(1);
+    expect(motionMarkup.match(/<img/g)).toHaveLength(1);
+    expect(motionMarkup).toContain('data-phone-figure3-paper-poster');
     expect(motionMarkup).toContain('data-phone-figure3-paper-canvas');
     expect(motionMarkup).toContain('data-phone-media-fallback="figure3"');
     expect(motionMarkup).toContain('data-phone-media-owner="figure3-motion"');

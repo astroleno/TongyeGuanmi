@@ -48,7 +48,7 @@ export type PhonePackedAlphaSurfaceOptions = Readonly<{
 }>;
 
 const DEFAULT_FRAME_TIMEOUT_MS = 3000;
-const HAVE_METADATA = 1;
+const HAVE_CURRENT_DATA = 2;
 const ENDPOINT_FRAME_TOLERANCE_SECONDS = 0.08;
 
 function releaseVideoSource(video: HTMLVideoElement): void {
@@ -220,9 +220,9 @@ export function createPhonePackedAlphaSurface(
           if (disposed || generation !== activeGeneration
             || canvasForGeneration !== activeCanvas
             || video.dataset.packedAlphaSource !== 'rgb-alpha-side-by-side') return;
-          if (mode === 'endpoint'
-            && Math.abs(video.currentTime - options.endpointSeconds)
-              > ENDPOINT_FRAME_TOLERANCE_SECONDS) return;
+          if (mode === 'endpoint' && (video.seeking
+            || Math.abs(video.currentTime - options.endpointSeconds)
+              > ENDPOINT_FRAME_TOLERANCE_SECONDS)) return;
           if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
           frameTimeout = undefined;
           root.dataset[statusDataset] = 'verified';
@@ -255,7 +255,7 @@ export function createPhonePackedAlphaSurface(
       if (nextMode === 'endpoint') {
         endpointSeek = () => {
           if (mode !== 'endpoint' || generation !== activeGeneration
-            || video.readyState < HAVE_METADATA) return;
+            || video.readyState < HAVE_CURRENT_DATA) return;
           const endpoint = Number.isFinite(video.duration) && video.duration > 0
             ? Math.min(options.endpointSeconds, Math.max(0, video.duration - 1 / 120))
             : options.endpointSeconds;

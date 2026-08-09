@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
+import { phoneMediaUrlFor } from '../../../media/phone-media';
 import {
   disposeTimelineVideoDriver,
   prepareTimelineVideoFrame,
@@ -24,6 +25,26 @@ import {
 import './PhoneFigure3.css';
 
 const Figure3Surface = figure3AnimationScene.Component;
+const FIGURE3_INITIAL_POSTER = phoneMediaUrlFor(
+  'figure3-initial-poster', 'figure3-animation'
+);
+
+function waitForDecodedImage(image: HTMLImageElement): Promise<void> {
+  if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+    return Promise.resolve();
+  }
+  if (typeof image.decode === 'function') return image.decode();
+  return new Promise((resolve, reject) => {
+    const clear = () => {
+      image.removeEventListener('load', loaded);
+      image.removeEventListener('error', failed);
+    };
+    const loaded = () => { clear(); resolve(); };
+    const failed = () => { clear(); reject(new Error('Figure3 initial poster decode failed')); };
+    image.addEventListener('load', loaded, { once: true });
+    image.addEventListener('error', failed, { once: true });
+  });
+}
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -173,6 +194,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   const rootRef = useRef<HTMLElement | null>(null);
   const sceneRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const posterRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const compositorRef = useRef<PhoneFigure3PaperCompositor | null>(null);
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
@@ -182,7 +204,25 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   const activationGenerationRef = useRef(0);
   const frameSequenceRef = useRef(0);
   const pausedRef = useRef(false);
+  const mediaPresentationEnabledRef = useRef(false);
+  const posterReadyRef = useRef(false);
+  const reportedPosterTokenRef = useRef<string | null>(null);
+  const effectGenerationRef = useRef(0);
+  const releasedVideoRef = useRef<HTMLVideoElement | null>(null);
   const disposedRef = useRef(false);
+
+  const reportPoster = useCallback(() => {
+    const binding = bindingRef.current;
+    if (!posterReadyRef.current || !binding || disposedRef.current
+      || reportedPosterTokenRef.current === binding.frameToken) return;
+    reportedPosterTokenRef.current = binding.frameToken;
+    binding.reports.reportPrepared('figure3-initial-poster', {
+      kind: 'image-decoded',
+      token: `figure3:poster:${binding.frameToken}`,
+      ready: true,
+      detail: { posterDecoded: true }
+    });
+  }, []);
 
   const reportFailure = useCallback((code: string, error: unknown) => {
     const binding = bindingRef.current;
@@ -201,8 +241,10 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   ) => {
     const root = rootRef.current;
     const canvas = canvasRef.current;
-    if (!root || !canvas || disposedRef.current || binding !== bindingRef.current) return;
+    if (!root || !canvas || disposedRef.current || binding !== bindingRef.current
+      || !mediaPresentationEnabledRef.current) return;
     canvas.dataset.phoneFigure3PaperEndpoint = endpoint === 1 ? 'terminal' : 'initial';
+    root.dataset.phoneFigure3MediaActive = 'true';
     root.dataset.phoneFigure3PaperCompositor = 'ready';
     root.dataset.phoneMediaState = 'ready';
     binding.reports.reportFrame('figure3-paper-canvas', {
@@ -217,7 +259,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   const reportPresentedFrame = useCallback(() => {
     const video = videoRef.current;
     const binding = bindingRef.current;
-    if (!video || !binding || disposedRef.current) return;
+    if (!video || !binding || binding.segmentId !== 'figure3-services' || disposedRef.current) return;
     const progress = progressRef.current;
     const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
     if (endpoint === null || !phoneFigure3EndpointIsPresented(
@@ -237,9 +279,9 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     progressRef.current = progress;
     const frame = phoneFigure3Frame(progress);
     const root = rootRef.current;
-    renderFigure3AnimationProgress(sceneRef.current, progress, {
-      mediaRun: { runId: currentRunId(), direction: directionRef.current }
-    });
+    const mediaRun = bindingRef.current?.segmentId === 'figure3-services'
+      ? { runId: currentRunId(), direction: directionRef.current } : undefined;
+    renderFigure3AnimationProgress(sceneRef.current, progress, mediaRun ? { mediaRun } : undefined);
     if (!root) return;
     root.style.setProperty('--phone-figure3-video-opacity', frame.videoOpacity.toFixed(4));
     root.style.setProperty('--phone-figure3-video-scale', frame.videoScale.toFixed(4));
@@ -247,6 +289,11 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     root.style.setProperty('--phone-figure3-backdrop-scale', frame.backdropScale.toFixed(4));
     root.dataset.phoneFigure3Progress = frame.progress.toFixed(4);
     root.dataset.phoneFigure3FallbackEndpoint = progress >= .999 ? 'terminal' : 'initial';
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.dataset.phoneFigure3PaperScale = frame.videoScale.toFixed(4);
+      if (mediaRun) compositorRef.current?.paint();
+    }
   }, [currentRunId]);
 
   const prepareCurrentFrame = useCallback(async (
@@ -281,20 +328,29 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
       frameSequenceRef.current = 0;
+      reportedPosterTokenRef.current = null;
+      reportPoster();
       const currentEndpoint = progressRef.current <= .001 ? 0
         : progressRef.current >= .999 ? 1 : null;
       const wasPaused = pausedRef.current;
       pausedRef.current = false;
       const endpoint = currentEndpoint ?? settledEndpointRef.current;
+      mediaPresentationEnabledRef.current = endpoint !== 0;
       if (wasPaused && currentEndpoint === null) render(endpoint);
-      compositorRef.current?.paint();
+      const root = rootRef.current;
+      if (endpoint === 0 && root) {
+        delete root.dataset.phoneFigure3MediaActive;
+        root.dataset.phoneMediaState = 'static';
+      } else {
+        compositorRef.current?.paint();
+      }
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      if (video && canvas && phoneFigure3HasReusableEndpointFrame(
+      if (endpoint !== 0 && video && canvas && phoneFigure3HasReusableEndpointFrame(
         video, canvas, endpoint
       )) {
         reportPresentedFrame();
-      } else if (wasPaused) {
+      } else if (wasPaused && endpoint !== 0) {
         const generation = ++activationGenerationRef.current;
         // Runtime rebinds the retained topology and invokes activation in the
         // same physical-gesture stack. Defer recovery preparation by one
@@ -326,6 +382,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         };
       }
       const generation = ++activationGenerationRef.current;
+      mediaPresentationEnabledRef.current = true;
       let playback: Promise<void>;
       try {
         playback = Promise.resolve(video.play());
@@ -352,9 +409,21 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     settle(endpoint) {
       settledEndpointRef.current = endpoint;
       directionRef.current = endpoint === 0 ? -1 : 1;
+      mediaPresentationEnabledRef.current = endpoint !== 0;
       render(endpoint);
       const binding = bindingRef.current;
       if (!binding || disposedRef.current) return;
+      const root = rootRef.current;
+      if (endpoint === 0) {
+        if (root) {
+          delete root.dataset.phoneFigure3MediaActive;
+          root.dataset.phoneMediaState = 'static';
+        }
+        videoRef.current?.pause();
+        reportPoster();
+        return;
+      }
+      if (root) root.dataset.phoneMediaState = 'preparing';
       const video = videoRef.current;
       const canvas = canvasRef.current;
       compositorRef.current?.paint();
@@ -370,6 +439,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     },
     pause() {
       pausedRef.current = true;
+      mediaPresentationEnabledRef.current = false;
       activationGenerationRef.current += 1;
       const video = videoRef.current;
       if (video) {
@@ -381,14 +451,17 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       if (disposedRef.current) return;
       disposedRef.current = true;
       pausedRef.current = false;
+      mediaPresentationEnabledRef.current = false;
       activationGenerationRef.current += 1;
       compositorRef.current?.dispose();
       compositorRef.current = null;
-      releasePhoneFigure3Video(videoRef.current);
+      const video = videoRef.current;
+      releasePhoneFigure3Video(video);
+      releasedVideoRef.current = video;
       releasePhoneFigure3PaperCanvas(canvasRef.current);
       bindingRef.current = null;
     }
-  }), [prepareCurrentFrame, render, reportFailure, reportPresentedFrame]);
+  }), [prepareCurrentFrame, render, reportFailure, reportPoster, reportPresentedFrame]);
 
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'field') sceneRef.current = element;
@@ -400,12 +473,19 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     const root = rootRef.current;
     const scene = sceneRef.current;
     const video = videoRef.current;
+    const poster = posterRef.current;
     const canvas = canvasRef.current;
-    if (!mountRoot || !root || !scene || !video || !canvas) return;
+    if (!mountRoot || !root || !scene || !video || !poster || !canvas) return;
+    const effectGeneration = ++effectGenerationRef.current;
+    releasedVideoRef.current = null;
     disposedRef.current = false;
     pausedRef.current = false;
+    mediaPresentationEnabledRef.current = false;
     root.dataset.phoneFigure3PaperCompositor = 'preparing';
-    root.dataset.phoneMediaState = 'preparing';
+    root.dataset.phoneMediaState = 'static';
+    delete root.dataset.phoneFigure3MediaActive;
+    posterReadyRef.current = false;
+    reportedPosterTokenRef.current = null;
     const compositor = createPhoneFigure3PaperCompositor({
       video,
       canvas,
@@ -417,22 +497,42 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       root: mountRoot,
       surfaces: [
         { id: 'figure3-video', element: video, kind: 'video' },
-        { id: 'figure3-paper-canvas', element: canvas, kind: 'canvas-2d' }
+        { id: 'figure3-paper-canvas', element: canvas, kind: 'canvas-2d' },
+        { id: 'figure3-initial-poster', element: poster, kind: 'image' }
       ],
       commands
     });
+    let current = true;
+    void waitForDecodedImage(poster).then(() => {
+      if (!current || disposedRef.current || posterRef.current !== poster) return;
+      poster.dataset.phoneFigure3PaperFrame = 'ready';
+      poster.dataset.phoneFigure3PaperEndpoint = 'initial';
+      posterReadyRef.current = true;
+      reportPoster();
+    }, (error: unknown) => {
+      if (!current || disposedRef.current || posterRef.current !== poster) return;
+      reportFailure('figure3-initial-poster-decode-rejected', error);
+    });
     return () => {
+      current = false;
       disposedRef.current = true;
+      mediaPresentationEnabledRef.current = false;
       activationGenerationRef.current += 1;
       compositor.dispose();
       if (compositorRef.current === compositor) compositorRef.current = null;
-      releasePhoneFigure3Video(video);
+      video.pause();
+      disposeTimelineVideoDriver(video);
+      queueMicrotask(() => {
+        if (effectGenerationRef.current !== effectGeneration
+          || releasedVideoRef.current === video) return;
+        releasePhoneFigure3Video(video);
+        releasedVideoRef.current = video;
+      });
+      posterReadyRef.current = false;
+      reportedPosterTokenRef.current = null;
       bindingRef.current = null;
-      sceneRef.current = null;
-      videoRef.current = null;
-      canvasRef.current = null;
     };
-  }, [commands, render, reportPresentedFrame, reports]);
+  }, [commands, render, reportFailure, reportPoster, reportPresentedFrame, reports]);
 
   return (
     <div ref={mountRootRef} className="phone-figure3__mount">
@@ -441,10 +541,18 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         className="phone-figure3"
         data-phone-scene="figure3-animation"
         data-phone-media-owner="figure3-motion"
-        data-phone-media-state="preparing"
+        data-phone-media-state="static"
         aria-hidden="true"
       >
         <div className="phone-figure3__fallback" data-phone-media-fallback="figure3" />
+        <img
+          ref={posterRef}
+          className="phone-figure3__poster"
+          data-phone-figure3-paper-poster
+          src={FIGURE3_INITIAL_POSTER}
+          alt=""
+          aria-hidden="true"
+        />
         <Figure3Surface
           scene="figure3-animation"
           hidden={false}

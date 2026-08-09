@@ -179,12 +179,14 @@ describe('presentation shell loaders', () => {
     expect(fixture.reload).not.toHaveBeenCalled();
   });
 
-  it('routes vite:preloadError through the same bounded policy and prevents the default', async () => {
+  it('routes a native Vite CSS preload Error through recovery before preventing default', async () => {
     const fixture = recoveryFixture();
     const controller = createPhoneChunkRecoveryController(fixture.environment);
     const preventDefault = vi.fn();
     const event = Object.assign(new Event('vite:preloadError'), {
-      payload: { url: '/assets/preload.js' },
+      payload: new Error(
+        'Unable to preload CSS for https://tongye.test/assets/PhoneStoryShell-preload.css'
+      ),
       preventDefault
     });
 
@@ -193,9 +195,25 @@ describe('presentation shell loaders', () => {
 
     expect(preventDefault).toHaveBeenCalledTimes(1);
     expect(storedLineage(fixture.storage as MemoryStorage)).toMatchObject({
-      failedModuleUrl: '/assets/preload.js',
+      failedModuleUrl: 'https://tongye.test/assets/PhoneStoryShell-preload.css',
       failedModuleClass: 'phone-core'
     });
+  });
+
+  it('does not swallow a leaf preload Error that the story runtime must classify', async () => {
+    const fixture = recoveryFixture();
+    const controller = createPhoneChunkRecoveryController(fixture.environment);
+    const preventDefault = vi.fn();
+    controller.handlePreloadError(Object.assign(new Event('vite:preloadError'), {
+      payload: new Error('Unable to preload CSS for /assets/phone-transition.css'),
+      preventDefault
+    }));
+    await Promise.resolve();
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(fixture.fetchReleaseManifest).not.toHaveBeenCalled();
+    expect(fixture.reload).not.toHaveBeenCalled();
+    expect(controller.getSnapshot()).toEqual({ status: 'idle' });
   });
 
   it('clears lineage only through the stable recovery port and stores no story state', async () => {
@@ -223,5 +241,38 @@ describe('presentation shell loaders', () => {
     ]) {
       expect(serializedController).not.toContain(forbidden);
     }
+  });
+
+  it('preserves a spent transition lineage through boot and clears it after a traversed commit', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem('r5-phone-chunk-recovery-lineage-v1', JSON.stringify({
+      lineageId: 'spent-transition',
+      entryUrl: 'https://tongye.test/#hero',
+      firstDocumentBuildId: 'build-a',
+      currentDocumentBuildId: 'build-b',
+      deployedBuildId: 'build-b',
+      failedModuleUrl: '/assets/phone-transition.js',
+      failedModuleClass: 'transition-leaf',
+      automaticReloadCount: 1,
+      status: 'reloaded'
+    }));
+    const fixture = recoveryFixture({ storage });
+    const controller = createPhoneChunkRecoveryController(fixture.environment);
+
+    controller.port.markStable({
+      authorityId: 'authority-1', sceneId: 'hero', commitSequence: 1
+    });
+
+    expect(storedLineage(storage)).toMatchObject({
+      failedModuleClass: 'transition-leaf',
+      automaticReloadCount: 1
+    });
+
+    controller.port.markStable({
+      authorityId: 'authority-1', sceneId: 'pattern', commitSequence: 2
+    });
+
+    expect(storage.values.size).toBe(0);
+    expect(controller.getSnapshot()).toEqual({ status: 'idle' });
   });
 });

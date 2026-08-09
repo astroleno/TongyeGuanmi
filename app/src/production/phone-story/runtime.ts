@@ -20,7 +20,7 @@ import type { PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneFailu
 export type { PhoneRejectedChunkFailure, PhoneRuntimeLifecycleStep, PhoneRuntimeHostEvent, PhoneRuntimeInputEvent, PhoneRuntimeResourceCounts, PhoneStableRecoveryProof } from './protocol';
 
 export type PhoneRuntimeTimerHandle = string | number | Readonly<{ id: string }>;
-export type PhoneChunkRecoveryPort = Readonly<{ reportRejectedChunk(failure: PhoneRejectedChunkFailure): Promise<'reloading' | 'fail-closed'>; markStable(proof: PhoneStableRecoveryProof): void }>;
+export type PhoneChunkRecoveryPort = Readonly<{ reportRejectedChunk(failure: PhoneRejectedChunkFailure): Promise<'reloading' | 'fail-closed'>; markStable(proof: PhoneStableRecoveryProof): void; manualReload?(): void }>;
 
 export type PhoneRuntimeEffectPorts = Readonly<{
   loadDependencies?(
@@ -193,7 +193,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     reportRejectedChunk: async () => 'fail-closed' as const, markStable: () => undefined });
   const inert = createPhoneStoryBoot({
     authorityId: 'disconnected-phone-authority', request: config.initialEntry,
-    viewport: sampleViewport(environment.readViewport())
+    viewport: sampleViewport(environment.readViewport()), reducedMotion: environment.readReducedMotion()
   });
   let snapshot = inert.snapshot;
   let connected = false, connection = 0, draining = false;
@@ -208,6 +208,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   let stableDependencyAttempt: PhoneAttemptKey | null = null;
   type DeferredActivation = Readonly<{ attempt: PhoneAttemptKey; surfaceIds: readonly PhoneSurfaceId[];
     credit: Extract<PhoneStoryEffect, { type: 'activate-surfaces' }>['credit'] }>;
+  type FailClosedLineage = { connection: number; failureAttempt: PhoneAttemptKey; settleAttempt: PhoneAttemptKey | null; stableCommit: PhoneMachineSnapshot['stableCommit']; armed: boolean };
   let deferredActivation: DeferredActivation | null = null;
   const listeners = new Set<() => void>();
   const deadlines = new Map<string, DeadlineLease>();
@@ -418,7 +419,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
             invokeActivation(candidates, active.attempt, credit, surfaceIds, connection);
           }
         }
-        if (active && state.binding.leg === 'target' && mount.resources.videos > 0) {
+        const reducedStaticFigure2 = active?.reducedMotion && active.candidateSceneId === 'figure2-animation'; if (active && !reducedStaticFigure2 && state.binding.leg === 'target' && mount.resources.videos > 0) {
           if (['boot', 'entry'].includes(active.mode)
             && phoneSceneById(active.candidateSceneId).directEntry.mediaActivation.directEntry
               === 'muted-plays-inline-then-covered-cta') {
@@ -709,20 +710,19 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     }, activeConnection);
   };
 
-  const reportLoadFailure = (
-    effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>,
-    _reason: string,
-    activeConnection: number
-  ): void => {
-    if (snapshot.status !== 'transaction'
-      || !sameAttempt(snapshot.transaction.attempt, effect.attempt)) return;
-    enqueueFor({ type: 'terminal-fault', code: 'module-load-rejected' }, activeConnection);
+  let failClosedPending: FailClosedLineage | null = null; const reportLoadFailure = (effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>, reason: string, activeConnection: number): FailClosedLineage | null => {
+    const transaction = snapshot.status === 'transaction' ? snapshot.transaction : null;
+    if (!transaction || !sameAttempt(transaction.attempt, effect.attempt)) return null; const stableCommit = snapshot.stableCommit; if (!stableCommit) { enqueueFor({ type: 'terminal-fault', code: 'module-load-rejected' }, activeConnection); return null; }
+    const settleAttempt = transaction.attempt;
+    const lineage: FailClosedLineage = { connection: activeConnection, failureAttempt: effect.attempt, stableCommit, settleAttempt, armed: false }; failClosedPending = lineage; const slot = [...transaction.requiredPrepared, ...transaction.requiredFinal].find(({ kind }) => kind === 'module-loaded');
+    if (slot) enqueueFor({ type: 'failure-reported', slot, failure: { code: 'module-load-rejected', message: reason, recoverable: true } }, activeConnection); else enqueueFor({ type: 'terminal-fault', code: 'module-load-rejected' }, activeConnection);
+    return lineage;
   };
+  const failClosedSettled = (lineage: FailClosedLineage): boolean => ownsConnection(lineage.connection) && lineage.armed && snapshot.status === 'stable' && lineage.settleAttempt !== null && snapshot.stableCommit === lineage.stableCommit && stableDependencyAttempt !== null && sameAttempt(stableDependencyAttempt, lineage.settleAttempt);
+  const exposeFailClosed = (lineage: FailClosedLineage): void => { if (failClosedPending !== lineage || !ownsConnection(lineage.connection) || snapshot.status === 'faulted') return; if (failClosedSettled(lineage)) { failClosedPending = null; enqueueFor({ type: 'terminal-fault', code: 'module-load-rejected' }, lineage.connection); return; } if (snapshot.status === 'transaction' && snapshot.stableCommit === lineage.stableCommit && (snapshot.transaction.mode === 'rollback' || sameAttempt(snapshot.transaction.attempt, lineage.settleAttempt!))) lineage.settleAttempt = snapshot.transaction.attempt; };
+  const resolveFailClosed = (lineage: FailClosedLineage, status: 'reloading' | 'fail-closed'): void => { if (failClosedPending !== lineage) return; if (status !== 'fail-closed') { failClosedPending = null; return; } lineage.armed = true; exposeFailClosed(lineage); };
 
-  const loadDependencies = (
-    effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>,
-    activeConnection: number
-  ): void => {
+  const loadDependencies = (effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>, activeConnection: number): void => {
     if (!ports.loadDependencies) return;
     const key = dependencyKey(effect.dependencies);
     if (fulfilledLoads.has(key)) {
@@ -731,7 +731,11 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     }
     if (rejectedClosures.has(key)
       || effect.dependencies.some((dependency) => rejectedLoads.has(dependency))) {
-      reportLoadFailure(effect, 'native module URL already rejected in this Document', activeConnection);
+      const reason = 'native module URL already rejected in this Document'; const lineage = reportLoadFailure(effect, reason, activeConnection);
+      void chunkRecovery.reportRejectedChunk({
+        authorityId: effect.attempt.authorityId, transactionId: effect.attempt.transactionId,
+        moduleUrl: 'unknown-phone-module', dependencies: effect.dependencies, reason
+      }).then((status) => lineage && resolveFailClosed(lineage, status)).catch(() => lineage && resolveFailClosed(lineage, 'fail-closed'));
       return;
     }
     const pending = pendingLoads.get(key);
@@ -739,27 +743,21 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       pending.waiters.push({ effect, connection: activeConnection });
       return;
     }
-    const controller = new AbortController();
-    const load: PendingLoad = {
-      controller,
-      waiters: [{ effect, connection: activeConnection }]
-    };
+    const controller = new AbortController(); const load: PendingLoad = { controller, waiters: [{ effect, connection: activeConnection }] };
     pendingLoads.set(key, load);
     const reject = (failure: Readonly<{
       moduleUrl: string; reason: string; dependency?: PhoneDependencyRef;
     }>): void => {
       if (failure.dependency) rejectedLoads.add(failure.dependency);
       else rejectedClosures.add(key);
+      let lineage: FailClosedLineage | null = null; for (const waiter of load.waiters) { const next = reportLoadFailure(waiter.effect, failure.reason, waiter.connection); if (next) lineage = next; }
       void chunkRecovery.reportRejectedChunk({
         authorityId: effect.attempt.authorityId,
         transactionId: effect.attempt.transactionId,
         moduleUrl: failure.moduleUrl,
         dependencies: effect.dependencies,
         reason: failure.reason
-      }).catch(() => undefined);
-      for (const waiter of load.waiters) {
-        reportLoadFailure(waiter.effect, failure.reason, waiter.connection);
-      }
+      }).then((status) => lineage && resolveFailClosed(lineage, status)).catch(() => lineage && resolveFailClosed(lineage, 'fail-closed'));
     };
     void ports.loadDependencies(effect, controller.signal).then((result) => {
       if (pendingLoads.get(key) === load) pendingLoads.delete(key);
@@ -807,7 +805,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       if (!transaction || !sameAttempt(transaction.attempt, effect.attempt)
         || transaction.planeRevision !== effect.planeRevision) return;
       const request = createPhonePlaneRequest(
-        transaction, sampleViewport(snapshot.viewport), snapshot.stableCommit !== null
+        transaction, sampleViewport(snapshot.viewport), snapshot.stableCommit !== null,
+        snapshot.stableCommit
       );
       const first = request?.required[0];
       if (!request || !first || request.planeRevision !== effect.planeRevision) return;
@@ -1099,6 +1098,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       planeFrame = null;
     }
     if (snapshot !== previous) publish();
+    const candidate = failClosedPending; if (candidate && !candidate.armed && previous.status === 'transaction' && sameAttempt(previous.transaction.attempt, candidate.failureAttempt) && snapshot.status === 'transaction' && snapshot.stableCommit === candidate.stableCommit) candidate.settleAttempt = snapshot.transaction.attempt;
     if (!ownsConnection(activeConnection)) return;
     syncDeadlines();
     if (!ownsConnection(activeConnection)) return;
@@ -1111,6 +1111,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       if (!ownsConnection(activeConnection)) return;
     }
     closeFinishedAttempt(previous, snapshot);
+    const pending = failClosedPending; if (pending && snapshot.status === 'transaction' && snapshot.transaction.mode === 'rollback' && snapshot.stableCommit === pending.stableCommit) pending.settleAttempt = snapshot.transaction.attempt;
+    if (pending && failClosedSettled(pending)) enqueueFor({ type: 'terminal-fault', code: 'module-load-rejected' }, activeConnection); else if (pending && (snapshot.status === 'faulted' || (pending.armed && (snapshot.status !== 'transaction' || !sameAttempt(snapshot.transaction.attempt, pending.settleAttempt!))))) failClosedPending = null;
   };
 
   const drain = (): void => {
@@ -1175,7 +1177,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         planeFrame = null;
         pendingViewport = null;
         pendingScroll = null;
-        stableDependencyAttempt = null;
+        stableDependencyAttempt = null; failClosedPending = null;
         deferredActivation = null;
         prewarmController = null;
         clearPhoneOwnershipRegistries([
@@ -1263,7 +1265,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     const boot = createPhoneStoryBoot({
       authorityId: environment.nextAuthorityId(),
       request: config.initialEntry,
-      viewport: sampleViewport(environment.readViewport())
+      viewport: sampleViewport(environment.readViewport()), reducedMotion: environment.readReducedMotion()
     });
     draining = true;
     try {

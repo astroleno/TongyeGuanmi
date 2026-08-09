@@ -81,6 +81,24 @@ describe('clean PhoneFigure2 leaf', () => {
 
   it('includes the shared presentation arch when the Shell has mounted it', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    const story = document.createElement('main');
+    story.className = 'phone-story';
+    const arch = document.createElement('img');
+    arch.setAttribute('data-stage-retained-figure2-arch', 'true');
+    story.appendChild(arch);
+    const host = document.createElement('div');
+    story.appendChild(host);
+    document.body.appendChild(story);
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+    expect(mount.registration()?.surfaces.map(({ id }) => id)).toContain('figure2-foreground-arch');
+    act(() => root.unmount());
+    story.remove();
+  });
+
+  it('does not borrow a retained arch from document scope without an owning Shell', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     const arch = document.createElement('img');
     arch.setAttribute('data-stage-retained-figure2-arch', 'true');
     document.body.appendChild(arch);
@@ -88,7 +106,8 @@ describe('clean PhoneFigure2 leaf', () => {
     const root = createRoot(host);
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
-    expect(mount.registration()?.surfaces.map(({ id }) => id)).toContain('figure2-foreground-arch');
+    expect(mount.registration()?.surfaces.map(({ id }) => id))
+      .not.toContain('figure2-foreground-arch');
     act(() => root.unmount());
     arch.remove();
   });
@@ -109,6 +128,11 @@ describe('clean PhoneFigure2 leaf', () => {
     });
     expect(invocation?.invoked).toBe(true);
     expect(current.reports.reportFrame).not.toHaveBeenCalled();
+    await act(async () => {
+      await Promise.all(invocation?.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )) ?? []);
+    });
     const canvas = host.querySelector<HTMLCanvasElement>('[data-figure2-packed-alpha-canvas]')!;
     (probe.surfaceOptions?.onFrame as (frame: { canvas: HTMLCanvasElement; generation: number }) => void)(
       { canvas, generation: 1 }
@@ -118,8 +142,25 @@ describe('clean PhoneFigure2 leaf', () => {
         kind: 'frame', token: 'figure2:frame:1', presented: true
       })
     );
+    expect(host.querySelector('.phone-figure2')?.getAttribute('data-phone-figure2-canvas-ready')).toBe('true');
     mount.registration()?.commands.render(.72);
     expect(probe.renderProgress).toHaveBeenCalled();
+    mount.registration()?.commands.pause('rollback');
+    expect(host.querySelector('.phone-figure2')?.getAttribute('data-phone-figure2-canvas-ready')).toBeNull();
+    act(() => root.unmount());
+  });
+
+  it('settles the shared Figure2 arch at the requested choreography endpoint', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+
+    mount.registration()?.commands.settle(1);
+
+    expect(probe.renderProgress).toHaveBeenLastCalledWith(expect.anything(), 1, expect.anything());
+    act(() => root.unmount());
   });
 
   it('proves its static entry from the decoded poster without touching video playback', async () => {
@@ -150,6 +191,172 @@ describe('clean PhoneFigure2 leaf', () => {
     expect(play).not.toHaveBeenCalled();
   });
 
+  it('pauses at 2.6 seconds for the depth leg and resumes only for the reverse media leg', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause');
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const video = host.querySelector<HTMLVideoElement>('[data-figure2-combined-video]')!;
+    commands.rebind({
+      reports: mount.reports, frameToken: 'figure2:stage:forward:0',
+      segmentId: 'figure2-distance-expand', stageIndex: 0, direction: 'forward'
+    });
+    const forward = commands.activate({
+      invocationId: 'figure2:stage:forward', surfaceIds: ['figure2-pair-video'],
+      credit: 'physical-epoch', playback: true
+    });
+    await act(async () => {
+      await Promise.all(forward.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )));
+    });
+    commands.render(1);
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBeCloseTo(2.6, 1);
+
+    commands.rebind({
+      reports: mount.reports, frameToken: 'figure2:stage:forward:1',
+      segmentId: 'figure2-distance-expand', stageIndex: 1, direction: 'forward'
+    });
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBeCloseTo(2.6, 1);
+
+    commands.rebind({
+      reports: mount.reports, frameToken: 'figure2:stage:reverse:0',
+      segmentId: 'figure2-distance-expand', stageIndex: 0, direction: 'reverse'
+    });
+    const reverse = commands.activate({
+      invocationId: 'figure2:stage:reverse', surfaceIds: ['figure2-pair-video'],
+      credit: 'physical-epoch', playback: true
+    });
+    await act(async () => {
+      await Promise.all(reverse.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )));
+    });
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBeCloseTo(2.6, 1);
+    const playsBeforeReverseMedia = play.mock.calls.length;
+    commands.rebind({
+      reports: mount.reports, frameToken: 'figure2:stage:reverse:1',
+      segmentId: 'figure2-distance-expand', stageIndex: 1, direction: 'reverse'
+    });
+    expect(play.mock.calls.length).toBeGreaterThan(playsBeforeReverseMedia);
+    expect(pause).toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('keeps reverse depth warmup hidden until the paused endpoint is reproved', async () => {
+    let resolvePlay: () => void = () => undefined;
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => (
+      new Promise<void>((resolve) => { resolvePlay = resolve; })
+    ));
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const scene = host.querySelector<HTMLElement>('.phone-figure2')!;
+    const video = host.querySelector<HTMLVideoElement>('[data-figure2-combined-video]')!;
+    scene.dataset.phoneFigure2CanvasReady = 'true';
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'figure2:reverse-depth:hidden',
+      segmentId: 'figure2-distance-expand',
+      stageIndex: 0,
+      direction: 'reverse'
+    });
+
+    const activation = commands.activate({
+      invocationId: 'figure2:reverse-depth:activation',
+      surfaceIds: ['figure2-pair-video'],
+      credit: 'physical-epoch',
+      playback: true
+    });
+    expect(play).toHaveBeenCalledOnce();
+    expect(scene.hasAttribute('data-phone-figure2-canvas-ready')).toBe(false);
+
+    video.currentTime = 2.4;
+    (probe.surfaceOptions?.onFrame as ((frame: {
+      canvas: HTMLCanvasElement;
+      generation: number;
+    }) => void) | undefined)?.({
+      canvas: host.querySelector<HTMLCanvasElement>('[data-figure2-packed-alpha-canvas]')!,
+      generation: 1
+    });
+    expect(scene.hasAttribute('data-phone-figure2-canvas-ready')).toBe(false);
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolvePlay();
+      await Promise.all(activation.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )));
+    });
+    expect(video.currentTime).toBeCloseTo(2.6, 1);
+
+    (probe.surfaceOptions?.onFrame as ((frame: {
+      canvas: HTMLCanvasElement;
+      generation: number;
+    }) => void) | undefined)?.({
+      canvas: host.querySelector<HTMLCanvasElement>('[data-figure2-packed-alpha-canvas]')!,
+      generation: 1
+    });
+    expect(scene.dataset.phoneFigure2CanvasReady).toBe('true');
+    expect(mount.reports.reportFrame).toHaveBeenCalledOnce();
+    act(() => root.unmount());
+  });
+
+  it('reports a recoverable failure when reverse-stage playback cannot resume', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'figure2:reverse-resume:hold',
+      segmentId: 'figure2-distance-expand',
+      stageIndex: 0,
+      direction: 'reverse'
+    });
+    const activation = commands.activate({
+      invocationId: 'figure2:reverse-resume:activation',
+      surfaceIds: ['figure2-pair-video'],
+      credit: 'physical-epoch',
+      playback: true
+    });
+    await act(async () => {
+      await Promise.all(activation.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )));
+    });
+    play.mockRejectedValueOnce(new DOMException('Playback denied', 'NotAllowedError'));
+
+    await act(async () => {
+      commands.rebind({
+        reports: mount.reports,
+        frameToken: 'figure2:reverse-resume:media',
+        segmentId: 'figure2-distance-expand',
+        stageIndex: 1,
+        direction: 'reverse'
+      });
+      await Promise.resolve();
+    });
+
+    expect(mount.reports.reportFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'figure2-reverse-playback-rejected',
+      message: 'Playback denied',
+      recoverable: true,
+      detail: expect.objectContaining({ stageIndex: 1, direction: 'reverse' })
+    }));
+    act(() => root.unmount());
+  });
+
   it('keeps a transient reactivation repaint miss non-terminal until a causal frame', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     probe.renderSurface.mockReset().mockReturnValue(false);
@@ -170,9 +377,10 @@ describe('clean PhoneFigure2 leaf', () => {
     const settlement = invocation?.settlements[0];
     expect(settlement?.status).toBe('pending');
     if (settlement?.status === 'pending') await expect(settlement.settled).resolves.toBeUndefined();
+    const probesBeforeRender = probe.probeSurface.mock.calls.length;
     mount.registration()?.commands.render(.4);
 
-    expect(probe.probeSurface).toHaveBeenCalledOnce();
+    expect(probe.probeSurface.mock.calls.length).toBe(probesBeforeRender + 1);
     expect(probe.renderSurface).not.toHaveBeenCalled();
     expect(current.reports.reportFailure).not.toHaveBeenCalled();
   });

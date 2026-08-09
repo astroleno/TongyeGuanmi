@@ -38,7 +38,7 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
 }
 
 .phone-story__coverage {
-  background: var(--phone-story-coverage, #07110e);
+  background: var(--phone-story-coverage, #040807);
   /* Overshoot past every edge so the scene edge color still covers the
      seam while the sampled visual-viewport geometry lags the compositor
      during iOS toolbar collapse/expand. Reading-flow (z-index 50) and all

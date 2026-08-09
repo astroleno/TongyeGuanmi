@@ -41,11 +41,11 @@ const mediaClockOwners = {
   'figure2-proof-brand': 'none',
   'brand-figure3': 'none',
   'figure3-services': 'source',
-  'services-ttg': 'none',
+  'services-ttg': 'target',
   'ttg-lab': 'source',
-  'lab-ph': 'none',
+  'lab-ph': 'target',
   'ph-education': 'source',
-  'education-crane': 'none',
+  'education-crane': 'target',
   'crane-contact': 'source'
 } as const satisfies Readonly<Record<PhoneSegmentId, 'none' | 'source' | 'target'>>;
 
@@ -128,6 +128,16 @@ describe('phone segment choreography', () => {
     });
   });
 
+  it('keeps Brand to Figure3 static until Figure3 to Services owns playback', () => {
+    expect(phoneSegmentChoreographyFrame('brand-figure3', 0)).toMatchObject({
+      sourceProgress: 1, targetProgress: 0, mediaClockOwner: 'none'
+    });
+    expect(phoneSegmentChoreographyFrame('brand-figure3', .5).targetProgress).toBe(0);
+    expect(phoneSegmentChoreographyFrame('figure3-services', 0).sourceProgress).toBe(0);
+    expect(phoneSegmentChoreographyFrame('figure3-services', 1).sourceProgress)
+      .toBeGreaterThan(0);
+  });
+
   it('reverses canonical time and swaps actual source and target ownership', () => {
     const start = phoneSegmentChoreographyFrame(
       'pattern-star-map', 1, 'reverse'
@@ -149,18 +159,18 @@ describe('phone segment choreography', () => {
     });
   });
 
-  it('keeps cinematic receivers static until their own outgoing segment', () => {
+  it('prepares receiver media while keeping cinematic progress on its initial hold', () => {
     expect(phoneSegmentChoreographyFrame('services-ttg', 1)).toMatchObject({
       targetProgress: 0,
-      mediaClockOwner: 'none'
+      mediaClockOwner: 'target'
     });
     expect(phoneSegmentChoreographyFrame('lab-ph', 1)).toMatchObject({
       targetProgress: 0,
-      mediaClockOwner: 'none'
+      mediaClockOwner: 'target'
     });
     expect(phoneSegmentChoreographyFrame('education-crane', 1)).toMatchObject({
       targetProgress: 0,
-      mediaClockOwner: 'none'
+      mediaClockOwner: 'target'
     });
   });
 

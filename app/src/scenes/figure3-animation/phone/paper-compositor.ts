@@ -38,7 +38,8 @@ export function phoneFigure3PaperCoverRect(
   sourceWidth: number,
   sourceHeight: number,
   viewportWidth: number,
-  viewportHeight: number
+  viewportHeight: number,
+  cameraScale = 1
 ): PhoneFigure3PaperCoverRect {
   const safeSourceWidth = Math.max(1, sourceWidth);
   const safeSourceHeight = Math.max(1, sourceHeight);
@@ -48,8 +49,10 @@ export function phoneFigure3PaperCoverRect(
     safeViewportWidth / safeSourceWidth,
     safeViewportHeight / safeSourceHeight
   );
-  const width = safeSourceWidth * scale;
-  const height = safeSourceHeight * scale;
+  const safeCameraScale = Number.isFinite(cameraScale) && cameraScale > 0
+    ? cameraScale : 1;
+  const width = safeSourceWidth * scale * safeCameraScale;
+  const height = safeSourceHeight * scale * safeCameraScale;
   return {
     x: 0,
     y: (safeViewportHeight - height) / 2,
@@ -94,11 +97,13 @@ export function paintPhoneFigure3PaperFrame(
 
   const context = canvas.getContext('2d', { alpha: false });
   if (!context) return false;
+  const cameraScale = Number(canvas.dataset.phoneFigure3PaperScale);
   const frame = phoneFigure3PaperCoverRect(
     video.videoWidth,
     video.videoHeight,
     viewportWidth,
-    viewportHeight
+    viewportHeight,
+    Number.isFinite(cameraScale) ? cameraScale : 1
   );
   try {
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
@@ -124,6 +129,7 @@ export function releasePhoneFigure3PaperCanvas(
   if (!canvas) return;
   delete canvas.dataset.phoneFigure3PaperFrame;
   delete canvas.dataset.phoneFigure3PaperEndpoint;
+  delete canvas.dataset.phoneFigure3PaperScale;
   canvas.width = 1;
   canvas.height = 1;
 }

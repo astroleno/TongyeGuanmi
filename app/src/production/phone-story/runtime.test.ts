@@ -90,7 +90,7 @@ type EnvironmentFixture = Readonly<{
   retiredListeners(): readonly ((event: PhoneRuntimeHostEvent) => void)[];
 }>;
 
-function createEnvironment(): EnvironmentFixture {
+function createEnvironment(reducedMotion = false): EnvironmentFixture {
   const listeners = new Set<(event: PhoneRuntimeHostEvent) => void>();
   const retired: Array<(event: PhoneRuntimeHostEvent) => void> = [];
   const timers = new Map<PhoneRuntimeTimerHandle, () => void>();
@@ -111,7 +111,7 @@ function createEnvironment(): EnvironmentFixture {
     nextAuthorityId: () => `runtime-authority:${++authority}`,
     readViewport: () => liveViewport,
     activeNow: () => activeMs,
-    readReducedMotion: () => false,
+    readReducedMotion: () => reducedMotion,
     subscribeHost: (listener) => {
       listeners.add(listener);
       return () => {
@@ -221,6 +221,7 @@ function createPresentationAuthority(
     sampleLayoutViewport: () => readViewport().layout,
     sampleVisualViewport: () => readViewport().visual,
     applyTransitionFrame: () => undefined,
+    commitStablePlane: () => undefined,
     refreshStableViewport: () => undefined,
     applyPlane: () => ({ records: [], failure: null }),
     verifyVisibleCandidate: () => ({ records: [], failure: null }),
@@ -1626,6 +1627,45 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('exposes a prewarm fail-closed result when the cached segment is attempted', async () => {
+    const fixture = createEnvironment();
+    const reportRejectedChunk = vi.fn(async () => 'fail-closed' as const);
+    const loadDependencies = vi.fn(async () => ({ status: 'loaded' as const }));
+    const prewarmDependencies = vi.fn(async (
+      effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>
+    ) => ({
+      status: 'rejected' as const,
+      dependency: effect.dependencies.find((dependency) => dependency === 'transition:star-map-aod')!,
+      moduleUrl: '/assets/prewarm-rejected.js',
+      reason: 'prewarm native import rejected'
+    }));
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#star-map', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies, prewarmDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    });
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    await vi.waitFor(() => expect(reportRejectedChunk).toHaveBeenCalledTimes(1));
+
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      trusted: true, target: 'story'
+    });
+    await vi.waitFor(() => expect(currentTransaction(runtime).mode).toBe('rollback'));
+    proveCurrent(runtime, fixture);
+    await vi.waitFor(() => expect(runtime.getSnapshot().status).toBe('faulted'));
+    expect(reportRejectedChunk).toHaveBeenCalledTimes(2);
+    const faulted = runtime.getSnapshot();
+    if (faulted.status !== 'faulted') throw new Error('expected controlled recovery fault');
+    expect(faulted.stableCommit?.sceneId).toBe('star-map');
+    expect(faulted.fault.code).toBe('module-load-rejected');
+    disconnect();
+  });
+
   it('keeps static Star-to-AOD arrival out of the touch activation path', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#star-map');
@@ -2226,7 +2266,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#figure3-animation');
     const disconnect = runtime.connect();
-    const source = commandFixture((call) => call !== 2);
+    const source = commandFixture((call) => call !== 1);
     registerCurrentLeaf(runtime, source.commands);
     proveCurrent(runtime, fixture);
 
@@ -2240,7 +2280,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(fixture.effects.filter((effect) => (
       effect.type === 'show-activation-cta' && effect.attempt.mode === 'segment'
     ))).toEqual([]);
-    expect(source.commands.activate).toHaveBeenCalledTimes(2);
+    expect(source.commands.activate).toHaveBeenCalledTimes(1);
 
     proveCurrent(runtime, fixture);
     expect(runtime.getSnapshot()).toMatchObject({
@@ -2253,7 +2293,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(currentTransaction(runtime)).toMatchObject({
       mode: 'segment', candidateSceneId: 'services', activation: 'spent'
     });
-    expect(source.commands.activate).toHaveBeenCalledTimes(3);
+    expect(source.commands.activate).toHaveBeenCalledTimes(2);
     disconnect();
   });
 
@@ -2292,6 +2332,22 @@ describe('phone runtime effects, media activation, and disposal', () => {
       phase: 'awaiting-media-activation', activation: 'awaiting', retainedTopology: true
     });
     expect(fixture.effects).toContainEqual(expect.objectContaining({
+      type: 'show-activation-cta', enabled: true
+    }));
+    disconnect();
+  });
+
+  it('keeps reduced-motion Figure2 direct entry on static proof without autoplay or CTA', () => {
+    const fixture = createEnvironment(true);
+    const runtime = createRuntime(fixture, '#figure2-animation');
+    const disconnect = runtime.connect();
+    const direct = commandFixture();
+
+    registerCurrentLeaf(runtime, direct.commands);
+
+    expect(currentTransaction(runtime).reducedMotion).toBe(true);
+    expect(direct.commands.activate).not.toHaveBeenCalled();
+    expect(fixture.effects).not.toContainEqual(expect.objectContaining({
       type: 'show-activation-cta', enabled: true
     }));
     disconnect();
@@ -3030,7 +3086,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
-  it('poisons only a second leg native rejection and holds its stable source fail-closed', async () => {
+  it('rolls a second-leg native rejection back to the stable source and reopens input', async () => {
     const fixture = createEnvironment();
     const reportRejectedChunk = vi.fn(async () => 'fail-closed' as const);
     const loadDependencies = vi.fn(async (effect: Extract<PhoneStoryEffect, {
@@ -3073,20 +3129,255 @@ describe('phone runtime effects, media activation, and disposal', () => {
       type: 'input', kind: 'wheel', delta: 100, fresh: true,
       trusted: true, target: 'story'
     });
-    await vi.waitFor(() => expect(runtime.getSnapshot().status).toBe('faulted'));
+    await vi.waitFor(() => expect(currentTransaction(runtime).mode).toBe('rollback'));
     expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('star-map');
     expect(reportRejectedChunk).toHaveBeenCalledWith(expect.objectContaining({
       moduleUrl: '/assets/star-map-aod.js'
     }));
-    runtime.retry();
-    expect(currentTransaction(runtime).mode).toBe('recovery');
+    proveCurrent(runtime, fixture);
+    await vi.waitFor(() => expect(runtime.getSnapshot().status).toBe('faulted'));
+    const faulted = runtime.getSnapshot();
+    if (faulted.status !== 'faulted') throw new Error('expected controlled recovery fault');
+    expect(faulted.stableCommit?.sceneId).toBe('star-map');
+    expect(faulted.fault.code).toBe('module-load-rejected');
+    expect(faulted.input.enabled).toBe(false);
+    disconnect();
+  });
+
+  it('applies a delayed fail-closed result after the original rollback is stable', async () => {
+    const fixture = createEnvironment();
+    const recoveryResults: Array<(status: 'fail-closed') => void> = [];
+    const reportRejectedChunk = vi.fn(() => new Promise<'fail-closed'>((resolve) => {
+      recoveryResults.push(resolve);
+    }));
+    const loadDependencies = vi.fn(async (effect: Extract<PhoneStoryEffect, {
+      type: 'load-dependencies'
+    }>) => effect.attempt.mode === 'segment'
+      && effect.attempt.segmentId === 'star-map-aod'
+      ? {
+          status: 'rejected' as const,
+          dependency: 'transition:star-map-aod' as const,
+          moduleUrl: '/assets/star-map-aod.js', reason: 'rollback already stable'
+        }
+      : { status: 'loaded' as const });
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    } as Parameters<typeof createPhoneStoryRuntime>[0]);
+    const disconnect = runtime.connect();
     await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
       slot.kind === 'module-loaded'
     ))).toBe(true));
     proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    await vi.waitFor(() => expect(currentTransaction(runtime).mode).toBe('rollback'));
+    proveCurrent(runtime, fixture);
     expect(runtime.getSnapshot().status).toBe('stable');
     expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('star-map');
+    expect(recoveryResults).toHaveLength(1);
+    recoveryResults[0]!('fail-closed');
+    await vi.waitFor(() => expect(runtime.getSnapshot().status).toBe('faulted'));
+    const faulted = runtime.getSnapshot();
+    if (faulted.status !== 'faulted') throw new Error('expected controlled recovery fault');
+    expect(faulted.fault.code).toBe('module-load-rejected');
     disconnect();
+  });
+
+  it('applies delayed fail-closed after layout replaces the rollback generation', async () => {
+    const fixture = createEnvironment();
+    const recoveryResults: Array<(status: 'fail-closed') => void> = [];
+    const reportRejectedChunk = vi.fn(() => new Promise<'fail-closed'>((resolve) => {
+      recoveryResults.push(resolve);
+    }));
+    const loadDependencies = vi.fn(async (effect: Extract<PhoneStoryEffect, {
+      type: 'load-dependencies'
+    }>) => effect.attempt.mode === 'segment'
+      && effect.attempt.segmentId === 'star-map-aod'
+      ? {
+          status: 'rejected' as const,
+          dependency: 'transition:star-map-aod' as const,
+          moduleUrl: '/assets/star-map-aod.js', reason: 'layout replaced rollback'
+        }
+      : { status: 'loaded' as const });
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    } as Parameters<typeof createPhoneStoryRuntime>[0]);
+    const disconnect = runtime.connect();
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    await vi.waitFor(() => expect(currentTransaction(runtime).mode).toBe('rollback'));
+    const firstRollback = currentTransaction(runtime).attempt.transactionGeneration;
+    fixture.emit({
+      type: 'viewport', change: 'layout',
+      viewport: { ...initialViewport(), layoutRevision: 2, visualRevision: 2 }
+    });
+    expect(currentTransaction(runtime).mode).toBe('rollback');
+    expect(currentTransaction(runtime).attempt.transactionGeneration).toBeGreaterThan(firstRollback);
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot().status).toBe('stable');
+    expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('star-map');
+    expect(recoveryResults).toHaveLength(1);
+    recoveryResults[0]!('fail-closed');
+    await vi.waitFor(() => expect(runtime.getSnapshot().status).toBe('faulted'));
+    const faulted = runtime.getSnapshot();
+    if (faulted.status !== 'faulted') throw new Error('expected controlled recovery fault');
+    expect(faulted.fault.code).toBe('module-load-rejected');
+    disconnect();
+  });
+
+  it('fails closed when a direct non-Hero boot rejects before any stable commit', async () => {
+    const fixture = createEnvironment();
+    const recoveryResults: Array<(status: 'fail-closed') => void> = [];
+    const reportRejectedChunk = vi.fn(() => new Promise<'fail-closed'>((resolve) => {
+      recoveryResults.push(resolve);
+    }));
+    const loadDependencies = vi.fn(async (effect: Extract<PhoneStoryEffect, {
+      type: 'load-dependencies'
+    }>) => effect.attempt.sceneId === 'brand'
+      ? {
+          status: 'rejected' as const,
+          dependency: 'scene:brand' as const,
+          moduleUrl: '/assets/brand.js', reason: 'direct Brand boot rejected'
+        }
+      : { status: 'loaded' as const });
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#brand', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    } as Parameters<typeof createPhoneStoryRuntime>[0]);
+    const disconnect = runtime.connect();
+    await vi.waitFor(() => expect(recoveryResults).toHaveLength(1));
+    expect(runtime.getSnapshot().status).toBe('faulted');
+    const faultedBeforeRecovery = runtime.getSnapshot();
+    if (faultedBeforeRecovery.status !== 'faulted') throw new Error('expected direct boot fault');
+    expect(faultedBeforeRecovery.stableCommit).toBeNull();
+    expect(faultedBeforeRecovery.fault.code).toBe('module-load-rejected');
+    recoveryResults[0]!('fail-closed');
+    await Promise.resolve();
+    expect(runtime.getSnapshot().status).toBe('faulted');
+    disconnect();
+  });
+
+  it('does not apply a delayed fail-closed result to a newer transition', async () => {
+    const fixture = createEnvironment();
+    const recoveryResults: Array<(status: 'fail-closed') => void> = [];
+    const reportRejectedChunk = vi.fn(() => new Promise<'fail-closed'>((resolve) => {
+      recoveryResults.push(resolve);
+    }));
+    const loadDependencies = vi.fn(async (effect: Extract<PhoneStoryEffect, {
+      type: 'load-dependencies'
+    }>) => effect.attempt.mode === 'segment'
+      && effect.attempt.segmentId === 'star-map-aod'
+      ? {
+          status: 'rejected' as const,
+          dependency: 'transition:star-map-aod' as const,
+          moduleUrl: '/assets/star-map-aod.js', reason: 'delayed recovery result'
+        }
+      : { status: 'loaded' as const });
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    } as Parameters<typeof createPhoneStoryRuntime>[0]);
+    const disconnect = runtime.connect();
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('star-map');
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    await vi.waitFor(() => expect(currentTransaction(runtime).mode).toBe('rollback'));
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: -100, fresh: true, trusted: true, target: 'story' });
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot().status).toBe('stable');
+    expect(runtime.getSnapshot().stableCommit?.sceneId).toBe('pattern');
+    expect(recoveryResults).toHaveLength(1);
+    recoveryResults[0]!('fail-closed');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(runtime.getSnapshot().status).toBe('stable');
+    disconnect();
+  });
+
+  it('ignores a delayed fail-closed result after the runtime reconnects', async () => {
+    const fixture = createEnvironment();
+    const recoveryResults: Array<(status: 'fail-closed') => void> = [];
+    const reportRejectedChunk = vi.fn(() => new Promise<'fail-closed'>((resolve) => {
+      recoveryResults.push(resolve);
+    }));
+    const loadDependencies = vi.fn(async (effect: Extract<PhoneStoryEffect, {
+      type: 'load-dependencies'
+    }>) => effect.attempt.mode === 'segment'
+      && effect.attempt.segmentId === 'star-map-aod'
+      ? {
+          status: 'rejected' as const,
+          dependency: 'transition:star-map-aod' as const,
+          moduleUrl: '/assets/star-map-aod.js', reason: 'stale connection result'
+        }
+      : { status: 'loaded' as const });
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createPresentationAuthority(),
+      ports: { loadDependencies },
+      chunkRecovery: { reportRejectedChunk, markStable: vi.fn() }
+    } as Parameters<typeof createPhoneStoryRuntime>[0]);
+    const disconnect = runtime.connect();
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    await vi.waitFor(() => expect(currentTransaction(runtime).evidence.some(({ slot }) => (
+      slot.kind === 'module-loaded'
+    ))).toBe(true));
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    await vi.waitFor(() => expect(currentTransaction(runtime).mode).toBe('rollback'));
+    proveCurrent(runtime, fixture);
+    expect(recoveryResults).toHaveLength(1);
+    disconnect();
+    const reconnect = runtime.connect();
+    recoveryResults[0]!('fail-closed');
+    await Promise.resolve();
+    await Promise.resolve();
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot().status).toBe('stable');
+    reconnect();
   });
 
   it.each(['pause', 'dispose', 'lease-release', 'dependencies'] as const)(

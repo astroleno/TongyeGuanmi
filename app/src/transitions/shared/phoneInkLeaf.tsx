@@ -108,6 +108,7 @@ export function createPhoneInkLeaf(
           options.mapProgress?.(rawProgress) ?? rawProgress));
         const canvas = canvasRef.current;
         if (!canvas) return;
+        canvas.dataset.r4InkBoundaryProgress = progress.toFixed(4);
         const visible = progress > .002 && progress < .999;
         setEffectVisible(canvas, visible);
         const viewport = viewportFor(canvas);

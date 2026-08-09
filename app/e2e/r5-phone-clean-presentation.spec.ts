@@ -9,8 +9,10 @@ import {
   assertNoIntermediateWhiteOrBlackFrame,
   assertOpaqueViewportEdges,
   assertTargetContentVisible,
+  readPhoneStoryDiagnostic,
   readCommitSequence,
-  waitForCommitSequence
+  waitForCommitSequence,
+  waitForDirectEntryCommit
 } from './r5-phone-clean-assertions';
 
 // Browser acceptance uses keyboard/pointer input; it is not physical iOS touch
@@ -54,7 +56,7 @@ const GRADE_A_SEGMENT = {
 const FIGURE3_SLICE_CONTENT = {
   brand: ['#phone-brand-title', '.phone-brand__definition p'],
   'figure3-animation': [
-    '[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-canvas]'
+    '[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-poster]'
   ],
   services: ['#phone-services-title', '.phone-services__hero > p:last-child']
 } as const;
@@ -75,7 +77,7 @@ const FIGURE3_SLICE_SEGMENT = {
 const GROUP45_CONTENT = {
   brand: ['#phone-brand-title', '.phone-brand__definition p'],
   'figure3-animation': [
-    '[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-canvas]'
+    '[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-poster]'
   ],
   services: ['#phone-services-title', '.phone-services__hero > p:last-child'],
   'ttg-animation': ['[data-r4-scene="ttg-animation"] [data-ttg-figure-video]'],
@@ -163,6 +165,19 @@ const COMPLETE_STORY_CONTENT: Readonly<Record<CompleteStoryScene, readonly strin
   ]
 };
 
+function completeStoryContentAtLanding(
+  scene: CompleteStoryScene,
+  direction: 'forward' | 'reverse'
+): readonly string[] {
+  if (direction === 'reverse' && scene === 'figure2-proof') {
+    return ['[data-r4-proof-panel="closing"]'];
+  }
+  if (direction === 'reverse' && scene === 'method-top') {
+    return ['#method .portrait-scroll-spike__steps li:last-child h3'];
+  }
+  return COMPLETE_STORY_CONTENT[scene];
+}
+
 const BETWEEN_PLANE_SEGMENTS = new Set<CompleteStorySegment>([
   'aod-method-top', 'figure3-services', 'ttg-lab', 'ph-education',
   'crane-contact'
@@ -209,8 +224,17 @@ async function assertFormalInkCompositeContribution(
   if (!FORMAL_INK_SEGMENTS.has(segment)) return;
   const selector = `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"]`;
   await expect(page.locator(selector)).toBeVisible({ timeout: 10_000 });
-  for (let frame = 0; frame < 8; frame += 1) await nextAnimationFrame(page);
-  await assertInkIntermediateCompositeContribution(page, selector);
+  await page.waitForFunction((inkSelector) => {
+    const progress = Number(
+      document.querySelector<HTMLElement>(inkSelector)?.dataset.r4InkBoundaryProgress
+    );
+    return Number.isFinite(progress) && progress >= .2 && progress <= .8;
+  }, selector, { timeout: 10_000 });
+  try {
+    await assertInkIntermediateCompositeContribution(page, selector);
+  } catch (error) {
+    throw new Error(`Formal Ink ${segment} did not contribute a live frame`, { cause: error });
+  }
 }
 
 async function readStarPerlinLuminance(
@@ -354,7 +378,7 @@ async function traverseGradeA(
         scene: shell?.dataset.phoneScene,
         status: shell?.dataset.phoneStatus,
         phase: shell?.dataset.phonePhase,
-        failure: shell?.dataset.phoneFailure,
+        failure: shell?.dataset.phoneLastFailure,
         sequence: Number(shell?.dataset.phoneCommitSequence)
       };
       return state.scene === to && state.sequence > after
@@ -376,7 +400,12 @@ async function traverseGradeA(
   }
   await waitForCommitSequence(page, target, before);
   expect(await readCommitSequence(page)).toBe(before + 1);
-  await assertTargetContentVisible(page, GRADE_A_CONTENT[target]);
+  const targetContent = target === 'figure2-proof' && direction === 'reverse'
+    ? ['[data-r4-proof-panel="closing"]']
+    : target === 'method-top' && direction === 'reverse'
+      ? ['#method .portrait-scroll-spike__steps li:last-child h3']
+      : GRADE_A_CONTENT[target];
+  await assertTargetContentVisible(page, targetContent);
   await assertNoWhiteOrTransparentViewportEdges(page);
 }
 
@@ -394,7 +423,7 @@ async function traverseFigure3Slice(
   await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT[target]);
   await assertNoWhiteOrTransparentViewportEdges(page);
   if (target === 'figure3-animation') {
-    await expect(page.locator('[data-phone-figure3-paper-canvas]'))
+    await expect(page.locator('[data-phone-figure3-paper-poster]'))
       .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
   }
   return page.evaluate(() => ({
@@ -444,7 +473,7 @@ async function completeFigure3SliceAttempt(
         scene: shell?.dataset.phoneScene,
         status: shell?.dataset.phoneStatus,
         phase: shell?.dataset.phonePhase,
-        failure: shell?.dataset.phoneFailure,
+        failure: shell?.dataset.phoneLastFailure,
         sequence: Number(shell?.dataset.phoneCommitSequence)
       };
       return state.scene === to && state.sequence > after
@@ -504,7 +533,7 @@ async function completeGroup45Attempt(
         scene: shell?.dataset.phoneScene,
         status: shell?.dataset.phoneStatus,
         phase: shell?.dataset.phonePhase,
-        failure: shell?.dataset.phoneFailure,
+        failure: shell?.dataset.phoneLastFailure,
         sequence: Number(shell?.dataset.phoneCommitSequence)
       };
       return current.scene === to && current.sequence > after
@@ -655,7 +684,7 @@ async function completePhSliceAttempt(
         scene: shell?.dataset.phoneScene,
         status: shell?.dataset.phoneStatus,
         phase: shell?.dataset.phonePhase,
-        failure: shell?.dataset.phoneFailure,
+        failure: shell?.dataset.phoneLastFailure,
         sequence: Number(shell?.dataset.phoneCommitSequence),
         activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
       };
@@ -938,9 +967,9 @@ async function traverseCompleteStoryLeg(
   const before = beforeState.sequence;
   await assertSinglePhoneAuthority(page);
   if (source === 'crane-animation') {
-    await assertCompositeTargetContentVisible(page, COMPLETE_STORY_CONTENT[source]);
+    await assertCompositeTargetContentVisible(page, completeStoryContentAtLanding(source, direction));
   } else {
-    await assertTargetContentVisible(page, COMPLETE_STORY_CONTENT[source]);
+    await assertTargetContentVisible(page, completeStoryContentAtLanding(source, direction));
   }
   await sendFrontIntent(page, direction);
   const startedHandle = await page.waitForFunction(({ from, to, after, revision }) => {
@@ -970,6 +999,13 @@ async function traverseCompleteStoryLeg(
   await expect(page.locator(effectSelector)).toBeAttached({ timeout: 15_000 });
   await expect(page.locator(effectSelector)).toHaveCount(1);
   await assertSinglePhoneAuthority(page);
+  if (source === 'pattern' && target === 'star-map' && direction === 'forward') {
+    await page.waitForFunction(() => (
+      document.querySelector<HTMLElement>('.phone-story')?.dataset.phonePhase
+        === 'awaiting-leg-intent'
+    ), undefined, { timeout: 20_000 });
+    await sendFrontIntent(page, direction);
+  }
   await assertFormalInkCompositeContribution(page, segment);
 
   for (let boundary = 0; boundary < 8; boundary += 1) {
@@ -979,6 +1015,7 @@ async function traverseCompleteStoryLeg(
         scene: shell?.dataset.phoneScene,
         status: shell?.dataset.phoneStatus,
         phase: shell?.dataset.phonePhase,
+        failure: shell?.dataset.phoneLastFailure,
         sequence: Number(shell?.dataset.phoneCommitSequence),
         activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
       };
@@ -1015,9 +1052,9 @@ async function traverseCompleteStoryLeg(
   );
   await assertSinglePhoneAuthority(page);
   if (target === 'crane-animation') {
-    await assertCompositeTargetContentVisible(page, COMPLETE_STORY_CONTENT[target]);
+    await assertCompositeTargetContentVisible(page, completeStoryContentAtLanding(target, direction));
   } else {
-    await assertTargetContentVisible(page, COMPLETE_STORY_CONTENT[target]);
+    await assertTargetContentVisible(page, completeStoryContentAtLanding(target, direction));
   }
   await assertCompleteStoryFrame(page, target);
   await assertNoWhiteOrTransparentViewportEdges(page);
@@ -1422,8 +1459,18 @@ test('Hero coverage matches its bottom vignette through a toolbar-sized resize',
   await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.portrait-scroll-spike__scene--hero')).toBeAttached();
 
+  await nextAnimationFrame(page);
   const cold = await heroBottomSamples(page);
+  const coldDom = await page.evaluate(() => ({
+    html: getComputedStyle(document.documentElement).backgroundColor,
+    body: getComputedStyle(document.body).backgroundColor,
+    preboot: document.documentElement.style.getPropertyValue('--phone-preboot-surface'),
+    coverage: getComputedStyle(document.querySelector('.phone-story__coverage')!).backgroundColor,
+    shell: getComputedStyle(document.querySelector('.phone-story')!).backgroundColor
+  }));
   expect(cold.every(({ bottom }) => bottom[3] >= 254)).toBe(true);
+  expect(coldDom.preboot, `Hero cold surface: ${JSON.stringify({ cold, coldDom })}`)
+    .toBe('#040807');
   releaseVideo();
   await waitForCommitSequence(page, 'hero', 0);
   await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'stable');
@@ -1846,7 +1893,7 @@ test('Grade A direct entries expose the requested target before Loader retiremen
     await page.goto(`/${GRADE_A_HASH[scene]}`, {
       waitUntil: 'domcontentloaded'
     });
-    await waitForCommitSequence(page, scene, 0);
+    await waitForDirectEntryCommit(page, scene);
     await assertSinglePhoneAuthority(page);
     await assertTargetContentVisible(page, GRADE_A_CONTENT[scene]);
     await assertNoWhiteOrTransparentViewportEdges(page);
@@ -1862,6 +1909,251 @@ test('Grade A direct entries expose the requested target before Loader retiremen
         .toBe(false);
     }
   }
+});
+
+test('Figure2 staged media holds its midpoint during the real z-depth leg', async ({ page }) => {
+  await page.goto('/#method-top', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'method-top', 0);
+  await waitForContinuousStoryReady(page);
+  await sendFrontIntent(page, 'forward');
+  await waitForCommitSequence(page, 'figure2-animation', 0);
+  await waitForContinuousStoryReady(page);
+  const video = page.locator('[data-figure2-combined-video]');
+  await expect(video).toHaveCount(1);
+
+  await sendFrontIntent(page, 'forward');
+  const trace = await page.evaluate(() => new Promise<Readonly<{
+    elapsed: number;
+    status: string | undefined;
+    phase: string | undefined;
+    failure: string | undefined;
+    scene: string | undefined;
+    progress: string | undefined;
+    currentTime: number;
+    paused: boolean;
+  }>[]>((resolve) => {
+    const startedAt = performance.now();
+    const samples: Array<{
+      elapsed: number;
+      phase: string | undefined;
+      scene: string | undefined;
+      progress: string | undefined;
+      currentTime: number;
+      paused: boolean;
+    }> = [];
+    const sample = () => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const figure = document.querySelector<HTMLElement>('.phone-figure2');
+      const media = document.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
+      if (shell && media) samples.push({
+        elapsed: performance.now() - startedAt,
+        phase: shell.dataset.phonePhase,
+        scene: shell.dataset.phoneScene,
+        progress: figure?.dataset.figure2Progress,
+        currentTime: media.currentTime,
+        paused: media.paused
+      });
+      if (performance.now() - startedAt >= 5_000
+        || shell?.dataset.phoneStatus === 'faulted'
+        || shell?.dataset.phoneScene === 'figure2-proof') {
+        resolve(samples);
+        return;
+      }
+      window.setTimeout(sample, 100);
+    };
+    sample();
+  }));
+  const held = trace.filter(({ phase, elapsed }) => (
+    phase === 'dwelling' || (phase === 'playing' && elapsed >= 3_650)
+  ));
+  expect(held, `Figure2 staged media trace: ${JSON.stringify(trace)}`).not.toHaveLength(0);
+  expect(held.every(({ paused }) => paused),
+    `Figure2 z-depth media should be paused: ${JSON.stringify(held)}`).toBe(true);
+  expect(Math.max(...held.map(({ currentTime }) => currentTime))
+    - Math.min(...held.map(({ currentTime }) => currentTime))).toBeLessThan(0.08);
+  expect(held.at(-1)!.currentTime).toBeCloseTo(2.6, 1);
+});
+
+test('Figure2 reverse z-depth keeps only the paused endpoint Canvas visible', async ({ page }) => {
+  await page.goto('/#figure2-proof', { waitUntil: 'domcontentloaded' });
+  await waitForDirectEntryCommit(page, 'figure2-proof');
+  await waitForContinuousStoryReady(page);
+
+  const tracePromise = page.evaluate(() => new Promise<Readonly<{
+    elapsed: number;
+    status: string | undefined;
+    phase: string | undefined;
+    failure: string | undefined;
+    progress: number;
+    currentTime: number;
+    paused: boolean;
+    canvasReady: boolean;
+    canvasTime: number;
+  }>[]>((resolve) => {
+    const startedAt = performance.now();
+    const samples: Array<{
+      elapsed: number;
+      status: string | undefined;
+      phase: string | undefined;
+      failure: string | undefined;
+      progress: number;
+      currentTime: number;
+      paused: boolean;
+      canvasReady: boolean;
+      canvasTime: number;
+    }> = [];
+    let enteredDwell = false;
+    const sample = () => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const figure = document.querySelector<HTMLElement>('.phone-figure2');
+      const animation = document.querySelector<HTMLElement>(
+        '[data-r4-scene="figure2-animation"]'
+      );
+      const media = document.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
+      const canvas = document.querySelector<HTMLCanvasElement>(
+        '[data-figure2-packed-alpha-canvas]'
+      );
+      const phase = shell?.dataset.phonePhase;
+      const progress = Number(animation?.dataset.figure2Progress);
+      if (phase === 'dwelling') enteredDwell = true;
+      if (enteredDwell && phase === 'playing') {
+        resolve(samples);
+        return;
+      }
+      if (media && Number.isFinite(progress)) {
+        samples.push({
+          elapsed: performance.now() - startedAt,
+          status: shell?.dataset.phoneStatus,
+          phase,
+          failure: shell?.dataset.phoneLastFailure,
+          progress,
+          currentTime: media.currentTime,
+          paused: media.paused,
+          canvasReady: figure?.dataset.phoneFigure2CanvasReady === 'true',
+          canvasTime: Number(canvas?.dataset.packedAlphaMediaTime)
+        });
+      }
+      if (performance.now() - startedAt >= 6_000
+        || shell?.dataset.phoneStatus === 'faulted') {
+        resolve(samples);
+        return;
+      }
+      requestAnimationFrame(sample);
+    };
+    sample();
+  }));
+
+  await sendFrontIntent(page, 'reverse');
+  const trace = await tracePromise;
+  const depthTrace = trace.filter(({ phase }) => phase === 'playing' || phase === 'dwelling');
+  expect(depthTrace, `Figure2 reverse z-depth trace: ${JSON.stringify(trace)}`)
+    .not.toHaveLength(0);
+  expect(depthTrace.some(({ phase }) => phase === 'playing')).toBe(true);
+  expect(depthTrace.some(({ phase }) => phase === 'dwelling')).toBe(true);
+  expect(depthTrace.every(({ paused }) => paused),
+    `Figure2 reverse z-depth must remain paused: ${JSON.stringify(trace)}`).toBe(true);
+  expect(depthTrace.every(({ canvasReady }) => canvasReady),
+    `Figure2 reverse endpoint Canvas must be proven: ${JSON.stringify(trace)}`).toBe(true);
+  expect(Math.max(...depthTrace.map(({ currentTime }) => currentTime))
+    - Math.min(...depthTrace.map(({ currentTime }) => currentTime))).toBeLessThan(0.08);
+  expect(depthTrace.at(-1)!.currentTime).toBeCloseTo(2.6, 1);
+  const canvasTimes = depthTrace.map(({ canvasTime }) => canvasTime).filter(Number.isFinite);
+  expect(canvasTimes, `Figure2 reverse Canvas times: ${JSON.stringify(trace)}`).not.toHaveLength(0);
+  expect(Math.max(...canvasTimes) - Math.min(...canvasTimes)).toBeLessThan(0.08);
+  expect(canvasTimes.at(-1)!).toBeCloseTo(2.6, 1);
+});
+
+test('Figure2 reverse playback rejection fails closed without committing a frozen frame', async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const play = HTMLMediaElement.prototype.play;
+    let figure2PlayCount = 0;
+    HTMLMediaElement.prototype.play = function patchedPlay() {
+      if (this.matches('[data-figure2-combined-video]')) {
+        figure2PlayCount += 1;
+        if (figure2PlayCount === 2) {
+          return Promise.reject(new DOMException(
+            'withheld Figure2 reverse playback', 'NotAllowedError'
+          ));
+        }
+      }
+      return play.call(this);
+    };
+  });
+  await page.goto('/#figure2-proof', { waitUntil: 'domcontentloaded' });
+  const before = await waitForDirectEntryCommit(page, 'figure2-proof');
+  await waitForContinuousStoryReady(page);
+
+  await sendFrontIntent(page, 'reverse');
+  const outcome = await page.waitForFunction((failure) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return shell?.dataset.phoneLastFailure === failure ? { ...shell.dataset } : null;
+  }, 'figure2-reverse-playback-rejected', { timeout: 20_000 });
+  expect(await outcome.jsonValue()).toMatchObject({
+    phoneScene: 'figure2-proof',
+    phoneStatus: 'transaction',
+    phoneCommitSequence: String(before),
+    phoneLastFailure: 'figure2-reverse-playback-rejected'
+  });
+  const terminal = await page.waitForFunction((sequence) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return Number(shell?.dataset.phoneCommitSequence) === sequence
+      && ['stable', 'faulted'].includes(shell?.dataset.phoneStatus ?? '')
+      ? { ...shell?.dataset } : null;
+  }, before, { timeout: 20_000 });
+  const terminalState = await terminal.jsonValue();
+  expect(terminalState).toMatchObject({
+    phoneScene: 'figure2-proof',
+    phoneCommitSequence: String(before)
+  });
+  expect(['stable', 'faulted']).toContain(terminalState.phoneStatus);
+  if (terminalState.phoneStatus === 'faulted') {
+    await expect(page.getByRole('button', { name: '重试加载故事' })).toBeVisible();
+  } else {
+    await assertTargetContentVisible(page, GRADE_A_CONTENT['figure2-proof']);
+  }
+
+  await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
+});
+
+test('Brand to Figure3 commits the static initial endpoint on the real leaf', async ({ page }) => {
+  await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'brand', 0);
+  await waitForContinuousStoryReady(page);
+  const before = await readCommitSequence(page);
+  await sendFrontIntent(page, 'forward');
+  const outcome = await page.waitForFunction((after) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    if (!shell) return null;
+    const sequence = Number(shell.dataset.phoneCommitSequence);
+    if (shell.dataset.phoneScene === 'figure3-animation' && sequence > after) {
+      return { kind: 'committed' as const, dataset: { ...shell.dataset } };
+    }
+    if (shell.dataset.phoneStatus === 'stable' && shell.dataset.phoneScene === 'brand') {
+      return { kind: 'rolled-back' as const, dataset: { ...shell.dataset } };
+    }
+    return null;
+  }, before, { timeout: 15_000 });
+  const result = await outcome.jsonValue() as Readonly<{
+    kind: 'committed' | 'rolled-back';
+    dataset: Readonly<Record<string, string>>;
+  }>;
+  if (result.kind === 'rolled-back') {
+    throw new Error(`Brand → Figure3 rolled back on the real leaf: ${JSON.stringify({
+      result,
+      diagnostic: await readPhoneStoryDiagnostic(page)
+    })}`);
+  }
+  await expect(page.locator('[data-phone-figure3-paper-poster]')).toBeVisible();
+  await expect(page.locator('[data-phone-figure3-paper-poster]'))
+    .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
+  const media = await page.locator('.phone-figure3 video').evaluate((video) => ({
+    paused: video.paused,
+    currentTime: video.currentTime,
+    readyState: video.readyState
+  }));
+  expect(media.paused).toBe(true);
 });
 
 test('Grade A chain commits each hold once and preserves both-direction endpoints', async ({
@@ -1888,12 +2180,12 @@ test('Figure3 slice direct entries expose accepted Brand, paper, and Services en
     await page.goto(`/${FIGURE3_SLICE_HASH[scene]}`, {
       waitUntil: 'domcontentloaded'
     });
-    await waitForCommitSequence(page, scene, 0);
+    await waitForDirectEntryCommit(page, scene);
     await assertSinglePhoneAuthority(page);
     await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT[scene]);
     await assertNoWhiteOrTransparentViewportEdges(page);
     if (scene === 'figure3-animation') {
-      await expect(page.locator('[data-phone-figure3-paper-canvas]'))
+      await expect(page.locator('[data-phone-figure3-paper-poster]'))
         .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
       await expect(page.locator('.phone-figure3 video')).toHaveCount(1);
       await expect(page.locator('.phone-figure3 canvas')).toHaveCount(1);
@@ -1987,31 +2279,39 @@ test('Figure3 slice rejects one native chunk URL without retrying it in the Docu
   }
 });
 
-test('Figure3 slice rolls back a withheld terminal compositor frame without a CTA', async ({ page }) => {
+test('Figure3 static Brand handoff ignores a withheld terminal compositor frame', async ({ page }) => {
   const withhold = await withholdFigure3Endpoint(page, 'terminal');
   await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'brand', 0);
   await waitForContinuousStoryReady(page);
   await withhold();
   await sendFrontIntent(page, 'forward');
-  await expect(page.locator('[data-phone-figure3-paper-canvas]')).toBeAttached();
-  await waitForContinuousSourceRestore(page, 'brand', before, 'withheld Figure3 terminal');
+  await waitForCommitSequence(page, 'figure3-animation', before);
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
-  expect(await readCommitSequence(page)).toBe(before);
-  await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.brand);
+  await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT['figure3-animation']);
+  await expect(page.locator('.phone-figure3')).not
+    .toHaveAttribute('data-phone-figure3-media-active', 'true');
+  await expect.poll(() => page.locator('.phone-figure3 video')
+    .evaluate((video) => video.paused)).toBe(true);
 });
 
-test('Figure3 slice rolls back a withheld initial compositor frame without a CTA', async ({ page }) => {
+test('Figure3 reverse media handoff rolls back when its initial compositor frame is withheld', async ({ page }) => {
   const withhold = await withholdFigure3Endpoint(page, 'initial');
-  await page.goto('/#services', { waitUntil: 'domcontentloaded' });
-  const before = await waitForCommitSequence(page, 'services', 0);
+  await page.goto('/#figure3-animation', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'figure3-animation', 0);
   await waitForContinuousStoryReady(page);
+  await traverseFigure3Slice(page, 'figure3-animation', 'services', 'forward');
+  const before = await readCommitSequence(page);
   await withhold();
   await sendFrontIntent(page, 'reverse');
-  await expect(page.locator('[data-phone-figure3-paper-canvas]')).toBeAttached();
-  await waitForContinuousSourceRestore(page, 'services', before, 'withheld Figure3 initial');
+  await expect(page.locator(
+    '[data-phone-plane="effect"] [data-r4-ink-segment="figure3-services"], '
+      + '[data-phone-plane="effect"] [data-phone-transition="figure3-services"]'
+  )).toBeAttached({ timeout: 10_000 });
+  await expectFigure3SliceRollback(
+    page, 'services', 'figure3-animation', 'reverse', before
+  );
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
-  expect(await readCommitSequence(page)).toBe(before);
   await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.services);
 });
 
@@ -2084,7 +2384,7 @@ test('Group 4-5 direct TTG and Lab entries expose their accepted endpoints', asy
     await page.goto(`/#${scene}`, {
       waitUntil: 'domcontentloaded'
     });
-    await waitForCommitSequence(page, scene, 0);
+    await waitForDirectEntryCommit(page, scene);
     await assertSinglePhoneAuthority(page);
     await assertTargetContentVisible(page, GROUP45_CONTENT[scene]);
     await assertNoWhiteOrTransparentViewportEdges(page);
@@ -2210,7 +2510,7 @@ test('Group 4-5 restores proved TTG after visibility and BFCache lifecycle event
     });
   });
   await page.goto('/#ttg-animation', { waitUntil: 'domcontentloaded' });
-  const before = await waitForCommitSequence(page, 'ttg-animation', 0);
+  const before = await waitForDirectEntryCommit(page, 'ttg-animation');
   await waitForContinuousStoryReady(page);
   await sendFrontIntent(page, 'forward');
   await expect(page.locator('[data-phone-transition="ttg-lab"]')).toBeAttached();
@@ -2235,7 +2535,7 @@ test('PH slice direct PH and Education entries expose accepted endpoints', async
     await page.goto(`/#${scene}`, {
       waitUntil: 'domcontentloaded'
     });
-    await waitForCommitSequence(page, scene, 0);
+    await waitForDirectEntryCommit(page, scene);
     await assertSinglePhoneAuthority(page);
     await assertTargetContentVisible(page, PH_SLICE_CONTENT[scene]);
     await assertNoWhiteOrTransparentViewportEdges(page);
@@ -2349,7 +2649,7 @@ test('PH slice re-proves its retained compositor after visibility and BFCache ev
     });
   });
   await page.goto('/#ph-animation', { waitUntil: 'domcontentloaded' });
-  await waitForCommitSequence(page, 'ph-animation', 0);
+  await waitForDirectEntryCommit(page, 'ph-animation');
   const beforePlaneRevision = Number(await page.locator('.phone-story')
     .getAttribute('data-phone-plane-revision'));
   await page.evaluate(() => {
@@ -2377,7 +2677,7 @@ test('Crane slice direct entry proves both authored packed surfaces', async ({ p
   await page.goto('/#crane-animation', {
     waitUntil: 'domcontentloaded'
   });
-  await waitForCommitSequence(page, 'crane-animation', 0);
+  await waitForDirectEntryCommit(page, 'crane-animation');
   await assertSinglePhoneAuthority(page);
   await assertCompositeTargetContentVisible(
     page, CRANE_SLICE_CONTENT['crane-animation']
@@ -2546,7 +2846,7 @@ test('Crane slice re-proves both surfaces across visibility, BFCache, and orient
     });
   });
   await page.goto('/#crane-animation', { waitUntil: 'domcontentloaded' });
-  await waitForCommitSequence(page, 'crane-animation', 0);
+  await waitForDirectEntryCommit(page, 'crane-animation');
   const beforePlaneRevision = Number(await page.locator('.phone-story')
     .getAttribute('data-phone-plane-revision'));
   await page.evaluate(() => {
@@ -2632,7 +2932,7 @@ test('Group 6-7 Crane ↔ Contact commits twice with native input release and no
   await page.goto('/#crane-animation', {
     waitUntil: 'domcontentloaded'
   });
-  await waitForCommitSequence(page, 'crane-animation', 0);
+  await waitForDirectEntryCommit(page, 'crane-animation');
   const cycle = async () => {
     const contact = await traverseCompleteStoryLeg(
       page, 'crane-animation', 'contact', 'forward'
@@ -2660,8 +2960,7 @@ test('complete story proves all 60 segment traversals through one authority with
       status: shell?.dataset.phoneStatus,
       scene: shell?.dataset.phoneScene,
       sequence: Number(shell?.dataset.phoneCommitSequence),
-      failure: shell?.dataset.phoneFailure,
-      message: shell?.dataset.phoneFailureMessage
+      failure: shell?.dataset.phoneLastFailure
     };
     return state.status === 'faulted'
       || state.status === 'stable' && state.scene === 'hero' && state.sequence > 0
@@ -2746,39 +3045,69 @@ test('rejected transition URL is not retried in-document and source retry remain
   page
 }) => {
   let requests = 0;
+  const requestUrls: string[] = [];
+  let releaseRequest = () => undefined;
+  let observeRequest = () => undefined;
+  const requestGate = new Promise<void>((resolve) => { releaseRequest = resolve; });
+  const requested = new Promise<void>((resolve) => { observeRequest = resolve; });
   await page.route(
     /\/assets\/phone-(?!(?:media|packed-alpha-surface)-)[^/]+\.js$/,
     async (route) => {
       requests += 1;
+      requestUrls.push(route.request().url());
+      observeRequest();
+      await requestGate;
       await route.abort('failed');
     }
   );
-  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
-  const before = await waitForCommitSequence(page, 'hero', 0);
-  await page.evaluate(() => sessionStorage.setItem(
-    'r5-phone-chunk-recovery-lineage-v1',
-    JSON.stringify({
-      lineageId: 'spent-transition-lineage', entryUrl: location.href,
-      firstDocumentBuildId: 'first', currentDocumentBuildId: 'current',
-      deployedBuildId: 'deployed', failedModuleUrl: '/assets/phone-old.js',
-      failedModuleClass: 'transition-leaf', automaticReloadCount: 1,
-      status: 'reloaded'
-    })
-  ));
-  await sendFrontIntent(page, 'forward');
-  const shell = page.locator('.phone-story');
-  await expect(shell).toHaveAttribute('data-phone-status', 'faulted');
-  await expect(shell).toHaveAttribute('data-phone-scene', 'hero');
-  expect(await readCommitSequence(page)).toBe(before);
-  await assertTargetContentVisible(page, FRONT_CONTENT.hero);
-  const retry = page.locator('[data-phone-retry="true"]');
-  await expect(retry).toBeVisible();
-  expect(requests).toBe(1);
-  await retry.click();
-  await expect(shell).toHaveAttribute('data-phone-status', 'stable');
-  await sendFrontIntent(page, 'forward');
-  await expect(shell).toHaveAttribute('data-phone-status', 'faulted');
-  expect(requests).toBe(1);
+  try {
+    await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+    const before = await waitForCommitSequence(page, 'hero', 0);
+    await requested;
+    await page.evaluate(() => sessionStorage.setItem(
+      'r5-phone-chunk-recovery-lineage-v1',
+      JSON.stringify({
+        lineageId: 'spent-transition-lineage', entryUrl: location.href,
+        firstDocumentBuildId: 'first', currentDocumentBuildId: 'current',
+        deployedBuildId: 'deployed', failedModuleUrl: '/assets/phone-old.js',
+        failedModuleClass: 'transition-leaf', automaticReloadCount: 1,
+        status: 'reloaded'
+      })
+    ));
+    releaseRequest();
+    await sendFrontIntent(page, 'forward');
+    const shell = page.locator('.phone-story');
+    await expect(shell).toHaveAttribute('data-phone-status', 'faulted');
+    await expect(shell).toHaveAttribute('data-phone-scene', 'hero');
+    expect(await readCommitSequence(page)).toBe(before);
+    await assertTargetContentVisible(page, FRONT_CONTENT.hero);
+    const retry = page.locator('[data-phone-retry="true"]');
+    await expect(retry).toBeVisible();
+    expect(requests).toBe(1);
+    expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem(
+      'r5-phone-chunk-recovery-lineage-v1'
+    ) ?? 'null'))).toMatchObject({
+      automaticReloadCount: 1,
+      failedModuleClass: 'transition-leaf',
+      status: 'fail-closed'
+    });
+    await retry.click();
+    await expect.poll(() => requests).toBe(2);
+    await expect(shell).toHaveAttribute('data-phone-status', 'stable');
+    expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem(
+      'r5-phone-chunk-recovery-lineage-v1'
+    ) ?? 'null'))).toMatchObject({
+      automaticReloadCount: 1,
+      failedModuleClass: 'transition-leaf'
+    });
+    await page.waitForTimeout(750);
+    expect(requests, JSON.stringify(requestUrls)).toBe(2);
+    await sendFrontIntent(page, 'forward');
+    await expect(shell).toHaveAttribute('data-phone-status', 'faulted');
+    expect(requests, JSON.stringify(requestUrls)).toBe(2);
+  } finally {
+    releaseRequest();
+  }
 });
 
 test('Hero image decode rejection reaches a bounded Loader fault with retry', async ({ page }) => {
@@ -2839,7 +3168,7 @@ test('WebGL unavailable on an Ink leg rolls back over the committed source', asy
   }
 });
 
-test('withheld requestVideoFrameCallback cannot expose Figure3 and restores Brand', async ({
+test('withheld requestVideoFrameCallback does not affect the static Brand → Figure3 handoff', async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -2863,19 +3192,12 @@ test('withheld requestVideoFrameCallback cannot expose Figure3 and restores Bran
   await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'brand', 0);
   await sendFrontIntent(page, 'forward');
-  const shell = page.locator('.phone-story');
-  await expectFigure3SliceRollback(
-    page, 'brand', 'figure3-animation', 'forward', before
-  );
-  await expect(shell).toHaveAttribute('data-phone-scene', 'brand');
-  expect(await readCommitSequence(page)).toBe(before);
-  await assertTargetContentVisible(page, GRADE_A_CONTENT.brand);
-  const status = await shell.getAttribute('data-phone-status');
-  if (status === 'faulted') {
-    await expect(page.locator('[data-phone-retry="true"]')).toBeVisible();
-  } else {
-    await expect(shell).toHaveAttribute('data-phone-interaction', 'enabled');
-  }
+  await waitForCommitSequence(page, 'figure3-animation', before);
+  await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT['figure3-animation']);
+  await expect(page.locator('.phone-figure3')).not
+    .toHaveAttribute('data-phone-figure3-media-active', 'true');
+  await expect.poll(() => page.locator('.phone-figure3 video')
+    .evaluate((video) => video.paused)).toBe(true);
 });
 
 test('Pattern advances its collapse leg before its radial Ink leg contributes pixels', async ({ page }) => {

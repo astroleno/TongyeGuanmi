@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { bootStory } from './r5-helpers';
 import {
   assertSinglePhoneAuthority,
-  waitForCommitSequence
+  waitForDirectEntryCommit
 } from './r5-phone-clean-assertions';
 
 const repoDir = resolve(process.cwd(), '..');
@@ -86,7 +86,7 @@ async function bootCleanMediaEntry(page: Page, scene: string): Promise<void> {
   await page.goto(`/?r5-media-entry=${cleanMediaDocumentSequence}#${scene}`, {
     waitUntil: 'domcontentloaded'
   });
-  await waitForCommitSequence(page, scene, 0);
+  await waitForDirectEntryCommit(page, scene, 0);
   await assertSinglePhoneAuthority(page);
 }
 

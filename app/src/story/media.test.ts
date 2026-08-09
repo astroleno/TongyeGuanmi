@@ -61,5 +61,11 @@ describe('front-half product media', () => {
       asset: 'figure2-pair-motion-rgb-alpha.mp4',
       kind: 'video'
     });
+    expect(phoneProductMediaFor('figure3-initial-poster')).toEqual({
+      id: 'figure3-initial-poster',
+      owner: 'figure3-animation',
+      asset: 'figure3-initial-paper.webp',
+      kind: 'image'
+    });
   });
 });

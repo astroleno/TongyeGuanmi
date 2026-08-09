@@ -48,7 +48,7 @@
   max-width: none;
   object-fit: contain;
   object-position: 50% 50%;
-  opacity: var(--r4-figure2-video-opacity, 1);
+  opacity: var(--r4-figure2-poster-opacity, 1);
   pointer-events: none;
   filter: brightness(1.03) contrast(1.16) saturate(1.10) drop-shadow(0 10px 8px rgba(40, 30, 20, .22));
 }
@@ -64,7 +64,16 @@
 }
 
 .phone-figure2 .r4-figure2__packed-alpha-canvas {
+  opacity: 0;
+}
+
+.phone-figure2[data-phone-figure2-canvas-ready="true"] .r4-figure2__packed-alpha-canvas {
   opacity: var(--r4-figure2-video-opacity, 1);
+}
+
+.phone-figure2[data-phone-figure2-canvas-ready="true"] .phone-figure2__poster {
+  opacity: 0;
+  visibility: hidden;
 }
 
 @media (orientation: landscape) and (max-height: 500px) {

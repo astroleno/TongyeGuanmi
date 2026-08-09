@@ -68,7 +68,7 @@ describe('phone preboot ownership', () => {
     ]) {
       const result = runPhonePreboot(viewport);
       expect(result.dataset).toEqual({ phonePreboot: 'pending' });
-      expect(result.styles.get('--phone-preboot-surface')).toBe('#07110e');
+      expect(result.styles.get('--phone-preboot-surface')).toBe('#040807');
     }
   });
 
@@ -98,7 +98,7 @@ describe('phone preboot ownership', () => {
     });
 
     expect(result.dataset).toEqual({ phonePreboot: 'pending' });
-    expect(result.styles.get('--phone-preboot-surface')).toBe('#07110e');
+    expect(result.styles.get('--phone-preboot-surface')).toBe('#040807');
   });
 
   it('does not claim desktop or tablet formal routes', () => {

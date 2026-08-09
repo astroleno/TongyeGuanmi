@@ -272,7 +272,7 @@ test('a superseded late scene response cannot satisfy or replace the newer direc
   }
 });
 
-test('AOD direct entry proves its immutable poster without touching the video decoder', async ({ page }) => {
+test('AOD direct entry proves its immutable poster without invoking video playback', async ({ page }) => {
   await page.goto('/#aod-animation', {
     waitUntil: 'domcontentloaded'
   });
@@ -287,7 +287,12 @@ test('AOD direct entry proves its immutable poster without touching the video de
     const image = document.querySelector<HTMLImageElement>('[data-phone-aod-figure-poster]');
     return image?.complete === true && image.naturalWidth > 0 && image.naturalHeight > 0;
   });
-  expect(await video.evaluate((element) => element.currentSrc)).toBe('');
+  expect(await video.evaluate((element) => ({
+    currentTime: element.currentTime,
+    paused: element.paused,
+    playbackFrame: element.closest<HTMLElement>('[data-r4-scene="aod-animation"]')
+      ?.dataset.phoneAodPlaybackFrame
+  }))).toEqual({ currentTime: 0, paused: true, playbackFrame: undefined });
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
   await expect(page.locator('[data-story-loader="true"]'))
     .toHaveAttribute('data-loader-status', 'hidden');

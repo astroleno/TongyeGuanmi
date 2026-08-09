@@ -189,17 +189,17 @@ export const phoneSegmentChoreography = Object.freeze({
     ['smooth', 0, .96], ['smooth', .8, .94], 'linear', 'source',
     ['fade', .9, .98], ['smooth', .8, .96]
   ),
-  'services-ttg': choreography(1, 0, 'linear', 'none'),
+  'services-ttg': choreography(1, 0, 'linear', 'target'),
   'ttg-lab': choreography(
     ['range', 0, ttgPlaybackStop], 1, 'linear', 'source',
     ['inverse-range', ttgPlaybackStop, 1], ['range', ttgPlaybackStop, 1]
   ),
-  'lab-ph': choreography(1, 0, 'linear', 'none'),
+  'lab-ph': choreography(1, 0, 'linear', 'target'),
   'ph-education': choreography(
     ['range', 0, phPlaybackStop], 1, 'linear', 'source',
     ['inverse-range', phPlaybackStop, 1], ['range', phPlaybackStop, 1]
   ),
-  'education-crane': choreography(1, 0, 'linear', 'none'),
+  'education-crane': choreography(1, 0, 'linear', 'target'),
   'crane-contact': choreography(
     'linear', ['range', .8, 1], 'linear', 'source',
     ['fade', .999, 1], ['step', .8]
@@ -347,7 +347,7 @@ const sceneSeeds: Readonly<Record<PhoneSceneId, SceneSeed>> = {
   'figure2-animation': { id: 'figure2-animation', checkpoint: 'figure2-stage', edgeSurface: '#e2dac9', plane: 'grade-a', landing: { kind: 'authored-boundary', anchor: '[data-r4-scene="figure2-animation"]' }, frame: { kind: 'image-decode-composite-paint', surfaceIds: ['figure2-pair-poster', 'figure2-foreground-arch'] }, additionalDependencies: ['media:figure2-pair-poster', 'media:figure2-foreground-arch', 'media:figure2-pair-packed', 'compositor:figure2-packed'], surfaces: ['figure2-pair-video', 'figure2-pair-poster', 'figure2-pair-canvas', 'figure2-foreground-arch'], contentSelectors: ['[data-r4-scene="figure2-animation"] [data-phone-figure2-poster]'], resourceBudget: budget(1, 1, 1, 1), deadlineProfile: 'D-single-media' },
   'figure2-proof': { id: 'figure2-proof', checkpoint: 'figure2-proof-opening', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#figure2-proof-opening' }, frame: { kind: 'content-post-paint', surfaceIds: ['figure2-proof-root', 'figure2-foreground-arch'] }, additionalDependencies: ['media:figure2-foreground-arch'], surfaces: ['figure2-proof-root', 'figure2-foreground-arch'], contentSelectors: ['#figure2-proof-opening .r4-proof-opening__title'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
   brand: { id: 'brand', checkpoint: 'brand-reading', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#phone-brand-title' }, frame: { kind: 'content-post-paint', surfaceIds: ['brand-root'] }, additionalDependencies: [], surfaces: ['brand-root'], contentSelectors: ['#phone-brand-title', '.phone-brand__definition p'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
-  'figure3-animation': { id: 'figure3-animation', checkpoint: 'figure3-stage', edgeSurface: '#ede4d2', plane: 'group45', landing: { kind: 'persistent-compositor', anchor: '[data-phone-scene="figure3-animation"]' }, frame: { kind: 'decoded-composited-frame', surfaceIds: ['figure3-paper-canvas'] }, additionalDependencies: ['media:figure3-motion', 'compositor:figure3-paper'], surfaces: ['figure3-video', 'figure3-paper-canvas'], contentSelectors: ['[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-canvas]'], resourceBudget: budget(1, 1, 1, 0), deadlineProfile: 'D-single-media' },
+  'figure3-animation': { id: 'figure3-animation', checkpoint: 'figure3-stage', edgeSurface: '#ede4d2', plane: 'group45', landing: { kind: 'persistent-compositor', anchor: '[data-phone-scene="figure3-animation"]' }, frame: { kind: 'canvas-or-static-post-paint', surfaceIds: ['figure3-initial-poster'] }, additionalDependencies: ['media:figure3-motion', 'compositor:figure3-paper', 'media:figure3-initial-poster'], surfaces: ['figure3-video', 'figure3-paper-canvas', 'figure3-initial-poster'], contentSelectors: ['[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-poster]'], resourceBudget: budget(1, 1, 1, 0), deadlineProfile: 'D-single-media' },
   services: { id: 'services', checkpoint: 'services-reading', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#phone-services-title' }, frame: { kind: 'content-post-paint', surfaceIds: ['services-root'] }, additionalDependencies: [], surfaces: ['services-root'], contentSelectors: ['#phone-services-title', '.phone-services__hero > p:last-child'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
   'ttg-animation': { id: 'ttg-animation', checkpoint: 'ttg-stage', edgeSurface: '#080d10', plane: 'group45', landing: { kind: 'persistent-compositor', anchor: '[data-r4-scene="ttg-animation"]' }, frame: { kind: 'decoded-composited-frame', surfaceIds: ['ttg-figure-video'] }, additionalDependencies: ['media:ttg-figure-motion'], surfaces: ['ttg-figure-video'], contentSelectors: ['[data-r4-scene="ttg-animation"] [data-ttg-figure-video]'], resourceBudget: budget(1, 1, 0, 0), deadlineProfile: 'D-single-media' },
   lab: { id: 'lab', checkpoint: 'lab-stable', edgeSurface: '#ede4d2', plane: 'native', landing: { kind: 'authored-boundary', anchor: '#phone-lab-title' }, frame: { kind: 'content-post-paint', surfaceIds: ['lab-root'] }, additionalDependencies: [], surfaces: ['lab-root'], contentSelectors: ['#phone-lab-title', '.phone-lab__hero > p:not(.phone-lab__eyebrow)'], resourceBudget: budget(0, 0, 0, 0), deadlineProfile: 'D-static' },
@@ -398,14 +398,11 @@ function prewarmDependencies(id: PhoneSceneId): readonly PhoneDependencyRef[] {
     dependency.startsWith('scene:') || dependency.startsWith('media:')
   ));
 }
-function preparedEvidence(id: PhoneSceneId): readonly PhonePreparedEvidenceKind[] {
-  const kind = sceneSeeds[id].frame.kind;
-  const readiness: PhonePreparedEvidenceKind = kind === 'image-decode-composite-paint' ? 'image-decoded' : kind === 'content-post-paint' ? 'static-ready' : kind === 'decoded-composited-frame' && sceneSeeds[id].resourceBudget.canvases === 0 ? 'video-decoded' : 'canvas-drawn';
+function preparedEvidence(id: PhoneSceneId): readonly PhonePreparedEvidenceKind[] { const kind = sceneSeeds[id].frame.kind;
+  const readiness: PhonePreparedEvidenceKind = kind === 'image-decode-composite-paint' || kind === 'canvas-or-static-post-paint' ? 'image-decoded' : kind === 'content-post-paint' ? 'static-ready' : kind === 'decoded-composited-frame' && sceneSeeds[id].resourceBudget.canvases === 0 ? 'video-decoded' : 'canvas-drawn';
   return ['module-loaded', 'root-connected', ...(id === 'star-map' ? ['image-decoded', 'canvas-drawn'] as const : [readiness]), ...(id === 'figure2-proof' ? ['image-decoded' as const] : []), 'layout-measurable', 'resource-budget-valid'];
 }
-function mediaActivation(
-  resourceBudget: PhoneResourceBudget, needsPhysicalActivation = resourceBudget.videos > 0
-): PhoneMediaActivationPolicy {
+function mediaActivation(resourceBudget: PhoneResourceBudget, needsPhysicalActivation = resourceBudget.videos > 0): PhoneMediaActivationPolicy {
   return !needsPhysicalActivation
     ? {
         mode: 'none', prewarmMayActivate: false, requiresPhysicalCredit: false,
@@ -444,7 +441,7 @@ function directEntry(seed: SceneSeed): PhoneDirectEntryPolicy {
     mediaActivation: mediaActivation(
       seed.resourceBudget,
       seed.resourceBudget.videos > 0
-        && seed.id !== 'aod-animation'
+        && !['aod-animation', 'figure3-animation'].includes(seed.id)
     )
   };
 }

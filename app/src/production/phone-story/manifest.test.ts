@@ -117,10 +117,10 @@ const sceneDetails = {
     selectors: ['#phone-brand-title', '.phone-brand__definition p']
   },
   'figure3-animation': {
-    additional: ['media:figure3-motion', 'compositor:figure3-paper'],
-    surfaces: ['figure3-video', 'figure3-paper-canvas'],
+    additional: ['media:figure3-motion', 'compositor:figure3-paper', 'media:figure3-initial-poster'],
+    surfaces: ['figure3-video', 'figure3-paper-canvas', 'figure3-initial-poster'],
     selectors: [
-      '[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-canvas]'
+      '[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-poster]'
     ]
   },
   services: {
@@ -320,10 +320,10 @@ const sceneProofLedger = {
       anchor: '[data-phone-scene="figure3-animation"]'
     },
     frame: {
-      kind: 'decoded-composited-frame',
-      surfaceIds: ['figure3-paper-canvas']
+      kind: 'canvas-or-static-post-paint',
+      surfaceIds: ['figure3-initial-poster']
     },
-    prepared: 'canvas-drawn'
+    prepared: 'image-decoded'
   },
   services: {
     landing: { kind: 'authored-boundary', anchor: '#phone-services-title' },
@@ -516,18 +516,21 @@ function activeActivation() {
 
 function directActivation(scene: keyof typeof sceneDetails, values: readonly number[]) {
   return values[0] === 0
-    || scene === 'aod-animation'
+    || ['aod-animation', 'figure3-animation'].includes(scene)
     ? inactiveActivation()
     : activeActivation();
 }
 
-const sourceClockSegments = new Set([
+const activeClockSegments = new Set([
   'hero-pattern',
   'aod-method-top',
   'figure2-distance-expand',
   'figure3-services',
+  'services-ttg',
   'ttg-lab',
+  'lab-ph',
   'ph-education',
+  'education-crane',
   'crane-contact'
 ]);
 
@@ -536,9 +539,9 @@ function segmentActivation(
   _direction: 'forward' | 'reverse'
 ) {
   void _direction;
-  // The media clock owner plays in both directions: canonical source media
-  // is the reverse leg's incoming owner, so it activates on the way back too.
-  return sourceClockSegments.has(id) ? activeActivation() : inactiveActivation();
+  // The selected media clock owner activates in both directions. Projection
+  // swaps canonical source/target ownership for the reverse leg.
+  return activeClockSegments.has(id) ? activeActivation() : inactiveActivation();
 }
 
 function expectedScene(entry: typeof scenes[number]) {
@@ -785,7 +788,7 @@ describe('canonical phone manifest', () => {
     }
   });
 
-  it('scopes the static direct-entry exception to AOD, not Figure2', () => {
+  it('scopes static direct-entry exceptions to AOD and Figure3, not Figure2', () => {
     expect(phoneSceneById('aod-animation').directEntry.mediaActivation).toMatchObject({
       mode: 'none', directEntry: 'none', requiresPhysicalCredit: false
     });
@@ -793,6 +796,9 @@ describe('canonical phone manifest', () => {
       mode: 'gesture-or-muted-autoplay',
       directEntry: 'muted-plays-inline-then-covered-cta',
       requiresPhysicalCredit: true
+    });
+    expect(phoneSceneById('figure3-animation').directEntry.mediaActivation).toMatchObject({
+      mode: 'none', directEntry: 'none', requiresPhysicalCredit: false
     });
   });
 

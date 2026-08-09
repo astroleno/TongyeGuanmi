@@ -72,11 +72,14 @@ describe('clean PhoneFigure2Proof leaf', () => {
       .not.toBeNull();
   });
 
-  it('registers the global retained arch as part of the proof surface quorum', async () => {
+  it('registers the retained arch from its owning phone-story scope', async () => {
     const arch = document.createElement('img');
     arch.setAttribute('data-stage-retained-figure2-arch', 'true');
-    document.body.appendChild(arch);
+    const story = document.createElement('main');
+    story.className = 'phone-story';
     const host = document.createElement('div');
+    story.append(arch, host);
+    document.body.appendChild(story);
     const root = createRoot(host);
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneFigure2Proof reports={mount.reports} />); });
@@ -84,7 +87,30 @@ describe('clean PhoneFigure2Proof leaf', () => {
       'figure2-proof-root', 'figure2-foreground-arch'
     ]);
     act(() => root.unmount());
-    arch.remove();
+    story.remove();
+  });
+
+  it('does not borrow a retained arch from another phone-story scope', async () => {
+    const foreignStory = document.createElement('main');
+    foreignStory.className = 'phone-story';
+    const foreignArch = document.createElement('img');
+    foreignArch.setAttribute('data-stage-retained-figure2-arch', 'true');
+    foreignStory.appendChild(foreignArch);
+    const ownStory = document.createElement('main');
+    ownStory.className = 'phone-story';
+    const ownArch = document.createElement('img');
+    ownArch.setAttribute('data-stage-retained-figure2-arch', 'true');
+    const host = document.createElement('div');
+    ownStory.append(ownArch, host);
+    document.body.append(foreignStory, ownStory);
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2Proof reports={mount.reports} />); });
+    expect(mount.registration()?.surfaces.find(({ id }) => id === 'figure2-foreground-arch')?.element)
+      .toBe(ownArch);
+    act(() => root.unmount());
+    foreignStory.remove();
+    ownStory.remove();
   });
 
   it('always settles to the authored opening hold', async () => {
@@ -100,6 +126,22 @@ describe('clean PhoneFigure2Proof leaf', () => {
     expect(host.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]')
       ?.style.getPropertyValue('--phone-proof-translate-y')).toBe('-1536.00px');
     expect(renderHold).toHaveBeenCalled();
+  });
+
+  it('keeps the closing proof endpoint while reversing into Figure2', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2Proof reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({
+      reports: mount.reports, frameToken: 'proof:reverse:1',
+      segmentId: 'figure2-distance-expand', stageIndex: 0, direction: 'reverse'
+    });
+    commands.render(0);
+    expect(host.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]')
+      ?.dataset.phoneProofProgress).toBe('1.0000');
+    act(() => root.unmount());
   });
 
   it('provides the full three-panel compound as the native reading owner', () => {

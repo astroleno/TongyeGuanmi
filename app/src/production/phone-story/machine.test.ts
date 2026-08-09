@@ -156,7 +156,9 @@ describe('phone story boot/direct-entry machine', () => {
       expect(stable.stableCommit).toEqual({
         sceneId: scene.id,
         landing: scene.landing,
-        commitSequence: 1
+        commitSequence: 1,
+        direction: null,
+        landingAlias: null
       });
       expect(stable.presentationProof.commitSequence).toBe(1);
       expect(stable.presentationProof.planeRevision).toBe(1);
@@ -165,6 +167,148 @@ describe('phone story boot/direct-entry machine', () => {
       expect(selectPhoneCheckpoint(stable)).toBe(scene.checkpoint);
       expect(selectPhoneNavigationScene(stable)).toBe(scene.navigationId);
     }
+  });
+
+  it('preserves a direct Proof alias as the stable reading landing', () => {
+    const initial = createPhoneStoryBoot({
+      authorityId: 'authority:proof-alias',
+      request: { pathname: '/', hash: '#figure2-proof-cards', origin: 'initial' },
+      viewport
+    });
+    const settled = prove(initial);
+    expect(settled.snapshot.stableCommit).toMatchObject({
+      sceneId: 'figure2-proof', direction: null, landingAlias: 'cards'
+    });
+  });
+
+  it('does not carry a direct Proof alias into later segment commits', () => {
+    const source = prove(createPhoneStoryBoot({
+      authorityId: 'authority:proof-alias-segment',
+      request: { pathname: '/', hash: '#figure2-proof-cards', origin: 'initial' },
+      viewport
+    }));
+    const brand = reportRequired(reachTargetPresentation(dispatch(source.snapshot, {
+      type: 'segment-requested', direction: 'forward', physicalEpoch: 1,
+      reducedMotion: false
+    })), 'final');
+    expect(brand.snapshot.status).toBe('stable');
+    if (brand.snapshot.status !== 'stable') throw new Error('expected Brand commit');
+    expect(brand.snapshot.stableCommit.landingAlias).toBeNull();
+
+    const proof = reportRequired(reachTargetPresentation(dispatch(brand.snapshot, {
+      type: 'segment-requested', direction: 'reverse', physicalEpoch: 2,
+      reducedMotion: false
+    })), 'final');
+    expect(proof.snapshot.status).toBe('stable');
+    if (proof.snapshot.status !== 'stable') throw new Error('expected Proof commit');
+    expect(proof.snapshot.stableCommit).toMatchObject({
+      sceneId: 'figure2-proof', direction: 'reverse', landingAlias: null
+    });
+  });
+
+  it('updates the Proof landing alias on same-scene history reproject', () => {
+    const opening = prove(createPhoneStoryBoot({
+      authorityId: 'authority:proof-alias-history',
+      request: { pathname: '/', hash: '#figure2-proof-opening', origin: 'initial' },
+      viewport
+    }));
+    if (opening.snapshot.status !== 'stable') throw new Error('expected opening commit');
+    const cards = prove(dispatch(opening.snapshot, {
+      type: 'entry-requested',
+      request: { pathname: '/', hash: '#figure2-proof-cards', origin: 'popstate' }
+    }));
+    expect(cards.snapshot.status).toBe('stable');
+    if (cards.snapshot.status !== 'stable') throw new Error('expected cards commit');
+    expect(cards.snapshot.stableCommit).toMatchObject({
+      sceneId: 'figure2-proof', commitSequence: 1, landingAlias: 'cards'
+    });
+    expect(cards.snapshot.stableCommit).not.toBe(opening.snapshot.stableCommit);
+
+    const closing = prove(dispatch(cards.snapshot, {
+      type: 'entry-requested',
+      request: { pathname: '/', hash: '#figure2-proof-closing', origin: 'hash' }
+    }));
+    expect(closing.snapshot.status).toBe('stable');
+    if (closing.snapshot.status !== 'stable') throw new Error('expected closing commit');
+    expect(closing.snapshot.stableCommit).toMatchObject({
+      sceneId: 'figure2-proof', commitSequence: 1, landingAlias: 'closing'
+    });
+  });
+
+  it('preserves an in-flight Proof alias across a layout recovery replacement', () => {
+    const opening = prove(createPhoneStoryBoot({
+      authorityId: 'authority:proof-alias-layout',
+      request: { pathname: '/', hash: '#figure2-proof-opening', origin: 'initial' },
+      viewport
+    }));
+    if (opening.snapshot.status !== 'stable') throw new Error('expected opening commit');
+    const cards = dispatch(opening.snapshot, {
+      type: 'entry-requested',
+      request: { pathname: '/', hash: '#figure2-proof-cards', origin: 'popstate' }
+    });
+    expect(transaction(cards.snapshot).transaction.reprojectLanding).toBe('request');
+    const replaced = dispatch(cards.snapshot, {
+      type: 'viewport-sampled', change: 'layout',
+      viewport: { ...viewport, layoutRevision: 2, visualRevision: 2 }
+    });
+    const settled = prove(replaced);
+    expect(settled.snapshot.status).toBe('stable');
+    if (settled.snapshot.status !== 'stable') throw new Error('expected cards commit');
+    expect(settled.snapshot.stableCommit).toMatchObject({
+      sceneId: 'figure2-proof', commitSequence: 1, landingAlias: 'cards'
+    });
+  });
+
+  it('preserves reverse and Proof alias landing metadata through lifecycle reprojection', () => {
+    const proofBrand = phoneManifest.segments.find(({ id }) => id === 'figure2-proof-brand');
+    if (!proofBrand) throw new Error('missing Proof → Brand segment');
+    const reverse = reportRequired(reachTargetPresentation(beginSegment(proofBrand, 'reverse', 90)), 'final');
+    expect(reverse.snapshot.status).toBe('stable');
+    if (reverse.snapshot.status !== 'stable') throw new Error('expected reverse Proof commit');
+    const reverseCommit = reverse.snapshot.stableCommit;
+    const reverseLayout = prove(dispatch(reverse.snapshot, {
+      type: 'viewport-sampled', viewport: { ...viewport, layoutRevision: 2 }, change: 'layout'
+    }));
+    expect(reverseLayout.snapshot.status).toBe('stable');
+    if (reverseLayout.snapshot.status !== 'stable') throw new Error('expected reverse layout recovery');
+    expect(reverseLayout.snapshot.stableCommit).toBe(reverseCommit);
+
+    const closing = prove(createPhoneStoryBoot({
+      authorityId: 'authority:proof-lifecycle',
+      request: { pathname: '/', hash: '#figure2-proof-closing', origin: 'initial' },
+      viewport
+    }));
+    if (closing.snapshot.status !== 'stable') throw new Error('expected closing commit');
+    const commit = closing.snapshot.stableCommit;
+    const layout = prove(dispatch(closing.snapshot, {
+      type: 'viewport-sampled', viewport: { ...viewport, layoutRevision: 2 }, change: 'layout'
+    }));
+    expect(layout.snapshot.status).toBe('stable');
+    if (layout.snapshot.status !== 'stable') throw new Error('expected layout recovery');
+    expect(layout.snapshot.stableCommit).toBe(commit);
+
+    const hidden = dispatch(layout.snapshot, { type: 'page-hidden', persisted: true });
+    const shown = prove(dispatch(hidden.snapshot, {
+      type: 'page-shown', persisted: true,
+      viewport: { ...viewport, layoutRevision: 3, visualRevision: 3 }
+    }));
+    expect(shown.snapshot.status).toBe('stable');
+    if (shown.snapshot.status !== 'stable') throw new Error('expected BFCache recovery');
+    expect(shown.snapshot.stableCommit).toBe(commit);
+
+    const recovery = dispatch(shown.snapshot, {
+      type: 'viewport-sampled', viewport: { ...viewport, layoutRevision: 4 }, change: 'layout'
+    });
+    const active = transaction(recovery.snapshot).transaction;
+    const failed = dispatch(recovery.snapshot, {
+      type: 'failure-reported', slot: active.requiredPrepared[0]!,
+      failure: { code: 'reproject-failed', message: 'reproject failed', recoverable: false }
+    });
+    expect(failed.snapshot.status).toBe('faulted');
+    const retried = prove(dispatch(failed.snapshot, { type: 'retry-requested' }));
+    expect(retried.snapshot.status).toBe('stable');
+    if (retried.snapshot.status !== 'stable') throw new Error('expected retry recovery');
+    expect(retried.snapshot.stableCommit).toBe(commit);
   });
 
   it('ignores stale generations and wrong slots while allowing distinct legs on one attempt', () => {
@@ -438,6 +582,36 @@ describe('phone Task 4 corrective invariants', () => {
         });
       }
     }
+  });
+
+  it('re-dispatches a cross-scene history entry after layout recovery', () => {
+    const source = prove(boot('brand', 'authority:history-layout-entry'));
+    const request = {
+      pathname: '/',
+      hash: phoneSceneById('figure3-animation').directEntry.canonicalHash,
+      origin: 'popstate' as const
+    };
+    const entering = dispatch(source.snapshot, {
+      type: 'entry-requested', request
+    });
+    expect(transaction(entering.snapshot).transaction.mode).toBe('entry');
+    const interrupted = dispatch(entering.snapshot, {
+      type: 'viewport-sampled', change: 'layout',
+      viewport: { ...viewport, layoutRevision: 2, visualRevision: 2 }
+    });
+    const recovery = transaction(interrupted.snapshot).transaction;
+    expect(recovery.mode).toBe('recovery');
+    expect(recovery.pendingEntry).toEqual(request);
+    const restored = prove(interrupted);
+    const deferred = restored.effects.find(({ type }) => type === 'defer-entry');
+    expect(deferred).toEqual({ type: 'defer-entry', request });
+    if (!deferred || deferred.type !== 'defer-entry') throw new Error('missing deferred history entry');
+    const resumed = dispatch(restored.snapshot, {
+      type: 'entry-requested', request: deferred.request
+    });
+    expect(transaction(resumed.snapshot).transaction.mode).toBe('entry');
+    expect(transaction(resumed.snapshot).transaction.candidateSceneId)
+      .toBe('figure3-animation');
   });
 
   it('keeps source proof on all reduced-motion legs and skips only playback sampling', () => {
@@ -855,6 +1029,7 @@ describe('phone segment transaction machine', () => {
         if (current.snapshot.status !== 'stable') throw new Error('segment did not settle');
         expect(current.snapshot.stableCommit.sceneId).toBe(leg.target);
         expect(current.snapshot.stableCommit.commitSequence).toBe(2);
+        expect(current.snapshot.stableCommit.direction).toBe(direction);
       }
     }
   });

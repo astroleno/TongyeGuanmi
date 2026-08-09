@@ -158,6 +158,8 @@ function createStoryFixture(layout: PhoneLayoutViewport = {
   select(story, '[data-phone-plane="source"]', source);
   select(story, '[data-phone-plane="effect"]', effect);
   select(story, '[data-phone-plane="receiver"]', receiver);
+  source.setAttribute('data-phone-buffer', 'a'); receiver.setAttribute('data-phone-buffer', 'b');
+  select(story, '[data-phone-buffer="a"]', source); select(story, '[data-phone-buffer="b"]', receiver);
   select(story, '.phone-story__reading-flow', reading);
   const styleMap = new WeakMap<HTMLElement, CSSStyleDeclaration>();
   const pseudoMap = new WeakMap<HTMLElement, Map<string, CSSStyleDeclaration>>();
@@ -341,12 +343,32 @@ describe('phone presentation semantic plane', () => {
     expect(fixture.story.getAttribute('data-phone-transition-foreground')).toBe('target');
 
     fixture.presentation.applyTransitionFrame(null);
+    expect(fixture.source.getAttribute('data-phone-exposed')).toBe('true');
+    expect(fixture.receiver.getAttribute('data-phone-exposed')).toBe('false');
     expect(fixture.story.style.getPropertyValue('--phone-source-clip')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-target-clip')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-source-mask')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-source-opacity')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-target-opacity')).toBe('');
     expect(fixture.story.getAttribute('data-phone-transition-foreground')).toBeNull();
+  });
+
+  it('commits the newly rendered stable buffer as one visible plane', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    fixture.presentation.applyTransitionFrame({
+      sourceOpacity: 1, targetOpacity: 1, direction: 'forward',
+      foregroundOwner: 'target', ownership: null
+    });
+
+    fixture.presentation.commitStablePlane('b');
+
+    expect(fixture.source.getAttribute('data-phone-exposed')).toBe('false');
+    expect(fixture.receiver.getAttribute('data-phone-exposed')).toBe('true');
+    expect(fixture.receiver.style.getPropertyValue('--phone-plane-z')).toBe('10');
+    expect(fixture.source.style.getPropertyValue('--phone-plane-z')).toBe('30');
+    expect(fixture.story.getAttribute('data-phone-transition-live')).toBeNull();
+    expect(fixture.story.style.getPropertyValue('--phone-source-opacity')).toBe('');
   });
 
   it('preserves live Ink ownership during a projector reproof', () => {

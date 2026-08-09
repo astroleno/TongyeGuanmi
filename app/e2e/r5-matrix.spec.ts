@@ -9,6 +9,7 @@ import {
 import {
   assertSinglePhoneAuthority,
   readCommitSequence,
+  waitForDirectEntryCommit,
   waitForCommitSequence
 } from './r5-phone-clean-assertions';
 
@@ -19,7 +20,7 @@ async function bootCleanPhone(page: Page, scene: string): Promise<number> {
   await page.goto(`/?r5-matrix-entry=${cleanDocumentSequence}#${scene}`, {
     waitUntil: 'domcontentloaded'
   });
-  const sequence = await waitForCommitSequence(page, scene, 0);
+  const sequence = await waitForDirectEntryCommit(page, scene, 0);
   await assertSinglePhoneAuthority(page);
   await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-scope', 'formal');
   await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-interaction', 'enabled');

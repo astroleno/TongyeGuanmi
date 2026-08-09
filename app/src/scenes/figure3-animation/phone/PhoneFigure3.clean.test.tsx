@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createElement } from 'react';
+import { act, createElement, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -45,7 +45,10 @@ vi.mock('..', () => ({
       'data-media-key': 'figure3-motion',
       muted: true,
       playsInline: true
-    }))
+    }, createElement('source', {
+      src: '/assets/figure3-motion.webm',
+      type: 'video/webm'
+    })))
   },
   renderFigure3AnimationProgress: probe.renderProgress
 }));
@@ -87,6 +90,87 @@ describe('clean PhoneFigure3 leaf', () => {
     vi.clearAllMocks();
   });
 
+  it('keeps the Figure3 media source usable through StrictMode effect replay', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+
+    await act(async () => {
+      root.render(<StrictMode><PhoneFigure3 reports={mount.reports} /></StrictMode>);
+    });
+
+    const source = host.querySelector('video source');
+    expect(source?.getAttribute('src')).toBe('/assets/figure3-motion.webm');
+    const current = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: current.reports,
+      frameToken: 'figure3:strict-mode:1',
+      segmentId: 'figure3-services'
+    });
+    const invocation = mount.registration()?.commands.activate({
+      invocationId: 'figure3:strict-mode:activation',
+      surfaceIds: ['figure3-video'],
+      credit: 'physical-epoch',
+      playback: true
+    });
+    await act(async () => {
+      await Promise.all(invocation?.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )) ?? []);
+    });
+
+    expect(invocation?.invoked).toBe(true);
+    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+    expect(current.reports.reportFailure).not.toHaveBeenCalled();
+    await act(async () => {
+      root.unmount();
+      await Promise.resolve();
+    });
+    expect(source?.getAttribute('src')).toBeNull();
+  });
+
+  it('keeps the stable initial poster visible after a late compositor callback', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+    const current = reportFixture();
+    const commands = mount.registration()?.commands;
+    commands?.rebind({
+      reports: current.reports,
+      frameToken: 'figure3:late-frame:1',
+      segmentId: 'figure3-services'
+    });
+    const invocation = commands?.activate({
+      invocationId: 'figure3:late-frame:activation',
+      surfaceIds: ['figure3-video'],
+      credit: 'physical-epoch',
+      playback: true
+    });
+    await act(async () => {
+      await Promise.all(invocation?.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )) ?? []);
+    });
+
+    commands?.settle(0);
+    (probe.compositorOptions?.onPresentedFrame as (() => void) | undefined)?.();
+
+    const scene = host.querySelector<HTMLElement>('.phone-figure3');
+    const poster = host.querySelector<HTMLElement>('[data-phone-figure3-paper-poster]');
+    expect(scene?.hasAttribute('data-phone-figure3-media-active')).toBe(false);
+    expect(poster && getComputedStyle(poster).opacity).toBe('1');
+
+    await act(async () => { root.unmount(); });
+  });
+
   it('owns one persistent decoder/Canvas and proves only the current physical draw', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
@@ -98,7 +182,8 @@ describe('clean PhoneFigure3 leaf', () => {
 
     expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
       ['figure3-video', 'video'],
-      ['figure3-paper-canvas', 'canvas-2d']
+      ['figure3-paper-canvas', 'canvas-2d'],
+      ['figure3-initial-poster', 'image']
     ]);
     expect(host.querySelectorAll('[data-figure3-alpha-video]')).toHaveLength(1);
     expect(host.querySelectorAll('[data-phone-figure3-paper-canvas]')).toHaveLength(1);
@@ -160,7 +245,8 @@ describe('clean PhoneFigure3 leaf', () => {
     const retained = reportFixture();
     mount.registration()?.commands.rebind({
       reports: retained.reports,
-      frameToken: 'figure3:frame:4'
+      frameToken: 'figure3:frame:4',
+      segmentId: 'figure3-services'
     });
     await act(async () => {
       mount.registration()?.commands.settle(1);
@@ -203,7 +289,8 @@ describe('clean PhoneFigure3 leaf', () => {
     const first = reportFixture();
     mount.registration()?.commands.rebind({
       reports: first.reports,
-      frameToken: 'figure3:retained:1'
+      frameToken: 'figure3:retained:1',
+      segmentId: 'figure3-services'
     });
     await act(async () => {
       mount.registration()?.commands.settle(1);
@@ -217,7 +304,8 @@ describe('clean PhoneFigure3 leaf', () => {
     await act(async () => {
       mount.registration()?.commands.rebind({
         reports: recovered.reports,
-        frameToken: 'figure3:retained:2'
+        frameToken: 'figure3:retained:2',
+        segmentId: 'figure3-services'
       });
       await Promise.resolve();
     });
@@ -440,7 +528,7 @@ describe('clean PhoneFigure3 leaf', () => {
     act(() => root.unmount());
   });
 
-  it('accepts a driver-owned start proof after the physical playhead drifts past the retained boundary', async () => {
+  it('settles the initial hold from the static poster without touching the video', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
     probe.prepareFrame.mockImplementationOnce(async (video: HTMLVideoElement) => {
@@ -460,17 +548,15 @@ describe('clean PhoneFigure3 leaf', () => {
     mount.registration()?.commands.rebind({
       reports: current.reports, frameToken: 'figure3:causal-drift:1'
     });
+    probe.prepareFrame.mockClear();
 
     await act(async () => {
       mount.registration()?.commands.settle(0);
       await Promise.resolve();
     });
 
-    expect(current.reports.reportFrame).toHaveBeenCalledWith(
-      'figure3-paper-canvas', expect.objectContaining({
-        kind: 'frame', token: 'figure3:causal-drift:1', presented: true
-      })
-    );
+    expect(probe.prepareFrame).not.toHaveBeenCalled();
+    expect(current.reports.reportFrame).not.toHaveBeenCalled();
     const video = host.querySelector('video');
     const canvas = host.querySelector('[data-phone-figure3-paper-canvas]');
     if (!(video instanceof HTMLVideoElement) || !(canvas instanceof HTMLCanvasElement)) {

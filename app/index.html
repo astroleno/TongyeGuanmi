@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="__SITE_DESCRIPTION__" />
-    <meta name="theme-color" content="#07110e" />
+    <meta name="theme-color" content="#040807" />
     <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="../assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
     <!--__CANONICAL_LINK__-->
@@ -24,7 +24,7 @@
         if (phoneShellEntry) {
           const documentElement = document.documentElement;
           documentElement.dataset.phonePreboot = 'pending';
-          documentElement.style.setProperty('--phone-preboot-surface', '#07110e');
+          documentElement.style.setProperty('--phone-preboot-surface', '#040807');
         }
       } catch {}
     </script>
@@ -32,10 +32,11 @@
       /* This must precede the application stylesheet: the pre-hydration
        * cover can hand over before Vite has applied the route stylesheet. */
       html[data-phone-preboot] .static-content { display: none !important; }
+      html[data-phone-preboot] :is(.loading-screen, .story-loader),
       html[data-phone-preboot],
       html[data-phone-preboot] body,
       html[data-phone-preboot] #root {
-        background: var(--phone-preboot-surface, #07110e) !important;
+        background: var(--phone-preboot-surface, #040807) !important;
       }
     </style>
   </head>

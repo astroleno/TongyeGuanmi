@@ -132,6 +132,7 @@ vi.mock('./presentation', () => ({
         probe.events.push(`attach:${id}`);
         return () => probe.events.push(`detach:${id}`);
       },
+      commitStablePlane: vi.fn(),
       sampleLayoutViewport: () => ({ width: 390, height: 844, orientation: 'portrait' }),
       sampleVisualViewport: () => ({
         offsetLeft: 0, offsetTop: 0, width: 390, height: 844, scale: 1
@@ -158,7 +159,9 @@ vi.mock('./scenes', async () => {
       return createElement('div', { 'data-phone-scene-leaf': props.sceneId });
     },
     PhoneSceneReading: (props: Record<string, unknown>) => (
-      createElement('div', { 'data-phone-reading-leaf': props.sceneId })
+      createElement('div', { 'data-phone-reading-leaf': props.sceneId },
+        props.sceneId === 'figure2-proof'
+          ? createElement('div', { 'data-r4-proof-panel': 'cards' }) : null)
     )
   };
 });
@@ -275,6 +278,14 @@ function methodReadingSnapshot(): SnapshotRecord {
     presentationProof: { commitSequence: 5, planeRevision: 5 },
     lastPlaneRevision: 5
   };
+}
+
+function nativeStableSnapshot(
+  sceneId: 'figure2-proof' | 'brand', commitSequence: number,
+  direction: 'forward' | 'reverse' | null = 'forward',
+  landingAlias: 'opening' | 'cards' | 'closing' | null = null
+): SnapshotRecord {
+  return { ...stableSnapshot(), stableCommit: { sceneId, landing: {}, commitSequence, direction, landingAlias }, presentationProof: { commitSequence, planeRevision: commitSequence }, lastPlaneRevision: commitSequence };
 }
 
 function methodToolbarReprojectSnapshot(): SnapshotRecord {
@@ -999,6 +1010,94 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
+  it('commits a native reading handoff with the new stable plane before paint', () => {
+    const { host, root } = hostRoot();
+    const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    let scrollTop = 420;
+    const scrollingElement = document.createElement('main');
+    Object.defineProperty(scrollingElement, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => { scrollTop = value; }
+    });
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: scrollingElement });
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />)); const engine = connectedEngine();
+      revealStableStory(engine);
+      act(() => engine.publish(nativeStableSnapshot('figure2-proof', 10)));
+      scrollTop = 420; act(() => engine.publish(nativeStableSnapshot('brand', 11)));
+
+      expect(scrollTop).toBe(0); expect(host.querySelector<HTMLElement>('.phone-story')?.dataset.phoneReading).toBe('enabled');
+    } finally {
+      act(() => root.unmount());
+      if (originalScrollingElement) Object.defineProperty(document, 'scrollingElement', originalScrollingElement); else Reflect.deleteProperty(document, 'scrollingElement');
+    }
+  });
+
+  it('lands reverse native handoffs and proof aliases at their committed reading anchors', () => {
+    const { host, root } = hostRoot();
+    const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    let scrollTop = 420;
+    const scrollingElement = document.createElement('main');
+    Object.defineProperties(scrollingElement, {
+      scrollTop: { configurable: true, get: () => scrollTop, set: (value: number) => { scrollTop = value; } },
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 1_000 }
+    });
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: scrollingElement });
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />)); const engine = connectedEngine();
+      revealStableStory(engine);
+      act(() => engine.publish(nativeStableSnapshot('brand', 10)));
+      scrollTop = 420;
+      act(() => engine.publish(nativeStableSnapshot('figure2-proof', 11, 'reverse')));
+      expect(scrollTop).toBe(600);
+
+      const cards = host.querySelector<HTMLElement>('[data-r4-proof-panel="cards"]');
+      if (!cards) throw new Error('missing proof cards anchor');
+      Object.defineProperty(cards, 'offsetTop', { configurable: true, value: 240 });
+      scrollTop = 600;
+      act(() => engine.publish(nativeStableSnapshot('figure2-proof', 12, 'forward', 'cards')));
+      expect(scrollTop).toBe(240);
+      scrollTop = 120;
+      act(() => engine.publish(nativeStableSnapshot('figure2-proof', 13, 'forward', 'closing')));
+      expect(scrollTop).toBe(600);
+    } finally {
+      act(() => root.unmount());
+      if (originalScrollingElement) Object.defineProperty(document, 'scrollingElement', originalScrollingElement); else Reflect.deleteProperty(document, 'scrollingElement');
+    }
+  });
+
+  it('repositions same-scene Proof aliases without a new stable commit sequence', () => {
+    const { host, root } = hostRoot();
+    const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    let scrollTop = 420;
+    const scrollingElement = document.createElement('main');
+    Object.defineProperties(scrollingElement, {
+      scrollTop: { configurable: true, get: () => scrollTop, set: (value: number) => { scrollTop = value; } },
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 1_000 }
+    });
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: scrollingElement });
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />)); const engine = connectedEngine();
+      revealStableStory(engine);
+      act(() => engine.publish(nativeStableSnapshot('figure2-proof', 20, null, 'opening')));
+      const cards = host.querySelector<HTMLElement>('[data-r4-proof-panel="cards"]');
+      if (!cards) throw new Error('missing proof cards anchor');
+      Object.defineProperty(cards, 'offsetTop', { configurable: true, value: 240 });
+      scrollTop = 120;
+      act(() => engine.publish(nativeStableSnapshot('figure2-proof', 20, null, 'cards')));
+      expect(scrollTop).toBe(240);
+      scrollTop = 120;
+      act(() => engine.publish(nativeStableSnapshot('figure2-proof', 20, null, 'closing')));
+      expect(scrollTop).toBe(600);
+    } finally {
+      act(() => root.unmount());
+      if (originalScrollingElement) Object.defineProperty(document, 'scrollingElement', originalScrollingElement); else Reflect.deleteProperty(document, 'scrollingElement');
+    }
+  });
+
   it('retains Figure2 arch in one presentation layer above the reading flow', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
@@ -1173,6 +1272,19 @@ describe('clean PhoneStoryShell ownership', () => {
     expect(styles).toMatch(/\.phone-story__retry\s*\{[^}]*z-index:\s*1001/s);
     act(() => retry.click());
     expect(engine.retry).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+  });
+
+  it('routes module faults to controlled page reload instead of same-Document retry', () => {
+    const { host, root } = hostRoot();
+    const manualReload = vi.fn(); const recovery = { ...chunkRecovery, manualReload };
+    act(() => root.render(<PhoneStoryShell chunkRecovery={recovery} />)); const engine = connectedEngine();
+    act(() => engine.publish({ ...faultedSnapshot(), fault: { code: 'module-load-rejected', message: 'chunk rejected', retryable: true } }));
+
+    const retry = host.querySelector('[data-phone-recovery-reload]') as HTMLButtonElement;
+    expect(retry.textContent).toContain('重新加载最新版本');
+    act(() => retry.click());
+    expect(manualReload).toHaveBeenCalledTimes(1); expect(engine.retry).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
 

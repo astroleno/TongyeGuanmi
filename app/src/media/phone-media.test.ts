@@ -8,6 +8,7 @@ describe('canonical phone media resolver', () => {
     ['star-map-highlight-mask', 'star-map', 'star-map-highlight-mask.webp'],
     ['aod-figure-poster', 'aod-animation', 'aod-figure-opening.webp'],
     ['aod-figure-packed', 'aod-animation', 'aod-figure-motion-rgb-alpha.mp4'],
+    ['figure3-initial-poster', 'figure3-animation', 'figure3-initial-paper.webp'],
     ['crane-flock-packed', 'crane-animation', 'crane-flock-motion-rgb-alpha.mp4']
   ] as const)('resolves %s only for its immutable owner', (id, owner, asset) => {
     expect(phoneMediaUrlFor(id, owner)).toContain(asset);

@@ -49,8 +49,11 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
   const render = useCallback((rawProgress: number) => {
     const root = rootRef.current;
     if (!root) return;
+    const binding = bindingRef.current;
     const viewportHeight = root.parentElement?.clientHeight || window.innerHeight || 1;
-    const frame = phoneFigure2ProofFrame(rawProgress, viewportHeight);
+    const reverseDistanceExit = binding?.segmentId === 'figure2-distance-expand'
+      && binding.direction === 'reverse';
+    const frame = phoneFigure2ProofFrame(reverseDistanceExit ? 1 : rawProgress, viewportHeight);
     root.style.setProperty('--phone-proof-translate-y', `${frame.translateY.toFixed(2)}px`);
     root.dataset.phoneProofProgress = frame.progress.toFixed(4);
   }, []);
@@ -58,6 +61,8 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
+      if (binding.segmentId === 'figure2-distance-expand'
+        && binding.direction === 'reverse') render(1);
       provePostPaint();
     },
     activate(command): PhoneActivationInvocation {
@@ -87,9 +92,9 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
     disposedRef.current = false;
     renderFigure2ProofHold(root);
     render(0);
-    const arch = document.querySelector<HTMLImageElement>(
+    const arch = root.closest<HTMLElement>('.phone-story')?.querySelector<HTMLImageElement>(
       '[data-stage-retained-figure2-arch="true"]'
-    );
+    ) ?? null;
     reports.registerMount({
       root,
       surfaces: [

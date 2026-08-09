@@ -237,6 +237,8 @@ export type PhoneStableCommit<SceneId extends string = string> = Readonly<{
   sceneId: SceneId;
   landing: Readonly<{ kind: string; anchor: string }>;
   commitSequence: number;
+  direction: PhoneDirection | null;
+  landingAlias: 'opening' | 'cards' | 'closing' | null;
 }>;
 
 export type PhoneEvidenceRecord = Readonly<{
@@ -321,6 +323,7 @@ export type PhoneTransaction<
   restoreUrlOnRollback: boolean;
   fallbackFromSceneId: SceneId | null;
   commitIntent: 'semantic' | 'reproject' | 'rollback';
+  reprojectLanding?: 'request';
   pendingEntry: PhoneEntryRequest | null;
   deadlinePolicy: PhoneDeadlinePolicy;
   deadline: PhoneDeadlineState | null;

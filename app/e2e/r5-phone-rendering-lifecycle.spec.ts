@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   assertSinglePhoneAuthority,
   readCommitSequence,
+  waitForDirectEntryCommit,
   waitForCommitSequence
 } from './r5-phone-clean-assertions';
 
@@ -67,7 +68,7 @@ test('clean PH packed-alpha reactivation and Lab Ink recreation never reuse a lo
   });
 
   await page.goto('/#ph-animation', { waitUntil: 'domcontentloaded' });
-  await waitForCommitSequence(page, 'ph-animation', 0);
+  await waitForDirectEntryCommit(page, 'ph-animation');
   await assertSinglePhoneAuthority(page);
   const phCanvas = page.locator('[data-phone-packed-alpha-canvas="ph-figure"]');
   await phCanvas.evaluate((canvas) => { canvas.dataset.r5LifecycleIdentity = 'ph-canvas'; });

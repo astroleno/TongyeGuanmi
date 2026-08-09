@@ -72,6 +72,7 @@ describe('clean phone Ink leaf', () => {
     const canvas = host.querySelector('canvas')!;
     expect(canvas.style.visibility).toBe('visible');
     expect(canvas.style.opacity).toBe('1');
+    expect(canvas.dataset.r4InkBoundaryProgress).toBe('0.5000');
     mount.registration()?.commands.settle(1);
     expect(canvas.style.visibility).toBe('hidden');
     expect(canvas.style.opacity).toBe('0');
