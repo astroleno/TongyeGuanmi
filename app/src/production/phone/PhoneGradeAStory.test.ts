@@ -24,9 +24,9 @@ const gradeALanding = gradeAStory as typeof gradeAStory & Readonly<{
 }>;
 
 const archLifecycle = gradeAStory as typeof gradeAStory & Readonly<{
-  phoneGradeAArchLifecycle?: (
+  phoneGradeAArchMounted?: (
     snapshot: PhoneCinematicSnapshot
-  ) => readonly [mounted: boolean, visible: boolean];
+  ) => boolean;
 }>;
 
 function archSnapshot(
@@ -184,23 +184,23 @@ describe('phone Grade A document progress', () => {
 
 describe('phone Grade A orchestration ownership', () => {
   it('[P0 Arch lease] mounts only inside the Method ↔ Brand Grade A authority window', () => {
-    const project = archLifecycle.phoneGradeAArchLifecycle;
+    const project = archLifecycle.phoneGradeAArchMounted;
     expect(project).toBeTypeOf('function');
     if (!project) return;
 
-    expect(project(archSnapshot('method-top'))).toEqual([false, false]);
-    expect(project(archSnapshot('figure2-animation'))).toEqual([true, true]);
-    expect(project(archSnapshot('figure2-proof'))).toEqual([true, true]);
-    expect(project(archSnapshot('brand'))).toEqual([false, false]);
-    expect(project(archSnapshot('services'))).toEqual([false, false]);
+    expect(project(archSnapshot('method-top'))).toBe(false);
+    expect(project(archSnapshot('figure2-animation'))).toBe(true);
+    expect(project(archSnapshot('figure2-proof'))).toBe(true);
+    expect(project(archSnapshot('brand'))).toBe(false);
+    expect(project(archSnapshot('services'))).toBe(false);
     expect(project(archSnapshot('figure2-animation', 'transaction', 'method-figure2')))
-      .toEqual([true, true]);
+      .toBe(true);
     expect(project(archSnapshot('figure2-proof', 'transaction', 'figure2-proof')))
-      .toEqual([true, true]);
+      .toBe(true);
     expect(project(archSnapshot('brand', 'transaction', 'proof-brand')))
-      .toEqual([true, true]);
+      .toBe(true);
     expect(project(archSnapshot('services', 'transaction', 'brand-services')))
-      .toEqual([false, false]);
+      .toBe(false);
   });
 
   it('registers rendering capabilities through the canonical runner only', () => {
@@ -277,7 +277,8 @@ describe('phone Grade A orchestration ownership', () => {
     expect(normalAdmission).toContain('presentationToken: execution[5]!');
     expect(normalAdmission).not.toContain('session[5]');
     expect(normalAdmission).not.toContain('presentationProofToken(');
-    expect(figure2DistanceSource).toContain('presentedTokenRef.current = owner[5];');
+    expect(figure2DistanceSource).toContain('const token = owner[5];');
+    expect(figure2DistanceSource).toContain('phoneRuntimePresentationTokenKey(token)');
     expect(figure2DistanceSource).toContain("origin: 'segment-first-frame'");
   });
 

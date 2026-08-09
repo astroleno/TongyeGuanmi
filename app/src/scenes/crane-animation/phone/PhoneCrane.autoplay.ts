@@ -306,9 +306,6 @@ export function createPhoneCranePresentedReverse(
     (progress) => render(progress, -1),
     onComplete,
     onFailure,
-    (status) => {
-      if (import.meta.env.DEV) root.dataset.phoneCraneReverse = status;
-    },
     null,
     null,
     null
@@ -327,7 +324,6 @@ export function createPhoneCranePresentedReverse(
     stop: playback.stop,
     dispose() {
       playback.dispose();
-      if (import.meta.env.DEV) delete root.dataset.phoneCraneReverse;
     }
   };
 }

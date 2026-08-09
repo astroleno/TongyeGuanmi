@@ -576,7 +576,7 @@ describe('PhoneFigure3', () => {
       phoneFigure3Source.indexOf('const finishEndpointPresentation')
     );
     const reverseDriver = phoneFigure3Source.slice(
-      phoneFigure3Source.indexOf('const reversePlayback = createPhoneFigure3ReversePlayback'),
+      phoneFigure3Source.indexOf('const reversePlayback = createPhonePresentedReversePlayback'),
       phoneFigure3Source.indexOf('playbackRef.current = playback')
     );
     expect(startPreparedRun).toContain('disposePhoneTimelineVideo(videoRef.current);');

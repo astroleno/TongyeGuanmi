@@ -11,11 +11,10 @@ export async function preparePhoneFigure2ArchImage(
   image: HTMLImageElement,
   signal: AbortSignal
 ): Promise<boolean> {
-  if (signal.aborted) return false;
   try {
     await image.decode();
   } catch {
-    return !signal.aborted && image.complete && image.naturalWidth > 0;
+    // Safari may reject decode for an already usable cached image.
   }
   return !signal.aborted && image.complete && image.naturalWidth > 0;
 }
@@ -23,11 +22,9 @@ export async function preparePhoneFigure2ArchImage(
 /** One token-bounded phone-stage owner for the Figure2 → Proof window. */
 export function PhoneFigure2Arch({
   mounted,
-  visible,
   onReady
 }: Readonly<{
   mounted: boolean;
-  visible: boolean;
   onReady?: () => void;
 }>) {
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -45,7 +42,7 @@ export function PhoneFigure2Arch({
   return (
     <RetainedFigure2Arch
       mounted
-      visible={visible}
+      visible
       src={PHONE_FIGURE2_FOREGROUND_ARCH}
       className="phone-grade-a__foreground-arch"
       motion="fixed"

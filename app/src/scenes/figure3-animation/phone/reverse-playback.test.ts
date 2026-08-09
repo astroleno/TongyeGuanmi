@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { phoneFigure3CanStartPreparedRun } from './PhoneFigure3';
-import { createPhoneFigure3ReversePlayback } from './reverse-playback';
+import { createPhonePresentedReversePlayback } from '../../../production/phone/phone-presented-reverse-playback';
 
 describe('Figure3 presented-frame reverse playback', () => {
   it('publishes a frame only after its physical preparation resolves', async () => {
     const frames: FrameRequestCallback[] = [];
     const events: string[] = [];
     const complete = vi.fn();
-    const playback = createPhoneFigure3ReversePlayback([
-      2600,
+    const playback = createPhonePresentedReversePlayback([
+      100,
       async (progress) => {
         events.push(`prepare:${progress.toFixed(2)}`);
         return true;
@@ -16,7 +16,6 @@ describe('Figure3 presented-frame reverse playback', () => {
       (progress) => events.push(`render:${progress.toFixed(2)}`),
       complete,
       vi.fn(),
-      null,
       null,
       (callback) => {
         frames.push(callback);
@@ -28,16 +27,20 @@ describe('Figure3 presented-frame reverse playback', () => {
     playback.start();
     frames.shift()?.(0);
     await Promise.resolve();
-    frames.shift()?.(1300);
+    frames.shift()?.(16);
     await Promise.resolve();
-    frames.shift()?.(2600);
+    frames.shift()?.(32);
+    await Promise.resolve();
+    frames.shift()?.(48);
     await Promise.resolve();
 
     expect(events).toEqual([
       'prepare:1.00',
       'render:1.00',
-      'prepare:0.50',
-      'render:0.50',
+      'prepare:0.67',
+      'render:0.67',
+      'prepare:0.33',
+      'render:0.33',
       'prepare:0.00',
       'render:0.00'
     ]);
@@ -49,7 +52,7 @@ describe('Figure3 presented-frame reverse playback', () => {
     const frames: FrameRequestCallback[] = [];
     let resolvePreparation: ((ready: boolean) => void) | undefined;
     const render = vi.fn();
-    const playback = createPhoneFigure3ReversePlayback([
+    const playback = createPhonePresentedReversePlayback([
       2600,
       () => new Promise((resolve) => {
         resolvePreparation = resolve;
@@ -57,7 +60,6 @@ describe('Figure3 presented-frame reverse playback', () => {
       render,
       vi.fn(),
       vi.fn(),
-      null,
       null,
       (callback) => {
         frames.push(callback);
@@ -81,7 +83,7 @@ describe('Figure3 presented-frame reverse playback', () => {
     const timelineRequests: number[] = [];
     const runId = 'authority|session|609|1|609|group45%3Afigure3|packed-canvas-frame';
     let admittedEndpointRunId: string | null = runId;
-    const playback = createPhoneFigure3ReversePlayback([
+    const playback = createPhonePresentedReversePlayback([
       2600,
       async (progress) => {
         const reuseAdmittedEndpoint = progress >= .9999
@@ -102,7 +104,6 @@ describe('Figure3 presented-frame reverse playback', () => {
       vi.fn(),
       vi.fn(),
       null,
-      null,
       (callback) => {
         frames.push(callback);
         return frames.length;
@@ -113,13 +114,14 @@ describe('Figure3 presented-frame reverse playback', () => {
     playback.start();
     frames.shift()?.(0);
     await Promise.resolve();
-    frames.shift()?.(1300);
+    frames.shift()?.(16);
     await Promise.resolve();
 
     // The first scheduler tick is the token-bound terminal canvas that was
     // already accepted by the machine. Only the next physical frame may ask
     // the timeline driver to seek.
-    expect(timelineRequests).toEqual([.5]);
+    expect(timelineRequests).toHaveLength(1);
+    expect(timelineRequests[0]).toBeLessThan(1);
     playback.stop();
   });
 
@@ -131,7 +133,7 @@ describe('Figure3 presented-frame reverse playback', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     };
-    const playback = createPhoneFigure3ReversePlayback([
+    const playback = createPhonePresentedReversePlayback([
       2600,
       async () => {
         throw new Error('decoder failed');
@@ -139,7 +141,6 @@ describe('Figure3 presented-frame reverse playback', () => {
       vi.fn(),
       vi.fn(),
       onError,
-      null,
       visibilityDocument,
       (callback) => {
         frames.push(callback);

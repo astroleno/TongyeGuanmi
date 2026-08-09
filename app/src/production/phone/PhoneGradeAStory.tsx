@@ -120,18 +120,17 @@ export function phoneGradeAArchFrame(
   };
 }
 
-export function phoneGradeAArchLifecycle(
+export function phoneGradeAArchMounted(
   snapshot: PhoneCinematicSnapshot
-): readonly [mounted: boolean, visible: boolean] {
+): boolean {
   const scene = snapshot[0];
   const run = snapshot[6];
   const status = snapshot[11];
-  const mounted = status === 'transaction'
+  return status === 'transaction'
     ? run === 'method-figure2'
       || run === 'figure2-proof'
       || run === 'proof-brand'
     : scene === 'figure2-animation' || scene === 'figure2-proof';
-  return [mounted, mounted];
 }
 
 export function phoneGradeAProofProgress(
@@ -216,7 +215,7 @@ export function PhoneGradeAStory({
     () => selectPhoneCinematicSnapshot(storySnapshot),
     [storySnapshot]
   );
-  const [archMounted, archVisible] = phoneGradeAArchLifecycle(cinematicSnapshot);
+  const archMounted = phoneGradeAArchMounted(cinematicSnapshot);
   const [
     semanticScene,
     sourceSurface,
@@ -893,7 +892,6 @@ export function PhoneGradeAStory({
         )}
         <PhoneFigure2Arch
           mounted={archMounted}
-          visible={archVisible}
           onReady={markArchReady}
         />
       </div>

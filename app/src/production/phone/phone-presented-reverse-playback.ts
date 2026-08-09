@@ -1,11 +1,3 @@
-export type PhonePresentedReversePlaybackStatus =
-  | 'idle'
-  | 'starting'
-  | 'playing'
-  | 'suspended'
-  | 'complete'
-  | 'error';
-
 type VisibilityDocument = Pick<
   Document,
   'hidden' | 'addEventListener' | 'removeEventListener'
@@ -25,7 +17,6 @@ export type PhonePresentedReversePlaybackRequest = readonly [
   render: (progress: number) => void,
   onComplete: () => void,
   onError: () => void,
-  onStatus: ((status: PhonePresentedReversePlaybackStatus) => void) | null,
   visibilityDocument: VisibilityDocument | null,
   requestFrame: ((callback: FrameRequestCallback) => number) | null,
   cancelFrame: ((frame: number) => void) | null
@@ -52,7 +43,6 @@ export function createPhonePresentedReversePlayback(
     requestRender,
     requestOnComplete,
     requestOnError,
-    requestOnStatus,
     requestVisibilityDocument,
     requestScheduleFrame,
     requestCancelFrame
@@ -64,7 +54,6 @@ export function createPhonePresentedReversePlayback(
     render: requestRender,
     onComplete: requestOnComplete,
     onError: requestOnError,
-    onStatus: requestOnStatus ?? undefined,
     visibilityDocument: requestVisibilityDocument ?? undefined,
     requestFrame: requestScheduleFrame ?? undefined,
     cancelFrame: requestCancelFrame ?? undefined
@@ -82,10 +71,6 @@ export function createPhonePresentedReversePlayback(
   let frame = 0;
   let generation = 0;
   let elapsedMs = 0;
-
-  const publish = (status: PhonePresentedReversePlaybackStatus) => {
-    options.onStatus?.(status);
-  };
 
   const cancelScheduledFrame = () => {
     if (!frame) return;
@@ -109,7 +94,6 @@ export function createPhonePresentedReversePlayback(
     active = false;
     preparing = false;
     cancelScheduledFrame();
-    publish('complete');
     options.onComplete();
   };
 
@@ -118,7 +102,6 @@ export function createPhonePresentedReversePlayback(
     active = false;
     preparing = false;
     cancelScheduledFrame();
-    publish('error');
     options.onError();
   };
 
@@ -140,7 +123,6 @@ export function createPhonePresentedReversePlayback(
         return;
       }
       options.render(progress);
-      publish('playing');
       if (progress <= 0.001) {
         complete();
       } else {
@@ -164,16 +146,13 @@ export function createPhonePresentedReversePlayback(
     preparing = false;
     elapsedMs = 0;
     cancelScheduledFrame();
-    publish('idle');
   };
 
   const onVisibilityChange = () => {
     if (!active) return;
     if (visibilityDocument?.hidden) {
       cancelScheduledFrame();
-      publish('suspended');
     } else {
-      publish('starting');
       schedule();
     }
   };
@@ -190,12 +169,10 @@ export function createPhonePresentedReversePlayback(
       active = true;
       preparing = false;
       elapsedMs = 0;
-      publish('starting');
       schedule();
     },
     retry() {
       if (!active || disposed) return;
-      publish('starting');
       schedule();
     },
     stop,

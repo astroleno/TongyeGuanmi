@@ -21,12 +21,6 @@ const phoneShellPath = path.join(phoneDir, 'PhoneStoryShell.tsx');
 const phoneShellCssPath = path.join(phoneDir, 'PhoneStoryShell.css');
 const phonePresentationPath = path.join(phoneDir, 'phone-story', 'presentation.ts');
 const phoneRuntimePath = path.join(phoneDir, 'phone-story', 'runtime.ts');
-const phoneRuntimeEnginePath = path.join(
-  phoneDir,
-  'phone-story',
-  'runtime',
-  'engine.ts'
-);
 const phoneBootstrapPath = path.join(phoneDir, 'PhoneStoryBootstrap.tsx');
 const phoneBrandLabStoryPath = path.join(phoneDir, 'PhoneBrandLabStory.tsx');
 const phoneBrandLabScopePath = path.join(
@@ -1156,8 +1150,7 @@ export function phoneCrossChunkExecutionContractViolations(files) {
     ['src/production/phone/scenes/phone-packed-alpha-surface.ts', 'export type PhonePackedAlphaSurfaceRequest = readonly ['],
     ['src/production/phone/phone-presented-reverse-playback.ts', 'export type PhonePresentedReversePlaybackRequest = readonly ['],
     ['src/production/phone/transitions/PhoneEndpointTransition.ts', 'export type PhoneEndpointAdapterRequest = readonly ['],
-    ['src/scenes/figure3-animation/phone/paper-compositor.ts', 'export type PhoneFigure3PaperCompositorRequest = readonly ['],
-    ['src/scenes/figure3-animation/phone/reverse-playback.ts', 'export type PhoneFigure3ReversePlaybackRequest = readonly [']
+    ['src/scenes/figure3-animation/phone/paper-compositor.ts', 'export type PhoneFigure3PaperCompositorRequest = readonly [']
   ];
   for (const [suffix, signature] of bridgeContracts) {
     const source = sourceForSuffix(suffix);

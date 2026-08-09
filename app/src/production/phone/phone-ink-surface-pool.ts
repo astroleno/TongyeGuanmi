@@ -49,20 +49,9 @@ function retireCanvas(pool: PhoneInkSurfacePool): void {
 
 function scrubCanvas(canvas: HTMLCanvasElement): void {
   for (const key of Object.keys(canvas.dataset)) {
-    if (
-      key.startsWith('phonePresentation')
-      || key.startsWith('phoneInk')
-      || key.startsWith('r4Ink')
-    ) delete canvas.dataset[key];
+    delete canvas.dataset[key];
   }
-  canvas.style.visibility = '';
-  canvas.style.opacity = '';
-  canvas.style.clipPath = '';
-  (canvas.style as CSSStyleDeclaration & { webkitClipPath: string })
-    .webkitClipPath = '';
-  canvas.style.maskImage = '';
-  canvas.style.webkitMaskImage = '';
-  canvas.style.transform = '';
+  canvas.removeAttribute('style');
 }
 
 function contextWasLost(canvas: HTMLCanvasElement): boolean {

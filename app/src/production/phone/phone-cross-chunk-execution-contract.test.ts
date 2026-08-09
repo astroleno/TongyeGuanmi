@@ -229,7 +229,6 @@ describe('phone cross-chunk execution contracts', () => {
       '../../transitions/crane-contact/phone.ts',
       '../../scenes/figure3-animation/phone/PhoneFigure3.tsx',
       '../../scenes/figure3-animation/phone/paper-compositor.ts',
-      '../../scenes/figure3-animation/phone/reverse-playback.ts',
       '../../scenes/ttg-animation/phone/PhoneTtg.tsx',
       '../../scenes/ph-animation/phone/PhonePh.tsx',
       '../../scenes/ph-animation/phone/PhonePh.reverse.ts',

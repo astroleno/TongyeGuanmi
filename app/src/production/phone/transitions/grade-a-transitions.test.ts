@@ -126,7 +126,8 @@ describe('phone Grade A transition contracts', () => {
       "leaseRef.current?.canvas.dataset.phonePresentationEffectFrame === 'ready'"
     );
     expect(figure2DistanceSource).toContain('phonePresentationEffectToken');
-    expect(figure2DistanceSource).toContain('phonePresentationEffectGeneration');
+    expect(figure2DistanceSource).toContain('presentation[2] === lease.generation');
+    expect(figure2DistanceSource).not.toContain('phonePresentationEffectGeneration');
   });
 
   afterEach(() => {

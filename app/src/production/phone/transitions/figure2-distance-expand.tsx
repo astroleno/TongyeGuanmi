@@ -151,9 +151,6 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
       presentedLeaseRef.current = [token, tokenKey, lease.generation, report];
       delete lease.canvas.dataset.phonePresentationEffectFrame;
       lease.canvas.dataset.phonePresentationEffectToken = tokenKey;
-      lease.canvas.dataset.phonePresentationEffectGeneration = String(
-        lease.generation
-      );
     }
     if (runtime) {
       releaseEffectRegistration();
@@ -225,8 +222,6 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
       && presentation
       && presentation[2] === lease.generation
       && lease.canvas.dataset.phonePresentationEffectToken === presentation[1]
-      && lease.canvas.dataset.phonePresentationEffectGeneration
-        === String(lease.generation)
     ) {
       cancelFirstFrameRetry();
       presentedLeaseRef.current = undefined;
@@ -281,9 +276,6 @@ export const PhoneFigure2DistanceExpandTransition = forwardRef<
       if (lease) {
         delete lease.canvas.dataset.phonePresentationEffectFrame;
         lease.canvas.dataset.phonePresentationEffectToken = tokenKey;
-        lease.canvas.dataset.phonePresentationEffectGeneration = String(
-          lease.generation
-        );
       }
       presentedFrameSequenceRef.current = 0;
     },

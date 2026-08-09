@@ -947,7 +947,7 @@ export const PhoneTtg = forwardRef<
         // The exact initial frame is now physically present. Retire its seek
         // driver before native playback takes sole ownership of the video.
         disposePhoneTimelineVideo(video);
-        playback.start(1);
+        playback.start();
       };
       if (phoneTtgHasReusableEndpointFrame(video, 0)) {
         beginForwardPlayback();
@@ -1144,18 +1144,18 @@ export const PhoneTtg = forwardRef<
       disposePhoneTimelineVideo(video);
       const playback = createGroup45NativeAutoplay(video, {
         durationSeconds: TTG_FIGURE_END_SECONDS,
-        onProgress: (progress, playbackDirection) => {
+        onProgress: (progress) => {
           renderFrame(progress);
           publishChapterProgress(
             phoneTtgMediaChapterProgress(progress),
-            playbackDirection
+            1
           );
         },
-        onStatus: (status, playbackDirection) => {
+        onStatus: (status) => {
           if (rootRef.current) {
             rootRef.current.dataset.phoneTtgPlayback = playbackLabel(
               status,
-              playbackDirection
+              1
             );
           }
         },
@@ -1237,11 +1237,6 @@ export const PhoneTtg = forwardRef<
           reportRunCompletion(-1, completionGeneration);
         },
         failMedia,
-        (status) => {
-          if (rootRef.current) {
-            rootRef.current.dataset.phoneTtgPlayback = playbackLabel(status, -1);
-          }
-        },
         null,
         null,
         null

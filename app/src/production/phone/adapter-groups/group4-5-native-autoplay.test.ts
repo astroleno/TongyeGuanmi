@@ -97,7 +97,7 @@ describe('Group 4–5 native autoplay', () => {
     video.dispatchEvent(new Event('timeupdate'));
     expect(progress.at(-1)).toBeCloseTo(.5);
     video.presentFrame(1.25);
-    expect(presented).toHaveBeenCalledWith(1.25, 1);
+    expect(presented).toHaveBeenCalledWith(1.25);
 
     visibility.hidden = true;
     visibility.dispatchEvent(new Event('visibilitychange'));
@@ -183,66 +183,14 @@ describe('Group 4–5 native autoplay', () => {
     expect(group45VideoNeedsEndpointSeek(2.447, 1, false, 2.467)).toBe(true);
   });
 
-  it('refuses reverse playback so only the presented-frame driver can own it', () => {
+  it('exposes forward playback only; reverse belongs to the presented-frame driver', () => {
     const video = new FakeVideo();
-    video.readyState = 2;
-    const progress: Array<readonly [number, 1 | -1]> = [];
-    const completed = vi.fn();
-    const callbacks: FrameRequestCallback[] = [];
     const controller = createGroup45NativeAutoplay(
       video as unknown as HTMLVideoElement,
-      {
-        durationSeconds: 2.5,
-        onProgress: (value, direction) => progress.push([value, direction]),
-        onComplete: completed,
-        requestFrame: (callback) => {
-          callbacks.push(callback);
-          return callbacks.length;
-        },
-        cancelFrame: vi.fn()
-      }
+      { durationSeconds: 2.5, onProgress: vi.fn() }
     );
-
-    controller.start(-1);
-    expect(video.play).not.toHaveBeenCalled();
-    expect(video.currentTime).toBe(0);
-    callbacks.shift()?.(0);
-    callbacks.shift()?.(1250);
-    callbacks.shift()?.(2500);
-    expect(progress).toEqual([]);
-    expect(completed).not.toHaveBeenCalled();
-    expect(controller.active).toBe(false);
-
-    controller.dispose();
-  });
-
-  it('[P0 TTG reverse] never advances canonical progress from elapsed RAF time', () => {
-    const video = new FakeVideo();
-    video.readyState = 2;
-    const progress: Array<readonly [number, 1 | -1]> = [];
-    const completed = vi.fn();
-    const callbacks: FrameRequestCallback[] = [];
-    const controller = createGroup45NativeAutoplay(
-      video as unknown as HTMLVideoElement,
-      {
-        durationSeconds: 2.5,
-        onProgress: (value, direction) => progress.push([value, direction]),
-        onComplete: completed,
-        requestFrame: (callback) => {
-          callbacks.push(callback);
-          return callbacks.length;
-        },
-        cancelFrame: vi.fn()
-      }
-    );
-
-    controller.start(-1);
-    callbacks.shift()?.(0);
-    callbacks.shift()?.(1250);
-    callbacks.shift()?.(2500);
-
-    expect(progress).toEqual([]);
-    expect(completed).not.toHaveBeenCalled();
+    const startForward: () => void = controller.start;
+    expect(startForward).toBe(controller.start);
     controller.dispose();
   });
 

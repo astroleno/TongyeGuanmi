@@ -16,21 +16,12 @@ type VisibilityDocument = Pick<
 
 export type Group45NativeAutoplayOptions = Readonly<{
   durationSeconds: number;
-  onProgress(
-    progress: number,
-    direction: Group45NativeAutoplayDirection
-  ): void;
-  onComplete?(direction: Group45NativeAutoplayDirection): void;
+  onProgress(progress: number): void;
+  onComplete?(): void;
   onError?(): void;
   onReady?(): void;
-  onPresentedFrame?(
-    mediaTime: number,
-    direction: Group45NativeAutoplayDirection
-  ): void;
-  onStatus?(
-    status: Group45NativeAutoplayStatus,
-    direction: Group45NativeAutoplayDirection
-  ): void;
+  onPresentedFrame?(mediaTime: number): void;
+  onStatus?(status: Group45NativeAutoplayStatus): void;
   visibilityDocument?: VisibilityDocument;
   requestFrame?: (callback: FrameRequestCallback) => number;
   cancelFrame?: (frame: number) => void;
@@ -38,7 +29,7 @@ export type Group45NativeAutoplayOptions = Readonly<{
 
 export type Group45NativeAutoplay = Readonly<{
   readonly active: boolean;
-  start(direction?: Group45NativeAutoplayDirection): void;
+  start(): void;
   retry(): void;
   reset(endpoint?: 0 | 1): void;
   dispose(): void;
@@ -96,9 +87,8 @@ export function createGroup45NativeAutoplay(
   const publishStatus = (status: Group45NativeAutoplayStatus) => {
     if (import.meta.env.DEV) {
       video.dataset.phoneGroup45Autoplay = status;
-      video.dataset.phoneGroup45AutoplayDirection = 'forward';
     }
-    options.onStatus?.(status, 1);
+    options.onStatus?.(status);
   };
 
   const cancelScheduledFrame = () => {
@@ -121,7 +111,7 @@ export function createGroup45NativeAutoplay(
       videoFrame = 0;
       if (disposed) return;
       markReady();
-      options.onPresentedFrame?.(metadata.mediaTime, 1);
+      options.onPresentedFrame?.(metadata.mediaTime);
       if (
         active
         && !video.paused
@@ -144,7 +134,7 @@ export function createGroup45NativeAutoplay(
     if (import.meta.env.DEV) {
       video.dataset.phoneGroup45AutoplayProgress = progress.toFixed(4);
     }
-    options.onProgress(progress, 1);
+    options.onProgress(progress);
     return progress;
   };
 
@@ -158,7 +148,7 @@ export function createGroup45NativeAutoplay(
     markReady();
     publishStatus('complete');
     render(1);
-    options.onComplete?.(1);
+    options.onComplete?.();
   };
 
   const renderAndComplete = () => {
@@ -296,8 +286,8 @@ export function createGroup45NativeAutoplay(
     get active() {
       return active;
     },
-    start(nextDirection = 1) {
-      if (disposed || nextDirection !== 1) return;
+    start() {
+      if (disposed) return;
       if (active) {
         play();
         return;
@@ -364,7 +354,6 @@ export function createGroup45NativeAutoplay(
       visibilityDocument?.removeEventListener('visibilitychange', onVisibilityChange);
       if (import.meta.env.DEV) {
         delete video.dataset.phoneGroup45Autoplay;
-        delete video.dataset.phoneGroup45AutoplayDirection;
         delete video.dataset.phoneGroup45AutoplayProgress;
       }
       delete video.dataset.phoneGroup45FrameReady;

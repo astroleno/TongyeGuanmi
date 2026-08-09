@@ -49,9 +49,9 @@ import {
   type PhoneFigure3PaperCompositor
 } from './paper-compositor';
 import {
-  createPhoneFigure3ReversePlayback,
-  type PhoneFigure3ReversePlayback
-} from './reverse-playback';
+  createPhonePresentedReversePlayback,
+  type PhonePresentedReversePlayback
+} from '../../../production/phone/phone-presented-reverse-playback';
 import './PhoneFigure3.css';
 
 const Figure3Surface = figure3AnimationScene.Component;
@@ -443,7 +443,7 @@ export const PhoneFigure3 = forwardRef<
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const playbackRef = useRef<Group45NativeAutoplay | null>(null);
-  const reversePlaybackRef = useRef<PhoneFigure3ReversePlayback | null>(null);
+  const reversePlaybackRef = useRef<PhonePresentedReversePlayback | null>(null);
   const paperCompositorRef = useRef<PhoneFigure3PaperCompositor | null>(null);
   const presentationBindingRef = useRef<Readonly<{
     token: PresentationToken;
@@ -695,7 +695,7 @@ export const PhoneFigure3 = forwardRef<
       if (videoRef.current) disposePhoneTimelineVideo(videoRef.current);
       hasForwardRunRef.current = true;
       reversePlaybackRef.current?.stop();
-      playback.start(1);
+      playback.start();
       return;
     }
     // Endpoint preparation may have started a timeline-driver priming seek.
@@ -1129,10 +1129,10 @@ export const PhoneFigure3 = forwardRef<
     disposePhoneTimelineVideo(video);
     const playback = createGroup45NativeAutoplay(video, {
       durationSeconds: FIGURE3_END_SECONDS,
-      onProgress: (progress, playbackDirection) => {
+      onProgress: (progress) => {
         renderFrame(progress);
         const identity = runIdentityRef.current;
-        if (identity && identity[4] === playbackDirection) {
+        if (identity && identity[4] === 1) {
           progressListenerRef.current?.(
             'figure3-animation',
             identity,
@@ -1141,15 +1141,15 @@ export const PhoneFigure3 = forwardRef<
         }
       },
       onReady: () => setMediaReady(true),
-      onStatus: (status, playbackDirection) => {
+      onStatus: (status) => {
         if (rootRef.current) {
           rootRef.current.dataset.phoneFigure3Playback = playbackLabel(
             status,
-            playbackDirection
+            1
           );
         }
       },
-      onComplete: (playbackDirection) => completeRunRef.current(playbackDirection),
+      onComplete: () => completeRunRef.current(1),
       onError: failMedia
     });
     const compositor = paperCompositorRef.current;
@@ -1158,7 +1158,7 @@ export const PhoneFigure3 = forwardRef<
       failMedia();
       return;
     }
-    const reversePlayback = createPhoneFigure3ReversePlayback([
+    const reversePlayback = createPhonePresentedReversePlayback([
       FIGURE3_END_SECONDS * 1000,
       async (progress) => {
         const reverseRunId = reverseRunIdRef.current;
@@ -1195,19 +1195,6 @@ export const PhoneFigure3 = forwardRef<
       },
       () => completeRunRef.current(-1),
       failMedia,
-      (status) => {
-        if (rootRef.current) {
-          rootRef.current.dataset.phoneFigure3Playback = status === 'complete'
-            ? 'complete-reverse'
-            : status === 'idle'
-              ? 'stable-initial'
-              : status === 'error'
-                ? 'error'
-                : status === 'suspended'
-                  ? 'suspended'
-                  : `${status}-reverse`;
-        }
-      },
       null,
       null,
       null

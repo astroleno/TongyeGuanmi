@@ -14,7 +14,10 @@ class FakeCanvas {
   className = '';
   parentElement: FakeHost | null = null;
   setAttribute() {}
-  removeAttribute() {}
+  removeAttribute(name: string) {
+    if (name !== 'style') return;
+    for (const key of Object.keys(this.style)) delete this.style[key];
+  }
 }
 
 class FakeHost {
@@ -70,7 +73,7 @@ describe('phone ink surface pool', () => {
     expect(secondHost.children).toEqual([second.canvas]);
     expect(second.canvas.dataset.portraitInk).toBe('lab-ph');
     expect(first.canvas.remove).not.toHaveBeenCalled();
-    expect(first.canvas.style.visibility).toBe('');
+    expect(first.canvas.style.visibility).toBeFalsy();
 
     first.release();
     second.release();
@@ -103,7 +106,6 @@ describe('phone ink surface pool', () => {
     });
     first.canvas.dataset.phonePresentationEffectFrame = 'ready';
     first.canvas.dataset.phonePresentationEffectToken = 'authority:a';
-    first.canvas.dataset.phonePresentationEffectGeneration = '7';
     first.canvas.style.visibility = 'visible';
     first.canvas.style.opacity = '1';
     first.canvas.style.clipPath = 'circle(20%)';
@@ -121,12 +123,11 @@ describe('phone ink surface pool', () => {
     expect(second.canvas).toBe(first.canvas);
     expect(second.canvas.dataset.phonePresentationEffectFrame).toBeUndefined();
     expect(second.canvas.dataset.phonePresentationEffectToken).toBeUndefined();
-    expect(second.canvas.dataset.phonePresentationEffectGeneration).toBeUndefined();
-    expect(second.canvas.style.visibility).toBe('');
-    expect(second.canvas.style.opacity).toBe('');
-    expect(second.canvas.style.clipPath).toBe('');
-    expect(second.canvas.style.maskImage).toBe('');
-    expect(second.canvas.style.transform).toBe('');
+    expect(second.canvas.style.visibility).toBeFalsy();
+    expect(second.canvas.style.opacity).toBeFalsy();
+    expect(second.canvas.style.clipPath).toBeFalsy();
+    expect(second.canvas.style.maskImage).toBeFalsy();
+    expect(second.canvas.style.transform).toBeFalsy();
     expect(firstGeneration).toBeTypeOf('number');
     expect(secondGeneration).toBeGreaterThan(firstGeneration!);
   });

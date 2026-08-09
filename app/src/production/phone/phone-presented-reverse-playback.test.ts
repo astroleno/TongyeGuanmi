@@ -16,7 +16,6 @@ describe('Unit 6 presented-frame reverse playback', () => {
       complete,
       vi.fn(),
       null,
-      null,
       (callback) => {
         frames.push(callback);
         return frames.length;
@@ -60,7 +59,6 @@ describe('Unit 6 presented-frame reverse playback', () => {
       vi.fn(),
       vi.fn(),
       null,
-      null,
       (callback) => {
         frames.push(callback);
         return frames.length;
@@ -94,7 +92,6 @@ describe('Unit 6 presented-frame reverse playback', () => {
       vi.fn(),
       vi.fn(),
       onError,
-      null,
       visibilityDocument,
       (callback) => {
         frames.push(callback);
@@ -128,7 +125,6 @@ describe('Unit 6 presented-frame reverse playback', () => {
       vi.fn(),
       vi.fn(),
       onError,
-      null,
       null,
       (callback) => {
         frames.push(callback);
