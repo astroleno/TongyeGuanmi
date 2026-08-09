@@ -269,7 +269,9 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         // caller cannot mistake that healthy compositor for media failure.
         return compositorRef.current;
       }
-      let compositor: PackedAlphaVideoCompositor | undefined;
+      // The factory may synchronously report a WebGL setup failure. Keep the
+      // binding initialized before either callback can inspect lease identity.
+      let compositor: PackedAlphaVideoCompositor | undefined = undefined;
       compositor = createPackedAlphaVideoCompositor({
         video,
         canvas,
@@ -374,8 +376,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           renderAodTransitionProgress(
             root,
             progress,
-            PHONE_AOD_ALPHA_END_PROGRESS,
-            PHONE_AOD_ALPHA_START_PROGRESS
+            PHONE_AOD_ALPHA_END_PROGRESS
           );
           const presentation = phoneAodPresentation(progress);
           const backdropPresentation = phoneAodBackdropPresentation(progress);

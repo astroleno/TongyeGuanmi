@@ -111,8 +111,7 @@ function aodSection(root: HTMLElement | null | undefined): HTMLElement | null {
 export function renderAodTransitionProgress(
   root: HTMLElement | null | undefined,
   rawProgress: number,
-  rawAlphaEndProgress = AOD_TIMELINE_ALPHA_END,
-  rawSurfaceRevealStartProgress = AOD_TIMELINE_ALPHA_END
+  rawAlphaEndProgress = AOD_TIMELINE_ALPHA_END
 ): void {
   const section = aodSection(root);
   if (!section) {
@@ -121,19 +120,9 @@ export function renderAodTransitionProgress(
 
   const raw = Math.min(1, Math.max(0, rawProgress));
   const alphaEnd = alphaEndProgress(rawAlphaEndProgress);
-  const surfaceRevealStart = Math.min(
-    alphaEnd,
-    alphaEndProgress(rawSurfaceRevealStartProgress)
-  );
   const p = acceleratedProgress(raw);
   const mediaProgress = mapAodTimelineToMediaProgress(raw, alphaEnd);
   const alphaComposite = raw < alphaEnd;
-  /*
-   * The phone figure keeps decoded alpha through 59%, while its paper/mist
-   * ownership begins at the independently selected 49% boundary. Desktop
-   * keeps the canonical 48% default for both values.
-   */
-  const surfaceReveal = raw >= surfaceRevealStart;
   const config = HOMEPAGE_AOD_CONFIG;
   const backdropExit = smoothStep(range01(
     raw,
@@ -153,14 +142,6 @@ export function renderAodTransitionProgress(
     alphaEnd
   ));
   const backgroundFade = Math.min(1 - backdropExit, alphaBackdropFade);
-  // Paper ownership is one presentation track. The wash, mist, and solid
-  // backing are visual treatments of the same endpoint; independent reveal
-  // clocks created visible paper seams and let a stale leaf writer outrun the
-  // runner's AOD transaction.
-  const paperReveal = surfaceReveal ? smoothStep(range01(p, 0.42, 0.86)) : 0;
-  const paperWash = paperReveal;
-  const bottomMist = paperReveal;
-  const paperSolid = paperReveal;
   const methodEnter = smoothStep(range01(p, 0.44, 0.86));
   const figureScale = config.figureStartScale + fullscreen * (1 - config.figureStartScale);
   const figureY = (1 - fullscreen) * viewportHeight() * (config.figureStartYVh / 100);
@@ -178,10 +159,6 @@ export function renderAodTransitionProgress(
   section.style.setProperty('--aod-transition-cloud-scale', (1 + backdropExit * 0.025).toFixed(4));
   section.style.setProperty('--aod-transition-figure-y', formatPx(figureY));
   section.style.setProperty('--aod-transition-figure-scale', figureScale.toFixed(4));
-  section.style.setProperty('--aod-transition-paper-wash-opacity', (paperWash * 0.92).toFixed(4));
-  section.style.setProperty('--aod-transition-bottom-mist-opacity', (bottomMist * 0.96).toFixed(4));
-  section.style.setProperty('--aod-transition-bottom-mist-y', formatPx((1 - bottomMist) * 18));
-  section.style.setProperty('--aod-transition-paper-solid-opacity', paperSolid.toFixed(4));
   section.style.setProperty('--aod-transition-method-progress', methodEnter.toFixed(4));
   section.style.setProperty('--aod-transition-method-y', formatPx((1 - methodEnter) * 26));
   section.style.setProperty('--aod-transition-method-blur', `${((1 - methodEnter) * 9).toFixed(2)}px`);

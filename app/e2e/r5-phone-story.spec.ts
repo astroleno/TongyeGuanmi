@@ -5316,11 +5316,12 @@ test('[PH token-bound reverse][PH retire restore] requires current-token packed 
   }
 });
 
-test('[P0 AOD visual lease] playback never paints Method paper before the receiver handoff', async ({ page }) => {
+test('[AOD has no paper treatment] playback never paints Method paper before the receiver handoff', async ({ page }) => {
   test.setTimeout(120_000);
   await installColdPhoneRuntimeProbe(page);
   await installPhoneVisualLeaseProbe(page);
-  await visitFormal(page, '/#aod-animation', 'aod-animation');
+  await visitFormal(page, '/#method', 'method-top');
+  await driveAdjacentPhoneRun(page, 'method-top', 'aod-animation', -1, 70_000);
   await resetPhoneVisualLeaseProbe(page);
   await driveAdjacentPhoneRun(page, 'aod-animation', 'method-top', 1, 70_000);
 
@@ -5330,8 +5331,8 @@ test('[P0 AOD visual lease] playback never paints Method paper before the receiv
   ));
   for (const target of [0, .25, .5, .75, 1]) {
     const nearest = frames.reduce<PhoneVisualLeaseFrame | null>((closest, frame) => {
-      if (frame.aod?.progress === null || frame.aod === null) return closest;
-      if (closest?.aod?.progress === null || closest?.aod === null) return frame;
+      if (!frame.aod || frame.aod.progress === null) return closest;
+      if (!closest?.aod || closest.aod.progress === null) return frame;
       return Math.abs(frame.aod.progress - target)
         < Math.abs(closest.aod.progress - target)
         ? frame

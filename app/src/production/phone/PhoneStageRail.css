@@ -82,7 +82,10 @@
     #07110e;
 }
 
-.portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__viewport-coverage,
+.portrait-scroll-spike[data-portrait-edge-scene="aod"] .portrait-scroll-spike__viewport-coverage {
+  background: #ede4d2;
+}
+
 .portrait-scroll-spike[data-portrait-edge-scene="method"] .portrait-scroll-spike__viewport-coverage {
   background:
     radial-gradient(72% 42% at 50% 72%, rgba(247, 237, 215, .26), transparent 70%),

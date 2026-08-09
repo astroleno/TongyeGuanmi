@@ -134,6 +134,22 @@ describe('phone live viewport coverage', () => {
     );
   });
 
+  it('[P0 AOD coverage] keeps AOD flat and reserves paper treatment for Method', () => {
+    const aod = stageRailStyles.slice(
+      stageRailStyles.indexOf('[data-portrait-edge-scene="aod"]'),
+      stageRailStyles.indexOf('[data-portrait-edge-scene="method"]')
+    );
+    const method = stageRailStyles.slice(
+      stageRailStyles.indexOf('[data-portrait-edge-scene="method"]'),
+      stageRailStyles.indexOf('/* Keep Figure2')
+    );
+
+    expect(aod).toContain('background: #ede4d2;');
+    expect(aod).not.toContain('gradient');
+    expect(method).toContain('radial-gradient');
+    expect(method).toContain('linear-gradient');
+  });
+
   it('[P0 Figure2 floor] fills the complete frozen stage before live coverage extends it', () => {
     const root = figure2Styles.slice(
       figure2Styles.indexOf('.phone-grade-a__surfaces > .r4-figure2 {'),

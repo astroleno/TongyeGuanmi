@@ -79,14 +79,14 @@ describe('AOD alpha compositing', () => {
     ).toBeCloseTo(1, 8);
   });
 
-  it('aligns paper and backdrop ownership to the decoded first-full-alpha frame', () => {
+  it('aligns backdrop ownership to the decoded first-full-alpha frame', () => {
     const section = new FakeAodSection();
 
     renderAodTransitionProgress(section as unknown as HTMLElement, 0.2);
     expect(section.dataset.aodAlphaComposite).toBe('true');
-    expect(section.style.getPropertyValue('--aod-transition-paper-wash-opacity')).toBe('0.0000');
-    expect(section.style.getPropertyValue('--aod-transition-bottom-mist-opacity')).toBe('0.0000');
-    expect(section.style.getPropertyValue('--aod-transition-paper-solid-opacity')).toBe('0.0000');
+    expect(section.style.getPropertyValue('--aod-transition-paper-wash-opacity')).toBe('');
+    expect(section.style.getPropertyValue('--aod-transition-bottom-mist-opacity')).toBe('');
+    expect(section.style.getPropertyValue('--aod-transition-paper-solid-opacity')).toBe('');
     expect(section.style.getPropertyValue('--aod-transition-cloud-opacity')).toBe('0.9800');
     expect(section.style.getPropertyValue('--aod-transition-sun-opacity')).toBe('0.9600');
 
@@ -139,8 +139,7 @@ describe('AOD alpha compositing', () => {
     renderAodTransitionProgress(
       section as unknown as HTMLElement,
       AOD_PHONE_TIMELINE_ALPHA_START,
-      AOD_PHONE_TIMELINE_ALPHA_END,
-      AOD_PHONE_TIMELINE_ALPHA_START
+      AOD_PHONE_TIMELINE_ALPHA_END
     );
     expect(section.dataset.aodAlphaComposite).toBe('true');
     expect(
@@ -149,8 +148,7 @@ describe('AOD alpha compositing', () => {
     renderAodTransitionProgress(
       section as unknown as HTMLElement,
       AOD_PHONE_TIMELINE_ALPHA_END,
-      AOD_PHONE_TIMELINE_ALPHA_END,
-      AOD_PHONE_TIMELINE_ALPHA_START
+      AOD_PHONE_TIMELINE_ALPHA_END
     );
     expect(section.dataset.aodAlphaComposite).toBe('false');
   });
@@ -161,16 +159,15 @@ describe('AOD alpha compositing', () => {
       renderAodTransitionProgress(
         section as unknown as HTMLElement,
         progress,
-        AOD_PHONE_TIMELINE_ALPHA_END,
-        AOD_PHONE_TIMELINE_ALPHA_START
+        AOD_PHONE_TIMELINE_ALPHA_END
       );
 
       expect(section.style.getPropertyValue('--aod-transition-paper-wash-opacity'))
-        .toBe('0.0000');
+        .toBe('');
       expect(section.style.getPropertyValue('--aod-transition-bottom-mist-opacity'))
-        .toBe('0.0000');
+        .toBe('');
       expect(section.style.getPropertyValue('--aod-transition-paper-solid-opacity'))
-        .toBe('0.0000');
+        .toBe('');
     }
   });
 
