@@ -351,13 +351,11 @@ function assertPresentedReverseVideoFrames(
 }
 
 function assertPresentedReversePackedFrames(
-  frames: readonly PhoneVisualLeaseFrame[],
+  draws: readonly PhoneVisualLeaseDraw[],
   owner: string,
   label: string
 ): void {
-  const evidence = frames.flatMap((frame) => frame.canvases.filter(
-    (canvas) => canvas.owner.includes(owner)
-  ));
+  const evidence = draws.filter((draw) => draw.owner.includes(owner));
   expect(
     new Set(evidence.map((entry) => entry.hash)).size,
     `${label} needs at least three physically distinct packed Canvas frames`
@@ -5288,7 +5286,7 @@ test('[TTG presented reverse][Services reverse release] two same-authority retur
   await assertStablePhoneHold(page, 'brand', { scope: 'brand-lab' });
 });
 
-test('[P0 PH reverse] retire and restore require current-token packed frames in two runs', async ({ page }) => {
+test('[PH token-bound reverse][PH retire restore] requires current-token packed frames in two runs', async ({ page }) => {
   test.setTimeout(300_000);
   await installColdPhoneRuntimeProbe(page);
   await installPhoneVisualLeaseProbe(page);
@@ -5300,9 +5298,8 @@ test('[P0 PH reverse] retire and restore require current-token packed frames in 
   for (let cycle = 0; cycle < 2; cycle += 1) {
     await resetPhoneVisualLeaseProbe(page);
     await driveAdjacentPhoneRun(page, 'education', 'lab', -1, 70_000);
-    const reverseFrames = (await phoneVisualLeaseFrames(page)).filter((frame) => (
-      frame.cursor === 'transition:lab-education:0'
-      && frame.direction === '-1'
+    const reverseFrames = (await phoneVisualLeaseDraws(page)).filter((frame) => (
+      frame.cursor === 'transition:lab-education:1'
     ));
     assertPresentedReversePackedFrames(
       reverseFrames,

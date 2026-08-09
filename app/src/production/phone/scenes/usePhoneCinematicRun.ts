@@ -29,7 +29,7 @@ export type PhoneCinematicRunRequest = readonly [
   reverseRef: RefObject<PhoneCinematicPlayer | null>,
   reducedMotion: boolean,
   terminalProgress: number,
-  reverseReady: () => boolean,
+  reverseReady: (token: PresentationToken | null) => boolean,
   activateSurface: (mode: 'forward' | 'endpoint') => void,
   render: (progress: number, direction?: PhoneCinematicDirection) => void,
   /** Draw again only after an immutable media identity has been installed. */
@@ -144,11 +144,12 @@ export function usePhoneCinematicRun(
   }, [publish]);
   const beginPreparedReverse = useCallback(() => {
     const root = options.rootRef.current;
+    const token = activeIdentityRef.current?.[5] ?? null;
     if (
       !root
       || requestedRef.current !== -1
       || reverseStartedRef.current
-      || !options.reverseReady()
+      || !options.reverseReady(token)
     ) return;
     reverseStartedRef.current = true;
     options.reverseRef.current?.start();
@@ -206,7 +207,7 @@ export function usePhoneCinematicRun(
     if (activeIdentity?.[5]) {
       options.presentPreparedFrame(activeIdentity[5]);
     }
-    if (options.reverseReady()) {
+    if (options.reverseReady(activeIdentityRef.current?.[5] ?? null)) {
       beginPreparedReverse();
     }
   }, [

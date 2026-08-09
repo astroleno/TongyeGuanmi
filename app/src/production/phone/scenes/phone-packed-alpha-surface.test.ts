@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const compositorProbe = vi.hoisted(() => ({
   onFrame: null as (() => void) | null,
+  onFrames: [] as Array<() => void>,
   canvases: [] as FakeNode[],
   restoreOwner: {
     isPending: vi.fn(() => false),
@@ -18,6 +19,7 @@ vi.mock('../../../media/packed-alpha-video', () => ({
   createPackedAlphaVideoCompositor: vi.fn(({ canvas, onFrame }) => {
     canvas.dataset.packedAlphaStatus = 'waiting';
     compositorProbe.onFrame = onFrame ?? null;
+    if (onFrame) compositorProbe.onFrames.push(onFrame);
     compositorProbe.canvases.push(canvas);
     return { render: () => false, dispose: vi.fn() };
   }),
@@ -168,6 +170,7 @@ function fixture(onFrame: ((presentationToken: string | null) => void) | null = 
 describe('phone packed-alpha surface', () => {
   beforeEach(() => {
     compositorProbe.onFrame = null;
+    compositorProbe.onFrames.length = 0;
     compositorProbe.canvases.length = 0;
     for (const method of Object.values(compositorProbe.restoreOwner)) method.mockClear();
     vi.mocked(releasePackedAlphaWebGlContext).mockClear();
@@ -381,17 +384,28 @@ describe('phone packed-alpha surface', () => {
 
     surface(['activate', 'endpoint', 'token-a']);
     surface(['present', 'token-a']);
-    compositorProbe.onFrame?.();
+    const staleTokenAFrame = compositorProbe.onFrame!;
+    staleTokenAFrame();
     expect(root.dataset.phoneTestAlpha).toBe('verified');
     expect(reported).toEqual(['token-a']);
 
     surface(['retire']);
     surface(['activate', 'endpoint', 'token-b']);
+    const tokenBFrame = compositorProbe.onFrame!;
     expect(root.dataset.phoneTestAlpha).not.toBe('verified');
     expect(reported).toEqual(['token-a']);
+    expect(surface(['canvas'])?.dataset.phonePackedAlphaPresentationToken)
+      .toBeUndefined();
 
-    compositorProbe.onFrame?.();
+    staleTokenAFrame();
+    expect(reported).toEqual(['token-a']);
+    expect(root.dataset.phoneTestAlpha).not.toBe('verified');
+
+    tokenBFrame();
     expect(reported).toEqual(['token-a', 'token-b']);
+    expect(surface(['canvas'])?.dataset.phonePackedAlphaPresentationToken)
+      .toBe('token-b');
+    expect(surface(['canvas'])).toBe(compositorProbe.canvases[0]);
     surface(['dispose']);
   });
 

@@ -31,6 +31,8 @@ describe('usePhoneCinematicRun execution token contract', () => {
     expect(source).toMatch(/presentPreparedFrame:\s*\(token: PresentationToken\) => void,/);
     expect(source).toContain('if (activeIdentity?.[5]) {');
     expect(source).toContain('options.presentPreparedFrame(activeIdentity[5]);');
+    expect(source).toContain('reverseReady: (token: PresentationToken | null) => boolean');
+    expect(source).toContain('options.reverseReady(token)');
   });
 
   it('[R5] leaves reverse timeout and rollback ownership to the route runner', () => {

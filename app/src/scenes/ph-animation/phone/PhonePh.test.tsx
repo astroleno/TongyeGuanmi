@@ -10,10 +10,15 @@ import {
   applyPhonePhMediaFallback,
   parkPhonePhMedia,
   PhonePh,
+  phonePhPresentedFrameMatchesToken,
   phonePhForegroundParallaxY,
   phonePhPresentationProgress,
   phonePhTimelineProgressForMediaProgress
 } from './PhonePh';
+import {
+  phoneRuntimePresentationTokenKey,
+  type PresentationToken
+} from '../../../production/phone/phone-story/runtime';
 
 const source = readFileSync(new URL('./PhonePh.tsx', import.meta.url), 'utf8');
 const motionSource = readFileSync(
@@ -60,7 +65,7 @@ describe('PhonePh', () => {
 
   it('[R5] redraws its prepared packed surface when an active media token starts', () => {
     expect(source).toContain('const presentPreparedFrame = useCallback((token: PresentationToken) => {');
-    expect(source).toContain("surface?.(['present', phoneRuntimePresentationTokenKey(token)])");
+    expect(source).toContain("surface?.(['present', key])");
     expect(source).toContain('presentPreparedFrame,');
   });
 
@@ -136,7 +141,7 @@ describe('PhonePh', () => {
     expect(source).toContain('renderProgress,');
     expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');
     expect(source).toContain('startRun(direction, request ?? null)');
-    expect(cinematicRunSource).toContain('options.reverseReady()');
+    expect(cinematicRunSource).toContain('options.reverseReady(');
     expect(motionSource).toContain("'presented-frame-reverse'");
     expect(reverseSource).toContain('createPhonePresentedReversePlayback');
     expect(reverseSource).toContain('preparePhoneTimelineVideoFrame');
@@ -161,8 +166,26 @@ describe('PhonePh', () => {
 
     expect(reverseReadyStart).toBeGreaterThanOrEqual(0);
     expect(reverseReady).not.toContain("root?.dataset.phonePhAlpha === 'verified'");
-    expect(reverseReady).toContain('phoneRuntimePresentationTokenKey');
-    expect(reverseReady).toContain('presentedFrame');
+    expect(reverseReady).toContain('phonePhPresentedFrameMatchesToken');
+    expect(reverseReady).toContain('presentedReverseFrameRef');
+  });
+
+  it('[PH token-bound reverse] rejects stale frames and accepts only the current immutable token', () => {
+    const token: PresentationToken = {
+      authorityId: 'phone-authority',
+      sessionId: 'phone-session-7',
+      generation: 3,
+      revision: 11,
+      subject: 'ph-animation',
+      leg: 0,
+      kind: 'packed-canvas-frame'
+    };
+    const key = phoneRuntimePresentationTokenKey(token);
+
+    expect(phonePhPresentedFrameMatchesToken(null, token)).toBe(false);
+    expect(phonePhPresentedFrameMatchesToken(`${key}:stale`, token)).toBe(false);
+    expect(phonePhPresentedFrameMatchesToken(key, null)).toBe(false);
+    expect(phonePhPresentedFrameMatchesToken(key, token)).toBe(true);
   });
 
   it('falls back to its static layers and parks media without a reload', () => {

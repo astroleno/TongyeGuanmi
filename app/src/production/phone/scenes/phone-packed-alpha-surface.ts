@@ -174,6 +174,7 @@ export function createPhonePackedAlphaSurface(
     canvas.style.visibility = 'hidden';
     canvas.style.opacity = '0';
     canvas.dataset.phonePackedAlphaRetired = 'true';
+    delete canvas.dataset.phonePackedAlphaPresentationToken;
   };
   const settleActivation = () => {
     restoreOwner.cancel();
@@ -224,6 +225,7 @@ export function createPhonePackedAlphaSurface(
     if (activePresentationToken === presentationToken) return;
     activePresentationToken = presentationToken;
     activeFrameToken = presentationToken;
+    if (canvas) delete canvas.dataset.phonePackedAlphaPresentationToken;
     rejectSupersededPreparations(presentationToken);
     if (timeout !== undefined) globalThis.clearTimeout(timeout);
     timeout = undefined;
@@ -246,17 +248,18 @@ export function createPhonePackedAlphaSurface(
       || mode !== nextMode
       || !canvas
     ) return;
-    canvas.className = options.canvasClassName;
-    canvas.setAttribute('aria-hidden', 'true');
-    canvas.dataset.phonePackedAlphaCanvas = layerName;
-    if (canvas.parentNode !== container) container.append(canvas);
-    canvas.style.visibility = '';
-    canvas.style.opacity = '';
-    delete canvas.dataset.phonePackedAlphaRetired;
+    const activeCanvas = canvas;
+    activeCanvas.className = options.canvasClassName;
+    activeCanvas.setAttribute('aria-hidden', 'true');
+    activeCanvas.dataset.phonePackedAlphaCanvas = layerName;
+    if (activeCanvas.parentNode !== container) container.append(activeCanvas);
+    activeCanvas.style.visibility = '';
+    activeCanvas.style.opacity = '';
+    delete activeCanvas.dataset.phonePackedAlphaRetired;
     restoreOwner.clear();
     compositor = createPackedAlphaVideoCompositor({
       video,
-      canvas,
+      canvas: activeCanvas,
       onFrame: () => {
         if (generation !== presentationGeneration) return;
         if (video.dataset.packedAlphaSource !== 'rgb-alpha-side-by-side') return;
@@ -268,6 +271,11 @@ export function createPhonePackedAlphaSurface(
         if (timeout !== undefined) globalThis.clearTimeout(timeout);
         timeout = undefined;
         root.dataset[statusDataset] = 'verified';
+        if (activeFrameToken === null) {
+          delete activeCanvas.dataset.phonePackedAlphaPresentationToken;
+        } else {
+          activeCanvas.dataset.phonePackedAlphaPresentationToken = activeFrameToken;
+        }
         options.onFrame?.(activeFrameToken);
         settle({ presentationToken: activePresentationToken });
       },
@@ -283,7 +291,7 @@ export function createPhonePackedAlphaSurface(
         failEndpoint();
       }
     });
-    const status = canvas.dataset.packedAlphaStatus;
+    const status = activeCanvas.dataset.packedAlphaStatus;
     if (status === 'webgl-unavailable') {
       video.dataset.phonePackedAlphaOwner = layerName;
       setPackedAlphaVideoSource(video, options.packedSourceUrl);

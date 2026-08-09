@@ -100,6 +100,14 @@ export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
   }
 }
 
+export function phonePhPresentedFrameMatchesToken(
+  presentedFrame: string | null,
+  token: PresentationToken | null
+): boolean {
+  return token !== null
+    && presentedFrame === phoneRuntimePresentationTokenKey(token);
+}
+
 /**
  * Figure2 supplies the stable phone composition; AOD supplies time ownership.
  * The canonical PH video remains the only media element and native currentTime
@@ -129,6 +137,8 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
     const presentedFrameRef = useRef<(presentationKey: string | null) => void>(
       () => undefined
     );
+    const expectedReverseFrameRef = useRef<string | null>(null);
+    const presentedReverseFrameRef = useRef<string | null>(null);
     const reportPresentationFrame = useCallback((presentationKey: string | null) => {
       const binding = presentationBindingRef.current;
       if (!binding || binding.key !== presentationKey) return;
@@ -168,6 +178,9 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
           (presentationKey) => {
             video.dataset.timelineVideoFrameReady = 'true';
             root.dataset.phonePhMedia = video.paused ? 'ready' : 'playing';
+            if (presentationKey === expectedReverseFrameRef.current) {
+              presentedReverseFrameRef.current = presentationKey;
+            }
             beginPreparedReverseRef.current?.();
             presentedFrameRef.current?.(presentationKey);
             reportPresentationFrame(presentationKey);
@@ -194,15 +207,18 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       // A retained endpoint is not evidence for the newly active media token.
       // Ask its mounted compositor for one real draw after token installation.
       const surface = packedSurfaceRef.current;
-      surface?.(['present', phoneRuntimePresentationTokenKey(token)]);
+      const key = phoneRuntimePresentationTokenKey(token);
+      expectedReverseFrameRef.current = key;
+      presentedReverseFrameRef.current = null;
+      surface?.(['present', key]);
     }, []);
 
-    const reverseReady = useCallback(() => {
-      const root = rootRef.current;
-      // The packed surface is the sole Canvas owner. Its root status is set
-      // by the compositor's real draw callback and cleared on release; the
-      // leaf must not rediscover or mutate a Canvas node behind that owner.
-      return root?.dataset.phonePhAlpha === 'verified';
+    const reverseReady = useCallback((token: PresentationToken | null) => {
+      return expectedReverseFrameRef.current !== null
+        && phonePhPresentedFrameMatchesToken(
+          presentedReverseFrameRef.current,
+          token
+        );
     }, []);
     const beforeForward = useCallback(() => {
       const root = rootRef.current;
@@ -292,6 +308,8 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       onReady?.();
 
       return () => {
+        expectedReverseFrameRef.current = null;
+        presentedReverseFrameRef.current = null;
         nativeAutoplay.dispose();
         reversePlayback?.dispose();
         stopRun();
@@ -334,6 +352,8 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       // later reverse admission; recreating a new surface on every round is
       // what made cumulative WebKit context creation exceed the route cap.
       stopRun();
+      expectedReverseFrameRef.current = null;
+      presentedReverseFrameRef.current = null;
       if (presentationBindingRef.current) {
         packedSurfaceRef.current?.(['release']);
       } else {
@@ -407,6 +427,8 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       prepareTargetPresentation,
       dispose() {
         presentationBindingRef.current = null;
+        expectedReverseFrameRef.current = null;
+        presentedReverseFrameRef.current = null;
         disposeRun();
         packedSurfaceRef.current?.(['dispose']);
         packedSurfaceRef.current = null;
