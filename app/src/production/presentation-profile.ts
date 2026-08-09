@@ -33,7 +33,12 @@ export function initialPresentationFamily(): PresentationFamily {
   // default. Treat that as the same coarse/non-hover capability the physical
   // phone has; otherwise a release build can silently mount DesktopStoryShell
   // at `/` and all phone acceptance evidence becomes irrelevant.
-  const touchCapable = navigator.maxTouchPoints > 0;
+  // Playwright/WebKit and iPadOS desktop-mode Safari can expose a phone
+  // viewport while reporting zero maxTouchPoints.  The navigator identity is
+  // a capability fact here, not a route override; geometry still decides
+  // whether the phone renderer is appropriate.
+  const touchCapable = navigator.maxTouchPoints > 0
+    || navigator.userAgent.includes('iP');
   return presentationFamilyFor({
     width: viewport?.width ?? window.innerWidth,
     height: viewport?.height ?? window.innerHeight,

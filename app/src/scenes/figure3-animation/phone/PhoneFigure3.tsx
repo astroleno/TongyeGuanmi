@@ -382,8 +382,6 @@ export function phoneFigure3CanStartPreparedRun(
     && (targetRunId === null || targetRunId === readyRunId);
 }
 
-export const PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS = 240;
-
 /** Direct entry needs a physical paper-canvas paint, not decoder readiness. */
 export function phoneFigure3HasPresentedPaperFrame(
   canvas: HTMLCanvasElement | null
@@ -491,7 +489,6 @@ export const PhoneFigure3 = forwardRef<
   }> | null>(null);
   const endpointGenerationRef = useRef(0);
   const endpointRunSequenceRef = useRef(0);
-  const endpointFallbackTimerRef = useRef(0);
   const completionReportedRef = useRef(false);
   const runGenerationRef = useRef(0);
   const reverseRunIdRef = useRef('phone-figure3-reverse-0');
@@ -631,10 +628,6 @@ export const PhoneFigure3 = forwardRef<
     runIdentityRef.current = null;
     presentationBindingRef.current = null;
     executionFrameRef.current = null;
-    if (endpointFallbackTimerRef.current) {
-      clearTimeout(endpointFallbackTimerRef.current);
-      endpointFallbackTimerRef.current = 0;
-    }
     clearEndpointPresentation();
     paperCompositorRef.current?.dispose();
     paperCompositorRef.current = null;
@@ -736,6 +729,11 @@ export const PhoneFigure3 = forwardRef<
       )
     ) return false;
 
+    if (!frameAlreadyPainted
+      && canvasRef.current?.dataset.phoneFigure3PaperFrame === 'ready'
+    ) {
+      frameAlreadyPainted = true;
+    }
     if (compositor && !frameAlreadyPainted) {
       if (!compositor.paint()) return false;
       // paint() publishes presented-frame evidence synchronously. Its callback
@@ -753,10 +751,6 @@ export const PhoneFigure3 = forwardRef<
     // participates in this decision.
     if (!frameAlreadyPainted) return false;
 
-    if (endpointFallbackTimerRef.current) {
-      clearTimeout(endpointFallbackTimerRef.current);
-      endpointFallbackTimerRef.current = 0;
-    }
     const onPresented = preparation.onPresented;
     readyEndpointRef.current = endpoint;
     readyEndpointRunIdRef.current = preparation.runId;
@@ -808,10 +802,6 @@ export const PhoneFigure3 = forwardRef<
     }
 
     const generation = ++endpointGenerationRef.current;
-    if (endpointFallbackTimerRef.current) {
-      clearTimeout(endpointFallbackTimerRef.current);
-      endpointFallbackTimerRef.current = 0;
-    }
     const runId = preferredRunId ?? (
       preparationDirection === -1
         ? `phone-figure3-reverse-${++endpointRunSequenceRef.current}`
@@ -826,11 +816,6 @@ export const PhoneFigure3 = forwardRef<
       onPresented
     };
     clearEndpointPresentation();
-    const root = rootRef.current;
-    if (root) {
-      const label = endpointLabel(endpoint);
-      root.dataset.phoneFigure3FallbackEndpoint = label;
-    }
     playback.reset(endpoint);
     renderFrame(endpoint);
     if (finishEndpointPresentation(
@@ -839,18 +824,6 @@ export const PhoneFigure3 = forwardRef<
       runId,
       compositor
     )) return;
-
-    endpointFallbackTimerRef.current = window.setTimeout(() => {
-      endpointFallbackTimerRef.current = 0;
-      const activeCompositor = paperCompositorRef.current;
-      if (!activeCompositor) return;
-      finishEndpointPresentation(
-        generation,
-        endpoint,
-        runId,
-        activeCompositor
-      );
-    }, PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS);
 
     void preparePhoneTimelineVideoFrame(
       video,
@@ -919,8 +892,8 @@ export const PhoneFigure3 = forwardRef<
       completionReportedRef.current = true;
       completionListenerRef.current?.('figure3-animation', identity);
     };
-    // A logical clock endpoint is not a presented Safari frame. Prefer its
-    // canvas frame, then use the exact endpoint poster before handoff can stall.
+    // A logical clock endpoint is not a presented Safari frame. Prefer the
+    // exact endpoint canvas paint before the handoff can be admitted.
     prepareEndpoint(
       endpoint,
       -1,
@@ -1034,10 +1007,6 @@ export const PhoneFigure3 = forwardRef<
         endpointGenerationRef.current += 1;
         endpointPreparationRef.current = null;
         requestedEndpointRef.current = null;
-        if (endpointFallbackTimerRef.current) {
-          clearTimeout(endpointFallbackTimerRef.current);
-          endpointFallbackTimerRef.current = 0;
-        }
         clearEndpointPresentation();
       } else if (target && readyEndpointRunIdRef.current === target.runId) {
         clearEndpointPresentation();
@@ -1317,7 +1286,6 @@ export const PhoneFigure3 = forwardRef<
       setMediaFailed(false);
       mediaRetiringRef.current = false;
       delete root.dataset.phoneMediaState;
-      delete root.dataset.phoneFigure3FallbackEndpoint;
     }
     mountMedia();
     restorePhoneFigure3VideoSources(videoRef.current);
@@ -1353,10 +1321,6 @@ export const PhoneFigure3 = forwardRef<
         endpointGenerationRef.current += 1;
         endpointPreparationRef.current = null;
         requestedEndpointRef.current = null;
-        if (endpointFallbackTimerRef.current) {
-          clearTimeout(endpointFallbackTimerRef.current);
-          endpointFallbackTimerRef.current = 0;
-        }
         clearEndpointPresentation();
       }
       reconcileMedia();
@@ -1458,7 +1422,6 @@ export const PhoneFigure3 = forwardRef<
       }
       delete root.dataset.phoneFigure3Playback;
       delete root.dataset.phoneFigure3EndpointReady;
-      delete root.dataset.phoneFigure3FallbackEndpoint;
       delete root.dataset.phoneMediaState;
       root.style.removeProperty('--phone-figure3-video-opacity');
       root.style.removeProperty('--phone-figure3-video-scale');

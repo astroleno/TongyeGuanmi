@@ -981,9 +981,10 @@ async function touchPhone(page: Page, deltaY: number): Promise<void> {
 
 async function touchPhoneSequence(
   page: Page,
-  deltas: readonly number[]
+  deltas: readonly number[],
+  pace = false
 ): Promise<void> {
-  await page.evaluate((inputDeltas) => {
+  await page.evaluate(async ({ inputDeltas, pace: shouldPace }) => {
     const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
     if (!root) throw new Error('Phone authority root unavailable for touch input');
     const clientX = 195;
@@ -1009,10 +1010,20 @@ async function touchPhoneSequence(
     };
     dispatch('touchstart', [point(startY)]);
     for (const deltaY of inputDeltas) {
+      if (shouldPace) {
+        await new Promise<void>((resolve) => {
+          window.requestAnimationFrame(() => resolve());
+        });
+      }
       dispatch('touchmove', [point(startY - deltaY)]);
     }
+    if (shouldPace) {
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    }
     dispatch('touchend', []);
-  }, [...deltas]);
+  }, { inputDeltas: [...deltas], pace });
 }
 
 async function inputPhoneDelta(page: Page, deltaY: number): Promise<void> {
@@ -1032,15 +1043,11 @@ async function inputPhoneDelta(page: Page, deltaY: number): Promise<void> {
 async function inputPhoneIntent(
   page: Page,
   direction: 1 | -1,
-  distance = 520
+  distance = 4_200,
+  pace = false
 ): Promise<void> {
-  const deltas = [80, 220, distance].map((delta) => direction * delta);
-  if (page.context().browser()?.browserType().name() === 'webkit') {
-    await touchPhoneSequence(page, deltas);
-    return;
-  }
-  await page.mouse.move(195, 180);
-  await page.mouse.wheel(0, direction * distance);
+  const deltas = [40, 100, distance].map((delta) => direction * delta);
+  await touchPhoneSequence(page, deltas, pace);
 }
 
 async function waitForNewWheelEpoch(page: Page): Promise<void> {
@@ -2199,7 +2206,11 @@ async function driveFrontRun(
 
   // This is the regression gate: one large intent may start exactly one front
   // transaction, but document scroll can never clock or skip its authored run.
-  await inputPhoneDelta(page, direction * 180);
+  if (run.id === 'star-map-aod') {
+    await inputPhoneIntent(page, direction, direction === 1 ? 700 : 4_200);
+  } else {
+    await inputPhoneDelta(page, direction * 180);
+  }
   await expect.poll(
     async () => shell.getAttribute('data-phone-cursor'),
     { timeout: 2_500, message: `one intent must start ${run.id}` }
@@ -2540,7 +2551,19 @@ async function driveContinuousJourney(
       probe.stateEvents.length = 0;
     });
 
-    await inputPhoneIntent(page, direction);
+    const starAodLeg = (from === 'star-map' && to === 'aod-animation')
+      || (from === 'aod-animation' && to === 'star-map');
+    const frontDistance = starAodLeg
+      ? (direction === 1 ? 700 : 4_200)
+      : 180;
+    const aodMethodLeg = (from === 'aod-animation' && to === 'method-top')
+      || (from === 'method-top' && to === 'aod-animation');
+    await inputPhoneIntent(
+      page,
+      direction,
+      isFrontJourneyLeg(from, to) ? frontDistance : 4_200,
+      aodMethodLeg
+    );
     await expect.poll(
       async () => shell.getAttribute('data-phone-cursor'),
       { timeout: 2_500, message: `continuous intent did not claim ${from} → ${to}` }

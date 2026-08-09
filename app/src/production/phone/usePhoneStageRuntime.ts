@@ -606,6 +606,10 @@ export function usePhoneStageRuntime(
             return stagePosition(direction === 1
               ? PHONE_STAGE_STOPS.patternMotionEnd
               : PHONE_STAGE_STOPS.patternStarEnd);
+          case 'star-map-aod':
+            return stagePosition(direction === 1
+              ? PHONE_STAGE_STOPS.starAodEnd
+              : PHONE_STAGE_STOPS.patternStarEnd);
           case 'aod-method':
             return direction === 1
               ? aodSemanticPosition()

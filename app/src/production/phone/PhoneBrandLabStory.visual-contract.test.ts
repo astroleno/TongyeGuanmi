@@ -425,11 +425,13 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
     expect(figure3Scene).toContain('data-phone-figure3-endpoint-ready');
     expect(figure3Scene).toContain(
-      'PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS'
+      'phoneFigure3EndpointFrameMatches('
     );
     expect(figure3Scene).toContain(
-      'root.dataset.phoneFigure3FallbackEndpoint = label'
+      "phoneFigure3PaperFrame === 'ready'"
     );
+    expect(figure3Scene).not.toContain('PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS');
+    expect(figure3Scene).not.toContain('phoneFigure3FallbackEndpoint');
     expect(figure3Styles).toContain(
       'assets/figure3-initial-paper.webp'
     );

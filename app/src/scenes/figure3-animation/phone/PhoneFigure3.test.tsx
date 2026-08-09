@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from 'vitest';
 import * as PhoneFigure3Module from './PhoneFigure3';
 import {
   PhoneFigure3,
-  PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS,
   phoneFigure3CanStartPreparedRun,
   phoneFigure3EndpointFrameMatches,
   phoneFigure3Frame,
@@ -48,14 +47,9 @@ describe('PhoneFigure3', () => {
     expect(motionMarkup).toContain('data-phone-media-owner="figure3-motion"');
   });
 
-  it('bounds the physical endpoint gate before the visible poster takes over', () => {
-    expect(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS).toBe(240);
-  });
-
-  it('[Group45 direct-entry cutover] never marks a fallback endpoint ready without the mounted paper compositor paint', () => {
-    expect(phoneFigure3Source).toMatch(
-      /endpointFallbackTimerRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*?const activeCompositor = paperCompositorRef\.current;[\s\S]*?if \(!activeCompositor\) return;[\s\S]*?finishEndpointPresentation\(\s*generation,\s*endpoint,\s*runId,\s*activeCompositor\s*\)/
-    );
+  it('[Group45 direct-entry cutover] never marks an endpoint ready without exact timeline evidence and paper paint', () => {
+    expect(phoneFigure3Source).toContain('phoneFigure3EndpointFrameMatches(');
+    expect(phoneFigure3Source).toContain("phoneFigure3PaperFrame === 'ready'");
   });
 
   it('holds the last valid frame on media failure and uses reduced endpoints', () => {
@@ -197,6 +191,12 @@ describe('PhoneFigure3', () => {
       -1,
       1
     )).toBe(false);
+  });
+
+  it('[Group45 endpoint admission] joins timeline evidence with the same paper paint in either callback order', () => {
+    expect(phoneFigure3Source).toContain(
+      "canvasRef.current?.dataset.phoneFigure3PaperFrame === 'ready'"
+    );
   });
 
   it('requires a painted paper canvas before a direct Figure3 hold is presentable', () => {
