@@ -73,7 +73,7 @@ describe('PhoneHero Route B adapter', () => {
     expect(storyShellSource).not.toContain(
       "active={loaderHidden && activeFrontSurface('front:hero')}"
     );
-    expect(storyShellSource).toContain('open: loaderHidden');
+    expect(storyShellSource).toContain('open: openingExecutionOpen');
     expect(storyShellSource).toContain('cold: !directStoryEntry');
     expect(storyShellSource).toContain(
       'enabled: fixedStageRegistered && openingExecutionOpen'

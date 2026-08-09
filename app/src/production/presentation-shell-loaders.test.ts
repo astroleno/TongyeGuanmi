@@ -97,6 +97,7 @@ describe('presentation shell loaders', () => {
     expect(phoneShellSource).toContain(
       'enabled: fixedStageRegistered && openingExecutionOpen'
     );
+    expect(phoneShellSource).toContain('open: openingExecutionOpen');
     expect(phoneShellSource).toContain('directAdmissionOpen');
     expect(phoneShellSource).toContain(
       'if (directStoryEntry || ready || failed)'

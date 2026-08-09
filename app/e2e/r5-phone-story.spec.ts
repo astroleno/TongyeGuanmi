@@ -5,10 +5,18 @@ import {
   type PhoneRunId
 } from '../src/production/phone/phone-story-runs';
 import { phoneScenePresentationContract } from '../src/production/phone/phone-story/manifest';
+import {
+  loaderSequenceDuration,
+  STORY_LOADER_TIMINGS
+} from '../src/production/StoryLoader';
 
 const LIVE_PHONE_ROOT = 'main[data-phone-authority-id]';
 const LIVE_STORY_LOADER = '.story-loader[data-story-loader="true"]';
 const WHEEL_QUIET_MS = 1_250;
+const COLD_LOADER_EXIT_TIMEOUT_MS = loaderSequenceDuration('cold-hero')
+  + STORY_LOADER_TIMINGS.safetyMs
+  + STORY_LOADER_TIMINGS.exitMs
+  + 5_000;
 const PHONE_COVERAGE_RGB = [7, 17, 14] as const;
 const phonePageErrors = new WeakMap<Page, string[]>();
 const phoneWebGlIssues = new WeakMap<Page, string[]>();
@@ -4232,11 +4240,14 @@ test('[execution regression] Loader handoff starts one authored Hero entrance', 
   await page.goto('/', { waitUntil: 'commit' });
 
   const loader = page.locator(LIVE_STORY_LOADER);
-  await expect.poll(async () => loader.getAttribute('data-loader-status')).toBe('exiting');
+  await expect.poll(
+    async () => loader.getAttribute('data-loader-status'),
+    { timeout: COLD_LOADER_EXIT_TIMEOUT_MS }
+  ).toBe('exiting');
   await expect(
     page.locator(LIVE_PHONE_ROOT),
-    'Loader owns the opening clock until its visual plane is released'
-  ).toHaveAttribute('data-portrait-hero-entrance', 'primed');
+    'Hero must begin its one opening clock beneath the Loader fade'
+  ).toHaveAttribute('data-portrait-hero-entrance', 'playing');
   await expect.poll(async () => loader.count()).toBe(0);
   await expect(page.locator(LIVE_PHONE_ROOT)).toHaveAttribute('data-portrait-loader-ready', 'true');
   await expect(page.locator(LIVE_PHONE_ROOT)).toHaveAttribute(
@@ -4270,16 +4281,21 @@ test('[execution regression] Loader handoff starts one authored Hero entrance', 
   await expect.poll(async () => page.locator(LIVE_PHONE_ROOT).getAttribute(
     'data-portrait-hero-entrance'
   )).toBe('complete');
+  const covered = (await heroEntranceSamples(page)).filter((sample) => (
+    sample.loaderReady !== 'true' && sample.progress !== null
+  ));
+  expect(covered.length).toBeGreaterThan(1);
+  expect(covered[0]?.progress).toBeLessThanOrEqual(.01);
+  expect(
+    covered.some((sample) => sample.progress !== null && sample.progress >= .05),
+    'the Loader fade must cover an already-progressing Hero execution'
+  ).toBe(true);
   const exposed = (await heroEntranceSamples(page)).filter((sample) => (
     sample.loaderReady === 'true' && sample.progress !== null
   ));
   expect(exposed.length).toBeGreaterThan(20);
-  expect(exposed[0]?.progress).toBeLessThanOrEqual(.01);
+  expect(exposed[0]?.progress).toBeGreaterThan(.05);
   expect(exposed.at(-1)?.progress).toBeGreaterThanOrEqual(.999);
-  expect(
-    (exposed.at(-1)?.at ?? 0) - (exposed[0]?.at ?? 0),
-    'cold Hero must retain its authored 2700ms clock instead of being completed by stable projection'
-  ).toBeGreaterThanOrEqual(2_500);
   expect(exposed.every((sample, index) => (
     index === 0
     || sample.progress! + .002 >= exposed[index - 1]!.progress!
@@ -4287,6 +4303,10 @@ test('[execution regression] Loader handoff starts one authored Hero entrance', 
   const entranceSamples = (await heroEntranceSamples(page)).filter((sample) => (
     sample.progress !== null
   ));
+  expect(
+    (entranceSamples.at(-1)?.at ?? 0) - (entranceSamples[0]?.at ?? 0),
+    'cold Hero must retain its authored 2700ms clock across the Loader handoff'
+  ).toBeGreaterThanOrEqual(2_500);
   const resetIndex = entranceSamples.findIndex((sample, index) => (
     index > 0
     && sample.progress !== null
