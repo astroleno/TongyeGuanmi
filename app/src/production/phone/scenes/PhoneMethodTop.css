@@ -1,3 +1,14 @@
+.portrait-scroll-spike {
+  --portrait-reading-paper: #ede4d2;
+  --portrait-reading-paper-treatment:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, .10),
+      transparent 32%,
+      rgba(41, 41, 25, .055)
+    );
+}
+
 .portrait-scroll-spike__reading {
   position: relative;
   padding: 0 0 max(72px, calc(env(safe-area-inset-bottom) + 44px));

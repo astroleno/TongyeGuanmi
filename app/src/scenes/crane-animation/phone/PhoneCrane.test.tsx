@@ -138,7 +138,7 @@ describe('PhoneCrane', () => {
     expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('beginPreparedReverse');
-    expect(cinematicRunSource).toContain('options.reverseReady()');
+    expect(cinematicRunSource).toContain('options.reverseReady(token)');
     expect(cinematicRunSource).toContain("publish('progress', direction, progress)");
     expect(source).toContain('renderProgress,');
     expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');

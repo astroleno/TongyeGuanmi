@@ -293,7 +293,8 @@ describe('Route B proven front-half migration contract', () => {
       "PHONE_PATTERN_TERMINAL_EDGE_SURFACE = '#d9c08f'"
     );
     expect(patternSource).toContain('centerForViewport: () => PATTERN_CENTER');
-    expect(aodCss).toContain('--portrait-aod-bottom-mist-background');
+    expect(aodCss).not.toContain('--portrait-aod-bottom-mist-background');
+    expect(aodCss).not.toContain('--portrait-aod-paper-wash-background');
     expect(aodCss).not.toContain('--portrait-browser-edge-reserve');
     expect(shellCss).not.toContain('--portrait-browser-edge-reserve');
     expect(aodCss).toMatch(
@@ -483,7 +484,8 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeAFigureCss).toContain('--phone-figure2-poster-image');
     expect(gradeAFigureSource).toContain("root.dataset.phoneFigure2Ready = 'true'");
     expect(gradeAFigureSource).not.toContain('Promise.all([');
-    expect(gradeAStorySource).toContain('<PhoneFigure2Arch />');
+    expect(gradeAStorySource).toContain('<PhoneFigure2Arch');
+    expect(gradeAStorySource).toContain('mounted={archMounted}');
     expect(gradeAStorySource).toContain('data-phone-grade-a-method-paper="true"');
     expect(gradeAStorySource).toContain('from={methodPaperRef.current}');
     expect(gradeAStoryCss).toContain('--phone-content-layer-transition-source');

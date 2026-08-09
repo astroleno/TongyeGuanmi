@@ -356,7 +356,8 @@ describe('Phone Brand → Lab visual contracts', () => {
   });
 
   it('keeps Method flat while Figure3 owns the single authored paper wash', () => {
-    expect(aodStyles).toContain('--portrait-reading-paper: #ede4d2');
+    expect(aodStyles).not.toContain('--portrait-aod-paper-wash-background');
+    expect(methodStyles).toContain('--portrait-reading-paper: #ede4d2');
     expect(methodStyles).toContain(
       'background: var(--portrait-reading-paper);'
     );
