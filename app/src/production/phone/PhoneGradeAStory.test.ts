@@ -34,6 +34,10 @@ const figure2DistanceSource = readFileSync(
   new URL('./transitions/figure2-distance-expand.tsx', import.meta.url),
   'utf8'
 );
+const authoredFigure2DistanceSource = readFileSync(
+  new URL('../../transitions/figure2-distance-expand/index.ts', import.meta.url),
+  'utf8'
+);
 const tailBundleSource = readFileSync(
   new URL('./PhoneStoryTailBundle.tsx', import.meta.url),
   'utf8'
@@ -179,6 +183,21 @@ describe('phone Grade A orchestration ownership', () => {
     ).toEqual([]);
     expect(figure2DistanceSource).not.toContain('renderFigure2AnimationProgress');
     expect(figure2DistanceSource).not.toContain('figure2IntroProgress(');
+    const phoneBridgeStart = authoredFigure2DistanceSource.indexOf(
+      'export async function createPhoneFigure2DistanceExpandBridge'
+    );
+    const phoneBridgeEnd = authoredFigure2DistanceSource.indexOf(
+      'export function figure2ProofRevealProgress',
+      phoneBridgeStart
+    );
+    const phoneBridge = authoredFigure2DistanceSource.slice(
+      phoneBridgeStart,
+      phoneBridgeEnd
+    );
+    expect(phoneBridgeStart).toBeGreaterThanOrEqual(0);
+    expect(phoneBridgeEnd).toBeGreaterThan(phoneBridgeStart);
+    expect(phoneBridge).toContain('ownsMedia: false');
+    expect(phoneBridge).not.toContain('ownsMedia: true');
   });
 
   it('[execution hard cutover] never lets the snapshot bridge write adapter frames during a transaction', () => {

@@ -91,6 +91,14 @@
     #ede4d2;
 }
 
+/* Keep Figure2's frozen content camera untouched. The independent Safari
+ * coverage plane extends the same authored middle scene when browser chrome
+ * grows the live viewport beyond that camera. */
+.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage {
+  background-color: #e2dac9;
+  background-image: url("../../../../assets/figure2-middle-building.webp");
+}
+
 /* Above-both effects are route siblings, never descendants of an endpoint. */
 .portrait-scroll-spike__route-overlay {
   position: fixed;

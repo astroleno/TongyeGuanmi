@@ -100,6 +100,18 @@
   visibility: visible !important;
 }
 
+/* Method's intro is fixed only so it can be admitted as a real receiver when
+ * travelling backwards. On the forward boundary it has already scrolled out
+ * of view; fixing it again would resurrect the first Method screen beneath
+ * the Figure2 ink handoff. */
+.portrait-scroll-spike[data-phone-cursor="transition:method-figure2:0"][data-phone-transition-direction="1"]
+.portrait-scroll-spike__method-bridge {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
 .portrait-scroll-spike__method-bridge-content > span {
   display: block;
   margin: 0 0 12px;

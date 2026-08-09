@@ -27,6 +27,10 @@ const patternStyles = readFileSync(
   new URL('./scenes/PhonePattern.css', import.meta.url),
   'utf8'
 );
+const methodStyles = readFileSync(
+  new URL('./scenes/PhoneMethodTop.css', import.meta.url),
+  'utf8'
+);
 
 function fixture() {
   const visualViewport = Object.assign(new EventTarget(), {
@@ -114,6 +118,19 @@ describe('phone live viewport coverage', () => {
     expect(stageRailStyles).toContain('url("../../../../assets/pattern-background.webp")');
     expect(stageRailStyles).toContain('[data-portrait-edge-scene="hero"]');
     expect(stageRailStyles).toContain('[data-portrait-edge-scene="pattern"]');
+  });
+
+  it('[P0 Figure2 coverage] continues the real middle scene through Safari dynamic viewport growth', () => {
+    expect(stageRailStyles).toContain('[data-portrait-edge-scene="figure2"]');
+    expect(stageRailStyles).toContain(
+      'url("../../../../assets/figure2-middle-building.webp")'
+    );
+  });
+
+  it('[P0 Method→Figure2] never resurrects the scrolled-away Method intro as the forward ink source', () => {
+    expect(methodStyles).toMatch(
+      /data-phone-cursor="transition:method-figure2:0"[^{]*data-phone-transition-direction="1"[^{]*\.portrait-scroll-spike__method-bridge\s*[{][^}]*display:\s*none\s*!important[^}]*visibility:\s*hidden\s*!important/s
+    );
   });
 
   it('extends the live opaque backing from the frozen layout origin without moving its camera', () => {

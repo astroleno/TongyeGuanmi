@@ -445,7 +445,7 @@ describe('Route B Grade A migration contract', () => {
     );
   });
 
-  it('reuses the canonical depth timeline with deterministic phone seeking', () => {
+  it('reuses the canonical depth timeline while the Figure2 leaf retains deterministic media', () => {
     expect(gradeADistanceSource).toContain(
       'createPhoneFigure2DistanceExpandBridge(['
     );
@@ -457,8 +457,11 @@ describe('Route B Grade A migration contract', () => {
     expect(gradeADistanceBridgeSource).toContain(
       'createFigure2DistanceExpandTransition({'
     );
-    expect(gradeADistanceBridgeSource).toContain('ownsMedia: true');
+    expect(gradeADistanceBridgeSource).toContain('ownsMedia: false');
+    expect(gradeADistanceBridgeSource).not.toContain('ownsMedia: true');
     expect(gradeADistanceBridgeSource).toContain('inkCanvas');
+    expect(gradeAFigureSource).toContain("if (run === 'figure2-proof')");
+    expect(gradeAFigureSource).toContain("return ['seek', 1");
     expect(gradeAGroupSource).toContain("'method-bottom-figure2'");
     expect(gradeAGroupSource).toContain("'figure2-distance-expand'");
     expect(gradeAGroupSource).toContain("'figure2-proof-brand'");

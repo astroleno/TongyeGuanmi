@@ -136,13 +136,21 @@ describe('PhoneFigure2', () => {
       progress: 0
     }), false)).toEqual(['seek', 0, 'forward']);
     expect(phoneFigure2MediaPlan(cinematicSnapshot({
+      scene: 'figure2-animation',
+      status: 'transaction',
+      run: 'figure2-proof',
+      direction: 1,
+      phase: 'preparing',
+      progress: 0
+    }), false)).toEqual(['seek', 1, 'forward']);
+    expect(phoneFigure2MediaPlan(cinematicSnapshot({
       scene: 'figure2-proof',
       status: 'transaction',
       run: 'figure2-proof',
       direction: -1,
       phase: 'animating',
       progress: .45
-    }), false)).toEqual(['idle', 0, null]);
+    }), false)).toEqual(['seek', 1, 'endpoint']);
     expect(phoneFigure2MediaPlan(cinematicSnapshot({
       status: 'transaction',
       run: 'method-figure2',

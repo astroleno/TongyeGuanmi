@@ -71,7 +71,7 @@ export function phoneFigure2MediaPlan(
     ,
     ,
     run,
-    ,
+    direction,
     ,
     ,
     ,
@@ -87,12 +87,14 @@ export function phoneFigure2MediaPlan(
 
   if (status === 'transaction') {
     if (run === 'method-figure2') return [io, 0, surfaceMode];
-    // Figure2 → Proof is a runner-owned depth execution.  Do not publish the
-    // terminal media frame from the leaf when admission starts: the proof
-    // timeline must advance the source media and its z-depth together under
-    // the same execution lease.  The leaf resumes ownership at the stable
-    // Figure2 hold after the transaction has settled.
-    if (run === 'figure2-proof') return ['idle', 0, null];
+    // The shared execution owns the z-depth effect, while this leaf remains
+    // the sole owner of Figure2 media. Holding the already-admitted terminal
+    // frame avoids asking Safari to decode/prove that same frame a second time
+    // while input is locked in transaction preparation.
+    if (run === 'figure2-proof') {
+      if (reducedMotion) return ['idle', 0, null];
+      return ['seek', 1, direction === -1 ? 'endpoint' : surfaceMode];
+    }
     return ['idle', 0, null];
   }
   if (semanticScene !== 'figure2-animation') return ['idle', 0, null];

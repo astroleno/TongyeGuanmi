@@ -233,10 +233,10 @@ export async function createPhoneFigure2DistanceExpandBridge(
   const from = phoneFigure2Layer('figure2-animation', fromElement);
   const to = phoneFigure2Layer('figure2-proof', toElement);
   const timeline = await createFigure2DistanceExpandTransition({
-    // The proof adapter is the execution owner for the complete depth leg.
-    // Keeping this enabled prevents the leaf snapshot from publishing an
-    // endpoint before the z-depth timeline has actually advanced there.
-    ownsMedia: true,
+    // PhoneFigure2 owns its canonical media through the transaction. This
+    // bridge owns only the z-depth/ink effect; re-preparing the same terminal
+    // video frame here can indefinitely hold Safari's input lease.
+    ownsMedia: false,
     inkCanvas
   }).buildTimeline({
     segment: FIGURE2_DISTANCE_EXPAND_SEGMENT,

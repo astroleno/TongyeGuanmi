@@ -4187,8 +4187,93 @@ test('[execution regression] Method landing starts Figure2 playback before the P
   test.setTimeout(90_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/#method', 'method-top');
+  await page.evaluate(() => {
+    const target = window as typeof window & {
+      __methodFigure2BoundaryProbe?: {
+        samples: Array<{
+          direction: string | null;
+          display: string;
+          visibility: string;
+          opacity: number;
+          intersectsViewport: boolean;
+        }>;
+        stop(): void;
+      };
+    };
+    let sampling = true;
+    const samples: NonNullable<
+      typeof target.__methodFigure2BoundaryProbe
+    >['samples'] = [];
+    const sample = () => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      if (root?.dataset.phoneCursor === 'transition:method-figure2:0') {
+        const bridge = document.querySelector<HTMLElement>(
+          '.portrait-scroll-spike__method-bridge'
+        );
+        const style = bridge ? getComputedStyle(bridge) : null;
+        const rect = bridge?.getBoundingClientRect();
+        samples.push({
+          direction: root.dataset.phoneTransitionDirection ?? null,
+          display: style?.display ?? '',
+          visibility: style?.visibility ?? '',
+          opacity: Number(style?.opacity ?? 0),
+          intersectsViewport: Boolean(
+            rect
+            && rect.bottom > 0
+            && rect.top < (window.visualViewport?.height ?? window.innerHeight)
+          )
+        });
+      }
+      if (sampling) window.requestAnimationFrame(sample);
+    };
+    target.__methodFigure2BoundaryProbe = {
+      samples,
+      stop() {
+        sampling = false;
+      }
+    };
+    window.requestAnimationFrame(sample);
+  });
   await driveAdjacentPhoneRun(page, 'method-top', 'figure2-animation', 1);
   await assertStablePhoneHold(page, 'figure2-animation');
+  const boundaryPresentation = await page.evaluate(() => {
+    const target = window as typeof window & {
+      __methodFigure2BoundaryProbe?: {
+        samples: Array<{
+          direction: string | null;
+          display: string;
+          visibility: string;
+          opacity: number;
+          intersectsViewport: boolean;
+        }>;
+        stop(): void;
+      };
+    };
+    const probe = target.__methodFigure2BoundaryProbe;
+    probe?.stop();
+    const coverage = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__viewport-coverage'
+    );
+    const rect = coverage?.getBoundingClientRect();
+    return {
+      samples: probe?.samples ?? [],
+      coverageImage: coverage ? getComputedStyle(coverage).backgroundImage : '',
+      coverageBottom: rect?.bottom ?? 0,
+      viewportBottom: (window.visualViewport?.offsetTop ?? 0)
+        + (window.visualViewport?.height ?? window.innerHeight)
+    };
+  });
+  expect(boundaryPresentation.samples.length).toBeGreaterThan(0);
+  expect(boundaryPresentation.samples.every((sample) => (
+    sample.direction === '1'
+    && sample.display === 'none'
+    && sample.visibility === 'hidden'
+    && sample.opacity === 0
+    && !sample.intersectsViewport
+  ))).toBe(true);
+  expect(boundaryPresentation.coverageImage).toContain('figure2-middle-building');
+  expect(boundaryPresentation.coverageBottom)
+    .toBeGreaterThanOrEqual(boundaryPresentation.viewportBottom - 1);
   await waitForNewWheelEpoch(page);
 
   const before = await page.evaluate(() => {
@@ -4326,6 +4411,11 @@ test('[execution regression] Method landing starts Figure2 playback before the P
   const visiblePlayheads = playheads.filter((sample) => sample.sourceVisible);
   expect(visiblePlayheads.some((sample) => sample.time > 1)).toBe(true);
   expect(visiblePlayheads.at(-1)?.time).toBeGreaterThanOrEqual(2.59);
+  expect([
+    ...new Set(visiblePlayheads.flatMap((sample) => (
+      sample.timelineRun ? [sample.timelineRun] : []
+    )))
+  ]).toEqual(['figure2-scroll']);
   for (let index = 1; index < visiblePlayheads.length; index += 1) {
     expect(
       visiblePlayheads[index]!.time,
@@ -4339,6 +4429,13 @@ test('[execution regression] Method landing starts Figure2 playback before the P
       JSON.stringify(playheads, null, 2)
     ).toMatch(/^(retained-under-stage|retired)$/);
   }
+
+  // A reload after this complete execution must create a fresh route runtime,
+  // land at Method from the URL, and cross the same boundary again. No failed
+  // decoder or transition lease may poison the next mounted authority.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await assertStablePhoneHold(page, 'method-top');
+  await driveAdjacentPhoneRun(page, 'method-top', 'figure2-animation', 1);
 });
 
 test('[P0 Figure2 scroll] reverse jitter stays on the canonical forward half and Proof return keeps its endpoint', async ({ page }) => {
