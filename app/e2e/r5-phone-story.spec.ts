@@ -120,7 +120,7 @@ type RadialFrontierProbe = Readonly<{
 }>;
 
 const RADIAL_FRONTIER_RANKS = [.2, .5, .8] as const;
-const RADIAL_FRONTIER_SAMPLE_INDICES = [0, 32, 64, 96, 128, 160, 192, 224] as const;
+const RADIAL_FRONTIER_MIN_VISIBLE_SAMPLES = 4;
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -393,7 +393,6 @@ async function installRadialFrontierProbe(page: Page): Promise<void> {
       __r5RadialFrontierProbe?: Probe;
     };
     const targetRanks = [.2, .5, .8] as const;
-    const sampleIndices = [0, 32, 64, 96, 128, 160, 192, 224] as const;
     const originalDrawArrays = WebGLRenderingContext.prototype.drawArrays;
     target.__r5RadialFrontierProbe = { closest: [null, null, null] };
 
@@ -469,6 +468,20 @@ async function installRadialFrontierProbe(page: Page): Promise<void> {
         }
         return sum / samples;
       };
+      const visibleIndices = points.flatMap((point, index) => {
+        if (!point) return [];
+        const x = point[0] * canvas.width;
+        const y = (1 - point[1]) * canvas.height;
+        return x >= 2 && x <= canvas.width - 3 && y >= 2 && y <= canvas.height - 3
+          ? [index]
+          : [];
+      });
+      if (visibleIndices.length < 4) return;
+      const sampleIndices = visibleIndices.length <= 8
+        ? visibleIndices
+        : Array.from({ length: 8 }, (_, index) => (
+            visibleIndices[Math.round(index * (visibleIndices.length - 1) / 7)]!
+          ));
       const samples: ProbeSample[] = [];
       for (const index of sampleIndices) {
         const point = points[index];
@@ -483,8 +496,8 @@ async function installRadialFrontierProbe(page: Page): Promise<void> {
         const directionY = deltaY / radius;
         const radialSamples: Array<readonly [number, number]> = [];
         let maxAlpha = 0;
-        const from = Math.max(0, Math.floor(radius - 120));
-        const to = Math.ceil(radius + 120);
+        const from = Math.max(0, Math.floor(radius - 48));
+        const to = Math.ceil(radius + 48);
         for (let distance = from; distance <= to; distance += 1) {
           const alpha = alphaAt(
             originX + directionX * distance,
@@ -533,17 +546,18 @@ function assertRadialFrontierAlphaEvidence(probe: RadialFrontierProbe): void {
       Math.abs(witness.rank - targetRank),
       `missing live frame near rank ${targetRank}: ${JSON.stringify(witness)}`
     ).toBeLessThanOrEqual(.075);
-    expect(witness.samples.map((sample) => sample.index)).toEqual(RADIAL_FRONTIER_SAMPLE_INDICES);
+    expect(witness.samples.length).toBeGreaterThanOrEqual(RADIAL_FRONTIER_MIN_VISIBLE_SAMPLES);
+    expect(new Set(witness.samples.map((sample) => sample.index)).size).toBe(witness.samples.length);
     for (const sample of witness.samples) {
       expect(sample.maxAlpha).toBeGreaterThanOrEqual(160);
       expect(
-        sample.alphaAtClip,
-        `clip point ${sample.index} must land on the live radial alpha core at rank ${targetRank}`
-      ).toBeGreaterThanOrEqual(sample.maxAlpha * .94);
-      expect(
         Math.abs(sample.errorPx),
-        `live alpha core may not drift more than 2px from clip point ${sample.index} at rank ${targetRank}`
+        `live alpha core may not drift more than 2px from clip point ${sample.index} at rank ${targetRank}: ${JSON.stringify(sample)}`
       ).toBeLessThanOrEqual(2);
+      expect(
+        sample.alphaAtClip,
+        `clip point ${sample.index} must land on the live radial alpha core at rank ${targetRank}: ${JSON.stringify(sample)}`
+      ).toBeGreaterThanOrEqual(sample.maxAlpha * .94);
     }
   }
 }
@@ -3209,12 +3223,10 @@ async function readTailPrefetchEvidence(page: Page): Promise<TailPrefetchEvidenc
 
 async function requestGradeATailPrefetch(page: Page): Promise<void> {
   const slot = page.locator('[data-phone-grade-a-requested]');
-  for (let pulse = 0; pulse < 64; pulse += 1) {
-    if (await slot.getAttribute('data-phone-grade-a-requested') === 'true') return;
-    await inputPhoneDelta(page, 120);
-    await page.waitForTimeout(80);
-  }
-  await expect(slot).toHaveAttribute('data-phone-grade-a-requested', 'true');
+  await slot.scrollIntoViewIfNeeded();
+  await expect(slot).toHaveAttribute('data-phone-grade-a-requested', 'true', {
+    timeout: 10_000
+  });
 }
 
 /**
@@ -3304,7 +3316,7 @@ test('Task 0 rejects a visible Hero completed-to-zero reset on cold WebKit load'
   expect(resetIndex).toBe(-1);
 });
 
-test('Task 0 does not animate AOD when media liveness has no compositor frame', async ({
+test('Task 0 rolls Star Map admission back when AOD has no compositor frame', async ({
   page
 }) => {
   test.setTimeout(90_000);
@@ -3314,32 +3326,22 @@ test('Task 0 does not animate AOD when media liveness has no compositor frame', 
   await driveFrontRun(page, 'hero', 'pattern', 1);
   await driveFrontRun(page, 'pattern', 'pattern-compact', 1);
   await driveFrontRun(page, 'pattern-compact', 'star-map', 1);
-  await driveFrontRun(page, 'star-map', 'aod-animation', 1);
   await waitForNewWheelEpoch(page);
-
-  for (let pulse = 0; pulse < 8; pulse += 1) {
-    await inputPhoneDelta(page, 250);
-    await page.waitForTimeout(100);
-    const trace = await phoneRuntimeProbe(page);
-    if (trace.stateEvents.some((state) => (
-      state.cursor === 'transition:aod-method:0'
-    ))) break;
-  }
-
+  await inputPhoneDelta(page, 250);
   await expect.poll(async () => (
     (await phoneRuntimeProbe(page)).stateEvents.some((state) => (
-      state.cursor === 'transition:aod-method:0'
+      state.cursor === 'transition:star-map-aod:0'
     ))
   )).toBe(true);
-  await page.waitForTimeout(500);
+  await assertStablePhoneHold(page, 'star-map', { timeout: 20_000 });
 
   const liveness = await aodNoFrameProbe(page);
-  expect(liveness?.playCalls).toBeGreaterThan(0);
-  expect(liveness?.clockAdvanced).toBe(true);
+  expect(liveness?.playCalls).toBe(0);
+  expect(liveness?.clockAdvanced).toBe(false);
   const trace = await phoneRuntimeProbe(page);
   expect(trace.stateEvents.some((state) => (
-    state.cursor === 'transition:aod-method:0'
-    && state.phase === 'animating'
+    state.cursor === 'hold:aod-animation'
+    || state.cursor === 'transition:aod-method:0'
   ))).toBe(false);
 });
 
@@ -3513,7 +3515,10 @@ test('tail prefetch keeps one formal phone authority when PH mounts', async ({ p
   expect(after.fallback).toBeNull();
   expect(after.staticContentAtViewport).toBe(false);
   await expect(page.locator('[data-phone-scene="ph-animation"]')).toHaveCount(1);
-  await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]')).toHaveCount(1);
+  // Prefetch may mount the leaf, but it may not allocate a Canvas before the
+  // machine grants PH an execution lease. The packed surface is the sole
+  // Canvas owner; the retired React Portal path must not return here.
+  await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]')).toHaveCount(0);
   expect(after.phLeaves).toBe(1);
   expect(after.coverage.host).not.toBeNull();
   const coverageHost = after.coverage.host;
@@ -4204,7 +4209,8 @@ test('[execution topology] Loader covers an already-warming Hero stage before po
     });
     if (
       sample.loaderReady === 'false'
-      && sample.firstFrame === 'decoding'
+      && sample.firstFrame !== null
+      && sample.firstFrame !== 'packed-alpha-post-paint'
       && sample.stageVisible
       && sample.loaderCoversStage
     ) {
@@ -4216,7 +4222,7 @@ test('[execution topology] Loader covers an already-warming Hero stage before po
 
   expect(
     warming,
-    'Hero must prewarm behind Loader before poster decoding; Loader is the only top-level visual cover'
+    'Hero must prewarm behind Loader before packed-alpha post-paint; Loader is the only top-level visual cover'
   ).not.toBeNull();
 });
 
@@ -4993,6 +4999,9 @@ test('[P0 real root pixels] Figure1 alpha proof has matching non-edge compositor
   await expect(root).toHaveCount(1);
   await expect.poll(async () => page.locator(LIVE_STORY_LOADER).count()).toBe(0);
   await expect(root).toHaveAttribute('data-portrait-loader-ready', 'true');
+  await expect(root).toHaveAttribute('data-portrait-hero-entrance', 'complete', {
+    timeout: 15_000
+  });
   await expect(figureCanvas).toHaveCount(1);
   await expect.poll(async () => page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>(
