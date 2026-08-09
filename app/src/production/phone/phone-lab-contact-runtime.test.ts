@@ -201,4 +201,26 @@ describe('canonical Lab through Contact runtime projection', () => {
     expect(candidate.status).toBe('transaction');
     expect(phoneLabContactAdapterScene(cinematic(candidate))).toBe('education');
   });
+
+  it('[Crane direct-entry cutover] keeps the projected packed surface active during entry admission', () => {
+    const stable = createPhoneStorySnapshot({
+      authorityId: 'phone-group67-crane-entry',
+      scene: 'hero'
+    });
+    const candidate = reducePhoneStorySnapshot(stable, {
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: stable.authorityId,
+      target: 'crane-animation',
+      source: 'initial',
+      fallbackScene: 'crane-animation',
+      cinematic: null
+    }).snapshot;
+
+    expect(candidate.status).toBe('transaction');
+    expect(phoneLabContactAdapterScene(cinematic(candidate))).toBe('crane-animation');
+    expect(phoneLabContactVisualPrewarm(
+      cinematic(candidate),
+      'crane-animation'
+    )).toBe(true);
+  });
 });

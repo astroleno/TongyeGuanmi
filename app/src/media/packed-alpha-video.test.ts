@@ -192,6 +192,35 @@ describe('packed alpha video', () => {
     vi.useRealTimers();
   });
 
+  it('falls back when restoreContext is accepted but no healthy context or restored event arrives', () => {
+    vi.useFakeTimers();
+    const extension = {
+      loseContext: vi.fn(),
+      restoreContext: vi.fn()
+    };
+    const context = {
+      isContextLost: () => true,
+      getExtension: () => extension
+    };
+    const canvas = {
+      getContext: vi.fn(() => context),
+      addEventListener: vi.fn()
+    } as unknown as HTMLCanvasElement;
+    const owner = createPackedAlphaWebGlRestoreOwner();
+    const restored = vi.fn();
+    const fallback = vi.fn();
+
+    owner.markPending();
+    owner.wait(canvas, restored, fallback);
+    vi.advanceTimersByTime(251);
+
+    expect(extension.restoreContext).toHaveBeenCalledOnce();
+    expect(restored).not.toHaveBeenCalled();
+    expect(fallback).toHaveBeenCalledOnce();
+    expect(owner.isPending()).toBe(false);
+    vi.useRealTimers();
+  });
+
   it('accepts an already healthy context as the pending restore fact', () => {
     vi.useFakeTimers();
     const context = {

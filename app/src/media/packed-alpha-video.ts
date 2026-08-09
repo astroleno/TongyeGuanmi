@@ -122,6 +122,7 @@ export function createPackedAlphaWebGlRestoreOwner(
       invalidate();
       const waitGeneration = generation;
       const deadline = Date.now() + timeoutMs;
+      let restoreRequested = false;
       const finish = (callback: () => void) => {
         if (waitGeneration !== generation) return;
         clearPoll();
@@ -138,11 +139,16 @@ export function createPackedAlphaWebGlRestoreOwner(
           return;
         }
         if (context?.isContextLost()) {
-          const restored = restorePackedAlphaWebGlContext(
-            canvas,
-            () => finish(onRestored)
-          );
-          if (restored) return;
+          if (!restoreRequested) {
+            restoreRequested = restorePackedAlphaWebGlContext(
+              canvas,
+              () => finish(onRestored)
+            );
+          }
+          // `restoreContext()` can be rejected asynchronously by the browser
+          // without throwing or emitting `webglcontextrestored`. Keep the
+          // bounded poll alive until the context is healthy or fallback wins.
+          if (waitGeneration !== generation || !pending) return;
         }
         if (Date.now() >= deadline) {
           finish(onFallback);
