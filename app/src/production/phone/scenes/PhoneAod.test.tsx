@@ -12,6 +12,10 @@ const aodSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), 'PhoneAod.tsx'),
   'utf8'
 );
+const aodStyles = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), 'PhoneAod.css'),
+  'utf8'
+);
 
 describe('PhoneAod Route B adapter', () => {
   it('keeps its stable root mounted and reserves active for decoder resources', () => {
@@ -77,6 +81,13 @@ describe('PhoneAod Route B adapter', () => {
     expect(presentationPath).toContain(
       'ensureCompositor() ?? compositorRef.current'
     );
+  });
+
+  it('[P0 AOD visual] contains no animated paper treatment writer', () => {
+    expect(aodStyles).not.toContain('--portrait-aod-paper-wash-background');
+    expect(aodStyles).not.toContain('--portrait-aod-bottom-mist-background');
+    expect(aodStyles).not.toContain('--portrait-aod-paper-solid-background');
+    expect(aodStyles).not.toContain('.aod-transition__paper-solid');
   });
 
 });

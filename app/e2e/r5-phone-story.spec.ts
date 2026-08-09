@@ -300,6 +300,70 @@ function compositedPixelDelta(
   return changed / samples;
 }
 
+function assertTexturedBottomBand(
+  screenshot: PngScreenshot,
+  surface: readonly [number, number, number],
+  label: string
+): void {
+  const evidence = compositedPixelEvidence(screenshot, {
+    left: .02,
+    top: .92,
+    right: .98,
+    bottom: .995
+  }, surface, 10);
+  expect(
+    evidence.nonSurfaceRatio,
+    `${label} must be real middle-camera pixels, not a flat fallback band`
+  ).toBeGreaterThan(.025);
+}
+
+function assertPresentedReverseVideoFrames(
+  frames: readonly PhoneVisualLeaseFrame[],
+  owner: string,
+  label: string
+): void {
+  const evidence = frames.flatMap((frame) => frame.videos.filter(
+    (video) => video.owner === owner
+  ));
+  const presented = evidence.filter((entry, index) => (
+    index === 0
+    || entry.hash !== evidence[index - 1]?.hash
+    || Math.abs(entry.time - (evidence[index - 1]?.time ?? entry.time)) > .002
+  ));
+  expect(
+    new Set(presented.flatMap((entry) => entry.hash ? [entry.hash] : [])).size,
+    `${label} needs at least three actually painted decoder frames`
+  ).toBeGreaterThanOrEqual(3);
+  expect(presented.length, `${label} needs multiple presented reverse samples`)
+    .toBeGreaterThanOrEqual(3);
+  for (let index = 1; index < presented.length; index += 1) {
+    expect(
+      presented[index]!.time,
+      `${label} visible decoder times must descend: ${JSON.stringify(presented)}`
+    ).toBeLessThanOrEqual(presented[index - 1]!.time + .002);
+  }
+  expect(presented.at(-1)!.time).toBeLessThan(presented[0]!.time - .05);
+}
+
+function assertPresentedReversePackedFrames(
+  frames: readonly PhoneVisualLeaseFrame[],
+  owner: string,
+  label: string
+): void {
+  const evidence = frames.flatMap((frame) => frame.canvases.filter(
+    (canvas) => canvas.owner.includes(owner)
+  ));
+  expect(
+    new Set(evidence.map((entry) => entry.hash)).size,
+    `${label} needs at least three physically distinct packed Canvas frames`
+  ).toBeGreaterThanOrEqual(3);
+  const tokens = new Set(evidence.flatMap((entry) => (
+    entry.packedToken ? [entry.packedToken] : []
+  )));
+  expect(tokens.size, `${label} needs one current token-bound Canvas lease`).toBe(1);
+  expect(evidence.every((entry) => entry.packedToken !== null)).toBe(true);
+}
+
 /**
  * Captures the live WebGL alpha buffer immediately after the production
  * radial shader draws.  Reading later is invalid because browsers are free
@@ -642,6 +706,37 @@ type PhoneVisualFrameSample = Readonly<{
   generation: string;
   leg: string;
   signature: string;
+}>;
+
+type PhoneVisualLeaseFrame = Readonly<{
+  at: number;
+  cursor: string | null;
+  session: string | null;
+  generation: string | null;
+  leg: string | null;
+  direction: string | null;
+  progress: number | null;
+  archConnected: number;
+  archVisible: number;
+  painted: ReadonlyArray<string>;
+  canvases: ReadonlyArray<Readonly<{
+    owner: string;
+    hash: string;
+    effectToken: string | null;
+    effectGeneration: string | null;
+    packedToken: string | null;
+  }>>;
+  videos: ReadonlyArray<Readonly<{
+    owner: string;
+    time: number;
+    hash: string | null;
+  }>>;
+  aod: Readonly<{
+    progress: number | null;
+    paperWash: number;
+    bottomMist: number;
+    paperSolid: number;
+  }> | null;
 }>;
 
 type PhoneLegTimeline = Readonly<{
@@ -1501,6 +1596,185 @@ async function phoneRuntimeProbe(page: Page) {
       legTimelines: probe.legTimelines
     };
   });
+}
+
+/**
+ * Records physical presentation evidence on every browser animation frame.
+ * This probe intentionally ignores reducer progress as visual authority: a
+ * frame is useful only when the currently painted Canvas/video can be hashed.
+ */
+async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    type Probe = { frames: PhoneVisualLeaseFrame[] };
+    const target = window as typeof window & {
+      __phoneVisualLeaseProbe?: Probe;
+    };
+    const probe: Probe = { frames: [] };
+    target.__phoneVisualLeaseProbe = probe;
+    const output = document.createElement('canvas');
+    output.width = 12;
+    output.height = 12;
+    const context = output.getContext('2d', { willReadFrequently: true });
+    const visible = (element: Element) => {
+      if (!(element instanceof HTMLElement) || !element.isConnected) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const physicallyVisible = typeof element.checkVisibility === 'function'
+        ? element.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+        : true;
+      return physicallyVisible
+        && rect.width > 0
+        && rect.height > 0
+        && style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && Number.parseFloat(style.opacity || '1') > .01;
+    };
+    const pixelHash = (source: CanvasImageSource) => {
+      if (!context) return null;
+      try {
+        context.clearRect(0, 0, 12, 12);
+        context.drawImage(source, 0, 0, 12, 12);
+        const pixels = context.getImageData(0, 0, 12, 12).data;
+        let hash = 2166136261;
+        for (let index = 0; index < pixels.length; index += 1) {
+          hash = Math.imul(hash ^ pixels[index]!, 16777619);
+        }
+        return String(hash >>> 0);
+      } catch {
+        return null;
+      }
+    };
+    const ownerLabel = (element: Element) => {
+      const owner = element.closest<HTMLElement>(
+        '[data-stage-retained-figure2-arch="true"],'
+        + '[data-phone-scene],'
+        + '[data-r4-scene],'
+        + '[data-phone-surface-role],'
+        + '[data-phone-presentation-host]'
+      );
+      if (!owner) return `${element.tagName.toLowerCase()}.${element.className}`;
+      const semanticOwner = owner.dataset.phoneScene
+        ?? owner.dataset.r4Scene
+        ?? owner.dataset.phoneSurfaceRole
+        ?? owner.dataset.phonePresentationHost
+        ?? (owner.dataset.stageRetainedFigure2Arch === 'true'
+          ? 'figure2-arch'
+          : owner.className);
+      return element instanceof HTMLCanvasElement && element.className
+        ? `${semanticOwner}:${element.className}`
+        : semanticOwner;
+    };
+    const paintedAt = (x: number, y: number) => {
+      for (const element of document.elementsFromPoint(x, y)) {
+        const owner = element.closest<HTMLElement>(
+          '[data-stage-retained-figure2-arch="true"],'
+          + '[data-phone-surface-role],'
+          + '[data-phone-presentation-host],'
+          + '[data-phone-scene],'
+          + '[data-r4-scene]'
+        );
+        if (owner && visible(owner)) return ownerLabel(owner);
+      }
+      return 'unattributed';
+    };
+    const numberProperty = (style: CSSStyleDeclaration, name: string) => {
+      const value = Number.parseFloat(style.getPropertyValue(name));
+      return Number.isFinite(value) ? value : 0;
+    };
+    const sample = () => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      if (root) {
+        const width = window.visualViewport?.width ?? window.innerWidth;
+        const height = window.visualViewport?.height ?? window.innerHeight;
+        const offsetLeft = window.visualViewport?.offsetLeft ?? 0;
+        const offsetTop = window.visualViewport?.offsetTop ?? 0;
+        const arches = Array.from(document.querySelectorAll<HTMLElement>(
+          '[data-stage-retained-figure2-arch="true"]'
+        ));
+        const archVisible = arches.filter(visible).length;
+        const canvases = Array.from(document.querySelectorAll<HTMLCanvasElement>('canvas'))
+          .flatMap((canvas) => {
+            if (!visible(canvas) || canvas.width <= 0 || canvas.height <= 0) return [];
+            const hash = pixelHash(canvas);
+            return hash === null ? [] : [{
+              owner: ownerLabel(canvas),
+              hash,
+              effectToken: canvas.dataset.phonePresentationEffectToken ?? null,
+              effectGeneration: canvas.dataset.phonePresentationEffectGeneration ?? null,
+              packedToken: canvas.dataset.phonePackedAlphaPresentationToken ?? null
+            }];
+          });
+        const videos = Array.from(document.querySelectorAll<HTMLVideoElement>('video'))
+          .flatMap((video) => {
+            if (
+              !visible(video)
+              || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+              || video.videoWidth <= 0
+              || video.videoHeight <= 0
+            ) return [];
+            return [{
+              owner: ownerLabel(video),
+              time: video.currentTime,
+              hash: pixelHash(video)
+            }];
+          });
+        const aod = document.querySelector<HTMLElement>('.aod-transition');
+        const aodStyle = aod ? getComputedStyle(aod) : null;
+        const aodProgress = aodStyle
+          ? Number.parseFloat(aodStyle.getPropertyValue('--aod-transition-progress'))
+          : Number.NaN;
+        const transitionProgress = Number.parseFloat(
+          root.dataset.phoneTransitionProgress ?? ''
+        );
+        probe.frames.push({
+          at: performance.now(),
+          cursor: root.dataset.phoneCursor ?? null,
+          session: root.dataset.phoneSession ?? null,
+          generation: root.dataset.phoneTransitionGeneration ?? null,
+          leg: root.dataset.phoneTransitionLeg ?? null,
+          direction: root.dataset.phoneTransitionDirection ?? null,
+          progress: Number.isFinite(transitionProgress) ? transitionProgress : null,
+          archConnected: arches.filter((arch) => arch.isConnected).length,
+          archVisible,
+          painted: [
+            paintedAt(offsetLeft + width * .5, offsetTop + height * .5),
+            paintedAt(offsetLeft + width * .5, offsetTop + 2),
+            paintedAt(offsetLeft + width * .5, offsetTop + height - 2),
+            paintedAt(offsetLeft + 2, offsetTop + height * .5),
+            paintedAt(offsetLeft + width - 2, offsetTop + height * .5)
+          ],
+          canvases,
+          videos,
+          aod: aodStyle ? {
+            progress: Number.isFinite(aodProgress) ? aodProgress : null,
+            paperWash: numberProperty(aodStyle, '--aod-transition-paper-wash-opacity'),
+            bottomMist: numberProperty(aodStyle, '--aod-transition-bottom-mist-opacity'),
+            paperSolid: numberProperty(aodStyle, '--aod-transition-paper-solid-opacity')
+          } : null
+        });
+        if (probe.frames.length > 12_000) probe.frames.shift();
+      }
+      window.requestAnimationFrame(sample);
+    };
+    window.requestAnimationFrame(sample);
+  });
+}
+
+async function resetPhoneVisualLeaseProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const probe = (window as typeof window & {
+      __phoneVisualLeaseProbe?: { frames: PhoneVisualLeaseFrame[] };
+    }).__phoneVisualLeaseProbe;
+    if (probe) probe.frames.length = 0;
+  });
+}
+
+async function phoneVisualLeaseFrames(page: Page): Promise<PhoneVisualLeaseFrame[]> {
+  return page.evaluate(() => (
+    window as typeof window & {
+      __phoneVisualLeaseProbe?: { frames: PhoneVisualLeaseFrame[] };
+    }
+  ).__phoneVisualLeaseProbe?.frames ?? []);
 }
 
 async function attachPhoneJourneyTelemetry(
@@ -4781,4 +5055,221 @@ test('[P0 route-overlay pixels] an above-both ink transition is painted by the r
     return target.__r5RadialFrontierProbe ?? { closest: [] };
   });
   assertRadialFrontierAlphaEvidence(radialFrontierProbe);
+});
+
+test('[P0 visual lease] retires Figure2 Arch and attributes every downstream handoff frame', async ({ page }) => {
+  test.setTimeout(240_000);
+  await installColdPhoneRuntimeProbe(page);
+  await installPhoneVisualLeaseProbe(page);
+  await visitFormal(page, '/#figure2-proof', 'figure2-proof');
+
+  await driveAdjacentPhoneRun(page, 'figure2-proof', 'brand', 1, 70_000);
+  let previous = decodePngScreenshot(await page.screenshot());
+  await resetPhoneVisualLeaseProbe(page);
+  const downstream = [
+    ['brand', 'services'],
+    ['services', 'lab'],
+    ['lab', 'education']
+  ] as const;
+  for (const [from, to] of downstream) {
+    await driveAdjacentPhoneRun(page, from, to, 1, 70_000);
+    const current = decodePngScreenshot(await page.screenshot());
+    expect(
+      compositedPixelDelta(previous, current, {
+        left: .02,
+        top: .02,
+        right: .98,
+        bottom: .98
+      }),
+      `${from} → ${to} must paint a physically different committed receiver`
+    ).toBeGreaterThan(.002);
+    previous = current;
+  }
+
+  const frames = await phoneVisualLeaseFrames(page);
+  const archFrames = frames.filter((frame) => (
+    frame.archConnected !== 0 || frame.archVisible !== 0
+  ));
+  expect(
+    archFrames,
+    `Figure2 Arch survived Brand commit: ${JSON.stringify(archFrames.slice(0, 12))}`
+  ).toEqual([]);
+  const stalePainters = frames.flatMap((frame) => frame.painted.flatMap((painted) => (
+    /figure2-arch|figure2-animation|figure2-proof/i.test(painted)
+      ? [{ cursor: frame.cursor, painted }]
+      : []
+  )));
+  expect(
+    stalePainters,
+    `downstream flash attributed to retired Grade A layer: ${JSON.stringify(stalePainters.slice(0, 20))}`
+  ).toEqual([]);
+});
+
+test('[P0 Figure2 physical lease] z-depth paints current-token pixels and fills the viewport floor', async ({ page }) => {
+  test.setTimeout(120_000);
+  await installColdPhoneRuntimeProbe(page);
+  await installPhoneVisualLeaseProbe(page);
+  await visitFormal(page, '/#figure2-animation', 'figure2-animation');
+  const stable = decodePngScreenshot(await page.screenshot());
+  assertTexturedBottomBand(stable, [226, 218, 201], 'stable Figure2 bottom band');
+
+  await resetPhoneVisualLeaseProbe(page);
+  await waitForNewWheelEpoch(page);
+  await inputPhoneIntent(page, 1);
+  await expect.poll(async () => page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    const progress = Number.parseFloat(root?.dataset.phoneTransitionProgress ?? '');
+    return root?.dataset.phoneCursor === 'transition:figure2-proof:0'
+      && Number.isFinite(progress)
+      && progress >= .2
+      && progress <= .8;
+  }), {
+    timeout: 30_000,
+    message: 'Figure2 z-depth must expose a physical middle frame before Proof commit'
+  }).toBe(true);
+  const middle = decodePngScreenshot(await page.screenshot());
+  assertTexturedBottomBand(middle, [226, 218, 201], 'mid-z-depth Figure2 bottom band');
+  await assertStablePhoneHold(page, 'figure2-proof', { timeout: 70_000 });
+
+  const frames = (await phoneVisualLeaseFrames(page)).filter(
+    (frame) => frame.cursor === 'transition:figure2-proof:0'
+  );
+  const effect = frames.flatMap((frame) => frame.canvases.filter(
+    (canvas) => /r4-figure2-proof-ink-canvas/.test(canvas.owner)
+  ));
+  expect(
+    new Set(effect.map((sample) => sample.hash)).size,
+    'Figure2 → Proof needs three distinct physical depth Canvas frames'
+  ).toBeGreaterThanOrEqual(3);
+  expect(effect.length).toBeGreaterThanOrEqual(3);
+  expect(effect.every((sample) => (
+    sample.effectToken !== null && sample.effectGeneration !== null
+  )), 'every Figure2 depth frame must carry the current immutable lease').toBe(true);
+  expect(new Set(effect.map((sample) => sample.effectToken)).size).toBe(1);
+  expect(new Set(effect.map((sample) => sample.effectGeneration)).size).toBe(1);
+});
+
+test('[P0 TTG reverse] two same-authority returns advance only on presented decoder frames and release Services', async ({ page }) => {
+  test.setTimeout(300_000);
+  await installColdPhoneRuntimeProbe(page);
+  await installPhoneVisualLeaseProbe(page);
+  await page.goto('/brand-lab#lab', { waitUntil: 'domcontentloaded' });
+  const firstLab = await assertStablePhoneHold(page, 'lab', { scope: 'brand-lab' });
+  const authorityId = await firstLab.getAttribute('data-phone-authority-id');
+
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    await resetPhoneVisualLeaseProbe(page);
+    await driveAdjacentPhoneRun(
+      page,
+      'lab',
+      'services',
+      -1,
+      70_000,
+      'brand-lab'
+    );
+    const reverseFrames = (await phoneVisualLeaseFrames(page)).filter((frame) => (
+      frame.cursor === 'transition:services-lab:0'
+      && frame.direction === '-1'
+    ));
+    assertPresentedReverseVideoFrames(
+      reverseFrames,
+      'ttg-animation',
+      `TTG reverse cycle ${cycle + 1}`
+    );
+    const services = await assertStablePhoneHold(page, 'services', {
+      scope: 'brand-lab'
+    });
+    await expect(services).toHaveAttribute('data-phone-authority-id', authorityId!);
+    await expect(services).not.toHaveAttribute('data-phone-session');
+    await expect(services).toHaveAttribute('data-phone-input-state', 'free');
+    if (cycle === 0) {
+      await driveAdjacentPhoneRun(
+        page,
+        'services',
+        'lab',
+        1,
+        70_000,
+        'brand-lab'
+      );
+    }
+  }
+
+  await driveAdjacentPhoneRun(
+    page,
+    'services',
+    'brand',
+    -1,
+    70_000,
+    'brand-lab'
+  );
+  await assertStablePhoneHold(page, 'brand', { scope: 'brand-lab' });
+});
+
+test('[P0 PH reverse] retire and restore require current-token packed frames in two runs', async ({ page }) => {
+  test.setTimeout(300_000);
+  await installColdPhoneRuntimeProbe(page);
+  await installPhoneVisualLeaseProbe(page);
+  await visitFormal(page, '/#education', 'education');
+  const authorityId = await page.locator(LIVE_PHONE_ROOT).getAttribute(
+    'data-phone-authority-id'
+  );
+
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    await resetPhoneVisualLeaseProbe(page);
+    await driveAdjacentPhoneRun(page, 'education', 'lab', -1, 70_000);
+    const reverseFrames = (await phoneVisualLeaseFrames(page)).filter((frame) => (
+      frame.cursor === 'transition:lab-education:0'
+      && frame.direction === '-1'
+    ));
+    assertPresentedReversePackedFrames(
+      reverseFrames,
+      'ph-animation',
+      `PH reverse cycle ${cycle + 1}`
+    );
+    await expect(page.locator(LIVE_PHONE_ROOT)).toHaveAttribute(
+      'data-phone-authority-id',
+      authorityId!
+    );
+    if (cycle === 0) {
+      await driveAdjacentPhoneRun(page, 'lab', 'education', 1, 70_000);
+    }
+  }
+});
+
+test('[P0 AOD visual lease] playback never paints Method paper before the receiver handoff', async ({ page }) => {
+  test.setTimeout(120_000);
+  await installColdPhoneRuntimeProbe(page);
+  await installPhoneVisualLeaseProbe(page);
+  await visitFormal(page, '/#aod-animation', 'aod-animation');
+  await resetPhoneVisualLeaseProbe(page);
+  await driveAdjacentPhoneRun(page, 'aod-animation', 'method-top', 1, 70_000);
+
+  const frames = (await phoneVisualLeaseFrames(page)).filter((frame) => (
+    frame.cursor === 'transition:aod-method:0'
+    && frame.aod?.progress !== null
+  ));
+  for (const target of [0, .25, .5, .75, 1]) {
+    const nearest = frames.reduce<PhoneVisualLeaseFrame | null>((closest, frame) => {
+      if (frame.aod?.progress === null || frame.aod === null) return closest;
+      if (closest?.aod?.progress === null || closest?.aod === null) return frame;
+      return Math.abs(frame.aod.progress - target)
+        < Math.abs(closest.aod.progress - target)
+        ? frame
+        : closest;
+    }, null);
+    expect(nearest, `missing AOD physical sample near ${target}`).not.toBeNull();
+    expect(
+      Math.abs((nearest!.aod!.progress ?? Number.NaN) - target),
+      `AOD sampler did not observe authored progress ${target}`
+    ).toBeLessThanOrEqual(.08);
+    expect({
+      paperWash: nearest!.aod!.paperWash,
+      bottomMist: nearest!.aod!.bottomMist,
+      paperSolid: nearest!.aod!.paperSolid
+    }, `AOD paper treatment leaked at ${target}`).toEqual({
+      paperWash: 0,
+      bottomMist: 0,
+      paperSolid: 0
+    });
+  }
 });

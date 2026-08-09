@@ -145,7 +145,7 @@ describe('AOD alpha compositing', () => {
     expect(section.dataset.aodAlphaComposite).toBe('true');
     expect(
       Number(section.style.getPropertyValue('--aod-transition-paper-wash-opacity'))
-    ).toBeGreaterThan(0);
+    ).toBe(0);
     renderAodTransitionProgress(
       section as unknown as HTMLElement,
       AOD_PHONE_TIMELINE_ALPHA_END,
@@ -155,21 +155,23 @@ describe('AOD alpha compositing', () => {
     expect(section.dataset.aodAlphaComposite).toBe('false');
   });
 
-  it('uses one paper ownership clock for wash, mist, and solid backing', () => {
-    const section = new FakeAodSection();
-    renderAodTransitionProgress(
-      section as unknown as HTMLElement,
-      0.7,
-      AOD_PHONE_TIMELINE_ALPHA_END,
-      AOD_PHONE_TIMELINE_ALPHA_START
-    );
+  it('[P0 AOD visual] never raises wash, mist, or paper-solid during playback', () => {
+    for (const progress of [0, .25, .5, .75, 1]) {
+      const section = new FakeAodSection();
+      renderAodTransitionProgress(
+        section as unknown as HTMLElement,
+        progress,
+        AOD_PHONE_TIMELINE_ALPHA_END,
+        AOD_PHONE_TIMELINE_ALPHA_START
+      );
 
-    const wash = Number(section.style.getPropertyValue('--aod-transition-paper-wash-opacity')) / 0.92;
-    const mist = Number(section.style.getPropertyValue('--aod-transition-bottom-mist-opacity')) / 0.96;
-    const solid = Number(section.style.getPropertyValue('--aod-transition-paper-solid-opacity'));
-    expect(wash).toBeGreaterThan(0);
-    expect(mist).toBeCloseTo(wash, 4);
-    expect(solid).toBeCloseTo(wash, 4);
+      expect(section.style.getPropertyValue('--aod-transition-paper-wash-opacity'))
+        .toBe('0.0000');
+      expect(section.style.getPropertyValue('--aod-transition-bottom-mist-opacity'))
+        .toBe('0.0000');
+      expect(section.style.getPropertyValue('--aod-transition-paper-solid-opacity'))
+        .toBe('0.0000');
+    }
   });
 
   it('makes root, sticky, field, and reveal backings transparent without fading the whole layer', () => {

@@ -220,6 +220,36 @@ describe('Group 4–5 native autoplay', () => {
     controller.dispose();
   });
 
+  it('[P0 TTG reverse] never advances canonical progress from elapsed RAF time', () => {
+    const video = new FakeVideo();
+    video.readyState = 2;
+    const progress: Array<readonly [number, 1 | -1]> = [];
+    const completed = vi.fn();
+    const callbacks: FrameRequestCallback[] = [];
+    const controller = createGroup45NativeAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 2.5,
+        onProgress: (value, direction) => progress.push([value, direction]),
+        onComplete: completed,
+        requestFrame: (callback) => {
+          callbacks.push(callback);
+          return callbacks.length;
+        },
+        cancelFrame: vi.fn()
+      }
+    );
+
+    controller.start(-1);
+    callbacks.shift()?.(0);
+    callbacks.shift()?.(1250);
+    callbacks.shift()?.(2500);
+
+    expect(progress).toEqual([[1, -1]]);
+    expect(completed).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
   it('reports a physical decoder frame when reverse first exposes the media source', () => {
     const video = new FakeVideo();
     video.readyState = 2;

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as gradeAStory from './PhoneGradeAStory';
+import type { PhoneCinematicSnapshot } from './phone-story/runtime';
 import {
   phoneGradeAArchFrame,
   phoneGradeAFigureProgress,
@@ -21,6 +22,41 @@ const gradeALanding = gradeAStory as typeof gradeAStory & Readonly<{
     direction: 1 | -1
   ): 0 | 1;
 }>;
+
+const archLifecycle = gradeAStory as typeof gradeAStory & Readonly<{
+  phoneGradeAArchLifecycle?: (
+    snapshot: PhoneCinematicSnapshot
+  ) => readonly [mounted: boolean, visible: boolean];
+}>;
+
+function archSnapshot(
+  scene: PhoneCinematicSnapshot[0],
+  status: PhoneCinematicSnapshot[11] = 'stable',
+  run: PhoneCinematicSnapshot[6] = null
+): PhoneCinematicSnapshot {
+  return [
+    scene,
+    null,
+    scene,
+    'authority',
+    status === 'transaction' ? 'session' : null,
+    status === 'transaction' ? 1 : null,
+    run,
+    status === 'transaction' ? 1 : null,
+    status === 'transaction' ? 0 : null,
+    status === 'transaction' ? 'preparing' : null,
+    status === 'transaction' ? 0 : null,
+    status,
+    scene,
+    'native',
+    0,
+    null,
+    0,
+    null,
+    null,
+    true
+  ];
+}
 
 const source = readFileSync(
   new URL('./PhoneGradeAStory.tsx', import.meta.url),
@@ -147,6 +183,26 @@ describe('phone Grade A document progress', () => {
 });
 
 describe('phone Grade A orchestration ownership', () => {
+  it('[P0 Arch lease] mounts only inside the Method ↔ Brand Grade A authority window', () => {
+    const project = archLifecycle.phoneGradeAArchLifecycle;
+    expect(project).toBeTypeOf('function');
+    if (!project) return;
+
+    expect(project(archSnapshot('method-top'))).toEqual([false, false]);
+    expect(project(archSnapshot('figure2-animation'))).toEqual([true, true]);
+    expect(project(archSnapshot('figure2-proof'))).toEqual([true, true]);
+    expect(project(archSnapshot('brand'))).toEqual([false, false]);
+    expect(project(archSnapshot('services'))).toEqual([false, false]);
+    expect(project(archSnapshot('figure2-animation', 'transaction', 'method-figure2')))
+      .toEqual([true, true]);
+    expect(project(archSnapshot('figure2-proof', 'transaction', 'figure2-proof')))
+      .toEqual([true, true]);
+    expect(project(archSnapshot('brand', 'transaction', 'proof-brand')))
+      .toEqual([true, true]);
+    expect(project(archSnapshot('services', 'transaction', 'brand-services')))
+      .toEqual([false, false]);
+  });
+
   it('registers rendering capabilities through the canonical runner only', () => {
     expect(source).toContain('createPhoneGradeARunner');
     expect(source).not.toContain('let activeRunView');

@@ -121,6 +121,14 @@ class FakeDocument {
 }
 
 describe('phone Grade A transition contracts', () => {
+  it('[P0 Figure2 physical lease] cannot accept an unscoped pooled Canvas ready flag', () => {
+    expect(figure2DistanceSource).not.toContain(
+      "leaseRef.current?.canvas.dataset.phonePresentationEffectFrame === 'ready'"
+    );
+    expect(figure2DistanceSource).toContain('phonePresentationEffectToken');
+    expect(figure2DistanceSource).toContain('phonePresentationEffectGeneration');
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });

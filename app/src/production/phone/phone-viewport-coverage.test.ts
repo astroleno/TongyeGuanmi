@@ -31,6 +31,10 @@ const methodStyles = readFileSync(
   new URL('./scenes/PhoneMethodTop.css', import.meta.url),
   'utf8'
 );
+const figure2Styles = readFileSync(
+  new URL('./scenes/PhoneFigure2.css', import.meta.url),
+  'utf8'
+);
 
 function fixture() {
   const visualViewport = Object.assign(new EventTarget(), {
@@ -125,6 +129,18 @@ describe('phone live viewport coverage', () => {
     expect(stageRailStyles).toContain(
       'url("../../../../assets/figure2-middle-building.webp")'
     );
+  });
+
+  it('[P0 Figure2 floor] fills the complete frozen stage before live coverage extends it', () => {
+    const root = figure2Styles.slice(
+      figure2Styles.indexOf('.portrait-scroll-spike__scene--figure2 {'),
+      figure2Styles.indexOf(
+        '.portrait-scroll-spike__scene--figure2 .r4-figure2__middle-window'
+      )
+    );
+    expect(root).toContain('width: 100%;');
+    expect(root).toContain('height: 100%;');
+    expect(root).toContain('min-height: 100%;');
   });
 
   it('[P0 Method→Figure2] never resurrects the scrolled-away Method intro as the forward ink source', () => {

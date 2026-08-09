@@ -375,6 +375,26 @@ describe('phone packed-alpha surface', () => {
     surface(['dispose']);
   });
 
+  it('[P0 PH restore] requires a fresh token-B draw after retire and restore', () => {
+    const reported: Array<string | null> = [];
+    const { root, surface } = fixture((token) => reported.push(token));
+
+    surface(['activate', 'endpoint', 'token-a']);
+    surface(['present', 'token-a']);
+    compositorProbe.onFrame?.();
+    expect(root.dataset.phoneTestAlpha).toBe('verified');
+    expect(reported).toEqual(['token-a']);
+
+    surface(['retire']);
+    surface(['activate', 'endpoint', 'token-b']);
+    expect(root.dataset.phoneTestAlpha).not.toBe('verified');
+    expect(reported).toEqual(['token-a']);
+
+    compositorProbe.onFrame?.();
+    expect(reported).toEqual(['token-a', 'token-b']);
+    surface(['dispose']);
+  });
+
   it('[Task 3] binds an active proof token only to a subsequent physical draw', () => {
     const report = vi.fn();
     const { surface } = fixture(report);

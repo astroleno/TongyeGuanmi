@@ -154,6 +154,17 @@ describe('PhonePh', () => {
     expect(reverseSource).not.toContain('endpoint-dissolve');
   });
 
+  it('[P0 PH reverse] requires the current token draw instead of a generic verified status', () => {
+    const reverseReadyStart = source.indexOf('const reverseReady = useCallback');
+    const reverseReadyEnd = source.indexOf('const beforeForward', reverseReadyStart);
+    const reverseReady = source.slice(reverseReadyStart, reverseReadyEnd);
+
+    expect(reverseReadyStart).toBeGreaterThanOrEqual(0);
+    expect(reverseReady).not.toContain("root?.dataset.phonePhAlpha === 'verified'");
+    expect(reverseReady).toContain('phoneRuntimePresentationTokenKey');
+    expect(reverseReady).toContain('presentedFrame');
+  });
+
   it('falls back to its static layers and parks media without a reload', () => {
     const root = new FakeElement();
     const video = new FakeVideo();

@@ -93,4 +93,41 @@ describe('phone ink surface pool', () => {
     expect(lease.canvas.remove).not.toHaveBeenCalled();
     expect(lease.canvas.style.visibility).toBe('hidden');
   });
+
+  it('[P0 physical lease] clears stale presentation evidence and visual residue before reuse', () => {
+    const document = new FakeDocument();
+    const first = claimPhoneInkSurface(document as unknown as Document, {
+      host: document.host() as unknown as HTMLElement,
+      className: 'figure2-depth-a',
+      onRevoke: vi.fn()
+    });
+    first.canvas.dataset.phonePresentationEffectFrame = 'ready';
+    first.canvas.dataset.phonePresentationEffectToken = 'authority:a';
+    first.canvas.dataset.phonePresentationEffectGeneration = '7';
+    first.canvas.style.visibility = 'visible';
+    first.canvas.style.opacity = '1';
+    first.canvas.style.clipPath = 'circle(20%)';
+    first.canvas.style.maskImage = 'linear-gradient(#000,#000)';
+    first.canvas.style.transform = 'scale(2)';
+
+    const second = claimPhoneInkSurface(document as unknown as Document, {
+      host: document.host() as unknown as HTMLElement,
+      className: 'figure2-depth-b',
+      onRevoke: vi.fn()
+    });
+    const firstGeneration = (first as unknown as { generation?: number }).generation;
+    const secondGeneration = (second as unknown as { generation?: number }).generation;
+
+    expect(second.canvas).toBe(first.canvas);
+    expect(second.canvas.dataset.phonePresentationEffectFrame).toBeUndefined();
+    expect(second.canvas.dataset.phonePresentationEffectToken).toBeUndefined();
+    expect(second.canvas.dataset.phonePresentationEffectGeneration).toBeUndefined();
+    expect(second.canvas.style.visibility).toBe('');
+    expect(second.canvas.style.opacity).toBe('');
+    expect(second.canvas.style.clipPath).toBe('');
+    expect(second.canvas.style.maskImage).toBe('');
+    expect(second.canvas.style.transform).toBe('');
+    expect(firstGeneration).toBeTypeOf('number');
+    expect(secondGeneration).toBeGreaterThan(firstGeneration!);
+  });
 });

@@ -58,6 +58,12 @@ describe('PhoneTtg', () => {
     expect(phoneTtgSource.slice(reconcileStart, handleStart)).toContain('startRun(');
   });
 
+  it('[P0 TTG reverse] delegates reverse progress to the presented-frame primitive', () => {
+    expect(phoneTtgSource).toContain('createPhonePresentedReversePlayback');
+    expect(phoneTtgSource).toContain('preparePhoneTimelineVideoFrame');
+    expect(phoneTtgSource).not.toContain('playback.start(-1)');
+  });
+
   it('owns only its one optional video and retains local static layers', () => {
     const motionMarkup = renderToStaticMarkup(createElement(PhoneTtg, {
       active: true,
