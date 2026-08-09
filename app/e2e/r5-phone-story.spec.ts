@@ -2318,9 +2318,24 @@ function assertTransitionTrace(
     if (legOrder.at(-1) !== leg) legOrder.push(leg);
   }
   expect(legOrder.length).toBeGreaterThan(0);
+  const expectedLegOrder = direction === 1
+    ? definition.legs.map((_, index) => index)
+    : definition.legs.map((_, index) => definition.legs.length - index - 1);
+  expect(
+    legOrder,
+    `every ${runId} leg must be projected before the stable commit`
+  ).toEqual(expectedLegOrder);
   for (let index = 1; index < legOrder.length; index += 1) {
     expect(legOrder[index]).toBe(legOrder[index - 1]! + direction);
   }
+  expect(
+    states.some((state) => (
+      state.cursor === `hold:${to}`
+      && state.session === null
+      && state.input === 'free'
+    )),
+    `${runId} must terminate at hold:${to} with no session and free input`
+  ).toBe(true);
 
   const targetEdge = PHONE_HOLD_CONTRACTS[to].edge;
   for (const leg of legOrder) {
@@ -2342,7 +2357,11 @@ function assertTransitionTrace(
       ))).toBe(true);
     } else {
       expect(progresses.some((progress) => Math.abs(progress - start) <= 0.05)).toBe(true);
-      expect(progresses.some((progress) => Math.abs(progress - terminal) <= 0.05)).toBe(true);
+      // The leaf may report its terminal completion in the same task that
+      // advances to the next leg (or stable hold). React can therefore batch
+      // away a DOM progress=terminal projection. Exhaustive leg order plus
+      // the stable null-session commit above is the terminal machine fact;
+      // intermediate machine and physical-frame evidence remain mandatory.
       const projectedIntermediate = progresses.some((progress) => (
         progress > 0.05 && progress < 0.95
       ));
