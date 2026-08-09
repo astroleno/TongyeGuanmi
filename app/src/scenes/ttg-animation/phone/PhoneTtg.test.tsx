@@ -15,7 +15,8 @@ import {
   phoneTtgPresentationProbeTime,
   phoneTtgTargetPresentationLease,
   markPhoneTtgPresentedEndpoint,
-  releasePhoneTtgVideo
+  releasePhoneTtgVideo,
+  waitForPhoneTtgCurrentData
 } from './PhoneTtg';
 import {
   phoneRuntimePresentationTokenKey,
@@ -457,5 +458,26 @@ describe('PhoneTtg', () => {
     expect(video.removeAttribute).toHaveBeenCalledWith('src');
     expect(source.removeAttribute).toHaveBeenCalledWith('src');
     expect(video.load).toHaveBeenCalledOnce();
+  });
+
+  it('rearms remounted media before waiting for current data', async () => {
+    vi.stubGlobal('window', { setTimeout, clearTimeout });
+    const video = Object.assign(new EventTarget(), {
+      preload: 'none',
+      readyState: 0,
+      load: vi.fn()
+    }) as unknown as HTMLVideoElement;
+    const controller = new AbortController();
+
+    try {
+      const ready = waitForPhoneTtgCurrentData(video, controller.signal);
+      video.dispatchEvent(new Event('loadeddata'));
+
+      expect(await ready).toBe(true);
+      expect(video.preload).toBe('auto');
+      expect(video.load).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

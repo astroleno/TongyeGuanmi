@@ -471,7 +471,7 @@ function waitForPhoneTtgReverseEndpoint(
   });
 }
 
-function waitForPhoneTtgCurrentData(
+export function waitForPhoneTtgCurrentData(
   video: HTMLVideoElement,
   signal: AbortSignal
 ): Promise<boolean> {
@@ -497,6 +497,12 @@ function waitForPhoneTtgCurrentData(
     video.addEventListener('canplay', onReady, { once: true });
     video.addEventListener('error', onError, { once: true });
     signal.addEventListener('abort', onAbort, { once: true });
+    video.preload = 'auto';
+    try {
+      video.load();
+    } catch {
+      // A later current-data event can still settle detached/mock media.
+    }
     if (video.readyState >= 2) {
       finish(true);
       return;
@@ -845,12 +851,6 @@ export const PhoneTtg = forwardRef<
     initialFrameAbortRef.current?.abort();
     initialFrameAbortRef.current = preparationController;
     initialFrameTokenRef.current = presentationToken ?? null;
-    video.preload = 'auto';
-    try {
-      if (video.readyState < 2) video.load();
-    } catch {
-      // The exact-frame driver can still settle once the source becomes ready.
-    }
     rootRef.current?.setAttribute(
       'data-phone-ttg-playback',
       'preparing-initial-frame'
@@ -1357,18 +1357,30 @@ export const PhoneTtg = forwardRef<
           void ensureInitialFrame(video, presentationKey);
         } else if (!terminalRequested) {
           terminalRequested = true;
-          void preparePhoneTimelineVideoFrame(
-            video,
-            ttgEndpointMediaInput(
-              presentationKey,
-              1,
-              request.direction,
-              browserPrefersHevcAlpha(),
-              request.signal
-            )
-          ).then(([status]) => {
+          void waitForPhoneTtgCurrentData(video, request.signal).then((ready) => {
             if (
-              status !== 'ready'
+              !ready
+              || request.signal.aborted
+              || targetPreparationRef.current !== target
+            ) {
+              if (!request.signal.aborted && targetPreparationRef.current === target) {
+                failMedia();
+              }
+              return null;
+            }
+            return preparePhoneTimelineVideoFrame(
+              video,
+              ttgEndpointMediaInput(
+                presentationKey,
+                1,
+                request.direction,
+                browserPrefersHevcAlpha(),
+                request.signal
+              )
+            );
+          }).then((result) => {
+            if (
+              result?.[0] !== 'ready'
               || request.signal.aborted
               || targetPreparationRef.current !== target
             ) return;
