@@ -11,6 +11,9 @@ import {
   RetainedFigure2Arch,
   retainedFigure2ArchState
 } from './RetainedFigure2Arch';
+import {
+  preparePhoneFigure2ArchImage
+} from '../production/phone/scenes/PhoneFigure2Arch';
 
 const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
@@ -96,6 +99,33 @@ describe('RetainedFigure2Arch', () => {
     }));
 
     expect(markup).toContain('data-figure2-arch-motion="fixed"');
+  });
+
+  it('accepts only the currently mounted decoded phone image', async () => {
+    let releaseDecode = () => {};
+    const pendingDecode = new Promise<void>((resolve) => {
+      releaseDecode = resolve;
+    });
+    const image = {
+      complete: true,
+      naturalWidth: 1080,
+      decode: () => pendingDecode
+    } as HTMLImageElement;
+    const stale = new AbortController();
+    const staleReady = preparePhoneFigure2ArchImage(image, stale.signal);
+    stale.abort();
+    releaseDecode();
+    await expect(staleReady).resolves.toBe(false);
+
+    const current = new AbortController();
+    const currentImage = {
+      complete: true,
+      naturalWidth: 1080,
+      decode: () => Promise.resolve()
+    } as HTMLImageElement;
+    await expect(
+      preparePhoneFigure2ArchImage(currentImage, current.signal)
+    ).resolves.toBe(true);
   });
 
   it('stays mounted while its Proof owner is temporarily hidden', () => {

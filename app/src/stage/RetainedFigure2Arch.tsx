@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import type { LayerVisibilityState, SceneId } from '../story/types';
 import { semanticBoolean } from '../runtime/semantic-data-attribute';
 
@@ -34,19 +35,22 @@ export function RetainedFigure2Arch({
   visible,
   src = FIGURE2_NEAR_ARCH_SRC,
   className = '',
-  motion = 'depth'
+  motion = 'depth',
+  imageRef
 }: {
   mounted: boolean;
   visible: boolean;
   src?: string;
   className?: string;
   motion?: 'depth' | 'fixed';
+  imageRef?: Ref<HTMLImageElement>;
 }) {
   if (!mounted) {
     return null;
   }
   return (
     <img
+      ref={imageRef}
       className={`stage-proof-retained-arch ${className}`.trim()}
       data-stage-retained-figure2-arch="true"
       data-figure2-arch-motion={motion}

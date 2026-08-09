@@ -29,7 +29,8 @@ import {
   registerPhoneRuntimeSampledScrollCorridor,
   registerPhoneRuntimeSurface,
   selectPhoneCinematicSnapshot,
-  syncPhoneRuntimeDiagnostics
+  syncPhoneRuntimeDiagnostics,
+  type PhoneCinematicSnapshot
 } from './phone-story/runtime';
 import type { SceneId } from '../../story/types';
 import type {
@@ -119,6 +120,20 @@ export function phoneGradeAArchFrame(
   };
 }
 
+export function phoneGradeAArchLifecycle(
+  snapshot: PhoneCinematicSnapshot
+): readonly [mounted: boolean, visible: boolean] {
+  const scene = snapshot[0];
+  const run = snapshot[6];
+  const status = snapshot[11];
+  const mounted = status === 'transaction'
+    ? run === 'method-figure2'
+      || run === 'figure2-proof'
+      || run === 'proof-brand'
+    : scene === 'figure2-animation' || scene === 'figure2-proof';
+  return [mounted, mounted];
+}
+
 export function phoneGradeAProofProgress(
   trackTop: number,
   trackHeight: number,
@@ -201,6 +216,7 @@ export function PhoneGradeAStory({
     () => selectPhoneCinematicSnapshot(storySnapshot),
     [storySnapshot]
   );
+  const [archMounted, archVisible] = phoneGradeAArchLifecycle(cinematicSnapshot);
   const [
     semanticScene,
     sourceSurface,
@@ -246,6 +262,7 @@ export function PhoneGradeAStory({
   const methodFigure2Ref = useRef<PhoneTransitionAdapterHandle | null>(null);
   const figure2ProofRef = useRef<PhoneTransitionAdapterHandle | null>(null);
   const proofBrandRef = useRef<PhoneTransitionAdapterHandle | null>(null);
+  const archReadyRef = useRef(false);
   const brandRootRef = useRef<HTMLElement | null>(null);
   const brandPresentationRef = useRef<PhonePresentationAdapterHandle | null>(null);
   const boundaryReadyRef = useRef(0);
@@ -329,6 +346,13 @@ export function PhoneGradeAStory({
     boundaryReadyListenersRef.current.add(listener);
     return () => boundaryReadyListenersRef.current.delete(listener);
   }, []);
+  const markArchReady = useCallback(() => {
+    if (!archMounted) return;
+    archReadyRef.current = true;
+    for (const listener of boundaryReadyListenersRef.current) listener();
+    syncPhoneRuntimeDiagnostics(orchestrator);
+  }, [archMounted, orchestrator]);
+  if (!archMounted) archReadyRef.current = false;
 
   /*
    * Grade A supplies authored geometry and adapter capabilities only. The
@@ -531,7 +555,8 @@ export function PhoneGradeAStory({
       orchestrator,
       boundaries: GRADE_A_INK_BOUNDARIES.map((id) => ({
         id,
-        ready: () => Boolean(boundaryReadyRef.current & 1 << id),
+        ready: () => Boolean(boundaryReadyRef.current & 1 << id)
+          && (id !== 2 || archReadyRef.current),
         subscribeReady: subscribeBoundaryReady,
         position: (direction: PhoneTransitionDirection) => (
           boundaryPosition(id, direction)
@@ -738,7 +763,6 @@ export function PhoneGradeAStory({
       figure2ProofRef.current?.render(1);
       proofBrandRef.current?.render(1);
       proofRef.current?.update(1);
-      setRetainedArchProgress(1, 1);
     };
 
     if (status === 'transaction') {
@@ -867,7 +891,11 @@ export function PhoneGradeAStory({
             onReady={markProofReady}
           />
         )}
-        <PhoneFigure2Arch />
+        <PhoneFigure2Arch
+          mounted={archMounted}
+          visible={archVisible}
+          onReady={markArchReady}
+        />
       </div>
       {figure2Ready && methodCopySource && MethodFigure2 && (
         <MethodFigure2

@@ -5057,7 +5057,7 @@ test('[P0 route-overlay pixels] an above-both ink transition is painted by the r
   assertRadialFrontierAlphaEvidence(radialFrontierProbe);
 });
 
-test('[P0 visual lease] retires Figure2 Arch and attributes every downstream handoff frame', async ({ page }) => {
+test('[P0 Arch retirement][downstream handoff flash] retires Figure2 Arch and attributes every downstream frame', async ({ page }) => {
   test.setTimeout(240_000);
   await installColdPhoneRuntimeProbe(page);
   await installPhoneVisualLeaseProbe(page);
