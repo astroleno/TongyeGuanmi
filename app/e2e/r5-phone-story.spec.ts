@@ -330,19 +330,24 @@ function assertPresentedReverseVideoFrames(
     || entry.hash !== evidence[index - 1]?.hash
     || Math.abs(entry.time - (evidence[index - 1]?.time ?? entry.time)) > .002
   ));
+  const terminalIndex = presented.reduce((peak, entry, index) => (
+    entry.time > (presented[peak]?.time ?? -1) ? index : peak
+  ), 0);
+  const reversePresented = presented.slice(terminalIndex);
   expect(
-    new Set(presented.flatMap((entry) => entry.hash ? [entry.hash] : [])).size,
+    new Set(reversePresented.flatMap((entry) => entry.hash ? [entry.hash] : [])).size,
     `${label} needs at least three actually painted decoder frames`
   ).toBeGreaterThanOrEqual(3);
-  expect(presented.length, `${label} needs multiple presented reverse samples`)
+  expect(reversePresented.length, `${label} needs multiple presented reverse samples`)
     .toBeGreaterThanOrEqual(3);
-  for (let index = 1; index < presented.length; index += 1) {
+  for (let index = 1; index < reversePresented.length; index += 1) {
     expect(
-      presented[index]!.time,
-      `${label} visible decoder times must descend: ${JSON.stringify(presented)}`
-    ).toBeLessThanOrEqual(presented[index - 1]!.time + .002);
+      reversePresented[index]!.time,
+      `${label} visible decoder times must descend: ${JSON.stringify(reversePresented)}`
+    ).toBeLessThanOrEqual(reversePresented[index - 1]!.time + .002);
   }
-  expect(presented.at(-1)!.time).toBeLessThan(presented[0]!.time - .05);
+  expect(reversePresented.at(-1)!.time)
+    .toBeLessThan(reversePresented[0]!.time - .05);
 }
 
 function assertPresentedReversePackedFrames(
@@ -2909,8 +2914,11 @@ async function driveAdjacentPhoneRun(
       const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
       const canvas = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
       const root = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod');
-      return video ? {
-        video: {
+      const ttg = document.querySelector<HTMLElement>('[data-phone-scene="ttg-animation"]');
+      const ttgVideo = ttg?.querySelector<HTMLVideoElement>('[data-phone-ttg-video]');
+      return {
+        aod: video ? {
+          video: {
           readyState: video.readyState,
           networkState: video.networkState,
           currentTime: video.currentTime,
@@ -2931,8 +2939,17 @@ async function driveAdjacentPhoneRun(
           mediaTime: canvas.dataset.packedAlphaMediaTime ?? null,
           active: canvas.dataset.packedAlphaCompositorActive ?? null
         } : null,
-        rootDataset: root ? { ...root.dataset } : null
-      } : null;
+          rootDataset: root ? { ...root.dataset } : null
+        } : null,
+        ttg: ttgVideo ? {
+          rootDataset: { ...ttg.dataset },
+          readyState: ttgVideo.readyState,
+          currentTime: ttgVideo.currentTime,
+          paused: ttgVideo.paused,
+          seeking: ttgVideo.seeking,
+          dataset: { ...ttgVideo.dataset }
+        } : null
+      };
     });
     throw new Error(
       `${error instanceof Error ? error.message : String(error)}\n`
@@ -5215,7 +5232,7 @@ test('[P0 Figure2 physical z-depth][Figure2 bottom coverage] paints current-toke
   expect(new Set(effect.map((sample) => sample.effectGeneration)).size).toBe(1);
 });
 
-test('[P0 TTG reverse] two same-authority returns advance only on presented decoder frames and release Services', async ({ page }) => {
+test('[TTG presented reverse][Services reverse release] two same-authority returns advance only on presented decoder frames and release Services', async ({ page }) => {
   test.setTimeout(300_000);
   await installColdPhoneRuntimeProbe(page);
   await installPhoneVisualLeaseProbe(page);
@@ -5234,7 +5251,7 @@ test('[P0 TTG reverse] two same-authority returns advance only on presented deco
       'brand-lab'
     );
     const reverseFrames = (await phoneVisualLeaseFrames(page)).filter((frame) => (
-      frame.cursor === 'transition:services-lab:0'
+      frame.cursor === 'transition:services-lab:1'
       && frame.direction === '-1'
     ));
     assertPresentedReverseVideoFrames(

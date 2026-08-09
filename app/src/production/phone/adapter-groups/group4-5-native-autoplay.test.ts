@@ -183,7 +183,7 @@ describe('Group 4–5 native autoplay', () => {
     expect(group45VideoNeedsEndpointSeek(2.447, 1, false, 2.467)).toBe(true);
   });
 
-  it('runs the short source backward on a decoder-safe canonical clock', () => {
+  it('refuses reverse playback so only the presented-frame driver can own it', () => {
     const video = new FakeVideo();
     video.readyState = 2;
     const progress: Array<readonly [number, 1 | -1]> = [];
@@ -205,16 +205,12 @@ describe('Group 4–5 native autoplay', () => {
 
     controller.start(-1);
     expect(video.play).not.toHaveBeenCalled();
-    expect(video.currentTime).toBe(2.5);
+    expect(video.currentTime).toBe(0);
     callbacks.shift()?.(0);
     callbacks.shift()?.(1250);
-    expect(progress.at(-1)).toEqual([.5, -1]);
-    // The scene's shared timeline driver owns intermediate reverse seeks.
-    // The clock must not race it by mutating currentTime every rAF.
-    expect(video.currentTime).toBe(2.5);
     callbacks.shift()?.(2500);
-    expect(progress.at(-1)).toEqual([0, -1]);
-    expect(completed).toHaveBeenCalledWith(-1);
+    expect(progress).toEqual([]);
+    expect(completed).not.toHaveBeenCalled();
     expect(controller.active).toBe(false);
 
     controller.dispose();
@@ -245,53 +241,8 @@ describe('Group 4–5 native autoplay', () => {
     callbacks.shift()?.(1250);
     callbacks.shift()?.(2500);
 
-    expect(progress).toEqual([[1, -1]]);
+    expect(progress).toEqual([]);
     expect(completed).not.toHaveBeenCalled();
-    controller.dispose();
-  });
-
-  it('reports a physical decoder frame when reverse first exposes the media source', () => {
-    const video = new FakeVideo();
-    video.readyState = 2;
-    const presented = vi.fn();
-    const controller = createGroup45NativeAutoplay(
-      video as unknown as HTMLVideoElement,
-      {
-        durationSeconds: 2.5,
-        onProgress: vi.fn(),
-        onPresentedFrame: presented,
-        requestFrame: () => 1,
-        cancelFrame: vi.fn()
-      }
-    );
-
-    controller.start(-1);
-
-    expect(video.requestVideoFrameCallback).toHaveBeenCalledOnce();
-    video.presentFrame(2.5);
-    expect(presented).toHaveBeenCalledWith(2.5, -1);
-
-    controller.dispose();
-  });
-
-  it('starts reverse from a retained terminal frame without rewriting currentTime', () => {
-    const video = new FakeVideo();
-    video.readyState = 2;
-    video.currentTime = 2.46;
-    const controller = createGroup45NativeAutoplay(
-      video as unknown as HTMLVideoElement,
-      {
-        durationSeconds: 2.467,
-        onProgress: vi.fn(),
-        requestFrame: () => 1,
-        cancelFrame: vi.fn()
-      }
-    );
-
-    controller.start(-1);
-
-    expect(video.currentTime).toBe(2.46);
-    expect(video.play).not.toHaveBeenCalled();
     controller.dispose();
   });
 

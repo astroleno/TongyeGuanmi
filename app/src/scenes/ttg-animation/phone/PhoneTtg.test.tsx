@@ -8,7 +8,6 @@ import {
   phoneTtgFrame,
   phoneTtgHasTokenBoundEndpointFrame,
   phoneTtgHasReusableEndpointFrame,
-  phoneTtgHasReusableTerminalFrame,
   phoneTtgHeldEndpoint,
   phoneTtgMediaAction,
   phoneTtgPreparedPresentationFrame,
@@ -373,29 +372,6 @@ describe('PhoneTtg', () => {
     )).toBeNull();
   });
 
-  it('reuses the retained physical terminal frame for Lab → TTG reverse', () => {
-    expect(phoneTtgHasReusableTerminalFrame({
-      currentTime: 2.467,
-      duration: 2.5,
-      readyState: 2,
-      seeking: false,
-      dataset: {
-        phoneGroup45FrameReady: 'true',
-        phoneTtgEndpointReady: 'terminal'
-      }
-    } as unknown as HTMLVideoElement)).toBe(true);
-    expect(phoneTtgHasReusableTerminalFrame({
-      currentTime: 0,
-      duration: 2.5,
-      readyState: 2,
-      seeking: false,
-      dataset: {
-        phoneGroup45FrameReady: 'true',
-        phoneTtgEndpointReady: 'terminal'
-      }
-    } as unknown as HTMLVideoElement)).toBe(false);
-  });
-
   it('retains the physically presented initial frame after reverse completion', () => {
     expect(phoneTtgHasReusableEndpointFrame({
       currentTime: 0,
@@ -444,7 +420,7 @@ describe('PhoneTtg', () => {
     markPhoneTtgPresentedEndpoint(video, 2.467);
     expect(video.dataset.phoneGroup45FrameReady).toBe('true');
     expect(video.dataset.phoneTtgEndpointReady).toBe('terminal');
-    expect(phoneTtgHasReusableTerminalFrame(video)).toBe(true);
+    expect(phoneTtgHasReusableEndpointFrame(video, 1)).toBe(true);
   });
 
   it('disposes the retired video source and decoder', () => {

@@ -7,7 +7,7 @@ describe('Unit 6 presented-frame reverse playback', () => {
     const events: string[] = [];
     const complete = vi.fn();
     const playback = createPhonePresentedReversePlayback([
-      3000,
+      100,
       async (progress) => {
         events.push(`prepare:${progress.toFixed(2)}`);
         return true;
@@ -27,16 +27,20 @@ describe('Unit 6 presented-frame reverse playback', () => {
     playback.start();
     frames.shift()?.(0);
     await Promise.resolve();
-    frames.shift()?.(1500);
+    frames.shift()?.(16);
     await Promise.resolve();
-    frames.shift()?.(3000);
+    frames.shift()?.(32);
+    await Promise.resolve();
+    frames.shift()?.(48);
     await Promise.resolve();
 
     expect(events).toEqual([
       'prepare:1.00',
       'render:1.00',
-      'prepare:0.50',
-      'render:0.50',
+      'prepare:0.67',
+      'render:0.67',
+      'prepare:0.33',
+      'render:0.33',
       'prepare:0.00',
       'render:0.00'
     ]);
@@ -110,5 +114,37 @@ describe('Unit 6 presented-frame reverse playback', () => {
       'visibilitychange',
       expect.any(Function)
     );
+  });
+
+  it('ignores a rejected stale preparation after a replacement run starts', async () => {
+    const frames: FrameRequestCallback[] = [];
+    let rejectOld: ((cause: Error) => void) | undefined;
+    const onError = vi.fn();
+    const playback = createPhonePresentedReversePlayback([
+      1500,
+      () => new Promise((_resolve, reject) => {
+        rejectOld = reject;
+      }),
+      vi.fn(),
+      vi.fn(),
+      onError,
+      null,
+      null,
+      (callback) => {
+        frames.push(callback);
+        return frames.length;
+      },
+      vi.fn()
+    ]);
+
+    playback.start();
+    frames.shift()?.(0);
+    playback.start();
+    rejectOld?.(new Error('stale decoder callback'));
+    await Promise.resolve();
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(playback.active).toBe(true);
+    playback.dispose();
   });
 });

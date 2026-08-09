@@ -9,11 +9,13 @@ import {
 import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
 import {
   disposePhoneTimelineVideo,
-  drivePhoneTimelineVideo,
-  phoneTimelineVideoSnapshot,
   preparePhoneTimelineVideoFrame,
   type PhoneTimelineVideoInput
 } from '../../../production/phone/phone-timeline-runtime';
+import {
+  createPhonePresentedReversePlayback,
+  type PhonePresentedReversePlayback
+} from '../../../production/phone/phone-presented-reverse-playback';
 import type { Group45PhoneSceneProps } from '../../../production/phone/adapter-groups/group4-5';
 import type {
   PhoneCinematicRequest,
@@ -312,7 +314,8 @@ function playbackLabel(
 
 function ttgReverseMediaInput(
   runId: string,
-  progress: number
+  progress: number,
+  signal: AbortSignal | null = null
 ): PhoneTimelineVideoInput {
   return [
     runId,
@@ -326,7 +329,7 @@ function ttgReverseMediaInput(
     'timeline',
     1,
     browserPrefersHevcAlpha(),
-    null
+    signal
   ];
 }
 
@@ -373,12 +376,6 @@ export function phoneTtgHasReusableEndpointFrame(
     && video.readyState >= 2
     && !video.seeking
     && Math.abs(video.currentTime - target) <= tolerance;
-}
-
-export function phoneTtgHasReusableTerminalFrame(
-  video: PhoneTtgEndpointVideo
-): boolean {
-  return phoneTtgHasReusableEndpointFrame(video, 1);
 }
 
 /**
@@ -456,21 +453,6 @@ function waitForPhoneTtgEndpoint(
   });
 }
 
-function waitForPhoneTtgReverseEndpoint(
-  video: HTMLVideoElement,
-  runId: string
-): Promise<boolean> {
-  return waitForPhoneTtgEndpoint(() => {
-    const [snapshotRunId, snapshotDirection, desiredProgress, frameReady] =
-      phoneTimelineVideoSnapshot(video);
-    return snapshotRunId === runId
-      && snapshotDirection === -1
-      && (desiredProgress ?? 1) <= .001
-      && frameReady
-      && video.currentTime <= .04;
-  });
-}
-
 export function waitForPhoneTtgCurrentData(
   video: HTMLVideoElement,
   signal: AbortSignal
@@ -542,6 +524,9 @@ export const PhoneTtg = forwardRef<
   const rootRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const playbackRef = useRef<Group45NativeAutoplay | null>(null);
+  const reversePlaybackRef = useRef<PhonePresentedReversePlayback | null>(null);
+  const reverseAbortRef = useRef<AbortController | null>(null);
+  const reverseTimelineGenerationRef = useRef<number | null>(null);
   const presentationBindingRef = useRef<PhoneTtgPresentationBinding | null>(null);
   const executionFrameRef = useRef<Readonly<{
     key: string;
@@ -667,10 +652,7 @@ export const PhoneTtg = forwardRef<
     videoRef.current = element as HTMLVideoElement | null;
   }, []);
 
-  const renderFrame = useCallback((
-    rawProgress: number,
-    playbackDirection?: Group45NativeAutoplayDirection
-  ) => {
+  const renderFrame = useCallback((rawProgress: number) => {
     const root = rootRef.current;
     const frame = phoneTtgFrame(
       rawProgress,
@@ -700,13 +682,6 @@ export const PhoneTtg = forwardRef<
     if (import.meta.env.DEV) {
       root.dataset.phoneTtgProgress = frame.progress.toFixed(4);
       root.dataset.phoneTtgVisualProgress = frame.visualProgress.toFixed(4);
-    }
-    const video = videoRef.current;
-    if (playbackDirection === -1 && video) {
-      drivePhoneTimelineVideo(
-        video,
-        ttgReverseMediaInput(reverseRunIdRef.current, frame.progress)
-      );
     }
   }, []);
 
@@ -794,6 +769,9 @@ export const PhoneTtg = forwardRef<
     initialFrameAbortRef.current?.abort();
     initialFrameAbortRef.current = null;
     initialFramePreparationRef.current = null;
+    reverseAbortRef.current?.abort();
+    reverseAbortRef.current = null;
+    reverseTimelineGenerationRef.current = null;
     cancelChapterTransition();
     mediaRetiringRef.current = true;
     forwardRequestedRef.current = false;
@@ -806,6 +784,8 @@ export const PhoneTtg = forwardRef<
     clearPresentationFrameCallback();
     playbackRef.current?.dispose();
     playbackRef.current = null;
+    reversePlaybackRef.current?.dispose();
+    reversePlaybackRef.current = null;
     disposeTtgMedia(rootRef.current);
     delete rootRef.current?.dataset.phonePresentationFrame;
     releasePhoneTtgVideo(videoRef.current);
@@ -945,10 +925,15 @@ export const PhoneTtg = forwardRef<
     forwardRequestedRef.current = true;
     mountMedia();
     const playback = playbackRef.current;
-    if (!playback) return;
+    const reversePlayback = reversePlaybackRef.current;
+    if (!playback || (runDirection === -1 && !reversePlayback)) return;
     completionReportedRef.current = false;
     forwardRequestedRef.current = false;
     if (runDirection === 1) {
+      reverseAbortRef.current?.abort();
+      reverseAbortRef.current = null;
+      reverseTimelineGenerationRef.current = null;
+      reversePlayback?.stop();
       const video = videoRef.current;
       if (!video) {
         failMedia();
@@ -984,56 +969,58 @@ export const PhoneTtg = forwardRef<
       failMedia();
       return;
     }
-    const retainedTerminal = phoneTtgHasReusableTerminalFrame(video);
+    const reverseRunId = reverseRunIdRef.current;
+    const reverseAbort = new AbortController();
+    reverseAbortRef.current?.abort();
+    reverseAbortRef.current = reverseAbort;
+    reverseTimelineGenerationRef.current = null;
     publishChapterProgress(1, -1);
     rootRef.current?.setAttribute(
       'data-phone-ttg-playback',
-      retainedTerminal
-        ? 'retained-reverse-terminal'
-        : 'preparing-reverse-terminal'
+      'preparing-reverse-terminal'
     );
-    if (retainedTerminal) {
-      // Figure2 retains its presented endpoint across the following chapter.
-      // Keep that physical frame under Lab, dissolve the same Lab root away,
-      // then start reverse without remounting or re-seeking before the reveal.
-      runChapterDissolve(-1, generation, () => {
-        if (
-          mediaRetiringRef.current
-          || generation !== runGenerationRef.current
-        ) return;
-        playback.start(-1);
-      });
-      return;
-    }
     playback.reset(1);
     void preparePhoneTimelineVideoFrame(
       video,
-      ttgReverseMediaInput(reverseRunIdRef.current, 1)
-    ).then(([status]) => {
+      ttgReverseMediaInput(reverseRunId, 1, reverseAbort.signal)
+    ).then(([status, frameRunId, frameDirection, frameGeneration]) => {
       if (
         mediaRetiringRef.current
         || generation !== runGenerationRef.current
+        || reverseAbort.signal.aborted
+        || reverseRunIdRef.current !== reverseRunId
       ) return;
-      if (status !== 'ready') {
+      if (
+        status !== 'ready'
+        || frameRunId !== reverseRunId
+        || frameDirection !== -1
+        || frameGeneration === null
+      ) {
         failMedia();
         return;
       }
+      reverseTimelineGenerationRef.current = frameGeneration;
       video.dataset.phoneGroup45FrameReady = 'true';
       video.dataset.phoneTtgEndpointReady = 'terminal';
+      reportExecutionFrame();
       runChapterDissolve(-1, generation, () => {
         if (
           mediaRetiringRef.current
           || generation !== runGenerationRef.current
+          || reverseAbort.signal.aborted
         ) return;
-        playback.start(-1);
+        reversePlayback!.start();
       });
-    }).catch(failMedia);
+    }).catch(() => {
+      if (!reverseAbort.signal.aborted) failMedia();
+    });
   }, [
     cancelChapterTransition,
     ensureInitialFrame,
     failMedia,
     mountMedia,
     publishChapterProgress,
+    reportExecutionFrame,
     runChapterDissolve
   ]);
 
@@ -1059,8 +1046,6 @@ export const PhoneTtg = forwardRef<
     );
     if (targetAction === 'discard-stale-target') {
       targetPreparationRef.current = null;
-      forwardRequestedRef.current = false;
-      forwardIntentIdentityRef.current = null;
       if (
         preparedEndpointRef.current?.presentationKey
           === phoneRuntimePresentationTokenKey(target!.token)
@@ -1160,7 +1145,7 @@ export const PhoneTtg = forwardRef<
       const playback = createGroup45NativeAutoplay(video, {
         durationSeconds: TTG_FIGURE_END_SECONDS,
         onProgress: (progress, playbackDirection) => {
-          renderFrame(progress, playbackDirection);
+          renderFrame(progress);
           publishChapterProgress(
             phoneTtgMediaChapterProgress(progress),
             playbackDirection
@@ -1180,43 +1165,17 @@ export const PhoneTtg = forwardRef<
           rootRef.current?.setAttribute('data-phone-presentation-frame', 'ready');
           reportExecutionFrame();
         },
-        onComplete: (playbackDirection) => {
+        onComplete: () => {
           const completionGeneration = runGenerationRef.current;
-          hasForwardRunRef.current = playbackDirection === 1;
+          hasForwardRunRef.current = true;
           forwardRequestedRef.current = false;
-          if (playbackDirection === 1) {
-            const forwardVideo = videoRef.current;
-            if (!forwardVideo) {
-              failMedia();
-              return;
-            }
-            void waitForPhoneTtgEndpoint(
-              () => phoneTtgHasReusableEndpointFrame(forwardVideo, 1)
-            ).then((presented) => {
-              if (
-                mediaRetiringRef.current
-                || completionGeneration !== runGenerationRef.current
-              ) return;
-              if (!presented) {
-                failMedia();
-                return;
-              }
-              runChapterDissolve(1, completionGeneration, () => {
-                reportRunCompletion(1, completionGeneration);
-              });
-            });
-            return;
-          }
-          const reverseVideo = videoRef.current;
-          if (!reverseVideo) {
+          const forwardVideo = videoRef.current;
+          if (!forwardVideo) {
             failMedia();
             return;
           }
-          // The reverse driver already requested this endpoint during its real
-          // final tick. Wait for that presentation evidence without re-seeking.
-          void waitForPhoneTtgReverseEndpoint(
-            reverseVideo,
-            reverseRunIdRef.current
+          void waitForPhoneTtgEndpoint(
+            () => phoneTtgHasReusableEndpointFrame(forwardVideo, 1)
           ).then((presented) => {
             if (
               mediaRetiringRef.current
@@ -1226,15 +1185,69 @@ export const PhoneTtg = forwardRef<
               failMedia();
               return;
             }
-            reverseVideo.dataset.phoneGroup45FrameReady = 'true';
-            reverseVideo.dataset.phoneTtgEndpointReady = 'initial';
-            setMediaReady(true);
-            reportRunCompletion(-1, completionGeneration);
+            runChapterDissolve(1, completionGeneration, () => {
+              reportRunCompletion(1, completionGeneration);
+            });
           });
         },
         onError: failMedia
       });
+      const reversePlayback = createPhonePresentedReversePlayback([
+        TTG_FIGURE_END_SECONDS * 1000,
+        async (progress) => {
+          const reverseRunId = reverseRunIdRef.current;
+          const runGeneration = runGenerationRef.current;
+          const controller = reverseAbortRef.current;
+          if (!controller || controller.signal.aborted) return false;
+          const [status, frameRunId, frameDirection, frameGeneration] =
+            await preparePhoneTimelineVideoFrame(
+              video,
+              ttgReverseMediaInput(reverseRunId, progress, controller.signal)
+            );
+          if (
+            controller.signal.aborted
+            || mediaRetiringRef.current
+            || runGeneration !== runGenerationRef.current
+            || reverseRunId !== reverseRunIdRef.current
+            || status !== 'ready'
+            || frameRunId !== reverseRunId
+            || frameDirection !== -1
+            || frameGeneration === null
+          ) return false;
+          const acceptedGeneration = reverseTimelineGenerationRef.current;
+          if (
+            acceptedGeneration !== null
+            && acceptedGeneration !== frameGeneration
+          ) return false;
+          reverseTimelineGenerationRef.current = frameGeneration;
+          video.dataset.phoneGroup45FrameReady = 'true';
+          reportExecutionFrame();
+          return true;
+        },
+        (progress) => {
+          renderFrame(progress);
+          publishChapterProgress(phoneTtgMediaChapterProgress(progress), -1);
+        },
+        () => {
+          const completionGeneration = runGenerationRef.current;
+          if (mediaRetiringRef.current) return;
+          video.dataset.phoneGroup45FrameReady = 'true';
+          video.dataset.phoneTtgEndpointReady = 'initial';
+          setMediaReady(true);
+          reportRunCompletion(-1, completionGeneration);
+        },
+        failMedia,
+        (status) => {
+          if (rootRef.current) {
+            rootRef.current.dataset.phoneTtgPlayback = playbackLabel(status, -1);
+          }
+        },
+        null,
+        null,
+        null
+      ]);
       playbackRef.current = playback;
+      reversePlaybackRef.current = reversePlayback;
       playback.reset(phoneTtgBootstrapEndpoint(targetPreparationRef.current));
       reconcileMedia();
     });
@@ -1243,6 +1256,10 @@ export const PhoneTtg = forwardRef<
       disposed = true;
       window.cancelAnimationFrame(ownershipFrame);
       root.removeEventListener('error', handleAssetError, true);
+      reverseAbortRef.current?.abort();
+      reverseAbortRef.current = null;
+      reversePlaybackRef.current?.dispose();
+      reversePlaybackRef.current = null;
       const playback = playbackRef.current;
       playback?.dispose();
       if (playbackRef.current === playback) playbackRef.current = null;
@@ -1325,6 +1342,9 @@ export const PhoneTtg = forwardRef<
       initialFrameAbortRef.current?.abort();
       initialFrameAbortRef.current = null;
       initialFramePreparationRef.current = null;
+      // A prewarm initial-frame seek must not remain the physical playhead
+      // owner after reverse admission claims the terminal endpoint.
+      disposePhoneTimelineVideo(videoRef.current);
     }
     let terminalRequested = false;
     const abandon = () => {
@@ -1343,14 +1363,13 @@ export const PhoneTtg = forwardRef<
         }
         const video = videoRef.current;
         if (!video || !playbackRef.current) return null;
-        if (
-          phoneTtgHasReusableEndpointFrame(video, endpoint)
-          && phoneTtgHasTokenBoundEndpointFrame(
-            preparedEndpointRef.current,
-            endpoint,
-            presentationKey
-          )
-        ) {
+        // The exact timeline tuple is the immutable decoder fact. Do not
+        // reject it later because Safari exposes a lagging mutable playhead.
+        if (phoneTtgHasTokenBoundEndpointFrame(
+          preparedEndpointRef.current,
+          endpoint,
+          presentationKey
+        )) {
           return true;
         }
         if (endpoint === 0) {

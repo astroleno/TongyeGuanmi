@@ -70,10 +70,9 @@ export function group45VideoNeedsEndpointSeek(
  * Unit 5's direct-video equivalent of the accepted phone AOD controller.
  *
  * The decoder owns forward time after entry. Scroll only starts the run and
- * remains pinned by the shell. Reverse runs publish the same canonical clock
- * while the scene adapter's shared timeline driver coalesces decoder seeks;
- * this controller never races that driver by writing every intermediate
- * playhead itself.
+ * remains pinned by the shell. Reverse playback is deliberately excluded:
+ * Safari reverse seeks must advance only after each decoder frame is
+ * physically presented by the shared presented-frame driver.
  */
 export function createGroup45NativeAutoplay(
   video: HTMLVideoElement,
@@ -93,19 +92,13 @@ export function createGroup45NativeAutoplay(
   let frame = 0;
   let playAttempt = 0;
   let videoFrame = 0;
-  let direction: Group45NativeAutoplayDirection = 1;
-  let reverseProgress = 1;
-  let reverseElapsedMs = 0;
-  let reverseFrameTime: number | undefined;
 
   const publishStatus = (status: Group45NativeAutoplayStatus) => {
     if (import.meta.env.DEV) {
       video.dataset.phoneGroup45Autoplay = status;
-      video.dataset.phoneGroup45AutoplayDirection = direction === 1
-        ? 'forward'
-        : 'reverse';
+      video.dataset.phoneGroup45AutoplayDirection = 'forward';
     }
-    options.onStatus?.(status, direction);
+    options.onStatus?.(status, 1);
   };
 
   const cancelScheduledFrame = () => {
@@ -124,18 +117,13 @@ export function createGroup45NativeAutoplay(
       || !active
       || typeof video.requestVideoFrameCallback !== 'function'
     ) return;
-    const frameDirection = direction;
     videoFrame = video.requestVideoFrameCallback((_now, metadata) => {
       videoFrame = 0;
-      if (disposed || direction !== frameDirection) return;
+      if (disposed) return;
       markReady();
-      options.onPresentedFrame?.(metadata.mediaTime, frameDirection);
-      // Forward native playback keeps producing decoder frames; reverse is
-      // driven by the shared seek clock and needs only its first new physical
-      // presentation to admit the token-bound media leg.
+      options.onPresentedFrame?.(metadata.mediaTime, 1);
       if (
-        frameDirection === 1
-        && active
+        active
         && !video.paused
         && !video.ended
       ) watchPresentedFrame();
@@ -152,12 +140,11 @@ export function createGroup45NativeAutoplay(
   const mediaProgress = () => clamp(video.currentTime / duration);
 
   const render = (forcedProgress?: number): number => {
-    const progress = forcedProgress
-      ?? (direction === 1 ? mediaProgress() : reverseProgress);
+    const progress = forcedProgress ?? mediaProgress();
     if (import.meta.env.DEV) {
       video.dataset.phoneGroup45AutoplayProgress = progress.toFixed(4);
     }
-    options.onProgress(progress, direction);
+    options.onProgress(progress, 1);
     return progress;
   };
 
@@ -170,36 +157,21 @@ export function createGroup45NativeAutoplay(
     video.pause();
     markReady();
     publishStatus('complete');
-    const endpoint = direction === 1 ? 1 : 0;
-    render(endpoint);
-    options.onComplete?.(direction);
+    render(1);
+    options.onComplete?.(1);
   };
 
   const renderAndComplete = () => {
-    const progress = render();
-    const complete = direction === 1
-      ? video.ended
-      : progress <= .001;
-    if (complete) {
+    render();
+    if (video.ended) {
       completeRun();
       return true;
     }
     return false;
   };
 
-  const tick: FrameRequestCallback = (time) => {
+  const tick: FrameRequestCallback = () => {
     frame = 0;
-    if (direction === -1) {
-      if (!active || disposed || visibilityDocument?.hidden) return;
-      if (reverseFrameTime === undefined) reverseFrameTime = time;
-      const elapsed = Math.max(0, time - reverseFrameTime);
-      reverseFrameTime = time;
-      reverseElapsedMs += elapsed;
-      reverseProgress = clamp(1 - reverseElapsedMs / (duration * 1000));
-      if (renderAndComplete()) return;
-      frame = requestFrame(tick);
-      return;
-    }
     if (!active || disposed || renderAndComplete()) return;
     if (!video.paused && !video.ended) {
       frame = requestFrame(tick);
@@ -216,7 +188,6 @@ export function createGroup45NativeAutoplay(
     if (
       disposed
       || !active
-      || direction !== 1
       || playPending
       || visibilityDocument?.hidden
     ) {
@@ -256,11 +227,6 @@ export function createGroup45NativeAutoplay(
   const onFrameEvidence = () => {
     markReady();
     if (!active || renderAndComplete()) return;
-    if (direction === -1) {
-      publishStatus('playing');
-      schedule();
-      return;
-    }
     if (video.paused && !visibilityDocument?.hidden) play();
     else schedule();
   };
@@ -269,25 +235,17 @@ export function createGroup45NativeAutoplay(
       video.pause();
       return;
     }
-    if (direction === -1) {
-      video.pause();
-      publishStatus('playing');
-      schedule();
-      return;
-    }
     markReady();
     watchPresentedFrame();
     publishStatus('playing');
     schedule();
   };
   const onPause = () => {
-    if (direction === 1) {
-      cancelScheduledFrame();
-      if (active) render();
-    }
+    cancelScheduledFrame();
+    if (active) render();
   };
   const onEnded = () => {
-    if (direction === 1) completeRun();
+    completeRun();
   };
   const onMediaError = () => {
     if (disposed) return;
@@ -303,17 +261,12 @@ export function createGroup45NativeAutoplay(
     if (visibilityDocument?.hidden) {
       playAttempt += 1;
       playPending = false;
-      reverseFrameTime = undefined;
       cancelScheduledFrame();
       video.pause();
       publishStatus('suspended');
       return;
     }
-    if (direction === 1) play();
-    else {
-      publishStatus('playing');
-      schedule();
-    }
+    play();
   };
 
   video.addEventListener('loadeddata', onFrameEvidence);
@@ -330,7 +283,6 @@ export function createGroup45NativeAutoplay(
     active = false;
     playAttempt += 1;
     playPending = false;
-    reverseFrameTime = undefined;
     cancelScheduledFrame();
     cancelPresentedFrame();
     video.pause();
@@ -345,18 +297,13 @@ export function createGroup45NativeAutoplay(
       return active;
     },
     start(nextDirection = 1) {
-      if (disposed) return;
-      if (active && direction === nextDirection) {
-        if (direction === 1) play();
-        else schedule();
+      if (disposed || nextDirection !== 1) return;
+      if (active) {
+        play();
         return;
       }
       stopCurrentRun();
-      direction = nextDirection;
-      reverseProgress = 1;
-      reverseElapsedMs = 0;
-      reverseFrameTime = undefined;
-      const endpointTime = direction === 1 ? 0 : duration;
+      const endpointTime = 0;
       if (group45VideoNeedsEndpointSeek(
         video.currentTime,
         video.readyState,
@@ -376,37 +323,16 @@ export function createGroup45NativeAutoplay(
       video.preload = 'auto';
       video.playbackRate = 1;
       active = true;
-      render(direction === 1 ? 0 : 1);
+      render(0);
       publishStatus('starting');
-      if (direction === 1) {
-        play();
-      } else {
-        // A reverse stage is exposed only after its native receiver handoff.
-        // Arm rVFC at that point so the reducer receives a current physical
-        // decoder frame instead of treating retained endpoint metadata as
-        // first-frame proof.
-        watchPresentedFrame();
-        if (video.readyState >= 2) {
-          markReady();
-          publishStatus('playing');
-          schedule();
-        }
-      }
+      play();
     },
     retry() {
-      if (direction === 1) play();
-      else if (active && video.readyState >= 2) {
-        markReady();
-        publishStatus('playing');
-        schedule();
-      }
+      play();
     },
     reset(endpoint = 0) {
       if (disposed) return;
       stopCurrentRun();
-      direction = endpoint === 1 ? -1 : 1;
-      reverseProgress = endpoint;
-      reverseElapsedMs = endpoint === 1 ? 0 : duration * 1000;
       const endpointTime = endpoint === 1 ? duration : 0;
       if (group45VideoNeedsEndpointSeek(
         video.currentTime,

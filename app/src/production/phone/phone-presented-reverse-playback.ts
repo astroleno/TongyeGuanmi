@@ -35,12 +35,15 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+const PRESENTED_FRAME_STEP_MS = 1000 / 30;
+
 /**
  * Port of d208a86's Figure3 reverse runner for Unit 6 packed-alpha surfaces.
  * Safari cannot play these sources backwards, and a free-running seek clock
  * outruns the decoder. Advance canonical time only after the requested frame
- * is physically ready; elapsed wall time may skip logical samples, but the
- * retained Canvas never presents an unrelated terminal frame.
+ * is physically ready. Canonical time advances by one authored 30 fps sample
+ * only after that presentation, so a slow decoder cannot skip the visible
+ * reverse sequence to catch up with wall time.
  */
 export function createPhonePresentedReversePlayback(
   [
@@ -79,7 +82,6 @@ export function createPhonePresentedReversePlayback(
   let frame = 0;
   let generation = 0;
   let elapsedMs = 0;
-  let previousFrameTime: number | undefined;
 
   const publish = (status: PhonePresentedReversePlaybackStatus) => {
     options.onStatus?.(status);
@@ -106,7 +108,6 @@ export function createPhonePresentedReversePlayback(
     if (!active || disposed) return;
     active = false;
     preparing = false;
-    previousFrameTime = undefined;
     cancelScheduledFrame();
     publish('complete');
     options.onComplete();
@@ -116,21 +117,14 @@ export function createPhonePresentedReversePlayback(
     if (!active || disposed) return;
     active = false;
     preparing = false;
-    previousFrameTime = undefined;
     cancelScheduledFrame();
     publish('error');
     options.onError();
   };
 
-  function tick(time: number): void {
+  function tick(): void {
     frame = 0;
     if (disposed || !active || visibilityDocument?.hidden) return;
-    if (previousFrameTime === undefined) {
-      previousFrameTime = time;
-    } else {
-      elapsedMs += Math.max(0, time - previousFrameTime);
-      previousFrameTime = time;
-    }
     const progress = clamp(1 - elapsedMs / durationMs);
     const preparationGeneration = generation;
     preparing = true;
@@ -150,9 +144,17 @@ export function createPhonePresentedReversePlayback(
       if (progress <= 0.001) {
         complete();
       } else {
+        elapsedMs = Math.min(durationMs, elapsedMs + PRESENTED_FRAME_STEP_MS);
         schedule();
       }
-    }).catch(fail);
+    }).catch(() => {
+      if (
+        disposed
+        || !active
+        || preparationGeneration !== generation
+      ) return;
+      fail();
+    });
   }
 
   const stop = () => {
@@ -161,14 +163,12 @@ export function createPhonePresentedReversePlayback(
     active = false;
     preparing = false;
     elapsedMs = 0;
-    previousFrameTime = undefined;
     cancelScheduledFrame();
     publish('idle');
   };
 
   const onVisibilityChange = () => {
     if (!active) return;
-    previousFrameTime = undefined;
     if (visibilityDocument?.hidden) {
       cancelScheduledFrame();
       publish('suspended');
@@ -190,7 +190,6 @@ export function createPhonePresentedReversePlayback(
       active = true;
       preparing = false;
       elapsedMs = 0;
-      previousFrameTime = undefined;
       publish('starting');
       schedule();
     },
