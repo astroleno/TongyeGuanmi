@@ -169,6 +169,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
   const activeRef = useRef(false);
   const mediaRunTokenRef = useRef<string | null>(null);
   const renderedRef = useRef(false);
+  const entranceCompletedRef = useRef(false);
   const lastProgressRef = useRef(Number.NaN);
   const disposeEntranceRef = useRef<(() => void) | null>(null);
   const [titleActive, setTitleActive] = useState(false);
@@ -208,17 +209,20 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
   const completeEntrance = useCallback(() => {
     cancelEntrance();
     renderEntrance(1);
+    entranceCompletedRef.current = true;
     playbackRef.current?.startStableIdle();
   }, [cancelEntrance, renderEntrance]);
 
   const startEntrance = useCallback(() => {
     cancelEntrance();
+    entranceCompletedRef.current = false;
     setTitleActive(false);
     renderEntrance(0);
     disposeEntranceRef.current = startHeroIntro({
       render: (sample) => renderEntrance(sample.progress),
       onComplete: () => {
         disposeEntranceRef.current = null;
+        entranceCompletedRef.current = true;
         playbackRef.current?.startStableIdle();
       }
     });
@@ -332,7 +336,12 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       settle(endpoint) {
         if (endpoint === 0) {
           commandHandle.render(0);
-          playbackRef.current?.settle();
+          if (entranceCompletedRef.current) {
+            activeRef.current = true;
+            compositorRef.current?.setActive(true);
+            playbackRef.current?.setActive(true);
+            playbackRef.current?.startStableIdle();
+          } else playbackRef.current?.settle();
           return;
         }
         playbackRef.current?.setActive(true);

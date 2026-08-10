@@ -1900,6 +1900,56 @@ test('Hero Loader handoff starts at zero under one fixed opaque topology', async
   await assertNoWhiteOrTransparentViewportEdges(page);
 });
 
+test('stable Hero resumes Figure1 after visibility and BFCache lifecycle recovery', async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const visibility = { current: 'visible' as DocumentVisibilityState };
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true, get: () => visibility.current
+    });
+    Object.defineProperty(window, '__r5SetVisibility', {
+      configurable: true,
+      value: (next: DocumentVisibilityState) => {
+        visibility.current = next;
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+    });
+  });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+  await waitForContinuousStoryReady(page);
+  const playback = page.locator('[data-portrait-figure-video]');
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'autoplay', {
+    timeout: 10_000
+  });
+
+  await page.evaluate(() => {
+    const api = window as typeof window & {
+      __r5SetVisibility(next: DocumentVisibilityState): void;
+    };
+    api.__r5SetVisibility('hidden');
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+  });
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'paused', {
+    timeout: 5_000
+  });
+
+  const before = await playback.evaluate((video) => video.currentTime);
+  await page.evaluate(() => {
+    const api = window as typeof window & {
+      __r5SetVisibility(next: DocumentVisibilityState): void;
+    };
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    api.__r5SetVisibility('visible');
+  });
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'autoplay', {
+    timeout: 10_000
+  });
+  await page.waitForTimeout(400);
+  const after = await playback.evaluate((video) => video.currentTime);
+  expect(after).toBeGreaterThan(before);
+});
+
 test('formal contract keeps every real viewport edge opaque', async ({ page }) => {
   let releaseVideo = () => undefined;
   const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });

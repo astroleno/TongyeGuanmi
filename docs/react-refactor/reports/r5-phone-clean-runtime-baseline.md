@@ -1175,3 +1175,49 @@ changes, background/foreground, AOD → Method, Figure2 arch continuity,
 Brand ↔ Figure3, Figure3 sharpness within the existing 1280×720 source limit,
 A/B flash, ghosting, and viewport rebound. Until that matrix is recorded,
 these automated results do not close the physical P0.
+
+## 14. 2026-08-10 delayed Figure3 fallback and Hero lifecycle follow-up
+
+This addendum records the two final correctness-review fixes applied after
+section 13. It remains automation evidence only; the physical iPhone gate is
+unchanged.
+
+### 14.1 Closed review findings
+
+- Figure3 initial activation now races the decoded frame preparation against
+  the already decoded poster proof. A poster winner settles the activation
+  immediately even when frame preparation never resolves; synchronous prime
+  errors and asynchronous preparation failures enter the same bounded fallback
+  path. A late frame can still upgrade the current generation while the
+  presentation remains owned by that generation.
+- Completed Hero entrance state is retained across lifecycle pause. A stable
+  `settle(0)` after visibility/BFCache recovery reactivates the compositor and
+  stable-idle Figure1 clock without replaying the Loader entrance or fabricating
+  segment progress.
+
+### 14.2 Fresh automated evidence
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Focused regression units | pass | 21/21 Figure3 and Hero tests |
+| Vitest | pass | 177 files, 1,350 tests |
+| TypeScript | pass | `pnpm typecheck`, no diagnostics |
+| Production build and budgets | pass | phone JS 658,775 B; hard-cap headroom 4,777 B |
+| Targeted phone WebKit | pass | 6/6, including Hero lifecycle recovery and Figure3 atomic handoff |
+| Phone portrait WebKit full suite | pass | 70/70, one worker, 9.3 min |
+| Source hygiene | pass | `git diff --check` |
+
+The full suite includes the new visibility/BFCache Hero recovery traversal and
+the existing withheld-frame, poster-fallback, atomic-buffer, and complete
+60-segment checks. A candidate commit, release manifest, and build identity
+must still be created from the clean source after this follow-up; no dirty
+build is a physical acceptance artifact.
+
+### 14.3 Remaining release gate
+
+Physical iPhone Safari remains mandatory for touch input, normal and Low Power
+Mode, toolbar changes, background/foreground, AOD → Method, Figure2 arch
+continuity, Brand ↔ Figure3, Figure3 sharpness within the existing 1280×720
+source limit, A/B flash, ghosting, and viewport rebound. Until that matrix is
+recorded against the immutable candidate commit/build, the implementation is
+automation-complete but not P0/release complete.

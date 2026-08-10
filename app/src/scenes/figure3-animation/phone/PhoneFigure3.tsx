@@ -523,23 +523,20 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         if (generation === null) {
           throw new Error('Figure3 activation could not start its initial composite');
         }
-        await primePhoneNativeVideo(video, {
-          isCurrent: () => !disposedRef.current
-            && generation === activationGenerationRef.current
-            && binding === bindingRef.current,
-          phase: () => mediaClockActiveRef.current ? 'playing' : 'primed',
-          onRejected: (error: unknown) => {
-            if (generation !== activationGenerationRef.current
-              || binding !== bindingRef.current || disposedRef.current) return;
-            const root = rootRef.current;
-            if (root) root.dataset.phoneFigure3InitialPrimeFailure = error instanceof Error
-              ? error.message : String(error);
-          }
-        });
         try {
-          const prepared = await prepareCurrentFrame(generation, binding, direction);
-          if (!prepared) throw new Error('Figure3 activation was superseded before frame preparation');
-          video.pause();
+          await primePhoneNativeVideo(video, {
+            isCurrent: () => !disposedRef.current
+              && generation === activationGenerationRef.current
+              && binding === bindingRef.current,
+            phase: () => mediaClockActiveRef.current ? 'playing' : 'primed',
+            onRejected: (error: unknown) => {
+              if (generation !== activationGenerationRef.current
+                || binding !== bindingRef.current || disposedRef.current) return;
+              const root = rootRef.current;
+              if (root) root.dataset.phoneFigure3InitialPrimeFailure = error instanceof Error
+                ? error.message : String(error);
+            }
+          });
         } catch (error) {
           if (generation !== activationGenerationRef.current
             || binding !== bindingRef.current || disposedRef.current) throw error;
@@ -547,7 +544,42 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
           if (root) root.dataset.phoneFigure3InitialFailure = error instanceof Error
             ? error.message : String(error);
           exposePosterFallback(binding, 'decode-failed');
+          await proof;
+          return;
         }
+        const preparation = prepareCurrentFrame(generation, binding, direction).then(
+          (prepared) => ({ kind: 'video' as const, prepared }),
+          (error: unknown) => {
+            if (generation !== activationGenerationRef.current
+              || binding !== bindingRef.current || disposedRef.current) {
+              throw error;
+            }
+            const root = rootRef.current;
+            if (root) root.dataset.phoneFigure3InitialFailure = error instanceof Error
+              ? error.message : String(error);
+            exposePosterFallback(binding, 'decode-failed');
+            return { kind: 'fallback' as const };
+          }
+        );
+        const winner = await Promise.race([
+          proof.then(() => 'proof' as const),
+          preparation
+        ]);
+        if (winner === 'proof') return;
+        if (winner.kind === 'fallback') {
+          await proof;
+          return;
+        }
+        if (!winner.prepared) {
+          if (generation !== activationGenerationRef.current
+            || binding !== bindingRef.current || disposedRef.current) {
+            throw new Error('Figure3 activation was superseded before frame preparation');
+          }
+          exposePosterFallback(binding, 'decode-failed');
+          await proof;
+          return;
+        }
+        video.pause();
         await proof;
       });
       return {

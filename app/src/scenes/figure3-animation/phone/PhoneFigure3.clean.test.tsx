@@ -73,7 +73,11 @@ vi.mock('./paper-compositor', () => ({
   releasePhoneFigure3PaperCanvas: vi.fn()
 }));
 
-import { PhoneFigure3, phoneFigure3HasReusableEndpointFrame } from './PhoneFigure3';
+import {
+  PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS,
+  PhoneFigure3,
+  phoneFigure3HasReusableEndpointFrame
+} from './PhoneFigure3';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -432,6 +436,106 @@ describe('clean PhoneFigure3 leaf', () => {
     );
     expect(current.reports.reportFrame).not.toHaveBeenCalled();
     act(() => root.unmount());
+  });
+
+  it('settles activation from the poster winner while video frame preparation remains pending', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+      vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+      probe.prepareFrame.mockImplementationOnce(() => new Promise(() => undefined));
+      const host = document.createElement('div');
+      const root = createRoot(host);
+      const mount = reportFixture();
+      await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+      const current = reportFixture();
+      mount.registration()?.commands.rebind({
+        reports: current.reports,
+        frameToken: 'figure3:poster-wins:1',
+        segmentId: 'brand-figure3'
+      });
+      const invocation = mount.registration()?.commands.activate({
+        invocationId: 'figure3:poster-wins:activation',
+        surfaceIds: ['figure3-video'],
+        credit: 'physical-epoch', playback: false
+      });
+      const settlement = invocation?.settlements[0];
+      if (!settlement || settlement.status !== 'pending') {
+        throw new Error('missing Figure3 poster-winner settlement');
+      }
+      const poster = host.querySelector('[data-phone-figure3-paper-poster]');
+      poster?.dispatchEvent(new Event('load'));
+      let settled = false;
+      void settlement.settled.then(() => { settled = true; });
+
+      await act(async () => {
+        await Promise.resolve();
+        vi.advanceTimersByTime(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(settled).toBe(true);
+      expect(current.reports.reportPrepared).toHaveBeenCalledWith(
+        'figure3-initial-composite', expect.objectContaining({
+          detail: expect.objectContaining({ winner: 'poster-fallback' })
+        })
+      );
+      act(() => root.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('settles the poster fallback when the activation prime throws synchronously', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => {
+        throw new Error('activation denied synchronously');
+      });
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+      vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+      const host = document.createElement('div');
+      const root = createRoot(host);
+      const mount = reportFixture();
+      await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+      const current = reportFixture();
+      mount.registration()?.commands.rebind({
+        reports: current.reports,
+        frameToken: 'figure3:prime-throws:1',
+        segmentId: 'brand-figure3'
+      });
+      const invocation = mount.registration()?.commands.activate({
+        invocationId: 'figure3:prime-throws:activation',
+        surfaceIds: ['figure3-video'],
+        credit: 'physical-epoch', playback: false
+      });
+      const settlement = invocation?.settlements[0];
+      if (!settlement || settlement.status !== 'pending') {
+        throw new Error('missing Figure3 sync-prime settlement');
+      }
+      host.querySelector('[data-phone-figure3-paper-poster]')?.dispatchEvent(new Event('load'));
+      let settled = false;
+      void settlement.settled.then(() => { settled = true; });
+
+      await act(async () => {
+        await Promise.resolve();
+        vi.advanceTimersByTime(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(settled).toBe(true);
+      expect(current.reports.reportPrepared).toHaveBeenCalledWith(
+        'figure3-initial-composite', expect.objectContaining({
+          detail: expect.objectContaining({ winner: 'poster-fallback' })
+        })
+      );
+      act(() => root.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects a stale activation settlement instead of fulfilling it', async () => {
