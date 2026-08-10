@@ -86,15 +86,18 @@ export function applyPhonePhMediaFallback(
   renderPhonePhPresentation(section, 0);
 }
 
-export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
+export function parkPhonePhMedia(
+  root: HTMLElement | null | undefined,
+  options: Readonly<{ disposeDriver?: boolean }> = {}
+): void {
   const section = phonePhRootFor(root);
   const video = section?.querySelector<HTMLVideoElement>(
     '[data-ph-alpha-video]'
   );
-  if (video) {
+  if (video && options.disposeDriver !== false) {
     disposeTimelineVideoDriver(video);
-    video.pause();
   }
+  video?.pause();
   if (section?.dataset.phonePhMedia !== 'fallback') {
     section?.setAttribute('data-phone-ph-media', 'parked');
   }
@@ -115,7 +118,6 @@ export function phonePhPresentedFrameMatchesToken(
  */
 export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAdapterProps>(
   function PhonePh({
-    active,
     onReady,
     onCinematicFact,
     reducedMotion
@@ -139,6 +141,7 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
     );
     const expectedReverseFrameRef = useRef<string | null>(null);
     const presentedReverseFrameRef = useRef<string | null>(null);
+    const presentedReverseMediaTimeRef = useRef<number | null>(null);
     const reportPresentationFrame = useCallback((presentationKey: string | null) => {
       const binding = presentationBindingRef.current;
       if (!binding || binding.key !== presentationKey) return;
@@ -175,11 +178,12 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
           'ph-figure',
           'ph-layer ph-layer--figure phone-ph__figure-canvas',
           null,
-          (presentationKey) => {
+          (presentationKey, mediaTime) => {
             video.dataset.timelineVideoFrameReady = 'true';
             root.dataset.phonePhMedia = video.paused ? 'ready' : 'playing';
             if (presentationKey === expectedReverseFrameRef.current) {
               presentedReverseFrameRef.current = presentationKey;
+              presentedReverseMediaTimeRef.current = mediaTime;
             }
             beginPreparedReverseRef.current?.();
             presentedFrameRef.current?.(presentationKey);
@@ -209,8 +213,11 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       const surface = packedSurfaceRef.current;
       const key = phoneRuntimePresentationTokenKey(token);
       expectedReverseFrameRef.current = key;
-      presentedReverseFrameRef.current = null;
-      surface?.(['present', key]);
+      if (presentedReverseFrameRef.current !== key) {
+        presentedReverseFrameRef.current = null;
+        presentedReverseMediaTimeRef.current = null;
+        surface?.(['present', key]);
+      }
     }, []);
 
     const reverseReady = useCallback((token: PresentationToken | null) => {
@@ -261,6 +268,34 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
     beginPreparedReverseRef.current = beginPreparedReverse;
     presentedFrameRef.current = publishPresentedFrame;
 
+    type LifecycleTuple = readonly [
+      typeof completeRun,
+      typeof failRun,
+      typeof onReady,
+      typeof publishPlaying,
+      typeof renderProgress,
+      typeof startRun,
+      typeof stopRun
+    ];
+    const lifecycleRef = useRef<LifecycleTuple>([
+      completeRun,
+      failRun,
+      onReady,
+      publishPlaying,
+      renderProgress,
+      startRun,
+      stopRun
+    ] as LifecycleTuple);
+    lifecycleRef.current = [
+      completeRun,
+      failRun,
+      onReady,
+      publishPlaying,
+      renderProgress,
+      startRun,
+      stopRun
+    ] as LifecycleTuple;
+
     useEffect(() => {
       const root = rootRef.current;
       const video = root?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
@@ -275,92 +310,69 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       );
       renderPhonePhPresentation(root, 0);
       const nativeAutoplay = createPhoneNativeAutoplay(video, {
-        runIdPrefix: 'phone-ph-figure',
-        durationSeconds: PHONE_PH_FIGURE_END_SECONDS,
-        onProgress: (progress) => renderProgress(
-          phonePhTimelineProgressForMediaProgress(progress),
-          1
-        ),
-        onComplete: () => completeRun(1),
-        onFailure: () => {
-          root.dataset.phonePhMedia = 'retryable-failure';
-          failRun(1);
-        },
-        onFrameReady: () => {
-          root.dataset.phonePhMedia = 'decoding';
-          publishPlaying();
-        }
-      });
-      const reversePlayback = createPhonePhPresentedReverse(
-        root,
-        renderProgress,
-        () => completeRun(-1),
-        () => {
-          root.dataset.phonePhMedia = 'retryable-failure';
-          failRun(-1);
-        }
+         runIdPrefix: 'phone-ph-figure',
+         durationSeconds: PHONE_PH_FIGURE_END_SECONDS,
+         onProgress: (progress) => lifecycleRef.current[4](
+           phonePhTimelineProgressForMediaProgress(progress),
+           1
+         ),
+         onComplete: () => lifecycleRef.current[0](1),
+         onFailure: () => {
+           root.dataset.phonePhMedia = 'retryable-failure';
+           lifecycleRef.current[1](1);
+         },
+         onFrameReady: () => {
+           root.dataset.phonePhMedia = 'decoding';
+           lifecycleRef.current[3]();
+         }
+       });
+       const reversePlayback = createPhonePhPresentedReverse(
+         root,
+         (progress, direction) => lifecycleRef.current[4](progress, direction),
+         () => {
+           lifecycleRef.current[0](-1);
+         },
+         () => {
+           root.dataset.phonePhMedia = 'retryable-failure';
+           lifecycleRef.current[1](-1);
+         },
+        (mediaTime) => packedSurfaceRef.current?.(['frame', mediaTime]) === true,
+        () => presentedReverseMediaTimeRef.current
       );
-      nativeAutoplayRef.current = nativeAutoplay;
-      reversePlaybackRef.current = reversePlayback;
-      if (import.meta.env.DEV) root.dataset.phonePhLifecycle = 'ready';
-      const requestedDirection = requestedRef.current;
-      if (requestedDirection !== null) startRun(requestedDirection);
-      onReady?.();
+       nativeAutoplayRef.current = nativeAutoplay;
+       reversePlaybackRef.current = reversePlayback;
+       const requestedDirection = requestedRef.current;
+       if (requestedDirection !== null) lifecycleRef.current[5](requestedDirection);
+       lifecycleRef.current[2]?.();
 
       return () => {
         expectedReverseFrameRef.current = null;
         presentedReverseFrameRef.current = null;
+        presentedReverseMediaTimeRef.current = null;
         nativeAutoplay.dispose();
         reversePlayback?.dispose();
-        stopRun();
+        lifecycleRef.current[6]();
         packedSurfaceRef.current?.(['dispose']);
         packedSurfaceRef.current = null;
         if (nativeAutoplayRef.current === nativeAutoplay) nativeAutoplayRef.current = null;
         if (reversePlaybackRef.current === reversePlayback) reversePlaybackRef.current = null;
-        parkPhonePhMedia(root);
+        // A dependency refresh can run this cleanup while the same DOM root
+        // is immediately being rebound to a new immutable execution. Keep
+        // the shared timeline driver alive in that case; the next lifecycle
+        // setup retires the old driver before installing its native owner.
+        parkPhonePhMedia(root, { disposeDriver: !root.isConnected });
         delete video.dataset.timelineVideoFrameReady;
-        if (import.meta.env.DEV) delete root.dataset.phonePhLifecycle;
         root.style.removeProperty('--phone-ph-island-source');
       };
-    }, [
-      ensurePackedSurface,
-      presentPreparedFrame,
-      onReady,
-      renderPresentation,
-      requestedRef,
-      completeRun,
-      failRun,
-      publishPlaying,
-      renderProgress,
-      startRun,
-      stopRun
-    ]);
+    }, []);
 
-    useEffect(() => {
-      const root = rootRef.current;
-      if (root && import.meta.env.DEV) {
-        root.dataset.phonePhActive = String(active);
-      }
-    }, [active]);
-
-    useEffect(() => {
-      if (active) return;
-
-      // Keep the adapter mounted for token re-binding, but retire the packed
-      // decoder/context once it is no longer the admitted visual owner. The
-      // surface retains its Canvas owner and restores that same context on a
-      // later reverse admission; recreating a new surface on every round is
-      // what made cumulative WebKit context creation exceed the route cap.
-      stopRun();
-      expectedReverseFrameRef.current = null;
-      presentedReverseFrameRef.current = null;
-      if (presentationBindingRef.current) {
-        packedSurfaceRef.current?.(['release']);
-      } else {
-        packedSurfaceRef.current?.(['retire']);
-      }
-      parkPhonePhMedia(rootRef.current);
-    }, [active, stopRun]);
+    // `active` is a render projection, not a lifecycle fact. During a lazy
+    // composite handoff it can briefly fall behind the machine-owned source
+    // role while reverse preparation is already decoding the next exact
+    // frame. Retiring the decoder from that transient boolean removes its
+    // source and turns the still-valid token into a stale frame. The runner
+    // owns stop/retire at the transaction boundary; this leaf keeps its one
+    // packed surface alive until explicit dispose/unmount.
 
     const prepareTargetPresentation = useCallback(async (
       request: TargetPresentationRequest
@@ -375,6 +387,15 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
         request.progress >= 0.999 || request.direction === -1
           ? 'endpoint'
           : 'forward';
+      const presentationKey = phoneRuntimePresentationTokenKey(request.presentationToken as PresentationToken);
+      if (mode === 'endpoint') {
+        // Arm the reverse identity before endpoint preparation. If the exact
+        // rVFC-backed draw arrives during preparation, it is the same frame
+        // that startRun(-1) will consume; do not force a second fallback draw
+        // merely because the reverse player has not started yet.
+        expectedReverseFrameRef.current = presentationKey;
+        presentedReverseFrameRef.current = null;
+      }
       root.dataset.phonePhMedia = 'preparing-target';
       const video = root.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
       video?.removeAttribute('data-phone-ph-media');
@@ -386,7 +407,7 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
           mode,
           request.signal,
           request.directEntry === true,
-          phoneRuntimePresentationTokenKey(request.presentationToken as PresentationToken)
+          presentationKey
         ]);
       } catch (error) {
         root.dataset.phonePhMedia = 'retryable-failure';
@@ -429,6 +450,7 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
         presentationBindingRef.current = null;
         expectedReverseFrameRef.current = null;
         presentedReverseFrameRef.current = null;
+        presentedReverseMediaTimeRef.current = null;
         disposeRun();
         packedSurfaceRef.current?.(['dispose']);
         packedSurfaceRef.current = null;

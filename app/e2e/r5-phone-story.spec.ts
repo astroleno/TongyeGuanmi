@@ -347,7 +347,7 @@ function assertTexturedBottomBand(
   expect(
     evidence.nonSurfaceRatio,
     `${label} must be real middle-camera pixels, not a flat fallback band`
-  ).toBeGreaterThan(.025);
+  ).toBeGreaterThan(.12);
   expect(
     transparentPixels / samples,
     `${label} must not expose transparent pixels`
@@ -359,12 +359,13 @@ function assertTexturedBottomBand(
   expect(
     maximumLuminance - minimumLuminance,
     `${label} must retain authored camera texture, not a uniform fallback`
-  ).toBeGreaterThan(4);
+  ).toBeGreaterThan(6);
 }
 
 type Figure2CoverageTile = Readonly<{
   nonSurfaceRatio: number;
   luminanceRange: number;
+  nearWhiteRatio: number;
 }>;
 
 function figure2CoverageTiles(
@@ -386,6 +387,7 @@ function figure2CoverageTiles(
       let samples = 0;
       let minimum = 255;
       let maximum = 0;
+      let nearWhite = 0;
       for (let y = top; y < bottom; y += 1) {
         for (let x = left; x < right; x += 1) {
           const offset = (y * screenshot.width + x) * screenshot.channels;
@@ -401,6 +403,7 @@ function figure2CoverageTiles(
             (red * 0.2126) + (green * 0.7152) + (blue * 0.0722)
           );
           if (distance > 10) nonSurface += 1;
+          if (red >= 248 && green >= 248 && blue >= 248) nearWhite += 1;
           minimum = Math.min(minimum, luminance);
           maximum = Math.max(maximum, luminance);
           samples += 1;
@@ -408,7 +411,8 @@ function figure2CoverageTiles(
       }
       tiles.push({
         nonSurfaceRatio: samples > 0 ? nonSurface / samples : 0,
-        luminanceRange: maximum - minimum
+        luminanceRange: maximum - minimum,
+        nearWhiteRatio: samples > 0 ? nearWhite / samples : 0
       });
     }
   }
@@ -427,14 +431,126 @@ function assertFigure2CoverageTexture(
   expect(
     authoredTiles.length,
     `${label} must texture the expanded camera region in every block: ${JSON.stringify(tiles)}`
-  ).toBeGreaterThanOrEqual(Math.ceil(tiles.length * .75));
+  ).toBeGreaterThanOrEqual(Math.ceil(tiles.length * .9));
   const flatTiles = tiles.filter((tile) => (
     tile.nonSurfaceRatio < .03 && tile.luminanceRange <= 4
   ));
   expect(
     flatTiles.length,
     `${label} must not leave a long flat middle-camera fallback band: ${JSON.stringify(tiles)}`
-  ).toBeLessThanOrEqual(Math.floor(tiles.length * .12));
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.max(...tiles.map((tile) => tile.nearWhiteRatio)),
+    `${label} must not expose a large pure-white continuation tile: ${JSON.stringify(tiles)}`
+  ).toBeLessThan(.55);
+  const bottomRow = tiles.slice(-8);
+  expect(
+    bottomRow.every((tile) => (
+      tile.nonSurfaceRatio > .12
+      && tile.luminanceRange > 4
+      && tile.nearWhiteRatio < .55
+    )),
+    `${label} bottom continuation row must contain authored texture in every tile: ${JSON.stringify(bottomRow)}`
+  ).toBe(true);
+}
+
+function assertFigure2ContinuationPixels(
+  screenshot: PngScreenshot,
+  startY: number,
+  surface: readonly [number, number, number],
+  label: string,
+  options: Readonly<{
+    pixelRatio?: number;
+    endY?: number;
+  }> = {}
+): void {
+  const pixelRatio = Math.max(1, options.pixelRatio ?? 1);
+  const firstRow = Math.max(
+    0,
+    Math.min(screenshot.height - 1, Math.ceil(startY * pixelRatio))
+  );
+  const lastRow = Math.max(
+    firstRow + 1,
+    Math.min(
+      screenshot.height,
+      Math.ceil((options.endY ?? screenshot.height / pixelRatio) * pixelRatio)
+    )
+  );
+  const rows: Array<{
+    range: number;
+    nonSurface: number;
+    nearWhite: number;
+    transparent: number;
+    authoredTiles: number;
+  }> = [];
+  for (let y = firstRow; y < lastRow; y += 1) {
+    let minimum = 255;
+    let maximum = 0;
+    let nonSurface = 0;
+    let nearWhite = 0;
+    let transparent = 0;
+    let authoredTiles = 0;
+    for (let x = 0; x < screenshot.width; x += 1) {
+      const offset = (y * screenshot.width + x) * screenshot.channels;
+      const red = screenshot.pixels[offset] ?? 0;
+      const green = screenshot.pixels[offset + 1] ?? 0;
+      const blue = screenshot.pixels[offset + 2] ?? 0;
+      if (Math.max(
+        Math.abs(red - surface[0]),
+        Math.abs(green - surface[1]),
+        Math.abs(blue - surface[2])
+      ) > 10) nonSurface += 1;
+      minimum = Math.min(minimum, Math.round((red * .2126) + (green * .7152) + (blue * .0722)));
+      maximum = Math.max(maximum, Math.round((red * .2126) + (green * .7152) + (blue * .0722)));
+      if (red >= 248 && green >= 248 && blue >= 248) nearWhite += 1;
+      if (screenshot.channels === 4 && (screenshot.pixels[offset + 3] ?? 0) < 250) {
+        transparent += 1;
+      }
+    }
+    for (let tile = 0; tile < 4; tile += 1) {
+      const tileStart = Math.floor(screenshot.width * tile / 4);
+      const tileEnd = Math.max(tileStart + 1, Math.floor(screenshot.width * (tile + 1) / 4));
+      let tileMinimum = 255;
+      let tileMaximum = 0;
+      let tileNonSurface = 0;
+      for (let x = tileStart; x < tileEnd; x += 1) {
+        const offset = (y * screenshot.width + x) * screenshot.channels;
+        const red = screenshot.pixels[offset] ?? 0;
+        const green = screenshot.pixels[offset + 1] ?? 0;
+        const blue = screenshot.pixels[offset + 2] ?? 0;
+        const luminance = Math.round((red * .2126) + (green * .7152) + (blue * .0722));
+        tileMinimum = Math.min(tileMinimum, luminance);
+        tileMaximum = Math.max(tileMaximum, luminance);
+        if (Math.max(
+          Math.abs(red - surface[0]),
+          Math.abs(green - surface[1]),
+          Math.abs(blue - surface[2])
+        ) > 10) tileNonSurface += 1;
+      }
+      if (tileMaximum - tileMinimum > 4 && tileNonSurface / (tileEnd - tileStart) > .02) {
+        authoredTiles += 1;
+      }
+    }
+    rows.push({
+      range: maximum - minimum,
+      nonSurface: nonSurface / screenshot.width,
+      nearWhite: nearWhite / screenshot.width,
+      transparent: transparent / screenshot.width,
+      authoredTiles
+    });
+  }
+  expect(rows.length, `${label} must include a physical extension region`).toBeGreaterThan(8);
+  const texturedRows = rows.filter((row) => (
+    row.range > 8
+    && row.nonSurface > .02
+    && row.nearWhite < .02
+    && row.transparent === 0
+    && row.authoredTiles >= 2
+  ));
+  expect(
+    texturedRows.length / rows.length,
+    `${label} must texture the entire extension, not only a small patch`
+  ).toBeGreaterThan(.75);
 }
 
 function assertPresentedReverseVideoFrames(
@@ -475,10 +591,13 @@ function assertPresentedReversePackedFrames(
   owner: string,
   label: string
 ): string {
-  const evidence = draws.filter((draw) => draw.owner.includes(owner));
+  const evidence = draws.filter((draw) => (
+    draw.owner.includes(owner)
+    && draw.mediaEvidence === 'rvfc'
+  ));
   expect(
     new Set(evidence.map((entry) => entry.hash)).size,
-    `${label} needs at least three physically distinct packed Canvas frames`
+    `${label} needs at least three physically distinct packed Canvas frames: ${JSON.stringify(evidence)}`
   ).toBeGreaterThanOrEqual(3);
   const tokens = new Set(evidence.flatMap((entry) => (
     entry.packedToken ? [entry.packedToken] : []
@@ -917,6 +1036,7 @@ type PhoneVisualLeaseDraw = Readonly<{
   owner: string;
   hash: string;
   mediaTime: number | null;
+  mediaEvidence: string | null;
   effectToken: string | null;
   packedToken: string | null;
 }>;
@@ -1875,9 +1995,9 @@ async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
       const scene = canvas.closest<HTMLElement>('[data-phone-scene], [data-r4-scene]');
       const video = scene?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')
         ?? scene?.querySelector<HTMLVideoElement>('[data-crane-alpha-video]');
-      const stampedMediaTime = Number.parseFloat(
-        canvas.dataset.packedAlphaMediaTime ?? ''
-      );
+      const stampedMediaTimeValue = canvas.dataset.packedAlphaMediaTime ?? '';
+      const mediaEvidence = canvas.dataset.packedAlphaFrameEvidence ?? null;
+      const stampedMediaTime = Number.parseFloat(stampedMediaTimeValue);
       const mediaTime = Number.isFinite(stampedMediaTime)
         ? stampedMediaTime
         : video && Number.isFinite(video.currentTime)
@@ -1894,6 +2014,7 @@ async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
         owner: ownerLabel(canvas),
         hash,
         mediaTime: Number.isFinite(mediaTime) ? mediaTime : null,
+        mediaEvidence,
         effectToken: canvas.dataset.phonePresentationEffectToken ?? null,
         packedToken: canvas.dataset.phonePackedAlphaPresentationToken ?? null
       });
@@ -3100,6 +3221,7 @@ async function driveAdjacentPhoneRun(
     await assertStablePhoneHold(page, to, { timeout: settleTimeout, scope });
   } catch (error) {
     const failedProbe = await phoneRuntimeProbe(page);
+    const failedDraws = await phoneVisualLeaseDraws(page);
     const failedAod = await page.evaluate(() => {
       const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
       const canvas = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
@@ -3147,7 +3269,8 @@ async function driveAdjacentPhoneRun(
         wheels: failedProbe.wheelEvents.slice(-8),
         cursors: failedProbe.cursorEvents.slice(-12),
         states: failedProbe.stateEvents.slice(-32),
-        aod: failedAod
+        aod: failedAod,
+        draws: failedDraws.slice(-24)
       })}`
     );
   }
@@ -5470,19 +5593,86 @@ test('[P1 Figure2 dynamic camera coverage] extends authored texture through a li
       '.portrait-scroll-spike__viewport-coverage'
     );
     const before = coverage ? getComputedStyle(coverage, '::before') : null;
+    const host = coverage ? getComputedStyle(coverage) : null;
+    const continuation = coverage ? getComputedStyle(coverage, '::after') : null;
     return {
       expectedBottom: Number.parseFloat(
         root ? getComputedStyle(root).getPropertyValue('--portrait-coverage-bottom') : ''
       ),
       cameraHeight: Number.parseFloat(before?.height ?? ''),
-      cameraImage: before?.backgroundImage ?? ''
+      cameraImage: before?.backgroundImage ?? '',
+      hostImage: host?.backgroundImage ?? '',
+      continuationImage: continuation?.backgroundImage ?? '',
+      continuationHeight: Number.parseFloat(continuation?.height ?? ''),
+      continuationSize: continuation?.backgroundSize ?? ''
     };
   });
+  await page.addStyleTag({
+    content: [
+      '[data-phone-coverage-probe-hidden="true"] { visibility: hidden !important; opacity: 0 !important; }',
+      '.portrait-scroll-spike__viewport-coverage { z-index: 999 !important; }'
+    ].join('\n')
+  });
+  await page.evaluate(() => {
+    document.querySelector('.portrait-scroll-spike__stage')
+      ?.setAttribute('data-phone-coverage-probe-hidden', 'true');
+    document.querySelector('.portrait-scroll-spike__route-overlay')
+      ?.setAttribute('data-phone-coverage-probe-hidden', 'true');
+    document.querySelector('.phone-grade-a-slot')
+      ?.setAttribute('data-phone-coverage-probe-hidden', 'true');
+  });
+  const pixelRatio = await page.evaluate(() => window.devicePixelRatio || 1);
+  await page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    root?.style.setProperty('--portrait-live-height', '852px');
+    root?.style.setProperty('--portrait-stage-height', '852px');
+    root?.style.setProperty('--portrait-stage-rail-height', '852px');
+  });
+  await page.waitForTimeout(100);
+  // iPhone emulation keeps the device viewport fixed, so changing
+  // setViewportSize() does not create a taller physical screenshot. Capture
+  // the actual fixed coverage host instead; its bounding box includes the
+  // offscreen continuation that Safari's live viewport would expose.
+  const coverageCaptureBytes = await page.locator(
+    '.portrait-scroll-spike__viewport-coverage'
+  ).screenshot({ animations: 'disabled' });
+  const coverageCapture = decodePngScreenshot(coverageCaptureBytes);
+  await page.evaluate(() => {
+    document.querySelectorAll('[data-phone-coverage-probe-hidden="true"]')
+      .forEach((element) => element.removeAttribute('data-phone-coverage-probe-hidden'));
+  });
+  expect(
+    coverageCapture.height,
+    'Figure2 continuation capture must include the expanded offscreen region'
+  ).toBeGreaterThanOrEqual(
+    Math.ceil(expandedCoverage.expectedBottom * pixelRatio) - 1
+  );
+  assertFigure2CoverageTexture(
+    coverageCapture,
+    [226, 218, 201],
+    'offscreen Figure2 continuation plane',
+    { pixelRatio, endY: expandedCoverage.expectedBottom }
+  );
+  assertFigure2ContinuationPixels(
+    coverageCapture,
+    expandedCoverage.cameraHeight,
+    [226, 218, 201],
+    'offscreen Figure2 continuation plane'
+  );
   expect(expandedCoverage.cameraImage).toContain('figure2-middle-building');
+  expect(expandedCoverage.hostImage).toBe('none');
+  expect(expandedCoverage.continuationImage).toContain('figure2-middle-building');
+  expect(expandedCoverage.continuationImage).toContain('figure2-far-arch');
+  expect(expandedCoverage.continuationImage).toContain('figure2-cloud');
+  expect(expandedCoverage.continuationSize).toContain('auto');
+  expect(expandedCoverage.continuationHeight)
+    .toBeGreaterThanOrEqual(
+      expandedCoverage.expectedBottom - expandedCoverage.cameraHeight - 1
+    );
   expect(
     expandedCoverage.cameraHeight,
-    'Figure2 coverage camera must paint through the dynamic visual viewport extension'
-  ).toBeGreaterThanOrEqual(expandedCoverage.expectedBottom - 1);
+    'Figure2 coverage camera must retain the authored leaf camera height'
+  ).toBeLessThan(expandedCoverage.expectedBottom - 1);
 });
 
 test('[TTG presented reverse][Services reverse release] two same-authority returns advance only on presented decoder frames and release Services', async ({ page }) => {

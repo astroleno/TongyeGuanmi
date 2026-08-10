@@ -19,7 +19,7 @@ export type PhonePackedAlphaSurfaceRequest = readonly [
   canvasClassName: string,
   frameTimeoutMs: number | null,
   /** Called only after a successful WebGL draw for the currently armed token. */
-  onFrame: ((presentationToken: string | null) => void) | null
+  onFrame: ((presentationToken: string | null, mediaTime: number | null) => void) | null
 ];
 
 export type PhonePackedAlphaSurfaceCommand =
@@ -37,6 +37,8 @@ export type PhonePackedAlphaSurfaceCommand =
   ]
   /** Rebind one already-mounted compositor to a fresh proof token and draw. */
   | readonly ['present', presentationToken: string | null]
+  /** Draw the exact decoder sample returned by a token-bound rVFC prepare. */
+  | readonly ['frame', mediaTime: number]
   /** Read the currently mounted canvas without taking ownership of it. */
   | readonly ['canvas']
   | readonly ['release']
@@ -49,6 +51,7 @@ export type PhonePackedAlphaSurface = {
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['activate', ...unknown[]]>): void;
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['prepare', ...unknown[]]>): Promise<void>;
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['present', ...unknown[]]>): void;
+  (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['frame', ...unknown[]]>): boolean;
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['canvas']>): HTMLCanvasElement | null;
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['release']>): void;
   (command: Extract<PhonePackedAlphaSurfaceCommand, readonly ['retire']>): void;
@@ -70,6 +73,16 @@ type PreparationSettlement = 'all' | Readonly<{
 const DEFAULT_FRAME_TIMEOUT_MS = 3000;
 const HAVE_METADATA = 1;
 const ENDPOINT_FRAME_TOLERANCE_SECONDS = 0.08;
+const PRESENTATION_TOLERANCE_SECONDS = 0.05;
+// A retained decoder can already sit on the endpoint when a new immutable
+// lease is armed. A same-time render would only stamp currentTime fallback
+// evidence, and some Safari builds will not schedule a new rVFC for it. Force
+// one decode step away from the endpoint, then seek back to obtain a fresh
+// exact mediaTime for the new lease.
+const ENDPOINT_NUDGE_SECONDS = Math.max(
+  1 / 15,
+  ENDPOINT_FRAME_TOLERANCE_SECONDS * 2
+);
 
 function releaseVideoSource(video: HTMLVideoElement): void {
   video.pause();
@@ -123,8 +136,18 @@ export function createPhonePackedAlphaSurface(
   let compositor: PackedAlphaVideoCompositor | undefined;
   let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
   let endpointSeek: (() => void) | undefined;
+  let endpointSeekStage: 'idle' | 'nudge' | 'target' | 'playing' = 'idle';
   let activePresentationToken: string | null = null;
-  let activeFrameToken: string | null = null;
+  let exactForwardFrameRequired = false;
+  // `endpoint` mode is also retained while PH performs its presented-frame
+  // reverse. Those intermediate samples must be accepted as decoder evidence
+  // without being mistaken for the authored terminal endpoint. The exact
+  // frame command marks this synchronous compositor draw so the shared
+  // callback does not restart endpoint priming or downgrade the frame to
+  // `probing`.
+  let exactFrameRenderInProgress = false;
+  let exactFrameMode = false;
+  let exactForwardFrameListener: (() => void) | undefined;
   let presentationGeneration = 0;
   let activationReady: Promise<void> | null = null;
   let resolveActivationReady: (() => void) | null = null;
@@ -163,6 +186,14 @@ export function createPhonePackedAlphaSurface(
     video.removeEventListener('loadedmetadata', endpointSeek);
     video.removeEventListener('loadeddata', endpointSeek);
     endpointSeek = undefined;
+    endpointSeekStage = 'idle';
+  };
+  const clearExactForwardFrame = () => {
+    if (exactForwardFrameListener) {
+      video.removeEventListener('loadeddata', exactForwardFrameListener);
+      exactForwardFrameListener = undefined;
+    }
+    exactForwardFrameRequired = false;
   };
   const retireCanvas = () => {
     if (!canvas) return;
@@ -195,6 +226,7 @@ export function createPhonePackedAlphaSurface(
       compositor.dispose();
     }
     compositor = undefined;
+    exactFrameMode = false;
     retireCanvas();
     delete root.dataset[statusDataset];
   };
@@ -211,7 +243,7 @@ export function createPhonePackedAlphaSurface(
     presentationGeneration += 1;
     settleActivation();
     activePresentationToken = null;
-    activeFrameToken = null;
+    clearExactForwardFrame();
     queuedPresentationToken = undefined;
     settle('all', new DOMException(
       `${layerName} packed-alpha presentation retired`,
@@ -224,7 +256,6 @@ export function createPhonePackedAlphaSurface(
   const rebindPresentationToken = (presentationToken: string | null) => {
     if (activePresentationToken === presentationToken) return;
     activePresentationToken = presentationToken;
-    activeFrameToken = presentationToken;
     if (canvas) delete canvas.dataset.phonePackedAlphaPresentationToken;
     rejectSupersededPreparations(presentationToken);
     if (timeout !== undefined) globalThis.clearTimeout(timeout);
@@ -234,9 +265,21 @@ export function createPhonePackedAlphaSurface(
         ? 'awaiting-native-playback'
         : 'probing';
     }
+    if (canvas) {
+      canvas.dataset.packedAlphaStatus = mode === 'forward'
+        ? 'waiting'
+        : 'probing';
+    }
     // A fresh immutable token may reuse a warmed WebGL context, but only the
     // physical draw after this rebind can settle its own preparation.
-    compositor?.render();
+    if (mode === 'endpoint') {
+      // Re-arm the decoder, rather than relabelling a retained fallback draw
+      // as proof for the new token. endpointSeek performs the bounded nudge
+      // when the decoder is already sitting on the terminal sample.
+      endpointSeek?.();
+    } else {
+      compositor?.render();
+    }
   };
   const setupActive = (
     nextMode: PhonePackedAlphaSurfaceMode,
@@ -260,23 +303,59 @@ export function createPhonePackedAlphaSurface(
     compositor = createPackedAlphaVideoCompositor({
       video,
       canvas: activeCanvas,
-      onFrame: () => {
+      onFrame: (drawMediaTime) => {
         if (generation !== presentationGeneration) return;
         if (video.dataset.packedAlphaSource !== 'rgb-alpha-side-by-side') return;
+        // Endpoint/reverse admission requires the decoder's rVFC-backed
+        // evidence. A pause/seek event may draw with currentTime before the
+        // browser has presented that exact sample; keep the lease pending
+        // until the compositor marks the physical draw as exact.
         if (
-          mode === 'endpoint'
-          && Math.abs(video.currentTime - options.endpointSeconds)
-            > ENDPOINT_FRAME_TOLERANCE_SECONDS
+          activeCanvas.dataset.packedAlphaStatus !== 'ready'
+          || activeCanvas.dataset.packedAlphaFrameEvidence !== 'rvfc'
         ) return;
+        const endpointPending = mode === 'endpoint'
+          && !exactFrameRenderInProgress;
+        if (
+          exactForwardFrameRequired
+          && (typeof drawMediaTime !== 'number' || !Number.isFinite(drawMediaTime))
+        ) return;
+        if (endpointPending) {
+          if (typeof drawMediaTime !== 'number' || !Number.isFinite(drawMediaTime)) {
+            return;
+          }
+          if (
+            Math.abs(drawMediaTime - options.endpointSeconds)
+              > ENDPOINT_FRAME_TOLERANCE_SECONDS
+          ) {
+            activeCanvas.dataset.packedAlphaStatus = 'probing';
+            endpointSeekStage = 'nudge';
+            video.pause();
+            // The seeked event can be coalesced when the decoder was already
+            // parked on this endpoint. Re-arm the exact target from the physical
+            // rVFC callback itself instead of waiting for another DOM event.
+            endpointSeek?.();
+            return;
+          }
+          // A terminal rVFC is the only proof we need. Pause immediately so
+          // this decoder priming frame cannot become a second playback clock.
+          video.pause();
+          endpointSeekStage = 'idle';
+        }
         if (timeout !== undefined) globalThis.clearTimeout(timeout);
         timeout = undefined;
         root.dataset[statusDataset] = 'verified';
-        if (activeFrameToken === null) {
+        if (activePresentationToken === null) {
           delete activeCanvas.dataset.phonePackedAlphaPresentationToken;
         } else {
-          activeCanvas.dataset.phonePackedAlphaPresentationToken = activeFrameToken;
+          activeCanvas.dataset.phonePackedAlphaPresentationToken = activePresentationToken;
         }
-        options.onFrame?.(activeFrameToken);
+        options.onFrame?.(
+          activePresentationToken,
+          drawMediaTime
+        );
+        if (exactForwardFrameRequired) video.pause();
+        clearExactForwardFrame();
         settle({ presentationToken: activePresentationToken });
       },
       // A packed surface owns its Canvas and reuses its one WebGL context
@@ -291,6 +370,7 @@ export function createPhonePackedAlphaSurface(
         failEndpoint();
       }
     });
+    exactFrameMode = false;
     const status = activeCanvas.dataset.packedAlphaStatus;
     if (status === 'webgl-unavailable') {
       video.dataset.phonePackedAlphaOwner = layerName;
@@ -310,9 +390,37 @@ export function createPhonePackedAlphaSurface(
           ? Math.min(options.endpointSeconds, Math.max(0, video.duration - 1 / 120))
           : options.endpointSeconds;
         try {
-          if (Math.abs(video.currentTime - endpoint) > 0.002) {
+          const nudge = endpoint > ENDPOINT_NUDGE_SECONDS
+            ? endpoint - ENDPOINT_NUDGE_SECONDS
+            : endpoint + ENDPOINT_NUDGE_SECONDS;
+          if (endpointSeekStage === 'nudge') {
+            if (Math.abs(video.currentTime - nudge) > 0.002) {
+              video.currentTime = nudge;
+              return;
+            }
+            endpointSeekStage = 'target';
             video.currentTime = endpoint;
-          } else compositor?.render();
+          } else if (
+            endpointSeekStage === 'target'
+            && Math.abs(video.currentTime - endpoint) <= 0.002
+          ) {
+            // WebKit does not always issue rVFC for a paused terminal seek.
+            // Prime exactly one decoded sample, then pause in the rVFC
+            // callback above; semantic playback remains runner-owned.
+            endpointSeekStage = 'playing';
+            void video.play().catch(() => {
+              failEndpoint();
+            });
+          } else if (Math.abs(video.currentTime - endpoint) > 0.002) {
+            endpointSeekStage = 'target';
+            video.currentTime = endpoint;
+          } else if (activeCanvas.dataset.packedAlphaStatus === 'probing') {
+            endpointSeekStage = 'nudge';
+            video.currentTime = nudge;
+          } else {
+            endpointSeekStage = 'idle';
+            compositor?.render();
+          }
         } catch {
           // Metadata can race source replacement; loadeddata retries.
         }
@@ -322,6 +430,9 @@ export function createPhonePackedAlphaSurface(
     }
     setPackedAlphaVideoSource(video, options.packedSourceUrl);
     if (nextMode === 'endpoint') {
+      endpointSeekStage = 'nudge';
+      // The handler performs the bounded nudge synchronously when metadata is
+      // already available and otherwise retries from media readiness events.
       endpointSeek?.();
       timeout = globalThis.setTimeout(
         failEndpoint,
@@ -418,7 +529,6 @@ export function createPhonePackedAlphaSurface(
     // instead of probing a dead context as if it were fresh.
     mode = nextMode;
     activePresentationToken = presentationToken ?? null;
-    activeFrameToken = presentationToken ?? null;
     const generation = ++presentationGeneration;
     if (!canvas) {
       canvas = root.ownerDocument.createElement('canvas');
@@ -464,6 +574,29 @@ export function createPhonePackedAlphaSurface(
         }
         if (mode !== nextMode || !compositor) {
           throw new Error(`${layerName} packed-alpha surface unavailable`);
+        }
+        if (nextMode === 'forward' && requirePresentedFrame) {
+          exactForwardFrameRequired = true;
+          const startExactForwardFrame = () => {
+            if (
+              disposed
+              || mode !== 'forward'
+              || !compositor
+              || root.dataset[statusDataset] === 'verified'
+            ) return;
+            exactForwardFrameListener = undefined;
+            try {
+              video.currentTime = 0;
+              void video.play().catch(() => failEndpoint());
+            } catch {
+              failEndpoint();
+            }
+          };
+          if (video.readyState >= HAVE_METADATA) startExactForwardFrame();
+          else {
+            exactForwardFrameListener = startExactForwardFrame;
+            video.addEventListener('loadeddata', startExactForwardFrame, { once: true });
+          }
         }
         if (nextMode === 'forward' && !requirePresentedFrame) {
           return undefined;
@@ -532,12 +665,66 @@ export function createPhonePackedAlphaSurface(
       queuedPresentationToken = presentationToken;
       return;
     }
+    if (
+      activePresentationToken === presentationToken
+      && canvas?.dataset.packedAlphaStatus === 'ready'
+      && canvas.dataset.phonePackedAlphaPresentationToken === presentationToken
+    ) {
+      // Preparation may finish before the presentation adapter is bound. The
+      // exact draw is still valid for this immutable token; replay its raw
+      // evidence to the newly bound adapter instead of dropping admission.
+      const mediaTime = Number(canvas.dataset.packedAlphaMediaTime);
+      options.onFrame?.(
+        activePresentationToken,
+        Number.isFinite(mediaTime) ? mediaTime : null
+      );
+      return;
+    }
     // The token is armed before `render()` so a retained endpoint must draw
     // again for the new immutable revision; an old successful frame cannot be
     // relabelled as proof for a newer transaction.
     rebindPresentationToken(presentationToken);
-    activeFrameToken = presentationToken;
     compositor.render();
+  };
+
+  const presentExactFrame = (mediaTime: number): boolean => {
+    if (!compositor || !canvas || !Number.isFinite(mediaTime)) {
+      return false;
+    }
+    // The timeline driver is the decoder authority for PH reverse frames. The
+    // caller-provided number is the immutable rVFC tuple returned by that
+    // driver; draw it directly instead of reading video.currentTime. When a
+    // browser has not retained the diagnostic dataset yet, the tuple remains
+    // the source of truth; a conflicting retained value is rejected.
+    const recordedMediaTime = Number(video.dataset.timelineVideoFrameMediaTime);
+    if (
+      Number.isFinite(recordedMediaTime)
+      && Math.abs(recordedMediaTime - mediaTime) > PRESENTATION_TOLERANCE_SECONDS
+    ) {
+      if (canvas) canvas.dataset.packedAlphaStatus = 'probing';
+      return false;
+    }
+    if (!exactFrameMode) {
+      // Once the presented-frame reverse starts, the timeline driver is the
+      // only frame clock. Suspend the compositor's seek/timeupdate/rVFC
+      // listeners before drawing the immutable tuple; otherwise a late event
+      // can paint an older currentTime between two exact reverse samples.
+      compositor.setActive(false);
+      exactFrameMode = true;
+    }
+    exactFrameRenderInProgress = true;
+    let result: ReturnType<PackedAlphaVideoCompositor['render']>;
+    try {
+      result = compositor.render(mediaTime);
+    } finally {
+      exactFrameRenderInProgress = false;
+    }
+    return result === 'rendered'
+      && canvas.dataset.packedAlphaStatus === 'ready'
+      && canvas.dataset.packedAlphaFrameEvidence === 'rvfc'
+      && Number.isFinite(Number(canvas.dataset.packedAlphaMediaTime))
+      && Math.abs(Number(canvas.dataset.packedAlphaMediaTime) - mediaTime)
+        <= PRESENTATION_TOLERANCE_SECONDS;
   };
 
   const surface = (command: PhonePackedAlphaSurfaceCommand) => {
@@ -555,6 +742,8 @@ export function createPhonePackedAlphaSurface(
       case 'present':
         present(command[1]);
         return;
+      case 'frame':
+        return presentExactFrame(command[1]);
       case 'canvas':
         return canvas ?? null;
       case 'release':

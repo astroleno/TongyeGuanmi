@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const compositorProbe = vi.hoisted(() => ({
-  onFrame: null as (() => void) | null,
-  onFrames: [] as Array<() => void>,
+  onFrame: null as ((mediaTime?: number | null) => void) | null,
+  onFrames: [] as Array<(mediaTime?: number | null) => void>,
   canvases: [] as FakeNode[],
+  renderTimes: [] as Array<number | null>,
+  frameStatus: 'ready' as 'ready' | 'fallback',
   restoreOwner: {
     isPending: vi.fn(() => false),
     markPending: vi.fn(),
@@ -18,10 +20,33 @@ vi.mock('../../../media/packed-alpha-video', () => ({
   createPackedAlphaWebGlRestoreOwner: vi.fn(() => compositorProbe.restoreOwner),
   createPackedAlphaVideoCompositor: vi.fn(({ canvas, onFrame }) => {
     canvas.dataset.packedAlphaStatus = 'waiting';
-    compositorProbe.onFrame = onFrame ?? null;
-    if (onFrame) compositorProbe.onFrames.push(onFrame);
+    const frame = onFrame
+      ? (mediaTime: number | null = compositorProbe.frameStatus === 'ready' ? 1.25 : null) => {
+        canvas.dataset.packedAlphaStatus = compositorProbe.frameStatus;
+        canvas.dataset.packedAlphaMediaTime = mediaTime === null
+          ? 'fallback'
+          : mediaTime.toFixed(4);
+        canvas.dataset.packedAlphaFrameEvidence = mediaTime === null
+          ? 'fallback'
+          : 'rvfc';
+        onFrame(mediaTime);
+      }
+      : null;
+    compositorProbe.onFrame = frame;
+    if (frame) compositorProbe.onFrames.push(frame);
     compositorProbe.canvases.push(canvas);
-    return { render: () => false, dispose: vi.fn() };
+    return {
+      render: (mediaTime?: number) => {
+        compositorProbe.renderTimes.push(mediaTime ?? null);
+        if (Number.isFinite(mediaTime)) {
+          canvas.dataset.packedAlphaStatus = 'ready';
+          canvas.dataset.packedAlphaMediaTime = mediaTime!.toFixed(4);
+        }
+        return 'rendered';
+      },
+      setActive: vi.fn(),
+      dispose: vi.fn()
+    };
   }),
   releasePackedAlphaWebGlContext: vi.fn(),
   setPackedAlphaVideoSource: vi.fn((video, sourceUrl) => {
@@ -145,7 +170,7 @@ class FakeDocument {
   }
 }
 
-function fixture(onFrame: ((presentationToken: string | null) => void) | null = null) {
+function fixture(onFrame: ((presentationToken: string | null, mediaTime: number | null) => void) | null = null) {
   const ownerDocument = new FakeDocument();
   const root = ownerDocument.createElement('section');
   const container = ownerDocument.createElement('div');
@@ -172,6 +197,8 @@ describe('phone packed-alpha surface', () => {
     compositorProbe.onFrame = null;
     compositorProbe.onFrames.length = 0;
     compositorProbe.canvases.length = 0;
+    compositorProbe.renderTimes.length = 0;
+    compositorProbe.frameStatus = 'ready';
     for (const method of Object.values(compositorProbe.restoreOwner)) method.mockClear();
     vi.mocked(releasePackedAlphaWebGlContext).mockClear();
     vi.unstubAllGlobals();
@@ -184,7 +211,9 @@ describe('phone packed-alpha surface', () => {
 
     expect(container.querySelector('canvas')).not.toBeNull();
     expect(video.querySelector('source')?.src).toBe('/packed.mp4');
-    expect(video.currentTime).toBe(1.25);
+    // Endpoint preparation first nudges a retained decoder away from the
+    // terminal sample so WebKit must produce a fresh rVFC for this lease.
+    expect(video.currentTime).toBeCloseTo(1.25 - (0.08 * 2), 5);
     expect(root.dataset.phoneTestAlpha).toBe('probing');
     surface(['dispose']);
   });
@@ -409,20 +438,46 @@ describe('phone packed-alpha surface', () => {
     surface(['dispose']);
   });
 
+  it('[P0 exact frame] never settles an endpoint from a ready draw without rVFC mediaTime', async () => {
+    const { root, surface } = fixture();
+    let settled = false;
+    const preparation = Promise.resolve(surface([
+      'prepare',
+      'endpoint',
+      null,
+      true,
+      'token-exact'
+    ] as unknown as Parameters<typeof surface>[0])).then(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    compositorProbe.onFrame?.(null);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(root.dataset.phoneTestAlpha).toBe('probing');
+
+    compositorProbe.onFrame?.(1.25);
+    await expect(preparation).resolves.toBeUndefined();
+    expect(settled).toBe(true);
+    expect(root.dataset.phoneTestAlpha).toBe('verified');
+    surface(['dispose']);
+  });
+
   it('[Task 3] binds an active proof token only to a subsequent physical draw', () => {
     const report = vi.fn();
     const { surface } = fixture(report);
 
     surface(['activate', 'forward']);
     compositorProbe.onFrame?.();
-    expect(report).toHaveBeenLastCalledWith(null);
+    expect(report).toHaveBeenLastCalledWith(null, 1.25);
 
     surface(['present', 'authority|session|3']);
     // The mock compositor does not draw eagerly; this is the physical draw
     // callback that a successful WebGL upload/draw would produce.
     compositorProbe.onFrame?.();
 
-    expect(report).toHaveBeenLastCalledWith('authority|session|3');
+    expect(report).toHaveBeenLastCalledWith('authority|session|3', 1.25);
     surface(['dispose']);
   });
 
@@ -442,6 +497,43 @@ describe('phone packed-alpha surface', () => {
 
     await expect(preparation).resolves.toBeUndefined();
     expect(root.dataset.phoneTestAlpha).toBe('verified');
+    surface(['dispose']);
+  });
+
+  it('does not settle reverse admission from a currentTime fallback draw', async () => {
+    const { root, surface } = fixture();
+    compositorProbe.frameStatus = 'fallback';
+    let settled = false;
+    const preparation = Promise.resolve(
+      surface(['prepare', 'endpoint', null])
+    ).then(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    compositorProbe.onFrame?.();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(root.dataset.phoneTestAlpha).toBe('probing');
+
+    compositorProbe.frameStatus = 'ready';
+    compositorProbe.onFrame?.();
+    await expect(preparation).resolves.toBeUndefined();
+    expect(root.dataset.phoneTestAlpha).toBe('verified');
+    surface(['dispose']);
+  });
+
+  it('passes an exact prepared mediaTime to the sole packed-surface compositor', () => {
+    const { surface, video } = fixture();
+    surface(['activate', 'endpoint', 'token-a']);
+    surface(['present', 'token-a']);
+    compositorProbe.onFrame?.();
+    video.dataset.timelineVideoFrameEvidence = 'video-frame-callback';
+    video.dataset.timelineVideoFrameMediaTime = '1.1000';
+
+    expect(surface(['frame', 1.1])).toBe(true);
+
+    expect(compositorProbe.renderTimes).toContain(1.1);
     surface(['dispose']);
   });
 

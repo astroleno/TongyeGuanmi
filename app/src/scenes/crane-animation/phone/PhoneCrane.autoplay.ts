@@ -94,6 +94,7 @@ function reverseFrameInput(
     'timeline',
     1,
     true,
+    null,
     null
   ];
 }

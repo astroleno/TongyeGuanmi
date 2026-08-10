@@ -128,7 +128,17 @@ export function createPhonePresentedReversePlayback(
         return;
       }
       options.render(progress);
-      if (progress <= 0.001) {
+      // The final authored sample can be within one decoder frame of zero.
+      // Once that exact frame is visible, commit the canonical endpoint
+      // without asking Safari for an additional paused seek to time 0 (which
+      // can strand rVFC on WebKit). Short fixtures still exercise an explicit
+      // zero-progress preparation because their step is proportionally large.
+      const terminalFrameThreshold = Math.min(
+        1,
+        (PRESENTED_FRAME_STEP_MS / durationMs) * 0.8
+      );
+      if (progress <= terminalFrameThreshold) {
+        if (progress > 0.001) options.render(0);
         complete();
       } else {
         elapsedMs = Math.min(durationMs, elapsedMs + PRESENTED_FRAME_STEP_MS);

@@ -38,6 +38,7 @@
     "adapter",
     "staticPoster",
     "allowSeekedFrameFallback",
+    "requireExactMediaFrame",
     "alphaEndProgress",
     "apply",
     "attach",

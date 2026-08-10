@@ -15,7 +15,7 @@ export type PackedAlphaRenderFailure =
 export type PackedAlphaRenderResult = 'rendered' | 'waiting' | PackedAlphaRenderFailure;
 
 export type PackedAlphaVideoCompositor = Readonly<{
-  render(): PackedAlphaRenderResult;
+  render(frameMediaTime?: number): PackedAlphaRenderResult;
   setActive(active: boolean): void;
   dispose(): void;
 }>;
@@ -212,7 +212,8 @@ export function renewPackedAlphaCanvas(
 type PackedAlphaVideoOptions = Readonly<{
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
-  onFrame?: () => void;
+  /** Exact rVFC mediaTime for the draw, or null for a non-exact fallback. */
+  onFrame?: (mediaTime: number | null) => void;
   onFailure?: (failure: PackedAlphaRenderFailure) => void;
   /**
    * Surface-owned canvases are removed on release and can hard-lose their
@@ -414,7 +415,6 @@ export function createPackedAlphaVideoCompositor(
   let active = true;
   let frameCallback = 0;
   let animationFrame = 0;
-  let renderedFrames = 0;
   let contextLost = false;
   let terminalFailureReason: PackedAlphaRenderFailure | null = null;
 
@@ -446,7 +446,9 @@ export function createPackedAlphaVideoCompositor(
   gl.uniform1i(packedFrameLocation, 0);
   gl.clearColor(0, 0, 0, 0);
 
-  const render = (): PackedAlphaRenderResult => {
+  const render = (
+    frameMediaTime?: number
+  ): PackedAlphaRenderResult => {
     if (terminalFailureReason) return terminalFailureReason;
     if (contextLost || gl.isContextLost()) {
       contextLost = true;
@@ -454,13 +456,25 @@ export function createPackedAlphaVideoCompositor(
     }
     if (
       disposed
-      || !active
+      // Presented-frame reverse owns the decoder clock explicitly. Its
+      // token-bound render is allowed while the compositor's event/rVFC clock
+      // is suspended; ordinary event-driven renders remain blocked while
+      // inactive so a second clock cannot wake up in the background.
+      || (!active && frameMediaTime === undefined)
       || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
       || video.videoWidth < 2
       || video.videoHeight < 1
     ) {
       return 'waiting';
     }
+    // A paused endpoint may emit a late pause/seek event after its exact rVFC
+    // draw. Do not overwrite that token-bound evidence with a currentTime
+    // fallback until the surface explicitly rebinds a new token.
+    if (
+      frameMediaTime === undefined
+      && video.paused
+      && canvas.dataset.packedAlphaStatus === 'ready'
+    ) return 'waiting';
 
     const frameSize = packedAlphaFrameSize(video.videoWidth, video.videoHeight);
     if (canvas.width !== frameSize.width) {
@@ -496,18 +510,35 @@ export function createPackedAlphaVideoCompositor(
     gl.useProgram(program);
     gl.uniform1f(texelLocation, 1 / Math.max(2, video.videoWidth));
     // Stamp the decoder time before the draw so instrumentation attached to
-    // the WebGL call observes the exact media sample used by this frame.
-    canvas.dataset.packedAlphaMediaTime = video.currentTime.toFixed(4);
+    // the WebGL call observes the exact media sample used by this frame. A
+    // requestVideoFrameCallback mediaTime is the only exact decoder evidence;
+    // event/RAF renders are explicitly marked as a current-time fallback.
+    const hasExactMediaTime = Number.isFinite(frameMediaTime);
+    canvas.dataset.packedAlphaMediaTime = (
+      hasExactMediaTime ? frameMediaTime!.toFixed(4) : 'fallback'
+    );
+    canvas.dataset.packedAlphaFrameEvidence = hasExactMediaTime
+      ? 'rvfc'
+      : 'fallback';
+    // Timeline reverse preparation may move the decoder through an authored
+    // nudge before it reaches the requested target. Mark that physical draw
+    // as probing before WebGL observes it, so it cannot be mistaken for a
+    // visible token-bound PH frame. The target rVFC is the only draw stamped
+    // ready and forwarded to the surface lease.
+    const timelineTarget = Number(video.dataset.timelineVideoTarget);
+    const frameStatus = hasExactMediaTime
+      && (!Number.isFinite(timelineTarget)
+        || Math.abs(frameMediaTime! - timelineTarget) <= 0.05)
+      ? 'ready'
+      : Number.isFinite(timelineTarget) ? 'probing' : 'fallback';
+    canvas.dataset.packedAlphaStatus = frameStatus;
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     if (!packedAlphaFrameProofSatisfied(gl)) {
       contextLost = gl.isContextLost();
       return terminalFailure(contextLost ? 'context-lost' : 'draw-failed');
     }
-    renderedFrames += 1;
-    canvas.dataset.packedAlphaStatus = 'ready';
     canvas.dataset.packedAlphaFrameReady = 'true';
-    canvas.dataset.packedAlphaFrame = String(renderedFrames);
-    options.onFrame?.();
+    options.onFrame?.(hasExactMediaTime ? frameMediaTime! : null);
     return 'rendered';
   };
 
@@ -516,9 +547,9 @@ export function createPackedAlphaVideoCompositor(
       return;
     }
     if (typeof managedVideo.requestVideoFrameCallback === 'function') {
-      frameCallback = managedVideo.requestVideoFrameCallback(() => {
+      frameCallback = managedVideo.requestVideoFrameCallback((_now, metadata) => {
         frameCallback = 0;
-        render();
+        render(metadata.mediaTime);
         if (!video.paused && !video.ended) {
           schedule();
         }
@@ -536,10 +567,16 @@ export function createPackedAlphaVideoCompositor(
 
   const renderAndSchedule = () => {
     if (!active || contextLost) return;
-    render();
-    if (!video.paused && !video.ended) {
-      schedule();
+    // A seek can invalidate a callback armed for the previous decoded
+    // sample. WebKit keeps that callback pending while the video is paused,
+    // so waiting for it would leave the new endpoint without any exact
+    // rVFC evidence. Re-arm after every media readiness event.
+    if (frameCallback && typeof managedVideo.cancelVideoFrameCallback === 'function') {
+      managedVideo.cancelVideoFrameCallback(frameCallback);
+      frameCallback = 0;
     }
+    render();
+    schedule();
   };
   const onContextLost = (event: Event) => {
     event.preventDefault();
@@ -550,7 +587,10 @@ export function createPackedAlphaVideoCompositor(
   video.addEventListener('loadeddata', renderAndSchedule);
   video.addEventListener('seeked', renderAndSchedule);
   video.addEventListener('timeupdate', renderAndSchedule);
-  video.addEventListener('play', schedule);
+  // A pending callback armed while paused may never fire on WebKit once the
+  // decoder starts. Re-arm from the actual play event so the callback is
+  // attached to the running decode clock.
+  video.addEventListener('play', renderAndSchedule);
   video.addEventListener('pause', renderAndSchedule);
   canvas.addEventListener('webglcontextlost', onContextLost);
   canvas.dataset.packedAlphaStatus = 'waiting';
@@ -574,8 +614,8 @@ export function createPackedAlphaVideoCompositor(
       gl.flush();
     }
     delete canvas.dataset.packedAlphaFrameReady;
-    delete canvas.dataset.packedAlphaFrame;
     delete canvas.dataset.packedAlphaMediaTime;
+    delete canvas.dataset.packedAlphaFrameEvidence;
   };
 
   return {
@@ -607,7 +647,7 @@ export function createPackedAlphaVideoCompositor(
       video.removeEventListener('loadeddata', renderAndSchedule);
       video.removeEventListener('seeked', renderAndSchedule);
       video.removeEventListener('timeupdate', renderAndSchedule);
-      video.removeEventListener('play', schedule);
+      video.removeEventListener('play', renderAndSchedule);
       video.removeEventListener('pause', renderAndSchedule);
       canvas.removeEventListener('webglcontextlost', onContextLost);
       gl.deleteTexture(texture);
@@ -620,8 +660,8 @@ export function createPackedAlphaVideoCompositor(
       }
       delete canvas.dataset.packedAlphaStatus;
       delete canvas.dataset.packedAlphaFrameReady;
-      delete canvas.dataset.packedAlphaFrame;
       delete canvas.dataset.packedAlphaMediaTime;
+      delete canvas.dataset.packedAlphaFrameEvidence;
       delete canvas.dataset.packedAlphaCompositorActive;
     }
   };

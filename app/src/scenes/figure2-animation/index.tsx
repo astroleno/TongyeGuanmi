@@ -452,6 +452,22 @@ export function renderFigure2AnimationProgress(
     '--portrait-figure2-middle-y',
     `${middleY.toFixed(2)}px`
   );
+  phoneRouteRoot?.style.setProperty(
+    '--portrait-figure2-cloud-y',
+    `${cloudY.toFixed(2)}px`
+  );
+  phoneRouteRoot?.style.setProperty(
+    '--portrait-figure2-cloud-scale',
+    cloudScale.toFixed(4)
+  );
+  phoneRouteRoot?.style.setProperty(
+    '--portrait-figure2-far-arcade-y',
+    `${farArcadeY.toFixed(2)}px`
+  );
+  phoneRouteRoot?.style.setProperty(
+    '--portrait-figure2-far-arcade-scale',
+    farArcadeScale.toFixed(4)
+  );
   const retainedArch = retainedFigure2Arch(root);
   if (retainedArch?.dataset.figure2ArchMotion !== 'fixed') {
     retainedArch?.style.setProperty('--r4-figure2-near-arch-scale', nearArchScale.toFixed(4));

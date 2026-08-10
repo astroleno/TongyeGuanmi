@@ -410,6 +410,7 @@ function figure3TimelineMediaInput(
     'timeline',
     1,
     browserPrefersHevcAlpha(),
+    null,
     null
   ];
 }

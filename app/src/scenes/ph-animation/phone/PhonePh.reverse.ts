@@ -32,8 +32,9 @@ function reverseFrameInput(
     PH_PLAYBACK_MS,
     'timeline',
     1,
-    true,
-    null
+    false,
+    null,
+    true
   ];
 }
 
@@ -50,7 +51,9 @@ export function createPhonePhPresentedReverse(
     direction: PhonePhPlaybackDirection
   ) => void,
   onComplete: () => void,
-  onFailure: () => void
+  onFailure: () => void,
+  onPreparedFrame: (mediaTime: number) => boolean,
+  endpointMediaTime: () => number | null
 ): PhonePhPresentedReverse | null {
   const video = root.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
   if (!video) return null;
@@ -60,13 +63,24 @@ export function createPhonePhPresentedReverse(
   const playback = createPhonePresentedReversePlayback([
     PH_PLAYBACK_MS,
     async (progress) => {
-      const [status, resultRunId] = await preparePhoneTimelineVideoFrame(
+      if (progress >= 0.999) {
+        const presentedEndpoint = endpointMediaTime();
+        if (Number.isFinite(presentedEndpoint)) {
+          return onPreparedFrame(presentedEndpoint as number);
+        }
+      }
+      const [status, resultRunId, , , , mediaTime] = await preparePhoneTimelineVideoFrame(
         video,
         reverseFrameInput(runId, progress)
       );
-      return status === 'ready' && resultRunId === runId;
+      const ready = status === 'ready'
+        && resultRunId === runId
+        && Number.isFinite(mediaTime);
+      return ready && onPreparedFrame(mediaTime!);
     },
-    (progress) => render(progress, -1),
+    (progress) => {
+      render(progress, -1);
+    },
     onComplete,
     onFailure,
     null,
@@ -84,7 +98,9 @@ export function createPhonePhPresentedReverse(
       playback.start();
     },
     retry: playback.retry,
-    stop: playback.stop,
+    stop() {
+      playback.stop();
+    },
     dispose() {
       playback.dispose();
     }

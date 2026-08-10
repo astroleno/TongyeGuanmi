@@ -168,25 +168,25 @@ describe('PhoneFigure3', () => {
   it('[Group45 WebKit timing] accepts target rVFC evidence while mutable playhead flags lag', () => {
     const runId = 'authority|session|603|1|604|group45%3Afigure3|packed-canvas-frame';
     expect(phoneFigure3EndpointFrameMatches(
-      ['ready', runId, -1, 7, 2.567],
+      ['ready', runId, -1, 7, 2.567, null],
       runId,
       -1,
       1
     )).toBe(true);
     expect(phoneFigure3EndpointFrameMatches(
-      ['ready', runId, -1, 7, 2.567],
+      ['ready', runId, -1, 7, 2.567, null],
       runId,
       1,
       1
     )).toBe(false);
     expect(phoneFigure3EndpointFrameMatches(
-      ['stale', runId, -1, 7, 2.567],
+      ['stale', runId, -1, 7, 2.567, null],
       runId,
       -1,
       1
     )).toBe(false);
     expect(phoneFigure3EndpointFrameMatches(
-      ['ready', runId, -1, 7, 2.4],
+      ['ready', runId, -1, 7, 2.4, null],
       runId,
       -1,
       1

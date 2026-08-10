@@ -35,6 +35,7 @@ const input: PhoneTimelineVideoInput = [
   'timeline',
   1,
   true,
+  null,
   null
 ];
 
@@ -62,6 +63,7 @@ describe('phone timeline runtime bridge', () => {
       'phone-timeline:1',
       -1,
       7,
+      1.2,
       1.2
     ]);
     timeline.snapshot.mockReturnValue({
@@ -80,6 +82,7 @@ describe('phone timeline runtime bridge', () => {
       'phone-timeline:1',
       -1,
       7,
+      1.2,
       1.2
     ]);
     expect(phoneTimelineVideoSnapshot(video)).toEqual([

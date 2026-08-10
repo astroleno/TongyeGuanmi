@@ -329,7 +329,8 @@ function ttgReverseMediaInput(
     'timeline',
     1,
     browserPrefersHevcAlpha(),
-    signal
+    signal,
+    null
   ];
 }
 
@@ -352,7 +353,8 @@ function ttgEndpointMediaInput(
     'timeline',
     1,
     allowSeekedFrameFallback,
-    signal
+    signal,
+    null
   ];
 }
 

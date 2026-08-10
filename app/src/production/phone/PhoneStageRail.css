@@ -9,6 +9,17 @@
   --portrait-figure2-camera-height: max(var(--portrait-stage-height), calc(100vw * 9 / 16));
   --portrait-figure2-camera-scale: 1.012;
   --portrait-figure2-middle-y: 0px;
+  /* The continuation plane may overscan the frozen camera, but it keeps the
+   * authored 16:9 projection instead of stretching a texture to the live
+   * viewport's changing aspect ratio. */
+  --portrait-figure2-overscan-height: max(
+    var(--portrait-figure2-camera-height),
+    var(--portrait-coverage-bottom, var(--portrait-figure2-camera-height))
+  );
+  --portrait-figure2-extension-height: max(
+    0px,
+    calc(var(--portrait-figure2-overscan-height) - var(--portrait-figure2-camera-height))
+  );
   /* Top-level host planes are the only cross-stacking-context order. */
   --phone-host-plane-coverage: 10;
   --phone-host-plane-content: 20;
@@ -106,7 +117,13 @@
  * grows the live viewport beyond that camera. */
 .portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage {
   background-color: #e2dac9;
+  /* The host itself is only the opaque plane. Its authored camera and the
+   * independent continuation are painted by the two layers below; no
+   * viewport-sized background copy may stretch as Safari chrome moves. */
   background-image: none;
+  /* Independent overscan/continuation plane. It fills only the live
+   * viewport extension; the exact camera below remains frozen at the same
+   * authored dimensions as the Figure2 leaf. */
   overflow: clip;
 }
 
@@ -124,24 +141,87 @@
 .portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage::before {
   content: "";
   position: absolute;
-  z-index: 0;
+  /* The authored camera sits above the continuation plane. The latter may
+   * use a larger overscan box, but it can never replace pixels inside this
+   * exact camera projection. */
+  z-index: 1;
   left: 50vw;
   top: calc(var(--portrait-stage-height) / 2);
   width: var(--portrait-figure2-camera-width);
-  /* The camera remains frozen, but its authored backing must continue through
-   * the live visual viewport extension while Safari's toolbar is moving. */
-  height: max(
-    var(--portrait-figure2-camera-height),
-    var(--portrait-coverage-bottom, var(--portrait-figure2-camera-height))
-  );
+  height: var(--portrait-figure2-camera-height);
+  aspect-ratio: 16 / 9;
   transform: translate3d(
     -50%,
     calc(-50% + var(--portrait-figure2-middle-y)),
     0
   ) scale(var(--portrait-figure2-camera-scale));
   transform-origin: 50% 56%;
-  background: url("../../../../assets/figure2-middle-building.webp") 50% 50% / 100% 100% no-repeat;
+  /* The exact camera uses the same authored layer sizes as the Figure2 leaf;
+   * no layer is resized to the live visual viewport. */
+  background-image:
+    url("../../../../assets/figure2-cloud.webp"),
+    url("../../../../assets/figure2-far-arch.webp"),
+    url("../../../../assets/figure2-middle-building.webp");
+  background-position:
+    50% calc(
+      var(--portrait-figure2-camera-height) * .14
+      + (
+        calc(var(--portrait-figure2-camera-height) * .72)
+        - calc(var(--portrait-figure2-camera-width) * .46 * 1.776833 * var(--portrait-figure2-cloud-scale, 1))
+      ) * .88
+      + var(--portrait-figure2-cloud-y, 0px)
+    ),
+    50% calc(50% + var(--portrait-figure2-far-arcade-y, 10px)),
+    50% 50%;
+  background-size:
+    calc(var(--portrait-figure2-camera-width) * .46 * var(--portrait-figure2-cloud-scale, 1))
+      calc(var(--portrait-figure2-camera-width) * .46 * 1.776833 * var(--portrait-figure2-cloud-scale, 1)),
+    auto calc(var(--portrait-figure2-camera-height) * .78 * var(--portrait-figure2-far-arcade-scale, 1)),
+    var(--portrait-figure2-camera-width) var(--portrait-figure2-camera-height);
+  background-repeat: no-repeat;
   filter: brightness(.96) contrast(.94) saturate(.86) sepia(.08);
+  pointer-events: none;
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage::after {
+  content: "";
+  position: absolute;
+  /* Paint only the physical extension behind the exact camera. Sources keep
+   * their authored camera size and are bottom-cropped into this plane; no
+   * texture is stretched to the changing visual viewport. */
+  z-index: 0;
+  left: 50vw;
+  top: calc(
+    var(--portrait-figure2-camera-height)
+    + (var(--portrait-figure2-extension-height) / 2)
+  );
+  width: var(--portrait-figure2-camera-width);
+  height: var(--portrait-figure2-extension-height);
+  aspect-ratio: 16 / 9;
+  transform: translate3d(
+    -50%,
+    calc(-50% + var(--portrait-figure2-middle-y)),
+    0
+  ) scale(var(--portrait-figure2-camera-scale));
+  transform-origin: 50% 56%;
+  background-image:
+    url("../../../../assets/figure2-cloud.webp"),
+    url("../../../../assets/figure2-far-arch.webp"),
+    url("../../../../assets/figure2-middle-building.webp");
+  background-position:
+    50% calc(100% + var(--portrait-figure2-cloud-y, 0px)),
+    50% calc(100% + var(--portrait-figure2-far-arcade-y, 10px)),
+    50% 100%;
+  background-size:
+    calc(var(--portrait-figure2-camera-width) * .46 * var(--portrait-figure2-cloud-scale, 1))
+      calc(var(--portrait-figure2-camera-width) * .46 * 1.776833 * var(--portrait-figure2-cloud-scale, 1)),
+    auto calc(var(--portrait-figure2-camera-height) * .78 * var(--portrait-figure2-far-arcade-scale, 1)),
+    var(--portrait-figure2-camera-width) var(--portrait-figure2-camera-height);
+  background-repeat: no-repeat;
+  filter: brightness(.96) contrast(.94) saturate(.86) sepia(.08);
+  /* The continuation is already below the authored window camera. Keeping
+   * this plane unmasked prevents a transparent mask tail from exposing the
+   * host's flat backing at the live viewport floor. */
   pointer-events: none;
 }
 

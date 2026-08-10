@@ -224,6 +224,7 @@ export function createPhoneFigurePlayback(
             'timeline',
             null,
             true,
+            null,
             null
           ]);
           playAmbient();
@@ -248,6 +249,7 @@ export function createPhoneFigurePlayback(
         'timeline',
         null,
         true,
+        null,
         null
       ]);
     },

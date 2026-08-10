@@ -459,6 +459,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
             'timeline',
             null,
             true,
+            null,
             null
           ]);
         },

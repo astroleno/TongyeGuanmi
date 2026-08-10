@@ -64,6 +64,128 @@ describe('packed alpha video', () => {
     expect(onFailure).toHaveBeenCalledExactlyOnceWith('webgl-unavailable');
   });
 
+  it('[P0 PH frame evidence] forwards the same rVFC mediaTime stamped before drawArrays', () => {
+    const listeners = new Map<string, EventListener>();
+    let callback: ((now: number, metadata: { mediaTime: number }) => void) | undefined;
+    let callbackId = 0;
+    const gl = {
+      NO_ERROR: 0,
+      VERTEX_SHADER: 1,
+      FRAGMENT_SHADER: 2,
+      COMPILE_STATUS: 3,
+      LINK_STATUS: 4,
+      ARRAY_BUFFER: 5,
+      STATIC_DRAW: 6,
+      FLOAT: 7,
+      TEXTURE_2D: 8,
+      TEXTURE_MIN_FILTER: 9,
+      TEXTURE_MAG_FILTER: 10,
+      LINEAR: 11,
+      TEXTURE_WRAP_S: 12,
+      TEXTURE_WRAP_T: 13,
+      CLAMP_TO_EDGE: 14,
+      UNPACK_FLIP_Y_WEBGL: 15,
+      UNPACK_PREMULTIPLY_ALPHA_WEBGL: 16,
+      TEXTURE0: 17,
+      RGBA: 18,
+      UNSIGNED_BYTE: 19,
+      COLOR_BUFFER_BIT: 20,
+      TRIANGLES: 21,
+      canvas: {} as HTMLCanvasElement,
+      getShaderParameter: vi.fn(() => true),
+      getProgramParameter: vi.fn(() => true),
+      getError: vi.fn(() => 0),
+      isContextLost: vi.fn(() => false),
+      getExtension: vi.fn(() => null),
+      createShader: vi.fn(() => ({})),
+      shaderSource: vi.fn(),
+      compileShader: vi.fn(),
+      deleteShader: vi.fn(),
+      createProgram: vi.fn(() => ({})),
+      attachShader: vi.fn(),
+      linkProgram: vi.fn(),
+      deleteProgram: vi.fn(),
+      createBuffer: vi.fn(() => ({})),
+      createTexture: vi.fn(() => ({})),
+      deleteBuffer: vi.fn(),
+      deleteTexture: vi.fn(),
+      getAttribLocation: vi.fn(() => 0),
+      getUniformLocation: vi.fn(() => ({})),
+      useProgram: vi.fn(),
+      bindBuffer: vi.fn(),
+      bufferData: vi.fn(),
+      enableVertexAttribArray: vi.fn(),
+      vertexAttribPointer: vi.fn(),
+      bindTexture: vi.fn(),
+      texParameteri: vi.fn(),
+      pixelStorei: vi.fn(),
+      uniform1i: vi.fn(),
+      uniform1f: vi.fn(),
+      clearColor: vi.fn(),
+      viewport: vi.fn(),
+      clear: vi.fn(),
+      activeTexture: vi.fn(),
+      texImage2D: vi.fn(),
+      drawArrays: vi.fn(),
+      flush: vi.fn()
+    } as unknown as WebGLRenderingContext;
+    const canvas = {
+      width: 0,
+      height: 0,
+      dataset: {} as DOMStringMap,
+      getContext: vi.fn(() => gl),
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners.set(type, listener);
+      }),
+      removeEventListener: vi.fn()
+    } as unknown as HTMLCanvasElement;
+    (gl as WebGLRenderingContext & { canvas: HTMLCanvasElement }).canvas = canvas;
+    const video = {
+      readyState: 2,
+      videoWidth: 4,
+      videoHeight: 2,
+      currentTime: 0,
+      paused: true,
+      ended: false,
+      dataset: {} as DOMStringMap,
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners.set(`video:${type}`, listener);
+      }),
+      removeEventListener: vi.fn(),
+      requestVideoFrameCallback: vi.fn((next: typeof callback) => {
+        callback = next;
+        return ++callbackId;
+      }),
+      cancelVideoFrameCallback: vi.fn()
+    } as unknown as HTMLVideoElement;
+    vi.stubGlobal('HTMLMediaElement', { HAVE_CURRENT_DATA: 2 });
+    vi.stubGlobal('window', {
+      requestAnimationFrame: vi.fn(() => 1),
+      cancelAnimationFrame: vi.fn()
+    });
+    const reported: Array<number | null> = [];
+    const drawEvidence: Array<string | undefined> = [];
+    vi.mocked(gl.drawArrays).mockImplementation(() => {
+      drawEvidence.push(canvas.dataset.packedAlphaMediaTime);
+    });
+    const compositor = createPackedAlphaVideoCompositor({
+      video,
+      canvas,
+      onFrame: (mediaTime) => reported.push(mediaTime)
+    });
+
+    callback?.(0, { mediaTime: 4.125 });
+
+    expect(gl.drawArrays).toHaveBeenCalled();
+    expect(drawEvidence.at(-1)).toBe('4.1250');
+    expect(canvas.dataset.packedAlphaMediaTime).toBe('4.1250');
+    expect(canvas.dataset.packedAlphaFrameEvidence).toBe('rvfc');
+    expect(canvas.dataset.packedAlphaStatus).toBe('ready');
+    expect(reported.at(-1)).toBe(4.125);
+    compositor.dispose();
+    vi.unstubAllGlobals();
+  });
+
   it('hard-releases the compositor context when a packed surface retires', () => {
     const loseContext = vi.fn();
     const getExtension = vi.fn(() => ({ loseContext }));

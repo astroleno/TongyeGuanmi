@@ -136,11 +136,39 @@ describe('phone live viewport coverage', () => {
     expect(stageRailStyles).toContain(
       'url("../../../../assets/figure2-middle-building.webp")'
     );
+    expect(stageRailStyles).toContain('background-image: none;');
     expect(stageRailStyles).toContain(
       '.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage::before'
     );
     expect(stageRailStyles).toContain(
-      'background: url("../../../../assets/figure2-middle-building.webp") 50% 50% / 100% 100% no-repeat;'
+      'url("../../../../assets/figure2-middle-building.webp");'
+    );
+    expect(stageRailStyles).toContain(
+      'url("../../../../assets/figure2-far-arch.webp")'
+    );
+    expect(stageRailStyles).toContain(
+      'url("../../../../assets/figure2-cloud.webp")'
+    );
+    expect(stageRailStyles).toContain('bottom-cropped into this plane');
+    expect(stageRailStyles).toContain(
+      'var(--portrait-figure2-camera-width) var(--portrait-figure2-camera-height);'
+    );
+    // The cloud asset is portrait (941×1672). Its continuation must preserve
+    // object-fit: cover rather than stretching the texture into the 46%×72%
+    // layout box used by the authored camera.
+    expect(stageRailStyles).toContain('1.776833');
+    expect(stageRailStyles).not.toContain(
+      'calc(var(--portrait-figure2-camera-height) * .72 * var(--portrait-figure2-cloud-scale, 1))'
+    );
+    expect(stageRailStyles).toContain(
+      'auto calc(var(--portrait-figure2-camera-height) * .78 * var(--portrait-figure2-far-arcade-scale, 1))'
+    );
+    expect(stageRailStyles).not.toContain('background-size: 100% 100%');
+    expect(stageRailStyles).not.toContain(
+      'background-size: auto var(--portrait-figure2-overscan-height)'
+    );
+    expect(stageRailStyles).not.toContain(
+      'background: #e2dac9 url("../../../../assets/figure2-middle-building.webp")'
     );
   });
 
@@ -165,7 +193,13 @@ describe('phone live viewport coverage', () => {
     expect(figure2Coverage).toContain('calc(-50% + var(--portrait-figure2-middle-y))');
     expect(figure2Coverage).toContain('scale(var(--portrait-figure2-camera-scale));');
     expect(figure2Coverage).toContain('transform-origin: 50% 56%;');
-    expect(figure2Coverage).toContain('var(--portrait-coverage-bottom');
+    expect(figure2Coverage).toContain('height: var(--portrait-figure2-camera-height);');
+    expect(figure2Coverage).toContain('aspect-ratio: 16 / 9;');
+    expect(figure2Coverage).toContain('--portrait-figure2-extension-height');
+    expect(figure2Coverage).toContain('height: var(--portrait-figure2-extension-height);');
+    expect(figure2Coverage).toContain(
+      'var(--portrait-figure2-camera-width) var(--portrait-figure2-camera-height);'
+    );
     expect(stageRailStyles).not.toContain('background-position: 50% 0;');
   });
 

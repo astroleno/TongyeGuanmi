@@ -25,7 +25,8 @@ export type PhoneTimelineVideoInput = readonly [
   mode: TimelineVideoMode | null,
   nativePlaybackDirection: Direction | null,
   allowSeekedFrameFallback: boolean | null,
-  signal: AbortSignal | null
+  signal: AbortSignal | null,
+  requireExactMediaFrame: boolean | null
 ];
 
 /** Prepared-frame evidence is also positional; no driver snapshot leaks out. */
@@ -34,7 +35,8 @@ export type PhoneTimelineVideoFrame = readonly [
   runId: string | null,
   direction: Direction | null,
   generation: number | null,
-  targetTime: number | null
+  targetTime: number | null,
+  mediaTime: number | null
 ];
 
 /** Small read-only probe used by TTG endpoint verification. */
@@ -57,7 +59,8 @@ function driverInput([
   mode,
   nativePlaybackDirection,
   allowSeekedFrameFallback,
-  signal
+  signal,
+  requireExactMediaFrame
 ]: PhoneTimelineVideoInput): TimelineVideoDriveInput {
   return {
     runId,
@@ -75,7 +78,8 @@ function driverInput([
     ...(allowSeekedFrameFallback === null
       ? {}
       : { allowSeekedFrameFallback }),
-    ...(signal === null ? {} : { signal })
+    ...(signal === null ? {} : { signal }),
+    ...(requireExactMediaFrame === true ? { requireExactMediaFrame: true } : {})
   };
 }
 
@@ -94,8 +98,8 @@ export async function preparePhoneTimelineVideoFrame(
 ): Promise<PhoneTimelineVideoFrame> {
   const frame = await prepareTimelineVideoFrame(video, driverInput(input));
   return frame
-    ? [frame[0], frame[1], frame[2], frame[3], frame[4]]
-    : [null, null, null, null, null];
+    ? [frame[0], frame[1], frame[2], frame[3], frame[4], frame[5]]
+    : [null, null, null, null, null, null];
 }
 
 /** Hides the driver's mutable snapshot object behind a four-slot probe. */

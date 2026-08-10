@@ -121,8 +121,8 @@ describe('PhonePh', () => {
     expect(source).toContain(
       'phoneRuntimePresentationTokenKey(request.presentationToken as PresentationToken)'
     );
-    expect(source).toContain('failRun(1)');
-    expect(source).toContain('failRun(-1)');
+    expect(source).toContain('lifecycleRef.current[1](1)');
+    expect(source).toContain('lifecycleRef.current[1](-1)');
     expect(source).not.toContain('phonePresentedFrameOwner');
     expect(source).not.toContain('PH_FIGURE_OPENING_SRC');
     expect(source).not.toContain('beginRun');

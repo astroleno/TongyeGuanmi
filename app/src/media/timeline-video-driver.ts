@@ -28,6 +28,8 @@ export type TimelineVideoDriveInput = Readonly<{
    * data, and a playhead within the accepted presentation window.
    */
   allowSeekedFrameFallback?: boolean | undefined;
+  /** Do not satisfy preparation from a retained playhead; require a new rVFC. */
+  requireExactMediaFrame?: boolean | undefined;
   signal?: AbortSignal | undefined;
 }>;
 
@@ -41,7 +43,9 @@ export type TimelineVideoFrameResult = readonly [
   runId: string,
   direction: Direction,
   generation: number,
-  targetTime: number
+  targetTime: number,
+  /** Exact requestVideoFrameCallback mediaTime, or null for reuse/fallback. */
+  mediaTime: number | null
 ];
 
 export type TimelineVideoDriverSnapshot = Readonly<{
@@ -69,6 +73,7 @@ type DesiredFrame = Readonly<{
   progress: number;
   targetTime: number;
   allowSeekedFrameFallback: boolean;
+  requireExactMediaFrame: boolean;
 }>;
 
 type FramePresentationEvidence =
@@ -97,6 +102,8 @@ type TimelineManagedVideo = HTMLVideoElement & {
 const SEEK_TOLERANCE_SECONDS = 0.001;
 const PRESENTATION_TOLERANCE_SECONDS = 0.05;
 const SEEKED_FRAME_FALLBACK_DELAY_MS = 120;
+const EXACT_FRAME_RETRY_DELAY_MS = 250;
+const EXACT_FRAME_NUDGE_SECONDS = 1 / 15;
 const DEFAULT_END_EPSILON_SECONDS = 0.02;
 
 function clamp(value: number): number {
@@ -109,14 +116,24 @@ function finiteDuration(video: HTMLVideoElement, fallback: number): number {
     : Math.max(0.001, fallback);
 }
 
-function frameResult(frame: DesiredFrame, status: TimelineVideoFrameResult[0]): TimelineVideoFrameResult {
+function frameResult(
+  frame: DesiredFrame,
+  status: TimelineVideoFrameResult[0],
+  mediaTime: number | null = null
+): TimelineVideoFrameResult {
   return [
     status,
     frame.runId,
     frame.direction,
     frame.generation,
-    frame.targetTime
+    frame.targetTime,
+    mediaTime
   ];
+}
+
+function exactMediaTime(video: HTMLVideoElement): number | null {
+  const value = Number(video.dataset.timelineVideoFrameMediaTime);
+  return Number.isFinite(value) ? value : null;
 }
 
 class TimelineVideoDriverImpl implements TimelineVideoDriver {
@@ -141,8 +158,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private frameCallbackId: number | undefined;
   private presentingFrame: DesiredFrame | undefined;
   private presentedSeekFrame: DesiredFrame | undefined;
+  private presentedSeekMediaTime = Number.NaN;
   private seekedFrameFallbackTimer: ReturnType<typeof setTimeout> | undefined;
   private seekedFrameFallbackFrame: DesiredFrame | undefined;
+  private exactFrameRetryTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
 
   private readonly onSeeked = () => {
@@ -234,7 +253,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
     // Reuse only when the last presented frame and physical playhead together
     // remain within the same accepted presentation window as the new target.
-    if (Math.abs(this.readyTime - desired.targetTime)
+    if (!input.requireExactMediaFrame
+      && Math.abs(this.readyTime - desired.targetTime)
       + Math.abs(this.video.currentTime - desired.targetTime) <= PRESENTATION_TOLERANCE_SECONDS) {
       this.markFrameReady(desired, 'playhead-reuse');
     }
@@ -249,10 +269,16 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
 
     if (
+      !input.requireExactMediaFrame
+      &&
       this.frameReadyGeneration === desired.generation
       && Math.abs(this.readyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS
     ) {
-      return Promise.resolve(frameResult(desired, 'ready'));
+      return Promise.resolve(frameResult(
+        desired,
+        'ready',
+        exactMediaTime(this.video)
+      ));
     }
 
     let waiter!: FrameWaiter;
@@ -314,6 +340,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.video.removeEventListener('loadedmetadata', this.onLoadedMetadata);
     this.video.removeEventListener('error', this.onMediaError);
     this.video.removeEventListener('abort', this.onMediaAbort);
+    delete this.video.dataset.timelineVideoTarget;
+    delete this.video.dataset.timelineVideoFrameReady;
+    delete this.video.dataset.timelineVideoFrameEvidence;
+    delete this.video.dataset.timelineVideoFrameMediaTime;
     this.queuedSeek = undefined;
     this.inFlightSeek = undefined;
     this.primingSeek = undefined;
@@ -356,7 +386,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       direction: input.direction,
       progress: clamped,
       targetTime: start + (end - start) * clamped,
-      allowSeekedFrameFallback: input.allowSeekedFrameFallback === true
+      allowSeekedFrameFallback: input.allowSeekedFrameFallback === true,
+      requireExactMediaFrame: input.requireExactMediaFrame === true
     };
   }
 
@@ -545,7 +576,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       );
       if (frameWasPresented) {
         this.presentedSeekFrame = undefined;
-        this.markFrameReady(completed, 'video-frame-callback');
+        const mediaTime = this.presentedSeekMediaTime;
+        this.presentedSeekMediaTime = Number.NaN;
+        this.markFrameReady(completed, 'video-frame-callback', mediaTime);
       } else {
         const callbackPending = this.frameCallbackId !== undefined
           && this.presentingFrame?.generation === completed.generation
@@ -597,6 +630,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
           Number.isFinite(metadata?.mediaTime)
           && Math.abs(metadata.mediaTime - frame.targetTime) > PRESENTATION_TOLERANCE_SECONDS
         ) {
+          // A stale rVFC can arrive after the seek event has already cleared
+          // inFlightSeek. Re-queue the same token-bound target so the decoder
+          // gets a fresh physical seek instead of waiting forever on the old
+          // decoded sample.
           this.presentFrame(frame);
           return;
         }
@@ -605,11 +642,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
           && Math.abs(this.inFlightSeek.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
         ) {
           this.presentedSeekFrame = frame;
+          this.presentedSeekMediaTime = Number.isFinite(metadata?.mediaTime)
+            ? metadata.mediaTime
+            : Number.NaN;
           return;
         }
-        this.markFrameReady(frame, 'video-frame-callback');
+        this.markFrameReady(frame, 'video-frame-callback', metadata?.mediaTime);
       });
       this.armSeekedFrameFallback(frame);
+      this.armExactFrameRetry(frame);
     } catch (cause) {
       this.frameCallbackId = undefined;
       if (frame.allowSeekedFrameFallback) {
@@ -668,7 +709,11 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.seekedFrameFallbackFrame = undefined;
   }
 
-  private markFrameReady(frame: DesiredFrame, evidence: FramePresentationEvidence): void {
+  private markFrameReady(
+    frame: DesiredFrame,
+    evidence: FramePresentationEvidence,
+    mediaTime?: number
+  ): void {
     if (frame.generation !== this.generation) {
       return;
     }
@@ -677,6 +722,11 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.readyTime = frame.targetTime;
     this.video.dataset.timelineVideoFrameReady = 'true';
     this.video.dataset.timelineVideoFrameEvidence = evidence;
+    if (Number.isFinite(mediaTime)) {
+      this.video.dataset.timelineVideoFrameMediaTime = mediaTime!.toFixed(4);
+    } else {
+      delete this.video.dataset.timelineVideoFrameMediaTime;
+    }
     delete this.video.dataset.timelineVideoStaticFallback;
     for (const waiter of [...this.waiters]) {
       if (
@@ -699,7 +749,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   private cancelFrameCallback(): void {
     this.cancelSeekedFrameFallback();
+    this.cancelExactFrameRetry();
     this.presentedSeekFrame = undefined;
+    this.presentedSeekMediaTime = Number.NaN;
     if (this.frameCallbackId === undefined) {
       this.presentingFrame = undefined;
       return;
@@ -716,6 +768,48 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
   }
 
+  private armExactFrameRetry(frame: DesiredFrame): void {
+    if (!frame.requireExactMediaFrame || this.disposed) return;
+    this.cancelExactFrameRetry();
+    this.exactFrameRetryTimer = setTimeout(() => {
+      this.exactFrameRetryTimer = undefined;
+      if (
+        this.disposed
+        || frame.generation !== this.generation
+        || !this.presentingFrame
+        || this.presentingFrame.generation !== frame.generation
+        || Math.abs(this.presentingFrame.targetTime - frame.targetTime)
+          > SEEK_TOLERANCE_SECONDS
+      ) return;
+      const duration = finiteDuration(this.video, frame.targetTime + 0.01);
+      const nudge = frame.direction === -1
+        ? -EXACT_FRAME_NUDGE_SECONDS
+        : EXACT_FRAME_NUDGE_SECONDS;
+      const nudgedTime = Math.max(0, Math.min(duration, frame.targetTime + nudge));
+      this.cancelFrameCallback();
+      if (Math.abs(nudgedTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS) {
+        this.scheduleSeek(frame);
+        return;
+      }
+      this.queuedSeek = frame;
+      this.primingSeek = frame;
+      try {
+        this.video.currentTime = nudgedTime;
+        if (!this.video.seeking) this.completePrimingSeek();
+      } catch {
+        this.primingSeek = undefined;
+        this.scheduleSeek(frame);
+      }
+    }, EXACT_FRAME_RETRY_DELAY_MS);
+  }
+
+  private cancelExactFrameRetry(): void {
+    if (this.exactFrameRetryTimer !== undefined) {
+      clearTimeout(this.exactFrameRetryTimer);
+    }
+    this.exactFrameRetryTimer = undefined;
+  }
+
   private resolveWaiter(waiter: FrameWaiter, status: TimelineVideoFrameResult[0]): void {
     if (!this.waiters.delete(waiter)) {
       return;
@@ -723,7 +817,11 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     if (waiter.signal && waiter.onAbort) {
       waiter.signal.removeEventListener('abort', waiter.onAbort);
     }
-    waiter.resolve(frameResult(waiter, status));
+    waiter.resolve(frameResult(
+      waiter,
+      status,
+      status === 'ready' ? exactMediaTime(this.video) : null
+    ));
   }
 
   private rejectWaiter(waiter: FrameWaiter, error: Error): void {
@@ -815,6 +913,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.cancelFrameCallback();
     delete this.video.dataset.timelineVideoFrameReady;
     delete this.video.dataset.timelineVideoFrameEvidence;
+    delete this.video.dataset.timelineVideoFrameMediaTime;
     this.video.dataset.timelineVideoFallback = 'true';
     this.video.dataset.timelineVideoStaticFallback = 'true';
   }

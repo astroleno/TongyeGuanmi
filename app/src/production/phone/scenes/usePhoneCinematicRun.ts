@@ -142,6 +142,19 @@ export function usePhoneCinematicRun(
     publish('failed', direction);
     activeIdentityRef.current = null;
   }, [publish]);
+  const publishPresentedFrame = useCallback((presentationKey: string | null) => {
+    const direction = requestedRef.current;
+    const identity = activeIdentityRef.current;
+    if (
+      direction === null
+      || !identity
+      || !identity[5]
+      || presentationKey !== phoneRuntimePresentationTokenKey(identity[5])
+      || presentedFrameReportedRef.current
+    ) return;
+    presentedFrameReportedRef.current = true;
+    publish('presented', direction);
+  }, [publish]);
   const beginPreparedReverse = useCallback(() => {
     const root = options.rootRef.current;
     const token = activeIdentityRef.current?.[5] ?? null;
@@ -152,9 +165,13 @@ export function usePhoneCinematicRun(
       || !options.reverseReady(token)
     ) return;
     reverseStartedRef.current = true;
+    if (token) {
+      publishPresentedFrame(phoneRuntimePresentationTokenKey(token));
+    }
     options.reverseRef.current?.start();
     publish('playing', -1);
   }, [
+    publishPresentedFrame,
     options.reverseReady,
     options.reverseRef,
     options.rootRef,
@@ -233,19 +250,6 @@ export function usePhoneCinematicRun(
     options.reverseRef.current?.dispose();
   }, [options.forwardRef, options.reverseRef, stopRun]);
   const publishPlaying = useCallback(() => publish('playing', 1), [publish]);
-  const publishPresentedFrame = useCallback((presentationKey: string | null) => {
-    const direction = requestedRef.current;
-    const identity = activeIdentityRef.current;
-    if (
-      direction === null
-      || !identity
-      || !identity[5]
-      || presentationKey !== phoneRuntimePresentationTokenKey(identity[5])
-      || presentedFrameReportedRef.current
-    ) return;
-    presentedFrameReportedRef.current = true;
-    publish('presented', direction);
-  }, [publish]);
 
   return useMemo(() => [
     requestedRef,

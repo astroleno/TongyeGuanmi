@@ -84,10 +84,12 @@ class FakeVideo {
     }
   }
 
-  presentFrame(): void {
+  presentFrame(mediaTime?: number): void {
     const callback = this.frameCallback;
     this.frameCallback = undefined;
-    callback?.(0, {} as VideoFrameCallbackMetadata);
+    callback?.(0, mediaTime === undefined
+      ? {} as VideoFrameCallbackMetadata
+      : { mediaTime } as VideoFrameCallbackMetadata);
   }
 }
 
@@ -125,7 +127,8 @@ describe('timeline video driver', () => {
       'media-endpoint-frame:1',
       1,
       1,
-      0
+      0,
+      null
     ]);
   });
 
@@ -158,12 +161,61 @@ describe('timeline video driver', () => {
         'media-frame-strict:1',
         1,
         1,
-        4.99
+        4.99,
+        null
       ]);
     } finally {
       driver.dispose();
       vi.useRealTimers();
     }
+  });
+
+  it('returns the exact rVFC mediaTime with the prepared frame identity', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const readiness = driver.prepareFrame({
+      runId: 'media-exact-time:1',
+      direction: -1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+    video.completeSeek();
+    video.presentFrame(4.99);
+
+    await expect(readiness).resolves.toEqual([
+      'ready',
+      'media-exact-time:1',
+      -1,
+      1,
+      4.99,
+      4.99
+    ]);
+    expect(video.dataset.timelineVideoFrameMediaTime).toBe('4.9900');
+    driver.dispose();
+  });
+
+  it('re-seeks when rVFC reports a stale decoded sample after seek completion', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const readiness = driver.prepareFrame({
+      runId: 'media-stale-rvfc:1',
+      direction: -1,
+      progress: 0.5,
+      durationFallbackSeconds: 10
+    });
+    video.completeSeek();
+    video.presentFrame(4.8);
+    video.presentFrame(4.99);
+
+    await expect(readiness).resolves.toEqual([
+      'ready',
+      'media-stale-rvfc:1',
+      -1,
+      1,
+      4.99,
+      4.99
+    ]);
+    driver.dispose();
   });
 
   it('accepts a completed WebKit seek when its opted-in frame callback stalls', async () => {
@@ -190,7 +242,8 @@ describe('timeline video driver', () => {
         'media-webkit-frame-stall:1',
         1,
         1,
-        4.99
+        4.99,
+        null
       ]);
       expect(driver.snapshot().frameReady).toBe(true);
       expect(video.dataset.timelineVideoFrameEvidence).toBe('seeked-fallback');
@@ -231,7 +284,8 @@ describe('timeline video driver', () => {
         'media-webkit-without-frame-data:1',
         1,
         1,
-        4.99
+        4.99,
+        null
       ]);
       expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
     } finally {
@@ -261,7 +315,8 @@ describe('timeline video driver', () => {
         'media-webkit-frame-callback:1',
         1,
         1,
-        4.99
+        4.99,
+        null
       ]);
       await vi.advanceTimersByTimeAsync(120);
       expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
@@ -293,7 +348,8 @@ describe('timeline video driver', () => {
         'media-webkit-frame-api:1',
         1,
         1,
-        4.99
+        4.99,
+        null
       ]);
       expect(video.dataset.timelineVideoFrameEvidence).toBe('seeked-fallback');
     } finally {
@@ -328,7 +384,8 @@ describe('timeline video driver', () => {
         'media-webkit-stale:1',
         1,
         1,
-        4.99
+        4.99,
+        null
       ]);
       await vi.advanceTimersByTimeAsync(120);
       expect(driver.snapshot().frameReady).toBe(false);
@@ -355,7 +412,8 @@ describe('timeline video driver', () => {
       'endpoint-reuse:1',
       1,
       1,
-      9.94008
+      9.94008,
+      null
     ]);
     video.currentTime = 9.98;
     video.completeSeek();
@@ -373,7 +431,8 @@ describe('timeline video driver', () => {
       'endpoint-reuse:2',
       -1,
       2,
-      9.98
+      9.98,
+      null
     ]);
     expect(video.currentTimeWrites).toHaveLength(seekWrites);
     driver.dispose();
@@ -420,7 +479,8 @@ describe('timeline video driver', () => {
       'media-ready-then-seek-error:1',
       -1,
       1,
-      4.99
+      4.99,
+      null
     ]);
     expect(video.dataset.timelineVideoFrameReady).toBe('true');
 
@@ -441,7 +501,8 @@ describe('timeline video driver', () => {
       'media-ready-then-seek-error:1',
       -1,
       1,
-      6.986
+      6.986,
+      null
     ]);
     expect(video.dataset.timelineVideoFrameReady).toBe('true');
     expect(video.dataset.timelineVideoStaticFallback).toBeUndefined();
@@ -551,7 +612,8 @@ describe('timeline video driver', () => {
       'media-presented-native:2',
       -1,
       2,
-      9.98
+      9.98,
+      null
     ]);
   });
 
@@ -616,7 +678,8 @@ describe('timeline video driver', () => {
       'media-test:3',
       1,
       3,
-      5.988
+      5.988,
+      null
     ]);
     expect(driver.snapshot()).toMatchObject({
       runId: 'media-test:3',
