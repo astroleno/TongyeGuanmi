@@ -128,7 +128,12 @@
   left: 50vw;
   top: calc(var(--portrait-stage-height) / 2);
   width: var(--portrait-figure2-camera-width);
-  height: var(--portrait-figure2-camera-height);
+  /* The camera remains frozen, but its authored backing must continue through
+   * the live visual viewport extension while Safari's toolbar is moving. */
+  height: max(
+    var(--portrait-figure2-camera-height),
+    var(--portrait-coverage-bottom, var(--portrait-figure2-camera-height))
+  );
   transform: translate3d(
     -50%,
     calc(-50% + var(--portrait-figure2-middle-y)),

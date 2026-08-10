@@ -362,6 +362,81 @@ function assertTexturedBottomBand(
   ).toBeGreaterThan(4);
 }
 
+type Figure2CoverageTile = Readonly<{
+  nonSurfaceRatio: number;
+  luminanceRange: number;
+}>;
+
+function figure2CoverageTiles(
+  screenshot: PngScreenshot,
+  surface: readonly [number, number, number]
+): readonly Figure2CoverageTile[] {
+  const region = { left: .02, top: .76, right: .98, bottom: .995 } as const;
+  const bounds = screenshotBounds(screenshot, region);
+  const columns = 8;
+  const rows = 4;
+  const tiles: Figure2CoverageTile[] = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const left = bounds.left + Math.floor((bounds.right - bounds.left) * column / columns);
+      const right = bounds.left + Math.floor((bounds.right - bounds.left) * (column + 1) / columns);
+      const top = bounds.top + Math.floor((bounds.bottom - bounds.top) * row / rows);
+      const bottom = bounds.top + Math.floor((bounds.bottom - bounds.top) * (row + 1) / rows);
+      let nonSurface = 0;
+      let samples = 0;
+      let minimum = 255;
+      let maximum = 0;
+      for (let y = top; y < bottom; y += 1) {
+        for (let x = left; x < right; x += 1) {
+          const offset = (y * screenshot.width + x) * screenshot.channels;
+          const red = screenshot.pixels[offset] ?? 0;
+          const green = screenshot.pixels[offset + 1] ?? 0;
+          const blue = screenshot.pixels[offset + 2] ?? 0;
+          const distance = Math.max(
+            Math.abs(red - surface[0]),
+            Math.abs(green - surface[1]),
+            Math.abs(blue - surface[2])
+          );
+          const luminance = Math.round(
+            (red * 0.2126) + (green * 0.7152) + (blue * 0.0722)
+          );
+          if (distance > 10) nonSurface += 1;
+          minimum = Math.min(minimum, luminance);
+          maximum = Math.max(maximum, luminance);
+          samples += 1;
+        }
+      }
+      tiles.push({
+        nonSurfaceRatio: samples > 0 ? nonSurface / samples : 0,
+        luminanceRange: maximum - minimum
+      });
+    }
+  }
+  return tiles;
+}
+
+function assertFigure2CoverageTexture(
+  screenshot: PngScreenshot,
+  surface: readonly [number, number, number],
+  label: string
+): void {
+  const tiles = figure2CoverageTiles(screenshot, surface);
+  const authoredTiles = tiles.filter((tile) => (
+    tile.nonSurfaceRatio > .12 && tile.luminanceRange > 4
+  ));
+  expect(
+    authoredTiles.length,
+    `${label} must texture the expanded camera region in every block: ${JSON.stringify(tiles)}`
+  ).toBeGreaterThanOrEqual(Math.ceil(tiles.length * .75));
+  const flatTiles = tiles.filter((tile) => (
+    tile.nonSurfaceRatio < .03 && tile.luminanceRange <= 4
+  ));
+  expect(
+    flatTiles.length,
+    `${label} must not leave a long flat middle-camera fallback band: ${JSON.stringify(tiles)}`
+  ).toBeLessThanOrEqual(Math.floor(tiles.length * .12));
+}
+
 function assertPresentedReverseVideoFrames(
   frames: readonly PhoneVisualLeaseFrame[],
   owner: string,
@@ -399,7 +474,7 @@ function assertPresentedReversePackedFrames(
   draws: readonly PhoneVisualLeaseDraw[],
   owner: string,
   label: string
-): void {
+): string {
   const evidence = draws.filter((draw) => draw.owner.includes(owner));
   expect(
     new Set(evidence.map((entry) => entry.hash)).size,
@@ -410,6 +485,33 @@ function assertPresentedReversePackedFrames(
   )));
   expect(tokens.size, `${label} needs one current token-bound Canvas lease`).toBe(1);
   expect(evidence.every((entry) => entry.packedToken !== null)).toBe(true);
+  expect(evidence.every((entry) => entry.direction === '-1'))
+    .toBe(true);
+  expect(evidence.every((entry) => Number.isFinite(entry.mediaTime)))
+    .toBe(true);
+  const firstToken = evidence[0]?.packedToken ?? null;
+  expect(evidence.every((entry) => entry.packedToken === firstToken))
+    .toBe(true);
+  expect(evidence.every((entry) => {
+    const parts = entry.packedToken?.split('|').map((part) => decodeURIComponent(part));
+    return parts?.[0] === entry.authority
+      && parts[1] === entry.session
+      && parts[2] === entry.generation
+      && parts[3] === entry.leg;
+  }), `${label} packed frames must match the active authority/session/generation/leg`)
+    .toBe(true);
+  const mediaTimes = evidence
+    .map((entry) => entry.mediaTime)
+    .filter((time): time is number => time !== null);
+  for (let index = 1; index < mediaTimes.length; index += 1) {
+    expect(
+      mediaTimes[index]!,
+      `${label} packed decoder mediaTime must descend: ${JSON.stringify(mediaTimes)}`
+    ).toBeLessThanOrEqual(mediaTimes[index - 1]! + .002);
+  }
+  expect(mediaTimes[0]! - mediaTimes.at(-1)!, `${label} must visibly reverse the packed media`)
+    .toBeGreaterThan(.05);
+  return firstToken!;
 }
 
 /**
@@ -806,12 +908,15 @@ type PhoneVisualLeaseFrame = Readonly<{
 
 type PhoneVisualLeaseDraw = Readonly<{
   at: number;
+  authority: string | null;
   cursor: string | null;
   session: string | null;
   generation: string | null;
   leg: string | null;
+  direction: string | null;
   owner: string;
   hash: string;
+  mediaTime: number | null;
   effectToken: string | null;
   packedToken: string | null;
 }>;
@@ -1767,14 +1872,23 @@ async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
       const hash = pixelHash(canvas);
       if (hash === null) return;
       const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      const scene = canvas.closest<HTMLElement>('[data-phone-scene], [data-r4-scene]');
+      const video = scene?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')
+        ?? scene?.querySelector<HTMLVideoElement>('[data-crane-alpha-video]');
+      const mediaTime = video && Number.isFinite(video.currentTime)
+        ? video.currentTime
+        : Number.parseFloat(canvas.dataset.packedAlphaMediaTime ?? '');
       probe.draws.push({
         at: performance.now(),
+        authority: root?.dataset.phoneAuthorityId ?? null,
         cursor: root?.dataset.phoneCursor ?? null,
         session: root?.dataset.phoneSession ?? null,
         generation: root?.dataset.phoneTransitionGeneration ?? null,
         leg: root?.dataset.phoneTransitionLeg ?? null,
+        direction: root?.dataset.phoneTransitionDirection ?? null,
         owner: ownerLabel(canvas),
         hash,
+        mediaTime: Number.isFinite(mediaTime) ? mediaTime : null,
         effectToken: canvas.dataset.phonePresentationEffectToken ?? null,
         packedToken: canvas.dataset.phonePackedAlphaPresentationToken ?? null
       });
@@ -5286,6 +5400,7 @@ test('[P0 Figure2 physical z-depth][Figure2 bottom coverage] paints current-toke
   await visitFormal(page, '/#figure2-animation', 'figure2-animation');
   const stable = decodePngScreenshot(await page.screenshot());
   assertTexturedBottomBand(stable, [226, 218, 201], 'stable Figure2 bottom band');
+  assertFigure2CoverageTexture(stable, [226, 218, 201], 'stable Figure2 camera');
 
   await resetPhoneVisualLeaseProbe(page);
   await waitForNewWheelEpoch(page);
@@ -5303,6 +5418,7 @@ test('[P0 Figure2 physical z-depth][Figure2 bottom coverage] paints current-toke
   }).toBe(true);
   const middle = decodePngScreenshot(await page.screenshot());
   assertTexturedBottomBand(middle, [226, 218, 201], 'mid-z-depth Figure2 bottom band');
+  assertFigure2CoverageTexture(middle, [226, 218, 201], 'mid-z-depth Figure2 camera');
   await assertStablePhoneHold(page, 'figure2-proof', { timeout: 70_000 });
 
   const effect = (await phoneVisualLeaseDraws(page)).filter((draw) => (
@@ -5321,6 +5437,47 @@ test('[P0 Figure2 physical z-depth][Figure2 bottom coverage] paints current-toke
       && token[3] === sample.leg;
   }), 'every Figure2 depth frame must carry its current session/generation/leg token').toBe(true);
   expect(new Set(effect.map((sample) => sample.effectToken)).size).toBe(1);
+});
+
+test('[P1 Figure2 dynamic camera coverage] extends authored texture through a live viewport growth', async ({ page }) => {
+  test.setTimeout(60_000);
+  await installLiveVisualViewportProbe(page);
+  await visitFormal(page, '/#figure2-animation', 'figure2-animation');
+  const stable = decodePngScreenshot(await page.screenshot());
+  assertFigure2CoverageTexture(stable, [226, 218, 201], 'stable Figure2 camera');
+
+  await setLiveVisualViewport(page, { offsetTop: 160, height: 844 });
+  await page.waitForTimeout(300);
+  const expandedViewport = decodePngScreenshot(await page.screenshot());
+  assertTexturedBottomBand(
+    expandedViewport,
+    [226, 218, 201],
+    'expanded Figure2 bottom band'
+  );
+  assertFigure2CoverageTexture(
+    expandedViewport,
+    [226, 218, 201],
+    'expanded Figure2 camera'
+  );
+  const expandedCoverage = await page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    const coverage = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__viewport-coverage'
+    );
+    const before = coverage ? getComputedStyle(coverage, '::before') : null;
+    return {
+      expectedBottom: Number.parseFloat(
+        root ? getComputedStyle(root).getPropertyValue('--portrait-coverage-bottom') : ''
+      ),
+      cameraHeight: Number.parseFloat(before?.height ?? ''),
+      cameraImage: before?.backgroundImage ?? ''
+    };
+  });
+  expect(expandedCoverage.cameraImage).toContain('figure2-middle-building');
+  expect(
+    expandedCoverage.cameraHeight,
+    'Figure2 coverage camera must paint through the dynamic visual viewport extension'
+  ).toBeGreaterThanOrEqual(expandedCoverage.expectedBottom - 1);
 });
 
 test('[TTG presented reverse][Services reverse release] two same-authority returns advance only on presented decoder frames and release Services', async ({ page }) => {
@@ -5387,6 +5544,7 @@ test('[PH token-bound reverse][PH retire restore] requires current-token packed 
   const authorityId = await page.locator(LIVE_PHONE_ROOT).getAttribute(
     'data-phone-authority-id'
   );
+  let previousToken: string | null = null;
 
   for (let cycle = 0; cycle < 2; cycle += 1) {
     await resetPhoneVisualLeaseProbe(page);
@@ -5394,11 +5552,16 @@ test('[PH token-bound reverse][PH retire restore] requires current-token packed 
     const reverseFrames = (await phoneVisualLeaseDraws(page)).filter((frame) => (
       frame.cursor === 'transition:lab-education:1'
     ));
-    assertPresentedReversePackedFrames(
+    const token = assertPresentedReversePackedFrames(
       reverseFrames,
       'ph-animation',
       `PH reverse cycle ${cycle + 1}`
     );
+    if (previousToken !== null) {
+      expect(token, 'the second PH reverse run must use a fresh execution token')
+        .not.toBe(previousToken);
+    }
+    previousToken = token;
     await expect(page.locator(LIVE_PHONE_ROOT)).toHaveAttribute(
       'data-phone-authority-id',
       authorityId!

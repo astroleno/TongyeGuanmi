@@ -165,6 +165,7 @@ describe('phone live viewport coverage', () => {
     expect(figure2Coverage).toContain('calc(-50% + var(--portrait-figure2-middle-y))');
     expect(figure2Coverage).toContain('scale(var(--portrait-figure2-camera-scale));');
     expect(figure2Coverage).toContain('transform-origin: 50% 56%;');
+    expect(figure2Coverage).toContain('var(--portrait-coverage-bottom');
     expect(stageRailStyles).not.toContain('background-position: 50% 0;');
   });
 
