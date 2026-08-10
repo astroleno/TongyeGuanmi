@@ -76,9 +76,16 @@ function fixture() {
 
 describe('phone live viewport coverage', () => {
   it('[front-half gate] keeps the frozen stage canvas opaque while the live viewport backing is a separate DOM host', () => {
+    const canvasComment = stageRailStyles.indexOf(
+      '/* The retained layout canvas is frozen'
+    );
+    const canvasStart = stageRailStyles.indexOf(
+      '.portrait-scroll-spike__stage-canvas {',
+      canvasComment
+    );
     const stageCanvas = stageRailStyles.slice(
-      stageRailStyles.indexOf('.portrait-scroll-spike__stage-canvas {'),
-      stageRailStyles.indexOf('/* The fixed stage warms from mount')
+      canvasStart,
+      stageRailStyles.indexOf('}', canvasStart) + 1
     );
 
     expect(stageCanvas).toContain('height: max(100%, var(--portrait-stage-canvas-height));');
@@ -129,9 +136,36 @@ describe('phone live viewport coverage', () => {
     expect(stageRailStyles).toContain(
       'url("../../../../assets/figure2-middle-building.webp")'
     );
-    expect(stageRailStyles).toMatch(
-      /data-portrait-edge-scene="figure2"[^}]+background-position:\s*50% 0;[^}]+background-size:\s*max\(100vw, calc\(var\(--portrait-stage-height\) \* 16 \/ 9\)\)\s*max\(var\(--portrait-stage-height\), calc\(100vw \* 9 \/ 16\)\);/s
+    expect(stageRailStyles).toContain(
+      '.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage::before'
     );
+    expect(stageRailStyles).toContain(
+      'background: url("../../../../assets/figure2-middle-building.webp") 50% 50% / 100% 100% no-repeat;'
+    );
+  });
+
+  it('[P1 Figure2 coverage] reuses the authored middle camera origin, transform, and scale', () => {
+    expect(stageRailStyles).toContain('--portrait-figure2-camera-scale');
+    expect(stageRailStyles).toContain('--portrait-figure2-middle-y');
+    const figure2Coverage = stageRailStyles.slice(
+      stageRailStyles.indexOf('[data-portrait-edge-scene="figure2"]'),
+      stageRailStyles.indexOf('/* Above-both effects are route siblings,')
+    );
+    expect(figure2Coverage).toContain('.portrait-scroll-spike__viewport-coverage::before');
+    expect(stageRailStyles).toContain(
+      '.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__stage-canvas'
+    );
+    expect(stageRailStyles).toContain(
+      '.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .phone-grade-a__surfaces > .r4-figure2'
+    );
+    expect(stageRailStyles).toContain('background: transparent;');
+    expect(stageRailStyles).toContain('--portrait-figure2-camera-width: max(100vw, calc(var(--portrait-stage-height) * 16 / 9));');
+    expect(stageRailStyles).toContain('--portrait-figure2-camera-height: max(var(--portrait-stage-height), calc(100vw * 9 / 16));');
+    expect(figure2Coverage).toContain('transform: translate3d(');
+    expect(figure2Coverage).toContain('calc(-50% + var(--portrait-figure2-middle-y))');
+    expect(figure2Coverage).toContain('scale(var(--portrait-figure2-camera-scale));');
+    expect(figure2Coverage).toContain('transform-origin: 50% 56%;');
+    expect(stageRailStyles).not.toContain('background-position: 50% 0;');
   });
 
   it('[P0 AOD coverage] keeps AOD flat and reserves paper treatment for Method', () => {

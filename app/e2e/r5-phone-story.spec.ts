@@ -313,16 +313,53 @@ function assertTexturedBottomBand(
   surface: readonly [number, number, number],
   label: string
 ): void {
-  const evidence = compositedPixelEvidence(screenshot, {
+  const region = {
     left: .02,
     top: .92,
     right: .98,
     bottom: .995
-  }, surface, 10);
+  } as const;
+  const evidence = compositedPixelEvidence(screenshot, region, surface, 10);
+  const bounds = screenshotBounds(screenshot, region);
+  let nearWhitePixels = 0;
+  let transparentPixels = 0;
+  let minimumLuminance = 255;
+  let maximumLuminance = 0;
+  for (let y = bounds.top; y < bounds.bottom; y += 1) {
+    for (let x = bounds.left; x < bounds.right; x += 1) {
+      const offset = (y * screenshot.width + x) * screenshot.channels;
+      const red = screenshot.pixels[offset] ?? 0;
+      const green = screenshot.pixels[offset + 1] ?? 0;
+      const blue = screenshot.pixels[offset + 2] ?? 0;
+      const alpha = screenshot.channels === 4
+        ? screenshot.pixels[offset + 3] ?? 0
+        : 255;
+      const luminance = Math.round(
+        (red * 0.2126) + (green * 0.7152) + (blue * 0.0722)
+      );
+      minimumLuminance = Math.min(minimumLuminance, luminance);
+      maximumLuminance = Math.max(maximumLuminance, luminance);
+      if (alpha < 250) transparentPixels += 1;
+      if (red >= 248 && green >= 248 && blue >= 248) nearWhitePixels += 1;
+    }
+  }
+  const samples = (bounds.right - bounds.left) * (bounds.bottom - bounds.top);
   expect(
     evidence.nonSurfaceRatio,
     `${label} must be real middle-camera pixels, not a flat fallback band`
   ).toBeGreaterThan(.025);
+  expect(
+    transparentPixels / samples,
+    `${label} must not expose transparent pixels`
+  ).toBe(0);
+  expect(
+    nearWhitePixels / samples,
+    `${label} must reject a pure-white exposed band`
+  ).toBeLessThan(.02);
+  expect(
+    maximumLuminance - minimumLuminance,
+    `${label} must retain authored camera texture, not a uniform fallback`
+  ).toBeGreaterThan(4);
 }
 
 function assertPresentedReverseVideoFrames(

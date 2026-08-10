@@ -443,6 +443,15 @@ export function renderFigure2AnimationProgress(
   root?.style.setProperty('--r4-figure2-far-arcade-y', `${farArcadeY.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-far-arcade-scale', farArcadeScale.toFixed(4));
   root?.style.setProperty('--r4-figure2-middle-y', `${middleY.toFixed(2)}px`);
+  const phoneRouteRoot = root?.closest?.<HTMLElement>('.portrait-scroll-spike');
+  phoneRouteRoot?.style.setProperty(
+    '--portrait-figure2-camera-scale',
+    cameraScale.toFixed(4)
+  );
+  phoneRouteRoot?.style.setProperty(
+    '--portrait-figure2-middle-y',
+    `${middleY.toFixed(2)}px`
+  );
   const retainedArch = retainedFigure2Arch(root);
   if (retainedArch?.dataset.figure2ArchMotion !== 'fixed') {
     retainedArch?.style.setProperty('--r4-figure2-near-arch-scale', nearArchScale.toFixed(4));

@@ -118,6 +118,11 @@ export function createPhonePresentedReversePlayback(
         || preparationGeneration !== generation
       ) return;
       preparing = false;
+      // A decoder may resolve its preparation promise after Safari has
+      // backgrounded the page. Keep the same canonical progress and let the
+      // visibility listener schedule a fresh presented-frame attempt on
+      // resume; hidden pages must not render, advance, or complete a lease.
+      if (visibilityDocument?.hidden) return;
       if (!ready) {
         schedule();
         return;
@@ -135,6 +140,8 @@ export function createPhonePresentedReversePlayback(
         || !active
         || preparationGeneration !== generation
       ) return;
+      preparing = false;
+      if (visibilityDocument?.hidden) return;
       fail();
     });
   }

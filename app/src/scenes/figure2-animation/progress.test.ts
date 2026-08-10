@@ -114,6 +114,8 @@ class FakeImage {
 }
 
 class FakeStage {
+  readonly style = new FakeStyle();
+
   constructor(private readonly retainedArch: FakeImage | null = null) {}
 
   querySelector(selector: string): FakeImage | null {
@@ -146,7 +148,10 @@ class FakeRoot {
   }
 
   closest(selector: string): FakeStage | null {
-    return selector === '[data-testid="r2-stage"]' ? this.stage : null;
+    return selector === '[data-testid="r2-stage"]'
+      || selector === '.portrait-scroll-spike'
+      ? this.stage
+      : null;
   }
 
   setAttribute(name: string, value: string): void {
@@ -193,6 +198,16 @@ describe('Figure2 canonical media', () => {
     renderFigure2Hold(root as unknown as HTMLElement);
     expect(root.attributes.get('data-figure2-progress')).toBe('0.0000');
     expect(root.style.values.get('--r4-figure2-video-opacity')).toBe('1');
+  });
+
+  it('publishes the same Figure2 camera lease to the phone coverage host', () => {
+    const phoneRoute = new FakeStage();
+    const root = new FakeRoot([], [], phoneRoute);
+
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 1);
+
+    expect(phoneRoute.style.values.get('--portrait-figure2-camera-scale')).toBe('1.1420');
+    expect(phoneRoute.style.values.get('--portrait-figure2-middle-y')).toBe('-34.00px');
   });
 
   it('does not apply the z-depth transform to a fixed foreground arch', () => {

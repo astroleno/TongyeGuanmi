@@ -12,8 +12,8 @@
 }
 
 .phone-grade-a__surfaces .r4-figure2__middle-camera {
-  width: max(100vw, calc(var(--portrait-stage-height) * 16 / 9));
-  height: max(var(--portrait-stage-height), calc(100vw * 9 / 16));
+  width: var(--portrait-figure2-camera-width, max(100vw, calc(var(--portrait-stage-height) * 16 / 9)));
+  height: var(--portrait-figure2-camera-height, max(var(--portrait-stage-height), calc(100vw * 9 / 16)));
 }
 
 .phone-grade-a__surfaces .r4-figure2__figures {

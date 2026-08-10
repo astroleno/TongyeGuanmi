@@ -143,4 +143,56 @@ describe('Unit 6 presented-frame reverse playback', () => {
     expect(playback.active).toBe(true);
     playback.dispose();
   });
+
+  it('does not render or complete a prepared frame while the page is hidden', async () => {
+    const frames: FrameRequestCallback[] = [];
+    const listeners = new Set<() => void>();
+    let resolvePreparation: ((ready: boolean) => void) | undefined;
+    const render = vi.fn();
+    const complete = vi.fn();
+    const visibilityDocument = {
+      hidden: false,
+      addEventListener: vi.fn((_type: string, listener: () => void) => {
+        listeners.add(listener);
+      }),
+      removeEventListener: vi.fn()
+    };
+    const playback = createPhonePresentedReversePlayback([
+      1500,
+      () => new Promise((resolve) => {
+        resolvePreparation = resolve;
+      }),
+      render,
+      complete,
+      vi.fn(),
+      visibilityDocument,
+      (callback) => {
+        frames.push(callback);
+        return frames.length;
+      },
+      vi.fn()
+    ]);
+
+    playback.start();
+    frames.shift()?.(0);
+    visibilityDocument.hidden = true;
+    listeners.forEach((listener) => listener());
+    resolvePreparation?.(true);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(render).not.toHaveBeenCalled();
+    expect(complete).not.toHaveBeenCalled();
+    expect(playback.active).toBe(true);
+
+    visibilityDocument.hidden = false;
+    listeners.forEach((listener) => listener());
+    expect(frames).toHaveLength(1);
+    frames.shift()?.(16);
+    resolvePreparation?.(true);
+    await Promise.resolve();
+
+    expect(render).toHaveBeenCalledOnce();
+    playback.dispose();
+  });
 });

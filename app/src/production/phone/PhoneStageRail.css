@@ -2,6 +2,13 @@
 .portrait-scroll-spike {
   --portrait-live-height: 100svh;
   --portrait-live-height: 100dvh;
+  /* Figure2 coverage inherits the exact authored camera contract. The leaf
+   * updates only scale and middle-y per execution; width, height, origin, and
+   * the layout center remain shared with the real middle camera. */
+  --portrait-figure2-camera-width: max(100vw, calc(var(--portrait-stage-height) * 16 / 9));
+  --portrait-figure2-camera-height: max(var(--portrait-stage-height), calc(100vw * 9 / 16));
+  --portrait-figure2-camera-scale: 1.012;
+  --portrait-figure2-middle-y: 0px;
   /* Top-level host planes are the only cross-stacking-context order. */
   --phone-host-plane-coverage: 10;
   --phone-host-plane-content: 20;
@@ -95,15 +102,42 @@
 }
 
 /* Keep Figure2's frozen content camera untouched. The independent Safari
- * coverage plane extends the same authored middle scene when browser chrome
+ * coverage plane paints the same authored middle camera when browser chrome
  * grows the live viewport beyond that camera. */
 .portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage {
   background-color: #e2dac9;
-  background-image: url("../../../../assets/figure2-middle-building.webp");
-  background-position: 50% 0;
-  background-size:
-    max(100vw, calc(var(--portrait-stage-height) * 16 / 9))
-    max(var(--portrait-stage-height), calc(100vw * 9 / 16));
+  background-image: none;
+  overflow: clip;
+}
+
+/* Let the shared camera backing remain visible through transparent Figure2
+ * depth frames; the generic stage fallback would otherwise cover it with a
+ * flat edge color above the coverage host. */
+.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__stage-canvas {
+  background: transparent;
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .phone-grade-a__surfaces > .r4-figure2 {
+  background: transparent;
+}
+
+.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 50vw;
+  top: calc(var(--portrait-stage-height) / 2);
+  width: var(--portrait-figure2-camera-width);
+  height: var(--portrait-figure2-camera-height);
+  transform: translate3d(
+    -50%,
+    calc(-50% + var(--portrait-figure2-middle-y)),
+    0
+  ) scale(var(--portrait-figure2-camera-scale));
+  transform-origin: 50% 56%;
+  background: url("../../../../assets/figure2-middle-building.webp") 50% 50% / 100% 100% no-repeat;
+  filter: brightness(.96) contrast(.94) saturate(.86) sepia(.08);
+  pointer-events: none;
 }
 
 /* Above-both effects are route siblings, never descendants of an endpoint. */
