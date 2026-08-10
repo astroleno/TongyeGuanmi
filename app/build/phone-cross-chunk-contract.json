@@ -142,6 +142,7 @@
     "registerSurface",
     "registerTransitionEndpoints",
     "releaseEndpoint",
+    "retireExecution",
     "render",
     "renderAutoplayProgress",
     "report",

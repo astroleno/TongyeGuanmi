@@ -170,6 +170,21 @@ describe('PhonePh', () => {
     expect(reverseReady).toContain('presentedReverseFrameRef');
   });
 
+  it('[P1 PH lifecycle] retires the packed owner only from a machine-issued token release', () => {
+    const handle = source.slice(source.indexOf('useImperativeHandle(forwardedRef'));
+    expect(source).toContain('disposePresentation(token) {');
+    expect(source).toContain(
+      'expectedReverseFrameRef.current !== key'
+    );
+    expect(source).toContain('binding?.key !== key');
+    expect(source).toContain(
+      'expectedReverseFrameRef.current = null;'
+    );
+    expect(source).toContain('stopRun();');
+    expect(source).toContain("packedSurfaceRef.current?.(['retire'])");
+    expect(handle).not.toContain('if (active)');
+  });
+
   it('[PH token-bound reverse] rejects stale frames and accepts only the current immutable token', () => {
     const token: PresentationToken = {
       authorityId: 'phone-authority',

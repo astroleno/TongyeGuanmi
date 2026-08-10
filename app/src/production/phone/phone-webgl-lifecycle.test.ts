@@ -135,7 +135,9 @@ describe('phone WebGL allocation lifecycle', () => {
     // downstream routes remain cold because `active` is false there.
     expect(hero).toContain('if (active) {');
     expect(hero).toContain("ensurePackedSurface('forward');");
-    expect(hero).toContain("ensureIntroInk()?.(['prewarm']);");
+    expect(hero).toContain(
+      "packedSurfaceRef.current?.(['prepare', 'forward', null, true, null])"
+    );
     expect(hero).toContain('playbackRef.current?.setActive(active && !reducedMotion);');
   });
 

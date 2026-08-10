@@ -9,6 +9,17 @@
   --portrait-figure2-camera-height: max(var(--portrait-stage-height), calc(100vw * 9 / 16));
   --portrait-figure2-camera-scale: 1.012;
   --portrait-figure2-middle-y: 0px;
+  --portrait-figure2-camera-translate-y: calc(
+    var(--portrait-figure2-camera-height) * -.5
+    + var(--portrait-figure2-middle-y)
+  );
+  --portrait-figure2-camera-bottom: calc(
+    var(--portrait-stage-height) / 2
+    + var(--portrait-figure2-middle-y)
+    + var(--portrait-figure2-camera-height) * .06
+    + var(--portrait-figure2-camera-height) * .44
+      * var(--portrait-figure2-camera-scale)
+  );
   /* The continuation plane may overscan the frozen camera, but it keeps the
    * authored 16:9 projection instead of stretching a texture to the live
    * viewport's changing aspect ratio. */
@@ -18,7 +29,17 @@
   );
   --portrait-figure2-extension-height: max(
     0px,
-    calc(var(--portrait-figure2-overscan-height) - var(--portrait-figure2-camera-height))
+    calc(
+      var(--portrait-coverage-bottom, var(--portrait-figure2-camera-bottom))
+      - var(--portrait-figure2-camera-bottom)
+    )
+  );
+  /* The continuation is authored in the same local camera coordinates. Its
+   * local overscan is converted back from the world-space coverage height so
+   * the shared camera scale maps the seam and the extension one-to-one. */
+  --portrait-figure2-extension-local-height: calc(
+    var(--portrait-figure2-extension-height)
+    / var(--portrait-figure2-camera-scale)
   );
   /* Top-level host planes are the only cross-stacking-context order. */
   --phone-host-plane-coverage: 10;
@@ -152,10 +173,10 @@
   aspect-ratio: 16 / 9;
   transform: translate3d(
     -50%,
-    calc(-50% + var(--portrait-figure2-middle-y)),
+    var(--portrait-figure2-camera-translate-y),
     0
   ) scale(var(--portrait-figure2-camera-scale));
-  transform-origin: 50% 56%;
+  transform-origin: 50% calc(var(--portrait-figure2-camera-height) * .56);
   /* The exact camera uses the same authored layer sizes as the Figure2 leaf;
    * no layer is resized to the live visual viewport. */
   background-image:
@@ -171,8 +192,11 @@
       ) * .88
       + var(--portrait-figure2-cloud-y, 0px)
     ),
-    50% calc(50% + var(--portrait-figure2-far-arcade-y, 10px)),
-    50% 50%;
+    50% calc(
+      var(--portrait-figure2-camera-height) * .5
+      + var(--portrait-figure2-far-arcade-y, 10px)
+    ),
+    50% 0;
   background-size:
     calc(var(--portrait-figure2-camera-width) * .46 * var(--portrait-figure2-cloud-scale, 1))
       calc(var(--portrait-figure2-camera-width) * .46 * 1.776833 * var(--portrait-figure2-cloud-scale, 1)),
@@ -186,41 +210,30 @@
 .portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage::after {
   content: "";
   position: absolute;
-  /* Paint only the physical extension behind the exact camera. Sources keep
-   * their authored camera size and are bottom-cropped into this plane; no
-   * texture is stretched to the changing visual viewport. */
   z-index: 0;
   left: 50vw;
-  top: calc(
-    var(--portrait-figure2-camera-height)
-    + (var(--portrait-figure2-extension-height) / 2)
-  );
+  /* Use the exact authored camera box and transform origin. Only the local
+   * height and a fixed continuation texture extend below the authored seam;
+   * no second world-space camera or stretched viewport copy is introduced. */
+  top: calc(var(--portrait-stage-height) / 2);
   width: var(--portrait-figure2-camera-width);
-  height: var(--portrait-figure2-extension-height);
-  aspect-ratio: 16 / 9;
+  height: calc(
+    var(--portrait-figure2-camera-height)
+    + var(--portrait-figure2-extension-local-height)
+  );
   transform: translate3d(
     -50%,
-    calc(-50% + var(--portrait-figure2-middle-y)),
+    var(--portrait-figure2-camera-translate-y),
     0
   ) scale(var(--portrait-figure2-camera-scale));
-  transform-origin: 50% 56%;
-  background-image:
-    url("../../../../assets/figure2-cloud.webp"),
-    url("../../../../assets/figure2-far-arch.webp"),
-    url("../../../../assets/figure2-middle-building.webp");
-  background-position:
-    50% calc(100% + var(--portrait-figure2-cloud-y, 0px)),
-    50% calc(100% + var(--portrait-figure2-far-arcade-y, 10px)),
-    50% 100%;
-  background-size:
-    calc(var(--portrait-figure2-camera-width) * .46 * var(--portrait-figure2-cloud-scale, 1))
-      calc(var(--portrait-figure2-camera-width) * .46 * 1.776833 * var(--portrait-figure2-cloud-scale, 1)),
-    auto calc(var(--portrait-figure2-camera-height) * .78 * var(--portrait-figure2-far-arcade-scale, 1)),
-    var(--portrait-figure2-camera-width) var(--portrait-figure2-camera-height);
+  transform-origin: 50% calc(var(--portrait-figure2-camera-height) * .56);
+  background-image: url("../../../../assets/figure2-continuation.svg");
+  background-position: 50% var(--portrait-figure2-camera-height);
+  background-size: var(--portrait-figure2-camera-width) 256px;
   background-repeat: no-repeat;
   filter: brightness(.96) contrast(.94) saturate(.86) sepia(.08);
-  /* The continuation is already below the authored window camera. Keeping
-   * this plane unmasked prevents a transparent mask tail from exposing the
+  /* The clipped plane is already below the authored window camera. Keeping
+   * this plane opaque prevents a transparent mask tail from exposing the
    * host's flat backing at the live viewport floor. */
   pointer-events: none;
 }

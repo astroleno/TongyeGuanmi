@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && node scripts/verify-boolean-data-contract.mjs && node scripts/verify-homepage-module-boundaries.mjs && VITE_ENABLE_PHONE_STORY=1 vite build && pnpm run verify:media && node scripts/verify-release-build.mjs && node scripts/verify-performance-budgets.mjs && node scripts/create-cdn-publish-manifest.mjs && node scripts/create-release-manifest.mjs",
+    "build": "tsc -b && pnpm run typecheck:e2e && node scripts/verify-boolean-data-contract.mjs && node scripts/verify-homepage-module-boundaries.mjs && VITE_ENABLE_PHONE_STORY=1 vite build && pnpm run verify:media && node scripts/verify-release-build.mjs && node scripts/verify-performance-budgets.mjs && node scripts/create-cdn-publish-manifest.mjs && node scripts/create-release-manifest.mjs",
     "build:release": "pnpm run release:prepare && pnpm run evidence:memory:release && pnpm run release:finalize",
     "release:prepare": "VITE_ENABLE_PHONE_STORY=1 R5_REQUIRE_PHONE_STORY=1 R5_REQUIRE_RELEASE_IDENTITY=1 R5_REQUIRE_CDN=1 R5_RELEASE_MANIFEST_PHASE=prepare pnpm run build",
     "release:finalize": "R5_REQUIRE_PHONE_STORY=1 R5_REQUIRE_RELEASE_IDENTITY=1 R5_REQUIRE_MEMORY_EVIDENCE=1 R5_RELEASE_MANIFEST_PHASE=finalize node scripts/create-release-manifest.mjs",
@@ -13,6 +13,7 @@
     "release:verify-cdn": "node scripts/verify-cdn-release.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
+    "typecheck:e2e": "tsc -p tsconfig.e2e.json --pretty false",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

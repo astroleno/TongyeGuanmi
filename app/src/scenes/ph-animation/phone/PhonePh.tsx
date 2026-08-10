@@ -388,12 +388,12 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
           ? 'endpoint'
           : 'forward';
       const presentationKey = phoneRuntimePresentationTokenKey(request.presentationToken as PresentationToken);
+      expectedReverseFrameRef.current = presentationKey;
       if (mode === 'endpoint') {
         // Arm the reverse identity before endpoint preparation. If the exact
         // rVFC-backed draw arrives during preparation, it is the same frame
         // that startRun(-1) will consume; do not force a second fallback draw
         // merely because the reverse player has not started yet.
-        expectedReverseFrameRef.current = presentationKey;
         presentedReverseFrameRef.current = null;
       }
       root.dataset.phonePhMedia = 'preparing-target';
@@ -439,16 +439,24 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
         surface?.(['present', key]);
       },
       disposePresentation(token) {
+        const key = phoneRuntimePresentationTokenKey(token);
         const binding = presentationBindingRef.current;
+        // The machine releases the exact raw token it admitted. A forward
+        // lease may have no reverse frame yet, so the binding itself is also
+        // a valid token witness; never retire from the render-time `active`
+        // projection or from a generic verified flag.
         if (
-          binding
-          && binding.key === phoneRuntimePresentationTokenKey(token)
-        ) presentationBindingRef.current = null;
+          expectedReverseFrameRef.current !== key
+          && binding?.key !== key
+        ) return;
+        presentationBindingRef.current = null;
+        expectedReverseFrameRef.current = null;
+        stopRun();
+        packedSurfaceRef.current?.(['retire']);
       },
       prepareTargetPresentation,
       dispose() {
         presentationBindingRef.current = null;
-        expectedReverseFrameRef.current = null;
         presentedReverseFrameRef.current = null;
         presentedReverseMediaTimeRef.current = null;
         disposeRun();
@@ -460,6 +468,7 @@ export const PhonePh = forwardRef<PhoneCinematicSceneAdapterHandle, PhoneSceneAd
       ensurePackedSurface,
       prepareTargetPresentation,
       startRun,
+      stopRun,
       disposeRun
     ]);
 

@@ -292,8 +292,11 @@ export function createPhoneCompositeRunner<
   const releaseResources = (resource: ExecutionResources<Visual>) => {
     clearTimer(resource);
     resource.abortController.abort();
-    if (resource.staticTarget && resource.rawFrame) {
-      resource.staticTarget.disposePresentation?.(resource.rawFrame[0]);
+    if (resource.rawFrame) {
+      if (resource.direction > 0) {
+        configFor(resource)?.visual.disposePresentation?.(resource.rawFrame[0]);
+      }
+      resource.staticTarget?.disposePresentation?.(resource.rawFrame[0]);
     }
     resource.staticTarget = null;
     resource.releaseExtra?.();
@@ -318,6 +321,8 @@ export function createPhoneCompositeRunner<
     } else {
       releaseRoles(resource, 'source');
     }
+    // A forward rollback retires the candidate visual; a reverse rollback
+    // keeps the source visual stable so the next gesture can retry it.
     releaseResources(resource);
     resource.session[13]();
   };
@@ -338,6 +343,9 @@ export function createPhoneCompositeRunner<
     clearTimer(resource);
     resource.session[12](
       () => releaseGeometry(resource, config),
+      // Forward success retires the cinematic source after its target is
+      // stable. Reverse success keeps the newly admitted cinematic target
+      // warm for the next forward leg.
       () => releaseResources(resource)
     );
     releaseRoles(resource, 'receiver');

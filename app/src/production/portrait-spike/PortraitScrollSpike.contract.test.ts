@@ -257,7 +257,9 @@ describe('Route B proven front-half migration contract', () => {
     );
     expect(heroSource).toContain('const ensureIntroInk = useCallback(() => {');
     expect(heroSource).toContain("ensureIntroInk()?.(['render', sample.progress]);");
-    expect(heroSource).toContain("ensureIntroInk()?.(['prewarm']);");
+    expect(heroSource).toContain(
+      "packedSurfaceRef.current?.(['prepare', 'forward', null, true, null])"
+    );
     const heroPostPaintIndex = heroSource.indexOf('const schedulePackedAlphaPostPaint');
     const heroReadyIndex = heroSource.indexOf('onReady?.();', heroPostPaintIndex);
     expect(heroPostPaintIndex).toBeGreaterThan(0);

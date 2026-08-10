@@ -540,7 +540,8 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         }
         ensurePackedSurface('forward');
         if (!reducedMotion && !heroEntranceCompletedRef.current) {
-          ensureIntroInk()?.(['prewarm']);
+          void packedSurfaceRef.current?.(['prepare', 'forward', null, true, null])
+            .catch(() => undefined);
         }
       } else {
         // A reduced/direct target can be admitted before the projector marks

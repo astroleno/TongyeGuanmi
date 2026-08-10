@@ -95,6 +95,19 @@ describe('PhoneHero Route B adapter', () => {
     expect(heroSource).toContain('onReady?.();');
   });
 
+  it('[front-half gate] requests one exact cold-start packed frame before Loader handoff', () => {
+    const activeLease = heroSource.slice(
+      heroSource.indexOf('useLayoutEffect(() => {\n      sceneActiveRef.current = active;'),
+      heroSource.indexOf('\n    useImperativeHandle(', heroSource.indexOf(
+        'useLayoutEffect(() => {\n      sceneActiveRef.current = active;'
+      ))
+    );
+    expect(activeLease).toContain(
+      "packedSurfaceRef.current?.(['prepare', 'forward', null, true, null])"
+    );
+    expect(activeLease).toContain('.catch(() => undefined);');
+  });
+
   it('[ownership hard cutover] lets the packed surface create and retire Hero Canvas', () => {
     expect(heroSource).toContain('createPhonePackedAlphaSurface');
     expect(heroSource).not.toContain('createPackedAlphaVideoCompositor');
@@ -122,7 +135,9 @@ describe('PhoneHero Route B adapter', () => {
 
   it('keeps StoryLoader as the only startup visual cover instead of a poster-decoded stage gate', () => {
     expect(heroSource).toContain("ensurePackedSurface('forward')");
-    expect(heroSource).toContain("ensureIntroInk()?.(['prewarm'])");
+    expect(heroSource).toContain(
+      "packedSurfaceRef.current?.(['prepare', 'forward', null, true, null])"
+    );
     expect(storyShellSource).not.toContain('data-phone-hero-first-frame');
     expect(stageRailStyles).not.toContain('data-phone-hero-first-frame');
     expect(stageRailStyles).not.toContain('[data-portrait-loader-ready="false"]');

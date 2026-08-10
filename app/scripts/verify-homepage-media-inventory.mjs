@@ -26,7 +26,11 @@ const sourceAssetsDir = path.join(repoDir, 'assets');
 const nonHomepageAssetSources = new Set([
   'assets/favicon.svg',
   'assets/fonts/OFL-QIJI.txt',
-  'assets/fonts/qiji-title-subset.ttf'
+  'assets/fonts/qiji-title-subset.ttf',
+  // The Figure2 continuation is a static CSS presentation plane rather than
+  // homepage media inventory (it has no decoder/hash contract), but it is
+  // still explicitly owned so an asset cannot enter production unaccounted.
+  'assets/figure2-continuation.svg'
 ]);
 
 const adoptedWebpSources = [

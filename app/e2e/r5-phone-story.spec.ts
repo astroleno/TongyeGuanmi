@@ -368,12 +368,44 @@ type Figure2CoverageTile = Readonly<{
   nearWhiteRatio: number;
 }>;
 
+type Figure2CoverageRegionOptions = Readonly<{
+  /** CSS-pixel bounds are converted to physical screenshot pixels. */
+  pixelRatio?: number;
+  startY?: number;
+  endY?: number;
+}>;
+
 function figure2CoverageTiles(
   screenshot: PngScreenshot,
-  surface: readonly [number, number, number]
+  surface: readonly [number, number, number],
+  options: Figure2CoverageRegionOptions = {}
 ): readonly Figure2CoverageTile[] {
-  const region = { left: .02, top: .76, right: .98, bottom: .995 } as const;
-  const bounds = screenshotBounds(screenshot, region);
+  const pixelRatio = Math.max(1, options.pixelRatio ?? 1);
+  const bounds = options.startY !== undefined || options.endY !== undefined
+    ? {
+        left: Math.floor(screenshot.width * .02),
+        right: Math.ceil(screenshot.width * .98),
+        top: Math.max(
+          0,
+          Math.min(
+            screenshot.height - 1,
+            Math.floor((options.startY ?? 0) * pixelRatio)
+          )
+        ),
+        bottom: Math.max(
+          1,
+          Math.min(
+            screenshot.height,
+            Math.ceil((options.endY ?? screenshot.height / pixelRatio) * pixelRatio)
+          )
+        )
+      }
+    : screenshotBounds(screenshot, {
+        left: .02,
+        top: .76,
+        right: .98,
+        bottom: .995
+      });
   const columns = 8;
   const rows = 4;
   const tiles: Figure2CoverageTile[] = [];
@@ -422,9 +454,10 @@ function figure2CoverageTiles(
 function assertFigure2CoverageTexture(
   screenshot: PngScreenshot,
   surface: readonly [number, number, number],
-  label: string
+  label: string,
+  options: Figure2CoverageRegionOptions = {}
 ): void {
-  const tiles = figure2CoverageTiles(screenshot, surface);
+  const tiles = figure2CoverageTiles(screenshot, surface, options);
   const authoredTiles = tiles.filter((tile) => (
     tile.nonSurfaceRatio > .12 && tile.luminanceRange > 4
   ));
@@ -551,6 +584,57 @@ function assertFigure2ContinuationPixels(
     texturedRows.length / rows.length,
     `${label} must texture the entire extension, not only a small patch`
   ).toBeGreaterThan(.75);
+}
+
+function assertFigure2ContinuationSeam(
+  screenshot: PngScreenshot,
+  cameraBottomY: number,
+  label: string,
+  options: Readonly<{ pixelRatio?: number }> = {}
+): void {
+  const pixelRatio = Math.max(1, options.pixelRatio ?? 1);
+  const seam = Math.max(
+    1,
+    Math.min(screenshot.height - 1, Math.ceil(cameraBottomY * pixelRatio))
+  );
+  const left = Math.floor(screenshot.width * .04);
+  const right = Math.max(left + 1, Math.ceil(screenshot.width * .96));
+  const rowDelta = (upper: number, lower: number) => {
+    let total = 0;
+    let high = 0;
+    const samples = right - left;
+    for (let x = left; x < right; x += 1) {
+      const upperOffset = (upper * screenshot.width + x) * screenshot.channels;
+      const lowerOffset = (lower * screenshot.width + x) * screenshot.channels;
+      const distance = Math.max(
+        Math.abs((screenshot.pixels[upperOffset] ?? 0) - (screenshot.pixels[lowerOffset] ?? 0)),
+        Math.abs((screenshot.pixels[upperOffset + 1] ?? 0) - (screenshot.pixels[lowerOffset + 1] ?? 0)),
+        Math.abs((screenshot.pixels[upperOffset + 2] ?? 0) - (screenshot.pixels[lowerOffset + 2] ?? 0))
+      );
+      total += distance;
+      if (distance > 64) high += 1;
+    }
+    return {
+      mean: samples > 0 ? total / samples : 255,
+      highRatio: samples > 0 ? high / samples : 1
+    };
+  };
+  const seamDelta = rowDelta(seam - 1, seam);
+  const internal = [
+    rowDelta(Math.max(0, seam - 5), Math.max(0, seam - 4)),
+    rowDelta(Math.max(0, seam - 4), Math.max(0, seam - 3)),
+    rowDelta(Math.max(0, seam - 3), Math.max(0, seam - 2))
+  ];
+  const internalMean = internal.reduce((sum, value) => sum + value.mean, 0)
+    / internal.length;
+  expect(
+    seamDelta.mean,
+    `${label} camera/continuation seam must not introduce a discontinuous row: ${JSON.stringify({ seamDelta, internalMean })}`
+  ).toBeLessThan(Math.max(42, internalMean * 4 + 18));
+  expect(
+    seamDelta.highRatio,
+    `${label} camera/continuation seam must not flash as a long high-contrast strip: ${JSON.stringify(seamDelta)}`
+  ).toBeLessThan(.42);
 }
 
 function assertPresentedReverseVideoFrames(
@@ -3894,8 +3978,20 @@ test('Task 10 gates a cold production formal Hero → Contact journey', async ({
   await visitFormal(page, '/', 'hero');
   await driveJourney(page, FORMAL_FORWARD_JOURNEY);
   await assertStablePhoneHold(page, 'contact');
+  // PH remains mounted for the lazy tail, but its packed decoder/context must
+  // be retired by the completed machine lease before Crane/Contact owns the
+  // next visual leg. A mounted Canvas alone is not an active owner.
+  await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
+    .toHaveAttribute('data-phone-packed-alpha-retired', 'true');
 
   const probe = await phoneRuntimeProbe(page);
+  const finalResourceSample = probe.resourceSamples.at(-1);
+  const activeTailOwners = (finalResourceSample?.activeWebglLabels ?? [])
+    .filter((label) => /ph-figure|phone-ph|ph-layer/i.test(label));
+  expect(
+    activeTailOwners,
+    `PH must have no active WebGL owner after PH → Education → Crane → Contact: ${JSON.stringify(activeTailOwners)}`
+  ).toEqual([]);
   expect(probe.maxLoaderCount).toBe(1);
   expect(probe.maxActive).toBeLessThanOrEqual(MAX_ACTIVE_PHONE_WEBGL_CONTEXTS);
   expect(webGlWarnings).toEqual([]);
@@ -5087,7 +5183,13 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
   const playheads = await page.evaluate(() => {
     const target = window as typeof window & {
       __figure2PlayheadProbe?: {
-        samples: Array<{ time: number }>;
+        samples: Array<{
+          time: number;
+          sourceVisible: boolean;
+          timelineRun: string | null;
+          ariaHidden: string | null;
+          role: string | null;
+        }>;
         stop(): void;
       };
     };
@@ -5354,11 +5456,14 @@ test('[P0 real root pixels] Figure1 alpha proof has matching non-edge compositor
     alpha: 'verified',
     frame: 'ready'
   });
-  const canvasGeometry = await figureCanvas.evaluate((canvas) => ({
-    width: canvas.width,
-    height: canvas.height,
-    rect: canvas.getBoundingClientRect().toJSON()
-  }));
+  const canvasGeometry = await figureCanvas.evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      rect: canvas.getBoundingClientRect().toJSON()
+    };
+  });
   expect(canvasGeometry.width).toBeGreaterThan(0);
   expect(canvasGeometry.height).toBeGreaterThan(0);
   await expect(figureParallax).toHaveAttribute('data-portrait-figure-alpha', 'verified');
@@ -5587,26 +5692,55 @@ test('[P1 Figure2 dynamic camera coverage] extends authored texture through a li
     [226, 218, 201],
     'expanded Figure2 camera'
   );
-  const expandedCoverage = await page.evaluate(() => {
+  const readFigure2Coverage = () => page.evaluate(() => {
     const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
     const coverage = document.querySelector<HTMLElement>(
       '.portrait-scroll-spike__viewport-coverage'
     );
+    const rootStyle = root ? getComputedStyle(root) : null;
     const before = coverage ? getComputedStyle(coverage, '::before') : null;
     const host = coverage ? getComputedStyle(coverage) : null;
-    const continuation = coverage ? getComputedStyle(coverage, '::after') : null;
+    const continuationTexture = coverage
+      ? getComputedStyle(coverage, '::after')
+      : null;
+    const cameraHeight = Number.parseFloat(before?.height ?? '');
+    const declaredStageHeight = Number.parseFloat(
+      rootStyle?.getPropertyValue('--portrait-stage-height') ?? ''
+    );
+    const cameraTop = Number.parseFloat(before?.top ?? '');
+    const stageHeight = Number.isFinite(declaredStageHeight)
+      ? declaredStageHeight
+      // The authored stage variable may remain a `max(...)` expression;
+      // the resolved camera pseudo-element gives us its physical midpoint.
+      : cameraTop * 2;
+    const middleY = Number.parseFloat(
+      rootStyle?.getPropertyValue('--portrait-figure2-middle-y') ?? ''
+    );
+    const cameraScale = Number.parseFloat(
+      rootStyle?.getPropertyValue('--portrait-figure2-camera-scale') ?? ''
+    );
     return {
       expectedBottom: Number.parseFloat(
-        root ? getComputedStyle(root).getPropertyValue('--portrait-coverage-bottom') : ''
+        rootStyle?.getPropertyValue('--portrait-coverage-bottom') ?? ''
       ),
-      cameraHeight: Number.parseFloat(before?.height ?? ''),
+      cameraHeight,
+      // Custom properties retain their calc() text in getComputedStyle. Use
+      // the same resolved camera dimensions to obtain a physical sample row;
+      // parsing the unresolved `calc(` string would silently yield NaN and
+      // turn the extension gate into an empty image check.
+      cameraBottom: stageHeight / 2
+        + middleY
+        + cameraHeight * .06
+        + cameraHeight * .44 * cameraScale,
       cameraImage: before?.backgroundImage ?? '',
       hostImage: host?.backgroundImage ?? '',
-      continuationImage: continuation?.backgroundImage ?? '',
-      continuationHeight: Number.parseFloat(continuation?.height ?? ''),
-      continuationSize: continuation?.backgroundSize ?? ''
+      continuationImage: continuationTexture?.backgroundImage ?? '',
+      continuationHeight: Number.parseFloat(continuationTexture?.height ?? ''),
+      continuationSize: continuationTexture?.backgroundSize ?? '',
+      cameraScale
     };
   });
+  const expandedCoverage = await readFigure2Coverage();
   await page.addStyleTag({
     content: [
       '[data-phone-coverage-probe-hidden="true"] { visibility: hidden !important; opacity: 0 !important; }',
@@ -5629,14 +5763,29 @@ test('[P1 Figure2 dynamic camera coverage] extends authored texture through a li
     root?.style.setProperty('--portrait-stage-rail-height', '852px');
   });
   await page.waitForTimeout(100);
-  // iPhone emulation keeps the device viewport fixed, so changing
-  // setViewportSize() does not create a taller physical screenshot. Capture
-  // the actual fixed coverage host instead; its bounding box includes the
-  // offscreen continuation that Safari's live viewport would expose.
-  const coverageCaptureBytes = await page.locator(
-    '.portrait-scroll-spike__viewport-coverage'
-  ).screenshot({ animations: 'disabled' });
-  const coverageCapture = decodePngScreenshot(coverageCaptureBytes);
+  // Pseudo-elements are not part of a locator screenshot in Chromium/WebKit;
+  // that would silently sample only the host's flat backing. Temporarily grow
+  // the real page viewport and capture the composed page so the physical
+  // continuation rows are included in the evidence.
+  const originalViewport = page.viewportSize();
+  const captureExpandedCoverage = async (
+    expectedBottom = expandedCoverage.expectedBottom
+  ) => {
+    const height = Math.max(
+      originalViewport?.height ?? 844,
+      Math.ceil(expectedBottom)
+    );
+    await page.setViewportSize({
+      width: originalViewport?.width ?? 390,
+      height
+    });
+    await page.waitForTimeout(50);
+    const bytes = await page.screenshot({ animations: 'disabled' });
+    await page.setViewportSize(originalViewport ?? { width: 390, height: 844 });
+    await page.waitForTimeout(50);
+    return decodePngScreenshot(bytes);
+  };
+  const coverageCapture = await captureExpandedCoverage();
   await page.evaluate(() => {
     document.querySelectorAll('[data-phone-coverage-probe-hidden="true"]')
       .forEach((element) => element.removeAttribute('data-phone-coverage-probe-hidden'));
@@ -5651,28 +5800,118 @@ test('[P1 Figure2 dynamic camera coverage] extends authored texture through a li
     coverageCapture,
     [226, 218, 201],
     'offscreen Figure2 continuation plane',
-    { pixelRatio, endY: expandedCoverage.expectedBottom }
+    {
+      pixelRatio,
+      startY: expandedCoverage.cameraBottom,
+      endY: expandedCoverage.expectedBottom
+    }
   );
   assertFigure2ContinuationPixels(
     coverageCapture,
-    expandedCoverage.cameraHeight,
+    expandedCoverage.cameraBottom,
     [226, 218, 201],
-    'offscreen Figure2 continuation plane'
+    'offscreen Figure2 continuation plane',
+    { pixelRatio, endY: expandedCoverage.expectedBottom }
   );
+  for (const progress of [0, .5, 1] as const) {
+    await page.evaluate((sample) => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      root?.style.setProperty('--portrait-figure2-camera-scale', `${1.012 + sample * .18}`);
+      root?.style.setProperty('--portrait-figure2-middle-y', `${sample * 12}px`);
+      root?.setAttribute('data-phone-figure2-coverage-progress', String(sample));
+    }, progress);
+    await page.waitForTimeout(40);
+    const progressCoverage = await readFigure2Coverage();
+    const progressCapture = await captureExpandedCoverage(
+      progressCoverage.expectedBottom
+    );
+    assertFigure2ContinuationSeam(
+      progressCapture,
+      progressCoverage.cameraBottom,
+      `Figure2 continuation progress ${progress}`,
+      { pixelRatio }
+    );
+    assertFigure2ContinuationPixels(
+      progressCapture,
+      progressCoverage.cameraBottom,
+      [226, 218, 201],
+      `Figure2 continuation progress ${progress}`,
+      {
+        pixelRatio,
+        endY: progressCoverage.expectedBottom
+      }
+    );
+  }
+  await page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    root?.style.setProperty('--portrait-figure2-camera-scale', '1.012');
+    root?.style.setProperty('--portrait-figure2-middle-y', '0px');
+    root?.removeAttribute('data-phone-figure2-coverage-progress');
+  });
+  await page.waitForTimeout(40);
+  await page.addStyleTag({
+    content: [
+      '.portrait-scroll-spike__viewport-coverage {',
+      '  background: #e2dac9 !important;',
+      '}',
+      '.portrait-scroll-spike__viewport-coverage::after {',
+      '  display: none !important;',
+      '}'
+    ].join('\n')
+  });
+  const flatStyleProbe = await page.evaluate(() => {
+    const host = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__viewport-coverage'
+    );
+    const texture = host ? getComputedStyle(host, '::after') : null;
+    return {
+      hostBackground: host ? getComputedStyle(host).backgroundImage : null,
+      textureDisplay: texture?.display ?? null,
+      textureBackground: texture?.backgroundImage ?? null,
+      hostRect: host?.getBoundingClientRect().toJSON() ?? null,
+      planeRect: host?.getBoundingClientRect().toJSON() ?? null
+    };
+  });
+  expect(flatStyleProbe.textureDisplay).toBe('none');
+  const flatContinuation = await captureExpandedCoverage();
+  expect(() => {
+    assertFigure2CoverageTexture(
+      flatContinuation,
+      [226, 218, 201],
+      'manufactured flat Figure2 continuation',
+      {
+        pixelRatio,
+        startY: expandedCoverage.cameraBottom,
+        endY: expandedCoverage.expectedBottom
+      }
+    );
+    assertFigure2ContinuationPixels(
+      flatContinuation,
+      expandedCoverage.cameraBottom,
+      [226, 218, 201],
+      'manufactured flat Figure2 continuation',
+      { pixelRatio, endY: expandedCoverage.expectedBottom }
+    );
+  }).toThrow();
   expect(expandedCoverage.cameraImage).toContain('figure2-middle-building');
   expect(expandedCoverage.hostImage).toBe('none');
-  expect(expandedCoverage.continuationImage).toContain('figure2-middle-building');
-  expect(expandedCoverage.continuationImage).toContain('figure2-far-arch');
-  expect(expandedCoverage.continuationImage).toContain('figure2-cloud');
-  expect(expandedCoverage.continuationSize).toContain('auto');
+  expect(expandedCoverage.continuationImage).toContain('figure2-continuation');
+  expect(expandedCoverage.continuationSize).toContain('256px');
   expect(expandedCoverage.continuationHeight)
     .toBeGreaterThanOrEqual(
-      expandedCoverage.expectedBottom - expandedCoverage.cameraHeight - 1
+      expandedCoverage.cameraHeight
+      + (expandedCoverage.expectedBottom - expandedCoverage.cameraBottom)
+        / expandedCoverage.cameraScale
+      - 1
     );
   expect(
     expandedCoverage.cameraHeight,
     'Figure2 coverage camera must retain the authored leaf camera height'
   ).toBeLessThan(expandedCoverage.expectedBottom - 1);
+  expect(
+    expandedCoverage.cameraBottom,
+    'Figure2 continuation seam must be below the authored camera origin'
+  ).toBeGreaterThanOrEqual(expandedCoverage.cameraHeight - 1);
 });
 
 test('[TTG presented reverse][Services reverse release] two same-authority returns advance only on presented decoder frames and release Services', async ({ page }) => {
@@ -5763,6 +6002,17 @@ test('[PH token-bound reverse][PH retire restore] requires current-token packed 
     );
     if (cycle === 0) {
       await driveAdjacentPhoneRun(page, 'lab', 'education', 1, 70_000);
+      await assertStablePhoneHold(page, 'education');
+      await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
+        .toHaveAttribute('data-phone-packed-alpha-retired', 'true');
+      const forwardProbe = await phoneRuntimeProbe(page);
+      const latestResources = forwardProbe.resourceSamples.at(-1);
+      const activePhOwners = (latestResources?.activeWebglLabels ?? [])
+        .filter((label) => /ph-figure|phone-ph|ph-layer/i.test(label));
+      expect(
+        activePhOwners,
+        `PH must retire its packed owner before the second reverse cycle: ${JSON.stringify(activePhOwners)}`
+      ).toEqual([]);
     }
   }
 });

@@ -341,7 +341,7 @@ export function createPhoneStoryRuntimeEngine(
   };
   let afterDispatch: () => void = () => undefined;
   const dispatch = (rawEvent: PhoneStoryEvent): PhoneStoryReduction => {
-    if (disposed) return { snapshot: currentSnapshot, effects: [] };
+    if (disposed) return { snapshot: currentSnapshot, effects: [] as never[] };
     const event = normalize(rawEvent);
     const reduction = reducePhoneStorySnapshot(currentSnapshot, event);
     if (reduction.snapshot === currentSnapshot) return reduction;
@@ -365,14 +365,14 @@ export function createPhoneStoryRuntimeEngine(
           if (!pendingTerminalCompletionIsCurrent(terminalCompletion)) return;
           sessions.resume()?.reportFailure('target-verification-failed');
         }, ADMISSION_TIMEOUT_MS);
-        return { snapshot: currentSnapshot, effects: [] };
+        return { snapshot: currentSnapshot, effects: [] as never[] };
       }
       if (
         event.type === 'DIRECT_ENTRY_REQUESTED'
         && currentSnapshot.status === 'stable'
       ) pendingDirectEntry = event;
       recoverProjectFailure();
-      return { snapshot: currentSnapshot, effects: [] };
+      return { snapshot: currentSnapshot, effects: [] as never[] };
     }
     if (event.type === 'DIRECT_ENTRY_REQUESTED') pendingDirectEntry = null;
     retireStaleTerminalCompletion();

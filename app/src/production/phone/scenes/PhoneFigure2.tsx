@@ -151,6 +151,7 @@ export const PhoneFigure2 = forwardRef<
   const rootRef = useRef<HTMLElement | null>(null);
   const packedSurfaceRef = useRef<PhonePackedAlphaSurface | undefined>(undefined);
   const sceneActiveRef = useRef(false);
+  const preparedSurfaceModeRef = useRef<PhonePackedAlphaSurfaceMode | null>(null);
   const presentationBindingRef = useRef<Readonly<{
     token: PresentationToken;
     key: string;
@@ -370,7 +371,6 @@ export const PhoneFigure2 = forwardRef<
       progress,
       direction,
       signal,
-      directEntry,
       presentationToken
     }) {
       const mode = direction === -1 || progress >= .999 ? 'endpoint' : 'forward';
@@ -378,11 +378,19 @@ export const PhoneFigure2 = forwardRef<
       if (!surface) {
         throw new Error('Figure2 unavailable');
       }
+      preparedSurfaceModeRef.current = mode;
       await surface([
         'prepare',
         mode,
         signal,
-        directEntry === true,
+        // Figure2 is a packed-media receiver in every normal and direct
+        // admission.  The immutable target token is not admitted from the
+        // authored poster: the leaf must produce one exact decoder-backed
+        // frame for this lease.  Keeping this requirement here (rather than
+        // letting the runner synthesize a proof) also covers the cold
+        // Method → Figure2 handoff where the first normal prepare used to
+        // leave the surface merely awaiting native playback.
+        true,
         phoneRuntimePresentationTokenKey(presentationToken as PresentationToken)
       ]);
     },
@@ -413,11 +421,19 @@ export const PhoneFigure2 = forwardRef<
         frameSequence: 0,
         report
       };
-      // A runner/direct-entry preparation owns the target surface mode.
-      // Recreating it here would silently fall back to `forward` and can
-      // undo a Proof → Figure2 endpoint preparation.
+      // The preparation token used before the transition may differ from the
+      // terminal proof revision. Re-arm the same surface in its prepared mode
+      // so this immutable token gets a fresh rVFC-backed draw; a retained
+      // currentTime/canvas read is not admission evidence.
       const surface = packedSurfaceRef.current;
-      surface?.(['present', key]);
+      const mode = preparedSurfaceModeRef.current ?? 'forward';
+      void surface?.([
+        'prepare',
+        mode,
+        null,
+        true,
+        key
+      ]).catch(() => undefined);
     },
     disposePresentation(token) {
       if (releaseStaticPresentation(token)) return;

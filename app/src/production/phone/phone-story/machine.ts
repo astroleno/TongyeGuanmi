@@ -490,7 +490,7 @@ export type PhoneStoryReduction = Readonly<{
   inputDisposition?: PhoneIntentDisposition;
 }>;
 
-const noEffects: readonly PhoneStoryEffect[] = [];
+const noEffects = [] as never[];
 export const PHONE_SCROLL_ALIGNMENT_TOLERANCE_PX = 1;
 
 export function createPhoneStorySnapshot({

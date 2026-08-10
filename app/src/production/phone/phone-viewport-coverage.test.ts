@@ -134,6 +134,9 @@ describe('phone live viewport coverage', () => {
   it('[P0 Figure2 coverage] continues the real middle scene through Safari dynamic viewport growth', () => {
     expect(stageRailStyles).toContain('[data-portrait-edge-scene="figure2"]');
     expect(stageRailStyles).toContain(
+      'url("../../../../assets/figure2-continuation.svg")'
+    );
+    expect(stageRailStyles).toContain(
       'url("../../../../assets/figure2-middle-building.webp")'
     );
     expect(stageRailStyles).toContain('background-image: none;');
@@ -141,15 +144,8 @@ describe('phone live viewport coverage', () => {
       '.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__viewport-coverage::before'
     );
     expect(stageRailStyles).toContain(
-      'url("../../../../assets/figure2-middle-building.webp");'
+      'fixed continuation texture extend below the authored seam'
     );
-    expect(stageRailStyles).toContain(
-      'url("../../../../assets/figure2-far-arch.webp")'
-    );
-    expect(stageRailStyles).toContain(
-      'url("../../../../assets/figure2-cloud.webp")'
-    );
-    expect(stageRailStyles).toContain('bottom-cropped into this plane');
     expect(stageRailStyles).toContain(
       'var(--portrait-figure2-camera-width) var(--portrait-figure2-camera-height);'
     );
@@ -160,8 +156,9 @@ describe('phone live viewport coverage', () => {
     expect(stageRailStyles).not.toContain(
       'calc(var(--portrait-figure2-camera-height) * .72 * var(--portrait-figure2-cloud-scale, 1))'
     );
+    expect(stageRailStyles).toContain('50% 0;');
     expect(stageRailStyles).toContain(
-      'auto calc(var(--portrait-figure2-camera-height) * .78 * var(--portrait-figure2-far-arcade-scale, 1))'
+      'background-size: var(--portrait-figure2-camera-width) 256px;'
     );
     expect(stageRailStyles).not.toContain('background-size: 100% 100%');
     expect(stageRailStyles).not.toContain(
@@ -180,6 +177,9 @@ describe('phone live viewport coverage', () => {
       stageRailStyles.indexOf('/* Above-both effects are route siblings,')
     );
     expect(figure2Coverage).toContain('.portrait-scroll-spike__viewport-coverage::before');
+    expect(figure2Coverage).toContain(
+      '.portrait-scroll-spike__viewport-coverage::after'
+    );
     expect(stageRailStyles).toContain(
       '.portrait-scroll-spike[data-portrait-edge-scene="figure2"] .portrait-scroll-spike__stage-canvas'
     );
@@ -189,18 +189,69 @@ describe('phone live viewport coverage', () => {
     expect(stageRailStyles).toContain('background: transparent;');
     expect(stageRailStyles).toContain('--portrait-figure2-camera-width: max(100vw, calc(var(--portrait-stage-height) * 16 / 9));');
     expect(stageRailStyles).toContain('--portrait-figure2-camera-height: max(var(--portrait-stage-height), calc(100vw * 9 / 16));');
+    expect(stageRailStyles).toContain('--portrait-figure2-camera-translate-y');
     expect(figure2Coverage).toContain('transform: translate3d(');
-    expect(figure2Coverage).toContain('calc(-50% + var(--portrait-figure2-middle-y))');
+    expect(figure2Coverage).toContain('var(--portrait-figure2-camera-translate-y)');
     expect(figure2Coverage).toContain('scale(var(--portrait-figure2-camera-scale));');
-    expect(figure2Coverage).toContain('transform-origin: 50% 56%;');
+    expect(figure2Coverage).toContain(
+      'transform-origin: 50% calc(var(--portrait-figure2-camera-height) * .56);'
+    );
     expect(figure2Coverage).toContain('height: var(--portrait-figure2-camera-height);');
     expect(figure2Coverage).toContain('aspect-ratio: 16 / 9;');
-    expect(figure2Coverage).toContain('--portrait-figure2-extension-height');
-    expect(figure2Coverage).toContain('height: var(--portrait-figure2-extension-height);');
+    expect(figure2Coverage).toContain(
+      'var(--portrait-figure2-extension-local-height)'
+    );
+    expect(figure2Coverage).toContain(
+      'top: calc(var(--portrait-stage-height) / 2);'
+    );
+    expect(figure2Coverage).toContain('left: 50vw;');
     expect(figure2Coverage).toContain(
       'var(--portrait-figure2-camera-width) var(--portrait-figure2-camera-height);'
     );
-    expect(stageRailStyles).not.toContain('background-position: 50% 0;');
+    expect(figure2Coverage).toContain(
+      'var(--portrait-figure2-camera-height) * .5'
+    );
+    expect(figure2Coverage).toContain('50% 0;');
+    expect(figure2Coverage).not.toContain(
+      'background-position: 50% calc(50% + var(--portrait-figure2-far-arcade-y'
+    );
+  });
+
+  it('[P1 Figure2 coverage] keeps the continuation in the exact camera coordinate box', () => {
+    const figure2Coverage = stageRailStyles.slice(
+      stageRailStyles.indexOf('[data-portrait-edge-scene="figure2"]'),
+      stageRailStyles.indexOf('/* Above-both effects are route siblings,')
+    );
+    const camera = figure2Coverage.slice(
+      figure2Coverage.indexOf('::before'),
+      figure2Coverage.indexOf('}', figure2Coverage.indexOf('::before')) + 1
+    );
+    const continuation = figure2Coverage.slice(
+      figure2Coverage.indexOf('.portrait-scroll-spike__viewport-coverage::after'),
+      figure2Coverage.indexOf(
+        '}',
+        figure2Coverage.indexOf('.portrait-scroll-spike__viewport-coverage::after')
+      ) + 1
+    );
+    const texture = continuation;
+    expect(camera).toContain('background-position:');
+    expect(continuation).toContain(
+      'top: calc(var(--portrait-stage-height) / 2);'
+    );
+    expect(continuation).toContain('transform: translate3d(');
+    expect(continuation).toContain('var(--portrait-figure2-camera-height)');
+    expect(continuation).toContain(
+      'var(--portrait-figure2-extension-local-height)'
+    );
+    expect(texture).toContain(
+      'background-position: 50% var(--portrait-figure2-camera-height);'
+    );
+    expect(texture).toContain(
+      'background-size: var(--portrait-figure2-camera-width) 256px;'
+    );
+    expect(texture).toContain(
+      'transform-origin: 50% calc(var(--portrait-figure2-camera-height) * .56);'
+    );
   });
 
   it('[P0 AOD coverage] keeps AOD flat and reserves paper treatment for Method', () => {

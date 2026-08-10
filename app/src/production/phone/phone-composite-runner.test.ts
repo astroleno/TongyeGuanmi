@@ -49,7 +49,7 @@ function element(): HTMLElement {
 function scene(
   root: HTMLElement,
   prepare = vi.fn(async () => undefined)
-): PhoneSceneAdapterHandle {
+): PhoneSceneAdapterHandle & { dispose: ReturnType<typeof vi.fn> } {
   return {
     root: () => root,
     update: vi.fn(),
@@ -57,7 +57,8 @@ function scene(
     leave: vi.fn(),
     prepareTargetPresentation: prepare,
     presentPresentation: vi.fn(),
-    disposePresentation: vi.fn()
+    disposePresentation: vi.fn(),
+    dispose: vi.fn()
   };
 }
 
@@ -1014,6 +1015,7 @@ describe('phone composite runner snapshot execution', () => {
     runtime.runner.completeMedia('ph-animation', identity);
     expect(runtime.media.commitEndpoint).toHaveBeenLastCalledWith(1);
     activeSession.flushRelease();
+    expect(runtime.visual.disposePresentation).toHaveBeenCalledWith(identity[5]);
     expect(runtime.capabilities.retained()).toEqual([]);
   });
 
@@ -1041,6 +1043,7 @@ describe('phone composite runner snapshot execution', () => {
     expect(runtime.visual.update).not.toHaveBeenCalled();
     expect(runtime.visual.leave).not.toHaveBeenCalled();
     activeSession.flushRelease();
+    expect(runtime.visual.disposePresentation).not.toHaveBeenCalled();
     expect(runtime.capabilities.retained()).toEqual([]);
   });
 
