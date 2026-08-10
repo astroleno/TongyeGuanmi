@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 import {
@@ -30,8 +31,16 @@ describe('PhoneFigure3', () => {
     expect(motionMarkup.match(/<img/g)).toHaveLength(1);
     expect(motionMarkup).toContain('data-phone-figure3-paper-poster');
     expect(motionMarkup).toContain('data-phone-figure3-paper-canvas');
+    expect(motionMarkup).toContain('data-phone-figure3-initial-composite');
     expect(motionMarkup).toContain('data-phone-media-fallback="figure3"');
     expect(motionMarkup).toContain('data-phone-media-owner="figure3-motion"');
+  });
+
+  it('fills the complete presentation plane instead of an 80svh subsection', () => {
+    const css = readFileSync(new URL('./PhoneFigure3.css', import.meta.url), 'utf8');
+    expect(css).not.toContain('max(80svh, 38rem)');
+    expect(css).toMatch(/\.phone-figure3__mount\s*\{[^}]*block-size:\s*100%;/s);
+    expect(css).toMatch(/\.phone-figure3\s*\{[^}]*block-size:\s*100%;/s);
   });
 
   it('bounds the physical endpoint gate before the visible poster takes over', () => {

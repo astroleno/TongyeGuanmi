@@ -1,5 +1,6 @@
 .phone-figure3__mount {
-  min-block-size: max(80svh, 38rem);
+  block-size: 100%;
+  min-block-size: 100%;
 }
 
 .phone-figure3 {
@@ -20,19 +21,26 @@
   --phone-figure3-backdrop-scale: 1.06;
   position: relative;
   display: block;
-  min-block-size: max(80svh, 38rem);
-  overflow: visible;
+  block-size: 100%;
+  min-block-size: 100%;
+  overflow: clip;
   isolation: auto;
   background: var(--phone-figure3-paper);
 }
 
+.phone-figure3__initial-composite,
 .phone-figure3__fallback,
-.phone-figure3 > .figure3-transition.r4-figure3-animation {
+.phone-figure3__initial-composite > .figure3-transition.r4-figure3-animation {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  block-size: 100%;
   min-height: 0;
+}
+
+.phone-figure3__initial-composite {
+  overflow: clip;
 }
 
 .phone-figure3__fallback {
@@ -90,7 +98,7 @@
  * authored 16:9 plate uses a left-edge portrait crop because the figure is
  * authored on that edge; no inherited desktop transform tree is scaled.
  */
-.phone-figure3 > .figure3-transition.r4-figure3-animation {
+.phone-figure3__initial-composite > .figure3-transition.r4-figure3-animation {
   z-index: 1;
   overflow: clip;
   background: var(--phone-figure3-paper);
@@ -100,6 +108,7 @@
 .phone-figure3 .figure3-transition__stage {
   width: 100%;
   height: 100%;
+  block-size: 100%;
   min-height: 0;
   background: var(--phone-figure3-paper);
 }

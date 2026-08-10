@@ -5,6 +5,7 @@ import { phoneManifest, phonePreparedSurfaceIds, phoneSceneById,
   type PhoneSceneId, type PhoneSegmentId } from './manifest';
 import {
   createPhonePresentation,
+  createPhonePlaneRequest,
   type PhoneLeafCommandHandle,
   type PhoneLeafMountLease,
   type PhoneLeafReportBinding,
@@ -41,6 +42,7 @@ type FakeElementState = {
   children: HTMLElement[];
   rect: Rect;
   selectors: Map<string, HTMLElement>;
+  matches: Set<string>;
   attributes: Map<string, string>;
   properties: Map<string, string>;
 };
@@ -56,7 +58,7 @@ function fakeElement(name: string, bounds = rect()): HTMLElement {
   const attributes = new Map<string, string>();
   const state: FakeElementState = {
     name, connected: true, parent: null, children: [], rect: bounds,
-    selectors: new Map(), attributes, properties
+    selectors: new Map(), matches: new Set(), attributes, properties
   };
   const element = {
     get isConnected() { return state.connected; },
@@ -77,6 +79,7 @@ function fakeElement(name: string, bounds = rect()): HTMLElement {
     getAttribute: (attribute: string) => attributes.get(attribute) ?? null,
     getBoundingClientRect: () => state.rect,
     hasAttribute: (attribute: string) => attributes.has(attribute),
+    matches: (selector: string) => state.matches.has(selector),
     querySelector: (selector: string) => state.selectors.get(selector) ?? null,
     removeAttribute: (attribute: string) => attributes.delete(attribute),
     setAttribute: (attribute: string, value: string) => { attributes.set(attribute, value); },
@@ -318,6 +321,37 @@ function registerScene(
 }
 
 describe('phone presentation semantic plane', () => {
+  it('keeps a reverse Figure2 source proof on its closing landing during a segment', () => {
+    const attempt = attemptFor(
+      'figure2-proof', 'segment', 'figure2-distance-expand', 'reverse', 7
+    );
+    const transaction = {
+      mode: 'segment', phase: 'presenting-source', attempt,
+      sourceSceneId: 'figure2-proof', candidateSceneId: 'figure2-animation',
+      stageIndex: 0, planeRevision: 3,
+      requiredPrepared: [],
+      requiredFinal: slotsFor(attempt, 'source', 3),
+      evidence: [], closure: {}, dependencies: [],
+      requestedEntry: { pathname: '/', hash: '#figure2-animation', origin: 'programmatic' },
+      canonicalPathname: '/', canonicalHash: '#figure2-animation', urlEffect: 'none',
+      restoreUrlOnRollback: false, fallbackFromSceneId: null,
+      commitIntent: 'semantic', pendingEntry: null,
+      deadlinePolicy: {}, deadline: null, progress: 0.5,
+      claimedPhysicalEpoch: null, activation: 'spent', retainedTopology: true,
+      reducedMotion: false, failure: null
+    } as unknown as Parameters<typeof createPhonePlaneRequest>[0];
+    const request = createPhonePlaneRequest(
+      transaction, viewportSnapshot(), true,
+      {
+        sceneId: 'figure2-proof',
+        landing: { kind: 'anchor', anchor: 'opening' },
+        commitSequence: 4, direction: null, landingAlias: null
+      }
+    );
+
+    expect(request?.landingAlias).toBe('closing');
+  });
+
   it('projects complementary Ink ownership onto both live planes and clears it atomically', () => {
     const fixture = createStoryFixture();
     fixture.presentation.attachRoot(fixture.story);
@@ -344,13 +378,16 @@ describe('phone presentation semantic plane', () => {
 
     fixture.presentation.applyTransitionFrame(null);
     expect(fixture.source.getAttribute('data-phone-exposed')).toBe('true');
-    expect(fixture.receiver.getAttribute('data-phone-exposed')).toBe('false');
+    expect(fixture.receiver.getAttribute('data-phone-exposed')).toBe('true');
     expect(fixture.story.style.getPropertyValue('--phone-source-clip')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-target-clip')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-source-mask')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-source-opacity')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-target-opacity')).toBe('');
     expect(fixture.story.getAttribute('data-phone-transition-foreground')).toBeNull();
+    fixture.presentation.commitStablePlane('a');
+    expect(fixture.source.getAttribute('data-phone-exposed')).toBe('true');
+    expect(fixture.receiver.getAttribute('data-phone-exposed')).toBe('false');
   });
 
   it('commits the newly rendered stable buffer as one visible plane', () => {
@@ -706,17 +743,43 @@ describe('phone presentation content, frame, and mount proof', () => {
     ).failure?.code).toBe('presentation-content-invisible');
   });
 
-  it('requires every selector inside the registered root and a live intersecting rect', () => {
+  it('requires every selector inside the registered root and a live intersecting rect for fixed story planes', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const { root, content } = registerScene(fixture, 'pattern');
+    const selector = phoneSceneById('pattern').content.selectors[0]!;
+    elementStates.get(root)?.selectors.delete(selector);
+    expect(fixture.presentation.verifyVisibleCandidate(planeRequest('pattern')).failure?.code)
+      .toBe('presentation-content-missing');
+    select(root, selector, content);
+    setRect(content, rect(500, 900, 20, 20));
+    expect(fixture.presentation.verifyVisibleCandidate(planeRequest('pattern')).failure?.code)
+      .toBe('presentation-content-invisible');
+  });
+
+  it('proves native content selectors by ownership and root coverage, not fixed top intersection', () => {
     const fixture = createStoryFixture();
     fixture.presentation.attachRoot(fixture.story);
     const { root, content } = registerScene(fixture, 'brand');
-    elementStates.get(root)?.selectors.delete('.phone-brand__definition p');
+    select(root, phoneSceneById('brand').landing.anchor, root);
+    setRect(content, rect(500, 900, 20, 20));
+
+    expect(fixture.presentation.verifyVisibleCandidate(planeRequest(
+      'brand', attemptFor('brand'), 'target', ['plane-acknowledged', 'content-visible']
+    )).failure).toBeNull();
+  });
+
+  it('does not let the registered root substitute for real content evidence', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const { root } = registerScene(fixture, 'brand');
+    const selector = phoneSceneById('brand').content.selectors[0]!;
+    elementStates.get(root)?.selectors.delete(selector);
+    elementStates.get(root)?.matches.add(selector);
+    fixture.setHitStack([root, fixture.receiver, fixture.planes, fixture.viewport, fixture.story]);
+
     expect(fixture.presentation.verifyVisibleCandidate(planeRequest('brand')).failure?.code)
       .toBe('presentation-content-missing');
-    select(root, '.phone-brand__definition p', content);
-    setRect(content, rect(500, 900, 20, 20));
-    expect(fixture.presentation.verifyVisibleCandidate(planeRequest('brand')).failure?.code)
-      .toBe('presentation-content-invisible');
   });
 
   it('requires the current plane revision and visibly presented policy surface', () => {

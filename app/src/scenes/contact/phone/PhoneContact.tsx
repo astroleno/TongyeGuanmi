@@ -135,7 +135,8 @@ export function PhoneContact({ reports }: Readonly<{
   }, [cancelPaint, commands, reports]);
 
   return (
-    <div ref={mountRef} className="phone-contact__visual">
+    <div ref={mountRef} className="phone-contact__visual"
+      data-phone-native-mirror="contact">
       <ContactContent reading={false} registerRoot={(element) => {
         rootRef.current = element;
       }} />

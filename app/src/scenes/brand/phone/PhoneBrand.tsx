@@ -128,7 +128,7 @@ export function PhoneBrand({ reports }: Readonly<{ reports: PhoneLeafReportPort 
   return (
     <div ref={(element) => {
       rootRef.current = element?.querySelector<HTMLElement>('.phone-brand') ?? null;
-    }} className="phone-brand__visual">
+    }} className="phone-brand__visual" data-phone-native-mirror="brand">
       <BrandContent reading={false} />
     </div>
   );

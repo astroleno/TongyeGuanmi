@@ -131,7 +131,7 @@ function activationSurfaceIdsFor(
   closure: PhoneTransaction<PhoneSceneId, PhoneSegmentId>['closure']
 ): readonly PhoneSurfaceId[] {
   if (mode === 'segment' && segmentId && direction) {
-    const owner = phoneSegmentChoreographyFrame(segmentId, progress, direction).mediaClockOwner;
+    const owner = phoneSegmentChoreographyFrame(segmentId, progress, direction).activationOwner;
     if (owner === 'none') return [];
     const prefix = owner === 'source' ? 'source:' : 'receiver:';
     return closure.mount.flatMap((mount) => (
@@ -164,7 +164,7 @@ export function phoneTransactionActivationCredit(transaction: PhoneTransaction<P
   if (transaction.mode !== 'segment') return phoneSceneById(transaction.candidateSceneId).directEntry.mediaActivation.requiresPhysicalCredit ? 'physical-epoch' : null;
   const { segmentId, direction } = transaction.attempt;
   if (!segmentId || !direction) return null;
-  const owner = phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction).mediaClockOwner;
+  const owner = phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction).activationOwner;
   return owner === 'source' ? 'physical-epoch' : owner === 'target' ? 'direct-muted-autoplay' : null;
 }
 
@@ -184,9 +184,7 @@ function transactionFor(
     ? legPolicy.closure
     : warmPolicy?.closure ?? scene.directEntry.closure;
   const leg: PhoneTransactionLeg = options.mode === 'rollback' ? 'rollback' : 'target';
-  const targetPrepared = preparedSlots(
-    attempt, options.candidateSceneId, leg, closure.exposeReceiverAfter
-  );
+  const targetPrepared = preparedSlots(attempt, options.candidateSceneId, leg, options.mode === 'segment' && options.segmentId === 'figure2-distance-expand' && options.direction === 'reverse' && options.candidateSceneId === 'figure2-animation' ? [...closure.exposeReceiverAfter, 'canvas-drawn'] : closure.exposeReceiverAfter);
   const requiredPrepared = options.mode === 'segment'
     ? [
         evidenceSlot(attempt, 0, 'source', 'root-connected', null,

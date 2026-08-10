@@ -117,7 +117,8 @@ export function PhoneEducation({ reports }: Readonly<{
   }, [cancelPaint, commands, reports]);
 
   return (
-    <div ref={mountRef} className="phone-education__visual">
+    <div ref={mountRef} className="phone-education__visual"
+      data-phone-native-mirror="education">
       <EducationContent reading={false} />
     </div>
   );

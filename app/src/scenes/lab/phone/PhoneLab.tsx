@@ -136,7 +136,7 @@ export function PhoneLab({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
   return (
     <div ref={(element) => {
       rootRef.current = element?.querySelector<HTMLElement>('#lab') ?? null;
-    }} className="phone-lab__visual">
+    }} className="phone-lab__visual" data-phone-native-mirror="lab">
       <LabContent reading={false} />
     </div>
   );

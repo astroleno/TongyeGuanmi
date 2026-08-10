@@ -1,10 +1,12 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
+import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
 import {
   createPhonePackedAlphaSurface,
   type PhonePackedAlphaSurface,
-  type PhonePackedAlphaSurfaceFailure
+  type PhonePackedAlphaSurfaceFailure,
+  type PhonePackedAlphaSurfaceMode
 } from '../../../media/phone-packed-alpha-surface';
 import { phoneMediaUrlFor } from '../../../media/phone-media';
 import type {
@@ -108,7 +110,11 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
   const frameSequenceRef = useRef(0);
   const progressRef = useRef(0);
   const directionRef = useRef<PhoneCranePlaybackDirection>(1);
+  const mediaRunTokenRef = useRef<string | null>(null);
+  const mediaCommandRef = useRef<import('../../../production/phone-story/protocol').PhoneMediaPhaseCommand | null>(null);
+  const mediaPhaseRef = useRef<'primed' | 'playing' | 'held'>('primed');
   const figureReleasedRef = useRef(false);
+  const figureClockStartedRef = useRef(false);
   const disposedRef = useRef(false);
 
   const reportFailure = useCallback((
@@ -128,6 +134,26 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     });
   }, []);
 
+  const startNativeClock = useCallback((
+    video: HTMLVideoElement,
+    layer: 'figure' | 'flock',
+    command: import('../../../production/phone-story/protocol').PhoneMediaPhaseCommand
+  ) => {
+    let playback: Promise<void>;
+    try { playback = Promise.resolve(video.play()); }
+    catch (error) { playback = Promise.reject(error); }
+    void playback.catch((error: unknown) => {
+      const binding = bindingRef.current;
+      if (!binding || disposedRef.current || mediaRunTokenRef.current !== command.runToken) return;
+      binding.reports.reportFailure({
+        code: `crane-${layer}-playback-rejected`,
+        message: error instanceof Error ? error.message : String(error),
+        recoverable: true,
+        detail: { runToken: command.runToken, direction: command.direction, layer }
+      });
+    });
+  }, []);
+
   const render = useCallback((rawProgress: number) => {
     const progress = Math.min(1, Math.max(0, rawProgress));
     if (progress > progressRef.current + .0001) directionRef.current = 1;
@@ -137,23 +163,24 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     const flock = flockVideoRef.current;
     if (directionRef.current === -1) {
       seekPhoneCraneReverseFrames(figure, flock, progress);
-    } else if (!figureReleasedRef.current && progress >= 1 / 6) {
+    } else if (bindingRef.current?.segmentId === 'crane-contact'
+      && mediaPhaseRef.current === 'playing'
+      && !figureClockStartedRef.current && progress >= 1 / 6) {
       figureReleasedRef.current = true;
-      try { if (figure) figure.currentTime = 0; } catch {
-        // The already-authorized decoder remains at its opening sample.
-      }
+      figureClockStartedRef.current = true;
+      const command = mediaCommandRef.current;
+      if (command && figure) startNativeClock(figure, 'figure', command);
       rootRef.current?.setAttribute('data-phone-crane-figure-preroll', 'released');
     }
     renderPhoneCranePresentation(rootRef.current, progress, directionRef.current);
     for (const [index, surface] of (surfacesRef.current ?? []).entries()) {
       if ((surfaceGenerationsRef.current[index] ?? 0) > 0) surface.probe();
     }
-  }, []);
+  }, [startNativeClock]);
 
-  const activateSurfaces = useCallback((endpoint: 0 | 1 | null) => {
+  const activateSurfaces = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
     const surfaces = surfacesRef.current;
     if (!surfaces || disposedRef.current) return [0, 0] as const;
-    const mode = endpoint === 1 ? 'endpoint' : 'forward';
     const generations = surfaces.map((surface) => surface.activate(mode)) as [number, number];
     surfaceGenerationsRef.current = generations;
     return generations;
@@ -162,6 +189,11 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
+      mediaRunTokenRef.current = null;
+      mediaPhaseRef.current = 'held';
+      mediaCommandRef.current = null;
+      mediaPhaseRef.current = 'primed';
+      figureClockStartedRef.current = false;
       frameSequenceRef.current = 0;
       for (const [index, surface] of (surfacesRef.current ?? []).entries()) {
         if ((surfaceGenerationsRef.current[index] ?? 0) > 0) surface.probe();
@@ -180,54 +212,137 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
           settlements: []
         };
       }
-      const endpoint = progressRef.current >= .999 ? 1
-        : progressRef.current <= .001 ? 0 : null;
-      const generations = activateSurfaces(endpoint);
-      figureReleasedRef.current = endpoint === 1;
+      const direction = command.direction === 'reverse' ? -1 : 1;
+      directionRef.current = direction;
+      const runToken = command.runToken ?? command.invocationId;
+      mediaRunTokenRef.current = runToken;
+      mediaCommandRef.current = null;
+      mediaPhaseRef.current = 'primed';
+      const binding = bindingRef.current;
+      const generations = activateSurfaces('initial');
+      figureReleasedRef.current = false;
+      figureClockStartedRef.current = false;
       delete rootRef.current?.dataset.phoneCraneFigurePreroll;
       videos[0]!.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE;
       videos[1]!.playbackRate = PHONE_CRANE_FLOCK_PLAYBACK_RATE;
-      rootRef.current?.setAttribute('data-phone-crane-media', 'playing');
-      const settlements = videos.map((video, index) => {
-        let settled: Promise<void>;
-        try {
-          settled = Promise.resolve(video!.play()).then(() => {
-            if (generations[index] !== surfaceGenerationsRef.current[index]
-              || disposedRef.current) return;
-            if (endpoint === 1 || !command.playback) video!.pause();
-          });
-        } catch (error) {
-          settled = Promise.reject(error);
+      for (const video of videos) {
+        video!.pause();
+        try { video!.currentTime = 0; } catch {
+          // The initial compositor callback will arrive after loadeddata.
         }
-        return { surfaceId: expected[index]!, status: 'pending' as const, settled };
-      });
+      }
+      rootRef.current?.setAttribute('data-phone-crane-media', 'priming');
+      const settled = generations.every((generation) => generation > 0)
+        ? videos.map((video, index) => primePhoneNativeVideo(video!, {
+          isCurrent: () => !disposedRef.current
+            && mediaRunTokenRef.current === runToken
+            && bindingRef.current === binding,
+          phase: () => mediaPhaseRef.current,
+          onRejected: (error: unknown) => {
+            if (disposedRef.current || bindingRef.current !== binding) return;
+            const layer = index === 0 ? 'figure' : 'flock';
+            binding.reports.reportFailure({
+              code: `crane-${layer}-activation-playback-rejected`,
+              message: error instanceof Error ? error.message : String(error),
+              recoverable: true,
+              detail: { runToken, layer }
+            });
+          }
+        }))
+        : [];
       return {
         invocationId: command.invocationId,
         surfaceIds: expected,
         invoked: generations.every((generation) => generation > 0),
-        settlements
+        settlements: generations.every((generation) => generation > 0)
+          ? expected.map((surfaceId, index) => ({
+            surfaceId, status: 'pending' as const, settled: settled[index]!
+          }))
+          : []
       };
+    },
+    setMediaPhase(command) {
+      const binding = bindingRef.current;
+      const videos = [figureVideoRef.current, flockVideoRef.current] as const;
+      if (!binding || videos.some((video) => !video) || disposedRef.current
+        || (mediaRunTokenRef.current !== null
+          && mediaRunTokenRef.current !== command.runToken)) return;
+      mediaRunTokenRef.current = command.runToken;
+      mediaCommandRef.current = command;
+      directionRef.current = command.direction === 'reverse' ? -1 : 1;
+      if (command.phase === 'primed') {
+        mediaPhaseRef.current = 'primed';
+        figureClockStartedRef.current = false;
+        for (const video of videos) video?.pause();
+        return;
+      }
+      if (command.phase === 'held') {
+        mediaPhaseRef.current = 'held';
+        const endpoint = command.endpoint ?? (command.direction === 'reverse' ? 0 : 1);
+        for (const video of videos) {
+          video?.pause();
+          try { if (video) video.currentTime = endpoint === 0 ? 0 : CRANE_VIDEO_END_SECONDS; } catch { /* retry */ }
+        }
+        return;
+      }
+      mediaPhaseRef.current = 'playing';
+      rootRef.current?.setAttribute('data-phone-crane-media', 'playing');
+      for (const surface of surfacesRef.current ?? []) surface.setMode?.('forward');
+      if (command.direction === 'reverse') {
+        // Reverse Crane is a runtime-driven presented-frame playhead. HTML
+        // video cannot run backwards; render() seeks each paused decoder to
+        // the requested frame, so a native play here would race those seeks.
+        for (const video of videos) video?.pause();
+        return;
+      }
+      const delayedFigure = binding.segmentId === 'crane-contact';
+      if (delayedFigure) {
+        figureClockStartedRef.current = false;
+        figureReleasedRef.current = false;
+        videos[0]?.pause();
+        if (videos[1]) startNativeClock(videos[1], 'flock', command);
+        if (progressRef.current >= 1 / 6 && videos[0]) {
+          figureClockStartedRef.current = true;
+          startNativeClock(videos[0], 'figure', command);
+        }
+        return;
+      }
+      for (const [index, video] of videos.entries()) {
+        if (video) startNativeClock(video, index === 0 ? 'figure' : 'flock', command);
+      }
     },
     render,
     settle(endpoint) {
-      directionRef.current = endpoint === 0 ? -1 : 1;
+      directionRef.current = endpoint === 0 ? 1 : -1;
+      progressRef.current = endpoint;
       render(endpoint);
-      figureVideoRef.current?.pause();
-      flockVideoRef.current?.pause();
+      const videos = [figureVideoRef.current, flockVideoRef.current] as const;
+      for (const video of videos) {
+        video?.pause();
+        try {
+          if (video) video.currentTime = endpoint === 0 ? 0 : CRANE_VIDEO_END_SECONDS;
+        } catch { /* retry on metadata */ }
+      }
     },
     pause() {
+      mediaRunTokenRef.current = null;
+      mediaCommandRef.current = null;
+      mediaPhaseRef.current = 'held';
+      figureClockStartedRef.current = false;
       parkPhoneCraneMedia(rootRef.current);
     },
     dispose() {
       if (disposedRef.current) return;
       disposedRef.current = true;
+      mediaRunTokenRef.current = null;
+      mediaCommandRef.current = null;
       surfaceGenerationsRef.current = [0, 0];
       for (const surface of surfacesRef.current ?? []) surface.dispose('terminal');
       surfacesRef.current = null;
       parkPhoneCraneMedia(rootRef.current);
       bindingRef.current = null;
     }
-  }), [activateSurfaces, render]);
+  }), [activateSurfaces, render, startNativeClock]);
 
   useLayoutEffect(() => {
     const mountRoot = mountRootRef.current;

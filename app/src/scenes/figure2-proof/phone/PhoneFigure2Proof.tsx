@@ -111,11 +111,13 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
   }, [cancelPaint, commands, render, reports]);
 
   return (
-    <Figure2ProofSurface
-      scene="figure2-proof"
-      hidden={false}
-      registerHandle={registerHandle}
-    />
+    <div data-phone-native-mirror="figure2-proof">
+      <Figure2ProofSurface
+        scene="figure2-proof"
+        hidden={false}
+        registerHandle={registerHandle}
+      />
+    </div>
   );
 }
 

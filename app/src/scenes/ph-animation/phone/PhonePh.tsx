@@ -1,10 +1,12 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
+import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import {
   createPhonePackedAlphaSurface,
   type PhonePackedAlphaSurface,
-  type PhonePackedAlphaSurfaceFailure
+  type PhonePackedAlphaSurfaceFailure,
+  type PhonePackedAlphaSurfaceMode
 } from '../../../media/phone-packed-alpha-surface';
 import { phoneMediaUrlFor } from '../../../media/phone-media';
 import type {
@@ -87,6 +89,8 @@ export function PhonePh({ reports }: PhonePhProps) {
   const frameSequenceRef = useRef(0);
   const progressRef = useRef(0);
   const directionRef = useRef<PhonePhPlaybackDirection>(1);
+  const mediaRunTokenRef = useRef<string | null>(null);
+  const mediaPhaseRef = useRef<'primed' | 'playing' | 'held'>('held');
   const disposedRef = useRef(false);
 
   const reportFailure = useCallback((failure: PhonePackedAlphaSurfaceFailure) => {
@@ -114,10 +118,10 @@ export function PhonePh({ reports }: PhonePhProps) {
     if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
   }, []);
 
-  const activateSurface = useCallback((endpoint: 0 | 1 | null) => {
+  const activateSurface = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
     const surface = surfaceRef.current;
     if (!surface || disposedRef.current) return 0;
-    const generation = surface.activate(endpoint === 1 ? 'endpoint' : 'forward');
+    const generation = surface.activate(mode);
     surfaceGenerationRef.current = generation;
     return generation;
   }, []);
@@ -125,6 +129,8 @@ export function PhonePh({ reports }: PhonePhProps) {
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
+      mediaRunTokenRef.current = null;
+      mediaPhaseRef.current = 'held';
       frameSequenceRef.current = 0;
       if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
     },
@@ -141,18 +147,33 @@ export function PhonePh({ reports }: PhonePhProps) {
           settlements: []
         };
       }
-      const endpoint = progressRef.current >= .999 ? 1
-        : progressRef.current <= .001 ? 0 : null;
-      const generation = activateSurface(endpoint);
-      let settled: Promise<void>;
-      try {
-        settled = Promise.resolve(video.play()).then(() => {
-          if (generation !== surfaceGenerationRef.current || disposedRef.current) return;
-          if (endpoint === 1 || !command.playback) video.pause();
-        });
-      } catch (error) {
-        settled = Promise.reject(error);
+      const direction = command.direction === 'reverse' ? -1 : 1;
+      directionRef.current = direction;
+      const runToken = command.runToken ?? command.invocationId;
+      mediaRunTokenRef.current = runToken;
+      mediaPhaseRef.current = 'primed';
+      const binding = bindingRef.current;
+      const generation = activateSurface('initial');
+      video.pause();
+      try { video.currentTime = 0; } catch {
+        // The initial compositor callback will arrive after loadeddata.
       }
+      rootRef.current?.setAttribute('data-phone-ph-media', 'priming');
+      const settled = primePhoneNativeVideo(video, {
+        isCurrent: () => !disposedRef.current
+          && mediaRunTokenRef.current === runToken
+          && bindingRef.current === binding,
+        phase: () => mediaPhaseRef.current,
+        onRejected: (error: unknown) => {
+          if (disposedRef.current || bindingRef.current !== binding) return;
+          binding.reports.reportFailure({
+            code: 'ph-activation-playback-rejected',
+            message: error instanceof Error ? error.message : String(error),
+            recoverable: true,
+            detail: { runToken }
+          });
+        }
+      });
       return {
         invocationId: command.invocationId,
         surfaceIds: expected,
@@ -162,18 +183,67 @@ export function PhonePh({ reports }: PhonePhProps) {
           : []
       };
     },
+    setMediaPhase(command) {
+      const binding = bindingRef.current;
+      const video = videoRef.current;
+      if (!binding || !video || disposedRef.current
+        || (mediaRunTokenRef.current !== null
+          && mediaRunTokenRef.current !== command.runToken)) return;
+      mediaRunTokenRef.current = command.runToken;
+      directionRef.current = command.direction === 'reverse' ? -1 : 1;
+      if (command.phase === 'primed') {
+        mediaPhaseRef.current = 'primed';
+        video.pause();
+        return;
+      }
+      if (command.phase === 'held') {
+        mediaPhaseRef.current = 'held';
+        video.pause();
+        try {
+          video.currentTime = (command.endpoint ?? (command.direction === 'reverse' ? 0 : 1)) === 0
+            ? 0 : PH_FIGURE_END_SECONDS;
+        } catch { /* retry on metadata */ }
+        return;
+      }
+      surfaceRef.current?.setMode?.('forward');
+      mediaPhaseRef.current = 'playing';
+      if (command.direction === 'reverse') {
+        // Reverse PH is presented-frame sampling; HTML video cannot run
+        // backwards, so render() owns the paused decoder seek.
+        video.pause();
+        return;
+      }
+      let playback: Promise<void>;
+      try { playback = Promise.resolve(video.play()); }
+      catch (error) { playback = Promise.reject(error); }
+      void playback.catch((error: unknown) => binding.reports.reportFailure({
+        code: 'ph-playback-rejected',
+        message: error instanceof Error ? error.message : String(error),
+        recoverable: true,
+        detail: { runToken: command.runToken, direction: command.direction }
+      }));
+    },
     render,
     settle(endpoint) {
-      directionRef.current = endpoint === 0 ? -1 : 1;
+      directionRef.current = endpoint === 0 ? 1 : -1;
+      progressRef.current = endpoint;
       render(endpoint);
-      videoRef.current?.pause();
+      const video = videoRef.current;
+      video?.pause();
+      try {
+        if (video) video.currentTime = endpoint === 0 ? 0 : PH_FIGURE_END_SECONDS;
+      } catch { /* retry on metadata */ }
     },
     pause() {
+      mediaRunTokenRef.current = null;
+      mediaPhaseRef.current = 'held';
       parkPhonePhMedia(rootRef.current);
     },
     dispose() {
       if (disposedRef.current) return;
       disposedRef.current = true;
+      mediaRunTokenRef.current = null;
+      mediaPhaseRef.current = 'held';
       surfaceGenerationRef.current = 0;
       surfaceRef.current?.dispose('terminal');
       surfaceRef.current = null;

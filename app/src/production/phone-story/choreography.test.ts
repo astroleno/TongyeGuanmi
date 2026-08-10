@@ -41,6 +41,24 @@ const mediaClockOwners = {
   'figure2-proof-brand': 'none',
   'brand-figure3': 'none',
   'figure3-services': 'source',
+  'services-ttg': 'none',
+  'ttg-lab': 'source',
+  'lab-ph': 'none',
+  'ph-education': 'source',
+  'education-crane': 'none',
+  'crane-contact': 'source'
+} as const satisfies Readonly<Record<PhoneSegmentId, 'none' | 'source' | 'target'>>;
+
+const activationOwners = {
+  'hero-pattern': 'source',
+  'pattern-star-map': 'none',
+  'star-map-aod': 'none',
+  'aod-method-top': 'source',
+  'method-bottom-figure2': 'none',
+  'figure2-distance-expand': 'source',
+  'figure2-proof-brand': 'none',
+  'brand-figure3': 'none',
+  'figure3-services': 'source',
   'services-ttg': 'target',
   'ttg-lab': 'source',
   'lab-ph': 'target',
@@ -63,6 +81,10 @@ describe('phone segment choreography', () => {
       id,
       phoneSegmentChoreography[id].mediaClockOwner
     ]))).toEqual(mediaClockOwners);
+    expect(Object.fromEntries(canonicalSegments.map(({ id }) => [
+      id,
+      phoneSegmentChoreography[id].activationOwner
+    ]))).toEqual(activationOwners);
   });
 
   it('keeps Hero motion ahead of Ink and lands Pattern on its full-screen hold', () => {
@@ -130,12 +152,30 @@ describe('phone segment choreography', () => {
 
   it('keeps Brand to Figure3 static until Figure3 to Services owns playback', () => {
     expect(phoneSegmentChoreographyFrame('brand-figure3', 0)).toMatchObject({
-      sourceProgress: 1, targetProgress: 0, mediaClockOwner: 'none'
+      sourceProgress: 1, targetProgress: 0, mediaClockOwner: 'none',
+      foregroundOwner: 'source'
     });
-    expect(phoneSegmentChoreographyFrame('brand-figure3', .5).targetProgress).toBe(0);
+    expect(phoneSegmentChoreographyFrame('brand-figure3', .5)).toMatchObject({
+      sourceProgress: 1, targetProgress: 0, foregroundOwner: 'source'
+    });
     expect(phoneSegmentChoreographyFrame('figure3-services', 0).sourceProgress).toBe(0);
     expect(phoneSegmentChoreographyFrame('figure3-services', 1).sourceProgress)
       .toBeGreaterThan(0);
+  });
+
+  it('holds Figure2 at its terminal frame outside the media stage', () => {
+    expect(phoneSegmentChoreographyFrame(
+      'figure2-distance-expand', .5, 'forward', 0
+    ).mediaClockOwner).toBe('source');
+    expect(phoneSegmentChoreographyFrame(
+      'figure2-distance-expand', .5, 'forward', 1
+    ).mediaClockOwner).toBe('none');
+    expect(phoneSegmentChoreographyFrame(
+      'figure2-distance-expand', .5, 'reverse', 0
+    ).mediaClockOwner).toBe('none');
+    expect(phoneSegmentChoreographyFrame(
+      'figure2-distance-expand', .5, 'reverse', 1
+    ).mediaClockOwner).toBe('target');
   });
 
   it('reverses canonical time and swaps actual source and target ownership', () => {
@@ -159,18 +199,27 @@ describe('phone segment choreography', () => {
     });
   });
 
-  it('prepares receiver media while keeping cinematic progress on its initial hold', () => {
+  it('primes receiver media at frame zero without granting its playback clock', () => {
     expect(phoneSegmentChoreographyFrame('services-ttg', 1)).toMatchObject({
       targetProgress: 0,
-      mediaClockOwner: 'target'
+      activationOwner: 'target',
+      mediaClockOwner: 'none'
     });
     expect(phoneSegmentChoreographyFrame('lab-ph', 1)).toMatchObject({
       targetProgress: 0,
-      mediaClockOwner: 'target'
+      activationOwner: 'target',
+      mediaClockOwner: 'none'
     });
     expect(phoneSegmentChoreographyFrame('education-crane', 1)).toMatchObject({
       targetProgress: 0,
-      mediaClockOwner: 'target'
+      activationOwner: 'target',
+      mediaClockOwner: 'none'
+    });
+    expect(phoneSegmentChoreographyFrame('ph-education', 0)).toMatchObject({
+      activationOwner: 'source', mediaClockOwner: 'source'
+    });
+    expect(phoneSegmentChoreographyFrame('crane-contact', 0)).toMatchObject({
+      activationOwner: 'source', mediaClockOwner: 'source'
     });
   });
 

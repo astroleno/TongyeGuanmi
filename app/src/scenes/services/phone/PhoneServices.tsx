@@ -130,7 +130,7 @@ export function PhoneServices({ reports }: Readonly<{ reports: PhoneLeafReportPo
   return (
     <div ref={(element) => {
       rootRef.current = element?.querySelector<HTMLElement>('#services') ?? null;
-    }} className="phone-services__visual">
+    }} className="phone-services__visual" data-phone-native-mirror="services">
       <ServicesContent reading={false} />
     </div>
   );

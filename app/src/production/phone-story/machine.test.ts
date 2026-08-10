@@ -16,6 +16,7 @@ import {
   phoneEntryForLocation,
   phoneManifest,
   phoneSegmentBetween,
+  phoneSegmentChoreographyFrame,
   phoneSceneById,
   phoneWarmEntryPolicy,
   type PhoneSceneId,
@@ -924,10 +925,12 @@ function reachTargetPresentation(result: PhoneMachineResult): PhoneMachineResult
 }
 
 describe('phone segment transaction machine', () => {
-  it('assigns activation credit from the media-clock owner', () => {
+  it('assigns activation credit from the decoder activation owner', () => {
     const cases = [
       ['aod-animation', 'method-top', 'forward', 'physical-epoch'],
       ['method-top', 'aod-animation', 'reverse', 'direct-muted-autoplay'],
+      ['lab', 'ph-animation', 'forward', 'direct-muted-autoplay'],
+      ['education', 'crane-animation', 'forward', 'direct-muted-autoplay'],
       ['star-map', 'aod-animation', 'forward', null]
     ] as const;
 
@@ -943,6 +946,18 @@ describe('phone segment transaction machine', () => {
       } else {
         expect(effect).toEqual(expect.objectContaining({ credit: expected }));
       }
+    }
+  });
+
+  it('activates incoming PH and Crane surfaces while withholding their playback clocks', () => {
+    for (const segmentId of ['lab-ph', 'education-crane'] as const) {
+      const segment = phoneManifest.segments.find(({ id }) => id === segmentId);
+      if (!segment) throw new Error(`missing segment ${segmentId}`);
+      const active = transaction(beginSegment(segment, 'forward').snapshot).transaction;
+      expect(phoneTransactionActivationSurfaceIds(active), segmentId).not.toEqual([]);
+      expect(phoneSegmentChoreographyFrame(segmentId, 0)).toMatchObject({
+        activationOwner: 'target', mediaClockOwner: 'none'
+      });
     }
   });
 

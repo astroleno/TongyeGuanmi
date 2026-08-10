@@ -281,11 +281,13 @@ function methodReadingSnapshot(): SnapshotRecord {
 }
 
 function nativeStableSnapshot(
-  sceneId: 'figure2-proof' | 'brand', commitSequence: number,
+  sceneId: 'method-top' | 'figure2-proof' | 'brand' | 'services' | 'lab'
+    | 'education' | 'contact', commitSequence: number,
   direction: 'forward' | 'reverse' | null = 'forward',
-  landingAlias: 'opening' | 'cards' | 'closing' | null = null
+  landingAlias: 'opening' | 'cards' | 'closing' | null = null,
+  proofRole: 'committed' | 'rollback' = 'committed'
 ): SnapshotRecord {
-  return { ...stableSnapshot(), stableCommit: { sceneId, landing: {}, commitSequence, direction, landingAlias }, presentationProof: { commitSequence, planeRevision: commitSequence }, lastPlaneRevision: commitSequence };
+  return { ...stableSnapshot(), stableCommit: { sceneId, landing: {}, commitSequence, direction, landingAlias }, presentationProof: { commitSequence, planeRevision: commitSequence, plane: { role: proofRole } }, lastPlaneRevision: commitSequence };
 }
 
 function methodToolbarReprojectSnapshot(): SnapshotRecord {
@@ -656,6 +658,143 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
+  it('captures a shared native mirror before publishing a Services edge intent', () => {
+    const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    const scrollingElement = document.createElement('main');
+    Object.defineProperties(scrollingElement, {
+      scrollTop: { configurable: true, value: 1128, writable: true },
+      clientHeight: { configurable: true, value: 844 },
+      scrollHeight: { configurable: true, value: 1972 }
+    });
+    Object.defineProperty(document, 'scrollingElement', {
+      configurable: true, value: scrollingElement
+    });
+    const { host, root } = hostRoot();
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+      const engine = connectedEngine();
+      act(() => engine.publish(nativeStableSnapshot('services', 8)));
+      const hidden = probe.loaderProps.at(-1)?.onHidden;
+      if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+      act(() => hidden('ready'));
+      const shell = host.querySelector<HTMLElement>('.phone-story');
+      const mirror = document.createElement('div');
+      mirror.dataset.phoneNativeMirror = 'services';
+      shell?.querySelector('.phone-story__viewport')?.append(mirror);
+      const reading = document.createElement('section');
+      reading.dataset.phoneInputOwner = 'native-document';
+      shell?.querySelector('.phone-story__reading-flow')?.append(reading);
+      scrollingElement.scrollTop = 1128;
+
+      const key = new KeyboardEvent('keydown', {
+        bubbles: true, cancelable: true, key: 'ArrowDown'
+      });
+      act(() => reading.dispatchEvent(key));
+
+      expect(mirror.style.getPropertyValue('--phone-native-scroll-y')).toBe('1128.00px');
+      expect(mirror.dataset.phoneNativeScrollY).toBe('1128.00');
+      expect(engine.hostEvents.at(-1)).toMatchObject({
+        type: 'input', kind: 'keyboard', delta: 1, target: 'native-corridor'
+      });
+    } finally {
+      if (originalScrollingElement) {
+        Object.defineProperty(document, 'scrollingElement', originalScrollingElement);
+      } else {
+        Reflect.deleteProperty(document, 'scrollingElement');
+      }
+      act(() => root.unmount());
+    }
+  });
+
+  it('uses the scrolling element as the native handoff owner even at scrollTop zero', () => {
+    const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    const originalScrollY = Object.getOwnPropertyDescriptor(window, 'scrollY');
+    const scrollingElement = document.createElement('main');
+    Object.defineProperties(scrollingElement, {
+      scrollTop: { configurable: true, value: 0, writable: true },
+      clientHeight: { configurable: true, value: 844 },
+      scrollHeight: { configurable: true, value: 844 }
+    });
+    Object.defineProperty(document, 'scrollingElement', {
+      configurable: true, value: scrollingElement
+    });
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true, value: 640
+    });
+    const { host, root } = hostRoot();
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+      const engine = connectedEngine();
+      act(() => engine.publish(nativeStableSnapshot('services', 8)));
+      const hidden = probe.loaderProps.at(-1)?.onHidden;
+      if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+      act(() => hidden('ready'));
+      const shell = host.querySelector<HTMLElement>('.phone-story');
+      const mirror = document.createElement('div');
+      mirror.dataset.phoneNativeMirror = 'services';
+      const reading = document.createElement('section');
+      reading.dataset.phoneInputOwner = 'native-document';
+      shell?.querySelector('.phone-story__viewport')?.append(mirror);
+      shell?.querySelector('.phone-story__reading-flow')?.append(reading);
+
+      const key = new KeyboardEvent('keydown', {
+        bubbles: true, cancelable: true, key: 'ArrowDown'
+      });
+      act(() => reading.dispatchEvent(key));
+
+      expect(mirror.dataset.phoneNativeScrollY).toBe('0.00');
+    } finally {
+      if (originalScrollingElement) {
+        Object.defineProperty(document, 'scrollingElement', originalScrollingElement);
+      } else {
+        Reflect.deleteProperty(document, 'scrollingElement');
+      }
+      if (originalScrollY) {
+        Object.defineProperty(window, 'scrollY', originalScrollY);
+      } else {
+        Reflect.deleteProperty(window, 'scrollY');
+      }
+      act(() => root.unmount());
+    }
+  });
+
+  it('restores the captured native reading position after rollback keeps the same commit', () => {
+    const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    let scrollTop = 680;
+    const scrollingElement = document.createElement('main');
+    Object.defineProperty(scrollingElement, 'scrollTop', {
+      configurable: true, get: () => scrollTop, set: (value: number) => { scrollTop = value; }
+    });
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: scrollingElement });
+    const { host, root } = hostRoot();
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+      const engine = connectedEngine();
+      act(() => engine.publish(nativeStableSnapshot('education', 8)));
+      const mirror = document.createElement('div');
+      mirror.dataset.phoneNativeMirror = 'education';
+      mirror.dataset.phoneNativeScrollY = '680.00';
+      mirror.dataset.phoneNativeHandoff = 'active';
+      host.querySelector('.phone-story__viewport')?.append(mirror);
+      scrollTop = 0;
+
+      act(() => engine.publish({
+        ...nativeStableSnapshot('education', 8, 'forward', null, 'rollback'),
+        presentationProof: {
+          commitSequence: 8,
+          planeRevision: 9,
+          plane: { role: 'rollback' }
+        },
+        lastPlaneRevision: 9
+      }));
+
+      expect(scrollTop).toBe(680);
+    } finally {
+      if (originalScrollingElement) Object.defineProperty(document, 'scrollingElement', originalScrollingElement); else Reflect.deleteProperty(document, 'scrollingElement');
+      act(() => root.unmount());
+    }
+  });
+
   it('completes the Method toolbar and fresh-edge handoff inside its scoped shell', () => {
     const decoy = document.createElement('main');
     decoy.className = 'phone-story';
@@ -664,6 +803,7 @@ describe('clean PhoneStoryShell ownership', () => {
     decoyViewport.className = 'phone-story__viewport';
     const decoyVisual = document.createElement('div');
     decoyVisual.className = 'phone-method-top__visual';
+    decoyVisual.dataset.phoneNativeMirror = 'method-top';
     const decoyReadingFlow = document.createElement('div');
     decoyReadingFlow.className = 'phone-story__reading-flow';
     const decoyReading = document.createElement('section');
@@ -707,6 +847,7 @@ describe('clean PhoneStoryShell ownership', () => {
       const viewport = shell?.querySelector('.phone-story__viewport');
       const visual = document.createElement('div');
       visual.className = 'phone-method-top__visual';
+      visual.dataset.phoneNativeMirror = 'method-top';
       const reading = document.createElement('section');
       reading.dataset.phoneInputOwner = 'native-document';
       shell?.querySelector('.phone-story__reading-flow')?.append(reading);
@@ -745,12 +886,9 @@ describe('clean PhoneStoryShell ownership', () => {
       };
 
       const first = gesture(51, true);
-      expect(first.defaultPrevented).toBe(false);
-      expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
-      const leave = gesture(52, false);
-      expect(leave.defaultPrevented).toBe(true);
-      expect(visual.dataset.phoneMethodNativeScrollY).toBe('963.00');
-      expect(decoyVisual.dataset.phoneMethodNativeScrollY).toBeUndefined();
+      expect(first.defaultPrevented).toBe(true);
+      expect(visual.dataset.phoneNativeScrollY).toBe('963.00');
+      expect(decoyVisual.dataset.phoneNativeScrollY).toBeUndefined();
       expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([
         expect.objectContaining({ kind: 'touch', delta: 300, fresh: true, target: 'story' })
       ]);
@@ -1423,7 +1561,11 @@ describe('clean PhoneStoryShell ownership', () => {
   it('keeps every descendant of a native document outside cinematic prevention', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
-    revealStableStory();
+    const engine = connectedEngine();
+    act(() => engine.publish(methodReadingSnapshot()));
+    const hidden = probe.loaderProps.at(-1)?.onHidden;
+    if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+    act(() => hidden('ready'));
     const story = host.querySelector('.phone-story');
     if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
     const reading = document.createElement('section');
@@ -1461,11 +1603,16 @@ describe('clean PhoneStoryShell ownership', () => {
   it('hands a native reading document to the story only when the gesture starts at an edge', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
-    revealStableStory();
+    const engine = connectedEngine();
+    act(() => engine.publish(methodReadingSnapshot()));
+    const hidden = probe.loaderProps.at(-1)?.onHidden;
+    if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+    act(() => hidden('ready'));
     const story = host.querySelector('.phone-story');
     if (!(story instanceof HTMLElement)) throw new Error('missing clean phone story root');
     const visual = document.createElement('div');
     visual.className = 'phone-method-top__visual';
+    visual.dataset.phoneNativeMirror = 'method-top';
     story.querySelector('.phone-story__viewport')?.append(visual);
     const reading = document.createElement('section');
     reading.dataset.phoneInputOwner = 'native-document';
@@ -1515,27 +1662,12 @@ describe('clean PhoneStoryShell ownership', () => {
     };
     try {
       const first = gesture(31, true, true);
-      expect(first.move.defaultPrevented).toBe(false);
-      expect(first.edgeMove.defaultPrevented).toBe(false);
-      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
-      // The next gesture starts at the edge, so it is the real Method → Figure2
-      // outward handoff. Reaching an edge during a gesture never arms a later one.
-      const leave = gesture(40, false, false, true);
-      expect(leave.move.defaultPrevented).toBe(true);
-      expect(visual.dataset.phoneMethodNativeScrollY).toBe('680.00');
-      expect(visual.style.getPropertyValue('--phone-method-native-scroll-y')).toBe('680.00px');
-
-      // Re-enter Method at a non-edge position. The first gesture may scroll to
-      // the edge, but it must not inherit the previous scene's edge latch.
-      scrollTop = 600;
-      const returnFirst = gesture(41, true);
-      expect(returnFirst.move.defaultPrevented).toBe(false);
-      scrollTop = 700;
-      const second = gesture(42);
-      expect(second.move.defaultPrevented).toBe(true);
+      expect(first.move.defaultPrevented).toBe(true);
+      expect(first.edgeMove.defaultPrevented).toBe(true);
+      expect(visual.dataset.phoneNativeScrollY).toBe('700.00');
+      expect(visual.style.getPropertyValue('--phone-native-scroll-y')).toBe('700.00px');
       expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([
         expect.objectContaining({ kind: 'touch', delta: 300, target: 'story', fresh: true }),
-        expect.objectContaining({ kind: 'touch', delta: 300, target: 'story', fresh: true })
       ]);
       expect(connectedEngine().hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
     } finally {

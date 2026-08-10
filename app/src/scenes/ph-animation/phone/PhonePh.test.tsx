@@ -86,7 +86,9 @@ describe('PhonePh', () => {
     expect(source).toContain('reports.registerMount');
     expect(source).toContain("reportFrame('ph-figure-canvas'");
     expect(source).toContain('phoneMediaUrlFor(');
-    expect(source).toContain("surface.activate(endpoint === 1 ? 'endpoint' : 'forward')");
+    expect(source).toContain('surface.activate(mode)');
+    expect(source).toContain('setMediaPhase(command)');
+    expect(source).toContain("activateSurface('initial')");
     expect(source).toContain('PH_FIGURE_END_SECONDS');
     expect(source).toContain("surfaceRef.current?.dispose('terminal')");
     expect(source).not.toContain('surfaceRef.current?.release()');

@@ -1,4 +1,5 @@
 import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
+import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
 import {
   disposeTimelineVideoDriver,
   driveTimelineVideo
@@ -40,6 +41,7 @@ export type PhoneFigurePlayback = Readonly<{
   setActive(active: boolean): void;
   scrub(progress: number): void;
   settle(): void;
+  primeFromGesture(onRejected?: (error: unknown) => void): Promise<void>;
   unlockFromGesture(): void;
   dispose(): void;
 }>;
@@ -127,6 +129,7 @@ export function createPhoneFigurePlayback(
   let disposed = false;
   let lastProgress = 0;
   let playAttempt = 0;
+  let primeGeneration = 0;
 
   const canAutoplay = () => active && lastProgress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS;
 
@@ -189,6 +192,7 @@ export function createPhoneFigurePlayback(
 
   return {
     setActive(nextActive) {
+      if (active !== nextActive) primeGeneration += 1;
       active = nextActive;
       if (!active) {
         playAttempt += 1;
@@ -256,6 +260,14 @@ export function createPhoneFigurePlayback(
         playAmbient();
       }
     },
+    primeFromGesture(onRejected) {
+      const generation = ++primeGeneration;
+      return primePhoneNativeVideo(video, {
+        isCurrent: () => !disposed && generation === primeGeneration,
+        phase: () => active ? 'playing' : 'primed',
+        ...(onRejected ? { onRejected } : {})
+      });
+    },
     unlockFromGesture() {
       if (lastProgress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS) {
         playAmbient();
@@ -267,6 +279,7 @@ export function createPhoneFigurePlayback(
       }
       disposed = true;
       playAttempt += 1;
+      primeGeneration += 1;
       video.pause();
       video.removeEventListener('loadeddata', onLoadedData);
       video.removeEventListener('error', onError);

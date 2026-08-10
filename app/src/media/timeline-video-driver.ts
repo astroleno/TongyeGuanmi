@@ -28,6 +28,10 @@ export type TimelineVideoDriveInput = Readonly<{
    * data, and a playhead within the accepted presentation window.
    */
   allowSeekedFrameFallback?: boolean | undefined;
+  /** Keep a preparation seek paused; formal playback is issued by the runtime phase command. */
+  allowPlaybackNudge?: boolean | undefined;
+  /** Let a preparation started before the phase command hand playback back to the native clock. */
+  preserveNativePlaybackOnSettle?: boolean | undefined;
   signal?: AbortSignal | undefined;
 }>;
 
@@ -167,6 +171,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   };
 
   private readonly onMediaAbort = () => {
+    // Packed-alpha surfaces replace their <source> while retiring a parked
+    // generation. WebKit emits `abort` for that source removal; when there is
+    // no current media resource left, it is not a preparation failure for the
+    // newly requested frame.
+    if (!this.video.src
+      && this.video.dataset.packedAlphaSource === 'rgb-alpha-side-by-side'
+      && this.video.querySelector('source')) return;
     this.failAllWaiters(new MediaPreparationError(
       'MEDIA_PREPARATION_ABORTED',
       'media aborted'
@@ -995,15 +1006,15 @@ export function prepareTimelineVideoFrame(
   // A covered paused video may settle its seek without submitting an rVFC.
   // Muted playback only nudges the compositor; readiness still requires the
   // causal callback, and the element is paused again before preparation exits.
-  const nudge = setTimeout(() => {
+  const nudge = input.allowPlaybackNudge === false ? undefined : setTimeout(() => {
     if (!input.signal?.aborted && framePreparationOwners.get(video) === owner) {
       void video.play().catch(() => undefined);
     }
   }, PAUSED_COMPOSITOR_NUDGE_MS);
   return preparation.finally(() => {
-    clearTimeout(nudge);
+    if (nudge !== undefined) clearTimeout(nudge);
     if (framePreparationOwners.get(video) !== owner) return;
     framePreparationOwners.delete(video);
-    video.pause();
+    if (input.preserveNativePlaybackOnSettle !== true) video.pause();
   });
 }

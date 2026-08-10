@@ -107,7 +107,7 @@ describe('clean PhoneHero leaf', () => {
       ['hero-intro-ink', 'canvas-2d']
     ]);
     expect(Object.keys(registration?.commands ?? {}).sort()).toEqual([
-      'activate', 'dispose', 'pause', 'rebind', 'render', 'settle'
+      'activate', 'dispose', 'pause', 'rebind', 'render', 'setMediaPhase', 'settle'
     ]);
   });
 
@@ -119,6 +119,28 @@ describe('clean PhoneHero leaf', () => {
     const commands = fixture.registration()?.commands as PhoneLeafCommandHandle;
     expect(commands).not.toHaveProperty('prepare');
     expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+  });
+
+  it('primes the same native video element during activation before formal playback', async () => {
+    const fixture = reportFixture();
+    await act(async () => {
+      root.render(<PhoneHero reports={fixture.reports} />);
+    });
+    const commands = fixture.registration()?.commands as PhoneLeafCommandHandle;
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    const invocation = commands.activate({
+      invocationId: 'hero:prime:1',
+      surfaceIds: ['hero-figure-video'],
+      credit: 'physical-epoch',
+      runToken: 'hero:run:1',
+      direction: 'forward',
+      stageIndex: 0
+    });
+
+    expect(invocation.invoked).toBe(true);
+    expect(play).toHaveBeenCalledOnce();
+    expect(pause).toHaveBeenCalled();
   });
 
   it('uses the current generation token and never lets a retired token prove a frame', async () => {

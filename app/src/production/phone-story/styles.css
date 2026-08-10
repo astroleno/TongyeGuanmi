@@ -172,6 +172,20 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   visibility: hidden;
 }
 
+.phone-story [data-phone-native-mirror] {
+  --phone-native-scroll-y: 0px;
+}
+
+.phone-story [data-phone-native-mirror][data-phone-native-handoff="active"] {
+  transform: translate3d(0, calc(-1 * var(--phone-native-scroll-y)), 0);
+  will-change: transform;
+}
+
+.phone-story[data-phone-reading="enabled"]
+  .phone-story__viewport [data-phone-native-mirror]:not([data-phone-native-handoff="active"]) {
+  visibility: hidden;
+}
+
 .phone-story__activation,
 .phone-story__retry {
   background: rgba(247, 237, 215, .1);

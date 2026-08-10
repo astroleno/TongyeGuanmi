@@ -8,7 +8,7 @@ import {
 } from './packed-alpha-video';
 import { semanticBoolean } from '../runtime/semantic-data-attribute';
 
-export type PhonePackedAlphaSurfaceMode = 'forward' | 'endpoint';
+export type PhonePackedAlphaSurfaceMode = 'forward' | 'initial' | 'endpoint';
 
 export type PhonePackedAlphaSurfaceFailure = Readonly<{
   code: string;
@@ -23,6 +23,8 @@ export type PhonePackedAlphaSurfaceFrame = Readonly<{
 
 export type PhonePackedAlphaSurface = Readonly<{
   activate(mode?: PhonePackedAlphaSurfaceMode): number;
+  /** Change the compositor's frame acceptance mode without replacing its generation. */
+  setMode?(mode: PhonePackedAlphaSurfaceMode): void;
   /** Best-effort repaint for retained proof; a transient miss is not terminal. */
   probe(): boolean;
   render(): boolean;
@@ -50,6 +52,7 @@ export type PhonePackedAlphaSurfaceOptions = Readonly<{
 const DEFAULT_FRAME_TIMEOUT_MS = 3000;
 const HAVE_CURRENT_DATA = 2;
 const ENDPOINT_FRAME_TOLERANCE_SECONDS = 0.08;
+const INITIAL_FRAME_TOLERANCE_SECONDS = 0.04;
 
 function releaseVideoSource(video: HTMLVideoElement): void {
   video.pause();
@@ -207,6 +210,7 @@ export function createPhonePackedAlphaSurface(
       activeCanvas.className = options.canvasClassName;
       activeCanvas.setAttribute('aria-hidden', 'true');
       activeCanvas.dataset.phonePackedAlphaCanvas = layerName;
+      activeCanvas.dataset.packedAlphaGeneration = String(generation);
       if (ownsCanvas) {
         container.append(activeCanvas);
         retainedCanvas = activeCanvas;
@@ -223,6 +227,13 @@ export function createPhonePackedAlphaSurface(
           if (mode === 'endpoint' && (video.seeking
             || Math.abs(video.currentTime - options.endpointSeconds)
               > ENDPOINT_FRAME_TOLERANCE_SECONDS)) return;
+          if (mode === 'initial' && (!video.paused || video.seeking
+            || Math.abs(video.currentTime) > INITIAL_FRAME_TOLERANCE_SECONDS)) {
+            delete canvasForGeneration.dataset.packedAlphaFrameReady;
+            delete canvasForGeneration.dataset.packedAlphaFrame;
+            delete canvasForGeneration.dataset.packedAlphaMediaTime;
+            return;
+          }
           if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
           frameTimeout = undefined;
           root.dataset[statusDataset] = 'verified';
@@ -285,6 +296,14 @@ export function createPhonePackedAlphaSurface(
         else settleStaticFallback(generation);
       }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
       return generation;
+    },
+    setMode(nextMode: PhonePackedAlphaSurfaceMode) {
+      if (disposed || activeGeneration === 0) return;
+      mode = nextMode;
+      if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
+      frameTimeout = undefined;
+      root.dataset[statusDataset] = nextMode === 'forward'
+        ? 'awaiting-native-playback' : 'probing';
     },
     probe() {
       return activeGeneration > 0 && compositor?.render() === true;

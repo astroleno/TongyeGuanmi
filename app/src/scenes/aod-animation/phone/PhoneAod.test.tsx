@@ -105,7 +105,7 @@ describe('clean PhoneAod leaf', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
   });
 
-  it('registers a frozen poster before the packed pair and only plays media through activation', async () => {
+  it('registers a frozen poster before the packed pair and spends one prime play before the explicit phase', async () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
     expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
@@ -114,7 +114,7 @@ describe('clean PhoneAod leaf', () => {
       ['aod-figure-canvas', 'canvas-webgl']
     ]);
     expect(Object.keys(mount.registration()?.commands ?? {}).sort()).toEqual([
-      'activate', 'dispose', 'pause', 'rebind', 'render', 'settle'
+      'activate', 'dispose', 'pause', 'rebind', 'render', 'setMediaPhase', 'settle'
     ]);
     expect(mount.registration()?.root.querySelector(
       '[data-phone-landing="aod-semantic-edge"]'
@@ -132,7 +132,7 @@ describe('clean PhoneAod leaf', () => {
       playback: false
     });
     expect(surfaceProbe.activate).toHaveBeenCalledTimes(1);
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();
     expect(host.querySelector<HTMLElement>('[data-aod-transition]')
       ?.getAttribute('data-aod-exit-active')).toBe('true');
     expect(invocation).toMatchObject({
@@ -142,12 +142,118 @@ describe('clean PhoneAod leaf', () => {
     await expect(invocation?.settlements[0]?.status === 'pending'
       ? invocation.settlements[0].settled : Promise.reject()).resolves.toBeUndefined();
     expect(surfaceProbe.render).toHaveBeenCalledTimes(1);
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(1);
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(4);
     mount.registration()?.commands.pause('outside-closure');
     expect(host.querySelector<HTMLElement>('[data-aod-transition]')
       ?.getAttribute('data-aod-exit-active')).toBeNull();
     expect(timelineProbe.prepare).toHaveBeenCalledWith(
       expect.any(HTMLVideoElement), expect.objectContaining({ progress: 0 })
+    );
+  });
+
+  it('does not let a late prime resolve pause AOD after formal playback starts', async () => {
+    let releasePrime!: () => void;
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementationOnce(() => (
+      new Promise<void>((resolve) => { releasePrime = resolve; })
+    ));
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const current = reportFixture();
+    const commands = mount.registration()!.commands;
+    const runToken = 'aod:prime-race:1';
+    commands.rebind({ reports: current.reports, frameToken: runToken });
+    const invocation = commands.activate({
+      invocationId: 'activation:prime-race',
+      surfaceIds: ['aod-figure-video'],
+      credit: 'physical-epoch', playback: true,
+      direction: 'forward', runToken
+    });
+    const settlement = invocation.settlements[0];
+    if (settlement?.status !== 'pending') throw new Error('missing activation settlement');
+    await expect(settlement.settled).resolves.toBeUndefined();
+
+    const setMediaPhase = commands.setMediaPhase;
+    if (!setMediaPhase) throw new Error('missing media phase command');
+    setMediaPhase({
+      phase: 'playing', runToken, direction: 'forward', stageIndex: 0
+    });
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    const pauseCount = pause.mock.calls.length;
+    releasePrime();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(pause).toHaveBeenCalledTimes(pauseCount);
+    expect(current.reports.reportFailure).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'aod-activation-playback-rejected' })
+    );
+  });
+
+  it('reports an active AOD prime rejection while it is still primed', async () => {
+    let rejectPrime!: (error: unknown) => void;
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementationOnce(() => (
+      new Promise<void>((_resolve, reject) => { rejectPrime = reject; })
+    ));
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const current = reportFixture();
+    const commands = mount.registration()!.commands;
+    const runToken = 'aod:prime-reject:1';
+    commands.rebind({ reports: current.reports, frameToken: runToken });
+    const invocation = commands.activate({
+      invocationId: 'activation:prime-reject',
+      surfaceIds: ['aod-figure-video'],
+      credit: 'physical-epoch', playback: true,
+      direction: 'forward', runToken
+    });
+    const settlement = invocation.settlements[0];
+    if (settlement?.status !== 'pending') throw new Error('missing activation settlement');
+    await expect(settlement.settled).resolves.toBeUndefined();
+
+    const error = new DOMException('autoplay blocked', 'NotAllowedError');
+    if (!rejectPrime) throw new Error('missing prime rejection callback');
+    rejectPrime(error);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(current.reports.reportFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'aod-activation-playback-rejected',
+      message: String(error),
+      detail: { runToken, generation: 1 }
+    }));
+  });
+
+  it('does not surface a stale prime rejection after formal AOD playback starts', async () => {
+    let rejectPrime!: (error: unknown) => void;
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementationOnce(() => (
+      new Promise<void>((_resolve, reject) => { rejectPrime = reject; })
+    ));
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const current = reportFixture();
+    const commands = mount.registration()!.commands;
+    const runToken = 'aod:prime-stale-reject:1';
+    commands.rebind({ reports: current.reports, frameToken: runToken });
+    const invocation = commands.activate({
+      invocationId: 'activation:prime-stale-reject',
+      surfaceIds: ['aod-figure-video'],
+      credit: 'physical-epoch', playback: true,
+      direction: 'forward', runToken
+    });
+    const settlement = invocation.settlements[0];
+    if (settlement?.status !== 'pending') throw new Error('missing activation settlement');
+    await expect(settlement.settled).resolves.toBeUndefined();
+
+    const setMediaPhase = commands.setMediaPhase;
+    if (!setMediaPhase) throw new Error('missing media phase command');
+    setMediaPhase({
+      phase: 'playing', runToken, direction: 'forward', stageIndex: 0
+    });
+    const error = new DOMException('late prime rejection', 'NotAllowedError');
+    if (!rejectPrime) throw new Error('missing prime rejection callback');
+    rejectPrime(error);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(current.reports.reportFailure).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'aod-activation-playback-rejected' })
     );
   });
 
@@ -163,7 +269,9 @@ describe('clean PhoneAod leaf', () => {
       invocationId: 'activation:reverse',
       surfaceIds: ['aod-figure-video'],
       credit: 'direct-muted-autoplay',
-      playback: true
+      playback: true,
+      direction: 'reverse',
+      runToken: 'aod:reverse:1'
     });
     const settlement = invocation.settlements[0];
     if (settlement?.status !== 'pending') throw new Error('missing activation settlement');
@@ -347,9 +455,11 @@ describe('clean PhoneAod leaf', () => {
 
     expect(completion).toBeInstanceOf(Promise);
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');
-    expect(HTMLMediaElement.prototype.pause).not.toHaveBeenCalled();
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledOnce();
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();
     releasePlayback();
     await expect(completion).resolves.toBeUndefined();
     expect(scene.dataset.portraitAodProgress).toBe('0.0000');
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
   });
 });

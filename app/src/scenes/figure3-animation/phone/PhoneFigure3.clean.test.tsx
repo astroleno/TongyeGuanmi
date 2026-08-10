@@ -62,6 +62,8 @@ vi.mock('./paper-compositor', () => ({
   createPhoneFigure3PaperCompositor: vi.fn((options: Record<string, unknown>) => {
     probe.compositorOptions = options;
     probe.paint.mockImplementation(() => {
+      const canvas = options.canvas as HTMLCanvasElement | undefined;
+      if (canvas) canvas.dataset.phoneFigure3PaperFrame = 'ready';
       (options.onFrame as (() => void) | undefined)?.();
       (options.onPresentedFrame as (() => void) | undefined)?.();
       return true;
@@ -132,7 +134,7 @@ describe('clean PhoneFigure3 leaf', () => {
     expect(source?.getAttribute('src')).toBeNull();
   });
 
-  it('keeps the stable initial poster visible after a late compositor callback', async () => {
+  it('keeps the stable decoded initial Canvas visible after a late compositor callback', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
@@ -164,9 +166,8 @@ describe('clean PhoneFigure3 leaf', () => {
     (probe.compositorOptions?.onPresentedFrame as (() => void) | undefined)?.();
 
     const scene = host.querySelector<HTMLElement>('.phone-figure3');
-    const poster = host.querySelector<HTMLElement>('[data-phone-figure3-paper-poster]');
-    expect(scene?.hasAttribute('data-phone-figure3-media-active')).toBe(false);
-    expect(poster && getComputedStyle(poster).opacity).toBe('1');
+    expect(scene?.hasAttribute('data-phone-figure3-media-active')).toBe(true);
+    expect(scene?.dataset.phoneFigure3InitialSurface).toBe('video-frame-zero');
 
     await act(async () => { root.unmount(); });
   });
@@ -183,7 +184,8 @@ describe('clean PhoneFigure3 leaf', () => {
     expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
       ['figure3-video', 'video'],
       ['figure3-paper-canvas', 'canvas-2d'],
-      ['figure3-initial-poster', 'image']
+      ['figure3-initial-poster', 'image'],
+      ['figure3-initial-composite', 'dom']
     ]);
     expect(host.querySelectorAll('[data-figure3-alpha-video]')).toHaveLength(1);
     expect(host.querySelectorAll('[data-phone-figure3-paper-canvas]')).toHaveLength(1);
@@ -212,6 +214,7 @@ describe('clean PhoneFigure3 leaf', () => {
         settlement.status === 'pending' ? [settlement.settled] : []
       )) ?? []);
     });
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
     expect(current.reports.reportFrame).toHaveBeenCalledWith(
       'figure3-paper-canvas', expect.objectContaining({
         kind: 'frame', token: 'figure3:frame:2', presented: true
@@ -232,6 +235,12 @@ describe('clean PhoneFigure3 leaf', () => {
     expect(renewed.reports.reportFrame).toHaveBeenCalledWith(
       'figure3-paper-canvas', expect.objectContaining({
         kind: 'frame', token: 'figure3:frame:3', presented: true
+      })
+    );
+    expect(renewed.reports.reportPrepared).toHaveBeenCalledWith(
+      'figure3-initial-composite', expect.objectContaining({
+        kind: 'image-decoded', ready: true,
+        detail: expect.objectContaining({ winner: 'video-terminal-frame', endpoint: 1 })
       })
     );
 
@@ -260,6 +269,12 @@ describe('clean PhoneFigure3 leaf', () => {
       })
     );
 
+    mount.registration()?.commands.setMediaPhase?.({
+      phase: 'playing',
+      runToken: 'figure3:frame:4',
+      direction: 'forward',
+      stageIndex: 0
+    });
     mount.registration()?.commands.render(.62);
     const endpointProofCount = retained.reports.reportFrame.mock.calls.length;
     video.currentTime = 1.2;
@@ -311,9 +326,9 @@ describe('clean PhoneFigure3 leaf', () => {
     });
 
     expect(probe.renderProgress).toHaveBeenLastCalledWith(
-      expect.any(HTMLElement), 1, expect.any(Object)
+      expect.any(HTMLElement), 1, undefined
     );
-    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+    expect(probe.prepareFrame).not.toHaveBeenCalled();
     expect(recovered.reports.reportFrame).toHaveBeenCalledWith(
       'figure3-paper-canvas', expect.objectContaining({
         kind: 'frame', token: 'figure3:retained:2', presented: true
@@ -528,13 +543,13 @@ describe('clean PhoneFigure3 leaf', () => {
     act(() => root.unmount());
   });
 
-  it('settles the initial hold from the static poster without touching the video', async () => {
+  it('settles the initial hold from decoded video frame zero and reports the winning composite', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
     probe.prepareFrame.mockImplementationOnce(async (video: HTMLVideoElement) => {
-      video.currentTime = .051;
+      video.currentTime = 0;
       Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
-      Object.defineProperty(video, 'seeking', { configurable: true, value: true });
+      Object.defineProperty(video, 'seeking', { configurable: true, value: false });
       return {
         status: 'ready' as const, runId: 'figure3:causal-drift', direction: 1 as const,
         generation: 1, targetTime: 0
@@ -546,23 +561,39 @@ describe('clean PhoneFigure3 leaf', () => {
     await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
     const current = reportFixture();
     mount.registration()?.commands.rebind({
-      reports: current.reports, frameToken: 'figure3:causal-drift:1'
+      reports: current.reports, frameToken: 'figure3:causal-drift:1',
+      segmentId: 'brand-figure3'
     });
-    probe.prepareFrame.mockClear();
 
     await act(async () => {
       mount.registration()?.commands.settle(0);
       await Promise.resolve();
     });
 
-    expect(probe.prepareFrame).not.toHaveBeenCalled();
-    expect(current.reports.reportFrame).not.toHaveBeenCalled();
+    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+    expect(current.reports.reportPrepared).toHaveBeenCalledWith(
+      'figure3-initial-composite', expect.objectContaining({
+        kind: 'image-decoded', ready: true,
+        detail: expect.objectContaining({ winner: 'video-frame-zero' })
+      })
+    );
     const video = host.querySelector('video');
     const canvas = host.querySelector('[data-phone-figure3-paper-canvas]');
     if (!(video instanceof HTMLVideoElement) || !(canvas instanceof HTMLCanvasElement)) {
       throw new Error('missing Figure3 retained surfaces');
     }
-    expect(phoneFigure3HasReusableEndpointFrame(video, canvas, 0)).toBe(false);
+    expect(phoneFigure3HasReusableEndpointFrame(video, canvas, 0)).toBe(true);
+    expect(host.querySelector('.phone-figure3')?.getAttribute(
+      'data-phone-figure3-initial-surface'
+    )).toBe('video-frame-zero');
+    video.currentTime = .75;
+    probe.prepareFrame.mockClear();
+    await act(async () => {
+      mount.registration()?.commands.settle(0);
+      await Promise.resolve();
+    });
+    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+    expect(video.currentTime).toBe(0);
     act(() => root.unmount());
   });
 });

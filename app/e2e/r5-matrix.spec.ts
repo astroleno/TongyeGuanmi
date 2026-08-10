@@ -93,7 +93,7 @@ test('portrait phones enter the clean story without an orientation prompt', asyn
 
   await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-scene', 'brand');
   await expect(page.locator('[data-mobile-landscape-gate]')).toHaveCount(0);
-  await expect(page.locator('[data-phone-plane="source"] [data-phone-scene="brand"]'))
+  await expect(page.locator('.phone-story__reading-flow [data-phone-reading="brand"]'))
     .toBeVisible();
 });
 
@@ -149,7 +149,7 @@ test('mobile rotation and dynamic viewport height keep the clean active scene st
 
   await page.setViewportSize({ width: 740, height: 390 });
   await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-scene', 'services');
-  await expect(page.locator('[data-phone-plane="source"] [data-phone-scene="services"]'))
+  await expect(page.locator('.phone-story__reading-flow [data-phone-reading="services"]'))
     .toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 720 });

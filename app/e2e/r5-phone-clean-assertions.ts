@@ -179,21 +179,27 @@ export async function assertTargetContentVisible(
 ): Promise<void> {
   const failures = await page.evaluate((required) => required.flatMap((selector) => {
     const root = document.querySelector<HTMLElement>('.phone-story');
-    const element = root?.querySelector<HTMLElement>(selector);
-    if (!element) return [`${selector}:missing`];
-    const rect = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    const browserVisible = element.checkVisibility({
-      checkOpacity: true,
-      checkVisibilityCSS: true,
-      contentVisibilityAuto: true
+    const candidates = selector.startsWith('#')
+      ? (() => {
+        const match = selector.match(/^#([A-Za-z0-9_-]+)([\s\S]*)$/);
+        return match
+          ? [selector, `#${match[1]}-reading${match[2]}`]
+          : [selector, `${selector}-reading`];
+      })()
+      : [selector];
+    const visible = candidates.flatMap((candidate) => root
+      ? [...root.querySelectorAll<HTMLElement>(candidate)] : []).some((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0
+        && rect.right > 0 && rect.bottom > 0
+        && rect.left < window.innerWidth && rect.top < window.innerHeight
+        && element.checkVisibility({
+          checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true
+        })
+        && style.display !== 'none' && style.visibility === 'visible'
+        && Number.parseFloat(style.opacity || '1') > 0;
     });
-    const visible = rect.width > 0 && rect.height > 0
-      && rect.right > 0 && rect.bottom > 0
-      && rect.left < window.innerWidth && rect.top < window.innerHeight
-      && browserVisible
-      && style.display !== 'none' && style.visibility === 'visible'
-      && Number.parseFloat(style.opacity || '1') > 0;
     return visible ? [] : [`${selector}:not-visible`];
   }), selectors);
   expect(failures, 'required clean target content').toEqual([]);
@@ -208,31 +214,43 @@ export async function assertCompositeTargetContentVisible(
     const failures: string[] = [];
     let visiblyParticipating = 0;
     for (const selector of required) {
-      const element = root?.querySelector<HTMLElement>(selector);
-      if (!element) {
+      const candidateSelectors = selector.startsWith('#')
+        ? (() => {
+          const match = selector.match(/^#([A-Za-z0-9_-]+)([\s\S]*)$/);
+          return match
+            ? [selector, `#${match[1]}-reading${match[2]}`]
+            : [selector, `${selector}-reading`];
+        })()
+        : [selector];
+      const elements = candidateSelectors.flatMap((candidate) => root
+        ? [...root.querySelectorAll<HTMLElement>(candidate)] : []);
+      if (elements.length === 0) {
         failures.push(`${selector}:missing`);
         continue;
       }
-      const rect = element.getBoundingClientRect();
-      const intersects = rect.width > 0 && rect.height > 0
-        && rect.right > 0 && rect.bottom > 0
-        && rect.left < window.innerWidth && rect.top < window.innerHeight;
-      let ancestorsVisible = true;
-      for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
-        const style = getComputedStyle(ancestor);
-        if (style.display === 'none' || style.visibility !== 'visible'
-          || Number.parseFloat(style.opacity || '1') <= 0) {
-          ancestorsVisible = false;
-          break;
+      const presented = elements.find((element) => {
+        const rect = element.getBoundingClientRect();
+        const intersects = rect.width > 0 && rect.height > 0
+          && rect.right > 0 && rect.bottom > 0
+          && rect.left < window.innerWidth && rect.top < window.innerHeight;
+        let ancestorsVisible = true;
+        for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+          const style = getComputedStyle(ancestor);
+          if (style.display === 'none' || style.visibility !== 'visible'
+            || Number.parseFloat(style.opacity || '1') <= 0) {
+            ancestorsVisible = false;
+            break;
+          }
+          if (ancestor === root) break;
         }
-        if (ancestor === root) break;
-      }
-      if (!intersects || !ancestorsVisible) {
+        return intersects && ancestorsVisible;
+      });
+      if (!presented) {
         failures.push(`${selector}:not-presented`);
         continue;
       }
-      const style = getComputedStyle(element);
-      if (element.checkVisibility({
+      const style = getComputedStyle(presented);
+      if (presented.checkVisibility({
         checkOpacity: true,
         checkVisibilityCSS: true,
         contentVisibilityAuto: true
@@ -279,51 +297,95 @@ export async function assertNoIntermediateWhiteOrBlackFrame(
  */
 export async function assertInkIntermediateCompositeContribution(
   page: Page,
-  selector: string
+  selector: string,
+  expectedEffectZIndex?: '20' | '40'
 ): Promise<void> {
-  const canvas = page.locator(selector);
-  await expect(canvas).toBeVisible();
-  const handle = await canvas.elementHandle();
-  if (!handle) throw new Error(`Live Ink canvas disappeared before composite proof: ${selector}`);
-  await page.evaluate(() => {
+  const restoreAnimationFrames = async () => page.evaluate(() => {
     const owner = window as typeof window & {
       __r5InkCompositeFrameFreeze?: {
         requestAnimationFrame: typeof window.requestAnimationFrame;
         cancelAnimationFrame: typeof window.cancelAnimationFrame;
         queued: Map<number, FrameRequestCallback>;
-        nextId: number;
       };
     };
-    if (owner.__r5InkCompositeFrameFreeze) return;
-    const requestAnimationFrame = window.requestAnimationFrame.bind(window);
-    const cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
-    const queued = new Map<number, FrameRequestCallback>();
-    const nextId = -1;
-    owner.__r5InkCompositeFrameFreeze = {
-      requestAnimationFrame, cancelAnimationFrame, queued, nextId
-    };
-    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
-      const id = owner.__r5InkCompositeFrameFreeze!.nextId--;
-      owner.__r5InkCompositeFrameFreeze!.queued.set(id, callback);
-      return id;
-    }) as typeof window.requestAnimationFrame;
-    window.cancelAnimationFrame = ((id: number) => {
-      if (!owner.__r5InkCompositeFrameFreeze!.queued.delete(id)) cancelAnimationFrame(id);
-    }) as typeof window.cancelAnimationFrame;
+    const freeze = owner.__r5InkCompositeFrameFreeze;
+    if (!freeze) return;
+    window.requestAnimationFrame = freeze.requestAnimationFrame;
+    window.cancelAnimationFrame = freeze.cancelAnimationFrame;
+    delete owner.__r5InkCompositeFrameFreeze;
+    for (const callback of freeze.queued.values()) freeze.requestAnimationFrame(callback);
   });
+  let frozen = false;
+  for (let attempt = 0; attempt < 1_000 && !frozen; attempt += 1) {
+    frozen = await page.evaluate((inkSelector) => {
+      const element = document.querySelector<HTMLElement>(inkSelector);
+      const progress = Number(element?.dataset.r4InkBoundaryProgress);
+      if (!element || !Number.isFinite(progress) || progress < .2 || progress > .8) {
+        return false;
+      }
+      const owner = window as typeof window & {
+        __r5InkCompositeFrameFreeze?: {
+          requestAnimationFrame: typeof window.requestAnimationFrame;
+          cancelAnimationFrame: typeof window.cancelAnimationFrame;
+          queued: Map<number, FrameRequestCallback>;
+          nextId: number;
+        };
+      };
+      if (owner.__r5InkCompositeFrameFreeze) return true;
+      const requestAnimationFrame = window.requestAnimationFrame.bind(window);
+      const cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
+      const queued = new Map<number, FrameRequestCallback>();
+      const nextId = -1;
+      owner.__r5InkCompositeFrameFreeze = {
+        requestAnimationFrame, cancelAnimationFrame, queued, nextId
+      };
+      window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+        const id = owner.__r5InkCompositeFrameFreeze!.nextId--;
+        owner.__r5InkCompositeFrameFreeze!.queued.set(id, callback);
+        return id;
+      }) as typeof window.requestAnimationFrame;
+      window.cancelAnimationFrame = ((id: number) => {
+        if (!owner.__r5InkCompositeFrameFreeze!.queued.delete(id)) cancelAnimationFrame(id);
+      }) as typeof window.cancelAnimationFrame;
+      return true;
+    }, selector);
+    if (!frozen) await page.waitForTimeout(10);
+  }
+  if (!frozen) throw new Error(`Ink canvas did not reach an intermediate frame: ${selector}`);
+  const handle = await page.$(selector);
+  if (!handle) {
+    await restoreAnimationFrames();
+    throw new Error(`Live Ink canvas disappeared before composite proof: ${selector}`);
+  }
+  if (expectedEffectZIndex) {
+    const actualEffectZIndex = await handle.evaluate((element) => {
+      const plane = element.closest<HTMLElement>('[data-phone-plane="effect"]');
+      return plane ? getComputedStyle(plane).zIndex : null;
+    });
+    if (actualEffectZIndex !== expectedEffectZIndex) {
+      await restoreAnimationFrames();
+      await handle.dispose();
+      throw new Error(
+        `Live Ink effect z-index ${String(actualEffectZIndex)} did not match ${expectedEffectZIndex}`
+      );
+    }
+  }
   const withInk = PNG.sync.read(await page.screenshot());
   const saved = await handle.evaluate((element) => {
     const style = element.style;
-    const properties = ['visibility', 'opacity'] as const;
+    const properties = ['visibility', 'opacity', 'display'] as const;
     const snapshot = properties.map((property) => ({
       property,
       value: style.getPropertyValue(property),
       priority: style.getPropertyPriority(property)
     }));
     style.setProperty('visibility', 'hidden', 'important');
+    style.setProperty('display', 'none', 'important');
     return snapshot;
   });
   try {
+    await page.evaluate(() => document.documentElement.offsetHeight);
+    await page.waitForTimeout(50);
     const withoutInk = PNG.sync.read(await page.screenshot());
     const pixels = Math.min(withInk.width * withInk.height, withoutInk.width * withoutInk.height);
     let changed = 0;
@@ -347,21 +409,7 @@ export async function assertInkIntermediateCompositeContribution(
         else element.style.removeProperty(property);
       }
     }, saved);
-    await page.evaluate(() => {
-      const owner = window as typeof window & {
-        __r5InkCompositeFrameFreeze?: {
-          requestAnimationFrame: typeof window.requestAnimationFrame;
-          cancelAnimationFrame: typeof window.cancelAnimationFrame;
-          queued: Map<number, FrameRequestCallback>;
-        };
-      };
-      const freeze = owner.__r5InkCompositeFrameFreeze;
-      if (!freeze) return;
-      window.requestAnimationFrame = freeze.requestAnimationFrame;
-      window.cancelAnimationFrame = freeze.cancelAnimationFrame;
-      delete owner.__r5InkCompositeFrameFreeze;
-      for (const callback of freeze.queued.values()) freeze.requestAnimationFrame(callback);
-    });
+    await restoreAnimationFrames();
     await handle.dispose();
   }
 }
@@ -430,6 +478,145 @@ export async function readPhoneStoryDiagnostic(page: Page): Promise<Readonly<{
       canvases,
       images
     };
+  });
+}
+
+export type PhoneStoryFrameSample = Readonly<{
+  time: number;
+  shell: Readonly<Record<string, string>> | null;
+  exposedBuffers: readonly string[];
+  transitionLive: boolean;
+  sourceSceneText: string | null;
+  receiverSceneText: string | null;
+  scrollTop: number;
+  nativeReadingRect: readonly [number, number, number, number] | null;
+  sourceMirrorRect: readonly [number, number, number, number] | null;
+  sourceMirrorScrollY: string | null;
+  planes: readonly Readonly<{
+    role: string;
+    visible: boolean;
+    rect: readonly [number, number, number, number];
+  }>[];
+  media: readonly Readonly<{
+    surfaceId: string | null;
+    currentTime: number;
+    paused: boolean;
+    seeking: boolean;
+    readyState: number;
+  }>[];
+  canvases: readonly Readonly<{
+    surfaceId: string | null;
+    mediaTime: number | null;
+    frame: number | null;
+    generation: number | null;
+  }>[];
+}>;
+
+/**
+ * Install one requestAnimationFrame diagnostic recorder before an input edge.
+ * The returned stop function preserves the exact native/fixed-plane and media
+ * sequence instead of sampling only the eventual committed scene.
+ */
+export async function recordPhoneStoryFrames(
+  page: Page
+): Promise<() => Promise<readonly PhoneStoryFrameSample[]>> {
+  await page.evaluate(() => {
+    type Recorder = {
+      animationFrame: number;
+      samples: PhoneStoryFrameSample[];
+    };
+    const owner = window as typeof window & { __r5PhoneFrameRecorder?: Recorder };
+    if (owner.__r5PhoneFrameRecorder) {
+      cancelAnimationFrame(owner.__r5PhoneFrameRecorder.animationFrame);
+    }
+    const rect = (element: Element | null): readonly [number, number, number, number] | null => {
+      if (!element) return null;
+      const bounds = element.getBoundingClientRect();
+      return [bounds.left, bounds.top, bounds.right, bounds.bottom];
+    };
+    const visible = (element: HTMLElement): boolean => {
+      const bounds = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return bounds.width > 0 && bounds.height > 0
+        && bounds.right > 0 && bounds.bottom > 0
+        && bounds.left < innerWidth && bounds.top < innerHeight
+        && style.display !== 'none' && style.visibility === 'visible'
+        && Number.parseFloat(style.opacity || '1') > 0;
+    };
+    const sceneText = (role: 'source' | 'receiver'): string | null => {
+      const plane = document.querySelector<HTMLElement>(
+        `[data-phone-plane="${role}"]`
+      );
+      const scene = plane?.querySelector<HTMLElement>(
+        '[data-r4-scene], [data-phone-scene-leaf]'
+      );
+      const text = scene?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+      return text ? text.slice(0, 240) : null;
+    };
+    const recorder: Recorder = { animationFrame: 0, samples: [] };
+    const sample = (time: number) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const nativeReading = shell?.querySelector<HTMLElement>(
+        '.phone-story__reading-flow [data-phone-input-owner="native-document"]'
+      ) ?? null;
+      const sourceMirror = shell?.querySelector<HTMLElement>(
+        '[data-phone-plane="source"] [data-phone-native-mirror]'
+      ) ?? null;
+      recorder.samples.push({
+        time,
+        shell: shell ? { ...shell.dataset } : null,
+        exposedBuffers: [...document.querySelectorAll<HTMLElement>(
+          '[data-phone-plane][data-phone-exposed="true"]'
+        )].map((plane) => plane.dataset.phoneBuffer ?? '').filter(Boolean),
+        transitionLive: shell?.hasAttribute('data-phone-transition-live') ?? false,
+        sourceSceneText: sceneText('source'),
+        receiverSceneText: sceneText('receiver'),
+        scrollTop: document.scrollingElement?.scrollTop ?? document.documentElement.scrollTop,
+        nativeReadingRect: rect(nativeReading),
+        sourceMirrorRect: rect(sourceMirror),
+        sourceMirrorScrollY: sourceMirror
+          ? getComputedStyle(sourceMirror).getPropertyValue('--phone-native-scroll-y').trim()
+          : null,
+        planes: [...document.querySelectorAll<HTMLElement>('[data-phone-plane]')].map((plane) => ({
+          role: plane.dataset.phonePlane ?? '',
+          visible: visible(plane),
+          rect: rect(plane) ?? [0, 0, 0, 0]
+        })),
+        media: [...document.querySelectorAll<HTMLVideoElement>('.phone-story video')].map((video) => ({
+          surfaceId: video.getAttribute('data-phone-surface'),
+          currentTime: video.currentTime,
+          paused: video.paused,
+          seeking: video.seeking,
+          readyState: video.readyState
+        })),
+        canvases: [...document.querySelectorAll<HTMLCanvasElement>('.phone-story canvas')]
+          .map((canvas) => ({
+            surfaceId: canvas.getAttribute('data-phone-surface'),
+            mediaTime: Number.isFinite(Number(canvas.dataset.packedAlphaMediaTime))
+              ? Number(canvas.dataset.packedAlphaMediaTime) : null,
+            frame: Number.isFinite(Number(canvas.dataset.packedAlphaFrame))
+              ? Number(canvas.dataset.packedAlphaFrame) : null,
+            generation: Number.isFinite(Number(canvas.dataset.packedAlphaGeneration))
+              ? Number(canvas.dataset.packedAlphaGeneration) : null
+          }))
+      });
+      recorder.animationFrame = requestAnimationFrame(sample);
+    };
+    owner.__r5PhoneFrameRecorder = recorder;
+    recorder.animationFrame = requestAnimationFrame(sample);
+  });
+  return async () => page.evaluate(() => {
+    const owner = window as typeof window & {
+      __r5PhoneFrameRecorder?: {
+        animationFrame: number;
+        samples: PhoneStoryFrameSample[];
+      };
+    };
+    const recorder = owner.__r5PhoneFrameRecorder;
+    if (!recorder) return [];
+    cancelAnimationFrame(recorder.animationFrame);
+    delete owner.__r5PhoneFrameRecorder;
+    return recorder.samples;
   });
 }
 

@@ -67,6 +67,9 @@ export type PhoneFigure3MediaAction =
   | 'hold-terminal';
 
 export type PhoneFigure3Props = Readonly<{ reports: PhoneLeafReportPort }>;
+type PhoneFigure3InitialSurface = 'preparing' | 'video-frame-zero' | 'poster-fallback';
+type PhoneFigure3PreparedComposite = Exclude<PhoneFigure3InitialSurface, 'preparing'>
+  | 'video-terminal-frame';
 
 function smoothStep(value: number): number {
   const progress = clamp(value);
@@ -180,7 +183,8 @@ function figure3TimelineMediaInput(
     timelineDurationMs: FIGURE3_END_SECONDS * 1000,
     mode: 'timeline',
     nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha()
+    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
+    allowPlaybackNudge: false
   };
 }
 
@@ -196,6 +200,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const posterRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const initialCompositeRef = useRef<HTMLDivElement | null>(null);
   const compositorRef = useRef<PhoneFigure3PaperCompositor | null>(null);
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
   const progressRef = useRef(0);
@@ -205,24 +210,64 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   const frameSequenceRef = useRef(0);
   const pausedRef = useRef(false);
   const mediaPresentationEnabledRef = useRef(false);
+  const mediaClockActiveRef = useRef(false);
+  const mediaRunTokenRef = useRef<string | null>(null);
   const posterReadyRef = useRef(false);
-  const reportedPosterTokenRef = useRef<string | null>(null);
+  const initialSurfaceRef = useRef<PhoneFigure3InitialSurface>('preparing');
+  const reportedCompositeTokenRef = useRef<string | null>(null);
+  const fallbackDeadlineRef = useRef<number | null>(null);
+  const fallbackPendingRef = useRef(false);
   const effectGenerationRef = useRef(0);
   const releasedVideoRef = useRef<HTMLVideoElement | null>(null);
   const disposedRef = useRef(false);
 
-  const reportPoster = useCallback(() => {
-    const binding = bindingRef.current;
-    if (!posterReadyRef.current || !binding || disposedRef.current
-      || reportedPosterTokenRef.current === binding.frameToken) return;
-    reportedPosterTokenRef.current = binding.frameToken;
-    binding.reports.reportPrepared('figure3-initial-poster', {
+  const clearFallbackDeadline = useCallback(() => {
+    if (fallbackDeadlineRef.current === null) return;
+    window.clearTimeout(fallbackDeadlineRef.current);
+    fallbackDeadlineRef.current = null;
+  }, []);
+
+  const reportPreparedComposite = useCallback((
+    binding: PhoneLeafGenerationBinding,
+    winner: PhoneFigure3PreparedComposite
+  ) => {
+    if (binding !== bindingRef.current || disposedRef.current
+      || reportedCompositeTokenRef.current === binding.frameToken) return;
+    reportedCompositeTokenRef.current = binding.frameToken;
+    binding.reports.reportPrepared('figure3-initial-composite', {
       kind: 'image-decoded',
-      token: `figure3:poster:${binding.frameToken}`,
+      token: `figure3:initial-composite:${winner}:${binding.frameToken}`,
       ready: true,
-      detail: { posterDecoded: true }
+      detail: {
+        winner, endpoint: winner === 'video-terminal-frame' ? 1 : 0,
+        videoFrameZero: winner === 'video-frame-zero',
+        posterFallback: winner === 'poster-fallback'
+      }
     });
   }, []);
+
+  const exposePosterFallback = useCallback((
+    binding: PhoneLeafGenerationBinding,
+    reason: 'deadline' | 'decode-failed'
+  ) => {
+    const root = rootRef.current;
+    if (!root || binding !== bindingRef.current || disposedRef.current
+      || initialSurfaceRef.current !== 'preparing') return;
+    if (!posterReadyRef.current) {
+      fallbackPendingRef.current = true;
+      return;
+    }
+    clearFallbackDeadline();
+    fallbackPendingRef.current = false;
+    // The poster is a loading cover only. It never closes the prepared-proof
+    // contract and remains eligible for a late video frame upgrade.
+    mediaPresentationEnabledRef.current = true;
+    initialSurfaceRef.current = 'preparing';
+    root.dataset.phoneFigure3InitialSurface = 'poster-fallback';
+    root.dataset.phoneFigure3InitialFallbackReason = reason;
+    root.dataset.phoneMediaState = 'fallback';
+    delete root.dataset.phoneFigure3MediaActive;
+  }, [clearFallbackDeadline]);
 
   const reportFailure = useCallback((code: string, error: unknown) => {
     const binding = bindingRef.current;
@@ -243,10 +288,20 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     const canvas = canvasRef.current;
     if (!root || !canvas || disposedRef.current || binding !== bindingRef.current
       || !mediaPresentationEnabledRef.current) return;
+    if (endpoint === 0 && initialSurfaceRef.current === 'poster-fallback') return;
     canvas.dataset.phoneFigure3PaperEndpoint = endpoint === 1 ? 'terminal' : 'initial';
     root.dataset.phoneFigure3MediaActive = 'true';
     root.dataset.phoneFigure3PaperCompositor = 'ready';
     root.dataset.phoneMediaState = 'ready';
+    if (endpoint === 0) {
+      clearFallbackDeadline();
+      fallbackPendingRef.current = false;
+      initialSurfaceRef.current = 'video-frame-zero';
+      root.dataset.phoneFigure3InitialSurface = 'video-frame-zero';
+      delete root.dataset.phoneFigure3InitialFallbackReason;
+    }
+    reportPreparedComposite(binding,
+      endpoint === 0 ? 'video-frame-zero' : 'video-terminal-frame');
     binding.reports.reportFrame('figure3-paper-canvas', {
       kind: 'frame',
       token: binding.frameToken,
@@ -254,12 +309,12 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       frameId: `figure3-paper:${binding.frameToken}:${++frameSequenceRef.current}`,
       detail: { compositorDrawn: true, progress }
     });
-  }, []);
+  }, [clearFallbackDeadline, reportPreparedComposite]);
 
   const reportPresentedFrame = useCallback(() => {
     const video = videoRef.current;
     const binding = bindingRef.current;
-    if (!video || !binding || binding.segmentId !== 'figure3-services' || disposedRef.current) return;
+    if (!video || !binding || disposedRef.current) return;
     const progress = progressRef.current;
     const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
     if (endpoint === null || !phoneFigure3EndpointIsPresented(
@@ -269,7 +324,8 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   }, [commitPresentedFrame]);
 
   const currentRunId = useCallback((direction = directionRef.current) => {
-    return `${bindingRef.current?.frameToken ?? 'phone-story:unbound'}:figure3:${direction}`;
+    return mediaRunTokenRef.current
+      ?? `${bindingRef.current?.frameToken ?? 'phone-story:unbound'}:figure3:${direction}`;
   }, []);
 
   const render = useCallback((rawProgress: number) => {
@@ -279,7 +335,8 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     progressRef.current = progress;
     const frame = phoneFigure3Frame(progress);
     const root = rootRef.current;
-    const mediaRun = bindingRef.current?.segmentId === 'figure3-services'
+    const mediaRun = mediaClockActiveRef.current
+      && bindingRef.current?.segmentId === 'figure3-services'
       ? { runId: currentRunId(), direction: directionRef.current } : undefined;
     renderFigure3AnimationProgress(sceneRef.current, progress, mediaRun ? { mediaRun } : undefined);
     if (!root) return;
@@ -307,7 +364,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     const progress = progressRef.current;
     const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
     const result = await prepareTimelineVideoFrame(video, figure3TimelineMediaInput(
-      `${binding.frameToken}:figure3:${direction}`,
+      currentRunId(direction),
       direction,
       progress
     ));
@@ -322,35 +379,64 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       commitPresentedFrame(endpoint, progress, binding);
     }
     return true;
-  }, [commitPresentedFrame]);
+  }, [commitPresentedFrame, currentRunId]);
+
+  const prepareInitialComposite = useCallback((binding: PhoneLeafGenerationBinding) => {
+    const root = rootRef.current;
+    if (!root || disposedRef.current || binding !== bindingRef.current) return;
+    clearFallbackDeadline();
+    fallbackPendingRef.current = false;
+    reportedCompositeTokenRef.current = null;
+    initialSurfaceRef.current = 'preparing';
+    mediaPresentationEnabledRef.current = true;
+    root.dataset.phoneFigure3InitialSurface = 'preparing';
+    root.dataset.phoneMediaState = 'preparing';
+    delete root.dataset.phoneFigure3MediaActive;
+    delete root.dataset.phoneFigure3InitialFallbackReason;
+    const generation = ++activationGenerationRef.current;
+    void Promise.resolve().then(() => {
+      if (generation !== activationGenerationRef.current || binding !== bindingRef.current) {
+        return false;
+      }
+      return prepareCurrentFrame(generation, binding, 1);
+    }).then((prepared) => {
+      if (!prepared && generation === activationGenerationRef.current) {
+        exposePosterFallback(binding, 'decode-failed');
+      }
+    }).catch((error: unknown) => {
+      if (generation !== activationGenerationRef.current || binding !== bindingRef.current) return;
+      root.dataset.phoneFigure3InitialFailure = error instanceof Error
+        ? error.message : String(error);
+      reportFailure('figure3-initial-frame-preparation-failed', error);
+    });
+  }, [clearFallbackDeadline, exposePosterFallback, prepareCurrentFrame, reportFailure]);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
+      mediaRunTokenRef.current = null;
       frameSequenceRef.current = 0;
-      reportedPosterTokenRef.current = null;
-      reportPoster();
+      reportedCompositeTokenRef.current = null;
       const currentEndpoint = progressRef.current <= .001 ? 0
         : progressRef.current >= .999 ? 1 : null;
       const wasPaused = pausedRef.current;
       pausedRef.current = false;
       const endpoint = currentEndpoint ?? settledEndpointRef.current;
-      mediaPresentationEnabledRef.current = endpoint !== 0;
       if (wasPaused && currentEndpoint === null) render(endpoint);
-      const root = rootRef.current;
-      if (endpoint === 0 && root) {
-        delete root.dataset.phoneFigure3MediaActive;
-        root.dataset.phoneMediaState = 'static';
-      } else {
-        compositorRef.current?.paint();
+      if (endpoint === 0) {
+        mediaClockActiveRef.current = false;
+        prepareInitialComposite(binding);
+        return;
       }
+      mediaPresentationEnabledRef.current = true;
+      compositorRef.current?.paint();
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      if (endpoint !== 0 && video && canvas && phoneFigure3HasReusableEndpointFrame(
+      if (video && canvas && phoneFigure3HasReusableEndpointFrame(
         video, canvas, endpoint
       )) {
         reportPresentedFrame();
-      } else if (wasPaused && endpoint !== 0) {
+      } else if (wasPaused) {
         const generation = ++activationGenerationRef.current;
         // Runtime rebinds the retained topology and invokes activation in the
         // same physical-gesture stack. Defer recovery preparation by one
@@ -382,21 +468,14 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         };
       }
       const generation = ++activationGenerationRef.current;
+      const direction = command.direction === 'reverse' ? -1 : 1;
+      mediaRunTokenRef.current = command.runToken ?? command.invocationId;
+      directionRef.current = direction;
+      mediaClockActiveRef.current = false;
       mediaPresentationEnabledRef.current = true;
-      let playback: Promise<void>;
-      try {
-        playback = Promise.resolve(video.play());
-      } catch (error) {
-        playback = Promise.reject(error);
-      }
-      const settled = playback.then(async () => {
-        if (generation !== activationGenerationRef.current || disposedRef.current) {
-          throw new Error('Figure3 activation was superseded before frame preparation');
-        }
+      const settled = prepareCurrentFrame(generation, binding, direction).then((prepared) => {
+        if (!prepared) throw new Error('Figure3 activation was superseded before frame preparation');
         video.pause();
-        if (!await prepareCurrentFrame(generation, binding, directionRef.current)) {
-          throw new Error('Figure3 activation was superseded before frame preparation');
-        }
       });
       return {
         invocationId: command.invocationId,
@@ -405,24 +484,57 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         settlements: [{ surfaceId: expected[0]!, status: 'pending', settled }]
       };
     },
+    setMediaPhase(command) {
+      const binding = bindingRef.current;
+      const video = videoRef.current;
+      if (!binding || !video || disposedRef.current) return;
+      if (mediaRunTokenRef.current !== null
+        && mediaRunTokenRef.current !== command.runToken) return;
+      mediaRunTokenRef.current = command.runToken;
+      directionRef.current = command.direction === 'reverse' ? -1 : 1;
+      if (command.phase === 'primed') {
+        mediaClockActiveRef.current = false;
+        video.pause();
+        return;
+      }
+      if (command.phase === 'held') {
+        mediaClockActiveRef.current = false;
+        video.pause();
+        return;
+      }
+      mediaClockActiveRef.current = true;
+      mediaPresentationEnabledRef.current = true;
+      render(progressRef.current);
+    },
     render,
     settle(endpoint) {
       settledEndpointRef.current = endpoint;
-      directionRef.current = endpoint === 0 ? -1 : 1;
-      mediaPresentationEnabledRef.current = endpoint !== 0;
+      directionRef.current = endpoint === 0 ? 1 : -1;
+      mediaClockActiveRef.current = false;
       render(endpoint);
       const binding = bindingRef.current;
       if (!binding || disposedRef.current) return;
       const root = rootRef.current;
       if (endpoint === 0) {
-        if (root) {
-          delete root.dataset.phoneFigure3MediaActive;
-          root.dataset.phoneMediaState = 'static';
-        }
-        videoRef.current?.pause();
-        reportPoster();
+        const video = videoRef.current;
+        video?.pause();
+        if (initialSurfaceRef.current === 'video-frame-zero') {
+          mediaPresentationEnabledRef.current = true;
+          if (video && phoneFigure3EndpointIsPresented(
+            0, video.currentTime, video.readyState, video.seeking
+          )) {
+            compositorRef.current?.paint();
+            commitPresentedFrame(0, 0, binding);
+          } else {
+            if (root) root.dataset.phoneMediaState = 'preparing';
+            const generation = ++activationGenerationRef.current;
+            void prepareCurrentFrame(generation, binding, directionRef.current)
+              .catch((error) => reportFailure('figure3-frame-preparation-failed', error));
+          }
+        } else prepareInitialComposite(binding);
         return;
       }
+      mediaPresentationEnabledRef.current = true;
       if (root) root.dataset.phoneMediaState = 'preparing';
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -439,8 +551,10 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     },
     pause() {
       pausedRef.current = true;
+      mediaClockActiveRef.current = false;
       mediaPresentationEnabledRef.current = false;
       activationGenerationRef.current += 1;
+      clearFallbackDeadline();
       const video = videoRef.current;
       if (video) {
         video.pause();
@@ -451,8 +565,10 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       if (disposedRef.current) return;
       disposedRef.current = true;
       pausedRef.current = false;
+      mediaClockActiveRef.current = false;
       mediaPresentationEnabledRef.current = false;
       activationGenerationRef.current += 1;
+      clearFallbackDeadline();
       compositorRef.current?.dispose();
       compositorRef.current = null;
       const video = videoRef.current;
@@ -461,7 +577,9 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       releasePhoneFigure3PaperCanvas(canvasRef.current);
       bindingRef.current = null;
     }
-  }), [prepareCurrentFrame, render, reportFailure, reportPoster, reportPresentedFrame]);
+  }), [clearFallbackDeadline, commitPresentedFrame, prepareCurrentFrame,
+    prepareInitialComposite, render, reportFailure, reportPreparedComposite,
+    reportPresentedFrame]);
 
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name === 'field') sceneRef.current = element;
@@ -475,17 +593,22 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     const video = videoRef.current;
     const poster = posterRef.current;
     const canvas = canvasRef.current;
-    if (!mountRoot || !root || !scene || !video || !poster || !canvas) return;
+    const initialComposite = initialCompositeRef.current;
+    if (!mountRoot || !root || !scene || !video || !poster || !canvas
+      || !initialComposite) return;
     const effectGeneration = ++effectGenerationRef.current;
     releasedVideoRef.current = null;
     disposedRef.current = false;
     pausedRef.current = false;
     mediaPresentationEnabledRef.current = false;
+    initialSurfaceRef.current = 'preparing';
+    fallbackPendingRef.current = false;
     root.dataset.phoneFigure3PaperCompositor = 'preparing';
-    root.dataset.phoneMediaState = 'static';
+    root.dataset.phoneFigure3InitialSurface = 'preparing';
+    root.dataset.phoneMediaState = 'preparing';
     delete root.dataset.phoneFigure3MediaActive;
     posterReadyRef.current = false;
-    reportedPosterTokenRef.current = null;
+    reportedCompositeTokenRef.current = null;
     const compositor = createPhoneFigure3PaperCompositor({
       video,
       canvas,
@@ -498,7 +621,8 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       surfaces: [
         { id: 'figure3-video', element: video, kind: 'video' },
         { id: 'figure3-paper-canvas', element: canvas, kind: 'canvas-2d' },
-        { id: 'figure3-initial-poster', element: poster, kind: 'image' }
+        { id: 'figure3-initial-poster', element: poster, kind: 'image' },
+        { id: 'figure3-initial-composite', element: initialComposite, kind: 'dom' }
       ],
       commands
     });
@@ -508,7 +632,9 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       poster.dataset.phoneFigure3PaperFrame = 'ready';
       poster.dataset.phoneFigure3PaperEndpoint = 'initial';
       posterReadyRef.current = true;
-      reportPoster();
+      if (fallbackPendingRef.current && bindingRef.current) {
+        exposePosterFallback(bindingRef.current, 'deadline');
+      }
     }, (error: unknown) => {
       if (!current || disposedRef.current || posterRef.current !== poster) return;
       reportFailure('figure3-initial-poster-decode-rejected', error);
@@ -518,6 +644,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       disposedRef.current = true;
       mediaPresentationEnabledRef.current = false;
       activationGenerationRef.current += 1;
+      clearFallbackDeadline();
       compositor.dispose();
       if (compositorRef.current === compositor) compositorRef.current = null;
       video.pause();
@@ -529,10 +656,12 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         releasedVideoRef.current = video;
       });
       posterReadyRef.current = false;
-      reportedPosterTokenRef.current = null;
+      reportedCompositeTokenRef.current = null;
+      fallbackPendingRef.current = false;
       bindingRef.current = null;
     };
-  }, [commands, render, reportFailure, reportPoster, reportPresentedFrame, reports]);
+  }, [clearFallbackDeadline, commands, exposePosterFallback, render,
+    reportFailure, reportPresentedFrame, reports]);
 
   return (
     <div ref={mountRootRef} className="phone-figure3__mount">
@@ -544,26 +673,29 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         data-phone-media-state="static"
         aria-hidden="true"
       >
-        <div className="phone-figure3__fallback" data-phone-media-fallback="figure3" />
-        <img
-          ref={posterRef}
-          className="phone-figure3__poster"
-          data-phone-figure3-paper-poster
-          src={FIGURE3_INITIAL_POSTER}
-          alt=""
-          aria-hidden="true"
-        />
-        <Figure3Surface
-          scene="figure3-animation"
-          hidden={false}
-          registerHandle={registerHandle}
-        />
-        <canvas
-          ref={canvasRef}
-          className="phone-figure3__paper-canvas"
-          data-phone-figure3-paper-canvas
-          aria-hidden="true"
-        />
+        <div ref={initialCompositeRef} className="phone-figure3__initial-composite"
+          data-phone-figure3-initial-composite>
+          <div className="phone-figure3__fallback" data-phone-media-fallback="figure3" />
+          <img
+            ref={posterRef}
+            className="phone-figure3__poster"
+            data-phone-figure3-paper-poster
+            src={FIGURE3_INITIAL_POSTER}
+            alt=""
+            aria-hidden="true"
+          />
+          <Figure3Surface
+            scene="figure3-animation"
+            hidden={false}
+            registerHandle={registerHandle}
+          />
+          <canvas
+            ref={canvasRef}
+            className="phone-figure3__paper-canvas"
+            data-phone-figure3-paper-canvas
+            aria-hidden="true"
+          />
+        </div>
       </section>
     </div>
   );

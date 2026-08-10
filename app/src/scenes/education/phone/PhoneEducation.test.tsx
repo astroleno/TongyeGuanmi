@@ -54,17 +54,19 @@ describe('PhoneEducation', () => {
     expect(stylesheet).not.toContain('position: fixed');
   });
 
-  it('proves the Education landing in the visual plane without hiding native reading acts', () => {
+  it('expands the fixed Education source to both acts only during native handoff', () => {
     const stylesheet = readFileSync(new URL('./PhoneEducation.css', import.meta.url), 'utf8');
+    const markup = renderToStaticMarkup(createElement(PhoneEducation, { reports }));
 
+    expect(markup).toContain('data-phone-native-mirror="education"');
     expect(stylesheet).toMatch(
       /\.phone-education__visual \.r4-education__wide\s*\{[^}]*display: none;/s
     );
     expect(stylesheet).toMatch(
-      /\.phone-education__visual \.r4-education__vertical\s*\{[^}]*min-height: 100%;/s
+      /\[data-phone-plane="source"\][\s\S]*\.phone-education__visual \.r4-education__wide\s*\{[^}]*display: grid;/s
     );
-    expect(stylesheet).not.toMatch(
-      /\.phone-education \.(?:r4-education__wide|r4-education__vertical)\s*\{[^}]*display: none;/s
+    expect(stylesheet).toContain(
+      'min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2)'
     );
   });
 });

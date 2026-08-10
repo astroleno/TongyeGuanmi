@@ -1037,6 +1037,7 @@ function commandFixture(
       }))
     })),
     render: vi.fn(),
+    setMediaPhase: vi.fn(),
     settle: vi.fn(),
     pause: vi.fn(),
     dispose: vi.fn()
@@ -1190,6 +1191,9 @@ describe('phone runtime projector bridge', () => {
 
     expect(source.commands.render).toHaveBeenLastCalledWith(1);
     expect(target.commands.render).toHaveBeenLastCalledWith(0);
+    expect(source.commands.setMediaPhase).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'playing', direction: 'forward', stageIndex: 0
+    }));
     expect(effect.commands.render).toHaveBeenLastCalledWith(expect.any(Number));
     expect(vi.mocked(effect.commands.render).mock.calls.at(-1)?.[0]).toBeGreaterThan(0);
     expect(applyTransitionFrame).toHaveBeenLastCalledWith({
@@ -1202,6 +1206,11 @@ describe('phone runtime projector bridge', () => {
         concealMask: 'radial-gradient(circle, transparent, #000)'
       }
     });
+    const playingAttempt = currentTransaction(runtime).attempt;
+    fixture.send({ type: 'transition-completed', attempt: playingAttempt });
+    expect(source.commands.setMediaPhase).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'held', endpoint: 1, direction: 'forward'
+    }));
     disconnect();
   });
 
@@ -1236,7 +1245,7 @@ describe('phone runtime projector bridge', () => {
       failure: { code: 'fixture-frame', message: 'fixture', recoverable: true }
     });
     expect(currentTransaction(runtime).mode).toBe('rollback');
-    expect(applyTransitionFrame).toHaveBeenLastCalledWith(null);
+    expect(applyTransitionFrame).not.toHaveBeenCalledWith(null);
     disconnect();
   });
 
@@ -1261,7 +1270,7 @@ describe('phone runtime projector bridge', () => {
     expect(applyTransitionFrame).not.toHaveBeenCalledWith(null);
     proveCurrent(runtime, fixture);
     expect(runtime.getSnapshot().status).toBe('stable');
-    expect(applyTransitionFrame).toHaveBeenLastCalledWith(null);
+    expect(applyTransitionFrame).not.toHaveBeenCalledWith(null);
     disconnect();
   });
 
@@ -1764,9 +1773,32 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(deprecatedPrepare).not.toHaveBeenCalled();
     expect(target.commands.activate).toHaveBeenCalledTimes(1);
     expect(target.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
-      credit: 'direct-muted-autoplay', playback: true, surfaceIds: ['hero-figure-video']
+      credit: 'direct-muted-autoplay', surfaceIds: ['hero-figure-video']
     }));
     expect(currentTransaction(runtime).activation).toBe('spent');
+    disconnect();
+  });
+
+  it('primes incoming PH without granting the playback clock', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#lab');
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 300, fresh: true,
+      trusted: true, target: 'story'
+    });
+    expect(currentTransaction(runtime)).toMatchObject({
+      candidateSceneId: 'ph-animation', activation: 'offered'
+    });
+    const target = commandFixture();
+    registerCurrentLeaf(runtime, target.commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    expect(target.commands.activate).toHaveBeenCalledWith(expect.objectContaining({
+      credit: 'direct-muted-autoplay',
+      surfaceIds: ['ph-figure-video']
+    }));
     disconnect();
   });
 
@@ -1809,7 +1841,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
 
     expect(target.commands.activate).toHaveBeenCalledTimes(1);
     expect(target.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
-      credit: 'direct-muted-autoplay', playback: true,
+      credit: 'direct-muted-autoplay',
       surfaceIds: ['hero-figure-video']
     }));
     expect(currentTransaction(runtime)).toMatchObject({
@@ -1837,7 +1869,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     registerCurrentEffect(runtime, commandFixture().commands);
     expect(source.commands.activate).toHaveBeenCalledTimes(1);
     expect(source.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
-      playback: true, surfaceIds: ['crane-figure-video', 'crane-flock-video']
+      surfaceIds: ['crane-figure-video', 'crane-flock-video']
     }));
     disconnect();
   });
@@ -1868,7 +1900,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
 
     expect(hero.commands.activate).toHaveBeenCalledTimes(1);
     expect(hero.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
-      credit: 'physical-epoch', playback: true, surfaceIds: ['hero-figure-video']
+      credit: 'physical-epoch', surfaceIds: ['hero-figure-video']
     }));
     expect(currentTransaction(runtime)).toMatchObject({
       phase: 'preparing', activation: 'spent'

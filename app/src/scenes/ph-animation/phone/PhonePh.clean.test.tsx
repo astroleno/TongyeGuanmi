@@ -7,6 +7,7 @@ import type {
   PhoneLeafMountRegistration,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
+import { PH_FIGURE_END_SECONDS } from '..';
 
 const surfaceProbe = vi.hoisted(() => ({
   options: null as null | Record<string, unknown>,
@@ -114,6 +115,108 @@ describe('clean PhonePh leaf', () => {
       canvas: HTMLCanvasElement; generation: number;
     }) => void))({ canvas, generation: 1 });
     expect(mount.reports.reportFrame).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+  });
+
+  it('primes a paused initial frame on incoming activation and plays only on outgoing activation', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:incoming' });
+
+    const incoming = commands.activate({
+      invocationId: 'ph:incoming', surfaceIds: ['ph-figure-video'],
+      credit: 'direct-muted-autoplay', playback: false
+    });
+    expect(incoming.invoked).toBe(true);
+    expect(surfaceProbe.activate).toHaveBeenLastCalledWith('initial');
+    expect(play).toHaveBeenCalledOnce();
+
+    commands.settle(0);
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:outgoing' });
+    const outgoing = commands.activate({
+      invocationId: 'ph:outgoing', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', playback: true
+    });
+    await Promise.all(outgoing.settlements.flatMap((settlement) => (
+      settlement.status === 'pending' ? [settlement.settled] : []
+    )));
+    expect(surfaceProbe.activate).toHaveBeenLastCalledWith('initial');
+    expect(play).toHaveBeenCalledTimes(2);
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'ph:outgoing', direction: 'forward', stageIndex: 0
+    });
+    expect(play).toHaveBeenCalledTimes(3);
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    pause.mockClear();
+    commands.render(0);
+    expect(pause).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('keeps reverse presented-frame playback paused', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:reverse' });
+    commands.activate({
+      invocationId: 'ph:reverse', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', playback: false, direction: 'reverse'
+    });
+
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'ph:reverse', direction: 'reverse', stageIndex: 0
+    });
+
+    expect(play).toHaveBeenCalledOnce();
+    act(() => root.unmount());
+  });
+
+  it('holds the endpoint supplied by runtime for reverse stable commits', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const video = host.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')!;
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:reverse:held' });
+    commands.activate({
+      invocationId: 'ph:reverse:held:activation',
+      surfaceIds: ['ph-figure-video'], credit: 'physical-epoch',
+      runToken: 'ph:reverse:held', direction: 'reverse'
+    });
+    commands.setMediaPhase?.({
+      phase: 'held', runToken: 'ph:reverse:held', direction: 'reverse',
+      stageIndex: 0, endpoint: 0
+    });
+    expect(video.currentTime).toBe(0);
+    act(() => root.unmount());
+  });
+
+  it('reproves the initial endpoint when settling after a stale terminal frame', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const video = host.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')!;
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:settle:initial' });
+    commands.activate({
+      invocationId: 'ph:settle:activation', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', runToken: 'ph:settle:run', direction: 'forward'
+    });
+    video.currentTime = PH_FIGURE_END_SECONDS;
+
+    commands.settle(0);
+
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBe(0);
     act(() => root.unmount());
   });
 

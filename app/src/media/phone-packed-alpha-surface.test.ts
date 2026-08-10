@@ -198,6 +198,28 @@ describe('canonical phone packed-alpha surface', () => {
     current.surface.dispose('terminal');
   });
 
+  it('proves an initial frame only while paused exactly at frame zero', () => {
+    const current = fixture();
+    current.surface.activate('initial');
+    Object.defineProperty(current.video, 'paused', {
+      configurable: true, value: false
+    });
+    current.video.currentTime = 0.3;
+    compositorProbe.callbacks[0]?.();
+    expect(current.onFrame).not.toHaveBeenCalled();
+
+    Object.defineProperty(current.video, 'paused', {
+      configurable: true, value: true
+    });
+    Object.defineProperty(current.video, 'seeking', {
+      configurable: true, value: false
+    });
+    current.video.currentTime = 0;
+    compositorProbe.callbacks[0]?.();
+    expect(current.onFrame).toHaveBeenCalledOnce();
+    current.surface.dispose('terminal');
+  });
+
   it('reports setup and context loss immediately and retires their token', () => {
     compositorProbe.setupFailure = true;
     const setup = fixture();

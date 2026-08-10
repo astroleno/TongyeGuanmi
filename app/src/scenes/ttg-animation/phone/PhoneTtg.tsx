@@ -1,8 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
-import {
-  AlphaVideoSources,
-  browserPrefersHevcAlpha
-} from '../../../media/alpha-video-sources';
+import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import {
   disposeTimelineVideoDriver,
   driveTimelineVideo,
@@ -181,7 +178,10 @@ function ttgTimelineMediaInput(
     timelineDurationMs: TTG_PLAYBACK_MS,
     mode: 'timeline',
     nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha()
+    // The fallback is causal: it still requires the target currentTime,
+    // decoded data, a settled seek, and the current driver generation.
+    allowSeekedFrameFallback: true,
+    allowPlaybackNudge: false
   };
 }
 
@@ -200,12 +200,15 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
   const directionRef = useRef<1 | -1>(1);
   const settledEndpointRef = useRef<PhoneTtgEndpoint>(0);
   const preparationGenerationRef = useRef(0);
+  const mediaClockActiveRef = useRef(false);
+  const mediaRunTokenRef = useRef<string | null>(null);
   const frameSequenceRef = useRef(0);
   const pausedRef = useRef(false);
   const disposedRef = useRef(false);
 
   const currentRunId = useCallback((direction = directionRef.current) => (
-    `${bindingRef.current?.frameToken ?? 'phone-story:unbound'}:ttg:${direction}`
+    mediaRunTokenRef.current
+      ?? `${bindingRef.current?.frameToken ?? 'phone-story:unbound'}:ttg:${direction}`
   ), []);
 
   const reportEndpointFrame = useCallback((
@@ -236,7 +239,7 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
     const frame = phoneTtgFrame(progress);
     renderTtgAnimationProgress(sceneRef.current, progress);
     const video = videoRef.current;
-    if (video) driveTimelineVideo(video, ttgTimelineMediaInput(
+    if (video && mediaClockActiveRef.current) driveTimelineVideo(video, ttgTimelineMediaInput(
       currentRunId(), directionRef.current, progress
     ));
     const root = rootRef.current;
@@ -263,7 +266,7 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
     const progress = progressRef.current;
     const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
     const result = await prepareTimelineVideoFrame(video, ttgTimelineMediaInput(
-      `${binding.frameToken}:ttg:${direction}`, direction, progress
+      currentRunId(direction), direction, progress
     ));
     if (disposedRef.current || generation !== preparationGenerationRef.current
       || binding !== bindingRef.current || result?.status !== 'ready') return false;
@@ -272,7 +275,7 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
     video.dataset.phoneTtgEndpointReady = endpoint === 1 ? 'terminal' : 'initial';
     reportEndpointFrame(endpoint, binding);
     return true;
-  }, [reportEndpointFrame]);
+  }, [currentRunId, reportEndpointFrame]);
 
   const reportFailure = useCallback((error: unknown) => {
     const binding = bindingRef.current;
@@ -292,6 +295,7 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
         : progressRef.current >= .999 ? 1 : null;
       const wasPaused = pausedRef.current;
       pausedRef.current = false;
+      mediaClockActiveRef.current = false;
       const endpoint = currentEndpoint ?? settledEndpointRef.current;
       if (wasPaused && currentEndpoint === null) render(endpoint);
       const video = videoRef.current;
@@ -325,20 +329,13 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
           invoked: false, settlements: [] };
       }
       const generation = ++preparationGenerationRef.current;
-      let playback: Promise<void>;
-      try {
-        playback = Promise.resolve(video.play());
-      } catch (error) {
-        playback = Promise.reject(error);
-      }
-      const settled = playback.then(async () => {
-        if (generation !== preparationGenerationRef.current || disposedRef.current) {
-          throw new Error('TTG activation was superseded before frame preparation');
-        }
+      const direction = command.direction === 'reverse' ? -1 : 1;
+      directionRef.current = direction;
+      mediaRunTokenRef.current = command.runToken ?? command.invocationId;
+      mediaClockActiveRef.current = false;
+      const settled = prepareCurrentFrame(generation, binding, direction).then((prepared) => {
+        if (!prepared) throw new Error('TTG activation was superseded before frame preparation');
         video.pause();
-        if (!await prepareCurrentFrame(generation, binding, directionRef.current)) {
-          throw new Error('TTG activation was superseded before frame preparation');
-        }
       });
       return {
         invocationId: command.invocationId,
@@ -347,11 +344,34 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
         settlements: [{ surfaceId: expected[0]!, status: 'pending', settled }]
       };
     },
+    setMediaPhase(command) {
+      const binding = bindingRef.current;
+      const video = videoRef.current;
+      if (!binding || !video || disposedRef.current
+        || (mediaRunTokenRef.current !== null
+          && mediaRunTokenRef.current !== command.runToken)) return;
+      mediaRunTokenRef.current = command.runToken;
+      directionRef.current = command.direction === 'reverse' ? -1 : 1;
+      if (command.phase === 'primed') {
+        mediaClockActiveRef.current = false;
+        video.pause();
+        return;
+      }
+      if (command.phase === 'held') {
+        mediaClockActiveRef.current = false;
+        video.pause();
+        disposeTimelineVideoDriver(video);
+        return;
+      }
+      mediaClockActiveRef.current = true;
+      render(progressRef.current);
+    },
     render,
     settle(endpoint) {
       settledEndpointRef.current = endpoint;
       directionRef.current = endpoint === 0 ? -1 : 1;
       render(endpoint);
+      mediaClockActiveRef.current = false;
       const binding = bindingRef.current;
       if (!binding || disposedRef.current) return;
       const generation = ++preparationGenerationRef.current;

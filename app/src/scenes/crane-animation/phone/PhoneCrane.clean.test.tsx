@@ -7,6 +7,7 @@ import type {
   PhoneLeafMountRegistration,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
+import { CRANE_VIDEO_END_SECONDS } from '..';
 
 const packedProbe = vi.hoisted(() => ({
   options: [] as Record<string, unknown>[],
@@ -121,6 +122,159 @@ describe('clean PhoneCrane leaf', () => {
       canvas: HTMLCanvasElement; generation: number;
     }) => void))({ canvas: canvases[0]!, generation: 1 });
     expect(mount.reports.reportFrame).toHaveBeenCalledTimes(2);
+    act(() => root.unmount());
+  });
+
+  it('primes both paused initial frames on entry and starts both clocks only on exit', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    commands.rebind({ reports: mount.reports, frameToken: 'crane:incoming' });
+
+    const incoming = commands.activate({
+      invocationId: 'crane:incoming',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'direct-muted-autoplay', playback: false
+    });
+    expect(incoming.invoked).toBe(true);
+    for (const surface of packedProbe.surfaces) {
+      expect(surface.activate).toHaveBeenLastCalledWith('initial');
+    }
+    expect(play).toHaveBeenCalledTimes(2);
+
+    commands.settle(0);
+    commands.rebind({ reports: mount.reports, frameToken: 'crane:outgoing' });
+    const outgoing = commands.activate({
+      invocationId: 'crane:outgoing',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', playback: true
+    });
+    await Promise.all(outgoing.settlements.flatMap((settlement) => (
+      settlement.status === 'pending' ? [settlement.settled] : []
+    )));
+    for (const surface of packedProbe.surfaces) {
+      expect(surface.activate).toHaveBeenLastCalledWith('initial');
+    }
+    expect(play).toHaveBeenCalledTimes(4);
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'crane:outgoing', direction: 'forward', stageIndex: 0
+    });
+    expect(play).toHaveBeenCalledTimes(6);
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    pause.mockClear();
+    commands.render(0);
+    expect(pause).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('keeps reverse presented-frame playback paused', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    commands.rebind({ reports: mount.reports, frameToken: 'crane:reverse' });
+    commands.activate({
+      invocationId: 'crane:reverse',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', playback: false, direction: 'reverse'
+    });
+
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'crane:reverse', direction: 'reverse', stageIndex: 0
+    });
+
+    expect(play).toHaveBeenCalledTimes(2);
+    act(() => root.unmount());
+  });
+
+  it('starts the flock clock at the crane handoff and releases the figure at one sixth', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const figure = host.querySelector<HTMLVideoElement>('[data-crane-figure-video]')!;
+    const flock = host.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]')!;
+    const figurePlay = vi.spyOn(figure, 'play').mockResolvedValue();
+    const flockPlay = vi.spyOn(flock, 'play').mockResolvedValue();
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'crane:contact:1',
+      segmentId: 'crane-contact',
+      direction: 'forward'
+    });
+    const invocation = commands.activate({
+      invocationId: 'crane:contact:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', playback: false,
+      runToken: 'crane:contact:run', direction: 'forward'
+    });
+    await Promise.all(invocation.settlements.flatMap((settlement) => (
+      settlement.status === 'pending' ? [settlement.settled] : []
+    )));
+
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'crane:contact:run', direction: 'forward', stageIndex: 0
+    });
+    commands.render(0);
+    expect(figurePlay).toHaveBeenCalledOnce();
+    expect(flockPlay).toHaveBeenCalledTimes(2);
+
+    commands.render(.1);
+    expect(figurePlay).toHaveBeenCalledOnce();
+    commands.render(1 / 6);
+    expect(figurePlay).toHaveBeenCalledTimes(2);
+    expect(figure.currentTime).toBe(0);
+    expect(flockPlay).toHaveBeenCalledTimes(2);
+    act(() => root.unmount());
+  });
+
+  it('holds the endpoint supplied by runtime for reverse stable commits', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const videos = host.querySelectorAll<HTMLVideoElement>('video');
+    commands.rebind({ reports: mount.reports, frameToken: 'crane:reverse:held' });
+    commands.activate({
+      invocationId: 'crane:reverse:held:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', runToken: 'crane:reverse:held', direction: 'reverse'
+    });
+    commands.setMediaPhase?.({
+      phase: 'held', runToken: 'crane:reverse:held', direction: 'reverse',
+      stageIndex: 0, endpoint: 0
+    });
+    expect(videos[0]?.currentTime).toBe(0);
+    expect(videos[1]?.currentTime).toBe(0);
+    act(() => root.unmount());
+  });
+
+  it('reproves the initial endpoint when settling after a stale terminal frame', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const videos = host.querySelectorAll<HTMLVideoElement>('video');
+    commands.rebind({ reports: mount.reports, frameToken: 'crane:settle:initial' });
+    commands.activate({
+      invocationId: 'crane:settle:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', runToken: 'crane:settle:run', direction: 'forward'
+    });
+    for (const video of videos) video.currentTime = CRANE_VIDEO_END_SECONDS;
+
+    commands.settle(0);
+
+    expect([...videos].every((video) => video.paused)).toBe(true);
+    expect([...videos].every((video) => video.currentTime === 0)).toBe(true);
     act(() => root.unmount());
   });
 

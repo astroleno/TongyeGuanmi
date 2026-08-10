@@ -85,6 +85,8 @@ type PendingLoad = { controller: AbortController; waiters: Array<Readonly<{ effe
 type PlaybackLease = Readonly<{ handle: PhoneRuntimeTimerHandle; attempt: PhoneAttemptKey; stageIndex: number; startedAt: number; durationMs: number; from: number; to: number; connection: number }>;
 type ActivationLease = Readonly<{ invocationId: string; attempt: PhoneAttemptKey; surfaceIds: readonly string[]; leaves: readonly LeafLease[]; connection: number }>;
 
+function mediaRunToken(attempt: PhoneAttemptKey, direction: 'forward' | 'reverse'): string { return [attempt.authorityId, attempt.transactionId, attempt.transactionGeneration, attempt.segmentId ?? 'entry', direction].join(':'); }
+
 function attemptIdentity(attempt: PhoneAttemptKey): string {
   return [
     attempt.authorityId,
@@ -176,12 +178,13 @@ function commandProgress(
   const { segmentId, direction } = transaction.attempt;
   if (!segmentId || !direction) return transaction.progress;
   return progressForLeg(
-    phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction),
+    phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction,
+      transaction.stageIndex),
     leg
   );
 }
 
-export const segmentEndpoint = (transaction: Extract<PhoneMachineSnapshot, { status: 'transaction' }>['transaction'], leg: PhoneLeafReportBinding['leg']): 0 | 1 | null => { const { segmentId, direction } = transaction.attempt; if (transaction.mode !== 'segment' || leg === 'effect' || !segmentId || !direction) return null; return progressForLeg(phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction), leg) >= .5 ? 1 : 0; };
+export const segmentEndpoint = (transaction: Extract<PhoneMachineSnapshot, { status: 'transaction' }>['transaction'], leg: PhoneLeafReportBinding['leg']): 0 | 1 | null => { const { segmentId, direction } = transaction.attempt; if (transaction.mode !== 'segment' || leg === 'effect' || !segmentId || !direction) return null; return progressForLeg(phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction, transaction.stageIndex), leg) >= .5 ? 1 : 0; };
 
 export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneStoryRuntime {
   const { environment, presentation } = config, ports = config.ports ?? {};
@@ -466,23 +469,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     requested?: readonly string[], activeConnection = connection
   ): void {
     const invocationId = `${attempt.transactionId}:activation:${++activationSequence}`;
-    const active = snapshot.status === 'transaction'
-      && sameAttempt(snapshot.transaction.attempt, attempt)
-      ? snapshot.transaction
-      : null;
-    const playbackOwner = active?.attempt.segmentId && active.attempt.direction
-      ? phoneSegmentChoreographyFrame(
-          active.attempt.segmentId,
-          active.progress,
-          active.attempt.direction
-        ).mediaClockOwner
-      : 'none';
-    const targets = candidates.map((owner) => ({
-      owner,
-      commands: owner.mount.commands,
-      surfaceIds: phoneActivationSurfaceIds(owner.mount, requested),
-      playback: owner.reports.binding.leg === playbackOwner
-    }));
+    const active = snapshot.status === 'transaction' && sameAttempt(snapshot.transaction.attempt, attempt) ? snapshot.transaction : null;
+    const direction = attempt.direction ?? 'forward'; const stageIndex = active?.stageIndex ?? 0; const runToken = mediaRunToken(attempt, direction);
+    const targets = candidates.map((owner) => ({ owner, commands: owner.mount.commands, surfaceIds: phoneActivationSurfaceIds(owner.mount, requested) }));
     const batch = invokePhoneActivationBatch(
       invocationId,
       credit,
@@ -495,7 +484,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         if (additional > 0) assertResourceBudget({
           ...resources, activeDecoders: resources.activeDecoders + additional
         });
-      }
+      }, runToken, direction, stageIndex
     );
     if (!ownsConnection(activeConnection)) return;
     const activation: ActivationLease | null = batch.invoked && batch.pending.length > 0
@@ -514,6 +503,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       },
       fulfilled: () => {
         if (!ownsActivation()) return;
+        for (const { owner } of batch.targets) owner.mount.commands.setMediaPhase?.({ phase: 'primed', runToken, direction, stageIndex });
         if (activation) activations.delete(invocationId);
         enqueueFor({ type: 'activation-settled', invoked: true, attempt }, activeConnection);
       },
@@ -936,35 +926,28 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     previous: PhoneMachineSnapshot,
     next: PhoneMachineSnapshot, activeConnection: number
   ): void => {
-    if (previous.status !== 'transaction' || next.status !== 'transaction'
-      || !sameAttempt(previous.transaction.attempt, next.transaction.attempt)) {
-      if (previous.status === 'transaction' && next.status === 'transaction' && next.transaction.mode === 'rollback') presentation.applyTransitionFrame(null);
+    const setPhase = (leasesToUpdate: readonly LeafLease[], leg: 'source' | 'target' | 'rollback' | null, phase: 'playing' | 'held', attempt: PhoneAttemptKey, stageIndex: number, endpoint?: 0 | 1): void => { if (!leg) return; const direction = attempt.direction ?? 'forward'; const command = { phase, runToken: mediaRunToken(attempt, direction), direction, stageIndex, ...(endpoint === undefined ? {} : { endpoint }) } as const; for (const lease of leasesToUpdate) if (lease.reports.binding.leg === leg) lease.mount.commands.setMediaPhase?.(command); };
+    const frameFor = (transaction: Extract<PhoneMachineSnapshot, { status: 'transaction' }>['transaction']): PhoneSegmentChoreographyFrame | null => transaction.attempt.segmentId && transaction.attempt.direction ? phoneSegmentChoreographyFrame(transaction.attempt.segmentId, transaction.progress, transaction.attempt.direction, transaction.stageIndex) : null;
+    if (previous.status !== 'transaction' || next.status !== 'transaction' || !sameAttempt(previous.transaction.attempt, next.transaction.attempt)) {
+      if (previous.status === 'transaction') {
+        const previousLeases = [...leaves.values()].filter(({ reports }) => sameAttempt(reports.binding.attempt, previous.transaction.attempt));
+        const owner = frameFor(previous.transaction)?.mediaClockOwner;
+        setPhase(previousLeases, owner && owner !== 'none' ? owner : null, 'held', previous.transaction.attempt, previous.transaction.stageIndex, owner && owner !== 'none' ? segmentEndpoint(previous.transaction, owner) ?? undefined : undefined);
+      }
       return;
     }
     const transaction = next.transaction;
-    const leases = [...leaves.values()].filter(({ reports }) => (
-      sameAttempt(reports.binding.attempt, transaction.attempt)
-    ));
+    const leases = [...leaves.values()].filter(({ reports }) => sameAttempt(reports.binding.attempt, transaction.attempt));
     if (previous.transaction.stageIndex !== transaction.stageIndex) {
       for (const lease of leases) {
         if (!ownsConnection(activeConnection)) return;
-        renewLeaseBinding(lease, {
-          ...lease.reports.binding,
-          stageIndex: transaction.stageIndex,
-          planeRevision: transaction.planeRevision
-        });
+        renewLeaseBinding(lease, { ...lease.reports.binding, stageIndex: transaction.stageIndex, planeRevision: transaction.planeRevision });
       }
     }
-    if (transaction.phase === 'playing'
-      && (previous.transaction.phase !== 'playing'
-        || previous.transaction.progress !== transaction.progress)) {
+    if (transaction.phase === 'playing' && (previous.transaction.phase !== 'playing' || previous.transaction.progress !== transaction.progress)) {
       const { segmentId, direction } = transaction.attempt;
       if (!segmentId || !direction) return;
-      const frame = phoneSegmentChoreographyFrame(
-        segmentId,
-        transaction.progress,
-        direction
-      );
+      const frame = phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction, transaction.stageIndex);
       let ownership = null;
       for (const lease of leases) {
         if (!ownsConnection(activeConnection)) return;
@@ -972,25 +955,21 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         const result = lease.mount.commands.render(progressForLeg(frame, leg));
         if (leg === 'effect' && result) ownership = result.ownership;
       }
-      presentation.applyTransitionFrame({
-        sourceOpacity: frame.sourceOpacity,
-        targetOpacity: frame.targetOpacity,
-        ownership,
-        direction,
-        foregroundOwner: frame.foregroundOwner
-      });
+      presentation.applyTransitionFrame({ sourceOpacity: frame.sourceOpacity, targetOpacity: frame.targetOpacity, ownership, direction, foregroundOwner: frame.foregroundOwner });
     }
-    if (transaction.phase === 'presenting-target'
-      && previous.transaction.phase !== 'presenting-target') {
+    const previousFrame = frameFor(previous.transaction);
+    const nextFrame = frameFor(transaction);
+    const previousOwner = previous.transaction.phase === 'playing' && previousFrame?.mediaClockOwner && previousFrame.mediaClockOwner !== 'none' ? previousFrame.mediaClockOwner : null;
+    const nextOwner = transaction.phase === 'playing' && nextFrame?.mediaClockOwner && nextFrame.mediaClockOwner !== 'none' ? nextFrame.mediaClockOwner : null;
+    const stageChanged = previous.transaction.stageIndex !== transaction.stageIndex;
+    if (previousOwner && (previousOwner !== nextOwner || transaction.phase !== 'playing' || stageChanged)) setPhase(leases, previousOwner, 'held', previous.transaction.attempt, previous.transaction.stageIndex, segmentEndpoint(previous.transaction, previousOwner) ?? undefined);
+    if (nextOwner && transaction.phase === 'playing' && (previous.transaction.phase !== 'playing' || previousOwner !== nextOwner || stageChanged)) setPhase(leases, nextOwner, 'playing', transaction.attempt, transaction.stageIndex);
+    if (transaction.phase === 'presenting-target' && previous.transaction.phase !== 'presenting-target') {
       for (const lease of leases) {
         if (!ownsConnection(activeConnection)) return;
         const leg = lease.reports.binding.leg;
         const choreographedEndpoint = segmentEndpoint(transaction, leg);
-        const endpoint = leg === 'effect'
-          ? transaction.attempt.direction === 'reverse' ? 0 : 1
-          : choreographedEndpoint ?? (transaction.attempt.mode === 'boot' && transaction.candidateSceneId === 'hero' ? 0
-          : phoneSceneStableHold(leg === 'source' && transaction.sourceSceneId
-              ? transaction.sourceSceneId : transaction.candidateSceneId));
+        const endpoint = leg === 'effect' ? transaction.attempt.direction === 'reverse' ? 0 : 1 : choreographedEndpoint ?? (transaction.attempt.mode === 'boot' && transaction.candidateSceneId === 'hero' ? 0 : phoneSceneStableHold(leg === 'source' && transaction.sourceSceneId ? transaction.sourceSceneId : transaction.candidateSceneId));
         lease.mount.commands.settle(endpoint);
       }
     }
@@ -1021,7 +1000,6 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         if (retainPair || lease.reports.binding.leg === retainedLeg) closeReports(lease.reports);
         else retireLease(lease, 'closure-retired');
       }
-      presentation.applyTransitionFrame(null);
       if (next.stableCommit !== previous.stableCommit) chunkRecovery.markStable(Object.freeze({
         authorityId: next.authorityId,
         sceneId: next.stableCommit.sceneId,

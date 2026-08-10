@@ -52,11 +52,8 @@
   padding: max(72px, 12svh) clamp(24px, 6vw, 42px) max(72px, 12svh);
 }
 
-/*
- * The fixed candidate plane proves the authored Education landing, while the
- * separate Reading export keeps both native document acts. Do not put the
- * two-screen reading document inside the one-viewport transition plane.
- */
+/* Candidate proof opens on the programme. Once Education becomes the fixed
+   source, restore both acts so its geometry can mirror native document scroll. */
 .phone-education__visual {
   width: 100%;
   height: 100%;
@@ -75,6 +72,29 @@
 
 .phone-education__visual .r4-education__vertical {
   min-height: 100%;
+}
+
+.phone-story[data-phone-reading="disabled"] [data-phone-plane="source"]
+  .phone-education__visual {
+  height: auto;
+  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
+}
+
+.phone-story[data-phone-reading="disabled"] [data-phone-plane="source"]
+  .phone-education__visual :is(.phone-education, .r4-education) {
+  height: auto;
+  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
+}
+
+.phone-story[data-phone-reading="disabled"] [data-phone-plane="source"]
+  .phone-education__visual .r4-education__wide {
+  display: grid;
+  min-height: var(--phone-cinematic-stage-height, 100svh);
+}
+
+.phone-story[data-phone-reading="disabled"] [data-phone-plane="source"]
+  .phone-education__visual .r4-education__vertical {
+  min-height: var(--phone-cinematic-stage-height, 100svh);
 }
 
 .phone-education :is(a, button, input, select, textarea, [role="button"]) {

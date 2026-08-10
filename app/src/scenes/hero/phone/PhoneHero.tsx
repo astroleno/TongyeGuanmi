@@ -167,6 +167,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
   const imagesReadyRef = useRef(false);
   const mountedRef = useRef(false);
   const activeRef = useRef(false);
+  const mediaRunTokenRef = useRef<string | null>(null);
   const renderedRef = useRef(false);
   const lastProgressRef = useRef(Number.NaN);
   const disposeEntranceRef = useRef<(() => void) | null>(null);
@@ -253,6 +254,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
     const commandHandle: PhoneHeroMigrationCommands = {
       rebind(binding) {
         bindingRef.current = binding;
+        mediaRunTokenRef.current = null;
         reportedFrameTokenRef.current = null;
         renewCompositor();
         reportCurrentFrame();
@@ -265,28 +267,50 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         }
         activeRef.current = true;
         compositorRef.current?.setActive(true);
-        playbackRef.current?.setActive(true);
+        playbackRef.current?.setActive(false);
         const video = figureVideoRef.current;
         if (!video) return { invocationId: command.invocationId, surfaceIds: expected,
           invoked: false, settlements: [] };
-        let settled: Promise<void>;
-        try {
-          settled = Promise.resolve(video.play()).then(() => {
-            if (activeRef.current) compositorRef.current?.render();
-            if (!command.playback) {
-              video.pause();
-              playbackRef.current?.setActive(false);
-            }
+        const runToken = command.runToken ?? command.invocationId;
+        mediaRunTokenRef.current = runToken;
+        const settled = playbackRef.current?.primeFromGesture((error: unknown) => {
+          const current = bindingRef.current;
+          if (!current || !mountedRef.current || mediaRunTokenRef.current !== runToken) return;
+          current.reports.reportFailure({
+            code: 'hero-activation-playback-rejected',
+            message: error instanceof Error ? error.message : String(error),
+            recoverable: true,
+            detail: { runToken }
           });
-        } catch (error) {
-          settled = Promise.reject(error);
-        }
+        }) ?? Promise.resolve();
         return {
           invocationId: command.invocationId,
           surfaceIds: expected,
           invoked: true,
           settlements: [{ surfaceId: expected[0]!, status: 'pending', settled }]
         };
+      },
+      setMediaPhase(command) {
+        const binding = bindingRef.current;
+        const video = figureVideoRef.current;
+        if (!binding || !video || !mountedRef.current) return;
+        if (mediaRunTokenRef.current !== null
+          && mediaRunTokenRef.current !== command.runToken) return;
+        mediaRunTokenRef.current = command.runToken;
+        if (command.phase === 'primed') {
+          playbackRef.current?.setActive(false);
+          video.pause();
+          return;
+        }
+        if (command.phase === 'held') {
+          playbackRef.current?.setActive(false);
+          video.pause();
+          return;
+        }
+        activeRef.current = true;
+        compositorRef.current?.setActive(true);
+        playbackRef.current?.setActive(true);
+        playbackRef.current?.unlockFromGesture();
       },
       render(progress) {
         const clamped = renderHeroStage({
@@ -317,6 +341,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       },
       pause() {
         activeRef.current = false;
+        mediaRunTokenRef.current = null;
         cancelEntrance();
         playbackRef.current?.setActive(false);
         compositorRef.current?.setActive(false);
@@ -325,6 +350,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       },
       dispose() {
         activeRef.current = false;
+        mediaRunTokenRef.current = null;
         cancelEntrance();
         playbackRef.current?.dispose();
         playbackRef.current = null;
@@ -410,6 +436,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       current = false;
       mountedRef.current = false;
       activeRef.current = false;
+      mediaRunTokenRef.current = null;
       cancelEntrance();
       playbackRef.current?.dispose();
       playbackRef.current = null;

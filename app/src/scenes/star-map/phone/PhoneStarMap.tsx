@@ -11,10 +11,15 @@ import { phoneMediaUrlFor } from '../../../media/phone-media';
 import './PhoneStarMap.css';
 
 const STAR_MAP_IMAGE = phoneMediaUrlFor('star-map-source', 'star-map');
-const STAR_MAP_HIGHLIGHT_MASK = phoneMediaUrlFor('star-map-highlight-mask', 'star-map');
 const FRAME_INTERVAL_MS = 1000 / 12;
 const PHONE_STAR_CAMERA: StarFieldCamera = Object.freeze({ rotationDegrees: -90, zoom: 1 });
 const STAR_MAP_AMBIENT_PERIOD_SECONDS = 4.4;
+
+/** Keep the animated mask at phone resolution while the source/highlight stay native. */
+export function phoneStarNoiseMaskWidth(viewportWidth: number): number {
+  const width = Number.isFinite(viewportWidth) ? Math.max(1, viewportWidth) : 390;
+  return Math.min(512, Math.max(320, Math.round(width * 1.08)));
+}
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -149,6 +154,14 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     canvas.dataset.portraitStarPerlin = 'ready';
     canvas.dataset.portraitStarCamera = 'rotate(-90deg) cover';
     canvas.dataset.portraitStarPerlinRevision = String(revisionRef.current);
+    canvas.dataset.portraitStarPerlinSource = reveal.sourceUrl;
+    canvas.dataset.portraitStarPerlinSourceWidth = String(
+      reveal.image?.naturalWidth || reveal.sourceCanvas?.width || 0
+    );
+    canvas.dataset.portraitStarPerlinSourceHeight = String(
+      reveal.image?.naturalHeight || reveal.sourceCanvas?.height || 0
+    );
+    canvas.dataset.portraitStarPerlinNoiseMaskWidth = String(reveal.config?.noiseMaskWidth ?? 0);
     reportCurrentFrame();
     return true;
   }, [reportCurrentFrame]);
@@ -236,8 +249,8 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     revisionRef.current = 0;
     applyProgress(0);
     const reveal = initStarFieldReveal({
-      canvas, sourceUrl: STAR_MAP_HIGHLIGHT_MASK, autoplay: false,
-      highlightSource: 'precomputed-alpha',
+      canvas, sourceUrl: STAR_MAP_IMAGE, autoplay: false,
+      highlightSource: 'extract',
       viewport: () => {
         const scale = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
         return {
@@ -246,7 +259,10 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
         };
       },
       config: {
-        revealDurationMs: 2800, loopTransitionMs: 1200, noiseMaskWidth: 420,
+        revealDurationMs: 2800, loopTransitionMs: 1200,
+        noiseMaskWidth: phoneStarNoiseMaskWidth(
+          canvas.clientWidth || canvas.parentElement?.clientWidth || window.innerWidth
+        ),
         highlight: { threshold: 120, gamma: 3.05, softness: 23 },
         glow: { wideBlur: 120, mediumBlur: 44, coreBlur: 10, screenBlur: 3,
           wideAlpha: 1.38, mediumAlpha: 1.2, coreAlpha: .78, screenAlpha: .64 },
@@ -300,6 +316,10 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       delete canvas.dataset.portraitStarCamera;
       delete canvas.dataset.portraitStarPerlinRevision;
       delete canvas.dataset.portraitStarPerlinProgress;
+      delete canvas.dataset.portraitStarPerlinSource;
+      delete canvas.dataset.portraitStarPerlinSourceWidth;
+      delete canvas.dataset.portraitStarPerlinSourceHeight;
+      delete canvas.dataset.portraitStarPerlinNoiseMaskWidth;
     };
   }, [applyProgress, commands, paint, reportSourcePrepared, reports, stopAmbient]);
 

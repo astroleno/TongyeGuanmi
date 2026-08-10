@@ -108,7 +108,21 @@ export type PhoneLeafActivationCommand = Readonly<{
   invocationId: string;
   surfaceIds: readonly PhoneSurfaceId[];
   credit: PhoneActivationCredit;
-  playback: boolean;
+  /** Runtime-owned causal media identity. Older fixtures may omit these fields. */
+  runToken?: string;
+  direction?: 'forward' | 'reverse';
+  stageIndex?: number;
+  /** @deprecated Playback is now controlled only through setMediaPhase. */
+  playback?: boolean;
+}>;
+
+export type PhoneMediaPhaseCommand = Readonly<{
+  phase: 'primed' | 'playing' | 'held';
+  runToken: string;
+  direction: 'forward' | 'reverse';
+  stageIndex: number;
+  /** Stable media endpoint to retain when runtime parks a clock. */
+  endpoint?: 0 | 1;
 }>;
 
 export type PhoneLeafPauseReason =

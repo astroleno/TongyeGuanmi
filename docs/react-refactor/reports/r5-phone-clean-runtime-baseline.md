@@ -1060,3 +1060,69 @@ and 1280×720 motion derivatives. It therefore supplies no clarity approval and
 does not change the blocking status in section 11.3. Physical iPhone Safari
 remains the final owner of touch, media-policy, lifecycle, toolbar, and visual
 acceptance.
+
+## 12. 2026-08-09 visual-fidelity and back-half handoff addendum
+
+This addendum supersedes the Figure3 normal-poster and combined target-media
+ownership descriptions in sections 11.1 and 11.4. It records the implementation
+of `2026-08-09-phone-visual-fidelity-and-back-half-handoff.md`; it does not alter
+the frozen Task 0 evidence above.
+
+### 12.1 Implemented contracts
+
+- Star Map now derives its dynamic reveal from the existing canonical
+  `1672×941` `back2.webp` source. The separate static source and `drawSource:
+  false` contract remain, so the map is not double-painted. No media asset was
+  added, deleted, upscaled, or re-encoded.
+- Figure3 normally decodes the existing motion source at exact frame zero and
+  paints that frame through the paper Canvas. Brand → Figure3 holds the paused
+  decoded frame; the `640×360` poster is now only a bounded, explicitly reported
+  fallback. Mount, stage, Canvas, and poster share the complete phone visual
+  viewport height.
+- All native reading scenes use one `data-phone-native-mirror` handoff. The
+  shell captures document scroll before publishing the edge intent, freezes the
+  fixed source copy at that position, and restores the same saved position when
+  rollback returns to an unchanged stable commit.
+- Choreography now separates `activationOwner` from `mediaClockOwner`.
+  Services → TTG, Lab → PH, and Education → Crane may prime target decoders at
+  exact paused frame zero without advancing authored media. TTG → Lab,
+  PH → Education, and Crane → Contact grant the source the playback clock.
+- Presentation proof accepts a registered scene root matching its own content
+  or landing selector. This keeps native root-level proof scoped while allowing
+  arbitrary mirrored scroll positions.
+
+### 12.2 Fresh automated evidence
+
+| Gate | Result | Fresh evidence |
+| --- | --- | --- |
+| Vitest | pass | 176 files, 1,326 tests, 41.73 s |
+| TypeScript | pass | `pnpm typecheck`, no diagnostics |
+| Clean architecture | pass | cutover phase, 10 canonical production files |
+| Production build and budgets | pass | artifact tree `77830ca4277817fd0460ce71c6cf05764a09de1afa1f7426ab21a929ff8ebdec`; release manifest SHA-256 `a1145e4d68ad142de118601b9077441c3d06ac0ab4985f0aab38addb1d7bee83`; phone JS 646,551 B with 17,001 B hard-cap headroom |
+| Focused historical failures | pass | 10/10 Phone WebKit cases, including Figure3 double-cycle, PH/Crane ownership, native rollback, lifecycle, and delayed/rejected chunks |
+| Complete-story stress | pass | two independent 60-segment repetitions, 2/2 in 6.1 min; the final full suite supplied another 60-segment pass |
+| Phone portrait WebKit full suite | pass | 67/67, one worker, 9.5 min |
+| Source hygiene | pass | `git diff --check`; no new media assets |
+
+One earlier full-suite run completed 66/67: the long complete-story case rolled
+Lab → TTG back once after 55 preceding browser tests. The same 60-segment case
+then passed twice consecutively, and the exact 67-test suite passed on a fresh
+full rerun. The complete-story test now retains a bounded runtime tail on
+failure so a recurrence exposes its transaction lineage instead of only the
+final rollback scene.
+
+### 12.3 Remaining release gate
+
+The source branch is not yet a frozen candidate commit; the generated manifest
+therefore still names the pre-change source commit and must not be used as a
+final candidate identity. Both Figure3 motion encodes also remain the existing
+`1280×720` assets. The decoded frame-zero path removes the avoidable `640×360`
+normal-entry softness and poster-to-Canvas ownership error, but it does not
+claim detail beyond the source animation.
+
+Physical iPhone Safari acceptance remains mandatory for normal and Low Power
+Mode, expanded/collapsed toolbar, two forward/reverse back-half cycles, touch
+input, Star Map and Figure3 sharpness, A/B flash, Figure2 ghosting/arch blur,
+and viewport rebound. Until that matrix is recorded against a frozen candidate
+commit/build, this implementation is automation-complete but not P0/release
+complete.

@@ -82,7 +82,7 @@ describe('clean PhoneTtg leaf', () => {
     expect(current.reports.reportPrepared).not.toHaveBeenCalled();
 
     await act(async () => {
-      mount.registration()?.commands.settle(1);
+    mount.registration()?.commands.settle(1);
       await Promise.resolve();
     });
     expect(current.reports.reportPrepared).toHaveBeenCalledWith(
@@ -91,6 +91,10 @@ describe('clean PhoneTtg leaf', () => {
       })
     );
 
+    mount.registration()?.commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'ttg:frame:2', direction: 'forward', stageIndex: 0
+    });
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
     mount.registration()?.commands.render(.5);
     expect(probe.driveFrame).toHaveBeenCalledWith(video, expect.objectContaining({
       progress: .5,
@@ -196,6 +200,7 @@ describe('clean PhoneTtg leaf', () => {
       )) ?? []);
     });
 
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
     expect(probe.prepareFrame).toHaveBeenCalledOnce();
     expect(renewed.reports.reportPrepared).toHaveBeenCalledWith(
       'ttg-figure-video', expect.objectContaining({

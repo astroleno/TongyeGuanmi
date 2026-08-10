@@ -2,6 +2,7 @@ import type {
   PhoneAttemptKey, PhoneEvidenceRecord, PhoneEvidenceSlot, PhoneEvidenceKind,
   PhoneFinalEvidenceKind, PhoneFrameReport, PhoneFrameToken,
   PhoneLeafActivationCommand, PhoneLeafDisposeReason, PhoneLeafPauseReason,
+  PhoneMediaPhaseCommand,
   PhoneLayoutViewport, PhonePreparedReport, PhoneDependencyClosure,
   PhoneRuntimeResourceCounts, PhoneSurfaceId, PhoneTransaction,
   PhoneTransactionLeg, PhoneViewportSnapshot, PhoneVisualViewport, PhoneFailure,
@@ -29,7 +30,8 @@ export type PhoneActivationInvocation = Readonly<{
 
 export type PhoneActivationTarget<Owner> = Readonly<{
   owner: Owner; commands: PhoneLeafCommandHandle; surfaceIds: readonly PhoneSurfaceId[];
-  playback: boolean;
+  /** @deprecated Retained for fixture compatibility; runtime no longer reads it. */
+  playback?: boolean;
 }>;
 
 export type PhoneActivationBatch<Owner> = Readonly<{
@@ -113,6 +115,7 @@ export function bindPhoneLeafGeneration(
 export type PhoneLeafCommandHandle = Readonly<{
   rebind(binding: PhoneLeafGenerationBinding): void;
   activate(command: PhoneLeafActivationCommand): PhoneActivationInvocation;
+  setMediaPhase?(command: PhoneMediaPhaseCommand): void;
   render(progress: number): Readonly<{ ownership: PhoneInkOwnership }> | void;
   settle(endpoint: 0 | 1): void;
   pause(reason: PhoneLeafPauseReason): void; dispose(reason: PhoneLeafDisposeReason): void;
@@ -155,7 +158,10 @@ export function invokePhoneActivationBatch<Owner>(
   credit: PhoneLeafActivationCommand['credit'],
   requested: readonly PhoneSurfaceId[] | undefined,
   targets: readonly PhoneActivationTarget<Owner>[],
-  authorize: (targets: readonly PhoneActivationTarget<Owner>[]) => void
+  authorize: (targets: readonly PhoneActivationTarget<Owner>[]) => void,
+  runToken = invocationId,
+  direction: 'forward' | 'reverse' = 'forward',
+  stageIndex = 0
 ): PhoneActivationBatch<Owner> {
   const activeTargets = targets.filter(({ surfaceIds }) => surfaceIds.length > 0);
   const required = [...new Set(requested ?? activeTargets.flatMap(({ surfaceIds }) => surfaceIds))];
@@ -167,8 +173,8 @@ export function invokePhoneActivationBatch<Owner>(
   authorize(activeTargets);
   const invocations: readonly PhoneActivationInvocation[] | null = (() => {
     try {
-      return activeTargets.map(({ commands, surfaceIds, playback }) => commands.activate({
-        invocationId, surfaceIds, credit, playback
+      return activeTargets.map(({ commands, surfaceIds }) => commands.activate({
+        invocationId, surfaceIds, credit, runToken, direction, stageIndex
       }));
     } catch { return null; }
   })();
@@ -357,7 +363,7 @@ export function createPhonePlaneRequest(
   const sceneId = first.leg === 'source'
     ? transaction.sourceSceneId : transaction.candidateSceneId;
   const entryAlias = transaction.mode === 'segment' ? null : phoneEntryForLocation(transaction.requestedEntry.pathname, transaction.requestedEntry.hash).landingAlias;
-  const landingAlias = stableCommit?.sceneId === sceneId ? stableCommit.landingAlias ?? (stableCommit.direction === 'reverse' ? 'closing' : 'opening') : entryAlias ?? (transaction.attempt.direction === 'reverse' ? 'closing' : 'opening');
+  const landingAlias = transaction.mode === 'segment' && first.leg === 'source' && sceneId === 'figure2-proof' && transaction.attempt.direction === 'reverse' || transaction.mode === 'rollback' && first.leg === 'rollback' && sceneId === 'figure2-proof' && transaction.attempt.direction === 'reverse' ? 'closing' : stableCommit?.sceneId === sceneId ? stableCommit.landingAlias ?? (stableCommit.direction === 'reverse' ? 'closing' : 'opening') : entryAlias ?? (transaction.attempt.direction === 'reverse' ? 'closing' : 'opening');
   return sceneId && transaction.planeRevision !== null ? Object.freeze({
     attempt: transaction.attempt, stageIndex: transaction.stageIndex,
     leg: first.leg, sceneId, planeRevision: transaction.planeRevision,
@@ -724,15 +730,16 @@ export function createPhonePresentation(
 
   const transitionVariables = ['--phone-source-opacity', '--phone-target-opacity', '--phone-source-clip', '--phone-target-clip', '--phone-source-mask', '--phone-target-mask'] as const;
 
-  const clearTransitionFrame = (root: HTMLElement, source?: HTMLElement, receiver?: HTMLElement): void => {
-    for (const attribute of ['data-phone-transition-live', 'data-phone-transition-direction', 'data-phone-transition-foreground'] as const) root.removeAttribute(attribute); for (const variable of transitionVariables) root.style.removeProperty(variable); if (!source || !receiver) return;
-    source.setAttribute('data-phone-exposed', 'true'); receiver.setAttribute('data-phone-exposed', 'false'); source.style.setProperty('--phone-plane-z', '10'); receiver.style.setProperty('--phone-plane-z', '30');
+  const clearTransitionVariables = (root: HTMLElement): void => {
+    for (const attribute of ['data-phone-transition-live', 'data-phone-transition-direction', 'data-phone-transition-foreground'] as const) root.removeAttribute(attribute);
+    for (const variable of transitionVariables) root.style.removeProperty(variable);
   };
 
   const applyTransitionFrame: PhonePresentation['applyTransitionFrame'] = (frame) => {
     const root = state.root, topology = root ? presentationTopology(root) : null;
     if (!root || !topology) return;
-    if (!frame) { clearTransitionFrame(root, topology.source, topology.receiver); return; }
+    // A null frame only removes projection variables; buffer exposure is atomic.
+    if (!frame) { clearTransitionVariables(root); return; }
     const reverse = frame.direction === 'reverse';
     root.setAttribute('data-phone-transition-live', 'true');
     root.setAttribute('data-phone-transition-direction', frame.direction);
@@ -745,7 +752,14 @@ export function createPhonePresentation(
 
   const commitStablePlane: PhonePresentation['commitStablePlane'] = (sourceBuffer) => {
     const root = state.root; if (!root) return; const source = root.querySelector<HTMLElement>(`[data-phone-buffer="${sourceBuffer}"]`); const receiver = root.querySelector<HTMLElement>(`[data-phone-buffer="${sourceBuffer === 'a' ? 'b' : 'a'}"]`); if (!source || !receiver) return;
-    clearTransitionFrame(root, source, receiver); root.setAttribute('data-phone-stable-buffer', sourceBuffer);
+    // Make the new buffer the exposed plane before clearing the transition;
+    // this keeps the DOM atomic from the compositor's point of view.
+    source.setAttribute('data-phone-exposed', 'true');
+    receiver.setAttribute('data-phone-exposed', 'false');
+    source.style.setProperty('--phone-plane-z', '10');
+    receiver.style.setProperty('--phone-plane-z', '30');
+    clearTransitionVariables(root);
+    root.setAttribute('data-phone-stable-buffer', sourceBuffer);
   };
 
   const applyVariables = (
@@ -816,6 +830,7 @@ export function createPhonePresentation(
     const visual = request.viewport.visual;
     const scene = phoneSceneById(request.sceneId);
     const authoredComposite = scene.frame.surfaceIds.length > 1;
+    const nativeReading = scene.plane === 'native';
     const selectors = scene.id === 'figure2-proof' ? [`[data-r4-proof-panel="${request.landingAlias ?? 'opening'}"]`] : scene.content.selectors;
     const elements = selectors.map((selector) => (
       record.root?.querySelector<HTMLElement>(selector) ?? null
@@ -827,10 +842,12 @@ export function createPhonePresentation(
     const activeZ = request.leg !== 'target' ? 10 : 30;
     const layers = Array.from(topology.planes.children) as HTMLElement[];
     for (const element of elements) {
-      if (!element || !intersectsVisualViewport(element, visual)
+      if (!element || (!nativeReading && !intersectsVisualViewport(element, visual))
         || !visibleThroughAncestors(element, record.root, getStyle, !authoredComposite)) {
         return presentationFailure(
-          'presentation-content-invisible', 'Required scene content is not visibly intersecting'
+          'presentation-content-invisible', nativeReading
+            ? 'Required native scene content is missing or hidden'
+            : 'Required scene content is not visibly intersecting'
         );
       }
       const bounds = element.getBoundingClientRect();
@@ -907,7 +924,7 @@ export function createPhonePresentation(
     const anchor = phoneSceneById(request.sceneId).landing.anchor;
     const selector = request.sceneId === 'figure2-proof' ? `[data-r4-proof-panel="${request.landingAlias ?? 'opening'}"]` : anchor.startsWith('#') || anchor.startsWith('[')
       ? anchor : `[data-phone-landing="${anchor}"]`;
-    const element = record.root.querySelector<HTMLElement>(selector);
+    const element = record.root.matches(selector) ? record.root : record.root.querySelector<HTMLElement>(selector);
     return !!element && intersectsVisualViewport(element, request.viewport.visual)
       && visibleThroughAncestors(element, record.root, getStyle);
   };

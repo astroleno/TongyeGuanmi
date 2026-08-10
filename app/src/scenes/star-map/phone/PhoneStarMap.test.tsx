@@ -9,6 +9,12 @@ import type {
 } from '../../../production/phone-story/presentation';
 
 const revealProbe = vi.hoisted(() => ({
+  options: null as null | Readonly<{
+    sourceUrl: string;
+    highlightSource?: string;
+    drawSource?: boolean;
+    config?: Readonly<{ noiseMaskWidth?: number }>;
+  }>,
   instance: null as null | {
     ready: boolean;
     dispose: ReturnType<typeof vi.fn>;
@@ -17,7 +23,13 @@ const revealProbe = vi.hoisted(() => ({
 }));
 
 vi.mock('../starFieldReveal', () => ({
-  initStarFieldReveal: vi.fn(() => {
+  initStarFieldReveal: vi.fn((options: Readonly<{
+    sourceUrl: string;
+    highlightSource?: string;
+    drawSource?: boolean;
+    config?: Readonly<{ noiseMaskWidth?: number }>;
+  }>) => {
+    revealProbe.options = options;
     const instance = {
       ready: false,
       dispose: vi.fn(),
@@ -67,6 +79,7 @@ describe('clean PhoneStarMap leaf', () => {
   let frames: FrameRequestCallback[];
 
   beforeEach(() => {
+    revealProbe.options = null;
     revealProbe.instance = null;
     frames = [];
     vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
@@ -88,6 +101,14 @@ describe('clean PhoneStarMap leaf', () => {
     expect(mount.registration()?.surfaces.map(({ id, kind }) => [id, kind])).toEqual([
       ['star-map-source', 'image'], ['star-map-canvas', 'canvas-2d']
     ]);
+    expect(revealProbe.options).toMatchObject({
+      sourceUrl: expect.stringContaining('back2.webp')
+    });
+    expect(revealProbe.options?.highlightSource ?? 'extract').toBe('extract');
+    const noiseMaskWidth = revealProbe.options?.config?.noiseMaskWidth ?? 0;
+    expect(noiseMaskWidth).toBeGreaterThan(0);
+    expect(noiseMaskWidth).toBeLessThanOrEqual(512);
+    expect(noiseMaskWidth).toBeLessThan(1672);
     expect(Object.keys(mount.registration()?.commands ?? {}).sort()).toEqual([
       'activate', 'dispose', 'pause', 'rebind', 'render', 'settle'
     ]);

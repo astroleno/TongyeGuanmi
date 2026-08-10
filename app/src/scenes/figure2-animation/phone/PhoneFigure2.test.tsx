@@ -12,6 +12,10 @@ const probe = vi.hoisted(() => ({
   surfaceOptions: null as null | Record<string, unknown>,
   activate: vi.fn(() => 1), renderSurface: vi.fn(() => true),
   probeSurface: vi.fn(() => true),
+  driveTimelineVideo: vi.fn((video: HTMLVideoElement, input: { progress: number }) => {
+    video.currentTime = input.progress * 2.6;
+    return {};
+  }),
   release: vi.fn(), disposeSurface: vi.fn(), renderProgress: vi.fn()
 }));
 
@@ -38,6 +42,10 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
   })
 }));
 
+vi.mock('../../../media/timeline-video-driver', () => ({
+  driveTimelineVideo: probe.driveTimelineVideo
+}));
+
 import { PhoneFigure2 } from './PhoneFigure2';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -58,6 +66,10 @@ describe('clean PhoneFigure2 leaf', () => {
     probe.activate.mockReset().mockReturnValue(1);
     probe.renderSurface.mockReset().mockReturnValue(true);
     probe.probeSurface.mockReset().mockReturnValue(true);
+    probe.driveTimelineVideo.mockReset().mockImplementation((video, input) => {
+      video.currentTime = input.progress * 2.6;
+      return {};
+    });
     probe.release.mockReset();
     probe.disposeSurface.mockReset();
     probe.renderProgress.mockReset();
@@ -213,7 +225,9 @@ describe('clean PhoneFigure2 leaf', () => {
         settlement.status === 'pending' ? [settlement.settled] : []
       )));
     });
+    commands.setMediaPhase?.({ phase: 'playing', runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 0 });
     commands.render(1);
+    commands.setMediaPhase?.({ phase: 'held', runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 0 });
     expect(video.paused).toBe(true);
     expect(video.currentTime).toBeCloseTo(2.6, 1);
 
@@ -221,6 +235,7 @@ describe('clean PhoneFigure2 leaf', () => {
       reports: mount.reports, frameToken: 'figure2:stage:forward:1',
       segmentId: 'figure2-distance-expand', stageIndex: 1, direction: 'forward'
     });
+    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 1 });
     expect(video.paused).toBe(true);
     expect(video.currentTime).toBeCloseTo(2.6, 1);
 
@@ -237,6 +252,7 @@ describe('clean PhoneFigure2 leaf', () => {
         settlement.status === 'pending' ? [settlement.settled] : []
       )));
     });
+    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse:stage0', direction: 'reverse', stageIndex: 0 });
     expect(video.paused).toBe(true);
     expect(video.currentTime).toBeCloseTo(2.6, 1);
     const playsBeforeReverseMedia = play.mock.calls.length;
@@ -244,7 +260,11 @@ describe('clean PhoneFigure2 leaf', () => {
       reports: mount.reports, frameToken: 'figure2:stage:reverse:1',
       segmentId: 'figure2-distance-expand', stageIndex: 1, direction: 'reverse'
     });
-    expect(play.mock.calls.length).toBeGreaterThan(playsBeforeReverseMedia);
+    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse:stage0', direction: 'reverse', stageIndex: 1 });
+    commands.setMediaPhase?.({ phase: 'playing', runToken: 'figure2:reverse:stage0', direction: 'reverse', stageIndex: 1 });
+    commands.render(0);
+    expect(play.mock.calls.length).toBe(playsBeforeReverseMedia);
+    expect(probe.driveTimelineVideo).toHaveBeenCalled();
     expect(pause).toHaveBeenCalled();
     act(() => root.unmount());
   });
@@ -272,11 +292,11 @@ describe('clean PhoneFigure2 leaf', () => {
 
     const activation = commands.activate({
       invocationId: 'figure2:reverse-depth:activation',
-      surfaceIds: ['figure2-pair-video'],
-      credit: 'physical-epoch',
+      surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch', direction: 'reverse',
       playback: true
     });
-    expect(play).toHaveBeenCalledOnce();
+    expect(play).not.toHaveBeenCalled();
+    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse-depth:activation', direction: 'reverse', stageIndex: 0 });
     expect(scene.hasAttribute('data-phone-figure2-canvas-ready')).toBe(false);
 
     video.currentTime = 2.4;
@@ -296,6 +316,7 @@ describe('clean PhoneFigure2 leaf', () => {
         settlement.status === 'pending' ? [settlement.settled] : []
       )));
     });
+    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse-depth:activation', direction: 'reverse', stageIndex: 0 });
     expect(video.currentTime).toBeCloseTo(2.6, 1);
 
     (probe.surfaceOptions?.onFrame as ((frame: {
@@ -310,7 +331,7 @@ describe('clean PhoneFigure2 leaf', () => {
     act(() => root.unmount());
   });
 
-  it('reports a recoverable failure when reverse-stage playback cannot resume', async () => {
+  it('seeks the reverse media leg from 2.6 seconds to zero without native playback', async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -326,8 +347,7 @@ describe('clean PhoneFigure2 leaf', () => {
     });
     const activation = commands.activate({
       invocationId: 'figure2:reverse-resume:activation',
-      surfaceIds: ['figure2-pair-video'],
-      credit: 'physical-epoch',
+      surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch', direction: 'reverse',
       playback: true
     });
     await act(async () => {
@@ -335,8 +355,7 @@ describe('clean PhoneFigure2 leaf', () => {
         settlement.status === 'pending' ? [settlement.settled] : []
       )));
     });
-    play.mockRejectedValueOnce(new DOMException('Playback denied', 'NotAllowedError'));
-
+    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse-resume:activation', direction: 'reverse', stageIndex: 0 });
     await act(async () => {
       commands.rebind({
         reports: mount.reports,
@@ -345,22 +364,29 @@ describe('clean PhoneFigure2 leaf', () => {
         stageIndex: 1,
         direction: 'reverse'
       });
-      await Promise.resolve();
+      const playsBeforeReverseMedia = play.mock.calls.length;
+      commands.setMediaPhase?.({ phase: 'playing', runToken: 'figure2:reverse-resume:media', direction: 'reverse', stageIndex: 1 });
+      // The reverse runtime drives the target progress from the closing
+      // endpoint back to the opening endpoint.
+      commands.render(1);
+      commands.render(.5);
+      commands.render(0);
+      expect(play.mock.calls.length).toBe(playsBeforeReverseMedia);
     });
 
-    expect(mount.reports.reportFailure).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'figure2-reverse-playback-rejected',
-      message: 'Playback denied',
-      recoverable: true,
-      detail: expect.objectContaining({ stageIndex: 1, direction: 'reverse' })
-    }));
+    expect(probe.driveTimelineVideo).toHaveBeenCalledTimes(3);
+    expect(probe.driveTimelineVideo.mock.calls.map(([, input]) => input.progress))
+      .toEqual([1, .5, 0]);
+    const video = host.querySelector<HTMLVideoElement>('[data-figure2-combined-video]')!;
+    expect(video.currentTime).toBeCloseTo(0, 3);
+    expect(mount.reports.reportFailure).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
 
   it('keeps a transient reactivation repaint miss non-terminal until a causal frame', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     probe.renderSurface.mockReset().mockReturnValue(false);
-    probe.probeSurface.mockReset().mockReturnValue(false);
+    probe.probeSurface.mockReset().mockReturnValueOnce(true).mockReturnValue(false);
     const host = document.createElement('div');
     const root = createRoot(host);
     const mount = reportFixture();

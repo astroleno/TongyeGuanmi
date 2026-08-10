@@ -71,7 +71,7 @@ const sceneDetails = {
     selectors: ['[data-portrait-pattern-bloom]']
   },
   'star-map': {
-    additional: ['media:star-map-source', 'media:star-map-highlight-mask'],
+    additional: ['media:star-map-source'],
     surfaces: ['star-map-source', 'star-map-canvas'],
     selectors: ['#portrait-spike-star-title']
   },
@@ -114,19 +114,22 @@ const sceneDetails = {
   brand: {
     additional: [],
     surfaces: ['brand-root'],
-    selectors: ['#phone-brand-title', '.phone-brand__definition p']
+    selectors: ['.phone-brand__definition:first-of-type h2', '.phone-brand__definition:first-of-type p']
   },
   'figure3-animation': {
     additional: ['media:figure3-motion', 'compositor:figure3-paper', 'media:figure3-initial-poster'],
-    surfaces: ['figure3-video', 'figure3-paper-canvas', 'figure3-initial-poster'],
+    surfaces: [
+      'figure3-video', 'figure3-paper-canvas', 'figure3-initial-poster',
+      'figure3-initial-composite'
+    ],
     selectors: [
-      '[data-phone-scene="figure3-animation"] [data-phone-figure3-paper-poster]'
+      '[data-phone-scene="figure3-animation"] [data-phone-figure3-initial-composite]'
     ]
   },
   services: {
     additional: [],
     surfaces: ['services-root'],
-    selectors: ['#phone-services-title', '.phone-services__hero > p:last-child']
+    selectors: ['.phone-services__hero h2', '.phone-services__hero > p']
   },
   'ttg-animation': {
     additional: ['media:ttg-figure-motion'],
@@ -136,10 +139,7 @@ const sceneDetails = {
   lab: {
     additional: [],
     surfaces: ['lab-root'],
-    selectors: [
-      '#phone-lab-title',
-      '.phone-lab__hero > p:not(.phone-lab__eyebrow)'
-    ]
+    selectors: ['.phone-lab__hero h2', '.phone-lab__hero > p:first-of-type']
   },
   'ph-animation': {
     additional: ['media:ph-figure-packed', 'compositor:ph-packed'],
@@ -151,10 +151,7 @@ const sceneDetails = {
   education: {
     additional: [],
     surfaces: ['education-root'],
-    selectors: [
-      '#education [data-r4-scene="education"] .r4-education__vertical h2',
-      '#education .r4-education__lead p'
-    ]
+    selectors: ['.r4-education__lead h2', '.r4-education__lead p']
   },
   'crane-animation': {
     additional: [
@@ -177,10 +174,7 @@ const sceneDetails = {
   contact: {
     additional: [],
     surfaces: ['contact-root'],
-    selectors: [
-      '#contact [data-r4-scene="contact"] h2',
-      '#contact [data-r4-scene="contact"] p'
-    ]
+    selectors: ['.r4-contact__content h2', '.r4-contact__content p']
   }
 } as const;
 
@@ -192,7 +186,7 @@ const segments = [
   ['method-bottom-figure2', 'method-top', 'figure2-animation', 'above-both', 'fx:method-bottom-figure2', 'R-standard', [1, 1, 2, 2], 'D-single-media'],
   ['figure2-distance-expand', 'figure2-animation', 'figure2-proof', 'above-both', 'fx:figure2-distance-expand', 'R-standard', [1, 1, 4, 2], 'D-single-media'],
   ['figure2-proof-brand', 'figure2-proof', 'brand', 'above-both', 'fx:figure2-proof-brand', 'R-standard', [0, 0, 1, 1], 'D-static'],
-  ['brand-figure3', 'brand', 'figure3-animation', 'above-both', 'fx:brand-figure3', 'R-standard', [1, 1, 2, 1], 'D-single-media'],
+  ['brand-figure3', 'brand', 'figure3-animation', 'between', 'fx:brand-figure3', 'R-standard', [1, 1, 2, 1], 'D-single-media'],
   ['figure3-services', 'figure3-animation', 'services', 'between', 'between:figure3-services', 'R-pair', [1, 1, 1, 0], 'D-single-media'],
   ['services-ttg', 'services', 'ttg-animation', 'above-both', 'fx:services-ttg', 'R-standard', [1, 1, 1, 1], 'D-single-media'],
   ['ttg-lab', 'ttg-animation', 'lab', 'between', 'between:ttg-lab', 'R-pair', [1, 1, 0, 0], 'D-single-media'],
@@ -310,7 +304,7 @@ const sceneProofLedger = {
     prepared: 'static-ready'
   },
   brand: {
-    landing: { kind: 'authored-boundary', anchor: '#phone-brand-title' },
+    landing: { kind: 'authored-boundary', anchor: '#brand' },
     frame: { kind: 'content-post-paint', surfaceIds: ['brand-root'] },
     prepared: 'static-ready'
   },
@@ -321,12 +315,12 @@ const sceneProofLedger = {
     },
     frame: {
       kind: 'canvas-or-static-post-paint',
-      surfaceIds: ['figure3-initial-poster']
+      surfaceIds: ['figure3-initial-composite']
     },
     prepared: 'image-decoded'
   },
   services: {
-    landing: { kind: 'authored-boundary', anchor: '#phone-services-title' },
+    landing: { kind: 'authored-boundary', anchor: '#services' },
     frame: { kind: 'content-post-paint', surfaceIds: ['services-root'] },
     prepared: 'static-ready'
   },
@@ -342,7 +336,7 @@ const sceneProofLedger = {
     prepared: 'video-decoded'
   },
   lab: {
-    landing: { kind: 'authored-boundary', anchor: '#phone-lab-title' },
+    landing: { kind: 'authored-boundary', anchor: '#lab' },
     frame: { kind: 'content-post-paint', surfaceIds: ['lab-root'] },
     prepared: 'static-ready'
   },

@@ -938,6 +938,31 @@ describe('timeline video driver', () => {
     expect(video.currentTimeWrites).toHaveLength(2);
   });
 
+  it('maps a real reverse runtime sequence monotonically from the closing frame to zero', () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const input = {
+      runId: 'media-reverse-endpoint:1',
+      direction: -1 as const,
+      durationFallbackSeconds: 2.6,
+      startSeconds: 0,
+      endSeconds: 2.6,
+      mode: 'timeline' as const
+    };
+    const presented: number[] = [];
+
+    for (const progress of [1, .5, 0]) {
+      driver.drive({ ...input, progress });
+      video.completeSeek();
+      video.presentFrame();
+      presented.push(video.currentTime);
+    }
+
+    expect(presented).toEqual([2.6, 1.3, 0]);
+    expect(presented).toEqual([...presented].sort((left, right) => right - left));
+    driver.dispose();
+  });
+
   it('ignores stale reverse callbacks during rapid forward/reverse/forward replacement', async () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));

@@ -16,12 +16,6 @@
   height: auto;
 }
 
-.phone-method-top__visual {
-  --phone-method-native-scroll-y: 0px;
-  transform: translate3d(0, calc(-1 * var(--phone-method-native-scroll-y)), 0);
-  will-change: transform;
-}
-
 .phone-method-top .portrait-scroll-spike__method-bridge-content,
 .phone-method-top .portrait-scroll-spike__steps {
   width: min(640px, 100%);
