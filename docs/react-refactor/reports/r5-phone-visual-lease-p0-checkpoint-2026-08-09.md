@@ -23,8 +23,8 @@ This checkpoint records automated evidence for the visual-lease closure work. It
 
 - Vitest: 220 files, 1,805 tests passed.
 - TypeScript, module-boundary, media inventory, and production build: passed.
-- Chromium: 37 passed, 1 WebKit-only test skipped.
-- WebKit: 38 passed.
+- Chromium: 38 passed, 1 WebKit-only test skipped.
+- WebKit: 39 passed.
 - Focused Figure2 physical/dynamic coverage and PH token-bound reverse: Chromium 3/3, WebKit 3/3.
 - Final artifact rebuild is bound to source commit `daa72ad...`.
 
