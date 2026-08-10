@@ -1,7 +1,7 @@
 # R5 phone visual-lease P0 checkpoint
 
 Date: 2026-08-10  
-Source: `e6cd61e509715c853aaef886f355dd587ffce52e`
+Source: `daa72ad61dae7f5e5026792c58abb4ae254becea`
 
 ## Scope
 
@@ -13,10 +13,10 @@ This checkpoint records automated evidence for the visual-lease closure work. It
 | --- | --- | --- |
 | Hero/loading handoff | `1802b19`, `b3c84be` keep Hero beneath the loader and require a monotonic handoff | Chromium full story and Hero handoff gates pass |
 | Figure2 authority and Arch retirement | `e4e1fb5`, `a67b647` retire the Arch at the authority boundary and bind depth/media to one lease | Full Chromium/WebKit Arch-retirement and Figure2 z-depth tests pass |
-| Figure2 dynamic coverage | `319c607`, `e6cd61e` share the real middle-camera dimensions, origin, scale, and middle-y transform with the opaque coverage pseudo; transparent depth surfaces expose the same backing camera | `phone-viewport-coverage` and `figure2-animation` tests pass; Chromium and WebKit Figure2 bottom-coverage tests pass |
+| Figure2 dynamic coverage | `319c607`, `daa72ad` share the real middle-camera dimensions, origin, scale, and middle-y transform with the opaque coverage pseudo; the pseudo expands through `--portrait-coverage-bottom` and transparent depth surfaces expose the same backing camera | Static checks plus Chromium/WebKit physical and dynamic-viewport texture/coverage tests pass; block-level texture and fallback-band checks replace the old 2.5% aggregate check |
 | Hidden reverse playback | `319c607` pauses prepared reverse work while `document.hidden` and resumes from the same canonical progress after visibility returns | Deterministic hidden-prepare unit test passes |
 | TTG reverse | `7c9e444` advances only after a presented decoder frame | Chromium/WebKit same-authority TTG reverse test passes |
-| PH reverse | `0b847ed` rearms the current token after retire/restore | Chromium/WebKit token-bound PH reverse test passes |
+| PH reverse | `0b847ed`, `daa72ad` rearm the current token after retire/restore and record the decoder mediaTime at each WebGL draw | Chromium/WebKit token-bound PH reverse test verifies exact authority/session/generation/leg prefix, direction `-1`, monotonic descending mediaTime, and a fresh token on the second cycle |
 | AOD presentation | `b3bb8f8` removes playback-time paper treatment | Chromium/WebKit AOD paper-treatment test passes |
 
 ## Automated result
@@ -25,7 +25,8 @@ This checkpoint records automated evidence for the visual-lease closure work. It
 - TypeScript, module-boundary, media inventory, and production build: passed.
 - Chromium: 37 passed, 1 WebKit-only test skipped.
 - WebKit: 38 passed.
-- Final artifact rebuild is bound to source commit `e6cd61e...`.
+- Focused Figure2 physical/dynamic coverage and PH token-bound reverse: Chromium 3/3, WebKit 3/3.
+- Final artifact rebuild is bound to source commit `daa72ad...`.
 
 ## Release blockers remaining
 
