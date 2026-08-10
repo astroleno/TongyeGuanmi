@@ -1267,3 +1267,46 @@ input, AOD → Method, Figure2 arch continuity, Brand ↔ Figure3, Figure3
 sharpness within the existing 1280×720 source limit, A/B flash, ghosting, and
 viewport rebound. Until that matrix is recorded, the implementation is
 automation-complete but not P0/release complete.
+
+## 16. 2026-08-10 Pattern → Hero reverse-arrival follow-up
+
+This addendum closes the remaining correctness-review finding for a Hero leaf
+that is retired by the R-standard Hero → Pattern leg and freshly mounted while
+returning from Pattern.
+
+### 16.1 Closed review finding
+
+- A freshly mounted reverse Hero-pattern arrival now treats `settle(0)` as a
+  stable Hero arrival: it completes the Hero entrance state and restores the
+  stable-idle Figure1 clock without replaying Loader.
+- The arrival keeps that stable-idle grant against late `primed`/`held`
+  commands from the completed transition generation. A new rebind, pause, or
+  disposal clears the grant before the next transaction.
+- A real Hero → Pattern → Hero traversal now asserts Loader remains hidden and
+  Figure1 `currentTime` continues advancing after the reverse commit.
+
+### 16.2 Fresh automated evidence
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Focused Hero unit tests | pass | 11/11, including fresh reverse arrival and late phase commands |
+| Vitest | pass | 177 files, 1,352 tests |
+| TypeScript and production build | pass | phone JS 659,180 B; hard-cap headroom 4,372 B |
+| Targeted phone WebKit | pass | Hero → Pattern → Hero, Chromium and WebKit, 2/2 |
+| Phone portrait WebKit full suite | pass | 107/107, one worker |
+| Source hygiene | pass | `git diff --check` |
+
+The full suite includes the complete 60-segment traversal, lifecycle recovery,
+media-time assertions, atomic exposed-buffer checks, and the new reverse Hero
+arrival traversal. This evidence is pre-freeze; the next immutable candidate's
+commit, tag, artifact tree, and `sourceDirty` identity are authoritative in the
+generated release manifest.
+
+### 16.3 Remaining release gate
+
+Physical iPhone Safari remains mandatory for normal and Low Power Mode, toolbar
+changes, background/foreground, touch input, AOD → Method, Figure2 arch
+continuity, Brand ↔ Figure3, Figure3 sharpness within the existing 1280×720
+source limit, A/B flash, ghosting, and viewport rebound. Until that matrix is
+recorded against the immutable candidate, the implementation is automation-
+complete but not P0/release complete.

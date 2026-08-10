@@ -2014,6 +2014,28 @@ test('Hero lifecycle recovery completes an in-flight entrance without replaying 
   );
 });
 
+test('Hero to Pattern and back restores Figure1 without replaying Loader entrance', async ({
+  page
+}) => {
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+  await waitForContinuousStoryReady(page);
+  const loader = page.locator('[data-story-loader="true"]');
+  await expect(loader).toHaveAttribute('data-loader-status', 'hidden');
+
+  await traverseCompleteStoryLeg(page, 'hero', 'pattern', 'forward');
+  await traverseCompleteStoryLeg(page, 'pattern', 'hero', 'reverse');
+
+  const playback = page.locator('[data-portrait-figure-video]');
+  await expect(loader).toHaveAttribute('data-loader-status', 'hidden');
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'autoplay', {
+    timeout: 10_000
+  });
+  const before = await playback.evaluate((video) => video.currentTime);
+  await page.waitForTimeout(400);
+  const after = await playback.evaluate((video) => video.currentTime);
+  expect(after).toBeGreaterThan(before);
+});
+
 test('formal contract keeps every real viewport edge opaque', async ({ page }) => {
   let releaseVideo = () => undefined;
   const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });

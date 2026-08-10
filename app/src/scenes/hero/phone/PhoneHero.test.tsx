@@ -189,6 +189,41 @@ describe('clean PhoneHero leaf', () => {
     expect(Number(copy.style.opacity)).toBe(1);
   });
 
+  it('starts stable-idle Figure1 for a freshly mounted reverse Hero-pattern arrival', async () => {
+    const fixture = reportFixture();
+    await act(async () => {
+      root.render(<PhoneHero reports={fixture.reports} />);
+    });
+    const video = host.querySelector<HTMLVideoElement>('[data-portrait-figure-video]');
+    const scene = host.querySelector<HTMLElement>('.portrait-scroll-spike__scene--hero');
+    if (!video || !scene) throw new Error('missing reverse Hero arrival surface');
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+    const commands = fixture.registration()?.commands as PhoneHeroMigrationCommands;
+    commands.rebind({
+      reports: fixture.reports,
+      frameToken: 'hero:pattern:reverse:1',
+      segmentId: 'hero-pattern',
+      direction: 'reverse'
+    });
+
+    await act(async () => {
+      commands.settle(0);
+    });
+
+    expect(scene.dataset.portraitHeroEntrance).toBe('complete');
+    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();
+
+    commands.setMediaPhase?.({
+      phase: 'primed', runToken: 'hero:pattern:reverse:1', direction: 'reverse', stageIndex: 0
+    });
+    commands.setMediaPhase?.({
+      phase: 'held', runToken: 'hero:pattern:reverse:1', direction: 'reverse', stageIndex: 0,
+      endpoint: 0
+    });
+    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
+  });
+
   it('starts the authored Figure1 ambient clock after the visible Hero entrance settles', async () => {
     const fixture = reportFixture();
     await act(async () => {
