@@ -1,7 +1,7 @@
 # R5 phone visual-lease P0 checkpoint
 
 Date: 2026-08-10  
-Source: `daa72ad61dae7f5e5026792c58abb4ae254becea`
+Source: `047119a75deab5ab1936da97652669231a3f0cb0`
 
 ## Scope
 
@@ -26,7 +26,8 @@ This checkpoint records automated evidence for the visual-lease closure work. It
 - Chromium: 38 passed, 1 WebKit-only test skipped.
 - WebKit: 39 passed.
 - Focused Figure2 physical/dynamic coverage and PH token-bound reverse: Chromium 3/3, WebKit 3/3.
-- Final artifact rebuild is bound to source commit `daa72ad...`.
+- The full browser matrix ran on the preceding docs-only checkpoint; the post-`047119a` exact media-time stamp was rechecked by the PH reverse test on both engines (1/1 each).
+- Final artifact rebuild is bound to source commit `047119a...`.
 
 ## Release blockers remaining
 
