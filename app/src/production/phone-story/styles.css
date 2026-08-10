@@ -61,6 +61,15 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   z-index: 72;
 }
 
+/* A target arch is mounted before the receiver is allowed to paint. Keep it
+ * out of the compositor until the same live transition boundary admits the
+ * receiver, otherwise the retained foreground can preflash over preparation. */
+.phone-story[data-phone-status="transaction"][data-phone-source-scene]:not([data-phone-transition-live])
+  .phone-story__retained-figure2-arch-layer[data-phone-figure2-arch-owner="target"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
 .phone-story__planes {
   inset: 0;
   isolation: isolate;
@@ -130,6 +139,7 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   clip-path: var(--phone-target-clip);
   mask-image: var(--phone-target-mask);
   opacity: var(--phone-target-opacity);
+  visibility: visible;
   -webkit-clip-path: var(--phone-target-clip);
   -webkit-mask-image: var(--phone-target-mask);
 }

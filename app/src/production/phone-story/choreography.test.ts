@@ -57,7 +57,7 @@ const activationOwners = {
   'method-bottom-figure2': 'none',
   'figure2-distance-expand': 'source',
   'figure2-proof-brand': 'none',
-  'brand-figure3': 'none',
+  'brand-figure3': 'target',
   'figure3-services': 'source',
   'services-ttg': 'target',
   'ttg-lab': 'source',

@@ -184,7 +184,7 @@ export const phoneSegmentChoreography = Object.freeze({
     1, ['smooth', .748, .9832]
   ),
   'figure2-proof-brand': choreography(1, 1, 'linear', 'none', 'none'),
-  'brand-figure3': choreography(1, 0, 'linear', 'none', 'none', 1, 1,
+  'brand-figure3': choreography(1, 0, 'linear', 'target', 'none', 1, 1,
     'canonical-source'),
   'figure3-services': choreography(
     ['smooth', 0, .96], ['smooth', .8, .94], 'linear', 'source', 'source',

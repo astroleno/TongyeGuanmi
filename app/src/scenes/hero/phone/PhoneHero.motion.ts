@@ -39,6 +39,7 @@ export type PhoneFigureSource = Readonly<{
 
 export type PhoneFigurePlayback = Readonly<{
   setActive(active: boolean): void;
+  startStableIdle(): void;
   scrub(progress: number): void;
   settle(): void;
   primeFromGesture(onRejected?: (error: unknown) => void): Promise<void>;
@@ -128,10 +129,13 @@ export function createPhoneFigurePlayback(
   let active = false;
   let disposed = false;
   let lastProgress = 0;
+  let stableIdle = false;
   let playAttempt = 0;
   let primeGeneration = 0;
 
-  const canAutoplay = () => active && lastProgress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS;
+  const canAutoplay = () => active && (
+    stableIdle || lastProgress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS
+  );
 
   const playAmbient = () => {
     if (disposed || !canAutoplay()) {
@@ -195,6 +199,7 @@ export function createPhoneFigurePlayback(
       if (active !== nextActive) primeGeneration += 1;
       active = nextActive;
       if (!active) {
+        stableIdle = false;
         playAttempt += 1;
         video.pause();
         video.dataset.phoneFigurePlayback = 'paused';
@@ -206,11 +211,16 @@ export function createPhoneFigurePlayback(
         video.dataset.phoneFigurePlayback = 'scrub-ready';
       }
     },
+    startStableIdle() {
+      stableIdle = true;
+      playAmbient();
+    },
     scrub(rawProgress) {
       if (disposed || !active) {
         return;
       }
       const progress = clamp(rawProgress);
+      stableIdle = false;
       const direction = progress >= lastProgress ? 1 : -1;
       lastProgress = progress;
 

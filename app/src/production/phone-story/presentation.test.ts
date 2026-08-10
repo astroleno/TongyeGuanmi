@@ -884,6 +884,8 @@ describe('phone presentation fixed topology and Hero zero contract', () => {
     expect(styles).toMatch(/\.phone-story__coverage\s*\{[^}]*z-index:\s*0/s);
     expect(styles).toMatch(/\.phone-story__coverage\s*\{[^}]*inset:\s*-96px/s);
     expect(styles).toMatch(/\.stage-proof-retained-arch\[data-phone-figure2-arch-ready="false"\]\s*\{[^}]*visibility:\s*hidden/s);
+    expect(styles).toMatch(/\.phone-story\[data-phone-status="transaction"\]\[data-phone-source-scene\]:not\(\[data-phone-transition-live\]\)[\s\S]*?data-phone-figure2-arch-owner="target"[\s\S]*?visibility:\s*hidden/s);
+    expect(styles).toMatch(/data-phone-transition-live[\s\S]*?data-phone-figure2-arch-owner="target"[\s\S]*?visibility:\s*visible/s);
     expect(styles).toMatch(/\[data-phone-plane="source"\][^{]*\{[^}]*z-index:\s*10/s);
     expect(styles).toMatch(/\[data-phone-plane="receiver"\][^{]*\{[^}]*z-index:\s*30/s);
     expect(styles).not.toMatch(/\.phone-story__coverage::(?:before|after)/);

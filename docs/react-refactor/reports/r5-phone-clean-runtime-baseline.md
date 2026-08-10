@@ -1126,3 +1126,52 @@ input, Star Map and Figure3 sharpness, A/B flash, Figure2 ghosting/arch blur,
 and viewport rebound. Until that matrix is recorded against a frozen candidate
 commit/build, this implementation is automation-complete but not P0/release
 complete.
+
+## 13. 2026-08-10 media-handoff root-cause execution evidence
+
+This section records the execution of
+`2026-08-10-001-fix-phone-media-handoff-root-causes-plan.md`. It is candidate
+evidence, not physical-device acceptance.
+
+### 13.1 Closed implementation contracts
+
+- Hero now has an explicit stable-idle start signal. The visible entrance can
+  finish without fabricating segment progress, and the Figure1 media clock
+  advances only after Hero is stable.
+- AOD switches its packed-alpha surface to `forward` before formal playback,
+  validates the current Canvas frame before hiding the poster, and hides the
+  confirmed StoryNav owner through the shell scene policy rather than a local
+  overlay.
+- The retained Figure2 arch is hidden while a target receiver prepares and is
+  admitted with the target transition boundary; direct/stable Figure2 entry
+  keeps the arch visible.
+- Brand → Figure3 grants target activation without granting a media clock.
+  The same video is primed and proved at frame zero when available; the
+  existing poster is only a bounded initial-composite fallback. Figure3 →
+  Services remains the sole Figure3 playback segment.
+
+### 13.2 Fresh automated evidence
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Vitest | pass | 177 files, 1,347 tests |
+| TypeScript | pass | `pnpm typecheck`, no diagnostics |
+| Focused production-leaf probes | pass | Hero stable idle, AOD visible playback/chrome, Figure2 arch admission, Figure3 activation/fallback |
+| Phone portrait WebKit full suite | pass | 69/69, one worker |
+| Source hygiene | pass | `git diff --check` |
+
+The full WebKit suite also includes the complete 60-segment traversal, real
+media-time assertions for Hero/AOD/Figure2/PH/Crane, atomic exposed-buffer
+checks, and the bounded Figure3 poster-fallback case. A single long-suite
+Crane direct-entry timeout was reproduced as a timing flake and passed on the
+immediate isolated rerun; the fresh complete suite then passed 69/69.
+
+### 13.3 Remaining release gate
+
+The candidate commit/build identity must be used for iPhone testing; a dirty
+workspace or pre-freeze build is not an acceptance artifact. Physical iPhone
+Safari remains mandatory for touch input, normal and Low Power Mode, toolbar
+changes, background/foreground, AOD → Method, Figure2 arch continuity,
+Brand ↔ Figure3, Figure3 sharpness within the existing 1280×720 source limit,
+A/B flash, ghosting, and viewport rebound. Until that matrix is recorded,
+these automated results do not close the physical P0.

@@ -535,7 +535,8 @@ function segmentActivation(
   void _direction;
   // The selected media clock owner activates in both directions. Projection
   // swaps canonical source/target ownership for the reverse leg.
-  return activeClockSegments.has(id) ? activeActivation() : inactiveActivation();
+  return activeClockSegments.has(id) || id === 'brand-figure3'
+    ? activeActivation() : inactiveActivation();
 }
 
 function expectedScene(entry: typeof scenes[number]) {

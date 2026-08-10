@@ -612,7 +612,7 @@ export function PhoneStoryShell({
     && phoneSceneById(stableScene).plane === 'native'
     && (snapshot.status === 'stable' || reprojectingCommittedScene);
   const navigationVisible = interactionEnabled && snapshot.status === 'stable'
-    && stableScene !== null && stableScene !== 'hero' && stableScene !== 'pattern'; const directActivationFallback = snapshot.status === 'transaction'
+    && stableScene !== null && stableScene !== 'hero' && stableScene !== 'pattern' && stableScene !== 'aod-animation'; const directActivationFallback = snapshot.status === 'transaction'
     && snapshot.transaction.mode !== 'segment'
     && snapshot.transaction.phase === 'awaiting-media-activation';
   const moduleFault = faulted && snapshot.status === 'faulted' && (snapshot.fault.code.includes('module') || snapshot.fault.code.includes('chunk')); const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;

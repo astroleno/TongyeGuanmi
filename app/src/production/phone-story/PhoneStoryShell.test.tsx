@@ -925,8 +925,15 @@ describe('clean PhoneStoryShell ownership', () => {
 
     act(() => engine.publish({
       ...stableSnapshot(),
-      stableCommit: { sceneId: 'star-map', landing: {}, commitSequence: 3 },
+      stableCommit: { sceneId: 'aod-animation', landing: {}, commitSequence: 3 },
       presentationProof: { commitSequence: 3, planeRevision: 3 }
+    }));
+    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('false');
+
+    act(() => engine.publish({
+      ...stableSnapshot(),
+      stableCommit: { sceneId: 'star-map', landing: {}, commitSequence: 4 },
+      presentationProof: { commitSequence: 4, planeRevision: 4 }
     }));
     expect(nav?.getAttribute('data-phone-nav-visible')).toBe('true');
     act(() => root.unmount());

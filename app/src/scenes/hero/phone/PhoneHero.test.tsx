@@ -32,7 +32,11 @@ vi.mock('../../../media/packed-alpha-video', async () => {
   };
 });
 
-import { PhoneHero } from './PhoneHero';
+import {
+  PHONE_HERO_MIGRATION_CONTROL,
+  PhoneHero,
+  type PhoneHeroMigrationCommands
+} from './PhoneHero';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -183,6 +187,25 @@ describe('clean PhoneHero leaf', () => {
     commands.settle(1);
 
     expect(Number(copy.style.opacity)).toBe(1);
+  });
+
+  it('starts the authored Figure1 ambient clock after the visible Hero entrance settles', async () => {
+    const fixture = reportFixture();
+    await act(async () => {
+      root.render(<PhoneHero reports={fixture.reports} />);
+    });
+    const video = host.querySelector<HTMLVideoElement>('[data-portrait-figure-video]');
+    if (!video) throw new Error('missing Hero Figure1 video');
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+    const commands = fixture.registration()?.commands as PhoneHeroMigrationCommands;
+
+    await act(async () => {
+      commands.settle(1);
+      commands[PHONE_HERO_MIGRATION_CONTROL].completeEntrance();
+    });
+
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
   });
 
   it('keeps the migration leaf free of legacy authority and adopts the reviewed subtitle font', () => {

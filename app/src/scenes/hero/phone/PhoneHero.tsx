@@ -208,6 +208,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
   const completeEntrance = useCallback(() => {
     cancelEntrance();
     renderEntrance(1);
+    playbackRef.current?.startStableIdle();
   }, [cancelEntrance, renderEntrance]);
 
   const startEntrance = useCallback(() => {
@@ -216,7 +217,10 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
     renderEntrance(0);
     disposeEntranceRef.current = startHeroIntro({
       render: (sample) => renderEntrance(sample.progress),
-      onComplete: () => { disposeEntranceRef.current = null; }
+      onComplete: () => {
+        disposeEntranceRef.current = null;
+        playbackRef.current?.startStableIdle();
+      }
     });
   }, [cancelEntrance, renderEntrance]);
 

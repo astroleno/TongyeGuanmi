@@ -17,6 +17,7 @@ const surfaceProbe = vi.hoisted(() => ({
     onFrame?(frame: Readonly<{ canvas: HTMLCanvasElement; generation: number }>): void;
   }>,
   activate: vi.fn(() => 1),
+  setMode: vi.fn(),
   render: vi.fn(() => true),
   release: vi.fn(),
   dispose: vi.fn()
@@ -42,6 +43,7 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
     surfaceProbe.options = options;
     return {
       activate: surfaceProbe.activate,
+      setMode: surfaceProbe.setMode,
       render: surfaceProbe.render,
       release: surfaceProbe.release,
       dispose: surfaceProbe.dispose
@@ -82,6 +84,7 @@ describe('clean PhoneAod leaf', () => {
   beforeEach(() => {
     surfaceProbe.options = null;
     surfaceProbe.activate.mockReset().mockReturnValue(1);
+    surfaceProbe.setMode.mockReset();
     surfaceProbe.render.mockReset().mockReturnValue(true);
     surfaceProbe.release.mockReset();
     surfaceProbe.dispose.mockReset();
@@ -185,6 +188,30 @@ describe('clean PhoneAod leaf', () => {
     expect(pause).toHaveBeenCalledTimes(pauseCount);
     expect(current.reports.reportFailure).not.toHaveBeenCalledWith(
       expect.objectContaining({ code: 'aod-activation-playback-rejected' })
+    );
+  });
+
+  it('switches the packed surface to forward before formal AOD playback', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const current = reportFixture();
+    const commands = mount.registration()!.commands;
+    const runToken = 'aod:forward-mode:1';
+    commands.rebind({ reports: current.reports, frameToken: runToken });
+    commands.activate({
+      invocationId: 'activation:forward-mode',
+      surfaceIds: ['aod-figure-video'],
+      credit: 'physical-epoch', playback: true,
+      direction: 'forward', runToken
+    });
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken, direction: 'forward', stageIndex: 0
+    });
+
+    expect(surfaceProbe.setMode).toHaveBeenCalledWith('forward');
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    expect(surfaceProbe.setMode.mock.invocationCallOrder[0]).toBeLessThan(
+      play.mock.invocationCallOrder.at(-1) ?? Number.POSITIVE_INFINITY
     );
   });
 
@@ -319,6 +346,7 @@ describe('clean PhoneAod leaf', () => {
     });
     expect(mount.registration()!.root.dataset.phoneAodPlaybackFrame).toBe('awaiting');
     const initialCanvas = mount.registration()!.surfaces[2]!.element;
+    (initialCanvas as HTMLCanvasElement).dataset.packedAlphaFrameReady = 'true';
     surfaceProbe.options?.onFrame?.({
       canvas: initialCanvas as HTMLCanvasElement, generation: 0
     });

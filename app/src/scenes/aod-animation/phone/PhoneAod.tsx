@@ -326,6 +326,10 @@ export function PhoneAod({ reports }: PhoneAodProps) {
           video.pause();
           return;
         }
+        // The initial mode only accepts a paused frame at time zero. Promote
+        // the same generation before play() so the compositor never removes
+        // the Canvas-ready latch when formal forward playback begins.
+        surfaceRef.current?.setMode?.('forward');
         const runToken = command.runToken;
         let playback: Promise<void>;
         try { playback = Promise.resolve(video.play()); }
@@ -453,7 +457,8 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       onFrame: ({ canvas: drawnCanvas, generation }) => {
         const binding = bindingRef.current;
         if (!binding || disposedRef.current || generation !== surfaceGenerationRef.current
-          || drawnCanvas !== canvasRef.current) return;
+          || drawnCanvas !== canvasRef.current
+          || drawnCanvas.dataset.packedAlphaFrameReady !== 'true') return;
         root.dataset.phoneAodPlaybackFrame = 'ready';
         binding.reports.reportFrame('aod-figure-canvas', {
           kind: 'frame',

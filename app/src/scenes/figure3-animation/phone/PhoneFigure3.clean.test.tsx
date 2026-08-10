@@ -214,7 +214,7 @@ describe('clean PhoneFigure3 leaf', () => {
         settlement.status === 'pending' ? [settlement.settled] : []
       )) ?? []);
     });
-    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();
     expect(current.reports.reportFrame).toHaveBeenCalledWith(
       'figure3-paper-canvas', expect.objectContaining({
         kind: 'frame', token: 'figure3:frame:2', presented: true
@@ -401,9 +401,12 @@ describe('clean PhoneFigure3 leaf', () => {
     });
     const video = host.querySelector('video');
     const canvas = host.querySelector('[data-phone-figure3-paper-canvas]');
+    const poster = host.querySelector('[data-phone-figure3-paper-poster]');
     if (!(video instanceof HTMLVideoElement) || !(canvas instanceof HTMLCanvasElement)) {
       throw new Error('missing Figure3 causal surfaces');
     }
+    poster?.dispatchEvent(new Event('load'));
+    await Promise.resolve();
     canvas.dataset.phoneFigure3PaperFrame = 'ready';
     canvas.dataset.phoneFigure3PaperEndpoint = 'initial';
     video.currentTime = 0;
@@ -421,7 +424,12 @@ describe('clean PhoneFigure3 leaf', () => {
       throw new Error('missing Figure3 causal settlement');
     }
 
-    await expect(settlement.settled).rejects.toThrow('Figure3 decoded frame was not painted');
+    await expect(settlement.settled).resolves.toBeUndefined();
+    expect(current.reports.reportPrepared).toHaveBeenCalledWith(
+      'figure3-initial-composite', expect.objectContaining({
+        detail: expect.objectContaining({ winner: 'poster-fallback' })
+      })
+    );
     expect(current.reports.reportFrame).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
@@ -496,6 +504,7 @@ describe('clean PhoneFigure3 leaf', () => {
     if (!settlement || settlement.status !== 'pending') {
       throw new Error('missing Figure3 pending activation settlement');
     }
+    await Promise.resolve();
     await Promise.resolve();
     expect(probe.prepareFrame).toHaveBeenCalledOnce();
 

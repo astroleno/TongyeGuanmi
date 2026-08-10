@@ -1889,6 +1889,14 @@ test('Hero Loader handoff starts at zero under one fixed opaque topology', async
   await assertNoIntermediateWhiteOrBlackFrame(provenExitFrames, { tolerance: 3 });
   await expect(loader).toHaveAttribute('data-loader-status', 'hidden');
   await assertTargetContentVisible(page, ['#portrait-spike-home']);
+  const stableHeroPlayback = page.locator('[data-portrait-figure-video]');
+  await expect(stableHeroPlayback).toHaveAttribute(
+    'data-phone-figure-playback', 'autoplay', { timeout: 10_000 }
+  );
+  const heroTimeBefore = await stableHeroPlayback.evaluate((video) => video.currentTime);
+  await page.waitForTimeout(400);
+  const heroTimeAfter = await stableHeroPlayback.evaluate((video) => video.currentTime);
+  expect(heroTimeAfter).toBeGreaterThan(heroTimeBefore);
   await assertNoWhiteOrTransparentViewportEdges(page);
 });
 
@@ -1989,6 +1997,7 @@ test('AOD only advances its packed-alpha source after its outgoing trusted input
   await page.goto('/#aod-animation', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'aod-animation', 0);
   await expect(page.locator('[data-phone-aod-figure-poster]')).toBeVisible();
+  await expect(page.locator('.site-nav')).toHaveAttribute('data-visible', 'false');
   const playback = page.waitForFunction(() => new Promise<readonly {
     currentTime: number;
   }[]>((resolve, reject) => {
@@ -2010,6 +2019,12 @@ test('AOD only advances its packed-alpha source after its outgoing trusted input
     const sample = () => {
       const shell = document.querySelector<HTMLElement>('.phone-story');
       const video = document.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+      const canvas = document.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
+      const canvasVisible = canvas
+        ? getComputedStyle(canvas).visibility !== 'hidden'
+          && Number(getComputedStyle(canvas).opacity) > 0
+          && canvas.getBoundingClientRect().height > 0
+        : false;
       if (shell?.dataset.phoneStatus === 'faulted'
         || document.querySelector('[data-phone-activation]:not([hidden])')) {
         clearTimeout(deadline);
@@ -2021,7 +2036,8 @@ test('AOD only advances its packed-alpha source after its outgoing trusted input
         '.portrait-scroll-spike__scene--aod'
       )?.dataset.phoneAodPlaybackFrame === 'ready';
       if (shell?.dataset.phonePhase === 'playing'
-        && video && video.currentTime > .01 && timelineReady && compositorReady) {
+        && video && video.currentTime > .01 && timelineReady && compositorReady
+        && canvas?.dataset.packedAlphaFrameReady === 'true' && canvasVisible) {
         const previous = samples.at(-1);
         if (!previous || previous.currentTime !== video.currentTime) {
           samples.push({ currentTime: video.currentTime });
@@ -2050,7 +2066,7 @@ test('Grade A direct entries expose the requested target before Loader retiremen
   page
 }) => {
   for (const scene of Object.keys(GRADE_A_CONTENT) as Array<keyof typeof GRADE_A_CONTENT>) {
-    await page.goto(`/${GRADE_A_HASH[scene]}`, {
+    await page.goto(`/?r5-direct=${scene}${GRADE_A_HASH[scene]}`, {
       waitUntil: 'domcontentloaded'
     });
     await waitForDirectEntryCommit(page, scene);
@@ -2132,6 +2148,56 @@ test('Figure2 staged media holds its midpoint during the real z-depth leg', asyn
   expect(Math.max(...held.map(({ currentTime }) => currentTime))
     - Math.min(...held.map(({ currentTime }) => currentTime))).toBeLessThan(0.08);
   expect(held.at(-1)!.currentTime).toBeCloseTo(2.6, 1);
+});
+
+test('Figure2 retained arch enters with the target boundary and survives commit', async ({ page }) => {
+  await page.goto('/#method-top', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'method-top', 0);
+  await waitForContinuousStoryReady(page);
+  await sendFrontIntent(page, 'forward');
+  const arch = page.locator('[data-stage-retained-figure2-arch="true"]');
+  await page.waitForFunction(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    const target = document.querySelector<HTMLElement>(
+      '.phone-story__retained-figure2-arch-layer[data-phone-figure2-arch-owner="target"]'
+    );
+    return shell?.dataset.phoneCandidateScene === 'figure2-animation'
+      && shell.dataset.phoneStatus === 'transaction'
+      && !shell.hasAttribute('data-phone-transition-live')
+      && target !== null;
+  }, undefined, { timeout: 15_000 });
+  const preparing = await arch.evaluate((element) => ({
+    visibility: getComputedStyle(element).visibility,
+    opacity: Number(getComputedStyle(element).opacity),
+    ready: element.getAttribute('data-phone-figure2-arch-ready')
+  }));
+  expect(preparing.visibility).toBe('hidden');
+  expect(preparing.opacity).toBe(0);
+
+  await page.waitForFunction(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    const arch = document.querySelector<HTMLImageElement>(
+      '[data-stage-retained-figure2-arch="true"]'
+    );
+    return shell?.hasAttribute('data-phone-transition-live')
+      && arch?.dataset.phoneFigure2ArchReady === 'true';
+  }, undefined, { timeout: 15_000 });
+  const live = await arch.evaluate((element) => ({
+    visibility: getComputedStyle(element).visibility,
+    opacity: Number(getComputedStyle(element).opacity)
+  }));
+  expect(live.visibility).toBe('visible');
+  expect(live.opacity).toBeGreaterThan(0);
+
+  await waitForCommitSequence(page, 'figure2-animation', 0);
+  const stable = await arch.evaluate((element) => ({
+    visibility: getComputedStyle(element).visibility,
+    opacity: Number(getComputedStyle(element).opacity),
+    owner: element.parentElement?.getAttribute('data-phone-figure2-arch-owner')
+  }));
+  expect(stable.visibility).toBe('visible');
+  expect(stable.opacity).toBeGreaterThan(0);
+  expect(stable.owner).toBeNull();
 });
 
 test('Figure2 reverse z-depth keeps only the paused endpoint Canvas visible', async ({ page }) => {
@@ -2556,7 +2622,7 @@ test('Figure3 static Brand handoff ignores a withheld terminal compositor frame'
     .evaluate((video) => video.paused)).toBe(true);
 });
 
-test('Figure3 reverse media handoff rolls back when its initial compositor frame is withheld', async ({ page }) => {
+test('Figure3 reverse media handoff uses the bounded poster fallback when its initial compositor frame is withheld', async ({ page }) => {
   const withhold = await withholdFigure3Endpoint(page, 'initial');
   await page.goto('/#figure3-animation', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'figure3-animation', 0);
@@ -2569,11 +2635,13 @@ test('Figure3 reverse media handoff rolls back when its initial compositor frame
     '[data-phone-plane="effect"] [data-r4-ink-segment="figure3-services"], '
       + '[data-phone-plane="effect"] [data-phone-transition="figure3-services"]'
   )).toBeAttached({ timeout: 10_000 });
-  await expectFigure3SliceRollback(
-    page, 'services', 'figure3-animation', 'reverse', before
-  );
+  await waitForCommitSequence(page, 'figure3-animation', before);
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
-  await assertTargetContentVisible(page, FIGURE3_SLICE_CONTENT.services);
+  await expect(page.locator('.phone-figure3'))
+    .toHaveAttribute('data-phone-figure3-initial-surface', 'poster-fallback');
+  await expect(page.locator('[data-phone-figure3-paper-poster]')).toBeVisible();
+  await expect.poll(() => page.locator('.phone-figure3 video')
+    .evaluate((video) => video.paused)).toBe(true);
 });
 
 test('Figure3 slice refuses hidden Services content and preserves the compositor source', async ({
