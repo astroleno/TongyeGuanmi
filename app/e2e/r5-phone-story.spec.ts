@@ -4697,9 +4697,12 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
       '.portrait-scroll-spike__viewport-coverage'
     );
     const rect = coverage?.getBoundingClientRect();
+    const coverageCamera = coverage
+      ? getComputedStyle(coverage, '::before')
+      : null;
     return {
       samples: probe?.samples ?? [],
-      coverageImage: coverage ? getComputedStyle(coverage).backgroundImage : '',
+      coverageImage: coverageCamera?.backgroundImage ?? '',
       coverageBottom: rect?.bottom ?? 0,
       viewportBottom: (window.visualViewport?.offsetTop ?? 0)
         + (window.visualViewport?.height ?? window.innerHeight)
