@@ -235,6 +235,29 @@ describe('clean PhoneHero leaf', () => {
     expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
   });
 
+  it('completes a running Hero entrance when lifecycle recovery interrupts it', async () => {
+    const fixture = reportFixture();
+    await act(async () => {
+      root.render(<PhoneHero reports={fixture.reports} />);
+    });
+    const video = host.querySelector<HTMLVideoElement>('[data-portrait-figure-video]');
+    const scene = host.querySelector<HTMLElement>('.portrait-scroll-spike__scene--hero');
+    if (!video || !scene) throw new Error('missing Hero lifecycle surface');
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+    const commands = fixture.registration()?.commands as PhoneHeroMigrationCommands;
+
+    commands.settle(1);
+    expect(scene.dataset.portraitHeroEntrance).toBe('playing');
+
+    commands.pause('hidden');
+    await act(async () => {
+      commands.settle(0);
+    });
+
+    expect(scene.dataset.portraitHeroEntrance).toBe('complete');
+    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
+  });
+
   it('keeps the migration leaf free of legacy authority and adopts the reviewed subtitle font', () => {
     expect(source).not.toMatch(/production\/phone\/(?:types|runtime|usePhone|phone-media)/);
     expect(source).not.toMatch(/addEventListener\(['"](?:pointer|touch|deviceorientation|wheel|keydown)/);

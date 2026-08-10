@@ -1950,6 +1950,70 @@ test('stable Hero resumes Figure1 after visibility and BFCache lifecycle recover
   expect(after).toBeGreaterThan(before);
 });
 
+test('Hero lifecycle recovery completes an in-flight entrance without replaying Loader', async ({
+  page
+}) => {
+  let releaseVideo = () => undefined;
+  const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });
+  await page.addInitScript(() => {
+    const visibility = { current: 'visible' as DocumentVisibilityState };
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true, get: () => visibility.current
+    });
+    Object.defineProperty(window, '__r5SetVisibility', {
+      configurable: true,
+      value: (next: DocumentVisibilityState) => {
+        visibility.current = next;
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+    });
+  });
+  await page.route(/figure1-rgb-alpha.*\.mp4/, async (route) => {
+    await videoGate;
+    await route.continue();
+  });
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+  const hero = page.locator('.portrait-scroll-spike__scene--hero');
+  await expect(hero).toBeAttached();
+  releaseVideo();
+  await waitForCommitSequence(page, 'hero', 0);
+  await expect(page.locator('[data-story-loader="true"]')).toHaveAttribute(
+    'data-loader-status', 'exiting', { timeout: 10_000 }
+  );
+  await page.waitForFunction(() => {
+    const scene = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--hero');
+    const progress = Number(scene?.dataset.heroProgress ?? 0);
+    return progress > 0 && progress < 1;
+  }, undefined, { timeout: 5_000 });
+
+  await page.evaluate(() => {
+    const api = window as typeof window & {
+      __r5SetVisibility(next: DocumentVisibilityState): void;
+    };
+    api.__r5SetVisibility('hidden');
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+  });
+  const playback = page.locator('[data-portrait-figure-video]');
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'paused', {
+    timeout: 5_000
+  });
+
+  await page.evaluate(() => {
+    const api = window as typeof window & {
+      __r5SetVisibility(next: DocumentVisibilityState): void;
+    };
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    api.__r5SetVisibility('visible');
+  });
+  await expect(hero).toHaveAttribute('data-hero-progress', '1.0000', { timeout: 10_000 });
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'autoplay', {
+    timeout: 10_000
+  });
+  await expect(page.locator('[data-story-loader="true"]')).toHaveAttribute(
+    'data-loader-status', 'hidden', { timeout: 5_000 }
+  );
+});
+
 test('formal contract keeps every real viewport edge opaque', async ({ page }) => {
   let releaseVideo = () => undefined;
   const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });

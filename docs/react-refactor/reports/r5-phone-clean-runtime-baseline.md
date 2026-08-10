@@ -1210,8 +1210,18 @@ unchanged.
 The full suite includes the new visibility/BFCache Hero recovery traversal and
 the existing withheld-frame, poster-fallback, atomic-buffer, and complete
 60-segment checks. A candidate commit, release manifest, and build identity
-must still be created from the clean source after this follow-up; no dirty
-build is a physical acceptance artifact.
+were then frozen for candidate v22:
+
+- commit: `50624bbb2fac569bc915d60f189133e6e0a8b71e`
+- annotated tag: `react-refactor-r5-parity-repair-candidate-v22`
+- tag object: `c5a78a1e998e409ed0ecb09b55c1d6d6ebbffddc`
+- artifact tree: `048ba28956369f1d966ee4e6873a18d8e356699fc828b8a09b7fbc44671b4ad8`
+- release manifest: `8d41e167a241f081705243e46c0221e93fe25e9c5e153ac6f75dfd4d9f5755cc`
+- `sourceDirty`: `false`
+
+The later in-flight-entrance review finding supersedes v22 for final physical
+acceptance. The current follow-up is the source change for the newer immutable
+candidate; no dirty build is a physical acceptance artifact.
 
 ### 14.3 Remaining release gate
 
@@ -1220,4 +1230,40 @@ Mode, toolbar changes, background/foreground, AOD → Method, Figure2 arch
 continuity, Brand ↔ Figure3, Figure3 sharpness within the existing 1280×720
 source limit, A/B flash, ghosting, and viewport rebound. Until that matrix is
 recorded against the immutable candidate commit/build, the implementation is
+automation-complete but not P0/release complete.
+
+## 15. 2026-08-10 in-flight Hero entrance lifecycle follow-up
+
+This addendum closes the remaining Hero lifecycle review gap discovered after
+candidate v22.
+
+### 15.1 Closed review finding
+
+- Hero now tracks `idle`, `running`, and `completed` entrance states. Lifecycle
+  pause cancels only the scheduled animation frame while retaining `running`.
+  Recovery that lands on a running Hero completes that already-started entrance
+  and restores stable-idle Figure1 playback; it does not replay Loader.
+
+### 15.2 Fresh automated evidence
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Focused Hero unit tests | pass | 10/10, including interrupted entrance recovery |
+| Vitest | pass | 177 files, 1,351 tests |
+| TypeScript and production build | pass | phone JS 658,916 B; hard-cap headroom 4,636 B |
+| Focused phone WebKit | pass | interrupted entrance recovery, 1/1 |
+| Phone portrait WebKit full suite | pass | 71/71, one worker, 9.4 min |
+| Source hygiene | pass | `git diff --check` |
+
+The next candidate commit contains this follow-up and must be the only source
+used for physical acceptance. The generated release manifest is the authority
+for its immutable commit, tag, artifact tree, and `sourceDirty` identity.
+
+### 15.3 Remaining release gate
+
+Physical iPhone Safari remains mandatory for normal and Low Power Mode,
+toolbar changes, background/foreground during and after Hero entrance, touch
+input, AOD → Method, Figure2 arch continuity, Brand ↔ Figure3, Figure3
+sharpness within the existing 1280×720 source limit, A/B flash, ghosting, and
+viewport rebound. Until that matrix is recorded, the implementation is
 automation-complete but not P0/release complete.
