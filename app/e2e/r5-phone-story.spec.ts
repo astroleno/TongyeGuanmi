@@ -1875,9 +1875,14 @@ async function installPhoneVisualLeaseProbe(page: Page): Promise<void> {
       const scene = canvas.closest<HTMLElement>('[data-phone-scene], [data-r4-scene]');
       const video = scene?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')
         ?? scene?.querySelector<HTMLVideoElement>('[data-crane-alpha-video]');
-      const mediaTime = video && Number.isFinite(video.currentTime)
-        ? video.currentTime
-        : Number.parseFloat(canvas.dataset.packedAlphaMediaTime ?? '');
+      const stampedMediaTime = Number.parseFloat(
+        canvas.dataset.packedAlphaMediaTime ?? ''
+      );
+      const mediaTime = Number.isFinite(stampedMediaTime)
+        ? stampedMediaTime
+        : video && Number.isFinite(video.currentTime)
+          ? video.currentTime
+          : Number.NaN;
       probe.draws.push({
         at: performance.now(),
         authority: root?.dataset.phoneAuthorityId ?? null,

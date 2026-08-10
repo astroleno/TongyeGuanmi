@@ -495,6 +495,9 @@ export function createPackedAlphaVideoCompositor(
     }
     gl.useProgram(program);
     gl.uniform1f(texelLocation, 1 / Math.max(2, video.videoWidth));
+    // Stamp the decoder time before the draw so instrumentation attached to
+    // the WebGL call observes the exact media sample used by this frame.
+    canvas.dataset.packedAlphaMediaTime = video.currentTime.toFixed(4);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     if (!packedAlphaFrameProofSatisfied(gl)) {
       contextLost = gl.isContextLost();
@@ -504,7 +507,6 @@ export function createPackedAlphaVideoCompositor(
     canvas.dataset.packedAlphaStatus = 'ready';
     canvas.dataset.packedAlphaFrameReady = 'true';
     canvas.dataset.packedAlphaFrame = String(renderedFrames);
-    canvas.dataset.packedAlphaMediaTime = video.currentTime.toFixed(4);
     options.onFrame?.();
     return 'rendered';
   };
