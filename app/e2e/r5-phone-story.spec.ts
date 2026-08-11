@@ -5287,11 +5287,15 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
     const samples: Array<{ time: number; timelineRun: string | null }> = [];
     const sample = () => {
       const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      const figure2 = document.querySelector<HTMLElement>(
+        '[data-r4-scene="figure2-animation"]'
+      );
       const video = document.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
       if (
         video
         && root?.dataset.phoneCursor === 'transition:method-figure2:0'
         && root.dataset.phoneTransitionDirection === '-1'
+        && figure2?.dataset.phoneSurfaceRole === 'transition-source'
       ) {
         samples.push({
           time: Number(video.currentTime.toFixed(4)),
@@ -5327,8 +5331,28 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
   ).toBe(true);
   expect(
     Math.max(...reversePark.map((sample) => sample.time))
-      - Math.min(...reversePark.map((sample) => sample.time))
+      - Math.min(...reversePark.map((sample) => sample.time)),
+    JSON.stringify(reversePark)
   ).toBeLessThanOrEqual(.01);
+  const releasedPlayhead = await page.evaluate(async () => {
+    const sample = () => {
+      const video = document.querySelector<HTMLVideoElement>(
+        '[data-figure2-combined-video]'
+      );
+      return {
+        time: Number((video?.currentTime ?? 0).toFixed(4)),
+        timelineRun: video?.dataset.timelineVideoRun ?? null
+      };
+    };
+    const before = sample();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    return [before, sample()] as const;
+  });
+  expect(releasedPlayhead.every((sample) => sample.timelineRun === null)).toBe(true);
+  expect(Math.abs(releasedPlayhead[1].time - releasedPlayhead[0].time))
+    .toBeLessThanOrEqual(.01);
   await inputPhoneIntent(page, 1);
   await assertStablePhoneHold(page, 'figure2-animation');
   await waitForNewWheelEpoch(page);
