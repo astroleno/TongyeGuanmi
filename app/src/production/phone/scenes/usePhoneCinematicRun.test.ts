@@ -12,7 +12,7 @@ describe('usePhoneCinematicRun execution token contract', () => {
   it('captures the token injected at adapter start and emits a raw frame only from its physical presented callback', () => {
     expect(source).toContain('activeIdentityRef');
     expect(source).toContain("import type { PhoneExecutionToken }");
-    expect(source).toContain('options.reportFact([');
+    expect(source).toContain('reportFact([');
     expect(source).not.toContain('dispatchPhoneLabContactAutoplay');
     expect(source).not.toContain('CustomEvent');
     expect(source).toMatch(/identity\?\.\[5\]/);
@@ -30,9 +30,9 @@ describe('usePhoneCinematicRun execution token contract', () => {
   it('[R5] redraws an already-prepared renderer only after its run token is active', () => {
     expect(source).toMatch(/presentPreparedFrame:\s*\(token: PresentationToken\) => void,/);
     expect(source).toContain('if (activeIdentity?.[5]) {');
-    expect(source).toContain('options.presentPreparedFrame(activeIdentity[5]);');
+    expect(source).toContain('presentPreparedFrame(activeIdentity[5]);');
     expect(source).toContain('reverseReady: (token: PresentationToken | null) => boolean');
-    expect(source).toContain('options.reverseReady(token)');
+    expect(source).toContain('reverseReady(token)');
   });
 
   it('[R5] leaves reverse timeout and rollback ownership to the route runner', () => {

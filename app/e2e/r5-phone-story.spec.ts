@@ -1416,13 +1416,19 @@ async function assertStablePhoneHold(
           heroEntrance: root?.dataset.portraitHeroEntrance ?? null,
           canvasStatus: canvas?.dataset.packedAlphaStatus ?? null,
           canvasReady: canvas?.dataset.packedAlphaFrameReady ?? null,
+          canvasMediaTime: canvas?.dataset.packedAlphaMediaTime ?? null,
+          canvasEvidence: canvas?.dataset.packedAlphaFrameEvidence ?? null,
+          canvasToken: canvas?.dataset.phonePackedAlphaPresentationToken ?? null,
           canvasSize: canvas ? [canvas.width, canvas.height] : null,
           videoReadyState: video?.readyState ?? null,
           videoCurrentTime: video?.currentTime ?? null,
           videoPaused: video?.paused ?? null,
           videoSource: video?.dataset.phoneFigureSource ?? null,
           videoPlayback: video?.dataset.phoneFigurePlayback ?? null,
-          videoTimelineReady: video?.dataset.timelineVideoFrameReady ?? null
+          videoTimelineReady: video?.dataset.timelineVideoFrameReady ?? null,
+          videoTimelineTarget: video?.dataset.timelineVideoTarget ?? null,
+          videoTimelineRun: video?.dataset.timelineVideoRun ?? null,
+          heroAlpha: hero?.dataset.phoneHeroAlpha ?? null
         };
       });
       const message = error instanceof Error ? error.message : String(error);
@@ -3312,6 +3318,31 @@ async function driveAdjacentPhoneRun(
       const root = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod');
       const ttg = document.querySelector<HTMLElement>('[data-phone-scene="ttg-animation"]');
       const ttgVideo = ttg?.querySelector<HTMLVideoElement>('[data-phone-ttg-video]');
+      const crane = document.querySelector<HTMLElement>('[data-phone-scene="crane-animation"]');
+      const craneLayers = crane
+        ? Array.from(crane.querySelectorAll<HTMLVideoElement>('[data-crane-figure-video], [data-crane-figure-front-video]'))
+          .map((layer) => ({
+            readyState: layer.readyState,
+            networkState: layer.networkState,
+            currentTime: layer.currentTime,
+            duration: layer.duration,
+            paused: layer.paused,
+            seeking: layer.seeking,
+            error: layer.error ? {
+              code: layer.error.code,
+              message: layer.error.message
+            } : null,
+            dataset: { ...layer.dataset }
+          }))
+        : [];
+      const craneCanvases = crane
+        ? Array.from(crane.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]'))
+          .map((layer) => ({
+            width: layer.width,
+            height: layer.height,
+            dataset: { ...layer.dataset }
+          }))
+        : [];
       return {
         aod: video ? {
           video: {
@@ -3344,16 +3375,21 @@ async function driveAdjacentPhoneRun(
           paused: ttgVideo.paused,
           seeking: ttgVideo.seeking,
           dataset: { ...ttgVideo.dataset }
+        } : null,
+        crane: crane ? {
+          rootDataset: { ...crane.dataset },
+          layers: craneLayers,
+          canvases: craneCanvases
         } : null
       };
     });
     throw new Error(
       `${error instanceof Error ? error.message : String(error)}\n`
       + `transition trace: ${JSON.stringify({
+        media: failedAod,
         wheels: failedProbe.wheelEvents.slice(-8),
         cursors: failedProbe.cursorEvents.slice(-12),
         states: failedProbe.stateEvents.slice(-32),
-        aod: failedAod,
         draws: failedDraws.slice(-24)
       })}`
     );
@@ -3683,7 +3719,7 @@ test('Task 0 rejects a visible Hero completed-to-zero reset on cold WebKit load'
   test.skip(browserName !== 'webkit', 'the confirmed flash is sampled on WebKit');
   test.setTimeout(45_000);
   await installHeroEntranceProbe(page);
-  await visitFormal(page, '/', 'hero');
+  await visitFormal(page, '/?v=47', 'hero');
   await expect.poll(async () => page.locator(LIVE_PHONE_ROOT).getAttribute(
     'data-portrait-hero-entrance'
   )).toBe('complete');

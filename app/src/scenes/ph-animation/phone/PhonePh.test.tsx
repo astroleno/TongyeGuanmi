@@ -127,7 +127,7 @@ describe('PhonePh', () => {
     expect(source).not.toContain('PH_FIGURE_OPENING_SRC');
     expect(source).not.toContain('beginRun');
     expect(source).toContain('presentedFrameRef.current?.(presentationKey);');
-    expect(cinematicRunSource).toContain("options.activateSurface('endpoint')");
+    expect(cinematicRunSource).toContain("activateSurface('endpoint')");
     expect(source).not.toContain(
       "ensurePackedSurface(reducedMotion ? 'endpoint' : 'forward')"
     );
@@ -141,7 +141,7 @@ describe('PhonePh', () => {
     expect(source).toContain('renderProgress,');
     expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');
     expect(source).toContain('startRun(direction, request ?? null)');
-    expect(cinematicRunSource).toContain('options.reverseReady(');
+    expect(cinematicRunSource).toContain('reverseReady(');
     expect(motionSource).toContain("'presented-frame-reverse'");
     expect(reverseSource).toContain('createPhonePresentedReversePlayback');
     expect(reverseSource).toContain('preparePhoneTimelineVideoFrame');

@@ -125,6 +125,16 @@ describe('PhoneHero Route B adapter', () => {
     expect(reducedBranch).not.toContain("ensurePackedSurface('forward')");
     expect(heroSource).toContain("? 'poster-post-paint'");
     expect(heroSource).toContain("origin: reducedMotion ? 'leaf-static-poster' : 'leaf-post-paint'");
+    const presentation = heroSource.slice(
+      heroSource.indexOf('presentPresentation(token, report)'),
+      heroSource.indexOf('disposePresentation(token)')
+    );
+    const reducedPresentation = presentation.slice(
+      presentation.indexOf('if (reducedMotion) {'),
+      presentation.indexOf('} else {', presentation.indexOf('if (reducedMotion) {'))
+    );
+    expect(reducedPresentation).toContain('schedulePackedAlphaPostPaintRef.current();');
+    expect(reducedPresentation).toContain('requestPresentedHeroFrame();');
   });
 
   it('[reduced-motion inactive admission] keeps the binding on the poster path without creating a packed surface', () => {

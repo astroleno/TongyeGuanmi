@@ -360,6 +360,14 @@ export const PhoneCrane = forwardRef<
       () => {
         root.dataset.phoneCraneMedia = 'retryable-failure';
         failRun(-1);
+      },
+      (mediaTimes) => {
+        const surfaces = packedSurfacesRef.current;
+        return Boolean(
+          surfaces
+          && surfaces[0](['frame', mediaTimes[0]])
+          && surfaces[1](['frame', mediaTimes[1]])
+        );
       }
     );
     forwardRunRef.current = forwardRun;

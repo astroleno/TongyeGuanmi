@@ -103,7 +103,7 @@ async function prepareCraneAnimationFrame(
   root: HTMLElement,
   progress: number,
   runId: string
-): Promise<void> {
+): Promise<readonly [number, number]> {
   const [figure, flock] = phoneCraneVideos(root);
   if (!figure || !flock) throw new Error('Crane media unavailable');
   const time = clamp(progress) * CRANE_TIMELINE_DURATION_SECONDS;
@@ -123,6 +123,12 @@ async function prepareCraneAnimationFrame(
   if (frames.some(([status]) => status !== 'ready')) {
     throw new Error('Crane media stale');
   }
+  const figureTime = frames[0][5] ?? frames[0][4];
+  const flockTime = frames[1][5] ?? frames[1][4];
+  if (!Number.isFinite(figureTime) || !Number.isFinite(flockTime)) {
+    throw new Error('Crane media time unavailable');
+  }
+  return [figureTime!, flockTime!];
 }
 
 export function phoneCraneVideos(root: HTMLElement | null): readonly [
@@ -294,15 +300,16 @@ export function createPhoneCranePresentedReverse(
   root: HTMLElement,
   render: (progress: number, direction: PhoneCranePlaybackDirection) => void,
   onComplete: () => void,
-  onFailure: () => void
+  onFailure: () => void,
+  presentFrames: (mediaTimes: readonly [number, number]) => boolean
 ): PhoneCranePresentedReverse {
   let runSequence = 0;
   let runId = 'phone-crane-reverse-0';
   const playback = createPhonePresentedReversePlayback([
     CRANE_PLAYBACK_MS,
     async (progress) => {
-      await prepareCraneAnimationFrame(root, progress, runId);
-      return true;
+      const mediaTimes = await prepareCraneAnimationFrame(root, progress, runId);
+      return presentFrames(mediaTimes);
     },
     (progress) => render(progress, -1),
     onComplete,

@@ -131,9 +131,9 @@ export function createPhonePackedAlphaSurface(
   let compositor: PackedAlphaVideoCompositor | undefined;
   let lastDrawMediaTime = Number.NaN;
   let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
-  let endpointSeek: (() => boolean) | undefined;
+  let endpointSeek: (() => void) | undefined;
   let endpointSeekStage: 'idle' | 'nudge' | 'target' | 'playing' = 'idle';
-  let exactRetryTimer: ReturnType<typeof globalThis.setTimeout> | null | undefined;
+  let exactRetryTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
   let activePresentationToken: string | null = null;
   let exactForwardFrameRequired = false;
   // `endpoint` mode is also retained while PH performs its presented-frame
@@ -189,7 +189,7 @@ export function createPhonePackedAlphaSurface(
     timeout = undefined;
   };
   const clearExactRetry = () => {
-    if (exactRetryTimer) globalThis.clearTimeout(exactRetryTimer);
+    if (exactRetryTimer !== undefined) globalThis.clearTimeout(exactRetryTimer);
     exactRetryTimer = undefined;
   };
   const armExactRetry = () => {
@@ -197,10 +197,7 @@ export function createPhonePackedAlphaSurface(
     exactRetryTimer = globalThis.setTimeout(() => {
       exactRetryTimer = undefined;
       if (mode !== 'endpoint' && !exactForwardFrameRequired) return;
-      if (endpointSeek?.() === true) {
-        exactRetryTimer = null;
-        return;
-      }
+      endpointSeek?.();
       armExactRetry();
     }, 250);
   };
@@ -324,9 +321,12 @@ export function createPhonePackedAlphaSurface(
         lastDrawMediaTime = Number.isFinite(drawMediaTime)
           ? drawMediaTime!
           : Number.NaN;
+        const timelineTarget = Number(video.dataset.timelineVideoTarget);
         const exactTarget = mode === 'endpoint'
           ? endpointSeconds
-          : exactForwardFrameRequired ? 0 : null;
+          : exactForwardFrameRequired
+            ? Number.isFinite(timelineTarget) ? timelineTarget : 0
+            : null;
         if (exactTarget !== null && !exactFrameMode) {
           if (
             !Number.isFinite(drawMediaTime)
@@ -334,9 +334,17 @@ export function createPhonePackedAlphaSurface(
           ) {
             activeCanvas.dataset[DATA_STATUS] = 'probing';
             root.dataset[statusDataset] = 'probing';
-            endpointSeekStage = 'nudge';
-            video.pause();
-            endpointSeek?.();
+            // Once endpoint priming is playing from the authored nudge, let
+            // its exact rVFC samples advance into the accepted window. Pausing
+            // on the first pre-endpoint frame would restart the nudge forever.
+            if (
+              endpointSeekStage !== 'playing'
+              || (Number.isFinite(drawMediaTime) && drawMediaTime! > exactTarget)
+            ) {
+              endpointSeekStage = 'nudge';
+              video.pause();
+              endpointSeek?.();
+            }
             armExactRetry();
             return;
           }
@@ -388,54 +396,64 @@ export function createPhonePackedAlphaSurface(
     video.dataset[DATA_OWNER] = layerName;
     endpointSeek = () => {
       if (
-        video.readyState < HAVE_METADATA
+        exactFrameMode
+        || video.seeking
+        || video.readyState < HAVE_METADATA
         || (mode !== 'endpoint' && !exactForwardFrameRequired)
-      ) return false;
+      ) return;
+      const timelineTarget = Number(video.dataset.timelineVideoTarget);
       const endpoint = mode === 'endpoint'
         && Number.isFinite(video.duration)
         && video.duration > 0
         ? Math.min(endpointSeconds, Math.max(0, video.duration - 1 / 120))
-        : mode === 'endpoint' ? endpointSeconds : 0;
+        : mode === 'endpoint'
+          ? endpointSeconds
+          : Number.isFinite(timelineTarget) ? timelineTarget : 0;
       try {
-        const nudge = endpoint > ENDPOINT_NUDGE_SECONDS
-          ? endpoint - ENDPOINT_NUDGE_SECONDS
-          : endpoint + ENDPOINT_NUDGE_SECONDS;
+        // Priming playback always advances forward. Near time zero the fresh
+        // decode point therefore has to clamp to zero; seeking above a low
+        // target and then playing can only move farther away forever.
+        const nudge = Math.max(0, endpoint - ENDPOINT_NUDGE_SECONDS);
+        if (endpointSeekStage === 'playing') {
+          if (!video.paused && !video.ended) return;
+          // A browser may end the short priming lane without delivering its
+          // pending rVFC. Move away once before replaying from the nudge so the
+          // next attempt belongs to a fresh decoded generation.
+          endpointSeekStage = 'target';
+          video.currentTime = endpoint;
+          return;
+        }
         if (endpointSeekStage === 'nudge') {
           if (!near(video.currentTime, nudge, 0.002)) {
             video.currentTime = nudge;
-            return true;
+            return;
           }
-          endpointSeekStage = 'target';
-          video.currentTime = endpoint;
-          return true;
-        } else if (
-          endpointSeekStage === 'target'
-          && near(video.currentTime, endpoint, 0.002)
-        ) {
-          // WebKit does not always issue rVFC for a paused terminal seek.
-          // Prime exactly one decoded sample, then pause in the rVFC
-          // callback above; semantic playback remains runner-owned.
           endpointSeekStage = 'playing';
           void video.play().catch(() => {
             failEndpoint();
           });
-          return true;
+          return;
+        } else if (
+          endpointSeekStage === 'target'
+          && near(video.currentTime, endpoint, 0.002)
+        ) {
+          endpointSeekStage = 'nudge';
+          video.currentTime = nudge;
+          return;
         } else if (!near(video.currentTime, endpoint, 0.002)) {
           endpointSeekStage = 'target';
           video.currentTime = endpoint;
-          return true;
-        } else if (activeCanvas.dataset[DATA_STATUS] === 'probing') {
+          return;
+        } else if (activeCanvas.dataset[DATA_STATUS] !== 'ready') {
           endpointSeekStage = 'nudge';
           video.currentTime = nudge;
-          return true;
+          return;
         } else {
           endpointSeekStage = 'idle';
           compositor?.render();
-          return true;
         }
       } catch {
         // Metadata can race source replacement; loadeddata retries.
-        return false;
       }
     };
     video.addEventListener('loadedmetadata', endpointSeek);
@@ -676,6 +694,16 @@ export function createPhonePackedAlphaSurface(
     // again for the new immutable revision; an old successful frame cannot be
     // relabelled as proof for a newer transaction.
     rebindPresentationToken(presentationToken);
+    if (mode === 'forward') {
+      // A forward surface can already be parked at a timeline endpoint when
+      // the receiver token arrives (notably Pattern → Hero). Require a fresh
+      // rVFC at that live target and keep the bounded nudge/replay owner here;
+      // a currentTime fallback draw must never satisfy admission.
+      exactForwardFrameRequired = true;
+      endpointSeekStage = 'nudge';
+      endpointSeek?.();
+      armExactRetry();
+    }
     compositor.render();
   };
 

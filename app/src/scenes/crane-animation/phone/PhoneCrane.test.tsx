@@ -101,6 +101,14 @@ describe('PhoneCrane', () => {
     expect(source).toContain('cinematicPresentedFrameRef.current = {');
   });
 
+  it('[reverse media owner] draws each prepared decoder tuple through its packed surface', () => {
+    expect(autoplaySource).toContain('const mediaTimes = await prepareCraneAnimationFrame(');
+    expect(autoplaySource).toContain('return presentFrames(mediaTimes);');
+    expect(source).toContain('(mediaTimes) => {');
+    expect(source).toContain("surfaces[0](['frame', mediaTimes[0]])");
+    expect(source).toContain("surfaces[1](['frame', mediaTimes[1]])");
+  });
+
   it('uses stable reduced-motion endpoints in canonical order', () => {
     expect(phoneCranePresentationProgress(0.49, true)).toBe(0);
     expect(phoneCranePresentationProgress(0.5, true)).toBe(1);
@@ -138,7 +146,7 @@ describe('PhoneCrane', () => {
     expect(source).toContain('PHONE_CRANE_FIGURE_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('PHONE_CRANE_FLOCK_ENDPOINT_SECONDS = CRANE_VIDEO_END_SECONDS');
     expect(source).toContain('beginPreparedReverse');
-    expect(cinematicRunSource).toContain('options.reverseReady(token)');
+    expect(cinematicRunSource).toContain('reverseReady(token)');
     expect(cinematicRunSource).toContain("publish('progress', direction, progress)");
     expect(source).toContain('renderProgress,');
     expect(source).toContain('play(direction: 1 | -1, request?: PhoneExecutionToken)');

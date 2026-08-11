@@ -585,12 +585,10 @@ export function createPackedAlphaVideoCompositor(
 
   video.addEventListener('loadeddata', renderAndSchedule);
   video.addEventListener('seeked', renderAndSchedule);
-  video.addEventListener('timeupdate', renderAndSchedule);
   // A pending callback armed while paused may never fire on WebKit once the
   // decoder starts. Re-arm from the actual play event so the callback is
   // attached to the running decode clock.
   video.addEventListener('play', renderAndSchedule);
-  video.addEventListener('pause', renderAndSchedule);
   canvas.addEventListener('webglcontextlost', onContextLost);
   canvas.dataset[DATA_STATUS] = 'waiting';
   canvas.dataset[DATA_COMPOSITOR_ACTIVE] = 'true';
@@ -643,9 +641,7 @@ export function createPackedAlphaVideoCompositor(
       clearPresentedFrame();
       video.removeEventListener('loadeddata', renderAndSchedule);
       video.removeEventListener('seeked', renderAndSchedule);
-      video.removeEventListener('timeupdate', renderAndSchedule);
       video.removeEventListener('play', renderAndSchedule);
-      video.removeEventListener('pause', renderAndSchedule);
       canvas.removeEventListener('webglcontextlost', onContextLost);
       gl.deleteTexture(texture);
       gl.deleteBuffer(buffer);

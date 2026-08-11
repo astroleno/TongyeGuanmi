@@ -142,13 +142,22 @@ class FakeNode {
 }
 
 class FakeVideo extends FakeNode {
-  readonly pause = vi.fn();
-  readonly play = vi.fn(() => Promise.resolve());
+  paused = true;
+  ended = false;
+  readonly pause = vi.fn(() => {
+    this.paused = true;
+  });
+  readonly play = vi.fn(() => {
+    this.paused = false;
+    this.ended = false;
+    return Promise.resolve();
+  });
   readonly load = vi.fn();
   readonly listeners = new Map<string, Set<() => void>>();
   currentTime = 0;
   duration = 2;
   readyState = 4;
+  seeking = false;
 
   addEventListener(name: string, listener: () => void) {
     const listeners = this.listeners.get(name) ?? new Set();
@@ -174,7 +183,10 @@ class FakeDocument {
   }
 }
 
-function fixture(onFrame: ((presentationToken: string | null, mediaTime: number | null) => void) | null = null) {
+function fixture(
+  onFrame: ((presentationToken: string | null, mediaTime: number | null) => void) | null = null,
+  endpointSeconds = 1.25
+) {
   const ownerDocument = new FakeDocument();
   const root = ownerDocument.createElement('section');
   const container = ownerDocument.createElement('div');
@@ -186,7 +198,7 @@ function fixture(onFrame: ((presentationToken: string | null, mediaTime: number 
     container as unknown as HTMLElement,
     video as unknown as HTMLVideoElement,
     '/packed.mp4',
-    1.25,
+    endpointSeconds,
     'phoneTestAlpha',
     'test',
     'test-canvas',
@@ -219,6 +231,16 @@ describe('phone packed-alpha surface', () => {
     // terminal sample so WebKit must produce a fresh rVFC for this lease.
     expect(video.currentTime).toBeCloseTo(1.25 - (0.08 * 2), 5);
     expect(root.dataset.phoneTestAlpha).toBe('probing');
+    surface(['dispose']);
+  });
+
+  it('[P0 exact frame] primes a near-zero live target from zero instead of playing away from it', () => {
+    const { video, surface } = fixture(null, 0.0022);
+
+    surface(['activate', 'endpoint']);
+
+    expect(video.currentTime).toBe(0);
+    expect(video.play).toHaveBeenCalledTimes(1);
     surface(['dispose']);
   });
 
@@ -408,7 +430,7 @@ describe('phone packed-alpha surface', () => {
       expect(settled).toBe(false);
       expect(root.dataset.phoneTestAlpha).toBe('probing');
       vi.advanceTimersByTime(250);
-      expect(video.play).toHaveBeenCalledTimes(1);
+      expect(video.play).toHaveBeenCalledTimes(2);
 
       video.emit('seeked');
       video.emit('seeked');
@@ -441,6 +463,76 @@ describe('phone packed-alpha surface', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('[P0 exact frame] keeps re-arming when endpoint playback produces no rVFC', async () => {
+    vi.useFakeTimers();
+    try {
+      const { video, surface } = fixture();
+      const preparation = Promise.resolve(surface([
+        'prepare', 'endpoint', null, true, 'token-endpoint'
+      ] as unknown as Parameters<typeof surface>[0]));
+      await Promise.resolve();
+
+      vi.advanceTimersByTime(250);
+      expect(video.play).toHaveBeenCalledTimes(1);
+      video.ended = true;
+      video.paused = true;
+      vi.advanceTimersByTime(250);
+      expect(video.currentTime).toBeCloseTo(1.25, 5);
+      vi.advanceTimersByTime(250);
+      expect(video.currentTime).toBeCloseTo(1.25 - (0.08 * 2), 5);
+      video.emit('seeked');
+      expect(video.play).toHaveBeenCalledTimes(2);
+
+      compositorProbe.onFrame?.(1.25);
+      await expect(preparation).resolves.toBeUndefined();
+      surface(['dispose']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('[P0 exact frame] never interrupts an in-flight endpoint seek', async () => {
+    vi.useFakeTimers();
+    try {
+      const { video, surface } = fixture();
+      const preparation = Promise.resolve(surface([
+        'prepare', 'endpoint', null, true, 'token-endpoint'
+      ] as unknown as Parameters<typeof surface>[0]));
+      await Promise.resolve();
+      const inFlightTarget = video.currentTime;
+      video.seeking = true;
+
+      vi.advanceTimersByTime(500);
+      expect(video.currentTime).toBe(inFlightTarget);
+      expect(video.play).not.toHaveBeenCalled();
+
+      video.seeking = false;
+      vi.advanceTimersByTime(250);
+      expect(video.play).toHaveBeenCalledTimes(1);
+      compositorProbe.onFrame?.(1.25);
+      await expect(preparation).resolves.toBeUndefined();
+      surface(['dispose']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('[presented reverse owner] stops endpoint seek from reclaiming the decoder', async () => {
+    const { video, surface } = fixture();
+    const preparation = Promise.resolve(surface([
+      'prepare', 'endpoint', null, true, 'token-endpoint'
+    ] as unknown as Parameters<typeof surface>[0]));
+    compositorProbe.onFrame?.(1.25);
+    await expect(preparation).resolves.toBeUndefined();
+
+    expect(surface(['frame', 0.9])).toBe(true);
+    video.currentTime = 0.9;
+    video.emit('seeked');
+
+    expect(video.currentTime).toBe(0.9);
+    surface(['dispose']);
   });
 
   it('[convergence] rebinds a fresh proof token without allocating another WebGL canvas', async () => {
@@ -525,12 +617,13 @@ describe('phone packed-alpha surface', () => {
 
   it('[Task 3] binds an active proof token only to a subsequent physical draw', () => {
     const report = vi.fn();
-    const { surface } = fixture(report);
+    const { surface, video } = fixture(report);
 
     surface(['activate', 'forward']);
     compositorProbe.onFrame?.();
     expect(report).toHaveBeenLastCalledWith(null, 1.25);
 
+    video.dataset.timelineVideoTarget = '1.25';
     surface(['present', 'authority|session|3']);
     // The mock compositor does not draw eagerly; this is the physical draw
     // callback that a successful WebGL upload/draw would produce.

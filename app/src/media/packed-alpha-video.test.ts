@@ -170,7 +170,11 @@ describe('packed alpha video', () => {
       onFrame: (mediaTime) => reported.push(mediaTime)
     });
 
-    callback?.(0, { mediaTime: 4.125 });
+    const pendingFrame = callback;
+    listeners.get('video:pause')?.({ type: 'pause' } as Event);
+    listeners.get('video:timeupdate')?.({ type: 'timeupdate' } as Event);
+    expect(video.cancelVideoFrameCallback).not.toHaveBeenCalled();
+    pendingFrame?.(0, { mediaTime: 4.125 });
 
     expect(gl.drawArrays).toHaveBeenCalled();
     expect(canvas.dataset.packedAlphaStatus).toBe('ready');

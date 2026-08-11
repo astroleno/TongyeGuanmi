@@ -62,7 +62,7 @@ export const noopPhoneCinematicFactReporter: PhoneCinematicFactReporter = () => 
 
 export function usePhoneCinematicRun(
   [
-    scene,
+    ,
     rootRef,
     forwardRef,
     reverseRef,
@@ -77,21 +77,6 @@ export function usePhoneCinematicRun(
     reportFact
   ]: PhoneCinematicRunRequest
 ): PhoneCinematicRun {
-  const options = {
-    scene,
-    rootRef,
-    forwardRef,
-    reverseRef,
-    reducedMotion,
-    terminalProgress,
-    reverseReady,
-    activateSurface,
-    render,
-    presentPreparedFrame,
-    beforeForward,
-    beforeReverse,
-    reportFact
-  };
   const requestedRef = useRef<PhoneCinematicDirection | null>(null);
   const activeIdentityRef = useRef<PhoneExecutionToken | null>(null);
   const presentedFrameReportedRef = useRef(false);
@@ -115,21 +100,21 @@ export function usePhoneCinematicRun(
           origin: 'segment-first-frame'
         }
       : null;
-    options.reportFact([
+    reportFact([
       phase,
       direction,
       identity,
       progress ?? null,
       frame
     ]);
-  }, [options.reportFact]);
+  }, [reportFact]);
   const renderProgress = useCallback((
     progress: number,
     direction: PhoneCinematicDirection = 1
   ) => {
-    options.render(progress, direction);
+    render(progress, direction);
     publish('progress', direction, progress);
-  }, [options.render, publish]);
+  }, [render, publish]);
   const completeRun = useCallback((direction: PhoneCinematicDirection) => {
     reverseStartedRef.current = false;
     requestedRef.current = null;
@@ -156,25 +141,25 @@ export function usePhoneCinematicRun(
     publish('presented', direction);
   }, [publish]);
   const beginPreparedReverse = useCallback(() => {
-    const root = options.rootRef.current;
+    const root = rootRef.current;
     const token = activeIdentityRef.current?.[5] ?? null;
     if (
       !root
       || requestedRef.current !== -1
       || reverseStartedRef.current
-      || !options.reverseReady(token)
+      || !reverseReady(token)
     ) return;
     reverseStartedRef.current = true;
     if (token) {
       publishPresentedFrame(phoneRuntimePresentationTokenKey(token));
     }
-    options.reverseRef.current?.start();
+    reverseRef.current?.start();
     publish('playing', -1);
   }, [
     publishPresentedFrame,
-    options.reverseReady,
-    options.reverseRef,
-    options.rootRef,
+    reverseReady,
+    reverseRef,
+    rootRef,
     publish
   ]);
   const stopRun = useCallback(() => {
@@ -182,23 +167,23 @@ export function usePhoneCinematicRun(
     presentedFrameReportedRef.current = false;
     activeIdentityRef.current = null;
     reverseStartedRef.current = false;
-    options.forwardRef.current?.stop();
-    options.reverseRef.current?.stop();
-  }, [options.forwardRef, options.reverseRef]);
+    forwardRef.current?.stop();
+    reverseRef.current?.stop();
+  }, [forwardRef, reverseRef]);
   const startRun = useCallback((
     direction: PhoneCinematicDirection,
     identity?: PhoneExecutionToken | null
   ) => {
-    if (!options.rootRef.current) return;
+    if (!rootRef.current) return;
     if (identity !== undefined) {
       activeIdentityRef.current = identity;
       frameSequenceRef.current = 0;
     }
     presentedFrameReportedRef.current = false;
     requestedRef.current = direction;
-    if (options.reducedMotion) {
+    if (reducedMotion) {
       renderProgress(
-        direction === 1 ? options.terminalProgress : 0,
+        direction === 1 ? terminalProgress : 0,
         direction
       );
       completeRun(direction);
@@ -206,49 +191,49 @@ export function usePhoneCinematicRun(
     }
     if (direction === 1) {
       reverseStartedRef.current = false;
-      options.reverseRef.current?.stop();
-      options.activateSurface('forward');
+      reverseRef.current?.stop();
+      activateSurface('forward');
       const activeIdentity = activeIdentityRef.current;
       if (activeIdentity?.[5]) {
-        options.presentPreparedFrame(activeIdentity[5]);
+        presentPreparedFrame(activeIdentity[5]);
       }
-      options.beforeForward?.();
-      options.forwardRef.current?.start();
+      beforeForward?.();
+      forwardRef.current?.start();
       return;
     }
-    options.forwardRef.current?.stop();
+    forwardRef.current?.stop();
     reverseStartedRef.current = false;
-    options.beforeReverse?.();
-    options.activateSurface('endpoint');
+    beforeReverse?.();
+    activateSurface('endpoint');
     const activeIdentity = activeIdentityRef.current;
     if (activeIdentity?.[5]) {
-      options.presentPreparedFrame(activeIdentity[5]);
+      presentPreparedFrame(activeIdentity[5]);
     }
-    if (options.reverseReady(activeIdentityRef.current?.[5] ?? null)) {
+    if (reverseReady(activeIdentityRef.current?.[5] ?? null)) {
       beginPreparedReverse();
     }
   }, [
     beginPreparedReverse,
     completeRun,
-    options.activateSurface,
-    options.beforeForward,
-    options.beforeReverse,
-    options.forwardRef,
-    options.presentPreparedFrame,
-    options.reducedMotion,
-    options.render,
-    options.reverseReady,
-    options.reverseRef,
-    options.rootRef,
-    options.terminalProgress,
+    activateSurface,
+    beforeForward,
+    beforeReverse,
+    forwardRef,
+    presentPreparedFrame,
+    reducedMotion,
+    render,
+    reverseReady,
+    reverseRef,
+    rootRef,
+    terminalProgress,
     publish,
     renderProgress
   ]);
   const disposeRun = useCallback(() => {
     stopRun();
-    options.forwardRef.current?.dispose();
-    options.reverseRef.current?.dispose();
-  }, [options.forwardRef, options.reverseRef, stopRun]);
+    forwardRef.current?.dispose();
+    reverseRef.current?.dispose();
+  }, [forwardRef, reverseRef, stopRun]);
   const publishPlaying = useCallback(() => publish('playing', 1), [publish]);
 
   return useMemo(() => [

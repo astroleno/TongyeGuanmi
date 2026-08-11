@@ -615,6 +615,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         };
         if (reducedMotion) {
           schedulePackedAlphaPostPaintRef.current();
+          requestPresentedHeroFrame();
         } else {
           const surface = ensurePackedSurface('forward');
           surface?.(['present', phoneRuntimePresentationTokenKey(token)]);
