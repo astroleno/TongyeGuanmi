@@ -832,13 +832,12 @@ function terminalCandidateProjection(
   const cursor = transactionCursor(snapshot);
   if (!cursor) return target;
   // AOD's forward terminal cursor ends at progress 1, whose semantic scene
-  // is already native Method. That would release the packed AOD source before
-  // Method can render its exact admission proof. Keep this one vertical
-  // handoff on its source physical plane until the proof advances the reducer.
-  // Other canonical segments retain their already-qualified terminal policy.
-  const keepsAodSourceForMethodAdmission = operation.run === 'aod-method'
+  // is already native Method. Keep the packed AOD plane only as coverage while
+  // Method renders its exact admission proof; it must not remain a source above
+  // the candidate receiver. Other segments retain their terminal policy.
+  const keepsAodCoverageForMethodAdmission = operation.run === 'aod-method'
     && operation.direction === 1;
-  const sourcePhysicalCursor = keepsAodSourceForMethodAdmission
+  const sourcePhysicalCursor = keepsAodCoverageForMethodAdmission
     ? { ...cursor, progress: 0 }
     : cursor;
   const physical = phoneStoryPresentation(sourcePhysicalCursor);
@@ -847,13 +846,10 @@ function terminalCandidateProjection(
     stageOwner: physical.stageOwner,
     stageScene: physical.stageScene
   };
-  if (!keepsAodSourceForMethodAdmission) return candidate;
+  if (!keepsAodCoverageForMethodAdmission) return candidate;
   return {
     ...candidate,
-    // Preserve the one currently painted source as the coverage owner. The
-    // candidate receiver remains the target leaf, so it can issue its raw
-    // post-paint proof without a second visual writer or a blank frame.
-    sourceSurface: physical.sourceSurface,
+    sourceSurface: null,
     coverageSurface: physical.coverageSurface
   };
 }

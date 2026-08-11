@@ -579,7 +579,7 @@ describe('token-bound phone presentation proofs', () => {
     });
   });
 
-  it('[AOD first-intent cutover] keeps the completed AOD source painted until Method proves its target token', () => {
+  it('[AOD first-intent cutover] keeps completed AOD only as coverage until Method proves its target token', () => {
     const initial = createPhoneStorySnapshot({
       authorityId: 'aod-method-terminal-source',
       scene: 'aod-animation',
@@ -628,9 +628,46 @@ describe('token-bound phone presentation proofs', () => {
         semanticScene: 'method-top',
         stageOwner: 'front',
         stageScene: 'aod-animation',
-        sourceSurface: 'front:aod',
+        sourceSurface: null,
         receiverSurface: 'native:method',
         coverageSurface: 'front:aod'
+      }
+    });
+
+    const phases = [candidate.status === 'transaction' ? candidate.session.phase : null];
+    candidate = reportProof(candidate, targetProof(candidate));
+    candidate = reduceOwned(candidate, 'TARGET_PRESENTED');
+    phases.push(candidate.status === 'transaction' ? candidate.session.phase : null);
+    candidate = reduceOwned(candidate, 'LAYOUT_RELEASED');
+    phases.push(candidate.status === 'transaction' ? candidate.session.phase : null);
+    candidate = reduceOwned(candidate, 'LANDING_MEASURED', {
+      targetY: 1_382,
+      geometryRevision: 0,
+      visualViewportOffsetTop: 0
+    });
+    phases.push(candidate.status === 'transaction' ? candidate.session.phase : null);
+    candidate = reduceOwned(candidate, 'SCROLL_COMMANDED', { commandId: 1 });
+    candidate = reduceOwned(candidate, 'SCROLL_CONFIRMED', {
+      commandId: 1,
+      actualY: 1_382
+    });
+    phases.push(candidate.status === 'transaction' ? candidate.session.phase : null);
+    candidate = reduceOwned(candidate, 'PRESENTATION_COMMITTED', { now: 100 });
+
+    expect(phases).toEqual([
+      'verifying-target',
+      'releasing-layout',
+      'measuring-landing',
+      'aligning-scroll',
+      'verifying-stable'
+    ]);
+    expect(candidate).toMatchObject({
+      status: 'stable',
+      scene: 'method-top',
+      projection: {
+        commitState: 'stable',
+        sourceSurface: null,
+        receiverSurface: 'native:method'
       }
     });
   });

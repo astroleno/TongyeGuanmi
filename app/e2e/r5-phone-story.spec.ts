@@ -4979,6 +4979,151 @@ test('[execution regression] first AOD forward input locks the runner before the
   expect(after.methodVisible).toBe(false);
 });
 
+test('[AOD→Method terminal layering] never lets AOD cover Method after the receiver becomes visible', async ({ page }) => {
+  test.setTimeout(120_000);
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/#method', 'method-top');
+  await driveAdjacentPhoneRun(page, 'method-top', 'aod-animation', -1, 70_000);
+  await page.evaluate(() => {
+    type Sample = {
+      origin: 'frame' | 'mutation';
+      cursor: string | null;
+      phase: string | null;
+      aodRole: string | null;
+      methodRole: string | null;
+      aodZ: number | null;
+      methodZ: number | null;
+      top: 'aod' | 'method' | 'other';
+    };
+    const target = window as typeof window & {
+      __aodMethodTerminalLayerProbe?: {
+        samples: Sample[];
+        stop(): void;
+      };
+    };
+    let active = true;
+    const samples: Sample[] = [];
+    const capture = (origin: Sample['origin']) => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      const aod = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod');
+      const method = document.getElementById('method');
+      const cursor = root?.dataset.phoneCursor ?? null;
+      if (cursor === 'transition:aod-method:0' || cursor === 'hold:method-top') {
+        const aodStyle = aod ? getComputedStyle(aod) : null;
+        const methodStyle = method ? getComputedStyle(method) : null;
+        const viewport = window.visualViewport;
+        const stack = document.elementsFromPoint(
+          Math.round((viewport?.offsetLeft ?? 0) + (viewport?.width ?? window.innerWidth) / 2),
+          Math.round((viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight) / 2)
+        );
+        const topElement = stack.find((element) => (
+          Boolean(aod?.contains(element)) || Boolean(method?.contains(element))
+        ));
+        samples.push({
+          origin,
+          cursor,
+          phase: root?.dataset.phoneTransitionPhase ?? null,
+          aodRole: aod?.dataset.phoneSurfaceRole ?? null,
+          methodRole: method?.dataset.phoneSurfaceRole ?? null,
+          aodZ: aodStyle && Number.isFinite(Number(aodStyle.zIndex))
+            ? Number(aodStyle.zIndex)
+            : null,
+          methodZ: methodStyle && Number.isFinite(Number(methodStyle.zIndex))
+            ? Number(methodStyle.zIndex)
+            : null,
+          top: topElement && aod?.contains(topElement)
+            ? 'aod'
+            : topElement && method?.contains(topElement)
+              ? 'method'
+              : 'other'
+        });
+      }
+    };
+    const sample = () => {
+      capture('frame');
+      if (active) window.requestAnimationFrame(sample);
+    };
+    const observer = new MutationObserver(() => capture('mutation'));
+    observer.observe(document, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: [
+        'data-phone-transition-phase',
+        'data-phone-surface-role',
+        'data-phone-cursor'
+      ]
+    });
+    target.__aodMethodTerminalLayerProbe = {
+      samples,
+      stop() {
+        active = false;
+        observer.disconnect();
+      }
+    };
+    window.requestAnimationFrame(sample);
+  });
+
+  await driveAdjacentPhoneRun(page, 'aod-animation', 'method-top', 1, 70_000);
+  const evidence = await page.evaluate(() => {
+    const target = window as typeof window & {
+      __aodMethodTerminalLayerProbe?: {
+        samples: Array<{
+          origin: 'frame' | 'mutation';
+          cursor: string | null;
+          phase: string | null;
+          aodRole: string | null;
+          methodRole: string | null;
+          aodZ: number | null;
+          methodZ: number | null;
+          top: 'aod' | 'method' | 'other';
+        }>;
+        stop(): void;
+      };
+    };
+    const probe = target.__aodMethodTerminalLayerProbe;
+    probe?.stop();
+    const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+    return {
+      samples: probe?.samples ?? [],
+      rollbackReason: root?.dataset.phoneAodRollbackReason ?? null,
+      cursor: root?.dataset.phoneCursor ?? null,
+      input: root?.dataset.phoneInputState ?? null
+    };
+  });
+
+  const terminal = evidence.samples.filter((sample) => (
+    sample.methodRole === 'candidate-stable'
+  ));
+  expect(terminal.length, JSON.stringify({
+    phases: [...new Set(evidence.samples.map((sample) => sample.phase))],
+    roles: [...new Set(evidence.samples.map((sample) => (
+      `${sample.origin}:${sample.phase}:${sample.aodRole}:${sample.methodRole}:${sample.aodZ}:${sample.methodZ}:${sample.top}`
+    )))]
+  })).toBeGreaterThan(0);
+  const forbiddenSourceReturn = terminal.filter((sample) => (
+    sample.aodRole === 'transition-source'
+    && sample.aodZ !== null
+    && sample.methodZ !== null
+    && sample.aodZ > sample.methodZ
+  ));
+  expect(forbiddenSourceReturn, JSON.stringify({
+    terminal: terminal.slice(-24)
+  })).toEqual([]);
+  const firstVisibleMethod = evidence.samples.findIndex((sample) => (
+    sample.methodRole === 'transition-receiver'
+    || sample.methodRole === 'candidate-stable'
+    || sample.methodRole === 'stable'
+  ));
+  expect(firstVisibleMethod).toBeGreaterThanOrEqual(0);
+  expect(evidence.samples.slice(firstVisibleMethod).some((sample) => sample.top === 'aod'))
+    .toBe(false);
+  expect(evidence).toMatchObject({
+    rollbackReason: null,
+    cursor: 'hold:method-top',
+    input: 'free'
+  });
+});
+
 test('[AOD↔Method execution cutover] completes one exact forward and reverse playback cycle', async ({ page }) => {
   test.setTimeout(150_000);
   await installColdPhoneRuntimeProbe(page);

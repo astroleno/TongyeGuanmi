@@ -9,7 +9,10 @@ import {
   phoneScenePresentationTuple,
   phoneSegmentPresentationTuple
 } from './phone-story/manifest';
-import { createPhoneStoryPresentation } from './phone-story/presentation';
+import {
+  createPhoneStoryPresentation,
+  phoneSurfaceRoleLocalLayerOrder
+} from './phone-story/presentation';
 
 function element() {
   const styles = new Map<string, string>();
@@ -541,6 +544,48 @@ describe('phone story projector', () => {
     apply(current);
     expect(method.dataset.phoneSurfaceRole).toBe('transition-receiver');
     expect(method.dataset.phoneLayerRole).toBe('transition-receiver');
+
+    if (current.status !== 'transaction') {
+      throw new Error('Expected an AOD transaction at completion');
+    }
+    const completing = current.session;
+    current = reducePhoneStorySnapshot(current, {
+      type: 'AOD_PROGRESS_OBSERVED',
+      authorityId: current.authorityId,
+      sessionId: completing.sessionId,
+      generation: completing.generation,
+      leg: completing.operation.legIndex,
+      direction: completing.operation.direction,
+      progress: 1
+    }).snapshot;
+    if (current.status !== 'transaction') {
+      throw new Error('Expected a completed AOD transaction');
+    }
+    const completed = current.session;
+    current = reducePhoneStorySnapshot(current, {
+      type: 'AOD_COMPLETED',
+      authorityId: current.authorityId,
+      sessionId: completed.sessionId,
+      generation: completed.generation,
+      leg: completed.operation.legIndex,
+      direction: completed.operation.direction
+    }).snapshot;
+    apply(current);
+
+    expect(current).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'verifying-target' },
+      projection: {
+        sourceSurface: null,
+        receiverSurface: 'native:method',
+        coverageSurface: 'front:aod'
+      }
+    });
+    expect(aod.dataset.phoneSurfaceRole).toBe('fixed-current');
+    expect(method.dataset.phoneSurfaceRole).toBe('candidate-stable');
+    expect(phoneSurfaceRoleLocalLayerOrder('fixed-current')).toBeLessThan(
+      phoneSurfaceRoleLocalLayerOrder('candidate-stable')
+    );
   });
 
   it('[R5] keeps one live physical plane through a source-led media handoff', () => {
