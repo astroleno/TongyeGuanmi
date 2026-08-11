@@ -97,6 +97,15 @@ export function phoneAodPresentationFrame(
   };
 }
 
+/** Preserve only the decoder tuple that still describes the stable target. */
+export const phoneAodStableFrameMediaTime = (
+  lastMediaTime: number | null,
+  timelineTarget: string | undefined
+): number | null => lastMediaTime !== null
+  && Math.abs(lastMediaTime - Number(timelineTarget)) <= 0.05
+  ? lastMediaTime
+  : null;
+
 /**
  * Owns AOD's single-source packed-alpha compositor, forward native playback,
  * reverse timeline playback, and every AOD-local visual track. The stage
@@ -132,6 +141,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     const executionFrameSequenceRef = useRef(0);
     const presentationBindingRef = useRef<PhoneAodPresentationBinding | null>(null);
     const renderedFrameRef = useRef(false);
+    const lastPackedFrameMediaTimeRef = useRef<number | null>(null);
     const progressListenerRef = useRef(onAodProgress);
     const completeListenerRef = useRef(onAodComplete);
     const frameListenerRef = useRef(onAodFrame);
@@ -280,11 +290,14 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         // React-owned WebGL context reusable for the next reverse admission;
         // terminal component disposal is the only place that hard-loses it.
         releaseContextOnDispose: false,
-        onFrame: () => {
+        onFrame: (mediaTime) => {
           const execution = autoplayExecutionRef.current;
           const rendered = renderedFrameRef.current;
           if (rootRef.current !== root || compositorRef.current !== compositor) {
             return;
+          }
+          if (mediaTime !== null) {
+            lastPackedFrameMediaTimeRef.current = mediaTime;
           }
           // AOD can also be the receiver of Star → AOD or a direct entry.
           // In full motion its target proof is this actual packed-canvas draw,
@@ -473,10 +486,14 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         },
         onComplete: (execution) => {
           if (!execution || autoplayExecutionRef.current !== execution) return;
-          completeListenerRef.current?.(execution);
+          // Retire the leaf playback owner before dispatching the terminal
+          // fact. The reducer can synchronously request the stable AOD proof;
+          // that re-draw must bind to the presentation token, not be mistaken
+          // for one more frame from the completed execution.
           if (autoplayExecutionRef.current === execution) {
             clearAutoplayExecution();
           }
+          completeListenerRef.current?.(execution);
         }
       });
       autoplayRef.current = autoplay;
@@ -556,6 +573,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         const [, direction] = execution;
         autoplayExecutionRef.current = execution;
         renderedFrameRef.current = false;
+        lastPackedFrameMediaTimeRef.current = null;
         executionFrameSequenceRef.current = 0;
         // The execution identity is read from the current runtime refs by
         // the frame callback. Keeping this warmed context avoids Safari
@@ -610,7 +628,17 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
           return;
         }
         compositor.setActive(true);
-        compositor.render();
+        const video = rootRef.current?.querySelector<HTMLVideoElement>(
+          '[data-aod-figure-video]'
+        );
+        const stableMediaTime = phoneAodStableFrameMediaTime(
+          lastPackedFrameMediaTimeRef.current,
+          video?.dataset.timelineVideoTarget
+        );
+        // Completion and stable admission are two immutable leases over the
+        // same final decoded sample. Re-upload/draw that exact rVFC tuple for
+        // the stable token; a mutable currentTime fallback remains rejected.
+        compositor.render(stableMediaTime ?? undefined);
       },
       disposePresentation(token) {
         const binding = presentationBindingRef.current;

@@ -244,7 +244,9 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(aodStaticTargetProof).toContain('renderRef.current?.(0);');
     expect(aodStaticTargetProof).toContain('if (reducedMotion) {');
     expect(aodStaticTargetProof).toContain('requestBoundStaticPresentation();');
-    expect(aodStaticTargetProof).toContain('compositor.render();');
+    expect(aodStaticTargetProof).toContain(
+      'compositor.render(stableMediaTime ?? undefined);'
+    );
     // Both the reduced static proof and the full-motion canvas proof must
     // describe the authored AOD hold. Star → AOD/direct entry may never
     // project the AOD→Method exit endpoint before that runner owns playback.
@@ -254,7 +256,7 @@ describe('Phone Brand → Lab visual contracts', () => {
       /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?renderRef\.current\?\.\(0\);[\s\S]*?staticSurface\.dataset\.aodStaticPoster\s*=\s*binding\.key;[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodPresentationFrame\(/
     );
     const aodCompositorFrame = aodSceneSource.slice(
-      aodSceneSource.indexOf('onFrame: () =>'),
+      aodSceneSource.indexOf('onFrame: (mediaTime) =>'),
       aodSceneSource.indexOf('compositorRef.current = compositor')
     );
     expect(aodCompositorFrame).toContain(

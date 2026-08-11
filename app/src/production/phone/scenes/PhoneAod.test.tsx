@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
   PhoneAod,
+  phoneAodStableFrameMediaTime,
   phoneAodPresentationFrame
 } from './PhoneAod';
 
@@ -81,6 +82,13 @@ describe('PhoneAod Route B adapter', () => {
     expect(presentationPath).toContain(
       'ensureCompositor() ?? compositorRef.current'
     );
+  });
+
+  it('[P0 WebKit reverse] reuses only the exact final packed frame for stable admission', () => {
+    expect(phoneAodStableFrameMediaTime(0, '0.0000')).toBe(0);
+    expect(phoneAodStableFrameMediaTime(0.03, '0.0000')).toBe(0.03);
+    expect(phoneAodStableFrameMediaTime(0.2, '0.0000')).toBeNull();
+    expect(phoneAodStableFrameMediaTime(null, '0.0000')).toBeNull();
   });
 
   it('[P0 AOD visual] contains no animated paper treatment writer', () => {
