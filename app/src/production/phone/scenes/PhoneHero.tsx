@@ -110,6 +110,7 @@ function visibleInViewport(element: HTMLElement): boolean {
     && rect.left < viewportWidth
     && rect.top < viewportHeight;
 }
+
 /** Owns Hero markup/media/local rendering; the fixed-stage parent owns timing. */
 export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProps>(
   function PhoneHero(
@@ -254,15 +255,16 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       void nextBrowserPresentation().then(() => {
         if (presentationBindingRef.current !== scheduled) return;
         const root = rootRef.current;
-        const surface = packedSurfaceRef.current;
-        const canvas = surface?.(['canvas']) ?? null;
-        // A decoded poster establishes only a local warm-up fact. The token
-        // can cross the leaf boundary only after this exact packed-alpha
-        // canvas has drawn and survived a browser paint.
+        const canvas = reducedMotion
+          ? figurePosterRef.current
+          : packedSurfaceRef.current?.(['canvas']) ?? null;
+        // Full-motion admission requires an exact packed-alpha draw; reduced
+        // motion deliberately uses the decoded static poster after a browser
+        // paint as its immutable presentation proof.
         if (
           !root
           || !canvas
-          || canvas.dataset.packedAlphaFrameReady !== 'true'
+          || (!reducedMotion && canvas.dataset.packedAlphaFrameReady !== 'true')
           || !visibleInViewport(root)
           || !visibleInViewport(canvas)
         ) {
@@ -278,7 +280,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         next.report({
           token: next.token,
           frameSequence: next.frameSequence,
-          origin: 'leaf-post-paint',
+          origin: reducedMotion ? 'leaf-static-poster' : 'leaf-post-paint',
           observedAt: typeof performance !== 'undefined'
             && typeof performance.now === 'function'
             ? performance.now()
@@ -315,7 +317,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           window.requestAnimationFrame(poll);
         }
       });
-    }, [releaseGpuOwners, runtime]);
+    }, [reducedMotion, releaseGpuOwners, runtime]);
     /**
      * Loader handoff and initial presentation share this one physical fact:
      * the active packed-alpha canvas completed a GL draw, then stayed visible
@@ -327,15 +329,25 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         || packedAlphaPostPaintScheduledRef.current
       ) return;
       const root = rootRef.current;
-      const surface = packedSurfaceRef.current;
-      const canvas = surface?.(['canvas']) ?? null;
-      if (!root || !canvas || canvas.dataset.packedAlphaFrameReady !== 'true') return;
+      const poster = figurePosterRef.current;
+      const canvas = reducedMotion
+        ? poster
+        : packedSurfaceRef.current?.(['canvas']) ?? null;
+      if (
+        !root
+        || !canvas
+        || (reducedMotion
+          ? !poster?.complete || poster.naturalWidth <= 0
+          : canvas.dataset.packedAlphaFrameReady !== 'true')
+      ) return;
       packedAlphaPostPaintScheduledRef.current = true;
       void nextBrowserPresentation().then(() => {
         packedAlphaPostPaintScheduledRef.current = false;
         const visibleRoot = rootRef.current;
-        const surface = packedSurfaceRef.current;
-        const visibleCanvas = surface?.(['canvas']) ?? null;
+        const visiblePoster = figurePosterRef.current;
+        const visibleCanvas = reducedMotion
+          ? visiblePoster
+          : packedSurfaceRef.current?.(['canvas']) ?? null;
         const hasPresentationBinding = presentationBindingRef.current !== null;
         if (
           !adapterReadyRef.current
@@ -343,7 +355,9 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           || heroPackedFramePresentedRef.current
           || !visibleRoot
           || !visibleCanvas
-          || visibleCanvas.dataset.packedAlphaFrameReady !== 'true'
+          || (reducedMotion
+            ? !visiblePoster?.complete || visiblePoster.naturalWidth <= 0
+            : visibleCanvas.dataset.packedAlphaFrameReady !== 'true')
           || !visibleInViewport(visibleRoot)
           || !visibleInViewport(visibleCanvas)
         ) {
@@ -353,11 +367,13 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           return;
         }
         heroPackedFramePresentedRef.current = true;
-        visibleRoot.dataset.phoneHeroFirstFrame = 'packed-alpha-post-paint';
+        visibleRoot.dataset.phoneHeroFirstFrame = reducedMotion
+          ? 'poster-post-paint'
+          : 'packed-alpha-post-paint';
         requestPresentedHeroFrame();
         if (sceneActiveRef.current) onReady?.();
       });
-    }, [onReady, requestPresentedHeroFrame]);
+    }, [onReady, reducedMotion, requestPresentedHeroFrame]);
     schedulePackedAlphaPostPaintRef.current = schedulePackedAlphaPostPaint;
     const renderEntrance = useCallback((rawProgress: number) => {
       const root = rootRef.current;
@@ -441,8 +457,8 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
       const figureParallax = figureParallaxRef.current;
       const backImage = backImageRef.current;
       const middleImage = middleImageRef.current;
-    const figurePoster = figurePosterRef.current;
-    const figureVideo = figureVideoRef.current;
+      const figurePoster = figurePosterRef.current;
+      const figureVideo = figureVideoRef.current;
       if (
         !root
         || !backParallax
@@ -470,6 +486,7 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
         if (!heroPackedFramePresentedRef.current) {
           root.dataset.phoneHeroFirstFrame = 'poster-decoded';
         }
+        if (reducedMotion) schedulePackedAlphaPostPaintRef.current();
       }).catch(() => {
         if (!cancelled) root.dataset.phoneHeroFirstFrame = 'failed';
       });
@@ -529,48 +546,33 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
     useLayoutEffect(() => {
       sceneActiveRef.current = active;
       rootRef.current?.setAttribute('data-phone-scene-active', String(active));
-      if (active) {
-        // `radialInkIntro.dispose()` clears the handoff property when Hero is
-        // retired. A reverse route can reactivate the already-completed Hero
-        // without replaying the one-shot entrance, so restore the authored
-        // stable endpoint in the same activation commit rather than waiting
-        // for a later scroll sample to call update().
-        if (heroEntranceCompletedRef.current) {
-          rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');
-        }
-        ensurePackedSurface('forward');
-        if (!reducedMotion && !heroEntranceCompletedRef.current) {
-          void packedSurfaceRef.current?.(['prepare', 'forward', null, true, null])
-            .catch(() => undefined);
+      if (active && heroEntranceCompletedRef.current) {
+        rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');
+      }
+      const presentationBound = presentationBindingRef.current !== null;
+      if (active || presentationBound) {
+        if (reducedMotion) {
+          schedulePackedAlphaPostPaintRef.current();
+        } else {
+          ensurePackedSurface('forward');
+          if (active && !heroEntranceCompletedRef.current) {
+            void packedSurfaceRef.current?.(['prepare', 'forward', null, true, null])
+              .catch(() => undefined);
+          }
         }
       } else {
-        // A reduced/direct target can be admitted before the projector marks
-        // it as the active front surface. Keep that exact presentation lease
-        // alive until its raw frame is accepted; otherwise the next React
-         // commit retires the freshly restored surface mid-admission.
-        if (presentationBindingRef.current) {
-          ensurePackedSurface('forward');
-        } else {
-          cancelEntrance();
-          // Keep the full-motion surface-owned Canvas for the later reverse
-          // leg, but retire its context so a downstream media group cannot
-          // inherit a dormant WebGL owner. Reduced motion has no playback
-          // lease to restore, so it uses a fresh static surface instead of
-          // asking Safari to restore a deliberately lost context.
-          if (reducedMotion) disposePackedSurface();
-          else packedSurfaceRef.current?.(['retire']);
-          introInkRef.current?.(['dispose']);
-          introInkRef.current = undefined;
-        }
+        cancelEntrance();
+        if (reducedMotion) disposePackedSurface();
+        else packedSurfaceRef.current?.(['retire']);
+        introInkRef.current?.(['dispose']);
+        introInkRef.current = undefined;
       }
       playbackRef.current?.setActive(active && !reducedMotion);
     }, [
       active,
       cancelEntrance,
       ensurePackedSurface,
-      ensureIntroInk,
       reducedMotion,
-      releaseGpuOwners,
       disposePackedSurface
     ]);
 
@@ -611,9 +613,13 @@ export const PhoneHero = forwardRef<PhoneHeroAdapterHandle, PhoneHeroAdapterProp
           frameSequence: 0,
           scheduled: false
         };
-        const surface = ensurePackedSurface('forward');
-        surface?.(['present', phoneRuntimePresentationTokenKey(token)]);
-        requestPresentedHeroFrame();
+        if (reducedMotion) {
+          schedulePackedAlphaPostPaintRef.current();
+        } else {
+          const surface = ensurePackedSurface('forward');
+          surface?.(['present', phoneRuntimePresentationTokenKey(token)]);
+          requestPresentedHeroFrame();
+        }
       },
       disposePresentation(token) {
         const binding = presentationBindingRef.current;

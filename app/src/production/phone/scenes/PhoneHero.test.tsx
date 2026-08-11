@@ -62,7 +62,8 @@ describe('PhoneHero Route B adapter', () => {
     expect(heroSource).toContain('decodeHeroImage(figurePoster)');
     expect(heroSource).toContain("root.dataset.phoneHeroFirstFrame = 'poster-decoded'");
     expect(heroSource).toContain('const schedulePackedAlphaPostPaint');
-    expect(heroSource).toContain("visibleRoot.dataset.phoneHeroFirstFrame = 'packed-alpha-post-paint'");
+    expect(heroSource).toContain("? 'poster-post-paint'");
+    expect(heroSource).toContain(": 'packed-alpha-post-paint'");
     const decodedPosterPath = heroSource.slice(
       heroSource.indexOf("root.dataset.phoneHeroFirstFrame = 'poster-decoded'"),
       heroSource.indexOf('}).catch(() => {')
@@ -91,7 +92,8 @@ describe('PhoneHero Route B adapter', () => {
     expect(postPaintPath).toContain('void nextBrowserPresentation().then(() => {');
     expect(postPaintPath).toContain('visibleInViewport(visibleCanvas)');
     expect(postPaintPath).toContain('heroPackedFramePresentedRef.current = true;');
-    expect(postPaintPath).toContain("visibleRoot.dataset.phoneHeroFirstFrame = 'packed-alpha-post-paint'");
+    expect(postPaintPath).toContain("? 'poster-post-paint'");
+    expect(postPaintPath).toContain(": 'packed-alpha-post-paint'");
     expect(heroSource).toContain('onReady?.();');
   });
 
@@ -108,13 +110,49 @@ describe('PhoneHero Route B adapter', () => {
     expect(activeLease).toContain('.catch(() => undefined);');
   });
 
+  it('[reduced-motion cold start] admits Hero from the decoded poster without creating a packed surface', () => {
+    const activeLease = heroSource.slice(
+      heroSource.indexOf('useLayoutEffect(() => {\n      sceneActiveRef.current = active;'),
+      heroSource.indexOf('\n    useImperativeHandle(', heroSource.indexOf(
+        'useLayoutEffect(() => {\n      sceneActiveRef.current = active;'
+      ))
+    );
+    const reducedBranch = activeLease.slice(
+      activeLease.indexOf('if (reducedMotion) {'),
+      activeLease.indexOf('} else {', activeLease.indexOf('if (reducedMotion) {'))
+    );
+    expect(reducedBranch).toContain('schedulePackedAlphaPostPaintRef.current();');
+    expect(reducedBranch).not.toContain("ensurePackedSurface('forward')");
+    expect(heroSource).toContain("? 'poster-post-paint'");
+    expect(heroSource).toContain("origin: reducedMotion ? 'leaf-static-poster' : 'leaf-post-paint'");
+  });
+
+  it('[reduced-motion inactive admission] keeps the binding on the poster path without creating a packed surface', () => {
+    const activeLease = heroSource.slice(
+      heroSource.indexOf('useLayoutEffect(() => {\n      sceneActiveRef.current = active;'),
+      heroSource.indexOf('\n    useImperativeHandle(', heroSource.indexOf(
+        'useLayoutEffect(() => {\n      sceneActiveRef.current = active;'
+      ))
+    );
+    expect(activeLease).toContain(
+      'const presentationBound = presentationBindingRef.current !== null;'
+    );
+    expect(activeLease).toContain('if (active || presentationBound)');
+    const reducedBinding = activeLease.slice(
+      activeLease.indexOf('if (reducedMotion) {'),
+      activeLease.indexOf('} else {', activeLease.indexOf('if (reducedMotion) {'))
+    );
+    expect(reducedBinding).toContain('schedulePackedAlphaPostPaintRef.current();');
+    expect(reducedBinding).not.toContain("ensurePackedSurface('forward')");
+  });
+
   it('[ownership hard cutover] lets the packed surface create and retire Hero Canvas', () => {
     expect(heroSource).toContain('createPhonePackedAlphaSurface');
     expect(heroSource).not.toContain('createPackedAlphaVideoCompositor');
     expect(heroSource).not.toContain('figureCanvasRef');
     expect(heroSource).not.toContain('renewPackedAlphaCanvas');
     expect(heroSource).not.toContain('restorePackedAlphaWebGlContext');
-    expect(heroSource).toContain("surface?.(['canvas'])");
+    expect(heroSource).toContain("packedSurfaceRef.current?.(['canvas'])");
   });
 
   it('[Task 5] binds the post-painted Hero canvas to the active presentation token before reporting', () => {
@@ -160,9 +198,6 @@ describe('PhoneHero Route B adapter', () => {
     expect(heroSource).toContain(
       "if (sceneActiveRef.current && heroEntranceCompletedRef.current) {"
     );
-    expect(heroSource).not.toContain(
-      "if (active && heroEntranceCompletedRef.current) {"
-    );
     expect(heroSource).toContain(
       "rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');"
     );
@@ -172,7 +207,7 @@ describe('PhoneHero Route B adapter', () => {
         'useLayoutEffect(() => {\n      sceneActiveRef.current = active;'
       ))
     );
-    expect(activeLease).toContain('if (heroEntranceCompletedRef.current)');
+    expect(activeLease).toContain('if (active && heroEntranceCompletedRef.current)');
     expect(activeLease).toContain(
       "rootRef.current?.style.setProperty('--r4-hero-back-ink-opacity', '1');"
     );

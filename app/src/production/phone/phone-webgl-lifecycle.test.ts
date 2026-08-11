@@ -91,7 +91,10 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(hero).not.toMatch(/\n\s*reverse\(\) \{/);
     expect(heroProjectionLease).toContain("packedSurfaceRef.current?.(['retire']);");
     expect(heroProjectionLease).toContain("ensurePackedSurface('forward');");
-    expect(heroProjectionLease).toContain('if (presentationBindingRef.current)');
+    expect(heroProjectionLease).toContain(
+      'const presentationBound = presentationBindingRef.current !== null;'
+    );
+    expect(heroProjectionLease).toContain('if (active || presentationBound)');
     expect(heroProjectionLease).not.toContain('compositorRef.current');
     expect(aod).toContain('const ensureCompositor = useCallback(');
     expect(aod).not.toContain('renewPackedAlphaCanvas');
@@ -130,11 +133,21 @@ describe('phone WebGL allocation lifecycle', () => {
     expect(hero).toContain('const ensureIntroInk = useCallback(() =>');
     expect(mountEffect).not.toContain('ensureCompositor();');
     expect(mountEffect).not.toContain("introInk(['prewarm']);");
-    // Reduced motion still needs one paused packed-alpha draw to make the
-    // Loader handoff real; only playback/parallax stay disabled. Direct
-    // downstream routes remain cold because `active` is false there.
-    expect(hero).toContain('if (active) {');
-    expect(hero).toContain("ensurePackedSurface('forward');");
+    // Reduced motion proves the decoded static poster and must not allocate a
+    // packed-alpha owner. Full motion remains the only branch that prepares it.
+    const activeLease = hero.slice(
+      hero.indexOf('useLayoutEffect(() => {\n      sceneActiveRef.current = active;'),
+      hero.indexOf('\n    useImperativeHandle(', hero.indexOf(
+        'useLayoutEffect(() => {\n      sceneActiveRef.current = active;'
+      ))
+    );
+    const reducedBranch = activeLease.slice(
+      activeLease.indexOf('if (reducedMotion) {'),
+      activeLease.indexOf('} else {', activeLease.indexOf('if (reducedMotion) {'))
+    );
+    expect(reducedBranch).toContain('schedulePackedAlphaPostPaintRef.current();');
+    expect(reducedBranch).not.toContain("ensurePackedSurface('forward')");
+    expect(activeLease).toContain("ensurePackedSurface('forward');");
     expect(hero).toContain(
       "packedSurfaceRef.current?.(['prepare', 'forward', null, true, null])"
     );

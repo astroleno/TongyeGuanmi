@@ -283,7 +283,7 @@ describe('Phone Brand → Lab visual contracts', () => {
     );
     expect(imperativeHandle).not.toMatch(/\[\s*[\s\S]*?\bmediaPlan\b[\s\S]*?\]/);
     const presentation = imperativeHandle.slice(
-      imperativeHandle.indexOf('presentPresentation(token, report)'),
+      imperativeHandle.indexOf('presentPresentation(token, report'),
       imperativeHandle.indexOf('disposePresentation(token)')
     );
     expect(presentation).toContain('const surface = packedSurfaceRef.current;');

@@ -124,18 +124,6 @@ export function createPhonePackedAlphaSurface(
     onFrame
   ]: PhonePackedAlphaSurfaceRequest
 ): PhonePackedAlphaSurface {
-  const options = {
-    root,
-    container,
-    video,
-    statusDataset,
-    layerName,
-    packedSourceUrl,
-    endpointSeconds,
-    canvasClassName,
-    frameTimeoutMs: frameTimeoutMs ?? undefined,
-    onFrame: onFrame ?? undefined
-  };
   const preparations = new Set<Preparation>();
   let disposed = false;
   let mode: PhonePackedAlphaSurfaceMode | undefined;
@@ -143,8 +131,9 @@ export function createPhonePackedAlphaSurface(
   let compositor: PackedAlphaVideoCompositor | undefined;
   let lastDrawMediaTime = Number.NaN;
   let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
-  let endpointSeek: (() => void) | undefined;
+  let endpointSeek: (() => boolean) | undefined;
   let endpointSeekStage: 'idle' | 'nudge' | 'target' | 'playing' = 'idle';
+  let exactRetryTimer: ReturnType<typeof globalThis.setTimeout> | null | undefined;
   let activePresentationToken: string | null = null;
   let exactForwardFrameRequired = false;
   // `endpoint` mode is also retained while PH performs its presented-frame
@@ -154,7 +143,6 @@ export function createPhonePackedAlphaSurface(
   // callback does not restart endpoint priming or downgrade the frame to
   // `probing`.
   let exactFrameMode = false;
-  let exactForwardFrameListener: (() => void) | undefined;
   let presentationGeneration = 0;
   let activationReady: Promise<void> | null = null;
   let resolveActivationReady: (() => void) | null = null;
@@ -192,15 +180,29 @@ export function createPhonePackedAlphaSurface(
     if (!endpointSeek) return;
     video.removeEventListener('loadedmetadata', endpointSeek);
     video.removeEventListener('loadeddata', endpointSeek);
+    video.removeEventListener('seeked', endpointSeek);
     endpointSeek = undefined;
     endpointSeekStage = 'idle';
   };
-  const clearExactForwardFrame = () => {
-    if (exactForwardFrameListener) {
-      video.removeEventListener('loadeddata', exactForwardFrameListener);
-      exactForwardFrameListener = undefined;
-    }
-    exactForwardFrameRequired = false;
+  const clearFrameTimeout = () => {
+    if (timeout !== undefined) globalThis.clearTimeout(timeout);
+    timeout = undefined;
+  };
+  const clearExactRetry = () => {
+    if (exactRetryTimer) globalThis.clearTimeout(exactRetryTimer);
+    exactRetryTimer = undefined;
+  };
+  const armExactRetry = () => {
+    if (exactRetryTimer !== undefined) return;
+    exactRetryTimer = globalThis.setTimeout(() => {
+      exactRetryTimer = undefined;
+      if (mode !== 'endpoint' && !exactForwardFrameRequired) return;
+      if (endpointSeek?.() === true) {
+        exactRetryTimer = null;
+        return;
+      }
+      armExactRetry();
+    }, 250);
   };
   const retireCanvas = () => {
     if (!canvas) return;
@@ -222,9 +224,9 @@ export function createPhonePackedAlphaSurface(
     resolve?.();
   };
   const clearPresentation = () => {
-    if (timeout !== undefined) globalThis.clearTimeout(timeout);
-    timeout = undefined;
+    clearFrameTimeout();
     clearSeek();
+    clearExactRetry();
     if (compositor) {
       // Release shader/texture resources at every lease boundary. Ordinary
       // release keeps the context reusable; `retire()` is the explicit
@@ -239,8 +241,8 @@ export function createPhonePackedAlphaSurface(
     delete root.dataset[statusDataset];
   };
   const failEndpoint = () => {
-    if (timeout !== undefined) globalThis.clearTimeout(timeout);
-    timeout = undefined;
+    clearFrameTimeout();
+    clearExactRetry();
     root.dataset[statusDataset] = 'static-fallback';
     settle(
       { presentationToken: activePresentationToken },
@@ -251,7 +253,7 @@ export function createPhonePackedAlphaSurface(
     presentationGeneration += 1;
     settleActivation();
     activePresentationToken = null;
-    clearExactForwardFrame();
+    exactForwardFrameRequired = false;
     queuedPresentationToken = undefined;
     settle('all', new DOMException(
       `${layerName} packed-alpha presentation retired`,
@@ -266,8 +268,8 @@ export function createPhonePackedAlphaSurface(
     activePresentationToken = presentationToken;
     if (canvas) delete canvas.dataset[DATA_PRESENTATION_TOKEN];
     rejectSupersededPreparations(presentationToken);
-    if (timeout !== undefined) globalThis.clearTimeout(timeout);
-    timeout = undefined;
+    clearFrameTimeout();
+    clearExactRetry();
     if (root.dataset[statusDataset] === 'verified') {
       root.dataset[statusDataset] = mode === 'forward'
         ? 'awaiting-native-playback'
@@ -300,7 +302,7 @@ export function createPhonePackedAlphaSurface(
       || !canvas
     ) return;
     const activeCanvas = canvas;
-    activeCanvas.className = options.canvasClassName;
+    activeCanvas.className = canvasClassName;
     activeCanvas.setAttribute('aria-hidden', 'true');
     activeCanvas.dataset[DATA_CANVAS] = layerName;
     if (activeCanvas.parentNode !== container) container.append(activeCanvas);
@@ -322,42 +324,41 @@ export function createPhonePackedAlphaSurface(
         lastDrawMediaTime = Number.isFinite(drawMediaTime)
           ? drawMediaTime!
           : Number.NaN;
-        const endpointPending = mode === 'endpoint' && !exactFrameMode;
-        if (endpointPending) {
-          if (!Number.isFinite(drawMediaTime)) {
-            return;
-          }
+        const exactTarget = mode === 'endpoint'
+          ? endpointSeconds
+          : exactForwardFrameRequired ? 0 : null;
+        if (exactTarget !== null && !exactFrameMode) {
           if (
-            !near(drawMediaTime!, options.endpointSeconds, ENDPOINT_FRAME_TOLERANCE_SECONDS)
+            !Number.isFinite(drawMediaTime)
+            || !near(drawMediaTime!, exactTarget, ENDPOINT_FRAME_TOLERANCE_SECONDS)
           ) {
             activeCanvas.dataset[DATA_STATUS] = 'probing';
+            root.dataset[statusDataset] = 'probing';
             endpointSeekStage = 'nudge';
             video.pause();
-            // The seeked event can be coalesced when the decoder was already
-            // parked on this endpoint. Re-arm the exact target from the physical
-            // rVFC callback itself instead of waiting for another DOM event.
             endpointSeek?.();
+            armExactRetry();
             return;
           }
           // A terminal rVFC is the only proof we need. Pause immediately so
           // this decoder priming frame cannot become a second playback clock.
           video.pause();
           endpointSeekStage = 'idle';
+          clearExactRetry();
         }
-        if (timeout !== undefined) globalThis.clearTimeout(timeout);
-        timeout = undefined;
+        clearFrameTimeout();
         root.dataset[statusDataset] = 'verified';
         if (activePresentationToken === null) {
           delete activeCanvas.dataset[DATA_PRESENTATION_TOKEN];
         } else {
           activeCanvas.dataset[DATA_PRESENTATION_TOKEN] = activePresentationToken;
         }
-        options.onFrame?.(
+        onFrame?.(
           activePresentationToken,
           drawMediaTime
         );
         if (exactForwardFrameRequired) video.pause();
-        clearExactForwardFrame();
+        exactForwardFrameRequired = false;
         settle({ presentationToken: activePresentationToken });
       },
       // A packed surface owns its Canvas and reuses its one WebGL context
@@ -376,7 +377,7 @@ export function createPhonePackedAlphaSurface(
     const status = activeCanvas.dataset[DATA_STATUS];
     if (status === 'webgl-unavailable') {
       video.dataset[DATA_OWNER] = layerName;
-      setPackedAlphaVideoSource(video, options.packedSourceUrl);
+      setPackedAlphaVideoSource(video, packedSourceUrl);
       failEndpoint();
       settleActivation();
       return;
@@ -385,67 +386,71 @@ export function createPhonePackedAlphaSurface(
       ? 'awaiting-native-playback'
       : 'probing';
     video.dataset[DATA_OWNER] = layerName;
-    if (nextMode === 'endpoint') {
-      endpointSeek = () => {
-        if (mode !== 'endpoint' || video.readyState < HAVE_METADATA) return;
-        const endpoint = Number.isFinite(video.duration) && video.duration > 0
-          ? Math.min(options.endpointSeconds, Math.max(0, video.duration - 1 / 120))
-          : options.endpointSeconds;
-        try {
-          const nudge = endpoint > ENDPOINT_NUDGE_SECONDS
-            ? endpoint - ENDPOINT_NUDGE_SECONDS
-            : endpoint + ENDPOINT_NUDGE_SECONDS;
-          if (endpointSeekStage === 'nudge') {
-            if (!near(video.currentTime, nudge, 0.002)) {
-              video.currentTime = nudge;
-              return;
-            }
-            endpointSeekStage = 'target';
-            video.currentTime = endpoint;
-          } else if (
-            endpointSeekStage === 'target'
-            && near(video.currentTime, endpoint, 0.002)
-          ) {
-            // WebKit does not always issue rVFC for a paused terminal seek.
-            // Prime exactly one decoded sample, then pause in the rVFC
-            // callback above; semantic playback remains runner-owned.
-            endpointSeekStage = 'playing';
-            void video.play().catch(() => {
-              failEndpoint();
-            });
-          } else if (!near(video.currentTime, endpoint, 0.002)) {
-            endpointSeekStage = 'target';
-            video.currentTime = endpoint;
-          } else if (activeCanvas.dataset[DATA_STATUS] === 'probing') {
-            endpointSeekStage = 'nudge';
+    endpointSeek = () => {
+      if (
+        video.readyState < HAVE_METADATA
+        || (mode !== 'endpoint' && !exactForwardFrameRequired)
+      ) return false;
+      const endpoint = mode === 'endpoint'
+        && Number.isFinite(video.duration)
+        && video.duration > 0
+        ? Math.min(endpointSeconds, Math.max(0, video.duration - 1 / 120))
+        : mode === 'endpoint' ? endpointSeconds : 0;
+      try {
+        const nudge = endpoint > ENDPOINT_NUDGE_SECONDS
+          ? endpoint - ENDPOINT_NUDGE_SECONDS
+          : endpoint + ENDPOINT_NUDGE_SECONDS;
+        if (endpointSeekStage === 'nudge') {
+          if (!near(video.currentTime, nudge, 0.002)) {
             video.currentTime = nudge;
-          } else {
-            endpointSeekStage = 'idle';
-            compositor?.render();
+            return true;
           }
-        } catch {
-          // Metadata can race source replacement; loadeddata retries.
+          endpointSeekStage = 'target';
+          video.currentTime = endpoint;
+          return true;
+        } else if (
+          endpointSeekStage === 'target'
+          && near(video.currentTime, endpoint, 0.002)
+        ) {
+          // WebKit does not always issue rVFC for a paused terminal seek.
+          // Prime exactly one decoded sample, then pause in the rVFC
+          // callback above; semantic playback remains runner-owned.
+          endpointSeekStage = 'playing';
+          void video.play().catch(() => {
+            failEndpoint();
+          });
+          return true;
+        } else if (!near(video.currentTime, endpoint, 0.002)) {
+          endpointSeekStage = 'target';
+          video.currentTime = endpoint;
+          return true;
+        } else if (activeCanvas.dataset[DATA_STATUS] === 'probing') {
+          endpointSeekStage = 'nudge';
+          video.currentTime = nudge;
+          return true;
+        } else {
+          endpointSeekStage = 'idle';
+          compositor?.render();
+          return true;
         }
-      };
-      video.addEventListener('loadedmetadata', endpointSeek);
-      video.addEventListener('loadeddata', endpointSeek);
-    }
-    setPackedAlphaVideoSource(video, options.packedSourceUrl);
+      } catch {
+        // Metadata can race source replacement; loadeddata retries.
+        return false;
+      }
+    };
+    video.addEventListener('loadedmetadata', endpointSeek);
+    video.addEventListener('loadeddata', endpointSeek);
+    video.addEventListener('seeked', endpointSeek);
+    setPackedAlphaVideoSource(video, packedSourceUrl);
+    endpointSeekStage = 'nudge';
+    // The handler performs the bounded nudge synchronously when metadata is
+    // already available and otherwise retries from media readiness events.
+    endpointSeek();
     if (nextMode === 'endpoint') {
-      endpointSeekStage = 'nudge';
-      // The handler performs the bounded nudge synchronously when metadata is
-      // already available and otherwise retries from media readiness events.
-      endpointSeek?.();
       timeout = globalThis.setTimeout(
         failEndpoint,
-        options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS
+        frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS
       );
-    } else {
-      try {
-        video.currentTime = 0;
-      } catch {
-        // loadeddata owns the first native playback frame.
-      }
     }
     if (queuedPresentationToken !== undefined) {
       const token = queuedPresentationToken;
@@ -460,9 +465,9 @@ export function createPhonePackedAlphaSurface(
     // create the GL context during that probe, before setupActive() gets a
     // chance to assign the class/data marker; early diagnostics must still
     // identify the single surface owner rather than an anonymous canvas.
-    nextCanvas.className = options.canvasClassName;
+    nextCanvas.className = canvasClassName;
     nextCanvas.setAttribute('aria-hidden', 'true');
-    nextCanvas.dataset[DATA_CANVAS] = options.layerName;
+    nextCanvas.dataset[DATA_CANVAS] = layerName;
   };
   const waitForRetainedContext = (
     nextMode: PhonePackedAlphaSurfaceMode,
@@ -579,26 +584,9 @@ export function createPhonePackedAlphaSurface(
         }
         if (nextMode === 'forward' && requirePresentedFrame) {
           exactForwardFrameRequired = true;
-          const startExactForwardFrame = () => {
-            if (
-              disposed
-              || mode !== 'forward'
-              || !compositor
-              || root.dataset[statusDataset] === 'verified'
-            ) return;
-            exactForwardFrameListener = undefined;
-            try {
-              video.currentTime = 0;
-              void video.play().catch(() => failEndpoint());
-            } catch {
-              failEndpoint();
-            }
-          };
-          if (video.readyState >= HAVE_METADATA) startExactForwardFrame();
-          else {
-            exactForwardFrameListener = startExactForwardFrame;
-            video.addEventListener('loadeddata', startExactForwardFrame, { once: true });
-          }
+          endpointSeekStage = 'nudge';
+          endpointSeek?.();
+          armExactRetry();
         }
         if (nextMode === 'forward' && !requirePresentedFrame) {
           return undefined;
@@ -609,27 +597,30 @@ export function createPhonePackedAlphaSurface(
             `${layerName} packed-alpha presentation failed`
           );
         }
-        if (timeout !== undefined) globalThis.clearTimeout(timeout);
+        clearFrameTimeout();
         timeout = globalThis.setTimeout(
           failEndpoint,
-          options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS
+          frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS
         );
+        if (nextMode === 'endpoint') {
+          armExactRetry();
+        }
         return new Promise<void>((resolve, reject) => {
-        const preparation: Preparation = {
-          presentationToken,
-          resolve,
-          reject,
-          ...(signal ? { signal } : {}),
-          abort() {
-            preparations.delete(preparation);
-            reject(new DOMException(
-              `${layerName} packed-alpha presentation aborted`,
-              'AbortError'
-            ));
-          }
-        };
-        preparations.add(preparation);
-        signal?.addEventListener('abort', preparation.abort, { once: true });
+          const preparation: Preparation = {
+            presentationToken,
+            resolve,
+            reject,
+            ...(signal ? { signal } : {}),
+            abort() {
+              preparations.delete(preparation);
+              reject(new DOMException(
+                `${layerName} packed-alpha presentation aborted`,
+                'AbortError'
+              ));
+            }
+          };
+          preparations.add(preparation);
+          signal?.addEventListener('abort', preparation.abort, { once: true });
         });
       });
   };
@@ -675,7 +666,7 @@ export function createPhonePackedAlphaSurface(
       // Preparation may finish before the presentation adapter is bound. The
       // exact draw is still valid for this immutable token; replay its raw
       // evidence to the newly bound adapter instead of dropping admission.
-      options.onFrame?.(
+      onFrame?.(
         activePresentationToken,
         Number.isFinite(lastDrawMediaTime) ? lastDrawMediaTime : null
       );

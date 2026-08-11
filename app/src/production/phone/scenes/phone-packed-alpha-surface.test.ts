@@ -159,6 +159,10 @@ class FakeVideo extends FakeNode {
   removeEventListener(name: string, listener: () => void) {
     this.listeners.get(name)?.delete(listener);
   }
+
+  emit(name: string) {
+    for (const listener of this.listeners.get(name) ?? []) listener();
+  }
 }
 
 class FakeDocument {
@@ -350,7 +354,7 @@ describe('phone packed-alpha surface', () => {
     await Promise.resolve();
     expect(resolved).toBe(false);
     expect(root.dataset.phoneTestAlpha).toBe('awaiting-native-playback');
-    compositorProbe.onFrame?.();
+    compositorProbe.onFrame?.(0);
 
     await expect(preparation).resolves.toBeUndefined();
     expect(root.dataset.phoneTestAlpha).toBe('verified');
@@ -368,7 +372,7 @@ describe('phone packed-alpha surface', () => {
     ] as unknown as Parameters<typeof surface>[0]);
 
     const first = Promise.resolve(prepare('authority-a:1')).then(() => undefined);
-    compositorProbe.onFrame?.();
+    compositorProbe.onFrame?.(0);
     await expect(first).resolves.toBeUndefined();
     expect(root.dataset.phoneTestAlpha).toBe('verified');
 
@@ -379,9 +383,64 @@ describe('phone packed-alpha surface', () => {
     await Promise.resolve();
 
     expect(secondResolved).toBe(false);
-    compositorProbe.onFrame?.();
+    compositorProbe.onFrame?.(0);
     await expect(second).resolves.toBeUndefined();
     surface(['dispose']);
+  });
+
+  it('[P0 exact frame] keeps a bounded retry after an old forward mediaTime', async () => {
+    vi.useFakeTimers();
+    try {
+      const { root, video, surface } = fixture();
+      let settled = false;
+      const preparation = Promise.resolve(surface([
+        'prepare', 'forward', null, true, 'token-forward'
+      ] as unknown as Parameters<typeof surface>[0])).then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // The first callback is a stale retained sample. It must not consume the
+      // retry or cancel the pending nudge→0 seek.
+      compositorProbe.onFrame?.(1.25);
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      expect(root.dataset.phoneTestAlpha).toBe('probing');
+      vi.advanceTimersByTime(250);
+      expect(video.play).toHaveBeenCalledTimes(1);
+
+      video.emit('seeked');
+      video.emit('seeked');
+      expect(video.play).toHaveBeenCalled();
+      compositorProbe.onFrame?.(0);
+      await expect(preparation).resolves.toBeUndefined();
+      expect(settled).toBe(true);
+      surface(['dispose']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('[P0 exact frame] re-arms when the first physical retry cannot start', async () => {
+    vi.useFakeTimers();
+    try {
+      const { video, surface } = fixture();
+      video.readyState = 0;
+      const preparation = Promise.resolve(surface([
+        'prepare', 'endpoint', null, true, 'token-endpoint'
+      ] as unknown as Parameters<typeof surface>[0]));
+      await Promise.resolve();
+      vi.advanceTimersByTime(250);
+      expect(video.currentTime).toBe(0);
+      video.readyState = 4;
+      vi.advanceTimersByTime(250);
+      expect(video.currentTime).not.toBe(0);
+      surface(['dispose']);
+      await expect(preparation).rejects.toMatchObject({ name: 'AbortError' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('[convergence] rebinds a fresh proof token without allocating another WebGL canvas', async () => {
@@ -395,14 +454,14 @@ describe('phone packed-alpha surface', () => {
     ] as unknown as Parameters<typeof surface>[0]);
 
     const first = Promise.resolve(prepare('authority-a:1'));
-    compositorProbe.onFrame?.();
+    compositorProbe.onFrame?.(0);
     await expect(first).resolves.toBeUndefined();
     const firstCanvas = compositorProbe.canvases[0];
 
     const second = Promise.resolve(prepare('authority-a:2'));
     await Promise.resolve();
     expect(compositorProbe.canvases).toEqual([firstCanvas]);
-    compositorProbe.onFrame?.();
+    compositorProbe.onFrame?.(0);
     await expect(second).resolves.toBeUndefined();
     surface(['dispose']);
   });

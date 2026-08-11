@@ -431,8 +431,8 @@ export function PhoneGradeAStory({
           });
         },
         {
-          present(token, report) {
-            figure2Ref.current?.presentPresentation?.(token, report);
+          present(token, report, fail) {
+            figure2Ref.current?.presentPresentation?.(token, report, fail);
           },
           dispose(token) {
             figure2Ref.current?.disposePresentation?.(token);

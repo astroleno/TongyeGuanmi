@@ -331,6 +331,19 @@ describe('phone Grade A orchestration ownership', () => {
     expect(proofSurface).toContain('proofRef.current?.disposePresentation?.(token)');
   });
 
+  it('[Figure2 media failure] forwards the typed failure callback through the Grade A adapter', () => {
+    const figure2Surface = source.slice(
+      source.indexOf("'grade-a:figure2'"),
+      source.indexOf("'grade-a:proof'")
+    );
+    expect(figure2Surface).toContain('present(token, report, fail)');
+    expect(figure2Surface).toContain(
+      'figure2Ref.current?.presentPresentation?.(token, report, fail)'
+    );
+    expect(figure2Source).toContain("fail?.('media-failed')");
+    expect(figure2Source).toContain("error.name === 'AbortError'");
+  });
+
   it('[Proof↔Brand reduced cutover] hands the canonical Brand leaf directly to boundary 2 without registering a second Brand surface', () => {
     const boundaryTwo = source.slice(source.indexOf('} : id === 2 ? {'));
     expect(boundaryTwo).toContain('reducedStaticSubject');

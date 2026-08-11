@@ -114,8 +114,8 @@ function frontProgressForSnapshot(snapshot: PhoneCinematicSnapshot): number | nu
     stageOwner,
     ,
     ,
-    _scrollProgress,
-    _scrollRun
+    ,
+    ,
   ] = snapshot;
   if (status === 'transaction' && transactionRun === 'aod-method') {
     // Keep the rail at the stable source semantic edge while the runner owns
@@ -284,20 +284,24 @@ export function usePhoneStageRuntime(
         () => options.coverageRef.current,
         undefined,
         {
-          present(token, report) {
-            options.heroRef.current?.presentPresentation?.(token, report);
+          present(token, report, fail) {
+            options.heroRef.current?.presentPresentation?.(token, report, fail);
           },
           dispose(token) {
             options.heroRef.current?.disposePresentation?.(token);
           }
         },
-        (token) => (
-          token.kind === 'static-poster'
-          && token.subject === 'front:hero'
-          && options.heroRef.current?.root()?.querySelector<HTMLCanvasElement>(
-            '[data-phone-packed-alpha-canvas="hero-figure"]'
-          )?.dataset.packedAlphaFrameReady === 'true'
-        )
+        (token) => {
+          if (token.kind !== 'static-poster' || token.subject !== 'front:hero') {
+            return false;
+          }
+          const root = options.heroRef.current?.root();
+          return options.reducedMotion
+            ? root?.dataset.phoneHeroFirstFrame === 'poster-post-paint'
+            : root?.querySelector<HTMLCanvasElement>(
+              '[data-phone-packed-alpha-canvas="hero-figure"]'
+            )?.dataset.packedAlphaFrameReady === 'true';
+        }
       ),
       registerPhoneRuntimeSurface(
         options.orchestrator,

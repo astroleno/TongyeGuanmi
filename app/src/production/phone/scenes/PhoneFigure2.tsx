@@ -28,6 +28,7 @@ import {
   type PhoneRenderedPresentationFrame,
   type PresentationToken
 } from '../phone-story/runtime';
+import type { PhoneFailureReason } from '../phone-story/machine';
 import { usePhoneStorySnapshot } from '../PhoneStoryRuntimeContext';
 import { phoneMediaUrlFor } from '../phone-media';
 import './PhoneFigure2.css';
@@ -399,7 +400,7 @@ export const PhoneFigure2 = forwardRef<
       // intentionally ignores imperative writers. The snapshot effect above
       // is the only path that can touch its media timeline.
     },
-    presentPresentation(token, report) {
+    presentPresentation(token, report, fail?: (reason: PhoneFailureReason) => void) {
       releaseStaticPresentation();
       if (token.kind === 'static-poster') {
         staticPresentationBindingRef.current = {
@@ -433,7 +434,10 @@ export const PhoneFigure2 = forwardRef<
         null,
         true,
         key
-      ]).catch(() => undefined);
+      ]).catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        fail?.('media-failed');
+      });
     },
     disposePresentation(token) {
       if (releaseStaticPresentation(token)) return;
