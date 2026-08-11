@@ -235,8 +235,7 @@ export function createPhoneStoryRuntimeEngine(
   const preparationLeaseKey = (
     snapshot: PhoneStorySnapshot
   ): string | Extract<PhoneStoryEvent, { type: 'DIRECT_ENTRY_REQUESTED' }> | null => {
-    if (pendingDirectEntry) return pendingDirectEntry;
-    if (snapshot.status !== 'transaction') return null;
+    if (snapshot.status !== 'transaction') return pendingDirectEntry;
     const { session } = snapshot;
     if (session.phase === 'rollback-verifying-stable') {
       return [
@@ -280,6 +279,7 @@ export function createPhoneStoryRuntimeEngine(
       if (pendingDirectEntry === key) {
         pendingDirectEntry = null;
         preparationLease = null;
+        syncPreparationLease();
         return;
       }
       if (rearm) {
@@ -382,7 +382,21 @@ export function createPhoneStoryRuntimeEngine(
     if (disposed) return { snapshot: currentSnapshot, effects: [] as never[] };
     const event = normalize(rawEvent);
     const reduction = reducePhoneStorySnapshot(currentSnapshot, event);
-    if (reduction.snapshot === currentSnapshot) return reduction;
+    if (reduction.snapshot === currentSnapshot) {
+      if (
+        rawEvent.type === 'NAVIGATE_REQUESTED'
+        && rawEvent.authorityId === currentSnapshot.authorityId
+        && currentSnapshot.status === 'stable'
+        && currentSnapshot.scene === rawEvent.scene
+      ) {
+        pendingDirectEntry = null;
+        syncPreparationLease();
+      }
+      return reduction;
+    }
+    if (reduction.snapshot.status === 'transaction') {
+      pendingDirectEntry = null;
+    }
     const preflightOptions = firstFrameProjectionOptions(
       currentSnapshot,
       reduction.snapshot,
@@ -410,9 +424,9 @@ export function createPhoneStoryRuntimeEngine(
         && currentSnapshot.status === 'stable'
       ) {
         pendingDirectEntry = event;
-        syncPreparationLease();
       }
       recoverProjectFailure();
+      syncPreparationLease();
       return { snapshot: currentSnapshot, effects: [] as never[] };
     }
     if (event.type === 'DIRECT_ENTRY_REQUESTED') pendingDirectEntry = null;
