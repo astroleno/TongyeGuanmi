@@ -320,6 +320,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.video.removeEventListener('loadedmetadata', this.onLoadedMetadata);
     this.video.removeEventListener('error', this.onMediaError);
     this.video.removeEventListener('abort', this.onMediaAbort);
+    delete this.video.dataset[DATA_RUN];
+    delete this.video.dataset[DATA_DIRECTION];
+    delete this.video.dataset[DATA_GENERATION];
+    delete this.video.dataset[DATA_PROGRESS];
     delete this.video.dataset[DATA_TARGET];
     delete this.video.dataset[DATA_FRAME_READY];
     delete this.video.dataset[DATA_FRAME_EVIDENCE];

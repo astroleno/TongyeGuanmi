@@ -46,7 +46,7 @@ const FIGURE2_ENDPOINT_SECONDS = 2.6;
 const FIGURE2_DOCUMENT_PROGRESS_END = .72;
 
 export type PhoneFigure2MediaPlan = readonly [
-  io: 'idle' | 'static' | 'seek',
+  io: 'idle' | 'park' | 'static' | 'seek',
   semanticProgress: number,
   surfaceMode: PhonePackedAlphaSurfaceMode | null
 ];
@@ -89,7 +89,7 @@ export function phoneFigure2MediaPlan(
   if (status === 'transaction') {
     // Exact Method → Figure2 admission owns the decoder. Geometry may paint
     // the authored hold, but the scroll lane must stay parked until stable.
-    if (run === 'method-figure2') return ['static', 0, null];
+    if (run === 'method-figure2') return ['park', 0, null];
     // The shared execution owns the z-depth effect, while this leaf remains
     // the sole owner of Figure2 media. Holding the already-admitted terminal
     // frame avoids asking Safari to decode/prove that same frame a second time
@@ -307,6 +307,10 @@ export const PhoneFigure2 = forwardRef<
   ]: PhoneFigure2MediaPlan) => {
     const root = rootRef.current;
     if (!root || !sceneActiveRef.current || io === 'idle') return;
+    if (io === 'park') {
+      parkFigure2Media(root);
+      return void renderFigure2Hold(root);
+    }
     if (io === 'static' || staticPresentationBindingRef.current) {
       return void renderFigure2Hold(root);
     }

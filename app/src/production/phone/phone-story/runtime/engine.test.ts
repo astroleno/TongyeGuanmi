@@ -21,7 +21,7 @@ import {
   createPhoneStoryPresentation,
   type PhoneRenderedPresentationFrame
 } from '../presentation';
-import type { PresentationToken } from '../machine';
+import type { PhoneFailureReason, PresentationToken } from '../machine';
 
 const sessionSource = readFileSync(new URL('./session.ts', import.meta.url), 'utf8');
 const sessionTypesSource = readFileSync(new URL('./types.ts', import.meta.url), 'utf8');
@@ -1539,6 +1539,161 @@ describe('single phone story projector transaction', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('[P0 direct-entry rollback] re-arms a dropped source proof once and unlocks the original hold by eight seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      const root = element();
+      const brand = element();
+      const services = element();
+      const frames: Array<() => void> = [];
+      let actualY = 100;
+      let failTarget: ((reason: PhoneFailureReason) => void) | undefined;
+      let brandPresents = 0;
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'brand',
+        root,
+        scrollY: () => actualY,
+        scrollTo: (nextY) => { actualY = nextY; },
+        scheduleFrame: (callback) => frames.push(callback)
+      });
+      orchestrator.registerScrollCorridor({
+        id: 'direct-brand-services',
+        scenes: ['brand', 'services'],
+        sample: () => null,
+        boundary: () => 100,
+        landing: (scene) => scene === 'brand' ? 100 : 320
+      });
+      orchestrator.registerSurface({
+        id: 'native:brand',
+        scene: 'brand',
+        kind: 'native',
+        root: () => brand,
+        presentation: () => [true, true, true, true, 'static-poster'],
+        adapter: { present: () => { brandPresents += 1; } }
+      });
+      orchestrator.registerSurface({
+        id: 'native:services',
+        scene: 'services',
+        kind: 'native',
+        root: () => services,
+        presentation: () => [true, true, true, true, 'static-poster'],
+        adapter: {
+          present: (_token, _report, fail) => { failTarget = fail; }
+        }
+      });
+
+      orchestrator.dispatch({
+        type: 'DIRECT_ENTRY_REQUESTED',
+        authorityId: orchestrator.getSnapshot().authorityId,
+        target: 'services',
+        source: 'hash',
+        fallbackScene: 'brand',
+        cinematic: null
+      });
+      while (frames.length > 0) frames.shift()?.();
+      expect(failTarget).toBeTypeOf('function');
+      failTarget?.('media-failed');
+      while (frames.length > 0) frames.shift()?.();
+
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: {
+          phase: 'rollback-verifying-stable',
+          operation: { run: null, from: 'brand' }
+        }
+      });
+      expect(brandPresents).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(PHONE_PREPARATION_LEASE_TIMEOUT_MS / 2);
+      expect(brandPresents).toBe(2);
+      await vi.advanceTimersByTimeAsync(PHONE_PREPARATION_LEASE_TIMEOUT_MS / 2);
+
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'stable',
+        scene: 'brand',
+        session: null
+      });
+      expect(root.dataset.phoneInputState).toBe('free');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('[P0 Group67 rollback] requests the whole-run Education source proof after the Crane terminal leg fails', () => {
+    const root = element();
+    const education = element();
+    const crane = element();
+    const frames: Array<() => void> = [];
+    let actualY = 100;
+    let session: PhoneOrchestratedRunSession | undefined;
+    const requestedScenes: string[] = [];
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'education',
+      root,
+      scrollY: () => actualY,
+      scrollTo: (nextY) => { actualY = nextY; },
+      scheduleFrame: (callback) => frames.push(callback)
+    });
+    orchestrator.registerRunCapability(
+      'education-contact',
+      'education-contact-rollback-proof',
+      capability(100, (_direction, activeSession) => { session = activeSession; })
+    );
+    orchestrator.registerScrollCorridor({
+      id: 'education-contact-rollback',
+      scenes: ['education', 'crane-animation', 'contact'],
+      sample: () => null,
+      boundary: (run) => run === 'education-contact' ? 100 : null,
+      landing: (scene) => scene === 'education' ? 100 : 320
+    });
+    orchestrator.registerSurface({
+      id: 'native:education',
+      scene: 'education',
+      kind: 'native',
+      root: () => education,
+      presentation: () => [true, true, true, true, 'static-poster'],
+      adapter: {
+        present: (token, report) => {
+          requestedScenes.push('education');
+          report({ token, frameSequence: 1, observedAt: performance.now() });
+        }
+      }
+    });
+    orchestrator.registerSurface({
+      id: 'group67:crane',
+      scene: 'crane-animation',
+      kind: 'fixed',
+      root: () => crane,
+      presentation: () => [true, true, true, true, 'packed-canvas-frame'],
+      adapter: {
+        present: (token, report) => {
+          requestedScenes.push('crane-animation');
+          report({ token, frameSequence: 1, observedAt: performance.now() });
+        }
+      }
+    });
+
+    expect(orchestrator.resolveIntent([1, 1, 100, 320])).toBe('claim-boundary');
+    if (!session) throw new Error('Expected an Education → Contact session');
+    reportSegmentProof(session, 'education-crane');
+    session.reportEndpointCommit('receiver');
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: { operation: { legIndex: 1 }, phase: 'preparing' }
+    });
+
+    session.reportFailure('media-failed');
+    while (frames.length > 0) frames.shift()?.();
+
+    expect(requestedScenes).toEqual(['education']);
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'education',
+      session: null
+    });
+    expect(root.dataset.phoneInputState).toBe('free');
   });
 
   it('claims a direct Contact reverse input at the canonical Group67 boundary', () => {

@@ -26,7 +26,7 @@ const phoneFigure2MediaPlan = (
       snapshot: PhoneCinematicSnapshot,
       reducedMotion: boolean
     ) => readonly [
-      'idle' | 'static' | 'seek',
+      'idle' | 'park' | 'static' | 'seek',
       number,
       'forward' | 'endpoint' | null
     ];
@@ -134,7 +134,15 @@ describe('PhoneFigure2', () => {
       direction: 1,
       phase: 'preparing',
       progress: 0
-    }), false)).toEqual(['static', 0, null]);
+    }), false)).toEqual(['park', 0, null]);
+    expect(phoneFigure2MediaPlan(cinematicSnapshot({
+      scene: 'figure2-animation',
+      status: 'transaction',
+      run: 'method-figure2',
+      direction: -1,
+      phase: 'animating',
+      progress: .5
+    }), false)).toEqual(['park', 0, null]);
     expect(phoneFigure2MediaPlan(cinematicSnapshot({
       scene: 'figure2-animation',
       status: 'transaction',
@@ -157,7 +165,7 @@ describe('PhoneFigure2', () => {
       direction: 1,
       phase: 'preparing',
       progress: 0
-    }), true)).toEqual(['static', 0, null]);
+    }), true)).toEqual(['park', 0, null]);
   });
 
 });

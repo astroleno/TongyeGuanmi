@@ -34,10 +34,8 @@ import {
 import {
   phoneScenePresentationProofKind,
   phoneScenePresentationTuple,
-  phoneRunIntentClaimPolicy,
-  phoneRunLegAdmissionTuple
+  phoneRunIntentClaimPolicy
 } from '../manifest';
-import type { PhonePresentationProofKind } from '../manifest';
 import type {
   PhoneAodDiagnostics,
   PhoneOrchestratedRunSession,
@@ -239,19 +237,22 @@ export function createPhoneStoryRuntimeEngine(
   const preparationLeaseKey = (
     snapshot: PhoneStorySnapshot
   ): string | null => {
-    if (
-      snapshot.status !== 'transaction'
-      || snapshot.session.operation.run === null
-      || (
-        snapshot.session.phase !== 'preparing'
-        && snapshot.session.phase !== 'rollback-verifying-stable'
-      )
-    ) return null;
+    if (snapshot.status !== 'transaction') return null;
+    const { session } = snapshot;
+    if (session.phase === 'rollback-verifying-stable') {
+      return [
+        session.sessionId,
+        session.generation,
+        'rollback',
+        session.operation.from
+      ].join(':');
+    }
+    if (session.operation.run === null || session.phase !== 'preparing') return null;
     return [
-      snapshot.session.sessionId,
-      snapshot.session.generation,
-      snapshot.session.operation.run,
-      snapshot.session.operation.direction
+      session.sessionId,
+      session.generation,
+      session.operation.run,
+      session.operation.direction
     ].join(':');
   };
   const syncPreparationLease = () => {
@@ -525,24 +526,6 @@ export function createPhoneStoryRuntimeEngine(
       operation.run ?? 'entry'
     ].join(':');
   };
-  const targetPresentationScene = (
-    snapshot: PhoneStorySnapshot,
-    logicalScene: SceneId
-  ): SceneId => {
-    if (snapshot.status !== 'transaction') return logicalScene;
-    const operation = snapshot.session.operation;
-    if (operation.run !== 'education-contact') return logicalScene;
-    const direction = snapshot.session.phase.startsWith('rollback-')
-      ? operation.direction === 1 ? -1 : 1
-      : operation.direction;
-    const strategy = phoneRunLegAdmissionTuple(
-      operation.run,
-      operation.legIndex,
-      direction,
-      snapshot.session.reducedMotion ? 'reduced' : 'normal'
-    );
-    return strategy?.[3] ?? logicalScene;
-  };
   /**
    * Requests a token-bound fact from the registered presentation boundary.
    * Engine owns reducer dispatch; presentation owns the concrete surface
@@ -558,40 +541,10 @@ export function createPhoneStoryRuntimeEngine(
     try {
     const contract = phoneScenePresentationTuple(scene);
     const snapshot = currentSnapshot;
-    let proofKind: PhonePresentationProofKind = phoneScenePresentationProofKind(scene);
-    let proofSubject = contract[4];
-    const run = snapshot.status === 'transaction'
-      ? snapshot.session.operation.run
-      : null;
+    const proofKind = phoneScenePresentationProofKind(scene);
+    const proofSubject = contract[4];
     const rollback = snapshot.status === 'transaction'
       && snapshot.session.phase.startsWith('rollback-');
-    if (snapshot.status === 'transaction' && run) {
-      const operation = snapshot.session.operation;
-      const direction = rollback
-        ? operation.direction === 1 ? -1 : 1
-        : operation.direction;
-      const strategy = phoneRunLegAdmissionTuple(
-        run,
-        operation.legIndex,
-        direction,
-        snapshot.session.reducedMotion ? 'reduced' : 'normal'
-      );
-      // Terminal verification uses the target scene's declared direct-entry
-      // proof contract. A normal Figure2 → Proof leg first proves its Ink
-      // effect, then the Proof leaf must re-arm as dom-reading; reusing the
-      // segment's effect-frame tuple here would address the Ink surface and
-      // leave the DOM target without an exact frame. Contact → Education is
-      // the one composite leg whose physical target differs from the
-      // semantic hold, so its Crane leaf keeps the run-leg contract.
-      if (
-        scene === 'crane-animation'
-        && strategy
-        && strategy[3] === scene
-      ) {
-        proofKind = strategy[1];
-        proofSubject = strategy[2];
-      }
-    }
     const token = activeSession.presentationProofToken(
       proofKind,
       proofSubject
@@ -801,7 +754,7 @@ export function createPhoneStoryRuntimeEngine(
       try {
         reportTargetPresentation(
           activeSession,
-          targetPresentationScene(currentSnapshot, operation.to)
+          operation.to
         );
       } finally {
         if (directEntryPreparation === preparation) preparation.publishing = false;
@@ -817,12 +770,9 @@ export function createPhoneStoryRuntimeEngine(
       if (activeSession?.valid()) {
         reportTargetPresentation(
           activeSession,
-          targetPresentationScene(
-            currentSnapshot,
-            session.phase === 'rollback-verifying-stable'
-              ? operation.from
-              : operation.to
-          )
+          session.phase === 'rollback-verifying-stable'
+            ? operation.from
+            : operation.to
         );
       }
       return;

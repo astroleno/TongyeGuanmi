@@ -4979,6 +4979,8 @@ test('[execution regression] natural Star→AOD releases its adapter before the 
   await assertStablePhoneHold(page, 'method-top', { timeout: 70_000 });
   await expect(page.locator(LIVE_PHONE_ROOT))
     .not.toHaveAttribute('data-phone-aod-rollback-reason', /.+/);
+  await inputPhoneIntent(page, 1);
+  await assertStablePhoneHold(page, 'figure2-animation', { timeout: 70_000 });
 });
 
 test('[AOD→Method terminal layering] never lets AOD cover Method after the receiver becomes visible', async ({ page }) => {
@@ -5274,6 +5276,61 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
   expect(boundaryPresentation.coverageImage).toContain('figure2-middle-building');
   expect(boundaryPresentation.coverageBottom)
     .toBeGreaterThanOrEqual(boundaryPresentation.viewportBottom - 1);
+  await page.evaluate(() => {
+    const target = window as typeof window & {
+      __figure2ReverseParkProbe?: {
+        samples: Array<{ time: number; timelineRun: string | null }>;
+        stop(): void;
+      };
+    };
+    let sampling = true;
+    const samples: Array<{ time: number; timelineRun: string | null }> = [];
+    const sample = () => {
+      const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
+      const video = document.querySelector<HTMLVideoElement>('[data-figure2-combined-video]');
+      if (
+        video
+        && root?.dataset.phoneCursor === 'transition:method-figure2:0'
+        && root.dataset.phoneTransitionDirection === '-1'
+      ) {
+        samples.push({
+          time: Number(video.currentTime.toFixed(4)),
+          timelineRun: video.dataset.timelineVideoRun ?? null
+        });
+      }
+      if (sampling) window.requestAnimationFrame(sample);
+    };
+    target.__figure2ReverseParkProbe = {
+      samples,
+      stop() { sampling = false; }
+    };
+    window.requestAnimationFrame(sample);
+  });
+  await inputPhoneIntent(page, -1);
+  await assertStablePhoneHold(page, 'method-top');
+  const reversePark = await page.evaluate(() => {
+    const probe = (
+      window as typeof window & {
+        __figure2ReverseParkProbe?: {
+          samples: Array<{ time: number; timelineRun: string | null }>;
+          stop(): void;
+        };
+      }
+    ).__figure2ReverseParkProbe;
+    probe?.stop();
+    return probe?.samples ?? [];
+  });
+  expect(reversePark).not.toEqual([]);
+  expect(
+    reversePark.every((sample) => sample.timelineRun === null),
+    JSON.stringify(reversePark)
+  ).toBe(true);
+  expect(
+    Math.max(...reversePark.map((sample) => sample.time))
+      - Math.min(...reversePark.map((sample) => sample.time))
+  ).toBeLessThanOrEqual(.01);
+  await inputPhoneIntent(page, 1);
+  await assertStablePhoneHold(page, 'figure2-animation');
   await waitForNewWheelEpoch(page);
 
   const before = await page.evaluate(() => {

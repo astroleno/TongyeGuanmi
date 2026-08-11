@@ -928,11 +928,23 @@ describe('timeline video driver', () => {
       __r5TimelineVideoDispose?: () => void;
     };
     const first = timelineVideoDriverFor(element);
+    first.drive({
+      runId: 'dispose-owner',
+      direction: 1,
+      progress: .5,
+      durationFallbackSeconds: 10,
+      mode: 'timeline'
+    });
+    expect(video.dataset.timelineVideoRun).toBe('dispose-owner');
 
     element.__r5TimelineVideoDispose?.();
     element.__r5TimelineVideoDispose?.();
 
     expect(element.__r5TimelineVideoDispose).toBeUndefined();
+    expect(video.dataset).not.toHaveProperty('timelineVideoRun');
+    expect(video.dataset).not.toHaveProperty('timelineVideoDirection');
+    expect(video.dataset).not.toHaveProperty('timelineVideoGeneration');
+    expect(video.dataset).not.toHaveProperty('timelineVideoProgress');
     expect(timelineVideoDriverFor(element)).not.toBe(first);
   });
 });
