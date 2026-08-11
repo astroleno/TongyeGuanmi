@@ -273,6 +273,88 @@ describe('timeline video driver', () => {
     }
   });
 
+  it('keeps the exact retry armed after an old mediaTime callback', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    try {
+      const readiness = driver.prepareFrame({
+        runId: 'media-exact-retry:stale-frame',
+        direction: 1,
+        progress: 0.5,
+        durationFallbackSeconds: 10,
+        requireExactMediaFrame: true
+      });
+      video.completeSeek();
+
+      // The first decoded callback is a stale sample. The pending exact retry
+      // must survive this re-registration so the physical nudge still runs.
+      video.presentFrame(4.7);
+      const writesBeforeRetry = video.currentTimeWrites.length;
+      await vi.advanceTimersByTimeAsync(250);
+      expect(video.currentTimeWrites.length).toBe(writesBeforeRetry + 1);
+
+      // The retry's nudge completes, then the driver seeks back to the exact
+      // target. The callback from that second seek is intentionally not fired
+      // until the current frame is available.
+      video.completeSeek();
+      expect(video.currentTimeWrites.at(-1)).toBeCloseTo(4.99, 3);
+      video.completeSeek();
+      video.presentFrame(4.99);
+
+      await expect(readiness).resolves.toEqual([
+        'ready',
+        'media-exact-retry:stale-frame',
+        1,
+        1,
+        4.99,
+        4.99
+      ]);
+    } finally {
+      driver.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries the exact frame when the physical nudge cannot start', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    try {
+      const readiness = driver.prepareFrame({
+        runId: 'media-exact-retry:not-started',
+        direction: -1,
+        progress: 0.5,
+        durationFallbackSeconds: 10,
+        requireExactMediaFrame: true
+      });
+      video.completeSeek();
+
+      // Move the playhead away before the retry fires. beginExactTargetSeek
+      // must report started=false without consuming the only retry, then
+      // recover by scheduling the target seek instead of waiting forever.
+      video.currentTime = 4.8;
+      await vi.advanceTimersByTimeAsync(250);
+      expect(video.currentTimeWrites.at(-1)).toBeCloseTo(4.99, 3);
+
+      video.completeSeek();
+      video.presentFrame(4.99);
+      await expect(readiness).resolves.toEqual([
+        'ready',
+        'media-exact-retry:not-started',
+        -1,
+        1,
+        4.99,
+        4.99
+      ]);
+    } finally {
+      driver.dispose();
+      vi.useRealTimers();
+    }
+  });
+
   it('re-seeks when rVFC reports a stale decoded sample after seek completion', async () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));

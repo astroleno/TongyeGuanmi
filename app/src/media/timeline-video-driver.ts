@@ -57,14 +57,15 @@ export type TimelineVideoDriver = Readonly<{
 // Internal frame state stays positional so the driver does not pay for a
 // second long-lived object ABI on every lazy chunk. The prepared-frame result
 // remains the only tuple that crosses the chunk boundary.
-type DesiredFrame = readonly [
+type DesiredFrame = [
   generation: number,
   runId: string,
   direction: Direction,
   progress: number,
   targetTime: number,
   allowSeekedFrameFallback: boolean,
-  exactFrameRetryArmed?: boolean
+  retryArmed?: boolean,
+  retryConsumed?: boolean
 ];
 
 type FramePresentationEvidence =
@@ -160,7 +161,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private presentedSeekMediaTime = Number.NaN;
   private seekedFrameFallbackTimer: ReturnType<typeof setTimeout> | undefined;
   private seekedFrameFallbackFrame: DesiredFrame | undefined;
-  private exactFrameRetryTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
 
   private readonly onSeeked = () => {
@@ -281,7 +281,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
     let waiter!: FrameWaiter;
     const promise = new Promise<TimelineVideoFrameResult>((resolve, reject) => {
-      waiter = { ...desired, resolve, reject };
+      waiter = { ...desired, resolve, reject } as FrameWaiter;
       this.waiters.add(waiter);
       if (input.signal) {
         waiter.signal = input.signal;
@@ -582,6 +582,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     ) {
       return;
     }
+    // A stale callback must not cancel the exact retry owned by this frame;
+    // superseded retry callbacks self-invalidate by presenting-frame identity.
     this.cancelFrameCallback();
     const video = this.video as VideoWithFrameCallbacks;
     if (typeof video.requestVideoFrameCallback !== 'function') {
@@ -600,6 +602,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     const generation = frame[0];
     this.presentingFrame = frame;
     try {
+      // The test/browser adapters may invoke the callback synchronously.
+      // eslint-disable-next-line prefer-const
       let callbackId: number | undefined;
       callbackId = video.requestVideoFrameCallback((_now, metadata) => {
         if (
@@ -698,26 +702,30 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       !this.latestInput?.requireExactMediaFrame
       || !sameFrame(this.latest!, frame)
       || frame[6]
+      || frame[7]
     ) return;
-    this.cancelExactFrameRetry();
-    (frame as unknown as { 6?: boolean })[6] = true;
-    this.exactFrameRetryTimer = setTimeout(() => {
-      if (
-        !this.presentingFrame
-        || !sameFrame(this.presentingFrame, frame)
-      ) return;
+    frame[6] = true;
+    setTimeout(() => {
+      if (this.presentingFrame !== frame) {
+        return;
+      }
       this.cancelFrameCallback();
       // This immutable generation/target gets one physical re-arm. A second
       // missing rVFC remains fail-closed under the route transaction timeout.
-      this.beginExactTargetSeek(frame, frame[2] * EXACT_FRAME_NUDGE_SECONDS);
+      const priming = this.beginExactTargetSeek(
+        frame,
+        frame[2] * EXACT_FRAME_NUDGE_SECONDS
+      );
+      frame[6] = false;
+      if (priming.error) {
+        return;
+      }
+      if (!priming.started) {
+        this.scheduleSeek(frame);
+      } else {
+        frame[7] = true;
+      }
     }, EXACT_FRAME_RETRY_DELAY_MS);
-  }
-
-  private cancelExactFrameRetry(): void {
-    if (this.exactFrameRetryTimer !== undefined) {
-      clearTimeout(this.exactFrameRetryTimer);
-    }
-    this.exactFrameRetryTimer = undefined;
   }
 
   private markFrameReady(
@@ -753,7 +761,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   private cancelFrameCallback(): void {
     this.cancelSeekedFrameFallback();
-    this.cancelExactFrameRetry();
     this.presentedSeekFrame = undefined;
     this.presentedSeekMediaTime = Number.NaN;
     if (this.frameCallbackId === undefined) {
