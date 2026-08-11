@@ -32,7 +32,7 @@ function waitForDecodedImage(image: HTMLImageElement): Promise<void> {
   return new Promise((resolve, reject) => {
     let pollId: number | undefined;
     const clear = () => {
-      if (pollId !== undefined) window.clearTimeout(pollId);
+      if (pollId !== undefined) globalThis.clearTimeout(pollId);
       image.removeEventListener('load', loaded);
       image.removeEventListener('error', failed);
     };
@@ -44,6 +44,7 @@ function waitForDecodedImage(image: HTMLImageElement): Promise<void> {
       }
     };
     const poll = () => {
+      if (typeof window === 'undefined') return;
       if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
         loaded();
         return;

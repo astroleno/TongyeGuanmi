@@ -510,7 +510,7 @@ function activeActivation() {
 
 function directActivation(scene: keyof typeof sceneDetails, values: readonly number[]) {
   return values[0] === 0
-    || ['aod-animation', 'figure3-animation'].includes(scene)
+    || scene === 'aod-animation'
     ? inactiveActivation()
     : activeActivation();
 }
@@ -793,7 +793,8 @@ describe('canonical phone manifest', () => {
       requiresPhysicalCredit: true
     });
     expect(phoneSceneById('figure3-animation').directEntry.mediaActivation).toMatchObject({
-      mode: 'none', directEntry: 'none', requiresPhysicalCredit: false
+      mode: 'gesture-or-muted-autoplay',
+      directEntry: 'muted-plays-inline-then-covered-cta', requiresPhysicalCredit: true
     });
   });
 

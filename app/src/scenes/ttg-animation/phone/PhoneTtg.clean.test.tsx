@@ -200,7 +200,7 @@ describe('clean PhoneTtg leaf', () => {
       )) ?? []);
     });
 
-    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();
     expect(probe.prepareFrame).toHaveBeenCalledOnce();
     expect(renewed.reports.reportPrepared).toHaveBeenCalledWith(
       'ttg-figure-video', expect.objectContaining({

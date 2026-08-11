@@ -75,6 +75,13 @@
   visibility: hidden;
 }
 
+/* A late terminal callback must not hide the emergency initial poster. */
+.phone-figure3[data-phone-figure3-initial-surface="poster-fallback"]
+  .phone-figure3__poster {
+  opacity: 1;
+  visibility: visible;
+}
+
 .phone-figure3[data-phone-figure3-fallback-endpoint="terminal"]
   .phone-figure3__fallback {
   background-image:

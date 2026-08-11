@@ -1,7 +1,8 @@
-import { createPhoneStoryBoot, reducePhoneStory, sameAttempt,
+import { createPhoneStoryBoot, phoneTransactionActivationSurfaceIds,
+  reducePhoneStory, sameAttempt,
   type PhoneMachineResult, type PhoneMachineSnapshot } from './machine';
 import { phoneManifest, phoneSceneById, phoneSceneStableHold,
-  phoneSegmentChoreographyFrame, type PhoneSegmentChoreographyFrame } from './manifest';
+  phoneSegmentChoreographyFrame, type PhoneSceneId, type PhoneSegmentChoreographyFrame } from './manifest';
 import type { PhoneLeafMountRegistration, PhoneLeafReportBinding, PhoneLeafReportPort,
   PhoneLeafMountLease, PhonePlaneApplyResult, PhonePresentation } from './presentation';
 import { assertPhoneLeafReportBindingContract, bindPhoneLeafGeneration,
@@ -60,6 +61,7 @@ export type PhoneStoryRuntime = Readonly<{
   reportPresentationPrepared(report: PhonePresentationPreparedReport): void; reportPresentationFailure(report: PhonePresentationFailureReport): void;
   startVisibleEntrance(): void;
   createLeafReportPort(binding: PhoneLeafReportBinding): PhoneLeafReportPort;
+  createPrewarmLeafReportPort(sceneId: PhoneSceneId): PhoneLeafReportPort; promotePrewarmLeaf(binding: PhoneLeafReportBinding): boolean;
 }>;
 
 export type PhoneReadingScrollOwner = Readonly<{
@@ -78,44 +80,22 @@ export function phoneReadingEdges(owner: PhoneReadingScrollOwner): Readonly<{
 
 type QueuedEvent = Readonly<{ sequence: number; event: PhoneStoryEvent }>;
 type DeadlineLease = Readonly<{ key: string; handle: PhoneRuntimeTimerHandle; connection: number }>;
-type ReportState = { valid: boolean; binding: PhoneLeafReportBinding };
-type LeafLease = { key: string; reports: ReportState; mount: PhoneLeafMountLease;
-  activeDecoders: number; disposed: boolean; frameToken: string | null };
+type ReportState = { valid: boolean; binding: PhoneLeafReportBinding; p?: true | 'ready' };
+type LeafLease = { key: string; reports: ReportState; mount: PhoneLeafMountLease; activeDecoders: number; disposed: boolean; frameToken: string | null };
 type PendingLoad = { controller: AbortController; waiters: Array<Readonly<{ effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>; connection: number }>> };
 type PlaybackLease = Readonly<{ handle: PhoneRuntimeTimerHandle; attempt: PhoneAttemptKey; stageIndex: number; startedAt: number; durationMs: number; from: number; to: number; connection: number }>;
 type ActivationLease = Readonly<{ invocationId: string; attempt: PhoneAttemptKey; surfaceIds: readonly string[]; leaves: readonly LeafLease[]; connection: number }>;
 
 function mediaRunToken(attempt: PhoneAttemptKey, direction: 'forward' | 'reverse'): string { return [attempt.authorityId, attempt.transactionId, attempt.transactionGeneration, attempt.segmentId ?? 'entry', direction].join(':'); }
 
-function attemptIdentity(attempt: PhoneAttemptKey): string {
-  return [
-    attempt.authorityId,
-    attempt.transactionId,
-    attempt.transactionGeneration,
-    attempt.mode,
-    attempt.segmentId ?? '',
-    attempt.direction ?? ''
-  ].join('|');
-}
+function attemptIdentity(attempt: PhoneAttemptKey): string { return [attempt.authorityId, attempt.transactionId, attempt.transactionGeneration, attempt.mode, attempt.segmentId ?? '', attempt.direction ?? ''].join('|'); }
 
 const deadlineKey = (
   attempt: PhoneAttemptKey,
   operation: string
 ) => `${attemptIdentity(attempt)}|${operation}`;
 
-function inputDirection(
-  event: PhoneRuntimeInputEvent
-): 'forward' | 'reverse' | null {
-  if (event.kind === 'keyboard') {
-    if (['ArrowDown', 'PageDown', ' ', 'Enter'].includes(event.key ?? '')) {
-      return 'forward';
-    }
-    if (['ArrowUp', 'PageUp'].includes(event.key ?? '')) return 'reverse';
-    return null;
-  }
-  const delta = event.delta ?? 0;
-  return delta > 0 ? 'forward' : delta < 0 ? 'reverse' : null;
-}
+function inputDirection(event: PhoneRuntimeInputEvent): 'forward' | 'reverse' | null { if (event.kind === 'keyboard') { if (['ArrowDown', 'PageDown', ' ', 'Enter'].includes(event.key ?? '')) return 'forward'; if (['ArrowUp', 'PageUp'].includes(event.key ?? '')) return 'reverse'; return null; } const delta = event.delta ?? 0; return delta > 0 ? 'forward' : delta < 0 ? 'reverse' : null; }
 
 function invokePhoneProjector(
   project: () => PhonePlaneApplyResult
@@ -222,6 +202,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   const rejectedLoads = new Set<string>();
   const pendingLoads = new Map<string, PendingLoad>();
   const activations = new Map<string, ActivationLease>();
+  const activationClaims = new WeakMap<LeafLease, string>();
   const rejectedClosures = new Set<string>();
   let resources: PhoneRuntimeResourceCounts = {
     videos: 0, activeDecoders: 0, canvases: 0, webglContexts: 0 };
@@ -230,6 +211,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     environment.observePublish?.(snapshot);
     for (const listener of [...listeners]) listener();
   };
+  const publishPrewarm = (): void => { snapshot = { ...snapshot }; publish(); };
 
   const cancelDeadline = (key: string): void => {
     const lease = deadlines.get(key);
@@ -309,11 +291,11 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   };
 
   const assertResourceBudget = (next: PhoneRuntimeResourceCounts): void => {
-    if (snapshot.status !== 'transaction') throw new Error('No active closure resource budget');
+    if (snapshot.status !== 'transaction') return;
     const budget = snapshot.transaction.closure.resourceBudget;
     for (const field of ['videos', 'activeDecoders', 'canvases', 'webglContexts'] as const) {
       if (next[field] > budget[field]) {
-        throw new Error(`Phone closure exceeds ${field} budget: ${next[field]} > ${budget[field]}`);
+        throw new Error(`budget ${field}: ${next[field]} > ${budget[field]}`);
       }
     }
   };
@@ -377,14 +359,19 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     reportStates.add(revived); return revived;
   };
 
+  const promoteLease = (lease: LeafLease, binding: PhoneLeafReportBinding): void => { const state = lease.reports; const previousKey = lease.key; closeReports(state, false); leaves.delete(previousKey); state.valid = true; state.binding = closePhoneLeafReportBinding(binding); delete state.p; reportStates.add(state); lease.key = phoneLeafMountKey(state.binding); if (leaves.has(lease.key)) throw new Error(`rebind collision: ${lease.key}`); leaves.set(lease.key, lease); bindLeafGeneration(lease, state, true); };
+
+  const rebindReportState = (state: ReportState, binding: PhoneLeafReportBinding): ReportState => { const lease = mountedLease(state); closeReports(state); state.valid = true; state.binding = closePhoneLeafReportBinding(binding); reportStates.add(state); if (!lease) return state; leaves.delete(lease.key); lease.key = phoneLeafMountKey(state.binding); leaves.set(lease.key, lease); bindLeafGeneration(lease, state, true); return state; };
+
   function createReportPort(state: ReportState): PhoneLeafReportPort {
     return Object.freeze({
+      rebind: (binding: PhoneLeafReportBinding) => { if (!connected || snapshot.status !== 'transaction') return; const closed = closePhoneLeafReportBinding(binding); if (!sameAttempt(closed.attempt, snapshot.transaction.attempt) || closed.stageIndex !== snapshot.transaction.stageIndex || closed.planeRevision !== snapshot.transaction.planeRevision) return; assertPhoneLeafReportBindingContract(closed, snapshot.transaction); state = rebindReportState(state, closed); },
       registerMount: (registration: PhoneLeafMountRegistration) => {
         state = reviveLateReportState(state) ?? state;
         if (!state.valid) return;
         const key = phoneLeafMountKey(state.binding);
         const existing = leaves.get(key);
-        if (existing?.mount.isAttached()) throw new Error(`Phone leaf mount already registered: ${key}`);
+        if (existing?.mount.isAttached()) throw new Error(`already registered: ${key}`);
         if (existing) {
           const replacesOwnState = existing.reports === state;
           const binding = state.binding;
@@ -396,7 +383,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         if (phoneIdentitySignature(mount.surfaceIds) !== expected
           || mount.resources.activeDecoders !== 0) {
           mount.release();
-          throw new Error(`Phone presentation lease differs from the closed binding: ${key}`);
+          throw new Error(`mismatch: ${key}`);
         }
         try { updateResources(mount.resources, 1); } catch (error) {
           mount.release();
@@ -407,8 +394,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         };
         leaves.set(key, lease);
         bindLeafGeneration(lease, state, false);
-        const active = snapshot.status === 'transaction' && sameAttempt(snapshot.transaction.attempt, state.binding.attempt)
-          ? snapshot.transaction : null;
+        const active = snapshot.status === 'transaction' ? snapshot.transaction : null; if (state.p && active) { const promoted = createPhoneSupersedingLeafBinding(active, state.binding); if (promoted) promoteLease(lease, promoted); } if (state.p) publishPrewarm(); if (state.p && mount.activationSurfaceIds.length > 0) mount.commands.activate({ invocationId: `prewarm:${state.binding.attempt.sceneId}`, surfaceIds: mount.activationSurfaceIds, credit: 'direct-muted-autoplay', runToken: `prewarm:${lease.frameToken ?? state.binding.attempt.transactionId}`, direction: 'forward', stageIndex: 0, prewarm: true });
         if (active) {
           lease.mount.commands.render(commandProgress(active, state.binding.leg));
         }
@@ -417,7 +403,6 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
           const { credit, surfaceIds } = deferredActivation;
           const candidates = rebindForActivation(active.attempt, surfaceIds);
           if (activationCoverageComplete(candidates, surfaceIds)) {
-            // The deferred receiver mount landed; spend the held gesture credit.
             deferredActivation = null;
             invokeActivation(candidates, active.attempt, credit, surfaceIds, connection);
           }
@@ -437,6 +422,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       },
       reportPrepared: (surfaceId, report) => {
         const lease = mountedLease(state);
+        if (state.p) { if (!report.ready || report.kind !== 'video-decoded' || !lease || !lease.mount.surfaceIds.includes(surfaceId) || lease.mount.surfaceIds.some((id) => id.includes('canvas'))) return; state.p = 'ready'; publishPrewarm(); return; }
         if (!report.ready || !lease || !lease.mount.surfaceIds.includes(surfaceId)
           || !['image-decoded', 'video-decoded', 'canvas-drawn', 'static-ready']
             .includes(report.kind)) return;
@@ -446,11 +432,12 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         const lease = mountedLease(state);
         if (!report.presented || !lease || report.token !== lease.frameToken
           || !lease.mount.surfaceIds.includes(surfaceId)) return;
+        if (state.p) { state.p = 'ready'; publishPrewarm(); return; }
         acceptPreparedProof(state, lease, { surfaceId, report });
       },
       reportProgress: () => undefined,
       reportComplete: () => undefined,
-      reportFailure: (failure: PhoneFailure) => {
+      reportFailure: (failure: PhoneFailure) => { if (state.p) return;
         if (!state.valid || !mountedLease(state) || snapshot.status !== 'transaction') return;
         if (failure.code === 'media-activation-rejected') return;
         const slot = [...snapshot.transaction.requiredPrepared,
@@ -471,6 +458,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     const invocationId = `${attempt.transactionId}:activation:${++activationSequence}`;
     const active = snapshot.status === 'transaction' && sameAttempt(snapshot.transaction.attempt, attempt) ? snapshot.transaction : null;
     const direction = attempt.direction ?? 'forward'; const stageIndex = active?.stageIndex ?? 0; const runToken = mediaRunToken(attempt, direction);
+    for (const owner of candidates) activationClaims.set(owner, attemptIdentity(attempt));
+    if (candidates.length > 0 && candidates.every(({ reports }) => reports.p === 'ready')) { for (const owner of candidates) { delete owner.reports.p; owner.mount.commands.setMediaPhase?.({ phase: 'primed', runToken, direction, stageIndex }); } enqueueFor({ type: 'activation-settled', invoked: true, attempt }, activeConnection); return; }
     const targets = candidates.map((owner) => ({ owner, commands: owner.mount.commands, surfaceIds: phoneActivationSurfaceIds(owner.mount, requested) }));
     const batch = invokePhoneActivationBatch(
       invocationId,
@@ -535,13 +524,14 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     binding: PhoneLeafReportBinding,
     pause = false
   ): void => {
+    if (lease.reports.p) return promoteLease(lease, binding);
     closeReports(lease.reports);
     if (pause) pauseLease(lease, 'superseded');
     leaves.delete(lease.key);
     const state: ReportState = { valid: true, binding: closePhoneLeafReportBinding(binding) };
     reportStates.add(state);
     lease.key = phoneLeafMountKey(state.binding);
-    if (leaves.has(lease.key)) throw new Error(`Phone leaf rebind collision: ${lease.key}`);
+    if (leaves.has(lease.key)) throw new Error(`rebind collision: ${lease.key}`);
     leaves.set(lease.key, lease);
     bindLeafGeneration(lease, state, true);
   };
@@ -615,8 +605,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       !lease.disposed
         && lease.reports.binding.attempt.authorityId === attempt.authorityId
         && (sameAttempt(lease.reports.binding.attempt, attempt)
-          || (lease.reports.binding.attempt.transactionGeneration + 1
-            === attempt.transactionGeneration))
+          || lease.reports.binding.attempt.transactionGeneration + 1 === attempt.transactionGeneration
+          || lease.reports.p)
         && phoneActivationSurfaceIds(lease.mount, surfaceIds).length > 0
     ));
     for (const lease of candidates) {
@@ -890,13 +880,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
           deferredActivation = null;
           invokeActivation(candidates, attempt, effect.credit, effect.surfaceIds, activeConnection);
         } else if (effect.credit === 'direct-muted-autoplay') {
-          // Muted inline autoplay may wait for the incoming receiver mount,
-          // but it must be spent exactly once for this attempt.
           deferredActivation = { attempt, credit: effect.credit, surfaceIds: effect.surfaceIds };
         } else {
-          // A physical Safari gesture credit cannot cross an asynchronous
-          // receiver mount. Fail the continuous segment immediately so the
-          // machine enters its existing bounded rollback path.
           deferredActivation = null;
           enqueueFor({ type: 'activation-settled', invoked: false, attempt }, activeConnection);
         }
@@ -970,7 +955,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         const leg = lease.reports.binding.leg;
         const choreographedEndpoint = segmentEndpoint(transaction, leg);
         const endpoint = leg === 'effect' ? transaction.attempt.direction === 'reverse' ? 0 : 1 : choreographedEndpoint ?? (transaction.attempt.mode === 'boot' && transaction.candidateSceneId === 'hero' ? 0 : phoneSceneStableHold(leg === 'source' && transaction.sourceSceneId ? transaction.sourceSceneId : transaction.candidateSceneId));
-        lease.mount.commands.settle(endpoint);
+        const settled = lease.mount.commands.settle(endpoint);
+        if (settled?.prewarmReusable === false) delete lease.reports.p;
       }
     }
   };
@@ -995,10 +981,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       stableDependencyAttempt = transaction.attempt;
       const retainedLeg = transaction.commitIntent === 'rollback' ? 'rollback'
         : 'target';
-      const retainPair = transaction.closure.retireAfter === 'pair-exit-or-route-dispose';
+      const retainsPair = transaction.closure.retireAfter === 'pair-exit-or-route-dispose';
       for (const lease of matching) {
-        if (retainPair || lease.reports.binding.leg === retainedLeg) closeReports(lease.reports);
-        else retireLease(lease, 'closure-retired');
+      const keepsStableMount = lease.reports.binding.attempt.sceneId === next.stableCommit.sceneId && lease.reports.binding.leg === retainedLeg; if (keepsStableMount || retainsPair) { if (retainsPair && lease.reports.binding.leg !== 'effect') lease.reports.p = 'ready'; closeReports(lease.reports); } else retireLease(lease, 'closure-retired');
       }
       if (next.stableCommit !== previous.stableCommit) chunkRecovery.markStable(Object.freeze({
         authorityId: next.authorityId,
@@ -1229,7 +1214,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   };
 
   const connect = (): (() => void) => {
-    if (connected) throw new Error('Phone story runtime already has an active connection');
+    if (connected) throw new Error('runtime already connected');
     const activeConnection = ++connection;
     connected = true;
     physicalEpoch = 0;
@@ -1277,32 +1262,49 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       connection
     ),
     retry: () => enqueueFor({ type: 'retry-requested' }, connection), reportPresentationPrepared, reportPresentationFailure,
-    startVisibleEntrance: () => {
-      if (!connected || snapshot.status !== 'stable'
-        || snapshot.stableCommit.sceneId !== 'hero'
-        || visibleEntranceCommitSequence === snapshot.stableCommit.commitSequence) {
-        return;
-      }
-      const surfaces = phoneIdentitySignature(phoneSceneById('hero').surfaces);
-      const hero = [...leaves.values()].find((lease) => !lease.disposed
-        && phoneIdentitySignature(lease.mount.surfaceIds) === surfaces);
-      if (!hero) return;
-      visibleEntranceCommitSequence = snapshot.stableCommit.commitSequence;
-      hero.mount.commands.settle(1);
-    },
-    createLeafReportPort: (binding: PhoneLeafReportBinding) => {
+    startVisibleEntrance: () => { if (!connected || snapshot.status !== 'stable' || snapshot.stableCommit.sceneId !== 'hero' || visibleEntranceCommitSequence === snapshot.stableCommit.commitSequence) return; const surfaces = phoneIdentitySignature(phoneSceneById('hero').surfaces); const hero = [...leaves.values()].find((lease) => !lease.disposed && phoneIdentitySignature(lease.mount.surfaceIds) === surfaces); if (!hero) return; visibleEntranceCommitSequence = snapshot.stableCommit.commitSequence; hero.mount.commands.settle(1); },
+    promotePrewarmLeaf: (binding: PhoneLeafReportBinding) => {
       const closed = closePhoneLeafReportBinding(binding);
-      if (!connected || snapshot.status !== 'transaction'
-        || !sameAttempt(closed.attempt, snapshot.transaction.attempt)
-        || closed.stageIndex !== snapshot.transaction.stageIndex
-        || closed.planeRevision !== snapshot.transaction.planeRevision) {
-        throw new Error('Phone leaf report binding does not match the active transaction');
+      if (!connected || snapshot.status !== 'transaction' || !sameAttempt(closed.attempt, snapshot.transaction.attempt) || closed.stageIndex !== snapshot.transaction.stageIndex || closed.planeRevision !== snapshot.transaction.planeRevision) return false;
+      assertPhoneLeafReportBindingContract(closed, snapshot.transaction);
+      const matchingLeases = [...leaves.values()].filter((candidate) => !candidate.disposed && phoneIdentitySignature(candidate.mount.surfaceIds) === phoneIdentitySignature(closed.allowedSurfaceIds));
+      const lease = matchingLeases.find((candidate) => candidate.reports.binding.leg === closed.leg && sameAttempt(candidate.reports.binding.attempt, closed.attempt)) ?? matchingLeases.find((candidate) => candidate.reports.p) ?? matchingLeases.find((candidate) => sameAttempt(candidate.reports.binding.attempt, closed.attempt));
+      if (!lease) return false;
+      if (sameAttempt(lease.reports.binding.attempt, closed.attempt)) {
+        if (lease.reports.binding.stageIndex !== closed.stageIndex || lease.reports.binding.planeRevision !== closed.planeRevision) promoteLease(lease, closed);
+        const active = snapshot.transaction;
+        const pending = deferredActivation && sameAttempt(deferredActivation.attempt, closed.attempt)
+          ? deferredActivation : null;
+        const identity = attemptIdentity(active.attempt);
+        if (pending) deferredActivation = null;
+        const directActivation = active.mode === 'entry'
+          && phoneTransactionActivationSurfaceIds(active).length > 0;
+        if ((pending || directActivation) && activationClaims.get(lease) !== identity) queueMicrotask(() => {
+          if (!connected || snapshot.status !== 'transaction'
+            || !sameAttempt(snapshot.transaction.attempt, closed.attempt)
+            || lease.disposed) return;
+          invokeActivation([lease], closed.attempt,
+            pending?.credit ?? 'direct-muted-autoplay', pending?.surfaceIds);
+        });
+        return true;
       }
-      const transaction = snapshot.transaction;
-      assertPhoneLeafReportBindingContract(closed, transaction);
-      const state: ReportState = { valid: true, binding: closed };
-      reportStates.add(state);
-      return createReportPort(state);
-    }
+      if (!lease.reports.p) return false; promoteLease(lease, closed);
+      const active = snapshot.transaction;
+      const pending = deferredActivation && sameAttempt(deferredActivation.attempt, closed.attempt)
+        ? deferredActivation : null;
+      if (pending) deferredActivation = null;
+      const directActivation = active.mode === 'entry'
+        && phoneTransactionActivationSurfaceIds(active).length > 0;
+      if (pending || directActivation) queueMicrotask(() => {
+        if (!connected || snapshot.status !== 'transaction'
+          || !sameAttempt(snapshot.transaction.attempt, closed.attempt)
+          || lease.disposed) return;
+        invokeActivation([lease], closed.attempt,
+          pending?.credit ?? 'direct-muted-autoplay', pending?.surfaceIds);
+      });
+      return true;
+    },
+    createLeafReportPort: (binding: PhoneLeafReportBinding) => { const closed = closePhoneLeafReportBinding(binding); if (!connected || snapshot.status !== 'transaction' || !sameAttempt(closed.attempt, snapshot.transaction.attempt) || closed.stageIndex !== snapshot.transaction.stageIndex || closed.planeRevision !== snapshot.transaction.planeRevision) throw new Error('not active transaction'); const transaction = snapshot.transaction; assertPhoneLeafReportBindingContract(closed, transaction); const state: ReportState = { valid: true, binding: closed }; reportStates.add(state); return createReportPort(state); },
+    createPrewarmLeafReportPort: (sceneId: PhoneSceneId) => { const scene = phoneSceneById(sceneId); const state: ReportState = { p: true, valid: true, binding: { attempt: { authorityId: snapshot.authorityId, transactionId: `prewarm:${sceneId}`, transactionGeneration: 0, mode: 'recovery', sceneId, segmentId: null, direction: 'forward' }, stageIndex: 0, leg: 'target', allowedReports: [], allowedSurfaceIds: scene.surfaces, planeRevision: null } }; reportStates.add(state); return createReportPort(state); }
   });
 }

@@ -15,6 +15,7 @@ import type {
   PhoneLeafGenerationBinding,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
+import type { PhoneLeafDisposeReason } from '../../../production/phone-story/protocol';
 import {
   PH_BG_SRC,
   PH_FIGURE_END_SECONDS,
@@ -153,7 +154,7 @@ export function PhonePh({ reports }: PhonePhProps) {
       mediaRunTokenRef.current = runToken;
       mediaPhaseRef.current = 'primed';
       const binding = bindingRef.current;
-      const generation = activateSurface('initial');
+    const generation = activateSurface('initial');
       video.pause();
       try { video.currentTime = 0; } catch {
         // The initial compositor callback will arrive after loadeddata.
@@ -239,13 +240,14 @@ export function PhonePh({ reports }: PhonePhProps) {
       mediaPhaseRef.current = 'held';
       parkPhonePhMedia(rootRef.current);
     },
-    dispose() {
+    dispose(reason: PhoneLeafDisposeReason) {
       if (disposedRef.current) return;
       disposedRef.current = true;
       mediaRunTokenRef.current = null;
       mediaPhaseRef.current = 'held';
       surfaceGenerationRef.current = 0;
-      surfaceRef.current?.dispose('terminal');
+      if (['closure-retired', 'faulted', 'route-dispose'].includes(reason)) surfaceRef.current?.dispose('terminal');
+      else surfaceRef.current?.dispose('reactivatable');
       surfaceRef.current = null;
       parkPhonePhMedia(rootRef.current);
       bindingRef.current = null;
@@ -315,14 +317,12 @@ export function PhonePh({ reports }: PhonePhProps) {
       disposedRef.current = true;
       surfaceGenerationRef.current = 0;
       if (surfaceRef.current === surface) {
-        surface.dispose('terminal');
+        surface.dispose('reactivatable');
         surfaceRef.current = null;
       }
       parkPhonePhMedia(root);
       root.style.removeProperty('--phone-ph-island-source');
       bindingRef.current = null;
-      videoRef.current = null;
-      canvasRef.current = null;
     };
   }, [commands, render, reportFailure, reports]);
 

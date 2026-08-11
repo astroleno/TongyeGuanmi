@@ -76,7 +76,8 @@ vi.mock('./paper-compositor', () => ({
 import {
   PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS,
   PhoneFigure3,
-  phoneFigure3HasReusableEndpointFrame
+  phoneFigure3HasReusableEndpointFrame,
+  releasePhoneFigure3Video
 } from './PhoneFigure3';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -136,6 +137,27 @@ describe('clean PhoneFigure3 leaf', () => {
       await Promise.resolve();
     });
     expect(source?.getAttribute('src')).toBeNull();
+  });
+
+  it('restores sources after a retired generation leaves the retained video node parked', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+
+    const video = host.querySelector<HTMLVideoElement>('video');
+    const source = host.querySelector<HTMLSourceElement>('video source');
+    if (!video || !source) throw new Error('missing Figure3 media source');
+    releasePhoneFigure3Video(video);
+    mount.registration()?.commands.rebind({
+      reports: mount.reports,
+      frameToken: 'figure3:restored-source:1'
+    });
+
+    expect(source.getAttribute('src')).toBe('/assets/figure3-motion.webm');
+    expect(HTMLMediaElement.prototype.load).toHaveBeenCalled();
+    act(() => root.unmount());
   });
 
   it('keeps the stable decoded initial Canvas visible after a late compositor callback', async () => {

@@ -109,9 +109,7 @@ export type PhoneLeafActivationCommand = Readonly<{
   surfaceIds: readonly PhoneSurfaceId[];
   credit: PhoneActivationCredit;
   /** Runtime-owned causal media identity. Older fixtures may omit these fields. */
-  runToken?: string;
-  direction?: 'forward' | 'reverse';
-  stageIndex?: number;
+  runToken?: string; direction?: 'forward' | 'reverse'; stageIndex?: number; prewarm?: boolean;
   /** @deprecated Playback is now controlled only through setMediaPhase. */
   playback?: boolean;
 }>;

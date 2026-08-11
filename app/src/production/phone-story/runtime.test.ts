@@ -2298,7 +2298,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#figure3-animation');
     const disconnect = runtime.connect();
-    const source = commandFixture((call) => call !== 1);
+    const source = commandFixture((call) => call !== 2);
     registerCurrentLeaf(runtime, source.commands);
     proveCurrent(runtime, fixture);
 
@@ -2312,7 +2312,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(fixture.effects.filter((effect) => (
       effect.type === 'show-activation-cta' && effect.attempt.mode === 'segment'
     ))).toEqual([]);
-    expect(source.commands.activate).toHaveBeenCalledTimes(1);
+    expect(source.commands.activate).toHaveBeenCalledTimes(2);
 
     proveCurrent(runtime, fixture);
     expect(runtime.getSnapshot()).toMatchObject({
@@ -2325,7 +2325,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(currentTransaction(runtime)).toMatchObject({
       mode: 'segment', candidateSceneId: 'services', activation: 'spent'
     });
-    expect(source.commands.activate).toHaveBeenCalledTimes(2);
+    expect(source.commands.activate).toHaveBeenCalledTimes(3);
     disconnect();
   });
 

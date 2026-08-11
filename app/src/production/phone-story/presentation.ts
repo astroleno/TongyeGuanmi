@@ -74,6 +74,7 @@ export function claimPhoneActivationDecoders<Owner extends { activeDecoders: num
 }
 
 export type PhoneLeafReportPort = Readonly<{
+  rebind?(binding: PhoneLeafReportBinding): void;
   registerMount(registration: PhoneLeafMountRegistration): void;
   reportPrepared(surfaceId: PhoneSurfaceId, result: PhonePreparedReport): void;
   reportFrame(surfaceId: PhoneSurfaceId, result: PhoneFrameReport): void;
@@ -117,7 +118,7 @@ export type PhoneLeafCommandHandle = Readonly<{
   activate(command: PhoneLeafActivationCommand): PhoneActivationInvocation;
   setMediaPhase?(command: PhoneMediaPhaseCommand): void;
   render(progress: number): Readonly<{ ownership: PhoneInkOwnership }> | void;
-  settle(endpoint: 0 | 1): void;
+  settle(endpoint: 0 | 1): Readonly<{ prewarmReusable?: boolean }> | void;
   pause(reason: PhoneLeafPauseReason): void; dispose(reason: PhoneLeafDisposeReason): void;
 }>;
 
@@ -738,7 +739,6 @@ export function createPhonePresentation(
   const applyTransitionFrame: PhonePresentation['applyTransitionFrame'] = (frame) => {
     const root = state.root, topology = root ? presentationTopology(root) : null;
     if (!root || !topology) return;
-    // A null frame only removes projection variables; buffer exposure is atomic.
     if (!frame) { clearTransitionVariables(root); return; }
     const reverse = frame.direction === 'reverse';
     root.setAttribute('data-phone-transition-live', 'true');
@@ -753,7 +753,6 @@ export function createPhonePresentation(
   const commitStablePlane: PhonePresentation['commitStablePlane'] = (sourceBuffer) => {
     const root = state.root; if (!root) return; const source = root.querySelector<HTMLElement>(`[data-phone-buffer="${sourceBuffer}"]`); const receiver = root.querySelector<HTMLElement>(`[data-phone-buffer="${sourceBuffer === 'a' ? 'b' : 'a'}"]`); if (!source || !receiver) return;
     // Make the new buffer the exposed plane before clearing the transition;
-    // this keeps the DOM atomic from the compositor's point of view.
     source.setAttribute('data-phone-exposed', 'true');
     receiver.setAttribute('data-phone-exposed', 'false');
     source.style.setProperty('--phone-plane-z', '10');

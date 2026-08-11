@@ -234,9 +234,7 @@ export default defineConfig({
     emptyOutDir: true,
     manifest: true,
     minify: 'terser',
-    terserOptions: {
-      compress: { passes: 2 }
-    },
+    terserOptions: { compress: { hoist_props: true, keep_fargs: false, module: true, passes: 10, pure_getters: true, toplevel: true, unsafe: true }, mangle: { module: true, toplevel: true } },
     assetsInlineLimit: 0,
     cssCodeSplit: true,
     modulePreload: false,

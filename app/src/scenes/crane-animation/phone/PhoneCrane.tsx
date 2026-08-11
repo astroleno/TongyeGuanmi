@@ -15,6 +15,7 @@ import type {
   PhoneLeafGenerationBinding,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
+import type { PhoneLeafDisposeReason } from '../../../production/phone-story/protocol';
 import {
   CRANE_ARCH_SRC,
   CRANE_CLOUD_BACK_SRC,
@@ -331,13 +332,14 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       figureClockStartedRef.current = false;
       parkPhoneCraneMedia(rootRef.current);
     },
-    dispose() {
+    dispose(reason: PhoneLeafDisposeReason) {
       if (disposedRef.current) return;
       disposedRef.current = true;
       mediaRunTokenRef.current = null;
       mediaCommandRef.current = null;
       surfaceGenerationsRef.current = [0, 0];
-      for (const surface of surfacesRef.current ?? []) surface.dispose('terminal');
+      if (['closure-retired', 'faulted', 'route-dispose'].includes(reason)) for (const surface of surfacesRef.current ?? []) surface.dispose('terminal');
+      else for (const surface of surfacesRef.current ?? []) surface.dispose('reactivatable');
       surfacesRef.current = null;
       parkPhoneCraneMedia(rootRef.current);
       bindingRef.current = null;
@@ -437,17 +439,13 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       disposedRef.current = true;
       surfaceGenerationsRef.current = [0, 0];
       if (surfacesRef.current?.[0] === figureSurface) {
-        figureSurface.dispose('terminal');
-        flockSurface.dispose('terminal');
+        figureSurface.dispose('reactivatable');
+        flockSurface.dispose('reactivatable');
         surfacesRef.current = null;
       }
       parkPhoneCraneMedia(root);
       delete root.dataset.phoneCraneFigurePreroll;
       bindingRef.current = null;
-      figureVideoRef.current = null;
-      flockVideoRef.current = null;
-      figureCanvasRef.current = null;
-      flockCanvasRef.current = null;
     };
   }, [commands, render, reportFailure, reports]);
 

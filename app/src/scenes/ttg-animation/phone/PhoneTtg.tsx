@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
+import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
 import {
   disposeTimelineVideoDriver,
   driveTimelineVideo,
@@ -331,9 +332,20 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
       const generation = ++preparationGenerationRef.current;
       const direction = command.direction === 'reverse' ? -1 : 1;
       directionRef.current = direction;
-      mediaRunTokenRef.current = command.runToken ?? command.invocationId;
+      const runToken = command.runToken ?? command.invocationId; mediaRunTokenRef.current = runToken;
       mediaClockActiveRef.current = false;
-      const settled = prepareCurrentFrame(generation, binding, direction).then((prepared) => {
+      const settled = primePhoneNativeVideo(video, {
+        isCurrent: () => !disposedRef.current
+          && generation === preparationGenerationRef.current
+          && bindingRef.current === binding
+          && mediaRunTokenRef.current === runToken,
+        phase: () => mediaClockActiveRef.current ? 'playing' : 'primed',
+        onRejected: (error: unknown) => {
+          if (disposedRef.current || bindingRef.current !== binding
+            || mediaRunTokenRef.current !== runToken) return;
+          reportFailure(error);
+        }
+      }).then(() => prepareCurrentFrame(generation, binding, direction)).then((prepared) => {
         if (!prepared) throw new Error('TTG activation was superseded before frame preparation');
         video.pause();
       });
@@ -425,7 +437,6 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
       releasePhoneTtgVideo(video);
       bindingRef.current = null;
       sceneRef.current = null;
-      videoRef.current = null;
     };
   }, [commands, render, reports]);
 

@@ -28,6 +28,8 @@ type MockEngine = Readonly<{
   subscribe(listener: () => void): () => void;
   connect(): () => void;
   createLeafReportPort: ReturnType<typeof vi.fn>;
+  createPrewarmLeafReportPort: ReturnType<typeof vi.fn>;
+  promotePrewarmLeaf: ReturnType<typeof vi.fn>;
   publish(next: SnapshotRecord): void;
 }> & { connectCount: number; disconnectCount: number };
 
@@ -105,6 +107,11 @@ vi.mock('./runtime', () => ({
           reportProgress: vi.fn(), reportComplete: vi.fn(), reportFailure: vi.fn()
         }) satisfies PhoneLeafReportPort;
       }),
+      createPrewarmLeafReportPort: vi.fn(() => Object.freeze({
+        registerMount: vi.fn(), reportPrepared: vi.fn(), reportFrame: vi.fn(),
+        reportProgress: vi.fn(), reportComplete: vi.fn(), reportFailure: vi.fn()
+      }) satisfies PhoneLeafReportPort),
+      promotePrewarmLeaf: vi.fn(() => false),
       publish: (next: SnapshotRecord) => {
         snapshot = next;
         config.environment.observePublish?.(next as PhoneStorySnapshot);
@@ -696,6 +703,58 @@ describe('clean PhoneStoryShell ownership', () => {
       expect(engine.hostEvents.at(-1)).toMatchObject({
         type: 'input', kind: 'keyboard', delta: 1, target: 'native-corridor'
       });
+    } finally {
+      if (originalScrollingElement) {
+        Object.defineProperty(document, 'scrollingElement', originalScrollingElement);
+      } else {
+        Reflect.deleteProperty(document, 'scrollingElement');
+      }
+      act(() => root.unmount());
+    }
+  });
+
+  it('restores a native handoff from the commit record after the mirror DOM is renewed', () => {
+    const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    const scrollingElement = document.createElement('main');
+    Object.defineProperties(scrollingElement, {
+      scrollTop: { configurable: true, value: 1128, writable: true },
+      clientHeight: { configurable: true, value: 844 },
+      scrollHeight: { configurable: true, value: 1972 }
+    });
+    Object.defineProperty(document, 'scrollingElement', {
+      configurable: true, value: scrollingElement
+    });
+    const { host, root } = hostRoot();
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+      const engine = connectedEngine();
+      act(() => engine.publish(nativeStableSnapshot('services', 8)));
+      const hidden = probe.loaderProps.at(-1)?.onHidden;
+      if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+      act(() => hidden('ready'));
+      const shell = host.querySelector<HTMLElement>('.phone-story');
+      const mirror = document.createElement('div');
+      mirror.dataset.phoneNativeMirror = 'services';
+      shell?.querySelector('.phone-story__viewport')?.append(mirror);
+      const reading = document.createElement('section');
+      reading.dataset.phoneInputOwner = 'native-document';
+      shell?.querySelector('.phone-story__reading-flow')?.append(reading);
+      scrollingElement.scrollTop = 1128;
+
+      act(() => reading.dispatchEvent(new KeyboardEvent('keydown', {
+        bubbles: true, cancelable: true, key: 'ArrowDown'
+      })));
+      expect(mirror.dataset.phoneNativeHandoff).toBe('active');
+      mirror.remove();
+      scrollingElement.scrollTop = 0;
+      const renewedMirror = document.createElement('div');
+      renewedMirror.dataset.phoneNativeMirror = 'services';
+      shell?.querySelector('.phone-story__viewport')?.append(renewedMirror);
+
+      act(() => engine.publish(nativeStableSnapshot('services', 8)));
+
+      expect(scrollingElement.scrollTop).toBe(1128);
+      expect(renewedMirror.dataset.phoneNativeHandoff).toBeUndefined();
     } finally {
       if (originalScrollingElement) {
         Object.defineProperty(document, 'scrollingElement', originalScrollingElement);

@@ -44,7 +44,7 @@ describe('PhoneFigure3', () => {
   });
 
   it('bounds the physical endpoint gate before the visible poster takes over', () => {
-    expect(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS).toBe(240);
+    expect(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS).toBe(1000);
   });
 
   it('uses stable endpoints for media failure and reduced motion', () => {
@@ -94,8 +94,8 @@ describe('PhoneFigure3', () => {
   });
 
   it('disposes the retired video source and decoder', () => {
-    const firstSource = { removeAttribute: vi.fn() };
-    const secondSource = { removeAttribute: vi.fn() };
+    const firstSource = { getAttribute: vi.fn(() => null), dataset: {}, removeAttribute: vi.fn() };
+    const secondSource = { getAttribute: vi.fn(() => null), dataset: {}, removeAttribute: vi.fn() };
     const video = {
       pause: vi.fn(),
       removeAttribute: vi.fn(),

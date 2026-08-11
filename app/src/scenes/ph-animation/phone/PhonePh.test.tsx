@@ -90,7 +90,7 @@ describe('PhonePh', () => {
     expect(source).toContain('setMediaPhase(command)');
     expect(source).toContain("activateSurface('initial')");
     expect(source).toContain('PH_FIGURE_END_SECONDS');
-    expect(source).toContain("surfaceRef.current?.dispose('terminal')");
+    expect(source).toContain("surfaceRef.current?.dispose('reactivatable')");
     expect(source).not.toContain('surfaceRef.current?.release()');
     expect(source).toContain('surfaceRef.current?.probe()');
     expect(motionSource).toContain('phonePhForegroundParallaxY');

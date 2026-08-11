@@ -218,7 +218,8 @@ describe('clean PhoneFigure2 leaf', () => {
     });
     const forward = commands.activate({
       invocationId: 'figure2:stage:forward', surfaceIds: ['figure2-pair-video'],
-      credit: 'physical-epoch', playback: true
+      credit: 'physical-epoch', playback: true,
+      runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 0
     });
     await act(async () => {
       await Promise.all(forward.settlements.flatMap((settlement) => (
@@ -226,6 +227,10 @@ describe('clean PhoneFigure2 leaf', () => {
       )));
     });
     commands.setMediaPhase?.({ phase: 'playing', runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 0 });
+    commands.render(.5);
+    expect(probe.driveTimelineVideo).toHaveBeenCalledWith(
+      video, expect.objectContaining({ progress: .5, direction: 1 })
+    );
     commands.render(1);
     commands.setMediaPhase?.({ phase: 'held', runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 0 });
     expect(video.paused).toBe(true);
@@ -266,6 +271,36 @@ describe('clean PhoneFigure2 leaf', () => {
     expect(play.mock.calls.length).toBe(playsBeforeReverseMedia);
     expect(probe.driveTimelineVideo).toHaveBeenCalled();
     expect(pause).toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('does not request a second native play when Figure2 formally enters its media phase', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({
+      reports: mount.reports, frameToken: 'figure2:clock-owner:1',
+      segmentId: 'figure2-distance-expand', stageIndex: 0, direction: 'forward'
+    });
+    const invocation = commands.activate({
+      invocationId: 'figure2:clock-owner:activation',
+      surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch', playback: true,
+      runToken: 'figure2:clock-owner:run', direction: 'forward', stageIndex: 0
+    });
+    await act(async () => {
+      await Promise.all(invocation.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )));
+    });
+    const primeCalls = play.mock.calls.length;
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'figure2:clock-owner:run',
+      direction: 'forward', stageIndex: 0
+    });
+    expect(play.mock.calls.length).toBe(primeCalls);
     act(() => root.unmount());
   });
 

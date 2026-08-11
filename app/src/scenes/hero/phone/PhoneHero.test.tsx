@@ -12,7 +12,8 @@ import type {
 } from '../../../production/phone-story/presentation';
 
 const compositorProbe = vi.hoisted(() => ({
-  callbacks: [] as Array<() => void>
+  callbacks: [] as Array<() => void>,
+  setActive: vi.fn()
 }));
 
 vi.mock('../../../media/packed-alpha-video', async () => {
@@ -25,7 +26,7 @@ vi.mock('../../../media/packed-alpha-video', async () => {
       if (options.onFrame) compositorProbe.callbacks.push(options.onFrame);
       return {
         render: () => true,
-        setActive: () => undefined,
+        setActive: compositorProbe.setActive,
         dispose: () => undefined
       };
     })
@@ -67,6 +68,7 @@ describe('clean PhoneHero leaf', () => {
 
   beforeEach(() => {
     compositorProbe.callbacks = [];
+    compositorProbe.setActive.mockReset();
     host = document.createElement('div');
     document.body.replaceChildren(host);
     root = createRoot(host);
@@ -241,6 +243,27 @@ describe('clean PhoneHero leaf', () => {
 
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
     expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
+  });
+
+  it('activates the visible Figure1 compositor when the cold Hero entrance settles', async () => {
+    const fixture = reportFixture();
+    await act(async () => {
+      root.render(<PhoneHero reports={fixture.reports} />);
+    });
+    const scene = host.querySelector<HTMLElement>('.portrait-scroll-spike__scene--hero');
+    if (!scene) throw new Error('missing Hero scene');
+    const commands = fixture.registration()?.commands as PhoneHeroMigrationCommands;
+    commands.rebind({ reports: fixture.reports, frameToken: 'hero:cold:visible:1' });
+
+    await act(async () => {
+      commands.settle(1);
+      commands[PHONE_HERO_MIGRATION_CONTROL].completeEntrance();
+      compositorProbe.callbacks.at(-1)?.();
+    });
+
+    expect(compositorProbe.setActive).toHaveBeenCalledWith(true);
+    expect(scene.querySelector('.portrait-scroll-spike__hero-figure-parallax')
+      ?.getAttribute('data-portrait-figure-frame')).toBe('ready');
   });
 
   it('restarts stable-idle Figure1 playback when a completed Hero returns from lifecycle pause', async () => {

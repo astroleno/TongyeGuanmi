@@ -60,11 +60,6 @@ function isFigure2MediaLeg(binding: PhoneLeafGenerationBinding | null): boolean 
   return binding.direction === 'reverse' ? binding.stageIndex === 1 : binding.stageIndex === 0;
 }
 
-function isFigure2ReverseMediaLeg(binding: PhoneLeafGenerationBinding | null): boolean {
-  return Boolean(binding?.segmentId === FIGURE2_STAGED_SEGMENT
-    && binding.direction === 'reverse' && binding.stageIndex === 1);
-}
-
 function holdFigure2Media(video: HTMLVideoElement | null): void {
   if (!video) return;
   video.pause();
@@ -77,6 +72,22 @@ function holdFigure2Media(video: HTMLVideoElement | null): void {
     // Source replacement races can reject an endpoint write; the packed
     // surface's endpoint seek listener will retry after metadata arrives.
   }
+}
+
+function figure2TimelineMediaInput(runId: string, direction: 1 | -1, progress: number) {
+  return {
+    runId,
+    direction,
+    progress: Math.min(1, Math.max(0, progress)),
+    durationFallbackSeconds: FIGURE2_ENDPOINT_SECONDS,
+    startSeconds: 0,
+    endSeconds: FIGURE2_ENDPOINT_SECONDS,
+    timelineDurationMs: FIGURE2_ENDPOINT_SECONDS * 1000,
+    mode: 'timeline' as const,
+    nativePlaybackDirection: 1 as const,
+    allowSeekedFrameFallback: true,
+    allowPlaybackNudge: false
+  };
 }
 
 function primeFigure2Video(
@@ -129,23 +140,17 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
     renderFigure2AnimationProgress(sceneRef.current, clamped, { videoMode: 'none' });
     const binding = bindingRef.current;
     const staged = binding?.segmentId === FIGURE2_STAGED_SEGMENT;
-    if (isFigure2ReverseMediaLeg(binding) && videoRef.current) {
+    if (mediaPhaseRef.current === 'playing' && isFigure2MediaLeg(binding)
+      && videoRef.current) {
+      const direction: 1 | -1 = binding?.direction === 'reverse' ? -1 : 1;
       try {
         driveTimelineVideo(videoRef.current, {
-          runId: mediaRunTokenRef.current ?? binding?.frameToken ?? 'figure2-reverse',
-          direction: -1,
-          progress: clamped,
-          durationFallbackSeconds: FIGURE2_ENDPOINT_SECONDS,
-          startSeconds: 0,
-          endSeconds: FIGURE2_ENDPOINT_SECONDS,
-          timelineDurationMs: FIGURE2_ENDPOINT_SECONDS * 1000,
-          mode: 'timeline',
-          nativePlaybackDirection: 1,
-          allowSeekedFrameFallback: true
+          ...figure2TimelineMediaInput(
+            mediaRunTokenRef.current ?? binding?.frameToken ?? 'figure2-media',
+            direction, clamped
+          )
         });
       } catch {
-        // The packed surface reports causal seek failures; reverse media must
-        // never fall back to native forward playback.
       }
     }
     const hold = staged && (!isFigure2MediaLeg(binding)
@@ -180,8 +185,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
         surfaceRef.current?.probe();
         return;
       }
-      video.pause();
-      try { video.currentTime = 0; } catch { /* source may still be loading */ }
+      video.pause(); try { video.currentTime = 0; } catch { /* source may still be loading */ }
       return;
     }
     if (command.phase === 'held' || !isFigure2MediaLeg(binding)) {
@@ -194,23 +198,20 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
     mediaRunTokenRef.current = command.runToken;
     mediaPhaseRef.current = 'playing';
     surfaceRef.current?.setMode?.('forward');
-    if (command.direction === 'reverse') return;
-    let playback: Promise<void>;
-    try { playback = Promise.resolve(video.play()); }
-    catch (error) { playback = Promise.reject(error); }
-    void playback.catch((error: unknown) => {
-      if (disposedRef.current || binding !== bindingRef.current) return;
-      binding.reports.reportFailure({
-        code: 'figure2-forward-playback-rejected',
-        message: error && typeof error === 'object'
-          && typeof (error as { message?: unknown }).message === 'string'
-          ? String((error as { message: string }).message) : String(error),
-        recoverable: true,
-        detail: { generation: surfaceGenerationRef.current,
-          stageIndex: binding.stageIndex ?? null, direction: binding.direction ?? null,
-          runToken: command.runToken }
-      });
-    });
+  }, []);
+
+  const probePrewarmFrame = useCallback((generation: number) => {
+    let attempts = 0;
+    const probe = () => {
+      if (disposedRef.current || generation !== surfaceGenerationRef.current) return;
+      const surface = surfaceRef.current;
+      const canvas = canvasRef.current;
+      if (!surface || canvas?.dataset.packedAlphaFrameReady === 'true') return;
+      surface.probe();
+      if (canvas?.dataset.packedAlphaFrameReady === 'true') return;
+      if (++attempts < 180) window.requestAnimationFrame(probe);
+    };
+    window.requestAnimationFrame(probe);
   }, []);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
@@ -245,6 +246,18 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       canvasPresentationGenerationRef.current = generation;
       if (reverseActivation) {
         surface.probe();
+        return {
+          invocationId: command.invocationId,
+          surfaceIds: expected,
+          invoked: generation > 0,
+          settlements: generation > 0
+            ? [{ surfaceId: expected[0]!, status: 'fulfilled' }]
+            : []
+        };
+      }
+      if (command.prewarm) {
+        surface.probe();
+        probePrewarmFrame(generation);
         return {
           invocationId: command.invocationId,
           surfaceIds: expected,
@@ -290,12 +303,13 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
     settle(endpoint) {
       mediaPhaseRef.current = 'held';
       render(endpoint);
-      if (endpoint !== 0) return;
+      if (endpoint !== 0) return { prewarmReusable: true };
       surfaceGenerationRef.current = 0;
       canvasPresentationGenerationRef.current = 0;
       delete rootRef.current?.dataset.phoneFigure2CanvasReady;
       surfaceRef.current?.release();
       parkFigure2Media(sceneRef.current);
+      return { prewarmReusable: false };
     },
     pause() {
       mediaPhaseRef.current = 'held';
@@ -311,12 +325,12 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       surfaceGenerationRef.current = 0;
       canvasPresentationGenerationRef.current = 0;
       delete rootRef.current?.dataset.phoneFigure2CanvasReady;
-      surfaceRef.current?.dispose('terminal');
+      surfaceRef.current?.dispose('reactivatable');
       surfaceRef.current = null;
       disposeFigure2Media(sceneRef.current);
       bindingRef.current = null;
     }
-  }), [render, reportPoster, setMediaPhase]);
+  }), [probePrewarmFrame, render, reportPoster, setMediaPhase]);
 
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name !== 'stage') return;
@@ -375,7 +389,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
         root.dataset.phoneFigure2CanvasReady = 'true';
         binding.reports.reportFrame('figure2-pair-canvas', {
           kind: 'frame', token: binding.frameToken, presented: true,
-          frameId: `figure2-packed:${generation}:${++frameSequenceRef.current}`,
+          frameId: `figure2-packed:${generation}:${frameSequenceRef.current}`,
           detail: { compositorDrawn: true, generation }
         });
       },
@@ -418,13 +432,10 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       delete root.dataset.phoneFigure2CanvasReady;
       posterReadyRef.current = false;
       reportedPosterTokenRef.current = null;
-      surface.dispose('terminal');
+      surface.dispose('reactivatable');
       if (surfaceRef.current === surface) surfaceRef.current = null;
       disposeFigure2Media(scene);
       delete scene.dataset.phoneRuntimeOwned;
-      videoRef.current = null;
-      posterRef.current = null;
-      canvasRef.current = null;
       bindingRef.current = null;
     };
   }, [commands, posterHost, render, reportFailure, reportPoster, reports]);

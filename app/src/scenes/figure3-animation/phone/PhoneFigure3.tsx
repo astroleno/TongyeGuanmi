@@ -72,6 +72,19 @@ type PhoneFigure3InitialSurface = 'preparing' | 'video-frame-zero' | 'poster-fal
 type PhoneFigure3PreparedComposite = Exclude<PhoneFigure3InitialSurface, 'preparing'>
   | 'video-terminal-frame';
 
+function restoreFigure3VideoSources(video: HTMLVideoElement): void {
+  let restored = false;
+  for (const source of video.querySelectorAll<HTMLSourceElement>('source')) {
+    const src = source.dataset.src;
+    if (!src || source.getAttribute('src') === src) continue;
+    source.setAttribute('src', src);
+    restored = true;
+  }
+  if (restored) {
+    try { video.load(); } catch { /* detached media can reject reload */ }
+  }
+}
+
 function smoothStep(value: number): number {
   const progress = clamp(value);
   return progress * progress * (3 - 2 * progress);
@@ -120,7 +133,11 @@ export function releasePhoneFigure3Video(video: HTMLVideoElement | null): void {
   disposeTimelineVideoDriver(video);
   video.pause();
   video.removeAttribute('src');
-  for (const source of video.querySelectorAll('source')) source.removeAttribute('src');
+  for (const source of video.querySelectorAll('source')) {
+    const src = source.getAttribute('src');
+    if (src) source.dataset.src = src;
+    source.removeAttribute('src');
+  }
   try {
     video.load();
   } catch {
@@ -142,7 +159,10 @@ export function phoneFigure3CanStartPreparedRun(
 }
 
 const PHONE_FIGURE3_ENDPOINT_TOLERANCE_SECONDS = .05;
-export const PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS = 240;
+// Give an activated decoder a real turn to deliver frame zero. The poster is
+// still a bounded emergency winner, but 240ms made ordinary WebKit cold seeks
+// win the race before the video frame had a chance to be painted.
+export const PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS = 1000;
 
 export function phoneFigure3EndpointIsPresented(
   endpoint: PhoneFigure3Endpoint,
@@ -413,6 +433,29 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   ): number | null => {
     const root = rootRef.current;
     if (!root || disposedRef.current || binding !== bindingRef.current) return null;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const endpoint = progressRef.current <= .001 ? 0
+      : progressRef.current >= .999 ? 1 : null;
+    // A stage/generation rebind must not throw away a proof that is already
+    // present on the retained physical decoder. This is the common handoff
+    // path at presenting-target → stable, where resetting here would make
+    // the committed leaf look preparing again and eventually select poster.
+    if (endpoint === 0 && initialSurfaceRef.current === 'video-frame-zero'
+      && video && canvas && phoneFigure3HasReusableEndpointFrame(video, canvas, 0)) {
+      clearFallbackDeadline();
+      mediaPresentationEnabledRef.current = true;
+      compositorRef.current?.paint();
+      reportPresentedFrame();
+      return activationGenerationRef.current;
+    }
+    if (endpoint === 0 && initialSurfaceRef.current === 'poster-fallback') {
+      clearFallbackDeadline();
+      mediaPresentationEnabledRef.current = true;
+      root.dataset.phoneMediaState = 'fallback';
+      reportPreparedComposite(binding, 'poster-fallback');
+      return activationGenerationRef.current;
+    }
     clearFallbackDeadline();
     rejectInitialProofs(new Error('Figure3 initial composite was superseded'));
     fallbackPendingRef.current = false;
@@ -446,7 +489,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     });
     return generation;
   }, [clearFallbackDeadline, exposePosterFallback, prepareCurrentFrame,
-    rejectInitialProofs]);
+    rejectInitialProofs, reportPresentedFrame]);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
@@ -459,10 +502,27 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         : progressRef.current >= .999 ? 1 : null;
       const wasPaused = pausedRef.current;
       pausedRef.current = false;
+      const reboundVideo = videoRef.current;
+      if (reboundVideo) restoreFigure3VideoSources(reboundVideo);
       const endpoint = currentEndpoint ?? settledEndpointRef.current;
       if (wasPaused && currentEndpoint === null) render(endpoint);
       if (endpoint === 0) {
         mediaClockActiveRef.current = false;
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        if (initialSurfaceRef.current === 'video-frame-zero' && video && canvas
+          && phoneFigure3HasReusableEndpointFrame(video, canvas, 0)) {
+          mediaPresentationEnabledRef.current = true;
+          compositorRef.current?.paint();
+          reportPresentedFrame();
+          return;
+        }
+        if (initialSurfaceRef.current === 'poster-fallback') {
+          mediaPresentationEnabledRef.current = true;
+          rootRef.current?.setAttribute('data-phone-media-state', 'fallback');
+          reportPreparedComposite(binding, 'poster-fallback');
+          return;
+        }
         // Brand → Figure3 has a real target activation credit. Do not start
         // an unactivated decode during receiver rebind; activate() owns the
         // prime and the frame-zero proof for that transaction.
@@ -512,6 +572,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
           settlements: []
         };
       }
+      restoreFigure3VideoSources(video);
       const direction = command.direction === 'reverse' ? -1 : 1;
       mediaRunTokenRef.current = command.runToken ?? command.invocationId;
       directionRef.current = direction;
@@ -519,41 +580,36 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       mediaPresentationEnabledRef.current = true;
       const generation = prepareInitialComposite(binding, false);
       const proof = waitForInitialProof(binding);
-      const settled = Promise.resolve().then(async () => {
+      const settled = (async () => {
         if (generation === null) {
           throw new Error('Figure3 activation could not start its initial composite');
         }
+        const current = () => !disposedRef.current
+          && generation === activationGenerationRef.current
+          && binding === bindingRef.current;
+        // Prime is an activation-credit attempt, not a proof. Keep it inside
+        // the same winner race as the decoded frame so a pending native play
+        // promise cannot strand the poster fallback forever.
+        let prime: Promise<void>;
         try {
-          await primePhoneNativeVideo(video, {
-            isCurrent: () => !disposedRef.current
-              && generation === activationGenerationRef.current
-              && binding === bindingRef.current,
+          // Keep the play→pause credit on the physical activation stack.
+          prime = primePhoneNativeVideo(video, {
+            isCurrent: current,
             phase: () => mediaClockActiveRef.current ? 'playing' : 'primed',
             onRejected: (error: unknown) => {
-              if (generation !== activationGenerationRef.current
-                || binding !== bindingRef.current || disposedRef.current) return;
+              if (!current()) return;
               const root = rootRef.current;
               if (root) root.dataset.phoneFigure3InitialPrimeFailure = error instanceof Error
                 ? error.message : String(error);
             }
           });
         } catch (error) {
-          if (generation !== activationGenerationRef.current
-            || binding !== bindingRef.current || disposedRef.current) throw error;
-          const root = rootRef.current;
-          if (root) root.dataset.phoneFigure3InitialFailure = error instanceof Error
-            ? error.message : String(error);
-          exposePosterFallback(binding, 'decode-failed');
-          await proof;
-          return;
+          prime = Promise.reject(error);
         }
-        const preparation = prepareCurrentFrame(generation, binding, direction).then(
+        const preparation = prime.then(() => prepareCurrentFrame(generation, binding, direction)).then(
           (prepared) => ({ kind: 'video' as const, prepared }),
           (error: unknown) => {
-            if (generation !== activationGenerationRef.current
-              || binding !== bindingRef.current || disposedRef.current) {
-              throw error;
-            }
+            if (!current()) return { kind: 'stale' as const };
             const root = rootRef.current;
             if (root) root.dataset.phoneFigure3InitialFailure = error instanceof Error
               ? error.message : String(error);
@@ -566,6 +622,9 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
           preparation
         ]);
         if (winner === 'proof') return;
+        if (winner.kind === 'stale') {
+          throw new Error('Figure3 activation was superseded before frame preparation');
+        }
         if (winner.kind === 'fallback') {
           await proof;
           return;
@@ -581,7 +640,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         }
         video.pause();
         await proof;
-      });
+      })();
       return {
         invocationId: command.invocationId,
         surfaceIds: expected,

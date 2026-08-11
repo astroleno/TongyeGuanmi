@@ -83,7 +83,7 @@ describe('PhoneCrane', () => {
     expect(source).toContain("'crane-figure-canvas'");
     expect(source).toContain("'crane-flock-canvas'");
     expect(source).toContain('seekPhoneCraneReverseFrames');
-    expect(source).toContain("surface.dispose('terminal')");
+    expect(source).toContain("surface.dispose('reactivatable')");
     expect(source).not.toContain('createPortal');
     expect(source).not.toContain('useState');
     expect(source).not.toContain('setTimeout');

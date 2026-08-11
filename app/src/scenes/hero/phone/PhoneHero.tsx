@@ -169,6 +169,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
   const imagesReadyRef = useRef(false);
   const mountedRef = useRef(false);
   const activeRef = useRef(false);
+  const stableHeroActiveRef = useRef(false);
   const mediaRunTokenRef = useRef<string | null>(null);
   const renderedRef = useRef(false);
   const entranceStateRef = useRef<HeroEntranceState>('idle');
@@ -209,12 +210,18 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
     if (sample.titleActive) setTitleActive(true);
   }, []);
 
+  const enterStableHero = useCallback(() => {
+    const alreadyStable = stableHeroActiveRef.current; stableHeroActiveRef.current = true;
+    activeRef.current = true; compositorRef.current?.setActive(true); playbackRef.current?.setActive(true);
+    if (!alreadyStable) playbackRef.current?.startStableIdle();
+  }, []);
+
   const completeEntrance = useCallback(() => {
     cancelEntrance();
     renderEntrance(1);
     entranceStateRef.current = 'completed';
-    playbackRef.current?.startStableIdle();
-  }, [cancelEntrance, renderEntrance]);
+    enterStableHero();
+  }, [cancelEntrance, enterStableHero, renderEntrance]);
 
   const startEntrance = useCallback(() => {
     cancelEntrance();
@@ -226,17 +233,10 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       onComplete: () => {
         disposeEntranceRef.current = null;
         entranceStateRef.current = 'completed';
-        playbackRef.current?.startStableIdle();
+        enterStableHero();
       }
     });
-  }, [cancelEntrance, renderEntrance]);
-
-  const restoreStableIdle = useCallback(() => {
-    activeRef.current = true;
-    compositorRef.current?.setActive(true);
-    playbackRef.current?.setActive(true);
-    playbackRef.current?.startStableIdle();
-  }, []);
+  }, [cancelEntrance, enterStableHero, renderEntrance]);
 
   const renewCompositor = useCallback(() => {
     const video = figureVideoRef.current;
@@ -273,7 +273,10 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       rebind(binding) {
         bindingRef.current = binding;
         mediaRunTokenRef.current = null;
-        stableReverseArrivalRef.current = false;
+        stableHeroActiveRef.current = false;
+        if (!(binding.segmentId === 'hero-pattern' && binding.direction === 'reverse')) {
+          stableReverseArrivalRef.current = false;
+        }
         reportedFrameTokenRef.current = null;
         renewCompositor();
         reportCurrentFrame();
@@ -319,11 +322,13 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
           && (command.phase === 'primed' || command.phase === 'held')) return;
         mediaRunTokenRef.current = command.runToken;
         if (command.phase === 'primed') {
+          stableHeroActiveRef.current = false;
           playbackRef.current?.setActive(false);
           video.pause();
           return;
         }
         if (command.phase === 'held') {
+          stableHeroActiveRef.current = false;
           playbackRef.current?.setActive(false);
           video.pause();
           return;
@@ -356,7 +361,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
             || (entranceStateRef.current === 'idle' && reverseHeroPatternArrival)) {
             completeEntrance();
           }
-          if (entranceStateRef.current === 'completed') restoreStableIdle();
+          if (entranceStateRef.current === 'completed') enterStableHero();
           else playbackRef.current?.settle();
           return;
         }
@@ -370,6 +375,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       },
       pause() {
         activeRef.current = false;
+        stableHeroActiveRef.current = false;
         mediaRunTokenRef.current = null;
         stableReverseArrivalRef.current = false;
         cancelEntrance();
@@ -380,6 +386,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       },
       dispose() {
         activeRef.current = false;
+        stableHeroActiveRef.current = false;
         mediaRunTokenRef.current = null;
         stableReverseArrivalRef.current = false;
         cancelEntrance();
@@ -392,9 +399,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       },
       [PHONE_HERO_MIGRATION_CONTROL]: {
         enter() {
-          activeRef.current = true;
-          compositorRef.current?.setActive(true);
-          playbackRef.current?.setActive(true);
+          enterStableHero();
         },
         leave() {
           commandHandle.pause('outside-closure');
@@ -408,8 +413,8 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       }
     };
     return Object.freeze(commandHandle);
-  }, [cancelEntrance, completeEntrance, renewCompositor, reportCurrentFrame,
-    restoreStableIdle, startEntrance]);
+  }, [cancelEntrance, completeEntrance, enterStableHero, renewCompositor,
+    reportCurrentFrame, startEntrance]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -421,6 +426,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
     const introCanvas = introInkCanvasRef.current;
     if (!root || !back || !middle || !poster || !video || !canvas || !introCanvas) return;
     mountedRef.current = true;
+    stableHeroActiveRef.current = false;
     entranceStateRef.current = 'idle';
     stableReverseArrivalRef.current = false;
     imagesReadyRef.current = false;
@@ -470,6 +476,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       current = false;
       mountedRef.current = false;
       activeRef.current = false;
+      stableHeroActiveRef.current = false;
       mediaRunTokenRef.current = null;
       stableReverseArrivalRef.current = false;
       entranceStateRef.current = 'idle';

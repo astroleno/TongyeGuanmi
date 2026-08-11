@@ -74,25 +74,24 @@ export type PhoneSceneLoaderMap = {
 };
 export type PhonePlaneBuffer = 'a' | 'b';
 export type PhoneSceneRenderSlot<SceneId extends string = string> = Readonly<{
-  sceneId: SceneId;
-  buffer: PhonePlaneBuffer;
-  reports: PhoneLeafReportPort;
+  sceneId: SceneId; buffer: PhonePlaneBuffer; reports: PhoneLeafReportPort; renderKey: string;
 }>;
 
 export function createPhoneSceneTopology<SceneId extends string>() {
   const retained = new Map<SceneId, PhoneSceneRenderSlot<SceneId>>();
   let pair: readonly [SceneId, SceneId] | null = null;
+  let renderSequence = 0; const nextRenderKey = (sceneId: SceneId): string => `${sceneId}:${++renderSequence}`;
   return Object.freeze({
     retain(
       sceneId: SceneId,
       buffer: PhonePlaneBuffer,
-      createReports: () => PhoneLeafReportPort
+      createReports: () => PhoneLeafReportPort,
+      replaceReports = false,
+      replaceIdentity = false
     ): PhoneSceneRenderSlot<SceneId> {
       const current = retained.get(sceneId);
-      const slot = current ? { ...current, buffer }
-        : { sceneId, buffer, reports: createReports() };
-      retained.set(sceneId, slot);
-      return slot;
+      if (current && !replaceReports) { const slot = { ...current, buffer }; retained.set(sceneId, slot); return slot; }
+      const reports = createReports(); const slot = current && current.reports === reports ? { ...current, buffer } : current ? { ...current, buffer, reports, renderKey: replaceIdentity ? nextRenderKey(sceneId) : current.renderKey } : { sceneId, buffer, reports, renderKey: nextRenderKey(sceneId) }; retained.set(sceneId, slot); return slot;
     },
     setPair(next: readonly [SceneId, SceneId] | null): void {
       pair = next;
@@ -276,7 +275,7 @@ export function PhoneSceneLeaf<SceneId extends string>({
   return (
     <PhoneSceneFailureBoundary key={sceneId} reports={reports}>
       <Suspense fallback={<PhoneSceneCover />}>
-        <PhoneSceneModuleView registry={registry} sceneId={sceneId} reports={reports} />
+        <PhoneSceneModuleView<SceneId> registry={registry} sceneId={sceneId} reports={reports} />
       </Suspense>
     </PhoneSceneFailureBoundary>
   );

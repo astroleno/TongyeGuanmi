@@ -12,6 +12,7 @@ import {
 import { phoneMediaUrlFor } from '../../../media/phone-media';
 import {
   disposeTimelineVideoDriver,
+  driveTimelineVideo,
   prepareTimelineVideoFrame
 } from '../../../media/timeline-video-driver';
 import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
@@ -68,6 +69,22 @@ function renderPhoneAod(root: HTMLElement, rawProgress: number): void {
   renderAodTransitionProgress(
     root, progress, PHONE_AOD_ALPHA_END_PROGRESS, PHONE_AOD_ALPHA_START_PROGRESS
   );
+}
+
+function aodTimelineMediaInput(runId: string, direction: 1 | -1, progress: number) {
+  return {
+    runId,
+    direction,
+    progress: mapAodTimelineToMediaProgress(progress, AOD_PHONE_TIMELINE_ALPHA_END),
+    durationFallbackSeconds: AOD_FIGURE_END_SECONDS,
+    startSeconds: 0,
+    endSeconds: AOD_FIGURE_END_SECONDS,
+    timelineDurationMs: AOD_FIGURE_END_SECONDS * 1000,
+    mode: 'timeline' as const,
+    nativePlaybackDirection: 1 as const,
+    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
+    allowPlaybackNudge: false
+  };
 }
 
 function setAodExitActive(root: HTMLElement | null, active: boolean): void {
@@ -211,15 +228,19 @@ export function PhoneAod({ reports }: PhoneAodProps) {
   const render = useCallback((progress: number) => {
     const root = rootRef.current;
     if (root) renderPhoneAod(root, progress);
-    // The timeline driver owns seek/compositor completion while the media is
-    // parked. Once the runtime grants the formal forward clock, native
-    // playback owns currentTime; another preparation seek would immediately
-    // pause and reset that clock on every render.
-    if (mediaPhaseRef.current !== 'playing') {
-      void scheduleDecodedFrame(mapAodTimelineToMediaProgress(
-        progress, AOD_PHONE_TIMELINE_ALPHA_END
-      )).catch(() => undefined);
+    const binding = bindingRef.current;
+    const video = videoRef.current;
+    if (mediaPhaseRef.current === 'playing' && binding && video) {
+      const direction: 1 | -1 = progress >= lastRequestedProgressRef.current ? 1 : -1;
+      lastRequestedProgressRef.current = progress;
+      driveTimelineVideo(video, aodTimelineMediaInput(
+        mediaRunTokenRef.current ?? `${binding.frameToken}:aod`, direction, progress
+      ));
+      return;
     }
+    void scheduleDecodedFrame(mapAodTimelineToMediaProgress(
+      progress, AOD_PHONE_TIMELINE_ALPHA_END
+    )).catch(() => undefined);
   }, [scheduleDecodedFrame]);
 
   const reportPoster = useCallback(() => {
@@ -321,30 +342,9 @@ export function PhoneAod({ reports }: PhoneAodProps) {
           video.pause();
           return;
         }
-        mediaPhaseRef.current = command.direction === 'reverse' ? 'held' : 'playing';
-        if (command.direction === 'reverse') {
-          video.pause();
-          return;
-        }
-        // The initial mode only accepts a paused frame at time zero. Promote
-        // the same generation before play() so the compositor never removes
-        // the Canvas-ready latch when formal forward playback begins.
+        mediaPhaseRef.current = 'playing';
         surfaceRef.current?.setMode?.('forward');
-        const runToken = command.runToken;
-        let playback: Promise<void>;
-        try { playback = Promise.resolve(video.play()); }
-        catch (error) { playback = Promise.reject(error); }
-        void playback.catch((error: unknown) => {
-          if (disposedRef.current || bindingRef.current !== binding
-            || mediaRunTokenRef.current !== runToken
-            || mediaPhaseRef.current !== 'playing') return;
-          binding.reports.reportFailure({
-            code: 'aod-playback-rejected',
-            message: error instanceof Error ? error.message : String(error),
-            recoverable: true,
-            detail: { runToken, direction: command.direction }
-          });
-        });
+        render(desiredProgressRef.current);
       },
       render,
       settle(endpoint) {
@@ -375,7 +375,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         surfaceGenerationRef.current = 0;
         const video = videoRef.current;
         if (video) disposeTimelineVideoDriver(video);
-        surfaceRef.current?.dispose('terminal');
+        surfaceRef.current?.dispose('reactivatable');
         surfaceRef.current = null;
         bindingRef.current = null;
         mediaRunTokenRef.current = null;
@@ -464,7 +464,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
           kind: 'frame',
           token: binding.frameToken,
           presented: true,
-          frameId: `aod-packed:${generation}:${++frameSequenceRef.current}`,
+          frameId: `aod-packed:${generation}:${frameSequenceRef.current}`,
           detail: { compositorDrawn: true, generation }
         });
       },
@@ -507,9 +507,6 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       reportedPosterTokenRef.current = null;
       surface.dispose('reactivatable');
       if (surfaceRef.current === surface) surfaceRef.current = null;
-      videoRef.current = null;
-      posterRef.current = null;
-      canvasRef.current = null;
       bindingRef.current = null;
       delete root.dataset.portraitAodAlpha;
       delete root.dataset.portraitAodProgress;

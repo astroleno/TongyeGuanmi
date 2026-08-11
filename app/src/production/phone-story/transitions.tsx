@@ -35,7 +35,7 @@ export function createPhoneEffectTopology<SegmentId extends string>() {
       createReports: () => PhoneLeafReportPort
     ): PhoneEffectRenderSlot<SegmentId> {
       current = current?.segmentId === segmentId
-        ? { ...current, attemptId, retainAfterStable }
+        ? { ...current, attemptId, retainAfterStable, reports: current.attemptId === attemptId ? current.reports : createReports() }
         : { attemptId, segmentId, retainAfterStable, reports: createReports() };
       return current;
     },

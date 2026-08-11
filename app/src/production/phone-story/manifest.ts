@@ -447,7 +447,7 @@ function directEntry(seed: SceneSeed): PhoneDirectEntryPolicy {
     mediaActivation: mediaActivation(
       seed.resourceBudget,
       seed.resourceBudget.videos > 0
-        && !['aod-animation', 'figure3-animation'].includes(seed.id)
+      && seed.id !== 'aod-animation'
     )
   };
 }

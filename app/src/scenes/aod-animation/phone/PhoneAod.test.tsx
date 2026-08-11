@@ -24,6 +24,9 @@ const surfaceProbe = vi.hoisted(() => ({
 }));
 
 const timelineProbe = vi.hoisted(() => ({
+  drive: vi.fn((video: HTMLVideoElement, input: Readonly<{ progress: number }>) => {
+    try { video.currentTime = input.progress * 2.567; } catch { /* detached media */ }
+  }),
   prepare: vi.fn(async (
     video: HTMLVideoElement,
     input: Readonly<{ progress: number }>
@@ -52,6 +55,7 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
 }));
 
 vi.mock('../../../media/timeline-video-driver', () => ({
+  driveTimelineVideo: timelineProbe.drive,
   prepareTimelineVideoFrame: timelineProbe.prepare,
   disposeTimelineVideoDriver: timelineProbe.dispose
 }));
@@ -98,6 +102,9 @@ describe('clean PhoneAod leaf', () => {
         runId: 'aod:test', direction: 1 as const, generation: 1,
         targetTime: input.progress * 2.567
       };
+    });
+    timelineProbe.drive.mockReset().mockImplementation((video, input) => {
+      try { video.currentTime = input.progress * 2.567; } catch { /* detached media */ }
     });
     timelineProbe.dispose.mockReset();
     host = document.createElement('div');
@@ -204,15 +211,14 @@ describe('clean PhoneAod leaf', () => {
       credit: 'physical-epoch', playback: true,
       direction: 'forward', runToken
     });
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    const primeCalls = play.mock.calls.length;
     commands.setMediaPhase?.({
       phase: 'playing', runToken, direction: 'forward', stageIndex: 0
     });
 
     expect(surfaceProbe.setMode).toHaveBeenCalledWith('forward');
-    const play = vi.mocked(HTMLMediaElement.prototype.play);
-    expect(surfaceProbe.setMode.mock.invocationCallOrder[0]).toBeLessThan(
-      play.mock.invocationCallOrder.at(-1) ?? Number.POSITIVE_INFINITY
-    );
+    expect(play.mock.calls.length).toBe(primeCalls);
   });
 
   it('reports an active AOD prime rejection while it is still primed', async () => {
@@ -448,6 +454,32 @@ describe('clean PhoneAod leaf', () => {
     expect(video.currentTime).toBeGreaterThan(0);
     expect(video.currentTime).toBeLessThan(2.567);
     expect(surfaceProbe.render).toHaveBeenCalled();
+  });
+
+  it('uses the authored AOD mapping for the visible forward media clock', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const video = host.querySelector<HTMLVideoElement>('[data-aod-figure-video]')!;
+    const runToken = 'aod:visible-clock:1';
+    commands.rebind({ reports: mount.reports, frameToken: runToken });
+    const invocation = commands.activate({
+      invocationId: 'activation:visible-clock', surfaceIds: ['aod-figure-video'],
+      credit: 'physical-epoch', playback: true, direction: 'forward', runToken
+    });
+    const settlement = invocation.settlements[0];
+    if (settlement?.status === 'pending') await settlement.settled;
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken, direction: 'forward', stageIndex: 0
+    });
+    commands.render(.48);
+
+    expect(timelineProbe.drive).toHaveBeenCalledWith(
+      video,
+      expect.objectContaining({ progress: expect.closeTo(.2077922, 4) })
+    );
+    expect(video.currentTime).toBeGreaterThan(0);
+    expect(video.currentTime).toBeLessThan(2.567);
   });
 
   it('keeps the canonical figure geometry and makes the first Canvas frame own the live surface', async () => {
