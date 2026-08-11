@@ -1,14 +1,14 @@
 import { expect, test } from '@playwright/test';
 import {
   assertSinglePhoneAuthority,
-  waitForCommitSequence
+  waitForDirectEntryCommit
 } from './r5-phone-clean-assertions';
 
 test('Crane clean leaf proves two canonical decoded surfaces without duplicate owners', async ({
   page
 }) => {
   await page.goto('/#crane-animation', { waitUntil: 'domcontentloaded' });
-  await waitForCommitSequence(page, 'crane-animation', 0);
+  await waitForDirectEntryCommit(page, 'crane-animation', 0);
   await assertSinglePhoneAuthority(page);
 
   const videos = page.locator(
