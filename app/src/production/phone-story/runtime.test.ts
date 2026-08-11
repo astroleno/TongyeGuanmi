@@ -1603,6 +1603,43 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('keeps a hidden media prewarm dormant until trusted input activates it through the runtime batch', async () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#services');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+
+    const scene = phoneSceneById('ttg-animation');
+    const commands = commandFixture().commands;
+    runtime.createPrewarmLeafReportPort(scene.id).registerMount({
+      root: {} as HTMLElement,
+      surfaces: scene.surfaces.map((id) => ({
+        id,
+        element: {} as HTMLElement,
+        kind: id.includes('video') ? 'video' as const
+          : id.includes('canvas') ? 'canvas-webgl' as const : 'dom' as const
+      })),
+      commands
+    });
+
+    expect(commands.activate).not.toHaveBeenCalled();
+    expect(fixture.resources.at(-1)?.activeDecoders).toBe(0);
+
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 300, fresh: true,
+      trusted: true, target: 'story'
+    });
+
+    await vi.waitFor(() => expect(commands.activate).toHaveBeenCalledTimes(1));
+    expect(commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
+      credit: 'direct-muted-autoplay',
+      surfaceIds: ['ttg-figure-video']
+    }));
+    expect(vi.mocked(commands.activate).mock.calls[0]?.[0].prewarm).not.toBe(true);
+    await vi.waitFor(() => expect(fixture.resources.at(-1)?.activeDecoders).toBe(1));
+    disconnect();
+  });
+
   it('reports an actual prewarm rejection through chunk recovery without faulting the committed scene', async () => {
     const fixture = createEnvironment();
     const reportRejectedChunk = vi.fn(async () => 'reloading' as const);

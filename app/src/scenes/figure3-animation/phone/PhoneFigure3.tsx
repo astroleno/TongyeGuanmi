@@ -526,7 +526,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         // Brand → Figure3 has a real target activation credit. Do not start
         // an unactivated decode during receiver rebind; activate() owns the
         // prime and the frame-zero proof for that transaction.
-        if (binding.segmentId === 'brand-figure3') {
+        if (binding.segmentId === 'brand-figure3' || binding.frameToken.startsWith('prewarm:')) {
           prepareInitialComposite(binding, false);
         } else {
           prepareInitialComposite(binding);

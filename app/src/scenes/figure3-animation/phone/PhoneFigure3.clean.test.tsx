@@ -160,6 +160,23 @@ describe('clean PhoneFigure3 leaf', () => {
     act(() => root.unmount());
   });
 
+  it('keeps a hidden prewarm binding on the static fallback without decoding video', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+
+    mount.registration()?.commands.rebind({
+      reports: mount.reports,
+      frameToken: 'prewarm:figure3-animation:frame:1'
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(probe.prepareFrame).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
   it('keeps the stable decoded initial Canvas visible after a late compositor callback', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);

@@ -157,7 +157,7 @@ function recordDiagnosticSnapshot(snapshot: PhoneStorySnapshot): void {
   if (target.__r5PhoneRuntimeLog) target.__r5PhoneRuntimeLog = [...target.__r5PhoneRuntimeLog, snapshot].slice(-64);
 }
 
-function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope']>, handoffStore: PhoneNativeHandoffStore): PhoneStoryRuntimeEnvironment {
+function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope']>, handoffStore: PhoneNativeHandoffStore, diagnostics: boolean): PhoneStoryRuntimeEnvironment {
   let authoritySequence = 0;
   let lastEntryKey = `${window.location.pathname}${window.location.hash}`;
   let layoutRevision = 0;
@@ -370,7 +370,7 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
       recordDiagnosticSnapshot(snapshot);
       if (snapshot.status !== 'transaction'
         || snapshot.transaction.phase !== 'awaiting-media-activation') setActivationCta(false);
-    },
+    }, observeResources: (counts) => { const shell = diagnostics ? document.querySelector<HTMLElement>(`.phone-story[data-phone-scope="${scope}"]`) : null; if (shell) Object.assign(shell.dataset, { phoneResourceVideos: String(counts.videos), phoneResourceActiveDecoders: String(counts.activeDecoders), phoneResourceCanvases: String(counts.canvases), phoneResourceWebglContexts: String(counts.webglContexts) }); },
     performEffect: (effect) => {
       if (effect.type === 'show-activation-cta') return setActivationCta(effect.enabled);
       if (effect.type === 'confirm-scroll') {
@@ -484,7 +484,7 @@ export function PhoneStoryShell({
     const presentation = createProjector();
     const engine = createPhoneStoryRuntime({
       initialEntry: initialEntry(requestedEntry),
-      environment: createBrowserEnvironment(scope, nativeHandoffStoreRef.current),
+      environment: createBrowserEnvironment(scope, nativeHandoffStoreRef.current, diagnostics),
       presentation,
       ports: {
         loadDependencies: loadPhoneDependencies,

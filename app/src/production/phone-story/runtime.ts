@@ -394,7 +394,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         };
         leaves.set(key, lease);
         bindLeafGeneration(lease, state, false);
-        const active = snapshot.status === 'transaction' ? snapshot.transaction : null; if (state.p && active) { const promoted = createPhoneSupersedingLeafBinding(active, state.binding); if (promoted) promoteLease(lease, promoted); } if (state.p) publishPrewarm(); if (state.p && mount.activationSurfaceIds.length > 0) mount.commands.activate({ invocationId: `prewarm:${state.binding.attempt.sceneId}`, surfaceIds: mount.activationSurfaceIds, credit: 'direct-muted-autoplay', runToken: `prewarm:${lease.frameToken ?? state.binding.attempt.transactionId}`, direction: 'forward', stageIndex: 0, prewarm: true });
+        const active = snapshot.status === 'transaction' ? snapshot.transaction : null; if (state.p && active) { const promoted = createPhoneSupersedingLeafBinding(active, state.binding); if (promoted) promoteLease(lease, promoted); } if (state.p) publishPrewarm();
         if (active) {
           lease.mount.commands.render(commandProgress(active, state.binding.leg));
         }

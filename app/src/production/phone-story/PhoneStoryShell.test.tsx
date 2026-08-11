@@ -1089,6 +1089,13 @@ describe('clean PhoneStoryShell ownership', () => {
     expect(shell?.getAttribute('data-phone-network-hint')).toBe('online');
     expect(shell?.getAttribute('data-phone-missing-proof')).toBe('');
     expect(shell?.getAttribute('data-phone-activation-surfaces')).toBe('');
+    act(() => engine.config.environment.observeResources?.({
+      videos: 2, activeDecoders: 1, canvases: 3, webglContexts: 2
+    }));
+    expect(shell?.getAttribute('data-phone-resource-videos')).toBe('2');
+    expect(shell?.getAttribute('data-phone-resource-active-decoders')).toBe('1');
+    expect(shell?.getAttribute('data-phone-resource-canvases')).toBe('3');
+    expect(shell?.getAttribute('data-phone-resource-webgl-contexts')).toBe('2');
     act(() => root.unmount());
   });
 

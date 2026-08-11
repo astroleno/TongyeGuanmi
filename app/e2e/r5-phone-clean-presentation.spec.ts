@@ -242,6 +242,14 @@ type RuntimeResourceSample = Readonly<{
   webgl: number;
 }>;
 
+type SliceResourceSample = Readonly<{
+  videos: number;
+  decodedVideos: number;
+  canvases: number;
+  activeDecoders: number;
+  owners: readonly string[];
+}>;
+
 type LifecycleProbeSample = Readonly<{
   listeners: number;
   timeouts: number;
@@ -410,19 +418,25 @@ async function waitForCompleteStoryNativePrewarm(
   direction: 'forward' | 'reverse'
 ): Promise<void> {
   const target = completeStoryExitTarget(scene, direction);
+  if (!target || ![
+    'figure3-animation', 'ttg-animation', 'ph-animation', 'crane-animation'
+  ].includes(target)) return;
+  await expect(page.locator(
+    `[data-phone-plane="receiver"] [data-phone-scene="${target}"]`
+  )).toBeAttached({ timeout: 15_000 });
   if (target === 'ttg-animation') {
     await expect(page.locator('[data-phone-plane="receiver"] [data-ttg-figure-video]'))
-      .toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/, { timeout: 15_000 });
+      .not.toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
   } else if (target === 'figure3-animation') {
-    await expect(page.locator('[data-phone-plane="receiver"] [data-phone-figure3-paper-canvas]'))
-      .toHaveAttribute('data-phone-figure3-paper-frame', 'ready', { timeout: 15_000 });
+    await expect(page.locator('[data-phone-plane="receiver"] .phone-figure3'))
+      .not.toHaveAttribute('data-phone-figure3-initial-surface', 'video-frame-zero');
   } else if (target === 'ph-animation') {
     await expect(page.locator('[data-phone-plane="receiver"] [data-phone-packed-alpha-canvas="ph-figure"]'))
-      .toHaveAttribute('data-packed-alpha-frame-ready', 'true', { timeout: 15_000 });
+      .not.toHaveAttribute('data-packed-alpha-frame-ready', 'true');
   } else if (target === 'crane-animation') {
     for (const layer of ['crane-figure', 'crane-flock']) {
       await expect(page.locator(`[data-phone-plane="receiver"] [data-phone-packed-alpha-canvas="${layer}"]`))
-        .toHaveAttribute('data-packed-alpha-frame-ready', 'true', { timeout: 15_000 });
+        .not.toHaveAttribute('data-packed-alpha-frame-ready', 'true');
     }
   }
 }
@@ -561,7 +575,7 @@ async function traverseFigure3Slice(
   source: keyof typeof FIGURE3_SLICE_CONTENT,
   target: keyof typeof FIGURE3_SLICE_CONTENT,
   direction: 'forward' | 'reverse'
-): Promise<Readonly<{ videos: number; canvases: number }>> {
+): Promise<SliceResourceSample> {
   await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   await sendFrontIntent(page, direction);
@@ -576,10 +590,7 @@ async function traverseFigure3Slice(
     await expect(page.locator('[data-phone-figure3-paper-canvas]'))
       .toHaveAttribute('data-phone-figure3-paper-frame', 'ready');
   }
-  return page.evaluate(() => ({
-    videos: document.querySelectorAll('.phone-story video').length,
-    canvases: document.querySelectorAll('.phone-story canvas').length
-  }));
+  return readStableSliceResources(page);
 }
 
 async function completeFigure3SliceAttempt(
@@ -712,7 +723,7 @@ async function traverseGroup45(
   source: Group45Scene,
   target: Group45Scene,
   direction: 'forward' | 'reverse'
-): Promise<Readonly<{ videos: number; canvases: number }>> {
+): Promise<SliceResourceSample> {
   await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   await prepareCompleteStoryNativeEdge(page, source as CompleteStoryScene, direction);
@@ -732,10 +743,7 @@ async function traverseGroup45(
     await expect(page.locator('[data-ttg-figure-video]'))
       .toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
   }
-  return page.evaluate(() => ({
-    videos: document.querySelectorAll('.phone-story video').length,
-    canvases: document.querySelectorAll('.phone-story canvas').length
-  }));
+  return readStableSliceResources(page);
 }
 
 async function expectGroup45Rollback(
@@ -882,7 +890,7 @@ async function traversePhSlice(
   source: PhSliceScene,
   target: PhSliceScene,
   direction: 'forward' | 'reverse'
-): Promise<Readonly<{ videos: number; canvases: number }>> {
+): Promise<SliceResourceSample> {
   await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   await sendFrontIntent(page, direction);
@@ -898,10 +906,7 @@ async function traversePhSlice(
       .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
   }
   await waitForContinuousStoryReady(page);
-  return page.evaluate(() => ({
-    videos: document.querySelectorAll('.phone-story video').length,
-    canvases: document.querySelectorAll('.phone-story canvas').length
-  }));
+  return readStableSliceResources(page);
 }
 
 async function expectPhSliceRollback(
@@ -997,7 +1002,7 @@ async function traverseCraneSlice(
   source: CraneSliceScene,
   target: CraneSliceScene,
   direction: 'forward' | 'reverse'
-): Promise<Readonly<{ videos: number; canvases: number }>> {
+): Promise<SliceResourceSample> {
   await waitForContinuousStoryReady(page);
   const before = await readCommitSequence(page);
   if (source === 'education' && direction === 'forward') {
@@ -1025,10 +1030,7 @@ async function traverseCraneSlice(
         .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
     }
   }
-  return page.evaluate(() => ({
-    videos: document.querySelectorAll('.phone-story video').length,
-    canvases: document.querySelectorAll('.phone-story canvas').length
-  }));
+  return readStableSliceResources(page);
 }
 
 async function expectCraneMediaRollback(
@@ -1131,6 +1133,52 @@ async function readRuntimeResources(
       webgl: webgl.length
     };
   });
+}
+
+async function readStableSliceResources(
+  page: import('@playwright/test').Page
+): Promise<SliceResourceSample> {
+  const read = () => page.evaluate(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    const root = shell?.querySelector('.phone-story__planes');
+    const videos = [...(root?.querySelectorAll<HTMLVideoElement>('video') ?? [])];
+    const canvases = [...(root?.querySelectorAll<HTMLCanvasElement>('canvas') ?? [])];
+    const owner = (element: Element) => element.closest<HTMLElement>('[data-phone-scene]')
+      ?.dataset.phoneScene ?? 'unowned';
+    const owners = [
+      ...videos.map((video) => `${owner(video)}:video`),
+      ...canvases.map((canvas) => `${owner(canvas)}:canvas`)
+    ].sort();
+    return {
+      videos: videos.length,
+      decodedVideos: videos.filter((video) => video.readyState >= 2).length,
+      canvases: canvases.length,
+      activeDecoders: Number(shell?.dataset.phoneResourceActiveDecoders),
+      owners
+    };
+  });
+
+  // A stable commit can publish just before its adjacent module-only prewarm
+  // mount lands. Sample only after the normalized owner inventory stops
+  // changing, so cold and warm cycles are compared at the same boundary.
+  await page.waitForTimeout(200);
+  let previous: SliceResourceSample | null = null;
+  let repeated = 0;
+  for (let sample = 0; sample < 20; sample += 1) {
+    const current = await read();
+    if (!Number.isFinite(current.activeDecoders)) {
+      throw new Error('Runtime decoder diagnostics are unavailable');
+    }
+    if (previous && JSON.stringify(current) === JSON.stringify(previous)) {
+      repeated += 1;
+      if (repeated >= 2) return current;
+    } else {
+      previous = current;
+      repeated = 0;
+    }
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`Phone resource topology did not settle: ${JSON.stringify(previous)}`);
 }
 
 async function assertCompleteStoryFrame(
@@ -2780,22 +2828,19 @@ test('Figure3 slice direct entries expose accepted Brand, paper, and Services en
 test('Figure3 slice commits forward and reverse twice without resource growth', async ({ page }) => {
   await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'brand', 0);
-  const secondCycle: Array<Readonly<{ videos: number; canvases: number }>> = [];
   const cycle = async () => [
     await traverseFigure3Slice(page, 'brand', 'figure3-animation', 'forward'),
     await traverseFigure3Slice(page, 'figure3-animation', 'services', 'forward'),
     await traverseFigure3Slice(page, 'services', 'figure3-animation', 'reverse'),
     await traverseFigure3Slice(page, 'figure3-animation', 'brand', 'reverse')
   ];
-  await cycle();
-  await page.waitForTimeout(500);
-  secondCycle.push(...await cycle());
-  for (const sample of secondCycle) {
-    // The committed Figure3 leaf and the asynchronously ready Services
-    // prewarm may coexist. Assert the bounded topology, not the instant at
-    // which the prewarm promise happened to resolve in cycle one.
+  const first = await cycle();
+  const second = await cycle();
+  expect(second).toEqual(first);
+  for (const sample of second) {
     expect(sample.videos).toBeLessThanOrEqual(2);
     expect(sample.canvases).toBeLessThanOrEqual(2);
+    expect(sample.activeDecoders).toBeLessThanOrEqual(sample.decodedVideos);
   }
 });
 
@@ -3004,7 +3049,7 @@ test('native reading handoff freezes the real bottom frame for Services, Lab, an
   }
 });
 
-test('Services bottom trusted handoff commits TTG once with its proved initial frame', async ({ page }) => {
+test('Services bottom trusted handoff activates a dormant TTG prewarm and commits once', async ({ page }) => {
   await page.goto('/#services', { waitUntil: 'domcontentloaded' });
   const before = await waitForDirectEntryCommit(page, 'services');
   await waitForContinuousStoryReady(page);
@@ -3012,7 +3057,12 @@ test('Services bottom trusted handoff commits TTG once with its proved initial f
   expect(bottom).toBeGreaterThan(0);
   const prewarmedTtg = page.locator('[data-ttg-figure-video]');
   await expect(prewarmedTtg).toHaveCount(1);
-  await expect(prewarmedTtg).toHaveAttribute('data-phone-ttg-endpoint-ready', 'initial');
+  await expect(prewarmedTtg).not.toHaveAttribute(
+    'data-phone-ttg-endpoint-ready', /initial|terminal/
+  );
+  await expect(page.locator('.phone-story')).toHaveAttribute(
+    'data-phone-resource-active-decoders', '0'
+  );
   const viewport = await page.locator('.phone-story__viewport').boundingBox();
   if (!viewport) throw new Error('Story input surface is missing');
   await page.locator('.phone-story__reading-flow').evaluate((flow) => {
@@ -3051,10 +3101,16 @@ test('incoming media stays parked at frame zero for PH and both Crane layers', a
     await page.goto(`/#${scenario.source}`, { waitUntil: 'domcontentloaded' });
     const before = await waitForDirectEntryCommit(page, scenario.source);
     await waitForContinuousStoryReady(page);
-    if (scenario.target === 'ph-animation') {
-      await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
-        .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+    for (const surfaceId of scenario.canvases) {
+      const canvas = page.locator(`[data-phone-packed-alpha-canvas="${
+        surfaceId.replace(/-canvas$/, '')
+      }"]`);
+      await expect(canvas).toBeAttached();
+      await expect(canvas).not.toHaveAttribute('data-packed-alpha-frame-ready', 'true');
     }
+    await expect(page.locator('.phone-story')).toHaveAttribute(
+      'data-phone-resource-active-decoders', '0'
+    );
     await scrollNativeReadingToBottom(page);
     const stop = await recordPhoneStoryFrames(page);
     await nextAnimationFrame(page);
@@ -3176,12 +3232,13 @@ test('Group 4-5 completes two full forward/reverse cycles without resource growt
     samples.push(await traverseGroup45(page, 'figure3-animation', 'brand', 'reverse'));
     return samples;
   };
-  await cycle();
-  await page.waitForTimeout(500);
+  const first = await cycle();
   const second = await cycle();
+  expect(second).toEqual(first);
   for (const sample of second) {
     expect(sample.videos).toBeLessThanOrEqual(2);
     expect(sample.canvases).toBeLessThanOrEqual(2);
+    expect(sample.activeDecoders).toBeLessThanOrEqual(sample.decodedVideos);
   }
 });
 
@@ -3334,13 +3391,13 @@ test('PH slice completes Lab → PH → Education forward/reverse twice without 
     await traversePhSlice(page, 'education', 'ph-animation', 'reverse'),
     await traversePhSlice(page, 'ph-animation', 'lab', 'reverse')
   ];
-  await cycle();
+  const first = await cycle();
   const second = await cycle();
+  expect(second).toEqual(first);
   for (const sample of second) {
-    // Education retains the PH pair while its Crane prewarm can expose two
-    // packed-alpha videos/canvases; both are bounded, intentional owners.
     expect(sample.videos).toBeLessThanOrEqual(3);
     expect(sample.canvases).toBeLessThanOrEqual(4);
+    expect(sample.activeDecoders).toBeLessThanOrEqual(sample.decodedVideos);
   }
 });
 
@@ -3482,6 +3539,7 @@ test('Crane slice completes Education ↔ Crane twice without resource growth', 
   for (const sample of second) {
     expect(sample.videos).toBeLessThanOrEqual(2);
     expect(sample.canvases).toBeLessThanOrEqual(3);
+    expect(sample.activeDecoders).toBeLessThanOrEqual(sample.decodedVideos);
   }
 });
 
