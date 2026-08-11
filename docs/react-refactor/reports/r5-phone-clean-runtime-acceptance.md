@@ -1,11 +1,78 @@
 # R5 Phone Clean Runtime — Task 13 acceptance
 
-- Date: 2026-08-03
-- Status: **Task 12 reopened / NO-GO; corrective focused verification in
-  progress; formal acceptance paused**
-- Current claim: **NO-GO; neither `Chunk-contract-complete` nor `Release-complete`**
+- Date: 2026-08-11
+- Status: **GO for physical-device testing on immutable candidate v31**
+- Current claim: **automated acceptance complete; physical iPhone acceptance
+  and memory qualification pending; not `Release-complete`**
 - Report branch: `codex/r5-phone-clean-runtime-convergence`
-- Diagnostic candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime-candidate-8f39139`
+- Candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime`
+- Candidate artifact: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime/dist/`
+
+## Current authoritative candidate identity
+
+The following identity supersedes every older candidate, candidate-null, and
+NO-GO identity statement retained later in this report as historical evidence.
+Physical-device testing must use this exact v31 artifact; rebuilding or changing
+production code creates a different candidate.
+
+| Item | Value |
+| --- | --- |
+| candidate | `react-refactor-r5-parity-repair-candidate-v31` |
+| source commit | `74863ae8e4d367c4a25b2485fc57b9c56b9093bc` |
+| annotated tag object | `106105c894dadabd9ed60a832017d519fb7ca81c` |
+| `sourceDirty` at build | `false` |
+| `artifactTreeSha256` | `ab1398081166f1e0f037f77fc5486113e5e4633ee2ffdd545ebf5619f0aca77a` |
+| release-manifest SHA-256 | `5a13058eae63c4bff70d92dcea1b5f8e4ecf8a857b74dcf6e8c6e16422a50a63` |
+| manifest inventory | 177 files / 84,061,503 bytes |
+| manifest schema / qualification | schema 3 / `pending-memory` |
+| phone JavaScript | 663,349 B / 663,552 B hard cap; 203 B headroom |
+
+The generated authority is `dist/r5-release-manifest.json`. The branch was 22
+commits ahead of its remote-tracking branch at this checkpoint, so an unpushed
+or differently rebuilt copy must not replace the local manifest-bound artifact.
+A later docs-only ledger commit may move branch HEAD, but it does not replace
+the v31 source commit, tag, manifest, or already-built `dist/` acceptance artifact.
+
+## Current automated acceptance evidence
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Vitest | pass | 177 files / 1,366 tests |
+| Production build | pass | TypeScript, architecture, media, release-build, budget, CDN, and release-manifest gates |
+| Phone portrait WebKit | pass | 108/108, one worker, 11.9 minutes |
+| Complete story pressure traversal | pass | all 60 forward/reverse segment traversals, one authority, no resource growth; 3.2 minutes inside the full WebKit run |
+| Source hygiene | pass | clean v31 source at build; `git diff --check` passed |
+
+The exact WebKit command was:
+
+```text
+pnpm exec playwright test --config=playwright.release.config.ts --project=phone-portrait-webkit --workers=1
+```
+
+`app/test-results/.last-run.json` persists the final `passed` state with no
+failed tests. The complete 108-test console transcript was observed during the
+acceptance run but was not emitted as a standalone JSON/JUnit artifact; this is
+an evidence-retention gap, not a device-test blocker.
+
+## Physical iPhone acceptance gate
+
+Physical acceptance remains pending for real touch traversal, normal and Low
+Power Mode, toolbar changes, background/BFCache recovery, autoplay restrictions,
+AOD → Method, Figure2 arch/ghosting, Brand ↔ Figure3, TTG/PH/Crane playback,
+A/B flash, viewport rebound, and compositor continuity. Figure3 sharpness must
+be judged against the existing 1280×720 animation source.
+
+The candidate is **GO for device testing**, but not for release signing:
+
+- memory qualification remains `pending-memory`;
+- physical iPhone Safari evidence is not yet recorded;
+- the phone JavaScript budget has only 203 B headroom, so any code or build
+  change requires a new budget check and candidate identity.
+
+## Superseded historical record
+
+Everything below this heading records earlier investigation and invalidated
+candidates. It must not be used to select the current device-test artifact.
 
 ## Invalidated historical candidate identity
 

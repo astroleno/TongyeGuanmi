@@ -1310,3 +1310,50 @@ continuity, Brand ↔ Figure3, Figure3 sharpness within the existing 1280×720
 source limit, A/B flash, ghosting, and viewport rebound. Until that matrix is
 recorded against the immutable candidate, the implementation is automation-
 complete but not P0/release complete.
+
+## 17. 2026-08-11 immutable v31 device-test candidate
+
+This section supersedes the candidate identity and pre-freeze language in
+sections 10–16. Those sections remain chronology only. The sole artifact
+authorized for physical iPhone testing is candidate v31:
+
+| Item | Value |
+| --- | --- |
+| candidate | `react-refactor-r5-parity-repair-candidate-v31` |
+| source commit | `74863ae8e4d367c4a25b2485fc57b9c56b9093bc` |
+| annotated tag object | `106105c894dadabd9ed60a832017d519fb7ca81c` |
+| `sourceDirty` at build | `false` |
+| artifact tree | `ab1398081166f1e0f037f77fc5486113e5e4633ee2ffdd545ebf5619f0aca77a` |
+| release-manifest SHA-256 | `5a13058eae63c4bff70d92dcea1b5f8e4ecf8a857b74dcf6e8c6e16422a50a63` |
+| manifest inventory | 177 files / 84,061,503 bytes |
+| qualification | `pending-memory` |
+| phone JavaScript | 663,349 B; 203 B below the 663,552 B hard cap |
+
+Documentation ledger commits made after v31 do not create a replacement
+candidate. Device testing remains bound to the v31 tag and manifest-listed
+`dist/` artifact unless a new source commit is built and frozen explicitly.
+
+### 17.1 v31 automated gate
+
+| Gate | Result |
+| --- | --- |
+| Vitest | 177 files / 1,366 tests passed |
+| Production build | passed, including release identity and budget checks |
+| Phone portrait WebKit | 108/108 passed, one worker, 11.9 minutes |
+| Complete story | all 60 forward/reverse traversals passed with no resource growth |
+| Source hygiene | clean at build; `git diff --check` passed |
+
+The WebKit run includes Figure3 current-generation frame-zero proof, atomic A/B
+commit, AOD/Method reverse traversal, Figure2 staged media and arch ownership,
+Services → TTG trusted handoff, PH/Crane media clocks, lifecycle recovery,
+history traversal, failure rollback, and resource-stability checks.
+
+### 17.2 Remaining gates
+
+Status is **GO for physical-device testing**, not release complete. Physical
+iPhone Safari must still cover touch, Low Power Mode, toolbar and background
+changes, autoplay policy, flash/ghosting/rebound, and Figure3 sharpness within
+its 1280×720 source limit. Memory qualification remains `pending-memory`.
+Because phone JavaScript has only 203 B of hard-cap headroom, any production or
+build-input change invalidates this candidate and requires a new build, budget
+check, manifest, and candidate tag.
