@@ -277,7 +277,8 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
   ) => {
     if (binding !== bindingRef.current || disposedRef.current
       || reportedCompositeTokenRef.current === binding.frameToken) return;
-    reportedCompositeTokenRef.current = binding.frameToken;
+    reportedCompositeTokenRef.current = binding.frameToken; rootRef.current?.setAttribute(
+      'data-phone-figure3-prepared-token', binding.frameToken);
     binding.reports.reportPrepared('figure3-initial-composite', {
       kind: 'image-decoded',
       token: `figure3:initial-composite:${winner}:${binding.frameToken}`,
@@ -429,7 +430,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
 
   const prepareInitialComposite = useCallback((
     binding: PhoneLeafGenerationBinding,
-    startVideo = true
+    startVideo = true, reusePosterProof = true
   ): number | null => {
     const root = rootRef.current;
     if (!root || disposedRef.current || binding !== bindingRef.current) return null;
@@ -449,7 +450,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       reportPresentedFrame();
       return activationGenerationRef.current;
     }
-    if (endpoint === 0 && initialSurfaceRef.current === 'poster-fallback') {
+    if (endpoint === 0 && initialSurfaceRef.current === 'poster-fallback' && reusePosterProof) {
       clearFallbackDeadline();
       mediaPresentationEnabledRef.current = true;
       root.dataset.phoneMediaState = 'fallback';
@@ -460,6 +461,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     rejectInitialProofs(new Error('Figure3 initial composite was superseded'));
     fallbackPendingRef.current = false;
     reportedCompositeTokenRef.current = null;
+    delete root.dataset.phoneFigure3PreparedToken;
     initialSurfaceRef.current = 'preparing';
     mediaPresentationEnabledRef.current = true;
     root.dataset.phoneFigure3InitialSurface = 'preparing';
@@ -467,6 +469,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     delete root.dataset.phoneFigure3MediaActive;
     delete root.dataset.phoneFigure3InitialFallbackReason;
     const generation = ++activationGenerationRef.current;
+    root.dataset.phoneFigure3ActivationGeneration = String(generation);
     fallbackDeadlineRef.current = window.setTimeout(() => {
       if (generation !== activationGenerationRef.current || binding !== bindingRef.current) return;
       exposePosterFallback(binding, 'deadline');
@@ -520,7 +523,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         if (initialSurfaceRef.current === 'poster-fallback') {
           mediaPresentationEnabledRef.current = true;
           rootRef.current?.setAttribute('data-phone-media-state', 'fallback');
-          reportPreparedComposite(binding, 'poster-fallback');
+          if (binding.segmentId !== 'brand-figure3') reportPreparedComposite(binding, 'poster-fallback');
           return;
         }
         // Brand → Figure3 has a real target activation credit. Do not start
@@ -578,7 +581,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       directionRef.current = direction;
       mediaClockActiveRef.current = false;
       mediaPresentationEnabledRef.current = true;
-      const generation = prepareInitialComposite(binding, false);
+      const generation = prepareInitialComposite(binding, false, false);
       const proof = waitForInitialProof(binding);
       const settled = (async () => {
         if (generation === null) {

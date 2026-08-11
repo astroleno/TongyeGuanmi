@@ -1455,15 +1455,17 @@ async function readLifecycleProbe(
 
 async function withholdFigure3Endpoint(
   page: import('@playwright/test').Page,
-  endpoint: 'initial' | 'terminal'
-): Promise<() => Promise<void>> {
-  await page.addInitScript((withheld) => {
+  endpoint: 'initial' | 'terminal',
+  initiallyEnabled = false
+): Promise<(enabled?: boolean) => Promise<void>> {
+  await page.addInitScript(({ withheld, initialState }) => {
     const original = CanvasRenderingContext2D.prototype.drawImage;
-    let enabled = false;
+    let enabled = initialState;
     Object.defineProperty(window, '__r5WithholdFigure3Endpoint', {
       configurable: true,
-      value: () => {
-        enabled = true;
+      value: (next = true) => {
+        enabled = next;
+        if (!enabled) return;
         for (const canvas of document.querySelectorAll<HTMLCanvasElement>(
           '[data-phone-figure3-paper-canvas]'
         )) {
@@ -1496,10 +1498,10 @@ async function withholdFigure3Endpoint(
       }
       return Reflect.apply(original, this, [image, ...coordinates]);
     };
-  }, endpoint);
-  return () => page.evaluate(() => (
-    window as typeof window & { __r5WithholdFigure3Endpoint(): void }
-  ).__r5WithholdFigure3Endpoint());
+  }, { withheld: endpoint, initialState: initiallyEnabled });
+  return (enabled = true) => page.evaluate((next) => (
+    window as typeof window & { __r5WithholdFigure3Endpoint(enabled: boolean): void }
+  ).__r5WithholdFigure3Endpoint(next), enabled);
 }
 
 async function traverseFront(
@@ -2656,13 +2658,51 @@ test('Figure2 reverse media stage seeks from the parked endpoint to frame zero',
 });
 
 test('Figure3 initial surface uses decoded frame zero and fills the visual viewport', async ({ page }) => {
+  const withholdPrewarmFrame = await withholdFigure3Endpoint(page, 'initial', true);
   await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'brand', 0);
   await waitForContinuousStoryReady(page);
+  const scene = page.locator('.phone-figure3');
+  await expect(scene).toHaveAttribute(
+    'data-phone-figure3-initial-surface', 'poster-fallback'
+  );
+  const prewarm = await scene.evaluate((element) => ({
+    token: element.dataset.phoneFigure3PreparedToken,
+    generation: element.dataset.phoneFigure3ActivationGeneration
+  }));
+  expect(prewarm.token).toMatch(/^prewarm:/);
+  await withholdPrewarmFrame(false);
+  const stop = await recordPhoneStoryFrames(page);
+  await nextAnimationFrame(page);
   await sendFrontIntent(page, 'forward');
   await waitForCommitSequence(page, 'figure3-animation', before);
+  await nextAnimationFrame(page);
+  const trace = await stop();
+  const transaction = trace.filter((sample) => (
+    sample.shell?.phoneStatus === 'transaction'
+    && sample.shell.phoneSourceScene === 'brand'
+    && sample.shell.phoneCandidateScene === 'figure3-animation'
+    && sample.figure3
+  ));
+  expect(transaction, `Brand → Figure3 surface trace: ${JSON.stringify(trace)}`)
+    .not.toHaveLength(0);
+  expect(transaction.map(({ figure3 }) => figure3?.initialSurface))
+    .not.toContain('poster-fallback');
+  const live = transaction.filter(({ transitionLive }) => transitionLive);
+  expect(live, `Brand → Figure3 live trace: ${JSON.stringify(trace)}`).not.toHaveLength(0);
+  expect(live.every(({ figure3 }) => (
+    figure3?.initialSurface === 'video-frame-zero'
+    && figure3.canvasVisible && !figure3.posterVisible
+  )), `Brand → Figure3 exposed the wrong surface: ${JSON.stringify(trace)}`).toBe(true);
+  const formalGenerations = new Set(transaction.map(({ figure3 }) => (
+    figure3?.activationGeneration
+  )).filter(Boolean));
+  expect(formalGenerations.size).toBe(1);
+  expect([...formalGenerations][0]).not.toBe(prewarm.generation);
+  expect(transaction.some(({ figure3 }) => (
+    figure3?.preparedToken && !figure3.preparedToken.startsWith('prewarm:')
+  ))).toBe(true);
 
-  const scene = page.locator('.phone-figure3');
   const canvas = page.locator<HTMLCanvasElement>('[data-phone-figure3-paper-canvas]');
   const poster = page.locator('[data-phone-figure3-paper-poster]');
   await expect(scene).toHaveAttribute(

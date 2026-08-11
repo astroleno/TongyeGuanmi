@@ -492,6 +492,14 @@ export type PhoneStoryFrameSample = Readonly<{
   nativeReadingRect: readonly [number, number, number, number] | null;
   sourceMirrorRect: readonly [number, number, number, number] | null;
   sourceMirrorScrollY: string | null;
+  figure3: Readonly<{
+    initialSurface: string | null;
+    mediaState: string | null;
+    preparedToken: string | null;
+    activationGeneration: string | null;
+    posterVisible: boolean;
+    canvasVisible: boolean;
+  }> | null;
   planes: readonly Readonly<{
     role: string;
     visible: boolean;
@@ -562,6 +570,13 @@ export async function recordPhoneStoryFrames(
       const sourceMirror = shell?.querySelector<HTMLElement>(
         '[data-phone-plane="source"] [data-phone-native-mirror]'
       ) ?? null;
+      const figure3 = document.querySelector<HTMLElement>('.phone-figure3');
+      const figure3Poster = figure3?.querySelector<HTMLElement>(
+        '[data-phone-figure3-paper-poster]'
+      ) ?? null;
+      const figure3Canvas = figure3?.querySelector<HTMLElement>(
+        '[data-phone-figure3-paper-canvas]'
+      ) ?? null;
       recorder.samples.push({
         time,
         shell: shell ? { ...shell.dataset } : null,
@@ -577,6 +592,14 @@ export async function recordPhoneStoryFrames(
         sourceMirrorScrollY: sourceMirror
           ? getComputedStyle(sourceMirror).getPropertyValue('--phone-native-scroll-y').trim()
           : null,
+        figure3: figure3 ? {
+          initialSurface: figure3.dataset.phoneFigure3InitialSurface ?? null,
+          mediaState: figure3.dataset.phoneMediaState ?? null,
+          preparedToken: figure3.dataset.phoneFigure3PreparedToken ?? null,
+          activationGeneration: figure3.dataset.phoneFigure3ActivationGeneration ?? null,
+          posterVisible: figure3Poster ? visible(figure3Poster) : false,
+          canvasVisible: figure3Canvas ? visible(figure3Canvas) : false
+        } : null,
         planes: [...document.querySelectorAll<HTMLElement>('[data-phone-plane]')].map((plane) => ({
           role: plane.dataset.phonePlane ?? '',
           visible: visible(plane),

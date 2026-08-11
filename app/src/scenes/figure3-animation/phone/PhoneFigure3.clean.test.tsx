@@ -177,6 +177,88 @@ describe('clean PhoneFigure3 leaf', () => {
     act(() => root.unmount());
   });
 
+  it('requires a fresh video-frame-zero proof after a prewarm poster fallback', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+      vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+      const host = document.createElement('div');
+      const root = createRoot(host);
+      const mount = reportFixture();
+      await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+
+      const prewarm = reportFixture();
+      mount.registration()?.commands.rebind({
+        reports: prewarm.reports,
+        frameToken: 'prewarm:figure3-animation:frame:1'
+      });
+      host.querySelector('[data-phone-figure3-paper-poster]')
+        ?.dispatchEvent(new Event('load'));
+      await act(async () => {
+        await Promise.resolve();
+        vi.advanceTimersByTime(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS);
+        await Promise.resolve();
+      });
+      expect(prewarm.reports.reportPrepared).toHaveBeenCalledWith(
+        'figure3-initial-composite', expect.objectContaining({
+          detail: expect.objectContaining({ winner: 'poster-fallback' })
+        })
+      );
+
+      const video = host.querySelector<HTMLVideoElement>('video');
+      if (!video) throw new Error('missing Figure3 activation video');
+      let releaseFrame: (() => void) | null = null;
+      probe.prepareFrame.mockImplementationOnce(() => new Promise((resolve) => {
+        releaseFrame = () => {
+          video.currentTime = 0;
+          Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+          Object.defineProperty(video, 'seeking', { configurable: true, value: false });
+          resolve({
+            status: 'ready', runId: 'figure3:formal', direction: 1,
+            generation: 2, targetTime: 0
+          });
+        };
+      }));
+      const formal = reportFixture();
+      mount.registration()?.commands.rebind({
+        reports: formal.reports,
+        frameToken: 'figure3:formal:frame:2',
+        segmentId: 'brand-figure3'
+      });
+      const invocation = mount.registration()?.commands.activate({
+        invocationId: 'figure3:formal:activation',
+        surfaceIds: ['figure3-video'],
+        credit: 'physical-epoch', playback: false
+      });
+      const settlement = invocation?.settlements[0];
+      if (!settlement || settlement.status !== 'pending') {
+        throw new Error('missing Figure3 formal activation settlement');
+      }
+      let settled = false;
+      void settlement.settled.then(() => { settled = true; });
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+      expect(settled).toBe(false);
+      expect(probe.prepareFrame).toHaveBeenCalledOnce();
+      expect(formal.reports.reportPrepared).not.toHaveBeenCalled();
+
+      await act(async () => {
+        releaseFrame?.();
+        await settlement.settled;
+      });
+      expect(formal.reports.reportPrepared).toHaveBeenCalledWith(
+        'figure3-initial-composite', expect.objectContaining({
+          token: expect.stringContaining('figure3:formal:frame:2'),
+          detail: expect.objectContaining({ winner: 'video-frame-zero' })
+        })
+      );
+      act(() => root.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps the stable decoded initial Canvas visible after a late compositor callback', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
