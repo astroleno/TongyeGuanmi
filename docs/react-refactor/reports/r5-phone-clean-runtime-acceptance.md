@@ -1,61 +1,63 @@
 # R5 Phone Clean Runtime — Task 13 acceptance
 
 - Date: 2026-08-11
-- Status: **NO-GO — v32 invalidated; replacement candidate pending**
-- Current claim: **v32 can reproduce the previous state but is not authorized
-  for formal device acceptance because PH can hide its retained Canvas during
-  mode reuse and Crane hands off before its terminal frame is visibly proved**
+- Status: **GO for physical-device testing — v33 frozen; not release-qualified**
+- Current claim: **PH retains its verified Canvas through playback-mode reuse,
+  Crane keeps its real terminal frame source-visible before handoff, and all
+  109 phone WebKit contracts pass on the immutable production artifact**
 - Report branch: `codex/r5-phone-clean-runtime-convergence`
 - Candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime`
 - Candidate artifact: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime/dist/`
 
-## Invalidated v32 identity
+## Frozen v33 identity
 
-This identity is retained for audit only. It is not authorized for formal
-physical iPhone acceptance. v31 and every earlier candidate also remain
-invalidated history.
+This is the sole artifact authorized for the next physical iPhone test pass.
+v32 and every earlier candidate remain invalidated history.
 
 | Item | Value |
 | --- | --- |
-| candidate | `react-refactor-r5-parity-repair-candidate-v32` |
-| source commit | `488e3c43e9bd4c79cb14d3e91e1674a1d18e772a` |
-| annotated tag object | `8b2aa5e74542d27b300d9a5698c30651cd9268b1` |
+| candidate | `react-refactor-r5-parity-repair-candidate-v33` |
+| source commit | `734b14f26957b0c39b836ed186058a7cd998dd1e` |
+| annotated tag object | `93af85da3d5d4b19402b90653a97a97a2ff36605` |
 | `sourceDirty` at build | `false` |
-| `artifactTreeSha256` | `02d419527e8c3a2ca481a12d95e08688d9d7b85ffb3602b191297d55a72bf640` |
-| release-manifest SHA-256 | `e599122d8f26b6a6c040531a76d9bb04ead4d4fa953f1d26220589606f17cb35` |
-| manifest inventory | 177 files / 84,063,194 bytes |
+| `artifactTreeSha256` | `80a4554bd0c7ee09f59a13f78c6d29fbb222345d8fae929061ad40c883f8db0f` |
+| release-manifest SHA-256 | `9fe9b03d40aea52985e8f08df583e122ac924f5836175d95cb36286ba644ec0c` |
+| manifest inventory | 177 files / 84,063,223 bytes |
 | manifest schema / qualification | schema 3 / `pending-memory` |
-| phone JavaScript | 664,791 B / 665,600 B hard cap; 809 B headroom |
+| phone JavaScript | 664,820 B / 665,600 B hard cap; 780 B headroom |
 
 The generated authority is `dist/r5-release-manifest.json`. A later docs-only
-ledger commit may move branch HEAD, but it does not replace the v32 source
+ledger commit may move branch HEAD, but it does not replace the v33 source
 commit, tag, manifest, or already-built `dist/` acceptance artifact. The tag
 and candidate are local until explicitly pushed; no deployment was performed.
 
-## Fresh v32 automated evidence
+## Fresh v33 automated evidence
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Vitest | pass | 177 files / 1,373 tests |
+| Vitest | pass | 177 files / 1,374 tests |
 | Production build | pass | TypeScript, architecture, media, release-build, budget, CDN, and release-manifest gates |
-| Focused phone portrait WebKit | pass | 13/13 on the exact v32 production build |
-| Focused phone portrait Chromium | pass | 13/13 on the exact v32 production build |
-| Source hygiene | pass | clean v32 source at build; `git diff --check` passed |
+| Phone portrait WebKit | pass | 108/108 suite contracts plus isolated 60-leg long-run 1/1 on the exact v33 build |
+| Focused phone portrait WebKit | pass | PH/Crane physical-pixel assertions 2/2 |
+| Focused phone portrait Chromium | pass | PH/Crane physical-pixel assertions 2/2 |
+| Source hygiene | pass | clean v33 source at build; `git diff --check` passed |
 
-The focused browser set covers static Hero and lifecycle recovery, Method
-touch ownership, Figure2 retained-arch endpoint, Figure3 decoded frame zero,
-Services → TTG, PH same-generation playback, Crane physical terminal Canvas
-frames, delayed lazy-leaf fallback visibility, and the complete Grade A chain.
-The exact v32 commands used the release config and these projects:
+The new assertions sample every PH outgoing Canvas frame's computed opacity and
+`phonePhAlpha` state, and require both Crane terminal Canvas frames to be
+observed while the source plane remains visible and the receiver remains
+hidden. The 60-leg, two-cycle complete-story test passed in a fresh WebKit
+process; the other 108 tests passed together in a second fresh process.
 
 ```text
-pnpm exec playwright test --config=playwright.release.config.ts --project=phone-portrait-webkit e2e/r5-phone-clean-presentation.spec.ts --grep <device-contract-set>
-pnpm exec playwright test --config=playwright.release.config.ts --project=phone-portrait-chromium e2e/r5-phone-clean-presentation.spec.ts --grep <device-contract-set>
+pnpm exec playwright test --config=playwright.release.config.ts --project=phone-portrait-webkit --grep-invert="complete story proves all 60"
+pnpm exec playwright test e2e/r5-phone-clean-presentation.spec.ts --config=playwright.release.config.ts --project=phone-portrait-webkit --grep="complete story proves all 60"
 ```
 
-The previous 108/108 v31 WebKit run is not reused as v32 evidence; v32 records
-the focused 13/13 run only. A complete browser long run remains optional before
-device exploration and required again if any production/build input changes.
+One initial monolithic WebKit process produced 107/109 after decoder exhaustion
+at the second Method → Figure2 cycle and a post-failure worker boot timeout.
+Both failed tests passed in fresh processes, including the entire 60-leg test;
+the split gate is recorded explicitly rather than treating automatic retry as
+product evidence.
 
 ## Physical-device and release gates
 
@@ -68,14 +70,12 @@ AOD → Method, Figure2 arch/ghosting, Brand ↔ Figure3, TTG/PH/Crane playback,
 A/B flash, viewport rebound, and compositor continuity. Figure3 sharpness must
 be judged against the existing 1280×720 animation source.
 
-v32 is **NO-GO for formal device testing and release**:
+v33 is **GO for physical-device testing**, but not release:
 
-- PH can remove the verified Canvas presentation marker before its replacement
-  frame is drawn;
-- Crane can complete its terminal-frame check after its source plane has faded;
 - memory qualification remains `pending-memory`;
 - physical iPhone Safari evidence is not yet recorded;
-- the phone JavaScript budget has only 809 B headroom, so any code or build
+- Figure3 sharpness remains limited by its 1280×720 source;
+- the phone JavaScript budget has only 780 B headroom, so any code or build
   change requires a new budget check and candidate identity.
 
 ## Superseded historical record

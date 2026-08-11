@@ -1423,3 +1423,37 @@ same generation's acceptance mode, and keep the Crane source visibly owned
 through the bounded terminal tail before final handoff. A new immutable
 candidate, matching production build, full Vitest gate, complete phone WebKit
 run, and source hygiene check are required before formal device acceptance.
+
+## 21. 2026-08-11 immutable v33 visible-terminal candidate
+
+Section 20's replacement gate is complete. The sole artifact authorized for
+physical iPhone testing is candidate v33:
+
+| Item | Value |
+| --- | --- |
+| candidate | `react-refactor-r5-parity-repair-candidate-v33` |
+| source commit | `734b14f26957b0c39b836ed186058a7cd998dd1e` |
+| annotated tag object | `93af85da3d5d4b19402b90653a97a97a2ff36605` |
+| source clean at build | `true` (`sourceDirty=false`) |
+| artifact tree | `80a4554bd0c7ee09f59a13f78c6d29fbb222345d8fae929061ad40c883f8db0f` |
+| release-manifest SHA-256 | `9fe9b03d40aea52985e8f08df583e122ac924f5836175d95cb36286ba644ec0c` |
+| manifest inventory | 177 files / 84,063,223 bytes |
+| qualification | `pending-memory` |
+| phone JavaScript | 664,820 B; 780 B below the 665,600 B hard cap |
+
+PH now changes the retained generation's frame-acceptance mode without
+withdrawing an already verified Canvas. Crane holds its source, effect, and
+receiver handoff through the 400 ms completion tail, and the production-browser
+gate proves both real terminal Canvas frames while the source is still visible.
+
+Fresh evidence is 177 files / 1,374 Vitest tests, exact-identity production
+build, focused PH/Crane WebKit and Chromium 2/2 each, the non-long-run phone
+WebKit suite 108/108, and the isolated two-cycle 60-leg long-run 1/1. The split
+WebKit gate avoids cross-context decoder exhaustion observed when all media
+tests and the four-minute long-run shared one browser process; it does not use
+automatic retry.
+
+Status is **GO for physical-device testing**, not release complete. Real iPhone
+Safari, Low Power Mode, toolbar/background/BFCache behavior, compositor visual
+continuity, Figure3 source-limited sharpness, and memory qualification remain
+mandatory. Any production or build-input change invalidates v33.
