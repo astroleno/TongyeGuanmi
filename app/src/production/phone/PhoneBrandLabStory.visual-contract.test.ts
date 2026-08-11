@@ -245,13 +245,25 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(aodStaticTargetProof).toContain('if (reducedMotion) {');
     expect(aodStaticTargetProof).toContain('requestBoundStaticPresentation();');
     expect(aodStaticTargetProof).toContain(
-      "compositor.render(stableMediaTime) !== 'rendered'"
+      'await continueBoundPresentation(binding, compositor)'
     );
-    expect(aodStaticTargetProof).toContain(
+    const aodFullMotionTargetProof = aodSceneSource.slice(
+      aodSceneSource.indexOf('const continueBoundPresentation'),
+      aodSceneSource.indexOf('progressListenerRef.current')
+    );
+    expect(aodFullMotionTargetProof).toContain('phoneAodPresentationResult(');
+    const aodPresentationResult = aodSceneSource.slice(
+      aodSceneSource.indexOf('function phoneAodPresentationResult'),
+      aodSceneSource.indexOf("/**\n * Owns AOD's single-source")
+    );
+    expect(aodPresentationResult).toContain(
+      "compositor.render(mediaTime) === 'rendered'"
+    );
+    expect(aodFullMotionTargetProof).toContain(
       "reportBoundPresentation(binding, 'leaf-post-paint')"
     );
-    expect(aodStaticTargetProof).not.toContain('stableMediaTime ?? undefined');
-    expect(aodStaticTargetProof).toContain("reportAodFailure('media-failed');");
+    expect(aodFullMotionTargetProof).not.toContain('stableMediaTime ?? undefined');
+    expect(aodFullMotionTargetProof).toContain("reportAodFailure('media-failed')");
     // Both the reduced static proof and the full-motion canvas proof must
     // describe the authored AOD hold. Star → AOD/direct entry may never
     // project the AOD→Method exit endpoint before that runner owns playback.

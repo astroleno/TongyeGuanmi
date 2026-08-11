@@ -84,7 +84,7 @@ function cancelAodPresentationFrames(binding: PhoneAodPresentationBinding): void
 }
 
 /** The AOD leaf returns its runner-issued token unchanged after a physical paint. */
-export function phoneAodPresentationFrame(
+function phoneAodPresentationFrame(
   token: PresentationToken,
   frameSequence: number,
   observedAt: number,
@@ -99,7 +99,7 @@ export function phoneAodPresentationFrame(
 }
 
 /** Preserve only the decoder tuple that still describes the stable target. */
-export const phoneAodStableFrameMediaTime = (
+const phoneAodStableFrameMediaTime = (
   lastMediaTime: number | null,
   completedDirection: PhoneAodExecution[1] | null
 ): number | null => {
@@ -109,6 +109,19 @@ export const phoneAodStableFrameMediaTime = (
   ? lastMediaTime
   : null;
 };
+
+function phoneAodPresentationResult<
+  T extends { reported: boolean }
+>(
+  binding: T,
+  current: T | null,
+  mediaTime: number | null,
+  compositor: Pick<PackedAlphaVideoCompositor, 'render'>
+): boolean | null {
+  return current !== binding || binding.reported
+    ? null
+    : mediaTime !== null && compositor.render(mediaTime) === 'rendered';
+}
 
 /**
  * Owns AOD's single-source packed-alpha compositor, forward native playback,
@@ -145,7 +158,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     const executionFrameSequenceRef = useRef(0);
     const presentationBindingRef = useRef<PhoneAodPresentationBinding | null>(null);
     const renderedFrameRef = useRef(false);
-    const lastPackedFrameMediaTimeRef = useRef<number | null>(null);
     const completedDirectionRef = useRef<PhoneAodExecution[1] | null>(null);
     const progressListenerRef = useRef(onAodProgress);
     const completeListenerRef = useRef(onAodComplete);
@@ -260,6 +272,35 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       // immediately after WEBGL_lose_context destroys the restorable context
       // in WebKit; the next AOD lease must restore this same node.
     }, []);
+    const continueBoundPresentation = useCallback(async (
+      binding: PhoneAodPresentationBinding,
+      compositor: PackedAlphaVideoCompositor
+    ) => {
+      if (presentationBindingRef.current !== binding || binding.reported) return;
+      compositor.setActive(true);
+      const video = rootRef.current?.querySelector<HTMLVideoElement>(
+        '[data-aod-figure-video]'
+      );
+      const direction = completedDirectionRef.current ?? -1;
+      let mediaTime: number | null = null;
+      if (video) {
+        try {
+          const frame = await preparePhoneExactTimelineFrame(
+            video, binding.key, direction, direction === 1 ? 1 : 0,
+            AOD_FIGURE_END_SECONDS
+          );
+          mediaTime = phoneAodStableFrameMediaTime(frame[5], direction);
+        } catch {
+          // The bound machine failure below owns preparation errors.
+        }
+      }
+      const presented = phoneAodPresentationResult(
+        binding, presentationBindingRef.current, mediaTime, compositor
+      );
+      if (presented === null) return;
+      if (presented) reportBoundPresentation(binding, 'leaf-post-paint');
+      else reportAodFailure('media-failed');
+    }, [reportAodFailure, reportBoundPresentation]);
     const ensureCompositor = useCallback(() => {
       if (reducedMotion) return undefined;
       if (compositorRef.current) return compositorRef.current;
@@ -275,20 +316,22 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       const contextLost = context?.isContextLost?.() === true;
       if (contextLost) compositorRestoreOwnerRef.current.markPending();
       if (compositorRestoreOwnerRef.current.isPending()) {
+        let waiting = true;
         compositorRestoreOwnerRef.current.wait(
           canvas,
           () => {
             if (rootRef.current !== root || !activeRef.current) return;
             const restoredCompositor = ensureCompositor();
             restoredCompositor?.setActive(!reducedMotion);
-            // A reverse target may have installed its immutable presentation
-            // binding while the context was restoring. Keep that binding
-            // pending until this same compositor draws.
-            restoredCompositor?.render();
+            const binding = presentationBindingRef.current;
+            if (!waiting && restoredCompositor && binding) {
+              void continueBoundPresentation(binding, restoredCompositor);
+            }
             onReady?.();
           },
           () => reportAodFailure('aod-context-lost')
         );
+        waiting = false;
         // `wait()` may settle synchronously when Safari restored the context
         // before this presentation lease arrived. Re-read the ref so the
         // caller cannot mistake that healthy compositor for media failure.
@@ -305,14 +348,11 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         // React-owned WebGL context reusable for the next reverse admission;
         // terminal component disposal is the only place that hard-loses it.
         releaseContextOnDispose: false,
-        onFrame: (mediaTime) => {
+        onFrame: () => {
           const execution = autoplayExecutionRef.current;
           const rendered = renderedFrameRef.current;
           if (rootRef.current !== root || compositorRef.current !== compositor) {
             return;
-          }
-          if (mediaTime !== null) {
-            lastPackedFrameMediaTimeRef.current = mediaTime;
           }
           if (!execution || !rendered) return;
           reportAodFrame(execution);
@@ -329,7 +369,7 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       });
       compositorRef.current = compositor;
       return compositor;
-    }, [onReady, reducedMotion, reportAodFailure, reportAodFrame]);
+    }, [continueBoundPresentation, onReady, reducedMotion, reportAodFailure, reportAodFrame]);
     progressListenerRef.current = onAodProgress;
     completeListenerRef.current = onAodComplete;
     frameListenerRef.current = onAodFrame;
@@ -561,7 +601,6 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         const [, direction] = execution;
         autoplayExecutionRef.current = execution;
         renderedFrameRef.current = false;
-        lastPackedFrameMediaTimeRef.current = null;
         completedDirectionRef.current = null;
         executionFrameSequenceRef.current = 0;
         // The execution identity is read from the current runtime refs by
@@ -608,47 +647,12 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
         }
         const compositor = ensureCompositor() ?? compositorRef.current;
         if (!compositor) {
-          // Context restoration is an asynchronous part of the same AOD
-          // lease. Keep the binding pending; ensureCompositor() will either
-          // re-enter this path from its restored callback or report a typed
-          // terminal context failure after its bounded deadline.
           if (!compositorRestoreOwnerRef.current.isPending()) {
             reportAodFailure('media-failed');
           }
           return;
         }
-        compositor.setActive(true);
-        const video = rootRef.current?.querySelector<HTMLVideoElement>(
-          '[data-aod-figure-video]'
-        );
-        const direction = completedDirectionRef.current ?? -1;
-        let stableMediaTime: number | null = null;
-        // Completion and stable admission are separate immutable leases.
-        // Re-seek the authored endpoint under the stable token even when the
-        // execution just drew the same mediaTime: Chromium can reject a
-        // second immediate upload of the retiring decoder sample, while the
-        // exact rVFC prepare guarantees that this token owns the redraw.
-        if (video) {
-          try {
-            const frame = await preparePhoneExactTimelineFrame(
-              video, binding.key, direction, direction === 1 ? 1 : 0,
-              AOD_FIGURE_END_SECONDS
-            );
-            stableMediaTime = phoneAodStableFrameMediaTime(frame[5], direction);
-          } catch {
-            // The machine-owned presentation timeout remains the outer bound.
-          }
-        }
-        if (presentationBindingRef.current !== binding || binding.reported) return;
-        if (stableMediaTime === null) {
-          reportAodFailure('media-failed');
-          return;
-        }
-        if (compositor.render(stableMediaTime) !== 'rendered') {
-          reportAodFailure('media-failed');
-          return;
-        }
-        reportBoundPresentation(binding, 'leaf-post-paint');
+        await continueBoundPresentation(binding, compositor);
       },
       disposePresentation(token) {
         const binding = presentationBindingRef.current;
@@ -690,12 +694,10 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
       }
     }), [
       ensureCompositor,
+      continueBoundPresentation,
       clearAutoplayExecution,
       reducedMotion,
       releaseCompositor,
-      reportAodFrame,
-      reportAodFailure,
-      reportBoundPresentation,
       requestBoundStaticPresentation
     ]);
 
@@ -710,5 +712,15 @@ export const PhoneAod = forwardRef<PhoneAodAdapterHandle, PhoneSceneAdapterProps
     );
   }
 );
+
+if (import.meta.env.DEV) {
+  (PhoneAod as unknown as Record<symbol, unknown>)[
+    Symbol.for('phone-aod-test-contract')
+  ] = [
+    phoneAodPresentationFrame,
+    phoneAodStableFrameMediaTime,
+    phoneAodPresentationResult
+  ];
+}
 
 export default PhoneAod;
