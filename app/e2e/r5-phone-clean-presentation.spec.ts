@@ -3262,6 +3262,13 @@ test('PH authored playback advances only during PH to Education', async ({ page 
       : []
   )));
   expect([...outgoingGenerations]).toEqual([retainedGeneration]);
+  const presented = samples.flatMap((sample) => outgoing(sample)
+    ? sample.canvases.filter(({ surfaceId }) => surfaceId === 'ph-figure-canvas')
+    : []);
+  expect(presented.length).toBeGreaterThan(3);
+  expect(presented.every(({ alphaStatus, opacity }) => (
+    alphaStatus === 'verified' && opacity > 0
+  ))).toBe(true);
 });
 
 test('Crane authored playback advances both videos only during Crane to Contact', async ({ page }) => {
@@ -3292,6 +3299,12 @@ test('Crane authored playback advances both videos only during Crane to Contact'
       .toBeGreaterThan(.15);
     expect(Math.max(...trace.map(({ mediaTime }) => mediaTime)), `${surfaceId} terminal`)
       .toBeGreaterThanOrEqual(2.467 - .08);
+    const visibleTerminal = samples.some((sample) => outgoing(sample)
+      && sample.canvases.some((canvas) => canvas.surfaceId === surfaceId
+        && (canvas.mediaTime ?? -1) >= 2.467 - .08)
+      && sample.planes.some(({ role, visible }) => role === 'source' && visible)
+      && sample.planes.every(({ role, visible }) => role !== 'receiver' || !visible));
+    expect(visibleTerminal, `${surfaceId} terminal frame stayed source-visible`).toBe(true);
   }
 });
 

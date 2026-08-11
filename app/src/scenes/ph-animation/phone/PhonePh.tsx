@@ -161,7 +161,7 @@ export function PhonePh({ reports }: PhonePhProps) {
         && Number(canvas?.dataset.packedAlphaGeneration) === surfaceGenerationRef.current
         && Number(canvas?.dataset.packedAlphaMediaTime) >= (endpoint ? PH_FIGURE_END_SECONDS - .08 : 0)
         && Number(canvas?.dataset.packedAlphaMediaTime) <= (endpoint ? Infinity : .04)) {
-        surfaceRef.current?.setMode?.(endpoint === 0 ? 'initial' : 'endpoint');
+        surfaceRef.current?.setMode?.(endpoint === 0 ? 'initial' : 'endpoint', true);
         rootRef.current?.setAttribute('data-phone-ph-media', 'ready');
         return {
           invocationId: command.invocationId,
@@ -222,7 +222,7 @@ export function PhonePh({ reports }: PhonePhProps) {
         } catch { /* retry on metadata */ }
         return;
       }
-      surfaceRef.current?.setMode?.('forward');
+      surfaceRef.current?.setMode?.('forward', true);
       mediaPhaseRef.current = 'playing';
       if (command.direction === 'reverse') {
         // Reverse PH is presented-frame sampling; HTML video cannot run

@@ -201,9 +201,8 @@ export const phoneSegmentChoreography = Object.freeze({
   ),
   'education-crane': choreography(1, 0, 'linear', 'target', 'none'),
   'crane-contact': choreography(
-    ['range', 0, cranePlaybackStop], ['range', .8 * cranePlaybackStop, cranePlaybackStop],
-    ['range', 0, cranePlaybackStop], 'source', 'source', ['fade', .999 * cranePlaybackStop,
-      cranePlaybackStop], ['step', .8 * cranePlaybackStop]
+    ['range', 0, cranePlaybackStop], ['step', 1], ['step', 1], 'source', 'source',
+    ['fade', .999, 1], ['step', 1]
   )
 } satisfies Readonly<Record<PhoneSegmentId, PhoneSegmentChoreography>>);
 

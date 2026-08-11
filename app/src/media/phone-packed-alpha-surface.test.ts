@@ -162,6 +162,27 @@ describe('canonical phone packed-alpha surface', () => {
     current.surface.dispose('terminal');
   });
 
+  it('keeps a verified retained frame presented while its generation changes mode', () => {
+    const current = fixture();
+    current.surface.activate('initial');
+    Object.defineProperty(current.video, 'paused', {
+      configurable: true, value: true
+    });
+    Object.defineProperty(current.video, 'seeking', {
+      configurable: true, value: false
+    });
+    current.video.currentTime = 0;
+    compositorProbe.callbacks[0]?.();
+    expect(current.root.dataset.phoneTestAlpha).toBe('verified');
+
+    (current.surface.setMode as (
+      mode: 'forward' | 'initial' | 'endpoint', preservePresentation: boolean
+    ) => void)('forward', true);
+
+    expect(current.root.dataset.phoneTestAlpha).toBe('verified');
+    current.surface.dispose('terminal');
+  });
+
   it('waits for current media data before priming an endpoint frame', () => {
     const current = fixture();
     Object.defineProperty(current.video, 'readyState', {

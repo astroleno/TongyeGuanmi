@@ -516,6 +516,8 @@ export type PhoneStoryFrameSample = Readonly<{
     mediaTime: number | null;
     frame: number | null;
     generation: number | null;
+    opacity: number;
+    alphaStatus: string | null;
   }>[];
 }>;
 
@@ -611,15 +613,20 @@ export async function recordPhoneStoryFrames(
           readyState: video.readyState
         })),
         canvases: [...document.querySelectorAll<HTMLCanvasElement>('.phone-story canvas')]
-          .map((canvas) => ({
-            surfaceId: canvas.getAttribute('data-phone-surface'),
-            mediaTime: Number.isFinite(Number(canvas.dataset.packedAlphaMediaTime))
-              ? Number(canvas.dataset.packedAlphaMediaTime) : null,
-            frame: Number.isFinite(Number(canvas.dataset.packedAlphaFrame))
-              ? Number(canvas.dataset.packedAlphaFrame) : null,
-            generation: Number.isFinite(Number(canvas.dataset.packedAlphaGeneration))
-              ? Number(canvas.dataset.packedAlphaGeneration) : null
-          }))
+          .map((canvas) => {
+            const ph = canvas.closest<HTMLElement>('.phone-ph');
+            return {
+              surfaceId: canvas.getAttribute('data-phone-surface'),
+              mediaTime: Number.isFinite(Number(canvas.dataset.packedAlphaMediaTime))
+                ? Number(canvas.dataset.packedAlphaMediaTime) : null,
+              frame: Number.isFinite(Number(canvas.dataset.packedAlphaFrame))
+                ? Number(canvas.dataset.packedAlphaFrame) : null,
+              generation: Number.isFinite(Number(canvas.dataset.packedAlphaGeneration))
+                ? Number(canvas.dataset.packedAlphaGeneration) : null,
+              opacity: Number.parseFloat(getComputedStyle(canvas).opacity || '1'),
+              alphaStatus: ph?.dataset.phonePhAlpha ?? null
+            };
+          })
       });
       recorder.animationFrame = requestAnimationFrame(sample);
     };

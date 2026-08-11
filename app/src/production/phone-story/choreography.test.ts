@@ -227,11 +227,21 @@ describe('phone segment choreography', () => {
     const authoredStop = 3000 / 3400;
     expect(phoneSegmentChoreographyFrame('crane-contact', authoredStop)).toMatchObject({
       sourceProgress: 1,
-      effectProgress: 1
+      effectProgress: 0,
+      sourceOpacity: 1,
+      targetOpacity: 0
     });
     expect(phoneSegmentChoreographyFrame('crane-contact', .95)).toMatchObject({
       sourceProgress: 1,
-      effectProgress: 1
+      effectProgress: 0,
+      sourceOpacity: 1,
+      targetOpacity: 0
+    });
+    expect(phoneSegmentChoreographyFrame('crane-contact', 1)).toMatchObject({
+      sourceProgress: 1,
+      effectProgress: 1,
+      sourceOpacity: 0,
+      targetOpacity: 1
     });
   });
 

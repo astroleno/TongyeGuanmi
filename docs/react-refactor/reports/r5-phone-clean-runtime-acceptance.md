@@ -1,18 +1,19 @@
 # R5 Phone Clean Runtime — Task 13 acceptance
 
 - Date: 2026-08-11
-- Status: **GO for physical-device testing — v32 frozen; not release-qualified**
-- Current claim: **the device-contract repairs and focused production-browser
-  gates pass on one immutable artifact; physical iPhone Safari and memory
-  qualification remain required**
+- Status: **NO-GO — v32 invalidated; replacement candidate pending**
+- Current claim: **v32 can reproduce the previous state but is not authorized
+  for formal device acceptance because PH can hide its retained Canvas during
+  mode reuse and Crane hands off before its terminal frame is visibly proved**
 - Report branch: `codex/r5-phone-clean-runtime-convergence`
 - Candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime`
 - Candidate artifact: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime/dist/`
 
-## Frozen v32 identity
+## Invalidated v32 identity
 
-This is the sole artifact authorized for the next physical iPhone test pass.
-v31 and every earlier candidate remain invalidated history.
+This identity is retained for audit only. It is not authorized for formal
+physical iPhone acceptance. v31 and every earlier candidate also remain
+invalidated history.
 
 | Item | Value |
 | --- | --- |
@@ -67,8 +68,11 @@ AOD → Method, Figure2 arch/ghosting, Brand ↔ Figure3, TTG/PH/Crane playback,
 A/B flash, viewport rebound, and compositor continuity. Figure3 sharpness must
 be judged against the existing 1280×720 animation source.
 
-v32 is **GO for device testing**, but not for release:
+v32 is **NO-GO for formal device testing and release**:
 
+- PH can remove the verified Canvas presentation marker before its replacement
+  frame is drawn;
+- Crane can complete its terminal-frame check after its source plane has faded;
 - memory qualification remains `pending-memory`;
 - physical iPhone Safari evidence is not yet recorded;
 - the phone JavaScript budget has only 809 B headroom, so any code or build

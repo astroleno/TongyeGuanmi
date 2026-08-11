@@ -304,14 +304,14 @@ describe('clean PhonePh leaf', () => {
       { surfaceId: 'ph-figure-video', status: 'fulfilled' }
     ]);
     expect(surfaceProbe.activate).not.toHaveBeenCalled();
-    expect(surfaceProbe.setMode).toHaveBeenCalledWith('initial');
+    expect(surfaceProbe.setMode).toHaveBeenCalledWith('initial', true);
     expect(play).not.toHaveBeenCalled();
 
     commands.setMediaPhase?.({
       phase: 'playing', runToken: 'ph:outgoing:retained',
       direction: 'forward', stageIndex: 0
     });
-    expect(surfaceProbe.setMode).toHaveBeenLastCalledWith('forward');
+    expect(surfaceProbe.setMode).toHaveBeenLastCalledWith('forward', true);
     expect(play).toHaveBeenCalledOnce();
     act(() => root.unmount());
   });

@@ -1405,3 +1405,21 @@ claimed for v32.
 Status is **GO for physical-device testing**, not release complete. Real iPhone
 Safari and memory qualification remain mandatory. Any production or build-input
 change invalidates this identity and requires a new candidate build.
+
+## 20. 2026-08-11 v32 invalidation: retained PH and visible Crane terminal
+
+Section 19 is historical evidence only. v32 is **NO-GO** after correctness
+review confirmed two device-visible contract violations:
+
+- PH reused a verified Canvas generation but changed its packed-alpha status to
+  `probing` / `awaiting-native-playback`, which hid the old frame before the new
+  frame could atomically replace it;
+- Crane completed its 400 ms terminal tail after the source/effect choreography
+  had already hidden Crane, so a decoded terminal frame did not prove a visible
+  terminal frame.
+
+The replacement must preserve the verified PH presentation while changing the
+same generation's acceptance mode, and keep the Crane source visibly owned
+through the bounded terminal tail before final handoff. A new immutable
+candidate, matching production build, full Vitest gate, complete phone WebKit
+run, and source hygiene check are required before formal device acceptance.

@@ -23,8 +23,8 @@ export type PhonePackedAlphaSurfaceFrame = Readonly<{
 
 export type PhonePackedAlphaSurface = Readonly<{
   activate(mode?: PhonePackedAlphaSurfaceMode): number;
-  /** Change the compositor's frame acceptance mode without replacing its generation. */
-  setMode?(mode: PhonePackedAlphaSurfaceMode): void;
+  /** Change frame acceptance without replacing the generation or, optionally, its proof. */
+  setMode?(mode: PhonePackedAlphaSurfaceMode, preservePresentation?: boolean): void;
   /** Best-effort repaint for retained proof; a transient miss is not terminal. */
   probe(): boolean;
   render(): boolean;
@@ -297,13 +297,15 @@ export function createPhonePackedAlphaSurface(
       }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
       return generation;
     },
-    setMode(nextMode: PhonePackedAlphaSurfaceMode) {
+    setMode(nextMode: PhonePackedAlphaSurfaceMode, preservePresentation = false) {
       if (disposed || activeGeneration === 0) return;
       mode = nextMode;
       if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
       frameTimeout = undefined;
-      root.dataset[statusDataset] = nextMode === 'forward'
-        ? 'awaiting-native-playback' : 'probing';
+      if (!preservePresentation || root.dataset[statusDataset] !== 'verified') {
+        root.dataset[statusDataset] = nextMode === 'forward'
+          ? 'awaiting-native-playback' : 'probing';
+      }
     },
     probe() {
       return activeGeneration > 0 && compositor?.render() === true;
