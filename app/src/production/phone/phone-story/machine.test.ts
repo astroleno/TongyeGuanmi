@@ -930,6 +930,53 @@ describe('token-bound phone presentation proofs', () => {
     });
   });
 
+  it('[P0 rollback recovery] unlocks the last committed source when its exact proof never returns', () => {
+    const initial = createPhoneStorySnapshot({
+      authorityId: 'rollback-recovery-authority',
+      scene: 'method-top',
+      actualY: 4_051
+    });
+    let rollback = reducePhoneStorySnapshot(initial, {
+      type: 'RUN_STARTED',
+      authorityId: initial.authorityId,
+      sessionId: 'rollback-recovery-session',
+      generation: 1,
+      leg: 0,
+      direction: 1,
+      run: 'method-figure2',
+      anchorY: 4_051,
+      inputEpoch: 1
+    }).snapshot;
+    rollback = reduceOwned(rollback, 'FAILED', { reason: 'media-failed' });
+    rollback = reduceOwned(rollback, 'ROLLBACK_RENDERED');
+    rollback = reduceOwned(rollback, 'ROLLBACK_LAYOUT_RELEASED');
+    rollback = reduceOwned(rollback, 'ROLLBACK_LANDING_MEASURED', {
+      targetY: 4_051,
+      geometryRevision: 0,
+      visualViewportOffsetTop: 0
+    });
+    rollback = reduceOwned(rollback, 'ROLLBACK_SCROLL_COMMANDED', { commandId: 1 });
+    rollback = reduceOwned(rollback, 'ROLLBACK_SCROLL_CONFIRMED', {
+      commandId: 1,
+      actualY: 4_051
+    });
+    expect(rollback).toMatchObject({
+      status: 'transaction',
+      session: { phase: 'rollback-verifying-stable' }
+    });
+
+    const recovered = reduceOwned(
+      rollback,
+      'ROLLBACK_EXPIRED' as never
+    );
+    expect(recovered).toMatchObject({
+      status: 'stable',
+      scene: 'method-top',
+      session: null,
+      scroll: { actualY: 4_051 }
+    });
+  });
+
   it('[Group45 cutover] completes two same-authority forward/reverse rounds without retaining a transaction', () => {
     let current: PhoneStorySnapshot = createPhoneStorySnapshot({
       authorityId: 'group45-repeat-authority',

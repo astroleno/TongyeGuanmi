@@ -392,7 +392,8 @@ type PhoneSnapshotIdentityEvent = PhoneExecutionIdentity & Readonly<{
     | 'ROLLBACK_LAYOUT_RELEASED'
     | 'ROLLBACK_LANDING_MEASURED'
     | 'ROLLBACK_SCROLL_COMMANDED'
-    | 'ROLLBACK_SCROLL_CONFIRMED';
+    | 'ROLLBACK_SCROLL_CONFIRMED'
+    | 'ROLLBACK_EXPIRED';
   progress?: number;
   reason?: PhoneFailureReason;
   targetY?: number;
@@ -1868,6 +1869,14 @@ export function reducePhoneStorySnapshot(
       return reduceScrollCommanded(snapshot, session, event, rollbackAlignmentPhases);
     case 'ROLLBACK_SCROLL_CONFIRMED':
       return reduceScrollConfirmed(snapshot, session, event, rollbackAlignmentPhases, true);
+    case 'ROLLBACK_EXPIRED':
+      return session.phase !== 'rollback-verifying-stable'
+        ? reduced(snapshot)
+        : reduced(nextStable(
+          snapshot,
+          operationSource(operation),
+          session.alignment?.confirmedY ?? snapshot.scroll.actualY
+        ));
     default:
       return reduced(snapshot);
   }

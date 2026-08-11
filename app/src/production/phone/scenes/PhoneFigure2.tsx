@@ -87,7 +87,9 @@ export function phoneFigure2MediaPlan(
   const surfaceMode = reducedMotion ? 'endpoint' : 'forward';
 
   if (status === 'transaction') {
-    if (run === 'method-figure2') return [io, 0, surfaceMode];
+    // Exact Method → Figure2 admission owns the decoder. Geometry may paint
+    // the authored hold, but the scroll lane must stay parked until stable.
+    if (run === 'method-figure2') return ['static', 0, null];
     // The shared execution owns the z-depth effect, while this leaf remains
     // the sole owner of Figure2 media. Holding the already-admitted terminal
     // frame avoids asking Safari to decode/prove that same frame a second time
@@ -242,17 +244,15 @@ export const PhoneFigure2 = forwardRef<
     });
   }, []);
   const releasePackedSurface = useCallback(() => {
-    const root = rootRef.current;
     presentationBindingRef.current = null;
     packedSurfaceRef.current?.(['release']);
-    if (root) parkFigure2Media(root);
+    parkFigure2Media(rootRef.current);
   }, []);
   const disposePackedSurface = useCallback(() => {
-    const root = rootRef.current;
     presentationBindingRef.current = null;
     packedSurfaceRef.current?.(['dispose']);
     packedSurfaceRef.current = undefined;
-    if (root) parkFigure2Media(root);
+    parkFigure2Media(rootRef.current);
   }, []);
   const ensurePackedSurface = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
     const root = rootRef.current;
@@ -375,6 +375,7 @@ export const PhoneFigure2 = forwardRef<
       presentationToken
     }) {
       const mode = direction === -1 || progress >= .999 ? 'endpoint' : 'forward';
+      parkFigure2Media(rootRef.current);
       const surface = ensurePackedSurface(mode);
       if (!surface) {
         throw new Error('Figure2 unavailable');

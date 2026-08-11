@@ -16,6 +16,7 @@ import {
 } from '../machine';
 import {
   createPhoneStoryPresentation,
+  type PhonePresentationAdapterLease,
   type PhonePresentationPreflightOptions
 } from '../presentation';
 import { createPhoneOrchestratedSessionController } from './session';
@@ -198,8 +199,10 @@ export function createPhoneStoryRuntimeEngine(
     key: string;
     timeout: ReturnType<typeof globalThis.setTimeout>;
   } | null = null;
+  let rollbackPresentationLease: PhonePresentationAdapterLease | null = null;
   /** Prevent synchronous proof dispatch from recursively re-observing it. */
   let publishingTargetProof = false;
+  let afterDispatch: () => void = () => undefined;
 
   const directEntryPreparationKey = (
     snapshot: PhoneStorySnapshot
@@ -238,8 +241,11 @@ export function createPhoneStoryRuntimeEngine(
   ): string | null => {
     if (
       snapshot.status !== 'transaction'
-      || snapshot.session.phase !== 'preparing'
       || snapshot.session.operation.run === null
+      || (
+        snapshot.session.phase !== 'preparing'
+        && snapshot.session.phase !== 'rollback-verifying-stable'
+      )
     ) return null;
     return [
       snapshot.session.sessionId,
@@ -256,21 +262,46 @@ export function createPhoneStoryRuntimeEngine(
     }
     if (preparationLease?.key === key) return;
     clearPreparationLease();
-    const lease = {
+    const rollbackVerification = currentSnapshot.status === 'transaction'
+      && currentSnapshot.session.phase === 'rollback-verifying-stable';
+    const lease: NonNullable<typeof preparationLease> = {
       key,
-      timeout: globalThis.setTimeout(() => {
-        if (preparationLease !== lease) return;
-        preparationLease = null;
-        if (preparationLeaseKey(currentSnapshot) !== key) return;
-        const activeSession = sessions.resume();
-        if (!activeSession?.valid()) return;
-        const reason = currentSnapshot.status === 'transaction'
+      timeout: undefined as unknown as ReturnType<typeof globalThis.setTimeout>
+    };
+    let rearm = rollbackVerification;
+    const expire = () => {
+      if (
+        preparationLease !== lease
+        || preparationLeaseKey(currentSnapshot) !== key
+      ) return;
+      if (rearm) {
+        rearm = false;
+        rollbackPresentationLease?.dispose();
+        rollbackPresentationLease = null;
+        lease.timeout = globalThis.setTimeout(
+          expire,
+          PHONE_PREPARATION_LEASE_TIMEOUT_MS / 2
+        );
+        afterDispatch();
+        return;
+      }
+      preparationLease = null;
+      const activeSession = sessions.resume();
+      if (!activeSession?.valid()) return;
+      if (rollbackVerification) activeSession.reportPresentationCommitted(true);
+      else activeSession.reportFailure(
+        currentSnapshot.status === 'transaction'
           && currentSnapshot.session.operation.run === 'aod-method'
           ? 'aod-prepare-timeout'
-          : 'dependency-timeout';
-        activeSession.reportFailure(reason);
-      }, PHONE_PREPARATION_LEASE_TIMEOUT_MS)
+          : 'dependency-timeout'
+      );
     };
+    lease.timeout = globalThis.setTimeout(
+      expire,
+      rollbackVerification
+        ? PHONE_PREPARATION_LEASE_TIMEOUT_MS / 2
+        : PHONE_PREPARATION_LEASE_TIMEOUT_MS
+    );
     preparationLease = lease;
   };
   const clearPendingTerminalCompletion = () => {
@@ -339,7 +370,6 @@ export function createPhoneStoryRuntimeEngine(
       fallbackScene(currentSnapshot)
     );
   };
-  let afterDispatch: () => void = () => undefined;
   const dispatch = (rawEvent: PhoneStoryEvent): PhoneStoryReduction => {
     if (disposed) return { snapshot: currentSnapshot, effects: [] as never[] };
     const event = normalize(rawEvent);
@@ -501,27 +531,17 @@ export function createPhoneStoryRuntimeEngine(
   ): SceneId => {
     if (snapshot.status !== 'transaction') return logicalScene;
     const operation = snapshot.session.operation;
-    const run = operation.run;
-    if (!run) return logicalScene;
-    if (run !== 'education-contact') return logicalScene;
+    if (operation.run !== 'education-contact') return logicalScene;
     const direction = snapshot.session.phase.startsWith('rollback-')
       ? operation.direction === 1 ? -1 : 1
       : operation.direction;
     const strategy = phoneRunLegAdmissionTuple(
-      run,
+      operation.run,
       operation.legIndex,
       direction,
       snapshot.session.reducedMotion ? 'reduced' : 'normal'
     );
-    if (!strategy || strategy[3] === logicalScene) return logicalScene;
-    // Composite terminal scenes may use a physical media leaf whose scene id
-    // differs from the semantic hold (Crane is the Contact → Education
-    // example). Only select that leaf once its mounted root is present; the
-    // deterministic runtime tests intentionally register the semantic target
-    // alone and must continue to exercise the DOM fallback contract.
-    return presentation.rootForScene(strategy[3])
-      ? strategy[3]
-      : logicalScene;
+    return strategy?.[3] ?? logicalScene;
   };
   /**
    * Requests a token-bound fact from the registered presentation boundary.
@@ -543,9 +563,10 @@ export function createPhoneStoryRuntimeEngine(
     const run = snapshot.status === 'transaction'
       ? snapshot.session.operation.run
       : null;
+    const rollback = snapshot.status === 'transaction'
+      && snapshot.session.phase.startsWith('rollback-');
     if (snapshot.status === 'transaction' && run) {
       const operation = snapshot.session.operation;
-      const rollback = snapshot.session.phase.startsWith('rollback-');
       const direction = rollback
         ? operation.direction === 1 ? -1 : 1
         : operation.direction;
@@ -579,11 +600,12 @@ export function createPhoneStoryRuntimeEngine(
     // Visual leaves receive the immutable token after the candidate plane has
     // been projected. Their next real draw reports back through this closure;
     // no selector or dataset can manufacture that proof.
-    presentation.activatePresentationAdapter(scene, token, (proof) => {
+    const lease = presentation.activatePresentationAdapter(scene, token, (proof) => {
       return activeSession.reportPresentationProof(proof);
     }, (reason) => {
       activeSession.reportFailure(reason);
     });
+    if (rollback) rollbackPresentationLease = lease;
     const readiness = presentation.readPresentationReadiness(scene, token);
     if (readiness) activeSession.reportPresentationReadiness(readiness);
     const projectedSnapshot = currentSnapshot;

@@ -487,7 +487,7 @@ export function createPhoneOrchestratedSessionController(
       if (endpoint === 'receiver') emit(run, 'LEG_COMPLETED');
     },
     reportTargetPresented: () => settleTarget(run),
-    reportPresentationCommitted: () => {
+    reportPresentationCommitted: (recoverRollback) => {
       const snapshot = options.getSnapshot();
       if (
         !owns(run)
@@ -497,6 +497,14 @@ export function createPhoneOrchestratedSessionController(
           && snapshot.session.phase !== 'rollback-verifying-stable'
         )
       ) return;
+      if (recoverRollback) {
+        if (snapshot.session.phase !== 'rollback-verifying-stable') return;
+        const lease = releaseLease;
+        if (emit(run, 'ROLLBACK_EXPIRED', {}, 'rollback')) {
+          releaseAfterStable(run, lease);
+        }
+        return;
+      }
       finish(
         run,
         releaseLease,

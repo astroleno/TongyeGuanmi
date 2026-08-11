@@ -360,8 +360,8 @@ describe('phone story projector', () => {
     projector.apply(plan);
 
     expect(method.dataset.phoneSurfaceRole).toBe('stable');
-    expect(projector.hasPresentedSurface('method-top')).toBe(false);
-    expect(modes).toEqual(['preflight', 'committed']);
+    expect(projector).not.toHaveProperty('hasPresentedSurface');
+    expect(modes).toEqual(['preflight']);
   });
 
   it('[R5] admits a preparing transition before its inactive receiver becomes live', () => {

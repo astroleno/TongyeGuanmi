@@ -4925,7 +4925,7 @@ test('[execution regression] Star Map advances real Perlin frames while its stab
   expect(reverseReveal.at(-1)).toBeGreaterThanOrEqual(.98);
 });
 
-test('[execution regression] first AOD forward input locks the runner before the rail can advance', async ({ page }) => {
+test('[execution regression] natural Star→AOD releases its adapter before the immediate first AOD forward input', async ({ page }) => {
   test.setTimeout(90_000);
   await installColdPhoneRuntimeProbe(page);
   await visitFormal(page, '/', 'hero');
@@ -4934,7 +4934,6 @@ test('[execution regression] first AOD forward input locks the runner before the
   await driveFrontRun(page, 'pattern-compact', 'star-map', 1);
   await driveFrontRun(page, 'star-map', 'aod-animation', 1);
   await assertStablePhoneHold(page, 'aod-animation');
-  await waitForNewWheelEpoch(page);
 
   const before = await page.evaluate(() => ({
     scrollY: window.scrollY,
@@ -4977,6 +4976,9 @@ test('[execution regression] first AOD forward input locks the runner before the
   expect(after.playbackOwner).toMatch(/^phone-aod-forward:/);
   expect(Math.abs(after.scrollY - before.scrollY)).toBeLessThanOrEqual(2);
   expect(after.methodVisible).toBe(false);
+  await assertStablePhoneHold(page, 'method-top', { timeout: 70_000 });
+  await expect(page.locator(LIVE_PHONE_ROOT))
+    .not.toHaveAttribute('data-phone-aod-rollback-reason', /.+/);
 });
 
 test('[AOD→Method terminal layering] never lets AOD cover Method after the receiver becomes visible', async ({ page }) => {
@@ -5157,6 +5159,11 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
           visibility: string;
           opacity: number;
           intersectsViewport: boolean;
+          phase: string | null;
+          timelineRun: string | null;
+          presentationToken: string | null;
+          currentTime: number | null;
+          paused: boolean | null;
         }>;
         stop(): void;
       };
@@ -5173,6 +5180,12 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
         );
         const style = bridge ? getComputedStyle(bridge) : null;
         const rect = bridge?.getBoundingClientRect();
+        const video = document.querySelector<HTMLVideoElement>(
+          '[data-figure2-combined-video]'
+        );
+        const canvas = document.querySelector<HTMLCanvasElement>(
+          '[data-phone-packed-alpha-canvas="figure2-pair"]'
+        );
         samples.push({
           direction: root.dataset.phoneTransitionDirection ?? null,
           display: style?.display ?? '',
@@ -5182,7 +5195,14 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
             rect
             && rect.bottom > 0
             && rect.top < (window.visualViewport?.height ?? window.innerHeight)
-          )
+          ),
+          phase: root.dataset.phoneTransitionPhase ?? null,
+          timelineRun: video?.dataset.timelineVideoRun ?? null,
+          presentationToken: canvas?.dataset.phonePackedAlphaPresentationToken ?? null,
+          currentTime: video && Number.isFinite(video.currentTime)
+            ? video.currentTime
+            : null,
+          paused: video?.paused ?? null
         });
       }
       if (sampling) window.requestAnimationFrame(sample);
@@ -5195,7 +5215,7 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
     };
     window.requestAnimationFrame(sample);
   });
-  await driveAdjacentPhoneRun(page, 'method-top', 'figure2-animation', 1);
+  await inputPhoneIntent(page, 1);
   await assertStablePhoneHold(page, 'figure2-animation');
   const boundaryPresentation = await page.evaluate(() => {
     const target = window as typeof window & {
@@ -5206,6 +5226,11 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
           visibility: string;
           opacity: number;
           intersectsViewport: boolean;
+          phase: string | null;
+          timelineRun: string | null;
+          presentationToken: string | null;
+          currentTime: number | null;
+          paused: boolean | null;
         }>;
         stop(): void;
       };
@@ -5234,6 +5259,17 @@ test('[Figure2 recovery] Method landing starts Figure2 playback before the Proof
     && sample.visibility === 'hidden'
     && sample.opacity === 0
     && !sample.intersectsViewport
+  ))).toBe(true);
+  const exactAdmission = boundaryPresentation.samples.filter((sample) => (
+    sample.presentationToken !== null
+  ));
+  expect(exactAdmission).not.toEqual([]);
+  expect(exactAdmission.every((sample) => sample.timelineRun !== 'figure2-scroll'))
+    .toBe(true);
+  expect(exactAdmission.some((sample) => (
+    sample.paused === true
+    && sample.currentTime !== null
+    && sample.currentTime <= .05
   ))).toBe(true);
   expect(boundaryPresentation.coverageImage).toContain('figure2-middle-building');
   expect(boundaryPresentation.coverageBottom)

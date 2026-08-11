@@ -114,7 +114,7 @@ export type PhoneOrchestratedRunSession = PhoneTransitionSession & Readonly<{
   /** Confirms that the terminal receiver is connected and visibly presented. */
   reportTargetPresented(): void;
   /** The runtime commits only after a current, token-bound target proof. */
-  reportPresentationCommitted(): void;
+  reportPresentationCommitted(recoverRollback?: boolean): void;
   reportEndpointRelease(): void;
   /** Supplies lifecycle-separated cleanup; the controller chooses each phase. */
   provideRelease(lease: PhoneReleaseLease): void;

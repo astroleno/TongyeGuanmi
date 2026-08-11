@@ -996,11 +996,13 @@ export type PhonePresentationAdapter = Readonly<{
   dispose?(token: PresentationToken): void;
 }>;
 
+export type PhonePresentationAdapterLease = Readonly<{
+  token: PresentationToken;
+  dispose(): void;
+}>;
+
 type PhoneActivePresentationAdapter = Readonly<{
   token: PresentationToken;
-  /** False means the reducer rejected this proof for its current phase. */
-  report: (proof: PresentationProof) => boolean;
-  fail?: (reason: PhoneFailureReason) => void;
   dispose(): void;
   /** Static/reading bindings retry on the next projected browser paint. */
   requestFrame?(): void;
@@ -1099,9 +1101,6 @@ export type PhoneStoryPresentation = Readonly<{
   reapplyCurrent(): void;
   registerSurface(registration: PhoneSurfaceRegistration): PhoneSurfaceLease;
   registerEffect(registration: PhoneEffectRegistration): PhoneSurfaceLease;
-  /** True only when a registered scene surface is connected, visible, and covered. */
-  hasPresentedSurface(scene: SceneId): boolean;
-  readSurfacePresentation(scene: SceneId): PhoneSurfacePresentation | null;
   /** Candidate-only coverage observation; it cannot be committed as stable. */
   readPresentationReadiness(
     scene: SceneId,
@@ -1113,7 +1112,7 @@ export type PhoneStoryPresentation = Readonly<{
     token: PresentationToken,
     report: (proof: PresentationProof) => boolean | void,
     fail?: (reason: PhoneFailureReason) => void
-  ): void;
+  ): PhonePresentationAdapterLease | null;
   /** Turns an actual renderer/effect draw into a validated immutable proof. */
   proofForRenderedFrame(
     frame: PhoneRenderedPresentationFrame
@@ -1342,7 +1341,7 @@ export function createPhoneStoryPresentation({
   const token = {};
   const registrations = new Map<string, PhoneSurfaceRegistration>();
   const effects = new Map<string, PhoneEffectRegistration>();
-  const activeAdapters = new Map<string, PhoneActivePresentationAdapter>();
+  let activeAdapter: PhoneActivePresentationAdapter | null = null;
   const ownedRoots = new Set<HTMLElement>();
   const decoratedEndpoints = new Set<HTMLElement>();
   const decoratedLayers = new Set<HTMLElement>();
@@ -1466,7 +1465,9 @@ export function createPhoneStoryPresentation({
     const surface = registrations.get(frame.token.subject);
     if (surface) {
       const contract = phoneScenePresentationTuple(surface.scene);
-      const targetBinding = activeAdapters.get(frame.token.subject);
+      const targetBinding = activeAdapter?.token.subject === frame.token.subject
+        ? activeAdapter
+        : null;
       // A reduced runner invokes a leaf directly, rather than installing a
       // presentation-plane adapter. Its one post-layout frame is still a
       // terminal physical fact. A fixed surface must expose an exact
@@ -1755,6 +1756,9 @@ export function createPhoneStoryPresentation({
         layerPlan
       } = plan;
       const snapshot = presentationSnapshotView(presentationSnapshot);
+      if (activeAdapter?.token.revision !== snapshot.projection.revision) {
+        activeAdapter?.dispose();
+      }
       const nextEndpoints = plan.endpoints
         ? [plan.endpoints.source, plan.endpoints.receiver]
         : [];
@@ -1872,9 +1876,9 @@ export function createPhoneStoryPresentation({
       return {
         dispose() {
           if (registrations.get(registration.id) === registration) {
-            const active = activeAdapters.get(registration.id);
-            active?.dispose();
-            activeAdapters.delete(registration.id);
+            if (activeAdapter?.token.subject === registration.id) {
+              activeAdapter.dispose();
+            }
             registrations.delete(registration.id);
           }
         }
@@ -1893,26 +1897,6 @@ export function createPhoneStoryPresentation({
         }
       };
     },
-    hasPresentedSurface(scene) {
-      const presentation = this.readSurfacePresentation(scene);
-      return Boolean(
-        presentation?.[0]
-        && presentation[1]
-        && presentation[2]
-      );
-    },
-    readSurfacePresentation(scene) {
-      const receiver = phoneScenePresentationTuple(scene)[4];
-      const registration = registrations.get(receiver);
-      if (!registration) return null;
-      const surfaceRoot = registration.root();
-      const coverageRoot = registration.coverageRoot?.() ?? surfaceRoot;
-      if (!connected(surfaceRoot) || !connected(coverageRoot)) return null;
-      // A direct target is proven by its manifest-scoped content contract.
-      // Custom readers remain only for tests that deliberately inject facts.
-      return registration.presentation?.('committed')
-        ?? readPhoneScenePresentation(scene, surfaceRoot, coverageRoot, 'committed');
-    },
     activatePresentationAdapter(scene, presentationToken, report, fail) {
       const contract = phoneScenePresentationTuple(scene);
       const admission = phoneDirectEntryAdmissionTuple(scene);
@@ -1928,14 +1912,14 @@ export function createPhoneStoryPresentation({
         presentationToken.authorityId !== authorityId
         || presentationToken.subject !== receiver
         || (!kindMatchesDirectEntry && !normalSegmentStaticBind)
-      ) return;
-      const active = activeAdapters.get(receiver);
+      ) return null;
+      const active = activeAdapter;
       if (
         active
         && samePresentationToken(active.token, presentationToken)
       ) {
         active.requestFrame?.();
-        return;
+        return active;
       }
       active?.dispose();
       const adapter = registration?.adapter;
@@ -1947,12 +1931,12 @@ export function createPhoneStoryPresentation({
           if (
             framePending
             || proofAccepted
-            || activeAdapters.get(receiver) !== binding
+            || activeAdapter !== binding
           ) return;
           framePending = true;
           adapter.present(presentationToken, (frame) => {
             framePending = false;
-            const current = activeAdapters.get(receiver);
+            const current = activeAdapter;
             if (
               current !== binding
               || !samePresentationToken(frame.token, binding.token)
@@ -1969,24 +1953,26 @@ export function createPhoneStoryPresentation({
             // alignment on a reverse admission). Keep the same adapter alive
             // and let the engine request the exact token again instead of
             // permanently consuming this binding on a rejected proof.
-            if (binding.report(proof)) proofAccepted = true;
+            if (report(proof) !== false) proofAccepted = true;
           }, (reason) => {
             framePending = false;
-            const current = activeAdapters.get(receiver);
+            const current = activeAdapter;
             if (current !== binding || proofAccepted) return;
-            binding.fail?.(reason);
+            fail?.(reason);
           });
         };
         binding = {
           token: presentationToken,
-          report: (proof) => report(proof) !== false,
-          ...(fail ? { fail } : {}),
-          dispose: () => adapter.dispose?.(presentationToken),
+          dispose: () => {
+            if (activeAdapter !== binding) return;
+            activeAdapter = null;
+            adapter.dispose?.(presentationToken);
+          },
           requestFrame
         };
-        activeAdapters.set(receiver, binding);
+        activeAdapter = binding;
         requestFrame();
-        return;
+        return binding;
       }
       // Only a manifest-declared DOM post-paint target may use this fallback.
       // Static/canvas/media targets require their leaf adapter and therefore
@@ -1995,7 +1981,7 @@ export function createPhoneStoryPresentation({
         !registration
         || admission[0] !== 'dom-post-paint'
         || admission[6]
-      ) return;
+      ) return null;
       let cancel: () => void = () => undefined;
       let framePending = false;
       const requestFrame = () => {
@@ -2003,7 +1989,7 @@ export function createPhoneStoryPresentation({
         framePending = true;
         cancel = schedulePresentationFrame(() => {
           framePending = false;
-          if (activeAdapters.get(receiver) !== binding) return;
+          if (activeAdapter !== binding) return;
           const proof = proofForRenderedFrame({
             token: presentationToken,
             frameSequence: ++presentationFrameSequence,
@@ -2012,17 +1998,22 @@ export function createPhoneStoryPresentation({
               ? performance.now()
               : 0
           });
-          if (proof) binding.report(proof);
+          if (proof) report(proof);
         });
       };
-      const binding = {
+      let binding: PhoneActivePresentationAdapter;
+      binding = {
         token: presentationToken,
-        report: (proof: PresentationProof) => report(proof) !== false,
-        dispose: () => cancel(),
+        dispose: () => {
+          if (activeAdapter !== binding) return;
+          activeAdapter = null;
+          cancel();
+        },
         requestFrame
-      } as const;
-      activeAdapters.set(receiver, binding);
+      };
+      activeAdapter = binding;
       requestFrame();
+      return binding;
     },
     proofForRenderedFrame,
     readPresentationReadiness(scene, presentationToken) {
@@ -2096,10 +2087,7 @@ export function createPhoneStoryPresentation({
       for (const element of [...decoratedLayers]) clearLayer(element);
       disposed = true;
       endpoints = null;
-      for (const active of activeAdapters.values()) {
-        active.dispose();
-      }
-      activeAdapters.clear();
+      activeAdapter?.dispose();
       registrations.clear();
       effects.clear();
       for (const ownedRoot of ownedRoots) {

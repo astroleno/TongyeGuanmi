@@ -1465,6 +1465,82 @@ describe('single phone story projector transaction', () => {
     }
   });
 
+  it('[P0 rollback recovery] re-arms Method once, then releases a dropped source proof within the bounded lease', async () => {
+    vi.useFakeTimers();
+    try {
+      const root = element();
+      const method = element();
+      const figure2 = element();
+      const frames: Array<() => void> = [];
+      let actualY = 4_051;
+      let session: PhoneOrchestratedRunSession | undefined;
+      let methodPresents = 0;
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'method-top',
+        root,
+        scrollY: () => actualY,
+        scrollTo: (nextY) => { actualY = nextY; },
+        scheduleFrame: (callback) => frames.push(callback)
+      });
+      orchestrator.registerRunCapability('method-figure2', 'rollback-proof-drop', capability(
+        5_886,
+        (_direction, activeSession) => { session = activeSession; }
+      ));
+      orchestrator.registerScrollCorridor({
+        id: 'method-grade-a',
+        scenes: ['method-top', 'figure2-animation'],
+        sample: () => null,
+        boundary: () => 5_886,
+        landing: (scene) => scene === 'method-top' ? 4_051 : 5_042
+      });
+      orchestrator.registerSurface({
+        id: 'native:method',
+        scene: 'method-top',
+        kind: 'native',
+        root: () => method,
+        presentation: () => [true, true, true, true, 'static-poster'],
+        adapter: { present: () => { methodPresents += 1; } }
+      });
+      orchestrator.registerSurface({
+        id: 'grade-a:figure2',
+        scene: 'figure2-animation',
+        kind: 'fixed',
+        root: () => figure2,
+        presentation: () => [true, true, true, true, 'static-poster'],
+        adapter: { present: () => undefined }
+      });
+
+      expect(orchestrator.resolveIntent([1, 1, 4_051, 6_051]))
+        .toBe('claim-boundary');
+      if (session) reportSegmentProof(session, 'method-bottom-figure2');
+      session?.reportEndpointCommit('receiver');
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'verifying-target' }
+      });
+      session?.reportFailure('media-failed');
+      while (frames.length > 0) frames.shift()?.();
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'rollback-verifying-stable' }
+      });
+      expect(methodPresents).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(PHONE_PREPARATION_LEASE_TIMEOUT_MS / 2);
+      expect(methodPresents).toBe(2);
+      await vi.advanceTimersByTimeAsync(PHONE_PREPARATION_LEASE_TIMEOUT_MS / 2);
+
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'stable',
+        scene: 'method-top',
+        session: null
+      });
+      expect(root.dataset.phoneInputState).toBe('free');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('claims a direct Contact reverse input at the canonical Group67 boundary', () => {
     const canonicalBoundary = 6_435.6875;
     const orchestrator = createPhoneStoryOrchestrator({

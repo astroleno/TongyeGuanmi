@@ -497,6 +497,53 @@ describe('phone presentation proof reader', () => {
     expect(report).toHaveBeenCalledTimes(2);
   });
 
+  it('[P0 adapter lease] retires one exact token and rejects its late frame', () => {
+    const root = element();
+    const dispose = vi.fn();
+    let publish: ((frame: Readonly<{
+      token: PresentationToken;
+      frameSequence: number;
+      observedAt: number;
+      origin: 'leaf-static-poster';
+    }>) => void) | undefined;
+    const presentation = createPhoneStoryPresentation({
+      authorityId: servicesToken.authorityId,
+      scope: 'formal',
+      root: () => root
+    });
+    presentation.registerSurface({
+      id: 'native:services',
+      scene: 'services',
+      kind: 'native',
+      root: () => root,
+      coverageRoot: () => root,
+      presentation: () => [true, true, true, true, 'static-poster'],
+      adapter: {
+        present: (_token, report) => { publish = report; },
+        dispose
+      }
+    });
+    const report = vi.fn();
+
+    const lease = presentation.activatePresentationAdapter(
+      'services',
+      servicesToken,
+      report
+    ) as unknown as Readonly<{ token: PresentationToken; dispose(): void }> | null;
+    expect(lease?.token).toBe(servicesToken);
+    lease?.dispose();
+    publish?.({
+      token: servicesToken,
+      frameSequence: 1,
+      observedAt: 42,
+      origin: 'leaf-static-poster'
+    });
+
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(dispose).toHaveBeenCalledWith(servicesToken);
+    expect(report).not.toHaveBeenCalled();
+  });
+
   it('[R5] accepts AOD’s declared packed-canvas segment frame before its static visual hold', () => {
     const root = element();
     const presentation = createPhoneStoryPresentation({
