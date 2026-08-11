@@ -1339,6 +1339,39 @@ describe('phone runtime projector bridge', () => {
     disconnect();
   });
 
+  it.each(['presentation-coverage-invalid', 'presentation-content-invisible'] as const)(
+  'retries a transient target %s miss inside the bounded plane deadline', (failureCode) => {
+    const fixture = createEnvironment();
+    const verifyVisibleCandidate = vi.fn()
+      .mockReturnValueOnce({
+        records: [],
+        failure: {
+          code: failureCode,
+          message: 'candidate compositor is still joining the plane',
+          recoverable: true
+        }
+      })
+      .mockImplementation(exactPlaneResult);
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#pattern', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority(
+        { verifyVisibleCandidate }, fixture.port.readViewport
+      )
+    });
+    const disconnect = runtime.connect();
+    prepareCurrentPlane(runtime, fixture);
+    fixture.flushFrames();
+    expect(verifyVisibleCandidate).toHaveBeenCalledTimes(1);
+    expect(runtime.getSnapshot().status).toBe('transaction');
+    expect(currentTransaction(runtime).deadline?.operation).toBe('planeApply');
+    expect(fixture.counts().frames).toBe(1);
+    fixture.flushFrames();
+    expect(verifyVisibleCandidate).toHaveBeenCalledTimes(2);
+    expect(runtime.getSnapshot().status).toBe('stable');
+    disconnect();
+  });
+
   it('uses applyPlane for a fresh source coverage revision during active playback', () => {
     const fixture = createEnvironment();
     const applyPlane = vi.fn(exactPlaneResult);

@@ -1,14 +1,47 @@
 import { expect, test } from '@playwright/test';
 import {
   assertSinglePhoneAuthority,
+  readPhoneStoryDiagnostic,
   waitForDirectEntryCommit
 } from './r5-phone-clean-assertions';
 
 test('Crane clean leaf proves two canonical decoded surfaces without duplicate owners', async ({
   page
 }) => {
+  test.setTimeout(75_000);
+  await page.addInitScript(() => {
+    (window as typeof window & { __r5PhoneRuntimeLog?: unknown[] }).__r5PhoneRuntimeLog = [];
+  });
   await page.goto('/#crane-animation', { waitUntil: 'domcontentloaded' });
-  await waitForDirectEntryCommit(page, 'crane-animation', 0);
+  try {
+    await waitForDirectEntryCommit(page, 'crane-animation', 0);
+  } catch (error) {
+    const diagnostic = await readPhoneStoryDiagnostic(page);
+    const trace = await page.evaluate(() => {
+      const snapshots = (
+        window as typeof window & { __r5PhoneRuntimeLog?: Array<Record<string, unknown>> }
+      ).__r5PhoneRuntimeLog ?? [];
+      return snapshots.map((snapshot) => {
+        const transaction = snapshot.transaction as Record<string, unknown> | null;
+        const attempt = transaction?.attempt as Record<string, unknown> | undefined;
+        const deadline = transaction?.deadline as Record<string, unknown> | undefined;
+        const failure = transaction?.failure as Record<string, unknown> | undefined;
+        return {
+          status: snapshot.status,
+          revision: snapshot.stateRevision,
+          candidate: transaction?.candidateSceneId,
+          generation: attempt?.transactionGeneration,
+          phase: transaction?.phase,
+          deadline: deadline?.operation,
+          activation: transaction?.activation,
+          failure: failure?.code
+        };
+      });
+    });
+    throw new Error(`Cold Crane direct entry failed: ${JSON.stringify({ diagnostic, trace })}`, {
+      cause: error
+    });
+  }
   await assertSinglePhoneAuthority(page);
 
   const videos = page.locator(
