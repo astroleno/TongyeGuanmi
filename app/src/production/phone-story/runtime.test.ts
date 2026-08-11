@@ -1399,13 +1399,14 @@ describe('phone runtime projector bridge', () => {
     disconnect();
   });
 
-  it('retries a transient reproject coverage miss inside the bounded reproof deadline', () => {
+  it.each(['presentation-coverage-invalid', 'presentation-content-invisible'] as const)(
+  'retries a transient reproject %s miss inside the bounded reproof deadline', (failureCode) => {
     const fixture = createEnvironment();
     const verifyReproject = vi.fn()
       .mockReturnValueOnce({
         records: [],
         failure: {
-          code: 'presentation-coverage-invalid',
+          code: failureCode,
           message: 'dynamic layout geometry is still settling',
           recoverable: true
         }

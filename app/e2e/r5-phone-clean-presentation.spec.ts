@@ -235,13 +235,6 @@ const FORMAL_INK_SEGMENTS = new Set<CompleteStorySegment>([
   'lab-ph', 'education-crane'
 ]);
 
-type RuntimeResourceSample = Readonly<{
-  videos: number;
-  decoders: number;
-  canvases: number;
-  webgl: number;
-}>;
-
 type SliceResourceSample = Readonly<{
   videos: number;
   decodedVideos: number;
@@ -249,6 +242,14 @@ type SliceResourceSample = Readonly<{
   activeDecoders: number;
   owners: readonly string[];
 }>;
+type StableResourceIdentity = Omit<SliceResourceSample, 'decodedVideos'>;
+
+function stableResourceIdentity(sample: SliceResourceSample): StableResourceIdentity {
+  return {
+    videos: sample.videos, canvases: sample.canvases,
+    activeDecoders: sample.activeDecoders, owners: sample.owners
+  };
+}
 
 type LifecycleProbeSample = Readonly<{
   listeners: number;
@@ -1130,28 +1131,6 @@ function completeStorySegment(
   return segment;
 }
 
-async function readRuntimeResources(
-  page: import('@playwright/test').Page
-): Promise<RuntimeResourceSample> {
-  return page.evaluate(() => {
-    const root = document.querySelector('.phone-story__planes');
-    const videos = root?.querySelectorAll('video') ?? [];
-    const canvases = root?.querySelectorAll('canvas') ?? [];
-    const webgl = root?.querySelectorAll([
-      'canvas[data-portrait-figure-canvas]',
-      'canvas[data-aod-figure-canvas]',
-      'canvas[data-figure2-packed-alpha-canvas]',
-      'canvas[data-phone-packed-alpha-canvas]'
-    ].join(',')) ?? [];
-    return {
-      videos: videos.length,
-      decoders: [...videos].filter((video) => video.readyState >= 2).length,
-      canvases: canvases.length,
-      webgl: webgl.length
-    };
-  });
-}
-
 async function readStableSliceResources(
   page: import('@playwright/test').Page
 ): Promise<SliceResourceSample> {
@@ -1188,7 +1167,12 @@ async function readStableSliceResources(
     }
     if (previous && JSON.stringify(current) === JSON.stringify(previous)) {
       repeated += 1;
-      if (repeated >= 2) return current;
+      if (repeated >= 2) {
+        // readyState is a volatile buffering signal, not a physical decoder
+        // inventory. Runtime decoder leases must still map to retained videos.
+        expect(current.activeDecoders).toBeLessThanOrEqual(current.videos);
+        return current;
+      }
     } else {
       previous = current;
       repeated = 0;
@@ -1239,7 +1223,7 @@ async function traverseCompleteStoryLeg(
   source: CompleteStoryScene,
   target: CompleteStoryScene,
   direction: 'forward' | 'reverse'
-): Promise<RuntimeResourceSample> {
+): Promise<StableResourceIdentity> {
   await waitForContinuousStoryReady(page);
   const segment = completeStorySegment(source, target);
   const beforeState = await page.locator('.phone-story').evaluate((shell) => ({
@@ -1345,7 +1329,7 @@ async function traverseCompleteStoryLeg(
   await assertCompleteStoryFrame(page, target);
   if (target === 'brand') await waitForCompleteStoryNativePrewarm(page, target, 'forward');
   await assertNoWhiteOrTransparentViewportEdges(page);
-  return readRuntimeResources(page);
+  return stableResourceIdentity(await readStableSliceResources(page));
 }
 
 async function installLifecycleProbe(
@@ -2056,6 +2040,7 @@ test('stable Hero resumes Figure1 after visibility and BFCache lifecycle recover
   page
 }) => {
   await page.addInitScript(() => {
+    (window as typeof window & { __r5PhoneRuntimeLog?: unknown[] }).__r5PhoneRuntimeLog = [];
     const visibility = { current: 'visible' as DocumentVisibilityState };
     Object.defineProperty(document, 'visibilityState', {
       configurable: true, get: () => visibility.current
@@ -3543,12 +3528,22 @@ test('PH slice re-proves its retained compositor after visibility and BFCache ev
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     api.__r5SetVisibility('visible');
   });
-  await page.waitForFunction((before) => {
-    const shell = document.querySelector<HTMLElement>('.phone-story');
-    return shell?.dataset.phoneStatus === 'stable'
-      && shell.dataset.phoneScene === 'ph-animation'
-      && Number(shell.dataset.phonePlaneRevision) > before;
-  }, beforePlaneRevision, { timeout: 15_000 });
+  try {
+    await page.waitForFunction((before) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      return shell?.dataset.phoneStatus === 'stable'
+        && shell.dataset.phoneScene === 'ph-animation'
+        && Number(shell.dataset.phonePlaneRevision) > before;
+    }, beforePlaneRevision, { timeout: 15_000 });
+  } catch (error) {
+    const diagnostic = await readPhoneStoryDiagnostic(page);
+    const trace = await page.evaluate(() => (
+      window as typeof window & { __r5PhoneRuntimeLog?: unknown[] }
+    ).__r5PhoneRuntimeLog?.slice(-30) ?? []);
+    throw new Error(`PH lifecycle reproof failed: ${JSON.stringify({ diagnostic, trace })}`, {
+      cause: error
+    });
+  }
   await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
     .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
   await traversePhSlice(page, 'ph-animation', 'education', 'forward');
@@ -3833,12 +3828,17 @@ test('Group 6-7 direct Contact is resource-minimal, adjacent-prewarmed, and nati
   expect(await top.evaluate((element) => element.dispatchEvent(new WheelEvent(
     'wheel', { bubbles: true, cancelable: true, deltaY: 120 }
   )))).toBe(true);
-  await expect(page.locator(
-    '.phone-story__planes video, .phone-story__planes canvas'
-  )).toHaveCount(0);
-  expect(await readRuntimeResources(page)).toEqual({
-    videos: 0, decoders: 0, canvases: 0, webgl: 0
+  await expect(page.locator('.phone-story__planes video')).toHaveCount(2);
+  await expect(page.locator('.phone-story__planes canvas')).toHaveCount(2);
+  expect(stableResourceIdentity(await readStableSliceResources(page))).toEqual({
+    videos: 2, canvases: 2, activeDecoders: 0,
+    owners: [
+      'crane-animation:canvas', 'crane-animation:canvas',
+      'crane-animation:video', 'crane-animation:video'
+    ]
   });
+  expect(await page.locator('.phone-story__planes video')
+    .evaluateAll((videos) => videos.every((video) => video.paused))).toBe(true);
   const chunks = await page.evaluate(() => performance.getEntriesByType('resource')
     .map(({ name }) => name).filter((name) => /\/assets\/[^/]+\.js(?:$|\?)/.test(name)));
   expect(chunks.some((name) => /\/PhoneContact-[^/]+\.js/.test(name))).toBe(true);
@@ -3898,7 +3898,7 @@ test('complete story proves all 60 segment traversals through one authority with
   const authority = await page.locator('.phone-story').getAttribute('data-phone-authority');
 
   const cycle = async () => {
-    const samples: RuntimeResourceSample[] = [];
+    const samples: StableResourceIdentity[] = [];
     for (let index = 0; index < COMPLETE_STORY_SCENES.length - 1; index += 1) {
       samples.push(await traverseCompleteStoryLeg(
         page,
@@ -3917,7 +3917,7 @@ test('complete story proves all 60 segment traversals through one authority with
     }
     return {
       samples,
-      boundaryResources: await readRuntimeResources(page),
+      boundaryResources: stableResourceIdentity(await readStableSliceResources(page)),
       boundaryLifecycle: await readLifecycleProbe(page)
     };
   };

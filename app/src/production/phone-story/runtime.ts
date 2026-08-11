@@ -796,8 +796,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
             : transaction.commitIntent === 'reproject' ? presentation.verifyReproject(request)
               : presentation.verifyVisibleCandidate(request)
       ));
-      if (transaction.commitIntent === 'reproject'
-        && result.failure?.code === 'presentation-coverage-invalid') {
+      if (transaction.commitIntent === 'reproject' && ['presentation-coverage-invalid', 'presentation-content-invisible'].includes(result.failure?.code ?? '')) {
         schedulePlane(effect, activeConnection);
         return;
       }
