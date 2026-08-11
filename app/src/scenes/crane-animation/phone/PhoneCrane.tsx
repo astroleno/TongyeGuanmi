@@ -114,7 +114,6 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
   const mediaRunTokenRef = useRef<string | null>(null);
   const mediaCommandRef = useRef<import('../../../production/phone-story/protocol').PhoneMediaPhaseCommand | null>(null);
   const mediaPhaseRef = useRef<'primed' | 'playing' | 'held'>('primed');
-  const figureReleasedRef = useRef(false);
   const figureClockStartedRef = useRef(false);
   const disposedRef = useRef(false);
 
@@ -167,7 +166,6 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     } else if (bindingRef.current?.segmentId === 'crane-contact'
       && mediaPhaseRef.current === 'playing'
       && !figureClockStartedRef.current && progress >= 1 / 6) {
-      figureReleasedRef.current = true;
       figureClockStartedRef.current = true;
       const command = mediaCommandRef.current;
       if (command && figure) startNativeClock(figure, 'figure', command);
@@ -185,6 +183,27 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     const generations = surfaces.map((surface) => surface.activate(mode)) as [number, number];
     surfaceGenerationsRef.current = generations;
     return generations;
+  }, []);
+
+  const verifyTerminalFrames = useCallback(() => {
+    const binding = bindingRef.current;
+    if (!binding || binding.segmentId !== 'crane-contact'
+      || binding.direction !== 'forward') return true;
+    const terminal = [figureCanvasRef.current, flockCanvasRef.current].every((canvas, index) => (
+      Number(canvas?.dataset.packedAlphaGeneration) === surfaceGenerationsRef.current[index]
+      && Number(canvas?.dataset.packedAlphaMediaTime) >= CRANE_VIDEO_END_SECONDS - .08
+    ));
+    if (terminal) return true;
+    if (rootRef.current?.dataset.phoneCraneMedia !== 'terminal-missing') {
+      rootRef.current?.setAttribute('data-phone-crane-media', 'terminal-missing');
+      binding.reports.reportFailure({
+        code: 'crane-terminal-frame-missing',
+        message: 'Crane terminal Canvas frames are missing',
+        recoverable: true,
+        detail: { runToken: mediaRunTokenRef.current ?? binding.frameToken }
+      });
+    }
+    return false;
   }, []);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
@@ -221,7 +240,6 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       mediaPhaseRef.current = 'primed';
       const binding = bindingRef.current;
       const generations = activateSurfaces('initial');
-      figureReleasedRef.current = false;
       figureClockStartedRef.current = false;
       delete rootRef.current?.dataset.phoneCraneFigurePreroll;
       videos[0]!.playbackRate = PHONE_CRANE_FIGURE_PLAYBACK_RATE;
@@ -280,9 +298,10 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       if (command.phase === 'held') {
         mediaPhaseRef.current = 'held';
         const endpoint = command.endpoint ?? (command.direction === 'reverse' ? 0 : 1);
+        if (endpoint === 1 && command.direction !== 'reverse') verifyTerminalFrames();
         for (const video of videos) {
           video?.pause();
-          try { if (video) video.currentTime = endpoint === 0 ? 0 : CRANE_VIDEO_END_SECONDS; } catch { /* retry */ }
+          try { if (video && endpoint === 0) video.currentTime = 0; } catch { /* retry */ }
         }
         return;
       }
@@ -299,7 +318,6 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       const delayedFigure = binding.segmentId === 'crane-contact';
       if (delayedFigure) {
         figureClockStartedRef.current = false;
-        figureReleasedRef.current = false;
         videos[0]?.pause();
         if (videos[1]) startNativeClock(videos[1], 'flock', command);
         if (progressRef.current >= 1 / 6 && videos[0]) {
@@ -318,10 +336,11 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       progressRef.current = endpoint;
       render(endpoint);
       const videos = [figureVideoRef.current, flockVideoRef.current] as const;
+      if (endpoint === 1) verifyTerminalFrames();
       for (const video of videos) {
         video?.pause();
         try {
-          if (video) video.currentTime = endpoint === 0 ? 0 : CRANE_VIDEO_END_SECONDS;
+          if (video && endpoint === 0) video.currentTime = 0;
         } catch { /* retry on metadata */ }
       }
     },
@@ -344,7 +363,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       parkPhoneCraneMedia(rootRef.current);
       bindingRef.current = null;
     }
-  }), [activateSurfaces, render, startNativeClock]);
+  }), [activateSurfaces, render, startNativeClock, verifyTerminalFrames]);
 
   useLayoutEffect(() => {
     const mountRoot = mountRootRef.current;

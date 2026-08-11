@@ -90,10 +90,7 @@ function createPhoneTouchArbiter() {
           }
         : null;
     },
-    move(
-      points: readonly PhoneTouchPoint[],
-      currentEdges: ReturnType<typeof phoneReadingEdges>
-    ): number | null {
+    move(points: readonly PhoneTouchPoint[]): number | null {
       const current = claim;
       const point = current
         ? points.find(({ identifier }) => identifier === current.id)
@@ -105,7 +102,7 @@ function createPhoneTouchArbiter() {
       current.direction = direction;
       const publish = current.story || (
         current.nativeDocument
-        && atEdge(direction, currentEdges)
+        && atEdge(direction, current.startedEdges)
       );
       if (!publish) {
         return null;
@@ -229,7 +226,7 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
           event.preventDefault();
           return;
         }
-        const delta = touchArbiter.move(Array.from(event.touches ?? []), nativeReadingEdges()); if (touchArbiter.claimed()) event.preventDefault();
+        const delta = touchArbiter.move(Array.from(event.touches ?? [])); if (touchArbiter.claimed()) event.preventDefault();
         if (delta !== null) { if (touchArbiter.claimedNativeDocument()) freezeNativeReadingBeforePublish(delta > 0 ? 'forward' : 'reverse'); publish({ type: 'input', kind: 'touch', delta, fresh: true, trusted: event.isTrusted, target: 'story' }); }
       }) as EventListener, { passive: false });
       listen(window, 'touchend', ((event: TouchEvent) => {

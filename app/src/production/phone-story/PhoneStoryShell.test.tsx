@@ -945,7 +945,11 @@ describe('clean PhoneStoryShell ownership', () => {
       };
 
       const first = gesture(51, true);
-      expect(first.defaultPrevented).toBe(true);
+      expect(first.defaultPrevented).toBe(false);
+      expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+
+      const second = gesture(52, false);
+      expect(second.defaultPrevented).toBe(true);
       expect(visual.dataset.phoneNativeScrollY).toBe('963.00');
       expect(decoyVisual.dataset.phoneNativeScrollY).toBeUndefined();
       expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([
@@ -1747,8 +1751,13 @@ describe('clean PhoneStoryShell ownership', () => {
     };
     try {
       const first = gesture(31, true, true);
-      expect(first.move.defaultPrevented).toBe(true);
-      expect(first.edgeMove.defaultPrevented).toBe(true);
+      expect(first.move.defaultPrevented).toBe(false);
+      expect(first.edgeMove.defaultPrevented).toBe(false);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+
+      const second = gesture(32, false, true);
+      expect(second.move.defaultPrevented).toBe(true);
+      expect(second.edgeMove.defaultPrevented).toBe(true);
       expect(visual.dataset.phoneNativeScrollY).toBe('700.00');
       expect(visual.style.getPropertyValue('--phone-native-scroll-y')).toBe('700.00px');
       expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([
@@ -1987,7 +1996,10 @@ describe('clean lazy registries', () => {
         />
       </>));
       await act(async () => Promise.resolve());
-      expect(host.querySelectorAll('[data-phone-leaf-cover]')).toHaveLength(3);
+      const covers = [...host.querySelectorAll<HTMLElement>('[data-phone-leaf-cover]')];
+      expect(covers).toHaveLength(3);
+      expect(covers.every((cover) => cover.classList.contains('r4-visually-hidden'))).toBe(true);
+      expect(covers.every((cover) => cover.getAttribute('role') === 'status')).toBe(true);
       expect(sceneFailure).toHaveBeenCalledWith(expect.objectContaining({
         code: 'phone-scene-leaf-missing'
       }));

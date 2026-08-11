@@ -440,10 +440,12 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       reportFailure: (failure: PhoneFailure) => { if (state.p) return;
         if (!state.valid || !mountedLease(state) || snapshot.status !== 'transaction') return;
         if (failure.code === 'media-activation-rejected') return;
-        const slot = [...snapshot.transaction.requiredPrepared,
+        const directSlot = [...snapshot.transaction.requiredPrepared,
           ...snapshot.transaction.requiredFinal].find((candidate) => (
           candidate.leg === state.binding.leg
         ));
+        const slot = directSlot ?? (snapshot.transaction.phase === 'presenting-target'
+          && state.binding.leg !== 'target' ? snapshot.transaction.requiredFinal[0] : undefined);
         if (slot) enqueueFor({ type: 'failure-reported', slot, failure }, connection);
       }
     });
@@ -614,7 +616,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       const binding: PhoneLeafReportBinding = {
         ...lease.reports.binding, attempt, planeRevision: null
       };
-      renewLeaseBinding(lease, binding, true);
+      const preservePresentation = ['source', 'rollback'].includes(lease.reports.binding.leg);
+      renewLeaseBinding(lease, binding, !preservePresentation);
     }
     return candidates;
   };
@@ -634,7 +637,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         continue;
       }
       const binding = createPhoneRetainedLeafBinding(transaction, leg, actual);
-      renewLeaseBinding(lease, binding, true);
+      renewLeaseBinding(lease, binding, !['source', 'rollback'].includes(leg));
       if (transaction.mode === 'segment' && transaction.attempt.segmentId && transaction.attempt.direction && leg !== 'effect') lease.mount.commands.render(commandProgress(transaction, leg));
     }
   };

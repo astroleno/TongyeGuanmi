@@ -72,7 +72,7 @@ function validFixtureFiles() {
   return {
     'vite.config.ts': validViteConfig,
     'scripts/verify-performance-budgets.mjs':
-      'const phoneJsHardCapBytes = 663_552;\n',
+      'const phoneJsHardCapBytes = 665_600;\n',
     'src/production/presentation-shell-loaders.ts': validRecoveryBoundary,
     'src/production/phone-story/protocol.ts':
       'export type PhoneEvent = Readonly<{ type: "ready" }>;\n',

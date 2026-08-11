@@ -234,6 +234,88 @@ describe('clean PhoneCrane leaf', () => {
     act(() => root.unmount());
   });
 
+  it('rejects a forced terminal seek and requires both current-generation terminal Canvas draws', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const videos = host.querySelectorAll<HTMLVideoElement>('video');
+    commands.rebind({
+      reports: mount.reports, frameToken: 'crane:terminal:missing',
+      segmentId: 'crane-contact', direction: 'forward'
+    });
+    const invocation = commands.activate({
+      invocationId: 'crane:terminal:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', runToken: 'crane:terminal:run', direction: 'forward'
+    });
+    await Promise.all(invocation.settlements.flatMap((settlement) => (
+      settlement.status === 'pending' ? [settlement.settled] : []
+    )));
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'crane:terminal:run', direction: 'forward', stageIndex: 0
+    });
+    for (const video of videos) video.currentTime = 2.2;
+
+    commands.setMediaPhase?.({
+      phase: 'held', runToken: 'crane:terminal:run', direction: 'forward',
+      stageIndex: 0, endpoint: 1
+    });
+
+    expect([...videos].map((video) => video.currentTime)).toEqual([2.2, 2.2]);
+    expect(mount.reports.reportFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'crane-terminal-frame-missing', recoverable: true
+    }));
+    act(() => root.unmount());
+  });
+
+  it('accepts Contact completion only after both terminal frames draw in the active generation', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const videos = host.querySelectorAll<HTMLVideoElement>('video');
+    const canvases = host.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]');
+    commands.rebind({
+      reports: mount.reports, frameToken: 'crane:terminal:ready',
+      segmentId: 'crane-contact', direction: 'forward'
+    });
+    const invocation = commands.activate({
+      invocationId: 'crane:terminal:ready:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', runToken: 'crane:terminal:ready:run', direction: 'forward'
+    });
+    await Promise.all(invocation.settlements.flatMap((settlement) => (
+      settlement.status === 'pending' ? [settlement.settled] : []
+    )));
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'crane:terminal:ready:run',
+      direction: 'forward', stageIndex: 0
+    });
+    for (const [index, video] of [...videos].entries()) {
+      video.currentTime = CRANE_VIDEO_END_SECONDS;
+      canvases[index]!.dataset.packedAlphaGeneration = '1';
+      canvases[index]!.dataset.packedAlphaMediaTime = CRANE_VIDEO_END_SECONDS.toFixed(4);
+      (packedProbe.options[index]?.onFrame as ((frame: {
+        canvas: HTMLCanvasElement; generation: number;
+      }) => void))({ canvas: canvases[index]!, generation: 1 });
+    }
+    mount.reports.reportFailure.mockClear();
+
+    commands.setMediaPhase?.({
+      phase: 'held', runToken: 'crane:terminal:ready:run', direction: 'forward',
+      stageIndex: 0, endpoint: 1
+    });
+
+    expect(mount.reports.reportFailure).not.toHaveBeenCalled();
+    expect([...videos].map((video) => video.currentTime)).toEqual([
+      CRANE_VIDEO_END_SECONDS, CRANE_VIDEO_END_SECONDS
+    ]);
+    act(() => root.unmount());
+  });
+
   it('holds the endpoint supplied by runtime for reverse stable commits', async () => {
     const host = document.createElement('div');
     const root = createRoot(host);

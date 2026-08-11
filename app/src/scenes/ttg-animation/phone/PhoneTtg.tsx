@@ -329,11 +329,23 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
         return { invocationId: command.invocationId, surfaceIds: command.surfaceIds,
           invoked: false, settlements: [] };
       }
-      const generation = ++preparationGenerationRef.current;
       const direction = command.direction === 'reverse' ? -1 : 1;
       directionRef.current = direction;
       const runToken = command.runToken ?? command.invocationId; mediaRunTokenRef.current = runToken;
       mediaClockActiveRef.current = false;
+      const endpoint = progressRef.current <= .001 ? 0
+        : progressRef.current >= .999 ? 1 : settledEndpointRef.current;
+      if (phoneTtgHasReusableEndpointFrame(video, endpoint)) {
+        pausedRef.current = false;
+        reportEndpointFrame(endpoint, binding);
+        return {
+          invocationId: command.invocationId,
+          surfaceIds: expected,
+          invoked: true,
+          settlements: [{ surfaceId: expected[0]!, status: 'fulfilled' }]
+        };
+      }
+      const generation = ++preparationGenerationRef.current;
       const settled = primePhoneNativeVideo(video, {
         isCurrent: () => !disposedRef.current
           && generation === preparationGenerationRef.current

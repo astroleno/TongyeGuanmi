@@ -154,7 +154,23 @@ export function PhonePh({ reports }: PhonePhProps) {
       mediaRunTokenRef.current = runToken;
       mediaPhaseRef.current = 'primed';
       const binding = bindingRef.current;
-    const generation = activateSurface('initial');
+      const endpoint = progressRef.current <= .001 ? 0
+        : progressRef.current >= .999 ? 1 : null;
+      const canvas = canvasRef.current;
+      if (endpoint !== null
+        && Number(canvas?.dataset.packedAlphaGeneration) === surfaceGenerationRef.current
+        && Number(canvas?.dataset.packedAlphaMediaTime) >= (endpoint ? PH_FIGURE_END_SECONDS - .08 : 0)
+        && Number(canvas?.dataset.packedAlphaMediaTime) <= (endpoint ? Infinity : .04)) {
+        surfaceRef.current?.setMode?.(endpoint === 0 ? 'initial' : 'endpoint');
+        rootRef.current?.setAttribute('data-phone-ph-media', 'ready');
+        return {
+          invocationId: command.invocationId,
+          surfaceIds: expected,
+          invoked: true,
+          settlements: [{ surfaceId: expected[0]!, status: 'fulfilled' }]
+        };
+      }
+      const generation = activateSurface('initial');
       video.pause();
       try { video.currentTime = 0; } catch {
         // The initial compositor callback will arrive after loadeddata.

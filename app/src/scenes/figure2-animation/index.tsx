@@ -449,6 +449,7 @@ export function renderFigure2AnimationProgress(
   if (retainedArch?.dataset.figure2ArchMotion !== 'fixed') {
     retainedArch?.style.setProperty('--r4-figure2-near-arch-scale', nearArchScale.toFixed(4));
     retainedArch?.style.setProperty('--r4-figure2-near-arch-blur', `${nearArchBlur.toFixed(2)}px`);
+    retainedArch?.style.setProperty('--r4-figure2-near-arch-brightness', '.76');
   }
   root?.style.setProperty('--r4-figure2-figure-y', `${figureY.toFixed(2)}px`);
   root?.style.setProperty('--r4-figure2-figure-scale', figureScale.toFixed(4));

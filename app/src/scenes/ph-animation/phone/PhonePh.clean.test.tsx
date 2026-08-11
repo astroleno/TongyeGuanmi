@@ -13,6 +13,7 @@ const surfaceProbe = vi.hoisted(() => ({
   options: null as null | Record<string, unknown>,
   generation: 0,
   activate: vi.fn(() => ++surfaceProbe.generation),
+  setMode: vi.fn(),
   probe: vi.fn(() => false),
   render: vi.fn(() => true),
   release: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
     surfaceProbe.options = options;
     return {
       activate: surfaceProbe.activate,
+      setMode: surfaceProbe.setMode,
       probe: surfaceProbe.probe,
       render: surfaceProbe.render,
       release: surfaceProbe.release,
@@ -51,6 +53,7 @@ describe('clean PhonePh leaf', () => {
     surfaceProbe.options = null;
     surfaceProbe.generation = 0;
     surfaceProbe.activate.mockClear();
+    surfaceProbe.setMode.mockClear();
     surfaceProbe.probe.mockClear();
     surfaceProbe.render.mockClear();
     surfaceProbe.release.mockClear();
@@ -97,6 +100,8 @@ describe('clean PhonePh leaf', () => {
     const canvas = host.querySelector<HTMLCanvasElement>(
       '[data-phone-packed-alpha-canvas="ph-figure"]'
     )!;
+    canvas.dataset.packedAlphaGeneration = '1';
+    canvas.dataset.packedAlphaMediaTime = '0.0000';
     (surfaceProbe.options?.onFrame as ((frame: {
       canvas: HTMLCanvasElement; generation: number;
     }) => void))({ canvas, generation: 1 });
@@ -106,6 +111,7 @@ describe('clean PhonePh leaf', () => {
     );
 
     commands.rebind({ reports: mount.reports, frameToken: 'ph:frame:2' });
+    commands.render(.5);
     commands.activate({
       invocationId: 'ph:activate:2',
       surfaceIds: ['ph-figure-video'],
@@ -243,6 +249,8 @@ describe('clean PhonePh leaf', () => {
     const canvas = host.querySelector<HTMLCanvasElement>(
       '[data-phone-packed-alpha-canvas="ph-figure"]'
     )!;
+    canvas.dataset.packedAlphaGeneration = '1';
+    canvas.dataset.packedAlphaMediaTime = '0.0000';
     (surfaceProbe.options?.onFrame as ((frame: {
       canvas: HTMLCanvasElement; generation: number;
     }) => void))({ canvas, generation: 1 });
@@ -253,6 +261,58 @@ describe('clean PhonePh leaf', () => {
     commands.dispose('closure-retired');
     expect(surfaceProbe.dispose).toHaveBeenCalledTimes(1);
     expect(surfaceProbe.dispose).toHaveBeenCalledWith('terminal');
+    act(() => root.unmount());
+  });
+
+  it('reuses the verified initial Canvas generation from stable hold into outgoing playback', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:stable:initial' });
+    const incoming = commands.activate({
+      invocationId: 'ph:stable:activation', surfaceIds: ['ph-figure-video'],
+      credit: 'direct-muted-autoplay', runToken: 'ph:stable', direction: 'forward'
+    });
+    await Promise.all(incoming.settlements.flatMap((settlement) => (
+      settlement.status === 'pending' ? [settlement.settled] : []
+    )));
+    const canvas = host.querySelector<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas="ph-figure"]'
+    )!;
+    canvas.dataset.packedAlphaGeneration = '1';
+    canvas.dataset.packedAlphaMediaTime = '0.0000';
+    (surfaceProbe.options?.onFrame as ((frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void))({ canvas, generation: 1 });
+    commands.settle(0);
+
+    surfaceProbe.activate.mockClear();
+    surfaceProbe.setMode.mockClear();
+    play.mockClear();
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:outgoing:retained' });
+    const outgoing = commands.activate({
+      invocationId: 'ph:outgoing:retained', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', runToken: 'ph:outgoing:retained',
+      direction: 'forward', playback: true
+    });
+
+    expect(outgoing.invoked).toBe(true);
+    expect(outgoing.settlements).toEqual([
+      { surfaceId: 'ph-figure-video', status: 'fulfilled' }
+    ]);
+    expect(surfaceProbe.activate).not.toHaveBeenCalled();
+    expect(surfaceProbe.setMode).toHaveBeenCalledWith('initial');
+    expect(play).not.toHaveBeenCalled();
+
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'ph:outgoing:retained',
+      direction: 'forward', stageIndex: 0
+    });
+    expect(surfaceProbe.setMode).toHaveBeenLastCalledWith('forward');
+    expect(play).toHaveBeenCalledOnce();
     act(() => root.unmount());
   });
 

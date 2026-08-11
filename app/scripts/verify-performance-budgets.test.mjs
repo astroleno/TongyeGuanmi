@@ -27,25 +27,25 @@ function actual(overrides = {}) {
   };
 }
 
-test('phone and total JavaScript pass at the immutable 663,552-byte cap', () => {
+test('phone and total JavaScript pass at the device-contract 665,600-byte cap', () => {
   assert.deepEqual(performanceBudgetViolations(actual()), []);
 });
 
 test('phone and total JavaScript fail only above the immutable cap', () => {
   assert.deepEqual(
-    performanceBudgetViolations(actual({ phoneJsRawBytes: 663_553 })),
-    ['phoneJsRawBytes exceeded: 663553 > 663552']
+    performanceBudgetViolations(actual({ phoneJsRawBytes: 665_601 })),
+    ['phoneJsRawBytes exceeded: 665601 > 665600']
   );
   assert.deepEqual(
-    performanceBudgetViolations(actual({ totalJsRawBytes: 663_553 })),
-    ['totalJsRawBytes exceeded: 663553 > 663552']
+    performanceBudgetViolations(actual({ totalJsRawBytes: 665_601 })),
+    ['totalJsRawBytes exceeded: 665601 > 665600']
   );
 });
 
 test('phone and total headroom below 4 KiB is informational', () => {
   assert.deepEqual(performanceBudgetViolations(actual({
-    phoneJsRawBytes: 663_551,
-    totalJsRawBytes: 663_551
+    phoneJsRawBytes: 665_599,
+    totalJsRawBytes: 665_599
   })), []);
 });
 

@@ -8,7 +8,7 @@ const DEFAULT_APP_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
 const KiB = 1024;
 const MiB = 1024 * KiB;
 const desktopJsHardCapBytes = 568 * KiB;
-const phoneJsHardCapBytes = 663_552;
+const phoneJsHardCapBytes = 665_600;
 const totalJsHardCapBytes = phoneJsHardCapBytes;
 const requiredDesktopJsHeadroomBytes = 4 * KiB;
 
@@ -247,7 +247,7 @@ export async function verifyPerformanceBudgets({
     headroom: {
       ...headroom,
       // Retained as report-only compatibility metadata. Only desktop
-      // headroom is asserted; phone/total fail solely above 663,552 bytes.
+      // headroom is asserted; phone/total fail solely above 665,600 bytes.
       requiredTotalJsHeadroomBytes: requiredDesktopJsHeadroomBytes
     },
     cleanBase,

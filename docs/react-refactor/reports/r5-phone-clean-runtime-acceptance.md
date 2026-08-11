@@ -1,19 +1,19 @@
 # R5 Phone Clean Runtime — Task 13 acceptance
 
 - Date: 2026-08-11
-- Status: **GO for physical-device testing on immutable candidate v31**
-- Current claim: **automated acceptance complete; physical iPhone acceptance
-  and memory qualification pending; not `Release-complete`**
+- Status: **NO-GO — v31 invalidated by device-contract regressions**
+- Current claim: **implementation and automated acceptance are being repaired;
+  no artifact is currently authorized for formal physical-device acceptance**
 - Report branch: `codex/r5-phone-clean-runtime-convergence`
 - Candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime`
 - Candidate artifact: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime/dist/`
 
-## Current authoritative candidate identity
+## Invalidated v31 identity
 
-The following identity supersedes every older candidate, candidate-null, and
-NO-GO identity statement retained later in this report as historical evidence.
-Physical-device testing must use this exact v31 artifact; rebuilding or changing
-production code creates a different candidate.
+The following identity is retained only so prior evidence remains traceable.
+Correctness review on 2026-08-11 found an incorrect stable-Hero media contract,
+mid-gesture native-scroll takeover, retained-media generation gaps, and other
+device-visible regressions. Therefore v31 must not be used for formal acceptance.
 
 | Item | Value |
 | --- | --- |
@@ -33,7 +33,7 @@ or differently rebuilt copy must not replace the local manifest-bound artifact.
 A later docs-only ledger commit may move branch HEAD, but it does not replace
 the v31 source commit, tag, manifest, or already-built `dist/` acceptance artifact.
 
-## Current automated acceptance evidence
+## Superseded v31 automated evidence
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
@@ -54,15 +54,19 @@ failed tests. The complete 108-test console transcript was observed during the
 acceptance run but was not emitted as a standalone JSON/JUnit artifact; this is
 an evidence-retention gap, not a device-test blocker.
 
-## Physical iPhone acceptance gate
+## New candidate gate
 
-Physical acceptance remains pending for real touch traversal, normal and Low
+Physical acceptance is blocked until the listed regressions are repaired and a
+new immutable candidate passes the automated gates. The replacement gate uses
+an explicit 650 KiB (665,600 B) phone/total raw-JS cap—2 KiB above v31's cap—to
+carry the current-generation Canvas and retained-media contracts; all other
+performance budgets remain unchanged. The eventual device run covers real touch traversal, normal and Low
 Power Mode, toolbar changes, background/BFCache recovery, autoplay restrictions,
 AOD → Method, Figure2 arch/ghosting, Brand ↔ Figure3, TTG/PH/Crane playback,
 A/B flash, viewport rebound, and compositor continuity. Figure3 sharpness must
 be judged against the existing 1280×720 animation source.
 
-The candidate is **GO for device testing**, but not for release signing:
+There is currently **no GO candidate**:
 
 - memory qualification remains `pending-memory`;
 - physical iPhone Safari evidence is not yet recorded;

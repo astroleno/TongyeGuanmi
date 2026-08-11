@@ -191,7 +191,7 @@ describe('clean PhoneHero leaf', () => {
     expect(Number(copy.style.opacity)).toBe(1);
   });
 
-  it('starts stable-idle Figure1 for a freshly mounted reverse Hero-pattern arrival', async () => {
+  it('keeps Figure1 static for a freshly mounted reverse Hero-pattern arrival', async () => {
     const fixture = reportFixture();
     await act(async () => {
       root.render(<PhoneHero reports={fixture.reports} />);
@@ -213,8 +213,8 @@ describe('clean PhoneHero leaf', () => {
     });
 
     expect(scene.dataset.portraitHeroEntrance).toBe('complete');
-    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledOnce();
+    expect(video.dataset.phoneFigurePlayback).not.toBe('autoplay');
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
 
     commands.setMediaPhase?.({
       phase: 'primed', runToken: 'hero:pattern:reverse:1', direction: 'reverse', stageIndex: 0
@@ -223,10 +223,10 @@ describe('clean PhoneHero leaf', () => {
       phase: 'held', runToken: 'hero:pattern:reverse:1', direction: 'reverse', stageIndex: 0,
       endpoint: 0
     });
-    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
+    expect(video.dataset.phoneFigurePlayback).not.toBe('autoplay');
   });
 
-  it('starts the authored Figure1 ambient clock after the visible Hero entrance settles', async () => {
+  it('keeps the authored Figure1 clock static after the visible Hero entrance settles', async () => {
     const fixture = reportFixture();
     await act(async () => {
       root.render(<PhoneHero reports={fixture.reports} />);
@@ -241,8 +241,8 @@ describe('clean PhoneHero leaf', () => {
       commands[PHONE_HERO_MIGRATION_CONTROL].completeEntrance();
     });
 
-    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
-    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+    expect(video.dataset.phoneFigurePlayback).not.toBe('autoplay');
   });
 
   it('activates the visible Figure1 compositor when the cold Hero entrance settles', async () => {
@@ -266,7 +266,7 @@ describe('clean PhoneHero leaf', () => {
       ?.getAttribute('data-portrait-figure-frame')).toBe('ready');
   });
 
-  it('restarts stable-idle Figure1 playback when a completed Hero returns from lifecycle pause', async () => {
+  it('keeps Figure1 static when a completed Hero returns from lifecycle pause', async () => {
     const fixture = reportFixture();
     await act(async () => {
       root.render(<PhoneHero reports={fixture.reports} />);
@@ -281,7 +281,7 @@ describe('clean PhoneHero leaf', () => {
       commands.settle(1);
       commands[PHONE_HERO_MIGRATION_CONTROL].completeEntrance();
     });
-    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
+    expect(video.dataset.phoneFigurePlayback).not.toBe('autoplay');
 
     commands.pause('hidden');
     play.mockClear();
@@ -289,8 +289,8 @@ describe('clean PhoneHero leaf', () => {
       commands.settle(0);
     });
 
-    expect(play).toHaveBeenCalledOnce();
-    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
+    expect(play).not.toHaveBeenCalled();
+    expect(video.dataset.phoneFigurePlayback).not.toBe('autoplay');
   });
 
   it('completes a running Hero entrance when lifecycle recovery interrupts it', async () => {
@@ -313,7 +313,8 @@ describe('clean PhoneHero leaf', () => {
     });
 
     expect(scene.dataset.portraitHeroEntrance).toBe('complete');
-    expect(video.dataset.phoneFigurePlayback).toBe('autoplay');
+    expect(video.dataset.phoneFigurePlayback).not.toBe('autoplay');
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
   });
 
   it('keeps the migration leaf free of legacy authority and adopts the reviewed subtitle font', () => {

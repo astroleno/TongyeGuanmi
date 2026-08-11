@@ -262,6 +262,18 @@ async function nextAnimationFrame(page: import('@playwright/test').Page): Promis
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
 
+async function expectLeafFallbacksVisuallyHidden(
+  page: import('@playwright/test').Page
+): Promise<void> {
+  const covers = page.locator('[data-phone-leaf-cover]');
+  expect(await covers.evaluateAll((nodes) => nodes.every((node) => {
+    const style = getComputedStyle(node);
+    return style.position === 'absolute'
+      && style.width === '1px' && style.height === '1px'
+      && style.overflow === 'hidden';
+  }))).toBe(true);
+}
+
 async function scrollNativeReadingToBottom(
   page: import('@playwright/test').Page
 ): Promise<number> {
@@ -1956,6 +1968,35 @@ test('Method keeps its native corridor through toolbar geometry before Figure2 h
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
 });
 
+test('Method native touch ownership never transfers midway through one gesture', async ({ page }) => {
+  await page.goto('/#method-top', { waitUntil: 'domcontentloaded' });
+  await waitForContinuousStoryReady(page);
+  const result = await page.locator('[data-phone-input-owner="native-document"]')
+    .evaluate((reading) => {
+      const owner = document.scrollingElement ?? document.documentElement;
+      const maximum = Math.max(0, owner.scrollHeight - owner.clientHeight);
+      const dispatch = (type: string, y: number) => {
+        const event = new Event(type, { bubbles: true, cancelable: true }) as TouchEvent;
+        const point = { identifier: 7, clientY: y };
+        Object.defineProperty(event, type === 'touchend' ? 'changedTouches' : 'touches', {
+          value: [point]
+        });
+        reading.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+      owner.scrollTop = Math.max(0, maximum - 40);
+      dispatch('touchstart', 600);
+      owner.scrollTop = maximum;
+      const midway = dispatch('touchmove', 500);
+      dispatch('touchend', 500);
+      dispatch('touchstart', 600);
+      const nextGesture = dispatch('touchmove', 500);
+      dispatch('touchend', 500);
+      return { midway, nextGesture };
+    });
+  expect(result).toEqual({ midway: false, nextGesture: true });
+});
+
 });
 
 test('Hero Loader handoff starts at zero under one fixed opaque topology', async ({ page }) => {
@@ -2020,7 +2061,7 @@ test('Hero Loader handoff starts at zero under one fixed opaque topology', async
   await assertTargetContentVisible(page, ['#portrait-spike-home']);
   const stableHeroPlayback = page.locator('[data-portrait-figure-video]');
   await expect(stableHeroPlayback).toHaveAttribute(
-    'data-phone-figure-playback', 'autoplay', { timeout: 10_000 }
+    'data-phone-figure-playback', 'scrub-ready', { timeout: 10_000 }
   );
   const heroTimeBefore = await stableHeroPlayback.evaluate((video) => video.currentTime);
   const visibleHeroBefore = await page.locator('[data-portrait-figure-canvas]').evaluate((canvas) => ({
@@ -2031,12 +2072,12 @@ test('Hero Loader handoff starts at zero under one fixed opaque topology', async
   const visibleHeroAfter = await page.locator('[data-portrait-figure-canvas]').evaluate((canvas) => ({
     mediaTime: Number(canvas.dataset.packedAlphaMediaTime)
   }));
-  expect(heroTimeAfter).toBeGreaterThan(heroTimeBefore);
-  expect(visibleHeroAfter.mediaTime).toBeGreaterThan(visibleHeroBefore.mediaTime);
+  expect(Math.abs(heroTimeAfter - heroTimeBefore)).toBeLessThan(.02);
+  expect(Math.abs(visibleHeroAfter.mediaTime - visibleHeroBefore.mediaTime)).toBeLessThan(.02);
   await assertNoWhiteOrTransparentViewportEdges(page);
 });
 
-test('stable Hero resumes Figure1 after visibility and BFCache lifecycle recovery', async ({
+test('stable Hero keeps Figure1 static after visibility and BFCache lifecycle recovery', async ({
   page
 }) => {
   await page.addInitScript(() => {
@@ -2056,7 +2097,7 @@ test('stable Hero resumes Figure1 after visibility and BFCache lifecycle recover
   await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await waitForContinuousStoryReady(page);
   const playback = page.locator('[data-portrait-figure-video]');
-  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'autoplay', {
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'scrub-ready', {
     timeout: 10_000
   });
 
@@ -2079,12 +2120,12 @@ test('stable Hero resumes Figure1 after visibility and BFCache lifecycle recover
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     api.__r5SetVisibility('visible');
   });
-  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'autoplay', {
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'scrub-ready', {
     timeout: 10_000
   });
   await page.waitForTimeout(400);
   const after = await playback.evaluate((video) => video.currentTime);
-  expect(after).toBeGreaterThan(before);
+  expect(Math.abs(after - before)).toBeLessThan(.02);
 });
 
 test('Hero lifecycle recovery completes an in-flight entrance without replaying Loader', async ({
@@ -2143,7 +2184,7 @@ test('Hero lifecycle recovery completes an in-flight entrance without replaying 
     api.__r5SetVisibility('visible');
   });
   await expect(hero).toHaveAttribute('data-hero-progress', '1.0000', { timeout: 10_000 });
-  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'autoplay', {
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'scrub-ready', {
     timeout: 10_000
   });
   await expect(page.locator('[data-story-loader="true"]')).toHaveAttribute(
@@ -2151,7 +2192,7 @@ test('Hero lifecycle recovery completes an in-flight entrance without replaying 
   );
 });
 
-test('Hero to Pattern and back restores Figure1 without replaying Loader entrance', async ({
+test('Hero to Pattern and back restores the static Figure1 hold without replaying Loader entrance', async ({
   page
 }) => {
   await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
@@ -2164,13 +2205,13 @@ test('Hero to Pattern and back restores Figure1 without replaying Loader entranc
 
   const playback = page.locator('[data-portrait-figure-video]');
   await expect(loader).toHaveAttribute('data-loader-status', 'hidden');
-  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'autoplay', {
+  await expect(playback).toHaveAttribute('data-phone-figure-playback', 'scrub-ready', {
     timeout: 10_000
   });
   const before = await playback.evaluate((video) => video.currentTime);
   await page.waitForTimeout(400);
   const after = await playback.evaluate((video) => video.currentTime);
-  expect(after).toBeGreaterThan(before);
+  expect(Math.abs(after - before)).toBeLessThan(.02);
 });
 
 test('formal contract keeps every real viewport edge opaque', async ({ page }) => {
@@ -2828,6 +2869,16 @@ test('Grade A chain commits each hold once and preserves both-direction endpoint
   await waitForCommitSequence(page, 'method-top', 0);
   await traverseGradeA(page, 'method-top', 'figure2-animation', 'forward');
   await traverseGradeA(page, 'figure2-animation', 'figure2-proof', 'forward');
+  const proofArch = await page.locator('[data-stage-retained-figure2-arch="true"]')
+    .evaluate((arch) => {
+      const style = getComputedStyle(arch);
+      return {
+        blur: style.getPropertyValue('--r4-figure2-near-arch-blur').trim(),
+        scale: style.getPropertyValue('--r4-figure2-near-arch-scale').trim(),
+        brightness: style.getPropertyValue('--r4-figure2-near-arch-brightness').trim()
+      };
+    });
+  expect(proofArch).toEqual({ blur: '3.6px', scale: '1.135', brightness: '.76' });
   await traverseGradeA(page, 'figure2-proof', 'brand', 'forward');
   await traverseGradeA(page, 'brand', 'figure2-proof', 'reverse');
   await traverseGradeA(page, 'figure2-proof', 'figure2-animation', 'reverse');
@@ -3185,6 +3236,9 @@ test('incoming media stays parked at frame zero for PH and both Crane layers', a
 test('PH authored playback advances only during PH to Education', async ({ page }) => {
   await page.goto('/#ph-animation', { waitUntil: 'domcontentloaded' });
   const before = await waitForDirectEntryCommit(page, 'ph-animation');
+  const retainedGeneration = Number(await page
+    .locator('[data-phone-packed-alpha-canvas="ph-figure"]')
+    .getAttribute('data-packed-alpha-generation'));
   const stop = await recordPhoneStoryFrames(page);
   await nextAnimationFrame(page);
   await sendFrontIntent(page, 'forward');
@@ -3201,6 +3255,13 @@ test('PH authored playback advances only during PH to Education', async ({ page 
   expect(video.at(-1)!.currentTime - video[0]!.currentTime).toBeGreaterThan(.15);
   expect(canvas.length).toBeGreaterThan(3);
   expect(canvas.at(-1)!.mediaTime - canvas[0]!.mediaTime).toBeGreaterThan(.15);
+  const outgoingGenerations = new Set(samples.flatMap((sample) => (
+    outgoing(sample)
+      ? sample.canvases.filter(({ surfaceId }) => surfaceId === 'ph-figure-canvas')
+        .flatMap(({ generation }) => generation === null ? [] : [generation])
+      : []
+  )));
+  expect([...outgoingGenerations]).toEqual([retainedGeneration]);
 });
 
 test('Crane authored playback advances both videos only during Crane to Contact', async ({ page }) => {
@@ -3229,6 +3290,8 @@ test('Crane authored playback advances both videos only during Crane to Contact'
     expect(Math.max(...trace.map(({ mediaTime }) => mediaTime))
       - Math.min(...trace.map(({ mediaTime }) => mediaTime)), surfaceId)
       .toBeGreaterThan(.15);
+    expect(Math.max(...trace.map(({ mediaTime }) => mediaTime)), `${surfaceId} terminal`)
+      .toBeGreaterThanOrEqual(2.467 - .08);
   }
 });
 
@@ -3293,6 +3356,7 @@ test('Group 4-5 keeps Services proved while the TTG leaf chunk is delayed', asyn
     await requested;
     await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'transaction');
     expect(await readCommitSequence(page)).toBe(before);
+    await expectLeafFallbacksVisuallyHidden(page);
     await assertTargetContentVisible(page, GROUP45_CONTENT.services);
     releaseChunk();
     await completeGroup45Attempt(page, 'services', 'ttg-animation', 'forward', before);
@@ -3451,6 +3515,7 @@ test('PH slice keeps Lab proved while the PH leaf chunk is delayed', async ({ pa
     await sendFrontIntent(page, 'forward');
     await requested;
     expect(await readCommitSequence(page)).toBe(before);
+    await expectLeafFallbacksVisuallyHidden(page);
     await assertTargetContentVisible(page, PH_SLICE_CONTENT.lab);
     releaseChunk();
     await completePhSliceAttempt(page, 'lab', 'ph-animation', 'forward', before);

@@ -1357,3 +1357,25 @@ its 1280×720 source limit. Memory qualification remains `pending-memory`.
 Because phone JavaScript has only 203 B of hard-cap headroom, any production or
 build-input change invalidates this candidate and requires a new build, budget
 check, manifest, and candidate tag.
+
+## 18. 2026-08-11 v31 invalidation and device-contract repair
+
+Section 17 is historical evidence only. v31 is **NO-GO** after correctness
+review confirmed that its automated suite encoded or omitted several physical
+device contracts: stable Hero must remain static, native-reading gesture
+ownership cannot transfer mid-touch, fallback status text must be visually
+silent, the retained Figure2 arch must restate its Proof endpoint, PH/TTG must
+retain their verified presentation generation, and Crane completion must be
+proved by a current-generation terminal frame rather than a forced seek.
+
+No physical-device acceptance artifact is currently authorized. A replacement
+candidate requires the implementation fixes, focused physical-frame tests,
+full automated gates, a clean source commit, a new tag, and a matching release
+manifest.
+
+The repair adds current-generation Canvas terminal proof and retained-media
+continuity that cannot fit inside v31's 203-byte margin. The phone/total raw-JS
+hard cap is therefore explicitly revised once from 648 KiB (663,552 B) to
+650 KiB (665,600 B); media, initial-load, lazy-leaf, and desktop budgets remain
+unchanged. This is a reviewed gate change, not a budget bypass: the replacement
+candidate must still pass the new exact cap and record its remaining headroom.

@@ -172,7 +172,7 @@ class PhoneTransitionFailureBoundary extends Component<
 
 function PhoneTransitionCover() {
   return (
-    <div data-phone-leaf-cover="transition" role="status" aria-live="polite">
+    <div className="r4-visually-hidden" data-phone-leaf-cover="transition" role="status" aria-live="polite">
       正在保持已验证画面
     </div>
   );

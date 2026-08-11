@@ -2738,6 +2738,45 @@ describe('phone runtime effects, media activation, and disposal', () => {
       surfaceIds: ['crane-figure-video', 'crane-flock-video']
     }));
     expect(commands.activate).toHaveBeenCalledTimes(2);
+    expect(commands.pause).not.toHaveBeenCalledWith('superseded');
+    disconnect();
+  });
+
+  it('rolls Crane back when its retained source misses the physical terminal frame', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#crane-animation');
+    const disconnect = runtime.connect();
+    const source = commandFixture();
+    registerCurrentLeaf(runtime, source.commands);
+    proveCurrent(runtime, fixture);
+
+    vi.mocked(source.commands.setMediaPhase!).mockImplementation((command) => {
+      if (command.phase !== 'held' || command.endpoint !== 1) return;
+      source.rebindings.at(-1)?.reports.reportFailure({
+        code: 'crane-terminal-frame-missing',
+        message: 'terminal frame missing',
+        recoverable: true
+      });
+    });
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      target: 'story', trusted: true
+    });
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    reachPlaying(runtime, fixture);
+    const started = currentTransaction(runtime);
+    fixture.send({ type: 'transition-progressed', attempt: started.attempt, progress: 1 });
+    const playing = currentTransaction(runtime);
+
+    fixture.send({ type: 'transition-completed', attempt: playing.attempt });
+
+    expect(source.commands.setMediaPhase).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'held', endpoint: 1
+    }));
+    expect(currentTransaction(runtime)).toMatchObject({
+      mode: 'rollback', candidateSceneId: 'crane-animation'
+    });
     disconnect();
   });
 

@@ -5,7 +5,7 @@ import {
   HERO_PATTERN_INK_MS, HERO_PATTERN_MOTION_MS, HERO_PATTERN_TOTAL_MS,
   INTRA_CHAPTER_DISSOLVE_MS, PATTERN_COLLAPSE_MS, PATTERN_COLLAPSE_STOP,
   PATTERN_STAR_MAP_INK_MS, PATTERN_TOTAL_MS, PH_PLAYBACK_MS,
-  TERMINAL_DWELL_MS, TTG_PLAYBACK_MS
+  PHONE_CRANE_CONTACT_DURATION_MS, TERMINAL_DWELL_MS, TTG_PLAYBACK_MS
 } from '../../story/timings';
 import type { SegmentPolicy } from '../../story/types';
 import {
@@ -160,8 +160,7 @@ function choreography(
 const heroMotionStop = HERO_PATTERN_MOTION_MS / HERO_PATTERN_TOTAL_MS;
 const ttgPlaybackStop = TTG_PLAYBACK_MS
   / (TTG_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS);
-const phPlaybackStop = PH_PLAYBACK_MS
-  / (PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS);
+const phPlaybackStop = PH_PLAYBACK_MS / (PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS); const cranePlaybackStop = CRANE_CONTACT_DURATION_MS / PHONE_CRANE_CONTACT_DURATION_MS;
 
 export const phoneSegmentChoreography = Object.freeze({
   'hero-pattern': choreography(
@@ -202,8 +201,9 @@ export const phoneSegmentChoreography = Object.freeze({
   ),
   'education-crane': choreography(1, 0, 'linear', 'target', 'none'),
   'crane-contact': choreography(
-    'linear', ['range', .8, 1], 'linear', 'source', 'source',
-    ['fade', .999, 1], ['step', .8]
+    ['range', 0, cranePlaybackStop], ['range', .8 * cranePlaybackStop, cranePlaybackStop],
+    ['range', 0, cranePlaybackStop], 'source', 'source', ['fade', .999 * cranePlaybackStop,
+      cranePlaybackStop], ['step', .8 * cranePlaybackStop]
   )
 } satisfies Readonly<Record<PhoneSegmentId, PhoneSegmentChoreography>>);
 
@@ -302,7 +302,7 @@ const canonicalTimingValues = {
   HERO_PATTERN_INK_MS, HERO_PATTERN_MOTION_MS, HERO_PATTERN_TOTAL_MS,
   INTRA_CHAPTER_DISSOLVE_MS, PATTERN_COLLAPSE_MS, PATTERN_COLLAPSE_STOP,
   PATTERN_STAR_MAP_INK_MS, PATTERN_TOTAL_MS, PH_PLAYBACK_MS,
-  TERMINAL_DWELL_MS, TTG_PLAYBACK_MS
+  PHONE_CRANE_CONTACT_DURATION_MS, TERMINAL_DWELL_MS, TTG_PLAYBACK_MS
 } as const;
 
 const deadlineProfiles: Readonly<Record<PhoneDeadlineProfileId, PhoneDeadlinePolicy>> = {
@@ -500,7 +500,7 @@ const namedTimingExports: Readonly<Record<PhoneSegmentId, readonly PhoneTimingEx
   'lab-ph': [],
   'ph-education': ['PH_PLAYBACK_MS', 'INTRA_CHAPTER_DISSOLVE_MS', 'TERMINAL_DWELL_MS'],
   'education-crane': [],
-  'crane-contact': ['CRANE_CONTACT_DURATION_MS']
+  'crane-contact': ['CRANE_CONTACT_DURATION_MS', 'PHONE_CRANE_CONTACT_DURATION_MS']
 };
 
 function timingReference(id: PhoneSegmentId): PhoneTimingReference {
@@ -512,7 +512,8 @@ function timingReference(id: PhoneSegmentId): PhoneTimingReference {
   }
   return {
     manifestSegmentId: id, policy: canonical.policy,
-    virtualDuration: canonical.virtualDuration,
+    virtualDuration: id === 'crane-contact'
+      ? PHONE_CRANE_CONTACT_DURATION_MS : canonical.virtualDuration,
     namedExports: namedTimingExports[id]
   };
 }

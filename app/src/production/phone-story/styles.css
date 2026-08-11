@@ -61,6 +61,17 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   z-index: 72;
 }
 
+/* A stable Proof commit always owns the authored Figure2 terminal endpoint.
+ * Stable-state CSS wins over stale inline transition values after commit,
+ * viewport recovery, or BFCache restoration; transaction state removes the
+ * override so the retained arch remains free to animate in either direction. */
+.phone-story[data-phone-status="stable"][data-phone-scene="figure2-proof"]
+  [data-stage-retained-figure2-arch="true"] {
+  --r4-figure2-near-arch-blur: 3.60px !important;
+  --r4-figure2-near-arch-scale: 1.1350 !important;
+  --r4-figure2-near-arch-brightness: .76 !important;
+}
+
 /* A target arch is mounted before the receiver is allowed to paint. Keep it
  * out of the compositor until the same live transition boundary admits the
  * receiver, otherwise the retained foreground can preflash over preparation. */

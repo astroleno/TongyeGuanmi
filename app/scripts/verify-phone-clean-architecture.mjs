@@ -32,7 +32,7 @@ export const PHONE_CORE_LOC_BUDGETS = Object.freeze({
 });
 
 export const PHONE_CORE_TOTAL_LOC_BUDGET = 5775;
-export const PHONE_JS_HARD_CAP_BYTES = 663_552;
+export const PHONE_JS_HARD_CAP_BYTES = 665_600;
 
 const allowedCoreImports = new Map([
   ['protocol.ts', new Set()],

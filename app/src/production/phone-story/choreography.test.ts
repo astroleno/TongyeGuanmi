@@ -223,6 +223,18 @@ describe('phone segment choreography', () => {
     });
   });
 
+  it('holds the authored Crane terminal frame during a bounded 400ms completion tail', () => {
+    const authoredStop = 3000 / 3400;
+    expect(phoneSegmentChoreographyFrame('crane-contact', authoredStop)).toMatchObject({
+      sourceProgress: 1,
+      effectProgress: 1
+    });
+    expect(phoneSegmentChoreographyFrame('crane-contact', .95)).toMatchObject({
+      sourceProgress: 1,
+      effectProgress: 1
+    });
+  });
+
   it('preserves the Figure3 to Services media, copy, and paper channels', () => {
     for (const progress of [0, 0.8, 0.85, 0.95, 1]) {
       const expected = sampleFigure3ServicesChannels(progress);

@@ -210,6 +210,46 @@ describe('clean PhoneTtg leaf', () => {
     act(() => root.unmount());
   });
 
+  it('reuses a verified stable endpoint without another prime or preparation generation', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneTtg reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: mount.reports, frameToken: 'ttg:stable:initial' });
+    const incoming = commands.activate({
+      invocationId: 'ttg:stable:activation', surfaceIds: ['ttg-figure-video'],
+      credit: 'direct-muted-autoplay', runToken: 'ttg:stable', direction: 'forward'
+    });
+    await Promise.all(incoming.settlements.flatMap((settlement) => (
+      settlement.status === 'pending' ? [settlement.settled] : []
+    )));
+    const video = host.querySelector<HTMLVideoElement>('[data-ttg-figure-video]')!;
+    expect(phoneTtgHasReusableEndpointFrame(video, 0)).toBe(true);
+
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    play.mockClear();
+    probe.prepareFrame.mockClear();
+    commands.rebind({ reports: mount.reports, frameToken: 'ttg:outgoing:retained' });
+    const outgoing = commands.activate({
+      invocationId: 'ttg:outgoing:retained', surfaceIds: ['ttg-figure-video'],
+      credit: 'physical-epoch', runToken: 'ttg:outgoing:retained',
+      direction: 'forward', playback: true
+    });
+
+    expect(outgoing.invoked).toBe(true);
+    expect(outgoing.settlements).toEqual([
+      { surfaceId: 'ttg-figure-video', status: 'fulfilled' }
+    ]);
+    expect(play).not.toHaveBeenCalled();
+    expect(probe.prepareFrame).not.toHaveBeenCalled();
+    expect(phoneTtgHasReusableEndpointFrame(video, 0)).toBe(true);
+    act(() => root.unmount());
+  });
+
   it('rejects a stale activation settlement instead of fulfilling it', async () => {
     let releasePlayback: () => void = () => undefined;
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => (

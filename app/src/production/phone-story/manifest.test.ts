@@ -432,7 +432,7 @@ const timingExportLedger = {
     'TERMINAL_DWELL_MS'
   ],
   'education-crane': [],
-  'crane-contact': ['CRANE_CONTACT_DURATION_MS']
+  'crane-contact': ['CRANE_CONTACT_DURATION_MS', 'PHONE_CRANE_CONTACT_DURATION_MS']
 } as const;
 
 const preparePolicyLedger = {
@@ -665,7 +665,7 @@ function expectedSegment(entry: typeof segments[number]) {
     timing: {
       manifestSegmentId: id,
       policy: canonical.policy,
-      virtualDuration: canonical.virtualDuration,
+      virtualDuration: id === 'crane-contact' ? 3400 : canonical.virtualDuration,
       namedExports: timingExportLedger[id]
     },
     effectPlacement,
@@ -683,6 +683,11 @@ function expectedSegment(entry: typeof segments[number]) {
 }
 
 describe('canonical phone manifest', () => {
+  it('reserves a bounded 400ms phone-only completion tail for Crane media', () => {
+    expect(phoneManifest.segments.find(({ id }) => id === 'crane-contact')?.timing)
+      .toMatchObject({ virtualDuration: 3400 });
+  });
+
   it('deep-compares the independent Appendix E ledger for 16 entries and 30 legs', () => {
     expect(phoneManifestFetchDeadlineMs).toBe(3000);
     expect(PHONE_PREPARED_EVIDENCE_KINDS).toStrictEqual(preparedEvidenceLedger);
@@ -874,7 +879,9 @@ describe('canonical phone manifest', () => {
       const canonical = canonicalNodes.get(segment.id);
       expect(segment.timing.manifestSegmentId).toBe(segment.id);
       expect(segment.timing.policy).toBe(canonical?.policy);
-      expect(segment.timing.virtualDuration).toBe(canonical?.virtualDuration);
+      expect(segment.timing.virtualDuration).toBe(
+        segment.id === 'crane-contact' ? 3400 : canonical?.virtualDuration
+      );
       expect(segment.timing.namedExports.every((name) => (
         /^[A-Z][A-Z0-9_]+$/.test(name)
       ))).toBe(true);
