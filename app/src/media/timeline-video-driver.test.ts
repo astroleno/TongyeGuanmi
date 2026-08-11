@@ -91,6 +91,13 @@ class FakeVideo {
       ? {} as VideoFrameCallbackMetadata
       : { mediaTime } as VideoFrameCallbackMetadata);
   }
+
+  frameCallbackSnapshot(): ((
+    now: DOMHighResTimeStamp,
+    metadata: VideoFrameCallbackMetadata
+  ) => void) | undefined {
+    return this.frameCallback;
+  }
 }
 
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
@@ -194,6 +201,76 @@ describe('timeline video driver', () => {
     // tuple; it is not reconstituted from a mutable DOM diagnostic field.
     expect(video.dataset.timelineVideoFrameMediaTime).toBeUndefined();
     driver.dispose();
+  });
+
+  it('re-arms one exact WebKit frame seek and rejects an older generation callback', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    try {
+      const staleReadiness = driver.prepareFrame({
+        runId: 'media-exact-retry:stale',
+        direction: -1,
+        progress: 0.25,
+        durationFallbackSeconds: 10,
+        requireExactMediaFrame: true
+      });
+      video.completeSeek();
+      const staleCallback = video.frameCallbackSnapshot();
+      expect(staleCallback).toBeTypeOf('function');
+
+      const readiness = driver.prepareFrame({
+        runId: 'media-exact-retry:current',
+        direction: -1,
+        progress: 0.5,
+        durationFallbackSeconds: 10,
+        requireExactMediaFrame: true
+      });
+      await expect(staleReadiness).resolves.toEqual([
+        'stale',
+        'media-exact-retry:stale',
+        -1,
+        1,
+        2.495,
+        null
+      ]);
+      video.completeSeek();
+
+      let settled = false;
+      void readiness.then(() => {
+        settled = true;
+      });
+      staleCallback?.(0, { mediaTime: 2.495 } as VideoFrameCallbackMetadata);
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
+
+      const writesBeforeRetry = video.currentTimeWrites.length;
+      await vi.advanceTimersByTimeAsync(250);
+      expect(video.currentTimeWrites.length).toBe(writesBeforeRetry + 1);
+      expect(video.currentTimeWrites.at(-1)).toBeLessThan(4.99);
+
+      video.completeSeek();
+      expect(video.currentTimeWrites.at(-1)).toBeCloseTo(4.99, 3);
+      video.completeSeek();
+      const writesAfterRearm = video.currentTimeWrites.length;
+      await vi.advanceTimersByTimeAsync(250);
+      expect(video.currentTimeWrites).toHaveLength(writesAfterRearm);
+      video.presentFrame(4.99);
+
+      await expect(readiness).resolves.toEqual([
+        'ready',
+        'media-exact-retry:current',
+        -1,
+        2,
+        4.99,
+        4.99
+      ]);
+    } finally {
+      driver.dispose();
+      vi.useRealTimers();
+    }
   });
 
   it('re-seeks when rVFC reports a stale decoded sample after seek completion', async () => {

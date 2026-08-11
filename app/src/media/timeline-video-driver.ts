@@ -63,7 +63,8 @@ type DesiredFrame = readonly [
   direction: Direction,
   progress: number,
   targetTime: number,
-  allowSeekedFrameFallback: boolean
+  allowSeekedFrameFallback: boolean,
+  exactFrameRetryArmed?: boolean
 ];
 
 type FramePresentationEvidence =
@@ -92,6 +93,8 @@ type TimelineManagedVideo = HTMLVideoElement & {
 const SEEK_TOLERANCE_SECONDS = 0.001;
 const PRESENTATION_TOLERANCE_SECONDS = 0.05;
 const SEEKED_FRAME_FALLBACK_DELAY_MS = 120;
+const EXACT_FRAME_RETRY_DELAY_MS = 250;
+const EXACT_FRAME_NUDGE_SECONDS = 1 / 15;
 const DEFAULT_END_EPSILON_SECONDS = 0.02;
 const DATA_RUN = 'timelineVideoRun';
 const DATA_DIRECTION = 'timelineVideoDirection';
@@ -157,6 +160,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private presentedSeekMediaTime = Number.NaN;
   private seekedFrameFallbackTimer: ReturnType<typeof setTimeout> | undefined;
   private seekedFrameFallbackFrame: DesiredFrame | undefined;
+  private exactFrameRetryTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
 
   private readonly onSeeked = () => {
@@ -449,7 +453,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.flushQueuedSeek();
   }
 
-  private beginExactTargetSeek(desired: DesiredFrame): {
+  private beginExactTargetSeek(
+    desired: DesiredFrame,
+    offset = SEEK_TOLERANCE_SECONDS * 2
+  ): {
     started: boolean;
     error?: Error;
   } {
@@ -461,9 +468,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return { started: false };
     }
     const duration = finiteDuration(this.video, desired[4] + 0.01);
-    const offset = SEEK_TOLERANCE_SECONDS * 2;
-    const nudgedTime = desired[4] + offset <= duration
-      ? desired[4] + offset
+    const candidate = desired[4] + offset;
+    const nudgedTime = candidate >= 0 && candidate <= duration
+      ? candidate
       : Math.max(0, desired[4] - offset);
     if (near(nudgedTime, desired[4])) {
       return { started: false };
@@ -593,13 +600,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     const generation = frame[0];
     this.presentingFrame = frame;
     try {
-      this.frameCallbackId = video.requestVideoFrameCallback((_now, metadata) => {
+      let callbackId: number | undefined;
+      callbackId = video.requestVideoFrameCallback((_now, metadata) => {
+        if (
+          generation !== this.generation
+          || this.frameCallbackId !== callbackId
+        ) return;
         this.cancelSeekedFrameFallback();
         this.frameCallbackId = undefined;
         this.presentingFrame = undefined;
-        if (this.disposed || generation !== this.generation) {
-          return;
-        }
         if (
           Number.isFinite(metadata?.mediaTime)
           && !near(metadata.mediaTime, frame[4], PRESENTATION_TOLERANCE_SECONDS)
@@ -623,7 +632,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         }
         this.markFrameReady(frame, 'video-frame-callback', metadata?.mediaTime);
       });
+      this.frameCallbackId = callbackId;
       this.armSeekedFrameFallback(frame);
+      this.armExactFrameRetry(frame);
     } catch (cause) {
       this.frameCallbackId = undefined;
       if (frame[5]) {
@@ -682,6 +693,33 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.seekedFrameFallbackFrame = undefined;
   }
 
+  private armExactFrameRetry(frame: DesiredFrame): void {
+    if (
+      !this.latestInput?.requireExactMediaFrame
+      || !sameFrame(this.latest!, frame)
+      || frame[6]
+    ) return;
+    this.cancelExactFrameRetry();
+    (frame as unknown as { 6?: boolean })[6] = true;
+    this.exactFrameRetryTimer = setTimeout(() => {
+      if (
+        !this.presentingFrame
+        || !sameFrame(this.presentingFrame, frame)
+      ) return;
+      this.cancelFrameCallback();
+      // This immutable generation/target gets one physical re-arm. A second
+      // missing rVFC remains fail-closed under the route transaction timeout.
+      this.beginExactTargetSeek(frame, frame[2] * EXACT_FRAME_NUDGE_SECONDS);
+    }, EXACT_FRAME_RETRY_DELAY_MS);
+  }
+
+  private cancelExactFrameRetry(): void {
+    if (this.exactFrameRetryTimer !== undefined) {
+      clearTimeout(this.exactFrameRetryTimer);
+    }
+    this.exactFrameRetryTimer = undefined;
+  }
+
   private markFrameReady(
     frame: DesiredFrame,
     evidence: FramePresentationEvidence,
@@ -715,6 +753,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   private cancelFrameCallback(): void {
     this.cancelSeekedFrameFallback();
+    this.cancelExactFrameRetry();
     this.presentedSeekFrame = undefined;
     this.presentedSeekMediaTime = Number.NaN;
     if (this.frameCallbackId === undefined) {
