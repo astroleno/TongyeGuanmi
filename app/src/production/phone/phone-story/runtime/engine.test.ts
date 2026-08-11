@@ -2500,70 +2500,137 @@ describe('single phone story projector transaction', () => {
     });
   });
 
-  it('retries a direct entry when route geometry becomes ready after its candidate frame', () => {
-    const frames: Array<() => void> = [];
-    let actualY = 0;
-    let landingReady = false;
-    const commands: number[] = [];
-    const root = element();
-    const services = element();
-    const orchestrator = createPhoneStoryOrchestrator({
-      initialScene: 'brand',
-      root,
-      scrollY: () => actualY,
-      scrollTo: (nextY) => {
-        commands.push(nextY);
-        actualY = nextY;
-      },
-      scheduleFrame: (callback) => frames.push(callback)
-    });
+  it('[P0 direct-entry admission lease] rolls back when projected target geometry never becomes ready', () => {
+    vi.useFakeTimers();
+    try {
+      const frames: Array<() => void> = [];
+      let actualY = 100;
+      const root = element();
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'brand',
+        root,
+        scrollY: () => actualY,
+        scrollTo: (nextY) => { actualY = nextY; },
+        scheduleFrame: (callback) => frames.push(callback)
+      });
+      orchestrator.registerScrollCorridor({
+        id: 'direct-services-missing-geometry',
+        scenes: ['brand', 'services'],
+        sample: () => null,
+        boundary: () => 100,
+        landing: (scene) => scene === 'brand' ? 100 : null
+      });
+      registerReadySurface(orchestrator, 'brand', (callback) => frames.push(callback));
+      registerReadySurface(orchestrator, 'services', (callback) => frames.push(callback));
 
-    orchestrator.registerScrollCorridor({
-      id: 'direct-services-delayed-geometry',
-      scenes: ['brand', 'services'],
-      sample: () => null,
-      boundary: () => 100,
-      landing: (scene) => (
-        landingReady && scene === 'services' ? 220 : null
-      )
-    });
-    orchestrator.registerSurface({
-      id: 'native:services',
-      scene: 'services',
-      kind: 'native',
-      root: () => services,
-      presentation: () => [true, true, true, true, 'static-poster']
-    });
+      orchestrator.dispatch({
+        type: 'DIRECT_ENTRY_REQUESTED',
+        authorityId: orchestrator.getSnapshot().authorityId,
+        target: 'services',
+        source: 'hash',
+        fallbackScene: 'brand',
+        cinematic: null
+      });
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'verifying-target' }
+      });
+      expect(root.dataset.phoneInputState).toBe('locked');
 
-    orchestrator.dispatch({
-      type: 'DIRECT_ENTRY_REQUESTED',
-      authorityId: orchestrator.getSnapshot().authorityId,
-      target: 'services',
-      source: 'initial',
-      fallbackScene: 'brand',
-      cinematic: null
-    });
-    expect(orchestrator.getSnapshot()).toMatchObject({
-      status: 'transaction',
-      session: { phase: 'verifying-target' }
-    });
+      vi.advanceTimersByTime(PHONE_PREPARATION_LEASE_TIMEOUT_MS - 1);
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'verifying-target' }
+      });
 
-    landingReady = true;
-    orchestrator.syncDiagnostics();
+      vi.advanceTimersByTime(1);
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'rollback-measuring-landing' },
+        diagnostics: { lastRollback: { reason: 'dependency-timeout' } }
+      });
+      while (frames.length > 0) frames.shift()?.();
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'stable',
+        scene: 'brand',
+        session: null
+      });
+      expect(root.dataset.phoneInputState).toBe('free');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
-    expect(orchestrator.getSnapshot()).toMatchObject({
-      status: 'transaction',
-      session: { phase: 'measuring-landing' }
-    });
-    frames.shift()?.();
-    frames.shift()?.();
+  it('retries a direct entry when route geometry becomes ready before its admission lease expires', () => {
+    vi.useFakeTimers();
+    try {
+      const frames: Array<() => void> = [];
+      let actualY = 0;
+      let landingReady = false;
+      const commands: number[] = [];
+      const root = element();
+      const services = element();
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'brand',
+        root,
+        scrollY: () => actualY,
+        scrollTo: (nextY) => {
+          commands.push(nextY);
+          actualY = nextY;
+        },
+        scheduleFrame: (callback) => frames.push(callback)
+      });
 
-    expect(commands).toEqual([220]);
-    expect(orchestrator.getSnapshot()).toMatchObject({
-      status: 'stable',
-      scene: 'services',
-      session: null
-    });
+      orchestrator.registerScrollCorridor({
+        id: 'direct-services-delayed-geometry',
+        scenes: ['brand', 'services'],
+        sample: () => null,
+        boundary: () => 100,
+        landing: (scene) => (
+          landingReady && scene === 'services' ? 220 : null
+        )
+      });
+      orchestrator.registerSurface({
+        id: 'native:services',
+        scene: 'services',
+        kind: 'native',
+        root: () => services,
+        presentation: () => [true, true, true, true, 'static-poster']
+      });
+
+      orchestrator.dispatch({
+        type: 'DIRECT_ENTRY_REQUESTED',
+        authorityId: orchestrator.getSnapshot().authorityId,
+        target: 'services',
+        source: 'initial',
+        fallbackScene: 'brand',
+        cinematic: null
+      });
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'verifying-target' }
+      });
+
+      vi.advanceTimersByTime(PHONE_PREPARATION_LEASE_TIMEOUT_MS - 1);
+      landingReady = true;
+      orchestrator.syncDiagnostics();
+
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'measuring-landing' }
+      });
+      frames.shift()?.();
+      frames.shift()?.();
+
+      expect(commands).toEqual([220]);
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'stable',
+        scene: 'services',
+        session: null
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each(['hash', 'menu', 'history'] as const)(

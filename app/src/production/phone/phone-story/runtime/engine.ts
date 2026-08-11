@@ -71,8 +71,7 @@ export const PHONE_PREPARATION_LEASE_TIMEOUT_MS = ADMISSION_TIMEOUT_MS;
 type DirectEntryPreparation = {
   key: string;
   controller: AbortController;
-  timeout: ReturnType<typeof globalThis.setTimeout>;
-  ready: boolean;
+  ready: boolean | null;
   publishing: boolean;
 };
 
@@ -225,7 +224,6 @@ export function createPhoneStoryRuntimeEngine(
   const clearDirectEntryPreparation = () => {
     const preparation = directEntryPreparation;
     if (!preparation) return;
-    globalThis.clearTimeout(preparation.timeout);
     preparation.controller.abort();
     directEntryPreparation = null;
   };
@@ -247,7 +245,12 @@ export function createPhoneStoryRuntimeEngine(
         session.operation.from
       ].join(':');
     }
-    if (session.operation.run === null || session.phase !== 'preparing') return null;
+    if (session.operation.run === null) {
+      return session.operation.trigger === 'auto'
+        ? null
+        : directEntryPreparationKey(snapshot);
+    }
+    if (session.phase !== 'preparing') return null;
     return [
       session.sessionId,
       session.generation,
@@ -659,22 +662,6 @@ export function createPhoneStoryRuntimeEngine(
         }
         return;
       }
-      const landing = scrollCorridors.landing(
-        currentSnapshot,
-        operation.to,
-        'direct-entry',
-        operation.direction
-      );
-      const receiverRoot = presentation.rootForScene(operation.to);
-      // Candidate admission requires route geometry and a registered receiver
-      // root—not the receiver's already committed visibility. The atomic
-      // projection makes it eligible to produce its own proof afterwards.
-      if (
-        landing === null
-        || !receiverRoot
-      ) {
-        return;
-      }
       const activeSession = sessions.resume();
       if (!activeSession?.valid()) return;
       const key = directEntryPreparationKey(currentSnapshot);
@@ -685,16 +672,26 @@ export function createPhoneStoryRuntimeEngine(
         const prepared: DirectEntryPreparation = {
           key,
           controller,
-          timeout: globalThis.setTimeout(() => {
-            if (directEntryPreparation !== prepared) return;
-            directEntryPreparation = null;
-            controller.abort();
-            activeSession.reportFailure();
-          }, ADMISSION_TIMEOUT_MS),
-          ready: false,
+          ready: null,
           publishing: false
         };
         directEntryPreparation = prepared;
+        preparation = prepared;
+      }
+      const landing = scrollCorridors.landing(
+        currentSnapshot,
+        operation.to,
+        'direct-entry',
+        operation.direction
+      );
+      const receiverRoot = presentation.rootForScene(operation.to);
+      // The lease starts with the projected transaction. Geometry and the
+      // receiver may arrive later, but neither can leave input locked forever.
+      if (landing === null || !receiverRoot) return;
+      if (preparation.ready === null) {
+        preparation.ready = false;
+        const prepared = preparation;
+        const { controller } = prepared;
         const finishPreparation = () => {
           if (
             directEntryPreparation !== prepared
@@ -709,7 +706,6 @@ export function createPhoneStoryRuntimeEngine(
             || controller.signal.aborted
           ) return;
           directEntryPreparation = null;
-          globalThis.clearTimeout(prepared.timeout);
           activeSession.reportFailure();
         };
         try {
