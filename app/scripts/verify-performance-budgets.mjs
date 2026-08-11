@@ -111,7 +111,11 @@ function presentationClosure(root) {
       // one selected shell must not be charged for the other shell's graph.
       visit(imported, imported !== 'index.html');
     }
-    if (followDynamicImports) {
+    // The HTML entry owns mutually-exclusive desktop/phone shell imports.
+    // It can be reached through a shared lazy chunk before the root call, so
+    // the caller's boolean alone is not enough to keep the opposite shell out
+    // of the selected presentation family.
+    if (followDynamicImports && key !== 'index.html') {
       for (const imported of entry.dynamicImports ?? []) visit(imported);
     }
   };

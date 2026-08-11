@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ttgAnimationScene, ttgMediaSnapshot } from '../scenes/ttg-animation';
+import { ttgAnimationScene } from '../scenes/ttg-animation';
 import { renderLabHold } from '../scenes/lab';
 import { storyManifest } from '../story/manifest';
 import { TERMINAL_DWELL_MS } from '../story/timings';
@@ -105,11 +105,6 @@ describe('TTG canonical directional media', () => {
     timeline.progress(TTG_LAB_ANIMATION_STOP);
     expect(video.paused).toBe(true);
     expect(video.currentTime).toBeCloseTo(2.467, 3);
-    expect(ttgMediaSnapshot(fixture.fromRoot as unknown as HTMLElement)).toMatchObject({
-      activeDirection: 1,
-      activeRunId: fixture.context.runId,
-      video: { frameReady: true }
-    });
     timeline.dispose();
   });
 
@@ -132,10 +127,6 @@ describe('TTG canonical directional media', () => {
     expect(video.playbackRate).toBeGreaterThan(0);
     expect(video.dataset.timelineVideoDirection).toBe('-1');
     expect(video.currentTime).toBeLessThan(2.467);
-    expect(ttgMediaSnapshot(fixture.fromRoot as unknown as HTMLElement)).toMatchObject({
-      activeDirection: -1,
-      activeRunId: reverseContext.runId
-    });
     timeline.dispose();
   });
 

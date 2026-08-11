@@ -82,8 +82,7 @@ function drivePhPlayback(
   section?.setAttribute('data-ph-playback-run', mediaRun.runId);
   section?.setAttribute('data-ph-raw-progress', progress.toFixed(4));
   section?.setAttribute('data-ph-playback-active', String(progress > 0.001 && progress < 0.999));
-  const snapshot = driveTimelineVideo(video, phMediaInput(mediaProgress, mediaRun));
-  section?.setAttribute('data-ph-playback-fallback', String(snapshot?.nativeFallback ?? false));
+  driveTimelineVideo(video, phMediaInput(mediaProgress, mediaRun));
 }
 
 export function preparePhAnimationFrame(

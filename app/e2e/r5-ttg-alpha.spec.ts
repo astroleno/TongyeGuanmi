@@ -14,7 +14,6 @@ type TtgMediaState = Readonly<{
   currentTime: number;
   paused: boolean;
   frameReady: boolean;
-  staticFallback: boolean;
   opacity: number;
 }>;
 
@@ -46,7 +45,6 @@ async function ttgMediaState(page: Page): Promise<TtgMediaState> {
       currentTime: video.currentTime,
       paused: video.paused,
       frameReady: video.dataset.timelineVideoFrameReady === 'true',
-      staticFallback: video.dataset.timelineVideoStaticFallback === 'true',
       opacity: Number.parseFloat(getComputedStyle(video).opacity)
     };
   });
@@ -133,7 +131,7 @@ test('TTG uses one canonical media surface for native forward and same-file time
       && !video.paused;
   });
   const forward = await ttgMediaState(page);
-  expect(forward).toMatchObject({ direction: '1', videoCount: 1, frameReady: true, staticFallback: false });
+  expect(forward).toMatchObject({ direction: '1', videoCount: 1, frameReady: true });
   expect(forward.currentTime).toBeGreaterThan(0.05);
   expect(forward.opacity).toBeGreaterThan(0.9);
   await waitForHold(page, 'lab');
@@ -156,7 +154,7 @@ test('TTG uses one canonical media surface for native forward and same-file time
       && video.currentTime < 2.4;
   });
   const reverse = await ttgMediaState(page);
-  expect(reverse).toMatchObject({ direction: '-1', videoCount: 1, frameReady: true, staticFallback: false });
+  expect(reverse).toMatchObject({ direction: '-1', videoCount: 1, frameReady: true });
   expect(reverse.currentTime).toBeLessThan(reverseStart.currentTime - 0.05);
   expect(reverse.paused).toBe(true);
 
@@ -206,7 +204,6 @@ test('TTG decode failure hides the video surface and retains its static composit
       });
     return {
       frameReady: video.dataset.timelineVideoFrameReady === 'true',
-      staticFallback: video.dataset.timelineVideoStaticFallback === 'true',
       videoOpacity: Number.parseFloat(getComputedStyle(video).opacity),
       visibleLayers: visibleLayers.length
     };
@@ -214,7 +211,6 @@ test('TTG decode failure hides the video surface and retains its static composit
 
   expect(fallback).toEqual({
     frameReady: false,
-    staticFallback: true,
     videoOpacity: 0,
     visibleLayers: 3
   });

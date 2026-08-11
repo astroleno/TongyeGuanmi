@@ -3,8 +3,7 @@ import {
   disposeTimelineVideoDriver,
   driveTimelineVideo,
   prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput,
-  type TimelineVideoDriverSnapshot
+  type TimelineVideoDriveInput
 } from '../../media/timeline-video-driver';
 import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
@@ -62,7 +61,6 @@ type Figure2MediaManager = {
     progress: number;
     generation: number;
   };
-  snapshot?: TimelineVideoDriverSnapshot | undefined;
 };
 
 export type Figure2MediaPreparation = Readonly<{
@@ -72,12 +70,6 @@ export type Figure2MediaPreparation = Readonly<{
   reducedMotion?: boolean;
   signal?: AbortSignal | undefined;
   startPlayback?: boolean;
-}>;
-
-export type Figure2DirectionalMediaSnapshot = Readonly<{
-  activeDirection: 1 | -1 | undefined;
-  activeRunId: string | undefined;
-  media: TimelineVideoDriverSnapshot | undefined;
 }>;
 
 const mediaManagers = new WeakMap<HTMLElement, Figure2MediaManager>();
@@ -309,7 +301,7 @@ function commitFigure2Pair(
     mediaProgress(preparation.direction, progress),
     startPlayback ? undefined : 'timeline'
   );
-  manager.snapshot = driveTimelineVideo(manager.video, input);
+  driveTimelineVideo(manager.video, input);
   manager.activeRunId = preparation.runId;
   manager.activeDirection = preparation.direction;
   manager.playbackEnabled = startPlayback;
@@ -364,7 +356,7 @@ export function driveFigure2MediaLeg(
     return;
   }
   const input = mediaInput(preparation, mediaProgress(preparation.direction, progress));
-  manager.snapshot = driveTimelineVideo(manager.video, input);
+  driveTimelineVideo(manager.video, input);
 }
 
 export function parkFigure2Media(root: HTMLElement | null): void {
@@ -391,22 +383,6 @@ export function disposeFigure2Media(root: HTMLElement | null): void {
     holdFramePreparations.delete(root);
     delete root.dataset.figure2HoldFrameReady;
   }
-}
-
-export function figure2DirectionalMediaSnapshot(
-  root: HTMLElement | null
-): Figure2DirectionalMediaSnapshot | null {
-  if (!root) {
-    return null;
-  }
-  const manager = mediaManagers.get(root);
-  return manager
-    ? {
-        activeDirection: manager.activeDirection,
-        activeRunId: manager.activeRunId,
-        media: manager.snapshot
-      }
-    : null;
 }
 
 export function renderFigure2AnimationProgress(
@@ -488,7 +464,7 @@ export function renderFigure2AnimationProgress(
       const manager = managerFor(root);
       manager.activeRunId = options.mediaRun.runId;
       manager.activeDirection = options.mediaRun.direction;
-      manager.snapshot = driveTimelineVideo(
+      driveTimelineVideo(
         manager.video,
         mediaInput(
           options.mediaRun,

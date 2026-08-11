@@ -153,7 +153,7 @@ describe('timeline video driver', () => {
       await vi.advanceTimersByTimeAsync(80);
 
       expect(settled).toBe(false);
-      expect(driver.snapshot().frameReady).toBe(false);
+      expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
 
       video.presentFrame();
       await expect(readiness).resolves.toEqual([
@@ -190,7 +190,9 @@ describe('timeline video driver', () => {
       4.99,
       4.99
     ]);
-    expect(video.dataset.timelineVideoFrameMediaTime).toBe('4.9900');
+    // Exact decoder mediaTime crosses the lazy boundary in the prepared
+    // tuple; it is not reconstituted from a mutable DOM diagnostic field.
+    expect(video.dataset.timelineVideoFrameMediaTime).toBeUndefined();
     driver.dispose();
   });
 
@@ -234,7 +236,7 @@ describe('timeline video driver', () => {
       video.completeSeek();
 
       await vi.advanceTimersByTimeAsync(119);
-      expect(driver.snapshot().frameReady).toBe(false);
+      expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
       await vi.advanceTimersByTimeAsync(1);
 
       await expect(readiness).resolves.toEqual([
@@ -245,7 +247,7 @@ describe('timeline video driver', () => {
         4.99,
         null
       ]);
-      expect(driver.snapshot().frameReady).toBe(true);
+      expect(video.dataset.timelineVideoFrameReady).toBe('true');
       expect(video.dataset.timelineVideoFrameEvidence).toBe('seeked-fallback');
     } finally {
       driver.dispose();
@@ -275,7 +277,7 @@ describe('timeline video driver', () => {
       await vi.advanceTimersByTimeAsync(120);
 
       expect(settled).toBe(false);
-      expect(driver.snapshot().frameReady).toBe(false);
+      expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
 
       video.readyState = 4;
       video.presentFrame();
@@ -388,7 +390,7 @@ describe('timeline video driver', () => {
         null
       ]);
       await vi.advanceTimersByTimeAsync(120);
-      expect(driver.snapshot().frameReady).toBe(false);
+      expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
       expect(video.dataset.timelineVideoFrameEvidence).toBeUndefined();
     } finally {
       driver.dispose();
@@ -458,7 +460,6 @@ describe('timeline video driver', () => {
     expect(rejection).toMatchObject({ code: 'MEDIA_SEEK_FAILED' });
     expect(video.paused).toBe(true);
     expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
-    expect(video.dataset.timelineVideoStaticFallback).toBe('true');
     driver.dispose();
   });
 
@@ -490,7 +491,6 @@ describe('timeline video driver', () => {
     });
     expect(video.paused).toBe(true);
     expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
-    expect(video.dataset.timelineVideoStaticFallback).toBe('true');
 
     video.throwOnCurrentTimeWrite = false;
     const recovered = driver.prepareFrame({ ...input, progress: 0.7 });
@@ -505,7 +505,6 @@ describe('timeline video driver', () => {
       null
     ]);
     expect(video.dataset.timelineVideoFrameReady).toBe('true');
-    expect(video.dataset.timelineVideoStaticFallback).toBeUndefined();
     driver.dispose();
   });
 
@@ -530,7 +529,6 @@ describe('timeline video driver', () => {
     await Promise.resolve();
 
     expect(rejection).toMatchObject({ code });
-    expect(video.dataset.timelineVideoStaticFallback).toBe('true');
     driver.dispose();
   });
 
@@ -636,12 +634,9 @@ describe('timeline video driver', () => {
     driver.drive({ ...input, progress: 0.4 });
 
     expect(video.currentTimeWrites.at(-1)).toBeCloseTo(5.988, 3);
-    expect(driver.snapshot()).toMatchObject({
-      runId: 'media-test:1',
-      direction: 1,
-      desiredProgress: 0.4,
-      seekPending: true
-    });
+    expect(video.dataset.timelineVideoRun).toBe('media-test:1');
+    expect(video.dataset.timelineVideoDirection).toBe('1');
+    expect(video.dataset.timelineVideoProgress).toBe('0.4000');
 
     video.completeSeek();
     expect(video.currentTimeWrites.at(-1)).toBeCloseTo(3.992, 3);
@@ -681,11 +676,9 @@ describe('timeline video driver', () => {
       5.988,
       null
     ]);
-    expect(driver.snapshot()).toMatchObject({
-      runId: 'media-test:3',
-      direction: 1,
-      frameReady: true
-    });
+    expect(video.dataset.timelineVideoRun).toBe('media-test:3');
+    expect(video.dataset.timelineVideoDirection).toBe('1');
+    expect(video.dataset.timelineVideoFrameReady).toBe('true');
   });
 
   it('keeps native playback rejection local to one run', async () => {
@@ -705,7 +698,7 @@ describe('timeline video driver', () => {
     video.presentFrame();
     await Promise.resolve();
 
-    expect(driver.snapshot()).toMatchObject({ runId: 'media-test:1', nativeFallback: true });
+    expect(video.dataset.timelineVideoRun).toBe('media-test:1');
     expect(video.playCalls).toBe(1);
 
     driver.drive({ ...base, runId: 'media-test:2' });
@@ -714,7 +707,7 @@ describe('timeline video driver', () => {
     await Promise.resolve();
 
     expect(video.playCalls).toBe(2);
-    expect(driver.snapshot()).toMatchObject({ runId: 'media-test:2', nativeFallback: false });
+    expect(video.dataset.timelineVideoRun).toBe('media-test:2');
   });
 
   it('ignores an older play rejection after a newer attempt in the same run', async () => {
@@ -749,10 +742,7 @@ describe('timeline video driver', () => {
     await Promise.resolve();
 
     expect(video.playCalls).toBe(2);
-    expect(driver.snapshot()).toMatchObject({
-      runId: 'media-test:one-run',
-      nativeFallback: false
-    });
+    expect(video.dataset.timelineVideoRun).toBe('media-test:one-run');
   });
 
   it('resolves reduced motion directly to the requested endpoint without playback', () => {

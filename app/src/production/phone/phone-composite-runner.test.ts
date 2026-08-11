@@ -1043,7 +1043,7 @@ describe('phone composite runner snapshot execution', () => {
     expect(runtime.visual.update).not.toHaveBeenCalled();
     expect(runtime.visual.leave).not.toHaveBeenCalled();
     activeSession.flushRelease();
-    expect(runtime.visual.disposePresentation).not.toHaveBeenCalled();
+    expect(runtime.visual.disposePresentation).toHaveBeenCalledWith(identity[5]);
     expect(runtime.capabilities.retained()).toEqual([]);
   });
 
@@ -1069,6 +1069,7 @@ describe('phone composite runner snapshot execution', () => {
     await vi.advanceTimersByTimeAsync(1_000);
 
     expect(activeSession.reportFailure).toHaveBeenCalledOnce();
+    expect(runtime.visual.disposePresentation).toHaveBeenCalledWith(identity[5]);
     expect(runtime.capabilities.retained()).toEqual([]);
   });
 

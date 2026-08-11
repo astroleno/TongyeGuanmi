@@ -20,6 +20,11 @@ export type PackedAlphaVideoCompositor = Readonly<{
   dispose(): void;
 }>;
 
+const DATA_SOURCE = 'packedAlphaSource';
+const DATA_STATUS = 'packedAlphaStatus';
+const DATA_FRAME_READY = 'packedAlphaFrameReady';
+const DATA_COMPOSITOR_ACTIVE = 'packedAlphaCompositorActive';
+
 type PackedAlphaLoseContextExtension = Readonly<{
   loseContext(): void;
   restoreContext(): void;
@@ -288,7 +293,7 @@ export function setPackedAlphaVideoSource(video: HTMLVideoElement, sourceUrl: st
   video.playsInline = true;
   video.preload = 'auto';
   video.setAttribute('webkit-playsinline', 'true');
-  video.dataset.packedAlphaSource = 'rgb-alpha-side-by-side';
+  video.dataset[DATA_SOURCE] = 'rgb-alpha-side-by-side';
 
   if (!ownerDocument || typeof video.replaceChildren !== 'function') {
     video.src = sourceUrl;
@@ -373,7 +378,7 @@ export function createPackedAlphaVideoCompositor(
     stencil: false
   });
   if (!gl) {
-    canvas.dataset.packedAlphaStatus = 'webgl-unavailable';
+    canvas.dataset[DATA_STATUS] = 'webgl-unavailable';
     return {
       render: () => {
         options.onFailure?.('webgl-unavailable');
@@ -381,7 +386,7 @@ export function createPackedAlphaVideoCompositor(
       },
       setActive: () => undefined,
       dispose: () => {
-        delete canvas.dataset.packedAlphaStatus;
+        delete canvas.dataset[DATA_STATUS];
       }
     };
   }
@@ -390,7 +395,7 @@ export function createPackedAlphaVideoCompositor(
   const buffer = gl.createBuffer();
   const texture = gl.createTexture();
   if (!shaders || !buffer || !texture) {
-    canvas.dataset.packedAlphaStatus = 'webgl-unavailable';
+    canvas.dataset[DATA_STATUS] = 'webgl-unavailable';
     if (buffer) gl.deleteBuffer(buffer);
     if (texture) gl.deleteTexture(texture);
     return {
@@ -401,7 +406,7 @@ export function createPackedAlphaVideoCompositor(
       setActive: () => undefined,
       dispose: () => {
         releasePackedAlphaWebGlContext(gl);
-        delete canvas.dataset.packedAlphaStatus;
+        delete canvas.dataset[DATA_STATUS];
       }
     };
   }
@@ -421,8 +426,8 @@ export function createPackedAlphaVideoCompositor(
   const terminalFailure = (failure: PackedAlphaRenderFailure): PackedAlphaRenderFailure => {
     if (terminalFailureReason) return terminalFailureReason;
     terminalFailureReason = failure;
-    canvas.dataset.packedAlphaStatus = failure;
-    delete canvas.dataset.packedAlphaFrameReady;
+    canvas.dataset[DATA_STATUS] = failure;
+    delete canvas.dataset[DATA_FRAME_READY];
     options.onFailure?.(failure);
     return failure;
   };
@@ -473,7 +478,7 @@ export function createPackedAlphaVideoCompositor(
     if (
       frameMediaTime === undefined
       && video.paused
-      && canvas.dataset.packedAlphaStatus === 'ready'
+      && canvas.dataset[DATA_STATUS] === 'ready'
     ) return 'waiting';
 
     const frameSize = packedAlphaFrameSize(video.videoWidth, video.videoHeight);
@@ -514,12 +519,6 @@ export function createPackedAlphaVideoCompositor(
     // requestVideoFrameCallback mediaTime is the only exact decoder evidence;
     // event/RAF renders are explicitly marked as a current-time fallback.
     const hasExactMediaTime = Number.isFinite(frameMediaTime);
-    canvas.dataset.packedAlphaMediaTime = (
-      hasExactMediaTime ? frameMediaTime!.toFixed(4) : 'fallback'
-    );
-    canvas.dataset.packedAlphaFrameEvidence = hasExactMediaTime
-      ? 'rvfc'
-      : 'fallback';
     // Timeline reverse preparation may move the decoder through an authored
     // nudge before it reaches the requested target. Mark that physical draw
     // as probing before WebGL observes it, so it cannot be mistaken for a
@@ -531,13 +530,13 @@ export function createPackedAlphaVideoCompositor(
         || Math.abs(frameMediaTime! - timelineTarget) <= 0.05)
       ? 'ready'
       : Number.isFinite(timelineTarget) ? 'probing' : 'fallback';
-    canvas.dataset.packedAlphaStatus = frameStatus;
+    canvas.dataset[DATA_STATUS] = frameStatus;
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     if (!packedAlphaFrameProofSatisfied(gl)) {
       contextLost = gl.isContextLost();
       return terminalFailure(contextLost ? 'context-lost' : 'draw-failed');
     }
-    canvas.dataset.packedAlphaFrameReady = 'true';
+    canvas.dataset[DATA_FRAME_READY] = 'true';
     options.onFrame?.(hasExactMediaTime ? frameMediaTime! : null);
     return 'rendered';
   };
@@ -593,8 +592,8 @@ export function createPackedAlphaVideoCompositor(
   video.addEventListener('play', renderAndSchedule);
   video.addEventListener('pause', renderAndSchedule);
   canvas.addEventListener('webglcontextlost', onContextLost);
-  canvas.dataset.packedAlphaStatus = 'waiting';
-  canvas.dataset.packedAlphaCompositorActive = 'true';
+  canvas.dataset[DATA_STATUS] = 'waiting';
+  canvas.dataset[DATA_COMPOSITOR_ACTIVE] = 'true';
   if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
     renderAndSchedule();
   }
@@ -613,9 +612,7 @@ export function createPackedAlphaVideoCompositor(
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.flush();
     }
-    delete canvas.dataset.packedAlphaFrameReady;
-    delete canvas.dataset.packedAlphaMediaTime;
-    delete canvas.dataset.packedAlphaFrameEvidence;
+    delete canvas.dataset[DATA_FRAME_READY];
   };
 
   return {
@@ -623,18 +620,18 @@ export function createPackedAlphaVideoCompositor(
     setActive(nextActive) {
       if (disposed || active === nextActive) return;
       active = nextActive;
-      canvas.dataset.packedAlphaCompositorActive = String(active);
+      canvas.dataset[DATA_COMPOSITOR_ACTIVE] = String(active);
       if (!active) {
         cancelScheduledFrame();
         clearPresentedFrame();
-        canvas.dataset.packedAlphaStatus = 'suspended';
+      canvas.dataset[DATA_STATUS] = 'suspended';
         return;
       }
       if (contextLost) {
         terminalFailure('context-lost');
         return;
       }
-      canvas.dataset.packedAlphaStatus = 'waiting';
+      canvas.dataset[DATA_STATUS] = 'waiting';
       renderAndSchedule();
     },
     dispose() {
@@ -658,11 +655,9 @@ export function createPackedAlphaVideoCompositor(
       if (options.releaseContextOnDispose !== false) {
         releasePackedAlphaWebGlContext(gl);
       }
-      delete canvas.dataset.packedAlphaStatus;
-      delete canvas.dataset.packedAlphaFrameReady;
-      delete canvas.dataset.packedAlphaMediaTime;
-      delete canvas.dataset.packedAlphaFrameEvidence;
-      delete canvas.dataset.packedAlphaCompositorActive;
+      delete canvas.dataset[DATA_STATUS];
+      delete canvas.dataset[DATA_FRAME_READY];
+      delete canvas.dataset[DATA_COMPOSITOR_ACTIVE];
     }
   };
 }

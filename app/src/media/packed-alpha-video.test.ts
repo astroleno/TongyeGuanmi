@@ -164,10 +164,6 @@ describe('packed alpha video', () => {
       cancelAnimationFrame: vi.fn()
     });
     const reported: Array<number | null> = [];
-    const drawEvidence: Array<string | undefined> = [];
-    vi.mocked(gl.drawArrays).mockImplementation(() => {
-      drawEvidence.push(canvas.dataset.packedAlphaMediaTime);
-    });
     const compositor = createPackedAlphaVideoCompositor({
       video,
       canvas,
@@ -177,9 +173,6 @@ describe('packed alpha video', () => {
     callback?.(0, { mediaTime: 4.125 });
 
     expect(gl.drawArrays).toHaveBeenCalled();
-    expect(drawEvidence.at(-1)).toBe('4.1250');
-    expect(canvas.dataset.packedAlphaMediaTime).toBe('4.1250');
-    expect(canvas.dataset.packedAlphaFrameEvidence).toBe('rvfc');
     expect(canvas.dataset.packedAlphaStatus).toBe('ready');
     expect(reported.at(-1)).toBe(4.125);
     compositor.dispose();

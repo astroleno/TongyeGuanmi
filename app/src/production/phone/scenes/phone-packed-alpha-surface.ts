@@ -73,7 +73,14 @@ type PreparationSettlement = 'all' | Readonly<{
 const DEFAULT_FRAME_TIMEOUT_MS = 3000;
 const HAVE_METADATA = 1;
 const ENDPOINT_FRAME_TOLERANCE_SECONDS = 0.08;
-const PRESENTATION_TOLERANCE_SECONDS = 0.05;
+const DATA_SOURCE = 'packedAlphaSource';
+const DATA_OWNER = 'phonePackedAlphaOwner';
+const DATA_CANVAS = 'phonePackedAlphaCanvas';
+const DATA_STATUS = 'packedAlphaStatus';
+const DATA_RETIRED = 'phonePackedAlphaRetired';
+const DATA_PRESENTATION_TOKEN = 'phonePackedAlphaPresentationToken';
+const near = (a: number, b: number, tolerance: number): boolean =>
+  Math.abs(a - b) <= tolerance;
 // A retained decoder can already sit on the endpoint when a new immutable
 // lease is armed. A same-time render would only stamp currentTime fallback
 // evidence, and some Safari builds will not schedule a new rVFC for it. Force
@@ -93,8 +100,8 @@ function releaseVideoSource(video: HTMLVideoElement): void {
   } catch {
     // Detached tests and a retiring Safari decoder can reject load().
   }
-  delete video.dataset.packedAlphaSource;
-  delete video.dataset.phonePackedAlphaOwner;
+  delete video.dataset[DATA_SOURCE];
+  delete video.dataset[DATA_OWNER];
 }
 
 /**
@@ -134,6 +141,7 @@ export function createPhonePackedAlphaSurface(
   let mode: PhonePackedAlphaSurfaceMode | undefined;
   let canvas: HTMLCanvasElement | undefined;
   let compositor: PackedAlphaVideoCompositor | undefined;
+  let lastDrawMediaTime = Number.NaN;
   let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
   let endpointSeek: (() => void) | undefined;
   let endpointSeekStage: 'idle' | 'nudge' | 'target' | 'playing' = 'idle';
@@ -145,7 +153,6 @@ export function createPhonePackedAlphaSurface(
   // frame command marks this synchronous compositor draw so the shared
   // callback does not restart endpoint priming or downgrade the frame to
   // `probing`.
-  let exactFrameRenderInProgress = false;
   let exactFrameMode = false;
   let exactForwardFrameListener: (() => void) | undefined;
   let presentationGeneration = 0;
@@ -204,8 +211,8 @@ export function createPhonePackedAlphaSurface(
     // hidden until its token-bound compositor is rearmed.
     canvas.style.visibility = 'hidden';
     canvas.style.opacity = '0';
-    canvas.dataset.phonePackedAlphaRetired = 'true';
-    delete canvas.dataset.phonePackedAlphaPresentationToken;
+    canvas.dataset[DATA_RETIRED] = 'true';
+    delete canvas.dataset[DATA_PRESENTATION_TOKEN];
   };
   const settleActivation = () => {
     restoreOwner.cancel();
@@ -227,6 +234,7 @@ export function createPhonePackedAlphaSurface(
     }
     compositor = undefined;
     exactFrameMode = false;
+    lastDrawMediaTime = Number.NaN;
     retireCanvas();
     delete root.dataset[statusDataset];
   };
@@ -256,7 +264,7 @@ export function createPhonePackedAlphaSurface(
   const rebindPresentationToken = (presentationToken: string | null) => {
     if (activePresentationToken === presentationToken) return;
     activePresentationToken = presentationToken;
-    if (canvas) delete canvas.dataset.phonePackedAlphaPresentationToken;
+    if (canvas) delete canvas.dataset[DATA_PRESENTATION_TOKEN];
     rejectSupersededPreparations(presentationToken);
     if (timeout !== undefined) globalThis.clearTimeout(timeout);
     timeout = undefined;
@@ -266,7 +274,7 @@ export function createPhonePackedAlphaSurface(
         : 'probing';
     }
     if (canvas) {
-      canvas.dataset.packedAlphaStatus = mode === 'forward'
+      canvas.dataset[DATA_STATUS] = mode === 'forward'
         ? 'waiting'
         : 'probing';
     }
@@ -294,41 +302,35 @@ export function createPhonePackedAlphaSurface(
     const activeCanvas = canvas;
     activeCanvas.className = options.canvasClassName;
     activeCanvas.setAttribute('aria-hidden', 'true');
-    activeCanvas.dataset.phonePackedAlphaCanvas = layerName;
+    activeCanvas.dataset[DATA_CANVAS] = layerName;
     if (activeCanvas.parentNode !== container) container.append(activeCanvas);
     activeCanvas.style.visibility = '';
     activeCanvas.style.opacity = '';
-    delete activeCanvas.dataset.phonePackedAlphaRetired;
+    delete activeCanvas.dataset[DATA_RETIRED];
     restoreOwner.clear();
     compositor = createPackedAlphaVideoCompositor({
       video,
       canvas: activeCanvas,
       onFrame: (drawMediaTime) => {
         if (generation !== presentationGeneration) return;
-        if (video.dataset.packedAlphaSource !== 'rgb-alpha-side-by-side') return;
+        if (video.dataset[DATA_SOURCE] !== 'rgb-alpha-side-by-side') return;
         // Endpoint/reverse admission requires the decoder's rVFC-backed
         // evidence. A pause/seek event may draw with currentTime before the
         // browser has presented that exact sample; keep the lease pending
         // until the compositor marks the physical draw as exact.
-        if (
-          activeCanvas.dataset.packedAlphaStatus !== 'ready'
-          || activeCanvas.dataset.packedAlphaFrameEvidence !== 'rvfc'
-        ) return;
-        const endpointPending = mode === 'endpoint'
-          && !exactFrameRenderInProgress;
-        if (
-          exactForwardFrameRequired
-          && (typeof drawMediaTime !== 'number' || !Number.isFinite(drawMediaTime))
-        ) return;
+        if (activeCanvas.dataset[DATA_STATUS] !== 'ready') return;
+        lastDrawMediaTime = Number.isFinite(drawMediaTime)
+          ? drawMediaTime!
+          : Number.NaN;
+        const endpointPending = mode === 'endpoint' && !exactFrameMode;
         if (endpointPending) {
-          if (typeof drawMediaTime !== 'number' || !Number.isFinite(drawMediaTime)) {
+          if (!Number.isFinite(drawMediaTime)) {
             return;
           }
           if (
-            Math.abs(drawMediaTime - options.endpointSeconds)
-              > ENDPOINT_FRAME_TOLERANCE_SECONDS
+            !near(drawMediaTime!, options.endpointSeconds, ENDPOINT_FRAME_TOLERANCE_SECONDS)
           ) {
-            activeCanvas.dataset.packedAlphaStatus = 'probing';
+            activeCanvas.dataset[DATA_STATUS] = 'probing';
             endpointSeekStage = 'nudge';
             video.pause();
             // The seeked event can be coalesced when the decoder was already
@@ -346,9 +348,9 @@ export function createPhonePackedAlphaSurface(
         timeout = undefined;
         root.dataset[statusDataset] = 'verified';
         if (activePresentationToken === null) {
-          delete activeCanvas.dataset.phonePackedAlphaPresentationToken;
+          delete activeCanvas.dataset[DATA_PRESENTATION_TOKEN];
         } else {
-          activeCanvas.dataset.phonePackedAlphaPresentationToken = activePresentationToken;
+          activeCanvas.dataset[DATA_PRESENTATION_TOKEN] = activePresentationToken;
         }
         options.onFrame?.(
           activePresentationToken,
@@ -371,9 +373,9 @@ export function createPhonePackedAlphaSurface(
       }
     });
     exactFrameMode = false;
-    const status = activeCanvas.dataset.packedAlphaStatus;
+    const status = activeCanvas.dataset[DATA_STATUS];
     if (status === 'webgl-unavailable') {
-      video.dataset.phonePackedAlphaOwner = layerName;
+      video.dataset[DATA_OWNER] = layerName;
       setPackedAlphaVideoSource(video, options.packedSourceUrl);
       failEndpoint();
       settleActivation();
@@ -382,7 +384,7 @@ export function createPhonePackedAlphaSurface(
     root.dataset[statusDataset] = nextMode === 'forward'
       ? 'awaiting-native-playback'
       : 'probing';
-    video.dataset.phonePackedAlphaOwner = layerName;
+    video.dataset[DATA_OWNER] = layerName;
     if (nextMode === 'endpoint') {
       endpointSeek = () => {
         if (mode !== 'endpoint' || video.readyState < HAVE_METADATA) return;
@@ -394,7 +396,7 @@ export function createPhonePackedAlphaSurface(
             ? endpoint - ENDPOINT_NUDGE_SECONDS
             : endpoint + ENDPOINT_NUDGE_SECONDS;
           if (endpointSeekStage === 'nudge') {
-            if (Math.abs(video.currentTime - nudge) > 0.002) {
+            if (!near(video.currentTime, nudge, 0.002)) {
               video.currentTime = nudge;
               return;
             }
@@ -402,7 +404,7 @@ export function createPhonePackedAlphaSurface(
             video.currentTime = endpoint;
           } else if (
             endpointSeekStage === 'target'
-            && Math.abs(video.currentTime - endpoint) <= 0.002
+            && near(video.currentTime, endpoint, 0.002)
           ) {
             // WebKit does not always issue rVFC for a paused terminal seek.
             // Prime exactly one decoded sample, then pause in the rVFC
@@ -411,10 +413,10 @@ export function createPhonePackedAlphaSurface(
             void video.play().catch(() => {
               failEndpoint();
             });
-          } else if (Math.abs(video.currentTime - endpoint) > 0.002) {
+          } else if (!near(video.currentTime, endpoint, 0.002)) {
             endpointSeekStage = 'target';
             video.currentTime = endpoint;
-          } else if (activeCanvas.dataset.packedAlphaStatus === 'probing') {
+          } else if (activeCanvas.dataset[DATA_STATUS] === 'probing') {
             endpointSeekStage = 'nudge';
             video.currentTime = nudge;
           } else {
@@ -460,7 +462,7 @@ export function createPhonePackedAlphaSurface(
     // identify the single surface owner rather than an anonymous canvas.
     nextCanvas.className = options.canvasClassName;
     nextCanvas.setAttribute('aria-hidden', 'true');
-    nextCanvas.dataset.phonePackedAlphaCanvas = options.layerName;
+    nextCanvas.dataset[DATA_CANVAS] = options.layerName;
   };
   const waitForRetainedContext = (
     nextMode: PhonePackedAlphaSurfaceMode,
@@ -643,7 +645,7 @@ export function createPhonePackedAlphaSurface(
     }
     restoreOwner.clear();
     canvas?.remove();
-    if (canvas) delete canvas.dataset.phonePackedAlphaRetired;
+    if (canvas) delete canvas.dataset[DATA_RETIRED];
     canvas = undefined;
     disposed = true;
   };
@@ -667,16 +669,15 @@ export function createPhonePackedAlphaSurface(
     }
     if (
       activePresentationToken === presentationToken
-      && canvas?.dataset.packedAlphaStatus === 'ready'
-      && canvas.dataset.phonePackedAlphaPresentationToken === presentationToken
+      && canvas?.dataset[DATA_STATUS] === 'ready'
+      && canvas.dataset[DATA_PRESENTATION_TOKEN] === presentationToken
     ) {
       // Preparation may finish before the presentation adapter is bound. The
       // exact draw is still valid for this immutable token; replay its raw
       // evidence to the newly bound adapter instead of dropping admission.
-      const mediaTime = Number(canvas.dataset.packedAlphaMediaTime);
       options.onFrame?.(
         activePresentationToken,
-        Number.isFinite(mediaTime) ? mediaTime : null
+        Number.isFinite(lastDrawMediaTime) ? lastDrawMediaTime : null
       );
       return;
     }
@@ -693,17 +694,8 @@ export function createPhonePackedAlphaSurface(
     }
     // The timeline driver is the decoder authority for PH reverse frames. The
     // caller-provided number is the immutable rVFC tuple returned by that
-    // driver; draw it directly instead of reading video.currentTime. When a
-    // browser has not retained the diagnostic dataset yet, the tuple remains
-    // the source of truth; a conflicting retained value is rejected.
-    const recordedMediaTime = Number(video.dataset.timelineVideoFrameMediaTime);
-    if (
-      Number.isFinite(recordedMediaTime)
-      && Math.abs(recordedMediaTime - mediaTime) > PRESENTATION_TOLERANCE_SECONDS
-    ) {
-      if (canvas) canvas.dataset.packedAlphaStatus = 'probing';
-      return false;
-    }
+    // driver; draw it directly instead of reading video.currentTime. The
+    // compositor's ready status is the coupled upload/draw evidence.
     if (!exactFrameMode) {
       // Once the presented-frame reverse starts, the timeline driver is the
       // only frame clock. Suspend the compositor's seek/timeupdate/rVFC
@@ -712,19 +704,8 @@ export function createPhonePackedAlphaSurface(
       compositor.setActive(false);
       exactFrameMode = true;
     }
-    exactFrameRenderInProgress = true;
-    let result: ReturnType<PackedAlphaVideoCompositor['render']>;
-    try {
-      result = compositor.render(mediaTime);
-    } finally {
-      exactFrameRenderInProgress = false;
-    }
-    return result === 'rendered'
-      && canvas.dataset.packedAlphaStatus === 'ready'
-      && canvas.dataset.packedAlphaFrameEvidence === 'rvfc'
-      && Number.isFinite(Number(canvas.dataset.packedAlphaMediaTime))
-      && Math.abs(Number(canvas.dataset.packedAlphaMediaTime) - mediaTime)
-        <= PRESENTATION_TOLERANCE_SECONDS;
+    const result = compositor.render(mediaTime);
+    return result === 'rendered' && canvas.dataset[DATA_STATUS] === 'ready';
   };
 
   const surface = (command: PhonePackedAlphaSurfaceCommand) => {

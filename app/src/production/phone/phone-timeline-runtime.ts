@@ -2,7 +2,6 @@ import {
   disposeTimelineVideoDriver,
   driveTimelineVideo,
   prepareTimelineVideoFrame,
-  timelineVideoDriverFor,
   type TimelineVideoDriveInput,
   type TimelineVideoMode
 } from '../../media/timeline-video-driver';
@@ -37,14 +36,6 @@ export type PhoneTimelineVideoFrame = readonly [
   generation: number | null,
   targetTime: number | null,
   mediaTime: number | null
-];
-
-/** Small read-only probe used by TTG endpoint verification. */
-export type PhoneTimelineVideoSnapshot = readonly [
-  runId: string | null,
-  direction: Direction | null,
-  desiredProgress: number | null,
-  frameReady: boolean
 ];
 
 function driverInput([
@@ -100,20 +91,6 @@ export async function preparePhoneTimelineVideoFrame(
   return frame
     ? [frame[0], frame[1], frame[2], frame[3], frame[4], frame[5]]
     : [null, null, null, null, null, null];
-}
-
-/** Hides the driver's mutable snapshot object behind a four-slot probe. */
-export function phoneTimelineVideoSnapshot(
-  video: HTMLVideoElement | null | undefined
-): PhoneTimelineVideoSnapshot {
-  if (!video) return [null, null, null, false];
-  const snapshot = timelineVideoDriverFor(video).snapshot();
-  return [
-    snapshot.runId ?? null,
-    snapshot.direction ?? null,
-    snapshot.desiredProgress ?? null,
-    snapshot.frameReady
-  ];
 }
 
 export function disposePhoneTimelineVideo(

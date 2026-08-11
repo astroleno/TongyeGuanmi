@@ -5816,8 +5816,19 @@ test('[P1 Figure2 dynamic camera coverage] extends authored texture through a li
   for (const progress of [0, .5, 1] as const) {
     await page.evaluate((sample) => {
       const root = document.querySelector<HTMLElement>('[data-phone-authority-id]');
-      root?.style.setProperty('--portrait-figure2-camera-scale', `${1.012 + sample * .18}`);
-      root?.style.setProperty('--portrait-figure2-middle-y', `${sample * 12}px`);
+      // Keep the seam probe on the authored Figure2 z-depth trajectory. The
+      // production renderer uses smoothStep before applying the camera lease;
+      // a linear/manual probe can pass while sampling a geometry the runtime
+      // never produces.
+      const eased = sample * sample * (3 - 2 * sample);
+      root?.style.setProperty(
+        '--portrait-figure2-camera-scale',
+        `${1.012 + eased * .13}`
+      );
+      root?.style.setProperty(
+        '--portrait-figure2-middle-y',
+        `${-eased * 34}px`
+      );
       root?.setAttribute('data-phone-figure2-coverage-progress', String(sample));
     }, progress);
     await page.waitForTimeout(40);
@@ -6000,6 +6011,11 @@ test('[PH token-bound reverse][PH retire restore] requires current-token packed 
       'data-phone-authority-id',
       authorityId!
     );
+    // Reverse admission also retires the exact PH visual lease when the
+    // native Lab endpoint is stable. The Canvas remains mounted for a later
+    // retry, but its decoder/context must not remain active.
+    await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
+      .toHaveAttribute('data-phone-packed-alpha-retired', 'true');
     if (cycle === 0) {
       await driveAdjacentPhoneRun(page, 'lab', 'education', 1, 70_000);
       await assertStablePhoneHold(page, 'education');

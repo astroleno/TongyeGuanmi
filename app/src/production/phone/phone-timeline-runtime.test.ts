@@ -3,21 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 const timeline = vi.hoisted(() => ({
   dispose: vi.fn(),
   drive: vi.fn(),
-  prepare: vi.fn(),
-  snapshot: vi.fn()
+  prepare: vi.fn()
 }));
 
 vi.mock('../../media/timeline-video-driver', () => ({
   disposeTimelineVideoDriver: timeline.dispose,
   driveTimelineVideo: timeline.drive,
-  prepareTimelineVideoFrame: timeline.prepare,
-  timelineVideoDriverFor: () => ({ snapshot: timeline.snapshot })
+  prepareTimelineVideoFrame: timeline.prepare
 }));
 
 import {
   disposePhoneTimelineVideo,
   drivePhoneTimelineVideo,
-  phoneTimelineVideoSnapshot,
   preparePhoneTimelineVideoFrame,
   type PhoneTimelineVideoInput
 } from './phone-timeline-runtime';
@@ -57,7 +54,7 @@ describe('phone timeline runtime bridge', () => {
     });
   });
 
-  it('returns prepared-frame and snapshot evidence as positional data', async () => {
+  it('returns prepared-frame evidence as positional data', async () => {
     timeline.prepare.mockResolvedValue([
       'ready',
       'phone-timeline:1',
@@ -66,17 +63,6 @@ describe('phone timeline runtime bridge', () => {
       1.2,
       1.2
     ]);
-    timeline.snapshot.mockReturnValue({
-      runId: 'phone-timeline:1',
-      direction: -1,
-      generation: 7,
-      desiredProgress: 0.42,
-      targetTime: 1.2,
-      seekPending: false,
-      nativeFallback: false,
-      frameReady: true
-    });
-
     await expect(preparePhoneTimelineVideoFrame(video, input)).resolves.toEqual([
       'ready',
       'phone-timeline:1',
@@ -85,13 +71,6 @@ describe('phone timeline runtime bridge', () => {
       1.2,
       1.2
     ]);
-    expect(phoneTimelineVideoSnapshot(video)).toEqual([
-      'phone-timeline:1',
-      -1,
-      0.42,
-      true
-    ]);
-
     disposePhoneTimelineVideo(video);
     expect(timeline.dispose).toHaveBeenCalledWith(video);
   });

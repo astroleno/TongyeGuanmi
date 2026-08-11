@@ -8,7 +8,6 @@ import {
   ensureFigure2HoldFrame,
   figure2AnimationScene,
   figure2DepthTransformForProgress,
-  figure2DirectionalMediaSnapshot,
   prepareFigure2MediaLeg,
   renderFigure2AnimationProgress,
   renderFigure2Hold
@@ -356,11 +355,6 @@ describe('Figure2 canonical media', () => {
     commitFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
     await Promise.resolve();
     expect(video.playCalls).toBe(1);
-    expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({
-      activeDirection: 1,
-      activeRunId: 'figure2-forward:1',
-      media: { frameReady: true }
-    });
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 
@@ -380,10 +374,6 @@ describe('Figure2 canonical media', () => {
     expect(video.seekWrites).toHaveLength(seekWrites);
     expect(video.dataset.timelineVideoProgress).toBe('0.5700');
     expect(video.dataset.timelineVideoDirection).toBe('-1');
-    expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({
-      activeDirection: -1,
-      activeRunId: 'figure2-reverse:2'
-    });
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 

@@ -54,6 +54,9 @@ type ExecutionResources<Visual extends string> = {
     token: PresentationToken,
     report: (frame: PhoneRenderedPresentationFrame) => boolean
   ] | null;
+  /** Reverse media keeps its cinematic token while the return Ink leg binds
+   * a second effect token into `rawFrame`. */
+  vf: PresentationToken | null;
   /** Only reduced admission owns a one-paint static target binding. */
   staticTarget: PhoneSceneAdapterHandle | PhoneCinematicSceneAdapterHandle | null;
 };
@@ -292,11 +295,17 @@ export function createPhoneCompositeRunner<
   const releaseResources = (resource: ExecutionResources<Visual>) => {
     clearTimer(resource);
     resource.abortController.abort();
-    if (resource.rawFrame) {
-      if (resource.direction > 0) {
-        configFor(resource)?.visual.disposePresentation?.(resource.rawFrame[0]);
+    const visualToken = resource.vf ?? resource.rawFrame?.[0];
+    if (visualToken) {
+      // The raw frame belongs to the cinematic visual for both directions.
+      // Reverse success/rollback must retire that exact visual lease too;
+      // retaining the mounted Canvas is safe, retaining its decoder/context
+      // is not. Reduced static admissions additionally release their native
+      // target through `staticTarget` below.
+      configFor(resource)?.visual.disposePresentation?.(visualToken);
+      if (resource.staticTarget && resource.rawFrame) {
+        resource.staticTarget.disposePresentation?.(resource.rawFrame[0]);
       }
-      resource.staticTarget?.disposePresentation?.(resource.rawFrame[0]);
     }
     resource.staticTarget = null;
     resource.releaseExtra?.();
@@ -321,8 +330,8 @@ export function createPhoneCompositeRunner<
     } else {
       releaseRoles(resource, 'source');
     }
-    // A forward rollback retires the candidate visual; a reverse rollback
-    // keeps the source visual stable so the next gesture can retry it.
+    // Every rollback retires the exact cinematic visual lease. A later retry
+    // re-arms the mounted adapter with a new immutable token.
     releaseResources(resource);
     resource.session[13]();
   };
@@ -343,9 +352,9 @@ export function createPhoneCompositeRunner<
     clearTimer(resource);
     resource.session[12](
       () => releaseGeometry(resource, config),
-      // Forward success retires the cinematic source after its target is
-      // stable. Reverse success keeps the newly admitted cinematic target
-      // warm for the next forward leg.
+      // Success retires the cinematic visual after the target is stable in
+      // either direction; the mounted adapter may recreate its surface for a
+      // later leg, but no dormant decoder/context survives this lease.
       () => releaseResources(resource)
     );
     releaseRoles(resource, 'receiver');
@@ -409,7 +418,9 @@ export function createPhoneCompositeRunner<
     prepared = false
   ) => {
     if (resources !== resource || !resource.session[4]()) return;
-    if (!bindRawFrame(resource)) return rollback(resource);
+    const mediaBinding = bindRawFrame(resource);
+    if (!mediaBinding) return rollback(resource);
+    if (resource.direction === -1) resource.vf = mediaBinding[0];
     if (resource.direction === 1 && !prepared) {
       const source = config.visual.root();
       const receiver = config.final.root();
@@ -714,6 +725,7 @@ export function createPhoneCompositeRunner<
       releaseExtra: undefined,
       presentedLeg: null,
       rawFrame: null,
+      vf: null,
       staticTarget: null
     };
     resources = resource;
