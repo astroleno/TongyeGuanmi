@@ -200,6 +200,73 @@ describe('single phone story projector transaction', () => {
     });
   });
 
+  it('[P0 auto admission lease] rolls back an unresolved run-null hold preparation', () => {
+    vi.useFakeTimers();
+    try {
+      const frames: Array<() => void> = [];
+      const root = element();
+      const services = element();
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'brand',
+        root,
+        scrollY: () => 100,
+        scrollTo: () => undefined,
+        scheduleFrame: (callback) => frames.push(callback)
+      });
+      orchestrator.registerScrollCorridor({
+        id: 'auto-brand-services-preparation',
+        scenes: ['brand', 'services'],
+        sample: () => null,
+        boundary: () => 100,
+        landing: (scene) => scene === 'brand' ? 100 : 320
+      });
+      registerReadySurface(orchestrator, 'brand', (callback) => frames.push(callback));
+      orchestrator.registerSurface({
+        id: 'native:services',
+        scene: 'services',
+        kind: 'native',
+        root: () => services,
+        presentation: () => [true, true, true, true, 'static-poster'],
+        prepareDirectEntry: () => new Promise<void>(() => undefined)
+      });
+
+      orchestrator.dispatch({
+        type: 'HOLD_RECONCILED',
+        authorityId: orchestrator.getSnapshot().authorityId,
+        scene: 'services'
+      });
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: {
+          phase: 'verifying-target',
+          operation: { trigger: 'auto', run: null, to: 'services' }
+        }
+      });
+      expect(root.dataset.phoneInputState).toBe('locked');
+
+      vi.advanceTimersByTime(PHONE_PREPARATION_LEASE_TIMEOUT_MS - 1);
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        session: { phase: 'verifying-target' }
+      });
+      vi.advanceTimersByTime(1);
+
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'transaction',
+        diagnostics: { lastRollback: { reason: 'dependency-timeout' } }
+      });
+      while (frames.length > 0) frames.shift()?.();
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'stable',
+        scene: 'brand',
+        session: null
+      });
+      expect(root.dataset.phoneInputState).toBe('free');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('[Pattern↔StarMap reduced cutover] binds the target leaf without entering direct-entry preparation', () => {
     const root = element();
     const star = element();
@@ -1969,6 +2036,54 @@ describe('single phone story projector transaction', () => {
       },
       projection: { semanticScene: 'method-top', commitState: 'candidate' }
     });
+  });
+
+  it('[P0 pending direct-entry lease] expires a cold initial request whose receiver never registers', () => {
+    vi.useFakeTimers();
+    try {
+      const root = element();
+      const orchestrator = createPhoneStoryOrchestrator({
+        initialScene: 'hero',
+        root,
+        scrollY: () => 0,
+        scrollTo: () => undefined
+      });
+      registerReadySurface(orchestrator, 'hero');
+      orchestrator.registerScrollCorridor({
+        id: 'cold-services-entry',
+        scenes: ['hero', 'services'],
+        sample: () => null,
+        boundary: () => 0,
+        landing: (scene) => scene === 'services' ? 220 : 0
+      });
+
+      orchestrator.dispatch({
+        type: 'DIRECT_ENTRY_REQUESTED',
+        authorityId: orchestrator.getSnapshot().authorityId,
+        target: 'services',
+        source: 'initial',
+        fallbackScene: 'services',
+        cinematic: null
+      });
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'stable',
+        scene: 'hero',
+        revision: 0
+      });
+      expect(root.dataset.phoneInputState).toBe('free');
+
+      vi.advanceTimersByTime(PHONE_PREPARATION_LEASE_TIMEOUT_MS);
+      registerReadySurface(orchestrator, 'services');
+
+      expect(orchestrator.getSnapshot()).toMatchObject({
+        status: 'stable',
+        scene: 'hero',
+        revision: 0
+      });
+      expect(root.dataset.phoneInputState).toBe('free');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('replays a stable direct entry after its route root becomes projectable', () => {

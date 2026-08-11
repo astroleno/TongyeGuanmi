@@ -193,7 +193,7 @@ export function createPhoneStoryRuntimeEngine(
   const subscribers = new Set<() => void>();
   let directEntryPreparation: DirectEntryPreparation | null = null;
   let preparationLease: {
-    key: string;
+    key: string | Extract<PhoneStoryEvent, { type: 'DIRECT_ENTRY_REQUESTED' }>;
     timeout: ReturnType<typeof globalThis.setTimeout>;
   } | null = null;
   let rollbackPresentationLease: PhonePresentationAdapterLease | null = null;
@@ -234,7 +234,8 @@ export function createPhoneStoryRuntimeEngine(
   };
   const preparationLeaseKey = (
     snapshot: PhoneStorySnapshot
-  ): string | null => {
+  ): string | Extract<PhoneStoryEvent, { type: 'DIRECT_ENTRY_REQUESTED' }> | null => {
+    if (pendingDirectEntry) return pendingDirectEntry;
     if (snapshot.status !== 'transaction') return null;
     const { session } = snapshot;
     if (session.phase === 'rollback-verifying-stable') {
@@ -246,9 +247,7 @@ export function createPhoneStoryRuntimeEngine(
       ].join(':');
     }
     if (session.operation.run === null) {
-      return session.operation.trigger === 'auto'
-        ? null
-        : directEntryPreparationKey(snapshot);
+      return directEntryPreparationKey(snapshot);
     }
     if (session.phase !== 'preparing') return null;
     return [
@@ -278,6 +277,11 @@ export function createPhoneStoryRuntimeEngine(
         preparationLease !== lease
         || preparationLeaseKey(currentSnapshot) !== key
       ) return;
+      if (pendingDirectEntry === key) {
+        pendingDirectEntry = null;
+        preparationLease = null;
+        return;
+      }
       if (rearm) {
         rearm = false;
         rollbackPresentationLease?.dispose();
@@ -404,7 +408,10 @@ export function createPhoneStoryRuntimeEngine(
       if (
         event.type === 'DIRECT_ENTRY_REQUESTED'
         && currentSnapshot.status === 'stable'
-      ) pendingDirectEntry = event;
+      ) {
+        pendingDirectEntry = event;
+        syncPreparationLease();
+      }
       recoverProjectFailure();
       return { snapshot: currentSnapshot, effects: [] as never[] };
     }
@@ -418,7 +425,6 @@ export function createPhoneStoryRuntimeEngine(
   const replayPendingDirectEntry = () => {
     const event = pendingDirectEntry;
     if (disposed || !event || currentSnapshot.status !== 'stable') return;
-    pendingDirectEntry = null;
     dispatch(event);
   };
   const replayPendingTerminalCompletion = () => {
