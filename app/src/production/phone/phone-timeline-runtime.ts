@@ -93,6 +93,20 @@ export async function preparePhoneTimelineVideoFrame(
     : [null, null, null, null, null, null];
 }
 
+/** One shared exact-rVFC request for packed endpoint and reverse-frame leaves. */
+export function preparePhoneExactTimelineFrame(
+  video: HTMLVideoElement | null | undefined,
+  runId: string,
+  direction: Direction,
+  progress: number,
+  endSeconds: number
+): Promise<PhoneTimelineVideoFrame> {
+  return preparePhoneTimelineVideoFrame(video, [
+    runId, direction, progress, endSeconds, 0, endSeconds, 0,
+    2500, 'timeline', 1, false, null, true
+  ]);
+}
+
 export function disposePhoneTimelineVideo(
   video: HTMLVideoElement | null | undefined
 ): void {

@@ -245,27 +245,32 @@ describe('Phone Brand → Lab visual contracts', () => {
     expect(aodStaticTargetProof).toContain('if (reducedMotion) {');
     expect(aodStaticTargetProof).toContain('requestBoundStaticPresentation();');
     expect(aodStaticTargetProof).toContain(
-      'compositor.render(stableMediaTime ?? undefined);'
+      "compositor.render(stableMediaTime) !== 'rendered'"
     );
+    expect(aodStaticTargetProof).toContain(
+      "reportBoundPresentation(binding, 'leaf-post-paint')"
+    );
+    expect(aodStaticTargetProof).not.toContain('stableMediaTime ?? undefined');
+    expect(aodStaticTargetProof).toContain("reportAodFailure('media-failed');");
     // Both the reduced static proof and the full-motion canvas proof must
     // describe the authored AOD hold. Star → AOD/direct entry may never
     // project the AOD→Method exit endpoint before that runner owns playback.
     expect(aodSceneSource).toContain('renderRef.current?.(0);');
     expect(aodSceneSource).not.toContain('renderRef.current?.(1);');
-    expect(aodSceneSource).toMatch(
-      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?renderRef\.current\?\.\(0\);[\s\S]*?staticSurface\.dataset\.aodStaticPoster\s*=\s*binding\.key;[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodPresentationFrame\(/
+    const aodBoundProof = aodSceneSource.slice(
+      aodSceneSource.indexOf('const reportBoundPresentation'),
+      aodSceneSource.indexOf('const requestBoundStaticPresentation')
     );
+    expect(aodBoundProof).toContain('surface.dataset.aodStaticPoster = binding.key;');
+    expect(aodBoundProof).toContain(
+      'binding.proofFrame = window.requestAnimationFrame(() => {'
+    );
+    expect(aodBoundProof).toContain('phoneAodPresentationFrame(');
     const aodCompositorFrame = aodSceneSource.slice(
       aodSceneSource.indexOf('onFrame: (mediaTime) =>'),
       aodSceneSource.indexOf('compositorRef.current = compositor')
     );
-    expect(aodCompositorFrame).toContain(
-      'staticSurface.dataset.aodStaticPoster = binding.key;'
-    );
-    expect(aodCompositorFrame).toContain(
-      'binding.proofFrame = window.requestAnimationFrame(() => {'
-    );
-    expect(aodCompositorFrame).toContain("'leaf-post-paint'");
+    expect(aodCompositorFrame).not.toContain('binding.report(');
     expect(aodCompositorFrame).not.toContain('requestBoundStaticPresentation()');
     const reducedAutoplay = aodSceneSource.slice(
       aodSceneSource.indexOf('startAutoplay(execution)'),

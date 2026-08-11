@@ -282,7 +282,10 @@ describe('formal Unit7-B phone integration', () => {
       );
     }
     expect(aodSource).toMatch(
-      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodPresentationFrame\(/
+      /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?reportBoundPresentation\(binding, 'leaf-static-poster'\)/
+    );
+    expect(aodSource).toMatch(
+      /const reportBoundPresentation\s*=\s*useCallback\(\([\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneAodPresentationFrame\(/
     );
     expect(methodSource).toMatch(
       /binding\.paintFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?binding\.proofFrame\s*=\s*window\.requestAnimationFrame\(\(\)\s*=>[\s\S]*?phoneMethodStaticPresentationFrame\(/

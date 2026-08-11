@@ -46,6 +46,39 @@ describe('Unit 6 presented-frame reverse playback', () => {
     expect(complete).toHaveBeenCalledOnce();
   });
 
+  it('commits zero from the last presented 30fps sample without a second zero seek', async () => {
+    const frames: FrameRequestCallback[] = [];
+    const prepared: number[] = [];
+    const rendered: number[] = [];
+    const complete = vi.fn();
+    const playback = createPhonePresentedReversePlayback([
+      3000,
+      async (progress) => {
+        prepared.push(progress);
+        return true;
+      },
+      (progress) => rendered.push(progress),
+      complete,
+      vi.fn(),
+      null,
+      (callback) => {
+        frames.push(callback);
+        return frames.length;
+      },
+      vi.fn()
+    ]);
+
+    playback.start();
+    for (let index = 0; index < 100 && !complete.mock.calls.length; index += 1) {
+      frames.shift()?.(index * 16);
+      await Promise.resolve();
+    }
+
+    expect(complete).toHaveBeenCalledOnce();
+    expect(prepared.at(-1)).toBeGreaterThan(0);
+    expect(rendered.at(-1)).toBe(0);
+  });
+
   it('invalidates an in-flight frame when the run stops', async () => {
     const frames: FrameRequestCallback[] = [];
     let resolvePreparation: ((ready: boolean) => void) | undefined;

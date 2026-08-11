@@ -85,10 +85,24 @@ describe('PhoneAod Route B adapter', () => {
   });
 
   it('[P0 WebKit reverse] reuses only the exact final packed frame for stable admission', () => {
-    expect(phoneAodStableFrameMediaTime(0, '0.0000')).toBe(0);
-    expect(phoneAodStableFrameMediaTime(0.03, '0.0000')).toBe(0.03);
-    expect(phoneAodStableFrameMediaTime(0.2, '0.0000')).toBeNull();
-    expect(phoneAodStableFrameMediaTime(null, '0.0000')).toBeNull();
+    expect(phoneAodStableFrameMediaTime(0, -1)).toBe(0);
+    expect(phoneAodStableFrameMediaTime(0.03, -1)).toBe(0.03);
+    expect(phoneAodStableFrameMediaTime(0.2, -1)).toBeNull();
+    expect(phoneAodStableFrameMediaTime(null, -1)).toBeNull();
+  });
+
+  it('[P0 WebKit forward] binds stable admission to the authored final rVFC without a timeline target', () => {
+    expect(phoneAodStableFrameMediaTime(2.567, 1)).toBe(2.567);
+    expect(phoneAodStableFrameMediaTime(2.53, 1)).toBe(2.53);
+    expect(phoneAodStableFrameMediaTime(2.4, 1)).toBeNull();
+    expect(phoneAodStableFrameMediaTime(null, 1)).toBeNull();
+
+    const presentationPath = aodSource.slice(
+      aodSource.indexOf('presentPresentation(token'),
+      aodSource.indexOf('disposePresentation(token')
+    );
+    expect(presentationPath).not.toContain('stableMediaTime ?? undefined');
+    expect(presentationPath).toContain('preparePhoneExactTimelineFrame');
   });
 
   it('[P0 AOD visual] contains no animated paper treatment writer', () => {

@@ -1,7 +1,7 @@
 import {
   disposePhoneTimelineVideo,
-  preparePhoneTimelineVideoFrame,
-  type PhoneTimelineVideoInput
+  preparePhoneExactTimelineFrame,
+  type PhoneTimelineVideoFrame
 } from '../../../production/phone/phone-timeline-runtime';
 import { CRANE_CONTACT_DURATION_MS } from '../../../story/timings';
 import {
@@ -78,25 +78,15 @@ function range01(value: number, start: number, end: number): number {
   return clamp((value - start) / Math.max(0.0001, end - start));
 }
 
-function reverseFrameInput(
-  runId: string,
-  progress: number
-): PhoneTimelineVideoInput {
-  return [
-    runId,
-    -1,
-    progress,
-    VIDEO_DURATION_FALLBACK,
-    0,
-    CRANE_VIDEO_END_SECONDS,
-    null,
-    2500,
-    'timeline',
-    1,
-    true,
-    null,
-    null
-  ];
+export function phoneCraneExactFrameMediaTimes(
+  frames: readonly [PhoneTimelineVideoFrame, PhoneTimelineVideoFrame]
+): readonly [number, number] | null {
+  const figureTime = frames[0][5];
+  const flockTime = frames[1][5];
+  return Number.isFinite(figureTime)
+    && Number.isFinite(flockTime)
+    ? [figureTime!, flockTime!]
+    : null;
 }
 
 async function prepareCraneAnimationFrame(
@@ -108,27 +98,21 @@ async function prepareCraneAnimationFrame(
   if (!figure || !flock) throw new Error('Crane media unavailable');
   const time = clamp(progress) * CRANE_TIMELINE_DURATION_SECONDS;
   const frames = await Promise.all([
-    preparePhoneTimelineVideoFrame(
-      figure,
-      reverseFrameInput(
-        runId,
-        range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS)
-      )
+    preparePhoneExactTimelineFrame(
+      figure, runId, -1,
+      range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS),
+      CRANE_VIDEO_END_SECONDS
     ),
-    preparePhoneTimelineVideoFrame(
-      flock,
-      reverseFrameInput(runId, range01(time, 0, FLOCK_END_SECONDS))
+    preparePhoneExactTimelineFrame(
+      flock, runId, -1, range01(time, 0, FLOCK_END_SECONDS),
+      CRANE_VIDEO_END_SECONDS
     )
   ]);
-  if (frames.some(([status]) => status !== 'ready')) {
-    throw new Error('Crane media stale');
+  const mediaTimes = phoneCraneExactFrameMediaTimes(frames);
+  if (!mediaTimes) {
+    throw new Error('Crane media unavailable');
   }
-  const figureTime = frames[0][5] ?? frames[0][4];
-  const flockTime = frames[1][5] ?? frames[1][4];
-  if (!Number.isFinite(figureTime) || !Number.isFinite(flockTime)) {
-    throw new Error('Crane media time unavailable');
-  }
-  return [figureTime!, flockTime!];
+  return mediaTimes;
 }
 
 export function phoneCraneVideos(root: HTMLElement | null): readonly [

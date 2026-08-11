@@ -19,6 +19,7 @@ import {
   PHONE_CRANE_FIGURE_MEDIA_SECONDS,
   PHONE_CRANE_FLOCK_MEDIA_SECONDS,
   PHONE_CRANE_FLOCK_PLAYBACK_RATE,
+  phoneCraneExactFrameMediaTimes,
   phoneCraneTimelineProgressForFigureMediaProgress,
   phoneCraneTimelineProgressForFlockMediaProgress
 } from './PhoneCrane.autoplay';
@@ -107,6 +108,22 @@ describe('PhoneCrane', () => {
     expect(source).toContain('(mediaTimes) => {');
     expect(source).toContain("surfaces[0](['frame', mediaTimes[0]])");
     expect(source).toContain("surfaces[1](['frame', mediaTimes[1]])");
+  });
+
+  it('[reverse exact frame] rejects seeked fallback and requires both decoder media times', () => {
+    expect(autoplaySource).toContain('preparePhoneExactTimelineFrame');
+    expect(phoneCraneExactFrameMediaTimes([
+      ['ready', 'crane-reverse', -1, 1, 1.2, 1.2],
+      ['ready', 'crane-reverse', -1, 1, 0.8, 0.8]
+    ])).toEqual([1.2, 0.8]);
+    expect(phoneCraneExactFrameMediaTimes([
+      ['ready', 'crane-reverse', -1, 1, 1.2, null],
+      ['ready', 'crane-reverse', -1, 1, 0.8, 0.8]
+    ])).toBeNull();
+    expect(phoneCraneExactFrameMediaTimes([
+      ['ready', 'crane-reverse', -1, 1, 1.2, 1.2],
+      ['ready', 'crane-reverse', -1, 1, 0.8, null]
+    ])).toBeNull();
   });
 
   it('uses stable reduced-motion endpoints in canonical order', () => {

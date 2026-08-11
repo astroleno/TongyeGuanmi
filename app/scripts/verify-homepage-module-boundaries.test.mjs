@@ -672,6 +672,34 @@ describe('homepage phone-shell debt ratchet', () => {
     expect(unknownRawFactory).toContain(
       'PhoneFuture.tsx: raw createFutureRuntime object contract is forbidden without a tuple bridge or retained policy'
     );
+    const localUseCallback = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/scenes/PhoneFuture.tsx',
+        source: [
+          "import { useCallback } from 'react';",
+          'const reportLocal = useCallback((_binding) => undefined, []);',
+          'reportLocal({ generation: 1 });'
+        ].join('\n')
+      }
+    ]);
+    expect(localUseCallback).not.toContain(
+      'PhoneFuture.tsx: raw reportLocal object contract is forbidden without a tuple bridge or retained policy'
+    );
+    const shadowedUseCallback = phoneCrossChunkExecutionContractViolations([
+      ...crossChunkExecutionSources,
+      {
+        file: '/tmp/src/production/phone/scenes/PhoneFuture.tsx',
+        source: [
+          'const useCallback = (callback) => callback;',
+          'const reportLocal = useCallback((_binding) => undefined, []);',
+          'reportLocal({ generation: 1 });'
+        ].join('\n')
+      }
+    ]);
+    expect(shadowedUseCallback).toContain(
+      'PhoneFuture.tsx: raw reportLocal object contract is forbidden without a tuple bridge or retained policy'
+    );
     const indirectRawFactory = phoneCrossChunkExecutionContractViolations([
       ...crossChunkExecutionSources,
       {

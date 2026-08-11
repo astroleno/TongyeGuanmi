@@ -134,8 +134,8 @@ export function createPhonePresentedReversePlayback(
       // can strand rVFC on WebKit). Short fixtures still exercise an explicit
       // zero-progress preparation because their step is proportionally large.
       const terminalFrameThreshold = Math.min(
-        1,
-        (PRESENTED_FRAME_STEP_MS / durationMs) * 0.8
+        .02,
+        (PRESENTED_FRAME_STEP_MS / durationMs) * 1.1
       );
       if (progress <= terminalFrameThreshold) {
         if (progress > 0.001) options.render(0);

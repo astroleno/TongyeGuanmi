@@ -509,6 +509,38 @@ function callableName(node, parsed) {
   return node.expression.getText(parsed).replaceAll('?.', '.');
 }
 
+function reactUseCallbackNames(parsed) {
+  const found = new Set();
+  parsed.statements.forEach((statement) => {
+    if (
+      !ts.isImportDeclaration(statement)
+      || statement.moduleSpecifier.text !== 'react'
+    ) return;
+    statement.importClause?.namedBindings?.elements?.forEach((element) => {
+      if ((element.propertyName?.text ?? element.name.text) === 'useCallback') {
+        found.add(element.name.text);
+      }
+    });
+  });
+  return found;
+}
+
+function localCallableExpression(initializer, reactCallbacks) {
+  if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
+    return initializer;
+  }
+  if (
+    ts.isCallExpression(initializer)
+    && ts.isIdentifier(initializer.expression)
+    && reactCallbacks.has(initializer.expression.text)
+  ) {
+    return initializer.arguments.find((argument) => (
+      ts.isArrowFunction(argument) || ts.isFunctionExpression(argument)
+    ));
+  }
+  return undefined;
+}
+
 /**
  * A local bridge function is still a cross-chunk boundary if it forwards its
  * parameter into an imported/runtime callable. Resolve those simple, named
@@ -517,6 +549,7 @@ function callableName(node, parsed) {
  */
 function localCallableForwardingTargets(parsed) {
   const callables = new Map();
+  const reactCallbacks = reactUseCallbackNames(parsed);
   const collect = (node) => {
     if (ts.isFunctionDeclaration(node) && node.name && node.body) {
       callables.set(node.name.text, {
@@ -524,16 +557,14 @@ function localCallableForwardingTargets(parsed) {
         body: node.body
       });
     }
-    if (
-      ts.isVariableDeclaration(node)
-      && ts.isIdentifier(node.name)
-      && node.initializer
-      && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
-    ) {
-      callables.set(node.name.text, {
-        parameters: node.initializer.parameters,
-        body: node.initializer.body
-      });
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const callable = localCallableExpression(node.initializer, reactCallbacks);
+      if (callable) {
+        callables.set(node.name.text, {
+          parameters: callable.parameters,
+          body: callable.body
+        });
+      }
     }
     ts.forEachChild(node, collect);
   };
@@ -640,6 +671,7 @@ function localCallableNames(source, file = 'phone.tsx') {
     true,
     file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
   );
+  const reactCallbacks = reactUseCallbackNames(parsed);
   const visit = (node) => {
     if (ts.isFunctionDeclaration(node) && node.name) {
       found.add(node.name.text);
@@ -648,7 +680,7 @@ function localCallableNames(source, file = 'phone.tsx') {
       ts.isVariableDeclaration(node)
       && ts.isIdentifier(node.name)
       && node.initializer
-      && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))
+      && localCallableExpression(node.initializer, reactCallbacks)
     ) {
       found.add(node.name.text);
     }

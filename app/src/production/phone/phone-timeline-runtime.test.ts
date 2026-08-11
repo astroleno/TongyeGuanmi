@@ -15,6 +15,7 @@ vi.mock('../../media/timeline-video-driver', () => ({
 import {
   disposePhoneTimelineVideo,
   drivePhoneTimelineVideo,
+  preparePhoneExactTimelineFrame,
   preparePhoneTimelineVideoFrame,
   type PhoneTimelineVideoInput
 } from './phone-timeline-runtime';
@@ -73,5 +74,26 @@ describe('phone timeline runtime bridge', () => {
     ]);
     disposePhoneTimelineVideo(video);
     expect(timeline.dispose).toHaveBeenCalledWith(video);
+  });
+
+  it('builds the shared exact rVFC request without a seeked fallback', async () => {
+    timeline.prepare.mockResolvedValue([
+      'ready', 'exact:1', -1, 8, 0, 0
+    ]);
+    await preparePhoneExactTimelineFrame(video, 'exact:1', -1, 0, 2.467);
+    expect(timeline.prepare).toHaveBeenLastCalledWith(video, {
+      runId: 'exact:1',
+      direction: -1,
+      progress: 0,
+      durationFallbackSeconds: 2.467,
+      startSeconds: 0,
+      endSeconds: 2.467,
+      endEpsilonSeconds: 0,
+      timelineDurationMs: 2500,
+      mode: 'timeline',
+      nativePlaybackDirection: 1,
+      allowSeekedFrameFallback: false,
+      requireExactMediaFrame: true
+    });
   });
 });
