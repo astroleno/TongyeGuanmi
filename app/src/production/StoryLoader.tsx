@@ -230,6 +230,20 @@ export function StoryLoader({
     return () => window.clearTimeout(timer);
   }, [exitReason, hidden, mode, onExitStart, onHidden]);
 
+  useEffect(() => {
+    if (!exitReason || hidden) return;
+    const finishRestoredExit = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setHidden(true);
+      if (!hiddenNotifiedRef.current) {
+        hiddenNotifiedRef.current = true;
+        onHidden?.(exitReason);
+      }
+    };
+    window.addEventListener('pageshow', finishRestoredExit);
+    return () => window.removeEventListener('pageshow', finishRestoredExit);
+  }, [exitReason, hidden, onHidden]);
+
   const style = useMemo(() => ({
     '--story-loader-reveal-ms': `${STORY_LOADER_TIMINGS.revealMs}ms`,
     '--story-loader-exit-ms': `${mode === 'reduced' ? STORY_LOADER_TIMINGS.reducedExitMs : STORY_LOADER_TIMINGS.exitMs}ms`

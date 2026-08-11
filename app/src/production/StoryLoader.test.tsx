@@ -95,6 +95,30 @@ describe('StoryLoader', () => {
     act(() => root.unmount());
   });
 
+  it('finishes an interrupted exit when a BFCache page is shown again', () => {
+    vi.useFakeTimers();
+    const onHidden = vi.fn();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    act(() => root.render(<StoryLoader
+      mode="direct"
+      ready
+      failed={false}
+      allowSafetyExit={false}
+      onHidden={onHidden}
+    />));
+    expect(host.querySelector('[data-story-loader]')?.getAttribute('data-loader-status'))
+      .toBe('exiting');
+    act(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+    expect(host.querySelector('[data-story-loader]')?.getAttribute('data-loader-status'))
+      .toBe('hidden');
+    expect(onHidden).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(STORY_LOADER_TIMINGS.exitMs));
+    expect(onHidden).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+  });
+
   it('renders one restrained live announcement and non-focusable visual ink layers', () => {
     const markup = renderToStaticMarkup(createElement(StoryLoader, {
       mode: 'cold-hero',
