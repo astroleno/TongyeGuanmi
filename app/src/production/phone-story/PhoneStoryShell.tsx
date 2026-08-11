@@ -47,7 +47,7 @@ function phoneNativePrewarmTarget(sceneId: PhoneSceneId, scrollY: number, direct
   if (sceneId === 'brand') return 'figure3-animation';
   if (sceneId === 'services') return forward ? 'ttg-animation' : 'figure3-animation';
   if (sceneId === 'lab') return forward ? 'ph-animation' : 'ttg-animation';
-  if (sceneId === 'education') return forward ? 'crane-animation' : 'ph-animation'; return null;
+  if (sceneId === 'education') return forward ? 'crane-animation' : 'ph-animation'; if (sceneId === 'contact') return 'crane-animation'; return null;
 }
 
 type PhoneTouchPoint = Readonly<{

@@ -171,9 +171,24 @@ describe('clean PhoneFigure3 leaf', () => {
       reports: mount.reports,
       frameToken: 'prewarm:figure3-animation:frame:1'
     });
+    mount.registration()?.commands.settle(0);
     await act(async () => { await Promise.resolve(); });
 
     expect(probe.prepareFrame).not.toHaveBeenCalled();
+    const video = host.querySelector<HTMLVideoElement>('video');
+    const canvas = host.querySelector<HTMLCanvasElement>(
+      '[data-phone-figure3-paper-canvas]'
+    );
+    if (!video || !canvas) throw new Error('missing hidden Figure3 prewarm surfaces');
+    video.currentTime = 0;
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+    Object.defineProperty(video, 'seeking', { configurable: true, value: false });
+    canvas.dataset.phoneFigure3PaperFrame = 'ready';
+    canvas.dataset.phoneFigure3PaperEndpoint = 'initial';
+    (probe.compositorOptions?.onPresentedFrame as (() => void) | undefined)?.();
+    expect(mount.reports.reportPrepared).not.toHaveBeenCalled();
+    expect(host.querySelector('.phone-figure3')
+      ?.getAttribute('data-phone-figure3-initial-surface')).toBe('preparing');
     act(() => root.unmount());
   });
 

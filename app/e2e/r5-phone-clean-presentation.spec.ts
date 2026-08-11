@@ -421,23 +421,40 @@ async function waitForCompleteStoryNativePrewarm(
   if (!target || ![
     'figure3-animation', 'ttg-animation', 'ph-animation', 'crane-animation'
   ].includes(target)) return;
-  await expect(page.locator(
-    `[data-phone-plane="receiver"] [data-phone-scene="${target}"]`
-  )).toBeAttached({ timeout: 15_000 });
-  if (target === 'ttg-animation') {
-    await expect(page.locator('[data-phone-plane="receiver"] [data-ttg-figure-video]'))
-      .not.toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
-  } else if (target === 'figure3-animation') {
-    await expect(page.locator('[data-phone-plane="receiver"] .phone-figure3'))
-      .not.toHaveAttribute('data-phone-figure3-initial-surface', 'video-frame-zero');
-  } else if (target === 'ph-animation') {
-    await expect(page.locator('[data-phone-plane="receiver"] [data-phone-packed-alpha-canvas="ph-figure"]'))
-      .not.toHaveAttribute('data-packed-alpha-frame-ready', 'true');
-  } else if (target === 'crane-animation') {
-    for (const layer of ['crane-figure', 'crane-flock']) {
-      await expect(page.locator(`[data-phone-plane="receiver"] [data-phone-packed-alpha-canvas="${layer}"]`))
-        .not.toHaveAttribute('data-packed-alpha-frame-ready', 'true');
-    }
+  try {
+    await expect(page.locator(
+      `[data-phone-plane="receiver"] [data-phone-scene="${target}"]`
+    )).toBeAttached({ timeout: 15_000 });
+  } catch (error) {
+    const state = await page.locator('.phone-story').evaluate((shell) => ({
+      shell: { ...((shell as HTMLElement).dataset) },
+      planes: [...shell.querySelectorAll<HTMLElement>('[data-phone-plane]')].map((plane) => ({
+        role: plane.dataset.phonePlane,
+        scenes: [...plane.querySelectorAll<HTMLElement>('[data-phone-scene]')]
+          .map((sceneRoot) => sceneRoot.dataset.phoneScene),
+        html: plane.innerHTML.slice(0, 800)
+      }))
+    }));
+    throw new Error(`Missing ${target} prewarm: ${JSON.stringify(state)}`, { cause: error });
+  }
+  await expect(page.locator('.phone-story'))
+    .toHaveAttribute('data-phone-resource-active-decoders', '0');
+  const videos = page.locator<HTMLVideoElement>(
+    `[data-phone-plane="receiver"] [data-phone-scene="${target}"] video`
+  );
+  const before = await videos.evaluateAll((elements) => elements.map((video) => ({
+    paused: video.paused, currentTime: video.currentTime
+  })));
+  expect(before.every(({ paused }) => paused), `${target} prewarm must stay paused`).toBe(true);
+  await page.waitForTimeout(120);
+  const after = await videos.evaluateAll((elements) => elements.map((video) => ({
+    paused: video.paused, currentTime: video.currentTime
+  })));
+  expect(after).toHaveLength(before.length);
+  for (const [index, sample] of after.entries()) {
+    expect(sample.paused, `${target} prewarm video ${index}`).toBe(true);
+    expect(sample.currentTime, `${target} prewarm video ${index}`)
+      .toBeCloseTo(before[index]?.currentTime ?? 0, 3);
   }
 }
 
@@ -1455,17 +1472,15 @@ async function readLifecycleProbe(
 
 async function withholdFigure3Endpoint(
   page: import('@playwright/test').Page,
-  endpoint: 'initial' | 'terminal',
-  initiallyEnabled = false
-): Promise<(enabled?: boolean) => Promise<void>> {
-  await page.addInitScript(({ withheld, initialState }) => {
+  endpoint: 'initial' | 'terminal'
+): Promise<() => Promise<void>> {
+  await page.addInitScript((withheld) => {
     const original = CanvasRenderingContext2D.prototype.drawImage;
-    let enabled = initialState;
+    let enabled = false;
     Object.defineProperty(window, '__r5WithholdFigure3Endpoint', {
       configurable: true,
-      value: (next = true) => {
-        enabled = next;
-        if (!enabled) return;
+      value: () => {
+        enabled = true;
         for (const canvas of document.querySelectorAll<HTMLCanvasElement>(
           '[data-phone-figure3-paper-canvas]'
         )) {
@@ -1498,10 +1513,10 @@ async function withholdFigure3Endpoint(
       }
       return Reflect.apply(original, this, [image, ...coordinates]);
     };
-  }, { withheld: endpoint, initialState: initiallyEnabled });
-  return (enabled = true) => page.evaluate((next) => (
-    window as typeof window & { __r5WithholdFigure3Endpoint(enabled: boolean): void }
-  ).__r5WithholdFigure3Endpoint(next), enabled);
+  }, endpoint);
+  return () => page.evaluate(() => (
+    window as typeof window & { __r5WithholdFigure3Endpoint(): void }
+  ).__r5WithholdFigure3Endpoint());
 }
 
 async function traverseFront(
@@ -2658,7 +2673,6 @@ test('Figure2 reverse media stage seeks from the parked endpoint to frame zero',
 });
 
 test('Figure3 initial surface uses decoded frame zero and fills the visual viewport', async ({ page }) => {
-  const withholdPrewarmFrame = await withholdFigure3Endpoint(page, 'initial', true);
   await page.goto('/#brand', { waitUntil: 'domcontentloaded' });
   const before = await waitForCommitSequence(page, 'brand', 0);
   await waitForContinuousStoryReady(page);
@@ -2666,12 +2680,8 @@ test('Figure3 initial surface uses decoded frame zero and fills the visual viewp
   await expect(scene).toHaveAttribute(
     'data-phone-figure3-initial-surface', 'poster-fallback'
   );
-  const prewarm = await scene.evaluate((element) => ({
-    token: element.dataset.phoneFigure3PreparedToken,
-    generation: element.dataset.phoneFigure3ActivationGeneration
-  }));
-  expect(prewarm.token).toMatch(/^prewarm:/);
-  await withholdPrewarmFrame(false);
+  const prewarmLineage = await scene.getAttribute('data-phone-figure3-proof-lineage');
+  expect(prewarmLineage).toMatch(/^\d+\|prewarm:/);
   const stop = await recordPhoneStoryFrames(page);
   await nextAnimationFrame(page);
   await sendFrontIntent(page, 'forward');
@@ -2694,14 +2704,13 @@ test('Figure3 initial surface uses decoded frame zero and fills the visual viewp
     figure3?.initialSurface === 'video-frame-zero'
     && figure3.canvasVisible && !figure3.posterVisible
   )), `Brand → Figure3 exposed the wrong surface: ${JSON.stringify(trace)}`).toBe(true);
-  const formalGenerations = new Set(transaction.map(({ figure3 }) => (
-    figure3?.activationGeneration
-  )).filter(Boolean));
+  const formalLineages = transaction.map(({ figure3 }) => (
+    figure3?.proofLineage
+  )).filter((lineage): lineage is string => Boolean(lineage));
+  const formalGenerations = new Set(formalLineages.map((lineage) => lineage.split('|')[0]));
   expect(formalGenerations.size).toBe(1);
-  expect([...formalGenerations][0]).not.toBe(prewarm.generation);
-  expect(transaction.some(({ figure3 }) => (
-    figure3?.preparedToken && !figure3.preparedToken.startsWith('prewarm:')
-  ))).toBe(true);
+  expect(formalLineages.every((lineage) => !lineage.includes('|prewarm:'))).toBe(true);
+  expect([...formalGenerations][0]).not.toBe(prewarmLineage?.split('|')[0]);
 
   const canvas = page.locator<HTMLCanvasElement>('[data-phone-figure3-paper-canvas]');
   const poster = page.locator('[data-phone-figure3-paper-poster]');

@@ -394,7 +394,7 @@ function stableSceneSnapshot(
 ): SnapshotRecord {
   return {
     ...stableSnapshot(), stateRevision: 30 + commitSequence,
-    stableCommit: { sceneId, landing: {}, commitSequence },
+    stableCommit: { sceneId, landing: {}, commitSequence, direction: 'forward' },
     presentationProof: { commitSequence, planeRevision: commitSequence },
     lastPlaneRevision: commitSequence
   };
@@ -1397,6 +1397,18 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => engine.publish(stableSceneSnapshot('figure3-animation', 3)));
     expect(host.querySelector('[data-phone-scene-leaf="services"]')).toBe(services);
     expect(host.querySelector('[data-phone-transition-leaf="figure3-services"]')).toBe(effect);
+    act(() => root.unmount());
+  });
+
+  it('retains Crane as a dormant reverse prewarm after Contact commits', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+
+    act(() => engine.publish(nativeStableSnapshot('contact', 12, 'forward')));
+
+    expect(engine.createPrewarmLeafReportPort).toHaveBeenCalledWith('crane-animation');
+    expect(host.querySelector('[data-phone-scene-leaf="crane-animation"]')).not.toBeNull();
     act(() => root.unmount());
   });
 

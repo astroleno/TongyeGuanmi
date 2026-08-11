@@ -983,7 +983,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         : 'target';
       const retainsPair = transaction.closure.retireAfter === 'pair-exit-or-route-dispose';
       for (const lease of matching) {
-      const keepsStableMount = lease.reports.binding.attempt.sceneId === next.stableCommit.sceneId && lease.reports.binding.leg === retainedLeg; if (keepsStableMount || retainsPair) { if (retainsPair && lease.reports.binding.leg !== 'effect') lease.reports.p = 'ready'; closeReports(lease.reports); } else retireLease(lease, 'closure-retired');
+      const keepsStableMount = lease.reports.binding.attempt.sceneId === next.stableCommit.sceneId && lease.reports.binding.leg === retainedLeg; if (keepsStableMount) closeReports(lease.reports); else if (retainsPair) { if (lease.reports.binding.leg !== 'effect') { pauseLease(lease, 'outside-closure'); lease.reports.p = 'ready'; } closeReports(lease.reports); } else retireLease(lease, 'closure-retired');
       }
       if (next.stableCommit !== previous.stableCommit) chunkRecovery.markStable(Object.freeze({
         authorityId: next.authorityId,

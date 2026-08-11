@@ -2707,6 +2707,30 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('demotes a departing retained media partner without keeping decoder ownership', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#crane-animation');
+    const disconnect = runtime.connect();
+    const source = commandFixture();
+    registerCurrentLeaf(runtime, source.commands);
+    proveCurrent(runtime, fixture);
+
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      target: 'story', trusted: true
+    });
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'contact' }
+    });
+    expect(source.commands.pause).toHaveBeenLastCalledWith('outside-closure');
+    expect(fixture.resources.at(-1)?.activeDecoders).toBe(0);
+    disconnect();
+  });
+
   it('does not consume touchend activation for static choreography even when its closure mounts video', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#star-map');

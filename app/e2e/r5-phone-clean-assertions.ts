@@ -495,8 +495,7 @@ export type PhoneStoryFrameSample = Readonly<{
   figure3: Readonly<{
     initialSurface: string | null;
     mediaState: string | null;
-    preparedToken: string | null;
-    activationGeneration: string | null;
+    proofLineage: string | null;
     posterVisible: boolean;
     canvasVisible: boolean;
   }> | null;
@@ -595,8 +594,7 @@ export async function recordPhoneStoryFrames(
         figure3: figure3 ? {
           initialSurface: figure3.dataset.phoneFigure3InitialSurface ?? null,
           mediaState: figure3.dataset.phoneMediaState ?? null,
-          preparedToken: figure3.dataset.phoneFigure3PreparedToken ?? null,
-          activationGeneration: figure3.dataset.phoneFigure3ActivationGeneration ?? null,
+          proofLineage: figure3.dataset.phoneFigure3ProofLineage ?? null,
           posterVisible: figure3Poster ? visible(figure3Poster) : false,
           canvasVisible: figure3Canvas ? visible(figure3Canvas) : false
         } : null,
