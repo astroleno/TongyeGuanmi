@@ -1379,3 +1379,29 @@ hard cap is therefore explicitly revised once from 648 KiB (663,552 B) to
 650 KiB (665,600 B); media, initial-load, lazy-leaf, and desktop budgets remain
 unchanged. This is a reviewed gate change, not a budget bypass: the replacement
 candidate must still pass the new exact cap and record its remaining headroom.
+
+## 19. 2026-08-11 immutable v32 device-contract candidate
+
+Section 18's repair gate is complete. The sole artifact authorized for the next
+physical iPhone test pass is candidate v32:
+
+| Item | Value |
+| --- | --- |
+| candidate | `react-refactor-r5-parity-repair-candidate-v32` |
+| source commit | `488e3c43e9bd4c79cb14d3e91e1674a1d18e772a` |
+| annotated tag object | `8b2aa5e74542d27b300d9a5698c30651cd9268b1` |
+| source clean at build | `true` (`sourceDirty=false`) |
+| artifact tree | `02d419527e8c3a2ca481a12d95e08688d9d7b85ffb3602b191297d55a72bf640` |
+| release-manifest SHA-256 | `e599122d8f26b6a6c040531a76d9bb04ead4d4fa953f1d26220589606f17cb35` |
+| manifest inventory | 177 files / 84,063,194 bytes |
+| qualification | `pending-memory` |
+| phone JavaScript | 664,791 B; 809 B below the 665,600 B hard cap |
+
+Fresh automated evidence is 177 files / 1,373 Vitest tests, the exact-identity
+production build, and the focused device-contract set at WebKit 13/13 plus
+Chromium 13/13. The prior 108-test v31 WebKit run is historical only and is not
+claimed for v32.
+
+Status is **GO for physical-device testing**, not release complete. Real iPhone
+Safari and memory qualification remain mandatory. Any production or build-input
+change invalidates this identity and requires a new candidate build.

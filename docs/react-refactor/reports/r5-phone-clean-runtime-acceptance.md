@@ -1,76 +1,77 @@
 # R5 Phone Clean Runtime — Task 13 acceptance
 
 - Date: 2026-08-11
-- Status: **NO-GO — v31 invalidated by device-contract regressions**
-- Current claim: **implementation and automated acceptance are being repaired;
-  no artifact is currently authorized for formal physical-device acceptance**
+- Status: **GO for physical-device testing — v32 frozen; not release-qualified**
+- Current claim: **the device-contract repairs and focused production-browser
+  gates pass on one immutable artifact; physical iPhone Safari and memory
+  qualification remain required**
 - Report branch: `codex/r5-phone-clean-runtime-convergence`
 - Candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime`
 - Candidate artifact: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime/dist/`
 
-## Invalidated v31 identity
+## Frozen v32 identity
 
-The following identity is retained only so prior evidence remains traceable.
-Correctness review on 2026-08-11 found an incorrect stable-Hero media contract,
-mid-gesture native-scroll takeover, retained-media generation gaps, and other
-device-visible regressions. Therefore v31 must not be used for formal acceptance.
+This is the sole artifact authorized for the next physical iPhone test pass.
+v31 and every earlier candidate remain invalidated history.
 
 | Item | Value |
 | --- | --- |
-| candidate | `react-refactor-r5-parity-repair-candidate-v31` |
-| source commit | `74863ae8e4d367c4a25b2485fc57b9c56b9093bc` |
-| annotated tag object | `106105c894dadabd9ed60a832017d519fb7ca81c` |
+| candidate | `react-refactor-r5-parity-repair-candidate-v32` |
+| source commit | `488e3c43e9bd4c79cb14d3e91e1674a1d18e772a` |
+| annotated tag object | `8b2aa5e74542d27b300d9a5698c30651cd9268b1` |
 | `sourceDirty` at build | `false` |
-| `artifactTreeSha256` | `ab1398081166f1e0f037f77fc5486113e5e4633ee2ffdd545ebf5619f0aca77a` |
-| release-manifest SHA-256 | `5a13058eae63c4bff70d92dcea1b5f8e4ecf8a857b74dcf6e8c6e16422a50a63` |
-| manifest inventory | 177 files / 84,061,503 bytes |
+| `artifactTreeSha256` | `02d419527e8c3a2ca481a12d95e08688d9d7b85ffb3602b191297d55a72bf640` |
+| release-manifest SHA-256 | `e599122d8f26b6a6c040531a76d9bb04ead4d4fa953f1d26220589606f17cb35` |
+| manifest inventory | 177 files / 84,063,194 bytes |
 | manifest schema / qualification | schema 3 / `pending-memory` |
-| phone JavaScript | 663,349 B / 663,552 B hard cap; 203 B headroom |
+| phone JavaScript | 664,791 B / 665,600 B hard cap; 809 B headroom |
 
-The generated authority is `dist/r5-release-manifest.json`. The branch was 22
-commits ahead of its remote-tracking branch at this checkpoint, so an unpushed
-or differently rebuilt copy must not replace the local manifest-bound artifact.
-A later docs-only ledger commit may move branch HEAD, but it does not replace
-the v31 source commit, tag, manifest, or already-built `dist/` acceptance artifact.
+The generated authority is `dist/r5-release-manifest.json`. A later docs-only
+ledger commit may move branch HEAD, but it does not replace the v32 source
+commit, tag, manifest, or already-built `dist/` acceptance artifact. The tag
+and candidate are local until explicitly pushed; no deployment was performed.
 
-## Superseded v31 automated evidence
+## Fresh v32 automated evidence
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Vitest | pass | 177 files / 1,366 tests |
+| Vitest | pass | 177 files / 1,373 tests |
 | Production build | pass | TypeScript, architecture, media, release-build, budget, CDN, and release-manifest gates |
-| Phone portrait WebKit | pass | 108/108, one worker, 11.9 minutes |
-| Complete story pressure traversal | pass | all 60 forward/reverse segment traversals, one authority, no resource growth; 3.2 minutes inside the full WebKit run |
-| Source hygiene | pass | clean v31 source at build; `git diff --check` passed |
+| Focused phone portrait WebKit | pass | 13/13 on the exact v32 production build |
+| Focused phone portrait Chromium | pass | 13/13 on the exact v32 production build |
+| Source hygiene | pass | clean v32 source at build; `git diff --check` passed |
 
-The exact WebKit command was:
+The focused browser set covers static Hero and lifecycle recovery, Method
+touch ownership, Figure2 retained-arch endpoint, Figure3 decoded frame zero,
+Services → TTG, PH same-generation playback, Crane physical terminal Canvas
+frames, delayed lazy-leaf fallback visibility, and the complete Grade A chain.
+The exact v32 commands used the release config and these projects:
 
 ```text
-pnpm exec playwright test --config=playwright.release.config.ts --project=phone-portrait-webkit --workers=1
+pnpm exec playwright test --config=playwright.release.config.ts --project=phone-portrait-webkit e2e/r5-phone-clean-presentation.spec.ts --grep <device-contract-set>
+pnpm exec playwright test --config=playwright.release.config.ts --project=phone-portrait-chromium e2e/r5-phone-clean-presentation.spec.ts --grep <device-contract-set>
 ```
 
-`app/test-results/.last-run.json` persists the final `passed` state with no
-failed tests. The complete 108-test console transcript was observed during the
-acceptance run but was not emitted as a standalone JSON/JUnit artifact; this is
-an evidence-retention gap, not a device-test blocker.
+The previous 108/108 v31 WebKit run is not reused as v32 evidence; v32 records
+the focused 13/13 run only. A complete browser long run remains optional before
+device exploration and required again if any production/build input changes.
 
-## New candidate gate
+## Physical-device and release gates
 
-Physical acceptance is blocked until the listed regressions are repaired and a
-new immutable candidate passes the automated gates. The replacement gate uses
-an explicit 650 KiB (665,600 B) phone/total raw-JS cap—2 KiB above v31's cap—to
-carry the current-generation Canvas and retained-media contracts; all other
-performance budgets remain unchanged. The eventual device run covers real touch traversal, normal and Low
+The replacement gate uses an explicit 650 KiB (665,600 B) phone/total raw-JS
+cap—2 KiB above v31's cap—to carry the current-generation Canvas and
+retained-media contracts; all other performance budgets remain unchanged.
+Physical-device testing must cover real touch traversal, normal and Low
 Power Mode, toolbar changes, background/BFCache recovery, autoplay restrictions,
 AOD → Method, Figure2 arch/ghosting, Brand ↔ Figure3, TTG/PH/Crane playback,
 A/B flash, viewport rebound, and compositor continuity. Figure3 sharpness must
 be judged against the existing 1280×720 animation source.
 
-There is currently **no GO candidate**:
+v32 is **GO for device testing**, but not for release:
 
 - memory qualification remains `pending-memory`;
 - physical iPhone Safari evidence is not yet recorded;
-- the phone JavaScript budget has only 203 B headroom, so any code or build
+- the phone JavaScript budget has only 809 B headroom, so any code or build
   change requires a new budget check and candidate identity.
 
 ## Superseded historical record
