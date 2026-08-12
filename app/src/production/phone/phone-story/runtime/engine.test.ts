@@ -2206,6 +2206,59 @@ describe('single phone story projector transaction', () => {
     expect(root.dataset.phoneInputState).toBe('free');
   });
 
+  it('[P0 pending supersession] replaces a missing receiver request with the latest missing receiver request', () => {
+    const root = element();
+    const orchestrator = createPhoneStoryOrchestrator({
+      initialScene: 'hero',
+      root,
+      scrollY: () => 0,
+      scrollTo: () => undefined
+    });
+    registerReadySurface(orchestrator, 'hero');
+
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: 'method-top',
+      source: 'initial',
+      fallbackScene: 'hero',
+      cinematic: null
+    });
+    orchestrator.dispatch({
+      type: 'DIRECT_ENTRY_REQUESTED',
+      authorityId: orchestrator.getSnapshot().authorityId,
+      target: 'services',
+      source: 'menu',
+      fallbackScene: 'hero',
+      cinematic: null
+    });
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'hero',
+      revision: 0
+    });
+
+    registerReadySurface(orchestrator, 'method-top');
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'stable',
+      scene: 'hero',
+      revision: 0
+    });
+
+    registerReadySurface(orchestrator, 'services');
+    expect(orchestrator.getSnapshot()).toMatchObject({
+      status: 'transaction',
+      session: {
+        operation: {
+          trigger: 'entry',
+          run: null,
+          from: 'hero',
+          to: 'services'
+        }
+      }
+    });
+  });
+
   it('replays a stable direct entry after its route root becomes projectable', () => {
     const routeRoot = Object.assign(element(), { isConnected: false });
     const orchestrator = createPhoneStoryOrchestrator({
