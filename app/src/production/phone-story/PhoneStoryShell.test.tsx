@@ -1309,7 +1309,7 @@ describe('clean PhoneStoryShell ownership', () => {
     }
   });
 
-  it('retains Figure2 arch inside the A/B compositor below the Ink effect', () => {
+  it('retains Figure2 arch at the story root and places the incoming Ink above it', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     const engine = connectedEngine();
@@ -1324,6 +1324,9 @@ describe('clean PhoneStoryShell ownership', () => {
           sceneId: 'figure2-animation', segmentId: 'method-bottom-figure2' }
       }
     }));
+    const incomingEffectParent = host.querySelector(
+      '[data-phone-plane="effect"]'
+    )?.parentElement;
     act(() => engine.publish({
       ...stableSnapshot(),
       stableCommit: { sceneId: 'figure2-animation', landing: {}, commitSequence: 2 },
@@ -1335,9 +1338,9 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => arch?.dispatchEvent(new Event('load')));
     expect(arch?.getAttribute('data-phone-figure2-arch-ready')).toBe('true');
     expect(arch?.parentElement?.classList).toContain('phone-story__retained-figure2-arch-layer');
-    expect(arch?.parentElement?.parentElement?.classList).toContain('phone-story__planes');
-    expect(arch?.parentElement?.nextElementSibling?.getAttribute('data-phone-plane'))
-      .toBe('effect');
+    expect(arch?.parentElement?.parentElement?.classList).toContain('phone-story');
+    expect(arch?.closest('.phone-story__planes')).toBeNull();
+    expect(incomingEffectParent?.classList).toContain('phone-story');
     expect(arch?.closest('.phone-story__reading-flow')).toBeNull();
     act(() => root.unmount());
   });
@@ -1826,7 +1829,7 @@ describe('clean PhoneStoryShell ownership', () => {
 
       const reversingGesture = (
         identifier: number,
-        points: readonly [number, number, number, number],
+        points: readonly number[],
         edgeScrollTop: number
       ) => {
         const start = new Event('touchstart', { bubbles: true });
@@ -1849,7 +1852,15 @@ describe('clean PhoneStoryShell ownership', () => {
 
       connectedEngine().hostEvents.length = 0;
       scrollTop = 500;
-      reversingGesture(34, [600, 500, 520, 400], 680);
+      reversingGesture(34, [600, 500, 502, 400, 350], 700);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([
+        expect.objectContaining({ kind: 'touch', delta: 200, target: 'story' })
+      ]);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toHaveLength(1);
+
+      connectedEngine().hostEvents.length = 0;
+      scrollTop = 500;
+      reversingGesture(36, [600, 500, 520, 400], 680);
       expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
       expect(connectedEngine().hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
 

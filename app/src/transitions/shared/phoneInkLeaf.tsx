@@ -5,7 +5,7 @@ import type {
   PhoneLeafGenerationBinding,
   PhoneLeafReportPort
 } from '../../production/phone-story/presentation';
-import type { InkFieldFrame, InkFieldSpec } from './inkField';
+import type { InkFieldSpec } from './inkField';
 import { createInkFieldFrame } from './inkField';
 import { createDepthThresholdMask, type DepthThresholdMask } from './depthThresholdMask';
 import {
@@ -45,16 +45,6 @@ function setEffectVisible(canvas: HTMLCanvasElement | null, visible: boolean): v
   if (!canvas) return;
   canvas.style.visibility = visible ? 'visible' : 'hidden';
   canvas.style.opacity = visible ? '1' : '0';
-}
-
-function phoneInkOwnership(frame: InkFieldFrame) {
-  const reveal = frame.ownership.revealClip;
-  if (frame.spec.kind !== 'radial' || !reveal) return frame.ownership;
-  const match = /^circle\((.+) at (.+)\)$/.exec(reveal);
-  return match ? {
-    ...frame.ownership,
-    concealMask: `radial-gradient(circle at ${match[2]}, transparent 0 ${match[1]}, #000 ${match[1]})`
-  } : frame.ownership;
 }
 
 /**
@@ -103,7 +93,8 @@ export function createPhoneInkLeaf(
       const canvas = canvasRef.current;
       disposeDepthMask();
       if (!canvas || !options.depthMaskAtlasSrc) return;
-      const planes = canvas.closest<HTMLElement>('.phone-story__planes');
+      const planes = canvas.closest<HTMLElement>('.phone-story')
+        ?.querySelector<HTMLElement>('.phone-story__planes');
       const figure2 = planes?.querySelector<HTMLElement>(
         '[data-r4-scene="figure2-animation"]'
       )?.closest<HTMLElement>('[data-phone-plane]') ?? null;
@@ -175,7 +166,7 @@ export function createPhoneInkLeaf(
           depthMask.render(progress, frame.spec.transform);
         }
         setEffectVisible(canvas, visible);
-        return { ownership: phoneInkOwnership(frame) };
+        return { ownership: frame.ownership };
       },
       settle() { setEffectVisible(canvasRef.current, false); },
       pause() { setEffectVisible(canvasRef.current, false); },

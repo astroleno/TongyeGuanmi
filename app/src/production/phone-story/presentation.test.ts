@@ -156,7 +156,7 @@ function createStoryFixture(layout: PhoneLayoutViewport = {
   append(viewport, coverage);
   append(viewport, planes);
   append(planes, source);
-  append(planes, archLayer);
+  append(story, archLayer);
   append(archLayer, arch);
   append(planes, effect);
   append(planes, receiver);
@@ -181,7 +181,7 @@ function createStoryFixture(layout: PhoneLayoutViewport = {
   styleMap.set(source, computedStyle({ zIndex: '10' }));
   styleMap.set(effect, computedStyle({ zIndex: '20' }));
   styleMap.set(receiver, computedStyle({ zIndex: '30' }));
-  styleMap.set(archLayer, computedStyle({ zIndex: '35' }));
+  styleMap.set(archLayer, computedStyle({ position: 'fixed', zIndex: '60' }));
   styleMap.set(arch, computedStyle({ zIndex: 'auto' }));
   styleMap.set(reading, computedStyle({ zIndex: '50', pointerEvents: 'auto' }));
   let hitStack: readonly HTMLElement[] = [receiver, planes, viewport, story];
@@ -469,11 +469,18 @@ describe('phone presentation semantic plane', () => {
         const leg = segment[direction];
         const attempt = attemptFor(leg.target, 'segment', segment.id, direction);
         registerScene(fixture, leg.target, attempt);
+        if (segment.effectPlacement === 'above-both') {
+          detach(fixture.effect);
+          append(fixture.story, fixture.effect);
+        }
+        const effectZ = segment.effectPlacement === 'between'
+          ? 20 : segment.id === 'figure2-distance-expand' ? 55 : 70;
         fixture.setStyle(fixture.effect, computedStyle({
-          zIndex: segment.effectPlacement === 'between' ? '20' : '40'
+          position: segment.effectPlacement === 'between' ? 'absolute' : 'fixed',
+          zIndex: String(effectZ)
         }));
         fixture.setStyle(fixture.archLayer, computedStyle({
-          zIndex: segment.id === 'figure2-distance-expand' ? '45' : '35'
+          position: 'fixed', zIndex: '60'
         }));
         const result = fixture.presentation.applyPlane(planeRequest(
           leg.target, attempt, 'target', ['plane-acknowledged']
@@ -482,7 +489,7 @@ describe('phone presentation semantic plane', () => {
         expect(result.records).toHaveLength(1);
         expect(fixture.source.style.getPropertyValue('--phone-plane-z')).toBe('10');
         expect(fixture.effect.style.getPropertyValue('--phone-plane-z')).toBe(
-          segment.effectPlacement === 'between' ? '20' : '40'
+          String(effectZ)
         );
         expect(fixture.receiver.style.getPropertyValue('--phone-plane-z')).toBe('30');
       }
@@ -512,12 +519,14 @@ describe('phone presentation semantic plane', () => {
       'figure2-proof', 'segment', 'figure2-distance-expand', 'forward'
     );
     registerScene(fixture, 'figure2-proof', attempt);
-    fixture.setStyle(fixture.effect, computedStyle({ zIndex: '40' }));
-    fixture.setStyle(fixture.archLayer, computedStyle({ zIndex: '35' }));
+    detach(fixture.effect);
+    append(fixture.story, fixture.effect);
+    fixture.setStyle(fixture.effect, computedStyle({ position: 'fixed', zIndex: '55' }));
+    fixture.setStyle(fixture.archLayer, computedStyle({ position: 'fixed', zIndex: '55' }));
     expect(fixture.presentation.applyPlane(planeRequest(
       'figure2-proof', attempt, 'target', ['plane-acknowledged']
     )).failure?.code).toBe('presentation-stack-invalid');
-    fixture.setStyle(fixture.archLayer, computedStyle({ zIndex: '45' }));
+    fixture.setStyle(fixture.archLayer, computedStyle({ position: 'fixed', zIndex: '60' }));
     expect(fixture.presentation.applyPlane(planeRequest(
       'figure2-proof', attempt, 'target', ['plane-acknowledged']
     )).failure).toBeNull();
@@ -1013,7 +1022,8 @@ describe('phone presentation fixed topology and Hero zero contract', () => {
     expect(styles).toMatch(/\.phone-story\[data-phone-status="transaction"\]\[data-phone-source-scene\]:not\(\[data-phone-transition-live\]\)[\s\S]*?data-phone-figure2-arch-owner="target"[\s\S]*?visibility:\s*hidden/s);
     expect(styles).toMatch(/data-phone-transition-live[\s\S]*?data-phone-figure2-arch-owner="target"[\s\S]*?visibility:\s*visible/s);
     expect(styles).toMatch(/data-figure2-arch-motion="fixed"[\s\S]*?--r4-figure2-near-arch-blur:\s*3\.60px\s*!important[\s\S]*?--r4-figure2-near-arch-scale:\s*1\.1350\s*!important[\s\S]*?--r4-figure2-near-arch-brightness:\s*\.76\s*!important/s);
-    expect(styles).toMatch(/data-phone-segment="figure2-distance-expand"[\s\S]*?phone-story__retained-figure2-arch-layer[^{]*\{[^}]*z-index:\s*45/s);
+    expect(styles).toMatch(/\.phone-story__retained-figure2-arch-layer\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*60/s);
+    expect(styles).toMatch(/data-phone-segment="figure2-distance-expand"[\s\S]*?data-phone-plane="effect"[^{]*\{[^}]*z-index:\s*55/s);
     expect(styles).toMatch(/data-phone-reading="enabled"[\s\S]*?\[data-phone-native-mirror\][^{]*\{[^}]*visibility:\s*hidden/s);
     expect(styles).not.toMatch(/\[data-phone-native-mirror\]:not\(\[data-phone-native-handoff="active"\]\)/);
     expect(styles).toMatch(/\[data-phone-plane="source"\][^{]*\{[^}]*z-index:\s*10/s);

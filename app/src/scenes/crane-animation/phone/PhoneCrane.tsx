@@ -33,7 +33,6 @@ import {
 import {
   phoneCraneMediaProgressForTimeline,
   phoneCranePresentedTimelineProgress,
-  phoneCraneVideos,
 } from './PhoneCrane.autoplay';
 import {
   renderPhoneCranePresentation,
@@ -62,8 +61,7 @@ export {
 
 export function parkPhoneCraneMedia(root: HTMLElement | null | undefined): void {
   const section = rootFor(root);
-  for (const video of phoneCraneVideos(section)) {
-    if (!video) continue;
+  for (const video of section?.querySelectorAll<HTMLVideoElement>('video') ?? []) {
     disposeTimelineVideoDriver(video);
     video.pause();
   }
@@ -75,8 +73,7 @@ export function applyPhoneCraneMediaFallback(
 ): void {
   const section = rootFor(root);
   renderPhoneCranePresentation(section, 0);
-  for (const video of phoneCraneVideos(section)) {
-    if (!video) continue;
+  for (const video of section?.querySelectorAll<HTMLVideoElement>('video') ?? []) {
     disposeTimelineVideoDriver(video);
     video.pause();
     video.setAttribute('data-phone-crane-media', 'fallback');
@@ -106,12 +103,12 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
   const surfaceGenerationsRef = useRef<[number, number]>([0, 0]);
   const admissionGenerationsRef = useRef<[number, number]>([0, 0]);
   const readyMaskRef = useRef(0);
-  const frameSequenceRef = useRef(0);
   const progressRef = useRef(0);
   const presentedProgressRef = useRef(0);
   const directionRef = useRef<PhoneCranePlaybackDirection>(1);
   const mediaRunTokenRef = useRef<string | null>(null);
   const mediaPhaseRef = useRef<'primed' | 'playing' | 'held'>('primed');
+  const pairProofFrameRef = useRef(0);
   const disposedRef = useRef(false);
 
   const updatePairPresentation = useCallback(() => {
@@ -127,14 +124,32 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     index: 0 | 1,
     generation: number
   ) => {
-    const layer = index === 0 ? 'figure' : 'flock';
     const surfaceId = index === 0 ? 'crane-figure-canvas' : 'crane-flock-canvas';
     binding.reports.reportFrame(surfaceId, {
       kind: 'frame', token: binding.frameToken, presented: true,
-      frameId: `crane-${layer}-packed:${generation}:${++frameSequenceRef.current}`,
-      detail: { compositorDrawn: true, generation, layer, progress: progressRef.current }
+      frameId: String(generation),
+      detail: { generation }
     });
   }, []);
+
+  const stopPairProof = useCallback(() => {
+    cancelAnimationFrame(pairProofFrameRef.current);
+  }, []);
+
+  const startPairProof = useCallback((generations: readonly [number, number]) => {
+    const isCurrent = () => !disposedRef.current && admissionGenerationsRef.current.every(
+      (generation, index) => generation === generations[index]
+    );
+    const probeMissing = () => {
+      if (!isCurrent()) return;
+      for (const [index, surface] of (surfacesRef.current ?? []).entries()) {
+        if ((readyMaskRef.current & (1 << index)) === 0) surface.probe();
+      }
+      if (!isCurrent() || readyMaskRef.current === 3) return;
+      pairProofFrameRef.current = requestAnimationFrame(probeMissing);
+    };
+    probeMissing();
+  }, [stopPairProof]);
 
   const reportFailure = useCallback((
     index: 0 | 1,
@@ -147,6 +162,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     surfaceGenerationsRef.current[index] = failure.generation;
     admissionGenerationsRef.current[index] = 0;
     readyMaskRef.current &= ~(1 << index);
+    stopPairProof();
     updatePairPresentation();
     binding.reports.reportFailure({
       code: `crane-${layer}-${failure.code}`,
@@ -154,7 +170,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       recoverable: true,
       detail: { generation: failure.generation, layer }
     });
-  }, [updatePairPresentation]);
+  }, [stopPairProof, updatePairPresentation]);
 
   const syncPresentedClock = useCallback(() => {
     const mediaProgress = [figureCanvasRef.current, flockCanvasRef.current].map(
@@ -234,14 +250,22 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
+      const previous = bindingRef.current;
+      const sameTransaction = previous?.transactionId
+        && previous.transactionId === binding.transactionId;
       bindingRef.current = binding;
+      if (sameTransaction) {
+        admissionGenerationsRef.current.forEach((generation, index) => {
+          if (generation && readyMaskRef.current & (1 << index)) reportLane(binding, index as 0 | 1, generation);
+        });
+        return;
+      }
       mediaRunTokenRef.current = null;
       mediaPhaseRef.current = 'primed';
       directionRef.current = binding.direction === 'reverse' ? -1 : 1;
       progressRef.current = directionRef.current === -1 ? 1 : 0;
       presentedProgressRef.current = progressRef.current;
       renderPhoneCranePresentation(rootRef.current, progressRef.current, directionRef.current);
-      frameSequenceRef.current = 0;
       const reproof = binding.segmentId === null && readyMaskRef.current === 3;
       admissionGenerationsRef.current = reproof ? [...surfaceGenerationsRef.current] : [0, 0];
       if (reproof) { reportLane(binding, 0, surfaceGenerationsRef.current[0]); reportLane(binding, 1, surfaceGenerationsRef.current[1]); }
@@ -302,14 +326,14 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
           // The initial compositor callback will arrive after loadeddata.
         }
       }
+      if (!reusable && generations.every((generation) => generation > 0)) startPairProof(generations);
       const settled = !reusable && generations.every((generation) => generation > 0)
         ? videos.map((video, index) => primePhoneNativeVideo(video!, {
           isCurrent: () => !disposedRef.current
-            && mediaRunTokenRef.current === runToken
-            && bindingRef.current === binding,
+            && mediaRunTokenRef.current === runToken,
           phase: () => mediaPhaseRef.current,
           onRejected: (error: unknown) => {
-            if (disposedRef.current || bindingRef.current !== binding) return;
+            if (disposedRef.current || mediaRunTokenRef.current !== runToken) return;
             const layer = index === 0 ? 'figure' : 'flock';
             binding.reports.reportFailure({
               code: `crane-${layer}-activation-playback-rejected`,
@@ -380,11 +404,13 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       mediaRunTokenRef.current = null;
       mediaPhaseRef.current = 'held';
       admissionGenerationsRef.current = [0, 0];
+      updatePairPresentation();
       parkPhoneCraneMedia(rootRef.current);
     },
     dispose(reason: PhoneLeafDisposeReason) {
       if (disposedRef.current) return;
       disposedRef.current = true;
+      stopPairProof();
       mediaRunTokenRef.current = null;
       admissionGenerationsRef.current = [0, 0];
       surfaceGenerationsRef.current = [0, 0];
@@ -395,7 +421,10 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       parkPhoneCraneMedia(rootRef.current);
       bindingRef.current = null;
     }
-  }), [activateSurfaces, render, reportLane, updatePairPresentation, verifyTerminalFrames]);
+  }), [
+    activateSurfaces, render, reportLane, startPairProof, stopPairProof,
+    updatePairPresentation, verifyTerminalFrames
+  ]);
 
   useLayoutEffect(() => {
     const mountRoot = mountRootRef.current;
@@ -427,6 +456,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
           || generation !== admissionGenerationsRef.current[index]
           || canvas !== canvasRef.current) return;
       readyMaskRef.current |= 1 << index;
+      if (readyMaskRef.current === 3) stopPairProof();
       syncPresentedClock();
       updatePairPresentation();
       reportLane(binding, index, generation);
@@ -504,7 +534,10 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       updatePairPresentation();
       bindingRef.current = null;
     };
-  }, [commands, render, reportFailure, reportLane, reports, syncPresentedClock, updatePairPresentation]);
+  }, [
+    commands, render, reportFailure, reportLane, reports, stopPairProof,
+    syncPresentedClock, updatePairPresentation
+  ]);
 
   return (
     <div ref={mountRootRef} className="phone-crane" data-phone-scene="crane-animation">

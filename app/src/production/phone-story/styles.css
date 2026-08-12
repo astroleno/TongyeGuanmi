@@ -51,18 +51,30 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
 }
 
 .phone-story__retained-figure2-arch-layer {
-  height: 100%;
-  inset: 0;
+  height: var(--phone-visual-height);
+  left: var(--phone-visual-offset-left);
   overflow: visible;
   pointer-events: none;
-  position: absolute;
-  width: 100%;
-  z-index: 35;
+  position: fixed;
+  top: var(--phone-visual-offset-top);
+  width: var(--phone-visual-width);
+  z-index: 60;
+}
+
+.phone-story > [data-phone-plane="effect"] {
+  height: var(--phone-visual-height);
+  left: var(--phone-visual-offset-left);
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  top: var(--phone-visual-offset-top);
+  width: var(--phone-visual-width);
+  z-index: var(--phone-plane-z, 70);
 }
 
 .phone-story[data-phone-segment="figure2-distance-expand"]
-  .phone-story__retained-figure2-arch-layer {
-  z-index: 45;
+  > [data-phone-plane="effect"] {
+  z-index: 55;
 }
 
 /* Shell projection owns the one terminal endpoint. Scene leaves may animate

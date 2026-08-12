@@ -703,10 +703,11 @@ export function createPhonePresentation(
   ): boolean => {
     const segment = request.attempt.segmentId
       ? phoneManifest.segments.find(({ id }) => id === request.attempt.segmentId) : null;
-    const expectedEffect = segment?.effectPlacement === 'above-both' ? 40 : 20;
+    const effectAboveBoth = segment?.effectPlacement === 'above-both';
+    const expectedEffect = effectAboveBoth ? segment.id === 'figure2-distance-expand' ? 55 : 70 : 20;
     const archOwner = segment && request.attempt.direction ? phoneRetainedFigure2ArchOwner(segment.id, request.attempt.direction) : 'none';
     const archLayer = state.root?.querySelector<HTMLElement>('.phone-story__retained-figure2-arch-layer') ?? null;
-    const expectedArch = segment?.id === 'figure2-distance-expand' ? 45 : 35;
+    const expectedArch = 60;
     const foreground = state.root?.getAttribute('data-phone-transition-foreground');
     const expectedSource = foreground === 'source' ? 30 : 10;
     const expectedReceiver = foreground === 'source' ? 10 : 30;
@@ -715,14 +716,16 @@ export function createPhonePresentation(
       && topology.coverage.parentElement === topology.viewport
       && topology.planes.parentElement === topology.viewport
       && topology.source.parentElement === topology.planes
-      && topology.effect.parentElement === topology.planes
+      && topology.effect.parentElement === (effectAboveBoth ? state.root : topology.planes)
       && topology.receiver.parentElement === topology.planes
+      && (!archLayer || archLayer.parentElement === state.root)
       && getStyle(topology.viewport).position === 'fixed'
       && getStyle(topology.viewport).isolation === 'isolate'
       && Number.parseInt(getStyle(topology.source).zIndex, 10) === expectedSource
       && Number.parseInt(getStyle(topology.effect).zIndex, 10) === expectedEffect
       && Number.parseInt(getStyle(topology.receiver).zIndex, 10) === expectedReceiver
-      && (archOwner === 'none' || !!archLayer && Number.parseInt(getStyle(archLayer).zIndex, 10) === expectedArch);
+      && (archOwner === 'none' || !!archLayer && getStyle(archLayer).position === 'fixed'
+        && Number.parseInt(getStyle(archLayer).zIndex, 10) === expectedArch);
   };
 
   const transitionVariables = ['--phone-source-opacity', '--phone-target-opacity', '--phone-source-clip', '--phone-target-clip', '--phone-source-mask', '--phone-target-mask', '--phone-transition-mask-size', '--phone-transition-mask-repeat', '--phone-transition-mask-mode'] as const;

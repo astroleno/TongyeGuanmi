@@ -31,7 +31,6 @@ vi.mock('./depthThresholdMask', () => ({
   createDepthThresholdMask: vi.fn(() => {
     depthMaskProbe.committed = false;
     return {
-      maskIds: { reveal: 'depth-reveal', conceal: 'depth-conceal' },
       ready: depthMaskProbe.ready,
       commit: vi.fn(() => { depthMaskProbe.committed = true; }),
       committed: () => depthMaskProbe.committed,
@@ -101,8 +100,11 @@ describe('clean phone Ink leaf', () => {
     receiver.append(proof);
     const host = document.createElement('div');
     effect.append(host);
-    planes.append(source, receiver, effect);
-    document.body.replaceChildren(planes);
+    const story = document.createElement('main');
+    story.className = 'phone-story';
+    planes.append(source, receiver);
+    story.append(planes, effect);
+    document.body.replaceChildren(story);
     const root = createRoot(host);
     const mount = reportFixture();
     await act(async () => {
@@ -167,8 +169,11 @@ describe('clean phone Ink leaf', () => {
     effect.dataset.phonePlane = 'effect';
     const host = document.createElement('div');
     effect.append(host);
-    planes.append(source, receiver, effect);
-    document.body.replaceChildren(planes);
+    const story = document.createElement('main');
+    story.className = 'phone-story';
+    planes.append(source, receiver);
+    story.append(planes, effect);
+    document.body.replaceChildren(story);
     const root = createRoot(host);
     const mount = reportFixture();
     await act(async () => { root.render(<Leaf reports={mount.reports} />); });
@@ -238,7 +243,7 @@ describe('clean phone Ink leaf', () => {
     );
   });
 
-  it('registers one exact WebGL effect surface and exposes only six commands', async () => {
+  it('keeps radial handoffs target-front without masking the full source plane', async () => {
     const Leaf = createPhoneInkLeaf({
       segmentId: 'hero-pattern', surfaceId: 'fx:hero-pattern',
       field: { kind: 'radial', origin: { x: .5, y: .44 }, seed: 'hero' },
@@ -270,12 +275,9 @@ describe('clean phone Ink leaf', () => {
       progress: .5,
       spec: expect.objectContaining({ kind: 'radial', seed: 'hero' })
     }));
-    expect(projected).toEqual({
-      ownership: expect.objectContaining({
-        revealClip: expect.stringMatching(/^circle\(/),
-        concealMask: expect.stringMatching(/^radial-gradient\(/)
-      })
-    });
+    expect(projected?.ownership.revealClip).toMatch(/^circle\(/);
+    expect(projected?.ownership).not.toHaveProperty('concealMask');
+    expect(projected?.ownership).not.toHaveProperty('concealClip');
     expect(canvas.style.visibility).toBe('visible');
     expect(canvas.style.opacity).toBe('1');
     expect(canvas.dataset.r4InkBoundaryProgress).toBe('0.5000');

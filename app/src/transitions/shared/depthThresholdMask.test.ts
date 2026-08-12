@@ -87,7 +87,7 @@ afterEach(() => {
 });
 
 describe('depth threshold mask', () => {
-  it('owns reusable reveal and conceal definitions without mutating endpoint planes', async () => {
+  it('owns no runtime SVG fragment and mutates the target CSS atlas coordinates', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const mask = createDepthThresholdMask({
@@ -102,7 +102,8 @@ describe('depth threshold mask', () => {
     mask?.commit();
     mask?.render(.5, depthTransform);
 
-    expect(host.children).toHaveLength(1);
+    expect(host.children).toHaveLength(0);
+    expect(host.children.flatMap((child) => descendants(child))).toHaveLength(0);
     mask?.dispose();
     expect(host.children).toHaveLength(0);
   });
@@ -140,9 +141,9 @@ describe('depth threshold mask', () => {
     expect(host.children).toHaveLength(0);
 
     mask?.commit();
-    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+    expect(reveal.style.getPropertyValue('mask-image')).toBe('url("/delayed-depth-atlas.webp")');
     expect(reveal.attributes.get('data-r4-depth-mask-run')).toBe('depth-delayed:1');
-    expect(host.children).toHaveLength(1);
+    expect(host.children).toHaveLength(0);
   });
 
   it('rejects a failed depth resource without attaching an empty mask', async () => {
@@ -208,9 +209,12 @@ describe('depth threshold mask', () => {
 
     expect(tables?.reveal.every((value, index) => value + (tables.conceal[index] ?? -1) === 1)).toBe(true);
     expect(proof.style.getPropertyValue('opacity')).toBe('1');
-    expect(proof.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
-    expect(ground.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
-    expect(depthField.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
+    expect(proof.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
+    expect(ground.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
+    expect(depthField.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
+    expect(proof.style.getPropertyValue('-webkit-mask-position')).not.toBe(
+      depthField.style.getPropertyValue('-webkit-mask-position')
+    );
     mask?.dispose();
     expect(proof.style.getPropertyValue('mask-image')).toBe('');
     expect(ground.style.getPropertyValue('mask-image')).toBe('');
@@ -237,30 +241,30 @@ describe('depth threshold mask', () => {
 
     expect(conceal.style.getPropertyValue('mask-image')).toBe('');
     expect(conceal.style.writes.filter(({ name, value }) => (
-      name === 'mask-image' && value.includes('depth-threshold-conceal-mask')
+      name === 'mask-image' && value.includes('/depth-atlas.webp')
     ))).toHaveLength(0);
-    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+    expect(reveal.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
 
     mask?.render(0.37, depthTransform);
-    expect(conceal.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
-    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+    expect(conceal.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
+    expect(reveal.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
 
     mask?.render(1, depthTransform);
     expect(reveal.style.getPropertyValue('mask-image')).toBe('');
-    expect(conceal.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
+    expect(conceal.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
 
     mask?.render(0.37, depthTransform);
-    expect(conceal.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
-    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+    expect(conceal.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
+    expect(reveal.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
 
     mask?.render(0, depthTransform);
     expect(conceal.style.getPropertyValue('mask-image')).toBe('');
-    expect(reveal.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
+    expect(reveal.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
     mask?.dispose();
     expect(host.children).toHaveLength(0);
   });
 
-  it('derives conceal from the same reveal mask without a WebKit filter', async () => {
+  it('selects independent reveal and conceal WebP tiles on the planes themselves', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
@@ -279,27 +283,17 @@ describe('depth threshold mask', () => {
     mask?.commit();
     mask?.render(.37, depthTransform);
 
-    const nodes = descendants(host);
-    const filters = nodes.filter((node) => node.nodeName === 'filter');
-    const masks = nodes.filter((node) => node.nodeName === 'mask');
-    const images = nodes.filter((node) => node.nodeName === 'image');
-    const uses = nodes.filter((node) => node.nodeName === 'use');
-    const viewports = nodes.filter((node) => node.nodeName === 'svg' && node.attributes.has('viewBox'));
-    const frame = nodes.find((node) => node.attributes.has('data-r4-depth-atlas-frame'));
-    expect(filters).toHaveLength(0);
-    expect(masks).toHaveLength(2);
-    expect(images).toHaveLength(1);
-    expect(uses).toHaveLength(2);
-    expect(images.every((node) => node.attributes.get('href') === '/depth-atlas.webp')).toBe(true);
-    expect(masks.every((node) => node.attributes.get('mask-type') === 'alpha')).toBe(true);
+    expect(descendants(host)).toHaveLength(0);
+    expect(reveal.style.getPropertyValue('-webkit-mask-image')).toBe('url("/depth-atlas.webp")');
     expect(reveal.style.getPropertyValue('mask-mode')).toBe('alpha');
-    expect(conceal.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
+    expect(conceal.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
     expect(conceal.style.getPropertyValue('mask-mode')).toBe('alpha');
-    expect(viewports.every((node) => node.attributes.get('viewBox') === '0 0 384 216')).toBe(true);
-    expect(frame?.attributes.get('transform')).toBe('translate(-2304 -432)');
+    expect(reveal.style.getPropertyValue('-webkit-mask-size')).toBe('14617.6px 8222.4px');
+    expect(reveal.style.getPropertyValue('-webkit-mask-position')).toBe('-11156.8px -2161.168px');
+    expect(conceal.style.getPropertyValue('-webkit-mask-position')).toBe('-12984px -2161.168px');
   });
 
-  it('uses Stage coordinates and advances atlas tiles without mutable threshold filters', async () => {
+  it('advances native CSS atlas coordinates with Stage cover and camera', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
@@ -313,29 +307,14 @@ describe('depth threshold mask', () => {
     mask?.commit();
 
     mask?.render(0.37, depthTransform);
-    const nodes = descendants(host);
-    const masks = nodes.filter((node) => node.nodeName === 'mask');
-    const filters = nodes.filter((node) => node.nodeName === 'filter');
-    const images = nodes.filter((node) => node.nodeName === 'image');
-    const viewports = nodes.filter((node) => node.nodeName === 'svg' && node.attributes.has('viewBox'));
-    const cameras = nodes.filter((node) => node.attributes.has('data-r4-depth-camera'));
-    const frame = nodes.find((node) => node.attributes.has('data-r4-depth-atlas-frame'));
-    const firstFrameTransform = frame?.attributes.get('transform');
+    const firstPosition = reveal.style.getPropertyValue('-webkit-mask-position');
 
     mask?.render(0.73, depthTransform);
 
-    expect(masks.every((node) => node.attributes.get('maskUnits') === 'userSpaceOnUse')).toBe(true);
-    expect(masks.every((node) => node.attributes.get('maskContentUnits') === 'userSpaceOnUse')).toBe(true);
-    expect(filters).toHaveLength(0);
-    expect(images.every((node) => node.attributes.get('x') === '0')).toBe(true);
-    expect(images.every((node) => node.attributes.get('width') === '3072')).toBe(true);
-    expect(viewports.every((node) => node.attributes.get('x') === '-80')).toBe(true);
-    expect(viewports.every((node) => node.attributes.get('width') === '1600')).toBe(true);
-    expect(viewports.every((node) => node.attributes.get('viewBox') === '0 0 384 216')).toBe(true);
-    expect(frame?.attributes.get('transform')).not.toBe(firstFrameTransform);
-    expect(frame?.attributes.get('transform')).toBe('translate(-2304 -1080)');
-    expect(cameras.every((node) => node.attributes.get('transform')?.includes('scale(1.142)'))).toBe(true);
-    expect(cameras.every((node) => node.attributes.get('transform')?.includes('translate(0 -34)'))).toBe(true);
-    expect(nodes.some((node) => node.attributes.get('type') === 'linear')).toBe(false);
+    expect(descendants(host)).toHaveLength(0);
+    expect(reveal.style.getPropertyValue('-webkit-mask-position')).not.toBe(firstPosition);
+    expect(reveal.style.getPropertyValue('-webkit-mask-size')).toBe('14617.6px 8222.4px');
+    expect(reveal.style.getPropertyValue('-webkit-mask-position')).toBe('-11156.8px -5244.568px');
+    expect(reveal.style.getPropertyValue('-webkit-mask-image')).not.toContain('#');
   });
 });

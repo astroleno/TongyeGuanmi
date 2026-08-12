@@ -58,7 +58,7 @@ type PhoneTouchPoint = Readonly<{
 function createPhoneTouchArbiter() {
   type Direction = 'forward' | 'reverse';
   type ReadingSample = Readonly<{ topDistance: number; bottomDistance: number }>;
-  type Claim = { id: number; y: number; previousY: number; story: boolean; nativeDocument: boolean; direction: Direction | null; published: boolean };
+  type Claim = { id: number; y: number; previousY: number; peakY: number; story: boolean; nativeDocument: boolean; direction: Direction | null; published: boolean };
   let claim: Claim | null = null;
   return Object.freeze({
     start(
@@ -72,6 +72,7 @@ function createPhoneTouchArbiter() {
             id: point.identifier,
             y: point.clientY,
             previousY: point.clientY,
+            peakY: point.clientY,
             story,
             nativeDocument,
             direction: null,
@@ -91,11 +92,17 @@ function createPhoneTouchArbiter() {
       const delta = current.y - point.clientY;
       const step = current.previousY - point.clientY;
       current.previousY = point.clientY;
-      if (current.direction && (current.direction === 'forward' ? step < 0 : step > 0)) { claim = null; return null; }
+      if (current.direction) {
+        const reversal = current.direction === 'forward'
+          ? point.clientY - current.peakY
+          : current.peakY - point.clientY;
+        if (reversal > 14) { claim = null; return null; }
+      }
       if (Math.abs(delta) < 8) return null;
-      const direction: Direction = delta > 0 ? 'forward' : 'reverse';
-      if (current.direction && current.direction !== direction) { claim = null; return null; }
-      current.direction ??= direction;
+      const direction = current.direction ?? (delta > 0 ? 'forward' : 'reverse');
+      current.direction = direction;
+      if (direction === 'forward') current.peakY = Math.min(current.peakY, point.clientY);
+      else current.peakY = Math.max(current.peakY, point.clientY);
       const distance = direction === 'forward'
         ? reading.bottomDistance
         : reading.topDistance;
@@ -611,6 +618,8 @@ export function PhoneStoryShell({
   const moduleFault = faulted && snapshot.status === 'faulted' && (snapshot.fault.code.includes('module') || snapshot.fault.code.includes('chunk')); const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
   const retainedFigure2ArchMounted = connectedRef.current && scenes.some(({ sceneId }) => PHONE_FIGURE2_ARCH_SCENES.has(sceneId)); const retainedFigure2ArchOwner = phoneFigure2ArchOwner(snapshot);
   const retainedFigure2ArchAttempt: PhoneAttemptKey | null = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null; const retainedFigure2ArchMotion = phoneFigure2ArchMotion(snapshot);
+  const retainedEffectSegment = effect ? phoneManifest.segments.find(({ id }) => id === effect.segmentId) ?? null : null;
+  const effectAboveBoth = retainedEffectSegment?.effectPlacement === 'above-both';
   const navigate = (sceneId: PhoneSceneId) => { setMenuOpen(false);
     owners.engine.requestEntry({
       pathname: window.location.pathname,
@@ -621,6 +630,9 @@ export function PhoneStoryShell({
   const renderScenes = (entries: readonly PhoneSceneRenderSlot<PhoneSceneId>[]) => entries.map((entry) => (
     <PhoneSceneLeaf key={entry.renderKey} sceneId={entry.sceneId} reports={entry.reports} />
   ));
+  const effectPlane = <div data-phone-plane="effect">{effect ? <PhoneTransitionLeaf
+    key={effect.segmentId} segmentId={effect.segmentId} reports={effect.reports}
+  /> : null}</div>;
   const reportArchReady = () => { const attempt = retainedFigure2ArchAttempt; if (attempt) owners.engine.reportPresentationPrepared({ surfaceId: 'figure2-foreground-arch', attempt, generation: attempt.transactionGeneration, token: `${attempt.transactionId}:arch` }); };
   const reportArchFailure = (error: unknown) => { const attempt = retainedFigure2ArchAttempt; if (attempt) owners.engine.reportPresentationFailure({ surfaceId: 'figure2-foreground-arch', attempt, generation: attempt.transactionGeneration, failure: { code: 'figure2-arch-decode', message: error instanceof Error ? error.message : String(error), recoverable: true } }); };
   return (
@@ -656,19 +668,14 @@ export function PhoneStoryShell({
           <div data-phone-buffer="b" data-phone-plane={roles.source === 'b' ? 'source' : 'receiver'}>
             {renderScenes(roles.source === 'b' ? sourceScenes : receiverScenes)}
           </div>
-          {retainedFigure2ArchMounted ? <div className="phone-story__retained-figure2-arch-layer" data-phone-figure2-arch-owner={retainedFigure2ArchOwner}><RetainedFigure2Arch mounted visible ownerKey={retainedFigure2ArchAttempt?.transactionId ?? (stableScene && PHONE_FIGURE2_ARCH_SCENES.has(stableScene) ? `stable:${snapshot.stableCommit?.commitSequence ?? 0}` : null)} src={PHONE_FIGURE2_ARCH_SRC} motion={retainedFigure2ArchMotion} onDecodeReady={reportArchReady} onDecodeFailure={reportArchFailure} /></div> : null}
-          <div data-phone-plane="effect">
-            {effect ? <PhoneTransitionLeaf
-              key={effect.segmentId}
-              segmentId={effect.segmentId}
-              reports={effect.reports}
-            /> : null}
-          </div>
+          {!effectAboveBoth ? effectPlane : null}
         </div>
       </div>
       <div className="phone-story__reading-flow" inert={!nativeReadingEnabled} aria-hidden={!nativeReadingEnabled}>
         {stableScene ? <PhoneSceneReading sceneId={stableScene} /> : null}
       </div>
+      {retainedFigure2ArchMounted ? <div className="phone-story__retained-figure2-arch-layer" data-phone-figure2-arch-owner={retainedFigure2ArchOwner}><RetainedFigure2Arch mounted visible ownerKey={retainedFigure2ArchAttempt?.transactionId ?? (stableScene && PHONE_FIGURE2_ARCH_SCENES.has(stableScene) ? `stable:${snapshot.stableCommit?.commitSequence ?? 0}` : null)} src={PHONE_FIGURE2_ARCH_SRC} motion={retainedFigure2ArchMotion} onDecodeReady={reportArchReady} onDecodeFailure={reportArchFailure} /></div> : null}
+      {effectAboveBoth ? effectPlane : null}
       <StoryNav currentScene={navigationScene} visible={navigationVisible} menuOpen={menuOpen}
         onToggleMenu={() => setMenuOpen((open) => !open)} onNavigate={navigate} />
       {directActivationFallback ? (

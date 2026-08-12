@@ -99,8 +99,15 @@ export class FakeElement {
     return null;
   }
 
-  querySelectorAll(): FakeElement[] {
-    return [];
+  querySelectorAll(selector = ''): FakeElement[] {
+    if (selector === 'video') return [
+      this.selectors.get('[data-crane-figure-video]'),
+      this.selectors.get('[data-crane-figure-front-video]')
+    ].filter((value): value is FakeElement => Boolean(value));
+    return selector.split(',').flatMap((part) => {
+      const match = this.selectors.get(part.trim());
+      return match ? [match] : [];
+    });
   }
 
   setAttribute(name: string, value: string): void {

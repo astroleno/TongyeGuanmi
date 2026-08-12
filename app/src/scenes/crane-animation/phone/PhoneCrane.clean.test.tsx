@@ -173,6 +173,105 @@ describe('clean PhoneCrane leaf', () => {
     act(() => root.unmount());
   });
 
+  it('probes both admitted lanes immediately and keeps the pair across a same-transaction rebind', async () => {
+    const scheduled: FrameRequestCallback[] = [];
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      scheduled.push(callback);
+      return scheduled.length;
+    });
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvases = host.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]');
+    const frames = packedProbe.options.map(({ onFrame }) => onFrame as (frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void);
+
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'crane:transaction:old',
+      transactionId: 'education-crane:1',
+      segmentId: 'education-crane'
+    });
+    commands.activate({
+      invocationId: 'crane:transaction:activate',
+      runToken: 'education-crane:run',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', playback: false
+    });
+
+    expect(packedProbe.surfaces.map(({ probe }) => probe.mock.calls.length)).toEqual([1, 1]);
+    expect(requestFrame).toHaveBeenCalledOnce();
+
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'crane:transaction:new',
+      transactionId: 'education-crane:1',
+      segmentId: 'education-crane'
+    });
+    frames[0]!({ canvas: canvases[0]!, generation: 1 });
+    scheduled.shift()?.(16);
+    expect(packedProbe.surfaces.map(({ probe }) => probe.mock.calls.length)).toEqual([1, 2]);
+    frames[1]!({ canvas: canvases[1]!, generation: 1 });
+
+    expect(mount.reports.reportFrame).toHaveBeenCalledTimes(2);
+    expect(mount.reports.reportFrame).toHaveBeenNthCalledWith(
+      1, 'crane-figure-canvas', expect.objectContaining({ token: 'crane:transaction:new' })
+    );
+    expect(mount.reports.reportFrame).toHaveBeenNthCalledWith(
+      2, 'crane-flock-canvas', expect.objectContaining({ token: 'crane:transaction:new' })
+    );
+    expect(cancelFrame).toHaveBeenCalled();
+    act(() => root.unmount());
+    requestFrame.mockRestore();
+    cancelFrame.mockRestore();
+  });
+
+  it('stops the admitted pair probe when either packed surface fails closed', async () => {
+    const scheduled: FrameRequestCallback[] = [];
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      scheduled.push(callback);
+      return scheduled.length;
+    });
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'crane:failure',
+      transactionId: 'education-crane:failure',
+      segmentId: 'education-crane'
+    });
+    commands.activate({
+      invocationId: 'crane:failure:activation',
+      runToken: 'crane:failure:run',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', playback: false
+    });
+    const probeCounts = packedProbe.surfaces.map(({ probe }) => probe.mock.calls.length);
+
+    (packedProbe.options[0]?.onFailure as ((failure: {
+      code: string; message: string; generation: number;
+    }) => void))({
+      code: 'packed-alpha-static-fallback',
+      message: 'frame deadline expired',
+      generation: 1
+    });
+    scheduled.shift()?.(16);
+
+    expect(packedProbe.surfaces.map(({ probe }) => probe.mock.calls.length)).toEqual(probeCounts);
+    expect(mount.reports.reportFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'crane-figure-packed-alpha-static-fallback', recoverable: true
+    }));
+    act(() => root.unmount());
+    requestFrame.mockRestore();
+  });
+
   it('re-proves the accepted pair for a same-scene lifecycle projection', async () => {
     const host = document.createElement('div');
     const root = createRoot(host);

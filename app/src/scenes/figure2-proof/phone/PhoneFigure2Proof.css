@@ -19,10 +19,10 @@
   transform: none;
 }
 
-/* Native Proof has three physical owners: the scene coverage paints the paper,
- * the retained arch paints above it in the compositor, and this transparent
- * document contributes only copy above the arch. Reading stays transparent
- * during same-scene viewport/BFCache reprojects. */
+/* Native Proof has three physical owners: scene coverage paints the paper,
+ * this transparent document contributes copy, and the retained foreground
+ * arch paints above both. Keep reading transparent through same-scene
+ * viewport/BFCache reprojects so that ownership never flips. */
 .phone-story[data-phone-scene="figure2-proof"][data-phone-reading="enabled"]
   .phone-story__reading-flow .r4-proof-compound {
   background: transparent;

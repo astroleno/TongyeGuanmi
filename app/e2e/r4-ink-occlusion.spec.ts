@@ -171,7 +171,7 @@ async function probeOwnershipAlpha(
   }, { fieldMode: mode, fieldProgress: progress, depthProbeScreenY: depthScreenY });
 }
 
-async function measureSvgDepthBoundary(page: Page, progress: number): Promise<{
+async function measureCssDepthBoundary(page: Page, progress: number): Promise<{
   boundaryY: number;
   expectedY: number;
 }> {
@@ -232,7 +232,7 @@ async function measureSvgDepthBoundary(page: Page, progress: number): Promise<{
       runId: `depth-mask-alignment-${fieldProgress}`,
       transform
     });
-    if (!mask) throw new Error('SVG depth mask probe unavailable');
+    if (!mask) throw new Error('CSS depth mask probe unavailable');
     await mask.ready;
     mask.commit();
     const tables = mask.render(gateRank, transform);
@@ -241,21 +241,15 @@ async function measureSvgDepthBoundary(page: Page, progress: number): Promise<{
       / tables.reveal.length * height;
     const progressAttribute = target.getAttribute('data-r4-depth-mask-progress');
     const maskImage = target.style.getPropertyValue('mask-image');
-    const atlasViewport = host.querySelector<SVGSVGElement>(
-      `#${mask.maskIds.reveal} svg[viewBox]`
-    );
-    const atlasFrame = Math.round(gateRank * 63);
-    const atlasColumn = atlasFrame % 8;
-    const atlasRow = Math.floor(atlasFrame / 8);
-    const expectedViewBox = `${atlasColumn * 384} ${atlasRow * 216} 384 216`;
+    const maskPosition = target.style.getPropertyValue('-webkit-mask-position');
     if (progressAttribute !== gateRank.toFixed(4)) {
-      throw new Error('SVG depth mask progress diagnostic is stale');
+      throw new Error('CSS depth mask progress diagnostic is stale');
     }
-    if (!maskImage.includes(mask.maskIds.reveal)) {
-      throw new Error('SVG depth mask target lost its run-scoped mask');
+    if (!maskImage.includes(depthSrc) || maskImage.includes('#')) {
+      throw new Error('CSS depth mask target is not using the decoded atlas directly');
     }
-    if (atlasViewport?.getAttribute('viewBox') !== expectedViewBox) {
-      throw new Error('SVG depth atlas frame is misaligned');
+    if (!maskPosition) {
+      throw new Error('CSS depth atlas tile position is missing');
     }
     mask.dispose();
     host.remove();
@@ -274,7 +268,7 @@ test.describe('R4 Ink ownership alpha diagnostics', () => {
       await page.goto('/harness/r4-g1');
       for (const progress of [0.1, 0.5, 0.9]) {
         const depthAlignment = mode === 'depth'
-          ? await measureSvgDepthBoundary(page, progress)
+          ? await measureCssDepthBoundary(page, progress)
           : null;
         const probe = await probeOwnershipAlpha(
           page,

@@ -84,16 +84,6 @@ export function phoneCranePresentedTimelineProgress(
   return direction === 1 ? Math.max(current, presented) : Math.min(current, presented);
 }
 
-export function phoneCraneVideos(root: HTMLElement | null): readonly [
-  HTMLVideoElement | null,
-  HTMLVideoElement | null
-] {
-  return [
-    root?.querySelector<HTMLVideoElement>('[data-crane-figure-video]') ?? null,
-    root?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]') ?? null
-  ];
-}
-
 function seekVideo(video: HTMLVideoElement | null, progress: number): boolean {
   if (!video) return false;
   video.pause();

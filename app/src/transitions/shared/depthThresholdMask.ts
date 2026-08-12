@@ -1,13 +1,8 @@
 import type { InkDepthTransform } from './inkField';
 
-const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const ATLAS_COLUMNS = 8;
 const ATLAS_FRAMES = 32;
-const ATLAS_TILE_WIDTH = 384;
-const ATLAS_TILE_HEIGHT = 216;
-const ATLAS_WIDTH = ATLAS_COLUMNS * ATLAS_TILE_WIDTH;
 const ATLAS_ROWS = Math.ceil(ATLAS_FRAMES * 2 / ATLAS_COLUMNS);
-const ATLAS_HEIGHT = ATLAS_ROWS * ATLAS_TILE_HEIGHT;
 
 export type DepthThresholdPolarity = 'reveal' | 'conceal';
 
@@ -22,7 +17,6 @@ export type DepthThresholdTables = Readonly<{
 }>;
 
 export type DepthThresholdMask = {
-  readonly maskIds: Readonly<Record<DepthThresholdPolarity, string>>;
   readonly ready: Promise<void>;
   commit(): void;
   committed(): boolean;
@@ -35,6 +29,8 @@ const MASK_STYLE_PROPERTIES = [
   '-webkit-mask-image',
   'mask-size',
   '-webkit-mask-size',
+  'mask-position',
+  '-webkit-mask-position',
   'mask-repeat',
   '-webkit-mask-repeat',
   'mask-mode',
@@ -63,10 +59,6 @@ export function thresholdTables(progress: number, steps = 256): DepthThresholdTa
   };
 }
 
-function safeId(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]/g, '-') || 'depth-mask';
-}
-
 type AttachedTarget = Readonly<{
   element: HTMLElement;
   polarity: DepthThresholdPolarity;
@@ -74,11 +66,29 @@ type AttachedTarget = Readonly<{
   previousStyles: ReadonlyMap<string, string>;
 }>;
 
-function applyManagedMask(target: AttachedTarget): void {
+function applyManagedMask(
+  target: AttachedTarget,
+  frame: number,
+  transform: InkDepthTransform
+): void {
+  const { cover, camera } = transform;
+  const originX = cover.x + cover.width * camera.originX;
+  const originY = cover.y + cover.height * camera.originY;
+  const tileWidth = cover.width * camera.scale;
+  const tileHeight = cover.height * camera.scale;
+  const tileX = camera.translateX + originX + (cover.x - originX) * camera.scale;
+  const tileY = camera.translateY + originY + (cover.y - originY) * camera.scale;
+  const index = frame * 2 + (target.polarity === 'conceal' ? 1 : 0);
+  const column = index % ATLAS_COLUMNS;
+  const row = Math.floor(index / ATLAS_COLUMNS);
+  const size = `${attributeNumber(tileWidth * ATLAS_COLUMNS)}px ${attributeNumber(tileHeight * ATLAS_ROWS)}px`;
+  const position = `${attributeNumber(tileX - column * tileWidth)}px ${attributeNumber(tileY - row * tileHeight)}px`;
   target.element.style.setProperty('mask-image', target.maskUrl);
   target.element.style.setProperty('-webkit-mask-image', target.maskUrl);
-  target.element.style.setProperty('mask-size', '100% 100%');
-  target.element.style.setProperty('-webkit-mask-size', '100% 100%');
+  target.element.style.setProperty('mask-size', size);
+  target.element.style.setProperty('-webkit-mask-size', size);
+  target.element.style.setProperty('mask-position', position);
+  target.element.style.setProperty('-webkit-mask-position', position);
   target.element.style.setProperty('mask-repeat', 'no-repeat');
   target.element.style.setProperty('-webkit-mask-repeat', 'no-repeat');
   target.element.style.setProperty('mask-mode', 'alpha');
@@ -129,13 +139,6 @@ function defaultDepthTransform(host: HTMLElement): InkDepthTransform {
   };
 }
 
-function atlasFrameTransform(frame: number): string {
-  const index = frame * 2;
-  const column = index % ATLAS_COLUMNS;
-  const row = Math.floor(index / ATLAS_COLUMNS);
-  return `translate(${-column * ATLAS_TILE_WIDTH} ${-row * ATLAS_TILE_HEIGHT})`;
-}
-
 export function createDepthThresholdMask(options: {
   host: HTMLElement | null;
   targets: readonly DepthThresholdTarget[];
@@ -146,108 +149,15 @@ export function createDepthThresholdMask(options: {
   transform?: InkDepthTransform;
 }): DepthThresholdMask | null {
   const { host, targets, atlasSrc } = options;
-  const documentRef = targets[0]?.element.ownerDocument
-    ?? host?.ownerDocument
-    ?? (typeof document === 'undefined' ? null : document);
   const requestedPolarities = [...new Set([
     ...(options.polarities ?? []),
     ...targets.map((target) => target.polarity)
   ])];
-  if (!host || requestedPolarities.length === 0 || !documentRef) {
+  if (!host || requestedPolarities.length === 0) {
     return null;
   }
   const steps = Math.max(2, Math.floor(options.steps ?? 256));
-  const runScope = safeId(options.runId);
-  const maskIds: Record<DepthThresholdPolarity, string> = {
-    reveal: `${runScope}-depth-threshold-reveal-mask`,
-    conceal: `${runScope}-depth-threshold-conceal-mask`
-  };
-  const svg = documentRef.createElementNS(SVG_NAMESPACE, 'svg');
-  svg.setAttribute('width', '0');
-  svg.setAttribute('height', '0');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('data-r4-depth-mask-run', options.runId);
-  svg.style.position = 'absolute';
-  svg.style.pointerEvents = 'none';
-
-  const defs = documentRef.createElementNS(SVG_NAMESPACE, 'defs');
-  const atlasFrameId = `${runScope}-depth-threshold-atlas-frame`;
-  const atlasFrame = documentRef.createElementNS(SVG_NAMESPACE, 'g');
-  atlasFrame.setAttribute('id', atlasFrameId);
-  atlasFrame.setAttribute('data-r4-depth-atlas-frame', 'true');
-  atlasFrame.setAttribute('transform', atlasFrameTransform(0));
-  const image = documentRef.createElementNS(SVG_NAMESPACE, 'image');
-  image.setAttribute('x', '0'); image.setAttribute('y', '0');
-  image.setAttribute('width', String(ATLAS_WIDTH));
-  image.setAttribute('height', String(ATLAS_HEIGHT));
-  image.setAttribute('preserveAspectRatio', 'none'); image.setAttribute('href', atlasSrc);
-  atlasFrame.append(image); defs.append(atlasFrame);
-  const masks: SVGMaskElement[] = [];
-  const cameras: SVGGElement[] = [];
-  const viewports: SVGSVGElement[] = [];
-  for (const polarity of ['reveal', 'conceal'] as const) {
-    const mask = documentRef.createElementNS(SVG_NAMESPACE, 'mask');
-    mask.setAttribute('id', maskIds[polarity]);
-    mask.setAttribute('maskUnits', 'userSpaceOnUse');
-    mask.setAttribute('maskContentUnits', 'userSpaceOnUse');
-    mask.setAttribute('mask-type', 'alpha');
-    const camera = documentRef.createElementNS(SVG_NAMESPACE, 'g');
-    camera.setAttribute('data-r4-depth-camera', 'true');
-    const viewport = documentRef.createElementNS(SVG_NAMESPACE, 'svg');
-    viewport.setAttribute('preserveAspectRatio', 'none');
-    viewport.setAttribute('overflow', 'hidden');
-    viewport.setAttribute('viewBox', `0 0 ${ATLAS_TILE_WIDTH} ${ATLAS_TILE_HEIGHT}`);
-    const use = documentRef.createElementNS(SVG_NAMESPACE, 'use');
-    use.setAttribute('href', `#${atlasFrameId}`);
-    if (polarity === 'conceal') {
-      const offset = documentRef.createElementNS(SVG_NAMESPACE, 'g');
-      offset.setAttribute('transform', `translate(${-ATLAS_TILE_WIDTH} 0)`);
-      offset.append(use); viewport.append(offset);
-    } else viewport.append(use);
-    camera.append(viewport); mask.append(camera); defs.append(mask);
-    masks.push(mask); cameras.push(camera); viewports.push(viewport);
-  }
-
-  let transformSignature = '';
-  const applyTransform = (transform: InkDepthTransform) => {
-    const { viewport, cover, camera } = transform;
-    const nextSignature = [
-      viewport.width, viewport.height,
-      cover.x, cover.y, cover.width, cover.height,
-      camera.scale, camera.translateX, camera.translateY,
-      camera.originX, camera.originY
-    ].map(attributeNumber).join(':');
-    if (nextSignature === transformSignature) {
-      return;
-    }
-    transformSignature = nextSignature;
-    const originX = cover.x + cover.width * camera.originX;
-    const originY = cover.y + cover.height * camera.originY;
-    const cameraTransform = [
-      `translate(${attributeNumber(camera.translateX)} ${attributeNumber(camera.translateY)})`,
-      `translate(${attributeNumber(originX)} ${attributeNumber(originY)})`,
-      `scale(${attributeNumber(camera.scale)})`,
-      `translate(${attributeNumber(-originX)} ${attributeNumber(-originY)})`
-    ].join(' ');
-    for (const mask of masks) {
-      mask.setAttribute('x', '0');
-      mask.setAttribute('y', '0');
-      mask.setAttribute('width', attributeNumber(viewport.width));
-      mask.setAttribute('height', attributeNumber(viewport.height));
-    }
-    for (const viewportElement of viewports) {
-      viewportElement.setAttribute('x', attributeNumber(cover.x));
-      viewportElement.setAttribute('y', attributeNumber(cover.y));
-      viewportElement.setAttribute('width', attributeNumber(cover.width));
-      viewportElement.setAttribute('height', attributeNumber(cover.height));
-    }
-    for (const cameraElement of cameras) {
-      cameraElement.setAttribute('transform', cameraTransform);
-    }
-  };
-
-  applyTransform(options.transform ?? defaultDepthTransform(host));
-  svg.append(defs);
+  let lastTransform = options.transform ?? defaultDepthTransform(host);
 
   let attachedTargets: AttachedTarget[] = [];
   let disposed = false;
@@ -255,7 +165,6 @@ export function createDepthThresholdMask(options: {
   let resourceReady = false;
   let resourceError: Error | undefined;
   let lastProgress = 0;
-  let lastFrame = 0;
   let revealCount = 0;
   const revealTable = Array<number>(steps).fill(0);
   const concealTable = Array<number>(steps).fill(1);
@@ -336,29 +245,22 @@ export function createDepthThresholdMask(options: {
     return lastTables;
   };
 
-  const updateAtlasFrame = (progress: number) => {
-    const frame = Math.round(progress * (ATLAS_FRAMES - 1));
-    if (frame === lastFrame) {
-      return;
-    }
-    lastFrame = frame;
-    atlasFrame.setAttribute('transform', atlasFrameTransform(frame));
-  };
-
   const targetDiagnostics = new WeakMap<HTMLElement, {
     progress: string;
     masked: boolean;
   }>();
   const applyTargetState = (progress: number) => {
     const progressValue = progress.toFixed(4);
+    const frame = Math.round(progress * (ATLAS_FRAMES - 1));
     for (const target of attachedTargets) {
       const fullyVisible = (target.polarity === 'conceal' && progress === 0)
         || (target.polarity === 'reveal' && progress === 1);
       const masked = !fullyVisible;
       const previous = targetDiagnostics.get(target.element);
-      if (previous?.masked !== masked) {
-        if (masked) applyManagedMask(target);
-        else restoreManagedMaskStyles(target);
+      if (masked) {
+        applyManagedMask(target, frame, lastTransform);
+      } else if (previous?.masked !== false) {
+        restoreManagedMaskStyles(target);
       }
       if (previous?.progress !== progressValue) {
         target.element.setAttribute('data-r4-depth-mask-progress', progressValue);
@@ -368,7 +270,6 @@ export function createDepthThresholdMask(options: {
   };
 
   return {
-    maskIds,
     ready,
     commit() {
       if (disposed || isCommitted) {
@@ -380,10 +281,9 @@ export function createDepthThresholdMask(options: {
       if (!resourceReady) {
         throw new Error(`Depth mask atlas ${atlasSrc} is not ready to commit`);
       }
-      host.append(svg);
       attachedTargets = targets.map((target) => attachMask(
         target,
-        `url("#${maskIds[target.polarity]}")`,
+        `url(${JSON.stringify(atlasSrc)})`,
         options.runId
       ));
       isCommitted = true;
@@ -399,10 +299,7 @@ export function createDepthThresholdMask(options: {
       if (disposed) {
         return tables;
       }
-      if (transform) {
-        applyTransform(transform);
-      }
-      updateAtlasFrame(clamped);
+      if (transform) lastTransform = transform;
       if (isCommitted) {
         applyTargetState(clamped);
       }
@@ -417,7 +314,6 @@ export function createDepthThresholdMask(options: {
         restoreTarget(target);
       }
       attachedTargets = [];
-      svg.remove();
       if (probe) {
         probe.onload = null;
         probe.onerror = null;

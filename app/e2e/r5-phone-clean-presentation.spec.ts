@@ -3066,14 +3066,26 @@ for (const direction of ['forward', 'reverse'] as const) {
             conceal: rect(conceal), reveal: rect(reveal),
             progress: Number(reveal?.dataset.r4DepthMaskProgress),
             concealMask: conceal ? getComputedStyle(conceal).webkitMaskImage : 'none',
+            revealMask: reveal ? getComputedStyle(reveal).webkitMaskImage : 'none',
             concealComposite: conceal ? getComputedStyle(conceal).webkitMaskComposite : 'none',
+            runtimeSvgMasks: shell.querySelectorAll('svg mask').length,
             archMask: arch ? getComputedStyle(arch).maskImage
-              || getComputedStyle(arch).webkitMaskImage : 'none'
+              || getComputedStyle(arch).webkitMaskImage : 'none',
+            archZ: Number(getComputedStyle(arch?.parentElement ?? arch!).zIndex),
+            effectZ: Number(getComputedStyle(shell.querySelector<HTMLElement>(
+              '[data-phone-plane="effect"]'
+            )!).zIndex)
           };
         });
         expect(geometry.conceal).toEqual(geometry.reveal);
         expect(geometry.progress).toBeGreaterThanOrEqual(target);
+        expect([geometry.concealMask, geometry.revealMask]
+          .filter((value) => value !== 'none').every((value) => value.includes('.webp'))).toBe(true);
+        expect(geometry.concealMask).not.toContain('#');
+        expect(geometry.revealMask).not.toContain('#');
+        expect(geometry.runtimeSvgMasks).toBe(0);
         expect(geometry.archMask).toBe('none');
+        expect(geometry.archZ).toBeGreaterThan(geometry.effectZ);
         const errors = complementaryMaskPixelErrors(await captureDepthPlanePartition(page));
         expect(errors.holes, `${direction} ${target} holes`).toBeLessThan(errors.pixels * .002);
         expect(errors.overlaps,
@@ -3133,7 +3145,7 @@ test('Figure2 retained arch enters with the target boundary and survives commit'
   }));
   expect(live.visibility).toBe('visible');
   expect(live.opacity).toBeGreaterThan(0);
-  expect(live.inPlanes).toBe(true);
+  expect(live.inPlanes).toBe(false);
   expect(live.archZ).toBeLessThan(live.effectZ);
   expect(live.archClip).toBe(live.receiverClip);
 
@@ -3506,7 +3518,7 @@ test('Grade A chain commits each hold once and preserves both-direction endpoint
   await traverseGradeA(page, 'figure2-animation', 'method-top', 'reverse');
 });
 
-test('stable Proof exposes retained arch pixels between paper and native copy', async ({ page }) => {
+test('stable Proof exposes retained arch pixels above the native copy', async ({ page }) => {
   await page.goto('/#figure2-proof-opening', { waitUntil: 'domcontentloaded' });
   await waitForDirectEntryCommit(page, 'figure2-proof');
   await waitForContinuousStoryReady(page);
@@ -3520,6 +3532,27 @@ test('stable Proof exposes retained arch pixels between paper and native copy', 
   await arch.evaluate((element) => { (element as HTMLElement).style.visibility = ''; });
   expect(changedScreenshotPixels(visible, hidden),
     'retained arch contributes stable Proof pixels').toBeGreaterThan(10_000);
+
+  await page.evaluate(() => {
+    const marker = document.createElement('div');
+    marker.dataset.proofArchOcclusionProbe = 'true';
+    Object.assign(marker.style, {
+      position: 'fixed', inset: '0', background: '#ff00ff', zIndex: '999999'
+    });
+    document.querySelector<HTMLElement>('.phone-story__reading-flow')?.append(marker);
+  });
+  await nextAnimationFrame(page);
+  const coveredCopy = await page.screenshot();
+  await arch.evaluate((element) => { (element as HTMLElement).style.visibility = 'hidden'; });
+  await nextAnimationFrame(page);
+  const exposedCopy = await page.screenshot();
+  expect(changedScreenshotPixels(coveredCopy, exposedCopy),
+    'retained arch physically occludes reading-owned pixels').toBeGreaterThan(10_000);
+  await page.evaluate(() => {
+    document.querySelector('[data-proof-arch-occlusion-probe]')?.remove();
+    const arch = document.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]');
+    if (arch) arch.style.visibility = '';
+  });
 });
 
 test('Proof keeps retained arch pixels while a toolbar reproject owns native reading', async ({ page }) => {
@@ -4289,6 +4322,50 @@ test('Services → TTG → Lab → PH localizes and commits every edge with touc
   expect(admitted.opacity).toBeGreaterThan(0);
 });
 
+test('Services native touch tolerates a 2px Safari reversal and publishes once', async ({
+  page, browserName
+}) => {
+  test.skip(browserName !== 'webkit', 'WebKit touch-event transport contract.');
+  await page.goto('/#services', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'services', 0);
+  await waitForContinuousStoryReady(page);
+  const result = await page.locator(
+    '.phone-story__reading-flow [data-phone-input-owner="native-document"]'
+  ).evaluate((reading) => {
+    const owner = document.scrollingElement ?? document.documentElement;
+    const emitted: Array<{ type: string; prevented: boolean }> = [];
+    const dispatch = (type: 'touchstart' | 'touchmove' | 'touchend', y: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true }) as TouchEvent;
+      Object.defineProperty(event, type === 'touchend' ? 'changedTouches' : 'touches', {
+        value: [{ identifier: 19, clientY: y }]
+      });
+      reading.dispatchEvent(event);
+      emitted.push({ type, prevented: event.defaultPrevented });
+    };
+    owner.scrollTop = Math.max(0, owner.scrollHeight - owner.clientHeight - 160);
+    dispatch('touchstart', 600);
+    dispatch('touchmove', 500);
+    dispatch('touchmove', 502);
+    owner.scrollTop = Math.max(0, owner.scrollHeight - owner.clientHeight);
+    dispatch('touchmove', 400);
+    dispatch('touchmove', 360);
+    dispatch('touchend', 360);
+    const mirror = document.querySelector<HTMLElement>(
+      '[data-phone-native-mirror="services"]'
+    );
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    return {
+      emitted,
+      handoff: mirror?.dataset.phoneNativeHandoff,
+      reading: shell?.dataset.phoneReading,
+      scrollTop: owner.scrollTop,
+      maximum: Math.max(0, owner.scrollHeight - owner.clientHeight)
+    };
+  });
+  expect(result.emitted.filter(({ prevented }) => prevented), JSON.stringify(result)).toHaveLength(2);
+  expect(result.handoff).toBe('active');
+});
+
 test('PH slice direct PH and Education entries expose accepted endpoints', async ({ page }) => {
   for (const scene of ['ph-animation', 'education'] as const) {
     await page.goto(`/#${scene}`, {
@@ -5039,6 +5116,44 @@ test('Pattern advances its collapse leg before its radial Ink leg contributes pi
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
 });
 
+for (const direction of ['forward', 'reverse'] as const) {
+  test(`Hero ↔ Pattern ${direction} keeps the lower plane unmasked during radial reveal`, async ({
+    page
+  }) => {
+    await page.goto(direction === 'forward' ? '/#hero' : '/#pattern', {
+      waitUntil: 'domcontentloaded'
+    });
+    await waitForContinuousStoryReady(page);
+    await sendFrontIntent(page, direction);
+    await page.waitForFunction(() => {
+      const effect = document.querySelector<HTMLElement>(
+        '[data-r4-ink-segment="hero-pattern"]'
+      );
+      const progress = Number(effect?.dataset.r4InkBoundaryProgress);
+      return Number.isFinite(progress) && progress > .2 && progress < .8;
+    });
+    const ownership = await page.locator('.phone-story').evaluate((shell) => {
+      const source = shell.querySelector<HTMLElement>('[data-phone-plane="source"]');
+      const receiver = shell.querySelector<HTMLElement>('[data-phone-plane="receiver"]');
+      const sourceStyle = source ? getComputedStyle(source) : null;
+      const receiverStyle = receiver ? getComputedStyle(receiver) : null;
+      return {
+        sourceMask: sourceStyle?.webkitMaskImage ?? 'none',
+        targetMask: receiverStyle?.webkitMaskImage ?? 'none',
+        sourceClip: sourceStyle?.webkitClipPath ?? 'none',
+        targetClip: receiverStyle?.webkitClipPath ?? 'none',
+        foreground: (shell as HTMLElement).dataset.phoneTransitionForeground
+      };
+    });
+    expect(ownership.sourceMask).toBe('none');
+    expect(ownership.targetMask).toBe('none');
+    expect(direction === 'forward' ? ownership.sourceClip : ownership.targetClip).toBe('none');
+    expect(direction === 'forward' ? ownership.targetClip : ownership.sourceClip)
+      .toContain('circle(');
+    expect(ownership.foreground).toBe(direction === 'forward' ? 'target' : 'source');
+  });
+}
+
 test('Front first three segments preserve effect semantics and endpoints both ways', async ({ page }) => {
   await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'hero', 0);
@@ -5048,6 +5163,52 @@ test('Front first three segments preserve effect semantics and endpoints both wa
   await traverseFront(page, 'aod-animation', 'star-map', 'reverse');
   await traverseFront(page, 'star-map', 'pattern', 'reverse');
   await traverseFront(page, 'pattern', 'hero', 'reverse');
+});
+
+test('Hero → Pattern radial Ink keeps WebKit frame pacing within the device-test gate', async ({
+  page, browserName
+}) => {
+  test.skip(browserName !== 'webkit', 'WebKit compositor pacing gate.');
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+  await waitForContinuousStoryReady(page);
+  await page.evaluate(() => {
+    const owner = window as typeof window & { __r5HeroInkPacing?: Promise<number[]> };
+    owner.__r5HeroInkPacing = new Promise<number[]>((resolve) => {
+      const samples: number[] = [];
+      let previous: number | null = null;
+      const started = performance.now();
+      const sample = (now: number) => {
+        const effect = document.querySelector<HTMLElement>(
+          '[data-r4-ink-segment="hero-pattern"]'
+        );
+        const progress = Number(effect?.dataset.r4InkBoundaryProgress);
+        if (Number.isFinite(progress) && progress > .08 && progress < .98) {
+          if (previous !== null) samples.push(now - previous);
+          previous = now;
+        } else if (samples.length > 0 && (progress >= .98 || !effect)) {
+          resolve(samples);
+          return;
+        }
+        if (now - started > 10_000) {
+          resolve(samples);
+          return;
+        }
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+  });
+  await sendFrontIntent(page, 'forward');
+  const intervals = await page.evaluate(() => (
+    window as typeof window & { __r5HeroInkPacing: Promise<number[]> }
+  ).__r5HeroInkPacing);
+  expect(intervals.length).toBeGreaterThan(20);
+  const sorted = [...intervals].sort((left, right) => left - right);
+  const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .95))]!;
+  expect(p95).toBeLessThanOrEqual(25);
+  const longFrameIndices = intervals.flatMap((interval, index) => interval > 40 ? [index] : []);
+  expect(longFrameIndices.length, JSON.stringify({ intervals, longFrameIndices }))
+    .toBeLessThanOrEqual(4);
 });
 
 test('Front reduced motion still reaches one fully proven target hold', async ({ page }) => {
