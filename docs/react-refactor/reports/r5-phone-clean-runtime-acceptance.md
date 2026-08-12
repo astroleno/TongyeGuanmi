@@ -1,18 +1,80 @@
 # R5 Phone Clean Runtime — Task 13 acceptance
 
-- Date: 2026-08-11
-- Status: **GO for physical-device testing — v33 frozen; not release-qualified**
-- Current claim: **PH retains its verified Canvas through playback-mode reuse,
-  Crane keeps its real terminal frame source-visible before handoff, and all
-  109 phone WebKit contracts pass on the immutable production artifact**
+- Date: 2026-08-12
+- Status: **NO-GO for candidate/release — latest P0 focused automation is
+  green; exact-source full regression, physical iPhone, and memory remain open**
+- Current claim: **v33 remains reproducible invalidated history. The current
+  dirty replacement closes the latest fixed-plane Figure2 mask and PH rebind
+  findings in focused tests, but a full exact-source run is not yet recorded,
+  it is not immutable, and it has not passed physical iPhone or memory gates.**
 - Report branch: `codex/r5-phone-clean-runtime-convergence`
 - Candidate worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime`
 - Candidate artifact: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/r5-phone-clean-runtime/dist/`
 
+## 2026-08-12 depth/copy/media authority invalidation
+
+The current dirty build remains **NO-GO as a candidate or release artifact**.
+Its focused repair is complete, but broad exact-source automation and physical
+iPhone verification remain open. Four
+failure-first contracts cover the invalidation: the
+retained Figure2 arch must have only the Shell authority; the depth leg must
+reveal fully opaque Proof after rendering its current Ink frame; native
+reading and its prepared mirror must never paint together; and PH/Crane may
+report only the post-activation generations that remain visible. No candidate,
+tag, or release identity may be created until these contracts, the full
+automated gates, two physical iPhone passes, and memory qualification pass.
+
+## 2026-08-12 fixed-plane depth and PH rebind correction
+
+The previous semantic-root mask topology is superseded. The Figure2 scene root
+is one viewport high while the Proof compound is three viewports high, so the
+same `100% 100%` mask was sampled in incompatible coordinate systems. The
+current implementation resolves the two equal fixed A/B planes by semantic
+content and applies Figure2 `conceal` plus Proof `reveal` there. The retained
+arch remains an unmasked Shell sibling above the depth Ink.
+
+WebKit also rejected runtime conceal inversion: SVG filtering could clear the
+mask and CSS composition could produce non-complementary pixels. The existing
+single atlas now contains 32 interleaved alpha-complement pairs. Reveal and
+conceal reference adjacent tiles through one shared mutable frame transform,
+so frame selection is atomic and no runtime filter or second resource exists.
+The atlas decreased from 11,184 B to 10,402 B.
+
+The Lab → PH proof path now survives report-port churn. Runtime treats an
+identical report binding as a no-op instead of minting a frame token and
+calling leaf `rebind`. A genuine same-transaction plane revision preserves the
+PH admitted generation and bounded probe while moving report authority to the
+new binding. New transactions, rollback, pause, retirement, and disposal still
+clear admission and reject stale frames.
+
+| Fresh exact-source focused gate | Result |
+| --- | --- |
+| Focused Vitest | 6 files / 222 tests passed |
+| Full Vitest | 177 files / 1,377 tests passed |
+| Figure2 physical partition, WebKit | 2/2 passed; additional repeat 4/4 passed |
+| Figure2 physical partition, Chromium | 2/2 passed |
+| Trusted Chromium Services → TTG → Lab → PH | 1/1 passed |
+| Focused PH lifecycle, WebKit | 1/1 passed |
+| TypeScript / production build | passed |
+| Build budgets | Phone JS 665,381/665,600 B; initial CSS 76,695 B; WebP 11,918,200 B |
+| Artifact tree | `58c4884119f62e252acfd74ba7eaeab4d9d277a31c5215522615cb5526e93aa7` |
+
+After stale Chrome temporary clones were reclaimed, the 83-test presentation
+file completed at 77 passed / 1 trusted-touch skip / 5 pressure failures in a
+44.6-minute process. Both new Figure2 fixed-plane pixel-complement cases passed.
+All five failed cases then passed an immediate isolated 5/5 rerun, including
+the 60-leg traversal; the remaining Phone WebKit project files passed 35/35.
+This rules out a stable failure in those five paths, but it is not one
+uninterrupted all-green project gate. Full Vitest has passed; the formal Phone
+WebKit gate remains open. The manifest remains `candidate=null`,
+`sourceDirty=true`, and `pending-memory`; no commit, tag, push, deployment, or
+candidate freeze is authorized.
+
 ## Frozen v33 identity
 
-This is the sole artifact authorized for the next physical iPhone test pass.
-v32 and every earlier candidate remain invalidated history.
+This identity is retained for reproduction only. It is not authorized for
+formal physical iPhone acceptance. v32 and every earlier candidate also remain
+invalidated history.
 
 | Item | Value |
 | --- | --- |
@@ -70,13 +132,172 @@ AOD → Method, Figure2 arch/ghosting, Brand ↔ Figure3, TTG/PH/Crane playback,
 A/B flash, viewport rebound, and compositor continuity. Figure3 sharpness must
 be judged against the existing 1280×720 animation source.
 
-v33 is **GO for physical-device testing**, but not release:
+v33 is **NO-GO for formal device acceptance and release**. Physical findings
+require Figure1 single-clock playback, Star Map contrast parity, Figure2 arch
+and depth ownership, Proof/native-reading parity, the authored Contact cue, and
+one-gesture native-edge crossing before a replacement can be considered.
+
+Independent release gates also remain:
 
 - memory qualification remains `pending-memory`;
 - physical iPhone Safari evidence is not yet recorded;
+
+## 2026-08-11 physical-parity implementation checkpoint
+
+The v33 replacement implementation is complete in the current dirty worktree,
+but no immutable candidate has been created. All nine plan-specific Phone
+WebKit and Chromium contracts pass. After the 2026-08-12 correctness follow-up,
+full Vitest passes at 177 files / 1,364 tests, and the production build passes
+the unchanged architecture, media, and size gates (665,565 B Phone JS; 76,685 B
+initial CSS).
+
+The complete 77-case Phone WebKit run passed 76 cases. Its sole failure was one
+Method → AOD rollback; that exact test subsequently passed once in isolation
+and 3/3 repeated. This is retained as a suite-level residual rather than hidden
+with automatic retry or an unrelated AOD change.
+
+The generated manifest correctly remains `candidate=null`, `sourceDirty=true`,
+and `pending-memory`. The implementation is ready for the required physical
+iPhone check, not release signing or candidate freezing.
 - Figure3 sharpness remains limited by its 1280×720 source;
-- the phone JavaScript budget has only 780 B headroom, so any code or build
+- the phone JavaScript budget has only 35 B headroom, so any code or build
   change requires a new budget check and candidate identity.
+
+### 2026-08-12 correctness follow-up
+
+Four review findings are closed in the current dirty checkpoint:
+
+- the Figure2 depth mask now belongs to the transaction and survives stage
+  frame-token changes without a second atlas decode or an unmasked frame;
+- Proof → Brand neutralizes the inner Proof translation synchronously during
+  `rebind`, before prepared evidence or the first playback render;
+- Hero uses the transaction direction for the whole run, so reverse endpoint
+  equality cannot create two timeline generations;
+- the shared Proof closing component now has a global three-line layout
+  contract, preserving desktop as well as phone rendering.
+
+Fresh focused evidence is 31/31 Vitest contracts and 5/5 Phone WebKit contracts
+covering the affected Figure2, Proof, and Hero boundaries.
+
+The Proof typography follow-up then replaced block-element rectangles with
+`Range.getClientRects()` text-line measurements at 320, 390, and 430 px. Both
+tail rows are no-wrap and the phone-only closing size scales from 24–36 px; all
+three authored rows remain one text line without horizontal overflow. The
+current complete Phone WebKit project passes 112/112 in one process with no
+automatic retry, including the 3.3-minute 60-segment traversal and the prior
+Method → AOD boundary. Full Vitest remains 177 files / 1,364 tests; the exact
+production build passes at 665,565 B Phone JS and 76,695 B initial CSS.
+
+### 2026-08-12 Figure2 handoff and Crane presented-clock replacement
+
+The latest dirty checkpoint moves the retained Figure2 arch into the A/B
+compositor below Ink, replaces the whole-plane Figure2 conceal mask with a
+Proof-only reveal owner, transfers native reading at the live scroll boundary,
+and drives both Crane media lanes plus the camera from one presented-media
+authored clock. The phone-only flock position is 2.5 `lvh` higher.
+
+Fresh evidence for this exact source is focused Phone WebKit 7/7, full Vitest
+177 files / 1,364 tests, a passing production build at 665,294 B Phone JS and
+76,695 B initial CSS, and a complete Phone WebKit run of 112/112 in one process
+without retry in 12.5 minutes, including the 3.2-minute 60-segment traversal.
+The generated artifact tree is
+`6415b7bf53d0590d47fa7d80fa6a31a01ca294451211472523f71861500de369`.
+
+This closes the automated implementation only. The manifest remains
+`candidate=null`, `sourceDirty=true`, and `pending-memory`; no commit, tag,
+push, deployment, or candidate was created. Formal acceptance remains NO-GO
+until this exact artifact passes the two-round physical iPhone matrix and
+memory qualification.
+
+### 2026-08-12 retained Proof and terminal Crane follow-up
+
+Three post-implementation review gaps are closed in the latest dirty
+checkpoint. Stable Proof now uses the scene coverage as its paper layer, keeps
+the retained arch in the middle compositor layer, and exposes a transparent
+native copy owner above it. A production WebKit pixel-difference probe proves
+that hiding the arch changes more than 10,000 stable Proof pixels. Forward
+Crane cannot advance the camera past the flock retirement cue until the current
+generation presents its terminal flock frame. Native touch arbitration now
+cancels the whole claim on any incremental direction reversal in either
+direction.
+
+Fresh evidence is full Vitest 177 files / 1,364 tests, a passing production
+build at 665,396 B Phone JS and 76,695 B initial CSS, and the complete Phone
+WebKit project 113/113 in one process without retry in 12.6 minutes, including
+the 3.2-minute 60-segment traversal. The generated artifact tree is
+`0ec7cc76a0e1a624957407bcc590394aa5699522f80e6c2c22a071a4c447e74c`.
+
+This remains an automated dirty checkpoint, not a candidate. The manifest is
+`candidate=null`, `sourceDirty=true`, and `pending-memory`; formal acceptance
+still requires the two-round physical iPhone matrix and memory qualification.
+
+### 2026-08-12 Proof reproject transparency follow-up
+
+The native Proof copy now stays transparent whenever the committed scene is
+`figure2-proof` and native reading remains enabled. This covers stable display
+and same-scene toolbar, layout, and BFCache reprojects without making cinematic
+Proof mirrors transparent during an actual scene transition.
+
+The regression test holds a real height-change reproject open, verifies that
+the native reading background remains transparent, freezes unrelated CSS
+motion, and compares consecutive screenshots before and after hiding the
+retained arch. The old selector failed with `rgb(237, 228, 210)`; the corrected
+production build passes stable/reproject Phone WebKit 2/2 and full Vitest 177
+files / 1,364 tests. Build and architecture gates pass at 665,396 B Phone JS
+and 76,695 B initial CSS. The artifact tree is
+`da21840eb2108f0098c01ccc239489ccee0db81b893cf6582cdbedcb94577cf5`.
+
+The prior complete 113/113 Phone WebKit run predates this CSS-only selector
+change and is not recorded as an exact-artifact full run. The manifest remains
+`candidate=null`, `sourceDirty=true`, and `pending-memory`; formal physical
+acceptance remains blocked.
+
+### 2026-08-12 depth/copy/media authority automated closure
+
+The replacement now has one Shell-owned retained Figure2 arch and one decode
+authority. Figure2 and Proof now use complementary element masks from the same
+transaction, atlas, progress, and transform: the semantic Figure2 root owns
+`conceal`, the Proof compound owns `reveal`, both A/B buffers remain unmasked,
+and the Shell arch stays outside both masks above the depth Ink. The successful
+commit hides the retiring buffer before transition cleanup can remove masks.
+A WebKit pixel probe removes only the Figure2 conceal style at mid-sweep and
+observes more than 5,000 restored source pixels, so this is physical compositor
+evidence rather than a computed-style-only assertion.
+
+PH now clears presentation admission before replacement activation, accepts
+only the selected generation, and immediately plus repeatedly probes that
+generation until a real frame is reported or the shared packed-surface
+deadline fails closed. Its Canvas is visible only while `verified` and the
+leaf's admitted-generation gate are both present. Early, delayed, missing, and
+retained-endpoint paths are covered without adding a Canvas, decoder, poster,
+deadline, or runtime state machine.
+
+Fresh evidence for the exact production artifact:
+
+| Gate | Result |
+| --- | --- |
+| Focused Vitest | 5 files / 75 tests passed |
+| Full Vitest | 177 files / 1,374 tests passed |
+| Trusted touch chain | Chromium 1/1: Services → TTG → Lab → PH, each edge committed exactly once |
+| Full Phone WebKit | 115 passed / 1 trusted-touch skip in one process without retry, 13.2 minutes |
+| Production build | TypeScript, architecture, media, release-build, and budget gates passed |
+| Phone JS / initial CSS | 665,526 B / 76,695 B; existing caps unchanged |
+| Artifact tree | `d5bdfd4c36cb7012a90b8bf1ed73ebfd91ad62d76ac175b74937d93e9490083a` |
+
+The generated manifest remains `candidate=null`, `sourceDirty=true`, and
+`pending-memory` (176 files / 84,058,121 bytes). No commit, tag, push,
+deployment, or candidate was created. This artifact is ready for the required
+two-round physical iPhone matrix, but formal acceptance and release remain
+blocked until those physical results and memory qualification pass. Figure3
+sharpness remains limited by its existing 1280×720 animation source.
+
+Playwright WebKit cannot emit a trusted swipe, so its complete run intentionally
+skips only that transport-specific case. The same chain passes with trusted
+Chromium touch input, and the full WebKit story traversal still covers all 60
+forward/reverse segment traversals. Real Safari touch, Low Power Mode, toolbar,
+background/BFCache, and exact-edge trace capture remain physical gates; this
+automated result does not claim that the earlier physical freeze occurred at
+`lab-ph`.
 
 ## Superseded historical record
 
