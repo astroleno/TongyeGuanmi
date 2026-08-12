@@ -8,7 +8,8 @@ import type {
   PhoneTransactionLeg, PhoneViewportSnapshot, PhoneVisualViewport, PhoneFailure,
   PhoneStableCommit
 } from './protocol';
-import { phoneManifest, phonePreparedSurfaceIds, phoneSceneById,
+import { samePhoneAttempt } from './protocol';
+import { phoneManifest, phonePreparedSurfaceIds, phoneRetainedFigure2ArchOwner, phoneSceneById,
   phoneEntryForLocation, type PhoneInkOwnership, type PhoneSceneId, type PhoneSegmentId,
   type PhoneTransitionProjection } from './manifest';
 
@@ -82,7 +83,7 @@ export type PhoneLeafReportPort = Readonly<{
   reportFailure(failure: PhoneFailure): void;
 }>;
 
-export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken; segmentId?: string | null; stageIndex?: number; direction?: 'forward' | 'reverse' | null }>;
+export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken; transactionId?: string; segmentId?: string | null; stageIndex?: number; direction?: 'forward' | 'reverse' | null }>;
 
 export function createPhoneLeafGenerationBinding(
   reports: PhoneLeafReportPort,
@@ -90,7 +91,7 @@ export function createPhoneLeafGenerationBinding(
   stageIndex?: number, direction?: 'forward' | 'reverse' | null
 ): PhoneLeafGenerationBinding {
   return Object.freeze({
-    reports, frameToken: `${transactionId}:frame:${sequence}`, segmentId,
+    reports, frameToken: `${transactionId}:frame:${sequence}`, transactionId, segmentId,
     ...(stageIndex === undefined ? {} : { stageIndex }), ...(direction === undefined ? {} : { direction })
   });
 }
@@ -451,15 +452,7 @@ const finalEvidenceKinds: readonly PhoneFinalEvidenceKind[] = [
 ];
 const phonePseudoElements: readonly ('::before' | '::after')[] = ['::before', '::after'];
 
-function samePhoneAttempt(left: PhoneAttemptKey, right: PhoneAttemptKey): boolean {
-  return left.authorityId === right.authorityId
-    && left.transactionId === right.transactionId
-    && left.transactionGeneration === right.transactionGeneration
-    && left.mode === right.mode && left.sceneId === right.sceneId
-    && left.segmentId === right.segmentId && left.direction === right.direction;
-}
-
-function samePhoneBinding(left: PhoneLeafReportBinding, right: PhoneLeafReportBinding): boolean {
+export function samePhoneLeafReportBinding(left: PhoneLeafReportBinding, right: PhoneLeafReportBinding): boolean {
   return samePhoneAttempt(left.attempt, right.attempt)
     && left.stageIndex === right.stageIndex && left.leg === right.leg
     && left.planeRevision === right.planeRevision
@@ -584,9 +577,8 @@ export function createPhonePresentation(
     if (!state.root || !state.root.contains(request.registration.root)) {
       throw new Error('Phone leaf root is outside the attached presentation root');
     }
-    if (request.registration.surfaces.some(({ id, element }) => (
+    if (request.registration.surfaces.some(({ element }) => (
       !request.registration.root.contains(element)
-      && !(id === 'figure2-foreground-arch' && state.root?.contains(element))
     ))) throw new Error('Phone leaf surface is outside its registered root');
     const descriptor = describePhoneLeafMount(request);
     const ownerKey = phoneLeafMountKey(request.binding);
@@ -594,7 +586,7 @@ export function createPhonePresentation(
       throw new Error(`Phone leaf mount already registered: ${ownerKey}`);
     }
     for (const surfaceId of descriptor.surfaceIds) {
-      if (state.surfaceOwners.has(surfaceId) && surfaceId !== 'figure2-foreground-arch') {
+      if (state.surfaceOwners.has(surfaceId)) {
         throw new Error(`Phone leaf surface already registered: ${surfaceId}`);
       }
     }
@@ -656,7 +648,7 @@ export function createPhonePresentation(
 
   const verifyPrepared = (request: PhonePreparedProofRequest): PhonePreparedProof => {
     const record = recordForLease(request.lease);
-    if (!record || !samePhoneBinding(record.binding, request.binding) || !record.root) {
+    if (!record || !samePhoneLeafReportBinding(record.binding, request.binding) || !record.root) {
       return Object.freeze({ records: Object.freeze([]) });
     }
     const root = record.root;
@@ -670,8 +662,8 @@ export function createPhonePresentation(
         ? request.binding.allowedReports.includes('canvas-drawn') ? 'canvas-drawn' : null
         : request.fact.report.kind;
       const scene = phoneSceneForSurfaces(record.descriptor.surfaceIds);
-      const expected = kind && scene
-        ? phonePreparedSurfaceIds(scene.id, kind).includes(request.fact.surfaceId) : false;
+      const expected = kind && (scene ? phonePreparedSurfaceIds(scene.id, kind).includes(request.fact.surfaceId)
+        : record.binding.leg === 'effect' && record.descriptor.surfaceIds.length === 1 && record.descriptor.surfaceIds[0] === request.fact.surfaceId);
       if (!kind || !request.binding.allowedReports.includes(kind) || !expected) {
         return Object.freeze({ records: Object.freeze([]) });
       }
@@ -712,6 +704,9 @@ export function createPhonePresentation(
     const segment = request.attempt.segmentId
       ? phoneManifest.segments.find(({ id }) => id === request.attempt.segmentId) : null;
     const expectedEffect = segment?.effectPlacement === 'above-both' ? 40 : 20;
+    const archOwner = segment && request.attempt.direction ? phoneRetainedFigure2ArchOwner(segment.id, request.attempt.direction) : 'none';
+    const archLayer = state.root?.querySelector<HTMLElement>('.phone-story__retained-figure2-arch-layer') ?? null;
+    const expectedArch = segment?.id === 'figure2-distance-expand' ? 45 : 35;
     const foreground = state.root?.getAttribute('data-phone-transition-foreground');
     const expectedSource = foreground === 'source' ? 30 : 10;
     const expectedReceiver = foreground === 'source' ? 10 : 30;
@@ -726,10 +721,11 @@ export function createPhonePresentation(
       && getStyle(topology.viewport).isolation === 'isolate'
       && Number.parseInt(getStyle(topology.source).zIndex, 10) === expectedSource
       && Number.parseInt(getStyle(topology.effect).zIndex, 10) === expectedEffect
-      && Number.parseInt(getStyle(topology.receiver).zIndex, 10) === expectedReceiver;
+      && Number.parseInt(getStyle(topology.receiver).zIndex, 10) === expectedReceiver
+      && (archOwner === 'none' || !!archLayer && Number.parseInt(getStyle(archLayer).zIndex, 10) === expectedArch);
   };
 
-  const transitionVariables = ['--phone-source-opacity', '--phone-target-opacity', '--phone-source-clip', '--phone-target-clip', '--phone-source-mask', '--phone-target-mask'] as const;
+  const transitionVariables = ['--phone-source-opacity', '--phone-target-opacity', '--phone-source-clip', '--phone-target-clip', '--phone-source-mask', '--phone-target-mask', '--phone-transition-mask-size', '--phone-transition-mask-repeat', '--phone-transition-mask-mode'] as const;
 
   const clearTransitionVariables = (root: HTMLElement): void => {
     for (const attribute of ['data-phone-transition-live', 'data-phone-transition-direction', 'data-phone-transition-foreground'] as const) root.removeAttribute(attribute);
@@ -746,7 +742,7 @@ export function createPhonePresentation(
     root.setAttribute('data-phone-transition-foreground', frame.foregroundOwner);
     topology.source.setAttribute('data-phone-exposed', 'true');
     topology.receiver.setAttribute('data-phone-exposed', 'true');
-    const values = [frame.sourceOpacity, frame.targetOpacity, reverse ? frame.ownership?.revealClip : frame.ownership?.concealClip, reverse ? frame.ownership?.concealClip : frame.ownership?.revealClip, reverse ? frame.ownership?.revealMask : frame.ownership?.concealMask, reverse ? frame.ownership?.concealMask : frame.ownership?.revealMask];
+    const values = [frame.sourceOpacity, frame.targetOpacity, reverse ? frame.ownership?.revealClip : frame.ownership?.concealClip, reverse ? frame.ownership?.concealClip : frame.ownership?.revealClip, reverse ? frame.ownership?.revealMask : frame.ownership?.concealMask, reverse ? frame.ownership?.concealMask : frame.ownership?.revealMask, frame.ownership?.maskSize, frame.ownership?.maskRepeat, frame.ownership?.maskMode];
     transitionVariables.forEach((variable, index) => root.style.setProperty(variable, String(values[index] ?? 'none')));
   };
 
@@ -886,7 +882,7 @@ export function createPhonePresentation(
   const frameIsVisible = (request: PhonePlaneRequest, record: PhoneMountRecord): boolean => {
     const scene = phoneSceneById(request.sceneId);
     const requiredSurfaces = scene.id === 'figure2-animation' || scene.id === 'figure2-proof' || scene.frame.kind === 'packed-canvas-draw' ? scene.frame.surfaceIds : scene.frame.surfaceIds.slice(0, 1);
-    const surfaces = requiredSurfaces.map((id) => record.surfaces.get(id)?.element);
+    const surfaces = requiredSurfaces.map((id) => id === 'figure2-foreground-arch' ? state.root?.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]') : scene.frame.kind === 'content-post-paint' ? record.root : record.surfaces.get(id)?.element);
     const expectedFact = (id: string): string => id === 'figure2-foreground-arch' || scene.frame.kind === 'image-decode-composite-paint' || scene.frame.kind === 'canvas-or-static-post-paint' ? 'image-decoded' : scene.frame.kind === 'content-post-paint' ? 'static-ready' : scene.frame.kind === 'decoded-composited-frame' && scene.directEntry.closure.resourceBudget.canvases === 0 ? 'video-decoded' : 'canvas-drawn';
     return surfaces.length > 0 && surfaces.every((surface, index) => {
       const id = requiredSurfaces[index]!;
@@ -946,13 +942,15 @@ export function createPhonePresentation(
     if (!record) return presentationFailure(
       'presentation-mount-missing', 'No current registered mount matches the requested proof leg'
     );
-    applyVariables(request, topology);
+    const readingRoot = state.root.getAttribute('data-phone-reading') === 'enabled' ? topology.reading : null;
+    const visibleRecord = readingRoot ? { ...record, root: readingRoot } : record;
+    applyVariables(request, topology); if (request.sceneId === 'figure2-proof' && record.root && record.root.parentElement?.getAttribute('data-phone-native-handoff') !== 'active') record.root.style.setProperty('--phone-proof-translate-y', `${(request.landingAlias === 'closing' ? -2 * request.viewport.visual.height : request.landingAlias === 'cards' ? -request.viewport.visual.height : 0).toFixed(2)}px`);
     if (fullProof || request.required.some(({ kind }) => kind === 'content-visible')) {
-      const failure = contentFailure(request, record, topology);
+      const failure = contentFailure(request, visibleRecord, topology);
       if (failure) return failure;
     }
     if ((fullProof || request.required.some(({ kind }) => kind === 'frame-visible'))
-      && !frameIsVisible(request, record)) return presentationFailure(
+      && !frameIsVisible(request, visibleRecord)) return presentationFailure(
       'presentation-frame-invalid', 'The required prepared frame is not visible in the current plane'
     );
     if ((fullProof || request.required.some(({ kind }) => kind === 'coverage-visible'))
@@ -961,7 +959,7 @@ export function createPhonePresentation(
     );
     if ((fullProof || request.required.some(({ kind }) => (
       kind === 'landing-confirmed' || kind === 'scroll-confirmed'
-    ))) && !landingIsVisible(request, record)) return presentationFailure(
+    ))) && !landingIsVisible(request, visibleRecord)) return presentationFailure(
       'presentation-landing-invalid', 'The requested landing is not visibly aligned'
     );
     const records = request.required.map((slot) => Object.freeze({

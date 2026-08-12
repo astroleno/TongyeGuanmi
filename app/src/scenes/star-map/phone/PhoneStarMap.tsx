@@ -72,8 +72,8 @@ export function phoneStarMapAmbientLayer(
   if (reducedMotion) return { strength: .72, noiseFloor: .02 };
   const breathing = Math.sin(timeSeconds * Math.PI * 2 / STAR_MAP_AMBIENT_PERIOD_SECONDS);
   return {
-    strength: 1.1 + breathing * .44,
-    noiseFloor: .035 + (breathing + 1) * .12
+    strength: 1.04 + breathing * .28,
+    noiseFloor: .024 + (breathing + 1) * .006
   };
 }
 
@@ -265,8 +265,8 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
           canvas.clientWidth || canvas.parentElement?.clientWidth || window.innerWidth
         ),
         highlight: { threshold: 120, gamma: 3.05, softness: 23 },
-        glow: { wideBlur: 120, mediumBlur: 44, coreBlur: 10, screenBlur: 3,
-          wideAlpha: 1.38, mediumAlpha: 1.2, coreAlpha: .78, screenAlpha: .64 },
+        glow: { wideBlur: 72, mediumBlur: 26, coreBlur: 4, screenBlur: 0,
+          wideAlpha: .72, mediumAlpha: 1.02, coreAlpha: .9, screenAlpha: .48 },
         noise: { profile: 'desktop-r5', seed: 42.7, scale: 3.8, warpScale: 2.1,
           warpAmount: .42, phaseSpeed: .66, driftX: .10, driftY: .46,
           warpSpeedX: .14, warpSpeedY: .12, octaves: 4, lacunarity: 2.07,

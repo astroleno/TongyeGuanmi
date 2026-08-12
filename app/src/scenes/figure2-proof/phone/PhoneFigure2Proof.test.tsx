@@ -72,7 +72,7 @@ describe('clean PhoneFigure2Proof leaf', () => {
       .not.toBeNull();
   });
 
-  it('registers the retained arch from its owning phone-story scope', async () => {
+  it('leaves the retained arch under the Shell presentation authority', async () => {
     const arch = document.createElement('img');
     arch.setAttribute('data-stage-retained-figure2-arch', 'true');
     const story = document.createElement('main');
@@ -84,13 +84,13 @@ describe('clean PhoneFigure2Proof leaf', () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneFigure2Proof reports={mount.reports} />); });
     expect(mount.registration()?.surfaces.map(({ id }) => id)).toEqual([
-      'figure2-proof-root', 'figure2-foreground-arch'
+      'figure2-proof-root'
     ]);
     act(() => root.unmount());
     story.remove();
   });
 
-  it('does not borrow a retained arch from another phone-story scope', async () => {
+  it('does not register any retained arch from either phone-story scope', async () => {
     const foreignStory = document.createElement('main');
     foreignStory.className = 'phone-story';
     const foreignArch = document.createElement('img');
@@ -106,8 +106,8 @@ describe('clean PhoneFigure2Proof leaf', () => {
     const root = createRoot(host);
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneFigure2Proof reports={mount.reports} />); });
-    expect(mount.registration()?.surfaces.find(({ id }) => id === 'figure2-foreground-arch')?.element)
-      .toBe(ownArch);
+    expect(mount.registration()?.surfaces.find(({ id }) => id === 'figure2-foreground-arch'))
+      .toBeUndefined();
     act(() => root.unmount());
     foreignStory.remove();
     ownStory.remove();
@@ -142,6 +142,31 @@ describe('clean PhoneFigure2Proof leaf', () => {
     expect(host.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]')
       ?.dataset.phoneProofProgress).toBe('1.0000');
     act(() => root.unmount());
+  });
+
+  it('uses only the frozen native scroll coordinate when Proof leaves for Brand', async () => {
+    const story = document.createElement('main');
+    story.className = 'phone-story';
+    const arch = document.createElement('img');
+    arch.setAttribute('data-stage-retained-figure2-arch', 'true');
+    const host = document.createElement('div');
+    story.append(arch, host);
+    document.body.replaceChildren(story);
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2Proof reports={mount.reports} />); });
+    const proof = host.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]')!;
+    mount.registration()?.commands.render(1);
+    expect(proof.style.getPropertyValue('--phone-proof-translate-y')).toBe('-1536.00px');
+    const mirror = host.querySelector<HTMLElement>('[data-phone-native-mirror="figure2-proof"]')!;
+    mirror.dataset.phoneNativeHandoff = 'active';
+    mount.registration()?.commands.rebind({
+      reports: mount.reports, frameToken: 'proof:brand:1',
+      segmentId: 'figure2-proof-brand', stageIndex: 0, direction: 'forward'
+    });
+
+    expect(proof.style.getPropertyValue('--phone-proof-translate-y')).toBe('0.00px');
+    expect(arch.getAttribute('style')).toBeNull();
   });
 
   it('provides the full three-panel compound as the native reading owner', () => {

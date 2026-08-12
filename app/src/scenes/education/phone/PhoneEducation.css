@@ -52,49 +52,31 @@
   padding: max(72px, 12svh) clamp(24px, 6vw, 42px) max(72px, 12svh);
 }
 
-/* Candidate proof opens on the programme. Once Education becomes the fixed
-   source, restore both acts so its geometry can mirror native document scroll. */
+/* The receiver keeps the same two acts as native reading. Direction selects
+   the exact landing edge; committing changes input ownership, not content. */
 .phone-education__visual {
   width: 100%;
-  height: 100%;
-  min-height: 100%;
+  height: auto;
+  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
 }
 
 .phone-education__visual .phone-education,
 .phone-education__visual .r4-education {
-  height: 100%;
-  min-height: 100%;
+  height: auto;
+  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
 }
 
 .phone-education__visual .r4-education__wide {
-  display: none;
-}
-
-.phone-education__visual .r4-education__vertical {
-  min-height: 100%;
-}
-
-.phone-story[data-phone-reading="disabled"] [data-phone-plane="source"]
-  .phone-education__visual {
-  height: auto;
-  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
-}
-
-.phone-story[data-phone-reading="disabled"] [data-phone-plane="source"]
-  .phone-education__visual :is(.phone-education, .r4-education) {
-  height: auto;
-  min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2);
-}
-
-.phone-story[data-phone-reading="disabled"] [data-phone-plane="source"]
-  .phone-education__visual .r4-education__wide {
   display: grid;
   min-height: var(--phone-cinematic-stage-height, 100svh);
 }
 
-.phone-story[data-phone-reading="disabled"] [data-phone-plane="source"]
-  .phone-education__visual .r4-education__vertical {
+.phone-education__visual .r4-education__vertical {
   min-height: var(--phone-cinematic-stage-height, 100svh);
+}
+
+.phone-education__visual:not([data-phone-native-handoff="active"]) {
+  transform: translate3d(0, var(--phone-education-receiver-y, 0px), 0);
 }
 
 .phone-education :is(a, button, input, select, textarea, [role="button"]) {

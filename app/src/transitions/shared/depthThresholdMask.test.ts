@@ -87,6 +87,26 @@ afterEach(() => {
 });
 
 describe('depth threshold mask', () => {
+  it('owns reusable reveal and conceal definitions without mutating endpoint planes', async () => {
+    const document = new FakeDocument();
+    const host = new FakeNode(document);
+    const mask = createDepthThresholdMask({
+      host: host as unknown as HTMLElement,
+      targets: [],
+      polarities: ['reveal', 'conceal'],
+      atlasSrc: '/depth-atlas.webp',
+      runId: 'phone-depth:1'
+    });
+
+    await mask?.ready;
+    mask?.commit();
+    mask?.render(.5, depthTransform);
+
+    expect(host.children).toHaveLength(1);
+    mask?.dispose();
+    expect(host.children).toHaveLength(0);
+  });
+
   it('keeps every live target unmasked until the decoded resource is committed', async () => {
     class DeferredImage {
       static latest: DeferredImage | undefined;
@@ -191,10 +211,6 @@ describe('depth threshold mask', () => {
     expect(proof.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
     expect(ground.style.getPropertyValue('mask-image')).toContain('depth-threshold-reveal-mask');
     expect(depthField.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
-    expect(proof.attributes.get('data-r4-depth-mask-values')).toBe('1,0');
-    expect(ground.attributes.get('data-r4-depth-mask-values')).toBe('1,0');
-    expect(depthField.attributes.get('data-r4-depth-mask-values')).toBe('0,1');
-
     mask?.dispose();
     expect(proof.style.getPropertyValue('mask-image')).toBe('');
     expect(ground.style.getPropertyValue('mask-image')).toBe('');
@@ -244,7 +260,7 @@ describe('depth threshold mask', () => {
     expect(host.children).toHaveLength(0);
   });
 
-  it('uses one pre-baked atlas image per requested polarity and only a static conceal inversion', async () => {
+  it('derives conceal from the same reveal mask without a WebKit filter', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);
     const reveal = new FakeNode(document);
@@ -261,19 +277,26 @@ describe('depth threshold mask', () => {
     });
     await mask?.ready;
     mask?.commit();
+    mask?.render(.37, depthTransform);
 
     const nodes = descendants(host);
-    const alphaFunctions = nodes.filter((node) => node.nodeName === 'feFuncA');
+    const filters = nodes.filter((node) => node.nodeName === 'filter');
     const masks = nodes.filter((node) => node.nodeName === 'mask');
     const images = nodes.filter((node) => node.nodeName === 'image');
-    expect(alphaFunctions).toHaveLength(1);
-    expect(alphaFunctions[0]?.attributes.get('type')).toBe('table');
-    expect(alphaFunctions[0]?.attributes.get('tableValues')).toBe('1 0');
+    const uses = nodes.filter((node) => node.nodeName === 'use');
+    const viewports = nodes.filter((node) => node.nodeName === 'svg' && node.attributes.has('viewBox'));
+    const frame = nodes.find((node) => node.attributes.has('data-r4-depth-atlas-frame'));
+    expect(filters).toHaveLength(0);
     expect(masks).toHaveLength(2);
-    expect(images).toHaveLength(2);
+    expect(images).toHaveLength(1);
+    expect(uses).toHaveLength(2);
     expect(images.every((node) => node.attributes.get('href') === '/depth-atlas.webp')).toBe(true);
     expect(masks.every((node) => node.attributes.get('mask-type') === 'alpha')).toBe(true);
-    expect(nodes.some((node) => node.nodeName === 'feColorMatrix')).toBe(false);
+    expect(reveal.style.getPropertyValue('mask-mode')).toBe('alpha');
+    expect(conceal.style.getPropertyValue('mask-image')).toContain('depth-threshold-conceal-mask');
+    expect(conceal.style.getPropertyValue('mask-mode')).toBe('alpha');
+    expect(viewports.every((node) => node.attributes.get('viewBox') === '0 0 384 216')).toBe(true);
+    expect(frame?.attributes.get('transform')).toBe('translate(-2304 -432)');
   });
 
   it('uses Stage coordinates and advances atlas tiles without mutable threshold filters', async () => {
@@ -295,8 +318,9 @@ describe('depth threshold mask', () => {
     const filters = nodes.filter((node) => node.nodeName === 'filter');
     const images = nodes.filter((node) => node.nodeName === 'image');
     const viewports = nodes.filter((node) => node.nodeName === 'svg' && node.attributes.has('viewBox'));
-    const cameras = nodes.filter((node) => node.nodeName === 'g');
-    const firstViewBoxes = viewports.map((node) => node.attributes.get('viewBox'));
+    const cameras = nodes.filter((node) => node.attributes.has('data-r4-depth-camera'));
+    const frame = nodes.find((node) => node.attributes.has('data-r4-depth-atlas-frame'));
+    const firstFrameTransform = frame?.attributes.get('transform');
 
     mask?.render(0.73, depthTransform);
 
@@ -307,8 +331,9 @@ describe('depth threshold mask', () => {
     expect(images.every((node) => node.attributes.get('width') === '3072')).toBe(true);
     expect(viewports.every((node) => node.attributes.get('x') === '-80')).toBe(true);
     expect(viewports.every((node) => node.attributes.get('width') === '1600')).toBe(true);
-    expect(viewports.map((node) => node.attributes.get('viewBox'))).not.toEqual(firstViewBoxes);
-    expect(viewports.every((node) => node.attributes.get('viewBox') === '2304 1080 384 216')).toBe(true);
+    expect(viewports.every((node) => node.attributes.get('viewBox') === '0 0 384 216')).toBe(true);
+    expect(frame?.attributes.get('transform')).not.toBe(firstFrameTransform);
+    expect(frame?.attributes.get('transform')).toBe('translate(-2304 -1080)');
     expect(cameras.every((node) => node.attributes.get('transform')?.includes('scale(1.142)'))).toBe(true);
     expect(cameras.every((node) => node.attributes.get('transform')?.includes('translate(0 -34)'))).toBe(true);
     expect(nodes.some((node) => node.attributes.get('type') === 'linear')).toBe(false);

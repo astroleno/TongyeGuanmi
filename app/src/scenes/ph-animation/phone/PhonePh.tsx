@@ -65,11 +65,7 @@ export function applyPhonePhMediaFallback(
 }
 
 export function parkPhonePhMedia(root: HTMLElement | null | undefined): void {
-  const section = rootFor(root);
-  parkPhMedia(section);
-  if (section?.dataset.phonePhMedia !== 'fallback') {
-    section?.setAttribute('data-phone-ph-media', 'parked');
-  }
+  parkPhMedia(rootFor(root));
 }
 
 export type PhonePhProps = Readonly<{ reports: PhoneLeafReportPort }>;
@@ -87,6 +83,8 @@ export function PhonePh({ reports }: PhonePhProps) {
   const surfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
   const surfaceGenerationRef = useRef(0);
+  const admissionGenerationRef = useRef(0);
+  const readyGenerationRef = useRef(0);
   const frameSequenceRef = useRef(0);
   const progressRef = useRef(0);
   const directionRef = useRef<PhonePhPlaybackDirection>(1);
@@ -94,11 +92,25 @@ export function PhonePh({ reports }: PhonePhProps) {
   const mediaPhaseRef = useRef<'primed' | 'playing' | 'held'>('held');
   const disposedRef = useRef(false);
 
+  const reportGeneration = useCallback((
+    binding: PhoneLeafGenerationBinding,
+    generation: number
+  ) => {
+    rootRef.current?.setAttribute('data-ph-gen', String(generation));
+    binding.reports.reportFrame('ph-figure-canvas', {
+      kind: 'frame', token: binding.frameToken, presented: true,
+      frameId: `ph-packed:${generation}:${++frameSequenceRef.current}`,
+      detail: { compositorDrawn: true, generation, progress: progressRef.current }
+    });
+  }, []);
+
   const reportFailure = useCallback((failure: PhonePackedAlphaSurfaceFailure) => {
     const binding = bindingRef.current;
     if (!binding || disposedRef.current
       || failure.generation < surfaceGenerationRef.current) return;
     surfaceGenerationRef.current = failure.generation;
+    admissionGenerationRef.current = 0;
+    readyGenerationRef.current = 0;
     binding.reports.reportFailure({
       code: `ph-${failure.code}`,
       message: failure.message,
@@ -116,24 +128,42 @@ export function PhonePh({ reports }: PhonePhProps) {
     if (directionRef.current === -1) {
       seekPhonePhReverseFrame(videoRef.current, progress);
     }
-    if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
+    if (admissionGenerationRef.current > 0) {
+      surfaceRef.current?.probe();
+    }
   }, []);
 
   const activateSurface = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
     const surface = surfaceRef.current;
     if (!surface || disposedRef.current) return 0;
+    rootRef.current?.removeAttribute('data-ph-gen');
     const generation = surface.activate(mode);
     surfaceGenerationRef.current = generation;
     return generation;
   }, []);
 
+  const probeGeneration = useCallback((generation: number) => {
+    const probe = () => {
+      if (admissionGenerationRef.current !== generation) return;
+      surfaceRef.current?.probe();
+      if (readyGenerationRef.current !== generation) requestAnimationFrame(probe);
+    };
+    probe();
+  }, []);
+
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
+      const sameRun = !!binding.transactionId
+        && bindingRef.current?.transactionId === binding.transactionId;
       bindingRef.current = binding;
-      mediaRunTokenRef.current = null;
-      mediaPhaseRef.current = 'held';
       frameSequenceRef.current = 0;
-      if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
+      if (!sameRun) {
+        mediaRunTokenRef.current = null;
+        mediaPhaseRef.current = 'held';
+        admissionGenerationRef.current = binding.segmentId === null ? readyGenerationRef.current : 0;
+      }
+      const admitted = admissionGenerationRef.current;
+      if (admitted > 0 && admitted === readyGenerationRef.current) reportGeneration(binding, admitted);
     },
     activate(command): PhoneActivationInvocation {
       const expected = ['ph-figure-video'];
@@ -158,11 +188,13 @@ export function PhonePh({ reports }: PhonePhProps) {
         : progressRef.current >= .999 ? 1 : null;
       const canvas = canvasRef.current;
       if (endpoint !== null
+        && readyGenerationRef.current === surfaceGenerationRef.current
         && Number(canvas?.dataset.packedAlphaGeneration) === surfaceGenerationRef.current
         && Number(canvas?.dataset.packedAlphaMediaTime) >= (endpoint ? PH_FIGURE_END_SECONDS - .08 : 0)
         && Number(canvas?.dataset.packedAlphaMediaTime) <= (endpoint ? Infinity : .04)) {
         surfaceRef.current?.setMode?.(endpoint === 0 ? 'initial' : 'endpoint', true);
-        rootRef.current?.setAttribute('data-phone-ph-media', 'ready');
+        admissionGenerationRef.current = surfaceGenerationRef.current;
+        reportGeneration(binding, surfaceGenerationRef.current);
         return {
           invocationId: command.invocationId,
           surfaceIds: expected,
@@ -171,19 +203,18 @@ export function PhonePh({ reports }: PhonePhProps) {
         };
       }
       const generation = activateSurface('initial');
+      admissionGenerationRef.current = generation;
+      if (generation > 0) probeGeneration(generation);
       video.pause();
       try { video.currentTime = 0; } catch {
         // The initial compositor callback will arrive after loadeddata.
       }
-      rootRef.current?.setAttribute('data-phone-ph-media', 'priming');
       const settled = primePhoneNativeVideo(video, {
-        isCurrent: () => !disposedRef.current
-          && mediaRunTokenRef.current === runToken
-          && bindingRef.current === binding,
+        isCurrent: () => !disposedRef.current && mediaRunTokenRef.current === runToken,
         phase: () => mediaPhaseRef.current,
         onRejected: (error: unknown) => {
-          if (disposedRef.current || bindingRef.current !== binding) return;
-          binding.reports.reportFailure({
+          if (disposedRef.current || mediaRunTokenRef.current !== runToken) return;
+          bindingRef.current?.reports.reportFailure({
             code: 'ph-activation-playback-rejected',
             message: error instanceof Error ? error.message : String(error),
             recoverable: true,
@@ -254,6 +285,7 @@ export function PhonePh({ reports }: PhonePhProps) {
     pause() {
       mediaRunTokenRef.current = null;
       mediaPhaseRef.current = 'held';
+      admissionGenerationRef.current = 0;
       parkPhonePhMedia(rootRef.current);
     },
     dispose(reason: PhoneLeafDisposeReason) {
@@ -261,6 +293,7 @@ export function PhonePh({ reports }: PhonePhProps) {
       disposedRef.current = true;
       mediaRunTokenRef.current = null;
       mediaPhaseRef.current = 'held';
+      admissionGenerationRef.current = 0;
       surfaceGenerationRef.current = 0;
       if (['closure-retired', 'faulted', 'route-dispose'].includes(reason)) surfaceRef.current?.dispose('terminal');
       else surfaceRef.current?.dispose('reactivatable');
@@ -268,7 +301,7 @@ export function PhonePh({ reports }: PhonePhProps) {
       parkPhonePhMedia(rootRef.current);
       bindingRef.current = null;
     }
-  }), [activateSurface, render]);
+  }), [activateSurface, probeGeneration, render, reportGeneration]);
 
   useLayoutEffect(() => {
     const mountRoot = mountRootRef.current;
@@ -294,24 +327,18 @@ export function PhonePh({ reports }: PhonePhProps) {
       layerName: 'ph-figure',
       canvasClassName: canvas.className,
       renewCanvasAfterFailure: true,
-      onCanvasRenewed: (renewed) => { canvasRef.current = renewed; },
+      onCanvasRenewed: (renewed) => {
+        canvasRef.current = renewed;
+        admissionGenerationRef.current = 0;
+        readyGenerationRef.current = 0;
+      },
       onFrame: ({ canvas: drawnCanvas, generation }) => {
         const binding = bindingRef.current;
         if (!binding || disposedRef.current
-          || generation !== surfaceGenerationRef.current
+          || generation !== admissionGenerationRef.current
           || drawnCanvas !== canvasRef.current) return;
-        root.dataset.phonePhMedia = 'ready';
-        binding.reports.reportFrame('ph-figure-canvas', {
-          kind: 'frame',
-          token: binding.frameToken,
-          presented: true,
-          frameId: `ph-packed:${generation}:${++frameSequenceRef.current}`,
-          detail: {
-            compositorDrawn: true,
-            generation,
-            progress: progressRef.current
-          }
-        });
+        readyGenerationRef.current = generation;
+        reportGeneration(binding, generation);
       },
       onFailure: reportFailure
     });
@@ -331,7 +358,9 @@ export function PhonePh({ reports }: PhonePhProps) {
     });
     return () => {
       disposedRef.current = true;
+      admissionGenerationRef.current = 0;
       surfaceGenerationRef.current = 0;
+      readyGenerationRef.current = 0;
       if (surfaceRef.current === surface) {
         surface.dispose('reactivatable');
         surfaceRef.current = null;
@@ -340,7 +369,7 @@ export function PhonePh({ reports }: PhonePhProps) {
       root.style.removeProperty('--phone-ph-island-source');
       bindingRef.current = null;
     };
-  }, [commands, render, reportFailure, reports]);
+  }, [commands, render, reportFailure, reportGeneration, reports]);
 
   return (
     <div ref={mountRootRef} className="phone-ph__mount">
@@ -349,7 +378,6 @@ export function PhonePh({ reports }: PhonePhProps) {
         className="phone-ph"
         data-phone-scene="ph-animation"
         data-phone-media-owner="ph-figure-packed"
-        data-phone-ph-media="preparing"
         aria-hidden="true"
       >
         <article

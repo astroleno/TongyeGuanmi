@@ -21,6 +21,7 @@ import {
   PHONE_CRANE_FLOCK_MEDIA_SECONDS,
   PHONE_CRANE_FLOCK_PLAYBACK_RATE,
   phoneCraneMediaProgressForTimeline,
+  phoneCranePresentedTimelineProgress,
   phoneCraneTimelineProgressForFigureMediaProgress,
   phoneCraneTimelineProgressForFlockMediaProgress
 } from './PhoneCrane.autoplay';
@@ -82,7 +83,7 @@ describe('PhoneCrane', () => {
     expect(source).toContain('binding.reports.reportFrame(surfaceId');
     expect(source).toContain("'crane-figure-canvas'");
     expect(source).toContain("'crane-flock-canvas'");
-    expect(source).toContain('seekPhoneCraneReverseFrames');
+    expect(source).toContain('driveTimelineVideo');
     expect(source).toContain("surface.dispose('reactivatable')");
     expect(source).not.toContain('createPortal');
     expect(source).not.toContain('useState');
@@ -93,12 +94,11 @@ describe('PhoneCrane', () => {
     expect(autoplaySource).not.toContain('createPhoneNativeAutoplay');
     expect(autoplaySource).not.toContain('createPhonePresentedReversePlayback');
     expect(motionSource).toContain('renderPhoneCranePresentation');
-    expect(motionSource).toContain("'presented-frame-reverse'");
     expect(source).not.toContain('prepareCraneAnimationFrame');
     expect(source).toContain('PHONE_CRANE_STABLE_HOLD_PROGRESS');
-    expect(source).toContain('PHONE_CRANE_FIGURE_PLAYBACK_RATE');
-    expect(source).toContain('PHONE_CRANE_FLOCK_PLAYBACK_RATE');
-    expect(source).toContain("data-phone-crane-figure-preroll', 'released'");
+    expect(source).not.toContain('startNativeClock');
+    expect(source).not.toContain('figureClockStartedRef');
+    expect(motionSource).toContain("'presented-media'");
     expect(css).toContain('.phone-crane .r4-crane-animation .phone-crane__figure-canvas');
     expect(css).toContain('--phone-crane-motion-height');
     expect(css).toContain('width: calc(var(--phone-crane-motion-height) * 16 / 9)');
@@ -108,7 +108,7 @@ describe('PhoneCrane', () => {
     expect(css).toContain('--phone-crane-flock-center-y: 50.2%');
     expect(css).toContain('--crane-flock-scale: .57');
     expect(css).toContain('var(--phone-crane-tune-flock-x, -1lvh)');
-    expect(css).toContain('var(--phone-crane-tune-flock-y, 10.75lvh)');
+    expect(css).toContain('var(--phone-crane-tune-flock-y, 8.25lvh)');
     expect(css).toContain('var(--phone-crane-figure-camera-x, -3.75lvh)');
     expect(css).toContain('var(--phone-crane-figure-camera-y, 8.75lvh)');
     expect(motionSource).toContain(
@@ -144,6 +144,15 @@ describe('PhoneCrane', () => {
     expect(phoneCraneMediaProgressForTimeline(0)).toEqual({ figure: 0, flock: 0 });
     expect(phoneCraneMediaProgressForTimeline(1 / 6).figure).toBe(0);
     expect(phoneCraneMediaProgressForTimeline(1)).toEqual({ figure: 1, flock: 1 });
+    expect(phoneCranePresentedTimelineProgress(.6, 1, .2, .3, 0))
+      .toBeCloseTo(.25, 8);
+    expect(phoneCranePresentedTimelineProgress(.6, 1, null, .3, .25)).toBe(.25);
+    expect(phoneCranePresentedTimelineProgress(.9, 1, .9, .8, 5 / 6))
+      .toBeCloseTo(5 / 6, 8);
+    expect(phoneCranePresentedTimelineProgress(.9, 1, .9, 1, 5 / 6))
+      .toBeCloseTo(.9, 8);
+    expect(phoneCranePresentedTimelineProgress(.4, -1, .8, .8, 1))
+      .toBeCloseTo(5 / 6, 8);
 
     const endpoint = new FakeElement();
     const arch = new FakeElement();

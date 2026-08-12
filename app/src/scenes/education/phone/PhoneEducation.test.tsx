@@ -6,7 +6,9 @@ import { hashForScene, sceneFromHash } from '../../../production/navigation';
 import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 import {
   PHONE_EDUCATION_INPUT_POLICY,
-  PhoneEducation
+  PhoneEducation,
+  phoneEducationReceiverLanding,
+  phoneEducationReceiverOffset
 } from './PhoneEducation';
 
 const reports = {
@@ -54,19 +56,19 @@ describe('PhoneEducation', () => {
     expect(stylesheet).not.toContain('position: fixed');
   });
 
-  it('expands the fixed Education source to both acts only during native handoff', () => {
+  it('keeps both Education acts in the receiver and selects the native landing edge explicitly', () => {
     const stylesheet = readFileSync(new URL('./PhoneEducation.css', import.meta.url), 'utf8');
     const markup = renderToStaticMarkup(createElement(PhoneEducation, { reports }));
 
     expect(markup).toContain('data-phone-native-mirror="education"');
-    expect(stylesheet).toMatch(
-      /\.phone-education__visual \.r4-education__wide\s*\{[^}]*display: none;/s
-    );
-    expect(stylesheet).toMatch(
-      /\[data-phone-plane="source"\][\s\S]*\.phone-education__visual \.r4-education__wide\s*\{[^}]*display: grid;/s
-    );
+    expect(stylesheet).not.toMatch(/\.phone-education__visual \.r4-education__wide\s*\{[^}]*display: none;/s);
+    expect(stylesheet).toContain('var(--phone-education-receiver-y, 0px)');
     expect(stylesheet).toContain(
       'min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2)'
     );
+    expect(phoneEducationReceiverLanding('ph-education', 'forward')).toBe('top');
+    expect(phoneEducationReceiverLanding('education-crane', 'reverse')).toBe('bottom');
+    expect(phoneEducationReceiverOffset('top', 2_240, 844)).toBe(0);
+    expect(phoneEducationReceiverOffset('bottom', 2_240, 844)).toBe(-1_396);
   });
 });

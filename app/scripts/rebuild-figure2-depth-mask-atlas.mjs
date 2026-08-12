@@ -14,8 +14,8 @@ const output = path.join(repoDir, 'assets/figure2-depth-mask-atlas.webp');
 const contract = {
   sourceBytes: 791_940,
   sourceSha256: '2a836e5139184d3f54bb095d8bcb4761092f277477856caf02e80378ec2c5c20',
-  outputBytes: 11_184,
-  outputSha256: '96a25cac86ba680719051a308415696d7eae26d4361bfdafbab3c1179cf493ab'
+  outputBytes: 10_402,
+  outputSha256: '39f7e3b9d00de8340b842f818cda0c4eb824618f141e9f8185f81a6ec2413005'
 };
 
 function sha256(bytes) {
@@ -53,12 +53,12 @@ try {
   await run('ffmpeg', [
     '-y', '-v', 'error', '-loop', '1', '-framerate', '30', '-i', source,
     '-filter_complex', [
-      'scale=384:216:flags=lanczos',
-      'format=rgba',
-      "geq=r='255':g='255':b='255':a='if(eq(N,0),0,if(eq(N,63),255,if(lte(r(X,Y),255*N/63),255,0)))'",
-      'tile=8x8:nb_frames=64:margin=0:padding=0'
-    ].join(','),
-    '-frames:v', '1', '-c:v', 'png', '-pix_fmt', 'rgba', png
+      '[0:v]scale=384:216:flags=lanczos,format=rgba,split=2[revealbase][concealbase]',
+      "[revealbase]geq=r='255':g='255':b='255':a='if(eq(N,0),0,if(eq(N,31),255,if(lte(r(X,Y),255*N/31),255,0)))'[reveal]",
+      "[concealbase]geq=r='255':g='255':b='255':a='if(eq(N,0),255,if(eq(N,31),0,if(lte(r(X,Y),255*N/31),0,255)))'[conceal]",
+      '[reveal][conceal]interleave=nb_inputs=2,tile=8x8:nb_frames=64:margin=0:padding=0[out]'
+    ].join(';'),
+    '-map', '[out]', '-frames:v', '1', '-c:v', 'png', '-pix_fmt', 'rgba', png
   ], { maxBuffer: 4 * 1024 * 1024 });
   await run('cwebp', [
     '-quiet', '-lossless', '-z', '9', '-alpha_q', '100', '-metadata', 'none',
@@ -82,7 +82,7 @@ process.stdout.write(`${JSON.stringify({
   output: path.relative(repoDir, output),
   columns: 8,
   rows: 8,
-  frames: 64,
+  framesPerPolarity: 32,
   tile: '384x216',
   bytes: contract.outputBytes,
   sha256: contract.outputSha256,

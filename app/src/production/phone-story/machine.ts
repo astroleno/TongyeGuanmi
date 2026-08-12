@@ -15,6 +15,9 @@ import {
   type PhoneTransactionSnapshot, type PhoneViewportSnapshot,
   type PhoneActivationCredit, type PhoneDeadlinePolicy, type PhoneSurfaceId
 } from './protocol';
+import { samePhoneAttempt as sameAttempt } from './protocol';
+
+export { samePhoneAttempt as sameAttempt } from './protocol';
 
 export type PhoneMachineSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegmentId>;
 export type PhoneMachineTransactionSnapshot = PhoneTransactionSnapshot<PhoneSceneId, PhoneSegmentId>;
@@ -59,13 +62,6 @@ function reviseTransaction(
       transaction: { ...snapshot.transaction, ...transaction } },
     effects
   });
-}
-
-export function sameAttempt(left: PhoneAttemptKey, right: PhoneAttemptKey): boolean {
-  return left.authorityId === right.authorityId && left.transactionId === right.transactionId
-    && left.transactionGeneration === right.transactionGeneration && left.mode === right.mode
-    && left.sceneId === right.sceneId && left.segmentId === right.segmentId
-    && left.direction === right.direction;
 }
 
 function sameSlot(left: PhoneEvidenceSlot, right: PhoneEvidenceSlot): boolean {
@@ -192,6 +188,7 @@ function transactionFor(
         evidenceSlot(attempt, 0, 'effect', 'module-loaded', null),
         evidenceSlot(attempt, 0, 'effect', 'root-connected', null,
           legPolicy?.effectSurface ?? null),
+        ...(options.segmentId === 'figure2-distance-expand' ? [evidenceSlot(attempt, 0, 'effect', 'image-decoded', null, legPolicy?.effectSurface ?? null)] : []),
         ...targetPrepared
       ]
     : targetPrepared;

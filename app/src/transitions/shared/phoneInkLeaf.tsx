@@ -7,6 +7,7 @@ import type {
 } from '../../production/phone-story/presentation';
 import type { InkFieldFrame, InkFieldSpec } from './inkField';
 import { createInkFieldFrame } from './inkField';
+import { createDepthThresholdMask, type DepthThresholdMask } from './depthThresholdMask';
 import {
   createInkFieldRenderer,
   type InkGradePreset,
@@ -22,6 +23,7 @@ export type PhoneInkLeafOptions = Readonly<{
   mapProgress?: (progress: number) => number;
   canvasClassName?: string;
   portraitInk?: string;
+  depthMaskAtlasSrc?: string;
 }>;
 
 function viewportFor(canvas: HTMLCanvasElement): Readonly<{ width: number; height: number }> {
@@ -65,6 +67,7 @@ export function createPhoneInkLeaf(
   function PhoneInkLeaf({ reports }: Readonly<{ reports: PhoneLeafReportPort }>) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const rendererRef = useRef<InkFieldRenderer | null>(null);
+    const depthMaskRef = useRef<DepthThresholdMask | null>(null);
     const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
     const pendingFailureRef = useRef<InkRendererFailure | null>(null);
     const disposedRef = useRef(false);
@@ -84,16 +87,70 @@ export function createPhoneInkLeaf(
       });
     };
 
+    const reportDepthReady = () => {
+      const binding = bindingRef.current;
+      if (!binding || !depthMaskRef.current?.committed() || disposedRef.current) return;
+      binding.reports.reportPrepared(options.surfaceId, {
+        kind: 'image-decoded', token: `${binding.frameToken}:depth-mask`, ready: true
+      });
+    };
+
+    const disposeDepthMask = () => {
+      depthMaskRef.current?.dispose(); depthMaskRef.current = null;
+    };
+
+    const bindDepthMask = (runId: string) => {
+      const canvas = canvasRef.current;
+      disposeDepthMask();
+      if (!canvas || !options.depthMaskAtlasSrc) return;
+      const planes = canvas.closest<HTMLElement>('.phone-story__planes');
+      const figure2 = planes?.querySelector<HTMLElement>(
+        '[data-r4-scene="figure2-animation"]'
+      )?.closest<HTMLElement>('[data-phone-plane]') ?? null;
+      const proof = planes?.querySelector<HTMLElement>(
+        '[data-r4-proof-compound="true"]'
+      )?.closest<HTMLElement>('[data-phone-plane]') ?? null;
+
+      const depthMask = createDepthThresholdMask({
+        host: planes ?? canvas.parentElement ?? canvas,
+        targets: [
+          ...(figure2 ? [{ element: figure2, polarity: 'conceal' as const }] : []),
+          ...(proof && proof !== figure2 ? [{ element: proof, polarity: 'reveal' as const }] : [])
+        ],
+        polarities: ['reveal', 'conceal'],
+        atlasSrc: options.depthMaskAtlasSrc,
+        runId
+      });
+      depthMaskRef.current = depthMask;
+      if (!depthMask) return;
+      void depthMask.ready.then(() => {
+        if (disposedRef.current || depthMaskRef.current !== depthMask
+          || bindingRef.current?.transactionId !== runId) return;
+        depthMask.commit(); reportDepthReady();
+      }, (error: unknown) => {
+        const current = bindingRef.current;
+        if (disposedRef.current || depthMaskRef.current !== depthMask
+          || current?.transactionId !== runId) return;
+        current.reports.reportFailure({ code: `${options.segmentId}-depth-mask-decode`,
+          message: error instanceof Error ? error.message : String(error), recoverable: true,
+          detail: { generation: runId } });
+      });
+    };
+
     const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
       rebind(binding: PhoneLeafGenerationBinding) {
+        const previous = bindingRef.current;
         bindingRef.current = binding;
         const renderer = rendererRef.current;
         if (!renderer || !renderer.rebindGeneration(binding.frameToken)) {
           reportFailure({ generation: binding.frameToken, reason: 'unavailable' });
           return;
         }
+        const runId = binding.transactionId!;
+        if (!depthMaskRef.current || previous?.transactionId !== runId) bindDepthMask(runId);
         const pending = pendingFailureRef.current;
         if (pending && pending.generation === binding.frameToken) reportFailure(pending);
+        reportDepthReady();
       },
       activate(command): PhoneActivationInvocation {
         return {
@@ -110,10 +167,14 @@ export function createPhoneInkLeaf(
         if (!canvas) return;
         canvas.dataset.r4InkBoundaryProgress = progress.toFixed(4);
         const visible = progress > .002 && progress < .999;
-        setEffectVisible(canvas, visible);
         const viewport = viewportFor(canvas);
         const frame = createInkFieldFrame(fieldFor(options, viewport), progress, viewport);
         if (visible) rendererRef.current?.render(frame);
+        const depthMask = depthMaskRef.current;
+        if (frame.spec.kind === 'depth' && depthMask?.committed()) {
+          depthMask.render(progress, frame.spec.transform);
+        }
+        setEffectVisible(canvas, visible);
         return { ownership: phoneInkOwnership(frame) };
       },
       settle() { setEffectVisible(canvasRef.current, false); },
@@ -123,6 +184,7 @@ export function createPhoneInkLeaf(
         setEffectVisible(canvasRef.current, false);
         rendererRef.current?.destroy();
         rendererRef.current = null;
+        disposeDepthMask();
         bindingRef.current = null;
       }
     }), []);
@@ -154,6 +216,7 @@ export function createPhoneInkLeaf(
         disposedRef.current = true;
         renderer?.destroy();
         if (rendererRef.current === renderer) rendererRef.current = null;
+        disposeDepthMask();
         bindingRef.current = null;
         setEffectVisible(canvas, false);
       };

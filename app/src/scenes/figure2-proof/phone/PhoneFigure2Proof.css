@@ -19,6 +19,15 @@
   transform: none;
 }
 
+/* Native Proof has three physical owners: the scene coverage paints the paper,
+ * the retained arch paints above it in the compositor, and this transparent
+ * document contributes only copy above the arch. Reading stays transparent
+ * during same-scene viewport/BFCache reprojects. */
+.phone-story[data-phone-scene="figure2-proof"][data-phone-reading="enabled"]
+  .phone-story__reading-flow .r4-proof-compound {
+  background: transparent;
+}
+
 .phone-story .r4-proof-panel {
   height: var(--phone-visual-height, 100vh);
   min-height: var(--phone-visual-height, 100vh);
@@ -27,6 +36,10 @@
 
 .phone-story .r4-proof-opening__title {
   font-size: clamp(38px, 10.5vw, 56px);
+}
+
+.phone-story .r4-proof-closing__copy {
+  font-size: clamp(24px, 8vw, 36px);
 }
 
 .phone-story .r4-proof-cards__row {

@@ -309,8 +309,8 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/figure2-depth-mask-atlas.webp',
     category: 'semantic-lossless-webp',
-    bytes: 11184,
-    sha256: '96a25cac86ba680719051a308415696d7eae26d4361bfdafbab3c1179cf493ab'
+    bytes: 10402,
+    sha256: '39f7e3b9d00de8340b842f818cda0c4eb824618f141e9f8185f81a6ec2413005'
   },
   {
     source: 'assets/figure2-middle-window-mask.webp',

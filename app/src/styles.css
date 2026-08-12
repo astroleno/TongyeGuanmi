@@ -2130,6 +2130,9 @@ pre {
   transform: translate3d(0, var(--r4-proof-closing-y), 0);
 }
 
+.r4-proof-closing__line { display: block; }
+.r4-proof-closing__line:not(:first-child) { white-space: nowrap; }
+
 .r4-proof-page {
   --r4-proof-overlay-opacity: 1;
   --r4-proof-scroll-y: 0px;
@@ -2239,14 +2242,6 @@ pre {
   width: min(1080px, 76vw);
   align-self: start;
   margin-inline: auto;
-}
-
-.r4-proof-page .r4-proof-closing__copy {
-  max-width: 13.5em;
-  margin-inline: auto;
-  text-align: center;
-  opacity: var(--r4-proof-closing-opacity, 1);
-  transform: translate3d(0, var(--r4-proof-closing-y, 0px), 0);
 }
 
 @media (max-width: 860px) {

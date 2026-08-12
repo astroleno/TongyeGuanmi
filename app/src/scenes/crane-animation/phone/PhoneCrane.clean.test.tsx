@@ -14,6 +14,7 @@ const packedProbe = vi.hoisted(() => ({
   generations: [0, 0],
   surfaces: [] as Array<{
     activate: ReturnType<typeof vi.fn>;
+    setMode: ReturnType<typeof vi.fn>;
     probe: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
     release: ReturnType<typeof vi.fn>;
@@ -27,6 +28,7 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
     packedProbe.options.push(options);
     const surface = {
       activate: vi.fn(() => ++packedProbe.generations[index]!),
+      setMode: vi.fn(),
       probe: vi.fn(() => false),
       render: vi.fn(() => true),
       release: vi.fn(),
@@ -125,7 +127,90 @@ describe('clean PhoneCrane leaf', () => {
     act(() => root.unmount());
   });
 
-  it('primes both paused initial frames on entry and starts both clocks only on exit', async () => {
+  it('admits only the post-activation generation and reveals both lanes together', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvases = host.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]');
+    const frames = packedProbe.options.map(({ onFrame }) => onFrame as (frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void);
+    commands.rebind({ reports: mount.reports, frameToken: 'crane:prewarm' });
+    commands.activate({
+      invocationId: 'crane:prewarm',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'direct-muted-autoplay', playback: false
+    });
+    for (const [index, frame] of frames.entries()) {
+      canvases[index]!.dataset.packedAlphaGeneration = '1';
+      canvases[index]!.dataset.packedAlphaMediaTime = '0.5000';
+      frame({ canvas: canvases[index]!, generation: 1 });
+    }
+    mount.reports.reportFrame.mockClear();
+
+    commands.rebind({
+      reports: mount.reports, frameToken: 'crane:transaction', segmentId: 'education-crane'
+    });
+    frames[0]!({ canvas: canvases[0]!, generation: 1 });
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+    commands.activate({
+      invocationId: 'crane:transaction',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', playback: false
+    });
+    canvases[0]!.dataset.packedAlphaGeneration = '2';
+    canvases[0]!.dataset.packedAlphaMediaTime = '0.0000';
+    frames[0]!({ canvas: canvases[0]!, generation: 2 });
+    const scene = host.querySelector('[data-r4-scene="crane-animation"]');
+    expect(scene?.hasAttribute('data-phone-crane-pair-ready')).toBe(false);
+    canvases[1]!.dataset.packedAlphaGeneration = '2';
+    canvases[1]!.dataset.packedAlphaMediaTime = '0.0000';
+    frames[1]!({ canvas: canvases[1]!, generation: 2 });
+    expect(scene?.hasAttribute('data-phone-crane-pair-ready')).toBe(true);
+    expect(mount.reports.reportFrame).toHaveBeenCalledTimes(2);
+    act(() => root.unmount());
+  });
+
+  it('re-proves the accepted pair for a same-scene lifecycle projection', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvases = host.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]');
+    commands.rebind({ reports: mount.reports, frameToken: 'crane:entry' });
+    commands.activate({
+      invocationId: 'crane:entry',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'direct-muted-autoplay', playback: false
+    });
+    packedProbe.options.forEach(({ onFrame }, index) => {
+      canvases[index]!.dataset.packedAlphaGeneration = '1';
+      canvases[index]!.dataset.packedAlphaMediaTime = '0.0000';
+      (onFrame as (frame: { canvas: HTMLCanvasElement; generation: number }) => void)(
+        { canvas: canvases[index]!, generation: 1 }
+      );
+    });
+    mount.reports.reportFrame.mockClear();
+
+    commands.rebind({
+      reports: mount.reports, frameToken: 'crane:lifecycle', segmentId: null
+    });
+
+    expect(mount.reports.reportFrame).toHaveBeenCalledTimes(2);
+    expect(mount.reports.reportFrame).toHaveBeenNthCalledWith(
+      1, 'crane-figure-canvas', expect.objectContaining({ token: 'crane:lifecycle' })
+    );
+    expect(mount.reports.reportFrame).toHaveBeenNthCalledWith(
+      2, 'crane-flock-canvas', expect.objectContaining({ token: 'crane:lifecycle' })
+    );
+    expect(packedProbe.surfaces.every(({ activate }) => activate.mock.calls.length === 1)).toBe(true);
+    act(() => root.unmount());
+  });
+
+  it('primes both paused initial frames once and enters timeline playback without native clocks', async () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     const mount = reportFixture();
@@ -162,11 +247,12 @@ describe('clean PhoneCrane leaf', () => {
     commands.setMediaPhase?.({
       phase: 'playing', runToken: 'crane:outgoing', direction: 'forward', stageIndex: 0
     });
-    expect(play).toHaveBeenCalledTimes(6);
-    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
-    pause.mockClear();
+    expect(play).toHaveBeenCalledTimes(4);
+    for (const surface of packedProbe.surfaces) {
+      expect(surface.setMode).toHaveBeenCalledWith('forward', true);
+    }
     commands.render(0);
-    expect(pause).not.toHaveBeenCalled();
+    expect(play).toHaveBeenCalledTimes(4);
     act(() => root.unmount());
   });
 
@@ -192,7 +278,7 @@ describe('clean PhoneCrane leaf', () => {
     act(() => root.unmount());
   });
 
-  it('starts the flock clock at the crane handoff and releases the figure at one sixth', async () => {
+  it('keeps the authored half-second stagger on one timeline without extra play calls', async () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     const mount = reportFixture();
@@ -223,14 +309,14 @@ describe('clean PhoneCrane leaf', () => {
     });
     commands.render(0);
     expect(figurePlay).toHaveBeenCalledOnce();
-    expect(flockPlay).toHaveBeenCalledTimes(2);
+    expect(flockPlay).toHaveBeenCalledOnce();
 
     commands.render(.1);
     expect(figurePlay).toHaveBeenCalledOnce();
     commands.render(1 / 6);
-    expect(figurePlay).toHaveBeenCalledTimes(2);
+    expect(figurePlay).toHaveBeenCalledOnce();
     expect(figure.currentTime).toBe(0);
-    expect(flockPlay).toHaveBeenCalledTimes(2);
+    expect(flockPlay).toHaveBeenCalledOnce();
     act(() => root.unmount());
   });
 
@@ -263,7 +349,9 @@ describe('clean PhoneCrane leaf', () => {
       stageIndex: 0, endpoint: 1
     });
 
-    expect([...videos].map((video) => video.currentTime)).toEqual([2.2, 2.2]);
+    expect([...videos].map((video) => video.currentTime)).toEqual([
+      CRANE_VIDEO_END_SECONDS, CRANE_VIDEO_END_SECONDS
+    ]);
     expect(mount.reports.reportFailure).toHaveBeenCalledWith(expect.objectContaining({
       code: 'crane-terminal-frame-missing', recoverable: true
     }));
@@ -381,13 +469,13 @@ describe('clean PhoneCrane leaf', () => {
     }
     commands.rebind({ reports: mount.reports, frameToken: 'crane:retained:2' });
     for (const surface of packedProbe.surfaces) {
-      expect(surface.probe).toHaveBeenCalledOnce();
+      expect(surface.probe).not.toHaveBeenCalled();
       expect(surface.render).not.toHaveBeenCalled();
       surface.probe.mockClear();
     }
     commands.settle(1);
     for (const surface of packedProbe.surfaces) {
-      expect(surface.probe).toHaveBeenCalledOnce();
+      expect(surface.probe).not.toHaveBeenCalled();
       expect(surface.render).not.toHaveBeenCalled();
     }
 

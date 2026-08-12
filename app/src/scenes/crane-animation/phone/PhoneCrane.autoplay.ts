@@ -5,10 +5,9 @@ import {
 
 const FIGURE_START_SECONDS = .5;
 const FLOCK_END_SECONDS = 2.5;
+const FLOCK_TERMINAL_PROGRESS = (CRANE_VIDEO_END_SECONDS - .08) / CRANE_VIDEO_END_SECONDS;
 
-function clamp(value: number): number {
-  return Math.min(1, Math.max(0, value));
-}
+function clamp(value: number): number { return Math.min(1, Math.max(0, value)); }
 
 /** The desktop figure starts at 0.5s and owns the rest of the 3s timeline. */
 export const PHONE_CRANE_FIGURE_MEDIA_SECONDS = Math.max(
@@ -61,6 +60,28 @@ export function phoneCraneMediaProgressForTimeline(
     ),
     flock: clamp(authoredSeconds / PHONE_CRANE_FLOCK_MEDIA_SECONDS)
   };
+}
+
+/** Keep the authored camera behind the latest current-generation Canvas pair. */
+export function phoneCranePresentedTimelineProgress(
+  rawDesired: number,
+  direction: 1 | -1,
+  figureMedia: number | null,
+  flockMedia: number | null,
+  rawCurrent: number
+): number {
+  const desired = clamp(rawDesired);
+  const current = clamp(rawCurrent);
+  const figureRequired = desired > FIGURE_START_SECONDS / CRANE_TIMELINE_DURATION_SECONDS;
+  const flockRequired = direction === 1 ? flockMedia === null || flockMedia < FLOCK_TERMINAL_PROGRESS : desired < FLOCK_END_SECONDS / CRANE_TIMELINE_DURATION_SECONDS;
+  if ((figureRequired && figureMedia === null) || (flockRequired && flockMedia === null)) {
+    return current;
+  }
+  const gates = [desired];
+  if (figureRequired) gates.push(phoneCraneTimelineProgressForFigureMediaProgress(figureMedia!));
+  if (flockRequired) gates.push(phoneCraneTimelineProgressForFlockMediaProgress(flockMedia!));
+  const presented = direction === 1 ? Math.min(...gates) : Math.max(...gates);
+  return direction === 1 ? Math.max(current, presented) : Math.min(current, presented);
 }
 
 export function phoneCraneVideos(root: HTMLElement | null): readonly [

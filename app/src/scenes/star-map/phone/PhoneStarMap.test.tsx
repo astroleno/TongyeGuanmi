@@ -153,9 +153,27 @@ describe('clean PhoneStarMap leaf', () => {
     const strengths = layers.map(({ strength }) => strength);
     const noiseFloors = layers.map(({ noiseFloor }) => noiseFloor);
 
-    expect(Math.max(...strengths) - Math.min(...strengths)).toBeGreaterThan(0.4);
-    expect(Math.max(...noiseFloors) - Math.min(...noiseFloors)).toBeGreaterThan(0.1);
+    expect(Math.max(...strengths) - Math.min(...strengths)).toBeGreaterThan(0.2);
+    expect(Math.max(...noiseFloors)).toBeLessThanOrEqual(0.04);
+    expect(Math.min(...noiseFloors)).toBeGreaterThanOrEqual(0.015);
     expect(phoneStarMapAmbientLayer(2.2, true)).toEqual({ strength: .72, noiseFloor: .02 });
+  });
+
+  it('uses the desktop-scale glow hierarchy instead of a broad full-frame wash', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneStarMap reports={mount.reports} />); });
+    const glow = (revealProbe.options?.config as {
+      glow?: Readonly<{
+        wideBlur: number; mediumBlur: number; coreBlur: number; screenBlur: number;
+        wideAlpha: number; mediumAlpha: number; coreAlpha: number; screenAlpha: number;
+      }>;
+    } | undefined)?.glow;
+
+    expect(glow).toMatchObject({
+      wideBlur: 72, mediumBlur: 26, coreBlur: 4, screenBlur: 0
+    });
+    expect(glow?.mediumAlpha ?? 0).toBeGreaterThan(glow?.wideAlpha ?? Infinity);
+    expect(glow?.coreAlpha ?? 0).toBeGreaterThan(glow?.wideAlpha ?? Infinity);
   });
 
   it('keeps one ambient clock across stable and cross-transition command lifecycles', async () => {

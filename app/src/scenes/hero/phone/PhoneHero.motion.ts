@@ -2,7 +2,8 @@ import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
 import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
 import {
   disposeTimelineVideoDriver,
-  driveTimelineVideo
+  driveTimelineVideo,
+  prepareTimelineVideoFrame
 } from '../../../media/timeline-video-driver';
 import { setPackedAlphaVideoSource } from '../../../media/packed-alpha-video';
 
@@ -16,15 +17,7 @@ export type PhoneMotionDriver = Readonly<{
 }>;
 
 export const PHONE_FIGURE_DURATION_SECONDS = 2.042;
-/**
- * Figure 1 belongs to the finger until this point. Crossing it hands the
- * already-presented frame to native playback, so the ending can breathe
- * without fighting ScrollTrigger for the playhead.
- */
-export const PHONE_FIGURE_AUTOPLAY_START_PROGRESS = 0.62;
 const PHONE_FIGURE_END_EPSILON_SECONDS = 0.03;
-const PHONE_FIGURE_RUN_ID = 'phone-story-hero-figure';
-const HAVE_CURRENT_DATA = 2;
 
 export type PhoneFigureSources = Readonly<{
   webm: string;
@@ -38,11 +31,14 @@ export type PhoneFigureSource = Readonly<{
 }>;
 
 export type PhoneFigurePlayback = Readonly<{
+  setRun(runId: string, direction?: 'forward' | 'reverse' | null): void;
   setActive(active: boolean): void;
   scrub(progress: number): void;
   settle(): void;
-  primeFromGesture(onRejected?: (error: unknown) => void): Promise<void>;
-  unlockFromGesture(): void;
+  primeFromGesture(
+    direction?: 'forward' | 'reverse' | null,
+    onRejected?: (error: unknown) => void
+  ): Promise<void>;
   dispose(): void;
 }>;
 
@@ -117,9 +113,9 @@ export function phoneFigureFallbackSourceFor(
 }
 
 /**
- * A single owner arbitrates the Figure video. Scroll reclaims the playhead
- * through TimelineVideoDriver; once ScrollTrigger settles, native playback is
- * allowed to breathe again from that presented frame.
+ * A single timeline owner arbitrates the Figure video for the complete
+ * Hero-pattern segment. Native play is used only to consume Safari activation
+ * credit during prime; it never becomes a second visible clock.
  */
 export function createPhoneFigurePlayback(
   video: HTMLVideoElement,
@@ -127,53 +123,14 @@ export function createPhoneFigurePlayback(
 ): PhoneFigurePlayback {
   let active = false;
   let disposed = false;
-  let lastProgress = 0;
-  let playAttempt = 0;
+  let runDirection: 1 | -1 = 1;
+  let currentRunId = 'phone-story-hero-figure:unbound';
   let primeGeneration = 0;
-
-  const canAutoplay = () => active
-    && lastProgress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS;
-
-  const playAmbient = () => {
-    if (disposed || !canAutoplay()) {
-      return;
-    }
-    if (
-      video.dataset.phoneFigurePlayback === 'autoplay'
-      || video.dataset.phoneFigurePlayback === 'starting-autoplay'
-    ) {
-      return;
-    }
-    if (video.readyState < HAVE_CURRENT_DATA) {
-      video.dataset.phoneFigurePlayback = 'waiting';
-      return;
-    }
-    const attempt = ++playAttempt;
-    video.loop = true;
-    video.playbackRate = 0.82;
-    video.dataset.phoneFigurePlayback = 'starting-autoplay';
-    void video.play().then(
-      () => {
-        if (!disposed && active && attempt === playAttempt) {
-          video.dataset.phoneFigurePlayback = 'autoplay';
-        }
-      },
-      () => {
-        if (!disposed && active && attempt === playAttempt) {
-          video.dataset.phoneFigurePlayback = 'blocked';
-        }
-      }
-    );
-  };
 
   const onLoadedData = () => {
     video.dataset.phoneFigureFrame = 'ready';
     video.parentElement?.setAttribute('data-phone-figure-frame', 'ready');
-    if (canAutoplay()) {
-      playAmbient();
-    } else {
-      video.dataset.phoneFigurePlayback = 'scrub-ready';
-    }
+    video.dataset.phoneFigurePlayback = 'scrub-ready';
   };
 
   const onError = () => {
@@ -192,62 +149,39 @@ export function createPhoneFigurePlayback(
   setPackedAlphaVideoSource(video, packedSourceUrl);
 
   return {
+    setRun(runId, direction = 'forward') {
+      if (currentRunId === runId) return;
+      currentRunId = runId;
+      runDirection = direction === 'reverse' ? -1 : 1;
+      primeGeneration += 1;
+      disposeTimelineVideoDriver(video);
+    },
     setActive(nextActive) {
       if (active !== nextActive) primeGeneration += 1;
       active = nextActive;
       if (!active) {
-        playAttempt += 1;
         video.pause();
         video.dataset.phoneFigurePlayback = 'paused';
         return;
       }
-      if (lastProgress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS) {
-        playAmbient();
-      } else {
-        video.dataset.phoneFigurePlayback = 'scrub-ready';
-      }
+      video.pause();
+      video.loop = false;
+      video.playbackRate = 1;
+      video.dataset.phoneFigurePlayback = 'scrub-ready';
     },
     scrub(rawProgress) {
       if (disposed || !active) {
         return;
       }
       const progress = clamp(rawProgress);
-      const direction = progress >= lastProgress ? 1 : -1;
-      lastProgress = progress;
 
-      if (progress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS) {
-        // Seek once at the handoff boundary, then release the playhead. This
-        // is intentionally not a scroll-linked fade or a repeatedly-seeked
-        // video while the native outro is playing.
-        const alreadyPlayingAmbient = video.dataset.phoneFigurePlayback === 'autoplay'
-          || video.dataset.phoneFigurePlayback === 'starting-autoplay';
-        if (!alreadyPlayingAmbient) {
-          video.pause();
-          video.loop = false;
-          video.playbackRate = 1;
-          driveTimelineVideo(video, {
-            runId: PHONE_FIGURE_RUN_ID,
-            direction,
-            progress: PHONE_FIGURE_AUTOPLAY_START_PROGRESS,
-            durationFallbackSeconds: PHONE_FIGURE_DURATION_SECONDS,
-            startSeconds: 0,
-            endSeconds: PHONE_FIGURE_DURATION_SECONDS - PHONE_FIGURE_END_EPSILON_SECONDS,
-            mode: 'timeline',
-            allowSeekedFrameFallback: true
-          });
-          playAmbient();
-        }
-        return;
-      }
-
-      playAttempt += 1;
       video.pause();
       video.loop = false;
       video.playbackRate = 1;
       video.dataset.phoneFigurePlayback = 'scrubbing';
       driveTimelineVideo(video, {
-        runId: PHONE_FIGURE_RUN_ID,
-        direction,
+        runId: currentRunId,
+        direction: runDirection,
         progress,
         durationFallbackSeconds: PHONE_FIGURE_DURATION_SECONDS,
         startSeconds: 0,
@@ -257,29 +191,36 @@ export function createPhoneFigurePlayback(
       });
     },
     settle() {
-      if (lastProgress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS) {
-        playAmbient();
-      }
+      video.pause();
+      video.loop = false;
+      video.playbackRate = 1;
+      if (active) video.dataset.phoneFigurePlayback = 'scrub-ready';
     },
-    primeFromGesture(onRejected) {
+    primeFromGesture(direction = 'forward', onRejected) {
       const generation = ++primeGeneration;
       return primePhoneNativeVideo(video, {
         isCurrent: () => !disposed && generation === primeGeneration,
         phase: () => active ? 'playing' : 'primed',
         ...(onRejected ? { onRejected } : {})
+      }).then(async () => {
+        if (disposed || generation !== primeGeneration) return;
+        await prepareTimelineVideoFrame(video, {
+          runId: currentRunId,
+          direction: direction === 'reverse' ? -1 : 1,
+          progress: direction === 'reverse' ? 1 : 0,
+          durationFallbackSeconds: PHONE_FIGURE_DURATION_SECONDS,
+          startSeconds: 0,
+          endSeconds: PHONE_FIGURE_DURATION_SECONDS - PHONE_FIGURE_END_EPSILON_SECONDS,
+          mode: 'timeline',
+          allowSeekedFrameFallback: true
+        });
       });
-    },
-    unlockFromGesture() {
-      if (lastProgress >= PHONE_FIGURE_AUTOPLAY_START_PROGRESS) {
-        playAmbient();
-      }
     },
     dispose() {
       if (disposed) {
         return;
       }
       disposed = true;
-      playAttempt += 1;
       primeGeneration += 1;
       video.pause();
       video.removeEventListener('loadeddata', onLoadedData);

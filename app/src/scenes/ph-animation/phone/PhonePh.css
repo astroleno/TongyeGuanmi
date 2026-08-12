@@ -139,7 +139,7 @@
   filter: drop-shadow(0 17px 24px rgba(61, 45, 35, .12));
 }
 
-.phone-ph[data-phone-ph-alpha="verified"] .phone-ph__figure-canvas[data-packed-alpha-frame-ready="true"] {
+.phone-ph[data-phone-ph-alpha="verified"][data-ph-gen] .phone-ph__figure-canvas[data-packed-alpha-frame-ready="true"] {
   opacity: var(--ph-video-opacity, 1);
 }
 

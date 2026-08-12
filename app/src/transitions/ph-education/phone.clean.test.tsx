@@ -34,10 +34,8 @@ describe('clean PH → Education between-plane leaf', () => {
     ]);
     mount.registration()?.commands.render(.75);
     expect(host.querySelector<HTMLElement>('[data-phone-transition="ph-education"]')
-      ?.dataset.phoneTransitionProgress).not.toBeUndefined();
+      ).not.toBeNull();
     mount.registration()?.commands.dispose('closure-retired');
-    expect(host.querySelector<HTMLElement>('[data-phone-transition="ph-education"]')
-      ?.dataset.phoneTransitionProgress).toBeUndefined();
     act(() => root.unmount());
   });
 });

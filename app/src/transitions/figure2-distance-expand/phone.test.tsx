@@ -9,7 +9,8 @@ describe('clean Figure2 → Proof depth transition leaf', () => {
     const field = phoneFigure2DistanceField({ width: 390, height: 844 });
     expect(PHONE_FIGURE2_DISTANCE_OPTIONS).toMatchObject({
       segmentId: 'figure2-distance-expand',
-      surfaceId: 'fx:figure2-distance-expand', grade: 'edge-only'
+      surfaceId: 'fx:figure2-distance-expand', grade: 'edge-only',
+      depthMaskAtlasSrc: expect.stringMatching(/figure2-depth-mask-atlas\.webp$/)
     });
     expect(field).toMatchObject({
       kind: 'depth', seed: 'figure2-distance-expand',

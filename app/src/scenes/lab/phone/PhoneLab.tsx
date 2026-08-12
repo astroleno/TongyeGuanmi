@@ -22,6 +22,14 @@ export function phoneLabFrame(
   return { progress, opacity: .98 + progress * .02, y: (1 - progress) * 10 };
 }
 
+export function phoneLabReceiverLanding(segmentId: string | null | undefined, direction: 'forward' | 'reverse' | null | undefined): 'top' | 'bottom' {
+  return segmentId === 'lab-ph' && direction === 'reverse' ? 'bottom' : 'top';
+}
+
+export function phoneLabReceiverOffset(landing: 'top' | 'bottom', contentHeight: number, viewportHeight: number): number {
+  return landing === 'bottom' ? -Math.max(0, contentHeight - viewportHeight) : 0;
+}
+
 function LabContent({ reading }: Readonly<{ reading: boolean }>) {
   return (
     <article
@@ -65,6 +73,7 @@ export function Reading() {
 
 /** Static clean leaf; the shell owns the separate native reading-flow copy. */
 export function PhoneLab({ reports }: Readonly<{ reports: PhoneLeafReportPort }>) {
+  const mountRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
   const paintFrameRef = useRef<number | null>(null);
@@ -100,6 +109,11 @@ export function PhoneLab({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
+      const landing = phoneLabReceiverLanding(binding.segmentId, binding.direction);
+      const mount = mountRef.current;
+      mount?.setAttribute('data-phone-receiver-landing', landing);
+      mount?.style.setProperty('--phone-lab-receiver-y', `${phoneLabReceiverOffset(
+        landing, mount.scrollHeight, document.documentElement.clientHeight)}px`);
       provePostPaint();
     },
     activate(command): PhoneActivationInvocation {
@@ -135,6 +149,7 @@ export function PhoneLab({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
 
   return (
     <div ref={(element) => {
+      mountRef.current = element;
       rootRef.current = element?.querySelector<HTMLElement>('#lab') ?? null;
     }} className="phone-lab__visual" data-phone-native-mirror="lab">
       <LabContent reading={false} />

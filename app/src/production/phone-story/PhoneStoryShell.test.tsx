@@ -883,7 +883,7 @@ describe('clean PhoneStoryShell ownership', () => {
     const scrollingElement = document.createElement('main');
     let scrollTop = 100;
     Object.defineProperties(scrollingElement, {
-      scrollTop: { configurable: true, get: () => scrollTop },
+      scrollTop: { configurable: true, get: () => scrollTop, set: (value) => { scrollTop = value; } },
       clientHeight: { configurable: true, value: 714 },
       scrollHeight: { configurable: true, value: 1_677 }
     });
@@ -945,11 +945,7 @@ describe('clean PhoneStoryShell ownership', () => {
       };
 
       const first = gesture(51, true);
-      expect(first.defaultPrevented).toBe(false);
-      expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
-
-      const second = gesture(52, false);
-      expect(second.defaultPrevented).toBe(true);
+      expect(first.defaultPrevented).toBe(true);
       expect(visual.dataset.phoneNativeScrollY).toBe('963.00');
       expect(decoyVisual.dataset.phoneNativeScrollY).toBeUndefined();
       expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([
@@ -1313,7 +1309,7 @@ describe('clean PhoneStoryShell ownership', () => {
     }
   });
 
-  it('retains Figure2 arch in one presentation layer above the reading flow', () => {
+  it('retains Figure2 arch inside the A/B compositor below the Ink effect', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     const engine = connectedEngine();
@@ -1339,6 +1335,9 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => arch?.dispatchEvent(new Event('load')));
     expect(arch?.getAttribute('data-phone-figure2-arch-ready')).toBe('true');
     expect(arch?.parentElement?.classList).toContain('phone-story__retained-figure2-arch-layer');
+    expect(arch?.parentElement?.parentElement?.classList).toContain('phone-story__planes');
+    expect(arch?.parentElement?.nextElementSibling?.getAttribute('data-phone-plane'))
+      .toBe('effect');
     expect(arch?.closest('.phone-story__reading-flow')).toBeNull();
     act(() => root.unmount());
   });
@@ -1355,7 +1354,7 @@ describe('clean PhoneStoryShell ownership', () => {
         ...transaction,
         sourceSceneId: 'figure2-animation', candidateSceneId: 'figure2-proof',
         attempt: { ...(transaction.attempt as Record<string, unknown>),
-          sceneId: 'figure2-proof', segmentId: 'figure2-animation-proof', direction: 'forward' }
+          sceneId: 'figure2-proof', segmentId: 'figure2-distance-expand', direction: 'forward' }
       }
     }));
     const layer = host.querySelector('.phone-story__retained-figure2-arch-layer');
@@ -1366,6 +1365,48 @@ describe('clean PhoneStoryShell ownership', () => {
       surfaceId: 'figure2-foreground-arch',
       failure: expect.objectContaining({ code: 'figure2-arch-decode' })
     }));
+    act(() => root.unmount());
+  });
+
+  it('keeps one arch node fixed through the depth boundary and releases it for reverse media', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    const publishFigure2 = (
+      direction: 'forward' | 'reverse', stageIndex: number,
+      phase: 'playing' | 'awaiting-leg-intent' | 'preparing'
+    ) => {
+      const entering = segmentSnapshot(stageIndex, direction === 'forward' ? 14 : 15);
+      const transaction = entering.transaction as Record<string, unknown>;
+      const sourceSceneId = direction === 'forward' ? 'figure2-animation' : 'figure2-proof';
+      const candidateSceneId = direction === 'forward' ? 'figure2-proof' : 'figure2-animation';
+      act(() => engine.publish({
+        ...entering,
+        stableCommit: { sceneId: sourceSceneId, landing: {}, commitSequence: 4 },
+        transaction: {
+          ...transaction, phase, sourceSceneId, candidateSceneId, stageIndex,
+          attempt: { ...(transaction.attempt as Record<string, unknown>),
+            sceneId: candidateSceneId, segmentId: 'figure2-distance-expand', direction }
+        }
+      }));
+    };
+
+    publishFigure2('forward', 0, 'playing');
+    const arch = host.querySelector('[data-stage-retained-figure2-arch="true"]');
+    expect(arch?.getAttribute('data-figure2-arch-motion')).toBe('depth');
+    expect(host.querySelector('.phone-story')?.getAttribute('data-phone-segment'))
+      .toBe('figure2-distance-expand');
+    publishFigure2('forward', 0, 'awaiting-leg-intent');
+    expect(host.querySelector('[data-stage-retained-figure2-arch="true"]')).toBe(arch);
+    expect(arch?.getAttribute('data-figure2-arch-motion')).toBe('fixed');
+    publishFigure2('forward', 1, 'preparing');
+    expect(host.querySelector('[data-stage-retained-figure2-arch="true"]')).toBe(arch);
+    expect(arch?.getAttribute('data-figure2-arch-motion')).toBe('fixed');
+    publishFigure2('reverse', 0, 'playing');
+    expect(arch?.getAttribute('data-figure2-arch-motion')).toBe('fixed');
+    publishFigure2('reverse', 1, 'playing');
+    expect(host.querySelector('[data-stage-retained-figure2-arch="true"]')).toBe(arch);
+    expect(arch?.getAttribute('data-figure2-arch-motion')).toBe('depth');
     act(() => root.unmount());
   });
 
@@ -1689,7 +1730,7 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
-  it('hands a native reading document to the story only when the gesture starts at an edge', () => {
+  it('hands one native gesture to the story after it reaches the live edge outside the old corridor', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     const engine = connectedEngine();
@@ -1707,9 +1748,13 @@ describe('clean PhoneStoryShell ownership', () => {
     reading.dataset.phoneInputOwner = 'native-document';
     story.querySelector('.phone-story__reading-flow')?.append(reading);
     const scrollingElement = document.createElement('main');
-    let scrollTop = 600;
+    let scrollTop = 650;
     Object.defineProperties(scrollingElement, {
-      scrollTop: { configurable: true, get: () => scrollTop },
+      scrollTop: {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => { scrollTop = value; }
+      },
       clientHeight: { configurable: true, value: 844 },
       scrollHeight: { configurable: true, value: 1544 }
     });
@@ -1725,44 +1770,93 @@ describe('clean PhoneStoryShell ownership', () => {
       configurable: true, value: 1544
     });
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
-    const gesture = (
-      identifier: number,
-      reachEdge = false,
-      continueAtEdge = false,
-      rubberBand = false
-    ) => {
+    const gesture = (identifier: number, startY: number, moveY: number, tailY?: number) => {
       const start = new Event('touchstart', { bubbles: true });
-      Object.defineProperty(start, 'touches', { value: [{ identifier, clientY: 600 }] });
+      Object.defineProperty(start, 'touches', { value: [{ identifier, clientY: startY }] });
       const move = new Event('touchmove', { bubbles: true, cancelable: true });
-      Object.defineProperty(move, 'touches', { value: [{ identifier, clientY: 300 }] });
+      Object.defineProperty(move, 'touches', { value: [{ identifier, clientY: moveY }] });
       const edgeMove = new Event('touchmove', { bubbles: true, cancelable: true });
-      Object.defineProperty(edgeMove, 'touches', { value: [{ identifier, clientY: 260 }] });
+      Object.defineProperty(edgeMove, 'touches', {
+        value: [{ identifier, clientY: tailY ?? moveY }]
+      });
       const end = new Event('touchend', { bubbles: true });
-      Object.defineProperty(end, 'changedTouches', { value: [{ identifier, clientY: 300 }] });
+      Object.defineProperty(end, 'changedTouches', { value: [{ identifier, clientY: tailY ?? moveY }] });
       act(() => reading.dispatchEvent(start));
-      if (reachEdge) scrollTop = 700;
-      if (rubberBand) scrollTop = 680;
       act(() => {
         reading.dispatchEvent(move);
-        if (continueAtEdge) reading.dispatchEvent(edgeMove);
+        if (tailY !== undefined) reading.dispatchEvent(edgeMove);
         reading.dispatchEvent(end);
       });
       return { move, edgeMove };
     };
     try {
-      const first = gesture(31, true, true);
-      expect(first.move.defaultPrevented).toBe(false);
-      expect(first.edgeMove.defaultPrevented).toBe(false);
-      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
-
-      const second = gesture(32, false, true);
-      expect(second.move.defaultPrevented).toBe(true);
-      expect(second.edgeMove.defaultPrevented).toBe(true);
+      scrollTop = 400;
+      const start = new Event('touchstart', { bubbles: true });
+      Object.defineProperty(start, 'touches', { value: [{ identifier: 31, clientY: 600 }] });
+      const interiorMove = new Event('touchmove', { bubbles: true, cancelable: true });
+      Object.defineProperty(interiorMove, 'touches', { value: [{ identifier: 31, clientY: 450 }] });
+      const edgeMove = new Event('touchmove', { bubbles: true, cancelable: true });
+      Object.defineProperty(edgeMove, 'touches', { value: [{ identifier: 31, clientY: 300 }] });
+      const end = new Event('touchend', { bubbles: true });
+      Object.defineProperty(end, 'changedTouches', { value: [{ identifier: 31, clientY: 300 }] });
+      act(() => reading.dispatchEvent(start));
+      act(() => reading.dispatchEvent(interiorMove));
+      expect(interiorMove.defaultPrevented).toBe(false);
+      scrollTop = 550;
+      act(() => { reading.dispatchEvent(edgeMove); reading.dispatchEvent(end); });
+      expect(edgeMove.defaultPrevented).toBe(true);
       expect(visual.dataset.phoneNativeScrollY).toBe('700.00');
       expect(visual.style.getPropertyValue('--phone-native-scroll-y')).toBe('700.00px');
       expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([
         expect.objectContaining({ kind: 'touch', delta: 300, target: 'story', fresh: true }),
       ]);
+
+      connectedEngine().hostEvents.length = 0;
+      scrollTop = 300;
+      const interior = gesture(32, 600, 300);
+      expect(interior.move.defaultPrevented).toBe(false);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+
+      scrollTop = 650;
+      const inwardThenOutward = gesture(33, 600, 640, 480);
+      expect(inwardThenOutward.move.defaultPrevented).toBe(false);
+      expect(inwardThenOutward.edgeMove.defaultPrevented).toBe(false);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
+
+      const reversingGesture = (
+        identifier: number,
+        points: readonly [number, number, number, number],
+        edgeScrollTop: number
+      ) => {
+        const start = new Event('touchstart', { bubbles: true });
+        Object.defineProperty(start, 'touches', {
+          value: [{ identifier, clientY: points[0] }]
+        });
+        act(() => reading.dispatchEvent(start));
+        for (const [index, clientY] of points.slice(1).entries()) {
+          if (index === 2) scrollTop = edgeScrollTop;
+          const move = new Event('touchmove', { bubbles: true, cancelable: true });
+          Object.defineProperty(move, 'touches', { value: [{ identifier, clientY }] });
+          act(() => reading.dispatchEvent(move));
+        }
+        const end = new Event('touchend', { bubbles: true });
+        Object.defineProperty(end, 'changedTouches', {
+          value: [{ identifier, clientY: points.at(-1) }]
+        });
+        act(() => reading.dispatchEvent(end));
+      };
+
+      connectedEngine().hostEvents.length = 0;
+      scrollTop = 500;
+      reversingGesture(34, [600, 500, 520, 400], 680);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
+
+      connectedEngine().hostEvents.length = 0;
+      scrollTop = 200;
+      reversingGesture(35, [300, 400, 380, 500], 20);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
       expect(connectedEngine().hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
     } finally {
       if (originalScrollingElement) {

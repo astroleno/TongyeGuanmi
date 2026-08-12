@@ -4,6 +4,9 @@ import { createPhoneInkLeaf } from '../shared/phoneInkLeaf';
 const FIGURE2_DEPTH_IMAGE = new URL(
   '../../../../assets/figure2-middle-depth.webp', import.meta.url
 ).href;
+const FIGURE2_DEPTH_MASK_ATLAS = new URL(
+  '../../../../assets/figure2-depth-mask-atlas.webp', import.meta.url
+).href;
 const FIGURE2_ASPECT = 16 / 9;
 
 function terminalDepthTransform(
@@ -51,6 +54,7 @@ export const PHONE_FIGURE2_DISTANCE_OPTIONS = Object.freeze({
   segmentId: 'figure2-distance-expand',
   surfaceId: 'fx:figure2-distance-expand' as const,
   field: phoneFigure2DistanceField,
+  depthMaskAtlasSrc: FIGURE2_DEPTH_MASK_ATLAS,
   grade: 'edge-only' as const,
   canvasClassName: 'r4-figure2-proof-ink-canvas',
   portraitInk: 'figure2-proof'

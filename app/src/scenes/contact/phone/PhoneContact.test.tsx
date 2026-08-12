@@ -6,7 +6,8 @@ import { hashForScene, sceneFromHash } from '../../../production/navigation';
 import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 import {
   PHONE_CONTACT_INPUT_POLICY,
-  PhoneContact
+  PhoneContact,
+  phoneContactPresentationFrame
 } from './PhoneContact';
 
 const source = readFileSync(new URL('./PhoneContact.tsx', import.meta.url), 'utf8');
@@ -50,5 +51,20 @@ describe('PhoneContact', () => {
     expect(hashForScene('contact')).toBe('#contact');
     expect(sceneFromHash('#contact')).toBe('contact');
     expect(source).not.toMatch(/ph-animation|crane-animation|prepare(?:Ph|Crane)/);
+  });
+
+  it('uses one cue-relative progress for copy and paper without a second stable entrance', () => {
+    expect(phoneContactPresentationFrame(0, true)).toEqual({
+      copyProgress: 0, paperAlpha: 0
+    });
+    expect(phoneContactPresentationFrame(.5, true)).toEqual({
+      copyProgress: .5, paperAlpha: .5
+    });
+    expect(phoneContactPresentationFrame(1, true)).toEqual({
+      copyProgress: 1, paperAlpha: 1
+    });
+    expect(phoneContactPresentationFrame(.5, false)).toEqual({
+      copyProgress: .5, paperAlpha: 1
+    });
   });
 });

@@ -149,6 +149,50 @@ describe('clean PhoneHero leaf', () => {
     expect(pause).toHaveBeenCalled();
   });
 
+  it('prepares the terminal Figure1 frame before a reverse Hero transition can start', async () => {
+    const fixture = reportFixture();
+    await act(async () => {
+      root.render(<PhoneHero reports={fixture.reports} />);
+    });
+    const video = host.querySelector<HTMLVideoElement>('[data-portrait-figure-video]');
+    if (!video) throw new Error('missing reverse Hero activation surface');
+    Object.defineProperties(video, {
+      duration: { configurable: true, value: 2.042 },
+      readyState: { configurable: true, value: 2 }
+    });
+    const commands = fixture.registration()?.commands as PhoneLeafCommandHandle;
+    commands.rebind({
+      reports: fixture.reports,
+      frameToken: 'hero:pattern:reverse:prime',
+      segmentId: 'hero-pattern',
+      direction: 'reverse'
+    });
+
+    commands.activate({
+      invocationId: 'hero:reverse:prime',
+      surfaceIds: ['hero-figure-video'],
+      credit: 'physical-epoch',
+      runToken: 'hero:pattern:reverse:prime',
+      direction: 'reverse',
+      stageIndex: 0
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(video.dataset.timelineVideoProgress).toBe('1.0000');
+    expect(Number(video.dataset.timelineVideoTarget)).toBeGreaterThan(2);
+    const preparedGeneration = video.dataset.timelineVideoGeneration;
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'hero:pattern:reverse:prime',
+      direction: 'reverse', stageIndex: 0
+    });
+    commands.render(1);
+    expect(video.dataset.timelineVideoDirection).toBe('-1');
+    expect(video.dataset.timelineVideoGeneration).toBe(preparedGeneration);
+    commands.render(.8);
+    expect(video.dataset.timelineVideoDirection).toBe('-1');
+    expect(video.dataset.timelineVideoGeneration).toBe(preparedGeneration);
+  });
+
   it('uses the current generation token and never lets a retired token prove a frame', async () => {
     const fixture = reportFixture();
     await act(async () => {
@@ -243,6 +287,38 @@ describe('clean PhoneHero leaf', () => {
 
     expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
     expect(video.dataset.phoneFigurePlayback).not.toBe('autoplay');
+  });
+
+  it('keeps the complete Hero-pattern run on the timeline clock without a native autoplay handoff', async () => {
+    const fixture = reportFixture();
+    await act(async () => {
+      root.render(<PhoneHero reports={fixture.reports} />);
+    });
+    const video = host.querySelector<HTMLVideoElement>('[data-portrait-figure-video]');
+    if (!video) throw new Error('missing Hero Figure1 video');
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+    const commands = fixture.registration()?.commands as PhoneHeroMigrationCommands;
+    commands.rebind({
+      reports: fixture.reports,
+      frameToken: 'hero:pattern:timeline:1',
+      segmentId: 'hero-pattern',
+      direction: 'forward'
+    });
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'hero:pattern:timeline:1', direction: 'forward', stageIndex: 0
+    });
+    vi.mocked(HTMLMediaElement.prototype.play).mockClear();
+
+    commands.render(.3);
+    commands.render(.8);
+    commands.render(1);
+    commands.settle(1);
+
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
+    expect(video.loop).toBe(false);
+    expect(video.playbackRate).toBe(1);
+    expect(video.dataset.phoneFigurePlayback).toBe('scrub-ready');
+    expect(video.dataset.timelineVideoProgress).toBe('1.0000');
   });
 
   it('activates the visible Figure1 compositor when the cold Hero entrance settles', async () => {

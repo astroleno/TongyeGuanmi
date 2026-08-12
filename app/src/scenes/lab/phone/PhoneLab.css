@@ -10,6 +10,10 @@
   scroll-margin-top: 0;
 }
 
+.phone-lab__visual:not([data-phone-native-handoff="active"]) {
+  transform: translate3d(0, var(--phone-lab-receiver-y, 0px), 0);
+}
+
 .phone-lab__screen {
   box-sizing: border-box;
   display: grid;

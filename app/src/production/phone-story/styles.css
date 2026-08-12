@@ -20,7 +20,7 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   min-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior-y: auto;
+  overscroll-behavior-y: none;
 }
 
 .phone-story__viewport {
@@ -51,22 +51,23 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
 }
 
 .phone-story__retained-figure2-arch-layer {
-  height: var(--phone-visual-height);
-  left: var(--phone-visual-offset-left);
+  height: 100%;
+  inset: 0;
   overflow: visible;
   pointer-events: none;
-  position: fixed;
-  top: var(--phone-visual-offset-top);
-  width: var(--phone-visual-width);
-  z-index: 72;
+  position: absolute;
+  width: 100%;
+  z-index: 35;
 }
 
-/* A stable Proof commit always owns the authored Figure2 terminal endpoint.
- * Stable-state CSS wins over stale inline transition values after commit,
- * viewport recovery, or BFCache restoration; transaction state removes the
- * override so the retained arch remains free to animate in either direction. */
-.phone-story[data-phone-status="stable"][data-phone-scene="figure2-proof"]
-  [data-stage-retained-figure2-arch="true"] {
+.phone-story[data-phone-segment="figure2-distance-expand"]
+  .phone-story__retained-figure2-arch-layer {
+  z-index: 45;
+}
+
+/* Shell projection owns the one terminal endpoint. Scene leaves may animate
+ * only while motion=depth; fixed survives stage waits and Proof reprojects. */
+.phone-story [data-stage-retained-figure2-arch="true"][data-figure2-arch-motion="fixed"] {
   --r4-figure2-near-arch-blur: 3.60px !important;
   --r4-figure2-near-arch-scale: 1.1350 !important;
   --r4-figure2-near-arch-brightness: .76 !important;
@@ -128,6 +129,11 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   opacity: var(--phone-source-opacity);
   -webkit-clip-path: var(--phone-source-clip);
   -webkit-mask-image: var(--phone-source-mask);
+  mask-mode: var(--phone-transition-mask-mode, alpha);
+  mask-repeat: var(--phone-transition-mask-repeat, no-repeat);
+  mask-size: var(--phone-transition-mask-size, 100% 100%);
+  -webkit-mask-repeat: var(--phone-transition-mask-repeat, no-repeat);
+  -webkit-mask-size: var(--phone-transition-mask-size, 100% 100%);
 }
 
 .phone-story[data-phone-transition-live] [data-phone-plane="receiver"] {
@@ -136,6 +142,11 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   opacity: var(--phone-target-opacity);
   -webkit-clip-path: var(--phone-target-clip);
   -webkit-mask-image: var(--phone-target-mask);
+  mask-mode: var(--phone-transition-mask-mode, alpha);
+  mask-repeat: var(--phone-transition-mask-repeat, no-repeat);
+  mask-size: var(--phone-transition-mask-size, 100% 100%);
+  -webkit-mask-repeat: var(--phone-transition-mask-repeat, no-repeat);
+  -webkit-mask-size: var(--phone-transition-mask-size, 100% 100%);
 }
 
 .phone-story[data-phone-transition-live] .phone-story__retained-figure2-arch-layer[data-phone-figure2-arch-owner="source"] {
@@ -144,6 +155,11 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   opacity: var(--phone-source-opacity);
   -webkit-clip-path: var(--phone-source-clip);
   -webkit-mask-image: var(--phone-source-mask);
+  mask-mode: var(--phone-transition-mask-mode, alpha);
+  mask-repeat: var(--phone-transition-mask-repeat, no-repeat);
+  mask-size: var(--phone-transition-mask-size, 100% 100%);
+  -webkit-mask-repeat: var(--phone-transition-mask-repeat, no-repeat);
+  -webkit-mask-size: var(--phone-transition-mask-size, 100% 100%);
 }
 
 .phone-story[data-phone-transition-live] .phone-story__retained-figure2-arch-layer[data-phone-figure2-arch-owner="target"] {
@@ -153,6 +169,11 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   visibility: visible;
   -webkit-clip-path: var(--phone-target-clip);
   -webkit-mask-image: var(--phone-target-mask);
+  mask-mode: var(--phone-transition-mask-mode, alpha);
+  mask-repeat: var(--phone-transition-mask-repeat, no-repeat);
+  mask-size: var(--phone-transition-mask-size, 100% 100%);
+  -webkit-mask-repeat: var(--phone-transition-mask-repeat, no-repeat);
+  -webkit-mask-size: var(--phone-transition-mask-size, 100% 100%);
 }
 
 .phone-story .stage-proof-retained-arch[data-phone-figure2-arch-ready="false"] {
@@ -203,7 +224,7 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
 }
 
 .phone-story[data-phone-reading="enabled"]
-  .phone-story__viewport [data-phone-native-mirror]:not([data-phone-native-handoff="active"]) {
+  .phone-story__viewport [data-phone-native-mirror] {
   visibility: hidden;
 }
 

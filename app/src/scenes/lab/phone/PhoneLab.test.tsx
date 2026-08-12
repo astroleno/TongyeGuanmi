@@ -3,7 +3,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 import { LAB_COPY } from '..';
-import { PhoneLab, phoneLabFrame } from './PhoneLab';
+import {
+  PhoneLab,
+  phoneLabFrame,
+  phoneLabReceiverLanding,
+  phoneLabReceiverOffset
+} from './PhoneLab';
 
 const reports = {
   registerMount() {}, reportPrepared() {}, reportFrame() {}, reportProgress() {},
@@ -39,5 +44,13 @@ describe('PhoneLab', () => {
       y: 0
     });
     expect(phoneLabFrame(0.2, true)).toEqual(phoneLabFrame(1));
+  });
+
+  it('maps incoming receiver direction to the same native reading edge', () => {
+    expect(phoneLabReceiverLanding('ttg-lab', 'forward')).toBe('top');
+    expect(phoneLabReceiverLanding('lab-ph', 'reverse')).toBe('bottom');
+    expect(phoneLabReceiverLanding('lab-ph', 'forward')).toBe('top');
+    expect(phoneLabReceiverOffset('top', 2_100, 844)).toBe(0);
+    expect(phoneLabReceiverOffset('bottom', 2_100, 844)).toBe(-1_256);
   });
 });

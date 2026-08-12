@@ -66,6 +66,13 @@ export type PhoneAttemptKey<
   direction: PhoneDirection | null;
 }>;
 
+export function samePhoneAttempt(left: PhoneAttemptKey, right: PhoneAttemptKey): boolean {
+  return left.authorityId === right.authorityId && left.transactionId === right.transactionId
+    && left.transactionGeneration === right.transactionGeneration && left.mode === right.mode
+    && left.sceneId === right.sceneId && left.segmentId === right.segmentId
+    && left.direction === right.direction;
+}
+
 export type PhoneEvidenceSlot<
   SceneId extends string = string,
   SegmentId extends string = string

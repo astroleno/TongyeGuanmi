@@ -58,7 +58,6 @@ type PhoneHeroMigrationControl = Readonly<{
   startEntrance(): void;
   completeEntrance(): void;
   cancelEntrance(): void;
-  unlockFromGesture(): void;
 }>;
 
 /** Temporary Task 7 bridge key. Task 11 removes this with the old formal shell. */
@@ -270,6 +269,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       rebind(binding) {
         bindingRef.current = binding;
         mediaRunTokenRef.current = null;
+        playbackRef.current?.setRun(binding.frameToken, binding.direction);
         if (!(binding.segmentId === 'hero-pattern' && binding.direction === 'reverse')) {
           stableReverseArrivalRef.current = false;
         }
@@ -291,7 +291,8 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
           invoked: false, settlements: [] };
         const runToken = command.runToken ?? command.invocationId;
         mediaRunTokenRef.current = runToken;
-        const settled = playbackRef.current?.primeFromGesture((error: unknown) => {
+        playbackRef.current?.setRun(runToken, bindingRef.current?.direction);
+        const settled = playbackRef.current?.primeFromGesture(command.direction, (error: unknown) => {
           const current = bindingRef.current;
           if (!current || !mountedRef.current || mediaRunTokenRef.current !== runToken) return;
           current.reports.reportFailure({
@@ -317,6 +318,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         if (stableReverseArrivalRef.current
           && (command.phase === 'primed' || command.phase === 'held')) return;
         mediaRunTokenRef.current = command.runToken;
+        playbackRef.current?.setRun(command.runToken, binding.direction);
         if (command.phase === 'primed') {
           playbackRef.current?.setActive(false);
           video.pause();
@@ -330,7 +332,6 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         activeRef.current = true;
         compositorRef.current?.setActive(true);
         playbackRef.current?.setActive(true);
-        playbackRef.current?.unlockFromGesture();
       },
       render(progress) {
         const clamped = renderHeroStage({
@@ -340,7 +341,8 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
           vignette: vignetteRef.current
         }, progress);
         if (clamped > 0.0001) renderedRef.current = true;
-        if (Math.abs(clamped - lastProgressRef.current) >= 0.003) {
+        if (!Number.isFinite(lastProgressRef.current)
+          || Math.abs(clamped - lastProgressRef.current) >= 0.003) {
           lastProgressRef.current = clamped;
           playbackRef.current?.scrub(clamped);
         }
@@ -360,11 +362,9 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
           return;
         }
         playbackRef.current?.setActive(true);
-        if (!renderedRef.current) startEntrance();
-        else {
-          commandHandle.render(0);
-          completeEntrance();
-        }
+        if (bindingRef.current?.segmentId === 'hero-pattern') commandHandle.render(1);
+        else if (!renderedRef.current) startEntrance();
+        else { commandHandle.render(0); completeEntrance(); }
         playbackRef.current?.settle();
       },
       pause() {
@@ -398,10 +398,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         },
         startEntrance,
         completeEntrance,
-        cancelEntrance,
-        unlockFromGesture() {
-          playbackRef.current?.unlockFromGesture();
-        }
+        cancelEntrance
       }
     };
     return Object.freeze(commandHandle);

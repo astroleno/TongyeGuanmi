@@ -99,8 +99,7 @@ const sceneDetails = {
     surfaces: [
       'figure2-pair-video',
       'figure2-pair-poster',
-      'figure2-pair-canvas',
-      'figure2-foreground-arch'
+      'figure2-pair-canvas'
     ],
     selectors: [
       '[data-r4-scene="figure2-animation"] [data-phone-figure2-poster]'
@@ -108,7 +107,7 @@ const sceneDetails = {
   },
   'figure2-proof': {
     additional: ['media:figure2-foreground-arch'],
-    surfaces: ['figure2-proof-root', 'figure2-foreground-arch'],
+    surfaces: ['figure2-proof-root'],
     selectors: ['#figure2-proof-opening .r4-proof-opening__title']
   },
   brand: {
@@ -806,7 +805,7 @@ describe('canonical phone manifest', () => {
   it('binds the shared Figure2 arch to both direct-entry frame quorums', () => {
     for (const id of ['figure2-animation', 'figure2-proof'] as const) {
       const scene = phoneSceneById(id);
-      expect(scene.surfaces).toContain('figure2-foreground-arch');
+      expect(scene.surfaces).not.toContain('figure2-foreground-arch');
       expect(scene.frame.surfaceIds).toContain('figure2-foreground-arch');
       expect(scene.directEntry.closure.load).toContain('media:figure2-foreground-arch');
     }

@@ -53,6 +53,7 @@ describe('clean PhonePh leaf', () => {
     surfaceProbe.options = null;
     surfaceProbe.generation = 0;
     surfaceProbe.activate.mockClear();
+    surfaceProbe.activate.mockImplementation(() => ++surfaceProbe.generation);
     surfaceProbe.setMode.mockClear();
     surfaceProbe.probe.mockClear();
     surfaceProbe.render.mockClear();
@@ -61,6 +62,7 @@ describe('clean PhonePh leaf', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
   });
 
   it('registers exactly one packed video/canvas pair', async () => {
@@ -121,6 +123,233 @@ describe('clean PhonePh leaf', () => {
       canvas: HTMLCanvasElement; generation: number;
     }) => void))({ canvas, generation: 1 });
     expect(mount.reports.reportFrame).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+  });
+
+  it('cannot promote a retained prewarm frame before activation chooses its generation', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvas = host.querySelector<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas="ph-figure"]'
+    )!;
+    const onFrame = surfaceProbe.options?.onFrame as (frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void;
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:prewarm' });
+    commands.activate({
+      invocationId: 'ph:prewarm', surfaceIds: ['ph-figure-video'],
+      credit: 'direct-muted-autoplay', playback: false
+    });
+    canvas.dataset.packedAlphaGeneration = '1';
+    canvas.dataset.packedAlphaMediaTime = '0.5000';
+    onFrame({ canvas, generation: 1 });
+    mount.reports.reportFrame.mockClear();
+
+    commands.rebind({
+      reports: mount.reports, frameToken: 'ph:transaction', segmentId: 'lab-ph'
+    });
+    onFrame({ canvas, generation: 1 });
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+
+    commands.activate({
+      invocationId: 'ph:transaction', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', playback: false
+    });
+    onFrame({ canvas, generation: 1 });
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+    canvas.dataset.packedAlphaGeneration = '2';
+    canvas.dataset.packedAlphaMediaTime = '0.0000';
+    onFrame({ canvas, generation: 2 });
+    expect(mount.reports.reportFrame).toHaveBeenCalledWith(
+      'ph-figure-canvas', expect.objectContaining({
+        token: 'ph:transaction', detail: expect.objectContaining({ generation: 2 })
+      })
+    );
+    act(() => root.unmount());
+  });
+
+  it('re-probes the admitted generation when its activation-boundary frame arrived early', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvas = host.querySelector<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas="ph-figure"]'
+    )!;
+    const onFrame = surfaceProbe.options?.onFrame as (frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void;
+    surfaceProbe.activate.mockImplementationOnce(() => {
+      const generation = ++surfaceProbe.generation;
+      canvas.dataset.packedAlphaGeneration = String(generation);
+      canvas.dataset.packedAlphaMediaTime = '0.0000';
+      onFrame({ canvas, generation });
+      return generation;
+    });
+    surfaceProbe.probe.mockImplementationOnce(() => {
+      onFrame({ canvas, generation: surfaceProbe.generation });
+      return true;
+    });
+    commands.rebind({
+      reports: mount.reports, frameToken: 'ph:activation-boundary', segmentId: 'lab-ph'
+    });
+
+    commands.activate({
+      invocationId: 'ph:activation-boundary', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', playback: false
+    });
+
+    expect(surfaceProbe.probe).toHaveBeenCalledOnce();
+    expect(mount.reports.reportFrame).toHaveBeenCalledWith(
+      'ph-figure-canvas', expect.objectContaining({
+        token: 'ph:activation-boundary',
+        detail: expect.objectContaining({ generation: 1 })
+      })
+    );
+    expect(host.querySelector<HTMLElement>('.phone-ph')
+      ?.dataset.phGen).toBe('1');
+    act(() => root.unmount());
+  });
+
+  it('keeps probing the admitted generation until a delayed frame is drawn', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvas = host.querySelector<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas="ph-figure"]'
+    )!;
+    const onFrame = surfaceProbe.options?.onFrame as (frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void;
+    commands.rebind({
+      reports: mount.reports, frameToken: 'ph:delayed-frame', segmentId: 'lab-ph'
+    });
+    commands.activate({
+      invocationId: 'ph:delayed-frame', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', playback: false
+    });
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+    canvas.dataset.packedAlphaGeneration = '1';
+    canvas.dataset.packedAlphaMediaTime = '0.0000';
+    surfaceProbe.probe.mockImplementationOnce(() => {
+      onFrame({ canvas, generation: 1 });
+      return true;
+    });
+    const scheduled = vi.mocked(requestAnimationFrame).mock.calls[0]?.[0];
+    expect(scheduled).toBeTypeOf('function');
+
+    act(() => scheduled?.(16));
+
+    expect(mount.reports.reportFrame).toHaveBeenCalledWith(
+      'ph-figure-canvas', expect.objectContaining({ token: 'ph:delayed-frame' })
+    );
+    expect(vi.mocked(requestAnimationFrame)).toHaveBeenCalledOnce();
+    act(() => root.unmount());
+  });
+
+  it('migrates an admitted generation across a same-transaction rebind before its first frame', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvas = host.querySelector<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas="ph-figure"]'
+    )!;
+    const migrated = reportFixture();
+    commands.rebind({
+      reports: mount.reports, frameToken: 'ph:run:frame:1',
+      transactionId: 'ph:run', segmentId: 'lab-ph', stageIndex: 0
+    });
+    commands.activate({
+      invocationId: 'ph:run', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', playback: false
+    });
+    commands.rebind({
+      reports: migrated.reports, frameToken: 'ph:run:frame:2',
+      transactionId: 'ph:run', segmentId: 'lab-ph', stageIndex: 0
+    });
+    canvas.dataset.packedAlphaGeneration = '1';
+    canvas.dataset.packedAlphaMediaTime = '0.0000';
+    (surfaceProbe.options?.onFrame as ((frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void))({ canvas, generation: 1 });
+
+    expect(migrated.reports.reportFrame).toHaveBeenCalledWith(
+      'ph-figure-canvas', expect.objectContaining({
+        token: 'ph:run:frame:2', detail: expect.objectContaining({ generation: 1 })
+      })
+    );
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('keeps a missing generation hidden and stops probing after fail-closed', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({
+      reports: mount.reports, frameToken: 'ph:missing-frame', segmentId: 'lab-ph'
+    });
+    commands.activate({
+      invocationId: 'ph:missing-frame', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', playback: false
+    });
+    const scheduled = vi.mocked(requestAnimationFrame).mock.calls[0]?.[0];
+    const probes = surfaceProbe.probe.mock.calls.length;
+    (surfaceProbe.options?.onFailure as (failure: {
+      code: string; message: string; generation: number;
+    }) => void)({ code: 'packed-alpha-static-fallback', message: 'missing frame', generation: 1 });
+
+    act(() => scheduled?.(16));
+
+    expect(surfaceProbe.probe).toHaveBeenCalledTimes(probes);
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+    expect(host.querySelector<HTMLElement>('.phone-ph')
+      ?.dataset.phGen).toBeUndefined();
+    expect(mount.reports.reportFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'ph-packed-alpha-static-fallback'
+    }));
+    act(() => root.unmount());
+  });
+
+  it('re-proves the accepted generation for a same-scene lifecycle projection', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvas = host.querySelector<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas="ph-figure"]'
+    )!;
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:entry' });
+    commands.activate({
+      invocationId: 'ph:entry', surfaceIds: ['ph-figure-video'],
+      credit: 'direct-muted-autoplay', playback: false
+    });
+    canvas.dataset.packedAlphaGeneration = '1';
+    canvas.dataset.packedAlphaMediaTime = '0.0000';
+    (surfaceProbe.options?.onFrame as ((frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void))({ canvas, generation: 1 });
+    mount.reports.reportFrame.mockClear();
+
+    commands.rebind({ reports: mount.reports, frameToken: 'ph:lifecycle', segmentId: null });
+
+    expect(mount.reports.reportFrame).toHaveBeenCalledWith(
+      'ph-figure-canvas', expect.objectContaining({
+        token: 'ph:lifecycle', detail: expect.objectContaining({ generation: 1 })
+      })
+    );
+    expect(surfaceProbe.activate).toHaveBeenCalledOnce();
     act(() => root.unmount());
   });
 
@@ -244,7 +473,7 @@ describe('clean PhonePh leaf', () => {
     expect(surfaceProbe.release).not.toHaveBeenCalled();
     expect(surfaceProbe.dispose).not.toHaveBeenCalled();
     commands.rebind({ reports: mount.reports, frameToken: 'ph:retained:2' });
-    expect(surfaceProbe.probe).toHaveBeenCalledOnce();
+    expect(surfaceProbe.probe).not.toHaveBeenCalled();
     expect(surfaceProbe.render).not.toHaveBeenCalled();
     const canvas = host.querySelector<HTMLCanvasElement>(
       '[data-phone-packed-alpha-canvas="ph-figure"]'
@@ -254,7 +483,7 @@ describe('clean PhonePh leaf', () => {
     (surfaceProbe.options?.onFrame as ((frame: {
       canvas: HTMLCanvasElement; generation: number;
     }) => void))({ canvas, generation: 1 });
-    expect(mount.reports.reportFrame).toHaveBeenCalledWith(
+    expect(mount.reports.reportFrame).not.toHaveBeenCalledWith(
       'ph-figure-canvas', expect.objectContaining({ token: 'ph:retained:2' })
     );
     commands.dispose('closure-retired');

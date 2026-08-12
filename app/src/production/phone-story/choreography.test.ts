@@ -5,6 +5,7 @@ import { PH_EDUCATION_ANIMATION_STOP } from '../../transitions/ph-education';
 import { sampleStagedMediaHandoff } from '../../transitions/shared/stagedMediaHandoff';
 import { TTG_LAB_ANIMATION_STOP } from '../../transitions/ttg-lab';
 import {
+  phoneRetainedFigure2ArchOwner,
   phoneSceneStableHold,
   phoneSegmentChoreography,
   phoneSegmentChoreographyFrame,
@@ -150,6 +151,16 @@ describe('phone segment choreography', () => {
     });
   });
 
+  it('declares retained Figure2 arch projection explicitly in both directions', () => {
+    expect(phoneRetainedFigure2ArchOwner('method-bottom-figure2', 'forward')).toBe('target');
+    expect(phoneRetainedFigure2ArchOwner('method-bottom-figure2', 'reverse')).toBe('source');
+    expect(phoneRetainedFigure2ArchOwner('figure2-distance-expand', 'forward')).toBe('shared');
+    expect(phoneRetainedFigure2ArchOwner('figure2-distance-expand', 'reverse')).toBe('shared');
+    expect(phoneRetainedFigure2ArchOwner('figure2-proof-brand', 'forward')).toBe('source');
+    expect(phoneRetainedFigure2ArchOwner('figure2-proof-brand', 'reverse')).toBe('target');
+    expect(phoneRetainedFigure2ArchOwner('brand-figure3', 'forward')).toBe('none');
+  });
+
   it('keeps Brand to Figure3 static until Figure3 to Services owns playback', () => {
     expect(phoneSegmentChoreographyFrame('brand-figure3', 0)).toMatchObject({
       sourceProgress: 1, targetProgress: 0, mediaClockOwner: 'none',
@@ -176,6 +187,13 @@ describe('phone segment choreography', () => {
     expect(phoneSegmentChoreographyFrame(
       'figure2-distance-expand', .5, 'reverse', 1
     ).mediaClockOwner).toBe('target');
+    for (const progress of [.25, .5, .75]) {
+      for (const direction of ['forward', 'reverse'] as const) {
+        expect(phoneSegmentChoreographyFrame(
+          'figure2-distance-expand', progress, direction, direction === 'forward' ? 1 : 0
+        )).toMatchObject({ sourceOpacity: 1, targetOpacity: 1 });
+      }
+    }
   });
 
   it('reverses canonical time and swaps actual source and target ownership', () => {
@@ -225,23 +243,29 @@ describe('phone segment choreography', () => {
 
   it('holds the authored Crane terminal frame during a bounded 400ms completion tail', () => {
     const authoredStop = 3000 / 3400;
+    expect(phoneSegmentChoreographyFrame('crane-contact', .79)).toMatchObject({
+      targetProgress: 0, effectProgress: 0, sourceOpacity: 1, targetOpacity: 1
+    });
     expect(phoneSegmentChoreographyFrame('crane-contact', authoredStop)).toMatchObject({
       sourceProgress: 1,
-      effectProgress: 0,
       sourceOpacity: 1,
-      targetOpacity: 0
+      targetOpacity: 1
     });
+    expect(phoneSegmentChoreographyFrame('crane-contact', authoredStop).targetProgress)
+      .toBeGreaterThan(0);
     expect(phoneSegmentChoreographyFrame('crane-contact', .95)).toMatchObject({
       sourceProgress: 1,
-      effectProgress: 0,
       sourceOpacity: 1,
-      targetOpacity: 0
+      targetOpacity: 1
     });
+    expect(phoneSegmentChoreographyFrame('crane-contact', .95).targetProgress)
+      .toBeCloseTo(.75, 5);
     expect(phoneSegmentChoreographyFrame('crane-contact', 1)).toMatchObject({
       sourceProgress: 1,
       effectProgress: 1,
       sourceOpacity: 0,
-      targetOpacity: 1
+      targetOpacity: 1,
+      targetProgress: 1
     });
   });
 

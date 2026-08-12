@@ -10,7 +10,7 @@ import { assertPhoneLeafReportBindingContract, bindPhoneLeafGeneration,
   createPhonePlaneRequest, createPhoneRetainedLeafBinding, createPhoneSupersedingLeafBinding,
   invokePhoneActivationBatch,
   phoneActivationSurfaceIds, phoneIdentitySignature, phoneLeafMountKey, phonePlaneResultIsExact,
-  phoneRetainedMountLeg, runPhoneLeafRetirement,
+  phoneRetainedMountLeg, runPhoneLeafRetirement, samePhoneLeafReportBinding,
   runPhoneCleanupSteps, settlePhoneActivationBatch } from './presentation';
 import type { PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneFailure,
   PhoneLeafDisposeReason, PhoneStoryEffect, PhoneRejectedChunkFailure,
@@ -365,7 +365,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
 
   function createReportPort(state: ReportState): PhoneLeafReportPort {
     return Object.freeze({
-      rebind: (binding: PhoneLeafReportBinding) => { if (!connected || snapshot.status !== 'transaction') return; const closed = closePhoneLeafReportBinding(binding); if (!sameAttempt(closed.attempt, snapshot.transaction.attempt) || closed.stageIndex !== snapshot.transaction.stageIndex || closed.planeRevision !== snapshot.transaction.planeRevision) return; assertPhoneLeafReportBindingContract(closed, snapshot.transaction); state = rebindReportState(state, closed); },
+      rebind: (binding: PhoneLeafReportBinding) => { if (!connected || snapshot.status !== 'transaction') return; const closed = closePhoneLeafReportBinding(binding); if (!sameAttempt(closed.attempt, snapshot.transaction.attempt) || closed.stageIndex !== snapshot.transaction.stageIndex || closed.planeRevision !== snapshot.transaction.planeRevision) return; assertPhoneLeafReportBindingContract(closed, snapshot.transaction); if (state.valid && samePhoneLeafReportBinding(state.binding, closed)) return; state = rebindReportState(state, closed); },
       registerMount: (registration: PhoneLeafMountRegistration) => {
         state = reviveLateReportState(state) ?? state;
         if (!state.valid) return;

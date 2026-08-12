@@ -118,7 +118,7 @@
   filter: none;
   transform: translate3d(
       calc(-50% + var(--crane-flock-x) + var(--phone-crane-tune-flock-x, -1lvh)),
-      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 10.75lvh)),
+      calc(-50% + var(--crane-flock-base-y) + var(--crane-flock-y) + var(--phone-crane-tune-flock-y, 8.25lvh)),
       0
     )
     scale(
@@ -150,11 +150,11 @@
   width: calc(var(--phone-cinematic-stage-height, 100lvh) * 1.033);
 }
 
-.phone-crane [data-phone-crane-figure-alpha="verified"] .phone-crane__figure-canvas[data-packed-alpha-frame-ready="true"] {
+.phone-crane [data-phone-crane-pair-ready][data-phone-crane-figure-alpha="verified"][data-phone-crane-flock-alpha="verified"] .phone-crane__figure-canvas[data-packed-alpha-frame-ready="true"] {
   opacity: var(--crane-video-opacity);
 }
 
-.phone-crane [data-phone-crane-flock-alpha="verified"] .phone-crane__flock-canvas[data-packed-alpha-frame-ready="true"] {
+.phone-crane [data-phone-crane-pair-ready][data-phone-crane-figure-alpha="verified"][data-phone-crane-flock-alpha="verified"] .phone-crane__flock-canvas[data-packed-alpha-frame-ready="true"] {
   opacity: var(--crane-flock-opacity);
 }
 

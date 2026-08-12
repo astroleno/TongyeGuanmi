@@ -2183,6 +2183,26 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('keeps the current leaf generation for a semantically identical report-port rebind', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#ph-animation');
+    const disconnect = runtime.connect();
+    const command = commandFixture();
+    const { binding, reports } = registerCurrentLeaf(runtime, command.commands);
+    const initial = command.rebindings[0]?.frameToken;
+
+    reports.rebind?.({
+      ...binding,
+      attempt: { ...binding.attempt },
+      allowedReports: [...binding.allowedReports],
+      allowedSurfaceIds: [...binding.allowedSurfaceIds]
+    });
+
+    expect(command.commands.rebind).toHaveBeenCalledTimes(1);
+    expect(command.rebindings[0]?.frameToken).toBe(initial);
+    disconnect();
+  });
+
   it('owns a stable registration inventory even if the caller mutates its aliases', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#ph-animation');

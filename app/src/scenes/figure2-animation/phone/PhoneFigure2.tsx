@@ -353,9 +353,6 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
     const canvas = scene?.querySelector<HTMLCanvasElement>('[data-figure2-packed-alpha-canvas]');
     const container = canvas?.parentElement;
     if (!root || !scene || !video || !poster || !canvas || !container) return;
-    const arch = root.closest<HTMLElement>('.phone-story')?.querySelector<HTMLImageElement>(
-      '[data-stage-retained-figure2-arch="true"]'
-    ) ?? null;
     disposedRef.current = false;
     delete root.dataset.phoneFigure2CanvasReady;
     videoRef.current = video;
@@ -406,8 +403,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       surfaces: [
         { id: 'figure2-pair-video', element: video, kind: 'video' },
         { id: 'figure2-pair-poster', element: poster, kind: 'image' },
-        canvasSurface,
-        ...(arch ? [{ id: 'figure2-foreground-arch', element: arch, kind: 'image' as const }] : [])
+        canvasSurface
       ],
       commands
     });

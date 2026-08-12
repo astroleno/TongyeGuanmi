@@ -3,7 +3,7 @@ import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
 import { PHONE_FIGURE2_ARCH_SRC, RetainedFigure2Arch } from '../../stage/PhoneRetainedFigure2Arch';
-import { phoneManifest, phoneSceneById,
+import { phoneManifest, phoneRetainedFigure2ArchOwner, phoneSceneById,
   type PhoneSceneId, type PhoneSegmentId } from './manifest';
 import { createPhonePresentation, runPhoneCleanupSteps, type PhoneLeafReportBinding,
   type PhoneLeafReportPort, type PhonePresentation } from './presentation';
@@ -57,74 +57,62 @@ type PhoneTouchPoint = Readonly<{
 
 function createPhoneTouchArbiter() {
   type Direction = 'forward' | 'reverse';
-  type Claim = {
-    id: number;
-    y: number;
-    story: boolean;
-    nativeDocument: boolean;
-    startedEdges: ReturnType<typeof phoneReadingEdges>;
-    direction: Direction | null;
-    published: boolean;
-  };
+  type ReadingSample = Readonly<{ topDistance: number; bottomDistance: number }>;
+  type Claim = { id: number; y: number; previousY: number; story: boolean; nativeDocument: boolean; direction: Direction | null; published: boolean };
   let claim: Claim | null = null;
-  const atEdge = (direction: Direction, edges: ReturnType<typeof phoneReadingEdges>) => (
-    direction === 'reverse' ? edges.top : edges.bottom
-  );
   return Object.freeze({
     start(
       points: readonly PhoneTouchPoint[],
       story: boolean,
-      nativeDocument: boolean,
-      edges: ReturnType<typeof phoneReadingEdges>
+      nativeDocument: boolean
     ) {
       const point = points[0];
-      claim = point
+      claim = points.length === 1 && point
         ? {
             id: point.identifier,
             y: point.clientY,
+            previousY: point.clientY,
             story,
             nativeDocument,
-            startedEdges: edges,
             direction: null,
             published: false
           }
         : null;
     },
-    move(points: readonly PhoneTouchPoint[]): number | null {
+    move(points: readonly PhoneTouchPoint[], reading: ReadingSample): Readonly<{ delta: number | null; native: boolean }> | null {
       const current = claim;
       const point = current
-        ? points.find(({ identifier }) => identifier === current.id)
+        ? points.length === 1
+          ? points.find(({ identifier }) => identifier === current.id)
+          : null
         : null;
-      if (!current || !point || current.published) return null;
+      if (!current || !point) return null;
+      if (current.published) return { delta: null, native: current.nativeDocument };
       const delta = current.y - point.clientY;
+      const step = current.previousY - point.clientY;
+      current.previousY = point.clientY;
+      if (current.direction && (current.direction === 'forward' ? step < 0 : step > 0)) { claim = null; return null; }
       if (Math.abs(delta) < 8) return null;
       const direction: Direction = delta > 0 ? 'forward' : 'reverse';
-      current.direction = direction;
+      if (current.direction && current.direction !== direction) { claim = null; return null; }
+      current.direction ??= direction;
+      const distance = direction === 'forward'
+        ? reading.bottomDistance
+        : reading.topDistance;
+      const outwardStep = direction === 'forward' ? step : -step;
       const publish = current.story || (
         current.nativeDocument
-        && atEdge(direction, current.startedEdges)
+        && outwardStep > 0
+        && outwardStep >= distance
       );
       if (!publish) {
         return null;
       }
       current.published = true;
-      return delta;
+      return { delta, native: current.nativeDocument };
     },
-    claimed(): boolean {
-      return claim?.published === true;
-    },
-    claimedNativeDocument(): boolean {
-      return claim?.published === true && claim.nativeDocument;
-    },
-    end(
-      points: readonly PhoneTouchPoint[]
-    ): boolean {
-      const current = claim;
-      const completed = current
-        ? points.some(({ identifier }) => identifier === current.id)
-        : false;
-      claim = null;
-      return Boolean(completed && current?.published);
+    end(points: readonly PhoneTouchPoint[]) {
+      if (claim && points.some(({ identifier }) => identifier === claim!.id)) claim = null;
     },
     cancel() {
       claim = null;
@@ -207,18 +195,21 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
       const touchArbiter = createPhoneTouchArbiter();
       let blockedTouch = false;
       let latestNativeScrollY = window.scrollY; let lastNativeReadingEdge: 'top' | 'middle' | 'bottom' | null = null;
-      const nativeReadingEdges = () => phoneReadingEdges(document.scrollingElement ?? document.documentElement);
+      const nativeReadingOwner = () => document.scrollingElement ?? document.documentElement;
+      const nativeReadingEdges = () => phoneReadingEdges(nativeReadingOwner());
+      const nativeReadingSample = () => { const owner = nativeReadingOwner(); const maximum = Math.max(0, owner.scrollHeight - owner.clientHeight); const scrollTop = Math.min(maximum, Math.max(0, owner.scrollTop)); return { topDistance: scrollTop, bottomDistance: maximum - scrollTop }; };
+      const clampNativeReadingEdge = (direction: 'forward' | 'reverse') => { const owner = nativeReadingOwner(); const target = direction === 'forward' ? Math.max(0, owner.scrollHeight - owner.clientHeight) : 0; try { owner.scrollTop = target; } catch { return false; } latestNativeScrollY = target; return true; };
       const freezeNativeReadingBeforePublish = (direction?: 'forward' | 'reverse') => { const shell = document.querySelector<HTMLElement>(`.phone-story[data-phone-scope="${scope}"]`); if (!shell || shell.dataset.phoneReading !== 'enabled') return false; const edges = nativeReadingEdges(); if (direction && !(direction === 'reverse' ? edges.top : edges.bottom)) return false; const sceneId = shell.dataset.phoneScene as PhoneSceneId | undefined; const snapshot = handoffStore.snapshot; const stableCommit = snapshot?.stableCommit; if (!sceneId || !stableCommit || stableCommit.sceneId !== sceneId) return false; const scrollY = readPhoneNativeScroll(document.scrollingElement ?? document.documentElement, latestNativeScrollY); handoffStore.record = { sceneId, commitSequence: stableCommit.commitSequence, scrollY }; const visualRoot = shell.querySelector<HTMLElement>(`.phone-story__viewport [data-phone-native-mirror="${sceneId}"]`); if (visualRoot) writePhoneNativeHandoff(visualRoot, scrollY); return true; };
       listen(window, 'touchstart', ((event: TouchEvent) => {
         const target = inputTarget(event.target);
         blockedTouch = target === 'disabled';
         const nativeDocument = event.target instanceof Element
-          && Boolean(event.target.closest('[data-phone-input-owner="native-document"]'));
+          && Boolean(event.target.closest('[data-phone-input-owner="native-document"]'))
+          && !event.target.closest('a, button, input, textarea, select, [contenteditable], [role="button"]');
         touchArbiter.start(
           Array.from(event.touches),
           target === 'story',
-          nativeDocument,
-          nativeReadingEdges()
+          nativeDocument
         );
       }) as EventListener, { passive: true });
       listen(window, 'touchmove', ((event: TouchEvent) => {
@@ -226,8 +217,8 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
           event.preventDefault();
           return;
         }
-        const delta = touchArbiter.move(Array.from(event.touches ?? [])); if (touchArbiter.claimed()) event.preventDefault();
-        if (delta !== null) { if (touchArbiter.claimedNativeDocument()) freezeNativeReadingBeforePublish(delta > 0 ? 'forward' : 'reverse'); publish({ type: 'input', kind: 'touch', delta, fresh: true, trusted: event.isTrusted, target: 'story' }); }
+        const intent = touchArbiter.move(Array.from(event.touches ?? []), nativeReadingSample()); if (intent) event.preventDefault();
+        if (intent && intent.delta !== null) { const { delta } = intent; if (intent.native) { const direction = delta > 0 ? 'forward' : 'reverse'; clampNativeReadingEdge(direction); freezeNativeReadingBeforePublish(direction); } publish({ type: 'input', kind: 'touch', delta, fresh: true, trusted: event.isTrusted, target: 'story' }); }
       }) as EventListener, { passive: false });
       listen(window, 'touchend', ((event: TouchEvent) => {
         if (blockedTouch) {
@@ -442,9 +433,9 @@ function bufferRoles(snapshot: PhoneShellSnapshot) {
     : { source: committed, receiver: other };
 }
 
-function phoneFigure2ArchOwner(snapshot: PhoneShellSnapshot): 'source' | 'target' | 'shared' | undefined {
-  if (snapshot.status !== 'transaction') return undefined; const sourceOwns = Boolean(snapshot.transaction.sourceSceneId && PHONE_FIGURE2_ARCH_SCENES.has(snapshot.transaction.sourceSceneId)); const targetOwns = PHONE_FIGURE2_ARCH_SCENES.has(snapshot.transaction.candidateSceneId); return sourceOwns && targetOwns ? 'shared' : sourceOwns ? 'source' : targetOwns ? 'target' : undefined;
-}
+function phoneFigure2ArchOwner(snapshot: PhoneShellSnapshot): 'source' | 'target' | 'shared' | undefined { if (snapshot.status !== 'transaction') return undefined; const { segmentId, direction } = snapshot.transaction.attempt; if (!segmentId || !direction) return undefined; const owner = phoneRetainedFigure2ArchOwner(segmentId, direction); return owner === 'none' ? undefined : owner; }
+
+function phoneFigure2ArchMotion(snapshot: PhoneShellSnapshot): 'depth' | 'fixed' { if (snapshot.status === 'transaction') { const { segmentId, direction } = snapshot.transaction.attempt; if (segmentId === 'figure2-proof-brand') return 'fixed'; if (segmentId === 'figure2-distance-expand') { if (direction === 'reverse') return snapshot.transaction.stageIndex === 0 ? 'fixed' : 'depth'; return snapshot.transaction.stageIndex > 0 || snapshot.transaction.phase === 'awaiting-leg-intent' ? 'fixed' : 'depth'; } } return snapshot.stableCommit?.sceneId === 'figure2-proof' ? 'fixed' : 'depth'; }
 
 function bindingFor(
   snapshot: Extract<PhoneShellSnapshot, { status: 'transaction' }>,
@@ -535,7 +526,7 @@ export function PhoneStoryShell({
   const roles = bufferRoles(snapshot);
   const stablePlaneRevision = snapshot.presentationProof?.planeRevision ?? null;
   const stableCommitKey = snapshot.stableCommit
-    ? `${snapshot.stableCommit.commitSequence}|${snapshot.stableCommit.direction}|${snapshot.stableCommit.landingAlias}|${roles.source}|${stablePlaneRevision}`
+    ? `${snapshot.stableCommit.commitSequence}|${snapshot.stableCommit.direction}|${snapshot.stableCommit.landingAlias}|${roles.source}|${stablePlaneRevision}|${loaderHidden}`
     : null;
   useLayoutEffect(() => {
     if (!connectedRef.current || snapshot.status !== 'stable' || !stableScene || stableCommitKey === null) return;
@@ -618,9 +609,8 @@ export function PhoneStoryShell({
     && snapshot.transaction.mode !== 'segment'
     && snapshot.transaction.phase === 'awaiting-media-activation';
   const moduleFault = faulted && snapshot.status === 'faulted' && (snapshot.fault.code.includes('module') || snapshot.fault.code.includes('chunk')); const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-  const retainedFigure2ArchMounted = connectedRef.current
-    && scenes.some(({ sceneId }) => PHONE_FIGURE2_ARCH_SCENES.has(sceneId)); const retainedFigure2ArchOwner = phoneFigure2ArchOwner(snapshot);
-  const retainedFigure2ArchAttempt: PhoneAttemptKey | null = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null;
+  const retainedFigure2ArchMounted = connectedRef.current && scenes.some(({ sceneId }) => PHONE_FIGURE2_ARCH_SCENES.has(sceneId)); const retainedFigure2ArchOwner = phoneFigure2ArchOwner(snapshot);
+  const retainedFigure2ArchAttempt: PhoneAttemptKey | null = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null; const retainedFigure2ArchMotion = phoneFigure2ArchMotion(snapshot);
   const navigate = (sceneId: PhoneSceneId) => { setMenuOpen(false);
     owners.engine.requestEntry({
       pathname: window.location.pathname,
@@ -650,6 +640,7 @@ export function PhoneStoryShell({
         ? snapshot.transaction.sourceSceneId ?? undefined : undefined}
       data-phone-candidate-scene={snapshot.status === 'transaction'
         ? snapshot.transaction.candidateSceneId : undefined}
+      data-phone-segment={snapshot.status === 'transaction' ? snapshot.transaction.attempt.segmentId ?? undefined : undefined}
     >
       <div data-phone-loader="true">
         <StoryLoader mode={snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}
@@ -662,6 +653,10 @@ export function PhoneStoryShell({
           <div data-phone-buffer="a" data-phone-plane={roles.source === 'a' ? 'source' : 'receiver'}>
             {renderScenes(roles.source === 'a' ? sourceScenes : receiverScenes)}
           </div>
+          <div data-phone-buffer="b" data-phone-plane={roles.source === 'b' ? 'source' : 'receiver'}>
+            {renderScenes(roles.source === 'b' ? sourceScenes : receiverScenes)}
+          </div>
+          {retainedFigure2ArchMounted ? <div className="phone-story__retained-figure2-arch-layer" data-phone-figure2-arch-owner={retainedFigure2ArchOwner}><RetainedFigure2Arch mounted visible ownerKey={retainedFigure2ArchAttempt?.transactionId ?? (stableScene && PHONE_FIGURE2_ARCH_SCENES.has(stableScene) ? `stable:${snapshot.stableCommit?.commitSequence ?? 0}` : null)} src={PHONE_FIGURE2_ARCH_SRC} motion={retainedFigure2ArchMotion} onDecodeReady={reportArchReady} onDecodeFailure={reportArchFailure} /></div> : null}
           <div data-phone-plane="effect">
             {effect ? <PhoneTransitionLeaf
               key={effect.segmentId}
@@ -669,12 +664,8 @@ export function PhoneStoryShell({
               reports={effect.reports}
             /> : null}
           </div>
-          <div data-phone-buffer="b" data-phone-plane={roles.source === 'b' ? 'source' : 'receiver'}>
-            {renderScenes(roles.source === 'b' ? sourceScenes : receiverScenes)}
-          </div>
         </div>
       </div>
-      {retainedFigure2ArchMounted ? <div className="phone-story__retained-figure2-arch-layer" data-phone-figure2-arch-owner={retainedFigure2ArchOwner}><RetainedFigure2Arch mounted visible ownerKey={retainedFigure2ArchAttempt?.transactionId ?? (stableScene && PHONE_FIGURE2_ARCH_SCENES.has(stableScene) ? `stable:${snapshot.stableCommit?.commitSequence ?? 0}` : null)} src={PHONE_FIGURE2_ARCH_SRC} motion="depth" onDecodeReady={reportArchReady} onDecodeFailure={reportArchFailure} /></div> : null}
       <div className="phone-story__reading-flow" inert={!nativeReadingEnabled} aria-hidden={!nativeReadingEnabled}>
         {stableScene ? <PhoneSceneReading sceneId={stableScene} /> : null}
       </div>

@@ -874,6 +874,7 @@ describe('phone event queue and revision semantics', () => {
     expect(repeated.snapshot.status).toBe('stable');
     expect(repeated.snapshot.stableCommit).toBe(stable.stableCommit);
     expect(repeated.effects).toContainEqual({ type: 'refresh-stable-viewport' });
+
   });
 });
 
@@ -925,6 +926,15 @@ function reachTargetPresentation(result: PhoneMachineResult): PhoneMachineResult
 }
 
 describe('phone segment transaction machine', () => {
+  it('waits for the Figure2 depth atlas before exposing the depth transition', () => {
+    const segment = phoneManifest.segments.find(({ id }) => id === 'figure2-distance-expand');
+    if (!segment) throw new Error('missing Figure2 depth segment');
+    const active = transaction(beginSegment(segment, 'forward').snapshot).transaction;
+    expect(active.requiredPrepared).toContainEqual(expect.objectContaining({
+      leg: 'effect', kind: 'image-decoded', surfaceId: 'fx:figure2-distance-expand'
+    }));
+  });
+
   it('assigns activation credit from the decoder activation owner', () => {
     const cases = [
       ['aod-animation', 'method-top', 'forward', 'physical-epoch'],

@@ -108,7 +108,7 @@ describe('figure2 proof and brand scene renderers', () => {
     );
   });
 
-  it('breaks the closing proof sentence immediately after the fourth approach label', () => {
+  it('encodes the closing proof sentence as exactly three authored line groups', () => {
     const markup = renderToStaticMarkup(createElement(figure2ProofScene.Component, {
       scene: 'figure2-proof',
       hidden: false
@@ -119,10 +119,14 @@ describe('figure2 proof and brand scene renderers', () => {
     }));
 
     for (const rendered of [markup, compatibilityMarkup]) {
-      expect(rendered).toContain('同野观幂做第四种：</span><br/>');
-      expect(rendered).toContain('r4-proof-closing__tail-line">先进现场，</span>');
-      expect(rendered).toContain('r4-proof-closing__tail-line">再定章法，</span>');
-      expect(rendered).toContain('r4-proof-closing__tail-line">陪你跑到账上有数。</span>');
+      expect(rendered).toContain('r4-proof-closing__line r4-proof-closing__line--lead">同野观幂做第四种：</span>');
+      expect(rendered).toContain('r4-proof-closing__line r4-proof-closing__line--method">先进现场，再定章法，</span>');
+      expect(rendered).toContain('r4-proof-closing__line r4-proof-closing__line--result">陪你跑到账上有数。</span>');
+      expect(rendered.match(/r4-proof-closing__line/g)).toHaveLength(6);
     }
+    expect(stylesheet).toMatch(/\.r4-proof-closing__line\s*\{[^}]*display:\s*block/s);
+    expect(stylesheet).toMatch(
+      /\.r4-proof-closing__line:not\(:first-child\)\s*\{[^}]*white-space:\s*nowrap/s
+    );
   });
 });

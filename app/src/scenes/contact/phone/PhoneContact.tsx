@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import {
   contactScene,
+  renderContactEntrance,
   renderContactHold,
   renderContactProgress
 } from '..';
@@ -23,6 +24,17 @@ export const PHONE_CONTACT_INPUT_POLICY = Object.freeze({
   focus: 'native',
   pointer: 'native'
 } as const);
+
+export function phoneContactPresentationFrame(
+  rawProgress: number,
+  craneHandoff: boolean
+): Readonly<{ copyProgress: number; paperAlpha: number }> {
+  const progress = Math.min(1, Math.max(0, rawProgress));
+  return {
+    copyProgress: progress,
+    paperAlpha: craneHandoff ? progress : 1
+  };
+}
 
 function ContactContent({
   reading,
@@ -86,13 +98,25 @@ export function PhoneContact({ reports }: Readonly<{
   }, [cancelPaint]);
 
   const render = useCallback((rawProgress: number) => {
-    renderContactProgress(rootRef.current, Math.min(1, Math.max(0, rawProgress)));
+    const binding = bindingRef.current;
+    const craneHandoff = binding?.segmentId === 'crane-contact';
+    const frame = phoneContactPresentationFrame(rawProgress, craneHandoff);
+    if (craneHandoff) {
+      renderContactEntrance(
+        rootRef.current,
+        frame.copyProgress,
+        frame.paperAlpha,
+        binding?.frameToken ?? 'phone-contact:crane-handoff'
+      );
+    } else {
+      renderContactProgress(rootRef.current, frame.copyProgress);
+    }
   }, []);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
-      bindingRef.current = binding;
-      provePostPaint();
+      const prior = bindingRef.current; bindingRef.current = binding;
+      if (binding.segmentId === 'crane-contact' && (prior?.segmentId !== binding.segmentId || prior.direction !== binding.direction || prior.stageIndex !== binding.stageIndex)) render(binding.direction === 'reverse' ? 1 : 0); provePostPaint();
     },
     activate(command): PhoneActivationInvocation {
       return {

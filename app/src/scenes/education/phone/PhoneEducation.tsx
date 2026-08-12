@@ -22,6 +22,14 @@ export const PHONE_EDUCATION_INPUT_POLICY = Object.freeze({
   focus: 'native'
 } as const);
 
+export function phoneEducationReceiverLanding(segmentId: string | null | undefined, direction: 'forward' | 'reverse' | null | undefined): 'top' | 'bottom' {
+  return segmentId === 'education-crane' && direction === 'reverse' ? 'bottom' : 'top';
+}
+
+export function phoneEducationReceiverOffset(landing: 'top' | 'bottom', contentHeight: number, viewportHeight: number): number {
+  return landing === 'bottom' ? -Math.max(0, contentHeight - viewportHeight) : 0;
+}
+
 function EducationContent({ reading }: Readonly<{ reading: boolean }>) {
   return (
     <div
@@ -76,6 +84,11 @@ export function PhoneEducation({ reports }: Readonly<{
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
+      const landing = phoneEducationReceiverLanding(binding.segmentId, binding.direction);
+      const mount = mountRef.current;
+      mount?.setAttribute('data-phone-receiver-landing', landing);
+      mount?.style.setProperty('--phone-education-receiver-y', `${phoneEducationReceiverOffset(
+        landing, mount.scrollHeight, document.documentElement.clientHeight)}px`);
       provePostPaint();
     },
     activate(command): PhoneActivationInvocation {

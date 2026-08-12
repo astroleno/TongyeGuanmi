@@ -492,6 +492,36 @@ export type PhoneStoryFrameSample = Readonly<{
   nativeReadingRect: readonly [number, number, number, number] | null;
   sourceMirrorRect: readonly [number, number, number, number] | null;
   sourceMirrorScrollY: string | null;
+  effectProgress: number | null;
+  contactProgress: number | null;
+  craneProgress: number | null;
+  craneClock: string | null;
+  proofSurface: Readonly<{
+    role: string | null;
+    maskImage: string;
+    maskSize: string;
+    maskRun: string | null;
+    maskPolarity: string | null;
+    maskProgress: number | null;
+  }> | null;
+  figure2Surface: Readonly<{
+    role: string | null;
+    maskImage: string;
+    maskSize: string;
+    maskRun: string | null;
+    maskPolarity: string | null;
+    maskProgress: number | null;
+  }> | null;
+  proofClosing: Readonly<{
+    text: string;
+    rect: readonly [number, number, number, number];
+  }> | null;
+  figure2Arch: Readonly<{
+    blur: string;
+    scale: string;
+    brightness: string;
+    rect: readonly [number, number, number, number];
+  }> | null;
   figure3: Readonly<{
     initialSurface: string | null;
     mediaState: string | null;
@@ -503,6 +533,12 @@ export type PhoneStoryFrameSample = Readonly<{
     role: string;
     visible: boolean;
     rect: readonly [number, number, number, number];
+    opacity: number;
+    clipPath: string;
+    maskImage: string;
+    maskSize: string;
+    maskRepeat: string;
+    maskMode: string;
   }>[];
   media: readonly Readonly<{
     surfaceId: string | null;
@@ -518,6 +554,7 @@ export type PhoneStoryFrameSample = Readonly<{
     generation: number | null;
     opacity: number;
     alphaStatus: string | null;
+    admittedGeneration: number | null;
   }>[];
 }>;
 
@@ -578,6 +615,31 @@ export async function recordPhoneStoryFrames(
       const figure3Canvas = figure3?.querySelector<HTMLElement>(
         '[data-phone-figure3-paper-canvas]'
       ) ?? null;
+      const activeInk = shell?.querySelector<HTMLElement>(
+        '[data-phone-plane="effect"] [data-r4-ink-boundary-progress]'
+      ) ?? null;
+      const contact = shell?.querySelector<HTMLElement>(
+        '[data-phone-plane="receiver"] [data-r4-scene="contact"]'
+      ) ?? null;
+      const crane = shell?.querySelector<HTMLElement>(
+        '[data-r4-scene="crane-animation"]'
+      ) ?? null;
+      const proofSurface = shell?.querySelector<HTMLElement>(
+        '[data-phone-plane][data-r4-depth-mask-polarity="reveal"]'
+      ) ?? null;
+      const figure2Surface = shell?.querySelector<HTMLElement>(
+        '[data-phone-plane][data-r4-depth-mask-polarity="conceal"]'
+      ) ?? null;
+      const proofClosing = shell?.dataset.phoneReading === 'enabled'
+        ? shell.querySelector<HTMLElement>(
+            '.phone-story__reading-flow [data-r4-proof-panel="closing"] .r4-proof-closing__copy'
+          )
+        : shell?.querySelector<HTMLElement>(
+            '[data-phone-plane="source"] [data-r4-proof-panel="closing"] .r4-proof-closing__copy'
+          ) ?? null;
+      const figure2Arch = shell?.querySelector<HTMLElement>(
+        '[data-stage-retained-figure2-arch="true"]'
+      ) ?? null;
       recorder.samples.push({
         time,
         shell: shell ? { ...shell.dataset } : null,
@@ -593,6 +655,49 @@ export async function recordPhoneStoryFrames(
         sourceMirrorScrollY: sourceMirror
           ? getComputedStyle(sourceMirror).getPropertyValue('--phone-native-scroll-y').trim()
           : null,
+        effectProgress: Number.isFinite(Number(activeInk?.dataset.r4InkBoundaryProgress))
+          ? Number(activeInk?.dataset.r4InkBoundaryProgress) : null,
+        contactProgress: Number.isFinite(Number(contact?.dataset.contactProgress))
+          ? Number(contact?.dataset.contactProgress) : null,
+        craneProgress: Number.isFinite(Number(crane?.dataset.phoneCraneProgress))
+          ? Number(crane?.dataset.phoneCraneProgress) : null,
+        craneClock: crane?.dataset.phoneCraneClock ?? null,
+        proofSurface: proofSurface ? {
+          role: proofSurface.closest<HTMLElement>('[data-phone-plane]')?.dataset.phonePlane ?? null,
+          maskImage: getComputedStyle(proofSurface).webkitMaskImage
+            || getComputedStyle(proofSurface).maskImage,
+          maskSize: getComputedStyle(proofSurface).webkitMaskSize
+            || getComputedStyle(proofSurface).maskSize,
+          maskRun: proofSurface.dataset.r4DepthMaskRun ?? null,
+          maskPolarity: proofSurface.dataset.r4DepthMaskPolarity ?? null,
+          maskProgress: Number.isFinite(Number(proofSurface.dataset.r4DepthMaskProgress))
+            ? Number(proofSurface.dataset.r4DepthMaskProgress) : null
+        } : null,
+        figure2Surface: figure2Surface ? {
+          role: figure2Surface.closest<HTMLElement>('[data-phone-plane]')?.dataset.phonePlane ?? null,
+          maskImage: getComputedStyle(figure2Surface).webkitMaskImage
+            || getComputedStyle(figure2Surface).maskImage,
+          maskSize: getComputedStyle(figure2Surface).webkitMaskSize
+            || getComputedStyle(figure2Surface).maskSize,
+          maskRun: figure2Surface.dataset.r4DepthMaskRun ?? null,
+          maskPolarity: figure2Surface.dataset.r4DepthMaskPolarity ?? null,
+          maskProgress: Number.isFinite(Number(figure2Surface.dataset.r4DepthMaskProgress))
+            ? Number(figure2Surface.dataset.r4DepthMaskProgress) : null
+        } : null,
+        proofClosing: proofClosing ? {
+          text: proofClosing.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+          rect: rect(proofClosing) ?? [0, 0, 0, 0]
+        } : null,
+        figure2Arch: figure2Arch ? {
+          blur: getComputedStyle(figure2Arch)
+            .getPropertyValue('--r4-figure2-near-arch-blur').trim(),
+          scale: getComputedStyle(figure2Arch)
+            .getPropertyValue('--r4-figure2-near-arch-scale').trim(),
+          brightness: getComputedStyle(figure2Arch).getPropertyValue(
+            '--r4-figure2-near-arch-brightness'
+          ).trim(),
+          rect: rect(figure2Arch) ?? [0, 0, 0, 0]
+        } : null,
         figure3: figure3 ? {
           initialSurface: figure3.dataset.phoneFigure3InitialSurface ?? null,
           mediaState: figure3.dataset.phoneMediaState ?? null,
@@ -600,11 +705,20 @@ export async function recordPhoneStoryFrames(
           posterVisible: figure3Poster ? visible(figure3Poster) : false,
           canvasVisible: figure3Canvas ? visible(figure3Canvas) : false
         } : null,
-        planes: [...document.querySelectorAll<HTMLElement>('[data-phone-plane]')].map((plane) => ({
-          role: plane.dataset.phonePlane ?? '',
-          visible: visible(plane),
-          rect: rect(plane) ?? [0, 0, 0, 0]
-        })),
+        planes: [...document.querySelectorAll<HTMLElement>('[data-phone-plane]')].map((plane) => {
+          const style = getComputedStyle(plane);
+          return {
+            role: plane.dataset.phonePlane ?? '',
+            visible: visible(plane),
+            rect: rect(plane) ?? [0, 0, 0, 0],
+            opacity: Number.parseFloat(style.opacity || '1'),
+            clipPath: style.clipPath,
+            maskImage: style.maskImage || style.webkitMaskImage,
+            maskSize: style.maskSize || style.webkitMaskSize,
+            maskRepeat: style.maskRepeat || style.webkitMaskRepeat,
+            maskMode: style.maskMode
+          };
+        }),
         media: [...document.querySelectorAll<HTMLVideoElement>('.phone-story video')].map((video) => ({
           surfaceId: video.getAttribute('data-phone-surface'),
           currentTime: video.currentTime,
@@ -624,7 +738,9 @@ export async function recordPhoneStoryFrames(
               generation: Number.isFinite(Number(canvas.dataset.packedAlphaGeneration))
                 ? Number(canvas.dataset.packedAlphaGeneration) : null,
               opacity: Number.parseFloat(getComputedStyle(canvas).opacity || '1'),
-              alphaStatus: ph?.dataset.phonePhAlpha ?? null
+              alphaStatus: ph?.dataset.phonePhAlpha ?? null,
+              admittedGeneration: Number.isFinite(Number(ph?.dataset.phGen))
+                ? Number(ph?.dataset.phGen) : null
             };
           })
       });
@@ -662,8 +778,26 @@ export async function waitForCommitSequence(
     }, { scene: sceneId, after: afterSequence }, { timeout: timeoutMs });
   } catch (error) {
     const diagnostic = await readPhoneStoryDiagnostic(page);
+    const runtime = await page.evaluate(() => (
+      ((window as typeof window & { __r5PhoneRuntimeLog?: Array<{
+        stateRevision: number; status: string; transaction?: {
+          mode: string; phase: string; attempt: { transactionGeneration: number };
+          failure?: { code: string } | null;
+          evidence: Array<{ slot: { leg: string; kind: string; surfaceId?: string | null } }>;
+        } | null
+      }> }).__r5PhoneRuntimeLog ?? []).flatMap((snapshot) => snapshot.transaction ? [{
+        revision: snapshot.stateRevision, status: snapshot.status,
+        generation: snapshot.transaction.attempt.transactionGeneration,
+        mode: snapshot.transaction.mode, phase: snapshot.transaction.phase,
+        failure: snapshot.transaction.failure?.code ?? null,
+        evidence: snapshot.transaction.evidence.map(({ slot }) => (
+          `${slot.leg}:${slot.kind}:${slot.surfaceId ?? ''}`
+        ))
+      }] : [])
+    ));
     throw new Error(`${error instanceof Error ? error.message : String(error)}\n`
-      + `Phone story diagnostic: ${JSON.stringify(diagnostic)}`);
+      + `Phone story diagnostic: ${JSON.stringify(diagnostic)}\n`
+      + `Phone runtime tail: ${JSON.stringify(runtime)}`);
   }
   return readCommitSequence(page);
 }
@@ -673,14 +807,26 @@ export async function waitForDirectEntryCommit(
   sceneId: string,
   afterSequence = 0
 ): Promise<number> {
-  const boundary = await page.waitForFunction(({ scene, after }) => {
-    const shell = document.querySelector<HTMLElement>('.phone-story');
-    const sequence = Number.parseInt(shell?.dataset.phoneCommitSequence ?? '', 10);
-    if (shell?.dataset.phoneScene === scene && sequence > after) return 'committed';
-    return shell?.dataset.phonePhase === 'awaiting-media-activation'
-      || document.querySelector('[data-phone-activation]:not([hidden])')
-      ? 'activation' : null;
-  }, { scene: sceneId, after: afterSequence }, { timeout: 30_000 });
+  let boundary;
+  try {
+    boundary = await page.waitForFunction(({ scene, after }) => {
+      const shell = document.querySelector<HTMLElement>('.phone-story');
+      const sequence = Number.parseInt(shell?.dataset.phoneCommitSequence ?? '', 10);
+      if (shell?.dataset.phoneScene === scene && sequence > after) return 'committed';
+      return shell?.dataset.phonePhase === 'awaiting-media-activation'
+        || document.querySelector('[data-phone-activation]:not([hidden])')
+        ? 'activation' : null;
+    }, { scene: sceneId, after: afterSequence }, { timeout: 30_000 });
+  } catch (error) {
+    const diagnostic = await readPhoneStoryDiagnostic(page);
+    const runtime = await page.evaluate(() => (
+      (window as typeof window & { __r5PhoneRuntimeLog?: unknown[] })
+        .__r5PhoneRuntimeLog?.slice(-12) ?? []
+    ));
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\n`
+      + `Phone story diagnostic: ${JSON.stringify(diagnostic)}\n`
+      + `Phone runtime tail: ${JSON.stringify(runtime)}`);
+  }
   if (await boundary.jsonValue() === 'activation') {
     await page.locator('[data-phone-activation]:not([hidden])').click();
   }

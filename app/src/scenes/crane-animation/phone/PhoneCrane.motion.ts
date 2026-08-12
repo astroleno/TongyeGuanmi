@@ -69,7 +69,7 @@ function setTransform(element: HTMLElement | null, transform: string): void {
 export function renderPhoneCranePresentation(
   root: HTMLElement | null | undefined,
   rawProgress: number,
-  direction: PhoneCranePlaybackDirection = 1
+  _direction: PhoneCranePlaybackDirection = 1
 ): void {
   const section = rootFor(root);
   if (!section) return;
@@ -169,9 +169,7 @@ export function renderPhoneCranePresentation(
   section.dataset.phoneCraneFlockState = flockRetired
     ? 'retired'
     : 'active';
-  section.dataset.phoneCraneClock = direction === 1
-    ? 'native'
-    : 'presented-frame-reverse';
+  section.dataset.phoneCraneClock = 'presented-media';
 
   /*
    * The packed flock stops on its safe terminal bitmap before Figure finishes.

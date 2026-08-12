@@ -91,7 +91,7 @@ describe('clean PhoneFigure2 leaf', () => {
     expect(host.querySelector('[data-stage-retained-figure2-arch="true"]')).toBeNull();
   });
 
-  it('includes the shared presentation arch when the Shell has mounted it', async () => {
+  it('leaves the Shell-owned retained arch out of the scene-private mount', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     const story = document.createElement('main');
     story.className = 'phone-story';
@@ -104,7 +104,8 @@ describe('clean PhoneFigure2 leaf', () => {
     const root = createRoot(host);
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
-    expect(mount.registration()?.surfaces.map(({ id }) => id)).toContain('figure2-foreground-arch');
+    expect(mount.registration()?.surfaces.map(({ id }) => id))
+      .not.toContain('figure2-foreground-arch');
     act(() => root.unmount());
     story.remove();
   });

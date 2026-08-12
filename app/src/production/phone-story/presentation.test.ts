@@ -147,11 +147,17 @@ function createStoryFixture(layout: PhoneLayoutViewport = {
   const source = fakeElement('source');
   const effect = fakeElement('effect');
   const receiver = fakeElement('receiver');
+  const archLayer = fakeElement('phone-story__retained-figure2-arch-layer');
+  const arch = fakeElement('figure2-foreground-arch', rect(0, 0, 390, 844));
+  arch.setAttribute('data-stage-retained-figure2-arch', 'true');
+  arch.setAttribute('data-phone-figure2-arch-ready', 'true');
   const reading = fakeElement('phone-story__reading-flow');
   append(story, viewport);
   append(viewport, coverage);
   append(viewport, planes);
   append(planes, source);
+  append(planes, archLayer);
+  append(archLayer, arch);
   append(planes, effect);
   append(planes, receiver);
   append(story, reading);
@@ -161,6 +167,8 @@ function createStoryFixture(layout: PhoneLayoutViewport = {
   select(story, '[data-phone-plane="source"]', source);
   select(story, '[data-phone-plane="effect"]', effect);
   select(story, '[data-phone-plane="receiver"]', receiver);
+  select(story, '.phone-story__retained-figure2-arch-layer', archLayer);
+  select(story, '[data-stage-retained-figure2-arch="true"]', arch);
   source.setAttribute('data-phone-buffer', 'a'); receiver.setAttribute('data-phone-buffer', 'b');
   select(story, '[data-phone-buffer="a"]', source); select(story, '[data-phone-buffer="b"]', receiver);
   select(story, '.phone-story__reading-flow', reading);
@@ -173,6 +181,8 @@ function createStoryFixture(layout: PhoneLayoutViewport = {
   styleMap.set(source, computedStyle({ zIndex: '10' }));
   styleMap.set(effect, computedStyle({ zIndex: '20' }));
   styleMap.set(receiver, computedStyle({ zIndex: '30' }));
+  styleMap.set(archLayer, computedStyle({ zIndex: '35' }));
+  styleMap.set(arch, computedStyle({ zIndex: 'auto' }));
   styleMap.set(reading, computedStyle({ zIndex: '50', pointerEvents: 'auto' }));
   let hitStack: readonly HTMLElement[] = [receiver, planes, viewport, story];
   let currentLayout = layout;
@@ -186,7 +196,7 @@ function createStoryFixture(layout: PhoneLayoutViewport = {
     elementsFromPoint: () => hitStack
   };
   return {
-    story, viewport, coverage, planes, source, effect, receiver, reading,
+    story, viewport, coverage, planes, source, effect, receiver, archLayer, arch, reading,
     dependencies,
     presentation: createPhonePresentation(dependencies),
     setHitStack: (stack: readonly HTMLElement[]) => { hitStack = stack; },
@@ -363,7 +373,8 @@ describe('phone presentation semantic plane', () => {
       ownership: {
         revealClip: 'circle(42px at 50% 50%)',
         concealClip: 'polygon(0 0, 80% 0, 70% 100%, 0 100%)',
-        concealMask: 'radial-gradient(circle, transparent 42px, #000 42px)'
+        concealMask: 'radial-gradient(circle, transparent 42px, #000 42px)',
+        maskSize: '100% 100%', maskRepeat: 'no-repeat', maskMode: 'alpha'
       }
     });
     expect(fixture.source.getAttribute('data-phone-exposed')).toBe('true');
@@ -372,6 +383,9 @@ describe('phone presentation semantic plane', () => {
     expect(fixture.story.style.getPropertyValue('--phone-target-clip')).toContain('circle');
     expect(fixture.story.style.getPropertyValue('--phone-source-mask'))
       .toContain('radial-gradient');
+    expect(fixture.story.style.getPropertyValue('--phone-transition-mask-size')).toBe('100% 100%');
+    expect(fixture.story.style.getPropertyValue('--phone-transition-mask-repeat')).toBe('no-repeat');
+    expect(fixture.story.style.getPropertyValue('--phone-transition-mask-mode')).toBe('alpha');
     expect(fixture.story.style.getPropertyValue('--phone-source-opacity')).toBe('0.7');
     expect(fixture.story.style.getPropertyValue('--phone-target-opacity')).toBe('0.4');
     expect(fixture.story.getAttribute('data-phone-transition-foreground')).toBe('target');
@@ -382,6 +396,7 @@ describe('phone presentation semantic plane', () => {
     expect(fixture.story.style.getPropertyValue('--phone-source-clip')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-target-clip')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-source-mask')).toBe('');
+    expect(fixture.story.style.getPropertyValue('--phone-transition-mask-size')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-source-opacity')).toBe('');
     expect(fixture.story.style.getPropertyValue('--phone-target-opacity')).toBe('');
     expect(fixture.story.getAttribute('data-phone-transition-foreground')).toBeNull();
@@ -397,6 +412,17 @@ describe('phone presentation semantic plane', () => {
       sourceOpacity: 1, targetOpacity: 1, direction: 'forward',
       foregroundOwner: 'target', ownership: null
     });
+    const mutations: string[] = [];
+    const hideRetiring = fixture.source.setAttribute.bind(fixture.source);
+    fixture.source.setAttribute = (name, value) => {
+      if (name === 'data-phone-exposed' && value === 'false') mutations.push('retiring-hidden');
+      hideRetiring(name, value);
+    };
+    const clearTransition = fixture.story.removeAttribute.bind(fixture.story);
+    fixture.story.removeAttribute = (name) => {
+      if (name === 'data-phone-transition-live') mutations.push('transition-cleared');
+      clearTransition(name);
+    };
 
     fixture.presentation.commitStablePlane('b');
 
@@ -406,6 +432,7 @@ describe('phone presentation semantic plane', () => {
     expect(fixture.source.style.getPropertyValue('--phone-plane-z')).toBe('30');
     expect(fixture.story.getAttribute('data-phone-transition-live')).toBeNull();
     expect(fixture.story.style.getPropertyValue('--phone-source-opacity')).toBe('');
+    expect(mutations).toEqual(['retiring-hidden', 'transition-cleared']);
   });
 
   it('preserves live Ink ownership during a projector reproof', () => {
@@ -445,6 +472,9 @@ describe('phone presentation semantic plane', () => {
         fixture.setStyle(fixture.effect, computedStyle({
           zIndex: segment.effectPlacement === 'between' ? '20' : '40'
         }));
+        fixture.setStyle(fixture.archLayer, computedStyle({
+          zIndex: segment.id === 'figure2-distance-expand' ? '45' : '35'
+        }));
         const result = fixture.presentation.applyPlane(planeRequest(
           leg.target, attempt, 'target', ['plane-acknowledged']
         ));
@@ -473,6 +503,24 @@ describe('phone presentation semantic plane', () => {
     expect(fixture.presentation.applyPlane(planeRequest(
       segment.forward.target, attempt, 'target', ['plane-acknowledged']
     )).failure?.code).toBe('presentation-stack-invalid');
+  });
+
+  it('requires the retained arch above only the Figure2 depth effect', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const attempt = attemptFor(
+      'figure2-proof', 'segment', 'figure2-distance-expand', 'forward'
+    );
+    registerScene(fixture, 'figure2-proof', attempt);
+    fixture.setStyle(fixture.effect, computedStyle({ zIndex: '40' }));
+    fixture.setStyle(fixture.archLayer, computedStyle({ zIndex: '35' }));
+    expect(fixture.presentation.applyPlane(planeRequest(
+      'figure2-proof', attempt, 'target', ['plane-acknowledged']
+    )).failure?.code).toBe('presentation-stack-invalid');
+    fixture.setStyle(fixture.archLayer, computedStyle({ zIndex: '45' }));
+    expect(fixture.presentation.applyPlane(planeRequest(
+      'figure2-proof', attempt, 'target', ['plane-acknowledged']
+    )).failure).toBeNull();
   });
 
   it('rejects undocumented stacking parents and descendant z-index escape attempts', () => {
@@ -558,6 +606,60 @@ describe('phone presentation semantic plane', () => {
     expect(fixture.reading.getAttribute('aria-hidden')).toBe('false');
     expect(fixture.reading.hasAttribute('inert')).toBe(false);
     expect(fixture.story.getAttribute('data-phone-interaction')).toBe('enabled');
+  });
+
+  it('accepts an image-decoded proof from the declared transition effect surface', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const attempt = attemptFor(
+      'figure2-proof', 'segment', 'figure2-distance-expand', 'forward'
+    );
+    const root = fakeElement('figure2-depth-effect-root');
+    const image = fakeElement('fx:figure2-distance-expand');
+    append(fixture.effect, root);
+    append(root, image);
+    const binding: PhoneLeafReportBinding = {
+      attempt, stageIndex: 0, leg: 'effect',
+      allowedReports: ['image-decoded'],
+      allowedSurfaceIds: ['fx:figure2-distance-expand'], planeRevision: 1
+    };
+    const lease = fixture.presentation.registerLeafMount({
+      binding,
+      registration: {
+        root,
+        surfaces: [{ id: 'fx:figure2-distance-expand', element: image, kind: 'image' }],
+        commands: createNoopPhoneLeafCommandHandle()
+      }
+    });
+
+    const proof = fixture.presentation.verifyPrepared({
+      binding, lease,
+      fact: {
+        surfaceId: 'fx:figure2-distance-expand',
+        report: { kind: 'image-decoded', token: 'figure2-depth:decoded', ready: true }
+      }
+    });
+
+    expect(proof.records).toHaveLength(1);
+    expect(proof.records[0]?.slot).toMatchObject({
+      leg: 'effect', kind: 'image-decoded', surfaceId: 'fx:figure2-distance-expand'
+    });
+  });
+
+  it('aligns the fixed Proof copy with a direct closing landing before proving it', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const mounted = registerScene(fixture, 'figure2-proof');
+    mounted.surfaces.get('figure2-foreground-arch')
+      ?.setAttribute('data-phone-figure2-arch-ready', 'true');
+    select(mounted.root, '[data-r4-proof-panel="closing"]', mounted.content);
+    const request: PhonePlaneRequest = {
+      ...planeRequest('figure2-proof'), landingAlias: 'closing'
+    };
+
+    expect(fixture.presentation.verifyVisibleCandidate(request).failure).toBeNull();
+    expect(mounted.root.style.getPropertyValue('--phone-proof-translate-y'))
+      .toBe('-1688.00px');
   });
 
   it('re-proves rollback from the retained source plane instead of exposing the receiver', () => {
@@ -769,6 +871,30 @@ describe('phone presentation content, frame, and mount proof', () => {
     )).failure).toBeNull();
   });
 
+  it('re-proves the visible reading copy while its same-scene mirror stays hidden', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    fixture.story.setAttribute('data-phone-reading', 'enabled');
+    const attempt = attemptFor('brand', 'recovery', null, null, 2);
+    const { root } = registerScene(fixture, 'brand', attempt);
+    fixture.setStyle(root, computedStyle({ visibility: 'hidden' }));
+    const readingRoot = fakeElement('reading:brand');
+    const content = fakeElement('reading-content:brand', rect(20, 20, 200, 200));
+    append(fixture.reading, readingRoot); append(readingRoot, content);
+    select(fixture.reading, '[data-phone-reading="brand"]', readingRoot);
+    for (const selector of phoneSceneById('brand').content.selectors) {
+      select(readingRoot, selector, content);
+      select(fixture.reading, selector, content);
+    }
+    select(readingRoot, phoneSceneById('brand').landing.anchor, readingRoot);
+    select(fixture.reading, phoneSceneById('brand').landing.anchor, readingRoot);
+    fixture.setHitStack([content, readingRoot, fixture.reading, fixture.story]);
+
+    expect(fixture.presentation.verifyReproject(
+      planeRequest('brand', attempt, 'target')
+    ).failure).toBeNull();
+  });
+
   it('does not let the registered root substitute for real content evidence', () => {
     const fixture = createStoryFixture();
     fixture.presentation.attachRoot(fixture.story);
@@ -886,7 +1012,10 @@ describe('phone presentation fixed topology and Hero zero contract', () => {
     expect(styles).toMatch(/\.stage-proof-retained-arch\[data-phone-figure2-arch-ready="false"\]\s*\{[^}]*visibility:\s*hidden/s);
     expect(styles).toMatch(/\.phone-story\[data-phone-status="transaction"\]\[data-phone-source-scene\]:not\(\[data-phone-transition-live\]\)[\s\S]*?data-phone-figure2-arch-owner="target"[\s\S]*?visibility:\s*hidden/s);
     expect(styles).toMatch(/data-phone-transition-live[\s\S]*?data-phone-figure2-arch-owner="target"[\s\S]*?visibility:\s*visible/s);
-    expect(styles).toMatch(/data-phone-status="stable"[^\n]*data-phone-scene="figure2-proof"[\s\S]*?--r4-figure2-near-arch-blur:\s*3\.60px\s*!important[\s\S]*?--r4-figure2-near-arch-scale:\s*1\.1350\s*!important[\s\S]*?--r4-figure2-near-arch-brightness:\s*\.76\s*!important/s);
+    expect(styles).toMatch(/data-figure2-arch-motion="fixed"[\s\S]*?--r4-figure2-near-arch-blur:\s*3\.60px\s*!important[\s\S]*?--r4-figure2-near-arch-scale:\s*1\.1350\s*!important[\s\S]*?--r4-figure2-near-arch-brightness:\s*\.76\s*!important/s);
+    expect(styles).toMatch(/data-phone-segment="figure2-distance-expand"[\s\S]*?phone-story__retained-figure2-arch-layer[^{]*\{[^}]*z-index:\s*45/s);
+    expect(styles).toMatch(/data-phone-reading="enabled"[\s\S]*?\[data-phone-native-mirror\][^{]*\{[^}]*visibility:\s*hidden/s);
+    expect(styles).not.toMatch(/\[data-phone-native-mirror\]:not\(\[data-phone-native-handoff="active"\]\)/);
     expect(styles).toMatch(/\[data-phone-plane="source"\][^{]*\{[^}]*z-index:\s*10/s);
     expect(styles).toMatch(/\[data-phone-plane="receiver"\][^{]*\{[^}]*z-index:\s*30/s);
     expect(styles).not.toMatch(/\.phone-story__coverage::(?:before|after)/);

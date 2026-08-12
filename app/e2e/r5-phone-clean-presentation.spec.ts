@@ -318,6 +318,156 @@ function canvasMediaTrace(
   });
 }
 
+function expectComplementaryFigure2ProofDepth(
+  samples: readonly PhoneStoryFrameSample[],
+  direction: 'forward' | 'reverse'
+): void {
+  const frames = samples.filter(({ shell, transitionLive, effectProgress }) => (
+    shell?.phoneStatus === 'transaction'
+    && (direction === 'forward'
+      ? shell.phoneSourceScene === 'figure2-animation'
+        && shell.phoneCandidateScene === 'figure2-proof'
+      : shell.phoneSourceScene === 'figure2-proof'
+        && shell.phoneCandidateScene === 'figure2-animation')
+    && transitionLive
+    && effectProgress !== null && effectProgress > .08 && effectProgress < .92
+  ));
+  expect(frames.length, `Figure2 ${direction} depth-mask frames`).toBeGreaterThan(2);
+  for (const sample of frames) {
+    const source = sample.planes.find(({ role }) => role === 'source');
+    const receiver = sample.planes.find(({ role }) => role === 'receiver');
+    expect(sample.figure2Surface?.role).toBe(direction === 'forward' ? 'source' : 'receiver');
+    expect(sample.figure2Surface?.maskImage).toContain('depth-threshold-conceal');
+    expect(sample.figure2Surface?.maskSize).toBe('100% 100%');
+    expect(sample.figure2Surface?.maskPolarity).toBe('conceal');
+    expect(sample.proofSurface?.role).toBe(direction === 'forward' ? 'receiver' : 'source');
+    expect(sample.proofSurface?.maskImage).toContain('depth-threshold-reveal');
+    expect(sample.proofSurface?.maskSize).toBe('100% 100%');
+    expect(sample.proofSurface?.maskPolarity).toBe('reveal');
+    expect(sample.figure2Surface?.maskRun).toBeTruthy();
+    expect(sample.proofSurface?.maskRun).toBe(sample.figure2Surface?.maskRun);
+    expect(sample.proofSurface?.maskProgress).toBe(sample.figure2Surface?.maskProgress);
+    expect(source?.rect).toEqual(receiver?.rect);
+  }
+}
+
+async function expectFigure2ConcealPixels(
+  page: import('@playwright/test').Page
+): Promise<void> {
+  await page.waitForFunction(() => {
+    const root = document.querySelector<HTMLElement>(
+      '[data-phone-plane][data-r4-depth-mask-polarity="conceal"]'
+    );
+    const progress = Number(root?.dataset.r4DepthMaskProgress);
+    return Number.isFinite(progress) && progress > .25 && progress < .75;
+  }, undefined, { timeout: 15_000 });
+  await page.evaluate(() => {
+    const owner = window as typeof window & {
+      __r5DepthMaskFreeze?: {
+        request: typeof requestAnimationFrame;
+        cancel: typeof cancelAnimationFrame;
+        queued: Map<number, FrameRequestCallback>;
+        nextId: number;
+      };
+    };
+    const request = window.requestAnimationFrame.bind(window);
+    const cancel = window.cancelAnimationFrame.bind(window);
+    const queued = new Map<number, FrameRequestCallback>();
+    owner.__r5DepthMaskFreeze = { request, cancel, queued, nextId: -1 };
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      const id = owner.__r5DepthMaskFreeze!.nextId--;
+      queued.set(id, callback);
+      return id;
+    }) as typeof requestAnimationFrame;
+    window.cancelAnimationFrame = ((id: number) => {
+      if (!queued.delete(id)) cancel(id);
+    }) as typeof cancelAnimationFrame;
+  });
+  const root = page.locator(
+    '[data-phone-plane][data-r4-depth-mask-polarity="conceal"]'
+  );
+  const masked = await captureDepthPlaneAlpha(page, 'conceal');
+  const saved = await root.evaluate((element) => {
+    const properties = ['mask-image', '-webkit-mask-image'] as const;
+    const snapshot = properties.map((property) => ({
+      property,
+      value: (element as HTMLElement).style.getPropertyValue(property),
+      priority: (element as HTMLElement).style.getPropertyPriority(property)
+    }));
+    for (const property of properties) {
+      (element as HTMLElement).style.setProperty(property, 'none', 'important');
+    }
+    return snapshot;
+  });
+  try {
+    const unmasked = await captureDepthPlaneAlpha(page, 'conceal');
+    expect(changedScreenshotPixels(masked, unmasked),
+      'Figure2 conceal mask must remove physical source pixels').toBeGreaterThan(5_000);
+  } finally {
+    await root.evaluate((element, snapshot) => {
+      for (const { property, value, priority } of snapshot) {
+        if (value) (element as HTMLElement).style.setProperty(property, value, priority);
+        else (element as HTMLElement).style.removeProperty(property);
+      }
+    }, saved);
+    await page.evaluate(() => {
+      const owner = window as typeof window & {
+        __r5DepthMaskFreeze?: {
+          request: typeof requestAnimationFrame;
+          cancel: typeof cancelAnimationFrame;
+          queued: Map<number, FrameRequestCallback>;
+        };
+      };
+      const freeze = owner.__r5DepthMaskFreeze;
+      if (!freeze) return;
+      window.requestAnimationFrame = freeze.request;
+      window.cancelAnimationFrame = freeze.cancel;
+      delete owner.__r5DepthMaskFreeze;
+      for (const callback of freeze.queued.values()) freeze.request(callback);
+    });
+  }
+}
+
+async function expectStableVisualReadingParity(
+  page: import('@playwright/test').Page,
+  scene: 'lab' | 'education',
+  selector: string
+): Promise<void> {
+  const result = await page.locator('.phone-story').evaluate((shell, request) => {
+    const snapshot = (scope: ParentNode) => {
+      const element = scope.querySelector<HTMLElement>(request.selector);
+      if (!element) return null;
+      const bounds = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        text: element.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+        rect: [bounds.left, bounds.top, bounds.right, bounds.bottom],
+        font: style.font,
+        lineHeight: style.lineHeight
+      };
+    };
+    const visual = shell.querySelector<HTMLElement>(
+      `[data-phone-plane="source"] [data-phone-scene="${request.scene}"]`
+    );
+    const reading = shell.querySelector<HTMLElement>(
+      `.phone-story__reading-flow [data-phone-reading="${request.scene}"]`
+    );
+    return {
+      visual: visual ? snapshot(visual) : null,
+      reading: reading ? snapshot(reading) : null
+    };
+  }, { scene, selector });
+  expect(result.visual, `${scene} visual endpoint`).not.toBeNull();
+  expect(result.reading, `${scene} native endpoint`).not.toBeNull();
+  expect(result.visual?.text).toBe(result.reading?.text);
+  expect(result.visual?.font).toBe(result.reading?.font);
+  expect(result.visual?.lineHeight).toBe(result.reading?.lineHeight);
+  result.visual?.rect.forEach((value, index) => {
+    expect(value, `${scene} endpoint rect[${index}]`)
+      .toBeCloseTo(result.reading!.rect[index]!, 0);
+  });
+}
+
 async function assertDecodedPoster(
   page: import('@playwright/test').Page,
   selector: string
@@ -344,7 +494,15 @@ async function assertFormalInkCompositeContribution(
 
 async function readStarPerlinLuminance(
   page: import('@playwright/test').Page
-): Promise<Readonly<{ revision: number; meanLuminance: number }>> {
+): Promise<Readonly<{
+  revision: number;
+  meanLuminance: number;
+  p50: number;
+  p90: number;
+  p99: number;
+  highlightOccupancy: number;
+  localPeakDelta: number;
+}>> {
   return page.locator<HTMLCanvasElement>('[data-portrait-star-perlin]').evaluate((canvas) => {
     const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context || canvas.width < 1 || canvas.height < 1) {
@@ -352,20 +510,31 @@ async function readStarPerlinLuminance(
     }
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
     const stride = Math.max(4, Math.floor(pixels.length / 4 / 8_192) * 4);
-    let total = 0;
-    let count = 0;
+    const values: number[] = [];
     for (let offset = 0; offset < pixels.length; offset += stride) {
       const alpha = (pixels[offset + 3] ?? 0) / 255;
-      total += alpha * (
+      values.push(alpha * (
         .2126 * (pixels[offset] ?? 0)
         + .7152 * (pixels[offset + 1] ?? 0)
         + .0722 * (pixels[offset + 2] ?? 0)
-      );
-      count += 1;
+      ));
     }
+    values.sort((left, right) => left - right);
+    const percentile = (fraction: number) => values[
+      Math.min(values.length - 1, Math.max(0, Math.round((values.length - 1) * fraction)))
+    ] ?? Number.NaN;
+    const p50 = percentile(.5);
+    const p90 = percentile(.9);
+    const p99 = percentile(.99);
+    const highlightFloor = Math.max(p90, p50 + 2);
     return {
       revision: Number.parseInt(canvas.dataset.portraitStarPerlinRevision ?? '', 10),
-      meanLuminance: count === 0 ? Number.NaN : total / count
+      meanLuminance: values.length === 0
+        ? Number.NaN : values.reduce((sum, value) => sum + value, 0) / values.length,
+      p50, p90, p99,
+      highlightOccupancy: values.length === 0
+        ? Number.NaN : values.filter((value) => value >= highlightFloor).length / values.length,
+      localPeakDelta: p99 - p50
     };
   });
 }
@@ -387,6 +556,33 @@ async function sendFrontIntent(
   direction: 'forward' | 'reverse'
 ): Promise<void> {
   await page.keyboard.press(direction === 'forward' ? 'ArrowDown' : 'ArrowUp');
+}
+
+async function sendTouchFrontIntent(
+  page: import('@playwright/test').Page,
+  direction: 'forward' | 'reverse'
+): Promise<void> {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error('Touch input requires a fixed viewport');
+  const session = await page.context().newCDPSession(page);
+  const x = Math.round(viewport.width * .5);
+  const startY = Math.round(viewport.height * (direction === 'forward' ? .78 : .22));
+  const endY = Math.round(viewport.height * (direction === 'forward' ? .22 : .78));
+  const point = (y: number) => [{ x, y, id: 41 }];
+  try {
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart', touchPoints: point(startY)
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: point(Math.round((startY + endY) / 2))
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: point(endY)
+    });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
 }
 
 async function prepareCompleteStoryNativeEdge(
@@ -934,9 +1130,67 @@ async function traversePhSlice(
   if (target === 'ph-animation') {
     await expect(page.locator('[data-phone-packed-alpha-canvas="ph-figure"]'))
       .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
+    const generations = await page.locator('.phone-ph').evaluate((root) => ({
+      admitted: Number((root as HTMLElement).dataset.phGen),
+      canvas: Number(root.querySelector<HTMLCanvasElement>(
+        '[data-phone-packed-alpha-canvas="ph-figure"]'
+      )?.dataset.packedAlphaGeneration)
+    }));
+    expect(generations.admitted).toBeGreaterThan(0);
+    expect(generations.admitted).toBe(generations.canvas);
   }
   await waitForContinuousStoryReady(page);
   return readStableSliceResources(page);
+}
+
+async function traverseBackHalfTouchEdge(
+  page: import('@playwright/test').Page,
+  source: CompleteStoryScene,
+  target: CompleteStoryScene
+): Promise<void> {
+  await waitForContinuousStoryReady(page);
+  await prepareCompleteStoryNativeEdge(page, source, 'forward');
+  const before = await readCommitSequence(page);
+  const expectedSegment = completeStorySegment(source, target);
+  const phases = new Set<string>();
+  let sawExpectedSegment = false;
+  let handledLegRevision = -1;
+  await sendTouchFrontIntent(page, 'forward');
+  for (let sample = 0; sample < 700; sample += 1) {
+    const state = await page.locator('.phone-story').evaluate((shell) => ({
+      scene: (shell as HTMLElement).dataset.phoneScene,
+      segment: (shell as HTMLElement).dataset.phoneSegment,
+      status: (shell as HTMLElement).dataset.phoneStatus,
+      phase: (shell as HTMLElement).dataset.phonePhase,
+      blockedBy: (shell as HTMLElement).dataset.phoneBlockedBy,
+      missingProof: (shell as HTMLElement).dataset.phoneMissingProof,
+      failure: (shell as HTMLElement).dataset.phoneLastFailure,
+      revision: Number((shell as HTMLElement).dataset.phoneRevision),
+      sequence: Number((shell as HTMLElement).dataset.phoneCommitSequence),
+      activation: Boolean(document.querySelector('[data-phone-activation]:not([hidden])'))
+    }));
+    if (state.phase) phases.add(state.phase);
+    if (state.segment === expectedSegment) sawExpectedSegment = true;
+    if (state.scene === target && state.status === 'stable' && state.sequence > before) break;
+    if (state.status === 'stable' && state.scene === source && sawExpectedSegment) {
+      throw new Error(`Touch chain ${source} → ${target} rolled back: ${JSON.stringify({
+        state, phases: [...phases], diagnostic: await readPhoneStoryDiagnostic(page)
+      })}`);
+    }
+    if (state.activation || state.phase === 'awaiting-media-activation') {
+      throw new Error(`Touch chain ${source} → ${target} requested fallback activation: ${JSON.stringify({
+        state, diagnostic: await readPhoneStoryDiagnostic(page)
+      })}`);
+    }
+    if (state.phase === 'awaiting-leg-intent' && handledLegRevision !== state.revision) {
+      handledLegRevision = state.revision;
+      await sendTouchFrontIntent(page, 'forward');
+    }
+    await page.waitForTimeout(50);
+  }
+  expect(sawExpectedSegment, `${source} → ${target} observed segment`).toBe(true);
+  await waitForCommitSequence(page, target, before);
+  expect(await readCommitSequence(page), `${source} → ${target} single commit`).toBe(before + 1);
 }
 
 async function expectPhSliceRollback(
@@ -1753,6 +2007,217 @@ function luma(pixel: readonly [number, number, number, number]): number {
   return .2126 * pixel[0] + .7152 * pixel[1] + .0722 * pixel[2];
 }
 
+function changedScreenshotPixels(first: Buffer, second: Buffer): number {
+  const left = PNG.sync.read(first);
+  const right = PNG.sync.read(second);
+  expect([right.width, right.height]).toEqual([left.width, left.height]);
+  let changed = 0;
+  for (let offset = 0; offset < left.data.length; offset += 4) {
+    const delta = Math.abs((left.data[offset] ?? 0) - (right.data[offset] ?? 0))
+      + Math.abs((left.data[offset + 1] ?? 0) - (right.data[offset + 1] ?? 0))
+      + Math.abs((left.data[offset + 2] ?? 0) - (right.data[offset + 2] ?? 0));
+    if (delta >= 24) changed += 1;
+  }
+  return changed;
+}
+
+function complementaryMaskPixelErrors(partition: Buffer) {
+  const image = PNG.sync.read(partition);
+  let holes = 0; let overlaps = 0;
+  for (let offset = 0; offset < image.data.length; offset += 4) {
+    const red = image.data[offset] ?? 0;
+    const green = image.data[offset + 1] ?? 0;
+    if (red < 24 && green < 24) holes += 1;
+    if (red > 231 && green > 231) overlaps += 1;
+  }
+  return { holes, overlaps, pixels: image.width * image.height };
+}
+
+async function captureDepthPlanePartition(
+  page: import('@playwright/test').Page
+): Promise<Buffer> {
+  await page.evaluate(() => {
+    const owner = window as typeof window & { __r5RestoreDepthPartitionProbe?: () => void };
+    owner.__r5RestoreDepthPartitionProbe?.();
+    const shell = document.querySelector<HTMLElement>('.phone-story')!;
+    const conceal = shell.querySelector<HTMLElement>(
+      '[data-phone-plane][data-r4-depth-mask-polarity="conceal"]'
+    )!;
+    const reveal = shell.querySelector<HTMLElement>(
+      '[data-phone-plane][data-r4-depth-mask-polarity="reveal"]'
+    )!;
+    const nodes = [document.documentElement, document.body, shell,
+      shell.querySelector<HTMLElement>('.phone-story__viewport'),
+      shell.querySelector<HTMLElement>('.phone-story__coverage'),
+      shell.querySelector<HTMLElement>('.phone-story__reading-flow'),
+      shell.querySelector<HTMLElement>('[data-phone-loader="true"]'),
+      shell.querySelector<HTMLElement>('.phone-story__retained-figure2-arch-layer'),
+      ...shell.querySelectorAll<HTMLElement>('[data-phone-plane]'),
+      ...conceal.querySelectorAll<HTMLElement>('*'),
+      ...reveal.querySelectorAll<HTMLElement>('*')]
+      .filter((node): node is HTMLElement => node instanceof HTMLElement);
+    const styles = nodes.map((node) => [node, node.getAttribute('style')] as const);
+    owner.__r5RestoreDepthPartitionProbe = () => {
+      for (const [node, style] of styles) {
+        if (style === null) node.removeAttribute('style'); else node.setAttribute('style', style);
+      }
+      delete owner.__r5RestoreDepthPartitionProbe;
+    };
+    for (const node of [document.documentElement, document.body, shell,
+      shell.querySelector<HTMLElement>('.phone-story__viewport')]) {
+      node?.style.setProperty('background', '#000', 'important');
+    }
+    for (const selector of ['.phone-story__coverage', '.phone-story__reading-flow',
+      '[data-phone-loader="true"]', '.phone-story__retained-figure2-arch-layer']) {
+      shell.querySelector<HTMLElement>(selector)?.style.setProperty('display', 'none', 'important');
+    }
+    for (const plane of shell.querySelectorAll<HTMLElement>('[data-phone-plane]')) {
+      plane.style.setProperty('display', 'none', 'important');
+    }
+    for (const [plane, color] of [[conceal, '#f00'], [reveal, '#0f0']] as const) {
+      plane.style.setProperty('display', 'block', 'important');
+      plane.style.setProperty('visibility', 'visible', 'important');
+      plane.style.setProperty('opacity', '1', 'important');
+      plane.style.setProperty('clip-path', 'none', 'important');
+      plane.style.setProperty('background', color, 'important');
+      plane.style.setProperty('mix-blend-mode', 'screen', 'important');
+      for (const child of plane.querySelectorAll<HTMLElement>('*')) {
+        child.style.setProperty('visibility', 'hidden', 'important');
+      }
+    }
+  });
+  try {
+    await page.evaluate(() => document.documentElement.offsetHeight);
+    return await page.screenshot();
+  } finally {
+    await page.evaluate(() => {
+      const owner = window as typeof window & { __r5RestoreDepthPartitionProbe?: () => void };
+      owner.__r5RestoreDepthPartitionProbe?.();
+    });
+  }
+}
+
+async function captureDepthPlaneAlpha(
+  page: import('@playwright/test').Page,
+  polarity: 'conceal' | 'reveal'
+): Promise<Buffer> {
+  await page.evaluate((requestedPolarity) => {
+    const owner = window as typeof window & { __r5RestoreDepthAlphaProbe?: () => void };
+    owner.__r5RestoreDepthAlphaProbe?.();
+    const shell = document.querySelector<HTMLElement>('.phone-story')!;
+    const active = shell.querySelector<HTMLElement>(
+      `[data-phone-plane][data-r4-depth-mask-polarity="${requestedPolarity}"]`
+    )!;
+    const nodes = [document.documentElement, document.body, shell,
+      shell.querySelector<HTMLElement>('.phone-story__viewport'),
+      shell.querySelector<HTMLElement>('.phone-story__coverage'),
+      shell.querySelector<HTMLElement>('.phone-story__reading-flow'),
+      shell.querySelector<HTMLElement>('[data-phone-loader="true"]'),
+      shell.querySelector<HTMLElement>('.phone-story__retained-figure2-arch-layer'),
+      ...shell.querySelectorAll<HTMLElement>('[data-phone-plane]'),
+      ...active.querySelectorAll<HTMLElement>('*')]
+      .filter((node): node is HTMLElement => node instanceof HTMLElement);
+    const styles = nodes.map((node) => [node, node.getAttribute('style')] as const);
+    owner.__r5RestoreDepthAlphaProbe = () => {
+      for (const [node, style] of styles) {
+        if (style === null) node.removeAttribute('style'); else node.setAttribute('style', style);
+      }
+      delete owner.__r5RestoreDepthAlphaProbe;
+    };
+    for (const node of [document.documentElement, document.body, shell,
+      shell.querySelector<HTMLElement>('.phone-story__viewport')]) {
+      node?.style.setProperty('background', '#000', 'important');
+    }
+    shell.querySelector<HTMLElement>('.phone-story__coverage')
+      ?.style.setProperty('display', 'none', 'important');
+    shell.querySelector<HTMLElement>('.phone-story__reading-flow')
+      ?.style.setProperty('display', 'none', 'important');
+    shell.querySelector<HTMLElement>('[data-phone-loader="true"]')
+      ?.style.setProperty('display', 'none', 'important');
+    shell.querySelector<HTMLElement>('.phone-story__retained-figure2-arch-layer')
+      ?.style.setProperty('display', 'none', 'important');
+    for (const plane of shell.querySelectorAll<HTMLElement>('[data-phone-plane]')) {
+      plane.style.setProperty('display', 'none', 'important');
+    }
+    active.style.setProperty('display', 'block', 'important');
+    active.style.setProperty('visibility', 'visible', 'important');
+    active.style.setProperty('opacity', '1', 'important');
+    active.style.setProperty('clip-path', 'none', 'important');
+    active.style.setProperty('background', '#fff', 'important');
+    for (const child of active.querySelectorAll<HTMLElement>('*')) {
+      child.style.setProperty('visibility', 'hidden', 'important');
+    }
+  }, polarity);
+  try {
+    const isolation = await page.evaluate((requestedPolarity) => {
+      const active = document.querySelector<HTMLElement>(
+        `[data-phone-plane][data-r4-depth-mask-polarity="${requestedPolarity}"]`
+      )!;
+      const style = getComputedStyle(active);
+      return {
+        backgroundColor: style.backgroundColor,
+        backgroundImage: style.backgroundImage,
+        visibleDescendants: [...active.querySelectorAll<HTMLElement>('*')]
+          .filter((node) => getComputedStyle(node).visibility !== 'hidden')
+          .slice(0, 5).map((node) => node.outerHTML.slice(0, 120))
+      };
+    }, polarity);
+    expect(isolation).toEqual({
+      backgroundColor: 'rgb(255, 255, 255)', backgroundImage: 'none',
+      visibleDescendants: []
+    });
+    await page.evaluate(() => document.documentElement.offsetHeight);
+    return await page.screenshot();
+  } finally {
+    await page.evaluate(() => {
+      const owner = window as typeof window & { __r5RestoreDepthAlphaProbe?: () => void };
+      owner.__r5RestoreDepthAlphaProbe?.();
+    });
+  }
+}
+
+async function freezeDepthAt(
+  page: import('@playwright/test').Page,
+  target: number
+): Promise<() => Promise<void>> {
+  await page.waitForFunction((threshold) => {
+    const plane = document.querySelector<HTMLElement>(
+      '[data-phone-plane][data-r4-depth-mask-polarity="reveal"]'
+    );
+    const progress = Number(plane?.dataset.r4DepthMaskProgress);
+    return Number.isFinite(progress) && progress >= threshold;
+  }, target, { timeout: 15_000 });
+  await page.evaluate(() => {
+    const owner = window as typeof window & { __r5DepthMaskFreeze?: {
+      request: typeof requestAnimationFrame; cancel: typeof cancelAnimationFrame;
+      queued: Map<number, FrameRequestCallback>; nextId: number;
+    } };
+    const request = window.requestAnimationFrame.bind(window);
+    const cancel = window.cancelAnimationFrame.bind(window);
+    const queued = new Map<number, FrameRequestCallback>();
+    owner.__r5DepthMaskFreeze = { request, cancel, queued, nextId: -1 };
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      const id = owner.__r5DepthMaskFreeze!.nextId--;
+      queued.set(id, callback); return id;
+    }) as typeof requestAnimationFrame;
+    window.cancelAnimationFrame = ((id: number) => {
+      if (!queued.delete(id)) cancel(id);
+    }) as typeof cancelAnimationFrame;
+  });
+  return async () => page.evaluate(() => {
+    const owner = window as typeof window & { __r5DepthMaskFreeze?: {
+      request: typeof requestAnimationFrame; cancel: typeof cancelAnimationFrame;
+      queued: Map<number, FrameRequestCallback>;
+    } };
+    const freeze = owner.__r5DepthMaskFreeze;
+    if (!freeze) return;
+    window.requestAnimationFrame = freeze.request;
+    window.cancelAnimationFrame = freeze.cancel;
+    delete owner.__r5DepthMaskFreeze;
+    for (const callback of freeze.queued.values()) freeze.request(callback);
+  });
+}
+
 test.describe('Task 13 eight-regression closure', () => {
 test('Hero coverage matches its bottom vignette through a toolbar-sized resize', async ({ page }) => {
   let releaseVideo = () => undefined;
@@ -1879,6 +2344,11 @@ test('Star Map keeps a full-resolution extracted, sparse breathing Perlin field'
   await page.waitForTimeout(500);
   samples.push(await readStarPerlinLuminance(page));
   expect(samples[1]!.revision).toBeGreaterThan(samples[0]!.revision);
+  expect(samples.every(({ localPeakDelta }) => localPeakDelta > 3),
+    `Star Map local contrast: ${JSON.stringify(samples)}`).toBe(true);
+  expect(samples.every(({ highlightOccupancy }) => (
+    highlightOccupancy > .001 && highlightOccupancy < .35
+  )), `Star Map highlight occupancy: ${JSON.stringify(samples)}`).toBe(true);
   const sparse = await canvas.evaluate((node) => {
     const context = node.getContext('2d', { willReadFrequently: true });
     if (!context) throw new Error('Star Map canvas unavailable');
@@ -1968,7 +2438,7 @@ test('Method keeps its native corridor through toolbar geometry before Figure2 h
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
 });
 
-test('Method native touch ownership never transfers midway through one gesture', async ({ page }) => {
+test('Method native touch crosses to story ownership after reaching the live edge outside 96px', async ({ page }) => {
   await page.goto('/#method-top', { waitUntil: 'domcontentloaded' });
   await waitForContinuousStoryReady(page);
   const result = await page.locator('[data-phone-input-owner="native-document"]')
@@ -1984,17 +2454,19 @@ test('Method native touch ownership never transfers midway through one gesture',
         reading.dispatchEvent(event);
         return event.defaultPrevented;
       };
-      owner.scrollTop = Math.max(0, maximum - 40);
+      owner.scrollTop = Math.max(0, maximum - 180);
       dispatch('touchstart', 600);
-      owner.scrollTop = maximum;
-      const midway = dispatch('touchmove', 500);
-      dispatch('touchend', 500);
-      dispatch('touchstart', 600);
-      const nextGesture = dispatch('touchmove', 500);
-      dispatch('touchend', 500);
-      return { midway, nextGesture };
+      const interior = dispatch('touchmove', 520);
+      owner.scrollTop = Math.max(0, maximum - 80);
+      const crossing = dispatch('touchmove', 430);
+      const tail = dispatch('touchmove', 400);
+      dispatch('touchend', 400);
+      return { interior, crossing, tail, scrollTop: owner.scrollTop, maximum };
     });
-  expect(result).toEqual({ midway: false, nextGesture: true });
+  expect(result.interior).toBe(false);
+  expect(result.crossing).toBe(true);
+  expect(result.tail).toBe(true);
+  expect(result.scrollTop).toBeCloseTo(result.maximum, 0);
 });
 
 });
@@ -2214,6 +2686,53 @@ test('Hero to Pattern and back restores the static Figure1 hold without replayin
   expect(Math.abs(after - before)).toBeLessThan(.02);
 });
 
+test('Hero to Pattern and reverse use one paused timeline clock for visible Figure1 frames', async ({
+  page
+}) => {
+  await page.goto('/#hero', { waitUntil: 'domcontentloaded' });
+  await waitForContinuousStoryReady(page);
+
+  const forwardStop = await recordPhoneStoryFrames(page);
+  await nextAnimationFrame(page);
+  await traverseCompleteStoryLeg(page, 'hero', 'pattern', 'forward');
+  const forward = await forwardStop();
+
+  const reverseStop = await recordPhoneStoryFrames(page);
+  await nextAnimationFrame(page);
+  await traverseCompleteStoryLeg(page, 'pattern', 'hero', 'reverse');
+  const reverse = await reverseStop();
+
+  const assertDirection = (
+    samples: readonly PhoneStoryFrameSample[],
+    source: 'hero' | 'pattern',
+    target: 'pattern' | 'hero',
+    direction: 1 | -1
+  ) => {
+    const active = (sample: PhoneStoryFrameSample) => (
+      sample.transitionLive
+      && sample.shell?.phoneStatus === 'transaction'
+      && sample.shell.phoneSourceScene === source
+      && sample.shell.phoneCandidateScene === target
+    );
+    const video = mediaTrace(samples, 'hero-figure-video', active);
+    const canvas = canvasMediaTrace(samples, 'hero-figure-canvas', active);
+    expect(video.length, `${source} → ${target} video trace`).toBeGreaterThan(5);
+    expect(canvas.length, `${source} → ${target} Canvas trace`).toBeGreaterThan(3);
+    expect(video.every(({ paused }) => paused), `${source} → ${target} native clock`).toBe(true);
+    const times = canvas.map(({ mediaTime }) => mediaTime);
+    expect(Math.max(...times) - Math.min(...times), `${source} → ${target} visible motion`)
+      .toBeGreaterThan(.15);
+    expect(times.every((time, index) => index === 0 || (direction === 1
+      ? time >= times[index - 1]! - .04
+      : time <= times[index - 1]! + .04)),
+    `${source} → ${target} monotonic Canvas: ${JSON.stringify(times)}`)
+      .toBe(true);
+  };
+
+  assertDirection(forward, 'hero', 'pattern', 1);
+  assertDirection(reverse, 'pattern', 'hero', -1);
+});
+
 test('formal contract keeps every real viewport edge opaque', async ({ page }) => {
   let releaseVideo = () => undefined;
   const videoGate = new Promise<void>((resolve) => { releaseVideo = resolve; });
@@ -2301,6 +2820,10 @@ test('Front direct Star Map exposes a causal rotated Canvas frame and content', 
   const luminanceRange = Math.max(...samples.map(({ meanLuminance }) => meanLuminance))
     - Math.min(...samples.map(({ meanLuminance }) => meanLuminance));
   expect(luminanceRange, `Star Map Perlin samples: ${JSON.stringify(samples)}`).toBeGreaterThan(0.5);
+  expect(Math.min(...samples.map(({ localPeakDelta }) => localPeakDelta)),
+    `Star Map local contrast: ${JSON.stringify(samples)}`).toBeGreaterThan(3);
+  expect(Math.max(...samples.map(({ highlightOccupancy }) => highlightOccupancy)),
+    `Star Map bounded highlights: ${JSON.stringify(samples)}`).toBeLessThan(.35);
   await assertTargetContentVisible(page, FRONT_CONTENT['star-map']);
   await assertNoWhiteOrTransparentViewportEdges(page);
 });
@@ -2433,6 +2956,8 @@ test('Figure2 staged media holds its midpoint during the real z-depth leg', asyn
   await page.goto('/#method-top', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'method-top', 0);
   await waitForContinuousStoryReady(page);
+  const stop = await recordPhoneStoryFrames(page);
+  await nextAnimationFrame(page);
   await sendFrontIntent(page, 'forward');
   await waitForCommitSequence(page, 'figure2-animation', 0);
   await waitForContinuousStoryReady(page);
@@ -2498,7 +3023,68 @@ test('Figure2 staged media holds its midpoint during the real z-depth leg', asyn
   const visibleTimes = mediaPlaying.map(({ canvasMediaTime }) => canvasMediaTime)
     .filter(Number.isFinite);
   expect(Math.max(...visibleTimes) - Math.min(...visibleTimes)).toBeGreaterThan(.12);
+  expectComplementaryFigure2ProofDepth(await stop(), 'forward');
 });
+
+test('Figure2 conceal mask removes source pixels during the Proof reveal', async ({ page }) => {
+  await page.goto('/#figure2-animation', { waitUntil: 'domcontentloaded' });
+  const before = await waitForDirectEntryCommit(page, 'figure2-animation');
+  await waitForContinuousStoryReady(page);
+  await sendFrontIntent(page, 'forward');
+  await expectFigure2ConcealPixels(page);
+  await waitForCommitSequence(page, 'figure2-proof', before);
+});
+
+for (const direction of ['forward', 'reverse'] as const) {
+  test(`Figure2 ${direction} fixed-plane masks stay pixel-complementary`, async ({ page }) => {
+    const source = direction === 'forward' ? 'figure2-animation' : 'figure2-proof';
+    for (const target of [.25, .5, .75]) {
+      const hash = direction === 'forward' ? 'figure2-animation' : 'figure2-proof';
+      await page.goto(`/?depth-probe=${direction}-${target}#${hash}`, {
+        waitUntil: 'domcontentloaded'
+      });
+      await waitForDirectEntryCommit(page, source);
+      await waitForContinuousStoryReady(page);
+      await sendFrontIntent(page, direction);
+      const release = await freezeDepthAt(page, target);
+      try {
+        const geometry = await page.locator('.phone-story').evaluate((shell) => {
+          const conceal = shell.querySelector<HTMLElement>(
+            '[data-phone-plane][data-r4-depth-mask-polarity="conceal"]'
+          );
+          const reveal = shell.querySelector<HTMLElement>(
+            '[data-phone-plane][data-r4-depth-mask-polarity="reveal"]'
+          );
+          const arch = shell.querySelector<HTMLElement>(
+            '[data-stage-retained-figure2-arch="true"]'
+          );
+          const rect = (node: HTMLElement | null) => node
+            ? [node.getBoundingClientRect().left, node.getBoundingClientRect().top,
+              node.getBoundingClientRect().right, node.getBoundingClientRect().bottom]
+            : null;
+          return {
+            conceal: rect(conceal), reveal: rect(reveal),
+            progress: Number(reveal?.dataset.r4DepthMaskProgress),
+            concealMask: conceal ? getComputedStyle(conceal).webkitMaskImage : 'none',
+            concealComposite: conceal ? getComputedStyle(conceal).webkitMaskComposite : 'none',
+            archMask: arch ? getComputedStyle(arch).maskImage
+              || getComputedStyle(arch).webkitMaskImage : 'none'
+          };
+        });
+        expect(geometry.conceal).toEqual(geometry.reveal);
+        expect(geometry.progress).toBeGreaterThanOrEqual(target);
+        expect(geometry.archMask).toBe('none');
+        const errors = complementaryMaskPixelErrors(await captureDepthPlanePartition(page));
+        expect(errors.holes, `${direction} ${target} holes`).toBeLessThan(errors.pixels * .002);
+        expect(errors.overlaps,
+          `${direction} ${target} overlaps ${JSON.stringify(geometry)}`)
+          .toBeLessThan(errors.pixels * .002);
+      } finally {
+        await release();
+      }
+    }
+  });
+}
 
 test('Figure2 retained arch enters with the target boundary and survives commit', async ({ page }) => {
   await page.goto('/#method-top', { waitUntil: 'domcontentloaded' });
@@ -2534,10 +3120,22 @@ test('Figure2 retained arch enters with the target boundary and survives commit'
   }, undefined, { timeout: 15_000 });
   const live = await arch.evaluate((element) => ({
     visibility: getComputedStyle(element).visibility,
-    opacity: Number(getComputedStyle(element).opacity)
+    opacity: Number(getComputedStyle(element).opacity),
+    inPlanes: Boolean(element.closest('.phone-story__planes')),
+    archZ: Number(getComputedStyle(element.parentElement!).zIndex),
+    effectZ: Number(getComputedStyle(document.querySelector<HTMLElement>(
+      '[data-phone-plane="effect"]'
+    )!).zIndex),
+    archClip: getComputedStyle(element.parentElement!).clipPath,
+    receiverClip: getComputedStyle(document.querySelector<HTMLElement>(
+      '[data-phone-plane="receiver"]'
+    )!).clipPath
   }));
   expect(live.visibility).toBe('visible');
   expect(live.opacity).toBeGreaterThan(0);
+  expect(live.inPlanes).toBe(true);
+  expect(live.archZ).toBeLessThan(live.effectZ);
+  expect(live.archClip).toBe(live.receiverClip);
 
   await waitForCommitSequence(page, 'figure2-animation', 0);
   const stable = await arch.evaluate((element) => ({
@@ -2662,6 +3260,7 @@ test('Figure2 reverse media stage seeks from the parked endpoint to frame zero',
   await sendFrontIntent(page, 'reverse');
   await waitForCommitSequence(page, 'figure2-animation', before);
   const trace = await stop();
+  expectComplementaryFigure2ProofDepth(trace, 'reverse');
   const transaction = trace.filter(({ shell }) => (
     shell?.phoneStatus === 'transaction'
     && shell.phoneSourceScene === 'figure2-proof'
@@ -2826,9 +3425,10 @@ test('Brand to Figure3 commits the static initial endpoint on the real leaf', as
   expect(media.paused).toBe(true);
 });
 
-test('Proof to Brand and Brand to Figure3 keep exposed buffers atomic through layout commit', async ({ page }) => {
+test('Figure2 to Proof, Proof to Brand and Brand to Figure3 commit buffers atomically', async ({ page }) => {
   for (const { source, target, hash } of [
-    { source: 'figure2-proof', target: 'brand', hash: '#figure2-proof' },
+    { source: 'figure2-animation', target: 'figure2-proof', hash: '#figure2-animation' },
+    { source: 'figure2-proof', target: 'brand', hash: '#figure2-proof-closing' },
     { source: 'brand', target: 'figure3-animation', hash: '#brand' }
   ] as const) {
     await page.goto(`/?r5-atomic=${source}-${target}${hash}`, {
@@ -2857,6 +3457,27 @@ test('Proof to Brand and Brand to Figure3 keep exposed buffers atomic through la
           .toEqual([sample.shell.phoneStableBuffer]);
       }
     }
+    if (source === 'figure2-proof') {
+      const stable = samples.filter(({ shell, proofClosing }) => (
+        shell?.phoneStatus === 'stable' && shell.phoneScene === source && proofClosing
+      )).at(-1);
+      const firstTransaction = samples.find(({ shell, proofClosing }) => (
+        shell?.phoneStatus === 'transaction'
+        && shell.phoneSourceScene === source
+        && shell.phoneCandidateScene === target
+        && proofClosing
+      ));
+      expect(stable?.proofClosing?.text)
+        .toBe('同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。');
+      expect(firstTransaction?.proofClosing?.text).toBe(stable?.proofClosing?.text);
+      stable?.proofClosing?.rect.forEach((value, index) => {
+        expect(firstTransaction!.proofClosing!.rect[index], `Proof first-frame rect[${index}]`)
+          .toBeCloseTo(value, 0);
+      });
+      expect(Number.parseFloat(firstTransaction?.figure2Arch?.blur ?? '')).toBeCloseTo(3.6, 3);
+      expect(Number.parseFloat(firstTransaction?.figure2Arch?.scale ?? '')).toBeCloseTo(1.135, 3);
+      expect(Number.parseFloat(firstTransaction?.figure2Arch?.brightness ?? '')).toBeCloseTo(.76, 3);
+    }
   }
 });
 
@@ -2883,6 +3504,118 @@ test('Grade A chain commits each hold once and preserves both-direction endpoint
   await traverseGradeA(page, 'brand', 'figure2-proof', 'reverse');
   await traverseGradeA(page, 'figure2-proof', 'figure2-animation', 'reverse');
   await traverseGradeA(page, 'figure2-animation', 'method-top', 'reverse');
+});
+
+test('stable Proof exposes retained arch pixels between paper and native copy', async ({ page }) => {
+  await page.goto('/#figure2-proof-opening', { waitUntil: 'domcontentloaded' });
+  await waitForDirectEntryCommit(page, 'figure2-proof');
+  await waitForContinuousStoryReady(page);
+  const arch = page.locator('[data-stage-retained-figure2-arch="true"]');
+  await expect(arch).toBeVisible();
+  await expect(arch).toHaveAttribute('data-phone-figure2-arch-ready', 'true');
+  const visible = await page.screenshot();
+  await arch.evaluate((element) => { (element as HTMLElement).style.visibility = 'hidden'; });
+  await nextAnimationFrame(page);
+  const hidden = await page.screenshot();
+  await arch.evaluate((element) => { (element as HTMLElement).style.visibility = ''; });
+  expect(changedScreenshotPixels(visible, hidden),
+    'retained arch contributes stable Proof pixels').toBeGreaterThan(10_000);
+});
+
+test('Proof keeps retained arch pixels while a toolbar reproject owns native reading', async ({ page }) => {
+  await page.goto('/#figure2-proof-opening', { waitUntil: 'domcontentloaded' });
+  await waitForDirectEntryCommit(page, 'figure2-proof');
+  await waitForContinuousStoryReady(page);
+  await page.addStyleTag({ content: `
+    *, *::before, *::after {
+      animation: none !important;
+      caret-color: transparent !important;
+      transition: none !important;
+    }
+  ` });
+  const shell = page.locator('.phone-story');
+  await shell.evaluate((element) => { (element as HTMLElement).dataset.phoneStatus = 'transaction'; });
+  await expect(page.locator(
+    '.phone-story__reading-flow [data-phone-reading="figure2-proof"]'
+  )).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  const arch = page.locator('[data-stage-retained-figure2-arch="true"]');
+  const visible = await page.screenshot();
+  await arch.evaluate((element) => { (element as HTMLElement).style.visibility = 'hidden'; });
+  const hidden = await page.screenshot();
+  await arch.evaluate((element) => { (element as HTMLElement).style.visibility = ''; });
+  expect(changedScreenshotPixels(visible, hidden),
+    'retained arch contributes pixels during Proof reproject').toBeGreaterThan(10_000);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForDirectEntryCommit(page, 'figure2-proof');
+  await waitForContinuousStoryReady(page);
+  const reprojectShell = page.locator('.phone-story');
+  const originalPlaneRevision = await reprojectShell.getAttribute('data-phone-plane-revision');
+  await page.evaluate(() => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    if (!shell) return;
+    const owner = window as typeof window & {
+      __proofReprojectSamples?: string[]; __proofReprojectObserver?: MutationObserver
+    };
+    owner.__proofReprojectSamples = [];
+    owner.__proofReprojectObserver = new MutationObserver(() => {
+      if (shell.dataset.phoneStatus !== 'transaction' || shell.dataset.phoneReading !== 'enabled') return;
+      const reading = document.querySelector<HTMLElement>(
+        '.phone-story__reading-flow [data-phone-reading="figure2-proof"]'
+      );
+      if (reading) owner.__proofReprojectSamples?.push(getComputedStyle(reading).backgroundColor);
+    });
+    owner.__proofReprojectObserver.observe(shell, { attributes: true });
+  });
+  await page.setViewportSize({ width: 390, height: 780 });
+  await expect.poll(() => page.evaluate(() => (
+    (window as typeof window & { __proofReprojectSamples?: string[] }).__proofReprojectSamples
+  ))).toContain('rgba(0, 0, 0, 0)');
+  await expect(reprojectShell).toHaveAttribute('data-phone-status', 'stable');
+  await expect.poll(() => reprojectShell.getAttribute('data-phone-plane-revision'))
+    .not.toBe(originalPlaneRevision);
+  await page.evaluate(() => {
+    const owner = window as typeof window & {
+      __proofReprojectSamples?: string[]; __proofReprojectObserver?: MutationObserver
+    };
+    owner.__proofReprojectObserver?.disconnect();
+    delete owner.__proofReprojectObserver;
+  });
+});
+
+test('Proof closing keeps exactly three text line boxes across supported phone widths', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as typeof window & { __r5PhoneRuntimeLog?: unknown[] }).__r5PhoneRuntimeLog = [];
+  });
+  for (const width of [320, 390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`/?proof-width=${width}#figure2-proof-closing`, {
+      waitUntil: 'domcontentloaded'
+    });
+    await waitForDirectEntryCommit(page, 'figure2-proof');
+    const lines = page.locator(
+      '.phone-story__reading-flow [data-phone-reading="figure2-proof"] '
+        + '[data-r4-proof-panel="closing"] .r4-proof-closing__line'
+    );
+    await expect(lines).toHaveCount(3);
+    const layout = await lines.evaluateAll((nodes) => nodes.map((node) => {
+      const element = node as HTMLElement;
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const rects = [...range.getClientRects()].filter(({ width, height }) => width > .5 && height > .5);
+      return {
+        text: element.textContent?.trim() ?? '',
+        lineBoxes: rects.length,
+        top: rects[0]?.top ?? Number.NaN,
+        noOverflow: element.scrollWidth <= element.clientWidth + 1
+      };
+    }));
+    expect(layout.map(({ text }) => text)).toEqual([
+      '同野观幂做第四种：', '先进现场，再定章法，', '陪你跑到账上有数。'
+    ]);
+    expect(layout.every(({ lineBoxes }) => lineBoxes === 1), `${width}px layout`).toBe(true);
+    expect(new Set(layout.map(({ top }) => Math.round(top))).size, `${width}px rows`).toBe(3);
+    expect(layout.every(({ noOverflow }) => noOverflow), `${width}px overflow`).toBe(true);
+  }
 });
 
 test('Figure3 slice direct entries expose accepted Brand, paper, and Services endpoints', async ({
@@ -3134,6 +3867,32 @@ test('native reading handoff freezes the real bottom frame for Services, Lab, an
   }
 });
 
+test('Lab and Education visual receivers match their first native reading frame', async ({ page }) => {
+  await page.goto('/#ttg-animation', { waitUntil: 'domcontentloaded' });
+  await waitForDirectEntryCommit(page, 'ttg-animation');
+  await traverseGroup45(page, 'ttg-animation', 'lab', 'forward');
+  await expectStableVisualReadingParity(
+    page, 'lab', '.phone-lab__screen--intro .phone-lab__hero > p:last-child'
+  );
+
+  await page.goto('/?r5-parity=lab-reverse#ph-animation', { waitUntil: 'domcontentloaded' });
+  await waitForDirectEntryCommit(page, 'ph-animation');
+  await traversePhSlice(page, 'ph-animation', 'lab', 'reverse');
+  await expectStableVisualReadingParity(page, 'lab', '.phone-lab__row:last-child h3');
+
+  await page.goto('/?r5-parity=education-forward#ph-animation', { waitUntil: 'domcontentloaded' });
+  await waitForDirectEntryCommit(page, 'ph-animation');
+  await traversePhSlice(page, 'ph-animation', 'education', 'forward');
+  await expectStableVisualReadingParity(page, 'education', '.r4-education__wide h2');
+
+  await page.goto('/#crane-animation', { waitUntil: 'domcontentloaded' });
+  await waitForDirectEntryCommit(page, 'crane-animation');
+  await traverseCraneSlice(page, 'crane-animation', 'education', 'reverse');
+  await expectStableVisualReadingParity(
+    page, 'education', '.r4-education__row:last-child strong'
+  );
+});
+
 test('Services bottom trusted handoff activates a dormant TTG prewarm and commits once', async ({ page }) => {
   await page.goto('/#services', { waitUntil: 'domcontentloaded' });
   const before = await waitForDirectEntryCommit(page, 'services');
@@ -3272,12 +4031,16 @@ test('PH authored playback advances only during PH to Education', async ({ page 
 });
 
 test('Crane authored playback advances both videos only during Crane to Contact', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as typeof window & { __r5PhoneRuntimeLog?: unknown[] }).__r5PhoneRuntimeLog = [];
+  });
   await page.goto('/#crane-animation', { waitUntil: 'domcontentloaded' });
   const before = await waitForDirectEntryCommit(page, 'crane-animation');
   const stop = await recordPhoneStoryFrames(page);
   await nextAnimationFrame(page);
   await sendFrontIntent(page, 'forward');
   await waitForCommitSequence(page, 'contact', before);
+  await nextAnimationFrame(page);
   const samples = await stop();
   const outgoing = (sample: PhoneStoryFrameSample) => (
     sample.shell?.phoneStatus === 'transaction'
@@ -3302,10 +4065,40 @@ test('Crane authored playback advances both videos only during Crane to Contact'
     const visibleTerminal = samples.some((sample) => outgoing(sample)
       && sample.canvases.some((canvas) => canvas.surfaceId === surfaceId
         && (canvas.mediaTime ?? -1) >= 2.467 - .08)
-      && sample.planes.some(({ role, visible }) => role === 'source' && visible)
-      && sample.planes.every(({ role, visible }) => role !== 'receiver' || !visible));
+      && sample.planes.some(({ role, visible }) => role === 'source' && visible));
     expect(visibleTerminal, `${surfaceId} terminal frame stayed source-visible`).toBe(true);
   }
+  const transaction = samples.filter(outgoing);
+  const clocked = transaction.filter(({ craneProgress }) => craneProgress !== null);
+  expect(clocked.length).toBeGreaterThan(6);
+  for (const sample of clocked) {
+    expect(sample.craneClock).toBe('presented-media');
+    const figure = sample.canvases.find(({ surfaceId }) => surfaceId === 'crane-figure-canvas');
+    const flock = sample.canvases.find(({ surfaceId }) => surfaceId === 'crane-flock-canvas');
+    const camera = sample.craneProgress!;
+    if (camera > 1 / 6 && figure?.mediaTime !== null && figure?.mediaTime !== undefined) {
+      expect(camera).toBeLessThanOrEqual((.5 + figure.mediaTime / 2.467 * 2.5) / 3 + .04);
+    }
+    if (flock?.mediaTime !== null && flock?.mediaTime !== undefined) {
+      if (flock.mediaTime < 2.467 - .08) {
+        expect(camera).toBeLessThanOrEqual(flock.mediaTime / 2.467 * 2.5 / 3 + .041);
+        expect(camera, 'Crane camera cannot retire an unproved flock frame')
+          .toBeLessThanOrEqual(5 / 6);
+      }
+    }
+  }
+  expect(transaction.some(({ contactProgress }) => contactProgress === 0),
+    'Contact remains at its pre-cue endpoint').toBe(true);
+  expect(transaction.some((sample) => (
+    sample.contactProgress !== null
+    && sample.contactProgress > 0 && sample.contactProgress < 1
+    && sample.planes.some(({ role, visible }) => role === 'source' && visible)
+  )), 'Contact enters while Crane still visibly owns the source').toBe(true);
+  const stableContact = page.locator(
+    '.phone-story__reading-flow [data-r4-scene="contact"]'
+  );
+  await expect(stableContact).toBeVisible();
+  await expect(stableContact).toHaveAttribute('data-contact-progress', '1.0000');
 });
 
 test('Group 4-5 direct TTG and Lab entries expose their accepted endpoints', async ({ page }) => {
@@ -3470,6 +4263,30 @@ test('Group 4-5 restores proved TTG after visibility and BFCache lifecycle event
     .toHaveAttribute('data-phone-ttg-endpoint-ready', /initial|terminal/);
   await traverseGroup45(page, 'ttg-animation', 'lab', 'forward');
   await traverseGroup45(page, 'lab', 'ttg-animation', 'reverse');
+});
+
+test('Services → TTG → Lab → PH localizes and commits every edge with touch input', async ({
+  page, browserName
+}) => {
+  test.skip(browserName !== 'chromium', 'Trusted swipe transport is Chromium-only; Safari stays a physical-device gate.');
+  await page.goto('/#services', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'services', 0);
+  await traverseBackHalfTouchEdge(page, 'services', 'ttg-animation');
+  await traverseBackHalfTouchEdge(page, 'ttg-animation', 'lab');
+  await traverseBackHalfTouchEdge(page, 'lab', 'ph-animation');
+  const admitted = await page.locator('.phone-ph').evaluate((root) => {
+    const canvas = root.querySelector<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas="ph-figure"]'
+    );
+    return {
+      admitted: Number((root as HTMLElement).dataset.phGen),
+      generation: Number(canvas?.dataset.packedAlphaGeneration),
+      opacity: Number(canvas ? getComputedStyle(canvas).opacity : 0)
+    };
+  });
+  expect(admitted.admitted).toBeGreaterThan(0);
+  expect(admitted.admitted).toBe(admitted.generation);
+  expect(admitted.opacity).toBeGreaterThan(0);
 });
 
 test('PH slice direct PH and Education entries expose accepted endpoints', async ({ page }) => {
@@ -3665,7 +4482,7 @@ test('Crane slice completes Education ↔ Crane twice without resource growth', 
   }
 });
 
-test('Crane primes the outgoing decoder and retries rejected playback on a fresh gesture', async ({ page }) => {
+test('Crane primes once, then uses the presented timeline without another native play', async ({ page }) => {
   await page.goto('/#crane-animation', {
     waitUntil: 'domcontentloaded'
   });
@@ -3674,30 +4491,15 @@ test('Crane primes the outgoing decoder and retries rejected playback on a fresh
   await page.evaluate(() => {
     const originalPlay = HTMLMediaElement.prototype.play;
     let frontPlayAttempts = 0;
-    let rejectNextFrontPlay = false;
     Object.defineProperty(window, '__r5CranePlayAttempts', {
       configurable: true, get: () => frontPlayAttempts
-    });
-    Object.defineProperty(window, '__r5RejectNextCraneFrontPlay', {
-      configurable: true, set: (value: boolean) => { rejectNextFrontPlay = value; }
     });
     HTMLMediaElement.prototype.play = function patchedPlay() {
       const role = this.matches('[data-crane-figure-front-video]')
         ? 'front' : this.matches('[data-crane-figure-video]') ? 'figure' : 'other';
-      if (role === 'front') {
-        frontPlayAttempts += 1;
-      }
-      const craneMediaPhase = this.closest<HTMLElement>(
-        '[data-r4-scene="crane-animation"]'
-      )?.dataset.phoneCraneMedia;
-      if (rejectNextFrontPlay && role === 'front' && craneMediaPhase === 'playing') {
-        rejectNextFrontPlay = false;
-        return Promise.reject(new DOMException('gesture required', 'NotAllowedError'));
-      }
+      if (role === 'front') frontPlayAttempts += 1;
       return originalPlay.call(this);
     };
-    (window as typeof window & { __r5RejectNextCraneFrontPlay: boolean })
-      .__r5RejectNextCraneFrontPlay = true;
   });
   const initialFrontPlayAttempts = await page.evaluate(() => (
     window as typeof window & { __r5CranePlayAttempts: number }
@@ -3708,14 +4510,10 @@ test('Crane primes the outgoing decoder and retries rejected playback on a fresh
       .toHaveAttribute('data-packed-alpha-frame-ready', 'true');
   }
   await sendFrontIntent(page, 'forward');
-  await waitForContinuousSourceRestore(
-    page, 'crane-animation', before, 'rejected Crane outgoing playback'
-  );
+  await waitForCommitSequence(page, 'contact', before);
   expect(await page.evaluate(() => (
     window as typeof window & { __r5CranePlayAttempts: number }
-  ).__r5CranePlayAttempts)).toBe(initialFrontPlayAttempts + 2);
-  await sendFrontIntent(page, 'forward');
-  await waitForCommitSequence(page, 'contact', before);
+  ).__r5CranePlayAttempts)).toBe(initialFrontPlayAttempts);
 });
 
 test('Crane slice keeps Education proved while the Crane chunk is delayed', async ({ page }) => {
