@@ -73,13 +73,14 @@ export const phoneMotionDriver: PhoneMotionDriver = Object.freeze({
         element.style.opacity = String(state.opacity);
       });
     };
-    paint();
     const tween = gsap.to(states, {
       y: 0,
       opacity: 1,
       duration: 0.5,
       ease: 'power2.out',
       stagger: 0.11,
+      // A cold direct entry must fail open until ScrollTrigger has observed it.
+      immediateRender: false,
       onUpdate: paint,
       scrollTrigger: {
         id: 'portrait-spike-reading-steps',

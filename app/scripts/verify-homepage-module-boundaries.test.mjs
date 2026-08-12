@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import * as moduleBoundaryVerifier from './verify-homepage-module-boundaries.mjs';
 import {
   formalPhoneOwnershipViolations,
   formalPhoneRouteGraphViolations,
@@ -59,6 +60,34 @@ const runLandingSource = readFileSync(
   new URL('../src/production/phone/phone-run-landing.ts', import.meta.url),
   'utf8'
 );
+const stageRailCssSource = readFileSync(
+  new URL('../src/production/phone/PhoneStageRail.css', import.meta.url),
+  'utf8'
+);
+const aodAutoplaySource = readFileSync(
+  new URL('../src/production/phone/aod-autoplay.ts', import.meta.url),
+  'utf8'
+);
+const stageRuntimeSource = readFileSync(
+  new URL('../src/production/phone/usePhoneStageRuntime.ts', import.meta.url),
+  'utf8'
+);
+const gsapDriverSource = readFileSync(
+  new URL('../src/production/phone/phone-gsap-driver.ts', import.meta.url),
+  'utf8'
+);
+const methodStylesSource = readFileSync(
+  new URL('../src/production/phone/scenes/PhoneMethodTop.css', import.meta.url),
+  'utf8'
+);
+const navigationStylesSource = readFileSync(
+  new URL('../src/production/StoryNav.css', import.meta.url),
+  'utf8'
+);
+const releasePlaywrightConfigSource = readFileSync(
+  new URL('../playwright.release.config.ts', import.meta.url),
+  'utf8'
+);
 const crossChunkExecutionSources = [
   'phone-story-state.ts',
   'phone-transition-coordinator.ts',
@@ -96,6 +125,85 @@ function cssViolationsFor(source) {
 }
 
 describe('homepage phone-shell debt ratchet', () => {
+  it('runs the mandatory production phone matrix in portrait touch viewports', () => {
+    expect(releasePlaywrightConfigSource).toContain("...devices['Pixel 7']");
+    expect(releasePlaywrightConfigSource).toContain("viewport: { width: 390, height: 844 }");
+    expect(releasePlaywrightConfigSource).toContain("...devices['iPhone 15']");
+    expect(releasePlaywrightConfigSource).not.toContain('landscape');
+  });
+
+  it('gates effect layering, viewport coverage, media first frame, and direct reading visibility together', () => {
+    const verify = moduleBoundaryVerifier.phoneExecutionPresentationContractViolations;
+
+    expect(verify).toBeTypeOf('function');
+    if (typeof verify !== 'function') return;
+
+    const sources = {
+      stageRailCssSource,
+      shellCssSource,
+      aodAutoplaySource,
+      stageRuntimeSource,
+      gsapDriverSource,
+      methodStylesSource,
+      navigationStylesSource
+    };
+    expect(verify(sources)).toEqual([]);
+    expect(verify({
+      ...sources,
+      stageRailCssSource: stageRailCssSource.replace(
+        'z-index: 12;\n  inset: 0;\n  display: block;',
+        'z-index: 8;\n  inset: 0;\n  display: block;'
+      )
+    })).toContain(
+      'PhoneStageRail.css: shared ink effect must occupy transition lane 12'
+    );
+    expect(verify({
+      ...sources,
+      stageRailCssSource: stageRailCssSource.replace(
+        '  min-height: var(--portrait-stage-canvas-height);\n',
+        ''
+      )
+    })).toContain(
+      'PhoneStageRail.css: stage canvas must span the retained large viewport'
+    );
+    expect(verify({
+      ...sources,
+      aodAutoplaySource: aodAutoplaySource.replace(
+        "if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'playing';\n        schedule();",
+        "if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'playing';\n        settleStart('playing');\n        schedule();"
+      )
+    })).toContain(
+      'aod-autoplay.ts: play() resolution must not count as a presented frame'
+    );
+    expect(verify({
+      ...sources,
+      gsapDriverSource: gsapDriverSource.replace(
+        'immediateRender: false',
+        'immediateRender: true'
+      )
+    })).toContain(
+      'phone-gsap-driver.ts: direct reading content must fail open before trigger entry'
+    );
+    expect(verify({
+      ...sources,
+      methodStylesSource: methodStylesSource.replace(
+        'font-family: var(--font-sans);',
+        'font-family: var(--font-traditional);'
+      )
+    })).toContain(
+      'PhoneMethodTop.css: phone WebKit direct headings must use the safe CJK fallback'
+    );
+    expect(verify({
+      ...sources,
+      navigationStylesSource: navigationStylesSource.replace(
+        'font-family: var(--font-sans);',
+        'font-family: var(--font-traditional);'
+      )
+    })).toContain(
+      'StoryNav.css: phone WebKit brand mark must use the safe CJK fallback'
+    );
+  });
+
   it('accepts the frozen Unit 3 baseline', () => {
     expect(violationsFor(shellSource)).toEqual([]);
   });

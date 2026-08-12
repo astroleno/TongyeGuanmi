@@ -43,6 +43,41 @@ describe('phone AOD autoplay lifecycle', () => {
     controller.dispose();
   });
 
+  it('waits for forward media progress before reporting a playable first frame', async () => {
+    const video = new FakeVideo();
+    let resolvePlay: (() => void) | undefined;
+    video.play.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolvePlay = resolve;
+    }));
+    const controller = createPhoneAodAutoplay(
+      video as unknown as HTMLVideoElement,
+      {
+        durationSeconds: 1,
+        onProgress: vi.fn(),
+        requestFrame: () => 1,
+        cancelFrame: vi.fn()
+      }
+    );
+
+    const start = controller.start(1);
+    let settled = false;
+    void start.then(() => {
+      settled = true;
+    });
+    resolvePlay?.();
+    video.paused = false;
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(settled).toBe(false);
+
+    video.currentTime = .04;
+    video.dispatchEvent(new Event('timeupdate'));
+
+    await expect(start).resolves.toBe('playing');
+    controller.dispose();
+  });
+
   it('retains the start identity for progress and terminal playback evidence', async () => {
     const video = new FakeVideo();
     const onProgress = vi.fn();
@@ -65,7 +100,10 @@ describe('phone AOD autoplay lifecycle', () => {
       }
     );
 
-    await expect(controller.start(1, identity)).resolves.toBe('playing');
+    const start = controller.start(1, identity);
+    video.currentTime = .04;
+    video.dispatchEvent(new Event('timeupdate'));
+    await expect(start).resolves.toBe('playing');
     expect(onProgress).toHaveBeenCalledWith(0, 1, identity);
 
     video.currentTime = 1;

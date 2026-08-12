@@ -1163,6 +1163,105 @@ export function phoneRunAnchorResolverViolations({
   return found;
 }
 
+/**
+ * These four browser-facing failures are execution contracts, not visual
+ * polish. Keep their source guards next to the cross-chunk authority gate so
+ * a future split cannot reintroduce a hidden layer, an uncovered viewport, a
+ * promise-only media start, or a direct-entry blank/missing-glyph reading
+ * surface.
+ */
+export function phoneExecutionPresentationContractViolations({
+  stageRailCssSource,
+  shellCssSource,
+  aodAutoplaySource,
+  stageRuntimeSource,
+  gsapDriverSource,
+  methodStylesSource,
+  navigationStylesSource
+}) {
+  const found = [];
+  const effectRule = stageRailCssSource.match(
+    /stage-canvas\s*>\s*\.r4-ink-transition-canvas\.portrait-scroll-spike__ink\s*\{([^}]*)\}/s
+  )?.[1] ?? '';
+  if (!/z-index:\s*12(?:\s*!important)?\s*;/.test(effectRule)) {
+    found.push('PhoneStageRail.css: shared ink effect must occupy transition lane 12');
+  }
+
+  const canvasRule = stageRailCssSource.match(
+    /\.portrait-scroll-spike__stage-canvas\s*\{([^}]*)\}/s
+  )?.[1] ?? '';
+  if (!/background:\s*var\(--portrait-edge-surface\)\s*;/.test(canvasRule)) {
+    found.push('PhoneStageRail.css: stage canvas must own opaque lvh coverage');
+  }
+  if (
+    !/--portrait-readable-height:\s*100svh\s*;/.test(canvasRule)
+    || !/--portrait-readable-height:\s*100dvh\s*;/.test(canvasRule)
+  ) {
+    found.push('PhoneStageRail.css: stage canvas must track small and dynamic viewport heights');
+  }
+  if (
+    !/height:\s*var\(--portrait-stage-canvas-height\)\s*;/.test(canvasRule)
+    || !/min-height:\s*var\(--portrait-stage-canvas-height\)\s*;/.test(canvasRule)
+  ) {
+    found.push('PhoneStageRail.css: stage canvas must span the retained large viewport');
+  }
+  if (!/--portrait-stage-height:\s*max\(var\(--portrait-live-height\),\s*100lvh\)\s*;/.test(shellCssSource)) {
+    found.push('PhoneStoryShell.css: stage height must retain large-viewport coverage');
+  }
+  for (const selector of [
+    'portrait-scroll-spike__stage',
+    'stage-rail::before'
+  ]) {
+    const rule = stageRailCssSource.match(
+      new RegExp(`(?:\\.${selector.replaceAll('.', '\\.')}|${selector.replaceAll('.', '\\.')})\\s*\\{([^}]*)\\}`, 's')
+    )?.[1] ?? '';
+    if (
+      !/position:\s*fixed\s*;/.test(rule)
+      || !/inset:\s*0\s*;/.test(rule)
+      || /(?:width|height|min-height)\s*:/.test(rule)
+    ) {
+      found.push(`PhoneStageRail.css: fixed ${selector} coverage must use inset without dimension overrides`);
+    }
+  }
+
+  const playResolution = aodAutoplaySource.match(
+    /void\s+Promise\.resolve\(video\.play\(\)\)\.then\(\s*\(\)\s*=>\s*\{([\s\S]*?)\},\s*\(\)\s*=>\s*\{/s
+  )?.[1] ?? '';
+  if (/settleStart\(\s*'playing'\s*\)/.test(playResolution)) {
+    found.push('aod-autoplay.ts: play() resolution must not count as a presented frame');
+  }
+  if (!/if\s*\(\s*progress\s*>\s*0\s*\)\s*settleStart\(\s*'playing'\s*\)/.test(aodAutoplaySource)) {
+    found.push('aod-autoplay.ts: media progress must confirm the first presented frame');
+  }
+  const autoplayStart = stageRuntimeSource.indexOf(
+    'aodAdapter.startAutoplay(direction, identity)'
+  );
+  const fullMotionPresented = stageRuntimeSource.indexOf(
+    'if (!options.reducedMotion) session[5]();'
+  );
+  if (
+    !stageRuntimeSource.includes('if (options.reducedMotion) session[5]();')
+    || autoplayStart < 0
+    || fullMotionPresented <= autoplayStart
+  ) {
+    found.push('usePhoneStageRuntime.ts: full-motion AOD must wait for first-frame confirmation');
+  }
+
+  if (
+    !gsapDriverSource.includes('immediateRender: false')
+    || /\};\s*paint\(\);\s*const tween\s*=\s*gsap\.to/s.test(gsapDriverSource)
+  ) {
+    found.push('phone-gsap-driver.ts: direct reading content must fail open before trigger entry');
+  }
+  if (!/@supports\s*\(-webkit-touch-callout:\s*none\)\s*\{[\s\S]*?reading-intro h2,[\s\S]*?steps h3\s*\{[^}]*font-family:\s*var\(--font-sans\)\s*;/s.test(methodStylesSource)) {
+    found.push('PhoneMethodTop.css: phone WebKit direct headings must use the safe CJK fallback');
+  }
+  if (!/@supports\s*\(-webkit-touch-callout:\s*none\)\s*\{[\s\S]*?site-nav \.brand-mark\s*\{[^}]*font-family:\s*var\(--font-sans\)\s*;/s.test(navigationStylesSource)) {
+    found.push('StoryNav.css: phone WebKit brand mark must use the safe CJK fallback');
+  }
+  return found;
+}
+
 const violations = [];
 
 for (const file of await filesBelow(productionDir)) {
@@ -1296,6 +1395,16 @@ const runtimeSource = await readFile(phoneRuntimePath, 'utf8');
 if (!runtimeSource.includes('createPhoneStoryRuntime')) {
   violations.push(`${display(phoneRuntimePath)}: route-local runtime factory is missing`);
 }
+
+violations.push(...phoneExecutionPresentationContractViolations({
+  stageRailCssSource: await readFile(path.join(phoneDir, 'PhoneStageRail.css'), 'utf8'),
+  shellCssSource: phoneShellCssSource,
+  aodAutoplaySource: await readFile(path.join(phoneDir, 'aod-autoplay.ts'), 'utf8'),
+  stageRuntimeSource: await readFile(path.join(phoneDir, 'usePhoneStageRuntime.ts'), 'utf8'),
+  gsapDriverSource: await readFile(path.join(phoneDir, 'phone-gsap-driver.ts'), 'utf8'),
+  methodStylesSource: await readFile(path.join(phoneDir, 'scenes', 'PhoneMethodTop.css'), 'utf8'),
+  navigationStylesSource: await readFile(path.join(productionDir, 'StoryNav.css'), 'utf8')
+}));
 
 for (const file of await filesBelow(path.join(phoneDir, 'scenes'))) {
   const source = await readFile(file, 'utf8');

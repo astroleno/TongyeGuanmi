@@ -52,6 +52,19 @@ describe('phone stage AOD resource selection', () => {
     expect(stageRuntimeSource).not.toContain('identityForAod(snapshotRef.current, direction)');
   });
 
+  it('unlocks full-motion AOD only after the adapter confirms a real first frame', () => {
+    const start = stageRuntimeSource.indexOf(
+      'aodAdapter.startAutoplay(direction, identity)'
+    );
+    const fullMotionPresented = stageRuntimeSource.indexOf(
+      'if (!options.reducedMotion) session[5]();'
+    );
+
+    expect(stageRuntimeSource).toContain('if (options.reducedMotion) session[5]();');
+    expect(start).toBeGreaterThan(-1);
+    expect(fullMotionPresented).toBeGreaterThan(start);
+  });
+
   it('retries a prepared AOD operation after React receives its immutable transaction snapshot', () => {
     expect(stageRuntimeSource).toContain(
       'syncPhoneRuntimeDiagnostics(options.orchestrator)'

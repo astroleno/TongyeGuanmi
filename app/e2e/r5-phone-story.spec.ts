@@ -688,6 +688,75 @@ async function cssBooleanContractViolations(page: Page) {
   });
 }
 
+async function phoneViewportCoverageEvidence(page: Page) {
+  return page.evaluate(() => {
+    const canvas = document.querySelector<HTMLElement>(
+      '.portrait-scroll-spike__stage-canvas'
+    );
+    if (!canvas) throw new Error('phone stage coverage canvas is missing');
+    const rect = canvas.getBoundingClientRect();
+    const visualViewport = window.visualViewport;
+    const left = visualViewport?.offsetLeft ?? 0;
+    const top = visualViewport?.offsetTop ?? 0;
+    const width = visualViewport?.width ?? window.innerWidth;
+    const height = visualViewport?.height ?? window.innerHeight;
+    return {
+      viewport: { left, top, right: left + width, bottom: top + height },
+      coverage: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+      background: getComputedStyle(canvas).backgroundColor
+    };
+  });
+}
+
+function expectPhoneViewportCoverage(
+  evidence: Awaited<ReturnType<typeof phoneViewportCoverageEvidence>>
+): void {
+  expect(evidence.background).not.toBe('rgba(0, 0, 0, 0)');
+  expect(evidence.coverage.left).toBeLessThanOrEqual(evidence.viewport.left + 1);
+  expect(evidence.coverage.top).toBeLessThanOrEqual(evidence.viewport.top + 1);
+  expect(evidence.coverage.right).toBeGreaterThanOrEqual(evidence.viewport.right - 1);
+  expect(evidence.coverage.bottom).toBeGreaterThanOrEqual(evidence.viewport.bottom - 1);
+}
+
+async function phoneInkEffectEvidence(page: Page) {
+  return page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      '.portrait-scroll-spike__stage-canvas > .r4-ink-transition-canvas.portrait-scroll-spike__ink'
+    );
+    if (!canvas) {
+      return {
+        ink: null,
+        visibility: 'hidden',
+        opacity: 0,
+        zIndex: '',
+        endpointCount: 0,
+        endpointZIndexes: [] as string[],
+        canvasIndex: -1,
+        endpointIndices: [] as number[]
+      };
+    }
+    const endpoints = Array.from(document.querySelectorAll<HTMLElement>(
+      '[data-phone-surface-role="transition-source"], [data-phone-surface-role="transition-receiver"]'
+    ));
+    const siblings = Array.from(canvas.parentElement?.children ?? []);
+    const canvasIndex = siblings.indexOf(canvas);
+    const endpointIndices = endpoints.map((endpoint) => (
+      endpoint.parentElement === canvas.parentElement ? siblings.indexOf(endpoint) : -1
+    ));
+    const style = getComputedStyle(canvas);
+    return {
+      ink: canvas.dataset.portraitInk ?? null,
+      visibility: style.visibility,
+      opacity: Number.parseFloat(style.opacity || '1'),
+      zIndex: style.zIndex,
+      endpointCount: endpoints.length,
+      endpointZIndexes: endpoints.map((endpoint) => getComputedStyle(endpoint).zIndex),
+      canvasIndex,
+      endpointIndices
+    };
+  });
+}
+
 function assertTransitionTrace(
   states: readonly PhoneTransitionTraceState[],
   from: PhoneStableScene,
@@ -1345,6 +1414,126 @@ test('Task 10 verifies every formal direct entry plus hash, menu, and history', 
   await assertStablePhoneHold(page, 'method-top');
   await page.goForward({ waitUntil: 'domcontentloaded' });
   await assertStablePhoneHold(page, 'services');
+});
+
+test('Task 10 blocks production phone release on direct content, live ink, or viewport coverage regressions', async ({ page }, testInfo) => {
+  test.skip(
+    !['mobile-chromium', 'mobile-webkit'].includes(testInfo.project.name),
+    'the execution presentation gate runs in the mandatory portrait phone projects'
+  );
+  test.setTimeout(90_000);
+  await installColdPhoneRuntimeProbe(page);
+
+  await visitFormal(page, '/?v=47#method', 'method-top');
+  const directReading = await page.evaluate(() => {
+    const steps = Array.from(document.querySelectorAll<HTMLElement>(
+      '.portrait-scroll-spike__steps li'
+    ));
+    const visibleViewportSteps = steps.filter((step) => {
+      const rect = step.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+    return {
+      count: steps.length,
+      opacities: steps.map((step) => Number.parseFloat(getComputedStyle(step).opacity || '1')),
+      visibleViewportSteps: visibleViewportSteps.length,
+      headings: steps.map((step) => step.querySelector('h3')?.textContent?.trim() ?? ''),
+      headingFont: getComputedStyle(steps[0]?.querySelector('h3') ?? steps[0]!).fontFamily,
+      brandMark: document.querySelector('.site-nav .brand-mark')?.textContent?.trim() ?? '',
+      brandMarkFont: (() => {
+        const mark = document.querySelector('.site-nav .brand-mark');
+        return mark ? getComputedStyle(mark).fontFamily : '';
+      })()
+    };
+  });
+  expect(directReading.count).toBe(5);
+  expect(directReading.opacities.every((opacity) => opacity >= .99)).toBe(true);
+  expect(directReading.visibleViewportSteps).toBeGreaterThan(0);
+  expect(directReading.headings).toEqual(['识场', '立法', '共创', '成器', '陪跑']);
+  expect(directReading.brandMark).toBe('同');
+  if (testInfo.project.name === 'mobile-webkit') {
+    expect(directReading.headingFont).toContain('PingFang SC');
+    expect(directReading.brandMarkFont).toContain('PingFang SC');
+  }
+
+  await page.goto('/?v=47&r5ink=1', { waitUntil: 'domcontentloaded' });
+  await assertStablePhoneHold(page, 'hero');
+  const originalViewport = page.viewportSize();
+  if (!originalViewport) throw new Error('portrait phone viewport is unavailable');
+  for (const height of [
+    originalViewport.height,
+    Math.max(640, originalViewport.height - 160),
+    originalViewport.height + 80,
+    originalViewport.height
+  ]) {
+    await page.setViewportSize({ width: originalViewport.width, height });
+    await page.waitForTimeout(250);
+    expectPhoneViewportCoverage(await phoneViewportCoverageEvidence(page));
+  }
+
+  await waitForNewWheelEpoch(page);
+  let ink: Awaited<ReturnType<typeof phoneInkEffectEvidence>> | undefined;
+  for (let pulse = 0; pulse < 64; pulse += 1) {
+    await inputPhoneDelta(page, 250);
+    await page.waitForTimeout(75);
+    const candidate = await phoneInkEffectEvidence(page);
+    if (
+      candidate.ink === 'hero-pattern'
+      && candidate.visibility === 'visible'
+      && candidate.opacity > .99
+      && candidate.endpointCount === 2
+    ) {
+      ink = candidate;
+      break;
+    }
+  }
+  expect(ink, 'Hero → Pattern must expose the shared ink effect over its endpoint pair').toBeTruthy();
+  if (!ink) return;
+  expect(ink.zIndex).toBe('12');
+  expect(ink.endpointZIndexes).toEqual(['12', '12']);
+  expect(ink.endpointIndices.every((index) => index >= 0)).toBe(true);
+  expect(ink.canvasIndex).toBeGreaterThan(Math.max(...ink.endpointIndices));
+});
+
+test('Task 10 rolls a play-promise-without-frame back to a free AOD hold', async ({ page }, testInfo) => {
+  test.skip(
+    !['mobile-chromium', 'mobile-webkit'].includes(testInfo.project.name),
+    'the media first-frame recovery gate runs in the mandatory portrait phone projects'
+  );
+  test.setTimeout(90_000);
+  await page.addInitScript(() => {
+    const nativePlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function stalledAodPlay() {
+      if (this.hasAttribute('data-aod-figure-video')) return Promise.resolve();
+      return nativePlay.call(this);
+    };
+  });
+  await installColdPhoneRuntimeProbe(page);
+  await visitFormal(page, '/?v=47', 'hero');
+  await driveFrontScrollRun(page, 'hero', 'pattern', 1);
+  await driveFrontScrollRun(page, 'pattern', 'star-map', 1);
+  await driveFrontScrollRun(page, 'star-map', 'aod-animation', 1);
+  const shell = page.locator(LIVE_PHONE_ROOT);
+  await waitForNewWheelEpoch(page);
+  let started = false;
+  for (let pulse = 0; pulse < 32; pulse += 1) {
+    await inputPhoneDelta(page, 250);
+    await page.waitForTimeout(75);
+    if (await shell.getAttribute('data-phone-cursor') !== 'hold:aod-animation') {
+      started = true;
+      break;
+    }
+  }
+  expect(started, 'AOD input must claim one transaction before its decoder stalls').toBe(true);
+  await expect.poll(async () => ({
+    cursor: await shell.getAttribute('data-phone-cursor'),
+    input: await shell.getAttribute('data-phone-input-state'),
+    session: await shell.getAttribute('data-phone-session')
+  }), { timeout: 12_000 }).toEqual({
+    cursor: 'hold:aod-animation',
+    input: 'free',
+    session: null
+  });
 });
 
 test('Task 10 preserves formal scope and validates the Brand–Lab QA route', async ({ page }) => {

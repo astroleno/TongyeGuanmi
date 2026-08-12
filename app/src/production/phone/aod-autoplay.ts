@@ -149,15 +149,19 @@ export function createPhoneAodAutoplay(
   let reverseStartedAt: number | undefined;
   let executionIdentity: PhoneExecutionToken | null = null;
   let resolveStart: ((result: PhoneAodStartResult) => void) | undefined;
+  let pendingStartResult: Promise<PhoneAodStartResult> | undefined;
 
-  const beginStartResult = () => (
-    new Promise<PhoneAodStartResult>((resolve) => {
+  const beginStartResult = () => {
+    const result = new Promise<PhoneAodStartResult>((resolve) => {
       resolveStart = resolve;
-    })
-  );
+    });
+    pendingStartResult = result;
+    return result;
+  };
   const settleStart = (result: PhoneAodStartResult) => {
     const resolve = resolveStart;
     resolveStart = undefined;
+    pendingStartResult = undefined;
     resolve?.(result);
   };
 
@@ -216,6 +220,8 @@ export function createPhoneAodAutoplay(
     playPending = false;
     cancelScheduledFrame();
     video.pause();
+    // An end event is itself decoder presentation evidence.
+    settleStart('playing');
     if (import.meta.env.DEV) {
       video.dataset.phoneAodAutoplay = completedDirection === 1
         ? 'complete-forward'
@@ -231,6 +237,9 @@ export function createPhoneAodAutoplay(
 
   const renderForwardAndComplete = () => {
     const progress = render();
+    // `play()` resolving is not WebKit frame evidence. The media clock must
+    // advance before the owning transaction may enter its running phase.
+    if (progress > 0) settleStart('playing');
     if (progress >= 0.999) {
       completeRun();
       return true;
@@ -307,7 +316,6 @@ export function createPhoneAodAutoplay(
         }
         playPending = false;
         if (import.meta.env.DEV) video.dataset.phoneAodAutoplay = 'playing';
-        settleStart('playing');
         schedule();
       },
       () => {
@@ -445,7 +453,7 @@ export function createPhoneAodAutoplay(
         } else {
           playForward();
         }
-        return Promise.resolve('playing');
+        return pendingStartResult ?? Promise.resolve('playing');
       }
       stopCurrentRun();
       const result = beginStartResult();
@@ -508,6 +516,7 @@ export function createPhoneAodAutoplay(
       active = false;
       executionIdentity = null;
       disposed = true;
+      settleStart('error');
       playAttempt += 1;
       playPending = false;
       cancelScheduledFrame();

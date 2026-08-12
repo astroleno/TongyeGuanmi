@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { gsap } from 'gsap/gsap-core';
+import { describe, expect, it, vi } from 'vitest';
 import { phoneMotionDriver } from './phone-gsap-driver';
 import { phoneGsapCheckPrefix } from './usePhoneStageRuntime';
 
@@ -22,6 +23,16 @@ function fakeTarget(): HTMLElement {
       visibility: ''
     }
   } as unknown as HTMLElement;
+}
+
+function fakeReadingTarget(): readonly [HTMLOListElement, readonly HTMLElement[]] {
+  const steps = [fakeTarget(), fakeTarget(), fakeTarget()];
+  return [
+    {
+      querySelectorAll: () => steps
+    } as unknown as HTMLOListElement,
+    steps
+  ];
 }
 
 describe('phone GSAP runtime and core driver', () => {
@@ -48,6 +59,23 @@ describe('phone GSAP runtime and core driver', () => {
     expect(target.style.translate).toBe('12px calc(5px + 25%)');
     expect(target.style.scale).toBe('1.2');
     expect(target.style.opacity).toBe('0.4');
+  });
+
+  it('keeps Method reading steps visible until their trigger actually starts', () => {
+    const [target, steps] = fakeReadingTarget();
+    const to = vi.spyOn(gsap, 'to').mockReturnValue({
+      scrollTrigger: { kill: vi.fn() },
+      kill: vi.fn()
+    } as never);
+
+    const dispose = phoneMotionDriver.revealReadingSteps(target);
+
+    for (const step of steps) {
+      expect(step.style.opacity).toBe('');
+      expect(step.style.translate).toBe('');
+    }
+    dispose();
+    to.mockRestore();
   });
 
   it('registers ScrollTrigger on the same lightweight core as the style driver', () => {

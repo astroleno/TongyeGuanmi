@@ -64,6 +64,8 @@
   height: var(--portrait-stage-canvas-height);
   min-height: var(--portrait-stage-canvas-height);
   overflow: clip;
+  /* The lvh canvas, not a fixed pseudo-element, owns persistent edge coverage. */
+  background: var(--portrait-edge-surface);
 }
 
 .portrait-scroll-spike[data-portrait-loader-ready="false"] .portrait-scroll-spike__stage,
@@ -85,7 +87,8 @@
 
 .portrait-scroll-spike__stage-canvas > .r4-ink-transition-canvas.portrait-scroll-spike__ink {
   position: absolute;
-  z-index: 8;
+  /* Transition endpoints and their shared effect occupy the same top lane. */
+  z-index: 12;
   inset: 0;
   display: block;
   width: 100%;

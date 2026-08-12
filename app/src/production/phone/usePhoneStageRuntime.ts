@@ -514,9 +514,9 @@ export function usePhoneStageRuntime(
         const identity = tokenForAodSession(session, direction);
         activeAodSession = session;
         activeAodIdentity = identity;
-        // The packed-alpha poster is already projected; publish its frame
-        // before an adapter's reduced-motion completion can fire synchronously.
-        session[5]();
+        // Reduced motion has a synchronously projected static endpoint. Full
+        // motion waits for the adapter's decoder-backed first frame instead.
+        if (options.reducedMotion) session[5]();
         const timer = window.setTimeout(() => {
           aodTimers.delete(timer);
           if (activeAodSession === session) clearActiveAod();
@@ -525,7 +525,11 @@ export function usePhoneStageRuntime(
         aodTimers.add(timer);
         void aodAdapter.startAutoplay(direction, identity).then(
           (result) => {
-            if (result === 'playing' || !session[4]()) return;
+            if (!session[4]()) return;
+            if (result === 'playing') {
+              if (!options.reducedMotion) session[5]();
+              return;
+            }
             window.clearTimeout(timer);
             aodTimers.delete(timer);
             if (activeAodSession === session) clearActiveAod();

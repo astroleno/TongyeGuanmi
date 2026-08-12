@@ -155,6 +155,19 @@
   line-height: 1.2;
 }
 
+/*
+ * Some iOS WebKit language packs report Songti SC as available while mapping
+ * these direct-entry ideographs to the missing-glyph face. Keep the serif
+ * system elsewhere, but make the phone's immediately readable headings use
+ * the CJK stack that Mobile Safari actually presents.
+ */
+@supports (-webkit-touch-callout: none) {
+  html[data-portrait-spike="b"] .portrait-scroll-spike__reading-intro h2,
+  html[data-portrait-spike="b"] .portrait-scroll-spike__steps h3 {
+    font-family: var(--font-sans);
+  }
+}
+
 .portrait-scroll-spike__steps p {
   margin: 8px 0 0;
   color: rgba(30, 33, 28, .74);

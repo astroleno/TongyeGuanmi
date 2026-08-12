@@ -25,6 +25,14 @@ const craneStyles = readFileSync(
   new URL('../../scenes/crane-animation/phone/PhoneCrane.css', import.meta.url),
   'utf8'
 );
+const methodStyles = readFileSync(
+  new URL('./scenes/PhoneMethodTop.css', import.meta.url),
+  'utf8'
+);
+const navigationStyles = readFileSync(
+  new URL('../StoryNav.css', import.meta.url),
+  'utf8'
+);
 const nativeEndpointStyles = [
   '../../scenes/brand/phone/PhoneBrand.css',
   '../../scenes/services/phone/PhoneServices.css',
@@ -49,6 +57,12 @@ describe('phone layer ownership contract', () => {
     );
     expect(stageStyles).toMatch(
       /phone-surface-role="transition-receiver"[^}]*z-index:\s*12/s
+    );
+  });
+
+  it('places the shared ink effect in the transition endpoint lane', () => {
+    expect(stageStyles).toMatch(
+      /stage-canvas\s*>\s*\.r4-ink-transition-canvas\.portrait-scroll-spike__ink\s*\{[^}]*z-index:\s*12/s
     );
   });
 
@@ -80,6 +94,9 @@ describe('phone layer ownership contract', () => {
     expect(stageStyles).not.toMatch(
       /stage-rail::before\s*\{[^}]*position:\s*fixed[^}]*(?:width|height|min-height):/s
     );
+    expect(stageStyles).toMatch(
+      /portrait-scroll-spike__stage-canvas\s*\{[^}]*background:\s*var\(--portrait-edge-surface\)/s
+    );
     for (const styles of nativeEndpointStyles) {
       expect(styles).toContain('100svh');
       expect(styles).toContain('100dvh');
@@ -87,5 +104,14 @@ describe('phone layer ownership contract', () => {
     expect(patternStyles).not.toContain('linear-gradient(180deg');
     expect(phStyles).toMatch(/\.phone-ph\s*\{[^}]*background:\s*#9889a5/s);
     expect(craneStyles).toMatch(/\.phone-crane\s*\{[^}]*background:\s*#ede4d2/s);
+  });
+
+  it('uses a real iOS CJK fallback for phone direct-entry headings and mark', () => {
+    expect(methodStyles).toMatch(
+      /@supports\s*\(-webkit-touch-callout:\s*none\)[\s\S]*?reading-intro h2,[\s\S]*?steps h3[\s\S]*?font-family:\s*var\(--font-sans\)/
+    );
+    expect(navigationStyles).toMatch(
+      /@supports\s*\(-webkit-touch-callout:\s*none\)[\s\S]*?site-nav \.brand-mark[\s\S]*?font-family:\s*var\(--font-sans\)/
+    );
   });
 });

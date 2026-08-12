@@ -35,11 +35,15 @@ export default defineConfig({
     },
     {
       name: 'mobile-chromium',
-      use: { ...devices['Pixel 7 landscape'], channel: 'chrome' }
+      use: {
+        ...devices['Pixel 7'],
+        channel: 'chrome',
+        viewport: { width: 390, height: 844 }
+      }
     },
     {
       name: 'mobile-webkit',
-      use: { ...devices['iPhone 15 landscape'], browserName: 'webkit' }
+      use: { ...devices['iPhone 15'], browserName: 'webkit' }
     }
   ]
 });

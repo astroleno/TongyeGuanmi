@@ -85,6 +85,13 @@
   line-height: 1;
 }
 
+/* See PhoneMethodTop: preserve a legible CJK mark on phone WebKit. */
+@supports (-webkit-touch-callout: none) {
+  html[data-portrait-spike="b"] .site-nav .brand-mark {
+    font-family: var(--font-sans);
+  }
+}
+
 .site-nav .brand-text {
   font-size: var(--type-navigation-size);
   font-weight: var(--font-weight-strong);
