@@ -1,0 +1,17 @@
+- main [ref=f6e3]:
+  - region "同野观幂移动端视觉叙事" [ref=f6e5]:
+    - generic [ref=f6e6]:
+      - generic:
+        - article:
+          - generic:
+            - generic:
+              - generic "子问老子人物动画":
+                - figure "子问老子"
+  - navigation "主导航" [ref=f6e19]:
+    - generic [ref=f6e20]:
+      - link "同野观幂首页" [ref=f6e21] [cursor=pointer]:
+        - /url: "#top"
+        - generic [ref=f6e22]: 同
+      - button "菜单" [ref=f6e23] [cursor=pointer]
+      - link "预约诊断" [ref=f6e24] [cursor=pointer]:
+        - /url: "#contact"

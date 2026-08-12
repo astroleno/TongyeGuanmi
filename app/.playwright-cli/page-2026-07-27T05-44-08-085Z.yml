@@ -1,0 +1,38 @@
+- main [ref=f5e9]:
+  - region "同野观幂移动端视觉叙事" [ref=f5e11]:
+    - generic [ref=f5e12]:
+      - generic:
+        - article:
+          - generic:
+            - generic:
+              - generic "子问老子人物动画":
+                - figure "子问老子"
+  - list "同野观幂 AI 落地五步" [ref=f5e14]:
+    - listitem [ref=f5e15]:
+      - generic [ref=f5e16]: "01"
+      - heading "识场" [level=3] [ref=f5e17]
+      - paragraph [ref=f5e18]: 先摸清最耗人、最容易断的环节：老师傅一走就带走的本事，先理出来；哪笔钱花得冤，先算清楚。不瞎铺摊子。
+    - listitem [ref=f5e19]:
+      - generic [ref=f5e20]: "02"
+      - heading "立法" [level=3] [ref=f5e21]
+      - paragraph [ref=f5e22]: 给团队定一套能看懂、敢用的规矩。怎么问 AI、什么能信、哪些数据碰不得，先讲清楚，团队才敢用，也不乱用。
+    - listitem [ref=f5e23]:
+      - generic [ref=f5e24]: "03"
+      - heading "共创" [level=3] [ref=f5e25]
+      - paragraph [ref=f5e26]: 拉上你、你的中层和一线老员工一起设计。流程得让一线认账，不然做得再漂亮也推不动。
+    - listitem [ref=f5e27]:
+      - generic [ref=f5e28]: "04"
+      - heading "成器" [level=3] [ref=f5e29]
+      - paragraph [ref=f5e30]: 把摸索出来的东西沉淀成模板、专属 AI 助手、知识库和自动流程。人走了，本事留在公司里。
+    - listitem [ref=f5e31]:
+      - generic [ref=f5e32]: "05"
+      - heading "陪跑" [level=3] [ref=f5e33]
+      - paragraph [ref=f5e34]: 交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。
+  - navigation "主导航" [ref=f5e47]:
+    - generic [ref=f5e48]:
+      - link "同野观幂首页" [ref=f5e49] [cursor=pointer]:
+        - /url: "#top"
+        - generic [ref=f5e50]: 同
+      - button "菜单" [ref=f5e51] [cursor=pointer]
+      - link "预约诊断" [ref=f5e52] [cursor=pointer]:
+        - /url: "#contact"

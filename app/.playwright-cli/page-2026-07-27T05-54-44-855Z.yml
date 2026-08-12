@@ -1,0 +1,65 @@
+- main [ref=f6e3]:
+  - region "同野观幂移动端视觉叙事" [ref=f6e5]:
+    - generic [ref=f6e6]:
+      - generic:
+        - generic:
+          - article:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: 用不上，不算落地
+                  - heading "我们见过太多 “用不上”。" [level=2]:
+                    - generic: 我们见过太多
+                    - generic: “用不上”。
+            - generic:
+              - generic:
+                - list "常见 AI 落地失败方式":
+                  - listitem:
+                    - generic: "01"
+                    - strong: 只培训
+                    - paragraph: 听完很激动，回去照旧。
+                  - listitem:
+                    - generic: "02"
+                    - strong: 只上软件
+                    - paragraph: 账号开了，一线没人碰。
+                  - listitem:
+                    - generic: "03"
+                    - strong: 只交方案
+                    - paragraph: 装订精美，锁进抽屉。
+            - generic:
+              - generic:
+                - paragraph:
+                  - text: 同野观幂做第四种：
+                  - generic:
+                    - generic: 先进现场，
+                    - generic: 再定章法，
+                    - generic: 陪你跑到账上有数。
+  - list "同野观幂 AI 落地五步" [ref=f6e26]:
+    - listitem [ref=f6e27]:
+      - generic [ref=f6e28]: "01"
+      - heading "识场" [level=3] [ref=f6e29]
+      - paragraph [ref=f6e30]: 先摸清最耗人、最容易断的环节：老师傅一走就带走的本事，先理出来；哪笔钱花得冤，先算清楚。不瞎铺摊子。
+    - listitem [ref=f6e31]:
+      - generic [ref=f6e32]: "02"
+      - heading "立法" [level=3] [ref=f6e33]
+      - paragraph [ref=f6e34]: 给团队定一套能看懂、敢用的规矩。怎么问 AI、什么能信、哪些数据碰不得，先讲清楚，团队才敢用，也不乱用。
+    - listitem [ref=f6e35]:
+      - generic [ref=f6e36]: "03"
+      - heading "共创" [level=3] [ref=f6e37]
+      - paragraph [ref=f6e38]: 拉上你、你的中层和一线老员工一起设计。流程得让一线认账，不然做得再漂亮也推不动。
+    - listitem [ref=f6e39]:
+      - generic [ref=f6e40]: "04"
+      - heading "成器" [level=3] [ref=f6e41]
+      - paragraph [ref=f6e42]: 把摸索出来的东西沉淀成模板、专属 AI 助手、知识库和自动流程。人走了，本事留在公司里。
+    - listitem [ref=f6e43]:
+      - generic [ref=f6e44]: "05"
+      - heading "陪跑" [level=3] [ref=f6e45]
+      - paragraph [ref=f6e46]: 交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。
+  - navigation "主导航" [ref=f6e19]:
+    - generic [ref=f6e20]:
+      - link "同野观幂首页" [ref=f6e21] [cursor=pointer]:
+        - /url: "#top"
+        - generic [ref=f6e22]: 同
+      - button "菜单" [ref=f6e23] [cursor=pointer]
+      - link "预约诊断" [ref=f6e24] [cursor=pointer]:
+        - /url: "#contact"

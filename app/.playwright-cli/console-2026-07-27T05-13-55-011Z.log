@@ -1,0 +1,83 @@
+[     145ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[     759ms] [ERROR] %o
+
+%s
+
+%s
+ Error: Disposed phone story
+    at Object.registerSurface (http://127.0.0.1:5173/src/production/phone/phone-story-orchestrator.ts:275:27)
+    at http://127.0.0.1:5173/src/production/phone/scenes/PhoneMethodTop.tsx:98:34
+    at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:18567:20)
+    at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:997:72)
+    at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9411:163)
+    at commitHookLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9391:60)
+    at commitLayoutEffectOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9904:26)
+    at recursivelyTraverseLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:10792:13)
+    at commitLayoutEffectOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9992:13)
+    at recursivelyTraverseLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:10792:13) The above error occurred in the <ForwardRef(PhoneMethodTop2)> component. React will try to recreate this component tree from scratch using the error boundary you provided, PhoneStoryErrorBoundary. @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:7000
+[     762ms] [ERROR] %o
+
+%s
+
+%s
+ Error: Disposed phone story
+    at Object.registerSurface (http://127.0.0.1:5173/src/production/phone/phone-story-orchestrator.ts:275:27)
+    at http://127.0.0.1:5173/src/production/phone/scenes/PhoneMethodTop.tsx:98:34
+    at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:18567:20)
+    at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:997:72)
+    at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9411:163)
+    at commitHookLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9391:60)
+    at reappearLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:10865:13)
+    at doubleInvokeEffectsOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:13339:74)
+    at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:997:72)
+    at recursivelyTraverseAndDoubleInvokeEffectsInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:13312:78) The above error occurred in the <ForwardRef(PhoneMethodTop2)> component. React will try to recreate this component tree from scratch using the error boundary you provided, PhoneStoryErrorBoundary. @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:7000
+[    3995ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[  158524ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[  174580ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[  188058ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[  189064ms] [ERROR] %o
+
+%s
+
+%s
+ Error: Disposed phone story
+    at Object.registerSurface (http://127.0.0.1:5173/src/production/phone/phone-story-orchestrator.ts:275:27)
+    at http://127.0.0.1:5173/src/production/phone/usePhoneStageRuntime.ts?t=1785129406581:227:28
+    at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:18567:20)
+    at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:997:72)
+    at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9411:163)
+    at commitHookLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9391:60)
+    at commitLayoutEffectOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9904:26)
+    at recursivelyTraverseLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:10792:13)
+    at commitLayoutEffectOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:10066:20)
+    at recursivelyTraverseLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:10792:13) The above error occurred in the <PhoneStoryShell> component. React will try to recreate this component tree from scratch using the error boundary you provided, PhoneStoryErrorBoundary. @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:7000
+[  191963ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[  277441ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[  287012ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[  290567ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[  454764ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[  454764ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[  454765ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[  454765ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[  457916ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[  466863ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[  470793ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[  822231ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[  965260ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[ 1208244ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 1208245ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 1208248ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 1208248ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 1211358ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[ 1290338ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 1294172ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[ 1318761ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[ 1351364ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[ 1387625ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[ 1509875ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[ 1578906ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0
+[ 1769769ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 1769769ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 1769770ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 1769770ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 1772854ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#method:0

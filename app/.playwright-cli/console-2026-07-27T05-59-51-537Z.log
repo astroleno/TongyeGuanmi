@@ -1,0 +1,240 @@
+[    9019ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 4185476ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 4258931ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 4276040ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 4276041ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 4276068ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 4276068ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 4277102ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 4277865ms] [ERROR] %o
+
+%s
+
+%s
+ TypeError: Cannot read properties of undefined (reading 'semanticScene')
+    at phoneBrandLabCompositeFrame (http://127.0.0.1:5173/src/production/phone/phone-brand-lab-runtime.ts?t=1785136247447:55:43)
+    at render (http://127.0.0.1:5173/src/production/phone/PhoneBrandLabContinuation.tsx?t=1785136267347:340:30)
+    at http://127.0.0.1:5173/src/production/phone/PhoneBrandLabContinuation.tsx?t=1785136267347:381:7
+    at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:18567:20)
+    at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:997:72)
+    at commitHookEffectListMount (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9411:163)
+    at commitHookLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9391:60)
+    at commitLayoutEffectOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9904:26)
+    at recursivelyTraverseLayoutEffects (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:10792:13)
+    at commitLayoutEffectOnFiber (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:9992:13) The above error occurred in the <ForwardRef(PhoneBrandLabContinuation2)> component. React will try to recreate this component tree from scratch using the error boundary you provided, PhoneStoryErrorBoundary. @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:7000
+[ 4277890ms] TypeError: Cannot read properties of undefined (reading 'semanticScene')
+    at phoneBrandLabCompositeFrame (http://127.0.0.1:5173/src/production/phone/phone-brand-lab-runtime.ts?t=1785136247447:55:43)
+    at render (http://127.0.0.1:5173/src/production/phone/PhoneBrandLabContinuation.tsx?t=1785136267347:340:30)
+[ 4280905ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 4369083ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 4499884ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 4533365ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 4552032ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 4574967ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 4920000ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 5032049ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 5053844ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 5097886ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 5297605ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 7066331ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 7067524ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 7071609ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 7229225ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 7229337ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 7233471ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 7757398ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 7757829ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 7762108ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 7937664ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 7937664ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 7937664ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 7937664ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 7937714ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:5173/src/production/phone/PhoneLabContactContinuation.tsx?t=1785139929139:0
+[ 7937734ms] [INFO] [hmr] /src/production/phone/PhoneLabContactContinuation.tsx failed to apply HMR as it's within a circular import. Reloading page to reset the execution order. To debug and break the circular import, you can run `vite --debug hmr` to log the circular dependency path if a file change triggered it. @ http://127.0.0.1:5173/@vite/client:817
+[ 7937734ms] [ERROR] [vite] Failed to reload /src/production/phone/PhoneLabContactContinuation.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://127.0.0.1:5173/@vite/client:808
+[ 7937734ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 7938081ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 7942160ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 8066927ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 8067011ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 8071132ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 8106018ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 8106116ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 8110122ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 8161153ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 8161256ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 8165394ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 8266153ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 8411704ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 8415626ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 8458947ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 8669175ms] [INFO] [hmr] /src/production/phone/PhoneLabContactContinuation.tsx failed to apply HMR as it's within a circular import. Reloading page to reset the execution order. To debug and break the circular import, you can run `vite --debug hmr` to log the circular dependency path if a file change triggered it. @ http://127.0.0.1:5173/@vite/client:817
+[ 8669175ms] [ERROR] [vite] SyntaxError: The requested module '/src/production/phone/phone-story-state.ts?t=1785140660689' does not provide an export named 'selectPhoneCinematicSnapshot' @ http://127.0.0.1:5173/@vite/client:808
+[ 8669177ms] [ERROR] [vite] Failed to reload /src/production/phone/PhoneLabContactContinuation.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://127.0.0.1:5173/@vite/client:808
+[ 8669209ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 8669209ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 8669210ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 8669210ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 8669432ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 8670078ms] [ERROR] %o
+
+%s
+
+%s
+ SyntaxError: The requested module '/src/production/phone/phone-story-state.ts?t=1785140660689' does not provide an export named 'selectPhoneCinematicSnapshot' The above error occurred in one of your React components. React will try to recreate this component tree from scratch using the error boundary you provided, PhoneStoryErrorBoundary. @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:7000
+[ 8673028ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 9113104ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 9113237ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 9117516ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 9176534ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 9176639ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 9180775ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 9303012ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[ 9303112ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[ 9307268ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 9357228ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9357228ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9357228ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9357228ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9360282ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 9401549ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 9463033ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 9788031ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9788031ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9788033ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9788033ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9791186ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[ 9988086ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9988086ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9988086ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9988086ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[ 9991175ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[10074308ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10074308ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10074308ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10074308ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10077406ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[10199630ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10199630ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10199630ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10199630ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10202808ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[10444537ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10444537ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10444537ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10444537ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[10444609ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864
+[10445053ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[10449323ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[11022485ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11022485ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11022489ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11022489ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11022874ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[11026724ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[11275650ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11275650ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11275652ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11275652ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11278785ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[11352877ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11352877ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11352877ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11352877ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11356028ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[11411654ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11411654ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11411655ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11411655ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11414720ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[11422603ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11422603ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11422603ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11422603ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11425660ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[11442044ms] [ERROR] %o
+
+%s
+
+%s
+ TypeError: entry is not iterable
+    at usePhoneStoryEntry (http://127.0.0.1:5173/src/production/phone/usePhoneStoryEntry.ts?t=1785143433542:25:7)
+    at PhoneStoryShell (http://127.0.0.1:5173/src/production/phone/PhoneStoryShell.tsx?t=1785143433542:50:17)
+    at Object.react_stack_bottom_frame (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:18509:20)
+    at renderWithHooks (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:5654:24)
+    at updateFunctionComponent (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:7475:21)
+    at beginWork (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:8525:20)
+    at runWithFiberInDEV (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:997:72)
+    at performUnitOfWork (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:12561:98)
+    at workLoopSync (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:12424:43)
+    at renderRootSync (http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:12408:13) The above error occurred in the <PhoneStoryShell> component. React will try to recreate this component tree from scratch using the error boundary you provided, PhoneStoryErrorBoundary. @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:7000
+[11445016ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[11794594ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11794594ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11794594ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11794594ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11794644ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11794644ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11798378ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[11817896ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11817896ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11817896ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11817896ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[11820979ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[12047500ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12047500ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12047500ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12047501ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12050580ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[12062522ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12062522ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12062522ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12062522ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12065553ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[12079138ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12079138ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12079138ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12079138ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12082161ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[12113003ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12113003ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12113003ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12113003ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12116057ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[12152942ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12152942ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12152942ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12152942ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[12156019ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[12288982ms] [ERROR] [vite] SyntaxError: The requested module '/src/production/phone/phone-entry-plan.ts?t=1785144280502' does not provide an export named 'phoneStoryEntryTupleFromHash' @ http://127.0.0.1:5173/@vite/client:808
+[12288984ms] [ERROR] [vite] Failed to reload /src/production/phone/PhoneStoryShell.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://127.0.0.1:5173/@vite/client:808
+[12291983ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[12309441ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[12685256ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[12743359ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[13255479ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[13265857ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[13905040ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[14554784ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[15262200ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[15817664ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[16240828ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[16390583ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[16509982ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[17810527ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[17810591ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[17814765ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[17859050ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[17862950ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[18144547ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[18144547ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[18144549ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[18144549ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[18144778ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/react-dom_client.js?v=09315015:20102
+[18148641ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[18293646ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[18293646ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[18293647ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[18293647ms] [WARNING] Ink field shader compile failed: null @ http://127.0.0.1:5173/src/vendor/ink-scene-transition.js:131
+[18296824ms] [WARNING] The resource http://127.0.0.1:5173/assets/fonts/qiji-title-subset.ttf was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://127.0.0.1:5173/?v=47#figure2-proof:0
+[18698512ms] [LOG] [vite] server connection lost. Polling for restart... @ http://127.0.0.1:5173/@vite/client:864

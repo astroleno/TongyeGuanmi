@@ -1,0 +1,162 @@
+- generic [active] [ref=e1]:
+  - generic "正在进入同人于野，观象知幂" [ref=e2]
+  - main [ref=e5]: 正在加载故事…
+  - generic [ref=e6]:
+    - banner [ref=e7]:
+      - link "同野观幂首页" [ref=e8] [cursor=pointer]:
+        - /url: "#home"
+        - text: 同野观幂
+      - navigation "章节导航" [ref=e9]:
+        - link "方法" [ref=e10] [cursor=pointer]:
+          - /url: "#method"
+        - link "场景" [ref=e11] [cursor=pointer]:
+          - /url: "#services"
+        - link "留学" [ref=e12] [cursor=pointer]:
+          - /url: "#education"
+        - link "联系" [ref=e13] [cursor=pointer]:
+          - /url: "#contact"
+    - main [ref=e14]:
+      - generic [ref=e15]:
+        - heading "同" [level=1] [ref=e16]
+        - paragraph [ref=e17]: 野
+        - paragraph [ref=e18]: 观
+        - paragraph [ref=e19]: 幂
+        - paragraph [ref=e20]: 你的同行不是更聪明，只是更早把 AI 用进了生意里。
+      - generic [ref=e21]:
+        - heading "一句话讲清我们干什么" [level=2] [ref=e22]
+        - paragraph [ref=e23]: 让 AI 从一场培训，变成账上的数字。
+        - paragraph [ref=e24]: 我们不卖课、不卖软件，而是进到你的业务现场，把 AI 做成团队天天在用、月底对得上账的东西。
+        - paragraph [ref=e25]: AI 不是技术专家的玩具。它该帮你省下不该花的钱、多接几个客户，再把臃肿的岗位精简下来——能管好这几件事的，才是真利器。它决定了未来三年你是领跑还是追赶。
+      - generic [ref=e26]:
+        - heading "先识场，再立法" [level=2] [ref=e27]
+        - paragraph [ref=e28]: 先看懂，
+        - paragraph [ref=e29]: 再用上。
+        - paragraph [ref=e30]: 你的生意怎么跑，你比谁都懂。我们不重画流程，先把现场的耗损、断点和慢单找出来，再决定 AI 接到哪里。
+        - paragraph [ref=e31]: 现场
+        - paragraph [ref=e32]: 钱耗在哪，人卡在哪，订单为什么慢。
+        - paragraph [ref=e33]: 章法
+        - paragraph [ref=e34]: 什么能问，哪些能信，哪些数据碰不得。
+        - paragraph [ref=e35]: "01"
+        - paragraph [ref=e36]: 识场
+        - paragraph [ref=e37]: 先摸清最耗人、最容易断的环节：老师傅一走就带走的本事，先理出来；哪笔钱花得冤，先算清楚。不瞎铺摊子。
+        - paragraph [ref=e38]: "02"
+        - paragraph [ref=e39]: 立法
+        - paragraph [ref=e40]: 给团队定一套能看懂、敢用的规矩。怎么问 AI、什么能信、哪些数据碰不得，先讲清楚，团队才敢用，也不乱用。
+        - paragraph [ref=e41]: "03"
+        - paragraph [ref=e42]: 共创
+        - paragraph [ref=e43]: 拉上你、你的中层和一线老员工一起设计。流程得让一线认账，不然做得再漂亮也推不动。
+        - paragraph [ref=e44]: "04"
+        - paragraph [ref=e45]: 成器
+        - paragraph [ref=e46]: 把摸索出来的东西沉淀成模板、专属 AI 助手、知识库和自动流程。人走了，本事留在公司里。
+        - paragraph [ref=e47]: "05"
+        - paragraph [ref=e48]: 陪跑
+        - paragraph [ref=e49]: 交付完不是结束。我们盯着用没用、好不好用，持续调、持续教，直到 AI 长进团队的日常。
+        - paragraph [ref=e50]: 用不上，不算落地
+        - paragraph [ref=e51]: 我们见过太多
+        - paragraph [ref=e52]: “用不上”。
+        - paragraph [ref=e53]: 同野观幂做第四种：先进现场，再定章法，陪你跑到账上有数。
+        - paragraph [ref=e54]: "01"
+        - paragraph [ref=e55]: 只培训
+        - paragraph [ref=e56]: 听完很激动，回去照旧。
+        - paragraph [ref=e57]: "02"
+        - paragraph [ref=e58]: 只上软件
+        - paragraph [ref=e59]: 账号开了，一线没人碰。
+        - paragraph [ref=e60]: "03"
+        - paragraph [ref=e61]: 只交方案
+        - paragraph [ref=e62]: 装订精美，锁进抽屉。
+      - generic [ref=e63]:
+        - heading "同野" [level=2] [ref=e64]
+        - paragraph [ref=e65]: 在开放真实的场域中并肩协作。
+        - paragraph [ref=e66]: “同野”取自《易经》“同人于野”。AI 转型，难的从来不是买工具。方向怎么定、中层怎么带、一线怎么用，得理出一条线。
+        - paragraph [ref=e67]: 观幂
+        - paragraph [ref=e68]: 看见复杂系统背后的结构与门道。
+        - paragraph [ref=e69]: 我们不爱炫技术。我们在意的是 AI 在你的生意里能不能让人看得懂、用得顺、长久用下去，而不是热闹三个月就没人提了。
+      - generic [ref=e70]:
+        - heading "先小做，再扩" [level=2] [ref=e71]
+        - paragraph [ref=e72]: 先跑通，
+        - paragraph [ref=e73]: 再铺开。
+        - paragraph [ref=e74]: 不必一上来就大动干戈。先挑一个环节，几天内做出能跑的东西给你看，值不值、扩不扩，你看着实物决定。
+        - paragraph [ref=e75]: "01"
+        - paragraph [ref=e76]: AI 转型咨询
+        - paragraph [ref=e77]: 帮你理清楚哪儿该上 AI、能省多少、先动哪一步。给你一张看得懂、能落地的路线图，不是一本锁进抽屉的方案书。
+        - paragraph [ref=e78]: 管理层关门对齐会 / 先动哪个环节，排清顺序 / 风险与数据安全把关
+        - paragraph [ref=e79]: "02"
+        - paragraph [ref=e80]: 企业培训
+        - paragraph [ref=e81]: 培训不按热闹算，按会不会用算。老板、中层、一线都要把 AI 用顺手，开会不再是你一个人懂、底下没人接得住。
+        - paragraph [ref=e82]: 怎么把活儿交代给 AI / 哪些活交给 AI、哪些人把关 / 按岗位定制课程
+        - paragraph [ref=e83]: "03"
+        - paragraph [ref=e84]: 场景共创
+        - paragraph [ref=e85]: 把你嘴里那句“我也说不清想要啥”的模糊需求，拆成做得出、用得上、能复用的具体 AI 应用。
+        - paragraph [ref=e86]: 销售获客与跟单 / 电商素材与投放复盘 / 核心经验与文档整理
+        - paragraph [ref=e87]: "04"
+        - paragraph [ref=e88]: 工具实施与陪跑
+        - paragraph [ref=e89]: 帮你搭模板、建知识库、做专属 AI 助手和自动流程，然后陪着用起来，让“装了”真的变成“在用”。
+        - paragraph [ref=e90]: 专属 AI 助手搭建 / 知识库落地 / 定期复盘优化
+      - generic [ref=e91]:
+        - heading "同样一件事，有人报三万有人报三千万。我们帮你看真生意里的" [level=2] [ref=e92]
+        - paragraph [ref=e93]: AI
+        - paragraph [ref=e94]: ——投流怎么花、店怎么卖、车间怎么排。
+        - paragraph [ref=e95]: 报价差距
+        - paragraph [ref=e96]: 3万 / 3000万
+        - paragraph [ref=e97]: 先看三件事
+        - paragraph [ref=e98]: 投流 · 门店 · 车间
+        - paragraph [ref=e99]: 落到现场
+        - paragraph [ref=e100]: 先看账，
+        - paragraph [ref=e101]: 再定工具。
+        - paragraph [ref=e102]: 我们把场景拆成可判断的小题，不听概念，先看钱、单、人、货和流程。
+        - paragraph [ref=e103]: "01"
+        - paragraph [ref=e104]: 选型与决策
+        - paragraph [ref=e105]: 报价、方案、招人，分不清谁靠谱？我们陪你把账算清，你只管拍板。
+        - paragraph [ref=e106]: "02"
+        - paragraph [ref=e107]: 知识管理
+        - paragraph [ref=e108]: 老师傅一走，本事就带走了？把团队经验存成 AI 随时能调的活资产。
+        - paragraph [ref=e109]: "03"
+        - paragraph [ref=e110]: 电商投放
+        - paragraph [ref=e111]: 素材、投放、客资连成一条线，钱花出去几个小时就知道值不值，不用等一个月。
+        - paragraph [ref=e112]: "04"
+        - paragraph [ref=e113]: 销售增长
+        - paragraph [ref=e114]: 摸透客户、磨好话术、给没成交的线索自动备好材料，让销售把时间花在成单上。
+        - paragraph [ref=e115]: "05"
+        - paragraph [ref=e116]: 运营提效
+        - paragraph [ref=e117]: 天天重复的对账单、走流程、回消息，交给 AI 自动跑，省下的人去干更值钱的活。
+        - paragraph [ref=e118]: "06"
+        - paragraph [ref=e119]: 供应链与采购
+        - paragraph [ref=e120]: 比价、合同跟踪、库存预警这些琐碎盯梢，交给 AI 看着，账目更清爽。
+      - generic [ref=e121]:
+        - heading "你为生意请的这套 AI 打法，也能用在孩子身上。" [level=2] [ref=e122]
+        - paragraph [ref=e123]: 先会用
+        - paragraph [ref=e124]: 资料 · 研究 · 表达
+        - paragraph [ref=e125]: 再出海
+        - paragraph [ref=e126]: 课堂 · 申请 · 竞争
+        - paragraph [ref=e127]: 给企业家的延伸服务
+        - paragraph [ref=e128]: 先会用，
+        - paragraph [ref=e129]: 再出海。
+        - paragraph [ref=e130]: 很多老板做着做着会问一句，孩子出国，是不是也该会用这些工具？答案是会。查资料、做研究、写申请、适应海外课堂，用当下的工具，准备当下的竞争。
+        - paragraph [ref=e131]: "01"
+        - paragraph [ref=e132]: AI 工具使用
+        - paragraph [ref=e133]: 让孩子掌握一套属于自己的高效 AI 学习方法：查资料、读东西、做展示这些事先用顺手，比同龄人快一截。
+        - paragraph [ref=e134]: "02"
+        - paragraph [ref=e135]: 研究项目
+        - paragraph [ref=e136]: 把孩子的一个兴趣，做成一个拿得出手的研究项目，申请材料里就有了别人没有的东西。
+        - paragraph [ref=e137]: "03"
+        - paragraph [ref=e138]: 申请表达
+        - paragraph [ref=e139]: 把零散的经历和想法理出一条清楚的主线，让孩子的个人故事真正打动招生官。
+        - paragraph [ref=e140]: "04"
+        - paragraph [ref=e141]: 海外学习准备
+        - paragraph [ref=e142]: 提前练好大学要用的查资料、小组协作、课堂表达，出去不慌，也不掉队。
+      - generic [ref=e143]:
+        - heading "START FROM THE FIELD" [level=2] [ref=e144]
+        - paragraph [ref=e145]: 把你拿不准的那个决定，先拿出来聊。
+        - paragraph [ref=e146]: 带上一个正在耗人耗钱的环节、一场谈不拢的管理层会，或者孩子的留学规划。我们先帮你拆成看得懂、落得了地的下一步。一次现场诊断你会拿到三样东西：哪个环节值得上 AI、先后顺序、大概要投入多少。真要做，也是先挑一个环节小做，几天内见到能跑的东西，再谈要不要扩大。聊完再决定要不要合作，不推销、不卖课。
+        - paragraph [ref=e147]: 约一次 AI 现场诊断
+        - paragraph [ref=e148]: 回到首屏
+    - contentinfo [ref=e149]:
+      - generic [ref=e150]:
+        - generic [ref=e151]: © 上海同野观幂科技有限公司
+        - generic [ref=e152]: AI Transformation & Capability Building
+      - generic [ref=e153]:
+        - link "服务备案号 沪ICP备2024086119号-3" [ref=e154] [cursor=pointer]:
+          - /url: https://beian.miit.gov.cn/
+        - link "沪公网安备 31011502406697号（新窗口打开）" [ref=e155] [cursor=pointer]:
+          - /url: https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31011502406697
+          - text: 沪公网安备 31011502406697号
