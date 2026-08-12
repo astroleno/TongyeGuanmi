@@ -161,7 +161,7 @@ export function phoneTransactionActivationCredit(transaction: PhoneTransaction<P
   const { segmentId, direction } = transaction.attempt;
   if (!segmentId || !direction) return null;
   const owner = phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction).activationOwner;
-  return owner === 'source' ? 'physical-epoch' : owner === 'target' ? 'direct-muted-autoplay' : null;
+  return owner === 'none' ? null : owner === 'source' || transaction.claimedPhysicalEpoch !== null && transaction.sourceSceneId !== null && phoneSceneById(transaction.sourceSceneId).plane === 'native' ? 'physical-epoch' : 'direct-muted-autoplay';
 }
 
 function transactionFor(

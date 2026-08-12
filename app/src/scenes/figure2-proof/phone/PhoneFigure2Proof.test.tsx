@@ -128,7 +128,7 @@ describe('clean PhoneFigure2Proof leaf', () => {
     expect(renderHold).toHaveBeenCalled();
   });
 
-  it('keeps the closing proof endpoint while reversing into Figure2', async () => {
+  it('keeps the captured proof source endpoint while reversing into Figure2', async () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     const mount = reportFixture();
@@ -136,11 +136,11 @@ describe('clean PhoneFigure2Proof leaf', () => {
     const commands = mount.registration()!.commands;
     commands.rebind({
       reports: mount.reports, frameToken: 'proof:reverse:1',
-      segmentId: 'figure2-distance-expand', stageIndex: 0, direction: 'reverse'
+      segmentId: 'figure2-distance-expand', stageIndex: 0, direction: 'reverse', leg: 'source'
     });
     commands.render(0);
     expect(host.querySelector<HTMLElement>('[data-r4-scene="figure2-proof"]')
-      ?.dataset.phoneProofProgress).toBe('1.0000');
+      ?.dataset.phoneProofProgress).toBe('0.0000');
     act(() => root.unmount());
   });
 

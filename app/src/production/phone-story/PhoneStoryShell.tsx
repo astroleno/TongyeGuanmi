@@ -40,20 +40,25 @@ function nativeReadingTarget(shell: HTMLElement, commit: NonNullable<PhoneShellS
     : commit.direction === 'reverse' || commit.landingAlias === 'closing' ? bottom : 0;
 }
 
-function phoneNativePrewarmTarget(sceneId: PhoneSceneId, scrollY: number, direction: 'forward' | 'reverse' | null): PhoneSceneId | null {
-  const forward = direction === null || scrollY >= 2;
-  if (sceneId === 'method-top') return forward ? 'figure2-animation' : 'aod-animation';
-  if (sceneId === 'figure2-proof') return forward ? null : 'figure2-animation';
-  if (sceneId === 'brand') return 'figure3-animation';
-  if (sceneId === 'services') return forward ? 'ttg-animation' : 'figure3-animation';
-  if (sceneId === 'lab') return forward ? 'ph-animation' : 'ttg-animation';
-  if (sceneId === 'education') return forward ? 'crane-animation' : 'ph-animation'; if (sceneId === 'contact') return 'crane-animation'; return null;
+const PHONE_NATIVE_MEDIA_NEIGHBOURS: Readonly<Partial<Record<PhoneSceneId, readonly [PhoneSceneId | null, PhoneSceneId | null]>>> = { 'method-top': ['aod-animation', 'figure2-animation'], 'figure2-proof': ['figure2-animation', null], brand: [null, 'figure3-animation'], services: ['figure3-animation', 'ttg-animation'], lab: ['ttg-animation', 'ph-animation'], education: ['ph-animation', 'crane-animation'], contact: ['crane-animation', null] };
+export function phoneNativePrewarmTarget(sceneId: PhoneSceneId, scrollY: number, maximumScrollY: number, viewportHeight: number, direction: 'forward' | 'reverse' | null): PhoneSceneId | null {
+  const pair = PHONE_NATIVE_MEDIA_NEIGHBOURS[sceneId]; if (!pair) return null;
+  const maximum = Math.max(0, maximumScrollY), edgeWindow = Math.min(maximum / 2, Math.max(96, viewportHeight * .25)), y = Math.min(maximum, Math.max(0, scrollY)), nearTop = y <= edgeWindow, nearBottom = maximum - y <= edgeWindow;
+  if (nearTop && nearBottom) return (maximum === 0 ? pair[0] : direction === 'reverse' ? pair[0] : pair[1])
+    ?? pair[0] ?? pair[1];
+  return nearTop ? pair[0] : nearBottom ? pair[1] : null;
+}
+export function phoneNativeMediaTargetMounted(shell: HTMLElement, sceneId: PhoneSceneId, direction: 'forward' | 'reverse'): boolean {
+  const target = PHONE_NATIVE_MEDIA_NEIGHBOURS[sceneId]?.[direction === 'reverse' ? 0 : 1];
+  return !target || phoneSceneById(target).content.selectors.some((selector) => shell.querySelector(`.phone-story__viewport ${selector}`));
+}
+function phoneNativePrewarmZone(owner: Pick<HTMLElement, 'scrollTop' | 'clientHeight' | 'scrollHeight'>): 'top' | 'middle' | 'bottom' {
+  const maximum = Math.max(0, owner.scrollHeight - owner.clientHeight), edgeWindow = Math.min(maximum / 2, Math.max(96, owner.clientHeight * .25)), scrollTop = Math.min(maximum, Math.max(0, owner.scrollTop));
+  return scrollTop <= edgeWindow ? 'top'
+    : maximum - scrollTop <= edgeWindow ? 'bottom' : 'middle';
 }
 
-type PhoneTouchPoint = Readonly<{
-  identifier: number;
-  clientY: number;
-}>;
+type PhoneTouchPoint = Readonly<{ identifier: number; clientY: number }>;
 
 function createPhoneTouchArbiter() {
   type Direction = 'forward' | 'reverse';
@@ -123,7 +128,8 @@ function createPhoneTouchArbiter() {
     },
     cancel() {
       claim = null;
-    }
+    },
+    defer() { if (claim) claim.published = false; }
   });
 }
 
@@ -224,8 +230,9 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
           event.preventDefault();
           return;
         }
-        const intent = touchArbiter.move(Array.from(event.touches ?? []), nativeReadingSample()); if (intent) event.preventDefault();
-        if (intent && intent.delta !== null) { const { delta } = intent; if (intent.native) { const direction = delta > 0 ? 'forward' : 'reverse'; clampNativeReadingEdge(direction); freezeNativeReadingBeforePublish(direction); } publish({ type: 'input', kind: 'touch', delta, fresh: true, trusted: event.isTrusted, target: 'story' }); }
+        const intent = touchArbiter.move(Array.from(event.touches ?? []), nativeReadingSample());
+        if (intent?.delta === null) event.preventDefault();
+        if (intent && intent.delta !== null) { const { delta } = intent; if (intent.native) { const direction = delta > 0 ? 'forward' : 'reverse'; clampNativeReadingEdge(direction); const shell = document.querySelector<HTMLElement>(`.phone-story[data-phone-scope="${scope}"]`); const sceneId = shell?.dataset.phoneScene as PhoneSceneId | undefined; if (!shell || !sceneId || !phoneNativeMediaTargetMounted(shell, sceneId, direction) || !freezeNativeReadingBeforePublish(direction)) { touchArbiter.defer(); return; } } event.preventDefault(); publish({ type: 'input', kind: 'touch', delta, fresh: true, trusted: event.isTrusted, target: 'story' }); }
       }) as EventListener, { passive: false });
       listen(window, 'touchend', ((event: TouchEvent) => {
         if (blockedTouch) {
@@ -339,7 +346,7 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
         listen(window.visualViewport, 'scroll', toolbar as EventListener);
       }
       listen(window, 'scroll', (() => {
-        const owner = document.scrollingElement ?? document.documentElement; latestNativeScrollY = readPhoneNativeScroll(owner, window.scrollY); const edges = phoneReadingEdges(owner); const edge = edges.top ? 'top' : edges.bottom ? 'bottom' : 'middle'; if (edge === lastNativeReadingEdge) return; lastNativeReadingEdge = edge; publish({ type: 'scroll', sample: { x: owner.scrollLeft, y: latestNativeScrollY, sampledAt: performance.now(), origin: 'native' } });
+        const owner = document.scrollingElement ?? document.documentElement; latestNativeScrollY = readPhoneNativeScroll(owner, window.scrollY); const edge = phoneNativePrewarmZone(owner); if (edge === lastNativeReadingEdge) return; lastNativeReadingEdge = edge; publish({ type: 'scroll', sample: { x: owner.scrollLeft, y: latestNativeScrollY, sampledAt: performance.now(), origin: 'native' } });
       }) as EventListener, { passive: true });
       listen(document, 'visibilitychange', (() => publish({
         type: 'visibility', hidden: document.visibilityState === 'hidden'
@@ -498,7 +505,8 @@ export function PhoneStoryShell({
     owners.engine.getSnapshot,
     owners.engine.getSnapshot
   ); const stableScene = snapshot.stableCommit?.sceneId ?? null; nativeHandoffStoreRef.current.snapshot = snapshot;
-  const stablePrewarmTarget = stableScene && snapshot.stableCommit ? phoneNativePrewarmTarget(stableScene, snapshot.scroll?.y ?? 0, snapshot.stableCommit.direction) : null; const stablePrewarmKey = stablePrewarmTarget && snapshot.stableCommit ? `${stablePrewarmTarget}:${snapshot.stableCommit.commitSequence}:${snapshot.presentationProof?.planeRevision ?? 0}` : null;
+  const scrollOwner = typeof document === 'undefined' ? null : document.scrollingElement ?? document.documentElement; const maximumScrollY = scrollOwner ? Math.max(0, scrollOwner.scrollHeight - scrollOwner.clientHeight) : 0; const viewportHeight = scrollOwner?.clientHeight || (typeof window === 'undefined' ? snapshot.viewport.layout.height : window.innerHeight);
+  const stablePrewarmTarget = stableScene && snapshot.stableCommit ? phoneNativePrewarmTarget(stableScene, snapshot.scroll?.y ?? readPhoneNativeScroll(scrollOwner, 0), maximumScrollY, viewportHeight, snapshot.stableCommit.direction) : null; const stablePrewarmKey = stablePrewarmTarget && snapshot.stableCommit ? `${stablePrewarmTarget}:${snapshot.stableCommit.commitSequence}:${snapshot.presentationProof?.planeRevision ?? 0}` : null;
   const prewarmPortRef = useRef<Readonly<{ key: string; port: PhoneLeafReportPort }> | null>(null);
   const stablePrewarmPort = snapshot.status === 'stable' && stablePrewarmTarget && stablePrewarmKey ? (() => { if (prewarmPortRef.current?.key !== stablePrewarmKey) prewarmPortRef.current = { key: stablePrewarmKey, port: owners.engine.createPrewarmLeafReportPort(stablePrewarmTarget) }; return prewarmPortRef.current.port; })() : null;
   useLayoutEffect(() => {

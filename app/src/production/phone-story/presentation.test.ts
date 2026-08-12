@@ -331,7 +331,7 @@ function registerScene(
 }
 
 describe('phone presentation semantic plane', () => {
-  it('keeps a reverse Figure2 source proof on its closing landing during a segment', () => {
+  it('keeps a reverse Figure2 source proof on its captured opening landing', () => {
     const attempt = attemptFor(
       'figure2-proof', 'segment', 'figure2-distance-expand', 'reverse', 7
     );
@@ -359,7 +359,7 @@ describe('phone presentation semantic plane', () => {
       }
     );
 
-    expect(request?.landingAlias).toBe('closing');
+    expect(request?.landingAlias).toBe('opening');
   });
 
   it('projects complementary Ink ownership onto both live planes and clears it atomically', () => {
@@ -403,6 +403,38 @@ describe('phone presentation semantic plane', () => {
     fixture.presentation.commitStablePlane('a');
     expect(fixture.source.getAttribute('data-phone-exposed')).toBe('true');
     expect(fixture.receiver.getAttribute('data-phone-exposed')).toBe('false');
+  });
+
+  it('arms a reverse receiver completely before making the transition live', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const writes: string[] = [];
+    const setVariable = fixture.story.style.setProperty.bind(fixture.story.style);
+    fixture.story.style.setProperty = (property, value, priority) => {
+      if (property.startsWith('--phone-')) writes.push(property);
+      setVariable(property, value, priority);
+    };
+    const exposeReceiver = fixture.receiver.setAttribute.bind(fixture.receiver);
+    fixture.receiver.setAttribute = (name, value) => {
+      if (name === 'data-phone-exposed' && value === 'true') writes.push('receiver-exposed');
+      exposeReceiver(name, value);
+    };
+    const arm = fixture.story.setAttribute.bind(fixture.story);
+    fixture.story.setAttribute = (name, value) => {
+      if (name === 'data-phone-transition-live') writes.push('transition-live');
+      arm(name, value);
+    };
+
+    fixture.presentation.applyTransitionFrame({
+      sourceOpacity: 1, targetOpacity: 0, direction: 'reverse',
+      foregroundOwner: 'source', ownership: {
+        revealClip: 'circle(0px at 50% 50%)', concealClip: 'none'
+      }
+    });
+
+    expect(writes.at(-1)).toBe('transition-live');
+    expect(writes.indexOf('receiver-exposed')).toBeLessThan(writes.indexOf('transition-live'));
+    expect(writes.indexOf('--phone-target-clip')).toBeLessThan(writes.indexOf('transition-live'));
   });
 
   it('commits the newly rendered stable buffer as one visible plane', () => {

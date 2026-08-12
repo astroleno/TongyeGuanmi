@@ -51,14 +51,11 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
     if (!root) return;
     const binding = bindingRef.current;
     const viewportHeight = root.parentElement?.clientHeight || window.innerHeight || 1;
-    const reverseDistanceExit = binding?.segmentId === 'figure2-distance-expand'
-      && binding.direction === 'reverse';
     const nativeHandoff = root.closest<HTMLElement>('[data-phone-native-mirror]')
       ?.dataset.phoneNativeHandoff === 'active';
-    const proofBrandSourceHandoff = binding?.segmentId === 'figure2-proof-brand'
-      && binding.direction === 'forward' && nativeHandoff;
+    const sourceNativeHandoff = binding?.leg === 'source' && nativeHandoff;
     const frame = phoneFigure2ProofFrame(
-      proofBrandSourceHandoff ? 0 : reverseDistanceExit ? 1 : rawProgress,
+      sourceNativeHandoff ? 0 : rawProgress,
       viewportHeight
     );
     root.style.setProperty('--phone-proof-translate-y', `${frame.translateY.toFixed(2)}px`);
@@ -68,7 +65,7 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
-      render(binding.direction === 'reverse' ? 1 : 0);
+      render(binding.leg === 'source' ? 0 : binding.direction === 'reverse' ? 1 : 0);
       provePostPaint();
     },
     activate(command): PhoneActivationInvocation {

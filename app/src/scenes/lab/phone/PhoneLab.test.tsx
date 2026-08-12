@@ -47,10 +47,11 @@ describe('PhoneLab', () => {
   });
 
   it('maps incoming receiver direction to the same native reading edge', () => {
-    expect(phoneLabReceiverLanding('ttg-lab', 'forward')).toBe('top');
-    expect(phoneLabReceiverLanding('lab-ph', 'reverse')).toBe('bottom');
-    expect(phoneLabReceiverLanding('lab-ph', 'forward')).toBe('top');
+    expect(phoneLabReceiverLanding('ttg-lab', 'forward', 'target')).toBe('top');
+    expect(phoneLabReceiverLanding('lab-ph', 'reverse', 'target')).toBe('bottom');
+    expect(phoneLabReceiverLanding('lab-ph', 'forward', 'source')).toBe('captured');
     expect(phoneLabReceiverOffset('top', 2_100, 844)).toBe(0);
     expect(phoneLabReceiverOffset('bottom', 2_100, 844)).toBe(-1_256);
+    expect(phoneLabReceiverOffset('captured', 2_100, 844)).toBeNull();
   });
 });

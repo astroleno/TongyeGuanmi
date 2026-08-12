@@ -163,7 +163,18 @@ vi.mock('./scenes', async () => {
     })),
     PhoneSceneLeaf: (props: Record<string, unknown>) => {
       probe.sceneProps.push(props);
-      return createElement('div', { 'data-phone-scene-leaf': props.sceneId });
+      return createElement('div', {
+        'data-phone-scene-leaf': props.sceneId,
+        'data-phone-scene': props.sceneId,
+        'data-r4-scene': props.sceneId
+      }, createElement('div', {
+        'data-phone-aod-figure-poster': props.sceneId === 'aod-animation' || undefined,
+        'data-phone-figure2-poster': props.sceneId === 'figure2-animation' || undefined,
+        'data-phone-figure3-initial-composite': props.sceneId === 'figure3-animation' || undefined,
+        'data-ttg-figure-video': props.sceneId === 'ttg-animation' || undefined,
+        'data-phone-packed-alpha-canvas': props.sceneId === 'ph-animation'
+          ? 'ph-figure' : 'crane-figure'
+      }));
     },
     PhoneSceneReading: (props: Record<string, unknown>) => (
       createElement('div', { 'data-phone-reading-leaf': props.sceneId },
@@ -211,7 +222,8 @@ vi.mock('../StoryNav', async () => {
   };
 });
 
-import { PhoneStoryShell } from './PhoneStoryShell';
+import { PhoneStoryShell, phoneNativeMediaTargetMounted,
+  phoneNativePrewarmTarget } from './PhoneStoryShell';
 import { loadPhoneSceneModule } from './scenes';
 import { loadPhoneTransitionModule } from './transitions';
 
@@ -547,6 +559,35 @@ beforeEach(() => {
 });
 
 describe('clean PhoneStoryShell ownership', () => {
+  it('selects native media prewarm by the live edge window instead of the arrival direction', () => {
+    expect(phoneNativePrewarmTarget('method-top', 120, 1_200, 844, 'forward'))
+      .toBe('aod-animation');
+    expect(phoneNativePrewarmTarget('method-top', 600, 1_200, 844, 'reverse'))
+      .toBeNull();
+    expect(phoneNativePrewarmTarget('method-top', 1_080, 1_200, 844, 'reverse'))
+      .toBe('figure2-animation');
+    expect(phoneNativePrewarmTarget('services', 100, 1_900, 844, 'forward'))
+      .toBe('figure3-animation');
+    expect(phoneNativePrewarmTarget('services', 1_750, 1_900, 844, 'reverse'))
+      .toBe('ttg-animation');
+    expect(phoneNativePrewarmTarget('method-top', 0, 0, 844, 'forward'))
+      .toBe('aod-animation');
+  });
+
+  it('requires the edge-adjacent media leaf to be mounted before native handoff', () => {
+    const shell = document.createElement('main');
+    shell.className = 'phone-story';
+    const viewport = document.createElement('div');
+    viewport.className = 'phone-story__viewport';
+    shell.append(viewport);
+    expect(phoneNativeMediaTargetMounted(shell, 'method-top', 'reverse')).toBe(false);
+    const poster = document.createElement('img');
+    poster.dataset.phoneAodFigurePoster = '';
+    viewport.append(poster);
+    expect(phoneNativeMediaTargetMounted(shell, 'method-top', 'reverse')).toBe(true);
+    expect(phoneNativeMediaTargetMounted(shell, 'figure2-proof', 'forward')).toBe(true);
+  });
+
   it('does not render a lazy receiver before reducer-owned module evidence arrives', () => {
     probe.snapshot = bootSnapshot(false);
     const { host, root } = hostRoot();
@@ -898,6 +939,8 @@ describe('clean PhoneStoryShell ownership', () => {
       ));
       const engine = connectedEngine();
       act(() => engine.publish(methodReadingSnapshot()));
+      expect(engine.createPrewarmLeafReportPort).toHaveBeenCalledWith('aod-animation');
+      expect(host.querySelector('[data-phone-scene-leaf="aod-animation"]')).not.toBeNull();
       const hidden = probe.loaderProps.at(-1)?.onHidden;
       if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
       act(() => hidden('ready'));
@@ -944,6 +987,11 @@ describe('clean PhoneStoryShell ownership', () => {
         return move;
       };
 
+      scrollTop = 850;
+      act(() => engine.publish({
+        ...methodReadingSnapshot(),
+        scroll: { x: 0, y: scrollTop, sampledAt: 1, origin: 'native' }
+      }));
       const first = gesture(51, true);
       expect(first.defaultPrevented).toBe(true);
       expect(visual.dataset.phoneNativeScrollY).toBe('963.00');
@@ -1806,6 +1854,10 @@ describe('clean PhoneStoryShell ownership', () => {
       act(() => reading.dispatchEvent(interiorMove));
       expect(interiorMove.defaultPrevented).toBe(false);
       scrollTop = 550;
+      act(() => engine.publish({
+        ...methodReadingSnapshot(),
+        scroll: { x: 0, y: scrollTop, sampledAt: 1, origin: 'native' }
+      }));
       act(() => { reading.dispatchEvent(edgeMove); reading.dispatchEvent(end); });
       expect(edgeMove.defaultPrevented).toBe(true);
       expect(visual.dataset.phoneNativeScrollY).toBe('700.00');

@@ -22,11 +22,13 @@ export const PHONE_EDUCATION_INPUT_POLICY = Object.freeze({
   focus: 'native'
 } as const);
 
-export function phoneEducationReceiverLanding(segmentId: string | null | undefined, direction: 'forward' | 'reverse' | null | undefined): 'top' | 'bottom' {
+export function phoneEducationReceiverLanding(segmentId: string | null | undefined, direction: 'forward' | 'reverse' | null | undefined, leg?: PhoneLeafGenerationBinding['leg']): 'top' | 'bottom' | 'captured' {
+  if (leg === 'source' || leg === 'rollback') return 'captured';
   return segmentId === 'education-crane' && direction === 'reverse' ? 'bottom' : 'top';
 }
 
-export function phoneEducationReceiverOffset(landing: 'top' | 'bottom', contentHeight: number, viewportHeight: number): number {
+export function phoneEducationReceiverOffset(landing: 'top' | 'bottom' | 'captured', contentHeight: number, viewportHeight: number): number | null {
+  if (landing === 'captured') return null;
   return landing === 'bottom' ? -Math.max(0, contentHeight - viewportHeight) : 0;
 }
 
@@ -84,11 +86,17 @@ export function PhoneEducation({ reports }: Readonly<{
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
-      const landing = phoneEducationReceiverLanding(binding.segmentId, binding.direction);
+      const landing = phoneEducationReceiverLanding(binding.segmentId, binding.direction, binding.leg);
       const mount = mountRef.current;
-      mount?.setAttribute('data-phone-receiver-landing', landing);
-      mount?.style.setProperty('--phone-education-receiver-y', `${phoneEducationReceiverOffset(
-        landing, mount.scrollHeight, document.documentElement.clientHeight)}px`);
+      const offset = mount ? phoneEducationReceiverOffset(
+        landing, mount.scrollHeight, document.documentElement.clientHeight) : null;
+      if (offset === null) {
+        mount?.removeAttribute('data-phone-receiver-landing');
+        mount?.style.removeProperty('--phone-education-receiver-y');
+      } else {
+        mount?.setAttribute('data-phone-receiver-landing', landing);
+        mount?.style.setProperty('--phone-education-receiver-y', `${offset}px`);
+      }
       provePostPaint();
     },
     activate(command): PhoneActivationInvocation {

@@ -938,9 +938,9 @@ describe('phone segment transaction machine', () => {
   it('assigns activation credit from the decoder activation owner', () => {
     const cases = [
       ['aod-animation', 'method-top', 'forward', 'physical-epoch'],
-      ['method-top', 'aod-animation', 'reverse', 'direct-muted-autoplay'],
-      ['lab', 'ph-animation', 'forward', 'direct-muted-autoplay'],
-      ['education', 'crane-animation', 'forward', 'direct-muted-autoplay'],
+      ['method-top', 'aod-animation', 'reverse', 'physical-epoch'],
+      ['lab', 'ph-animation', 'forward', 'physical-epoch'],
+      ['education', 'crane-animation', 'forward', 'physical-epoch'],
       ['star-map', 'aod-animation', 'forward', null]
     ] as const;
 

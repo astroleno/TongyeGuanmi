@@ -22,11 +22,13 @@ export function phoneLabFrame(
   return { progress, opacity: .98 + progress * .02, y: (1 - progress) * 10 };
 }
 
-export function phoneLabReceiverLanding(segmentId: string | null | undefined, direction: 'forward' | 'reverse' | null | undefined): 'top' | 'bottom' {
+export function phoneLabReceiverLanding(segmentId: string | null | undefined, direction: 'forward' | 'reverse' | null | undefined, leg?: PhoneLeafGenerationBinding['leg']): 'top' | 'bottom' | 'captured' {
+  if (leg === 'source' || leg === 'rollback') return 'captured';
   return segmentId === 'lab-ph' && direction === 'reverse' ? 'bottom' : 'top';
 }
 
-export function phoneLabReceiverOffset(landing: 'top' | 'bottom', contentHeight: number, viewportHeight: number): number {
+export function phoneLabReceiverOffset(landing: 'top' | 'bottom' | 'captured', contentHeight: number, viewportHeight: number): number | null {
+  if (landing === 'captured') return null;
   return landing === 'bottom' ? -Math.max(0, contentHeight - viewportHeight) : 0;
 }
 
@@ -109,11 +111,17 @@ export function PhoneLab({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       bindingRef.current = binding;
-      const landing = phoneLabReceiverLanding(binding.segmentId, binding.direction);
+      const landing = phoneLabReceiverLanding(binding.segmentId, binding.direction, binding.leg);
       const mount = mountRef.current;
-      mount?.setAttribute('data-phone-receiver-landing', landing);
-      mount?.style.setProperty('--phone-lab-receiver-y', `${phoneLabReceiverOffset(
-        landing, mount.scrollHeight, document.documentElement.clientHeight)}px`);
+      const offset = mount ? phoneLabReceiverOffset(
+        landing, mount.scrollHeight, document.documentElement.clientHeight) : null;
+      if (offset === null) {
+        mount?.removeAttribute('data-phone-receiver-landing');
+        mount?.style.removeProperty('--phone-lab-receiver-y');
+      } else {
+        mount?.setAttribute('data-phone-receiver-landing', landing);
+        mount?.style.setProperty('--phone-lab-receiver-y', `${offset}px`);
+      }
       provePostPaint();
     },
     activate(command): PhoneActivationInvocation {

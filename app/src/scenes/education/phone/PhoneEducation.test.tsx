@@ -66,9 +66,11 @@ describe('PhoneEducation', () => {
     expect(stylesheet).toContain(
       'min-height: calc(var(--phone-cinematic-stage-height, 100svh) * 2)'
     );
-    expect(phoneEducationReceiverLanding('ph-education', 'forward')).toBe('top');
-    expect(phoneEducationReceiverLanding('education-crane', 'reverse')).toBe('bottom');
+    expect(phoneEducationReceiverLanding('ph-education', 'forward', 'target')).toBe('top');
+    expect(phoneEducationReceiverLanding('education-crane', 'reverse', 'target')).toBe('bottom');
+    expect(phoneEducationReceiverLanding('education-crane', 'forward', 'source')).toBe('captured');
     expect(phoneEducationReceiverOffset('top', 2_240, 844)).toBe(0);
     expect(phoneEducationReceiverOffset('bottom', 2_240, 844)).toBe(-1_396);
+    expect(phoneEducationReceiverOffset('captured', 2_240, 844)).toBeNull();
   });
 });

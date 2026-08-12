@@ -470,6 +470,28 @@ function registerCurrentLeaf(
   return { binding, reports };
 }
 
+function registerPrewarmLeaf(
+  runtime: PhoneStoryRuntime,
+  sceneId: Parameters<PhoneStoryRuntime['createPrewarmLeafReportPort']>[0],
+  commands: PhoneLeafCommandHandle = commandFixture().commands
+) {
+  const scene = phoneSceneById(sceneId);
+  runtime.createPrewarmLeafReportPort(scene.id).registerMount({
+    root: {} as HTMLElement,
+    surfaces: scene.surfaces.map((id) => ({
+      id,
+      element: {} as HTMLElement,
+      kind: id.includes('video') ? 'video' as const
+        : /(?:image|poster|arch)/.test(id) ? 'image' as const
+        : ['hero-intro-ink', 'star-map-canvas', 'figure3-paper-canvas'].includes(id)
+          ? 'canvas-2d' as const
+          : id.includes('canvas') ? 'canvas-webgl' as const : 'dom' as const
+    })),
+    commands
+  });
+  return commands;
+}
+
 function registerCurrentEffect(
   runtime: PhoneStoryRuntime,
   commands: PhoneLeafCommandHandle
@@ -791,6 +813,7 @@ describe('phone runtime input, history, viewport, and queue', () => {
     const disconnect = runtime.connect();
     proveCurrent(runtime, fixture);
     const commit = runtime.getSnapshot().stableCommit;
+    registerPrewarmLeaf(runtime, 'figure3-animation');
     fixture.emit({
       type: 'input', kind: 'wheel', delta: 100, fresh: true, target: 'story'
     });
@@ -878,6 +901,7 @@ describe('phone runtime pagehide/pageshow/BFCache lifecycle', () => {
     const runtime = createRuntime(fixture, '#services');
     const disconnect = runtime.connect();
     proveCurrent(runtime, fixture);
+    registerPrewarmLeaf(runtime, 'ttg-animation');
     fixture.emit({
       type: 'input', kind: 'wheel', delta: 100, fresh: true,
       trusted: true, target: 'story'
@@ -1302,6 +1326,8 @@ describe('phone runtime projector bridge', () => {
     const reverseRuntime = createRuntime(reverseFixture, '#education');
     const disconnectReverse = reverseRuntime.connect();
     proveCurrent(reverseRuntime, reverseFixture);
+    const { commands: reverseCommands } = commandFixture();
+    registerPrewarmLeaf(reverseRuntime, 'ph-animation', reverseCommands);
     reverseFixture.emit({
       type: 'input', kind: 'wheel', delta: -100, fresh: true,
       trusted: true, target: 'story'
@@ -1309,8 +1335,6 @@ describe('phone runtime projector bridge', () => {
     expect(currentTransaction(reverseRuntime)).toMatchObject({
       candidateSceneId: 'ph-animation', progress: 1
     });
-    const { commands: reverseCommands } = commandFixture();
-    registerCurrentLeaf(reverseRuntime, reverseCommands);
     expect(reverseCommands.render).toHaveBeenCalledWith(1);
     disconnectReverse();
   });
@@ -1643,18 +1667,8 @@ describe('phone runtime effects, media activation, and disposal', () => {
     const disconnect = runtime.connect();
     proveCurrent(runtime, fixture);
 
-    const scene = phoneSceneById('ttg-animation');
     const commands = commandFixture().commands;
-    runtime.createPrewarmLeafReportPort(scene.id).registerMount({
-      root: {} as HTMLElement,
-      surfaces: scene.surfaces.map((id) => ({
-        id,
-        element: {} as HTMLElement,
-        kind: id.includes('video') ? 'video' as const
-          : id.includes('canvas') ? 'canvas-webgl' as const : 'dom' as const
-      })),
-      commands
-    });
+    registerPrewarmLeaf(runtime, 'ttg-animation', commands);
 
     expect(commands.activate).not.toHaveBeenCalled();
     expect(fixture.resources.at(-1)?.activeDecoders).toBe(0);
@@ -1666,7 +1680,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
 
     await vi.waitFor(() => expect(commands.activate).toHaveBeenCalledTimes(1));
     expect(commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
-      credit: 'direct-muted-autoplay',
+      credit: 'physical-epoch',
       surfaceIds: ['ttg-figure-video']
     }));
     expect(vi.mocked(commands.activate).mock.calls[0]?.[0].prewarm).not.toBe(true);
@@ -1856,18 +1870,18 @@ describe('phone runtime effects, media activation, and disposal', () => {
     const disconnect = runtime.connect();
     registerCurrentLeaf(runtime, commandFixture().commands);
     proveCurrent(runtime, fixture);
+    const target = commandFixture();
+    registerPrewarmLeaf(runtime, 'ph-animation', target.commands);
     fixture.emit({
       type: 'input', kind: 'touch', delta: 300, fresh: true,
       trusted: true, target: 'story'
     });
     expect(currentTransaction(runtime)).toMatchObject({
-      candidateSceneId: 'ph-animation', activation: 'offered'
+      candidateSceneId: 'ph-animation', activation: 'spent'
     });
-    const target = commandFixture();
-    registerCurrentLeaf(runtime, target.commands);
     registerCurrentEffect(runtime, commandFixture().commands);
     expect(target.commands.activate).toHaveBeenCalledWith(expect.objectContaining({
-      credit: 'direct-muted-autoplay',
+      credit: 'physical-epoch',
       surfaceIds: ['ph-figure-video']
     }));
     disconnect();

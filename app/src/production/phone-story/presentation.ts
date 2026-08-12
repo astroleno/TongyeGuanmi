@@ -83,16 +83,12 @@ export type PhoneLeafReportPort = Readonly<{
   reportFailure(failure: PhoneFailure): void;
 }>;
 
-export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken; transactionId?: string; segmentId?: string | null; stageIndex?: number; direction?: 'forward' | 'reverse' | null }>;
+export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken; transactionId?: string; segmentId?: string | null; stageIndex?: number; direction?: 'forward' | 'reverse' | null; leg?: PhoneTransactionLeg }>;
 
-export function createPhoneLeafGenerationBinding(
-  reports: PhoneLeafReportPort,
-  transactionId: string, sequence: number, segmentId: string | null = null,
-  stageIndex?: number, direction?: 'forward' | 'reverse' | null
-): PhoneLeafGenerationBinding {
+export function createPhoneLeafGenerationBinding(reports: PhoneLeafReportPort, transactionId: string, sequence: number, segmentId: string | null = null, stageIndex?: number, direction?: 'forward' | 'reverse' | null, leg?: PhoneTransactionLeg): PhoneLeafGenerationBinding {
   return Object.freeze({
     reports, frameToken: `${transactionId}:frame:${sequence}`, transactionId, segmentId,
-    ...(stageIndex === undefined ? {} : { stageIndex }), ...(direction === undefined ? {} : { direction })
+    ...(stageIndex === undefined ? {} : { stageIndex }), ...(direction === undefined ? {} : { direction }), ...(leg === undefined ? {} : { leg })
   });
 }
 
@@ -106,7 +102,7 @@ export function bindPhoneLeafGeneration(
 ): PhoneFrameToken {
   const generation = createPhoneLeafGenerationBinding(
     reports, binding.attempt.transactionId, sequence, binding.attempt.segmentId,
-    binding.stageIndex, binding.attempt.direction
+    binding.stageIndex, binding.attempt.direction, binding.leg
   );
   beforeRebind?.(generation.frameToken);
   if (rebindMount) mount.rebind(binding);
@@ -365,7 +361,7 @@ export function createPhonePlaneRequest(
   const sceneId = first.leg === 'source'
     ? transaction.sourceSceneId : transaction.candidateSceneId;
   const entryAlias = transaction.mode === 'segment' ? null : phoneEntryForLocation(transaction.requestedEntry.pathname, transaction.requestedEntry.hash).landingAlias;
-  const landingAlias = transaction.mode === 'segment' && first.leg === 'source' && sceneId === 'figure2-proof' && transaction.attempt.direction === 'reverse' || transaction.mode === 'rollback' && first.leg === 'rollback' && sceneId === 'figure2-proof' && transaction.attempt.direction === 'reverse' ? 'closing' : stableCommit?.sceneId === sceneId ? stableCommit.landingAlias ?? (stableCommit.direction === 'reverse' ? 'closing' : 'opening') : entryAlias ?? (transaction.attempt.direction === 'reverse' ? 'closing' : 'opening');
+  const stableLanding = stableCommit?.sceneId === sceneId ? stableCommit.landingAlias ?? (stableCommit.direction === 'reverse' ? 'closing' : 'opening') : null, preservesStableLanding = first.leg === 'source' || first.leg === 'rollback' || transaction.mode === 'recovery', landingAlias = preservesStableLanding && stableLanding ? stableLanding : entryAlias ?? (transaction.attempt.direction === 'reverse' ? 'closing' : 'opening');
   return sceneId && transaction.planeRevision !== null ? Object.freeze({
     attempt: transaction.attempt, stageIndex: transaction.stageIndex,
     leg: first.leg, sceneId, planeRevision: transaction.planeRevision,
@@ -740,13 +736,12 @@ export function createPhonePresentation(
     if (!root || !topology) return;
     if (!frame) { clearTransitionVariables(root); return; }
     const reverse = frame.direction === 'reverse';
-    root.setAttribute('data-phone-transition-live', 'true');
+    const firstFrame = !root.hasAttribute('data-phone-transition-live');
     root.setAttribute('data-phone-transition-direction', frame.direction);
     root.setAttribute('data-phone-transition-foreground', frame.foregroundOwner);
-    topology.source.setAttribute('data-phone-exposed', 'true');
-    topology.receiver.setAttribute('data-phone-exposed', 'true');
     const values = [frame.sourceOpacity, frame.targetOpacity, reverse ? frame.ownership?.revealClip : frame.ownership?.concealClip, reverse ? frame.ownership?.concealClip : frame.ownership?.revealClip, reverse ? frame.ownership?.revealMask : frame.ownership?.concealMask, reverse ? frame.ownership?.concealMask : frame.ownership?.revealMask, frame.ownership?.maskSize, frame.ownership?.maskRepeat, frame.ownership?.maskMode];
     transitionVariables.forEach((variable, index) => root.style.setProperty(variable, String(values[index] ?? 'none')));
+    if (firstFrame) { topology.source.style.setProperty('--phone-plane-z', frame.foregroundOwner === 'source' ? '30' : '10'); topology.receiver.style.setProperty('--phone-plane-z', frame.foregroundOwner === 'source' ? '10' : '30'); topology.source.setAttribute('data-phone-exposed', 'true'); topology.receiver.setAttribute('data-phone-exposed', 'true'); root.setAttribute('data-phone-transition-live', 'true'); }
   };
 
   const commitStablePlane: PhonePresentation['commitStablePlane'] = (sourceBuffer) => {
