@@ -109,6 +109,7 @@ export function packedAlphaFrameSize(
 export function setPackedAlphaVideoSource(video: HTMLVideoElement, sourceUrl: string): void {
   const ownerDocument = video.ownerDocument
     ?? (typeof document === 'undefined' ? undefined : document);
+  video.crossOrigin = 'anonymous';
   video.pause();
   video.autoplay = false;
   video.loop = false;

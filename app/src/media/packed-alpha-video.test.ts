@@ -4,7 +4,8 @@ import * as packedAlphaVideo from './packed-alpha-video';
 const {
   PACKED_ALPHA_SOURCE_TYPE,
   createPackedAlphaVideoCompositor,
-  packedAlphaFrameSize
+  packedAlphaFrameSize,
+  setPackedAlphaVideoSource
 } = packedAlphaVideo;
 
 type PackedAlphaRetirementContract = typeof packedAlphaVideo & {
@@ -202,6 +203,38 @@ describe('packed alpha video', () => {
   it('uses an iPhone-compatible opaque decoder source', () => {
     expect(PACKED_ALPHA_SOURCE_TYPE).toContain('video/mp4');
     expect(PACKED_ALPHA_SOURCE_TYPE).toContain('avc1');
+  });
+
+  it('opts cross-origin decoder frames into anonymous CORS before loading', () => {
+    const source = { src: '', type: '', dataset: {} as DOMStringMap };
+    const video = {
+      ownerDocument: { createElement: vi.fn(() => source) },
+      crossOrigin: '',
+      pause: vi.fn(),
+      load: vi.fn(),
+      autoplay: true,
+      loop: true,
+      muted: false,
+      playsInline: false,
+      preload: 'none',
+      dataset: {} as DOMStringMap,
+      setAttribute: vi.fn(),
+      removeAttribute: vi.fn(),
+      replaceChildren: vi.fn()
+    };
+
+    setPackedAlphaVideoSource(
+      video as unknown as HTMLVideoElement,
+      'https://media.example.test/packed.mp4'
+    );
+
+    expect(video.crossOrigin).toBe('anonymous');
+    expect(source).toMatchObject({
+      src: 'https://media.example.test/packed.mp4',
+      type: PACKED_ALPHA_SOURCE_TYPE
+    });
+    expect(video.pause).toHaveBeenCalledOnce();
+    expect(video.load).toHaveBeenCalledOnce();
   });
 
   it('hard-releases the compositor context when a packed surface retires', () => {
