@@ -201,18 +201,19 @@ describe('story manifest contract', () => {
     ]);
 
     for (const [id, media] of expected) {
+      const preparingTimeoutMs = id === 'brand-figure3' ? 15_000 : 8000;
       const segment = storyManifest.nodes.find(
         (node) => node.kind === 'segment' && node.id === id
       );
       expect(segment, id).toMatchObject({
         kind: 'segment',
-        buildTimeoutMs: 8000,
+        buildTimeoutMs: preparingTimeoutMs,
         requiredMilestones: ['targetReady', 'mediaReady', 'buildReady'],
         mediaPlayback: [
           expect.objectContaining({
             media,
             forward: expect.objectContaining({ mode: 'timeline', required: true }),
-            preparingTimeoutMs: 8000
+            preparingTimeoutMs
           })
         ]
       });
@@ -361,6 +362,20 @@ describe('story manifest contract', () => {
       virtualDuration: 2600,
       copyCue: { targetScene: 'services', atProgress: 0.8 }
     });
+  });
+
+  it('budgets a cold CDN Figure3 decoder in both travel directions', () => {
+    for (const id of ['brand-figure3', 'figure3-services']) {
+      const segment = storyManifest.nodes.find(
+        (node) => node.kind === 'segment' && node.id === id
+      );
+
+      expect(segment, id).toMatchObject({
+        kind: 'segment',
+        buildTimeoutMs: 15_000,
+        mediaPlayback: [{ preparingTimeoutMs: 15_000 }]
+      });
+    }
   });
 
   it('allows a remounted AOD decoder to become ready on reverse CDN visits', () => {

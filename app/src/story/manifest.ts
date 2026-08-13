@@ -7,6 +7,7 @@ import { parseInventoryManifestSeed, type InventoryManifestSeed } from './invent
 import {
   AOD_MEDIA_PREPARING_TIMEOUT_MS,
   CRANE_CONTACT_DURATION_MS,
+  FIGURE3_MEDIA_PREPARING_TIMEOUT_MS,
   FIGURE3_SERVICES_DURATION_MS,
   HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS,
   HERO_PATTERN_TOTAL_MS,
@@ -325,7 +326,9 @@ function incomingAnimationMediaPlayback(
       {
         forwardMode: 'timeline',
         ...(reverseRequired ? { reverseMode: 'timeline' as const, reverseRequired: true } : {}),
-        preparingTimeoutMs: stagedMediaPreparingTimeoutMs
+        preparingTimeoutMs: targetScene === 'figure3-animation'
+          ? FIGURE3_MEDIA_PREPARING_TIMEOUT_MS
+          : stagedMediaPreparingTimeoutMs
       }
     )
   ];
@@ -356,7 +359,8 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           {
             forwardMode: 'play',
             reverseMode: 'timeline',
-            reverseRequired: true
+            reverseRequired: true,
+            preparingTimeoutMs: FIGURE3_MEDIA_PREPARING_TIMEOUT_MS
           }
         )
       ];

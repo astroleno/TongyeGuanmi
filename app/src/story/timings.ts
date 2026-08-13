@@ -13,6 +13,7 @@ export const AOD_MEDIA_PREPARING_TIMEOUT_MS = 8000;
 export const TERMINAL_DWELL_MS = 1000;
 
 export const FIGURE3_SERVICES_DURATION_MS = 2600;
+export const FIGURE3_MEDIA_PREPARING_TIMEOUT_MS = 15_000;
 
 export const CRANE_CONTACT_DURATION_MS = 3000;
 /** Phone-only decode tail; the authored Crane choreography still ends at 3000ms. */
