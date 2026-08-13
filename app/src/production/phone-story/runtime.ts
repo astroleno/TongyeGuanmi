@@ -1,7 +1,7 @@
 import { createPhoneStoryBoot, phoneTransactionActivationSurfaceIds,
   reducePhoneStory, sameAttempt,
   type PhoneMachineResult, type PhoneMachineSnapshot } from './machine';
-import { phoneManifest, phoneSceneById, phoneSceneStableHold,
+import { phoneManifest, phoneNativeHandoffDescriptor, phoneNativePrewarmScenes, phoneSceneById, phoneSceneStableHold, phoneSegmentBetween,
   phoneSegmentChoreographyFrame, type PhoneSceneId, type PhoneSegmentChoreographyFrame } from './manifest';
 import type { PhoneLeafMountRegistration, PhoneLeafReportBinding, PhoneLeafReportPort,
   PhoneLeafMountLease, PhonePlaneApplyResult, PhonePresentation } from './presentation';
@@ -51,6 +51,9 @@ export type PhoneStoryRuntimeEnvironment = Readonly<{
 export type PhoneStoryRuntimeConfig = Readonly<{ initialEntry: PhoneEntryRequest; environment: PhoneStoryRuntimeEnvironment; presentation: PhonePresentation; ports?: PhoneRuntimeEffectPorts; chunkRecovery?: PhoneChunkRecoveryPort }>;
 export type PhonePresentationPreparedReport = Readonly<{ surfaceId: string; attempt: PhoneAttemptKey; generation: number; token: string }>;
 export type PhonePresentationFailureReport = Readonly<{ surfaceId: string; attempt: PhoneAttemptKey; generation: number; failure: PhoneFailure }>;
+const PHONE_HANDOFF_BLOCK_REASONS = ['mount', 'surface', 'coverage', 'generation', 'prewarm'] as const;
+export type PhoneNativeHandoffBlockReason = (typeof PHONE_HANDOFF_BLOCK_REASONS)[number];
+export type PhoneNativeHandoffState = readonly [token: string | null, reason: PhoneNativeHandoffBlockReason | null];
 
 export type PhoneStoryRuntime = Readonly<{
   getSnapshot(): PhoneMachineSnapshot;
@@ -62,6 +65,7 @@ export type PhoneStoryRuntime = Readonly<{
   startVisibleEntrance(): void;
   createLeafReportPort(binding: PhoneLeafReportBinding): PhoneLeafReportPort;
   createPrewarmLeafReportPort(sceneId: PhoneSceneId): PhoneLeafReportPort; promotePrewarmLeaf(binding: PhoneLeafReportBinding): boolean;
+  nativeHandoff(direction: 'forward' | 'reverse'): PhoneNativeHandoffState;
 }>;
 
 export type PhoneReadingScrollOwner = Readonly<{
@@ -80,7 +84,7 @@ export function phoneReadingEdges(owner: PhoneReadingScrollOwner): Readonly<{
 
 type QueuedEvent = Readonly<{ sequence: number; event: PhoneStoryEvent }>;
 type DeadlineLease = Readonly<{ key: string; handle: PhoneRuntimeTimerHandle; connection: number }>;
-type ReportState = { valid: boolean; binding: PhoneLeafReportBinding; p?: true | 'ready' };
+type ReportState = { valid: boolean; binding: PhoneLeafReportBinding; p?: PhoneSceneId; r?: true };
 type LeafLease = { key: string; reports: ReportState; mount: PhoneLeafMountLease; activeDecoders: number; disposed: boolean; frameToken: string | null };
 type PendingLoad = { controller: AbortController; waiters: Array<Readonly<{ effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>; connection: number }>> };
 type PlaybackLease = Readonly<{ handle: PhoneRuntimeTimerHandle; attempt: PhoneAttemptKey; stageIndex: number; startedAt: number; durationMs: number; from: number; to: number; connection: number }>;
@@ -204,26 +208,32 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   const activations = new Map<string, ActivationLease>();
   const activationClaims = new WeakMap<LeafLease, string>();
   const rejectedClosures = new Set<string>();
-  let resources: PhoneRuntimeResourceCounts = {
-    videos: 0, activeDecoders: 0, canvases: 0, webglContexts: 0 };
+  let resources: PhoneRuntimeResourceCounts = { videos: 0, activeDecoders: 0, canvases: 0, webglContexts: 0 };
 
-  const publish = (): void => {
-    environment.observePublish?.(snapshot);
-    for (const listener of [...listeners]) listener();
-  };
+  const publish = (): void => { environment.observePublish?.(snapshot); for (const listener of [...listeners]) listener(); };
   const publishPrewarm = (): void => { snapshot = { ...snapshot }; publish(); };
-
-  const cancelDeadline = (key: string): void => {
-    const lease = deadlines.get(key);
-    if (!lease) return;
-    environment.cancelTimer(lease.handle);
-    deadlines.delete(key);
+  const inspectNativeHandoffLease = (direction: 'forward' | 'reverse'): readonly [LeafLease | null, 0 | 1 | 2 | 3 | 4 | null] | null => {
+    if (!connected || snapshot.status !== 'stable') return null;
+    const descriptor = phoneNativeHandoffDescriptor(snapshot.stableCommit.sceneId, direction); if (!descriptor) return null;
+    const required = descriptor[1]; if (!required.length) return [null, null];
+    const segment = phoneSegmentBetween(snapshot.stableCommit.sceneId, descriptor[0]);
+    if (rejectedLoads.has(`scene:${descriptor[0]}`) || segment?.[direction].closure.load.some((dependency) => rejectedLoads.has(dependency))) return [null, 4];
+    const candidates = [...leaves.values()].filter(({ reports }) => reports.p === descriptor[0]);
+    const lease = candidates.find((candidate) => candidate.mount.isAttached());
+    if (!lease) return [null, candidates.length ? 3
+      : [...reportStates].some((candidate) => candidate.p === descriptor[0]) ? 1 : 0];
+    return [lease, activationCoverageComplete([lease], required) ? null : 2];
+  };
+  const nativeHandoff = (direction: 'forward' | 'reverse'): PhoneNativeHandoffState => {
+    const inspected = inspectNativeHandoffLease(direction); if (!inspected) return [null, null];
+    const [lease, reason] = inspected;
+    const token = reason === null || reason === 4 ? `${connection}:${snapshot.stableCommit!.commitSequence}:${direction[0]}:${lease?.mount.registrationKey ?? ''}` : null;
+    return [token, reason === null ? null : PHONE_HANDOFF_BLOCK_REASONS[reason]];
   };
 
-  const cancelDeadlines = (predicate: (lease: DeadlineLease) => boolean): void => {
-    runPhoneCleanupSteps('Phone deadline cancellation failed', [...deadlines.values()]
-      .filter(predicate).map((lease) => () => cancelDeadline(lease.key)));
-  };
+  const cancelDeadline = (key: string): void => { const lease = deadlines.get(key); if (!lease) return; environment.cancelTimer(lease.handle); deadlines.delete(key); };
+
+  const cancelDeadlines = (predicate: (lease: DeadlineLease) => boolean): void => { runPhoneCleanupSteps('Phone deadline cancellation failed', [...deadlines.values()].filter(predicate).map((lease) => () => cancelDeadline(lease.key))); };
 
   const syncDeadlines = (): void => {
     const active = snapshot.status === 'transaction' && snapshot.transaction.deadline
@@ -312,11 +322,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     notifyResources();
   };
 
-  const mountedLease = (state: ReportState): LeafLease | null => (
-    [...leaves.values()].find((lease) => (
-      !lease.disposed && lease.reports === state
-    )) ?? null
-  );
+  const mountedLease = (state: ReportState): LeafLease | null => [...leaves.values()].find((lease) => !lease.disposed && lease.reports === state) ?? null;
 
   const closeReports = (state: ReportState, observe = true): void => {
     if (!state.valid) return;
@@ -359,7 +365,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     reportStates.add(revived); return revived;
   };
 
-  const promoteLease = (lease: LeafLease, binding: PhoneLeafReportBinding): void => { const state = lease.reports; const previousKey = lease.key; closeReports(state, false); leaves.delete(previousKey); state.valid = true; state.binding = closePhoneLeafReportBinding(binding); delete state.p; reportStates.add(state); lease.key = phoneLeafMountKey(state.binding); if (leaves.has(lease.key)) throw new Error(`rebind collision: ${lease.key}`); leaves.set(lease.key, lease); bindLeafGeneration(lease, state, true); };
+  const promoteLease = (lease: LeafLease, binding: PhoneLeafReportBinding): void => { const state = lease.reports; const previousKey = lease.key; closeReports(state, false); leaves.delete(previousKey); state.valid = true; state.binding = closePhoneLeafReportBinding(binding); delete state.p; delete state.r; reportStates.add(state); lease.key = phoneLeafMountKey(state.binding); if (leaves.has(lease.key)) throw new Error(`rebind collision: ${lease.key}`); leaves.set(lease.key, lease); bindLeafGeneration(lease, state, true); };
 
   const rebindReportState = (state: ReportState, binding: PhoneLeafReportBinding): ReportState => { const lease = mountedLease(state); closeReports(state); state.valid = true; state.binding = closePhoneLeafReportBinding(binding); reportStates.add(state); if (!lease) return state; leaves.delete(lease.key); lease.key = phoneLeafMountKey(state.binding); leaves.set(lease.key, lease); bindLeafGeneration(lease, state, true); return state; };
 
@@ -375,8 +381,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         if (existing) {
           const replacesOwnState = existing.reports === state;
           const binding = state.binding;
+          const prewarm = state.p, ready = state.r;
           retireLease(existing, 'generation-replaced');
-          if (replacesOwnState) { state = { valid: true, binding }; reportStates.add(state); }
+          if (replacesOwnState) { state = { valid: true, binding, ...(prewarm ? { p: prewarm } : {}), ...(ready ? { r: ready } : {}) }; reportStates.add(state); }
         }
         const mount = presentation.registerLeafMount({ binding: state.binding, registration });
         const expected = phoneIdentitySignature(state.binding.allowedSurfaceIds);
@@ -392,6 +399,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         const lease: LeafLease = {
           key, reports: state, mount, activeDecoders: 0, disposed: false, frameToken: null
         };
+        if (state.p) rejectedLoads.delete(`scene:${state.p}`);
         leaves.set(key, lease);
         bindLeafGeneration(lease, state, false);
         const active = snapshot.status === 'transaction' ? snapshot.transaction : null; if (state.p && active) { const promoted = createPhoneSupersedingLeafBinding(active, state.binding); if (promoted) promoteLease(lease, promoted); } if (state.p) publishPrewarm();
@@ -422,7 +430,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       },
       reportPrepared: (surfaceId, report) => {
         const lease = mountedLease(state);
-        if (state.p) { if (!report.ready || report.kind !== 'video-decoded' || !lease || !lease.mount.surfaceIds.includes(surfaceId) || lease.mount.surfaceIds.some((id) => id.includes('canvas'))) return; state.p = 'ready'; publishPrewarm(); return; }
+        if (state.p) { if (!report.ready || report.kind !== 'video-decoded' || !lease || !lease.mount.surfaceIds.includes(surfaceId) || lease.mount.surfaceIds.some((id) => id.includes('canvas'))) return; state.r = true; publishPrewarm(); return; }
         if (!report.ready || !lease || !lease.mount.surfaceIds.includes(surfaceId)
           || !['image-decoded', 'video-decoded', 'canvas-drawn', 'static-ready']
             .includes(report.kind)) return;
@@ -432,12 +440,12 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         const lease = mountedLease(state);
         if (!report.presented || !lease || report.token !== lease.frameToken
           || !lease.mount.surfaceIds.includes(surfaceId)) return;
-        if (state.p) { state.p = 'ready'; publishPrewarm(); return; }
+        if (state.p) { state.r = true; publishPrewarm(); return; }
         acceptPreparedProof(state, lease, { surfaceId, report });
       },
       reportProgress: () => undefined,
       reportComplete: () => undefined,
-      reportFailure: (failure: PhoneFailure) => { if (state.p) return;
+      reportFailure: (failure: PhoneFailure) => { if (state.p) { rejectedLoads.add(`scene:${state.p}`); publishPrewarm(); return; }
         if (!state.valid || !mountedLease(state) || snapshot.status !== 'transaction') return;
         if (failure.code === 'media-activation-rejected') return;
         const directSlot = [...snapshot.transaction.requiredPrepared,
@@ -461,7 +469,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     const active = snapshot.status === 'transaction' && sameAttempt(snapshot.transaction.attempt, attempt) ? snapshot.transaction : null;
     const direction = attempt.direction ?? 'forward'; const stageIndex = active?.stageIndex ?? 0; const runToken = mediaRunToken(attempt, direction);
     for (const owner of candidates) activationClaims.set(owner, attemptIdentity(attempt));
-    if (candidates.length > 0 && candidates.every(({ reports }) => reports.p === 'ready')) { for (const owner of candidates) { delete owner.reports.p; owner.mount.commands.setMediaPhase?.({ phase: 'primed', runToken, direction, stageIndex }); } enqueueFor({ type: 'activation-settled', invoked: true, attempt }, activeConnection); return; }
+    if (candidates.length > 0 && candidates.every(({ reports }) => reports.r)) { for (const owner of candidates) { delete owner.reports.p; delete owner.reports.r; owner.mount.commands.setMediaPhase?.({ phase: 'primed', runToken, direction, stageIndex }); } enqueueFor({ type: 'activation-settled', invoked: true, attempt }, activeConnection); return; }
     const targets = candidates.map((owner) => ({ owner, commands: owner.mount.commands, surfaceIds: phoneActivationSurfaceIds(owner.mount, requested) }));
     const batch = invokePhoneActivationBatch(
       invocationId,
@@ -590,14 +598,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     }
   };
 
-  const activationCoverageComplete = (
-    candidates: readonly LeafLease[], surfaceIds: readonly PhoneSurfaceId[]
-  ): boolean => {
-    const covered = new Set(candidates.flatMap((lease) => (
-      phoneActivationSurfaceIds(lease.mount, surfaceIds)
-    )));
-    return surfaceIds.every((id) => covered.has(id));
-  };
+  const activationCoverageComplete = (candidates: readonly LeafLease[], surfaceIds: readonly PhoneSurfaceId[]): boolean => { const covered = new Set(candidates.flatMap((lease) => phoneActivationSurfaceIds(lease.mount, surfaceIds))); return surfaceIds.every((id) => covered.has(id)); };
 
   const rebindForActivation = (
     attempt: PhoneLeafReportBinding['attempt'],
@@ -958,7 +959,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         const choreographedEndpoint = segmentEndpoint(transaction, leg);
         const endpoint = leg === 'effect' ? transaction.attempt.direction === 'reverse' ? 0 : 1 : choreographedEndpoint ?? (transaction.attempt.mode === 'boot' && transaction.candidateSceneId === 'hero' ? 0 : phoneSceneStableHold(leg === 'source' && transaction.sourceSceneId ? transaction.sourceSceneId : transaction.candidateSceneId));
         const settled = lease.mount.commands.settle(endpoint);
-        if (settled?.prewarmReusable === false) delete lease.reports.p;
+        if (settled?.prewarmReusable === false) { delete lease.reports.p; delete lease.reports.r; }
       }
     }
   };
@@ -981,11 +982,15 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         : next.presentationProof !== previous.presentationProof;
       if (!completed) return;
       stableDependencyAttempt = transaction.attempt;
-      const retainedLeg = transaction.commitIntent === 'rollback' ? 'rollback'
-        : 'target';
+      const retainedLeg = transaction.commitIntent === 'rollback' ? 'rollback' : 'target';
       const retainsPair = transaction.closure.retireAfter === 'pair-exit-or-route-dispose';
-      for (const lease of matching) {
-      const keepsStableMount = lease.reports.binding.attempt.sceneId === next.stableCommit.sceneId && lease.reports.binding.leg === retainedLeg; if (keepsStableMount) closeReports(lease.reports); else if (retainsPair) { if (lease.reports.binding.leg !== 'effect') { pauseLease(lease, 'outside-closure'); lease.reports.p = 'ready'; } closeReports(lease.reports); } else retireLease(lease, 'closure-retired');
+      const retainsDepartingMedia = transaction.sourceSceneId !== null && transaction.mode === 'segment'
+        && phoneSceneById(next.stableCommit.sceneId).plane === 'native' && phoneSceneById(transaction.sourceSceneId).plane !== 'native';
+      for (const lease of matching) { const state = lease.reports, keepsStableMount = state.binding.attempt.sceneId === next.stableCommit.sceneId && state.binding.leg === retainedLeg, keepsDeparting = retainsDepartingMedia && state.binding.leg === 'source', retainedScene = state.binding.leg === 'source' ? transaction.sourceSceneId : transaction.candidateSceneId;
+        if (keepsStableMount) closeReports(state);
+        else if (retainsPair && state.binding.leg === 'effect') closeReports(state);
+        else if ((retainsPair || keepsDeparting) && retainedScene && phoneSceneById(retainedScene).plane !== 'native') { pauseLease(lease, 'outside-closure'); state.valid = true; state.p = retainedScene; state.r = true; reportStates.add(state); }
+        else retireLease(lease, 'closure-retired');
       }
       if (next.stableCommit !== previous.stableCommit) chunkRecovery.markStable(Object.freeze({
         authorityId: next.authorityId,
@@ -1012,6 +1017,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
           .then((result) => {
             if (result.status !== 'rejected') return;
             rejectedLoads.add(result.dependency);
+            publishPrewarm();
             void chunkRecovery.reportRejectedChunk({
               authorityId: effect.attempt.authorityId,
               transactionId: effect.attempt.transactionId,
@@ -1027,6 +1033,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
               error === controller.signal.reason || errorName === 'AbortError'
             )) return;
             rejectedClosures.add(prewarmKey);
+            for (const scene of phoneNativePrewarmScenes(next.stableCommit.sceneId)) rejectedLoads.add(`scene:${scene}`);
+            publishPrewarm();
             void chunkRecovery.reportRejectedChunk({
               authorityId: effect.attempt.authorityId,
               transactionId: effect.attempt.transactionId,
@@ -1161,12 +1169,14 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       if (!event.fresh || event.target !== 'story' || event.trusted === false) return;
       const direction = inputDirection(event);
       if (direction) {
-        const epoch = ++physicalEpoch;
-        const active = snapshot.status === 'transaction' ? snapshot.transaction : null;
+        const descriptor = snapshot.status === 'stable' && snapshot.stableCommit ? phoneNativeHandoffDescriptor(snapshot.stableCommit.sceneId, direction) : null;
+        const token = descriptor ? nativeHandoff(direction)[0] : null;
+        if (descriptor && (!token || event.handoffToken !== token)) return;
+        const epoch = ++physicalEpoch, active = snapshot.status === 'transaction' ? snapshot.transaction : null;
         enqueueFor(active?.phase === 'awaiting-leg-intent' && active.attempt.direction === direction
           ? { type: 'leg-intent', attempt: active.attempt, physicalEpoch: epoch }
-          : { type: 'segment-requested', direction, physicalEpoch: epoch,
-              reducedMotion: environment.readReducedMotion() }, expectedConnection);
+          : { type: 'segment-requested', direction, physicalEpoch: epoch, reducedMotion: environment.readReducedMotion() }, expectedConnection);
+        if (descriptor && snapshot.status === 'transaction') for (const lease of [...leaves.values()]) { if (lease.reports.p && lease.reports.p !== descriptor[0]) retireLease(lease, 'closure-retired'); }
       }
     } else if (event.type === 'entry') {
       enqueueFor({ type: 'entry-requested', request: event.request }, expectedConnection);
@@ -1307,6 +1317,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       return true;
     },
     createLeafReportPort: (binding: PhoneLeafReportBinding) => { const closed = closePhoneLeafReportBinding(binding); if (!connected || snapshot.status !== 'transaction' || !sameAttempt(closed.attempt, snapshot.transaction.attempt) || closed.stageIndex !== snapshot.transaction.stageIndex || closed.planeRevision !== snapshot.transaction.planeRevision) throw new Error('not active transaction'); const transaction = snapshot.transaction; assertPhoneLeafReportBindingContract(closed, transaction); const state: ReportState = { valid: true, binding: closed }; reportStates.add(state); return createReportPort(state); },
-    createPrewarmLeafReportPort: (sceneId: PhoneSceneId) => { const scene = phoneSceneById(sceneId); const state: ReportState = { p: true, valid: true, binding: { attempt: { authorityId: snapshot.authorityId, transactionId: `prewarm:${sceneId}`, transactionGeneration: 0, mode: 'recovery', sceneId, segmentId: null, direction: 'forward' }, stageIndex: 0, leg: 'target', allowedReports: [], allowedSurfaceIds: scene.surfaces, planeRevision: null } }; reportStates.add(state); return createReportPort(state); }
+    createPrewarmLeafReportPort: (sceneId: PhoneSceneId) => { for (const stale of [...reportStates]) if (stale.p === sceneId && !mountedLease(stale)) closeReports(stale, false); const scene = phoneSceneById(sceneId); const state: ReportState = { p: sceneId, valid: true, binding: { attempt: { authorityId: snapshot.authorityId, transactionId: `prewarm:${sceneId}`, transactionGeneration: 0, mode: 'recovery', sceneId, segmentId: null, direction: 'forward' }, stageIndex: 0, leg: 'target', allowedReports: [], allowedSurfaceIds: scene.surfaces, planeRevision: null } }; reportStates.add(state); return createReportPort(state); },
+    nativeHandoff
   });
 }

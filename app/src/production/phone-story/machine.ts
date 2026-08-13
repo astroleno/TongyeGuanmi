@@ -23,9 +23,7 @@ export type PhoneMachineSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegment
 export type PhoneMachineTransactionSnapshot = PhoneTransactionSnapshot<PhoneSceneId, PhoneSegmentId>;
 export type PhoneMachineResult = PhoneReduceResult<PhoneSceneId, PhoneSegmentId>;
 
-type BootOptions = Readonly<{ authorityId: string; request: PhoneEntryRequest;
-  viewport: PhoneViewportSnapshot; reducedMotion?: boolean }>;
-
+type BootOptions = Readonly<{ authorityId: string; request: PhoneEntryRequest; viewport: PhoneViewportSnapshot; reducedMotion?: boolean }>;
 type TransactionOptions = Readonly<{
   mode: PhoneTransactionMode; sourceSceneId: PhoneSceneId | null;
   candidateSceneId: PhoneSceneId; segmentId: PhoneSegmentId | null;
@@ -711,16 +709,12 @@ function handleDeadline(
   });
 }
 
-function handleSegment(
-  snapshot: PhoneMachineSnapshot,
-  direction: PhoneDirection,
-  physicalEpoch: number,
-  reducedMotion: boolean
-): PhoneMachineResult {
+function handleSegment(snapshot: PhoneMachineSnapshot, direction: PhoneDirection,
+  physicalEpoch: number | null, reducedMotion: boolean): PhoneMachineResult {
   if (snapshot.status !== 'stable' || !snapshot.input.enabled) {
     return freezeOwned({ snapshot, effects: [] });
   }
-  if (snapshot.input.claimedEpoch !== null && physicalEpoch <= snapshot.input.claimedEpoch) {
+  if (physicalEpoch !== null && snapshot.input.claimedEpoch !== null && physicalEpoch <= snapshot.input.claimedEpoch) {
     return freezeOwned({ snapshot, effects: [] });
   }
   const source = snapshot.stableCommit.sceneId;
@@ -1161,9 +1155,8 @@ export function reducePhoneStory(
   switch (event.type) {
     case 'entry-requested': return handleEntry(snapshot, event.request, event.urlWasReplaced);
     case 'retry-requested': return handleRetry(snapshot);
-    case 'segment-requested': return handleSegment(
-      snapshot, event.direction, event.physicalEpoch, event.reducedMotion ?? false
-    );
+    case 'segment-requested': return handleSegment(snapshot, event.direction, event.physicalEpoch,
+      event.reducedMotion ?? false);
     case 'evidence-reported': return snapshot.status === 'transaction'
       ? handleEvidence(snapshot, event.slot, event.report.kind, event.report.token)
       : freezeOwned({ snapshot, effects: [] });

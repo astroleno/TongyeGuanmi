@@ -613,6 +613,12 @@ export function phoneAdjacentTarget(
   const target = canonicalSceneIds[index + (direction === 'forward' ? 1 : -1)];
   return target ?? null;
 }
+export function phoneNativeHandoffDescriptor(sourceSceneId: PhoneSceneId, direction: PhoneDirection) {
+  const targetSceneId = phoneAdjacentTarget(sourceSceneId, direction); const segment = targetSceneId ? phoneSegmentBetween(sourceSceneId, targetSceneId) : null; if (phoneSceneById(sourceSceneId).plane !== 'native' || !targetSceneId || !segment) return null;
+  return [targetSceneId, segment[direction].mediaActivation.requiresPhysicalCredit ? phoneSceneById(targetSceneId).surfaces.filter((surface) => surface.includes('video')) : []] as const;
+}
+export function phoneNativePrewarmScenes(stableSceneId: PhoneSceneId): readonly PhoneSceneId[] { if (phoneSceneById(stableSceneId).plane !== 'native') return []; return (['reverse', 'forward'] as const).flatMap((direction) => { const scene = phoneAdjacentTarget(stableSceneId, direction); return scene && phoneSceneById(scene).plane !== 'native' ? [scene] : []; }); }
+
 export const phoneDirectEntryClosure = (scene: PhoneSceneId): PhoneDependencyClosure =>
   phoneSceneById(scene).directEntry.closure;
 export function phoneSegmentClosure(

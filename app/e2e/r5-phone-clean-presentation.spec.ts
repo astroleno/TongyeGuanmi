@@ -481,7 +481,7 @@ async function assertDecodedPoster(
 async function assertFormalInkCompositeContribution(
   page: import('@playwright/test').Page,
   segment: CompleteStorySegment,
-  expectedEffectZIndex?: '20' | '40'
+  expectedEffectZIndex?: '20' | '70'
 ): Promise<void> {
   if (!FORMAL_INK_SEGMENTS.has(segment)) return;
   const selector = `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"]`;
@@ -555,7 +555,9 @@ async function sendFrontIntent(
   page: import('@playwright/test').Page,
   direction: 'forward' | 'reverse'
 ): Promise<void> {
-  await page.keyboard.press(direction === 'forward' ? 'ArrowDown' : 'ArrowUp');
+  const key = direction === 'forward' ? 'ArrowDown' : 'ArrowUp';
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press(key);
 }
 
 async function sendTouchFrontIntent(
@@ -1543,7 +1545,7 @@ async function traverseCompleteStoryLeg(
     await sendFrontIntent(page, direction);
   }
   await assertFormalInkCompositeContribution(
-    page, segment, BETWEEN_PLANE_SEGMENTS.has(segment) ? '20' : '40'
+    page, segment, BETWEEN_PLANE_SEGMENTS.has(segment) ? '20' : '70'
   );
   await assertSinglePhoneAuthority(page);
   for (let boundary = 0; boundary < 8; boundary += 1) {
@@ -4320,6 +4322,67 @@ test('Services → TTG → Lab → PH localizes and commits every edge with touc
   expect(admitted.admitted).toBeGreaterThan(0);
   expect(admitted.admitted).toBe(admitted.generation);
   expect(admitted.opacity).toBeGreaterThan(0);
+});
+
+test('Lab keeps one PH lease through front-half reading and commits the first boundary touch', async ({
+  page, browserName
+}) => {
+  test.skip(browserName !== 'chromium', 'Trusted touch transport requires Chromium CDP; physical Safari remains the device gate.');
+  await page.goto('/#lab', { waitUntil: 'domcontentloaded' });
+  const before = await waitForDirectEntryCommit(page, 'lab');
+  await waitForContinuousStoryReady(page);
+  const ph = page.locator('.phone-ph');
+  expect(await ph.count(), 'PH must already be dormant-mounted when Lab becomes interactive')
+    .toBe(1);
+  await ph.evaluate((node) => {
+    (window as typeof window & { __r5LabPhLease?: Element }).__r5LabPhLease = node;
+  });
+  const maximum = await page.evaluate(() => {
+    const owner = document.scrollingElement ?? document.documentElement;
+    return Math.max(0, owner.scrollHeight - owner.clientHeight);
+  });
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error('Touch input requires a fixed viewport');
+  const session = await page.context().newCDPSession(page);
+  await page.evaluate((scrollTop) => {
+    const owner = document.scrollingElement ?? document.documentElement;
+    owner.scrollTop = scrollTop;
+    window.dispatchEvent(new Event('scroll'));
+  }, Math.round(maximum * .3));
+  await expect.poll(() => page.evaluate(() => (
+    document.scrollingElement ?? document.documentElement
+  ).scrollTop)).toBeGreaterThan(maximum * .2);
+  expect(await page.evaluate(() => {
+    const lease = (window as typeof window & { __r5LabPhLease?: Element }).__r5LabPhLease;
+    return lease === document.querySelector('.phone-ph');
+  })).toBe(true);
+  expect((await page.locator('.phone-story').getAttribute('data-phone-handoff'))
+    ?.split(',')).toContain('forward:ready');
+
+  const x = Math.round(viewport.width * .5);
+  try {
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart', touchPoints: [{ x, y: Math.round(viewport.height * .8), id: 81 }]
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: [{ x, y: Math.round(viewport.height * .68), id: 81 }]
+    });
+    await page.evaluate(() => {
+      const owner = document.scrollingElement ?? document.documentElement;
+      owner.scrollTop = Math.max(0, owner.scrollHeight - owner.clientHeight);
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: [{ x, y: Math.round(viewport.height * .24), id: 81 }]
+    });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await session.detach();
+  }
+  await page.waitForFunction(() => (
+    document.querySelector<HTMLElement>('.phone-story')?.dataset.phoneSegment === 'lab-ph'
+  ), undefined, { timeout: 15_000 });
+  await waitForCommitSequence(page, 'ph-animation', before);
+  expect(await readCommitSequence(page)).toBe(before + 1);
 });
 
 test('Services native touch tolerates a 2px Safari reversal and publishes once', async ({

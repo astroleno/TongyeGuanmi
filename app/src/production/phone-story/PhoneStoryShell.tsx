@@ -3,7 +3,7 @@ import { StoryLoader } from '../StoryLoader';
 import { StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
 import { PHONE_FIGURE2_ARCH_SRC, RetainedFigure2Arch } from '../../stage/PhoneRetainedFigure2Arch';
-import { phoneManifest, phoneRetainedFigure2ArchOwner, phoneSceneById,
+import { phoneManifest, phoneNativePrewarmScenes, phoneRetainedFigure2ArchOwner, phoneSceneById,
   type PhoneSceneId, type PhoneSegmentId } from './manifest';
 import { createPhonePresentation, runPhoneCleanupSteps, type PhoneLeafReportBinding,
   type PhoneLeafReportPort, type PhonePresentation } from './presentation';
@@ -29,7 +29,7 @@ export type PhoneStoryShellProps = Readonly<{
 type PhoneShellSnapshot = PhoneStorySnapshot<PhoneSceneId, PhoneSegmentId>;
 const WHEEL_GESTURE_GAP_MS = 240; const PHONE_IMPLEMENTATION_SIGNATURE = 'clean-v1';
 const PHONE_FIGURE2_ARCH_SCENES = new Set<PhoneSceneId>(['figure2-animation', 'figure2-proof']);
-type PhoneNativeHandoffRecord = Readonly<{ sceneId: PhoneSceneId; commitSequence: number; scrollY: number }>; type PhoneNativeHandoffStore = { snapshot: PhoneShellSnapshot | null; record: PhoneNativeHandoffRecord | null };
+type PhoneNativeHandoffRecord = Readonly<{ sceneId: PhoneSceneId; commitSequence: number; scrollY: number }>; type PhoneNativeHandoffStore = { snapshot: PhoneShellSnapshot | null; record: PhoneNativeHandoffRecord | null; readiness: ((direction: 'forward' | 'reverse') => string | null) | null };
 function readPhoneNativeScroll(owner: Pick<HTMLElement, 'scrollTop'> | null, windowY: number): number { const y = owner && Number.isFinite(owner.scrollTop) ? owner.scrollTop : Number.NaN; return Math.max(0, Number.isFinite(y) ? y : Number.isFinite(windowY) ? windowY : 0); } function writePhoneNativeHandoff(mirror: HTMLElement, scrollY: number): void { const value = Math.max(0, Number.isFinite(scrollY) ? scrollY : 0).toFixed(2); mirror.style.setProperty('--phone-native-scroll-y', `${value}px`); mirror.dataset.phoneNativeScrollY = value; mirror.dataset.phoneNativeHandoff = 'active'; } function clearPhoneNativeHandoff(mirror: HTMLElement | null): void { if (!mirror) return; delete mirror.dataset.phoneNativeHandoff; mirror.style.removeProperty('will-change'); }
 
 function nativeReadingTarget(shell: HTMLElement, commit: NonNullable<PhoneShellSnapshot['stableCommit']>): number {
@@ -38,24 +38,6 @@ function nativeReadingTarget(shell: HTMLElement, commit: NonNullable<PhoneShellS
     ? shell.querySelector<HTMLElement>('.phone-story__reading-flow [data-r4-proof-panel="cards"]') : null;
   return cards ? cards.offsetTop > 0 ? cards.offsetTop : Math.max(0, cards.getBoundingClientRect().top + owner.scrollTop)
     : commit.direction === 'reverse' || commit.landingAlias === 'closing' ? bottom : 0;
-}
-
-const PHONE_NATIVE_MEDIA_NEIGHBOURS: Readonly<Partial<Record<PhoneSceneId, readonly [PhoneSceneId | null, PhoneSceneId | null]>>> = { 'method-top': ['aod-animation', 'figure2-animation'], 'figure2-proof': ['figure2-animation', null], brand: [null, 'figure3-animation'], services: ['figure3-animation', 'ttg-animation'], lab: ['ttg-animation', 'ph-animation'], education: ['ph-animation', 'crane-animation'], contact: ['crane-animation', null] };
-export function phoneNativePrewarmTarget(sceneId: PhoneSceneId, scrollY: number, maximumScrollY: number, viewportHeight: number, direction: 'forward' | 'reverse' | null): PhoneSceneId | null {
-  const pair = PHONE_NATIVE_MEDIA_NEIGHBOURS[sceneId]; if (!pair) return null;
-  const maximum = Math.max(0, maximumScrollY), edgeWindow = Math.min(maximum / 2, Math.max(96, viewportHeight * .25)), y = Math.min(maximum, Math.max(0, scrollY)), nearTop = y <= edgeWindow, nearBottom = maximum - y <= edgeWindow;
-  if (nearTop && nearBottom) return (maximum === 0 ? pair[0] : direction === 'reverse' ? pair[0] : pair[1])
-    ?? pair[0] ?? pair[1];
-  return nearTop ? pair[0] : nearBottom ? pair[1] : null;
-}
-export function phoneNativeMediaTargetMounted(shell: HTMLElement, sceneId: PhoneSceneId, direction: 'forward' | 'reverse'): boolean {
-  const target = PHONE_NATIVE_MEDIA_NEIGHBOURS[sceneId]?.[direction === 'reverse' ? 0 : 1];
-  return !target || phoneSceneById(target).content.selectors.some((selector) => shell.querySelector(`.phone-story__viewport ${selector}`));
-}
-function phoneNativePrewarmZone(owner: Pick<HTMLElement, 'scrollTop' | 'clientHeight' | 'scrollHeight'>): 'top' | 'middle' | 'bottom' {
-  const maximum = Math.max(0, owner.scrollHeight - owner.clientHeight), edgeWindow = Math.min(maximum / 2, Math.max(96, owner.clientHeight * .25)), scrollTop = Math.min(maximum, Math.max(0, owner.scrollTop));
-  return scrollTop <= edgeWindow ? 'top'
-    : maximum - scrollTop <= edgeWindow ? 'bottom' : 'middle';
 }
 
 type PhoneTouchPoint = Readonly<{ identifier: number; clientY: number }>;
@@ -207,18 +189,19 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
       };
       const touchArbiter = createPhoneTouchArbiter();
       let blockedTouch = false;
-      let latestNativeScrollY = window.scrollY; let lastNativeReadingEdge: 'top' | 'middle' | 'bottom' | null = null;
+      let latestNativeScrollY = window.scrollY;
       const nativeReadingOwner = () => document.scrollingElement ?? document.documentElement;
       const nativeReadingEdges = () => phoneReadingEdges(nativeReadingOwner());
-      const nativeReadingSample = () => { const owner = nativeReadingOwner(); const maximum = Math.max(0, owner.scrollHeight - owner.clientHeight); const scrollTop = Math.min(maximum, Math.max(0, owner.scrollTop)); return { topDistance: scrollTop, bottomDistance: maximum - scrollTop }; };
-      const clampNativeReadingEdge = (direction: 'forward' | 'reverse') => { const owner = nativeReadingOwner(); const target = direction === 'forward' ? Math.max(0, owner.scrollHeight - owner.clientHeight) : 0; try { owner.scrollTop = target; } catch { return false; } latestNativeScrollY = target; return true; };
+      const nativeReadingSample = () => { const owner = nativeReadingOwner(), maximum = Math.max(0, owner.scrollHeight - owner.clientHeight); return { topDistance: owner.scrollTop, bottomDistance: maximum - owner.scrollTop }; };
       const freezeNativeReadingBeforePublish = (direction?: 'forward' | 'reverse') => { const shell = document.querySelector<HTMLElement>(`.phone-story[data-phone-scope="${scope}"]`); if (!shell || shell.dataset.phoneReading !== 'enabled') return false; const edges = nativeReadingEdges(); if (direction && !(direction === 'reverse' ? edges.top : edges.bottom)) return false; const sceneId = shell.dataset.phoneScene as PhoneSceneId | undefined; const snapshot = handoffStore.snapshot; const stableCommit = snapshot?.stableCommit; if (!sceneId || !stableCommit || stableCommit.sceneId !== sceneId) return false; const scrollY = readPhoneNativeScroll(document.scrollingElement ?? document.documentElement, latestNativeScrollY); handoffStore.record = { sceneId, commitSequence: stableCommit.commitSequence, scrollY }; const visualRoot = shell.querySelector<HTMLElement>(`.phone-story__viewport [data-phone-native-mirror="${sceneId}"]`); if (visualRoot) writePhoneNativeHandoff(visualRoot, scrollY); return true; };
+      const claimNativeHandoff = (direction: 'forward' | 'reverse', clamp = false) => { const token = handoffStore.readiness?.(direction); if (!token) return null; if (clamp) { const owner = nativeReadingOwner(); owner.scrollTop = direction === 'forward' ? owner.scrollHeight - owner.clientHeight : 0; } return freezeNativeReadingBeforePublish(direction) ? token : null; };
+      const publishInput = (input: { kind: 'wheel' | 'pointer' | 'keyboard'; delta: number; key?: string; fresh: boolean; trusted: boolean; target: 'story' | 'native-corridor' | 'contact-control' }): boolean => { const scene = handoffStore.snapshot?.stableCommit?.sceneId, native = scene ? phoneSceneById(scene).plane === 'native' : false, direction = input.delta > 0 ? 'forward' : 'reverse', handoffToken = native && input.target !== 'contact-control' ? claimNativeHandoff(direction) : null; publish({ type: 'input', ...input, target: handoffToken ? 'story' : native && input.target !== 'contact-control' ? 'native-corridor' : input.target, ...(handoffToken ? { handoffToken } : {}) }); return Boolean(handoffToken || !native && input.target === 'story'); };
       listen(window, 'touchstart', ((event: TouchEvent) => {
         const target = inputTarget(event.target);
-        blockedTouch = target === 'disabled';
         const nativeDocument = event.target instanceof Element
           && Boolean(event.target.closest('[data-phone-input-owner="native-document"]'))
           && !event.target.closest('a, button, input, textarea, select, [contenteditable], [role="button"]');
+        blockedTouch = target === 'disabled';
         touchArbiter.start(
           Array.from(event.touches),
           target === 'story',
@@ -232,7 +215,7 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
         }
         const intent = touchArbiter.move(Array.from(event.touches ?? []), nativeReadingSample());
         if (intent?.delta === null) event.preventDefault();
-        if (intent && intent.delta !== null) { const { delta } = intent; if (intent.native) { const direction = delta > 0 ? 'forward' : 'reverse'; clampNativeReadingEdge(direction); const shell = document.querySelector<HTMLElement>(`.phone-story[data-phone-scope="${scope}"]`); const sceneId = shell?.dataset.phoneScene as PhoneSceneId | undefined; if (!shell || !sceneId || !phoneNativeMediaTargetMounted(shell, sceneId, direction) || !freezeNativeReadingBeforePublish(direction)) { touchArbiter.defer(); return; } } event.preventDefault(); publish({ type: 'input', kind: 'touch', delta, fresh: true, trusted: event.isTrusted, target: 'story' }); }
+        if (intent && intent.delta !== null) { const { delta } = intent; let handoffToken: string | null = null; if (intent.native) { handoffToken = claimNativeHandoff(delta > 0 ? 'forward' : 'reverse', true); if (!handoffToken) { touchArbiter.defer(); return; } } event.preventDefault(); publish({ type: 'input', kind: 'touch', delta, fresh: true, trusted: event.isTrusted, target: 'story', ...(handoffToken ? { handoffToken } : {}) }); }
       }) as EventListener, { passive: false });
       listen(window, 'touchend', ((event: TouchEvent) => {
         if (blockedTouch) {
@@ -256,10 +239,8 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
         const gap = event.timeStamp - lastWheelAt;
         const fresh = gap < 0 || gap >= WHEEL_GESTURE_GAP_MS;
         lastWheelAt = event.timeStamp;
-        if (target === 'story') event.preventDefault();
-        if (target !== 'contact-control') freezeNativeReadingBeforePublish(event.deltaY > 0 ? 'forward' : 'reverse');
-        publish({ type: 'input', kind: 'wheel', delta: event.deltaY,
-          fresh, trusted: event.isTrusted, target });
+        if (publishInput({ kind: 'wheel', delta: event.deltaY, fresh,
+          trusted: event.isTrusted, target })) event.preventDefault();
       }) as EventListener, { passive: false });
       const publishActivation = (event: Event) => {
         if (event.isTrusted && event.target instanceof Element
@@ -285,7 +266,8 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
           if (event.pointerType === 'touch') return;
           const origin = start?.id === event.pointerId ? start : null;
           start = null;
-          if (origin) { if (origin.target !== 'contact-control') freezeNativeReadingBeforePublish(origin.y - event.clientY > 0 ? 'forward' : 'reverse'); publish({ type: 'input', kind: 'pointer', delta: origin.y - event.clientY, fresh: true, trusted: event.isTrusted, target: origin.target }); }
+          if (origin) publishInput({ kind: 'pointer', delta: origin.y - event.clientY,
+            fresh: true, trusted: event.isTrusted, target: origin.target });
         }) as EventListener, { passive: true });
         listen(window, 'pointercancel', (() => { start = null; }) as EventListener,
           { passive: true });
@@ -299,10 +281,8 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
           event.preventDefault();
           return;
         }
-        if (target === 'story') event.preventDefault();
-        if (target !== 'contact-control') freezeNativeReadingBeforePublish(delta > 0 ? 'forward' : 'reverse');
-        publish({ type: 'input', kind: 'keyboard', key: event.key, delta,
-          fresh: !event.repeat, trusted: event.isTrusted, target });
+        if (publishInput({ kind: 'keyboard', key: event.key, delta,
+          fresh: !event.repeat, trusted: event.isTrusted, target })) event.preventDefault();
       }) as EventListener);
       const publishEntry = (origin: 'hash' | 'popstate') => {
         const pathname = window.location.pathname; const hash = window.location.hash; const key = `${pathname}${hash}`;
@@ -345,8 +325,8 @@ function createBrowserEnvironment(scope: NonNullable<PhoneStoryShellProps['scope
         listen(window.visualViewport, 'resize', toolbar as EventListener);
         listen(window.visualViewport, 'scroll', toolbar as EventListener);
       }
-      listen(window, 'scroll', (() => {
-        const owner = document.scrollingElement ?? document.documentElement; latestNativeScrollY = readPhoneNativeScroll(owner, window.scrollY); const edge = phoneNativePrewarmZone(owner); if (edge === lastNativeReadingEdge) return; lastNativeReadingEdge = edge; publish({ type: 'scroll', sample: { x: owner.scrollLeft, y: latestNativeScrollY, sampledAt: performance.now(), origin: 'native' } });
+      listen(window, 'scroll', ((event: Event) => {
+        const owner = document.scrollingElement ?? document.documentElement; latestNativeScrollY = readPhoneNativeScroll(owner, window.scrollY); publish({ type: 'scroll', sample: { x: owner.scrollLeft, y: latestNativeScrollY, sampledAt: event.isTrusted ? performance.now() : 0, origin: 'native' } });
       }) as EventListener, { passive: true });
       listen(document, 'visibilitychange', (() => publish({
         type: 'visibility', hidden: document.visibilityState === 'hidden'
@@ -480,7 +460,7 @@ export function PhoneStoryShell({
   diagnostics = false,
   chunkRecovery
 }: PhoneStoryShellProps) {
-  const rootRef = useRef<HTMLElement | null>(null); const reportPorts = useRef(new Map<string, PhoneLeafReportPort>()); const connectedRef = useRef(false); const lastStableCommitKeyRef = useRef<string | null>(null); const nativeHandoffStoreRef = useRef<PhoneNativeHandoffStore>({ snapshot: null, record: null });
+  const rootRef = useRef<HTMLElement | null>(null); const reportPorts = useRef(new Map<string, PhoneLeafReportPort>()); const connectedRef = useRef(false); const lastStableCommitKeyRef = useRef<string | null>(null); const nativeHandoffStoreRef = useRef<PhoneNativeHandoffStore>({ snapshot: null, record: null, readiness: null });
   const [loaderHidden, setLoaderHidden] = useState(false);
   const [owners] = useState(() => {
     const presentation = createProjector();
@@ -494,6 +474,7 @@ export function PhoneStoryShell({
       },
       chunkRecovery
     });
+    nativeHandoffStoreRef.current.readiness = (direction) => engine.nativeHandoff(direction)[0];
     return Object.freeze({
       presentation, engine,
       sceneTopology: createPhoneSceneTopology<PhoneSceneId>(),
@@ -505,10 +486,7 @@ export function PhoneStoryShell({
     owners.engine.getSnapshot,
     owners.engine.getSnapshot
   ); const stableScene = snapshot.stableCommit?.sceneId ?? null; nativeHandoffStoreRef.current.snapshot = snapshot;
-  const scrollOwner = typeof document === 'undefined' ? null : document.scrollingElement ?? document.documentElement; const maximumScrollY = scrollOwner ? Math.max(0, scrollOwner.scrollHeight - scrollOwner.clientHeight) : 0; const viewportHeight = scrollOwner?.clientHeight || (typeof window === 'undefined' ? snapshot.viewport.layout.height : window.innerHeight);
-  const stablePrewarmTarget = stableScene && snapshot.stableCommit ? phoneNativePrewarmTarget(stableScene, snapshot.scroll?.y ?? readPhoneNativeScroll(scrollOwner, 0), maximumScrollY, viewportHeight, snapshot.stableCommit.direction) : null; const stablePrewarmKey = stablePrewarmTarget && snapshot.stableCommit ? `${stablePrewarmTarget}:${snapshot.stableCommit.commitSequence}:${snapshot.presentationProof?.planeRevision ?? 0}` : null;
-  const prewarmPortRef = useRef<Readonly<{ key: string; port: PhoneLeafReportPort }> | null>(null);
-  const stablePrewarmPort = snapshot.status === 'stable' && stablePrewarmTarget && stablePrewarmKey ? (() => { if (prewarmPortRef.current?.key !== stablePrewarmKey) prewarmPortRef.current = { key: stablePrewarmKey, port: owners.engine.createPrewarmLeafReportPort(stablePrewarmTarget) }; return prewarmPortRef.current.port; })() : null;
+  const stablePrewarmScenes = stableScene ? phoneNativePrewarmScenes(stableScene) : [];
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -573,14 +551,14 @@ export function PhoneStoryShell({
         bindingFor(snapshot, 'source', phoneSceneById(sceneId).surfaces)
       )));
     }
-    if (!dependenciesLoaded && stablePrewarmTarget && stablePrewarmTarget === transaction.candidateSceneId) { const binding = bindingFor(snapshot, 'target', phoneSceneById(stablePrewarmTarget).surfaces); owners.engine.promotePrewarmLeaf(binding); scenes.push(owners.sceneTopology.retain(stablePrewarmTarget, roles.receiver, () => reportPort(binding))); }
+    if (!dependenciesLoaded && stablePrewarmScenes.includes(transaction.candidateSceneId)) { const binding = bindingFor(snapshot, 'target', phoneSceneById(transaction.candidateSceneId).surfaces); owners.engine.promotePrewarmLeaf(binding); scenes.push(owners.sceneTopology.retain(transaction.candidateSceneId, roles.receiver, () => reportPort(binding))); }
     if (dependenciesLoaded) {
       const sceneId = transaction.candidateSceneId;
       const leg: PhoneTransactionLeg = transaction.mode === 'rollback' ? 'rollback' : 'target';
       const binding = bindingFor(snapshot, leg, phoneSceneById(sceneId).surfaces);
       const promoted = transaction.mode !== 'rollback'
         && owners.engine.promotePrewarmLeaf(binding);
-      const retainsPrewarm = stablePrewarmTarget === sceneId;
+      const retainsPrewarm = stablePrewarmScenes.includes(sceneId);
       scenes.push(owners.sceneTopology.retain(sceneId,
         transaction.mode === 'rollback' ? roles.source : roles.receiver,
         () => reportPort(binding), transaction.mode !== 'rollback' && !promoted && !retainsPrewarm));
@@ -599,7 +577,7 @@ export function PhoneStoryShell({
     } else effect = owners.effectTopology.clear();
   } else if (connectedRef.current && snapshot.stableCommit) {
     const stableEffect = snapshot.status === 'stable' ? owners.effectTopology.finish() : owners.effectTopology.clear(); effect = stableEffect; const retainedSegment = stableEffect ? phoneManifest.segments.find(({ id }) => id === stableEffect.segmentId) : null; owners.sceneTopology.setPair(retainedSegment ? [retainedSegment.source, retainedSegment.target] : null); scenes.push(...owners.sceneTopology.stable(snapshot.stableCommit.sceneId, roles.source, roles.receiver));
-    if (snapshot.status === 'stable' && stablePrewarmTarget && stablePrewarmPort && !scenes.some(({ sceneId }) => sceneId === stablePrewarmTarget)) scenes.push(owners.sceneTopology.retain(stablePrewarmTarget, roles.receiver, () => stablePrewarmPort, true, true));
+    if (snapshot.status === 'stable') for (const sceneId of stablePrewarmScenes) if (!scenes.some((scene) => scene.sceneId === sceneId)) scenes.push(owners.sceneTopology.retain(sceneId, roles.receiver, () => owners.engine.createPrewarmLeafReportPort(sceneId)));
   } else effect = owners.effectTopology.clear();
   owners.sceneTopology.prune(scenes);
   const sourceScenes = scenes.filter(({ buffer }) => buffer === roles.source);
@@ -661,6 +639,10 @@ export function PhoneStoryShell({
       data-phone-candidate-scene={snapshot.status === 'transaction'
         ? snapshot.transaction.candidateSceneId : undefined}
       data-phone-segment={snapshot.status === 'transaction' ? snapshot.transaction.attempt.segmentId ?? undefined : undefined}
+      data-phone-handoff={diagnostics && snapshot.status === 'stable'
+        ? (['reverse', 'forward'] as const).flatMap((direction) => {
+          const [token, reason] = owners.engine.nativeHandoff(direction), status = reason ?? (token ? 'ready' : null); return status ? [`${direction}:${status}`] : [];
+        }).join(',') : undefined}
     >
       <div data-phone-loader="true">
         <StoryLoader mode={snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}

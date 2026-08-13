@@ -30,6 +30,7 @@ type MockEngine = Readonly<{
   createLeafReportPort: ReturnType<typeof vi.fn>;
   createPrewarmLeafReportPort: ReturnType<typeof vi.fn>;
   promotePrewarmLeaf: ReturnType<typeof vi.fn>;
+  nativeHandoff: ReturnType<typeof vi.fn>;
   publish(next: SnapshotRecord): void;
 }> & { connectCount: number; disconnectCount: number };
 
@@ -112,6 +113,7 @@ vi.mock('./runtime', () => ({
         reportProgress: vi.fn(), reportComplete: vi.fn(), reportFailure: vi.fn()
       }) satisfies PhoneLeafReportPort),
       promotePrewarmLeaf: vi.fn(() => false),
+      nativeHandoff: vi.fn((direction: 'forward' | 'reverse') => [`test-handoff:${direction}`, null]),
       publish: (next: SnapshotRecord) => {
         snapshot = next;
         config.environment.observePublish?.(next as PhoneStorySnapshot);
@@ -222,8 +224,8 @@ vi.mock('../StoryNav', async () => {
   };
 });
 
-import { PhoneStoryShell, phoneNativeMediaTargetMounted,
-  phoneNativePrewarmTarget } from './PhoneStoryShell';
+import { PhoneStoryShell } from './PhoneStoryShell';
+import { phoneNativePrewarmScenes } from './manifest';
 import { loadPhoneSceneModule } from './scenes';
 import { loadPhoneTransitionModule } from './transitions';
 
@@ -559,33 +561,310 @@ beforeEach(() => {
 });
 
 describe('clean PhoneStoryShell ownership', () => {
-  it('selects native media prewarm by the live edge window instead of the arrival direction', () => {
-    expect(phoneNativePrewarmTarget('method-top', 120, 1_200, 844, 'forward'))
-      .toBe('aod-animation');
-    expect(phoneNativePrewarmTarget('method-top', 600, 1_200, 844, 'reverse'))
-      .toBeNull();
-    expect(phoneNativePrewarmTarget('method-top', 1_080, 1_200, 844, 'reverse'))
-      .toBe('figure2-animation');
-    expect(phoneNativePrewarmTarget('services', 100, 1_900, 844, 'forward'))
-      .toBe('figure3-animation');
-    expect(phoneNativePrewarmTarget('services', 1_750, 1_900, 844, 'reverse'))
-      .toBe('ttg-animation');
-    expect(phoneNativePrewarmTarget('method-top', 0, 0, 844, 'forward'))
-      .toBe('aod-animation');
+  it('does not clamp, freeze, or consume a native boundary gesture before runtime readiness', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(nativeStableSnapshot('services', 9)));
+    const hidden = probe.loaderProps.at(-1)?.onHidden;
+    if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+    act(() => hidden('ready'));
+    engine.nativeHandoff.mockReturnValue([null, null]);
+
+    const story = host.querySelector('.phone-story');
+    if (!(story instanceof HTMLElement)) throw new Error('missing shell');
+    const reading = document.createElement('section');
+    reading.dataset.phoneInputOwner = 'native-document';
+    story.querySelector('.phone-story__reading-flow')?.append(reading);
+    const unleasedTarget = document.createElement('video');
+    unleasedTarget.dataset.phoneSceneLeaf = 'ttg-animation';
+    story.querySelector('.phone-story__viewport')?.append(unleasedTarget);
+    const owner = document.createElement('main');
+    let scrollTop = 690;
+    Object.defineProperties(owner, {
+      scrollTop: { configurable: true, get: () => scrollTop,
+        set: (value: number) => { scrollTop = value; } },
+      clientHeight: { configurable: true, value: 844 },
+      scrollHeight: { configurable: true, value: 1544 }
+    });
+    const original = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: owner });
+    try {
+      const start = new Event('touchstart', { bubbles: true });
+      Object.defineProperty(start, 'touches', { value: [{ identifier: 71, clientY: 600 }] });
+      const move = new Event('touchmove', { bubbles: true, cancelable: true });
+      Object.defineProperty(move, 'touches', { value: [{ identifier: 71, clientY: 560 }] });
+      act(() => { reading.dispatchEvent(start); reading.dispatchEvent(move); });
+
+      expect(scrollTop).toBe(690);
+      expect(move.defaultPrevented).toBe(false);
+      expect(story.contains(unleasedTarget)).toBe(true);
+      expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+    } finally {
+      if (original) Object.defineProperty(document, 'scrollingElement', original);
+      else Reflect.deleteProperty(document, 'scrollingElement');
+      act(() => root.unmount());
+    }
   });
 
-  it('requires the edge-adjacent media leaf to be mounted before native handoff', () => {
-    const shell = document.createElement('main');
-    shell.className = 'phone-story';
-    const viewport = document.createElement('div');
-    viewport.className = 'phone-story__viewport';
-    shell.append(viewport);
-    expect(phoneNativeMediaTargetMounted(shell, 'method-top', 'reverse')).toBe(false);
-    const poster = document.createElement('img');
-    poster.dataset.phoneAodFigurePoster = '';
-    viewport.append(poster);
-    expect(phoneNativeMediaTargetMounted(shell, 'method-top', 'reverse')).toBe(true);
-    expect(phoneNativeMediaTargetMounted(shell, 'figure2-proof', 'forward')).toBe(true);
+  it('can consume readiness that appears on a later move of the same touch, but never after touchend', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(nativeStableSnapshot('lab', 10)));
+    const hidden = probe.loaderProps.at(-1)?.onHidden;
+    if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+    act(() => hidden('ready'));
+
+    const story = host.querySelector('.phone-story');
+    if (!(story instanceof HTMLElement)) throw new Error('missing shell');
+    const reading = document.createElement('section');
+    reading.dataset.phoneInputOwner = 'native-document';
+    story.querySelector('.phone-story__reading-flow')?.append(reading);
+    const owner = document.createElement('main');
+    let scrollTop = 690;
+    Object.defineProperties(owner, {
+      scrollTop: { configurable: true, get: () => scrollTop,
+        set: (value: number) => { scrollTop = value; } },
+      clientHeight: { configurable: true, value: 844 },
+      scrollHeight: { configurable: true, value: 1544 }
+    });
+    const original = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: owner });
+    const dispatchTouch = (name: 'touchstart' | 'touchmove' | 'touchend', y: number) => {
+      const event = new Event(name, { bubbles: true, cancelable: name === 'touchmove' });
+      Object.defineProperty(event, name === 'touchend' ? 'changedTouches' : 'touches', {
+        value: [{ identifier: 72, clientY: y }]
+      });
+      act(() => reading.dispatchEvent(event));
+      return event;
+    };
+    try {
+      engine.nativeHandoff.mockReturnValue([null, null]);
+      dispatchTouch('touchstart', 600);
+      const waiting = dispatchTouch('touchmove', 560);
+      expect(waiting.defaultPrevented).toBe(false);
+      engine.nativeHandoff.mockReturnValue(['lab-ph:ready:10', null]);
+      const accepted = dispatchTouch('touchmove', 500);
+      expect(accepted.defaultPrevented).toBe(true);
+      expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([
+        expect.objectContaining({
+          kind: 'touch', handoffToken: 'lab-ph:ready:10', target: 'story'
+        })
+      ]);
+
+      engine.hostEvents.length = 0;
+      scrollTop = 690;
+      engine.nativeHandoff.mockReturnValue([null, null]);
+      dispatchTouch('touchstart', 600);
+      dispatchTouch('touchmove', 540);
+      dispatchTouch('touchend', 540);
+      engine.nativeHandoff.mockReturnValue(['lab-ph:late:10', null]);
+      expect(engine.hostEvents.filter(({ type }) => type === 'input')).toEqual([]);
+      dispatchTouch('touchstart', 600);
+      dispatchTouch('touchmove', 520);
+      dispatchTouch('touchend', 520);
+      expect(engine.hostEvents.filter(({ type }) => type === 'input')).toHaveLength(1);
+    } finally {
+      if (original) Object.defineProperty(document, 'scrollingElement', original);
+      else Reflect.deleteProperty(document, 'scrollingElement');
+      act(() => root.unmount());
+    }
+  });
+
+  it('leaves a middle-of-reading keyboard input with the native document', () => {
+    const { root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(nativeStableSnapshot('lab', 11)));
+    const hidden = probe.loaderProps.at(-1)?.onHidden;
+    if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+    act(() => hidden('ready'));
+    engine.nativeHandoff.mockReturnValue(['lab-ph:ready:11', null]);
+    const owner = document.createElement('main');
+    Object.defineProperties(owner, {
+      scrollTop: { configurable: true, value: 350, writable: true },
+      clientHeight: { configurable: true, value: 700 },
+      scrollHeight: { configurable: true, value: 1700 }
+    });
+    const original = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: owner });
+    try {
+      const event = new KeyboardEvent('keydown', {
+        key: 'ArrowDown', bubbles: true, cancelable: true
+      });
+      act(() => document.body.dispatchEvent(event));
+      expect(event.defaultPrevented).toBe(false);
+      expect(engine.hostEvents.filter(({ type }) => type === 'input').at(-1)).toMatchObject({
+        kind: 'keyboard', target: 'native-corridor'
+      });
+      expect(engine.hostEvents.filter(({ type }) => type === 'input').at(-1))
+        .not.toHaveProperty('handoffToken');
+    } finally {
+      if (original) Object.defineProperty(document, 'scrollingElement', original);
+      else Reflect.deleteProperty(document, 'scrollingElement');
+      act(() => root.unmount());
+    }
+  });
+
+  it('converts a bottom native wheel input into one atomic story handoff', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(nativeStableSnapshot('lab', 12)));
+    const hidden = probe.loaderProps.at(-1)?.onHidden;
+    if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+    act(() => hidden('ready'));
+    engine.nativeHandoff.mockReturnValue(['lab-ph:ready:12', null]);
+    const reading = host.querySelector<HTMLElement>('.phone-story__reading-flow');
+    if (!reading) throw new Error('missing reading flow');
+    reading.dataset.phoneInputOwner = 'native-document';
+    const owner = document.createElement('main');
+    Object.defineProperties(owner, {
+      scrollTop: { configurable: true, value: 1000, writable: true },
+      clientHeight: { configurable: true, value: 700 },
+      scrollHeight: { configurable: true, value: 1700 }
+    });
+    const original = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: owner });
+    try {
+      const event = new WheelEvent('wheel', {
+        deltaY: 120, bubbles: true, cancelable: true
+      });
+      act(() => reading.dispatchEvent(event));
+      expect(event.defaultPrevented).toBe(true);
+      expect(engine.hostEvents.filter(({ type }) => type === 'input').at(-1)).toMatchObject({
+        kind: 'wheel', target: 'story', handoffToken: 'lab-ph:ready:12'
+      });
+    } finally {
+      if (original) Object.defineProperty(document, 'scrollingElement', original);
+      else Reflect.deleteProperty(document, 'scrollingElement');
+      act(() => root.unmount());
+    }
+  });
+
+  it('converts a bottom native pointer drag into one atomic story handoff', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'PointerEvent');
+    Object.defineProperty(window, 'PointerEvent', { configurable: true, value: MouseEvent });
+    const { host, root } = hostRoot();
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+      const engine = connectedEngine();
+      act(() => engine.publish(nativeStableSnapshot('lab', 13)));
+      const hidden = probe.loaderProps.at(-1)?.onHidden;
+      if (typeof hidden !== 'function') throw new Error('missing Loader hidden callback');
+      act(() => hidden('ready'));
+      engine.nativeHandoff.mockReturnValue(['lab-ph:ready:13', null]);
+      const reading = host.querySelector<HTMLElement>('.phone-story__reading-flow');
+      if (!reading) throw new Error('missing reading flow');
+      reading.dataset.phoneInputOwner = 'native-document';
+      const owner = document.createElement('main');
+      Object.defineProperties(owner, {
+        scrollTop: { configurable: true, value: 1000, writable: true },
+        clientHeight: { configurable: true, value: 700 },
+        scrollHeight: { configurable: true, value: 1700 }
+      });
+      const original = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+      Object.defineProperty(document, 'scrollingElement', { configurable: true, value: owner });
+      try {
+        const down = new MouseEvent('pointerdown', { bubbles: true, clientY: 600 });
+        const up = new MouseEvent('pointerup', { bubbles: true, clientY: 300 });
+        for (const event of [down, up]) {
+          Object.defineProperty(event, 'pointerId', { value: 42 });
+          Object.defineProperty(event, 'pointerType', { value: 'mouse' });
+        }
+        act(() => { reading.dispatchEvent(down); reading.dispatchEvent(up); });
+        expect(engine.hostEvents.filter(({ type }) => type === 'input').at(-1)).toMatchObject({
+          kind: 'pointer', target: 'story', handoffToken: 'lab-ph:ready:13'
+        });
+      } finally {
+        if (original) Object.defineProperty(document, 'scrollingElement', original);
+        else Reflect.deleteProperty(document, 'scrollingElement');
+        act(() => root.unmount());
+      }
+    } finally {
+      if (descriptor) Object.defineProperty(window, 'PointerEvent', descriptor);
+      else Reflect.deleteProperty(window, 'PointerEvent');
+    }
+  });
+
+  it('publishes native scroll samples without prewarm direction control fields', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(nativeStableSnapshot('lab', 12)));
+    const reading = host.querySelector<HTMLElement>('.phone-story__reading-flow');
+    if (!reading) throw new Error('missing reading flow');
+    reading.dataset.phoneInputOwner = 'native-document';
+    const owner = document.createElement('main');
+    Object.defineProperties(owner, {
+      scrollTop: { configurable: true, value: 300, writable: true },
+      clientHeight: { configurable: true, value: 700 },
+      scrollHeight: { configurable: true, value: 1700 }
+    });
+    const original = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: owner });
+    try {
+      const start = new Event('touchstart', { bubbles: true });
+      Object.defineProperty(start, 'touches', { value: [{ identifier: 73, clientY: 600 }] });
+      act(() => reading.dispatchEvent(start));
+      act(() => window.dispatchEvent(new Event('scroll')));
+      const active = [...engine.hostEvents].reverse().find(({ type }) => type === 'scroll');
+      expect(active).not.toHaveProperty('maximumY');
+      const end = new Event('touchend', { bubbles: true });
+      Object.defineProperty(end, 'changedTouches', { value: [{ identifier: 73, clientY: 600 }] });
+      act(() => reading.dispatchEvent(end));
+      act(() => window.dispatchEvent(new Event('scroll')));
+      expect([...engine.hostEvents].reverse().find(({ type }) => type === 'scroll')).not.toHaveProperty('maximumY');
+    } finally {
+      if (original) Object.defineProperty(document, 'scrollingElement', original);
+      else Reflect.deleteProperty(document, 'scrollingElement');
+      act(() => root.unmount());
+    }
+  });
+
+  it('derives both fixed media neighbours from the canonical spine', () => {
+    expect(phoneNativePrewarmScenes('services')).toEqual([
+      'figure3-animation', 'ttg-animation'
+    ]);
+    expect(phoneNativePrewarmScenes('lab')).toEqual([
+      'ttg-animation', 'ph-animation'
+    ]);
+  });
+
+  it('mounts the forward dormant media target immediately on a native stable commit', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(nativeStableSnapshot('services', 14, 'forward')));
+
+    expect(engine.createPrewarmLeafReportPort).toHaveBeenCalledWith('figure3-animation');
+    expect(engine.createPrewarmLeafReportPort).toHaveBeenCalledWith('ttg-animation');
+    expect(host.querySelector('[data-phone-scene-leaf="figure3-animation"]')).not.toBeNull();
+    expect(host.querySelector('[data-phone-scene-leaf="ttg-animation"]')).not.toBeNull();
+    act(() => root.unmount());
+  });
+
+  it('keeps the Lab media neighbours on the same mounts throughout native reading', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    const stable = nativeStableSnapshot('lab', 18);
+    act(() => engine.publish(stable));
+    const ttg = host.querySelector('[data-phone-scene-leaf="ttg-animation"]');
+    const ph = host.querySelector('[data-phone-scene-leaf="ph-animation"]');
+    expect(ttg).not.toBeNull();
+    expect(ph).not.toBeNull();
+
+    act(() => engine.publish({
+      ...stable, stateRevision: 19,
+      scroll: { x: 0, y: 390, sampledAt: 10, origin: 'native' }
+    }));
+
+    expect(host.querySelector('[data-phone-scene-leaf="ttg-animation"]')).toBe(ttg);
+    expect(host.querySelector('[data-phone-scene-leaf="ph-animation"]')).toBe(ph);
+    expect(engine.createPrewarmLeafReportPort).toHaveBeenCalledTimes(2);
+    act(() => root.unmount());
   });
 
   it('does not render a lazy receiver before reducer-owned module evidence arrives', () => {
@@ -742,7 +1021,8 @@ describe('clean PhoneStoryShell ownership', () => {
       expect(mirror.style.getPropertyValue('--phone-native-scroll-y')).toBe('1128.00px');
       expect(mirror.dataset.phoneNativeScrollY).toBe('1128.00');
       expect(engine.hostEvents.at(-1)).toMatchObject({
-        type: 'input', kind: 'keyboard', delta: 1, target: 'native-corridor'
+        type: 'input', kind: 'keyboard', delta: 1, target: 'story',
+        handoffToken: 'test-handoff:forward'
       });
     } finally {
       if (originalScrollingElement) {
@@ -1127,6 +1407,9 @@ describe('clean PhoneStoryShell ownership', () => {
       <PhoneStoryShell diagnostics scope="harness" chunkRecovery={chunkRecovery} />
     ));
     const engine = connectedEngine();
+    engine.nativeHandoff.mockImplementation((direction: 'forward' | 'reverse') => (
+      direction === 'forward' ? [null, 'surface'] : [null, null]
+    ));
     act(() => engine.publish(stableSnapshot()));
     const shell = host.querySelector('.phone-story');
     expect(shell?.getAttribute('data-phone-authority')).toBe('test-authority');
@@ -1137,6 +1420,9 @@ describe('clean PhoneStoryShell ownership', () => {
     expect(shell?.getAttribute('data-phone-network-hint')).toBe('online');
     expect(shell?.getAttribute('data-phone-missing-proof')).toBe('');
     expect(shell?.getAttribute('data-phone-activation-surfaces')).toBe('');
+    expect(shell?.getAttribute('data-phone-handoff')).toBe(
+      'forward:surface'
+    );
     act(() => engine.config.environment.observeResources?.({
       videos: 2, activeDecoders: 1, canvases: 3, webglContexts: 2
     }));
@@ -1500,7 +1786,6 @@ describe('clean PhoneStoryShell ownership', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     const engine = connectedEngine();
-
     act(() => engine.publish(nativeStableSnapshot('contact', 12, 'forward')));
 
     expect(engine.createPrewarmLeafReportPort).toHaveBeenCalledWith('crane-animation');
@@ -1754,31 +2039,44 @@ describe('clean PhoneStoryShell ownership', () => {
     const copy = document.createElement('p');
     reading.append(copy);
     story.append(reading);
+    const owner = document.createElement('main');
+    Object.defineProperties(owner, {
+      scrollTop: { configurable: true, value: 350, writable: true },
+      clientHeight: { configurable: true, value: 700 },
+      scrollHeight: { configurable: true, value: 1700 }
+    });
+    const original = Object.getOwnPropertyDescriptor(document, 'scrollingElement');
+    Object.defineProperty(document, 'scrollingElement', { configurable: true, value: owner });
     const wheel = new WheelEvent('wheel', {
       bubbles: true, cancelable: true, deltaY: 120
     });
     const key = new KeyboardEvent('keydown', {
-      bubbles: true, cancelable: true, key: 'ArrowUp'
+      bubbles: true, cancelable: true, key: 'ArrowDown'
     });
     const touchStart = new Event('touchstart', { bubbles: true });
     Object.defineProperty(touchStart, 'touches', {
       value: [{ identifier: 11, clientY: 200 }]
     });
     const touchMove = new Event('touchmove', { bubbles: true, cancelable: true });
-    act(() => {
-      copy.dispatchEvent(wheel);
-      copy.dispatchEvent(key);
-      copy.dispatchEvent(touchStart);
-      copy.dispatchEvent(touchMove);
-    });
-    expect(wheel.defaultPrevented).toBe(false);
-    expect(key.defaultPrevented).toBe(false);
-    expect(touchMove.defaultPrevented).toBe(false);
-    expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([
-      expect.objectContaining({ kind: 'wheel', target: 'native-corridor' }),
-      expect.objectContaining({ kind: 'keyboard', target: 'native-corridor' })
-    ]);
-    act(() => root.unmount());
+    try {
+      act(() => {
+        copy.dispatchEvent(wheel);
+        copy.dispatchEvent(key);
+        copy.dispatchEvent(touchStart);
+        copy.dispatchEvent(touchMove);
+      });
+      expect(wheel.defaultPrevented).toBe(false);
+      expect(key.defaultPrevented).toBe(false);
+      expect(touchMove.defaultPrevented).toBe(false);
+      expect(connectedEngine().hostEvents.filter(({ type }) => type === 'input')).toEqual([
+        expect.objectContaining({ kind: 'wheel', target: 'native-corridor' }),
+        expect.objectContaining({ kind: 'keyboard', target: 'native-corridor' })
+      ]);
+    } finally {
+      if (original) Object.defineProperty(document, 'scrollingElement', original);
+      else Reflect.deleteProperty(document, 'scrollingElement');
+      act(() => root.unmount());
+    }
   });
 
   it('hands one native gesture to the story after it reaches the live edge outside the old corridor', () => {

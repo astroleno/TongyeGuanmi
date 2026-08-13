@@ -211,6 +211,7 @@ export type PhoneRuntimeInputEvent = Readonly<{
   type: 'input'; kind: 'wheel' | 'touch' | 'pointer' | 'keyboard';
   delta?: number; key?: string; fresh: boolean;
   target: 'story' | 'native-corridor' | 'contact-control'; trusted?: boolean;
+  handoffToken?: string;
 }>;
 
 export type PhoneRuntimeHostEvent =
@@ -436,7 +437,7 @@ export type PhoneStoryEvent =
   | Readonly<{
       type: 'segment-requested';
       direction: PhoneDirection;
-      physicalEpoch: number;
+      physicalEpoch: number | null;
       reducedMotion?: boolean;
     }>
   | Readonly<{

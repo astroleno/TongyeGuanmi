@@ -15,6 +15,7 @@ import {
 import {
   phoneEntryForLocation,
   phoneManifest,
+  phoneNativeHandoffDescriptor,
   phoneSegmentBetween,
   phoneSegmentChoreographyFrame,
   phoneSceneById,
@@ -622,8 +623,10 @@ describe('phone Task 4 corrective invariants', () => {
         const source = prove(boot(leg.source,
           `authority:reduced:${segment.id}:${direction}`));
         const active = dispatch(source.snapshot, {
-          type: 'segment-requested', direction, physicalEpoch: 1, reducedMotion: true
+          type: 'segment-requested', direction, physicalEpoch: 1,
+          reducedMotion: true,
         });
+        expect(active.snapshot.status, `${segment.id}:${direction}`).toBe('transaction');
         const prepared = reportRequired(active, 'prepared');
         expect(transaction(prepared.snapshot).transaction.phase).toBe('presenting-source');
         const sourceProven = reportRequired(prepared, 'final');
@@ -926,6 +929,40 @@ function reachTargetPresentation(result: PhoneMachineResult): PhoneMachineResult
 }
 
 describe('phone segment transaction machine', () => {
+  it('does not require a media handoff grant for a static native boundary', () => {
+    const stable = prove(boot('method-top', 'authority:static-native-handoff'));
+    const started = dispatch(stable.snapshot, {
+      type: 'segment-requested', direction: 'forward', physicalEpoch: 1,
+      reducedMotion: false
+    });
+
+    expect(transaction(started.snapshot).transaction).toMatchObject({
+      sourceSceneId: 'method-top', candidateSceneId: 'figure2-animation',
+      attempt: { segmentId: 'method-bottom-figure2', direction: 'forward' },
+      activation: 'none'
+    });
+  });
+
+  it('does not infer physical activation credit without a verified runtime grant', () => {
+    const stable = prove(boot('lab', 'authority:no-inferred-native-credit'));
+    const ungranted = dispatch(stable.snapshot, {
+      type: 'segment-requested', direction: 'forward', physicalEpoch: null
+    });
+    expect(phoneTransactionActivationCredit(transaction(ungranted.snapshot).transaction))
+      .toBe('direct-muted-autoplay');
+    const granted = dispatch(stable.snapshot, {
+      type: 'segment-requested', direction: 'forward', physicalEpoch: 1
+    });
+    expect(transaction(granted.snapshot).transaction.claimedPhysicalEpoch).toBe(1);
+    expect(phoneTransactionActivationCredit(transaction(granted.snapshot).transaction)).toBe('physical-epoch');
+    const pattern = prove(boot('pattern', 'authority:pattern-reverse'));
+    const reverse = dispatch(pattern.snapshot, {
+      type: 'segment-requested', direction: 'reverse', physicalEpoch: 2
+    });
+    expect(phoneTransactionActivationCredit(transaction(reverse.snapshot).transaction))
+      .toBe('direct-muted-autoplay');
+  });
+
   it('waits for the Figure2 depth atlas before exposing the depth transition', () => {
     const segment = phoneManifest.segments.find(({ id }) => id === 'figure2-distance-expand');
     if (!segment) throw new Error('missing Figure2 depth segment');
@@ -990,8 +1027,11 @@ describe('phone segment transaction machine', () => {
 
   it('offers the incoming owner media clock to a reverse target', () => {
     const stable = prove(boot('method-top', 'authority:reverse-owner-activation'));
+    const descriptor = phoneNativeHandoffDescriptor('method-top', 'reverse');
+    if (!descriptor) throw new Error('missing Method reverse handoff');
     const started = dispatch(stable.snapshot, {
-      type: 'segment-requested', direction: 'reverse', physicalEpoch: 1, reducedMotion: false
+      type: 'segment-requested', direction: 'reverse', physicalEpoch: 1,
+      reducedMotion: false
     });
     const active = transaction(started.snapshot).transaction;
     expect(active.candidateSceneId).toBe('aod-animation');

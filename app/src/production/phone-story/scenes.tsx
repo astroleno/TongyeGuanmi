@@ -113,8 +113,9 @@ export function createPhoneSceneTopology<SceneId extends string>() {
       return result;
     },
     prune(entries: readonly PhoneSceneRenderSlot<SceneId>[]): void {
-      const active = new Set(entries.map(({ sceneId }) => sceneId));
-      for (const sceneId of retained.keys()) if (!active.has(sceneId)) retained.delete(sceneId);
+      const active = new Set<SceneId>();
+      for (const entry of entries) { active.add(entry.sceneId); retained.set(entry.sceneId, entry); }
+      for (const sceneId of retained.keys()) if (!active.has(sceneId) && !pair?.includes(sceneId)) retained.delete(sceneId);
     },
     clear(): void {
       pair = null;
