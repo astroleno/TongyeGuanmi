@@ -415,7 +415,12 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           'crane-transition',
           craneAnimationMedia,
           'contact',
-          { forwardMode: 'play', reverseMode: 'timeline', reverseRequired: true }
+          {
+            forwardMode: 'play',
+            reverseMode: 'timeline',
+            reverseRequired: true,
+            preparingTimeoutMs: stagedMediaPreparingTimeoutMs
+          }
         )
       ];
     default:

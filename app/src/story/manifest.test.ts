@@ -349,8 +349,12 @@ describe('story manifest contract', () => {
     });
     expect(byId.get('crane-contact')).toMatchObject({
       virtualDuration: 3000,
+      buildTimeoutMs: 8000,
       copyCue: { targetScene: 'contact', atProgress: 0.8 },
-      mediaPlayback: [{ reverse: { mode: 'timeline', required: true } }]
+      mediaPlayback: [{
+        preparingTimeoutMs: 8000,
+        reverse: { mode: 'timeline', required: true }
+      }]
     });
   });
 
