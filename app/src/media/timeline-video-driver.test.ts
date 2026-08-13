@@ -133,6 +133,15 @@ describe('timeline video driver', () => {
 
     expect(video.preload).toBe('auto');
     expect(video.loadCalls).toBe(1);
+
+    void driver.prepareFrame({
+      runId: 'media-cold-load:1',
+      direction: 1,
+      progress: 0,
+      durationFallbackSeconds: 10
+    });
+
+    expect(video.loadCalls).toBe(1);
     driver.dispose();
   });
 
