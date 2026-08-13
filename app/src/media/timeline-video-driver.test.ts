@@ -13,6 +13,8 @@ class FakeVideo {
   readonly dataset: Record<string, string> = {};
   duration = 10;
   readyState = 4;
+  networkState = 1;
+  src = '';
   currentTimeWrites: number[] = [];
   paused = true;
   seeking = false;
@@ -22,6 +24,8 @@ class FakeVideo {
   playbackRate = 1;
   preload = 'none';
   loadCalls = 0;
+  abortOnLoad = false;
+  sourceChild = false;
   playCalls = 0;
   rejectNextPlay = false;
   throwOnCurrentTimeWrite = false;
@@ -61,6 +65,14 @@ class FakeVideo {
 
   load(): void {
     this.loadCalls += 1;
+    if (this.abortOnLoad) queueMicrotask(() => {
+      this.networkState = 3;
+      this.dispatch('abort');
+    });
+  }
+
+  querySelector(selector: string): object | null {
+    return selector === 'source' && this.sourceChild ? {} : null;
   }
 
   play(): Promise<void> {
@@ -143,6 +155,30 @@ describe('timeline video driver', () => {
 
     expect(video.loadCalls).toBe(1);
     driver.dispose();
+  });
+
+  it('does not mistake its own cold-source reload for a media abort', async () => {
+    const video = new FakeVideo();
+    video.readyState = 0;
+    video.abortOnLoad = true;
+    video.sourceChild = true;
+    const driver = createTimelineVideoDriver(videoElement(video));
+    let rejection: unknown;
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-owned-reload:1',
+      direction: -1,
+      progress: 1,
+      durationFallbackSeconds: 10
+    });
+    void readiness.catch((error: unknown) => { rejection = error; });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(rejection).toBeUndefined();
+    expect(video.dataset.timelineVideoStaticFallback).toBeUndefined();
+    driver.dispose();
+    await expect(readiness).resolves.toMatchObject({ status: 'stale' });
   });
 
   it('forces an exact-target seek before waiting for a paused endpoint frame', async () => {

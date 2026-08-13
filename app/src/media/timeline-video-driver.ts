@@ -171,12 +171,11 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   };
 
   private readonly onMediaAbort = () => {
-    // Packed-alpha surfaces replace their <source> while retiring a parked
-    // generation. WebKit emits `abort` for that source removal; when there is
-    // no current media resource left, it is not a preparation failure for the
-    // newly requested frame.
+    // load() restarts child-source selection. Chromium reports that expected
+    // restart as abort while temporarily in NETWORK_NO_SOURCE (3); the source
+    // still being present distinguishes it from a terminal media abort.
     if (!this.video.src
-      && this.video.dataset.packedAlphaSource === 'rgb-alpha-side-by-side'
+      && this.video.networkState === 3
       && this.video.querySelector('source')) return;
     this.failAllWaiters(new MediaPreparationError(
       'MEDIA_PREPARATION_ABORTED',
