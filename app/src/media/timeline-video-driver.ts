@@ -392,6 +392,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   private configureElement(): void {
     if (this.video.preload !== 'auto') {
       this.video.preload = 'auto';
+      if (this.video.readyState < 2) {
+        this.video.load();
+      }
     }
     this.video.loop = false;
     this.video.muted = true;

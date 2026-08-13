@@ -20,6 +20,8 @@ class FakeVideo {
   muted = false;
   playsInline = false;
   playbackRate = 1;
+  preload = 'none';
+  loadCalls = 0;
   playCalls = 0;
   rejectNextPlay = false;
   throwOnCurrentTimeWrite = false;
@@ -55,6 +57,10 @@ class FakeVideo {
 
   pause(): void {
     this.paused = true;
+  }
+
+  load(): void {
+    this.loadCalls += 1;
   }
 
   play(): Promise<void> {
@@ -113,6 +119,23 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it('explicitly loads a cold source when frame preparation promotes preload', () => {
+    const video = new FakeVideo();
+    video.readyState = 0;
+    const driver = createTimelineVideoDriver(videoElement(video));
+
+    void driver.prepareFrame({
+      runId: 'media-cold-load:1',
+      direction: 1,
+      progress: 0,
+      durationFallbackSeconds: 10
+    });
+
+    expect(video.preload).toBe('auto');
+    expect(video.loadCalls).toBe(1);
+    driver.dispose();
+  });
+
   it('forces an exact-target seek before waiting for a paused endpoint frame', async () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));
