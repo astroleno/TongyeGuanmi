@@ -363,6 +363,22 @@ describe('story manifest contract', () => {
     });
   });
 
+  it('allows a remounted AOD decoder to become ready on reverse CDN visits', () => {
+    const segment = storyManifest.nodes.find(
+      (node) => node.kind === 'segment' && node.id === 'aod-method-top'
+    );
+
+    expect(segment).toMatchObject({
+      kind: 'segment',
+      buildTimeoutMs: 8000,
+      mediaPlayback: [{
+        id: 'aod-front-figure',
+        preparingTimeoutMs: 8000,
+        reverse: { mode: 'timeline', required: true }
+      }]
+    });
+  });
+
   it('separates Hero motion from the following full Ink reveal in one run', () => {
     const segment = storyManifest.nodes.find((node) => node.kind === 'segment' && node.id === 'hero-pattern');
 

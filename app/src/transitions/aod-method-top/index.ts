@@ -14,6 +14,7 @@ import type {
   TransitionContext,
   TransitionModule
 } from '../../story/types';
+import { AOD_MEDIA_PREPARING_TIMEOUT_MS } from '../../story/timings';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 
 export const AOD_METHOD_TOP_DURATION_MS = 2600;
@@ -124,7 +125,7 @@ export function createAodMethodTopTransition(options: {
         reverse: { mode: 'timeline', required: true },
         readyMilestones: ['targetReady', 'mediaReady'],
         terminalFallbackScene: 'method-top',
-        preparingTimeoutMs: 1800
+        preparingTimeoutMs: AOD_MEDIA_PREPARING_TIMEOUT_MS
       }
     ],
     buildTimeline: async (context) => {

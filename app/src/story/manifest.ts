@@ -5,6 +5,7 @@ import { canonicalSpine } from './canonical-spine';
 import { METHOD_COPY as sharedMethodCopy } from './copy';
 import { parseInventoryManifestSeed, type InventoryManifestSeed } from './inventory-schema';
 import {
+  AOD_MEDIA_PREPARING_TIMEOUT_MS,
   CRANE_CONTACT_DURATION_MS,
   FIGURE3_SERVICES_DURATION_MS,
   HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS,
@@ -341,7 +342,8 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           {
             forwardMode: 'timeline',
             reverseMode: 'timeline',
-            reverseRequired: true
+            reverseRequired: true,
+            preparingTimeoutMs: AOD_MEDIA_PREPARING_TIMEOUT_MS
           }
         )
       ];

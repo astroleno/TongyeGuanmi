@@ -125,6 +125,7 @@ describe('AOD Method transition media contract', () => {
 
     expect(contract?.forward).toMatchObject({ mode: 'timeline', required: true });
     expect(contract?.reverse).toMatchObject({ mode: 'timeline', required: true });
+    expect(contract?.preparingTimeoutMs).toBe(8000);
   });
 
   it('keeps cold reverse preparation pending until the terminal AOD frame is presented', async () => {
