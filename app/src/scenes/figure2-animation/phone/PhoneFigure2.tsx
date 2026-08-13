@@ -151,6 +151,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
           )
         });
       } catch {
+        // A transient media seek must not break the visual progress renderer.
       }
     }
     const hold = staged && (!isFigure2MediaLeg(binding)

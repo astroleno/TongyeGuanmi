@@ -604,8 +604,11 @@ export function PhoneStoryShell({
   const moduleFault = faulted && snapshot.status === 'faulted' && (snapshot.fault.code.includes('module') || snapshot.fault.code.includes('chunk')); const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
   const retainedFigure2ArchMounted = connectedRef.current && scenes.some(({ sceneId }) => PHONE_FIGURE2_ARCH_SCENES.has(sceneId)); const retainedFigure2ArchOwner = phoneFigure2ArchOwner(snapshot);
   const retainedFigure2ArchAttempt: PhoneAttemptKey | null = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null; const retainedFigure2ArchMotion = phoneFigure2ArchMotion(snapshot);
-  const retainedEffectSegment = effect ? phoneManifest.segments.find(({ id }) => id === effect.segmentId) ?? null : null;
-  const effectAboveBoth = retainedEffectSegment?.effectPlacement === 'above-both';
+  const effectSegmentId = snapshot.status === 'transaction'
+    ? snapshot.transaction.attempt.segmentId : effect?.segmentId ?? null;
+  const effectSegment = effectSegmentId
+    ? phoneManifest.segments.find(({ id }) => id === effectSegmentId) ?? null : null;
+  const effectAboveBoth = effectSegment?.effectPlacement === 'above-both';
   const navigate = (sceneId: PhoneSceneId) => { setMenuOpen(false);
     owners.engine.requestEntry({
       pathname: window.location.pathname,

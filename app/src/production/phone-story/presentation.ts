@@ -211,6 +211,10 @@ export type PhoneLeafMountLease = Readonly<PhoneLeafMountDescriptor & {
   isAttached(): boolean; rebind(binding: PhoneLeafReportBinding): void; release(): void;
 }>;
 
+function failPhonePresentation(code: string): never {
+  throw new Error(`phone:${code}`);
+}
+
 export function phoneActivationSurfaceIds(
   lease: PhoneLeafMountLease,
   requested?: readonly PhoneSurfaceId[]
@@ -288,7 +292,7 @@ export function assertPhoneLeafReportBindingContract(
     ...transaction.requiredFinal].filter(({ leg }) => leg === binding.leg)
     .map(({ kind }) => kind);
   if (binding.allowedReports.some((kind) => !expectedKinds.includes(kind))) {
-    throw new Error('Phone leaf report binding exceeds the active evidence contract');
+    failPhonePresentation('report-evidence');
   }
   const segment = transaction.attempt.segmentId
     ? phoneManifest.segments.find(({ id }) => id === transaction.attempt.segmentId)
@@ -301,7 +305,7 @@ export function assertPhoneLeafReportBindingContract(
     : sceneId ? [...phoneSceneById(sceneId).surfaces] : [];
   if (phoneIdentitySignature(expectedSurfaces)
     !== phoneIdentitySignature(binding.allowedSurfaceIds)) {
-    throw new Error('Phone leaf report binding differs from manifest surfaces');
+    failPhonePresentation('report-surfaces');
   }
 }
 
@@ -388,13 +392,13 @@ export function describePhoneLeafMount(
   const surfaces = request.registration.surfaces;
   const actual = surfaces.map(({ id }) => id);
   if (new Set(actual).size !== actual.length || phoneIdentitySignature(actual) !== allowed) {
-    throw new Error('Phone leaf surfaces differ from the closed presentation binding');
+    failPhonePresentation('mount-surfaces');
   }
   if (surfaces.some(({ id, kind }) => (
     id.includes('video') && kind !== 'video'
       || id.includes('canvas') && !kind.startsWith('canvas')
       || (/(?:image|poster|arch)/.test(id) && kind !== 'image')
-  ))) throw new Error('Phone leaf surface kind differs from the presentation contract');
+  ))) failPhonePresentation('surface-kind');
   const videos = surfaces.filter(({ kind }) => kind === 'video').length;
   const canvases = surfaces.filter(({ kind }) => kind.startsWith('canvas')).length;
   const webglContexts = surfaces.filter(({ kind }) => kind === 'canvas-webgl').length;
@@ -408,16 +412,16 @@ export function describePhoneLeafMount(
       === request.binding.allowedSurfaceIds[0]
     && request.binding.allowedSurfaceIds.length === 1;
   if (!scene && !declaredEffect) {
-    throw new Error('Phone leaf surfaces are not declared by the manifest');
+    failPhonePresentation('undeclared-surfaces');
   }
   if (scene && ['target', 'rollback'].includes(request.binding.leg)
     && scene.id !== request.binding.attempt.sceneId) {
-    throw new Error('Phone leaf scene differs from the closed presentation binding');
+    failPhonePresentation('scene-mismatch');
   }
   const expected = scene?.directEntry.closure.resourceBudget;
   if (expected && (videos !== expected.videos || canvases !== expected.canvases
     || webglContexts !== expected.webglContexts)) {
-    throw new Error('Phone leaf surfaces differ from the presentation resource contract');
+    failPhonePresentation('resource-mismatch');
   }
   return Object.freeze({
     surfaceIds: Object.freeze(surfaces.map(({ id }) => id)),
@@ -571,19 +575,19 @@ export function createPhonePresentation(
 
   const registerLeafMount = (request: PhoneLeafMountRequest): PhoneLeafMountLease => {
     if (!state.root || !state.root.contains(request.registration.root)) {
-      throw new Error('Phone leaf root is outside the attached presentation root');
+      failPhonePresentation('root-outside');
     }
     if (request.registration.surfaces.some(({ element }) => (
       !request.registration.root.contains(element)
-    ))) throw new Error('Phone leaf surface is outside its registered root');
+    ))) failPhonePresentation('surface-outside');
     const descriptor = describePhoneLeafMount(request);
     const ownerKey = phoneLeafMountKey(request.binding);
     if (state.mounts.has(ownerKey)) {
-      throw new Error(`Phone leaf mount already registered: ${ownerKey}`);
+      failPhonePresentation(`mount-duplicate:${ownerKey}`);
     }
     for (const surfaceId of descriptor.surfaceIds) {
       if (state.surfaceOwners.has(surfaceId)) {
-        throw new Error(`Phone leaf surface already registered: ${surfaceId}`);
+        failPhonePresentation(`surface-duplicate:${surfaceId}`);
       }
     }
     const record: PhoneMountRecord = {
@@ -601,15 +605,15 @@ export function createPhonePresentation(
       commands: record.commands,
       isAttached: () => Boolean(!record.released && record.root && state.root?.contains(record.root)),
       rebind: (binding: PhoneLeafReportBinding) => {
-        if (record.released) throw new Error('Phone leaf mount lease is released');
+        if (record.released) failPhonePresentation('lease-released');
         if (phoneIdentitySignature(binding.allowedSurfaceIds)
           !== phoneIdentitySignature(record.descriptor.surfaceIds)) {
-          throw new Error('Phone leaf rebind differs from registered surfaces');
+          failPhonePresentation('rebind-surfaces');
         }
         const nextKey = phoneLeafMountKey(binding);
         const collision = state.mounts.get(nextKey);
         if (collision && collision !== record) {
-          throw new Error(`Phone leaf mount already registered: ${nextKey}`);
+          failPhonePresentation(`mount-duplicate:${nextKey}`);
         }
         state.mounts.delete(record.ownerKey);
         record.ownerKey = nextKey;
@@ -968,7 +972,7 @@ export function createPhonePresentation(
   };
 
   const attachRoot = (root: HTMLElement): (() => void) => {
-    if (state.root) throw new Error('Phone presentation already has an attached root');
+    if (state.root) failPhonePresentation('root-attached');
     state.root = root;
     const topology = presentationTopology(root);
     topology?.source.setAttribute('data-phone-exposed', 'false');

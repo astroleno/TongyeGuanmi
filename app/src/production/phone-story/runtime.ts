@@ -377,7 +377,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         if (!state.valid) return;
         const key = phoneLeafMountKey(state.binding);
         const existing = leaves.get(key);
-        if (existing?.mount.isAttached()) throw new Error(`already registered: ${key}`);
+        if (existing?.mount.isAttached()) throw new Error(`phone:mount-duplicate:${key}`);
         if (existing) {
           const replacesOwnState = existing.reports === state;
           const binding = state.binding;

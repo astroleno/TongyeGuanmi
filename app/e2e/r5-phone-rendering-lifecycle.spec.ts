@@ -7,6 +7,19 @@ import {
 } from './r5-phone-clean-assertions';
 
 async function sendIntent(page: Page, direction: 'forward' | 'reverse'): Promise<void> {
+  if (direction === 'forward') {
+    const scene = await page.locator('.phone-story').getAttribute('data-phone-scene');
+    if (['lab', 'education'].includes(scene ?? '')) {
+      await page.evaluate(() => {
+        const owner = document.scrollingElement ?? document.documentElement;
+        owner.scrollTop = Math.max(0, owner.scrollHeight - owner.clientHeight);
+        window.dispatchEvent(new Event('scroll'));
+      });
+      await expect(page.locator('.phone-story')).toHaveAttribute(
+        'data-phone-handoff', /(?:^|,)forward:ready(?:,|$)/
+      );
+    }
+  }
   await page.keyboard.press(direction === 'forward' ? 'ArrowDown' : 'ArrowUp');
 }
 
@@ -87,6 +100,14 @@ test('clean PH packed-alpha reactivation and Lab Ink recreation never reuse a lo
 
   await page.goto('/#lab', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'lab', 0);
+  await expect(page.locator('[data-story-loader="true"]')).toHaveAttribute(
+    'data-loader-status', 'hidden'
+  );
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'lab', 0);
+  await expect(page.locator('[data-story-loader="true"]')).toHaveAttribute(
+    'data-loader-status', 'hidden'
+  );
   const before = await readCommitSequence(page);
   await sendIntent(page, 'forward');
   const ink = page.locator('[data-r4-ink-segment="lab-ph"]');

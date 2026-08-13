@@ -2685,7 +2685,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
         id, element: {} as HTMLElement, kind: 'dom'
       })),
       commands
-    })).toThrow(/surface(?:s| kind) differs/);
+    })).toThrow(/phone:surface-kind/);
     expect(fixture.resources).toEqual(resourcesBeforeInvalidMount);
     const { reports } = registerCurrentLeaf(runtime, commands);
     expect(fixture.resources.at(-1)).toEqual({
@@ -2695,7 +2695,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
       root: {} as HTMLElement,
       surfaces: [],
       commands
-    })).toThrow(/already registered/);
+    })).toThrow(/phone:mount-duplicate/);
     expect(currentTransaction(runtime).evidence).toEqual([]);
     expect(commands.activate).toHaveBeenCalledTimes(1);
     expect(currentTransaction(runtime).requiredFinal).toEqual([]);
@@ -2816,7 +2816,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
           : id.includes('canvas') ? 'canvas-webgl' : 'dom'
       })),
       commands
-    })).toThrow(/surface kind differs/);
+    })).toThrow(/phone:surface-kind/);
     disconnect();
   });
 

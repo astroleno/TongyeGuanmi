@@ -1538,6 +1538,8 @@ describe('clean PhoneStoryShell ownership', () => {
       .toBe(bootHero);
     expect(host.querySelector('[data-phone-scene-leaf="pattern"]')).toBeNull();
     expect(host.querySelector('[data-phone-transition-leaf]')).toBeNull();
+    expect(host.querySelector('[data-phone-plane="effect"]')?.parentElement)
+      .toBe(host.querySelector('.phone-story'));
 
     act(() => engine.publish(stableSnapshot()));
     const recoveredHero = host.querySelector('[data-phone-scene-leaf="hero"]');

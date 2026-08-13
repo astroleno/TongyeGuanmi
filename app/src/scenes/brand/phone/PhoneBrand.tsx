@@ -52,7 +52,8 @@ function BrandContent({ reading }: Readonly<{ reading: boolean }>) {
   );
 }
 
-export function Reading(_props: Readonly<{ sceneId: string }>) {
+export function Reading(_props: Readonly<{ sceneId: string }>): ReturnType<typeof BrandContent>;
+export function Reading() {
   return <BrandContent reading />;
 }
 

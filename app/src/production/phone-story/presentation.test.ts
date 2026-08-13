@@ -992,7 +992,7 @@ describe('phone presentation content, frame, and mount proof', () => {
     } };
     const lease = fixture.presentation.registerLeafMount(request);
     expect(lease.commands).toBe(commands);
-    expect(() => fixture.presentation.registerLeafMount(request)).toThrow(/already registered/);
+    expect(() => fixture.presentation.registerLeafMount(request)).toThrow(/phone:mount-duplicate/);
     lease.release();
     expect(() => fixture.presentation.registerLeafMount({
       ...request,
@@ -1000,19 +1000,19 @@ describe('phone presentation content, frame, and mount proof', () => {
         ...request.registration.surfaces,
         { id: 'rogue-image', element: image, kind: 'image' as const }
       ] }
-    })).toThrow(/closed presentation binding|manifest/);
+    })).toThrow(/phone:mount-surfaces/);
     expect(() => fixture.presentation.registerLeafMount({
       ...request,
       registration: { ...request.registration, surfaces: [
         request.registration.surfaces[0]!, request.registration.surfaces[0]!
       ] }
-    })).toThrow(/closed presentation binding|duplicate/);
+    })).toThrow(/phone:mount-surfaces/);
     expect(() => fixture.presentation.registerLeafMount({
       ...request,
       registration: { ...request.registration, surfaces: [{
         id: 'pattern-image', element: fakeElement('external'), kind: 'image' as const
       }] }
-    })).toThrow(/registered root/);
+    })).toThrow(/phone:surface-outside/);
   });
 
   it('rebinds one opaque lease without remounting and releases all ownership once', () => {

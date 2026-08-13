@@ -192,7 +192,9 @@ export function createPhoneChunkRecoveryController(
     if (persist && failed && environment.storage) {
       try {
         environment.storage.setItem(lineageStorageKey, JSON.stringify(failed));
-      } catch {}
+      } catch {
+        // Recovery storage is optional; fail-closed state is still published.
+      }
     }
     publish({ status: 'fail-closed', lineage: failed, message });
     return 'fail-closed';
@@ -273,7 +275,9 @@ export function createPhoneChunkRecoveryController(
     return pending;
   };
   const markStable = (proof: PhoneStableRecoveryProof) => {
-    try { const stored = environment.storage?.getItem(lineageStorageKey); if (proof.commitSequence === 1 && stored) { const lineage: unknown = JSON.parse(stored); if (validLineage(lineage) && lineage.failedModuleClass === 'transition-leaf') return; } environment.storage?.removeItem(lineageStorageKey); } catch {}
+    try { const stored = environment.storage?.getItem(lineageStorageKey); if (proof.commitSequence === 1 && stored) { const lineage: unknown = JSON.parse(stored); if (validLineage(lineage) && lineage.failedModuleClass === 'transition-leaf') return; } environment.storage?.removeItem(lineageStorageKey); } catch {
+      // Storage failures must not prevent a stable phone commit.
+    }
     publish({ status: 'idle' });
   };
   const port: PhoneChunkRecoveryPort = Object.freeze({
@@ -312,7 +316,9 @@ export function createPhoneChunkRecoveryController(
 
 export function createBrowserPhoneChunkRecoveryController(): PhoneChunkRecoveryController {
   let storage: RecoveryStorage | null = null;
-  try { storage = window.sessionStorage; } catch {}
+  try { storage = window.sessionStorage; } catch {
+    // Privacy modes may deny sessionStorage; the controller fails closed.
+  }
   return createPhoneChunkRecoveryController({
     currentBuildId: import.meta.env.VITE_R5_DOCUMENT_BUILD_ID || 'development',
     entryUrl: window.location.href,
@@ -331,7 +337,9 @@ export function createBrowserPhoneChunkRecoveryController(): PhoneChunkRecoveryC
             window.location.replace(`${target.pathname}${target.search}${target.hash}`);
             return;
           }
-        } catch {}
+        } catch {
+          // Invalid or cross-origin recovery URLs fall back to a local reload.
+        }
       }
       window.location.reload();
     },

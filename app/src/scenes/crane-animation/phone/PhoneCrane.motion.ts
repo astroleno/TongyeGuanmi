@@ -69,7 +69,11 @@ function setTransform(element: HTMLElement | null, transform: string): void {
 export function renderPhoneCranePresentation(
   root: HTMLElement | null | undefined,
   rawProgress: number,
-  _direction: PhoneCranePlaybackDirection = 1
+  direction?: PhoneCranePlaybackDirection
+): void;
+export function renderPhoneCranePresentation(
+  root: HTMLElement | null | undefined,
+  rawProgress: number
 ): void {
   const section = rootFor(root);
   if (!section) return;
