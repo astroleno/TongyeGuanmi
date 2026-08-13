@@ -74,6 +74,13 @@ function bindHeroMetadataResync(video: HeroVideoElement): void {
   }
   video.__r4HeroMetadataBound = true;
   video.addEventListener('loadedmetadata', () => {
+    // Once the timeline driver has promoted this cold hold surface, it owns
+    // the causal seek/play/pause cycle. Replaying the passive hold endpoint
+    // here would cancel the compositor nudge while a cold CDN response is
+    // still delivering its first decodable range.
+    if (video.dataset.timelineVideoRun) {
+      return;
+    }
     const pending = video.__r4HeroPendingTime;
     if (pending === undefined) {
       return;

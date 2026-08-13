@@ -49,12 +49,15 @@ export function requiredMediaKeys(segment: SpineSegmentNode, direction: Directio
 }
 
 export function prepareTimeoutForManifest(manifest: StoryManifest): number {
-  const mediaTimeouts = manifest.nodes.flatMap((node) =>
+  const segmentTimeouts = manifest.nodes.flatMap((node) =>
     node.kind === 'segment'
-      ? (node.mediaPlayback ?? []).map((contract) => contract.preparingTimeoutMs)
+      ? [
+          node.buildTimeoutMs ?? manifest.defaults.buildTimeoutMs,
+          ...(node.mediaPlayback ?? []).map((contract) => contract.preparingTimeoutMs)
+        ]
       : []
   );
-  return Math.max(manifest.defaults.buildTimeoutMs, ...mediaTimeouts) + 1000;
+  return Math.max(manifest.defaults.buildTimeoutMs, ...segmentTimeouts) + 1000;
 }
 
 export function findMediaElementByKey(

@@ -368,7 +368,7 @@ describe('story manifest contract', () => {
 
     expect(segment).toMatchObject({
       kind: 'segment',
-      buildTimeoutMs: 8000,
+      buildTimeoutMs: 15_000,
       policy: {
         kind: 'snap'
       },

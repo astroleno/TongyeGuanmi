@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { storyManifest } from '../story/manifest';
 import { HandleRegistry } from '../story/registry';
 import type { SpineSegmentNode } from '../story/types';
-import { requiredMediaKeys, waitForRequiredMediaReady } from './media-ready';
+import {
+  prepareTimeoutForManifest,
+  requiredMediaKeys,
+  waitForRequiredMediaReady
+} from './media-ready';
 
 function segment(id: SpineSegmentNode['id']): SpineSegmentNode {
   const found = storyManifest.nodes.find(
@@ -16,6 +20,10 @@ function segment(id: SpineSegmentNode['id']): SpineSegmentNode {
 }
 
 describe('production media readiness', () => {
+  it('keeps the Director deadline above the longest segment build gate', () => {
+    expect(prepareTimeoutForManifest(storyManifest)).toBe(16_000);
+  });
+
   it('declares every CDN animation surface needed by an incoming visual hold', () => {
     const expected = new Map<SpineSegmentNode['id'], readonly string[]>([
       ['star-map-aod', ['aod-figure-motion']],

@@ -7,6 +7,7 @@ import { parseInventoryManifestSeed, type InventoryManifestSeed } from './invent
 import {
   CRANE_CONTACT_DURATION_MS,
   FIGURE3_SERVICES_DURATION_MS,
+  HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS,
   HERO_PATTERN_TOTAL_MS,
   INTRA_CHAPTER_DISSOLVE_MS,
   PATTERN_COLLAPSE_MS,
@@ -463,7 +464,7 @@ function buildNodes(): readonly SpineNode[] {
       virtualDuration: policy.virtualDuration,
       requiredMilestones,
       buildTimeoutMs: node.id === 'hero-pattern'
-        ? stagedMediaPreparingTimeoutMs
+        ? HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS
         : mediaPreparingTimeoutMs,
       ...(visual ? { visual } : {}),
       ...(copyCue ? { copyCue } : {}),

@@ -122,7 +122,7 @@ function context(prefersReducedMotion = false): TransitionContext {
 
 describe('hero-pattern transition', () => {
   it('shares the release-safe frame preparation timeout with the Hero build gate', () => {
-    expect(HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS).toBe(8000);
+    expect(HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS).toBe(15_000);
     expect(segment().buildTimeoutMs).toBe(HERO_PATTERN_FRAME_PREPARING_TIMEOUT_MS);
   });
 

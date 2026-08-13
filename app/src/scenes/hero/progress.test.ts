@@ -39,6 +39,7 @@ class FakeElement {
 }
 
 class FakeVideo {
+  dataset: Record<string, string> = {};
   muted = false;
   loop = true;
   autoplay = true;
@@ -134,6 +135,24 @@ describe('hero scene renderer', () => {
     video.listeners.get('loadedmetadata')?.(new Event('loadedmetadata'));
     expect(video.currentTime).toBeCloseTo(0.9, 2);
     expect(video.paused).toBe(true);
+  });
+
+  it('does not let the cold-hold metadata resync pause an active timeline preparation', () => {
+    const video = new FakeVideo();
+    video.preload = 'none';
+
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'terminal');
+    video.dataset.timelineVideoRun = 'hero-pattern-prewarm';
+    video.preload = 'auto';
+    video.currentTime = 0.05;
+    video.paused = false;
+    const pauseCountBeforeMetadata = video.pauseCount;
+
+    video.listeners.get('loadedmetadata')?.(new Event('loadedmetadata'));
+
+    expect(video.currentTime).toBe(0.05);
+    expect(video.paused).toBe(false);
+    expect(video.pauseCount).toBe(pauseCountBeforeMetadata);
   });
 
   it('prepositions a hidden prev Hero at terminal but restores its authored start after reverse landing', () => {
