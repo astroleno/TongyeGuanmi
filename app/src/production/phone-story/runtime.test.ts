@@ -1459,7 +1459,7 @@ describe('phone runtime projector bridge', () => {
     disconnect();
   });
 
-  it.each(['presentation-coverage-invalid', 'presentation-content-invisible'] as const)(
+  it.each(['presentation-coverage-invalid', 'presentation-content-invisible', 'presentation-frame-invalid'] as const)(
   'retries a transient target %s miss inside the bounded plane deadline', (failureCode) => {
     const fixture = createEnvironment();
     const verifyVisibleCandidate = vi.fn()
@@ -1552,7 +1552,7 @@ describe('phone runtime projector bridge', () => {
     disconnect();
   });
 
-  it.each(['presentation-coverage-invalid', 'presentation-content-invisible'] as const)(
+  it.each(['presentation-coverage-invalid', 'presentation-content-invisible', 'presentation-frame-invalid'] as const)(
   'retries a transient reproject %s miss inside the bounded reproof deadline', (failureCode) => {
     const fixture = createEnvironment();
     const verifyReproject = vi.fn()
