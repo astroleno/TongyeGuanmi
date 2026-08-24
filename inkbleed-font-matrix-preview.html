@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07110e" />
+  <title>同野观幂｜Inkbleed 字体矩阵</title>
+  <meta name="description" content="以局部 Ink 扩散测试同野观幂的品牌标题、界面无衬线与叙事宋体系统。" />
+  <link rel="stylesheet" href="css/inkbleed-font-matrix-preview.css" />
+</head>
+<body class="inkbleed-font-matrix">
+  <main class="font-matrix">
+    <header class="font-matrix__intro">
+      <a class="font-matrix__brand" href="/" aria-label="返回同野观幂首页"><span aria-hidden="true">同</span>同野观幂</a>
+      <p class="font-matrix__eyebrow">LOCAL INK / TYPOGRAPHY MATRIX</p>
+      <h1>同一团墨，<br />三种字性。</h1>
+      <p>同一段“观象知幂”、一套局部 Ink 扩散：借用转场中的宽墨、湿边与孔隙噪声，只在指针附近让笔画边缘起墨。静态时保留原字形；移动鼠标或按住文字后，比较各套字体在扩散下的字性与可读性。</p>
+    </header>
+
+    <section class="font-matrix__grid" aria-label="Inkbleed 字体系统对照">
+      <article class="font-card" data-font-system="tongye-title">
+        <header class="font-card__head">
+          <p>01 / BRAND TITLE</p>
+          <h2>Tongye Title</h2>
+          <span>400 · 品牌标题系统</span>
+        </header>
+        <div class="font-card__stage">
+          <span class="font-card__guide" aria-hidden="true">MOVE THROUGH THE INK</span>
+          <span class="font-matrix__word" data-inkbleed-goo data-inkbleed-intensity="25" aria-label="观象知幂">观象知幂</span>
+          <p>自定义标题字；观察细笔画在局部湿边、分叉与散点扩散下，是否仍保留字性。</p>
+        </div>
+      </article>
+
+      <article class="font-card" data-font-system="ui-sans">
+        <header class="font-card__head">
+          <p>02 / UI SANS</p>
+          <h2>SF Pro Display</h2>
+          <span>700 · 界面无衬线系统</span>
+        </header>
+        <div class="font-card__stage">
+          <span class="font-card__guide" aria-hidden="true">MOVE THROUGH THE INK</span>
+          <span class="font-matrix__word" data-inkbleed-goo data-inkbleed-intensity="25" aria-label="观象知幂">观象知幂</span>
+          <p>界面字体栈；观察粗细均匀的轮廓在局部湿润扩散下是否最稳定。</p>
+        </div>
+      </article>
+
+      <article class="font-card" data-font-system="editorial-serif">
+        <header class="font-card__head">
+          <p>03 / EDITORIAL SERIF</p>
+          <h2>Songti SC</h2>
+          <span>600 · 叙事宋体系统</span>
+        </header>
+        <div class="font-card__stage">
+          <span class="font-card__guide" aria-hidden="true">MOVE THROUGH THE INK</span>
+          <span class="font-matrix__word" data-inkbleed-goo data-inkbleed-intensity="25" aria-label="观象知幂">观象知幂</span>
+          <p>宋体回声；观察衬线、横细竖粗与字内空白在局部墨化时的损耗。</p>
+        </div>
+      </article>
+
+      <article class="font-card font-card--glyph-anchored" data-inkbleed-comparison="glyph-anchored">
+        <header class="font-card__head">
+          <p>04 / GLYPH-ANCHORED INK</p>
+          <h2>Glyph-anchored Ink</h2>
+          <span>对照 · 字形边缘锚定</span>
+        </header>
+        <div class="font-card__stage">
+          <span class="font-card__guide" aria-hidden="true">RE-ENTER FOR A NEW INK PATH</span>
+          <span class="font-matrix__word" data-inkbleed-goo data-inkbleed-variant="glyph-anchored" data-inkbleed-intensity="25" aria-label="观象知幂">观象知幂</span>
+          <p>字形边缘锚定：每次进入或按下都生成一组稳定的新种子，只从命中字与邻字的真实笔画边缘长出不规则墨滴。</p>
+        </div>
+      </article>
+    </section>
+
+    <p class="font-matrix__note" data-font-matrix-note>桌面：鼠标经过文字；手机：按住并水平拖动文字。纵向拖动会让出页面滚动。</p>
+  </main>
+
+  <script type="module" src="js/inkbleed-font-matrix-preview.js"></script>
+</body>
+</html>

@@ -1,0 +1,335 @@
+@font-face {
+  font-family: "Tongye Title";
+  src: url("../assets/fonts/qiji-title-subset.ttf") format("truetype");
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+  --matrix-bg: #07110e;
+  --matrix-paper: #f7edd7;
+  --matrix-muted: rgba(247, 237, 215, .62);
+  --matrix-line: rgba(247, 237, 215, .15);
+  --matrix-jade: #55b8aa;
+}
+
+* { box-sizing: border-box; }
+
+html { min-height: 100%; background: var(--matrix-bg); }
+
+body.inkbleed-font-matrix {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+  color: var(--matrix-paper);
+  background:
+    radial-gradient(circle at 14% 8%, rgba(85, 184, 170, .14), transparent 34rem),
+    radial-gradient(circle at 92% 70%, rgba(184, 98, 56, .1), transparent 31rem),
+    linear-gradient(135deg, #07110e, #0b1712 52%, #050907);
+  font-family: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+.font-matrix {
+  width: min(1440px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: clamp(32px, 6vw, 88px) 0 56px;
+}
+
+.font-matrix__intro {
+  max-width: 780px;
+  padding: 0 0 clamp(48px, 7vw, 96px);
+}
+
+.font-matrix__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--matrix-paper);
+  font-size: 14px;
+  letter-spacing: .16em;
+  text-decoration: none;
+}
+
+.font-matrix__brand span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(247, 237, 215, .48);
+  color: #e8d59a;
+  font-family: "Tongye Title", serif;
+  font-size: 18px;
+}
+
+.font-matrix__eyebrow,
+.font-card__head p {
+  margin: clamp(58px, 10vw, 120px) 0 16px;
+  color: var(--matrix-jade);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .22em;
+}
+
+.font-matrix__intro h1 {
+  max-width: 5em;
+  margin: 0;
+  font-family: "Tongye Title", "STKaiti", "KaiTi", serif;
+  font-size: clamp(66px, 10vw, 148px);
+  font-weight: 400;
+  line-height: .88;
+  letter-spacing: -.07em;
+}
+
+.font-matrix__intro > p:not(.font-matrix__eyebrow) {
+  max-width: 44em;
+  margin: 30px 0 0;
+  color: var(--matrix-muted);
+  font-size: clamp(14px, 1.35vw, 17px);
+  line-height: 1.9;
+}
+
+.font-matrix__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--matrix-line);
+  border-bottom: 1px solid var(--matrix-line);
+}
+
+.font-card {
+  min-width: 0;
+  padding: clamp(24px, 2.8vw, 42px);
+}
+
+.font-card + .font-card { border-left: 1px solid var(--matrix-line); }
+
+.font-card--glyph-anchored {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(210px, .34fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 64px);
+  align-items: center;
+  border-top: 1px solid var(--matrix-line);
+  border-left: 0 !important;
+}
+
+.font-card--glyph-anchored .font-card__head { min-height: auto; }
+
+.font-card--glyph-anchored .font-card__stage { min-height: 350px; }
+
+.font-card--glyph-anchored .font-matrix__word {
+  font-family: "Tongye Title", ui-serif, "Songti SC", "STSong", serif;
+  font-size: clamp(78px, 9.8vw, 156px);
+  font-weight: 400;
+  line-height: .84;
+  letter-spacing: -.035em;
+}
+
+.font-card__head {
+  min-height: 116px;
+}
+
+.font-card__head p {
+  margin: 0 0 16px;
+}
+
+.font-card__head h2 {
+  margin: 0;
+  color: rgba(247, 237, 215, .92);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(19px, 1.8vw, 27px);
+  font-weight: 650;
+  letter-spacing: -.03em;
+}
+
+.font-card__head span {
+  display: block;
+  margin-top: 9px;
+  color: rgba(247, 237, 215, .46);
+  font-size: 11px;
+  letter-spacing: .06em;
+}
+
+.font-card__stage {
+  position: relative;
+  display: grid;
+  min-height: 330px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(247, 237, 215, .12);
+  background:
+    radial-gradient(circle at 68% 74%, rgba(232, 213, 154, .11), transparent 33%),
+    linear-gradient(145deg, rgba(85, 184, 170, .1), transparent 52%),
+    rgba(2, 8, 6, .43);
+  isolation: isolate;
+}
+
+.font-card__stage::before {
+  position: absolute;
+  inset: 17px;
+  border: 1px solid rgba(247, 237, 215, .07);
+  content: "";
+  pointer-events: none;
+}
+
+.font-card__guide {
+  position: absolute;
+  top: 27px;
+  left: 28px;
+  color: rgba(247, 237, 215, .34);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  pointer-events: none;
+}
+
+.font-card__stage > p {
+  position: absolute;
+  right: 28px;
+  bottom: 25px;
+  left: 28px;
+  margin: 0;
+  color: rgba(247, 237, 215, .57);
+  font-size: 12px;
+  line-height: 1.72;
+  pointer-events: none;
+}
+
+.font-matrix__word {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  max-width: calc(100% - 42px);
+  color: #e1e1e1;
+  font-size: clamp(64px, 7.5vw, 112px);
+  line-height: 1;
+  letter-spacing: 0;
+  user-select: none;
+  cursor: crosshair;
+}
+
+[data-font-system="tongye-title"] .font-matrix__word {
+  font-family: "Tongye Title", "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-weight: 400;
+  line-height: .82;
+}
+
+[data-font-system="ui-sans"] .font-matrix__word {
+  font-family: "SF Pro Display", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-weight: 700;
+}
+
+[data-font-system="editorial-serif"] .font-matrix__word {
+  font-family: ui-serif, "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.font-matrix__word .inkbleed-goo__filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.font-matrix__word .inkbleed-goo__content {
+  --spot-on: 0;
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  overflow: visible;
+}
+
+.font-matrix__word .inkbleed-goo__char {
+  position: relative;
+  display: inline-block;
+  overflow: visible;
+  cursor: default;
+}
+
+.font-matrix__word .inkbleed-goo__liquid {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.font-matrix__word .inkbleed-goo__liquid--far { z-index: 1; }
+.font-matrix__word .inkbleed-goo__liquid--middle { z-index: 2; }
+.font-matrix__word .inkbleed-goo__liquid--core { z-index: 3; }
+
+.font-matrix__word .inkbleed-goo__liquid-char {
+  position: relative;
+  display: inline-block;
+  overflow: visible;
+}
+
+.font-matrix__word .inkbleed-goo__base,
+.font-matrix__word .inkbleed-goo__blur,
+.font-matrix__word .inkbleed-goo__choker,
+.font-matrix__word .inkbleed-goo__sizer {
+  display: inline-block;
+  white-space: pre;
+}
+
+.font-matrix__word .inkbleed-goo__base { filter: none; }
+
+.font-matrix__word .inkbleed-goo__sizer { visibility: hidden; }
+
+.font-matrix__word .inkbleed-goo__blur,
+.font-matrix__word .inkbleed-goo__choker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.font-matrix__word .inkbleed-goo__choker { will-change: mask-image; }
+
+.font-matrix__word .inkbleed-goo__content,
+.font-matrix__word .inkbleed-goo__char,
+.font-matrix__word .inkbleed-goo__liquid,
+.font-matrix__word .inkbleed-goo__liquid-char,
+.font-matrix__word .inkbleed-goo__base,
+.font-matrix__word .inkbleed-goo__blur,
+.font-matrix__word .inkbleed-goo__choker,
+.font-matrix__word .inkbleed-goo__sizer { pointer-events: none; }
+
+.font-matrix__word.is-ink-pressed { cursor: grabbing; }
+
+.font-matrix__note {
+  margin: 24px 0 0;
+  color: rgba(247, 237, 215, .5);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+@media (max-width: 1040px) {
+  .font-matrix__grid { grid-template-columns: 1fr; }
+  .font-card + .font-card { border-top: 1px solid var(--matrix-line); border-left: 0; }
+  .font-card__head { min-height: auto; margin-bottom: 24px; }
+  .font-card__stage { min-height: 300px; }
+  .font-card--glyph-anchored { display: block; }
+  .font-card--glyph-anchored .font-card__head { margin-bottom: 24px; }
+}
+
+@media (max-width: 560px) {
+  .font-matrix { width: min(100% - 24px, 620px); padding-top: 22px; }
+  .font-matrix__intro { padding-bottom: 56px; }
+  .font-matrix__eyebrow { margin-top: 76px; }
+  .font-card { padding: 24px 0; }
+  .font-card__stage { min-height: 270px; }
+  .font-card__guide { top: 21px; left: 22px; }
+  .font-card__stage > p { right: 22px; bottom: 19px; left: 22px; }
+  .font-matrix__word { font-size: clamp(54px, 16vw, 88px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .font-matrix__word,
+  .font-matrix__word .inkbleed-goo__content,
+  .font-matrix__word .inkbleed-goo__char { transition: none !important; }
+}

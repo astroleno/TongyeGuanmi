@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07110e" />
+  <title>同野观幂｜Inkbleed 双端交互预览</title>
+  <meta name="description" content="同野观幂局部 Ink 扩散：桌面端鼠标悬浮与手机端按住交互预览。" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preload" href="assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="stylesheet" href="css/inkbleed-responsive-preview.css" />
+</head>
+<body class="inkbleed-preview">
+  <main class="inkbleed-preview__shell">
+    <header class="inkbleed-preview__intro">
+      <a class="inkbleed-preview__brand" href="/" aria-label="返回同野观幂首页">
+        <span aria-hidden="true">同</span>
+        同野观幂
+      </a>
+      <p class="inkbleed-preview__eyebrow">LOCAL INK DIFFUSION / INPUT STUDY</p>
+      <h1>一笔，<br />随手而动。</h1>
+      <p class="inkbleed-preview__lede">同一套局部 Ink 扩散语言，桌面跟随鼠标，手机跟随按住的手指；转场同源的宽墨、湿边与孔隙噪声只在指针附近显现，静态时始终保留清晰原字。</p>
+    </header>
+
+    <section class="inkbleed-preview__comparison" aria-label="桌面端与手机端 Inkbleed 对比">
+      <article class="inkbleed-sample inkbleed-sample--desktop">
+        <header class="inkbleed-sample__head">
+          <p>01 / DESKTOP</p>
+          <h2>鼠标悬浮</h2>
+          <span class="inkbleed-sample__hint">在文字上缓慢移动</span>
+        </header>
+        <div class="inkbleed-sample__stage" data-inkbleed-stage="desktop">
+          <p class="inkbleed-sample__guide" aria-hidden="true">MOVE THROUGH THE INK</p>
+          <span
+            class="inkbleed-goo"
+            data-inkbleed-goo
+            data-inkbleed-mode="desktop"
+            data-inkbleed-intensity="25"
+            aria-label="InkBleed"
+          >InkBleed</span>
+          <p class="inkbleed-sample__caption">光标经过时，从指针处起墨：笔画边缘湿润、分叉并散开；字位保持不变，离开后回到原字。</p>
+        </div>
+      </article>
+
+      <article class="inkbleed-sample inkbleed-sample--touch">
+        <header class="inkbleed-sample__head">
+          <p>02 / MOBILE</p>
+          <h2>按住起墨</h2>
+          <span class="inkbleed-sample__hint">按住并在字上拖动</span>
+        </header>
+        <div class="inkbleed-sample__stage inkbleed-sample__stage--touch" data-inkbleed-stage="touch">
+          <div class="inkbleed-sample__device" aria-label="手机端交互区域">
+            <span class="inkbleed-sample__device-top" aria-hidden="true"></span>
+            <p class="inkbleed-sample__guide" aria-hidden="true">PRESS + DRAG</p>
+            <span
+              class="inkbleed-goo inkbleed-goo--touch"
+              data-inkbleed-goo
+              data-inkbleed-mode="touch"
+              data-inkbleed-intensity="25"
+              aria-label="InkBleed"
+            >InkBleed</span>
+          <p class="inkbleed-sample__caption">长按才触发局部 Ink 扩散；指下沿笔画边缘起墨，向上或向下滑动时立即让出滚动。</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <p class="inkbleed-preview__note" data-inkbleed-note>桌面：鼠标经过；手机：按住并拖动。减少动态效果模式下保持静态文字。</p>
+  </main>
+
+  <script type="module" src="js/inkbleed-responsive-preview.js"></script>
+</body>
+</html>
