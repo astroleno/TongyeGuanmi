@@ -8,6 +8,8 @@ test-results/
 .review-*.png
 .worktrees/
 tmp/
+/astro-prompt.txt
+/tmp-mbti/
 assets/*.backup-*
 assets/*.pre-*
 assets/*.bad-*
