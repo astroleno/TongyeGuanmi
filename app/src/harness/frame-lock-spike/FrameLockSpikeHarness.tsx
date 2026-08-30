@@ -70,6 +70,7 @@ export type FrameLockSpikeSnapshot = Readonly<{
   assetSource: string;
   status: FrameLockSpikeStatus;
   errorCode: string | null;
+  capability: StrictVideoProbeCapability;
   rows: readonly FrameLockSpikeReceiptRow[];
   presentedFrameIndex: number;
   presentedProgress: number;
@@ -339,6 +340,10 @@ function isPackedAsset(asset: AssetDescriptor): boolean {
 function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
   if (video.readyState >= 1) return Promise.resolve();
   return new Promise((resolve, reject) => {
+    const timeoutHandle = globalThis.setTimeout(() => {
+      cleanup();
+      reject(new Error('frame-lock spike media metadata timed out'));
+    }, FRAME_RECEIPT_TIMEOUT_MS);
     const onLoaded = () => {
       cleanup();
       resolve();
@@ -348,6 +353,7 @@ function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
       reject(new Error('frame-lock spike media metadata failed'));
     };
     const cleanup = () => {
+      globalThis.clearTimeout(timeoutHandle);
       video.removeEventListener('loadedmetadata', onLoaded);
       video.removeEventListener('error', onError);
     };
@@ -805,6 +811,7 @@ export function FrameLockSpikeHarness({
         assetSource: config.asset.source,
         status: statusRef.current,
         errorCode: errorCodeRef.current,
+        capability: capabilityRef.current,
         rows: rowsRef.current,
         presentedFrameIndex: presentedFrameRef.current,
         presentedProgress: presentedProgressRef.current,
