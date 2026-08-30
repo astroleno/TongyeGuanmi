@@ -834,6 +834,9 @@ export function FrameLockSpikeHarness({
   });
 
   const frameMap = config.asset.frameMap;
+  const packedDecoderSurface = config.surface === 'phone-ph'
+    || config.surface === 'phone-crane'
+    || (config.surface === 'asset' && isPackedAsset(config.asset));
   return (
     <main
       className="frame-lock-spike"
@@ -861,6 +864,7 @@ export function FrameLockSpikeHarness({
         <video
           ref={videoRef}
           className="frame-lock-spike__video"
+          data-frame-lock-decoder={packedDecoderSurface ? 'true' : undefined}
           src={suppliedVideo ? undefined : config.asset.url}
           muted
           playsInline
@@ -881,6 +885,7 @@ export function FrameLockSpikeHarness({
             <video
               ref={flockVideoRef}
               className="frame-lock-spike__video frame-lock-spike__video--flock"
+              data-frame-lock-decoder="true"
               src={flockAsset.url}
               muted
               playsInline

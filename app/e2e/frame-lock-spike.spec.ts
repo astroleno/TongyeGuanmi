@@ -74,6 +74,23 @@ function assertStrictRows(rows: readonly FrameLockRow[], endFrame: number): void
 }
 
 test.describe('PH frame-lock spike', () => {
+  test('packed surfaces keep decoder videos hidden behind Canvas presentation', async ({ page }) => {
+    for (const [path, expectedVideoCount] of [
+      ['/harness/ph', 1],
+      ['/harness/crane', 2]
+    ] as const) {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('[data-frame-lock-surface]')).toBeVisible();
+      await expect.poll(() => page.locator('video').count()).toBe(expectedVideoCount);
+      expect(await page.locator('video').evaluateAll((videos) => (
+        videos.map((video) => getComputedStyle(video).opacity)
+      ))).toEqual(Array.from({ length: expectedVideoCount }, () => '0'));
+      expect(await page.locator('canvas').evaluateAll((canvases) => (
+        canvases.map((canvas) => getComputedStyle(canvas).position)
+      ))).toEqual(Array.from({ length: expectedVideoCount }, () => 'absolute'));
+    }
+  });
+
   test('short phone routes select the packed PH and Crane surfaces', async ({ page }) => {
     for (const [path, surface] of [
       ['/harness/ph', 'phone-ph'],
