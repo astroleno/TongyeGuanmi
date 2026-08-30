@@ -6,6 +6,10 @@ const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/frame-lock-spike.spec.ts',
+  reporter: [
+    ['list'],
+    ['json', { outputFile: 'test-results/frame-lock-spike.json' }]
+  ],
   timeout: 45_000,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

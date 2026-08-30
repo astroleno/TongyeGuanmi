@@ -10,6 +10,19 @@ import {
   type StrictVideoProbeCapability,
   type StrictVideoProbeReceipt
 } from './strict-video-probe';
+import {
+  createStrictPackedProbe,
+  type StrictPackedProbe
+} from './strict-packed-probe';
+import {
+  createSpikeFrameBarrier,
+  type SpikeFrameBarrier,
+  type SpikeFrameBarrierReceipt
+} from './spike-frame-barrier';
+import {
+  createPhonePackedAlphaSurface,
+  type PhonePackedAlphaSurface
+} from '../../media/phone-packed-alpha-surface';
 import './FrameLockSpikeHarness.css';
 
 // The harness reads the same allowlist as the media verification scripts. It
@@ -44,7 +57,7 @@ export type FrameLockSpikeReceiptRow = Readonly<{
   desiredFrameIndex: number;
   presentedFrameIndex: number;
   frameLag: number;
-  evidence: StrictVideoProbeReceipt['evidence'];
+  evidence: 'video-frame-callback' | 'packed-canvas-draw' | 'packed-frame-barrier' | 'none';
   seekToPresentMs: number;
   committed: boolean;
   staleCount: number;
@@ -63,12 +76,15 @@ export type FrameLockSpikeSnapshot = Readonly<{
   visualProgress: number;
   phBoundary: 'locked' | 'ready';
   staleCount: number;
+  craneChildFrameLags: readonly number[];
+  webglContextsReleased: boolean;
 }>;
 
 export type FrameLockSpikeApi = Readonly<{
   runSequence(mode?: FrameLockSequence): Promise<readonly FrameLockSpikeReceiptRow[]>;
   runLatestWins(oldFrameIndex?: number, latestFrameIndex?: number): Promise<readonly FrameLockSpikeReceiptRow[]>;
   requestFrame(frameIndex: number): Promise<FrameLockSpikeReceiptRow>;
+  retire(): void;
   snapshot(): FrameLockSpikeSnapshot;
 }>;
 
@@ -130,6 +146,24 @@ const ASSET_URLS: Readonly<Record<string, string>> = Object.freeze({
 const DEFAULT_SEQUENCE: FrameLockSequence = 'forward';
 const DEFAULT_RUN_ID = 'frame-lock-spike';
 const FRAME_RECEIPT_TIMEOUT_MS = 1_500;
+
+type SpikeProbe = StrictVideoProbe | StrictPackedProbe;
+
+type SpikeReceipt = Readonly<{
+  status: 'presented' | 'stale';
+  runId: string;
+  direction: 1 | -1;
+  sequence: number;
+  desiredFrameIndex: number;
+  presentedFrameIndex: number;
+  mediaTimeSeconds: number;
+  evidence: 'video-frame-callback' | 'packed-canvas-draw' | 'packed-frame-barrier' | 'none';
+  capability: StrictVideoProbeCapability;
+  children?: readonly Readonly<{
+    desiredFrameIndex: number;
+    presentedFrameIndex: number;
+  }>[];
+}>;
 
 function sourceBase(source: string): string {
   return source
@@ -298,6 +332,10 @@ function sequenceFrames(mode: FrameLockSequence, frameMap: SpikeVideoFrameMap): 
   }
 }
 
+function isPackedAsset(asset: AssetDescriptor): boolean {
+  return asset.source.endsWith('-rgb-alpha.mp4');
+}
+
 function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
   if (video.readyState >= 1) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -324,8 +362,25 @@ export function FrameLockSpikeHarness({
   onProbeRequest
 }: FrameLockSpikeProps) {
   const config = useMemo(queryConfig, []);
+  const flockAsset = useMemo(
+    () => config.surface === 'phone-crane'
+      ? assetDescriptor('assets/crane-flock-motion-rgb-alpha.mp4')
+      : undefined,
+    [config.surface]
+  );
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const probeRef = useRef<StrictVideoProbe | null>(null);
+  const flockVideoRef = useRef<HTMLVideoElement | null>(null);
+  const stageRef = useRef<HTMLElement | null>(null);
+  const packedCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const flockCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const probeRef = useRef<SpikeProbe | null>(null);
+  const packedProbeRef = useRef<StrictPackedProbe | null>(null);
+  const flockPackedProbeRef = useRef<StrictPackedProbe | null>(null);
+  const barrierRef = useRef<SpikeFrameBarrier | null>(null);
+  const packedSurfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
+  const flockSurfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
+  const packedGenerationRef = useRef(0);
+  const flockGenerationRef = useRef(0);
   const capabilityRef = useRef<StrictVideoProbeCapability>(browserCapability(false));
   const rowsRef = useRef<FrameLockSpikeReceiptRow[]>([]);
   const nextSequenceRef = useRef(0);
@@ -338,6 +393,8 @@ export function FrameLockSpikeHarness({
   const boundarySequenceRef = useRef<number | null>(null);
   const statusRef = useRef<FrameLockSpikeStatus>('booting');
   const errorCodeRef = useRef<string | null>(null);
+  const craneChildFrameLagsRef = useRef<number[]>([]);
+  const webglContextsReleasedRef = useRef(false);
   const probeGenerationRef = useRef(0);
   const onProbeRequestRef = useRef(onProbeRequest);
   const [rows, setRows] = useState<readonly FrameLockSpikeReceiptRow[]>([]);
@@ -356,7 +413,7 @@ export function FrameLockSpikeHarness({
     setErrorCode(nextErrorCode);
   };
 
-  const appendReceipt = (receipt: StrictVideoProbeReceipt, startedAt: number): FrameLockSpikeReceiptRow => {
+  const appendReceipt = (receipt: SpikeReceipt, startedAt: number): FrameLockSpikeReceiptRow => {
     if (receipt.status === 'stale') staleCountRef.current += 1;
     const frameLag = Math.abs(receipt.desiredFrameIndex - receipt.presentedFrameIndex);
     const committed = receipt.status === 'presented'
@@ -387,10 +444,55 @@ export function FrameLockSpikeHarness({
         setPhBoundary('ready');
       }
     }
+    if (config.surface === 'phone-crane' && receipt.children) {
+      craneChildFrameLagsRef.current = receipt.children.map((child) => (
+        Math.abs(child.desiredFrameIndex - child.presentedFrameIndex)
+      ));
+    }
     rowsRef.current = [...rowsRef.current, row];
     setRows(rowsRef.current);
     return row;
   };
+
+  const playbackVideos = (): HTMLVideoElement[] => {
+    const videos = [suppliedVideo ?? videoRef.current];
+    if (config.surface === 'phone-crane') videos.push(flockVideoRef.current);
+    return videos.filter((video): video is HTMLVideoElement => video !== null);
+  };
+
+  const nudgePlayback = (): (() => void) => {
+    const restorers = playbackVideos().map((video) => {
+      const previousPlaybackRate = video.playbackRate;
+      try {
+        video.playbackRate = 0.25;
+        const playback = video.play();
+        if (playback) void playback.catch(() => undefined);
+      } catch {
+        // Autoplay policy and detached test media are both expected here.
+      }
+      return () => {
+        video.pause();
+        video.playbackRate = previousPlaybackRate;
+      };
+    });
+    return () => restorers.forEach((restore) => restore());
+  };
+
+  const staleReceipt = (
+    direction: 1 | -1,
+    sequence: number,
+    targetFrameIndex: number
+  ): SpikeReceipt => ({
+    status: 'stale',
+    runId: DEFAULT_RUN_ID,
+    direction,
+    sequence,
+    desiredFrameIndex: targetFrameIndex,
+    presentedFrameIndex: targetFrameIndex,
+    mediaTimeSeconds: mediaTimeForFrame(config.asset.frameMap, targetFrameIndex),
+    evidence: 'none',
+    capability: capabilityRef.current
+  });
 
   const requestFrame = (
     frameIndex: number,
@@ -410,62 +512,54 @@ export function FrameLockSpikeHarness({
       boundaryRef.current = 'locked';
       setPhBoundary('locked');
     }
+    const barrier = barrierRef.current;
     const probe = probeRef.current;
-    if (!probe) {
-      const receipt: StrictVideoProbeReceipt = {
-        status: 'stale',
+    if (!barrier && !probe) {
+      return Promise.resolve(appendReceipt(
+        staleReceipt(direction, sequence, targetFrameIndex),
+        startedAt
+      ));
+    }
+    if (barrier) {
+      const promise = barrier.request({
         runId: DEFAULT_RUN_ID,
         direction,
         sequence,
-        desiredFrameIndex: targetFrameIndex,
-        presentedFrameIndex: targetFrameIndex,
-        mediaTimeSeconds: mediaTimeForFrame(map, targetFrameIndex),
-        evidence: 'none',
-        capability: capabilityRef.current
-      };
-      return Promise.resolve(appendReceipt(receipt, startedAt));
+        desiredProgress: progressForFrameIndex(map, targetFrameIndex)
+      });
+      const restorePlayback = nudgePlayback();
+      onProbeRequestRef.current?.(targetFrameIndex);
+      return promise.then((receipt: SpikeFrameBarrierReceipt) => {
+        restorePlayback();
+        return appendReceipt({
+          ...receipt,
+          capability: capabilityRef.current
+        }, startedAt);
+      }).catch(() => {
+        restorePlayback();
+        updateStatus('error', 'MEDIA_SEEK_FAILED');
+        return appendReceipt(staleReceipt(direction, sequence, targetFrameIndex), startedAt);
+      });
     }
-    const promise = probe.request({
+    const promise = probe!.request({
       runId: DEFAULT_RUN_ID,
       direction,
       sequence,
       desiredProgress: progressForFrameIndex(map, targetFrameIndex),
       frameMap: map
     });
+    const restorePlayback = nudgePlayback();
     onProbeRequestRef.current?.(targetFrameIndex);
-    const playbackVideo = suppliedVideo ?? videoRef.current;
-    const previousPlaybackRate = playbackVideo?.playbackRate;
-    let playbackNudge: Promise<void> | undefined;
-    try {
-      if (playbackVideo && previousPlaybackRate !== undefined) {
-        playbackVideo.playbackRate = 0.25;
-      }
-      playbackNudge = typeof playbackVideo?.play === 'function'
-        ? playbackVideo.play()
-        : undefined;
-    } catch {
-      playbackNudge = undefined;
-    }
-    if (playbackNudge) {
-      void playbackNudge.catch(() => undefined);
-    }
     let timedOut = false;
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    const timeoutReceipt = new Promise<StrictVideoProbeReceipt>((resolve) => {
+    const timeoutReceipt = new Promise<SpikeReceipt>((resolve) => {
       timeoutHandle = setTimeout(() => {
         timedOut = true;
-        probe.dispose();
+        probe!.dispose();
         if (probeRef.current === probe) probeRef.current = null;
         updateStatus('error', 'MEDIA_SEEK_FAILED');
         resolve({
-          status: 'stale',
-          runId: DEFAULT_RUN_ID,
-          direction,
-          sequence,
-          desiredFrameIndex: targetFrameIndex,
-          presentedFrameIndex: targetFrameIndex,
-          mediaTimeSeconds: mediaTimeForFrame(map, targetFrameIndex),
-          evidence: 'none',
+          ...staleReceipt(direction, sequence, targetFrameIndex),
           capability: {
             ...capabilityRef.current,
             callbackFailure: true,
@@ -476,14 +570,16 @@ export function FrameLockSpikeHarness({
     });
     return Promise.race([promise, timeoutReceipt]).then((receipt) => {
       if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-      playbackVideo?.pause();
-      if (playbackVideo && previousPlaybackRate !== undefined) {
-        playbackVideo.playbackRate = previousPlaybackRate;
-      }
+      restorePlayback();
       if (timedOut && receipt.status !== 'stale') {
         return appendReceipt({ ...receipt, status: 'stale', evidence: 'none' }, startedAt);
       }
       return appendReceipt(receipt, startedAt);
+    }).catch(() => {
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      restorePlayback();
+      updateStatus('error', 'MEDIA_SEEK_FAILED');
+      return appendReceipt(staleReceipt(direction, sequence, targetFrameIndex), startedAt);
     });
   };
 
@@ -492,17 +588,17 @@ export function FrameLockSpikeHarness({
     expectedGeneration = probeGenerationRef.current
   ): Promise<readonly FrameLockSpikeReceiptRow[]> => {
     if (expectedGeneration !== probeGenerationRef.current) return [];
-    const video = suppliedVideo ?? videoRef.current;
-    if (!probeRef.current || statusRef.current === 'static-fallback') {
+    const videos = playbackVideos();
+    if ((!probeRef.current && !barrierRef.current) || statusRef.current === 'static-fallback') {
       const before = rowsRef.current.length;
       for (const frameIndex of sequenceFrames(mode, config.asset.frameMap)) {
         await requestFrame(frameIndex, expectedGeneration);
       }
       return rowsRef.current.slice(before);
     }
-    if (video) {
+    if (videos.length > 0) {
       try {
-        await waitForVideoMetadata(video);
+        await Promise.all(videos.map((video) => waitForVideoMetadata(video)));
       } catch {
         updateStatus('error', 'MEDIA_ELEMENT_ERROR');
         return [];
@@ -536,16 +632,39 @@ export function FrameLockSpikeHarness({
     return rowsRef.current.slice(before);
   };
 
+  const retire = () => {
+    barrierRef.current?.dispose();
+    barrierRef.current = null;
+    probeRef.current?.dispose();
+    probeRef.current = null;
+    packedProbeRef.current?.dispose();
+    packedProbeRef.current = null;
+    flockPackedProbeRef.current?.dispose();
+    flockPackedProbeRef.current = null;
+    packedSurfaceRef.current?.dispose('terminal');
+    packedSurfaceRef.current = null;
+    flockSurfaceRef.current?.dispose('terminal');
+    flockSurfaceRef.current = null;
+    packedGenerationRef.current = 0;
+    flockGenerationRef.current = 0;
+    if (config.surface === 'phone-crane') webglContextsReleasedRef.current = true;
+  };
+
   useEffect(() => {
     const generation = probeGenerationRef.current + 1;
     probeGenerationRef.current = generation;
-    const video = suppliedVideo ?? videoRef.current;
-    if (!video) {
+    webglContextsReleasedRef.current = false;
+    const videos = [
+      suppliedVideo ?? videoRef.current,
+      ...(config.surface === 'phone-crane' ? [flockVideoRef.current] : [])
+    ].filter((candidate): candidate is HTMLVideoElement => candidate !== null);
+    const expectedVideoCount = config.surface === 'phone-crane' ? 2 : 1;
+    if (videos.length !== expectedVideoCount) {
       updateStatus('error', 'MEDIA_ELEMENT_MISSING');
       return undefined;
     }
     const rvfcAvailable = !config.forceNoRvfc
-      && typeof video.requestVideoFrameCallback === 'function';
+      && videos.every((video) => typeof video.requestVideoFrameCallback === 'function');
     capabilityRef.current = browserCapability(rvfcAvailable);
     if (!rvfcAvailable) {
       updateStatus('static-fallback', 'MEDIA_FRAME_CALLBACK_UNAVAILABLE');
@@ -560,10 +679,104 @@ export function FrameLockSpikeHarness({
         if (probeGenerationRef.current === generation) probeGenerationRef.current += 1;
       };
     }
-    probeRef.current = createStrictVideoProbe(video, capabilityRef.current);
-    updateStatus('ready');
+
+    const packed = config.surface === 'phone-crane' || isPackedAsset(config.asset);
+    const packedProbeBoxes: Array<{ current: StrictPackedProbe | null }> = [];
+    const packedSurfaces: Array<{
+      surface: PhonePackedAlphaSurface;
+      probeBox: { current: StrictPackedProbe | null };
+      generationRef: { current: number };
+    }> = [];
+    if (packed) {
+      const packedEntries = config.surface === 'phone-crane'
+        ? [
+          {
+            video: videos[0]!,
+            canvas: packedCanvasRef.current,
+            source: config.asset,
+            statusDataset: 'frameLockCraneFigure',
+            layerName: 'crane-figure',
+            generationRef: { current: 0 }
+          },
+          {
+            video: videos[1]!,
+            canvas: flockCanvasRef.current,
+            source: flockAsset!,
+            statusDataset: 'frameLockCraneFlock',
+            layerName: 'crane-flock',
+            generationRef: { current: 0 }
+          }
+        ]
+        : [{
+          video: videos[0]!,
+          canvas: packedCanvasRef.current,
+          source: config.asset,
+          statusDataset: 'frameLockPacked',
+          layerName: 'packed',
+          generationRef: { current: 0 }
+        }];
+      for (const entry of packedEntries) {
+        if (!entry.canvas) {
+          updateStatus('error', 'MEDIA_CANVAS_MISSING');
+          return undefined;
+        }
+        const probeBox = { current: null as StrictPackedProbe | null };
+        const surface = createPhonePackedAlphaSurface({
+          root: entry.canvas.parentElement ?? entry.video.parentElement ?? document.body,
+          container: entry.canvas.parentElement ?? entry.video.parentElement ?? document.body,
+          canvas: entry.canvas,
+          video: entry.video,
+          packedSourceUrl: entry.source.url,
+          endpointSeconds: mediaTimeForFrame(entry.source.frameMap, entry.source.frameMap.endFrame),
+          statusDataset: entry.statusDataset,
+          layerName: entry.layerName,
+          canvasClassName: 'frame-lock-spike__packed-canvas',
+          frameTimeoutMs: FRAME_RECEIPT_TIMEOUT_MS,
+          onFrame: (frame) => probeBox.current?.notifyFrame(frame),
+          onFailure: (failure) => {
+            updateStatus('error', 'MEDIA_SEEK_FAILED');
+            probeBox.current?.fail(new Error(failure.message));
+          }
+        });
+        const activeGeneration = surface.activate('forward');
+        entry.generationRef.current = activeGeneration;
+        const packedProbe = createStrictPackedProbe({
+          video: entry.video,
+          render: () => surface.render(),
+          getActiveGeneration: () => entry.generationRef.current,
+          capability: capabilityRef.current,
+          timeoutMs: FRAME_RECEIPT_TIMEOUT_MS
+        });
+        probeBox.current = packedProbe;
+        packedProbeBoxes.push(probeBox);
+        packedSurfaces.push({ surface, probeBox, generationRef: entry.generationRef });
+      }
+      if (config.surface === 'phone-crane') {
+        packedProbeRef.current = packedProbeBoxes[0]?.current ?? null;
+        flockPackedProbeRef.current = packedProbeBoxes[1]?.current ?? null;
+        packedGenerationRef.current = packedSurfaces[0]?.generationRef.current ?? 0;
+        flockGenerationRef.current = packedSurfaces[1]?.generationRef.current ?? 0;
+        if (packedProbeRef.current && flockPackedProbeRef.current && flockAsset) {
+          barrierRef.current = createSpikeFrameBarrier({
+            masterFrameMap: config.asset.frameMap,
+            childFrameMaps: [config.asset.frameMap, flockAsset.frameMap],
+            clocks: [packedProbeRef.current, flockPackedProbeRef.current]
+          });
+        }
+        packedSurfaceRef.current = packedSurfaces[0]?.surface ?? null;
+        flockSurfaceRef.current = packedSurfaces[1]?.surface ?? null;
+      } else {
+        packedProbeRef.current = packedProbeBoxes[0]?.current ?? null;
+        packedSurfaceRef.current = packedSurfaces[0]?.surface ?? null;
+        packedGenerationRef.current = packedSurfaces[0]?.generationRef.current ?? 0;
+        probeRef.current = packedProbeRef.current;
+      }
+    } else {
+      probeRef.current = createStrictVideoProbe(videos[0]!, capabilityRef.current);
+    }
+    if (statusRef.current !== 'error') updateStatus('ready');
     const onError = () => updateStatus('error', 'MEDIA_ELEMENT_ERROR');
-    video.addEventListener('error', onError);
+    videos.forEach((currentVideo) => currentVideo.addEventListener('error', onError));
     if (autoRun) {
       queueMicrotask(() => {
         if (probeGenerationRef.current === generation) {
@@ -572,10 +785,9 @@ export function FrameLockSpikeHarness({
       });
     }
     return () => {
-      video.removeEventListener('error', onError);
+      videos.forEach((currentVideo) => currentVideo.removeEventListener('error', onError));
       if (probeGenerationRef.current === generation) {
-        probeRef.current?.dispose();
-        probeRef.current = null;
+        retire();
         probeGenerationRef.current += 1;
       }
     };
@@ -586,6 +798,7 @@ export function FrameLockSpikeHarness({
       runSequence,
       runLatestWins,
       requestFrame,
+      retire,
       snapshot: () => ({
         surface: config.surface,
         sequenceMode: config.sequence,
@@ -597,7 +810,9 @@ export function FrameLockSpikeHarness({
         presentedProgress: presentedProgressRef.current,
         visualProgress: visualProgressRef.current,
         phBoundary: boundaryRef.current,
-        staleCount: staleCountRef.current
+        staleCount: staleCountRef.current,
+        craneChildFrameLags: craneChildFrameLagsRef.current,
+        webglContextsReleased: webglContextsReleasedRef.current
       })
     };
     window.__frameLockSpike = api;
@@ -614,6 +829,7 @@ export function FrameLockSpikeHarness({
       data-frame-lock-error={errorCode ?? undefined}
       data-frame-lock-surface={config.surface}
       data-frame-lock-asset={config.asset.source}
+      data-frame-lock-crane-contexts-released={webglContextsReleasedRef.current ? 'true' : 'false'}
     >
       <header className="frame-lock-spike__header">
         <div>
@@ -629,7 +845,7 @@ export function FrameLockSpikeHarness({
         </dl>
       </header>
 
-      <section className="frame-lock-spike__stage" aria-label="PH media boundary">
+      <section ref={stageRef} className="frame-lock-spike__stage" aria-label="PH media boundary">
         <video
           ref={videoRef}
           className="frame-lock-spike__video"
@@ -639,6 +855,34 @@ export function FrameLockSpikeHarness({
           preload="auto"
           aria-label="PH frame-lock probe video"
         />
+        {(config.surface === 'phone-ph' || config.surface === 'phone-crane'
+          || (config.surface === 'asset' && isPackedAsset(config.asset))) && (
+          <canvas
+            ref={packedCanvasRef}
+            className="frame-lock-spike__packed-canvas"
+            data-frame-lock-packed-canvas="primary"
+            aria-hidden="true"
+          />
+        )}
+        {config.surface === 'phone-crane' && flockAsset && (
+          <>
+            <video
+              ref={flockVideoRef}
+              className="frame-lock-spike__video frame-lock-spike__video--flock"
+              src={flockAsset.url}
+              muted
+              playsInline
+              preload="auto"
+              aria-label="Crane flock frame-lock probe video"
+            />
+            <canvas
+              ref={flockCanvasRef}
+              className="frame-lock-spike__packed-canvas frame-lock-spike__packed-canvas--flock"
+              data-frame-lock-packed-canvas="flock"
+              aria-hidden="true"
+            />
+          </>
+        )}
         <div
           className="frame-lock-spike__visual-state"
           data-frame-lock-visual-progress={visualProgress.toFixed(4)}
@@ -661,6 +905,13 @@ export function FrameLockSpikeHarness({
           ? 'PH endpoint receipt accepted · copy/dissolve ready'
           : 'PH media receipt required · copy/dissolve locked'}
       </section>
+
+      {config.surface === 'phone-crane' && (
+        <p className="frame-lock-spike__crane-diagnostics" data-frame-lock-crane-diagnostics>
+          Crane child frame lag: {craneChildFrameLagsRef.current.join(', ') || 'pending'} ·
+          contexts released: {webglContextsReleasedRef.current ? 'yes' : 'no'}
+        </p>
+      )}
 
       {(status === 'static-fallback' || status === 'error') && (
         <p className="frame-lock-spike__fallback" data-frame-lock-fallback>
