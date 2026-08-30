@@ -74,6 +74,19 @@ function assertStrictRows(rows: readonly FrameLockRow[], endFrame: number): void
 }
 
 test.describe('PH frame-lock spike', () => {
+  test('Spike controls switch surface and sequence without editing the URL', async ({ page }) => {
+    await page.goto('/harness/ph', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('button', { name: 'reverse', exact: true })).toHaveAttribute('aria-pressed', 'false');
+
+    await page.getByRole('button', { name: 'reverse', exact: true }).click();
+    await expect(page).toHaveURL(/\/harness\/ph\?sequence=reverse$/);
+    await expect(page.locator('[data-frame-lock-surface]')).toHaveAttribute('data-frame-lock-surface', 'phone-ph');
+
+    await page.getByRole('button', { name: 'Crane', exact: true }).click();
+    await expect(page).toHaveURL(/\/harness\/crane\?sequence=reverse$/);
+    await expect(page.locator('[data-frame-lock-surface]')).toHaveAttribute('data-frame-lock-surface', 'phone-crane');
+  });
+
   test('packed surfaces keep decoder videos hidden behind Canvas presentation', async ({ page }) => {
     for (const [path, expectedVideoCount] of [
       ['/harness/ph', 1],

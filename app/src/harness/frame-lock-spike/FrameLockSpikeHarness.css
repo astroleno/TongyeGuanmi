@@ -67,6 +67,58 @@
   font-size: .92rem;
 }
 
+.frame-lock-spike__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .7rem 1.2rem;
+  align-items: center;
+  max-width: 1180px;
+  margin: 0 auto 1rem;
+  padding: .7rem .8rem;
+  border: 1px solid #355451;
+  border-radius: .55rem;
+  background: #182627;
+}
+
+.frame-lock-spike__control-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  align-items: center;
+}
+
+.frame-lock-spike__control-label {
+  margin-right: .15rem;
+  color: #91aaa1;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .7rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.frame-lock-spike__controls button {
+  min-height: 2.35rem;
+  padding: .45rem .7rem;
+  border: 1px solid #46716c;
+  border-radius: .35rem;
+  color: #dcece4;
+  background: #213535;
+  font: inherit;
+  font-size: .72rem;
+  cursor: pointer;
+}
+
+.frame-lock-spike__controls button[aria-pressed='true'] {
+  border-color: #c6a86b;
+  color: #1e2b2b;
+  background: #d8c38e;
+}
+
+.frame-lock-spike__controls button:focus-visible {
+  outline: 2px solid #f5c1a5;
+  outline-offset: 2px;
+}
+
 .frame-lock-spike__stage {
   position: relative;
   display: grid;

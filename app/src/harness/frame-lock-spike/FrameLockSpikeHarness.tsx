@@ -147,6 +147,13 @@ const ASSET_URLS: Readonly<Record<string, string>> = Object.freeze({
 const DEFAULT_SEQUENCE: FrameLockSequence = 'forward';
 const DEFAULT_RUN_ID = 'frame-lock-spike';
 const FRAME_RECEIPT_TIMEOUT_MS = 1_500;
+const SEQUENCE_OPTIONS: readonly FrameLockSequence[] = [
+  'forward',
+  'reverse',
+  'endpoints',
+  'random',
+  'pressure'
+];
 
 type SpikeProbe = StrictVideoProbe | StrictPackedProbe;
 
@@ -282,6 +289,23 @@ function queryConfig(): Readonly<{
       : assetDescriptor(source as string),
     forceNoRvfc: query.get('rvfc') === 'unavailable'
   };
+}
+
+function navigateSpikeSequence(sequence: FrameLockSequence): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('sequence', sequence);
+  window.location.assign(url.pathname + url.search + url.hash);
+}
+
+function navigateSpikeSurface(surface: 'phone-ph' | 'phone-crane', sequence: FrameLockSequence): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.pathname = surface === 'phone-ph' ? '/harness/ph' : '/harness/crane';
+  url.searchParams.delete('surface');
+  url.searchParams.delete('asset');
+  url.searchParams.set('sequence', sequence);
+  window.location.assign(url.pathname + url.search + url.hash);
 }
 
 function browserCapability(rvfcAvailable: boolean): StrictVideoProbeCapability {
@@ -859,6 +883,39 @@ export function FrameLockSpikeHarness({
           <div><dt>stale</dt><dd data-frame-clock-stale-count>{staleCountRef.current}</dd></div>
         </dl>
       </header>
+
+      <nav className="frame-lock-spike__controls" aria-label="Spike controls">
+        <div className="frame-lock-spike__control-group" role="group" aria-label="surface">
+          <span className="frame-lock-spike__control-label">surface</span>
+          <button
+            type="button"
+            aria-pressed={config.surface === 'phone-ph'}
+            onClick={() => navigateSpikeSurface('phone-ph', config.sequence)}
+          >
+            PH
+          </button>
+          <button
+            type="button"
+            aria-pressed={config.surface === 'phone-crane'}
+            onClick={() => navigateSpikeSurface('phone-crane', config.sequence)}
+          >
+            Crane
+          </button>
+        </div>
+        <div className="frame-lock-spike__control-group" role="group" aria-label="sequence">
+          <span className="frame-lock-spike__control-label">sequence</span>
+          {SEQUENCE_OPTIONS.map((sequence) => (
+            <button
+              key={sequence}
+              type="button"
+              aria-pressed={config.sequence === sequence}
+              onClick={() => navigateSpikeSequence(sequence)}
+            >
+              {sequence}
+            </button>
+          ))}
+        </div>
+      </nav>
 
       <section ref={stageRef} className="frame-lock-spike__stage" aria-label="PH media boundary">
         <video
