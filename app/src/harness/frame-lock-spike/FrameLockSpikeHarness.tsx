@@ -249,7 +249,12 @@ function queryConfig(): Readonly<{
     };
   }
   const query = new URLSearchParams(window.location.search);
-  const surfaceValue = query.get('surface');
+  const shortcutSurface = window.location.pathname === '/harness/ph'
+    ? 'phone-ph'
+    : window.location.pathname === '/harness/crane'
+      ? 'phone-crane'
+      : null;
+  const surfaceValue = query.get('surface') ?? shortcutSurface;
   const surface: FrameLockSurface = surfaceValue === 'phone-ph'
     || surfaceValue === 'phone-crane'
     || surfaceValue === 'asset'

@@ -8,6 +8,8 @@ const routeLoaders: Readonly<Record<string, () => Promise<{ default: HarnessRout
   '/harness/stage': () => import('./StageHarness').then(({ StageHarness }) => ({ default: StageHarness })),
   '/harness/r5-phone-clean': () => import('./r5-phone-clean/PhoneCleanHarness').then(({ PhoneCleanHarness }) => ({ default: PhoneCleanHarness })),
   '/harness/frame-lock-spike': () => import('./frame-lock-spike/FrameLockSpikeHarness').then(({ FrameLockSpikeHarness }) => ({ default: FrameLockSpikeHarness })),
+  '/harness/ph': () => import('./frame-lock-spike/FrameLockSpikeHarness').then(({ FrameLockSpikeHarness }) => ({ default: FrameLockSpikeHarness })),
+  '/harness/crane': () => import('./frame-lock-spike/FrameLockSpikeHarness').then(({ FrameLockSpikeHarness }) => ({ default: FrameLockSpikeHarness })),
   '/harness/r3-pilot': () => import('./r3/PilotHarness').then(({ PilotHarness }) => ({ default: () => <PilotHarness mode="pilot" /> })),
   '/harness/aod-animation': () => import('./r3/PilotHarness').then(({ PilotHarness }) => ({ default: () => <PilotHarness mode="aod-animation" /> })),
   '/harness/star-map-aod': () => import('./r3/PilotHarness').then(({ PilotHarness }) => ({ default: () => <PilotHarness mode="star-map-aod" /> })),

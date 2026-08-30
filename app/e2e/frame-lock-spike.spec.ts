@@ -74,6 +74,17 @@ function assertStrictRows(rows: readonly FrameLockRow[], endFrame: number): void
 }
 
 test.describe('PH frame-lock spike', () => {
+  test('short phone routes select the packed PH and Crane surfaces', async ({ page }) => {
+    for (const [path, surface] of [
+      ['/harness/ph', 'phone-ph'],
+      ['/harness/crane', 'phone-crane']
+    ] as const) {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('[data-frame-lock-surface]'))
+        .toHaveAttribute('data-frame-lock-surface', surface);
+    }
+  });
+
   test('PH deterministic sequence exposes only exact physical receipts', async ({ page }, testInfo) => {
     const surface = testInfo.project.name.startsWith('phone-') ? 'phone-ph' : 'desktop-ph';
     await page.goto(`/harness/frame-lock-spike?surface=${surface}&sequence=forward`, {
