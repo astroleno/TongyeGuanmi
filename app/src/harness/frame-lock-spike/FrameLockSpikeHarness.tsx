@@ -147,6 +147,12 @@ const ASSET_URLS: Readonly<Record<string, string>> = Object.freeze({
 const DEFAULT_SEQUENCE: FrameLockSequence = 'forward';
 const DEFAULT_RUN_ID = 'frame-lock-spike';
 const FRAME_RECEIPT_TIMEOUT_MS = 1_500;
+const NATIVE_PLAYBACK_NUDGE_RATE = 0.25;
+const NATIVE_PLAYBACK_NUDGE_DURATION_MS = 8;
+const nativeNudgeTimers = new WeakMap<
+  HTMLVideoElement,
+  ReturnType<typeof globalThis.setTimeout>
+>();
 const SEQUENCE_OPTIONS: readonly FrameLockSequence[] = [
   'forward',
   'reverse',
@@ -172,6 +178,31 @@ type SpikeReceipt = Readonly<{
     presentedFrameIndex: number;
   }>[];
 }>;
+
+function cancelNativeDecoderNudge(video: HTMLVideoElement): void {
+  const timer = nativeNudgeTimers.get(video);
+  if (timer === undefined) return;
+  globalThis.clearTimeout(timer);
+  nativeNudgeTimers.delete(video);
+}
+
+function nudgeNativeDecoder(video: HTMLVideoElement): void {
+  cancelNativeDecoderNudge(video);
+  try {
+    // This is only a bounded decoder wake-up behind the hidden candidate
+    // plane. The strict receipt still comes exclusively from RVFC metadata.
+    video.playbackRate = NATIVE_PLAYBACK_NUDGE_RATE;
+    const playback = video.play();
+    if (playback) void playback.catch(() => undefined);
+    const timer = globalThis.setTimeout(() => {
+      nativeNudgeTimers.delete(video);
+      if (!video.paused) video.pause();
+    }, NATIVE_PLAYBACK_NUDGE_DURATION_MS);
+    nativeNudgeTimers.set(video, timer);
+  } catch {
+    // Autoplay policy and detached test media are both expected here.
+  }
+}
 
 function sourceBase(source: string): string {
   return source
@@ -496,21 +527,30 @@ export function FrameLockSpikeHarness({
   };
 
   const nudgePlayback = (): (() => void) => {
+    let cancelled = false;
     const restorers = playbackVideos().map((video) => {
       const previousPlaybackRate = video.playbackRate;
-      try {
-        video.playbackRate = 0.25;
-        const playback = video.play();
-        if (playback) void playback.catch(() => undefined);
-      } catch {
-        // Autoplay policy and detached test media are both expected here.
-      }
+      const startPlayback = () => {
+        if (cancelled) return;
+        nudgeNativeDecoder(video);
+      };
+      const onSeeked = () => {
+        video.removeEventListener('seeked', onSeeked);
+        startPlayback();
+      };
+      video.addEventListener('seeked', onSeeked);
+      if (!video.seeking) startPlayback();
       return () => {
+        video.removeEventListener('seeked', onSeeked);
+        cancelNativeDecoderNudge(video);
         video.pause();
         video.playbackRate = previousPlaybackRate;
       };
     });
-    return () => restorers.forEach((restore) => restore());
+    return () => {
+      cancelled = true;
+      restorers.forEach((restore) => restore());
+    };
   };
 
   const staleReceipt = (
@@ -780,7 +820,8 @@ export function FrameLockSpikeHarness({
           render: () => surface.render(),
           getActiveGeneration: () => entry.generationRef.current,
           capability: capabilityRef.current,
-          timeoutMs: FRAME_RECEIPT_TIMEOUT_MS
+          timeoutMs: FRAME_RECEIPT_TIMEOUT_MS,
+          onExactSeekRetry: () => nudgeNativeDecoder(entry.video)
         });
         probeBox.current = packedProbe;
         packedProbeBoxes.push(probeBox);
@@ -807,7 +848,11 @@ export function FrameLockSpikeHarness({
         probeRef.current = packedProbeRef.current;
       }
     } else {
-      probeRef.current = createStrictVideoProbe(videos[0]!, capabilityRef.current);
+      probeRef.current = createStrictVideoProbe(
+        videos[0]!,
+        capabilityRef.current,
+        { onExactSeekRetry: () => nudgeNativeDecoder(videos[0]!) }
+      );
     }
     if (statusRef.current !== 'error') updateStatus('ready');
     const onError = () => updateStatus('error', 'MEDIA_ELEMENT_ERROR');

@@ -57,12 +57,19 @@ type StrictVideoElement = {
   pause(): void;
 };
 
+type StrictVideoProbeOptions = Readonly<{
+  onExactSeekRetry?: () => void;
+}>;
+
 type PendingRequest = StrictVideoProbeRequest & {
   desiredFrameIndex: number;
   targetTime: number;
   settled: boolean;
   obsolete: boolean;
   seekSettled: boolean;
+  retryPlaybackPending: boolean;
+  exactSeekRetries: number;
+  retryHandle: ReturnType<typeof globalThis.setTimeout> | undefined;
   resolve(receipt: StrictVideoProbeReceipt): void;
   disposeAbortListener(): void;
 };
@@ -81,6 +88,9 @@ const defaultCapability: StrictVideoProbeCapability = {
   osVersion: 'unknown',
   deviceModel: 'unknown'
 };
+
+const MAX_EXACT_SEEK_RETRIES = 8;
+const EXACT_SEEK_RETRY_DELAY_MS = 50;
 
 function staleReceipt(
   request: PendingRequest,
@@ -102,6 +112,7 @@ function staleReceipt(
 class StrictVideoProbeImpl implements StrictVideoProbe {
   private readonly lifecycle = createLinkedAbortController();
   private readonly capability: StrictVideoProbeCapability;
+  private readonly options: StrictVideoProbeOptions;
   private active: PendingRequest | undefined;
   private queued: PendingRequest | undefined;
   private callbackHandle: number | undefined;
@@ -112,14 +123,26 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
     const active = this.active;
     if (!active) return;
     active.seekSettled = true;
-    if (active.obsolete) this.flushObsoleteActive();
+    if (active.obsolete) {
+      this.flushObsoleteActive();
+    } else {
+      const shouldNudgeDecoder = active.retryPlaybackPending;
+      active.retryPlaybackPending = false;
+      this.cancelCallback();
+      this.armCallback(active);
+      if (shouldNudgeDecoder && !active.settled) {
+        this.options.onExactSeekRetry?.();
+      }
+    }
   };
 
   constructor(
     private readonly video: StrictVideoElement,
-    capability: Partial<StrictVideoProbeCapability> = {}
+    capability: Partial<StrictVideoProbeCapability> = {},
+    options: StrictVideoProbeOptions = {}
   ) {
     this.capability = { ...defaultCapability, ...capability };
+    this.options = options;
     video.addEventListener('seeked', this.onSeeked);
   }
 
@@ -138,6 +161,9 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
           settled: true,
           obsolete: true,
           seekSettled: true,
+          retryPlaybackPending: false,
+          exactSeekRetries: 0,
+          retryHandle: undefined,
           resolve: () => undefined,
           disposeAbortListener: () => undefined
         },
@@ -194,6 +220,9 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
       settled: false,
       obsolete: false,
       seekSettled: false,
+      retryPlaybackPending: false,
+      exactSeekRetries: 0,
+      retryHandle: undefined,
       resolve,
       disposeAbortListener: () => undefined
     };
@@ -241,6 +270,7 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
   }
 
   private armCallback(pending: PendingRequest): void {
+    this.clearRetryWatchdog(pending);
     if (typeof this.video.requestVideoFrameCallback !== 'function') {
       pending.obsolete = true;
       this.settleStale(pending);
@@ -260,12 +290,21 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
           }
           return;
         }
+        if (!pending.seekSettled) {
+          this.armCallback(pending);
+          return;
+        }
         const presentedFrameIndex = frameIndexForMediaTime(
           pending.frameMap,
           metadata.mediaTime
         );
         if (presentedFrameIndex !== pending.desiredFrameIndex) {
-          this.armCallback(pending);
+          if (pending.exactSeekRetries < MAX_EXACT_SEEK_RETRIES) {
+            pending.exactSeekRetries += 1;
+            this.reissueExactSeek(pending);
+          } else {
+            this.armCallback(pending);
+          }
           return;
         }
         this.active = undefined;
@@ -282,6 +321,7 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
         });
         this.flushQueued();
       });
+      if (this.active === pending && !pending.settled) this.armRetryWatchdog(pending);
     } catch {
       pending.obsolete = true;
       this.settleStale(pending);
@@ -296,6 +336,53 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
     this.cancelCallback();
     this.active = undefined;
     this.flushQueued();
+  }
+
+  private reissueExactSeek(pending: PendingRequest): void {
+    this.clearRetryWatchdog(pending);
+    pending.seekSettled = false;
+    pending.retryPlaybackPending = true;
+    try {
+      // currentTime only restarts the browser seek. The receipt below still
+      // requires an RVFC metadata timestamp that maps to the requested frame.
+      this.video.pause();
+      this.video.currentTime = pending.targetTime;
+      pending.seekSettled = !this.video.seeking;
+      if (pending.seekSettled) {
+        pending.retryPlaybackPending = false;
+        this.armCallback(pending);
+        if (!pending.settled) this.options.onExactSeekRetry?.();
+      }
+    } catch {
+      pending.obsolete = true;
+      this.settleStale(pending);
+      this.active = undefined;
+      this.flushQueued();
+    }
+  }
+
+  private armRetryWatchdog(pending: PendingRequest): void {
+    this.clearRetryWatchdog(pending);
+    if (pending.settled || pending.obsolete || this.active !== pending) return;
+    pending.retryHandle = globalThis.setTimeout(() => {
+      pending.retryHandle = undefined;
+      if (this.disposed || this.active !== pending || pending.settled || pending.obsolete) return;
+      if (!pending.seekSettled) {
+        this.armRetryWatchdog(pending);
+        return;
+      }
+      // Safari can emit seeked but no fresh RVFC for the requested frame.
+      // Restart the seek as a bounded recovery; never synthesize a receipt.
+      if (pending.exactSeekRetries >= MAX_EXACT_SEEK_RETRIES) return;
+      pending.exactSeekRetries += 1;
+      this.reissueExactSeek(pending);
+    }, EXACT_SEEK_RETRY_DELAY_MS);
+  }
+
+  private clearRetryWatchdog(pending: PendingRequest): void {
+    if (pending.retryHandle === undefined) return;
+    globalThis.clearTimeout(pending.retryHandle);
+    pending.retryHandle = undefined;
   }
 
   private cancelCallback(): void {
@@ -315,6 +402,7 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
   ): void {
     if (pending.settled) return;
     pending.settled = true;
+    this.clearRetryWatchdog(pending);
     pending.disposeAbortListener();
     pending.resolve(receipt);
   }
@@ -322,7 +410,8 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
 
 export function createStrictVideoProbe(
   video: HTMLVideoElement | StrictVideoElement,
-  capability: Partial<StrictVideoProbeCapability> = {}
+  capability: Partial<StrictVideoProbeCapability> = {},
+  options: StrictVideoProbeOptions = {}
 ): StrictVideoProbe {
-  return new StrictVideoProbeImpl(video as StrictVideoElement, capability);
+  return new StrictVideoProbeImpl(video as StrictVideoElement, capability, options);
 }

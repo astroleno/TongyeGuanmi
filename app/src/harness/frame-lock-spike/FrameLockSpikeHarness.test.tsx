@@ -2,7 +2,7 @@
 
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { mediaTimeForFrame, type SpikeVideoFrameMap } from './spike-frame-map';
 import {
@@ -19,10 +19,12 @@ type FrameCallback = (
 
 class FakeVideo {
   currentTimeWrites: number[] = [];
+  playCalls = 0;
   duration = 2;
   readyState = 4;
   seeking = false;
   paused = true;
+  playbackRate = 1;
   private time = 0;
   private callbackId = 0;
   private readonly callbacks = new Map<number, FrameCallback>();
@@ -60,6 +62,12 @@ class FakeVideo {
 
   pause(): void {
     this.paused = true;
+  }
+
+  play(): Promise<void> {
+    this.playCalls += 1;
+    this.paused = false;
+    return Promise.resolve();
   }
 
   completeSeek(): void {
@@ -123,6 +131,7 @@ describe('FrameLockSpikeHarness', () => {
     const video = new FakeVideo();
     const { root, host } = mountHarness(video, {
       onProbeRequest: (frameIndex) => {
+        video.completeSeek();
         video.emitFrame(mediaTimeForFrame(phFrameMap, frameIndex));
       }
     });
@@ -169,6 +178,7 @@ describe('FrameLockSpikeHarness', () => {
     act(() => {
       video.emitFrame(mediaTimeForFrame(phFrameMap, 4));
       video.completeSeek();
+      video.completeSeek();
       video.emitFrame(mediaTimeForFrame(phFrameMap, 9));
     });
     await act(async () => {
@@ -209,6 +219,7 @@ describe('FrameLockSpikeHarness', () => {
     expect(host.querySelector('[data-ph-education-boundary]')?.getAttribute('data-state'))
       .toBe('locked');
 
+    video.completeSeek();
     video.emitFrame(mediaTimeForFrame(phFrameMap, 45));
     await act(async () => { await readiness!; });
     expect(host.querySelector('[data-ph-education-boundary]')?.getAttribute('data-state'))
@@ -218,5 +229,100 @@ describe('FrameLockSpikeHarness', () => {
       .toContain('copy/dissolve ready');
 
     await act(async () => root.unmount());
+  });
+
+  it('waits for the seeked event before nudging native playback', async () => {
+    const video = new FakeVideo();
+    const { root } = mountHarness(video);
+    const api = readApi();
+
+    let receipt: ReturnType<typeof api.requestFrame>;
+    act(() => {
+      receipt = api.requestFrame(4);
+    });
+    expect(video.playCalls).toBe(0);
+
+    act(() => {
+      video.completeSeek();
+      video.emitFrame(mediaTimeForFrame(phFrameMap, 4));
+    });
+    expect(video.playCalls).toBe(1);
+    await act(async () => {
+      await expect(receipt!).resolves.toMatchObject({
+        status: 'presented',
+        desiredFrameIndex: 4,
+        presentedFrameIndex: 4
+      });
+    });
+
+    await act(async () => root.unmount());
+  });
+
+  it('pauses the native decoder nudge before the strict receipt is exposed', async () => {
+    vi.useFakeTimers();
+    try {
+      const video = new FakeVideo();
+      const { root } = mountHarness(video);
+      const api = readApi();
+
+      act(() => {
+        void api.requestFrame(4);
+        video.completeSeek();
+      });
+      expect(video.paused).toBe(false);
+
+      act(() => {
+        vi.advanceTimersByTime(8);
+      });
+      expect(video.paused).toBe(true);
+
+      await act(async () => root.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('restarts the decoder nudge after an exact-seek retry', async () => {
+    vi.useFakeTimers();
+    try {
+      const video = new FakeVideo();
+      const { root } = mountHarness(video);
+      const api = readApi();
+
+      let receipt: ReturnType<typeof api.requestFrame>;
+      act(() => {
+        receipt = api.requestFrame(4);
+      });
+      act(() => {
+        video.completeSeek();
+      });
+      expect(video.playCalls).toBe(1);
+
+      act(() => {
+        vi.advanceTimersByTime(7);
+        video.emitFrame(mediaTimeForFrame(phFrameMap, 5));
+        video.completeSeek();
+      });
+      expect(video.playCalls).toBe(2);
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(video.paused).toBe(false);
+      act(() => {
+        video.emitFrame(mediaTimeForFrame(phFrameMap, 4));
+      });
+      await act(async () => {
+        await expect(receipt!).resolves.toMatchObject({
+          status: 'presented',
+          desiredFrameIndex: 4,
+          presentedFrameIndex: 4
+        });
+      });
+
+      await act(async () => root.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

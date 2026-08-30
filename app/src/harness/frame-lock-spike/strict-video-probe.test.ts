@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   mediaTimeForFrame,
@@ -104,6 +104,7 @@ describe('strict video probe', () => {
     video.completeSeek();
     expect(video.currentTimeWrites).toHaveLength(2);
 
+    video.completeSeek();
     video.emitFrame(mediaTimeForFrame(frameMap, 9));
     await expect(latest).resolves.toMatchObject({
       status: 'presented',
@@ -130,6 +131,7 @@ describe('strict video probe', () => {
     await Promise.resolve();
     expect(settled).toBe(false);
 
+    video.completeSeek();
     video.emitFrame(mediaTimeForFrame(frameMap, 8));
     await expect(readiness).resolves.toMatchObject({
       status: 'presented',
@@ -137,6 +139,82 @@ describe('strict video probe', () => {
       presentedFrameIndex: 8
     });
     probe.dispose();
+  });
+
+  it('does not accept a matching callback that arrived before the seek settled', async () => {
+    const video = new FakeVideo();
+    const probe = createStrictVideoProbe(video);
+    const readiness = probe.request(request(1, 8 / 23));
+    let settled = false;
+    void readiness.then(() => { settled = true; });
+
+    video.emitFrame(mediaTimeForFrame(frameMap, 8));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    video.completeSeek();
+    video.emitFrame(mediaTimeForFrame(frameMap, 8));
+    await expect(readiness).resolves.toMatchObject({
+      status: 'presented',
+      desiredFrameIndex: 8,
+      presentedFrameIndex: 8
+    });
+    probe.dispose();
+  });
+
+  it('reissues a bounded seek when the settled callback quantizes to the wrong frame', async () => {
+    const video = new FakeVideo();
+    let retryNudges = 0;
+    const probe = createStrictVideoProbe(video, {}, {
+      onExactSeekRetry: () => { retryNudges += 1; }
+    });
+    const readiness = probe.request(request(1, 8 / 23));
+
+    video.completeSeek();
+    video.emitFrame(mediaTimeForFrame(frameMap, 9));
+    expect(retryNudges).toBe(0);
+    expect(video.currentTimeWrites).toHaveLength(2);
+    expect(video.seeking).toBe(true);
+
+    video.completeSeek();
+    expect(retryNudges).toBe(1);
+    video.emitFrame(mediaTimeForFrame(frameMap, 8));
+    await expect(readiness).resolves.toMatchObject({
+      status: 'presented',
+      desiredFrameIndex: 8,
+      presentedFrameIndex: 8
+    });
+    probe.dispose();
+  });
+
+  it('reissues a settled seek when no usable callback arrives', async () => {
+    vi.useFakeTimers();
+    try {
+      const video = new FakeVideo();
+      let retryNudges = 0;
+      const probe = createStrictVideoProbe(video, {}, {
+        onExactSeekRetry: () => { retryNudges += 1; }
+      });
+      const readiness = probe.request(request(1, 8 / 23));
+
+      video.completeSeek();
+      expect(video.currentTimeWrites).toHaveLength(1);
+
+      vi.advanceTimersByTime(50);
+      expect(video.currentTimeWrites).toHaveLength(2);
+
+      video.completeSeek();
+      expect(retryNudges).toBe(1);
+      video.emitFrame(mediaTimeForFrame(frameMap, 8));
+      await expect(readiness).resolves.toMatchObject({
+        status: 'presented',
+        desiredFrameIndex: 8,
+        presentedFrameIndex: 8
+      });
+      probe.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('never commits a late callback after abort or dispose', async () => {

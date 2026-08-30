@@ -61,6 +61,7 @@ type StrictPackedProbeOptions = Readonly<{
   getActiveGeneration: () => number;
   capability?: Partial<StrictVideoProbeCapability>;
   timeoutMs?: number;
+  onExactSeekRetry?: () => void;
 }>;
 
 function staleReceipt(
@@ -89,9 +90,13 @@ function canvasMediaTime(frame: PhonePackedAlphaSurfaceFrame): number | undefine
 export function createStrictPackedProbe(
   options: StrictPackedProbeOptions
 ): StrictPackedProbe {
+  const videoProbeOptions = options.onExactSeekRetry
+    ? { onExactSeekRetry: options.onExactSeekRetry }
+    : {};
   const videoProbe: StrictVideoProbe = createStrictVideoProbe(
     options.video,
-    options.capability
+    options.capability,
+    videoProbeOptions
   );
   const timeoutMs = options.timeoutMs ?? 3_000;
   let latestSequence = -1;
