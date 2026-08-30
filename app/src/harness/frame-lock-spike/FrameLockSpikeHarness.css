@@ -1,0 +1,212 @@
+.frame-lock-spike {
+  min-height: 100vh;
+  padding: clamp(1.25rem, 3vw, 3rem);
+  color: #f5f0e5;
+  background: #111b1c;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.frame-lock-spike__header {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  max-width: 1180px;
+  margin: 0 auto 1.5rem;
+}
+
+.frame-lock-spike__kicker {
+  margin: 0 0 .5rem;
+  color: #c6a86b;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.frame-lock-spike h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 4vw, 3.2rem);
+  letter-spacing: -.04em;
+}
+
+.frame-lock-spike__lede {
+  max-width: 58rem;
+  margin: .7rem 0 0;
+  color: #b3c5bd;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .8rem;
+  overflow-wrap: anywhere;
+}
+
+.frame-lock-spike__summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(7rem, 1fr));
+  gap: .6rem;
+  min-width: 18rem;
+  margin: 0;
+}
+
+.frame-lock-spike__summary div {
+  padding: .65rem .8rem;
+  border: 1px solid #355451;
+  border-radius: .35rem;
+  background: #182627;
+}
+
+.frame-lock-spike__summary dt {
+  color: #91aaa1;
+  font-size: .67rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.frame-lock-spike__summary dd {
+  margin: .25rem 0 0;
+  color: #fff7df;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .92rem;
+}
+
+.frame-lock-spike__stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  max-width: 1180px;
+  min-height: min(45vw, 28rem);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #355451;
+  border-radius: .55rem;
+  background: #d8d1bd;
+}
+
+.frame-lock-spike__video {
+  display: block;
+  width: min(100%, 64rem);
+  max-height: 28rem;
+  object-fit: contain;
+  opacity: .86;
+}
+
+.frame-lock-spike__visual-state {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgb(22 62 58 / 0.18), rgb(199 161 89 / 0.5));
+  opacity: calc(.1 + var(--frame-lock-progress) * .5);
+  mix-blend-mode: multiply;
+}
+
+.frame-lock-spike__readout {
+  position: absolute;
+  right: .8rem;
+  bottom: .8rem;
+  display: flex;
+  gap: .75rem;
+  padding: .45rem .6rem;
+  color: #213333;
+  background: rgb(248 241 221 / .88);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .7rem;
+}
+
+.frame-lock-spike__boundary {
+  max-width: 1180px;
+  margin: .9rem auto 1.5rem;
+  padding: .7rem .9rem;
+  border-left: 3px solid #bd7158;
+  color: #f5c1a5;
+  background: #2c2422;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .8rem;
+}
+
+.frame-lock-spike__boundary[data-state='ready'] {
+  border-left-color: #80bca2;
+  color: #c9efdc;
+  background: #1e302b;
+}
+
+.frame-lock-spike__fallback {
+  max-width: 1180px;
+  margin: 0 auto 1.5rem;
+  padding: .7rem .9rem;
+  border: 1px solid #bd7158;
+  color: #ffd2be;
+  background: #3a2422;
+}
+
+.frame-lock-spike__table-wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  overflow-x: auto;
+  border: 1px solid #355451;
+  border-radius: .55rem;
+  background: #182627;
+}
+
+.frame-lock-spike table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .76rem;
+}
+
+.frame-lock-spike caption {
+  padding: .9rem 1rem .65rem;
+  color: #fff7df;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.frame-lock-spike th,
+.frame-lock-spike td {
+  padding: .55rem .75rem;
+  border-top: 1px solid #2e4947;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.frame-lock-spike th {
+  color: #91aaa1;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.frame-lock-spike td {
+  color: #e6e0cf;
+}
+
+.frame-lock-spike tr[data-status='presented'] td:last-child {
+  color: #9fe0bb;
+}
+
+.frame-lock-spike tr[data-status='stale'] td:last-child {
+  color: #f1b58f;
+}
+
+@media (max-width: 720px) {
+  .frame-lock-spike__header {
+    display: block;
+  }
+
+  .frame-lock-spike__summary {
+    min-width: 0;
+    margin-top: 1rem;
+  }
+
+  .frame-lock-spike__stage {
+    min-height: 18rem;
+  }
+
+  .frame-lock-spike__readout {
+    right: .4rem;
+    bottom: .4rem;
+    gap: .4rem;
+    font-size: .62rem;
+  }
+}
