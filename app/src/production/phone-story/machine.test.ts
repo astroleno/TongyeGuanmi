@@ -1254,6 +1254,28 @@ describe('phone segment transaction machine', () => {
     expect(reverse.snapshot).toBe(monotonic);
   });
 
+  it('commits only newer presented receipts for the active transaction', () => {
+    const segment = phoneManifest.segments.find(({ id }) => id === 'hero-pattern')!;
+    const playing = reachPlaying(beginSegment(segment, 'forward', 73));
+    const attempt = transaction(playing.snapshot).transaction.attempt;
+    const first = dispatch(playing.snapshot, {
+      type: 'transition-progressed', attempt, progress: .4, presentedSequence: 12
+    });
+    expect(transaction(first.snapshot).transaction).toMatchObject({
+      progress: .4, presentedSequence: 12
+    });
+    const stale = dispatch(first.snapshot, {
+      type: 'transition-progressed', attempt, progress: .8, presentedSequence: 11
+    });
+    expect(stale.snapshot).toBe(first.snapshot);
+    const sameProgress = dispatch(first.snapshot, {
+      type: 'transition-progressed', attempt, progress: .4, presentedSequence: 13
+    });
+    expect(transaction(sameProgress.snapshot).transaction).toMatchObject({
+      progress: .4, presentedSequence: 13
+    });
+  });
+
   it('retains the full closure and proof quorum under reduced motion', () => {
     for (const segment of phoneManifest.segments) {
       const ordinary = beginSegment(segment, 'forward', 1, false);

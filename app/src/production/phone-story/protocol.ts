@@ -42,6 +42,9 @@ export type PhoneSurfaceId = string;
 export type PhoneFrameToken = string;
 export type PhoneReportToken = string;
 
+export type PhoneMediaFrameRequest = Readonly<{ frameToken: PhoneFrameToken; transactionId: string; direction: 1 | -1; sequence: number; desiredProgress: number; signal: AbortSignal }>;
+export type PhoneMediaFrameReceipt = Readonly<{ status: 'presented' | 'stale'; frameToken: PhoneFrameToken; sequence: number; desiredProgress: number; presentedProgress: number; evidence: 'video-frame-callback' | 'packed-canvas-draw' | 'scene-canvas-draw' | 'legacy-migration' | 'runtime' }>;
+
 export type PhoneSerializablePrimitive =
   | boolean
   | number
@@ -347,7 +350,7 @@ export type PhoneTransaction<
   pendingEntry: PhoneEntryRequest | null;
   deadlinePolicy: PhoneDeadlinePolicy;
   deadline: PhoneDeadlineState | null;
-  progress: number;
+  progress: number; presentedSequence: number;
   claimedPhysicalEpoch: number | null;
   activation: 'none' | 'offered' | 'spent' | 'awaiting';
   retainedTopology: boolean;
@@ -450,7 +453,7 @@ export type PhoneStoryEvent =
       slot: PhoneEvidenceSlot;
       failure: PhoneFailure;
     }>
-  | Readonly<{ type: 'transition-progressed'; progress: number; attempt: PhoneAttemptKey }>
+  | Readonly<{ type: 'transition-progressed'; progress: number; attempt: PhoneAttemptKey; /** Presented receipt sequence. */ presentedSequence?: number }>
   | Readonly<{ type: 'transition-completed'; attempt: PhoneAttemptKey }>
   | Readonly<{ type: 'leg-intent'; attempt: PhoneAttemptKey; physicalEpoch: number }>
   | Readonly<{

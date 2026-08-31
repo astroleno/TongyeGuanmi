@@ -14,7 +14,8 @@ import {
 } from './presentation';
 import type {
   PhoneAttemptKey, PhoneEvidenceSlot, PhoneFinalEvidenceKind,
-  PhoneLayoutViewport, PhonePreparedEvidenceKind, PhoneVisualViewport,
+  PhoneLayoutViewport, PhoneMediaFrameRequest, PhoneMediaFrameReceipt,
+  PhonePreparedEvidenceKind, PhoneVisualViewport,
   PhoneViewportSnapshot
 } from './protocol';
 
@@ -29,6 +30,24 @@ function createNoopPhoneLeafCommandHandle(): PhoneLeafCommandHandle {
     pause: () => undefined, dispose: () => undefined
   });
 }
+
+describe('phone leaf frame command contract', () => {
+  it('accepts an optional presented-frame command without widening the leaf API', async () => {
+    const commands: PhoneLeafCommandHandle = {
+      ...createNoopPhoneLeafCommandHandle(),
+      presentFrame: async (request: PhoneMediaFrameRequest): Promise<PhoneMediaFrameReceipt> => ({
+        status: 'presented', frameToken: request.frameToken, sequence: request.sequence,
+        desiredProgress: request.desiredProgress, presentedProgress: request.desiredProgress,
+        evidence: 'packed-canvas-draw'
+      })
+    };
+    const controller = new AbortController();
+    await expect(commands.presentFrame?.({
+      frameToken: 'tx:frame:1', transactionId: 'tx', direction: 1,
+      sequence: 1, desiredProgress: .25, signal: controller.signal
+    })).resolves.toMatchObject({ status: 'presented', presentedProgress: .25 });
+  });
+});
 
 type Rect = Readonly<{
   left: number; top: number; right: number; bottom: number;

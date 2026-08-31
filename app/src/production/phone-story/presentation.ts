@@ -2,7 +2,7 @@ import type {
   PhoneAttemptKey, PhoneEvidenceRecord, PhoneEvidenceSlot, PhoneEvidenceKind,
   PhoneFinalEvidenceKind, PhoneFrameReport, PhoneFrameToken,
   PhoneLeafActivationCommand, PhoneLeafDisposeReason, PhoneLeafPauseReason,
-  PhoneMediaPhaseCommand,
+  PhoneMediaPhaseCommand, PhoneMediaFrameRequest, PhoneMediaFrameReceipt,
   PhoneLayoutViewport, PhonePreparedReport, PhoneDependencyClosure,
   PhoneRuntimeResourceCounts, PhoneSurfaceId, PhoneTransaction,
   PhoneTransactionLeg, PhoneViewportSnapshot, PhoneVisualViewport, PhoneFailure,
@@ -114,6 +114,7 @@ export type PhoneLeafCommandHandle = Readonly<{
   rebind(binding: PhoneLeafGenerationBinding): void;
   activate(command: PhoneLeafActivationCommand): PhoneActivationInvocation;
   setMediaPhase?(command: PhoneMediaPhaseCommand): void;
+  presentFrame?(request: PhoneMediaFrameRequest): Promise<PhoneMediaFrameReceipt>;
   render(progress: number): Readonly<{ ownership: PhoneInkOwnership }> | void;
   settle(endpoint: 0 | 1): Readonly<{ prewarmReusable?: boolean }> | void;
   pause(reason: PhoneLeafPauseReason): void; dispose(reason: PhoneLeafDisposeReason): void;

@@ -1184,6 +1184,21 @@ function installDeprecatedStaticPrepare(commands: PhoneLeafCommandHandle) {
 }
 
 describe('phone runtime projector bridge', () => {
+  it('commits an ownerless choreography through an immediate runtime receipt', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#pattern');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    emitReadyNativeInput(runtime, fixture, 'forward', 'wheel');
+    reachPlaying(runtime, fixture);
+    const before = currentTransaction(runtime).progress;
+    fixture.advance(100);
+    fixture.flushFrames();
+    expect(currentTransaction(runtime).progress).toBeGreaterThan(before);
+    expect(fixture.counts().frames).toBe(1);
+    disconnect();
+  });
+
   it('settles each segment at its real forward or reverse transaction endpoint', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#pattern');

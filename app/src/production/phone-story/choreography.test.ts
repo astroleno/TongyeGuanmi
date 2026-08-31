@@ -50,6 +50,15 @@ const mediaClockOwners = {
   'crane-contact': 'source'
 } as const satisfies Readonly<Record<PhoneSegmentId, 'none' | 'source' | 'target'>>;
 
+const mediaClockModes = {
+  'hero-pattern': 'legacy', 'pattern-star-map': 'none', 'star-map-aod': 'none',
+  'aod-method-top': 'legacy', 'method-bottom-figure2': 'none',
+  'figure2-distance-expand': 'legacy', 'figure2-proof-brand': 'none',
+  'brand-figure3': 'none', 'figure3-services': 'legacy', 'services-ttg': 'none',
+  'ttg-lab': 'legacy', 'lab-ph': 'none', 'ph-education': 'legacy',
+  'education-crane': 'none', 'crane-contact': 'legacy'
+} as const satisfies Readonly<Record<PhoneSegmentId, 'none' | 'legacy' | 'frame-lock'>>;
+
 const activationOwners = {
   'hero-pattern': 'source',
   'pattern-star-map': 'none',
@@ -82,6 +91,10 @@ describe('phone segment choreography', () => {
       id,
       phoneSegmentChoreography[id].mediaClockOwner
     ]))).toEqual(mediaClockOwners);
+    expect(Object.fromEntries(canonicalSegments.map(({ id }) => [
+      id,
+      phoneSegmentChoreography[id].mediaClockMode
+    ]))).toEqual(mediaClockModes);
     expect(Object.fromEntries(canonicalSegments.map(({ id }) => [
       id,
       phoneSegmentChoreography[id].activationOwner
@@ -180,10 +193,10 @@ describe('phone segment choreography', () => {
     ).mediaClockOwner).toBe('source');
     expect(phoneSegmentChoreographyFrame(
       'figure2-distance-expand', .5, 'forward', 1
-    ).mediaClockOwner).toBe('none');
+    )).toMatchObject({ mediaClockOwner: 'none', mediaClockMode: 'none' });
     expect(phoneSegmentChoreographyFrame(
       'figure2-distance-expand', .5, 'reverse', 0
-    ).mediaClockOwner).toBe('none');
+    )).toMatchObject({ mediaClockOwner: 'none', mediaClockMode: 'none' });
     expect(phoneSegmentChoreographyFrame(
       'figure2-distance-expand', .5, 'reverse', 1
     ).mediaClockOwner).toBe('target');

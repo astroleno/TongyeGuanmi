@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createFrameLockRolloutPresenter,
+  createPhoneFrameLockRolloutPresenter,
   FRAME_LOCK_MIGRATION_EVIDENCE,
   isFrameLockDisabled
 } from './frame-lock-rollout';
 import type { SegmentProgressRequest } from '../story/types';
+import type { PhoneMediaFrameRequest } from '../production/phone-story/protocol';
 
 function request(): SegmentProgressRequest {
   return {
@@ -13,6 +15,13 @@ function request(): SegmentProgressRequest {
     sequence: 3,
     desiredProgress: 0.75,
     signal: new AbortController().signal
+  };
+}
+
+function phoneRequest(): PhoneMediaFrameRequest {
+  return {
+    frameToken: 'phone:frame:1', transactionId: 'phone', direction: -1,
+    sequence: 4, desiredProgress: .8, signal: new AbortController().signal
   };
 }
 
@@ -74,5 +83,35 @@ describe('frame-lock migration rollout helper', () => {
     });
 
     await expect(present(request())).rejects.toThrow('legacy seek failed');
+  });
+
+  it('keeps phone kill-switch receipts migration-only and never invokes native playback', async () => {
+    const strictPresent = vi.fn();
+    const legacySeek = vi.fn();
+    const present = createPhoneFrameLockRolloutPresenter({
+      strictPresent, legacySeek, env: { VITE_DISABLE_FRAME_LOCKED_MEDIA: '1' }
+    });
+    await expect(present(phoneRequest())).resolves.toMatchObject({
+      status: 'presented', frameToken: 'phone:frame:1', sequence: 4,
+      presentedProgress: .8, evidence: FRAME_LOCK_MIGRATION_EVIDENCE
+    });
+    expect(legacySeek).toHaveBeenCalledOnce();
+    expect(strictPresent).not.toHaveBeenCalled();
+  });
+
+  it('uses strict phone presentation when the kill switch is absent', async () => {
+    const strictReceipt = {
+      status: 'presented' as const, frameToken: 'phone:frame:1', sequence: 4,
+      desiredProgress: .8, presentedProgress: .75,
+      evidence: 'packed-canvas-draw' as const
+    };
+    const strictPresent = vi.fn(() => strictReceipt);
+    const legacySeek = vi.fn();
+    const present = createPhoneFrameLockRolloutPresenter({
+      strictPresent, legacySeek, env: {}
+    });
+    await expect(present(phoneRequest())).resolves.toEqual(strictReceipt);
+    expect(strictPresent).toHaveBeenCalledOnce();
+    expect(legacySeek).not.toHaveBeenCalled();
   });
 });

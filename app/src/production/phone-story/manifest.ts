@@ -106,7 +106,7 @@ export type PhoneSegmentChoreography = Readonly<{
   effectProgress: PhoneProgressCurve;
   sourceOpacity: PhoneProgressCurve;
   targetOpacity: PhoneProgressCurve;
-  activationOwner: 'none' | 'source' | 'target'; mediaClockOwner: 'none' | 'source' | 'target';
+  activationOwner: 'none' | 'source' | 'target'; mediaClockOwner: 'none' | 'source' | 'target'; mediaClockMode: 'none' | 'legacy' | 'frame-lock';
   foregroundOwner: 'canonical-source' | 'canonical-target';
 }>;
 export type PhoneSegmentChoreographyFrame = Readonly<{
@@ -116,7 +116,7 @@ export type PhoneSegmentChoreographyFrame = Readonly<{
   sourceOpacity: number;
   targetOpacity: number;
   stableHold: Readonly<{ source: 0 | 1; target: 0 | 1 }>;
-  activationOwner: PhoneSegmentChoreography['activationOwner']; mediaClockOwner: PhoneSegmentChoreography['mediaClockOwner'];
+  activationOwner: PhoneSegmentChoreography['activationOwner']; mediaClockOwner: PhoneSegmentChoreography['mediaClockOwner']; mediaClockMode: PhoneSegmentChoreography['mediaClockMode'];
   foregroundOwner: 'source' | 'target';
 }>;
 export type PhoneInkOwnership = Readonly<{ revealClip?: string; concealClip?: string; revealMask?: string; concealMask?: string; maskSize?: string; maskRepeat?: string; maskMode?: string }>;
@@ -141,15 +141,20 @@ function choreography(
   activationOwner: PhoneSegmentChoreography['activationOwner'], mediaClockOwner: PhoneSegmentChoreography['mediaClockOwner'],
   sourceOpacity: PhoneProgressCurve = 1,
   targetOpacity: PhoneProgressCurve = 1,
-  foregroundOwner: PhoneSegmentChoreography['foregroundOwner'] = 'canonical-target'
+  foregroundOwner: PhoneSegmentChoreography['foregroundOwner'] = 'canonical-target',
+  mediaClockMode: PhoneSegmentChoreography['mediaClockMode'] = mediaClockOwner === 'none'
+    ? 'none' : 'legacy'
 ): PhoneSegmentChoreography {
+  if (mediaClockMode === 'none' && mediaClockOwner !== 'none') {
+    throw new Error('Phone choreography cannot disable a non-empty media clock owner');
+  }
   return Object.freeze({
     sourceProgress: freezeCurve(sourceProgress),
     targetProgress: freezeCurve(targetProgress),
     effectProgress: freezeCurve(effectProgress),
     sourceOpacity: freezeCurve(sourceOpacity),
     targetOpacity: freezeCurve(targetOpacity),
-    activationOwner, mediaClockOwner,
+    activationOwner, mediaClockOwner, mediaClockMode,
     foregroundOwner
   });
 }
@@ -267,6 +272,7 @@ export function phoneSegmentChoreographyFrame(
       target: phoneSceneStableHold(endpoint.to)
     }),
     activationOwner: spec.activationOwner, mediaClockOwner: canonicalMediaClockOwner,
+    mediaClockMode: canonicalMediaClockOwner === 'none' ? 'none' : spec.mediaClockMode,
     foregroundOwner: spec.foregroundOwner === 'canonical-source'
       ? 'source'
       : 'target'

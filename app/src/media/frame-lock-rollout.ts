@@ -3,6 +3,10 @@ import type {
   SegmentProgressReceipt,
   SegmentProgressRequest
 } from '../story/types';
+import type {
+  PhoneMediaFrameReceipt,
+  PhoneMediaFrameRequest
+} from '../production/phone-story/protocol';
 
 export const FRAME_LOCK_DISABLE_ENV = 'VITE_DISABLE_FRAME_LOCKED_MEDIA';
 export const FRAME_LOCK_MIGRATION_EVIDENCE = 'legacy-migration' as const;
@@ -14,6 +18,13 @@ type FrameLockEnv = Readonly<{
 export type FrameLockRolloutOptions = Readonly<{
   strictPresent: SegmentProgressPresenter;
   legacySeek(request: SegmentProgressRequest): void;
+  env?: FrameLockEnv;
+}>;
+
+export type PhoneFrameLockRolloutOptions = Readonly<{
+  strictPresent: (request: PhoneMediaFrameRequest) =>
+    Promise<PhoneMediaFrameReceipt> | PhoneMediaFrameReceipt;
+  legacySeek(request: PhoneMediaFrameRequest): void;
   env?: FrameLockEnv;
 }>;
 
@@ -39,6 +50,28 @@ export function createFrameLockRolloutPresenter(
         status: 'presented',
         runId: request.runId,
         sequence: request.sequence,
+        desiredProgress: request.desiredProgress,
+        presentedProgress: request.desiredProgress,
+        evidence: FRAME_LOCK_MIGRATION_EVIDENCE
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  };
+}
+
+export function createPhoneFrameLockRolloutPresenter(
+  options: PhoneFrameLockRolloutOptions
+): (request: PhoneMediaFrameRequest) => Promise<PhoneMediaFrameReceipt> {
+  const env = options.env ?? {
+    VITE_DISABLE_FRAME_LOCKED_MEDIA: import.meta.env.VITE_DISABLE_FRAME_LOCKED_MEDIA
+  };
+  return (request): Promise<PhoneMediaFrameReceipt> => {
+    if (!isFrameLockDisabled(env)) return Promise.resolve(options.strictPresent(request));
+    try {
+      options.legacySeek(request);
+      return Promise.resolve({
+        status: 'presented', frameToken: request.frameToken, sequence: request.sequence,
         desiredProgress: request.desiredProgress,
         presentedProgress: request.desiredProgress,
         evidence: FRAME_LOCK_MIGRATION_EVIDENCE

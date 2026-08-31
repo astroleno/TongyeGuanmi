@@ -214,7 +214,7 @@ function transactionFor(
       startedAtActiveMs: 0,
       suspended: false
     },
-    progress: initialProgress,
+    progress: initialProgress, presentedSequence: -1,
     claimedPhysicalEpoch: options.physicalEpoch ?? null,
     activation: options.activation && activationSurfaceIds.length > 0
       ? options.activation : 'none',
@@ -749,12 +749,15 @@ function updateSegmentPhase(
   phase: 'playing' | 'dwelling' | 'awaiting-leg-intent',
   stageIndex = snapshot.transaction.stageIndex,
   progress = snapshot.transaction.progress,
-  dwellMs?: number
+  dwellMs?: number,
+  presentedSequence = snapshot.transaction.presentedSequence
 ): PhoneMachineResult {
   const deadline = dwellMs === undefined ? null : {
     operation: 'dwell' as const, remainingMs: dwellMs, startedAtActiveMs: 0, suspended: false
   };
-  return reviseTransaction(snapshot, { phase, stageIndex, progress, deadline }, {}, deadline ? [{
+  return reviseTransaction(snapshot, {
+    phase, stageIndex, progress, deadline, presentedSequence
+  }, {}, deadline ? [{
     type: 'schedule-deadline', attempt: snapshot.transaction.attempt,
     operation: 'dwell', timeoutMs: deadline.remainingMs
   }] : []);
@@ -763,17 +766,25 @@ function updateSegmentPhase(
 function handleProgress(
   snapshot: PhoneMachineTransactionSnapshot,
   attempt: PhoneAttemptKey,
-  progress: number
+  progress: number,
+  presentedSequence?: number
 ): PhoneMachineResult {
   const current = snapshot.transaction;
   const next = Math.max(0, Math.min(1, progress));
+  const hasPresentedSequence = presentedSequence !== undefined;
+  const sequence = presentedSequence ?? current.presentedSequence + 1;
   const advances = current.attempt.direction === 'reverse'
     ? next < current.progress : next > current.progress;
-  if (!Number.isFinite(progress) || !matchingActiveAttempt(snapshot, attempt) || current.phase !== 'playing'
-    || !advances) {
+  if (!Number.isFinite(progress) || !Number.isFinite(sequence)
+    || !matchingActiveAttempt(snapshot, attempt) || current.phase !== 'playing'
+    || sequence <= current.presentedSequence) {
     return freezeOwned({ snapshot, effects: [] });
   }
-  return updateSegmentPhase(snapshot, 'playing', current.stageIndex, next);
+  if (!advances) return hasPresentedSequence
+    ? reviseTransaction(snapshot, { presentedSequence: sequence })
+    : freezeOwned({ snapshot, effects: [] });
+  return updateSegmentPhase(snapshot, 'playing', current.stageIndex, next,
+    undefined, sequence);
 }
 
 function handleTransitionComplete(
@@ -1166,7 +1177,7 @@ export function reducePhoneStory(
     case 'deadline-fired': return snapshot.status === 'transaction'
       ? handleDeadline(snapshot, event) : freezeOwned({ snapshot, effects: [] });
     case 'transition-progressed': return snapshot.status === 'transaction'
-      ? handleProgress(snapshot, event.attempt, event.progress)
+      ? handleProgress(snapshot, event.attempt, event.progress, event.presentedSequence)
       : freezeOwned({ snapshot, effects: [] });
     case 'transition-completed': return snapshot.status === 'transaction'
       ? handleTransitionComplete(snapshot, event.attempt)
