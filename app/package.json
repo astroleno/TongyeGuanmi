@@ -26,6 +26,7 @@
     "verify:phone-architecture:cutover": "node scripts/verify-phone-clean-architecture.mjs --phase=cutover",
     "verify:phone-packed-alpha": "node scripts/verify-phone-packed-alpha-masters.mjs",
     "report:frame-seek-assets": "node scripts/report-frame-seek-assets.mjs --markdown",
+    "rebuild:media:hero-packed": "node scripts/rebuild-hero-packed-alpha-media.mjs",
     "rebuild:media:hevc-alpha": "node scripts/rebuild-hevc-alpha-media.mjs",
     "rebuild:media:crane": "node scripts/rebuild-crane-figure-media.mjs",
     "rebuild:media:crane-flock": "node scripts/rebuild-crane-flock-media.mjs",

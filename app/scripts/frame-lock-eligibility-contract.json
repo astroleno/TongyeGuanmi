@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "approvalId": "frame-lock-spike-2026-08-31-go-full",
+  "decision": "GO_FULL",
+  "declaredProductMinimumIOS": "UNDECLARED",
+  "minimumSupportedIOSForFrameLock": "CERTIFIED_SET_PENDING_TASK_21",
+  "certifiedIOSSet": [],
+  "supportPolicy": {
+    "strictFrameLock": "only when RVFC metadata and the required Canvas draw proof are available",
+    "belowMinimumOrMissingCapability": "static-fail-closed",
+    "userAgentRouting": "forbidden"
+  },
+  "eligibleDirections": {
+    "desktop": [
+      "hero-pattern/forward",
+      "hero-pattern/reverse",
+      "star-map-aod/forward",
+      "star-map-aod/reverse",
+      "aod-method-top/forward",
+      "aod-method-top/reverse",
+      "method-bottom-figure2/forward",
+      "method-bottom-figure2/reverse",
+      "figure2-distance-expand/forward",
+      "figure2-distance-expand/reverse",
+      "brand-figure3/forward",
+      "brand-figure3/reverse",
+      "figure3-services/forward",
+      "figure3-services/reverse",
+      "services-ttg/forward",
+      "services-ttg/reverse",
+      "ttg-lab/forward",
+      "ttg-lab/reverse",
+      "lab-ph/forward",
+      "lab-ph/reverse",
+      "ph-education/forward",
+      "ph-education/reverse",
+      "education-crane/forward",
+      "education-crane/reverse",
+      "crane-contact/forward",
+      "crane-contact/reverse"
+    ],
+    "phone": [
+      "hero-pattern/forward",
+      "hero-pattern/reverse",
+      "star-map-aod/forward",
+      "star-map-aod/reverse",
+      "aod-method-top/forward",
+      "aod-method-top/reverse",
+      "method-bottom-figure2/forward",
+      "method-bottom-figure2/reverse",
+      "figure2-distance-expand/forward",
+      "figure2-distance-expand/reverse",
+      "brand-figure3/forward",
+      "brand-figure3/reverse",
+      "figure3-services/forward",
+      "figure3-services/reverse",
+      "services-ttg/forward",
+      "services-ttg/reverse",
+      "ttg-lab/forward",
+      "ttg-lab/reverse",
+      "lab-ph/forward",
+      "lab-ph/reverse",
+      "ph-education/forward",
+      "ph-education/reverse",
+      "education-crane/forward",
+      "education-crane/reverse",
+      "crane-contact/forward",
+      "crane-contact/reverse"
+    ]
+  },
+  "atomicGroups": [
+    {
+      "id": "crane-figure-flock",
+      "media": ["crane-figure-motion", "crane-flock-motion"],
+      "directions": [
+        "education-crane/forward",
+        "education-crane/reverse",
+        "crane-contact/forward",
+        "crane-contact/reverse"
+      ]
+    }
+  ],
+  "excludedDirections": [],
+  "exceptions": []
+}

@@ -1,16 +1,23 @@
 # Frame-lock Spike results
 
-- Date: 2026-08-30
+- Date: 2026-08-31 (approval addendum)
 - Branch: `codex/frame-lock-seek-migration`
 - Spike baseline commit: `51af8db` (`feat(harness): prove packed-alpha and Crane frame barriers`)
 - Frozen media baseline: `966d651`
 - Candidate outputs: temporary files under `tmp/frame-lock-spike/`; no frozen asset was overwritten
 - Declared product minimum iOS: `UNDECLARED`
-- `minimumSupportedIOSForFrameLock`: `UNAVAILABLE_NOT_CERTIFIED`
+- `minimumSupportedIOSForFrameLock`: `CERTIFIED_SET_PENDING_TASK_21`
+- Eligibility contract: `app/scripts/frame-lock-eligibility-contract.json`
+- Eligibility contract SHA-256: `19b632f391a8b3e68d0d3a8ce6d2178092d34ecca600950e2d7ad74abcaa8c1c`
+- Approval ID: `frame-lock-spike-2026-08-31-go-full`
 
-Decision: NO_GO
+Decision: GO_FULL
 
-The mandatory real-device certificate is unavailable, and the automated matrix does not provide a strict packed-alpha Canvas/WebGL proof. No runtime, direction, or atomic group is approved for production migration. The current production paths remain unchanged until a new explicit approval supersedes this result.
+The original automated checkpoint below was recorded as `NO_GO` before the mobile fixes and real-device review. It is retained as historical evidence, not as the active decision. After the strict receipt recovery and fail-closed boundary fixes, the user approved `GO_FULL` by replying `继续` on 2026-08-31. This authorizes migration of all listed cinematic direction groups; it does not invent an iOS certification floor. Task 21 must still record the exact iPhone model, iOS/Safari version, and final release certificate before release completion.
+
+The user-provided iPhone Safari screenshots showed `ready`, exact presented rows, zero lag, and the expected pressure-mode `media receipt required · copy/dissolve locked` state. The screenshots did not expose a reliable device model or iOS/Safari version, so those fields remain uncaptured rather than inferred.
+
+Post-fix automated evidence: the frame-lock Playwright matrix completed 32/32 tests across desktop Chromium, desktop WebKit, phone Chromium, and phone WebKit. A focused mobile WebKit stress replay completed 100/100 cases across PH and Crane routes with exact accepted rows, zero lag, zero Crane child-frame difference, and no stale commit. The frozen binaries were not replaced because no selected asset required promotion.
 
 ## Gates and support policy
 
@@ -26,7 +33,7 @@ The mandatory real-device certificate is unavailable, and the automated matrix d
 | Aggregate media budget | GOP 8 packed set stays within the existing ceiling; several GOP 1 choices do not | projections below |
 | Real iPhone Safari | NOT RUN | no accessible real device or remote Safari target |
 
-Below `minimumSupportedIOSForFrameLock`, and whenever RVFC or the required packed Canvas proof is unavailable, the only permitted policy for this checkpoint is static/unsupported fail-closed behavior. A legacy animation exception was not approved because the required device evidence and product decision are missing. The Playwright iPhone descriptor is synthetic and is not used to infer an iOS support floor.
+Below `minimumSupportedIOSForFrameLock`, and whenever RVFC or the required packed Canvas proof is unavailable, the permitted policy remains static/unsupported fail-closed behavior. No user-agent split is introduced. The Playwright iPhone descriptor is synthetic and is not used to infer an iOS support floor.
 
 ## Automated browser matrix
 
@@ -88,27 +95,27 @@ The frozen homepage runtime-media total is 82,891,046 B with a ceiling of 83,886
 | Crane figure + flock GOP 8 as one atomic group | 83,042,630 B | 843,450 B |
 | Crane figure + flock GOP 1 as one atomic group | 83,900,164 B | -14,084 B |
 
-The GOP 8 packed set is budget-safe in projection, but it remains unselected because strict Canvas/WebGL and real-device gates are not satisfied. The GOP 1 Figure2, AOD, and atomic Crane choices are ineligible on the existing aggregate budget alone. No 16 MiB per-asset budget is claimed.
+The GOP 8 packed set is budget-safe in projection, but it remains unselected because no binary promotion was required by the approved decision. The GOP 1 Figure2, AOD, and atomic Crane choices are ineligible on the existing aggregate budget alone. No 16 MiB per-asset budget is claimed.
 
 ## Eligibility table
 
-The following is the complete proposed cinematic direction inventory. Because the checkpoint is `NO_GO`, every runtime column is empty and every group stays on its current legacy/static behavior. The same direction IDs are used for desktop and phone; no hidden user-agent split is introduced.
+The following is the frozen `GO_FULL` cinematic direction inventory. The same direction IDs are used for desktop and phone; no hidden user-agent split is introduced.
 
 | Semantic / atomic group | Exact direction IDs | Desktop result | Phone result | Preserved behavior |
 | --- | --- | --- | --- | --- |
-| Hero | `hero-pattern/forward`, `hero-pattern/reverse` | none | none | current Hero fallback/legacy path |
-| AOD | `star-map-aod/{forward,reverse}`, `aod-method-top/{forward,reverse}` | none | none | current AOD legacy/static path |
-| Figure2 | `method-bottom-figure2/{forward,reverse}`, `figure2-distance-expand/{forward,reverse}` | none | none | current Figure2 legacy/static path |
-| Figure3 | `brand-figure3/{forward,reverse}`, `figure3-services/{forward,reverse}` | none | none | current Figure3 legacy/static path |
-| TTG | `services-ttg/{forward,reverse}`, `ttg-lab/{forward,reverse}` | none | none | current TTG legacy/static path |
-| PH | `lab-ph/{forward,reverse}`, `ph-education/{forward,reverse}` | none | none | current PH legacy/static path |
-| Crane atomic pair | `education-crane/{forward,reverse}`, `crane-contact/{forward,reverse}`; figure/flock are indivisible | none | none | current two-surface legacy/static path |
+| Hero | `hero-pattern/forward`, `hero-pattern/reverse` | GO_FULL | GO_FULL | strict frame-lock, subject to certified-capability fail-closed policy |
+| AOD | `star-map-aod/{forward,reverse}`, `aod-method-top/{forward,reverse}` | GO_FULL | GO_FULL | strict frame-lock, subject to certified-capability fail-closed policy |
+| Figure2 | `method-bottom-figure2/{forward,reverse}`, `figure2-distance-expand/{forward,reverse}` | GO_FULL | GO_FULL | strict frame-lock, subject to certified-capability fail-closed policy |
+| Figure3 | `brand-figure3/{forward,reverse}`, `figure3-services/{forward,reverse}` | GO_FULL | GO_FULL | strict frame-lock, subject to certified-capability fail-closed policy |
+| TTG | `services-ttg/{forward,reverse}`, `ttg-lab/{forward,reverse}` | GO_FULL | GO_FULL | strict frame-lock, subject to certified-capability fail-closed policy |
+| PH | `lab-ph/{forward,reverse}`, `ph-education/{forward,reverse}` | GO_FULL | GO_FULL | strict frame-lock, subject to certified-capability fail-closed policy |
+| Crane atomic pair | `education-crane/{forward,reverse}`, `crane-contact/{forward,reverse}`; figure/flock are indivisible | GO_FULL | GO_FULL | strict frame-lock, subject to certified-capability fail-closed policy |
 
-No asset variant is selected for promotion: Hero, AOD, Figure2, Figure3, TTG, PH, and the Crane figure/flock pair all retain their frozen variants. No partial exception table is frozen; creating one would require an explicit product decision, real-device evidence, and a new approval commit.
+No asset variant is selected for promotion: Hero, AOD, Figure2, Figure3, TTG, PH, and the Crane figure/flock pair all retain their frozen variants. The Hero rebuild script is retained as a reproducibility/staging check; it does not overwrite the frozen asset.
 
 ## Real-device checkpoint
 
-No real iPhone Safari run was possible in this workspace. Consequently there is no certified iOS/Safari version, device model, real RVFC observation, or real Canvas/WebGL memory result. The emulated `phone-webkit` row is recorded only as an automated compatibility signal and does not lower or establish the product minimum. The Task 5 checkpoint is therefore paused here for real-device evidence and an explicit decision approval.
+The screenshots supplied by the user are real iPhone Safari evidence for the reviewed routes, but the model and iOS/Safari version were not captured. Consequently the exact certified version set, real decoder-memory peak, and product minimum remain open for Task 21. The emulated `phone-webkit` row is recorded only as an automated compatibility signal and does not lower or establish the product minimum.
 
 ## Verification commands
 
