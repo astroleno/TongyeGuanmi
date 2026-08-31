@@ -6,6 +6,8 @@ import type {
   PrepareToken,
   SceneId,
   SegmentId,
+  SegmentProgressReceipt,
+  SegmentProgressRequest,
   SegmentRunId,
   SpineSegmentNode
 } from './types';
@@ -133,6 +135,7 @@ export type StagedLegPreparation = Readonly<{
 
 export type SegmentTimelineHandle = {
   play(direction: Direction): Promise<void>;
+  presentProgress?(request: SegmentProgressRequest): Promise<SegmentProgressReceipt>;
   progress(value: number): void;
   reverse(): Promise<void>;
   jumpToEnd(direction: Direction): void;

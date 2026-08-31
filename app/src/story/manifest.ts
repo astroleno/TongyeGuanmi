@@ -561,6 +561,11 @@ export function validateStoryManifest(
         throw new Error(`segment ${segment.id} mediaPlayback ${mediaPlayback.id} must declare readyMilestones`);
       }
       for (const direction of [mediaPlayback.forward, mediaPlayback.reverse]) {
+        if (direction.mode === 'frame-lock' && !direction.required) {
+          throw new Error(
+            `segment ${segment.id} mediaPlayback ${mediaPlayback.id} frame-lock direction must be required`
+          );
+        }
         if (direction.required && direction.media?.length === 0) {
           throw new Error(
             `segment ${segment.id} mediaPlayback ${mediaPlayback.id} required direction must declare media`

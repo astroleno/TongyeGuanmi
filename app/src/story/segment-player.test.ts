@@ -4,6 +4,9 @@ import { BuildTimeoutError, SegmentPlayer } from './segment-player';
 import { storyManifest } from './manifest';
 import type {
   DirectorEvent,
+  SegmentProgressReceipt,
+  SegmentProgressRequest,
+  SegmentPolicy,
   SegmentTimelineHandle,
   StagedBoundaryAdvance,
   StoryManifest,
@@ -80,6 +83,60 @@ function withHeroPatternSnap(): StoryManifest {
   return { ...manifest, nodes };
 }
 
+function withHeroPatternFrameLock(
+  policy: SegmentPolicy
+): StoryManifest {
+  const manifest = structuredClone(storyManifest);
+  const nodes = [...manifest.nodes];
+  const index = nodes.findIndex((node) => node.kind === 'segment' && node.id === 'hero-pattern');
+  const segment = nodes[index];
+  if (segment?.kind !== 'segment') {
+    throw new Error('hero-pattern segment missing');
+  }
+  nodes[index] = {
+    ...segment,
+    policy,
+    mediaPlayback: [{
+      id: 'test-frame-lock',
+      media: ['test-frame-lock'],
+      forward: { mode: 'frame-lock', required: true, media: ['test-frame-lock'] },
+      reverse: { mode: 'frame-lock', required: true, media: ['test-frame-lock'] },
+      readyMilestones: ['targetReady', 'mediaReady'],
+      terminalFallbackScene: 'pattern',
+      preparingTimeoutMs: 8000
+    }]
+  };
+  return { ...manifest, nodes };
+}
+
+function withHeroPatternFrameLockSnap(): StoryManifest {
+  return withHeroPatternFrameLock({ kind: 'snap', chargeThreshold: 0.1 });
+}
+
+function withHeroPatternFrameLockStaged(): StoryManifest {
+  return withHeroPatternFrameLock({
+    kind: 'stagedSnap',
+    stops: [0.5],
+    playMs: [40, 60],
+    advance: [{ kind: 'gesture' }]
+  });
+}
+
+function withHeroPatternFrameLockScrub(): StoryManifest {
+  return withHeroPatternFrameLock({ kind: 'scrub', snapAfterIdleMs: 160 });
+}
+
+function presentedProgressReceipt(request: SegmentProgressRequest): SegmentProgressReceipt {
+  return {
+    status: 'presented',
+    runId: request.runId,
+    sequence: request.sequence,
+    desiredProgress: request.desiredProgress,
+    presentedProgress: request.desiredProgress,
+    evidence: 'runtime'
+  };
+}
+
 function withPatternStarMapScrub(): StoryManifest {
   const manifest = structuredClone(storyManifest);
   return {
@@ -103,6 +160,7 @@ describe('SegmentPlayer', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it('times out ensureBuilt and sends BUILD_TIMEOUT through the mailbox', async () => {
@@ -254,6 +312,214 @@ describe('SegmentPlayer', () => {
     });
     await flushMicrotasks();
     expect(events).toContainEqual({ type: 'PLAYBACK_DONE', runId: 'epoch:1' });
+  });
+
+  it('commits a frame-lock snap only after the exact presented receipt', async () => {
+    const pending = deferred<SegmentProgressReceipt>();
+    const requests: SegmentProgressRequest[] = [];
+    const progress = vi.fn();
+    const play = vi.fn(() => Promise.resolve());
+    const reverse = vi.fn(() => Promise.resolve());
+    const timeline: SegmentTimelineHandle = {
+      play,
+      presentProgress: (request) => {
+        requests.push(request);
+        return pending.promise;
+      },
+      progress,
+      reverse,
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternFrameLockSnap(),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      actorEpoch: 'frame-lock-snap'
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'frame-lock-snap:1' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      runId: 'frame-lock-snap:1', sequence: 1, desiredProgress: 1
+    });
+    expect(progress).toHaveBeenLastCalledWith(0);
+    expect(player.snapshot()).toMatchObject({ progress: 0 });
+    expect(play).not.toHaveBeenCalled();
+    expect(reverse).not.toHaveBeenCalled();
+
+    pending.resolve(presentedProgressReceipt(requests[0]!));
+    await expect(result).resolves.toEqual({
+      status: 'completed',
+      runId: 'frame-lock-snap:1',
+      segment: 'hero-pattern',
+      direction: 1
+    });
+    expect(progress).toHaveBeenLastCalledWith(1);
+  });
+
+  it('gates a reverse frame-lock endpoint on its receipt and ignores a late abort', async () => {
+    const pending = deferred<SegmentProgressReceipt>();
+    const requests: SegmentProgressRequest[] = [];
+    const progress = vi.fn();
+    const timeline: SegmentTimelineHandle = {
+      play: vi.fn(() => Promise.resolve()),
+      presentProgress: (request) => {
+        requests.push(request);
+        return pending.promise;
+      },
+      progress,
+      reverse: vi.fn(() => Promise.resolve()),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternFrameLockSnap(),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      actorEpoch: 'frame-lock-reverse'
+    });
+
+    const result = player.play('hero-pattern', -1, { runId: 'frame-lock-reverse:1' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toMatchObject({ sequence: 1, desiredProgress: 0, direction: -1 });
+    player.abort('seek');
+    await expect(result).resolves.toMatchObject({ status: 'aborted', reason: 'seek' });
+
+    pending.resolve(presentedProgressReceipt(requests[0]!));
+    await flushMicrotasks();
+    expect(progress).toHaveBeenLastCalledWith(1);
+    expect(progress).not.toHaveBeenCalledWith(0);
+  });
+
+  it('coalesces frame-lock scrub requests without advancing from desired progress', async () => {
+    const presentations: Array<ReturnType<typeof deferred<SegmentProgressReceipt>>> = [];
+    const requests: SegmentProgressRequest[] = [];
+    const progress = vi.fn();
+    const timeline: SegmentTimelineHandle = {
+      play: vi.fn(() => Promise.resolve()),
+      presentProgress: (request) => {
+        requests.push(request);
+        const next = deferred<SegmentProgressReceipt>();
+        presentations.push(next);
+        return next.promise;
+      },
+      progress,
+      reverse: vi.fn(() => Promise.resolve()),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternFrameLockScrub(),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      actorEpoch: 'frame-lock-scrub'
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'frame-lock-scrub:1' });
+    await vi.waitFor(() => expect(progress).toHaveBeenCalledWith(0));
+    player.scrub('hero-pattern', 0.25);
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    player.scrub('hero-pattern', 0.75);
+    expect(player.snapshot()).toMatchObject({ progress: 0 });
+    expect(progress).not.toHaveBeenCalledWith(0.25);
+
+    presentations[0]!.resolve(presentedProgressReceipt(requests[0]!));
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
+    presentations[1]!.resolve(presentedProgressReceipt(requests[1]!));
+    await vi.waitFor(() => expect(progress).toHaveBeenLastCalledWith(0.75));
+    expect(player.snapshot()).toMatchObject({ progress: 0.75 });
+    expect(progress).toHaveBeenLastCalledWith(0.75);
+
+    player.abort('seek');
+    await expect(result).resolves.toMatchObject({ status: 'aborted', reason: 'seek' });
+  });
+
+  it('starts the frame-lock scrub idle snap from the last presented progress', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', undefined);
+    const presentations: Array<ReturnType<typeof deferred<SegmentProgressReceipt>>> = [];
+    const requests: SegmentProgressRequest[] = [];
+    const progress = vi.fn();
+    const timeline: SegmentTimelineHandle = {
+      play: vi.fn(() => Promise.resolve()),
+      presentProgress: (request) => {
+        requests.push(request);
+        const next = deferred<SegmentProgressReceipt>();
+        presentations.push(next);
+        return next.promise;
+      },
+      progress,
+      reverse: vi.fn(() => Promise.resolve()),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternFrameLockScrub(),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      actorEpoch: 'frame-lock-scrub-idle'
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'frame-lock-scrub-idle:1' });
+    await vi.waitFor(() => expect(progress).toHaveBeenCalledWith(0));
+    player.scrub('hero-pattern', 0.75);
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+
+    await vi.advanceTimersByTimeAsync(176);
+    expect(requests).toHaveLength(1);
+    presentations[0]!.resolve(presentedProgressReceipt(requests[0]!));
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
+
+    expect(requests[1]!.desiredProgress).toBeGreaterThanOrEqual(0);
+    expect(requests[1]!.desiredProgress).toBeLessThan(0.75);
+    player.abort('seek');
+    await expect(result).resolves.toMatchObject({ status: 'aborted', reason: 'seek' });
+  });
+
+  it('waits for a frame-lock staged boundary receipt before pausing or advancing', async () => {
+    const presentations: Array<ReturnType<typeof deferred<SegmentProgressReceipt>>> = [];
+    const requests: SegmentProgressRequest[] = [];
+    const events: DirectorEvent[] = [];
+    const progress = vi.fn();
+    const timeline: SegmentTimelineHandle = {
+      play: vi.fn(() => Promise.resolve()),
+      presentProgress: (request) => {
+        requests.push(request);
+        const next = deferred<SegmentProgressReceipt>();
+        presentations.push(next);
+        return next.promise;
+      },
+      progress,
+      reverse: vi.fn(() => Promise.resolve()),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    };
+    const player = new SegmentPlayer({
+      manifest: withHeroPatternFrameLockStaged(),
+      transitions: { 'hero-pattern': transitionWithTimeline(timeline) },
+      mailbox: { send: (event) => events.push(event) },
+      actorEpoch: 'frame-lock-staged',
+      prefersReducedMotion: true
+    });
+
+    const result = player.play('hero-pattern', 1, { runId: 'frame-lock-staged:1' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({ desiredProgress: 0.5 });
+    expect(player.snapshot()).toMatchObject({ progress: 0 });
+    expect(events).not.toContainEqual(expect.objectContaining({ type: 'STAGE_PAUSED' }));
+
+    presentations[0]!.resolve(presentedProgressReceipt(requests[0]!));
+    await vi.waitFor(() => expect(player.snapshot()).toMatchObject({ progress: 0.5, pausedAt: 'stage:0' }));
+    expect(player.snapshot()).toMatchObject({ progress: 0.5, pausedAt: 'stage:0' });
+    expect(events).toContainEqual(expect.objectContaining({ type: 'STAGE_PAUSED', stageIndex: 0 }));
+
+    expect(player.resumeStaged('frame-lock-staged:1')).toBe(true);
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests).toHaveLength(2);
+    expect(player.snapshot()).toMatchObject({ progress: 0.5 });
+    presentations[1]!.resolve(presentedProgressReceipt(requests[1]!));
+    await expect(result).resolves.toMatchObject({ status: 'completed', direction: 1 });
+    expect(progress).toHaveBeenLastCalledWith(1);
   });
 
   it('disposes a completed timeline so transition canvases cannot accumulate between holds', async () => {

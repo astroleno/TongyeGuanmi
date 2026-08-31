@@ -486,6 +486,26 @@ describe('story manifest contract', () => {
     expect(() => validateStoryManifest(manifest)).toThrow(/mediaReady requiredMilestone/);
   });
 
+  it('rejects a frame-lock direction that is not required media ownership', () => {
+    const manifest = mutableManifest();
+    const index = manifest.nodes.findIndex(
+      (node) => node.kind === 'segment' && node.mediaPlayback?.length
+    );
+    const segment = manifest.nodes[index];
+    if (segment?.kind !== 'segment' || !segment.mediaPlayback?.[0]) {
+      throw new Error('test fixture missing mediaPlayback segment');
+    }
+    manifest.nodes[index] = {
+      ...segment,
+      mediaPlayback: [{
+        ...segment.mediaPlayback[0],
+        forward: { ...segment.mediaPlayback[0].forward, mode: 'frame-lock', required: false }
+      }]
+    };
+
+    expect(() => validateStoryManifest(manifest)).toThrow(/frame-lock direction must be required/);
+  });
+
   it('rejects interruptible segments absent from the R-1 candidate list', () => {
     const manifest = mutableManifest();
     const index = manifest.nodes.findIndex((node) => node.kind === 'segment' && node.policy.kind === 'snap');

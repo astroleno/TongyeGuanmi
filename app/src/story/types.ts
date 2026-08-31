@@ -1,3 +1,5 @@
+import type { PresentedFrameEvidence } from '../media/presented-frame-clock';
+
 export const SCENE_IDS = [
   'hero',
   'pattern',
@@ -90,10 +92,27 @@ export type CopyCue = {
 };
 
 export type MediaPlaybackDirectionContract = {
-  mode: 'play' | 'scrub' | 'timeline' | 'static-fallback' | 'none';
+  mode: 'play' | 'scrub' | 'timeline' | 'frame-lock' | 'static-fallback' | 'none';
   required: boolean;
   media?: readonly MediaKey[];
 };
+
+export type SegmentProgressRequest = Readonly<{
+  runId: SegmentRunId;
+  direction: Direction;
+  sequence: number;
+  desiredProgress: number;
+  signal: AbortSignal;
+}>;
+
+export type SegmentProgressReceipt = Readonly<{
+  status: 'presented' | 'stale';
+  runId: SegmentRunId;
+  sequence: number;
+  desiredProgress: number;
+  presentedProgress: number;
+  evidence: PresentedFrameEvidence;
+}>;
 
 export type MediaPlaybackContract = {
   id: string;

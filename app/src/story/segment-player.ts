@@ -1,5 +1,9 @@
 import { storyManifest } from './manifest';
 import { MediaPreparationError } from '../media/media-preparation';
+import {
+  createPresentedProgressCoordinator,
+  type PresentedProgressCoordinator
+} from './presented-progress-coordinator';
 import type {
   Direction,
   DirectorEvent,
@@ -8,6 +12,7 @@ import type {
   MilestoneReport,
   PrepareToken,
   SegmentId,
+  SegmentProgressReceipt,
   SegmentResult,
   SegmentRunId,
   SegmentTimelineHandle,
@@ -63,6 +68,7 @@ type ActiveRun = {
   progress: number;
   pausedAt?: string;
   timeline?: SegmentTimelineHandle;
+  progressCoordinator: PresentedProgressCoordinator | undefined;
   staged?: {
     boundaries: readonly number[];
     playMs: readonly number[];
@@ -333,6 +339,18 @@ export class SegmentPlayer {
         run.timeline = timeline;
         run.progress = direction === 1 ? 0 : 1;
         const segment = this.findSegment(id);
+        if (this.isFrameLockDirection(segment, direction)) {
+          if (!timeline.presentProgress) {
+            throw new Error(`Frame-lock timeline ${id} is missing presentProgress()`);
+          }
+          run.progressCoordinator = createPresentedProgressCoordinator({
+          runId,
+          direction,
+            present: (request) => timeline.presentProgress!(request),
+            timeoutMs: this.progressTimeoutMs(segment),
+            onPresented: (receipt) => this.commitPresentedProgress(run, timeline, receipt)
+          });
+        }
         if (segment.policy.kind === 'scrub') {
           timeline.progress(run.progress);
           const pendingScrubProgress = this.pendingScrubProgress.get(id);
@@ -351,6 +369,11 @@ export class SegmentPlayer {
             preparationGeneration: 0
           };
           this.playStagedLeg(run, timeline);
+          return;
+        }
+        if (run.progressCoordinator) {
+          timeline.progress(run.progress);
+          this.finishFrameLockRun(run, direction === 1 ? 1 : 0);
           return;
         }
         const playback = direction === 1 ? (timeline.progress(0), timeline.play(direction)) : (timeline.progress(1), timeline.reverse());
@@ -410,7 +433,9 @@ export class SegmentPlayer {
     const timeline = this.built.get(id);
     if (!timeline && this.active?.segmentId === id && !this.active.settled && this.findSegment(id).policy.kind === 'scrub') {
       this.pendingScrubProgress.set(id, clamped);
-      this.active.progress = clamped;
+      if (!this.isFrameLockDirection(this.findSegment(id), this.active.direction)) {
+        this.active.progress = clamped;
+      }
       return;
     }
     if (!timeline) {
@@ -419,6 +444,19 @@ export class SegmentPlayer {
     const activeRun = this.active?.segmentId === id && !this.active.settled ? this.active : undefined;
     if (activeRun) {
       this.cancelScrubSnap(activeRun);
+    }
+    if (activeRun?.progressCoordinator) {
+      const reachesEnd = activeRun.direction === 1 ? clamped >= 0.999 : clamped <= 0.001;
+      this.requestFrameLockProgress(
+        activeRun,
+        clamped,
+        reachesEnd ? () => this.settleCompletedRun(activeRun) : undefined
+      );
+      const policy = this.findSegment(id).policy;
+      if (!reachesEnd && policy.kind === 'scrub') {
+        this.armScrubSnap(activeRun, timeline, policy.snapAfterIdleMs);
+      }
+      return;
     }
     timeline.progress(clamped);
     if (this.active?.segmentId !== id || this.active.settled) {
@@ -496,9 +534,84 @@ export class SegmentPlayer {
       segmentId,
       direction,
       progress: direction === 1 ? 0 : 1,
+      progressCoordinator: undefined,
       settled: false,
       resolve: () => undefined
     };
+  }
+
+  private isFrameLockDirection(segment: SpineSegmentNode, direction: Direction): boolean {
+    const key = direction === 1 ? 'forward' : 'reverse';
+    return segment.mediaPlayback?.some((contract) => contract[key].mode === 'frame-lock') ?? false;
+  }
+
+  private progressTimeoutMs(segment: SpineSegmentNode): number {
+    const mediaTimeouts = segment.mediaPlayback?.map((contract) => contract.preparingTimeoutMs) ?? [];
+    return mediaTimeouts.length > 0
+      ? Math.max(...mediaTimeouts)
+      : segment.buildTimeoutMs ?? this.manifest.defaults.buildTimeoutMs;
+  }
+
+  private commitPresentedProgress(
+    run: ActiveRun,
+    timeline: SegmentTimelineHandle,
+    receipt: SegmentProgressReceipt
+  ): void {
+    if (
+      receipt.status !== 'presented'
+      || run.settled
+      || this.active?.runId !== run.runId
+      || receipt.runId !== run.runId
+    ) {
+      return;
+    }
+    timeline.progress(receipt.presentedProgress);
+    run.progress = receipt.presentedProgress;
+  }
+
+  private requestFrameLockProgress(
+    run: ActiveRun,
+    desiredProgress: number,
+    onPresented?: () => void
+  ): void {
+    const coordinator = run.progressCoordinator;
+    if (!coordinator || run.settled) return;
+    void coordinator.request(desiredProgress).then((receipt) => {
+      if (run.settled || this.active?.runId !== run.runId) return;
+      if (receipt.status === 'stale') {
+        if (onPresented) {
+          this.failFrameLockRun(run, new Error(`Frame-lock presentation became stale for ${run.segmentId}`));
+        }
+        return;
+      }
+      onPresented?.();
+    }, (error: unknown) => {
+      this.failFrameLockRun(run, asError(error));
+    });
+  }
+
+  private finishFrameLockRun(run: ActiveRun, target: number): void {
+    this.requestFrameLockProgress(run, target, () => this.settleCompletedRun(run));
+  }
+
+  private settleCompletedRun(run: ActiveRun): void {
+    if (run.settled || this.active?.runId !== run.runId) return;
+    this.settleRun(run, {
+      status: 'completed',
+      runId: run.runId,
+      segment: run.segmentId,
+      direction: run.direction
+    }, true);
+  }
+
+  private failFrameLockRun(run: ActiveRun, error: Error): void {
+    if (run.settled || this.active?.runId !== run.runId) return;
+    this.settleRun(run, {
+      status: 'failed',
+      runId: run.runId,
+      segment: run.segmentId,
+      error
+    }, true);
   }
 
   private settleRun(run: ActiveRun, result: SegmentResult, notify: boolean): void {
@@ -515,6 +628,8 @@ export class SegmentPlayer {
       delete run.staged.boundaryTimer;
     }
     this.cancelScrubSnap(run);
+    run.progressCoordinator?.dispose(result.status === 'aborted' ? result.reason : result.status);
+    run.progressCoordinator = undefined;
     run.settled = true;
     if (this.active?.runId === run.runId) {
       this.active = null;
@@ -574,6 +689,16 @@ export class SegmentPlayer {
         const elapsedRatio = Math.min(1, (performance.now() - startedAt) / durationMs);
         const eased = elapsedRatio * elapsedRatio * (3 - 2 * elapsedRatio);
         const next = start + (target - start) * eased;
+        if (run.progressCoordinator) {
+          this.requestFrameLockProgress(
+            run,
+            next,
+            elapsedRatio >= 1 ? () => this.settleCompletedRun(run) : undefined
+          );
+          if (elapsedRatio >= 1) return;
+          scrub.frame = scheduleFrame(tick, 16);
+          return;
+        }
         timeline.progress(next);
         run.progress = next;
         if (elapsedRatio >= 1) {
@@ -706,6 +831,25 @@ export class SegmentPlayer {
         elapsedMs += Math.min(frameDelta, MAX_STAGED_FRAME_DELTA_MS);
         const elapsedRatio = durationMs <= 0 ? 1 : Math.min(1, elapsedMs / durationMs);
         const progress = from + (to - from) * elapsedRatio;
+        if (run.progressCoordinator) {
+          try {
+            this.requestFrameLockProgress(
+              run,
+              progress,
+              elapsedRatio >= 1 ? () => this.finishStagedLeg(run) : undefined
+            );
+          } catch (error) {
+            this.settleRun(run, {
+              status: 'failed',
+              runId: run.runId,
+              segment: run.segmentId,
+              error: asError(error)
+            }, true);
+          }
+          if (elapsedRatio >= 1) return;
+          staged.frame = scheduleFrame(tick, Math.min(16, Math.max(1, durationMs - elapsedMs)));
+          return;
+        }
         try {
           run.progress = progress;
           timeline.progress(progress);

@@ -14,6 +14,7 @@ export type PresentedFrameEvidence =
   | 'video-frame-callback'
   | 'packed-canvas-draw'
   | 'scene-canvas-draw'
+  | 'legacy-migration'
   | 'runtime';
 
 export type PresentedFrameRequest = Readonly<{

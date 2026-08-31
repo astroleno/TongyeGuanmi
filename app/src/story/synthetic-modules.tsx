@@ -1,5 +1,6 @@
 import { fromSyntheticVisibility } from './visibility-predicate';
 import { semanticBoolean } from '../runtime/semantic-data-attribute';
+import type { SegmentProgressPresenter } from './presented-progress-coordinator';
 import type {
   CopyCue,
   Direction,
@@ -7,6 +8,8 @@ import type {
   LayerVisibilityState,
   SceneComponentProps,
   SceneModule,
+  SegmentProgressReceipt,
+  SegmentProgressRequest,
   SegmentTimelineHandle,
   TransitionContext,
   TransitionModule
@@ -21,6 +24,7 @@ export type SyntheticTimelineOptions = {
   durationMs?: number;
   reducedMotion?: boolean;
   stagedStops?: readonly number[];
+  presentProgress?: SegmentProgressPresenter;
 };
 
 export type SyntheticTimelineSnapshot = {
@@ -125,6 +129,7 @@ export class SyntheticSegmentTimeline implements SegmentTimelineHandle {
   private readonly to: LayerHandle;
   private readonly copyCue: CopyCue | undefined;
   private readonly durationMs: number;
+  private readonly presentProgressOverride: SegmentProgressPresenter | undefined;
   private progressValue = 0;
   private copyCueActive = false;
   private copyCueEverActivated = false;
@@ -136,6 +141,7 @@ export class SyntheticSegmentTimeline implements SegmentTimelineHandle {
     this.to = context.to;
     this.copyCue = options.copyCue ?? context.segment.copyCue;
     this.durationMs = options.durationMs ?? 120;
+    this.presentProgressOverride = options.presentProgress;
     const stops = options.stagedStops ?? (context.segment.policy.kind === 'stagedSnap' ? context.segment.policy.stops : []);
     this.labels = {
       start: 0,
@@ -167,6 +173,20 @@ export class SyntheticSegmentTimeline implements SegmentTimelineHandle {
 
   reverse(): Promise<void> {
     return this.animateTo(0);
+  }
+
+  presentProgress(request: SegmentProgressRequest): Promise<SegmentProgressReceipt> {
+    if (this.presentProgressOverride) {
+      return Promise.resolve(this.presentProgressOverride(request));
+    }
+    return Promise.resolve({
+      status: 'presented',
+      runId: request.runId,
+      sequence: request.sequence,
+      desiredProgress: request.desiredProgress,
+      presentedProgress: request.desiredProgress,
+      evidence: 'runtime' as const
+    });
   }
 
   progress(value: number): void {
