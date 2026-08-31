@@ -231,6 +231,52 @@ describe('FrameLockSpikeHarness', () => {
     await act(async () => root.unmount());
   });
 
+  it('locks the PH boundary again when a later strict seek fails', async () => {
+    vi.useFakeTimers();
+    try {
+      const video = new FakeVideo();
+      let failNextRequest = false;
+      const { root, host } = mountHarness(video, {
+        onProbeRequest: (frameIndex) => {
+          if (failNextRequest) return;
+          video.completeSeek();
+          video.emitFrame(mediaTimeForFrame(phFrameMap, frameIndex));
+        }
+      });
+      const api = readApi();
+
+      await act(async () => {
+        await expect(api.requestFrame(45)).resolves.toMatchObject({
+          status: 'presented',
+          desiredFrameIndex: 45,
+          presentedFrameIndex: 45
+        });
+      });
+      expect(api.snapshot().phBoundary).toBe('ready');
+
+      failNextRequest = true;
+      let failedRequest: ReturnType<typeof api.requestFrame>;
+      act(() => {
+        failedRequest = api.requestFrame(44);
+        vi.advanceTimersByTime(1_500);
+      });
+      await act(async () => {
+        await expect(failedRequest!).resolves.toMatchObject({ status: 'stale' });
+      });
+
+      expect(api.snapshot().status).toBe('error');
+      expect(api.snapshot().phBoundary).toBe('locked');
+      expect(host.querySelector('[data-ph-education-boundary]')?.getAttribute('data-state'))
+        .toBe('locked');
+      expect(host.querySelector('[data-ph-education-boundary]')?.textContent)
+        .toContain('copy/dissolve locked');
+
+      await act(async () => root.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('waits for the seeked event before nudging native playback', async () => {
     const video = new FakeVideo();
     const { root } = mountHarness(video);

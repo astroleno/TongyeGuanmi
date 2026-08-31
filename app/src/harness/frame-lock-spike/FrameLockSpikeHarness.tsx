@@ -494,6 +494,11 @@ export function FrameLockSpikeHarness({
   const updateStatus = (next: FrameLockSpikeStatus, nextErrorCode: string | null = null) => {
     statusRef.current = next;
     errorCodeRef.current = nextErrorCode;
+    if (next === 'error' || next === 'static-fallback') {
+      boundaryRef.current = 'locked';
+      boundarySequenceRef.current = null;
+      setPhBoundary('locked');
+    }
     setStatus(next);
     setErrorCode(nextErrorCode);
   };
