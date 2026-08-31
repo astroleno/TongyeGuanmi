@@ -147,8 +147,16 @@ const ASSET_URLS: Readonly<Record<string, string>> = Object.freeze({
 const DEFAULT_SEQUENCE: FrameLockSequence = 'forward';
 const DEFAULT_RUN_ID = 'frame-lock-spike';
 const FRAME_RECEIPT_TIMEOUT_MS = 1_500;
-const NATIVE_PLAYBACK_NUDGE_RATE = 0.25;
-const NATIVE_PLAYBACK_NUDGE_DURATION_MS = 8;
+const NATIVE_PLAYBACK_NUDGE_RATE = typeof navigator !== 'undefined'
+  && /AppleWebKit/i.test(navigator.userAgent)
+  && (/iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || /Version\/[\d.]+\s+Safari/i.test(navigator.userAgent))
+  ? 1
+  : 0.25;
+// iPhone Safari needs one full presentation interval to wake a paused
+// decoder. Desktop decoders already expose the exact post-seek RVFC; the
+// shorter fallback nudge must not play past that frame.
+const NATIVE_PLAYBACK_NUDGE_DURATION_MS = NATIVE_PLAYBACK_NUDGE_RATE === 1 ? 80 : 8;
 const nativeNudgeTimers = new WeakMap<
   HTMLVideoElement,
   ReturnType<typeof globalThis.setTimeout>
@@ -188,6 +196,14 @@ function cancelNativeDecoderNudge(video: HTMLVideoElement): void {
 
 function nudgeNativeDecoder(video: HTMLVideoElement): void {
   cancelNativeDecoderNudge(video);
+  const duration = video.duration;
+  if (Number.isFinite(duration) && duration > 0
+    && video.currentTime >= duration - 1 / 120) {
+    // Playing an endpoint-equal seek can rewind a finite WebM back to zero
+    // before RVFC emits the endpoint. Leave the decoder paused and let the
+    // strict callback observe the settled endpoint instead.
+    return;
+  }
   try {
     // This is only a bounded decoder wake-up behind the hidden candidate
     // plane. The strict receipt still comes exclusively from RVFC metadata.
@@ -434,6 +450,9 @@ export function FrameLockSpikeHarness({
       : undefined,
     [config.surface]
   );
+  const packedDecoderSurface = config.surface === 'phone-ph'
+    || config.surface === 'phone-crane'
+    || (config.surface === 'asset' && isPackedAsset(config.asset));
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const flockVideoRef = useRef<HTMLVideoElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
@@ -539,7 +558,6 @@ export function FrameLockSpikeHarness({
         startPlayback();
       };
       video.addEventListener('seeked', onSeeked);
-      if (!video.seeking) startPlayback();
       return () => {
         video.removeEventListener('seeked', onSeeked);
         cancelNativeDecoderNudge(video);
@@ -903,9 +921,6 @@ export function FrameLockSpikeHarness({
   });
 
   const frameMap = config.asset.frameMap;
-  const packedDecoderSurface = config.surface === 'phone-ph'
-    || config.surface === 'phone-crane'
-    || (config.surface === 'asset' && isPackedAsset(config.asset));
   return (
     <main
       className="frame-lock-spike"

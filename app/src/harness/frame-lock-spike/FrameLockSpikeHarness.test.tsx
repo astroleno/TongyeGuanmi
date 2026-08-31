@@ -270,9 +270,15 @@ describe('FrameLockSpikeHarness', () => {
         video.completeSeek();
       });
       expect(video.paused).toBe(false);
+      expect(video.playbackRate).toBe(0.25);
 
       act(() => {
-        vi.advanceTimersByTime(8);
+        vi.advanceTimersByTime(7);
+      });
+      expect(video.paused).toBe(false);
+
+      act(() => {
+        vi.advanceTimersByTime(1);
       });
       expect(video.paused).toBe(true);
 
@@ -299,7 +305,9 @@ describe('FrameLockSpikeHarness', () => {
       expect(video.playCalls).toBe(1);
 
       act(() => {
-        vi.advanceTimersByTime(7);
+        vi.advanceTimersByTime(79);
+        video.emitFrame(mediaTimeForFrame(phFrameMap, 5));
+        video.emitFrame(mediaTimeForFrame(phFrameMap, 5));
         video.emitFrame(mediaTimeForFrame(phFrameMap, 5));
         video.completeSeek();
       });

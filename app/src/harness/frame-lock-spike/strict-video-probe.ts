@@ -67,6 +67,7 @@ type PendingRequest = StrictVideoProbeRequest & {
   settled: boolean;
   obsolete: boolean;
   seekSettled: boolean;
+  mismatchedFrameCallbacks: number;
   retryPlaybackPending: boolean;
   exactSeekRetries: number;
   retryHandle: ReturnType<typeof globalThis.setTimeout> | undefined;
@@ -90,7 +91,13 @@ const defaultCapability: StrictVideoProbeCapability = {
 };
 
 const MAX_EXACT_SEEK_RETRIES = 8;
-const EXACT_SEEK_RETRY_DELAY_MS = 50;
+const MAX_MISMATCHED_FRAME_CALLBACKS = 3;
+const BLINK_EXACT_SEEK_RETRY_DELAY_MS = 50;
+// Let a 1x WebKit decoder nudge deliver the next 30 fps frame before
+// restarting a seek. A watchdog that fires during that interval can keep
+// Safari pinned to the pre-seek frame and repeatedly discard a recoverable
+// receipt.
+const WEBKIT_EXACT_SEEK_RETRY_DELAY_MS = 120;
 
 function staleReceipt(
   request: PendingRequest,
@@ -161,6 +168,7 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
           settled: true,
           obsolete: true,
           seekSettled: true,
+          mismatchedFrameCallbacks: 0,
           retryPlaybackPending: false,
           exactSeekRetries: 0,
           retryHandle: undefined,
@@ -220,6 +228,7 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
       settled: false,
       obsolete: false,
       seekSettled: false,
+      mismatchedFrameCallbacks: 0,
       retryPlaybackPending: false,
       exactSeekRetries: 0,
       retryHandle: undefined,
@@ -299,6 +308,15 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
           metadata.mediaTime
         );
         if (presentedFrameIndex !== pending.desiredFrameIndex) {
+          pending.mismatchedFrameCallbacks += 1;
+          if (pending.mismatchedFrameCallbacks < MAX_MISMATCHED_FRAME_CALLBACKS) {
+            // A paused seek can expose the preceding decoded frame first.
+            // Keep the nudge alive long enough for the next presented frame
+            // before restarting the seek.
+            this.armCallback(pending);
+            return;
+          }
+          pending.mismatchedFrameCallbacks = 0;
           if (pending.exactSeekRetries < MAX_EXACT_SEEK_RETRIES) {
             pending.exactSeekRetries += 1;
             this.reissueExactSeek(pending);
@@ -340,6 +358,7 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
 
   private reissueExactSeek(pending: PendingRequest): void {
     this.clearRetryWatchdog(pending);
+    pending.mismatchedFrameCallbacks = 0;
     pending.seekSettled = false;
     pending.retryPlaybackPending = true;
     try {
@@ -376,7 +395,9 @@ class StrictVideoProbeImpl implements StrictVideoProbe {
       if (pending.exactSeekRetries >= MAX_EXACT_SEEK_RETRIES) return;
       pending.exactSeekRetries += 1;
       this.reissueExactSeek(pending);
-    }, EXACT_SEEK_RETRY_DELAY_MS);
+    }, this.capability.browserEngine === 'Blink'
+      ? BLINK_EXACT_SEEK_RETRY_DELAY_MS
+      : WEBKIT_EXACT_SEEK_RETRY_DELAY_MS);
   }
 
   private clearRetryWatchdog(pending: PendingRequest): void {

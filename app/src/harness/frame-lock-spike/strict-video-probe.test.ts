@@ -162,7 +162,7 @@ describe('strict video probe', () => {
     probe.dispose();
   });
 
-  it('reissues a bounded seek when the settled callback quantizes to the wrong frame', async () => {
+  it('lets a decoder advance past an adjacent wrong frame before reissuing a seek', async () => {
     const video = new FakeVideo();
     let retryNudges = 0;
     const probe = createStrictVideoProbe(video, {}, {
@@ -173,6 +173,9 @@ describe('strict video probe', () => {
     video.completeSeek();
     video.emitFrame(mediaTimeForFrame(frameMap, 9));
     expect(retryNudges).toBe(0);
+    expect(video.currentTimeWrites).toHaveLength(1);
+    video.emitFrame(mediaTimeForFrame(frameMap, 9));
+    video.emitFrame(mediaTimeForFrame(frameMap, 9));
     expect(video.currentTimeWrites).toHaveLength(2);
     expect(video.seeking).toBe(true);
 
@@ -200,7 +203,7 @@ describe('strict video probe', () => {
       video.completeSeek();
       expect(video.currentTimeWrites).toHaveLength(1);
 
-      vi.advanceTimersByTime(50);
+      vi.advanceTimersByTime(120);
       expect(video.currentTimeWrites).toHaveLength(2);
 
       video.completeSeek();
