@@ -72,6 +72,7 @@ export type InkTargetPresentationContext = InkSourceRenderContext & Readonly<{
 export type InkMediaPresentationContext = InkSourceRenderContext & Readonly<{
   root: HTMLElement | null;
   target: 'from' | 'to';
+  roots: InkEndpointRoots;
 }>;
 
 export type InkMediaPresenter = (
@@ -542,7 +543,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       direction: request.direction,
       prefersReducedMotion: this.reducedMotion,
       root,
-      target
+      target,
+      roots
     }));
   }
 

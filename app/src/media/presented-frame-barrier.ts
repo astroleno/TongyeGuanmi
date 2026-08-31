@@ -10,13 +10,14 @@ import type {
   PresentedFrameClock,
   PresentedFrameEvidence,
   PresentedFrameReceipt,
-  PresentedFrameRequest,
-  PresentedFrameClockSnapshot
+  PresentedFrameRequest
 } from './presented-frame-clock';
 
 export type PresentedFrameBarrierChild = Readonly<{
   clock: Pick<PresentedFrameClock, 'request'>;
   frameMap: VideoFrameMap;
+  /** Map the shared scene progress onto this surface's local animation. */
+  mapProgress?: (progress: number) => number;
 }>;
 
 export type PresentedFrameBarrierSnapshot = Readonly<{
@@ -94,6 +95,13 @@ function isCurrentRequest(
     && latest.sequence === request.sequence;
 }
 
+function childProgressFor(
+  child: PresentedFrameBarrierChild,
+  progress: number
+): number {
+  return clampProgress(child.mapProgress?.(progress) ?? progress);
+}
+
 class PresentedFrameBarrierImpl implements PresentedFrameBarrier {
   private disposed = false;
   private latestRequest: PresentedFrameRequest | undefined;
@@ -157,9 +165,10 @@ class PresentedFrameBarrierImpl implements PresentedFrameBarrier {
       staleCount: this.staleCount
     };
 
-    const childRequests = this.children.map((child) => child.clock.request({
+    const childProgresses = this.children.map((child) => childProgressFor(child, desiredProgress));
+    const childRequests = this.children.map((child, index) => child.clock.request({
       ...request,
-      desiredProgress,
+      desiredProgress: childProgresses[index] ?? desiredProgress,
       frameMap: child.frameMap,
       signal: controller.signal
     }));
@@ -171,7 +180,7 @@ class PresentedFrameBarrierImpl implements PresentedFrameBarrier {
           && receipt.sequence === request.sequence
           && receipt.desiredFrameIndex === frameIndexForProgress(
             this.children[index]!.frameMap,
-            desiredProgress
+            childProgresses[index] ?? desiredProgress
           )
           && receipt.presentedFrameIndex === receipt.desiredFrameIndex
         ));
@@ -261,122 +270,4 @@ export function createPresentedFrameBarrier(
   children: readonly PresentedFrameBarrierChild[]
 ): PresentedFrameBarrier {
   return new PresentedFrameBarrierImpl(children);
-}
-
-export type SceneCanvasPresentedFrameClockOptions = Readonly<{
-  draw(request: PresentedFrameRequest): boolean | Promise<boolean>;
-}>;
-
-export function createSceneCanvasPresentedFrameClock(
-  options: SceneCanvasPresentedFrameClockOptions
-): PresentedFrameClock {
-  let disposed = false;
-  let latestRequest: PresentedFrameRequest | undefined;
-  const emptySceneSnapshot: PresentedFrameClockSnapshot = {
-    runId: undefined,
-    direction: undefined,
-    sequence: undefined,
-    desiredProgress: undefined,
-    desiredFrameIndex: undefined,
-    presentedProgress: undefined,
-    presentedFrameIndex: undefined,
-    mediaTimeSeconds: undefined,
-    frameLag: undefined,
-    lagFrames: undefined,
-    evidence: undefined,
-    seekLatencyMs: undefined,
-    staleCount: 0,
-    pending: false
-  };
-  let latestSnapshot: PresentedFrameClockSnapshot = emptySceneSnapshot;
-
-  const request = (input: PresentedFrameRequest): Promise<PresentedFrameReceipt> => {
-    const frameMap = validateVideoFrameMap(input.frameMap);
-    const desiredProgress = clampProgress(input.desiredProgress);
-    const desiredFrameIndex = frameIndexForProgress(frameMap, desiredProgress);
-    if (disposed) return Promise.resolve(staleReceipt(input, desiredFrameIndex, desiredProgress));
-    if (
-      latestRequest
-      && latestRequest.runId === input.runId
-      && latestRequest.direction === input.direction
-      && input.sequence < latestRequest.sequence
-    ) {
-      return Promise.resolve(staleReceipt(input, desiredFrameIndex, desiredProgress));
-    }
-    latestRequest = input;
-    latestSnapshot = {
-      ...latestSnapshot,
-      runId: input.runId,
-      direction: input.direction,
-      sequence: input.sequence,
-      desiredProgress,
-      desiredFrameIndex,
-      frameLag: latestSnapshot.presentedFrameIndex === undefined
-        ? undefined
-        : desiredFrameIndex - latestSnapshot.presentedFrameIndex,
-      lagFrames: latestSnapshot.presentedFrameIndex === undefined
-        ? undefined
-        : desiredFrameIndex - latestSnapshot.presentedFrameIndex,
-      pending: true
-    };
-    if (input.signal.aborted) {
-      return Promise.reject(new MediaPreparationError(
-        'MEDIA_PREPARATION_ABORTED',
-        `scene canvas draw aborted for ${input.runId}`
-      ));
-    }
-    return Promise.resolve(options.draw({ ...input, desiredProgress })).then((drawn) => {
-      if (input.signal.aborted) {
-        throw new MediaPreparationError(
-          'MEDIA_PREPARATION_ABORTED',
-          `scene canvas draw aborted for ${input.runId}`
-        );
-      }
-      if (!drawn) {
-        if (isCurrentRequest(latestRequest, input)) {
-          latestSnapshot = { ...latestSnapshot, pending: false };
-        }
-        throw new Error('scene canvas draw failed');
-      }
-      if (!isCurrentRequest(latestRequest, input)) {
-        latestSnapshot = {
-          ...latestSnapshot,
-          pending: false,
-          staleCount: latestSnapshot.staleCount + 1
-        };
-        return staleReceipt(input, desiredFrameIndex, desiredProgress);
-      }
-      const presentedProgress = progressForFrameIndex(frameMap, desiredFrameIndex);
-      latestSnapshot = {
-        ...latestSnapshot,
-        presentedProgress,
-        presentedFrameIndex: desiredFrameIndex,
-        mediaTimeSeconds: mediaTimeForFrame(frameMap, desiredFrameIndex),
-        frameLag: 0,
-        lagFrames: 0,
-        evidence: 'scene-canvas-draw',
-        pending: false
-      };
-      return {
-        status: 'presented' as const,
-        runId: input.runId,
-        sequence: input.sequence,
-        desiredFrameIndex,
-        presentedFrameIndex: desiredFrameIndex,
-        mediaTimeSeconds: mediaTimeForFrame(frameMap, desiredFrameIndex),
-        presentedProgress,
-        evidence: 'scene-canvas-draw' as const
-      };
-    });
-  };
-
-  return {
-    request,
-    snapshot: () => latestSnapshot,
-    dispose() {
-      disposed = true;
-      latestRequest = undefined;
-      latestSnapshot = emptySceneSnapshot;
-    }
-  };
 }

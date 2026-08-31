@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { inventoryManifestSeed } from '../story/manifest';
+import { fixtureCopySection } from '../story/copy-baseline';
 import { LAB_COPY, labScene, renderLabProgress } from './lab';
 import { renderTtgAnimationProgress } from './ttg-animation';
 
@@ -49,7 +49,7 @@ describe('R4 group5 scenes', () => {
   });
 
   it('keeps lab copy while omitting its retired sectional prefix', () => {
-    const lab = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'lab');
+    const lab = fixtureCopySection('lab');
     const prefix = 'Scenario / 03';
 
     expect(labScene.staticFallback?.text).toEqual(LAB_COPY);

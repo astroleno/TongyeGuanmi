@@ -1,10 +1,15 @@
 import { renderEducationHold } from '../../scenes/education';
 import {
+  craneSegmentProgressReceipt,
   prepareCraneAnimationFrame,
-  renderCraneHold
+  renderCraneHold,
+  requestCraneAnimationFrame
 } from '../../scenes/crane-animation';
 import { createInkSegmentTransition } from '../shared/ink';
-import type { TransitionModule } from '../../story/types';
+import type {
+  SegmentProgressRequest,
+  TransitionModule
+} from '../../story/types';
 
 export function createEducationCraneTransition(options: { delayMs?: () => number } = {}): TransitionModule {
   return createInkSegmentTransition({
@@ -29,8 +34,23 @@ export function createEducationCraneTransition(options: { delayMs?: () => number
         reducedMotion: context.prefersReducedMotion
       });
     },
+    presentSourceProgress: (_root, request, context) => presentCraneProgress(context.roots.to, request, context),
+    presentTargetProgress: (root, request, context) => presentCraneProgress(root, request, context),
     transitionAttr: 'education-crane-bottom-ink'
   });
+}
+
+function presentCraneProgress(
+  root: HTMLElement | null,
+  request: SegmentProgressRequest,
+  context: { runId: string; direction: -1 | 1 }
+) {
+  return requestCraneAnimationFrame(root, request.desiredProgress, {
+    runId: context.runId,
+    direction: context.direction,
+    sequence: request.sequence,
+    signal: request.signal
+  }).then((receipt) => craneSegmentProgressReceipt(request, receipt));
 }
 
 export const educationCraneTransition = createEducationCraneTransition();

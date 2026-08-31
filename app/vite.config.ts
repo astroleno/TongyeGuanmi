@@ -245,6 +245,15 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash:7].js',
         entryFileNames: 'assets/[name]-[hash:7].js',
         manualChunks(id) {
+          if (id.includes('/src/media/strict-timeline-video-driver.ts')) {
+            return 'media-frame-lock-runtime';
+          }
+          if (
+            id.includes('/src/media/frame-timebase.ts')
+            || id.includes('/src/media/media-preparation.ts')
+          ) {
+            return 'media-frame-primitives';
+          }
           if (id.includes('/src/media/timeline-video-driver.ts')) {
             return 'media-timeline-runtime';
           }

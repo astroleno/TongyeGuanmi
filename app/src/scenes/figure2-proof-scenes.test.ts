@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { inventoryManifestSeed } from '../story/manifest';
+import { fixtureCopySection } from '../story/copy-baseline';
 import { BRAND_COPY, brandScene, renderBrandProgress } from './brand';
 import { FIGURE2_PROOF_CARDS_COPY, figure2ProofCardsScene, renderProofCardsProgress } from './figure2-proof-cards';
 import { FIGURE2_PROOF_CLOSING_COPY, figure2ProofClosingScene, renderProofClosingProgress } from './figure2-proof-closing';
@@ -74,8 +74,8 @@ describe('figure2 proof and brand scene renderers', () => {
   });
 
   it('uses the R-1 proof split and brand baseline verbatim', () => {
-    const method = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'method');
-    const brand = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'brand');
+    const method = fixtureCopySection('method');
+    const brand = fixtureCopySection('brand');
 
     expect(figure2ProofOpeningScene.staticFallback?.text).toEqual(FIGURE2_PROOF_OPENING_COPY);
     expect(figure2ProofCardsScene.staticFallback?.text).toEqual(FIGURE2_PROOF_CARDS_COPY);

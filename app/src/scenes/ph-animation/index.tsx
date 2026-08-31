@@ -4,8 +4,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput,
   type TimelineVideoFrameResult
-} from '../../media/timeline-video-driver';
-import { AlphaVideoSources } from '../../media/alpha-video-sources';
+} from '../../media/strict-timeline-video-driver';
 import { progressForFrameIndex } from '../../media/frame-timebase';
 import { videoFrameMapFor } from '../../media/video-frame-maps';
 import { PH_PLAYBACK_MS } from '../../story/timings';
@@ -15,21 +14,32 @@ import type {
   SegmentProgressReceipt,
   SegmentProgressRequest
 } from '../../story/types';
+import {
+  PH_FIGURE_END_SECONDS,
+  PH_MEDIA_KEY,
+  PhAnimationSceneMarkup
+} from './scene';
+import {
+  phPlaybackProgress,
+  renderPhHold
+} from './visual';
 
-export const PH_MEDIA_KEY = 'ph-figure-motion';
-export const PH_BG_SRC = new URL('../../../../assets/ph_background.webp', import.meta.url).href;
-export const PH_FRONT_SRC = new URL('../../../../assets/ph_front-alpha.webp', import.meta.url).href;
-export const PH_FIGURE_VIDEO_SRC = new URL('../../../../assets/ph-figure-motion.webm', import.meta.url).href;
-export const PH_FIGURE_HEVC_ALPHA_SRC = new URL('../../../../assets/ph-figure-motion-hevc-alpha.mp4', import.meta.url).href;
-export const PH_FIGURE_END_SECONDS = 1.5;
-export const PH_HOLD_PROGRESS = 0;
-
-export type PhRenderState = {
-  progress: number;
-  bgY: number;
-  frontY: number;
-  figureY: number;
-};
+export {
+  PH_BG_SRC,
+  PH_FIGURE_END_SECONDS,
+  PH_FIGURE_HEVC_ALPHA_SRC,
+  PH_FIGURE_VIDEO_SRC,
+  PH_FRONT_SRC,
+  PH_HOLD_PROGRESS,
+  PH_MEDIA_KEY
+} from './scene';
+export {
+  phPlaybackProgress,
+  renderPhAnimationProgress,
+  renderPhHold,
+  type PhRenderOptions
+} from './visual';
+export type { PhRenderState } from './visual';
 
 export type PhMediaRun = {
   runId: string;
@@ -39,11 +49,6 @@ export type PhMediaRun = {
   signal?: AbortSignal;
 };
 
-type PhRenderOptions = {
-  /** @deprecated Kept for callers compiled during the migration; it never drives media. */
-  mediaRun?: PhMediaRun;
-};
-
 function phSection(root: HTMLElement | null | undefined): HTMLElement | null {
   return root?.matches('[data-r4-scene="ph-animation"]')
     ? root
@@ -51,14 +56,6 @@ function phSection(root: HTMLElement | null | undefined): HTMLElement | null {
 }
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
-const smoothStep = (value: number) => {
-  const p = clamp(value);
-  return p * p * (3 - 2 * p);
-};
-export const phPlaybackProgress = (progress: number) => {
-  const p = clamp(progress);
-  return clamp(0.78 * p + 0.22 * p * p);
-};
 
 function phMediaInput(
   mediaProgress: number,
@@ -161,34 +158,6 @@ export function preparePhAnimationFrame(
   });
 }
 
-export function renderPhAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number, options: PhRenderOptions = {}): PhRenderState {
-  const section = phSection(root);
-  const raw = clamp(rawProgress);
-  const progress = phPlaybackProgress(raw);
-  const eased = smoothStep(progress);
-  const bgY = eased * -18;
-  const frontY = eased * 230;
-  const figureY = eased * 135;
-
-  section?.style.setProperty('--ph-progress', progress.toFixed(4));
-  section?.style.setProperty('--ph-bg-parallax-y', `${bgY.toFixed(2)}px`);
-  section?.style.setProperty('--ph-front-parallax-y', `${frontY.toFixed(2)}px`);
-  section?.style.setProperty('--ph-figure-parallax-y', `${figureY.toFixed(2)}px`);
-  section?.setAttribute('data-ph-progress', progress.toFixed(4));
-  if (options.mediaRun) {
-    section?.setAttribute('data-ph-playback-direction', String(options.mediaRun.direction));
-    section?.setAttribute('data-ph-playback-run', options.mediaRun.runId);
-  }
-  section?.setAttribute('data-ph-raw-progress', raw.toFixed(4));
-  section?.setAttribute('data-ph-playback-active', String(raw > 0.001 && raw < 0.999));
-
-  return { progress, bgY, frontY, figureY };
-}
-
-export function renderPhHold(root: HTMLElement | null): void {
-  renderPhAnimationProgress(root, PH_HOLD_PROGRESS);
-}
-
 export function parkPhMedia(root: HTMLElement | null | undefined): void {
   const section = phSection(root);
   const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
@@ -236,49 +205,17 @@ function PhAnimationScene({ registerHandle }: SceneComponentProps) {
   }, []);
 
   return (
-    <article
-      ref={(element) => {
+    <PhAnimationSceneMarkup
+      scene="ph-animation"
+      hidden={false}
+      {...(registerHandle ? { registerHandle } : {})}
+      onRoot={(element) => {
         rootRef.current = element;
-        registerHandle?.('field', element);
       }}
-      className="ph-page r4-ph-animation"
-      data-r4-scene="ph-animation"
-      data-ph-stage
-      aria-label="Pythagoreans Hymn visual scene"
-    >
-      <div className="ph-scroll">
-        <div className="ph-sticky">
-          <div className="ph-field">
-            <img className="ph-bg" src={PH_BG_SRC} alt="" aria-hidden="true" />
-            <div className="ph-paper" aria-hidden="true" />
-            <div className="ph-sun-wash" aria-hidden="true" />
-            <div className="ph-layer-stack" aria-hidden="true">
-              <img className="ph-layer ph-layer--front" src={PH_FRONT_SRC} alt="" />
-              <video
-                ref={(element) => {
-                  videoRef.current = element;
-                  registerHandle?.('figure-video', element);
-                }}
-                className="ph-layer ph-layer--figure"
-                data-ph-alpha-video
-                data-media-key={PH_MEDIA_KEY}
-                muted
-                preload="auto"
-                playsInline
-              >
-                <AlphaVideoSources
-                  webm={PH_FIGURE_VIDEO_SRC}
-                  hevc={PH_FIGURE_HEVC_ALPHA_SRC}
-                />
-              </video>
-            </div>
-            <div className="ph-edge-light" aria-hidden="true" />
-            <div className="ph-texture" aria-hidden="true" />
-            <div className="ph-progress" aria-hidden="true"><span /></div>
-          </div>
-        </div>
-      </div>
-    </article>
+      onVideo={(element) => {
+        videoRef.current = element;
+      }}
+    />
   );
 }
 

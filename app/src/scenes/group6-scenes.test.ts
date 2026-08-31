@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { inventoryManifestSeed } from '../story/manifest';
+import { fixtureCopySection } from '../story/copy-baseline';
 import { EDUCATION_COPY, educationScene, renderEducationProgress } from './education';
 import { renderPhAnimationProgress } from './ph-animation';
 
@@ -52,7 +52,7 @@ describe('R4 group6 scenes', () => {
   });
 
   it('keeps education copy while omitting its retired sectional prefix', () => {
-    const education = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'education');
+    const education = fixtureCopySection('education');
     const prefix = 'Education / 04';
 
     expect(educationScene.staticFallback?.text).toEqual(EDUCATION_COPY);

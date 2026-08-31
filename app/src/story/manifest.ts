@@ -1,9 +1,5 @@
-import migrationInventory from '../../../docs/react-refactor/inventory/migration-inventory.json';
-import interruptibleCandidates from '../../../docs/react-refactor/inventory/interruptible-candidates.json';
-import copyReference from '../../../docs/react-refactor/inventory/copy-reference.json';
 import { canonicalSpine } from './canonical-spine';
 import { METHOD_COPY as sharedMethodCopy } from './copy';
-import { parseInventoryManifestSeed, type InventoryManifestSeed } from './inventory-schema';
 import {
   CRANE_CONTACT_DURATION_MS,
   FIGURE3_SERVICES_DURATION_MS,
@@ -31,11 +27,8 @@ import type {
   StoryManifest
 } from './types';
 
-export const inventoryManifestSeed = parseInventoryManifestSeed({
-  migrationInventory,
-  interruptibleCandidates,
-  copyReference
-});
+const inventoryGeneratedAt = '2026-07-06';
+const interruptibleSegmentIds: readonly SegmentId[] = [];
 
 // The inventory is also the no-JS copy authority. Keep the production Method
 // holds on those same strings instead of duplicating them across lazy chunks.
@@ -57,26 +50,8 @@ const fallbackDurations = {
 
 const stagedMediaPreparingTimeoutMs = 8000;
 
-function transitionSeed(legacyTransitionId: string, seed: InventoryManifestSeed) {
-  const found = seed.transitions.find((transition) => transition.legacyTransitionId === legacyTransitionId);
-  if (!found) {
-    throw new Error(`R-1 transition seed missing: ${legacyTransitionId}`);
-  }
-  return found;
-}
-
-const seedByLegacy = {
-  homeBelief: transitionSeed('home-belief', inventoryManifestSeed),
-  beliefMethod: transitionSeed('belief-method', inventoryManifestSeed),
-  figure2: transitionSeed('method-tooling__method-proof', inventoryManifestSeed),
-  figure3: transitionSeed('brand-services', inventoryManifestSeed),
-  ttg: transitionSeed('services-lab', inventoryManifestSeed),
-  ph: transitionSeed('lab-education', inventoryManifestSeed),
-  crane: transitionSeed('philosophy-contact', inventoryManifestSeed)
-} as const;
-
 function snapPolicy(segment: SegmentId): SegmentPolicy {
-  const isInterruptible = inventoryManifestSeed.interruptibleSegmentIds.includes(segment);
+  const isInterruptible = interruptibleSegmentIds.includes(segment);
   return {
     kind: 'snap',
     chargeThreshold: defaults.chargeThreshold,
@@ -156,7 +131,7 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
     case 'aod-method-top':
       return {
         policy: snapPolicy(segment),
-        virtualDuration: durationFromPlayMs(seedByLegacy.beliefMethod.playMs)
+        virtualDuration: durationFromPlayMs(2600)
       };
     case 'method-top-method-bottom':
       return {
@@ -171,12 +146,12 @@ function policyAndDuration(segment: SegmentId): Pick<SpineSegmentNode, 'policy' 
     case 'figure2-distance-expand':
       return {
         policy: stagedPolicy(
-          seedByLegacy.figure2.stageStops,
-          seedByLegacy.figure2.stagePlayMs,
+          [0.72],
+          [2600, 1500],
           [{ kind: 'delay', ms: TERMINAL_DWELL_MS }],
-          seedByLegacy.figure2.postScrollVh
+          56
         ),
-        virtualDuration: durationFromStages(seedByLegacy.figure2.stagePlayMs)
+        virtualDuration: durationFromStages([2600, 1500])
       };
     case 'figure2-proof-opening-cards':
       return {
@@ -318,7 +293,8 @@ function incomingAnimationMediaPlayback(
   const reverseRequired = segment === 'method-bottom-figure2'
     || segment === 'lab-ph'
     || segment === 'brand-figure3'
-    || segment === 'services-ttg';
+    || segment === 'services-ttg'
+    || segment === 'education-crane';
   const frameLock = (
     segment === 'star-map-aod' && targetScene === 'aod-animation'
   ) || (
@@ -329,6 +305,8 @@ function incomingAnimationMediaPlayback(
     segment === 'brand-figure3' && targetScene === 'figure3-animation'
   ) || (
     segment === 'services-ttg' && targetScene === 'ttg-animation'
+  ) || (
+    segment === 'education-crane' && targetScene === 'crane-animation'
   );
   const reverseFrameLock = frameLock && (reverseRequired || segment === 'star-map-aod');
   return [
@@ -442,7 +420,13 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           'crane-transition',
           craneAnimationMedia,
           'contact',
-          { forwardMode: 'play', reverseMode: 'timeline', reverseRequired: true }
+          {
+            forwardMode: 'frame-lock',
+            reverseMode: 'frame-lock',
+            reverseRequired: true,
+            forwardMedia: craneAnimationMedia,
+            reverseMedia: craneAnimationMedia
+          }
         )
       ];
     default:
@@ -511,15 +495,15 @@ export const storyManifest: StoryManifest = {
   defaults,
   inventory: {
     source: 'R-1',
-    generatedAt: inventoryManifestSeed.generatedAt,
-    interruptibleCandidates: inventoryManifestSeed.interruptibleSegmentIds
+    generatedAt: inventoryGeneratedAt,
+    interruptibleCandidates: interruptibleSegmentIds
   },
   nodes: buildNodes()
 };
 
 export function validateStoryManifest(
   manifest: StoryManifest,
-  allowedInterruptibleSegments: readonly SegmentId[] = inventoryManifestSeed.interruptibleSegmentIds
+  allowedInterruptibleSegments: readonly SegmentId[] = interruptibleSegmentIds
 ): void {
   if (manifest.defaults.buildTimeoutMs <= 0) {
     throw new Error('manifest defaults must include a positive buildTimeoutMs');

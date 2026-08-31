@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createPresentedFrameBarrier,
-  createSceneCanvasPresentedFrameClock,
   type PresentedFrameBarrierChild
 } from './presented-frame-barrier';
+import { createSceneCanvasPresentedFrameClock } from './scene-canvas-presented-frame-clock';
 import {
   frameIndexForProgress,
   mediaTimeForFrame,
@@ -125,6 +125,36 @@ describe('presented frame barrier', () => {
       presentedFrameIndex: 23,
       pending: false,
       staleCount: 0
+    });
+    barrier.dispose();
+  });
+
+  it('maps the shared master progress independently for each child surface', async () => {
+    const figure = new FakeClock();
+    const flock = new FakeClock();
+    const barrier = createPresentedFrameBarrier([
+      {
+        ...child(figure, figureMap),
+        mapProgress: (progress) => progress * 0.5
+      },
+      {
+        ...child(flock, flockMap),
+        mapProgress: (progress) => Math.min(1, progress + 0.25)
+      }
+    ]);
+    const input = request({ desiredProgress: 0.8 });
+    const result = barrier.request(input);
+
+    expect(figure.pending[0]?.request.desiredProgress).toBe(0.4);
+    expect(flock.pending[0]?.request.desiredProgress).toBe(1);
+    figure.pending[0]!.resolve(presented(figure.pending[0]!.request, figureMap));
+    flock.pending[0]!.resolve(presented(flock.pending[0]!.request, flockMap));
+
+    await expect(result).resolves.toMatchObject({
+      status: 'presented',
+      desiredFrameIndex: 36,
+      presentedFrameIndex: 36,
+      presentedProgress: 36 / masterMap.endFrame
     });
     barrier.dispose();
   });

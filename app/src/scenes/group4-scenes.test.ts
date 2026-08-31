@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { inventoryManifestSeed } from '../story/manifest';
+import { fixtureCopySection } from '../story/copy-baseline';
 import { renderFigure3AnimationProgress } from './figure3-animation';
 import { SERVICES_COPY, renderServicesProgress, servicesScene } from './services';
 
@@ -52,7 +52,7 @@ describe('R4 group4 scenes', () => {
   });
 
   it('ports services copy from the R-1 baseline verbatim', () => {
-    const services = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'services');
+    const services = fixtureCopySection('services');
 
     expect(servicesScene.staticFallback?.text).toEqual(SERVICES_COPY);
     expect(services?.normalizedText).toEqual([...SERVICES_COPY]);

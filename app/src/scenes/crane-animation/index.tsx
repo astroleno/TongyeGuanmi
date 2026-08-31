@@ -1,29 +1,58 @@
+import { useEffect, useRef } from 'react';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
 import {
-  driveTimelineVideo,
-  prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
-} from '../../media/timeline-video-driver';
-import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
-import { CRANE_CONTACT_DURATION_MS } from '../../story/timings';
-import type { SceneComponentProps, SceneModule } from '../../story/types';
+  createPresentedFrameBarrier,
+  type PresentedFrameBarrier
+} from '../../media/presented-frame-barrier';
+import {
+  createVideoPresentedFrameClock
+} from '../../media/strict-timeline-video-driver';
+import { VIDEO_FRAME_MAPS } from '../../media/video-frame-maps';
+import type {
+  SceneComponentProps,
+  SceneModule,
+  SegmentProgressReceipt,
+  SegmentProgressRequest
+} from '../../story/types';
 
-export const CRANE_FIGURE_MEDIA_KEY = 'crane-figure-motion';
-export const CRANE_FLOCK_MEDIA_KEY = 'crane-flock-motion';
-export const CRANE_PAPER_SRC = new URL('../../../../assets/crane-paper.webp', import.meta.url).href;
-export const CRANE_CLOUD_BACK_SRC = new URL('../../../../assets/crane1_cloud2-alpha.webp', import.meta.url).href;
-export const CRANE_ARCH_SRC = new URL('../../../../assets/crane1_arch-alpha.webp', import.meta.url).href;
-export const CRANE_CLOUD_FRONT_SRC = new URL('../../../../assets/crane1_cloud1-alpha.webp', import.meta.url).href;
-export const CRANE_CLOUD_FRONT_SECOND_SRC = new URL('../../../../assets/crane1_cloud-front2-alpha.webp', import.meta.url).href;
-export const CRANE_FIGURE_VIDEO_SRC = new URL('../../../../assets/crane-figure-motion.webm', import.meta.url).href;
-export const CRANE_FIGURE_HEVC_ALPHA_SRC = new URL('../../../../assets/crane-figure-motion-hevc-alpha.mp4', import.meta.url).href;
-export const CRANE_FLOCK_VIDEO_SRC = new URL('../../../../assets/crane-flock-motion.webm', import.meta.url).href;
-export const CRANE_FLOCK_HEVC_ALPHA_SRC = new URL('../../../../assets/crane-flock-motion-hevc-alpha.mp4', import.meta.url).href;
+import {
+  CRANE_ARCH_SRC,
+  CRANE_CLOUD_BACK_SRC,
+  CRANE_CLOUD_FRONT_SECOND_SRC,
+  CRANE_CLOUD_FRONT_SRC,
+  CRANE_FIGURE_HEVC_ALPHA_SRC,
+  CRANE_FIGURE_MEDIA_KEY,
+  CRANE_FIGURE_VIDEO_SRC,
+  CRANE_FLOCK_HEVC_ALPHA_SRC,
+  CRANE_FLOCK_MEDIA_KEY,
+  CRANE_FLOCK_VIDEO_SRC,
+  CRANE_PAPER_SRC,
+  CRANE_TIMELINE_DURATION_SECONDS,
+} from './media';
+
+export {
+  CRANE_ARCH_SRC,
+  CRANE_CLOUD_BACK_SRC,
+  CRANE_CLOUD_FRONT_SECOND_SRC,
+  CRANE_CLOUD_FRONT_SRC,
+  CRANE_FIGURE_HEVC_ALPHA_SRC,
+  CRANE_FIGURE_MEDIA_KEY,
+  CRANE_FIGURE_VIDEO_SRC,
+  CRANE_FLOCK_HEVC_ALPHA_SRC,
+  CRANE_FLOCK_MEDIA_KEY,
+  CRANE_FLOCK_VIDEO_SRC,
+  CRANE_MEDIA_PLAYBACK_MS,
+  CRANE_PAPER_SRC,
+  CRANE_PLAYBACK_MS,
+  CRANE_TIMELINE_DURATION_SECONDS,
+  CRANE_VIDEO_END_SECONDS
+} from './media';
+
+export const CRANE_FIGURE_FRAME_MAP = VIDEO_FRAME_MAPS[CRANE_FIGURE_MEDIA_KEY];
+export const CRANE_FLOCK_FRAME_MAP = VIDEO_FRAME_MAPS[CRANE_FLOCK_MEDIA_KEY];
+export const CRANE_MASTER_FRAME_MAP = CRANE_FIGURE_FRAME_MAP;
 
 const VIDEO_DURATION_FALLBACK = 2.5;
-export const CRANE_VIDEO_END_SECONDS = 2.467;
-export const CRANE_PLAYBACK_MS = CRANE_CONTACT_DURATION_MS;
-export const CRANE_MEDIA_PLAYBACK_MS = 2500;
-export const CRANE_TIMELINE_DURATION_SECONDS = CRANE_PLAYBACK_MS / 1000;
 const FLOCK_START_SECONDS = 0;
 const FLOCK_END_SECONDS = 2.5;
 const FIGURE_START_SECONDS = 0.5;
@@ -43,12 +72,14 @@ export type CraneRenderState = {
 export type CraneMediaRun = Readonly<{
   runId: string;
   direction: 1 | -1;
-  nativePlayback?: boolean;
+  sequence?: number;
   reducedMotion?: boolean;
   signal?: AbortSignal;
 }>;
 
 type CraneRenderOptions = { mediaRun?: CraneMediaRun };
+
+const craneFrameBarriers = new WeakMap<HTMLElement, PresentedFrameBarrier>();
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const smoothStep = (value: number) => {
@@ -70,52 +101,104 @@ const acceleratedProgress = (progress: number) => {
   return clamp(0.78 * p + 0.22 * p * p);
 };
 
-function driveCraneTimeline(
-  section: HTMLElement | null,
-  progress: number,
-  figureProgress: number,
-  flockProgress: number,
-  figureActive: boolean,
-  mediaRun: NonNullable<CraneRenderOptions['mediaRun']>
-): void {
-  const figureVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-video]');
-  const flockVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]');
-  for (const [video, mediaProgress, nativeEligible] of [
-    [figureVideo, figureProgress, figureActive && figureProgress > 0.001],
-    [flockVideo, flockProgress, progress > 0.001 && flockProgress < 0.999]
-  ] as const) {
-    const preparedStart = mediaRun.nativePlayback
-      && nativeEligible
-      && video?.paused
-      && video.currentTime < 0.05
-      && video.dataset.timelineVideoFrameReady === 'true';
-    driveTimelineVideo(video, craneMediaInput(preparedStart ? 0 : mediaProgress, mediaRun, nativeEligible));
-  }
-  section?.setAttribute('data-crane-playback-direction', String(mediaRun.direction));
-  section?.setAttribute('data-crane-playback-run', mediaRun.runId);
-  section?.setAttribute('data-crane-playback-active', String(progress > 0.001 && progress < 0.999));
+export function craneFigureMediaProgress(rawProgress: number): number {
+  const time = stableProgress(rawProgress) * CRANE_TIMELINE_DURATION_SECONDS;
+  return range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS);
 }
 
-function craneMediaInput(
-  progress: number,
+export function craneFlockMediaProgress(rawProgress: number): number {
+  const time = stableProgress(rawProgress) * CRANE_TIMELINE_DURATION_SECONDS;
+  return range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS);
+}
+
+export function createCranePresentedFrameBarrier(
+  root: HTMLElement | null | undefined
+): PresentedFrameBarrier {
+  const section = rootFor(root);
+  if (!section) {
+    throw new Error('Crane media unavailable');
+  }
+  const existing = craneFrameBarriers.get(section);
+  if (existing) {
+    return existing;
+  }
+  const figureVideo = section.querySelector<HTMLVideoElement>('[data-crane-figure-video]');
+  const flockVideo = section.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]');
+  if (!figureVideo || !flockVideo) {
+    throw new Error('Crane media unavailable');
+  }
+  const barrier = createPresentedFrameBarrier([
+    {
+      clock: createVideoPresentedFrameClock(figureVideo),
+      frameMap: CRANE_FIGURE_FRAME_MAP,
+      mapProgress: craneFigureMediaProgress
+    },
+    {
+      clock: createVideoPresentedFrameClock(flockVideo),
+      frameMap: CRANE_FLOCK_FRAME_MAP,
+      mapProgress: craneFlockMediaProgress
+    }
+  ]);
+  craneFrameBarriers.set(section, barrier);
+  return barrier;
+}
+
+export function disposeCranePresentedFrameBarrier(root: HTMLElement | null | undefined): void {
+  const section = rootFor(root);
+  const barrier = section ? craneFrameBarriers.get(section) : undefined;
+  if (!section || !barrier) {
+    return;
+  }
+  barrier.dispose();
+  craneFrameBarriers.delete(section);
+}
+
+function craneFrameRequest(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
   mediaRun: CraneMediaRun,
-  nativeEligible = true
-): TimelineVideoDriveInput {
-  return {
+  barrier: PresentedFrameBarrier
+) {
+  const section = rootFor(root);
+  const signal = mediaRun.signal ?? new AbortController().signal;
+  const request = {
     runId: mediaRun.runId,
     direction: mediaRun.direction,
-    progress,
-    durationFallbackSeconds: VIDEO_DURATION_FALLBACK,
-    startSeconds: 0,
-    endSeconds: CRANE_VIDEO_END_SECONDS,
-    timelineDurationMs: CRANE_MEDIA_PLAYBACK_MS,
-    mode: mediaRun.direction === 1 && mediaRun.nativePlayback && nativeEligible
-      ? 'native-preferred'
-      : 'timeline',
-    nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
-    ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
-    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
+    sequence: mediaRun.sequence ?? 0,
+    desiredProgress: stableProgress(rawProgress),
+    frameMap: CRANE_MASTER_FRAME_MAP,
+    signal
+  } as const;
+  section?.setAttribute('data-crane-playback-direction', String(mediaRun.direction));
+  section?.setAttribute('data-crane-playback-run', mediaRun.runId);
+  return barrier.request(request).then((receipt) => {
+    section?.setAttribute('data-crane-desired-frame', String(receipt.desiredFrameIndex));
+    section?.setAttribute('data-crane-presented-frame', String(receipt.presentedFrameIndex));
+    section?.setAttribute('data-crane-frame-evidence', receipt.evidence);
+    return receipt;
+  });
+}
+
+export function requestCraneAnimationFrame(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  mediaRun: CraneMediaRun,
+  barrier = createCranePresentedFrameBarrier(root)
+) {
+  return craneFrameRequest(root, rawProgress, mediaRun, barrier);
+}
+
+export function craneSegmentProgressReceipt(
+  request: SegmentProgressRequest,
+  receipt: Awaited<ReturnType<typeof craneFrameRequest>>
+): SegmentProgressReceipt {
+  return {
+    status: receipt.status,
+    runId: request.runId,
+    sequence: request.sequence,
+    desiredProgress: request.desiredProgress,
+    presentedProgress: receipt.presentedProgress,
+    evidence: receipt.evidence
   };
 }
 
@@ -125,24 +208,13 @@ export async function prepareCraneAnimationFrame(
   mediaRun: CraneMediaRun
 ): Promise<void> {
   const section = rootFor(root);
-  const figureVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-video]');
-  const flockVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]');
-  if (!section || !figureVideo || !flockVideo) {
+  if (!section) {
     throw new Error('Crane media unavailable');
   }
-  const time = clamp(rawProgress) * CRANE_TIMELINE_DURATION_SECONDS;
+  const barrier = createCranePresentedFrameBarrier(section);
   try {
-    const frames = await Promise.all([
-      prepareTimelineVideoFrame(
-        figureVideo,
-        craneMediaInput(range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS), mediaRun, false)
-      ),
-      prepareTimelineVideoFrame(
-        flockVideo,
-        craneMediaInput(range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS), mediaRun, false)
-      )
-    ]);
-    if (frames.some((frame) => frame?.status !== 'ready')) {
+    const receipt = await requestCraneAnimationFrame(section, rawProgress, mediaRun, barrier);
+    if (receipt.status !== 'presented') {
       throw new Error('Crane media stale');
     }
     delete section.dataset.craneStaticMediaFallback;
@@ -197,17 +269,11 @@ export function renderCraneAnimationProgress(root: HTMLElement | null | undefine
   setTransform(section?.querySelector<HTMLElement>('.crane-layer--arch'), `translate3d(-50%, ${downExitY.toFixed(2)}px, 0)`);
   setTransform(section?.querySelector<HTMLElement>('.crane-layer--cloud-front-second'), `translate3d(-50%, ${(downExitY * 1.28).toFixed(2)}px, 0)`);
   setTransform(section?.querySelector<HTMLElement>('.crane-layer--cloud-front'), `translate3d(-50%, ${(downExitY * 1.14).toFixed(2)}px, 0)`);
-  const figureProgress = range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS);
-  const flockProgress = range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS);
   if (options.mediaRun) {
-    driveCraneTimeline(section, timelineProgress, figureProgress, flockProgress, figureActive, options.mediaRun);
-  } else {
-    driveCraneTimeline(section, timelineProgress, figureProgress, flockProgress, figureActive, {
-      runId: 'crane-hold',
-      direction: -1
-    });
-    section?.setAttribute('data-crane-playback-active', 'false');
+    section?.setAttribute('data-crane-playback-direction', String(options.mediaRun.direction));
+    section?.setAttribute('data-crane-playback-run', options.mediaRun.runId);
   }
+  section?.setAttribute('data-crane-playback-active', String(timelineProgress > 0.001 && timelineProgress < 0.999));
 
   return { progress, videoScale, videoOpacity, flockOpacity, downExitY };
 }
@@ -217,9 +283,19 @@ export function renderCraneHold(root: HTMLElement | null): void {
 }
 
 function CraneAnimationScene({ registerHandle }: SceneComponentProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    return () => {
+      disposeCranePresentedFrameBarrier(root);
+    };
+  }, []);
+
   return (
     <article
       ref={(element) => {
+        rootRef.current = element;
         registerHandle?.('stage', element);
       }}
       className="crane-page r4-crane-animation"

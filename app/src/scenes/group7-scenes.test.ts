@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { inventoryManifestSeed } from '../story/manifest';
+import { fixtureCopySection } from '../story/copy-baseline';
 import { CONTACT_COPY, contactScene, renderContactProgress } from './contact';
 import { craneAnimationScene, renderCraneAnimationProgress } from './crane-animation';
 
@@ -56,7 +56,7 @@ describe('R4 group7 scenes', () => {
   });
 
   it('ports contact copy from the R-1 baseline verbatim', () => {
-    const contact = inventoryManifestSeed.copySections.find((section) => section.sectionId === 'contact');
+    const contact = fixtureCopySection('contact');
 
     expect(contactScene.staticFallback?.text).toEqual(CONTACT_COPY);
     expect(contact?.normalizedText).toEqual([...CONTACT_COPY]);

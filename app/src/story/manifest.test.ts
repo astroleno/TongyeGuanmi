@@ -145,11 +145,11 @@ describe('story manifest contract', () => {
     for (const segment of mediaSegments) {
       expect(segment.mediaPlayback?.[0]).toMatchObject({
         forward: {
-          mode: ['aod-method-top', 'figure3-services'].includes(segment.id) ? 'frame-lock' : 'play',
+          mode: 'frame-lock',
           required: true
         },
         reverse: {
-          mode: ['aod-method-top', 'figure3-services'].includes(segment.id) ? 'frame-lock' : 'timeline',
+          mode: 'frame-lock',
           required: true
         },
         readyMilestones: ['targetReady', 'mediaReady']
@@ -220,13 +220,14 @@ describe('story manifest contract', () => {
                 'method-bottom-figure2',
                 'brand-figure3',
                 'services-ttg',
-                'lab-ph'
+                'lab-ph',
+                'education-crane'
               ].includes(id)
                 ? 'frame-lock'
                 : 'timeline',
               required: true
             }),
-            ...( ['star-map-aod', 'method-bottom-figure2', 'brand-figure3', 'services-ttg', 'lab-ph'].includes(id)
+            ...( ['star-map-aod', 'method-bottom-figure2', 'brand-figure3', 'services-ttg', 'lab-ph', 'education-crane'].includes(id)
               ? {
                   reverse: expect.objectContaining({ mode: 'frame-lock', required: true })
                 }
@@ -368,7 +369,10 @@ describe('story manifest contract', () => {
     expect(byId.get('crane-contact')).toMatchObject({
       virtualDuration: 3000,
       copyCue: { targetScene: 'contact', atProgress: 0.8 },
-      mediaPlayback: [{ reverse: { mode: 'timeline', required: true } }]
+      mediaPlayback: [{
+        forward: { mode: 'frame-lock', required: true },
+        reverse: { mode: 'frame-lock', required: true }
+      }]
     });
   });
 

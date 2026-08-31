@@ -13,7 +13,7 @@ import {
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput,
   type TimelineVideoFrameResult
-} from '../../media/timeline-video-driver';
+} from '../../media/strict-timeline-video-driver';
 import { AlphaVideoSources } from '../../media/alpha-video-sources';
 import { progressForFrameIndex } from '../../media/frame-timebase';
 import { VIDEO_FRAME_MAPS } from '../../media/video-frame-maps';

@@ -147,6 +147,27 @@ describe('video presented frame clock', () => {
     clock.dispose();
   });
 
+  it('rejects a late older sequence after the newer frame has already presented', async () => {
+    const video = new FakeVideo();
+    const clock = createVideoPresentedFrameClock(videoElement(video));
+
+    const latest = clock.request(request({ sequence: 2, desiredProgress: 44 / frameMap.endFrame }));
+    video.completeSeek();
+    video.presentFrame(mediaTimeForFrame(frameMap, 44));
+    await expect(latest).resolves.toMatchObject({ status: 'presented', sequence: 2 });
+    const writesAfterLatest = video.currentTimeWrites.length;
+
+    await expect(clock.request(request({ sequence: 1, desiredProgress: 1 / frameMap.endFrame })))
+      .resolves.toMatchObject({ status: 'stale', sequence: 1 });
+    expect(video.currentTimeWrites).toHaveLength(writesAfterLatest);
+    expect(clock.snapshot()).toMatchObject({
+      sequence: 2,
+      presentedFrameIndex: 44,
+      staleCount: 0
+    });
+    clock.dispose();
+  });
+
   it('propagates abort and clears all clock diagnostics on dispose', async () => {
     const video = new FakeVideo();
     const clock = createVideoPresentedFrameClock(videoElement(video));
@@ -177,4 +198,3 @@ describe('video presented frame clock', () => {
     second.dispose();
   });
 });
-

@@ -1,13 +1,12 @@
 import { useEffect, useRef } from 'react';
 import {
   disposeTimelineVideoDriver,
-  driveTimelineVideo,
   prepareTimelineVideoFrame,
+  timelineVideoDriverSnapshot,
   type TimelineVideoDriveInput,
   type TimelineVideoDriverSnapshot,
   type TimelineVideoFrameResult
-} from '../../media/timeline-video-driver';
-import { AlphaVideoSources } from '../../media/alpha-video-sources';
+} from '../../media/strict-timeline-video-driver';
 import { progressForFrameIndex } from '../../media/frame-timebase';
 import { VIDEO_FRAME_MAPS } from '../../media/video-frame-maps';
 import { TTG_PLAYBACK_MS } from '../../story/timings';
@@ -17,25 +16,33 @@ import type {
   SegmentProgressReceipt,
   SegmentProgressRequest
 } from '../../story/types';
+import {
+  TTG_FIGURE_END_SECONDS,
+  TTG_MEDIA_KEY,
+  TtgAnimationSceneMarkup
+} from './scene';
+import {
+  renderTtgAnimationProgress,
+  renderTtgHold
+} from './visual';
 
-export const TTG_MEDIA_KEY = 'ttg-figure-motion';
-export const TTG_BG_SRC = new URL('../../../../assets/ttg-background.webp', import.meta.url).href;
-export const TTG_MIDDLE_SRC = new URL('../../../../assets/ttg-middle.webp', import.meta.url).href;
-export const TTG_FRONT_SRC = new URL('../../../../assets/ttg-foreground.webp', import.meta.url).href;
-export const TTG_FIGURE_VIDEO_SRC = new URL('../../../../assets/ttg-figure-motion.webm', import.meta.url).href;
-export const TTG_FIGURE_HEVC_ALPHA_SRC = new URL('../../../../assets/ttg-figure-motion-hevc-alpha.mp4', import.meta.url).href;
-export const TTG_FIGURE_END_SECONDS = 2.467;
-export const TTG_HOLD_PROGRESS = 0;
+export {
+  TTG_BG_SRC,
+  TTG_FIGURE_END_SECONDS,
+  TTG_FIGURE_HEVC_ALPHA_SRC,
+  TTG_FIGURE_VIDEO_SRC,
+  TTG_FRONT_SRC,
+  TTG_MEDIA_KEY,
+  TTG_MIDDLE_SRC,
+  TTG_HOLD_PROGRESS
+} from './scene';
+export {
+  renderTtgAnimationProgress,
+  renderTtgHold,
+  type TtgRenderState
+} from './visual';
+
 export const TTG_FRAME_MAP = VIDEO_FRAME_MAPS[TTG_MEDIA_KEY];
-
-export type TtgRenderState = {
-  progress: number;
-  visualProgress: number;
-  bgY: number;
-  middleY: number;
-  frontY: number;
-  figureY: number;
-};
 
 export type TtgMediaRun = {
   runId: string;
@@ -43,10 +50,6 @@ export type TtgMediaRun = {
   sequence?: number;
   reducedMotion?: boolean;
   signal?: AbortSignal;
-};
-
-type TtgRenderOptions = {
-  mediaRun?: TtgMediaRun;
 };
 
 type TtgSection = HTMLElement & {
@@ -73,28 +76,10 @@ export type TtgMediaSnapshot = Readonly<{
   video: TimelineVideoDriverSnapshot | undefined;
 }>;
 
-const TTG_CONFIG = {
-  bgTravelVh: 14.3,
-  middleTravelVh: 23.5,
-  frontYVh: 29.2,
-  frontTravelVh: 13.1,
-  figureScale: 0.8,
-  figureYVh: -8.5,
-  figureTravelVh: 16.5
-} as const;
-
 const mediaManagers = new WeakMap<HTMLElement, TtgMediaManager>();
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 const stableProgress = (value: number) => (value < 0.002 ? 0 : value > 0.998 ? 1 : clamp(value));
-const acceleratedProgress = (progress: number) => {
-  const p = stableProgress(progress);
-  return clamp(0.78 * p + 0.22 * p * p);
-};
-
-function viewportHeight(): number {
-  return typeof window === 'undefined' ? 800 : window.innerHeight;
-}
 
 function ttgSection(root: HTMLElement | null | undefined): HTMLElement | null {
   return root?.matches('[data-r4-scene="ttg-animation"]')
@@ -236,8 +221,7 @@ function commitPreparedMedia(section: HTMLElement, mediaRun: TtgMediaRun): void 
   ) {
     throw new Error('TTG not ready');
   }
-  const mode = mediaRun.direction === 1 && prepared.progress <= 0.001 ? 'timeline' : undefined;
-  manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, prepared.progress, mode));
+  manager.snapshot = timelineVideoDriverSnapshot(manager.video);
   manager.activeRunId = mediaRun.runId;
   manager.activeDirection = mediaRun.direction;
   delete manager.prepared;
@@ -307,7 +291,7 @@ export function commitTtgTerminalFrame(
   if (!section || !manager || manager.activeRunId !== mediaRun.runId) {
     throw new Error('TTG end stale');
   }
-  manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, 1, 'timeline'));
+  manager.snapshot = timelineVideoDriverSnapshot(manager.video);
 }
 
 export function commitTtgForwardStart(
@@ -319,7 +303,7 @@ export function commitTtgForwardStart(
   if (!section || !manager || manager.activeRunId !== mediaRun.runId) {
     throw new Error('TTG start stale');
   }
-  manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, 0, 'timeline'));
+  manager.snapshot = timelineVideoDriverSnapshot(manager.video);
 }
 
 export function parkTtgMedia(root: HTMLElement | null | undefined): void {
@@ -352,48 +336,6 @@ export function ttgMediaSnapshot(root: HTMLElement | null | undefined): TtgMedia
         video: manager.snapshot
       }
     : null;
-}
-
-export function renderTtgAnimationProgress(root: HTMLElement | null | undefined, rawProgress: number, options: TtgRenderOptions = {}): TtgRenderState {
-  const section = ttgSection(root);
-  const progress = stableProgress(rawProgress);
-  const visualProgress = acceleratedProgress(progress);
-  const vh = viewportHeight();
-  const bgY = -visualProgress * vh * (TTG_CONFIG.bgTravelVh / 100);
-  const middleY = visualProgress * vh * (TTG_CONFIG.middleTravelVh / 100);
-  const frontY = vh * (TTG_CONFIG.frontYVh / 100) + visualProgress * vh * (TTG_CONFIG.frontTravelVh / 100);
-  const figureY = vh * (TTG_CONFIG.figureYVh / 100) + visualProgress * vh * (TTG_CONFIG.figureTravelVh / 100);
-
-  section?.style.setProperty('--ttg-progress', visualProgress.toFixed(4));
-  section?.style.setProperty('--ttg-figure-progress', visualProgress.toFixed(4));
-  section?.style.setProperty('--ttg-bg-y', `${bgY.toFixed(2)}px`);
-  section?.style.setProperty('--ttg-bg-scale', (1 + visualProgress * 0.018).toFixed(4));
-  section?.style.setProperty('--ttg-middle-y', `${middleY.toFixed(2)}px`);
-  section?.style.setProperty('--ttg-middle-scale', (1 + visualProgress * 0.012).toFixed(4));
-  section?.style.setProperty('--ttg-front-y', `${frontY.toFixed(2)}px`);
-  section?.style.setProperty('--ttg-figure-y', `${figureY.toFixed(2)}px`);
-  section?.style.setProperty('--ttg-figure-scale', TTG_CONFIG.figureScale.toFixed(4));
-  section?.style.setProperty('--ttg-figure-video-opacity', '1');
-  section?.setAttribute('data-ttg-progress', visualProgress.toFixed(4));
-  if (section) {
-    (section as TtgSection).__r4TtgProgress = progress;
-  }
-
-  if (options.mediaRun) {
-    section?.setAttribute('data-ttg-playback-direction', String(options.mediaRun.direction));
-    section?.setAttribute('data-ttg-playback-run', options.mediaRun.runId);
-    section?.setAttribute('data-ttg-playback-active', 'false');
-    section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
-  } else {
-    section?.setAttribute('data-ttg-playback-active', 'false');
-    section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
-  }
-
-  return { progress, visualProgress, bgY, middleY, frontY, figureY };
-}
-
-export function renderTtgHold(root: HTMLElement | null): void {
-  renderTtgAnimationProgress(root, TTG_HOLD_PROGRESS);
 }
 
 function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
@@ -429,59 +371,17 @@ function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
   }, []);
 
   return (
-    <article
-      ref={(element) => {
+    <TtgAnimationSceneMarkup
+      scene="ttg-animation"
+      hidden={false}
+      {...(registerHandle ? { registerHandle } : {})}
+      onRoot={(element) => {
         rootRef.current = element;
-        registerHandle?.('field', element);
       }}
-      className="ttg-page r4-ttg-animation"
-      data-r4-scene="ttg-animation"
-      data-ttg-transition
-      data-ttg-stage
-      data-ttg-duration="2.5"
-      data-ttg-scroll-vh="153"
-      data-ttg-video-duration="2.5"
-      data-ttg-bg-travel-vh="14.3"
-      data-ttg-middle-travel-vh="23.5"
-      data-ttg-front-y-vh="29.2"
-      data-ttg-front-travel-vh="13.1"
-      data-ttg-figure-scale="0.80"
-      data-ttg-figure-y-vh="-8.5"
-      data-ttg-figure-travel-vh="16.5"
-      aria-label="Talk to the God visual scene"
-    >
-      <div className="ttg-scroll">
-        <div className="ttg-sticky">
-          <div className="ttg-field">
-            <div className="ttg-layer-stack" aria-hidden="true">
-              <img className="ttg-layer ttg-layer--bg" src={TTG_BG_SRC} alt="" />
-              <img className="ttg-layer ttg-layer--middle" src={TTG_MIDDLE_SRC} alt="" />
-              <img className="ttg-layer ttg-layer--front" src={TTG_FRONT_SRC} alt="" />
-              <video
-                ref={(element) => {
-                  videoRef.current = element;
-                  registerHandle?.('figure-video', element);
-                }}
-                className="ttg-layer ttg-layer--figure"
-                data-ttg-figure-video
-                data-media-key={TTG_MEDIA_KEY}
-                width="720"
-                height="1280"
-                muted
-                preload="metadata"
-                playsInline
-              >
-                <AlphaVideoSources
-                  webm={TTG_FIGURE_VIDEO_SRC}
-                  hevc={TTG_FIGURE_HEVC_ALPHA_SRC}
-                />
-              </video>
-            </div>
-            <div className="ttg-progress" aria-hidden="true"><span /></div>
-          </div>
-        </div>
-      </div>
-    </article>
+      onVideo={(element) => {
+        videoRef.current = element;
+      }}
+    />
   );
 }
 

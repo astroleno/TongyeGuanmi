@@ -1,9 +1,13 @@
-import { inventoryManifestSeed } from './manifest';
+import copyReference from '../../../docs/react-refactor/inventory/copy-reference.json';
 import type { SceneId } from './types';
 
+export function fixtureCopySection(sectionId: string) {
+  return copyReference.sections.find((section) => section.sectionId === sectionId);
+}
+
 export function fixtureStaticFallbackText(scene: SceneId): readonly string[] {
-  return inventoryManifestSeed.copySections
-    .filter((section) => section.canonicalScenes.includes(scene))
+  return copyReference.sections
+    .filter((section) => section.canonicalScenes.some((candidate) => candidate === scene))
     .flatMap((section) => section.normalizedText);
 }
 
