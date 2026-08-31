@@ -11,9 +11,9 @@ import {
   parkPhonePhMedia,
   PhonePh,
   phonePhForegroundParallaxY,
-  phonePhPresentationProgress,
-  phonePhTimelineProgressForMediaProgress
+  phonePhPresentationProgress
 } from './PhonePh';
+import { phRawProgressForFrame } from '..';
 import { phonePhReverseMediaTime } from './PhonePh.reverse';
 import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
 
@@ -51,10 +51,10 @@ describe('PhonePh', () => {
     expect(phonePhPresentationProgress(0.75)).toBe(0.75);
   });
 
-  it('keeps native media time aligned to the Figure2 phone camera', () => {
-    expect(phonePhTimelineProgressForMediaProgress(0)).toBe(0);
-    expect(phonePhTimelineProgressForMediaProgress(0.445)).toBeCloseTo(0.5, 5);
-    expect(phonePhTimelineProgressForMediaProgress(1)).toBeCloseTo(1, 5);
+  it('keeps the presented media time aligned to the Figure2 phone camera', () => {
+    expect(phRawProgressForFrame(0)).toBe(0);
+    expect(phRawProgressForFrame(20)).toBeCloseTo(0.5, 2);
+    expect(phRawProgressForFrame(45)).toBeCloseTo(1, 5);
     expect(phonePhForegroundParallaxY({ figureY: 135 })).toBe(135);
     expect(phonePhReverseMediaTime(0)).toBe(0);
     expect(phonePhReverseMediaTime(1)).toBe(1.5);
@@ -93,6 +93,11 @@ describe('PhonePh', () => {
     expect(source).toContain("surfaceRef.current?.dispose('reactivatable')");
     expect(source).not.toContain('surfaceRef.current?.release()');
     expect(source).toContain('surfaceRef.current?.probe()');
+    expect(source).toContain('surface.presentFrame({');
+    expect(source).not.toContain('seekPhonePhReverseFrame');
+    expect(source).not.toContain("video.play()");
+    expect(motionSource).toContain("direction === 1 ? 'presented-frame'");
+    expect(motionSource).not.toContain("direction === 1 ? 'native'");
     expect(motionSource).toContain('phonePhForegroundParallaxY');
     expect(reverseSource).not.toContain('phone-presented-reverse-playback');
     for (const forbidden of [

@@ -89,8 +89,7 @@ type DeadlineLease = Readonly<{ key: string; handle: PhoneRuntimeTimerHandle; co
 type ReportState = { valid: boolean; binding: PhoneLeafReportBinding; p?: PhoneSceneId; r?: true };
 type LeafLease = { key: string; reports: ReportState; mount: PhoneLeafMountLease; activeDecoders: number; disposed: boolean; frameToken: string | null };
 type PendingLoad = { controller: AbortController; waiters: Array<Readonly<{ effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>; connection: number }>> };
-type PlaybackMode = 'legacy' | 'runtime' | 'frame-lock';
-type PlaybackLease = Readonly<{ handle: PhoneRuntimeTimerHandle; attempt: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>; stageIndex: number; startedAt: number; durationMs: number; from: number; to: number; connection: number; mode: PlaybackMode; controller: AbortController | null; latestSequence: number; awaitingCompletion: boolean }>;
+type PlaybackLease = Readonly<{ h: PhoneRuntimeTimerHandle; a: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>; s: number; t: number; d: number; f: number; o: number }>;
 type ActivationLease = Readonly<{ invocationId: string; attempt: PhoneAttemptKey; surfaceIds: readonly string[]; leaves: readonly LeafLease[]; connection: number }>;
 
 function mediaRunToken(attempt: PhoneAttemptKey, direction: 'forward' | 'reverse'): string { return [attempt.authorityId, attempt.transactionId, attempt.transactionGeneration, attempt.segmentId ?? 'entry', direction].join(':'); }
@@ -187,10 +186,10 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   });
   let snapshot = inert.snapshot;
   let connected = false, connection = 0, draining = false;
-  let sequence = 0, physicalEpoch = 0, activationSequence = 0, frameSequence = 0, mediaSequence = 0;
+  let sequence = 0, physicalEpoch = 0, activationSequence = 0, frameSequence = 0;
   let queue: QueuedEvent[] = [];
   let removeHostListener: (() => void) | null = null, sampleFrame: PhoneRuntimeTimerHandle | null = null;
-  let playback: PlaybackLease | null = null, planeFrame: PhoneRuntimeTimerHandle | null = null;
+  let playback: PlaybackLease | null = null, planeFrame: PhoneRuntimeTimerHandle | null = null, playbackController: AbortController | null = null, playbackRequest: PhoneMediaFrameRequest | null = null;
   let prewarmController: AbortController | null = null;
   let visibleEntranceCommitSequence: number | null = null;
   let pendingViewport: Extract<PhoneRuntimeHostEvent, { type: 'viewport' }> | null = null;
@@ -254,58 +253,59 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     connected && expected === connection
   );
 
-  const cancelPlayback = (): void => { if (playback) { environment.cancelFrame(playback.handle); playback.controller?.abort(); } playback = null; };
+  const cancelPlayback = (): void => { if (playback) environment.cancelFrame(playback.h); playbackController?.abort(); playback = null; playbackRequest = null; };
 
   const syncPlayback = (activeConnection: number): void => {
     if (!ownsConnection(activeConnection)) return cancelPlayback();
     const active = snapshot.status === 'transaction' ? snapshot.transaction : null;
     if (!active || active.phase !== 'playing' || active.reducedMotion
       || snapshot.visibility !== 'foreground') return cancelPlayback();
-    const segment = phoneManifest.segments.find(({ id }) => id === active.attempt.segmentId);
-    if (!segment || !active.attempt.segmentId || !active.attempt.direction) return cancelPlayback();
-    const initialFrame = phoneSegmentChoreographyFrame(active.attempt.segmentId, active.progress, active.attempt.direction, active.stageIndex);
-    const mode: PlaybackMode = initialFrame.mediaClockMode === 'frame-lock' && initialFrame.mediaClockOwner !== 'none' ? 'frame-lock' : initialFrame.mediaClockMode === 'none' ? 'runtime' : 'legacy';
-    if (playback && sameAttempt(playback.attempt, active.attempt) && playback.stageIndex === active.stageIndex && playback.mode === mode) return;
+    const { attempt, stageIndex, progress: from } = active;
+    const segment = phoneManifest.segments.find(({ id }) => id === attempt.segmentId);
+    if (!segment || !attempt.direction) return cancelPlayback();
+    const initialFrame = phoneSegmentChoreographyFrame(attempt.segmentId!, from, attempt.direction, stageIndex);
+    const frameLock = initialFrame.mediaClockMode === 'frame-lock';
+    if (playback && sameAttempt(playback.a, attempt) && playback.s === stageIndex) return;
     cancelPlayback();
-    const policy = segment.timing.policy, reverse = active.attempt.direction === 'reverse', playIndex = policy.kind === 'stagedSnap' && reverse ? policy.playMs.length - 1 - active.stageIndex : active.stageIndex, durationMs = Math.max(1, policy.kind === 'stagedSnap' ? policy.playMs[playIndex] ?? 1 : segment.timing.virtualDuration), from = active.progress;
-    const boundaryIndex = policy.kind === 'stagedSnap' && reverse ? policy.stops.length - 1 - active.stageIndex : active.stageIndex, to = policy.kind === 'stagedSnap' && active.stageIndex < policy.playMs.length - 1 ? policy.stops[boundaryIndex] ?? from : reverse ? 0 : 1, startedAt = environment.activeNow(), controller = mode === 'frame-lock' ? new AbortController() : null;
-    const failFrame = (attempt: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>, owner: 'source' | 'target' | null, code: string, message: string): void => { const current = snapshot.status === 'transaction' && sameAttempt(snapshot.transaction.attempt, attempt) ? snapshot.transaction : null; const slot = current?.requiredPrepared.find(({ leg }) => leg === owner) ?? current?.requiredPrepared[0]; if (slot) enqueueFor({ type: 'failure-reported', slot, failure: { code, message, recoverable: true } }, activeConnection); };
+    const policy = segment.timing.policy, staged = policy.kind === 'stagedSnap' ? policy : null, reverse = attempt.direction === 'reverse', playIndex = staged && reverse ? staged.playMs.length - 1 - stageIndex : stageIndex, durationMs = Math.max(1, staged ? staged.playMs[playIndex] ?? 1 : segment.timing.virtualDuration);
+    const boundaryIndex = staged && reverse ? staged.stops.length - 1 - stageIndex : stageIndex, to = staged && stageIndex < staged.playMs.length - 1 ? staged.stops[boundaryIndex] ?? from : reverse ? 0 : 1, startedAt = environment.activeNow(), controller = new AbortController();
+    const failFrame = (owner: 'source' | 'target' | null, code: string, message: string): void => { cancelPlayback(); const slot = snapshot.status === 'transaction' && snapshot.transaction.requiredPrepared.find(({ leg }) => leg === owner); if (slot) enqueueFor({ type: 'failure-reported', slot, failure: { code, message, recoverable: true } }, activeConnection); };
     const tick = (): void => {
       if (!ownsConnection(activeConnection)) return cancelPlayback();
       const handle = environment.requestFrame(() => {
         const lease = playback;
-        if (!ownsConnection(activeConnection) || !lease || lease.handle !== handle || lease.connection !== activeConnection) return;
-        const ratio = Math.min(1, Math.max(0, (environment.activeNow() - lease.startedAt) / lease.durationMs));
-        const desiredProgress = lease.from + (lease.to - lease.from) * ratio;
-        if (lease.mode !== 'frame-lock') {
-          enqueueFor({ type: 'transition-progressed', attempt: lease.attempt, progress: desiredProgress, presentedSequence: ++mediaSequence }, activeConnection);
-          if (ratio < 1 && ownsConnection(activeConnection) && playback?.handle === handle) tick();
-          else if (playback?.handle === handle) { playback = null; enqueueFor({ type: 'transition-completed', attempt: lease.attempt }, activeConnection); }
+        if (!ownsConnection(activeConnection) || !lease || lease.h !== handle) return;
+        const ratio = Math.min(1, Math.max(0, (environment.activeNow() - lease.t) / lease.d));
+        const desiredProgress = lease.f + (lease.o - lease.f) * ratio;
+        if (!frameLock) {
+          enqueueFor({ type: 'transition-progressed', attempt: lease.a, progress: desiredProgress }, activeConnection);
+          if (ratio < 1 && ownsConnection(activeConnection) && playback?.h === handle) tick();
+          else if (playback?.h === handle) { playback = null; enqueueFor({ type: 'transition-completed', attempt: lease.a }, activeConnection); }
           return;
         }
-        const current = snapshot.status === 'transaction' && sameAttempt(snapshot.transaction.attempt, lease.attempt) && snapshot.transaction.stageIndex === lease.stageIndex ? snapshot.transaction : null;
-        const currentFrame = current && lease.attempt.segmentId && lease.attempt.direction ? phoneSegmentChoreographyFrame(lease.attempt.segmentId, desiredProgress, lease.attempt.direction, lease.stageIndex) : null;
-        const mediaOwner = currentFrame?.mediaClockOwner === 'source' || currentFrame?.mediaClockOwner === 'target' ? currentFrame.mediaClockOwner : null;
-        const ownerLease = current && mediaOwner ? [...leaves.values()].find((candidate) => !candidate.disposed && sameAttempt(candidate.reports.binding.attempt, lease.attempt) && candidate.reports.binding.leg === mediaOwner && candidate.frameToken !== null) ?? null : null;
+        if (snapshot.status !== 'transaction' || !sameAttempt(snapshot.transaction.attempt, lease.a) || snapshot.transaction.stageIndex !== lease.s) return cancelPlayback();
+        const mediaOwner = initialFrame.mediaClockOwner;
+        if (playbackRequest) return;
+        const ownerLease = mediaOwner !== 'none' ? [...leaves.values()].find((candidate) => !candidate.disposed && sameAttempt(candidate.reports.binding.attempt, lease.a) && candidate.reports.binding.leg === mediaOwner && candidate.frameToken !== null) : null;
+        const token = ownerLease?.frameToken;
         const presentFrame = ownerLease?.mount.commands.presentFrame;
-        if (!current || !currentFrame || !mediaOwner || !ownerLease?.frameToken || !presentFrame || !lease.controller) {
-          playback = { ...lease, awaitingCompletion: true };
-          failFrame(lease.attempt, mediaOwner, 'media-frame-presenter-unavailable', 'Frame-lock media owner is not mounted');
+        if (mediaOwner === 'none' || !token || !presentFrame) {
+          failFrame(mediaOwner === 'none' ? null : mediaOwner, 'media-frame-presenter-unavailable', 'owner unavailable');
           return;
         }
-        const request: PhoneMediaFrameRequest = { frameToken: ownerLease.frameToken, transactionId: lease.attempt.transactionId, direction: lease.attempt.direction === 'reverse' ? -1 : 1, sequence: ++mediaSequence, desiredProgress, signal: lease.controller.signal };
-        playback = { ...lease, latestSequence: request.sequence };
-        void Promise.resolve().then(() => presentFrame(request)).then((receipt) => {
-          const latest = playback;
-          if (!ownsConnection(activeConnection) || !latest || latest.mode !== 'frame-lock' || latest.latestSequence !== request.sequence || latest.connection !== activeConnection || !sameAttempt(latest.attempt, lease.attempt) || latest.stageIndex !== lease.stageIndex || snapshot.status !== 'transaction' || !sameAttempt(snapshot.transaction.attempt, lease.attempt) || snapshot.transaction.stageIndex !== lease.stageIndex) return;
-          if (receipt.status !== 'presented' || receipt.frameToken !== request.frameToken || receipt.sequence !== request.sequence || receipt.desiredProgress !== request.desiredProgress || !Number.isFinite(receipt.presentedProgress)) { playback = { ...latest, awaitingCompletion: true }; failFrame(lease.attempt, mediaOwner, 'media-frame-present-failed', 'Frame-lock receipt was stale or invalid'); return; }
-          playback = { ...latest, awaitingCompletion: ratio >= 1 };
-          enqueueFor({ type: 'transition-progressed', attempt: lease.attempt, progress: receipt.presentedProgress, presentedSequence: receipt.sequence }, activeConnection);
-          if (ratio >= 1) enqueueFor({ type: 'transition-completed', attempt: lease.attempt }, activeConnection);
-        }, (error: unknown) => { const latest = playback; if (!ownsConnection(activeConnection) || !latest || latest.mode !== 'frame-lock' || latest.latestSequence !== request.sequence || !sameAttempt(latest.attempt, lease.attempt)) return; playback = { ...latest, awaitingCompletion: true }; failFrame(lease.attempt, mediaOwner, 'media-frame-present-failed', error instanceof Error ? error.message : String(error)); });
-        if (ratio < 1 && ownsConnection(activeConnection) && playback?.handle === handle && !playback.awaitingCompletion) tick();
+        const request: PhoneMediaFrameRequest = { frameToken: token, transactionId: lease.a.transactionId, direction: reverse ? -1 : 1, sequence: ++sequence, desiredProgress, signal: playbackController!.signal }; const { sequence: seq, desiredProgress: wanted } = request;
+        const ownsFrameRequest = (): boolean => ownsConnection(activeConnection) && playbackRequest === request && snapshot.status === 'transaction' && sameAttempt(snapshot.transaction.attempt, lease.a) && snapshot.transaction.stageIndex === lease.s;
+        playbackRequest = request;
+        void presentFrame(request).then((receipt) => {
+          if (!ownsFrameRequest()) return;
+          if (receipt.status !== 'presented' || receipt.frameToken !== token || receipt.sequence !== seq || receipt.desiredProgress !== wanted || !Number.isFinite(receipt.presentedProgress)) { failFrame(mediaOwner, 'media-frame-present-failed', 'receipt invalid'); return; }
+          playbackRequest = null;
+          enqueueFor({ type: 'transition-progressed', attempt: lease.a, progress: receipt.presentedProgress, presentedSequence: receipt.sequence }, activeConnection);
+          if (environment.activeNow() >= lease.t + lease.d) enqueueFor({ type: 'transition-completed', attempt: lease.a }, activeConnection); else tick();
+        }, (error: unknown) => { if (!ownsFrameRequest()) return; failFrame(mediaOwner, 'media-frame-present-failed', error instanceof Error ? error.message : String(error)); });
       });
-      playback = { handle, attempt: active.attempt, stageIndex: active.stageIndex, startedAt, durationMs, from, to, connection: activeConnection, mode, controller, latestSequence: playback?.latestSequence ?? -1, awaitingCompletion: false };
+      playback = { h: handle, a: attempt, s: stageIndex, t: startedAt, d: durationMs, f: from, o: to };
+      playbackController = controller;
     };
     tick();
   };
@@ -1224,7 +1224,6 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     physicalEpoch = 0;
     visibleEntranceCommitSequence = null;
     sequence = 0;
-    mediaSequence = 0;
     queue = [];
     notifyResources();
     removeHostListener = environment.subscribeHost(

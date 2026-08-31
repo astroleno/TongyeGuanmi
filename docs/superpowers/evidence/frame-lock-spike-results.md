@@ -117,6 +117,14 @@ No asset variant is selected for promotion: Hero, AOD, Figure2, Figure3, TTG, PH
 
 The screenshots supplied by the user are real iPhone Safari evidence for the reviewed routes, but the model and iOS/Safari version were not captured. Consequently the exact certified version set, real decoder-memory peak, and product minimum remain open for Task 21. The emulated `phone-webkit` row is recorded only as an automated compatibility signal and does not lower or establish the product minimum.
 
+### Task 16 PH vertical slice
+
+| Evidence | Result |
+| --- | --- |
+| User-supplied iPhone Safari screenshots after the PH route retry fix | PH rendered, the endpoint receipt was accepted, and the visible presented-frame rows matched their desired frames with zero displayed lag (including the observed `0`, `45`, `1`, `44`, and `23` sequence). |
+| Device and browser identity | Not captured in the screenshots; this is supporting evidence only and does not close the Task 21 certified-device gate. |
+| Formal-route duplicate registration | Covered by the release phone retry test; a same-entry retry completed without an `already registered` failure. |
+
 ## Verification commands
 
 The following automated checks passed on the isolated branch:

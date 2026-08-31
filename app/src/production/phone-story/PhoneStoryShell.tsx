@@ -5,7 +5,7 @@ import { hashForScene } from '../navigation';
 import { PHONE_FIGURE2_ARCH_SRC, RetainedFigure2Arch } from '../../stage/PhoneRetainedFigure2Arch';
 import { phoneManifest, phoneNativePrewarmScenes, phoneRetainedFigure2ArchOwner, phoneSceneById,
   type PhoneSceneId, type PhoneSegmentId } from './manifest';
-import { createPhonePresentation, phoneIdentitySignature, runPhoneCleanupSteps, type PhoneLeafReportBinding,
+import { createPhonePresentation, runPhoneCleanupSteps, type PhoneLeafReportBinding,
   type PhoneLeafReportPort, type PhonePresentation } from './presentation';
 import type { PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneStoryEffect, PhoneStorySnapshot,
   PhoneTransactionLeg, PhoneViewportSnapshot } from './protocol';
@@ -449,7 +449,7 @@ function bindingFor(
 }
 
 function portKey(binding: PhoneLeafReportBinding): string {
-  return [binding.leg, phoneIdentitySignature(binding.allowedSurfaceIds, ',')].join('|');
+  return [binding.leg, binding.allowedSurfaceIds.join(',')].join('|');
 }
 
 export function PhoneStoryShell({

@@ -199,7 +199,7 @@ export const phoneSegmentChoreography = Object.freeze({
   'lab-ph': choreography(1, 0, 'linear', 'target', 'none'),
   'ph-education': choreography(
     ['range', 0, phPlaybackStop], 1, 'linear', 'source', 'source',
-    ['inverse-range', phPlaybackStop, 1], ['range', phPlaybackStop, 1]
+    ['inverse-range', phPlaybackStop, 1], ['range', phPlaybackStop, 1], 'canonical-target', 'frame-lock'
   ),
   'education-crane': choreography(1, 0, 'linear', 'target', 'none'),
   'crane-contact': choreography(['range', 0, cranePlaybackStop], ['range', .8, 1], ['range', .8, 1], 'source', 'source', ['fade', .999, 1], 1)

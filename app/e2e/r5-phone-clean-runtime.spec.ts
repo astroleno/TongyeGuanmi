@@ -317,3 +317,15 @@ test('AOD direct entry never invokes a rejected autoplay before a physical outgo
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);
   await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'stable');
 });
+
+test('formal phone route survives a same-entry retry without duplicate target registration', async ({ page }) => {
+  await page.goto('/#education', { waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'education', 0);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForCommitSequence(page, 'education', 0);
+  await assertSinglePhoneAuthority(page);
+  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-status', 'stable');
+  await expect(page.locator('.phone-story')).not.toHaveAttribute(
+    'data-phone-last-failure', /already registered/
+  );
+});

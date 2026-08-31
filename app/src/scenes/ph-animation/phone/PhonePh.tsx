@@ -9,13 +9,19 @@ import {
   type PhonePackedAlphaSurfaceMode
 } from '../../../media/phone-packed-alpha-surface';
 import { phoneMediaUrlFor } from '../../../media/phone-media';
+import { videoFrameMapFor } from '../../../media/video-frame-maps';
+import { frameIndexForProgress } from '../../../media/frame-timebase';
 import type {
   PhoneActivationInvocation,
   PhoneLeafCommandHandle,
   PhoneLeafGenerationBinding,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
-import type { PhoneLeafDisposeReason } from '../../../production/phone-story/protocol';
+import type {
+  PhoneLeafDisposeReason,
+  PhoneMediaFrameReceipt,
+  PhoneMediaFrameRequest
+} from '../../../production/phone-story/protocol';
 import {
   PH_BG_SRC,
   PH_FIGURE_END_SECONDS,
@@ -23,18 +29,20 @@ import {
   PH_FIGURE_VIDEO_SRC,
   PH_FRONT_SRC,
   PH_MEDIA_KEY,
+  phRawProgressForFrame,
+  phPlaybackProgress,
   parkPhMedia
 } from '..';
 import {
   renderPhonePhPresentation,
   type PhonePhPlaybackDirection
 } from './PhonePh.motion';
-import { seekPhonePhReverseFrame } from './PhonePh.reverse';
 import './PhonePh.css';
 
 const PHONE_PH_PACKED_VIDEO = phoneMediaUrlFor(
   'ph-figure-packed', 'ph-animation'
 );
+const PHONE_PH_FRAME_MAP = videoFrameMapFor(PH_MEDIA_KEY);
 
 function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
   return root?.matches('[data-r4-scene="ph-animation"]')
@@ -45,7 +53,6 @@ function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
 export {
   phonePhForegroundParallaxY,
   phonePhPresentationProgress,
-  phonePhTimelineProgressForMediaProgress,
   renderPhonePhPresentation
 } from './PhonePh.motion';
 
@@ -125,9 +132,6 @@ export function PhonePh({ reports }: PhonePhProps) {
     if (progress < progressRef.current - .0001) directionRef.current = -1;
     progressRef.current = progress;
     renderPhonePhPresentation(rootRef.current, progress, directionRef.current);
-    if (directionRef.current === -1) {
-      seekPhonePhReverseFrame(videoRef.current, progress);
-    }
     if (admissionGenerationRef.current > 0) {
       surfaceRef.current?.probe();
     }
@@ -149,6 +153,45 @@ export function PhonePh({ reports }: PhonePhProps) {
       if (readyGenerationRef.current !== generation) requestAnimationFrame(probe);
     };
     probe();
+  }, []);
+
+  const presentFrame = useCallback(async (request: PhoneMediaFrameRequest): Promise<PhoneMediaFrameReceipt> => {
+    const { frameToken: token, transactionId: id, direction, sequence, desiredProgress: wanted, signal } = request;
+    const binding = bindingRef.current;
+    const surface = surfaceRef.current;
+    const canvas = canvasRef.current;
+    const generation = surfaceGenerationRef.current;
+    if (disposedRef.current || !binding || binding.frameToken !== token
+      || binding.transactionId !== id
+      || (binding.direction !== undefined && binding.direction !== null
+        && (binding.direction === 'reverse' ? -1 : 1) !== direction)
+      || !surface || !canvas || !generation) {
+      throw new Error('PH presenter missing');
+    }
+    const mediaProgress = phPlaybackProgress(wanted);
+    const desiredFrameIndex = frameIndexForProgress(PHONE_PH_FRAME_MAP, mediaProgress);
+    const receipt = await surface.presentFrame({
+      runId: id,
+      direction,
+      sequence,
+      desiredProgress: mediaProgress,
+      frameMap: PHONE_PH_FRAME_MAP,
+      signal
+    });
+    const exact = receipt.status === 'presented'
+      && receipt.runId === id
+      && receipt.sequence === sequence
+      && receipt.presentedFrameIndex === desiredFrameIndex
+      && receipt.canvas === canvas
+      && receipt.generation === generation
+      && bindingRef.current === binding;
+    return {
+      ...receipt,
+      status: exact ? 'presented' : 'stale',
+      frameToken: token,
+      desiredProgress: wanted,
+      presentedProgress: exact ? phRawProgressForFrame(desiredFrameIndex) : wanted
+    };
   }, []);
 
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
@@ -231,6 +274,7 @@ export function PhonePh({ reports }: PhonePhProps) {
           : []
       };
     },
+    presentFrame,
     setMediaPhase(command) {
       const binding = bindingRef.current;
       const video = videoRef.current;
@@ -255,21 +299,9 @@ export function PhonePh({ reports }: PhonePhProps) {
       }
       surfaceRef.current?.setMode?.('forward', true);
       mediaPhaseRef.current = 'playing';
-      if (command.direction === 'reverse') {
-        // Reverse PH is presented-frame sampling; HTML video cannot run
-        // backwards, so render() owns the paused decoder seek.
-        video.pause();
-        return;
-      }
-      let playback: Promise<void>;
-      try { playback = Promise.resolve(video.play()); }
-      catch (error) { playback = Promise.reject(error); }
-      void playback.catch((error: unknown) => binding.reports.reportFailure({
-        code: 'ph-playback-rejected',
-        message: error instanceof Error ? error.message : String(error),
-        recoverable: true,
-        detail: { runToken: command.runToken, direction: command.direction }
-      }));
+      // The runtime's presented-frame receipt is the only transition clock.
+      // A primed decoder remains paused while strict requests seek and draw.
+      video.pause();
     },
     render,
     settle(endpoint) {
@@ -301,7 +333,7 @@ export function PhonePh({ reports }: PhonePhProps) {
       parkPhonePhMedia(rootRef.current);
       bindingRef.current = null;
     }
-  }), [activateSurface, probeGeneration, render, reportGeneration]);
+  }), [activateSurface, presentFrame, probeGeneration, render, reportGeneration]);
 
   useLayoutEffect(() => {
     const mountRoot = mountRootRef.current;

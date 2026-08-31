@@ -28,24 +28,10 @@ export function phonePhPresentationProgress(
 }
 
 /**
- * Native playback reports media time, while the canonical desktop renderer
- * expects its pre-retiming timeline progress. Invert phPlaybackProgress's
- * 0.78p + 0.22p² curve so every camera layer stays on the authored frame.
- */
-export function phonePhTimelineProgressForMediaProgress(
-  rawMediaProgress: number
-): number {
-  const mediaProgress = clamp(rawMediaProgress);
-  return clamp(
-    (-0.78 + Math.sqrt(0.78 * 0.78 + 0.88 * mediaProgress)) / 0.44
-  );
-}
-
-/**
  * The desktop camera lets the near island fall 95px faster than the figures.
  * On the portrait crop that separates feet from the ridge. The phone camera
  * keeps both plates on one vertical track, preserving their authored contact
- * throughout native playback and the PH → Education endpoint dissolve.
+ * throughout presented-frame playback and the PH → Education endpoint dissolve.
  */
 export function phonePhForegroundParallaxY(
   state: Pick<PhRenderState, 'figureY'>
@@ -73,7 +59,7 @@ export function renderPhonePhPresentation(
   section?.setAttribute('data-phone-ph-progress', progress.toFixed(4));
   section?.setAttribute(
     'data-phone-ph-clock',
-    direction === 1 ? 'native' : 'presented-frame-reverse'
+    direction === 1 ? 'presented-frame' : 'presented-frame-reverse'
   );
 
   return { ...canonical, frontY };

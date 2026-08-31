@@ -13,6 +13,7 @@ const surfaceProbe = vi.hoisted(() => ({
   options: null as null | Record<string, unknown>,
   generation: 0,
   activate: vi.fn(() => ++surfaceProbe.generation),
+  presentFrame: vi.fn(),
   setMode: vi.fn(),
   probe: vi.fn(() => false),
   render: vi.fn(() => true),
@@ -25,6 +26,7 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
     surfaceProbe.options = options;
     return {
       activate: surfaceProbe.activate,
+      presentFrame: surfaceProbe.presentFrame,
       setMode: surfaceProbe.setMode,
       probe: surfaceProbe.probe,
       render: surfaceProbe.render,
@@ -54,6 +56,7 @@ describe('clean PhonePh leaf', () => {
     surfaceProbe.generation = 0;
     surfaceProbe.activate.mockClear();
     surfaceProbe.activate.mockImplementation(() => ++surfaceProbe.generation);
+    surfaceProbe.presentFrame.mockReset();
     surfaceProbe.setMode.mockClear();
     surfaceProbe.probe.mockClear();
     surfaceProbe.render.mockClear();
@@ -123,6 +126,54 @@ describe('clean PhonePh leaf', () => {
       canvas: HTMLCanvasElement; generation: number;
     }) => void))({ canvas, generation: 1 });
     expect(mount.reports.reportFrame).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+  });
+
+  it('presents a quantized PH Canvas frame and maps its receipt to master progress', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePh reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvas = host.querySelector<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas="ph-figure"]'
+    )!;
+    commands.rebind({
+      reports: mount.reports, frameToken: 'ph:lock:frame:1',
+      transactionId: 'ph:lock', segmentId: 'ph-education',
+      direction: 'forward', leg: 'source'
+    });
+    commands.activate({
+      invocationId: 'ph:lock:activation', surfaceIds: ['ph-figure-video'],
+      credit: 'physical-epoch', runToken: 'ph:lock', direction: 'forward'
+    });
+    canvas.dataset.packedAlphaGeneration = '1';
+    surfaceProbe.presentFrame.mockImplementationOnce(async (request: {
+      runId: string; sequence: number; desiredProgress: number;
+      frameMap: { endFrame: number }; signal: AbortSignal;
+    }) => ({
+      status: 'presented' as const, runId: request.runId,
+      sequence: request.sequence, desiredFrameIndex: 20,
+      presentedFrameIndex: 20, mediaTimeSeconds: 20 / 30,
+      presentedProgress: request.desiredProgress,
+      evidence: 'packed-canvas-draw' as const, canvas, generation: 1
+    }));
+
+    const receipt = await commands.presentFrame!({
+      frameToken: 'ph:lock:frame:1', transactionId: 'ph:lock', direction: 1,
+      sequence: 7, desiredProgress: 0.5, signal: new AbortController().signal
+    });
+
+    expect(surfaceProbe.presentFrame).toHaveBeenCalledWith(expect.objectContaining({
+      runId: 'ph:lock', sequence: 7, desiredProgress: expect.closeTo(.445, 3),
+      frameMap: expect.objectContaining({ frameCount: 46 })
+    }));
+    expect(receipt).toMatchObject({
+      status: 'presented', frameToken: 'ph:lock:frame:1', sequence: 7,
+      desiredProgress: .5, evidence: 'packed-canvas-draw'
+    });
+    expect(receipt.presentedProgress).toBeCloseTo(.5, 2);
+    expect(receipt.desiredProgress).toBe(.5);
     act(() => root.unmount());
   });
 
@@ -384,7 +435,7 @@ describe('clean PhonePh leaf', () => {
     commands.setMediaPhase?.({
       phase: 'playing', runToken: 'ph:outgoing', direction: 'forward', stageIndex: 0
     });
-    expect(play).toHaveBeenCalledTimes(3);
+    expect(play).toHaveBeenCalledTimes(2);
     const pause = vi.mocked(HTMLMediaElement.prototype.pause);
     pause.mockClear();
     commands.render(0);
@@ -392,7 +443,7 @@ describe('clean PhonePh leaf', () => {
     act(() => root.unmount());
   });
 
-  it('keeps reverse presented-frame playback paused', async () => {
+  it('keeps reverse presented-frame playback paused after activation nudge', async () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     const mount = reportFixture();
@@ -410,6 +461,7 @@ describe('clean PhonePh leaf', () => {
     });
 
     expect(play).toHaveBeenCalledOnce();
+    expect(host.querySelector<HTMLVideoElement>('[data-ph-alpha-video]')?.paused).toBe(true);
     act(() => root.unmount());
   });
 
@@ -541,7 +593,7 @@ describe('clean PhonePh leaf', () => {
       direction: 'forward', stageIndex: 0
     });
     expect(surfaceProbe.setMode).toHaveBeenLastCalledWith('forward', true);
-    expect(play).toHaveBeenCalledOnce();
+    expect(play).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
 

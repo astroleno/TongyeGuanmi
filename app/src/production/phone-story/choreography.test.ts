@@ -55,7 +55,7 @@ const mediaClockModes = {
   'aod-method-top': 'legacy', 'method-bottom-figure2': 'none',
   'figure2-distance-expand': 'legacy', 'figure2-proof-brand': 'none',
   'brand-figure3': 'none', 'figure3-services': 'legacy', 'services-ttg': 'none',
-  'ttg-lab': 'legacy', 'lab-ph': 'none', 'ph-education': 'legacy',
+  'ttg-lab': 'legacy', 'lab-ph': 'none', 'ph-education': 'frame-lock',
   'education-crane': 'none', 'crane-contact': 'legacy'
 } as const satisfies Readonly<Record<PhoneSegmentId, 'none' | 'legacy' | 'frame-lock'>>;
 

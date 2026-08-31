@@ -4027,7 +4027,10 @@ test('incoming media stays parked at frame zero for PH and both Crane layers', a
   }
 });
 
-test('PH authored playback advances only during PH to Education', async ({ page }) => {
+test('PH presented-frame playback advances only during PH to Education', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as typeof window & { __r5PhoneRuntimeLog?: unknown[] }).__r5PhoneRuntimeLog = [];
+  });
   await page.goto('/#ph-animation', { waitUntil: 'domcontentloaded' });
   const before = await waitForDirectEntryCommit(page, 'ph-animation');
   const retainedGeneration = Number(await page
@@ -4036,6 +4039,9 @@ test('PH authored playback advances only during PH to Education', async ({ page 
   const stop = await recordPhoneStoryFrames(page);
   await nextAnimationFrame(page);
   await sendFrontIntent(page, 'forward');
+  await expect(page.locator('.phone-ph [data-r4-scene="ph-animation"]')).toHaveAttribute(
+    'data-phone-ph-clock', 'presented-frame'
+  );
   await waitForCommitSequence(page, 'education', before);
   const samples = await stop();
   const outgoing = (sample: PhoneStoryFrameSample) => (
@@ -4046,9 +4052,20 @@ test('PH authored playback advances only during PH to Education', async ({ page 
   const video = mediaTrace(samples, 'ph-figure-video', outgoing);
   const canvas = canvasMediaTrace(samples, 'ph-figure-canvas', outgoing);
   expect(video.length).toBeGreaterThan(6);
+  expect(video.every(({ paused }) => paused), 'PH strict video stays paused').toBe(true);
   expect(video.at(-1)!.currentTime - video[0]!.currentTime).toBeGreaterThan(.15);
   expect(canvas.length).toBeGreaterThan(3);
   expect(canvas.at(-1)!.mediaTime - canvas[0]!.mediaTime).toBeGreaterThan(.15);
+  const quantizedTimes = samples.flatMap((sample) => outgoing(sample)
+    ? sample.canvases
+      .filter(({ surfaceId, mediaTime }) => surfaceId === 'ph-figure-canvas'
+        && mediaTime !== null)
+      .map(({ mediaTime }) => mediaTime!)
+    : []);
+  expect(quantizedTimes.length).toBeGreaterThan(3);
+  expect(quantizedTimes.every((mediaTime) => (
+    Math.abs(mediaTime * 30 - Math.round(mediaTime * 30)) < .01
+  )), 'PH Canvas media times stay on integer frame boundaries').toBe(true);
   const outgoingGenerations = new Set(samples.flatMap((sample) => (
     outgoing(sample)
       ? sample.canvases.filter(({ surfaceId }) => surfaceId === 'ph-figure-canvas')
@@ -4063,6 +4080,28 @@ test('PH authored playback advances only during PH to Education', async ({ page 
   expect(presented.every(({ alphaStatus, opacity }) => (
     alphaStatus === 'verified' && opacity > 0
   ))).toBe(true);
+  const runtimeReceipts = await page.evaluate(() => (
+    (window as typeof window & { __r5PhoneRuntimeLog?: Array<{
+      status: string;
+      transaction?: {
+        attempt: { segmentId: string | null; direction: string | null };
+        phase: string;
+        progress: number;
+        presentedSequence: number;
+      } | null;
+    }> }).__r5PhoneRuntimeLog ?? []
+  ).flatMap(({ status, transaction }) => (
+    status === 'transaction' && transaction?.attempt.segmentId === 'ph-education'
+      && transaction.phase === 'playing' && transaction.presentedSequence >= 0
+      ? [{ progress: transaction.progress, sequence: transaction.presentedSequence }]
+      : []
+  )));
+  expect(runtimeReceipts.length).toBeGreaterThan(3);
+  expect(runtimeReceipts.every(({ progress }) => progress >= 0 && progress <= 1))
+    .toBe(true);
+  expect(runtimeReceipts.every(({ sequence }, index) => (
+    index === 0 || sequence >= runtimeReceipts[index - 1]!.sequence
+  )), 'PH receipts commit in sequence order').toBe(true);
 });
 
 test('Crane authored playback advances both videos only during Crane to Contact', async ({ page }) => {
