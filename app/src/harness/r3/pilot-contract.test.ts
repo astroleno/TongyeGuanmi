@@ -91,27 +91,60 @@ class FakeElement {
 }
 
 class FakeVideo extends FakeElement {
-  currentTime = 0;
+  private time = 0;
+  private frameId = 0;
+  private readonly frameCallbacks = new Map<number, (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void>();
+  private readonly listeners = new Map<string, Set<() => void>>();
+
+  get currentTime(): number {
+    return this.time;
+  }
+
+  set currentTime(value: number) {
+    this.time = value;
+    this.seeking = false;
+    this.presentFrame();
+  }
+
   duration = 5.03;
   paused = true;
+  seeking = false;
   preload = 'auto';
   playbackRate = 1;
   loop = false;
   muted = true;
   playsInline = true;
 
-  addEventListener(): void {}
-  removeEventListener(): void {}
+  addEventListener(type: string, listener: () => void): void {
+    const listeners = this.listeners.get(type) ?? new Set<() => void>();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: () => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
   load(): void {}
 
   requestVideoFrameCallback(
     callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
   ): number {
-    callback(0, {} as VideoFrameCallbackMetadata);
-    return 1;
+    const id = ++this.frameId;
+    this.frameCallbacks.set(id, callback);
+    return id;
   }
 
-  cancelVideoFrameCallback(): void {}
+  cancelVideoFrameCallback(id: number): void {
+    this.frameCallbacks.delete(id);
+  }
+
+  presentFrame(): void {
+    const callbacks = [...this.frameCallbacks.values()];
+    this.frameCallbacks.clear();
+    for (const callback of callbacks) {
+      callback(0, { mediaTime: this.time } as VideoFrameCallbackMetadata);
+    }
+  }
 
   pause(): void {
     this.paused = true;
@@ -198,6 +231,7 @@ function context(
     : null);
   if (id === 'star-map-aod' && toElement) {
     const target = toElement as unknown as FakeElement;
+    target.dataset.aodTransition = 'true';
     target.connect('[data-aod-figure-video]', new FakeVideo());
   }
   return {

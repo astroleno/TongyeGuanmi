@@ -1,8 +1,11 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+
+const { test } = process.env.VITEST
+  ? await import('vitest')
+  : await import('node:test');
 
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const contract = JSON.parse(await readFile(

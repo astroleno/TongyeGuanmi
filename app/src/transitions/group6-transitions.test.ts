@@ -347,8 +347,14 @@ describe('R4 group6 transitions', () => {
       durationMs: PH_PLAYBACK_MS,
       signal: preparationSignal()
     });
-    await presentAndCommit(timeline, fixture.context.runId, 1, PH_EDUCATION_ANIMATION_STOP, 1);
-    expect(video.currentTime).toBeCloseTo(1.5, 3);
+    const forwardEndpoint = await presentAndCommit(
+      timeline, fixture.context.runId, 1, PH_EDUCATION_ANIMATION_STOP, 1
+    );
+    expect(forwardEndpoint).toMatchObject({
+      status: 'presented',
+      evidence: 'video-frame-callback'
+    });
+    expect(forwardEndpoint.presentedProgress).toBeCloseTo(PH_EDUCATION_ANIMATION_STOP, 12);
     const forwardPlayCalls = video.playCalls;
 
     await prepareAndCommit(timeline, {

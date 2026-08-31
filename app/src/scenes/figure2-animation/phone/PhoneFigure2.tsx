@@ -150,7 +150,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
             direction, clamped
           )
         });
-      } catch {
+      } catch { /* detached media is fail-closed for this paint */
       }
     }
     const hold = staged && (!isFigure2MediaLeg(binding)

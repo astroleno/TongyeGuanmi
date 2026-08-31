@@ -53,6 +53,7 @@ function BrandContent({ reading }: Readonly<{ reading: boolean }>) {
 }
 
 export function Reading(_props: Readonly<{ sceneId: string }>) {
+  void _props;
   return <BrandContent reading />;
 }
 

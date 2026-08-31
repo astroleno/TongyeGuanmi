@@ -1,7 +1,10 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { summarizeFrameProbe } from './report-frame-seek-assets.mjs';
+
+const { test } = process.env.VITEST
+  ? await import('vitest')
+  : await import('node:test');
 
 function syntheticFrames({ firstPtsSeconds = 0, durationSeconds = 1 / 30 } = {}) {
   return Array.from({ length: 24 }, (_, index) => ({

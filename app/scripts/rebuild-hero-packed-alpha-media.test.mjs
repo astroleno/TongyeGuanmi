@@ -1,6 +1,9 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHeroPackedArgs, validateStagePath } from './rebuild-hero-packed-alpha-media.mjs';
+
+const { test } = process.env.VITEST
+  ? await import('vitest')
+  : await import('node:test');
 
 test('Hero packed rebuild only stages output under the disposable directory', () => {
   assert.deepEqual(parseHeroPackedArgs([]), {

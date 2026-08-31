@@ -671,7 +671,7 @@ it('keeps deep WebM qualification local and out of GitHub workflows', () => {
   expect(deepMediaVerifier).toContain('colorSsimMin: 0.9938');
   expect(deepMediaVerifier).toContain('alphaSsimMin: 0.9955');
   expect(deepMediaVerifier).toContain('keyframeIndexes');
-  expect(deepMediaVerifier).toContain('expectedFrameStep');
+  expect(deepMediaVerifier).toContain('assertFrameMapProbe');
   expect(workflowSources).not.toMatch(/\bff(?:mpeg|probe)\b/i);
   expect(workflowSources).not.toContain('verify:media:deep');
   expect(workflowSources).not.toMatch(/\bplaywright\b/i);

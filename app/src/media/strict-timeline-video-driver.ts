@@ -548,6 +548,7 @@ export function prepareStrictTimelineVideoFrame(
 
 export function disposeStrictTimelineVideoDriver(video: HTMLVideoElement): void {
   strictDrivers.get(video)?.dispose();
+  strictDrivers.delete(video);
 }
 
 export function prepareTimelineVideoFrame(

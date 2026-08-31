@@ -48,7 +48,12 @@ function withHeroPatternStaged(
     throw new Error('hero-pattern segment missing');
   }
   nodes[index] = {
-    ...segment,
+    ...(() => {
+      if (preparingTimeoutMs !== undefined) return segment;
+      const withoutMedia = { ...segment };
+      delete withoutMedia.mediaPlayback;
+      return { ...withoutMedia, requiredMilestones: ['targetReady', 'buildReady'] as const };
+    })(),
     policy: { kind: 'stagedSnap', stops, playMs, advance },
     virtualDuration: playMs.reduce((sum, value) => sum + value, 0),
     ...(preparingTimeoutMs !== undefined
@@ -77,7 +82,11 @@ function withHeroPatternSnap(): StoryManifest {
     throw new Error('hero-pattern segment missing');
   }
   nodes[index] = {
-    ...segment,
+    ...(() => {
+      const withoutMedia = { ...segment };
+      delete withoutMedia.mediaPlayback;
+      return { ...withoutMedia, requiredMilestones: ['targetReady', 'buildReady'] as const };
+    })(),
     policy: { kind: 'snap', chargeThreshold: 0.1 }
   };
   return { ...manifest, nodes };

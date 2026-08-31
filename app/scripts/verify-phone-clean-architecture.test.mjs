@@ -471,7 +471,7 @@ test('does not confuse an unrelated same-named member with the factory symbol', 
 });
 
 test('rejects every external dependency outside each core file allowlist', async () => {
-  for (const [label, specifier] of Object.entries({
+  for (const [, specifier] of Object.entries({
     legacyMachine: '../phone/legacy-machine',
     timeline: '../phone/phone-stage-timeline',
     coordinator: '../phone/phone-transition-coordinator',

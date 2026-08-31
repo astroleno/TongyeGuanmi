@@ -6,12 +6,23 @@ import type {
   LayerVisibilityState,
   SceneId,
   StageHandle,
-  StoryManifest
+  SpineSegmentNode,
+  StoryManifest,
+  TransitionModule
 } from '../story/types';
 
 async function flush(ms = 0): Promise<void> {
   await vi.advanceTimersByTimeAsync(ms);
   await Promise.resolve();
+}
+
+function withoutMediaPlayback(segment: SpineSegmentNode): SpineSegmentNode {
+  const withoutMedia = { ...segment };
+  delete withoutMedia.mediaPlayback;
+  return {
+    ...withoutMedia,
+    requiredMilestones: ['targetReady', 'buildReady']
+  };
 }
 
 function deferred<T = void>() {
@@ -33,10 +44,20 @@ function withFirstSegmentScrub(): StoryManifest {
     ...source,
     nodes: [
       nodes[0]!,
-      { ...firstSegment, policy: { kind: 'scrub', snapAfterIdleMs: 160 } },
+      { ...withoutMediaPlayback(firstSegment), policy: { kind: 'scrub', snapAfterIdleMs: 160 } },
       ...nodes.slice(2)
     ]
   } as StoryManifest;
+}
+
+function withoutMediaManifest(): StoryManifest {
+  const source = structuredClone(storyManifest);
+  return {
+    ...source,
+    nodes: source.nodes.map((node) => node.kind === 'segment'
+      ? withoutMediaPlayback(node)
+      : node)
+  };
 }
 
 function withFirstSegmentStaged(): StoryManifest {
@@ -51,7 +72,7 @@ function withFirstSegmentStaged(): StoryManifest {
     nodes: [
       nodes[0]!,
       {
-        ...firstSegment,
+        ...withoutMediaPlayback(firstSegment),
         policy: {
           kind: 'stagedSnap',
           stops: [0.5],
@@ -70,9 +91,40 @@ function withSegmentsSnap(...segmentIds: readonly string[]): StoryManifest {
   return {
     ...source,
     nodes: source.nodes.map((node) => node.kind === 'segment' && segmentIds.includes(node.id)
+      ? { ...withoutMediaPlayback(node), policy: { kind: 'snap', chargeThreshold: 0.1 } }
+      : node)
+  } as StoryManifest;
+}
+
+function withFrameLockSegmentsSnap(...segmentIds: readonly string[]): StoryManifest {
+  const source = structuredClone(storyManifest);
+  return {
+    ...source,
+    nodes: source.nodes.map((node) => node.kind === 'segment' && segmentIds.includes(node.id)
       ? { ...node, policy: { kind: 'snap', chargeThreshold: 0.1 } }
       : node)
   } as StoryManifest;
+}
+
+function frameLockTransition(): TransitionModule {
+  return {
+    id: 'hero-pattern',
+    buildTimeline: () => ({
+      play: () => Promise.resolve(),
+      presentProgress: (request) => Promise.resolve({
+        status: 'presented' as const,
+        runId: request.runId,
+        sequence: request.sequence,
+        desiredProgress: request.desiredProgress,
+        presentedProgress: request.desiredProgress,
+        evidence: 'runtime' as const
+      }),
+      progress: vi.fn(),
+      reverse: () => Promise.resolve(),
+      jumpToEnd: vi.fn(),
+      dispose: vi.fn()
+    })
+  };
 }
 
 function readingStage(scene: SceneId, element: HTMLElement): StageHandle {
@@ -277,8 +329,9 @@ describe('director runtime actor loop', () => {
     const mediaReady = deferred();
     const runtime = createDirectorRuntime({
       actorEpoch: 'media-gate',
-      manifest: withSegmentsSnap('hero-pattern'),
+      manifest: withFrameLockSegmentsSnap('hero-pattern'),
       syntheticPlayMs: 20,
+      transitions: { 'hero-pattern': frameLockTransition() },
       readyGate: {
         waitForMediaReady: () => mediaReady.promise
       }
@@ -303,8 +356,9 @@ describe('director runtime actor loop', () => {
     const targetReady = deferred();
     const runtime = createDirectorRuntime({
       actorEpoch: 'target-gate',
-      manifest: withSegmentsSnap('hero-pattern'),
+      manifest: withFrameLockSegmentsSnap('hero-pattern'),
       syntheticPlayMs: 20,
+      transitions: { 'hero-pattern': frameLockTransition() },
       readyGate: {
         waitForTargetReady: () => targetReady.promise
       }
@@ -329,8 +383,9 @@ describe('director runtime actor loop', () => {
     const calls: string[] = [];
     const runtime = createDirectorRuntime({
       actorEpoch: 'build-gate',
-      manifest: withSegmentsSnap('hero-pattern'),
+      manifest: withFrameLockSegmentsSnap('hero-pattern'),
       syntheticPlayMs: 20,
+      transitions: { 'hero-pattern': frameLockTransition() },
       readyGate: {
         beginBuild: ({ segment, prepareRunId }) => calls.push(`begin:${segment.id}:${prepareRunId}`),
         reportBuildReady: ({ segment, prepareRunId }) => {
@@ -605,6 +660,7 @@ describe('director runtime actor loop', () => {
   it('requires fresh input at the figure2-animation hold after the Method reading transition', async () => {
     const runtime = createDirectorRuntime({
       actorEpoch: 'figure2-fresh-input',
+      manifest: withoutMediaManifest(),
       syntheticPlayMs: 20
     });
     runtime.send({ type: 'BOOT_READY' });
@@ -644,6 +700,7 @@ describe('director runtime actor loop', () => {
     });
     const runtime = createDirectorRuntime({
       actorEpoch: 'contact-local-recovery',
+      manifest: withoutMediaManifest(),
       transitions: {
         'crane-contact': {
           id: 'crane-contact',
@@ -790,6 +847,7 @@ describe('director runtime actor loop', () => {
     });
     const runtime = createDirectorRuntime({
       actorEpoch: 'contact-recovery-failed',
+      manifest: withoutMediaManifest(),
       transitions: {
         'crane-contact': {
           id: 'crane-contact',
@@ -854,6 +912,7 @@ describe('director runtime actor loop', () => {
     });
     const runtime = createDirectorRuntime({
       actorEpoch: 'contact-stale-recovery',
+      manifest: withoutMediaManifest(),
       transitions: {
         'crane-contact': {
           id: 'crane-contact',

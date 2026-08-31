@@ -1,10 +1,13 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   alphaVideoSourcePairs,
   canonicalVideoContracts,
   packedAlphaVideoSources
 } from './homepage-media-contract.mjs';
+
+const { test } = process.env.VITEST
+  ? await import('vitest')
+  : await import('node:test');
 
 const expected = new Map([
   ['assets/figure1.webm', [24, 1, 49, 48]],

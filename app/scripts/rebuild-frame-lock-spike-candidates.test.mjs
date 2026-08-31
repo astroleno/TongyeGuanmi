@@ -1,5 +1,8 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
+
+const { test } = process.env.VITEST
+  ? await import('vitest')
+  : await import('node:test');
 
 import {
   parseCandidateArgs,
