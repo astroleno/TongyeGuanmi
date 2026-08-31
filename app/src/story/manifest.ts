@@ -290,6 +290,7 @@ function mediaPlaybackContract(
 
 const aodAnimationMedia = ['aod-figure-motion'] as const;
 const figure2AnimationMedia = ['figure2-pair-motion'] as const;
+const heroAnimationMedia = ['hero-figure-motion'] as const;
 const figure3AnimationMedia = ['figure3-motion'] as const;
 const ttgAnimationMedia = ['ttg-figure-motion'] as const;
 const phAnimationMedia = ['ph-figure-motion'] as const;
@@ -315,16 +316,23 @@ function incomingAnimationMediaPlayback(
     return undefined;
   }
   const reverseRequired = segment === 'method-bottom-figure2' || segment === 'lab-ph';
-  const phEndpointFrameLock = segment === 'lab-ph' && targetScene === 'ph-animation';
+  const frameLock = (
+    segment === 'star-map-aod' && targetScene === 'aod-animation'
+  ) || (
+    segment === 'method-bottom-figure2' && targetScene === 'figure2-animation'
+  ) || (
+    segment === 'lab-ph' && targetScene === 'ph-animation'
+  );
+  const reverseFrameLock = frameLock && (reverseRequired || segment === 'star-map-aod');
   return [
     mediaPlaybackContract(
       segment,
       media,
       targetScene,
       {
-        forwardMode: phEndpointFrameLock ? 'frame-lock' : 'timeline',
-        ...(reverseRequired ? {
-          reverseMode: phEndpointFrameLock ? 'frame-lock' : 'timeline' as const,
+        forwardMode: frameLock ? 'frame-lock' : 'timeline',
+        ...(reverseRequired || segment === 'star-map-aod' ? {
+          reverseMode: reverseFrameLock ? 'frame-lock' : 'timeline' as const,
           reverseRequired: true
         } : {}),
         preparingTimeoutMs: stagedMediaPreparingTimeoutMs
@@ -335,6 +343,20 @@ function incomingAnimationMediaPlayback(
 
 export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackContract[] | undefined {
   switch (segment) {
+    case 'hero-pattern':
+      return [
+        mediaPlaybackContract(
+          'hero-figure-pattern',
+          heroAnimationMedia,
+          'pattern',
+          {
+            forwardMode: 'frame-lock',
+            reverseMode: 'frame-lock',
+            reverseRequired: true,
+            preparingTimeoutMs: stagedMediaPreparingTimeoutMs
+          }
+        )
+      ];
     case 'aod-method-top':
       return [
         mediaPlaybackContract(
@@ -342,8 +364,8 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           aodAnimationMedia,
           'method-top',
           {
-            forwardMode: 'timeline',
-            reverseMode: 'timeline',
+            forwardMode: 'frame-lock',
+            reverseMode: 'frame-lock',
             reverseRequired: true
           }
         )
@@ -368,8 +390,8 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           figure2AnimationMedia,
           'figure2-proof',
           {
-            forwardMode: 'play',
-            reverseMode: 'play',
+            forwardMode: 'frame-lock',
+            reverseMode: 'frame-lock',
             reverseRequired: true,
             forwardMedia: figure2AnimationMedia,
             reverseMedia: figure2AnimationMedia,

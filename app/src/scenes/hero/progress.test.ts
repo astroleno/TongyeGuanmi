@@ -178,21 +178,22 @@ describe('hero scene renderer', () => {
     renderHeroPatternProgress(root as unknown as HTMLElement, 0.25, {
       mediaRun: { runId: 'hero-pattern-media:1', direction: 1 }
     });
-    expect(video.dataset.timelineVideoRun).toBe('hero-pattern-media:1');
-    expect(video.dataset.timelineVideoDirection).toBe('1');
+    expect(root.dataset.heroPlaybackRun).toBe('hero-pattern-media:1');
+    expect(root.dataset.heroPlaybackDirection).toBe('1');
+    expect(video.dataset.timelineVideoRun).toBeUndefined();
 
     renderHeroPatternProgress(root as unknown as HTMLElement, 0.75, {
       mediaRun: { runId: 'hero-pattern-media:2', direction: -1 }
     });
-    expect(video.dataset.timelineVideoRun).toBe('hero-pattern-media:2');
-    expect(video.dataset.timelineVideoDirection).toBe('-1');
+    expect(root.dataset.heroPlaybackRun).toBe('hero-pattern-media:2');
+    expect(root.dataset.heroPlaybackDirection).toBe('-1');
 
     renderHeroPatternProgress(root as unknown as HTMLElement, 0.5, {
       mediaRun: { runId: 'hero-pattern-media:3', direction: 1 }
     });
-    expect(video.dataset.timelineVideoRun).toBe('hero-pattern-media:3');
-    expect(video.dataset.timelineVideoDirection).toBe('1');
-    expect(video.currentTimeWrites).toBeGreaterThan(0);
+    expect(root.dataset.heroPlaybackRun).toBe('hero-pattern-media:3');
+    expect(root.dataset.heroPlaybackDirection).toBe('1');
+    expect(video.currentTimeWrites).toBe(0);
   });
 
   it('holds the figure at its authored start behind Loader and throughout Hero intro', () => {

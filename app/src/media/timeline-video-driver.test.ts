@@ -940,6 +940,63 @@ describe('timeline video driver', () => {
     driver.dispose();
   });
 
+  it('seeks slightly beyond a mapped final frame so Chromium can present its exact PTS', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    const targetTime = mediaTimeForFrame(frameMap, frameMap.endFrame);
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-final-frame-seek:1',
+      direction: 1,
+      progress: 1,
+      durationFallbackSeconds: 2,
+      frameMap
+    });
+
+    video.completeSeek();
+    expect(video.currentTimeWrites.at(-1)).toBeCloseTo(targetTime + 0.002, 3);
+    video.presentFrame(targetTime);
+
+    await expect(readiness).resolves.toMatchObject({
+      status: 'ready',
+      targetFrameIndex: frameMap.endFrame,
+      presentedFrameIndex: frameMap.endFrame,
+      mediaTimeSeconds: targetTime,
+      evidence: 'video-frame-callback'
+    });
+    driver.dispose();
+  });
+
+  it('seeks slightly beyond a mapped subrange endpoint without changing its receipt PTS', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const sourceMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    const frameMap = { ...sourceMap, endFrame: 30 };
+    const targetTime = mediaTimeForFrame(frameMap, frameMap.endFrame);
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-subrange-end-frame-seek:1',
+      direction: -1,
+      progress: 1,
+      durationFallbackSeconds: 2,
+      frameMap
+    });
+
+    video.completeSeek();
+    expect(video.currentTimeWrites.at(-1)).toBeCloseTo(targetTime + 0.002, 3);
+    video.presentFrame(targetTime);
+
+    await expect(readiness).resolves.toMatchObject({
+      status: 'ready',
+      targetFrameIndex: frameMap.endFrame,
+      presentedFrameIndex: frameMap.endFrame,
+      targetTime,
+      evidence: 'video-frame-callback'
+    });
+    driver.dispose();
+  });
+
   it('keeps an adjacent strict RVFC pending until the requested integer frame arrives', async () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));

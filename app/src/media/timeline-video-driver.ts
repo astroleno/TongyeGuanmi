@@ -116,6 +116,7 @@ const SEEK_TOLERANCE_SECONDS = 0.001;
 export const TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS = 0.05;
 const EXACT_TARGET_PRIME_OFFSET_SECONDS = 0.05;
 const EXACT_TARGET_PRIME_SETTLE_DELAY_MS = 50;
+const EXACT_END_FRAME_SEEK_OFFSET_SECONDS = 0.002;
 const SEEKED_FRAME_FALLBACK_DELAY_MS = 120;
 const PAUSED_COMPOSITOR_NUDGE_MS = 250;
 const DEFAULT_END_EPSILON_SECONDS = 0.02;
@@ -128,6 +129,28 @@ function finiteDuration(video: HTMLVideoElement, fallback: number): number {
   return Number.isFinite(video.duration) && video.duration > 0
     ? video.duration
     : Math.max(0.001, fallback);
+}
+
+function seekTimeForDesired(
+  video: HTMLVideoElement,
+  desired: DesiredFrame,
+  durationFallbackSeconds: number
+): number {
+  if (
+    !desired.frameMap
+    || desired.targetFrameIndex !== desired.frameMap.endFrame
+  ) {
+    return desired.targetTime;
+  }
+  // Chromium can resolve a seek to a WebM stream's mapped endpoint PTS to the
+  // previous decoded sample. Keep the receipt target at the exact mapped PTS,
+  // but seek just beyond it so RVFC can prove the endpoint integer frame. This
+  // also covers a transition that owns only a prefix of a longer source.
+  const duration = finiteDuration(
+    video,
+    Math.max(desired.targetTime + EXACT_END_FRAME_SEEK_OFFSET_SECONDS, durationFallbackSeconds)
+  );
+  return Math.min(duration, desired.targetTime + EXACT_END_FRAME_SEEK_OFFSET_SECONDS);
 }
 
 function frameResult(
@@ -683,7 +706,12 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.flushQueuedSeek();
       return;
     }
-    if (Math.abs(this.video.currentTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS) {
+    const seekTime = seekTimeForDesired(
+      this.video,
+      desired,
+      this.latestInput?.durationFallbackSeconds ?? 0
+    );
+    if (Math.abs(this.video.currentTime - seekTime) <= SEEK_TOLERANCE_SECONDS) {
       this.presentFrame(desired);
       this.flushQueuedSeek();
       return;
@@ -694,7 +722,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     // causal presentation callback for that seek.
     this.presentFrame(desired);
     try {
-      this.video.currentTime = desired.targetTime;
+      this.video.currentTime = seekTime;
     } catch (cause) {
       this.inFlightSeek = undefined;
       this.cancelFrameCallback();

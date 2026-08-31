@@ -10,11 +10,13 @@ import { HOME_COPY } from '../../story/copy';
 import { createRadialInkIntroController, type RadialInkIntroController } from '../../transitions/shared/radialInkIntro';
 import {
   disposeTimelineVideoDriver,
-  driveTimelineVideo,
   prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
+  type TimelineVideoDriveInput,
+  type TimelineVideoFrameResult
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { progressForFrameIndex } from '../../media/frame-timebase';
+import { VIDEO_FRAME_MAPS } from '../../media/video-frame-maps';
 import {
   attachHeroParallax,
   HERO_RADIAL_INK_FIELD,
@@ -30,6 +32,10 @@ export {
   renderHeroProgress
 } from './motion';
 import { HERO_PATTERN_MOTION_MS } from '../../story/timings';
+import type {
+  SegmentProgressReceipt,
+  SegmentProgressRequest
+} from '../../story/types';
 
 const HERO_BACK_IMAGE = new URL('../../../../assets/hero-back.webp', import.meta.url).href;
 const HERO_MIDDLE_IMAGE = new URL('../../../../assets/hero-middle.webp', import.meta.url).href;
@@ -40,7 +46,14 @@ const HERO_FIGURE_POSTER = new URL('../../../../assets/hero-figure-poster.webp',
 const HERO_VIDEO_START_SECONDS = 0;
 const HERO_VIDEO_END_EPSILON = 0.02;
 export const HERO_PATTERN_VIDEO_END_SECONDS = 0.9;
+export const HERO_MEDIA_KEY = 'hero-figure-motion';
 export const HERO_COPY = HOME_COPY;
+
+const HERO_PATTERN_FRAME_MAP = {
+  ...VIDEO_FRAME_MAPS[HERO_MEDIA_KEY],
+  endFrame: Math.round(HERO_PATTERN_VIDEO_END_SECONDS * VIDEO_FRAME_MAPS[HERO_MEDIA_KEY].fpsNumerator
+    / VIDEO_FRAME_MAPS[HERO_MEDIA_KEY].fpsDenominator)
+} as const;
 
 type HeroVideoElement = HTMLVideoElement & {
   __r4HeroPendingTime?: number;
@@ -52,6 +65,7 @@ export type HeroVideoPlaybackState = 'inactive' | 'start' | 'terminal';
 export type HeroPatternMediaRun = Readonly<{
   runId: string;
   direction: 1 | -1;
+  sequence?: number;
   reducedMotion?: boolean;
   signal?: AbortSignal | undefined;
 }>;
@@ -171,9 +185,51 @@ function heroPatternMediaInput(progress: number, mediaRun: HeroPatternMediaRun):
     // turn a prepared Hero frame into native playback.
     mode: 'timeline',
     reducedMotion: Boolean(mediaRun.reducedMotion),
-    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
-    signal: mediaRun.signal
+    allowSeekedFrameFallback: false,
+    allowPlaybackNudge: false,
+    frameMap: HERO_PATTERN_FRAME_MAP,
+    ...(mediaRun.sequence !== undefined ? { sequence: mediaRun.sequence } : {}),
+    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };
+}
+
+export function heroPatternSegmentProgressReceipt(
+  request: SegmentProgressRequest,
+  frame: TimelineVideoFrameResult
+): SegmentProgressReceipt {
+  return {
+    status: frame.status === 'ready' ? 'presented' : 'stale',
+    runId: request.runId,
+    sequence: request.sequence,
+    desiredProgress: request.desiredProgress,
+    presentedProgress: frame.status === 'ready'
+      ? progressForFrameIndex(HERO_PATTERN_FRAME_MAP, frame.presentedFrameIndex)
+      : request.desiredProgress,
+    evidence: frame.evidence === 'video-frame-callback'
+      ? 'video-frame-callback'
+      : 'runtime'
+  };
+}
+
+export function requestHeroPatternFrame(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  mediaRun: HeroPatternMediaRun
+): Promise<TimelineVideoFrameResult> {
+  const video = heroFigureVideo(root);
+  if (!video) {
+    return Promise.reject(new Error('hero media unavailable'));
+  }
+  return prepareTimelineVideoFrame(video, heroPatternMediaInput(rawProgress, mediaRun)).then((result) => {
+    if (!result) {
+      throw new Error('hero frame preparation returned no result');
+    }
+    if (result.status === 'ready') {
+      root?.setAttribute('data-hero-desired-frame', String(result.targetFrameIndex));
+      root?.setAttribute('data-hero-presented-frame', String(result.presentedFrameIndex));
+    }
+    return result;
+  });
 }
 
 export function renderHeroPatternProgress(
@@ -193,11 +249,9 @@ export function renderHeroPatternProgress(
   root?.style.setProperty('--r4-hero-scroll-figure-scale', scroll.figureScale.toFixed(4));
   root?.style.setProperty('--r4-hero-pattern-middle-progress', progress.toFixed(4));
   root?.style.setProperty('--r4-hero-pattern-figure-progress', progress.toFixed(4));
-  const video = heroFigureVideo(root);
-  if (video && options.mediaRun) {
-    driveTimelineVideo(video, heroPatternMediaInput(progress, options.mediaRun));
-  } else if (video && !options.retainMediaFrame) {
-    setHeroVideoPlaybackState(video, progress >= 0.999 ? 'terminal' : 'start');
+  if (options.mediaRun) {
+    root?.setAttribute('data-hero-playback-direction', String(options.mediaRun.direction));
+    root?.setAttribute('data-hero-playback-run', options.mediaRun.runId);
   }
   return { progress };
 }
@@ -212,7 +266,7 @@ export function prepareHeroPatternFrame(
   if (!video) {
     return Promise.reject(new Error('hero media unavailable'));
   }
-  return prepareTimelineVideoFrame(video, heroPatternMediaInput(rawProgress, mediaRun)).then((result) => {
+  return requestHeroPatternFrame(root, rawProgress, mediaRun).then((result) => {
     if (result?.status !== 'ready') {
       throw new Error('hero frame stale');
     }

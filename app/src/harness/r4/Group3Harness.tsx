@@ -42,6 +42,7 @@ export type Group3Snapshot = {
   recoveryCount: number;
   staleCompletionIgnored: number;
   trace: StoryDebugSnapshot['eventLog'];
+  lastError: string | null;
   layers: readonly {
     scene: string;
     role: string;
@@ -49,6 +50,7 @@ export type Group3Snapshot = {
     interactable: boolean;
     opacity: number;
   }[];
+  registry: ReturnType<HandleRegistry['snapshot']>;
 };
 
 type Group3HarnessApi = {
@@ -115,7 +117,7 @@ function eventTypes(snapshot: StoryDebugSnapshot): string[] {
   });
 }
 
-function readDomSnapshot(mode: R4Group3HarnessMode, snapshot: StoryDebugSnapshot, metrics: Group3Metrics): Group3Snapshot {
+function readDomSnapshot(mode: R4Group3HarnessMode, snapshot: StoryDebugSnapshot, metrics: Group3Metrics, registry?: HandleRegistry): Group3Snapshot {
   const layers = [...document.querySelectorAll<HTMLElement>('[data-stage-layer]')].map((layer) => {
     const computed = window.getComputedStyle(layer);
     return {
@@ -135,10 +137,12 @@ function readDomSnapshot(mode: R4Group3HarnessMode, snapshot: StoryDebugSnapshot
     interactableCount: layers.filter((layer) => layer.interactable).length,
     mountedCount: layers.length,
     eventLog: [...eventTypes(snapshot), ...metrics.localEvents].slice(-180),
+    lastError: snapshot.context.lastError?.message ?? null,
     recoveryCount: metrics.recoveryCount,
     staleCompletionIgnored: metrics.staleCompletionIgnored,
     trace: snapshot.eventLog,
-    layers
+    layers,
+    registry: registry?.snapshot() ?? { scenes: [], mediaReady: [], buildReady: [] }
   };
 }
 
@@ -259,7 +263,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
   };
 
   const play = async (direction: Direction, options: PlayOptions = {}) => {
-    buildDelayMs.current = options.buildTimeout ? 2200 : 0;
+    buildDelayMs.current = options.buildTimeout ? 9000 : 0;
     if (options.buildTimeout) {
       for (const segment of GROUP_SEGMENTS) {
         runtime.segmentPlayer.dispose(segment);
@@ -304,7 +308,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
       playReverse: (options) => play(-1, options),
       seek,
       idempotentCycle,
-      snapshot: () => readDomSnapshot(mode, runtimeSnapshotRef.current, metricsRef.current)
+      snapshot: () => readDomSnapshot(mode, runtimeSnapshotRef.current, metricsRef.current, registry)
     };
     window.__r4Group3 = api;
     return () => {
@@ -312,7 +316,7 @@ export function Group3Harness({ mode }: { mode: R4Group3HarnessMode }) {
     };
   });
 
-  const frame = readDomSnapshot(mode, runtimeSnapshot, metrics);
+  const frame = readDomSnapshot(mode, runtimeSnapshot, metrics, registry);
 
   return (
     <div className="stage-harness-shell r4-group-shell" data-r4-group="3" data-r4-mode={mode}>

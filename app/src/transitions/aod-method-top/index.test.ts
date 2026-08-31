@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { hiddenVisibility, holdVisibility } from '../../pilot/visibility';
 import { storyManifest } from '../../story/manifest';
-import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
+import type {
+  LayerHandle,
+  LayerVisibilityState,
+  SegmentProgressRequest,
+  SpineSegmentNode,
+  TransitionContext
+} from '../../story/types';
 import { createAodMethodTopTransition } from '.';
 
 type Listener = () => void;
@@ -18,7 +24,9 @@ class DeferredVideo {
   playsInline = true;
   playbackRate = 1;
   private time = 0;
-  private frameCallback: (() => void) | undefined;
+  private frameCallback:
+    | ((now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void)
+    | undefined;
   private readonly listeners = new Map<string, Set<Listener>>();
 
   get currentTime(): number { return this.time; }
@@ -35,7 +43,9 @@ class DeferredVideo {
   removeEventListener(type: string, listener: Listener): void {
     this.listeners.get(type)?.delete(listener);
   }
-  requestVideoFrameCallback(callback: () => void): number { this.frameCallback = callback; return 1; }
+  requestVideoFrameCallback(
+    callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+  ): number { this.frameCallback = callback; return 1; }
   cancelVideoFrameCallback(): void { this.frameCallback = undefined; }
   pause(): void { this.paused = true; }
   play(): Promise<void> { this.paused = false; return Promise.resolve(); }
@@ -47,7 +57,7 @@ class DeferredVideo {
     }
     const callback = this.frameCallback;
     this.frameCallback = undefined;
-    callback?.();
+    callback?.(0, { mediaTime: this.currentTime } as VideoFrameCallbackMetadata);
   }
 }
 
@@ -123,8 +133,8 @@ describe('AOD Method transition media contract', () => {
   it('uses the same presented timeline mapping in both directions', () => {
     const contract = createAodMethodTopTransition().mediaPlayback?.[0];
 
-    expect(contract?.forward).toMatchObject({ mode: 'timeline', required: true });
-    expect(contract?.reverse).toMatchObject({ mode: 'timeline', required: true });
+    expect(contract?.forward).toMatchObject({ mode: 'frame-lock', required: true });
+    expect(contract?.reverse).toMatchObject({ mode: 'frame-lock', required: true });
   });
 
   it('keeps cold reverse preparation pending until the terminal AOD frame is presented', async () => {
@@ -145,15 +155,31 @@ describe('AOD Method transition media contract', () => {
     expect(context.from.element?.style.zIndex).toBe('70');
     expect(context.from.element?.dataset.r4TransitionElevated).toBe('true');
 
-    for (const progress of [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0]) {
-      timeline.progress(progress);
-      video.presentRequestedFrame();
+    if (!timeline.presentProgress) {
+      throw new Error('AOD frame-lock presenter missing');
     }
 
-    const presented = video.currentTimeWrites.slice(-11);
-    expect(presented[0]).toBeCloseTo(2.567, 3);
+    const presented: number[] = [];
+    for (const [index, progress] of [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0].entries()) {
+      const request: SegmentProgressRequest = {
+        runId: context.runId,
+        direction: -1,
+        sequence: index + 1,
+        desiredProgress: progress,
+        signal: new AbortController().signal
+      };
+      const receipt = timeline.presentProgress(request);
+      video.presentRequestedFrame();
+      await expect(receipt).resolves.toMatchObject({
+        status: 'presented',
+        evidence: 'video-frame-callback'
+      });
+      presented.push(video.currentTime);
+    }
+
+    expect(presented[0]).toBeCloseTo(65 / 30, 6);
     expect(presented.at(-1)).toBe(0);
-    expect(new Set(presented).size).toBe(11);
+    expect(new Set(presented).size).toBe(10);
     for (let index = 1; index < presented.length; index += 1) {
       expect(presented[index - 1]).toBeGreaterThan(presented[index] ?? 0);
     }

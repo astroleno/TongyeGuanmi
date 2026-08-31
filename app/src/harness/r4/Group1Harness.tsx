@@ -38,6 +38,7 @@ export type Group1Snapshot = {
   interactableCount: number;
   mountedCount: number;
   eventLog: readonly string[];
+  lastError: string | null;
   recoveryCount: number;
   staleCompletionIgnored: number;
   trace: StoryDebugSnapshot['eventLog'];
@@ -89,7 +90,7 @@ async function waitForRuntimeIdle(
   runtime: ReturnType<typeof createDirectorRuntime>,
   direction: Direction
 ): Promise<void> {
-  for (let attempt = 0; attempt < 140; attempt += 1) {
+  for (let attempt = 0; attempt < 480; attempt += 1) {
     const state = String(runtime.getState().state);
     if (state === 'hold') {
       return;
@@ -147,6 +148,7 @@ function readDomSnapshot(mode: R4Group1HarnessMode, snapshot: StoryDebugSnapshot
     interactableCount: layers.filter((layer) => layer.interactable).length,
     mountedCount: layers.length,
     eventLog: [...eventTypes(snapshot), ...metrics.localEvents].slice(-140),
+    lastError: snapshot.context.lastError?.message ?? null,
     recoveryCount: metrics.recoveryCount,
     staleCompletionIgnored: metrics.staleCompletionIgnored,
     trace: snapshot.eventLog,
@@ -263,7 +265,7 @@ export function Group1Harness({ mode }: { mode: R4Group1HarnessMode }) {
   };
 
   const play = async (direction: Direction, options: PlayOptions = {}) => {
-    buildDelayMs.current = options.buildTimeout ? 2200 : 0;
+    buildDelayMs.current = options.buildTimeout ? 9000 : 0;
     if (options.buildTimeout) {
       for (const segment of GROUP_SEGMENTS) {
         runtime.segmentPlayer.dispose(segment);

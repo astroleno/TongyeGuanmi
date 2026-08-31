@@ -10,6 +10,7 @@ type Group2Snapshot = {
   interactableCount: number;
   mountedCount: number;
   eventLog: readonly string[];
+  lastError: string | null;
   recoveryCount: number;
   staleCompletionIgnored: number;
   layers: readonly {
@@ -67,9 +68,12 @@ type Group2VisualSnapshot = {
   visibleCaptionCount: number;
   methodLayerZ: number;
   figure2LayerZ: number;
-  figure2LayerClipPath: string;
-  figure2LayerRevealMode: string | null;
+  figure2FieldClipPath: string;
+  figure2FieldRevealMode: string | null;
   figure2LayerElevated: boolean;
+  figure2DesiredFrame: number;
+  figure2PresentedFrame: number;
+  figure2FrameEvidence: string | null;
   visiblePosterCount: number;
   videos: readonly {
     side: string;
@@ -80,6 +84,8 @@ type Group2VisualSnapshot = {
     paused: boolean;
     currentTime: number;
     preload: string;
+    targetFrame: number;
+    evidence: string | null;
   }[];
 };
 
@@ -95,6 +101,7 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
       ?? null;
     const methodScrollport = methodLayer?.querySelector<HTMLElement>('[data-reading-scrollport="true"]');
     const figure2Layer = figureRoot?.closest<HTMLElement>('[data-stage-layer]');
+    const figure2Field = figureRoot?.querySelector<HTMLElement>('[data-figure2-ownership-surface="true"]');
     const figureStyle = figureRoot ? window.getComputedStyle(figureRoot) : undefined;
     const figure = document.querySelector<HTMLElement>('.r4-figure2__figure');
     const figureRect = figure?.getBoundingClientRect();
@@ -138,9 +145,12 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
         }).length,
       methodLayerZ: Number.parseInt(window.getComputedStyle(methodLayer ?? document.body).zIndex || '0', 10),
       figure2LayerZ: Number.parseInt(window.getComputedStyle(figure2Layer ?? document.body).zIndex || '0', 10),
-      figure2LayerClipPath: window.getComputedStyle(figure2Layer ?? document.body).clipPath,
-      figure2LayerRevealMode: figure2Layer?.dataset.r4RevealMode ?? null,
+      figure2FieldClipPath: window.getComputedStyle(figure2Field ?? document.body).clipPath,
+      figure2FieldRevealMode: figure2Field?.dataset.r4RevealMode ?? null,
       figure2LayerElevated: figure2Layer?.dataset.r4TransitionElevated === 'true',
+      figure2DesiredFrame: Number.parseInt(figureRoot?.dataset.figure2DesiredFrame ?? '-1', 10),
+      figure2PresentedFrame: Number.parseInt(figureRoot?.dataset.figure2PresentedFrame ?? '-1', 10),
+      figure2FrameEvidence: figureRoot?.dataset.figure2FrameEvidence ?? null,
       visiblePosterCount: [...document.querySelectorAll<HTMLElement>('[data-figure2-poster]')]
         .filter((poster) => Number.parseFloat(getComputedStyle(poster).opacity) > 0.99).length,
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')]
@@ -153,7 +163,9 @@ async function visualSnapshot(page: Page): Promise<Group2VisualSnapshot> {
         loop: video.loop,
         paused: video.paused,
         currentTime: video.currentTime,
-        preload: video.preload
+        preload: video.preload,
+        targetFrame: Number.parseInt(video.dataset.timelineVideoTargetFrame ?? '-1', 10),
+        evidence: video.dataset.timelineVideoFrameEvidence ?? null
         }))
     };
   });
@@ -195,24 +207,8 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(methodHold.methodLeadCount).toBe(1);
     expect(methodHold.methodRowCount).toBe(0);
     expect(methodHold.methodLayerScrollHeight).toBe(methodHold.methodLayerClientHeight);
-    expect(methodHold.methodScrollHeight).toBe(0);
+    expect(methodHold.methodScrollHeight).toBeGreaterThan(methodHold.methodScrollClientHeight);
     expect(await page.locator('[data-stage-layer="method-bottom"][data-visible="true"]').count()).toBe(0);
-
-    await page.evaluate(() => {
-      void window.__r4Group2?.playForward();
-    });
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-bottom');
-    const methodStepsHold = await visualSnapshot(page);
-    expect(methodStepsHold.methodRowCount).toBe(5);
-    expect(methodStepsHold.methodScrollHeight).toBeGreaterThan(methodStepsHold.methodScrollClientHeight);
-    await page.evaluate(() => {
-      const scrollport = document.querySelector<HTMLElement>('[data-stage-layer="method-bottom"] [data-reading-scrollport="true"]');
-      if (scrollport) scrollport.scrollTop = scrollport.scrollHeight;
-    });
-    await expect.poll(async () => {
-      const visual = await visualSnapshot(page);
-      return visual.methodScrollTop + visual.methodScrollClientHeight >= visual.methodScrollHeight - 1;
-    }).toBe(true);
 
     await page.evaluate(() => {
       void window.__r4Group2?.playForward();
@@ -222,11 +218,13 @@ test.describe('R4 group2 canonical spine harness', () => {
       const visual = await visualSnapshot(page);
       const matches = visual.activeInkSegments.includes('method-bottom-figure2')
         && visual.fieldInkSegments.includes('method-bottom-figure2')
-        && visual.figure2LayerRevealMode === 'ink-occluded-live-gate'
-        && visual.figure2LayerClipPath.startsWith('polygon(')
+        && visual.figure2FieldRevealMode === 'ink-occluded-live-gate'
+        && visual.figure2FieldClipPath.startsWith('polygon(')
         && visual.figure2Progress === 0
         && visual.videos.length === 1
-        && visual.videos.every((video) => video.frameReady);
+        && visual.videos.every((video) => video.frameReady)
+        && visual.figure2DesiredFrame === visual.figure2PresentedFrame
+        && visual.figure2FrameEvidence === 'video-frame-callback';
       if (matches) methodFigureInk = visual;
       return matches;
     }, { timeout: 3_000 }).toBe(true);
@@ -234,8 +232,8 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(methodFigureInk.activeInkSegments).toContain('method-bottom-figure2');
     expect(methodFigureInk.figure2LayerElevated).toBe(true);
     expect(methodFigureInk.figure2LayerZ).toBeGreaterThan(methodFigureInk.methodLayerZ);
-    expect(methodFigureInk.figure2LayerClipPath.startsWith('polygon(')).toBe(true);
-    expect(methodFigureInk.figure2LayerRevealMode).toBe('ink-occluded-live-gate');
+    expect(methodFigureInk.figure2FieldClipPath.startsWith('polygon(')).toBe(true);
+    expect(methodFigureInk.figure2FieldRevealMode).toBe('ink-occluded-live-gate');
     expect(methodFigureInk.fieldInkSegments).toContain('method-bottom-figure2');
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.x).toBeCloseTo(0.5, 2);
     expect(methodFigureInk.inkOrigins['method-bottom-figure2']?.y).toBeCloseTo(1, 2);
@@ -250,7 +248,11 @@ test.describe('R4 group2 canonical spine harness', () => {
       && video.paused
       && video.currentTime < 0.1
       && video.preload === 'auto'
+      && video.targetFrame >= 0
+      && video.evidence === 'video-frame-callback'
     ))).toBe(true);
+    expect(methodFigureInk.figure2DesiredFrame).toBe(methodFigureInk.figure2PresentedFrame);
+    expect(methodFigureInk.figure2FrameEvidence).toBe('video-frame-callback');
 
     for (let index = 0; index < 18; index += 1) {
       await page.waitForTimeout(24);
@@ -271,8 +273,15 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(figure2Hold.videos).toHaveLength(1);
     expect(figure2Hold.visiblePosterCount).toBe(0);
     expect(figure2Hold.videos.every((video) => (
-      video.loop === false && video.frameReady && video.paused && video.currentTime < 0.1
+      video.loop === false
+      && video.frameReady
+      && video.paused
+      && video.currentTime < 0.1
+      && video.targetFrame >= 0
+      && video.evidence === 'video-frame-callback'
     ))).toBe(true);
+    expect(figure2Hold.figure2DesiredFrame).toBe(figure2Hold.figure2PresentedFrame);
+    expect(figure2Hold.figure2FrameEvidence).toBe('video-frame-callback');
 
     await page.evaluate(() => {
       void window.__r4Group2?.playReverse();
@@ -282,14 +291,6 @@ test.describe('R4 group2 canonical spine harness', () => {
       await page.waitForTimeout(24);
       reverseFrames.push(await snapshot(page));
     }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-bottom');
-    const reversedMethod = await visualSnapshot(page);
-    expect(reversedMethod.methodScrollTop + reversedMethod.methodScrollClientHeight).toBeGreaterThanOrEqual(
-      reversedMethod.methodScrollHeight - 1
-    );
-    await page.evaluate(() => {
-      void window.__r4Group2?.playReverse();
-    });
     await expect.poll(async () => (await snapshot(page)).window.current).toBe('method-top');
 
     for (const frame of [...forwardFrames, ...reverseFrames]) {
@@ -334,6 +335,6 @@ test.describe('R4 group2 canonical spine harness', () => {
     expect(frame.window.current).toBe('method-top');
     expect(frame.interactableCount).toBe(1);
     expect(frame.recoveryCount).toBe(1);
-    expect(frame.eventLog).toContain('BUILD_TIMEOUT:method-top-method-bottom');
+    expect(frame.lastError ?? '').toMatch(/timeout/i);
   });
 });

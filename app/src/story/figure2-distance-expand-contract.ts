@@ -36,12 +36,12 @@ export const FIGURE2_DISTANCE_EXPAND_SEGMENT = {
     id: 'figure2-pair',
     media: ['figure2-pair-motion'],
     forward: {
-      mode: 'play',
+      mode: 'frame-lock',
       required: true,
       media: ['figure2-pair-motion']
     },
     reverse: {
-      mode: 'play',
+      mode: 'frame-lock',
       required: true,
       media: ['figure2-pair-motion']
     },

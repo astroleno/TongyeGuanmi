@@ -9,6 +9,7 @@ import {
   figure2AnimationScene,
   figure2DepthTransformForProgress,
   figure2DirectionalMediaSnapshot,
+  requestFigure2AnimationFrame,
   prepareFigure2MediaLeg,
   renderFigure2AnimationProgress,
   renderFigure2Hold
@@ -235,21 +236,43 @@ describe('Figure2 canonical media', () => {
     expect(nearestStage.style.values.has('--r4-figure2-near-arch-scale')).toBe(false);
   });
 
-  it('maps document scrub progress into the authored forward and reverse halves', () => {
+  it('keeps rendering pure while the strict presenter maps progress into both media halves', async () => {
     const { root, video } = mediaRoot();
     renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.5, {
-      videoMode: 'seek',
+      videoMode: 'none',
       mediaRun: { runId: 'phone-forward:1', direction: 1 }
     });
-    expect(video.dataset.timelineVideoTarget).toBe('1.3000');
-    expect(video.dataset.timelineVideoDirection).toBe('1');
+    expect(root.attributes.get('data-figure2-playback-direction')).toBe('1');
+    expect(root.attributes.get('data-figure2-playback-run')).toBe('phone-forward:1');
+    expect(video.dataset.timelineVideoTarget).toBeUndefined();
 
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.5, {
-      videoMode: 'seek',
-      mediaRun: { runId: 'phone-reverse:1', direction: -1 }
+    const forward = requestFigure2AnimationFrame(root as unknown as HTMLElement, 0.5, {
+      runId: 'phone-forward:1',
+      direction: 1,
+      sequence: 1
     });
-    expect(video.dataset.timelineVideoTarget).toBe('3.8900');
-    expect(video.dataset.timelineVideoDirection).toBe('-1');
+    video.presentRequestedFrame();
+    await expect(forward).resolves.toMatchObject({
+      status: 'ready',
+      targetFrameIndex: 39,
+      presentedFrameIndex: 39,
+      evidence: 'video-frame-callback'
+    });
+    expect(video.currentTime).toBeCloseTo(39 / 30, 6);
+
+    const reverse = requestFigure2AnimationFrame(root as unknown as HTMLElement, 0.5, {
+      runId: 'phone-reverse:1',
+      direction: -1,
+      sequence: 2
+    });
+    video.presentRequestedFrame();
+    await expect(reverse).resolves.toMatchObject({
+      status: 'ready',
+      targetFrameIndex: 117,
+      presentedFrameIndex: 117,
+      evidence: 'video-frame-callback'
+    });
+    expect(video.currentTime).toBeCloseTo(117 / 30, 6);
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 
@@ -329,7 +352,7 @@ describe('Figure2 canonical media', () => {
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 
-  it('prepare-firsts the combined video before native-preferred forward playback', async () => {
+  it('prepares the combined video before strict forward presentation without native playback', async () => {
     const { root, video } = mediaRoot();
     const mediaRun = { runId: 'figure2-forward:1', direction: 1 as const, timelineDurationMs: FIGURE2_INTRO_PLAYBACK_MS };
     const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
@@ -340,7 +363,8 @@ describe('Figure2 canonical media', () => {
 
     commitFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
     await Promise.resolve();
-    expect(video.playCalls).toBe(1);
+    expect(video.playCalls).toBe(0);
+    expect(video.paused).toBe(true);
     expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({
       activeDirection: 1,
       activeRunId: 'figure2-forward:1',
@@ -350,7 +374,7 @@ describe('Figure2 canonical media', () => {
   });
 
   it.each([1, -1] as const)(
-    'nudges a stalled %s compositor but still waits for the requested Figure2 frame',
+    'does not nudge or play a stalled %s compositor and still waits for the requested Figure2 frame',
     async (direction) => {
       vi.useFakeTimers();
       const { root, video } = mediaRoot();
@@ -364,10 +388,8 @@ describe('Figure2 canonical media', () => {
         let settled = false;
         void preparation.then(() => { settled = true; });
 
-        await vi.advanceTimersByTimeAsync(249);
+        await vi.advanceTimersByTimeAsync(500);
         expect(video.playCalls).toBe(0);
-        await vi.advanceTimersByTimeAsync(1);
-        expect(video.playCalls).toBe(1);
         expect(settled).toBe(false);
 
         video.presentRequestedFrame();
@@ -381,7 +403,7 @@ describe('Figure2 canonical media', () => {
     }
   );
 
-  it('plays the second half natively for reverse without per-progress seeks', async () => {
+  it('keeps the second half strict for reverse without per-progress seeks or native playback', async () => {
     const { root, video } = mediaRoot();
     renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.62);
     const reverse = { runId: 'figure2-reverse:2', direction: -1 as const, timelineDurationMs: FIGURE2_INTRO_PLAYBACK_MS };
@@ -391,12 +413,13 @@ describe('Figure2 canonical media', () => {
     await preparation;
     const seekWrites = video.seekWrites.length;
     commitFigure2MediaLeg(root as unknown as HTMLElement, reverse);
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.43, { videoMode: 'native', mediaRun: reverse });
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.43, { videoMode: 'none', mediaRun: reverse });
 
-    expect(video.playCalls).toBe(1);
+    expect(video.playCalls).toBe(0);
     expect(video.seekWrites).toHaveLength(seekWrites);
-    expect(video.dataset.timelineVideoProgress).toBe('0.5700');
-    expect(video.dataset.timelineVideoDirection).toBe('-1');
+    expect(root.attributes.get('data-figure2-playback-direction')).toBe('-1');
+    expect(root.attributes.get('data-figure2-playback-run')).toBe('figure2-reverse:2');
+    expect(video.dataset.timelineVideoFrameReady).toBe('true');
     expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({
       activeDirection: -1,
       activeRunId: 'figure2-reverse:2'

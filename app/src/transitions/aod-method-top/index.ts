@@ -5,16 +5,21 @@ import {
   beginAodExitMedia,
   disposeAodExitMedia,
   prepareAodAnimationFrame,
+  aodSegmentProgressReceipt,
+  requestAodAnimationFrame,
   renderAodExitProgress
 } from '../../scenes/aod-animation';
 import { renderMethodTopEntrance } from '../../scenes/method-top';
 import type {
   Direction,
   LayerVisibilityState,
+  SegmentProgressReceipt,
+  SegmentProgressRequest,
   TransitionContext,
   TransitionModule
 } from '../../story/types';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
+import { createRuntimeSegmentProgressReceipt } from '../../story/presented-progress-coordinator';
 
 export const AOD_METHOD_TOP_DURATION_MS = 2600;
 export const AOD_METHOD_COPY_CUE = { targetScene: 'method-top', atProgress: 0.8 } as const;
@@ -90,6 +95,25 @@ class AodMethodTopTimeline extends PilotProgressTimeline {
     super.jumpToEnd(direction);
   }
 
+  presentProgress(request: SegmentProgressRequest): Promise<SegmentProgressReceipt> {
+    if (this.context.prefersReducedMotion) {
+      return Promise.resolve(createRuntimeSegmentProgressReceipt(request));
+    }
+    const video = this.getVideo?.() ?? videoIn(this.context.from.element);
+    if (!video) {
+      return Promise.resolve(createRuntimeSegmentProgressReceipt(request));
+    }
+    return requestAodAnimationFrame(this.context.from.element, request.desiredProgress, {
+      runId: request.runId,
+      direction: request.direction,
+      sequence: request.sequence,
+      reducedMotion: this.context.prefersReducedMotion,
+      signal: request.signal,
+      timelineDurationMs: AOD_METHOD_TOP_DURATION_MS,
+      video
+    }).then((frame) => aodSegmentProgressReceipt(request, frame));
+  }
+
   override async reverse(): Promise<void> {
     this.mediaDirection.current = -1;
     beginAodExitMedia(
@@ -120,8 +144,8 @@ export function createAodMethodTopTransition(options: {
       {
         id: 'aod-front-figure',
         media: [AOD_MEDIA_KEY],
-        forward: { mode: 'timeline', required: true },
-        reverse: { mode: 'timeline', required: true },
+        forward: { mode: 'frame-lock', required: true },
+        reverse: { mode: 'frame-lock', required: true },
         readyMilestones: ['targetReady', 'mediaReady'],
         terminalFallbackScene: 'method-top',
         preparingTimeoutMs: 1800

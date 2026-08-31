@@ -4,10 +4,18 @@ import {
   driveTimelineVideo,
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput,
-  type TimelineVideoDriverSnapshot
+  type TimelineVideoDriverSnapshot,
+  type TimelineVideoFrameResult
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
-import type { SceneComponentProps, SceneModule } from '../../story/types';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { progressForFrameIndex } from '../../media/frame-timebase';
+import { VIDEO_FRAME_MAPS } from '../../media/video-frame-maps';
+import type {
+  SceneComponentProps,
+  SceneModule,
+  SegmentProgressReceipt,
+  SegmentProgressRequest
+} from '../../story/types';
 import type { InkDepthTransform } from '../../transitions/shared/inkField';
 
 const CLOUD_IMAGE = new URL('../../../../assets/figure2-cloud.webp', import.meta.url).href;
@@ -21,6 +29,17 @@ export const FIGURE2_MEDIA_KEY = 'figure2-pair-motion';
 export const FIGURE2_INTRO_PLAYBACK_MS = 2600;
 const FIGURE2_REVERSE_START_SECONDS = 2.6;
 const FIGURE2_VIDEO_DURATION_SECONDS = 5.2;
+const FIGURE2_FRAME_MAP = VIDEO_FRAME_MAPS[FIGURE2_MEDIA_KEY];
+const FIGURE2_FORWARD_FRAME_MAP = {
+  ...FIGURE2_FRAME_MAP,
+  startFrame: 0,
+  endFrame: FIGURE2_FRAME_MAP.frameCount / 2
+} as const;
+const FIGURE2_REVERSE_FRAME_MAP = {
+  ...FIGURE2_FRAME_MAP,
+  startFrame: FIGURE2_FRAME_MAP.frameCount / 2,
+  endFrame: FIGURE2_FRAME_MAP.frameCount - 1
+} as const;
 const FIGURE2_COMBINED_VIDEO_SELECTOR = '[data-figure2-combined-video]';
 const FIGURE2_OPENING_FRAME_HANDLE = 'opening-frame';
 const FIGURE2_UNAVAILABLE = 'Figure2 unavailable';
@@ -68,6 +87,7 @@ type Figure2MediaManager = {
 export type Figure2MediaPreparation = Readonly<{
   runId: string;
   direction: 1 | -1;
+  sequence?: number;
   timelineDurationMs?: number;
   reducedMotion?: boolean;
   signal?: AbortSignal | undefined;
@@ -81,7 +101,10 @@ export type Figure2DirectionalMediaSnapshot = Readonly<{
 }>;
 
 const mediaManagers = new WeakMap<HTMLElement, Figure2MediaManager>();
-const holdFramePreparations = new WeakMap<HTMLElement, Promise<void>>();
+const holdFramePreparations = new WeakMap<HTMLElement, {
+  promise: Promise<void>;
+  signal?: AbortSignal;
+}>();
 const FIGURE2_MIDDLE_ASPECT_RATIO = 16 / 9;
 
 function smoothStep(value: number): number {
@@ -140,6 +163,10 @@ function mediaProgress(direction: 1 | -1, progress: number): number {
   return direction === 1 ? clamp(progress) : 1 - clamp(progress);
 }
 
+function frameMapForDirection(direction: 1 | -1) {
+  return direction === 1 ? FIGURE2_FORWARD_FRAME_MAP : FIGURE2_REVERSE_FRAME_MAP;
+}
+
 function managerFor(root: HTMLElement): Figure2MediaManager {
   const existing = mediaManagers.get(root);
   if (existing) {
@@ -168,7 +195,7 @@ function retainedFigure2Arch(root: HTMLElement | null | undefined): HTMLImageEle
 function mediaInput(
   preparation: Figure2MediaPreparation,
   progress: number,
-  mode: TimelineVideoDriveInput['mode'] = 'native-preferred'
+  mode: TimelineVideoDriveInput['mode'] = 'timeline'
 ): TimelineVideoDriveInput {
   return {
     runId: preparation.runId,
@@ -180,11 +207,14 @@ function mediaInput(
       ? FIGURE2_REVERSE_START_SECONDS
       : FIGURE2_VIDEO_DURATION_SECONDS,
     timelineDurationMs: preparation.timelineDurationMs ?? FIGURE2_INTRO_PLAYBACK_MS,
-    mode,
+    mode: mode ?? 'timeline',
     nativePlaybackDirection: 1,
     reducedMotion: preparation.reducedMotion,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
-    signal: preparation.signal
+    allowSeekedFrameFallback: false,
+    allowPlaybackNudge: false,
+    frameMap: frameMapForDirection(preparation.direction),
+    ...(preparation.sequence !== undefined ? { sequence: preparation.sequence } : {}),
+    ...(preparation.signal ? { signal: preparation.signal } : {})
   };
 }
 
@@ -215,8 +245,14 @@ async function prepareFigure2Pair(
     ) {
       throw new Error('Figure2 media stale');
     }
+    root.dataset.figure2DesiredFrame = String(frame.targetFrameIndex);
+    root.dataset.figure2PresentedFrame = String(frame.presentedFrameIndex);
+    root.dataset.figure2FrameEvidence = frame.evidence;
   } catch (error) {
     root.dataset.figure2StaticMediaFallback = 'true';
+    delete root.dataset.figure2DesiredFrame;
+    delete root.dataset.figure2PresentedFrame;
+    delete root.dataset.figure2FrameEvidence;
     throw error;
   }
   manager.prepared = {
@@ -228,6 +264,60 @@ async function prepareFigure2Pair(
   root.dataset.figure2PendingMediaRun = preparation.runId;
   root.dataset.figure2PendingMediaDirection = String(preparation.direction);
   delete root.dataset.figure2StaticMediaFallback;
+}
+
+export function requestFigure2AnimationFrame(
+  root: HTMLElement | null,
+  introProgress: number,
+  preparation: Figure2MediaPreparation
+): Promise<TimelineVideoFrameResult> {
+  if (!root) {
+    return Promise.reject(new Error(FIGURE2_UNAVAILABLE));
+  }
+  const manager = managerFor(root);
+  const input = mediaInput(
+    preparation,
+    mediaProgress(preparation.direction, introProgress),
+    'timeline'
+  );
+  return prepareTimelineVideoFrame(manager.video, input).then((result) => {
+    if (!result) {
+      throw new Error('Figure2 media frame preparation returned no result');
+    }
+    if (result.status === 'ready') {
+      root.dataset.figure2DesiredFrame = String(result.targetFrameIndex);
+      root.dataset.figure2PresentedFrame = String(result.presentedFrameIndex);
+      root.dataset.figure2FrameEvidence = result.evidence;
+    }
+    return result;
+  });
+}
+
+export function figure2IntroProgressForFrame(
+  frameIndex: number,
+  direction: 1 | -1
+): number {
+  const map = frameMapForDirection(direction);
+  const media = progressForFrameIndex(map, frameIndex);
+  return direction === 1 ? media : 1 - media;
+}
+
+export function figure2SegmentProgressReceipt(
+  request: SegmentProgressRequest,
+  frame: TimelineVideoFrameResult
+): SegmentProgressReceipt {
+  return {
+    status: frame.status === 'ready' ? 'presented' : 'stale',
+    runId: request.runId,
+    sequence: request.sequence,
+    desiredProgress: request.desiredProgress,
+    presentedProgress: frame.status === 'ready'
+      ? figure2IntroProgressForFrame(frame.presentedFrameIndex, request.direction)
+      : request.desiredProgress,
+    evidence: frame.evidence === 'video-frame-callback'
+      ? 'video-frame-callback'
+      : 'runtime'
+  };
 }
 
 export async function prepareFigure2MediaLeg(
@@ -245,8 +335,11 @@ export function ensureFigure2HoldFrame(
   signal?: AbortSignal
 ): Promise<void> {
   const existing = holdFramePreparations.get(root);
+  if (existing && !existing.signal?.aborted) {
+    return existing.promise;
+  }
   if (existing) {
-    return existing;
+    holdFramePreparations.delete(root);
   }
   const preparation: Figure2MediaPreparation = {
     runId: 'figure2-hold-frame',
@@ -270,9 +363,9 @@ export function ensureFigure2HoldFrame(
       }
       root.dataset.figure2HoldFrameReady = 'true';
     });
-  holdFramePreparations.set(root, promise);
+  holdFramePreparations.set(root, { promise, ...(signal ? { signal } : {}) });
   void promise.catch(() => {
-    if (holdFramePreparations.get(root) === promise) {
+    if (holdFramePreparations.get(root)?.promise === promise) {
       holdFramePreparations.delete(root);
     }
   });
@@ -353,20 +446,9 @@ export function driveFigure2MediaLeg(
   progress: number,
   preparation: Figure2MediaPreparation
 ): void {
-  if (!root) {
-    return;
-  }
-  const manager = mediaManagers.get(root);
-  if (
-    !manager
-    || !manager.playbackEnabled
-    || manager.activeRunId !== preparation.runId
-    || manager.activeDirection !== preparation.direction
-  ) {
-    return;
-  }
-  const input = mediaInput(preparation, mediaProgress(preparation.direction, progress));
-  manager.snapshot = driveTimelineVideo(manager.video, input);
+  void root;
+  void progress;
+  void preparation;
 }
 
 export function parkFigure2Media(root: HTMLElement | null): void {
@@ -459,25 +541,9 @@ export function renderFigure2AnimationProgress(
   if (root) {
     (root as Figure2Root).__r4Figure2Progress = clamped;
   }
-  if (options.videoMode === 'native' && options.mediaRun) {
-    driveFigure2MediaLeg(root, clamped, options.mediaRun);
-  } else if (options.videoMode === 'seek' && options.mediaRun && root) {
-    try {
-      const manager = managerFor(root);
-      manager.activeRunId = options.mediaRun.runId;
-      manager.activeDirection = options.mediaRun.direction;
-      manager.snapshot = driveTimelineVideo(
-        manager.video,
-        mediaInput(
-          options.mediaRun,
-          mediaProgress(options.mediaRun.direction, clamped),
-          'timeline'
-        )
-      );
-      delete root.dataset.figure2StaticMediaFallback;
-    } catch {
-      root.dataset.figure2StaticMediaFallback = 'true';
-    }
+  if (options.mediaRun) {
+    root?.setAttribute('data-figure2-playback-direction', String(options.mediaRun.direction));
+    root?.setAttribute('data-figure2-playback-run', options.mediaRun.runId);
   }
   return {
     progress: clamped,

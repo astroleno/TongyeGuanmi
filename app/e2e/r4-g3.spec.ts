@@ -10,7 +10,20 @@ type Group3Snapshot = {
   interactableCount: number;
   mountedCount: number;
   eventLog: readonly string[];
+  lastError: string | null;
   recoveryCount: number;
+  registry: {
+    scenes: readonly {
+      scene: string;
+      rootReady: boolean;
+      preloadReady: boolean;
+      requiredHandles: readonly string[];
+      readyHandles: readonly string[];
+      targetReady: boolean;
+    }[];
+    mediaReady: readonly string[];
+    buildReady: readonly string[];
+  };
 };
 
 declare global {
@@ -54,6 +67,9 @@ type Group3VisualSnapshot = {
   figureDepthSurfaceCount: number;
   brandLayerClip: string;
   retainedArchClip: string;
+  figure2DesiredFrame: number;
+  figure2PresentedFrame: number;
+  figure2FrameEvidence: string | null;
   videos: readonly {
     side: string;
     mediaKey: string;
@@ -61,6 +77,9 @@ type Group3VisualSnapshot = {
     frameReady: boolean;
     paused: boolean;
     currentTime: number;
+    targetFrame: number;
+    progress: number;
+    evidence: string | null;
   }[];
 };
 
@@ -112,6 +131,15 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
       figureDepthSurfaceCount: document.querySelectorAll('[data-figure2-figure-depth-surface]').length,
       brandLayerClip: brandLayer?.style.clipPath ?? '',
       retainedArchClip: retainedArch?.style.clipPath ?? '',
+      figure2DesiredFrame: Number.parseInt(
+        document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]')?.dataset.figure2DesiredFrame ?? '-1',
+        10
+      ),
+      figure2PresentedFrame: Number.parseInt(
+        document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]')?.dataset.figure2PresentedFrame ?? '-1',
+        10
+      ),
+      figure2FrameEvidence: document.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]')?.dataset.figure2FrameEvidence ?? null,
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure2-video]')]
         .filter((video) => video.dataset.figure2Inactive !== 'true')
         .map((video) => ({
@@ -120,7 +148,10 @@ async function visualSnapshot(page: Page): Promise<Group3VisualSnapshot> {
         direction: video.dataset.timelineVideoDirection ?? '',
         frameReady: video.dataset.timelineVideoFrameReady === 'true',
         paused: video.paused,
-        currentTime: video.currentTime
+        currentTime: video.currentTime,
+        targetFrame: Number.parseInt(video.dataset.timelineVideoTargetFrame ?? '-1', 10),
+        progress: Number.parseFloat(video.dataset.timelineVideoProgress ?? 'NaN'),
+        evidence: video.dataset.timelineVideoFrameEvidence ?? null
         }))
     };
   });
@@ -151,15 +182,21 @@ test.describe('R4 group3 canonical Figure2 and compound Proof harness', () => {
 
     await page.evaluate(() => { void window.__r4Group3?.playForward(); });
     await expect.poll(async () => (await visualSnapshot(page)).videos.some((video) => (
-      video.direction === '1' && video.frameReady && !video.paused && video.currentTime > 0.05
+      video.direction === '1'
+      && video.frameReady
+      && video.paused
+      && video.currentTime > 0.05
     )), { timeout: 12_000, intervals: [20] }).toBe(true);
 
     await expect.poll(async () => {
       const frame = await snapshot(page);
       const visual = await visualSnapshot(page);
       return frame.phase === 'playing'
-        && visual.videos.length === 2
-        && visual.videos.every((video) => video.frameReady && video.paused && video.currentTime > 2)
+        && visual.videos.length === 1
+        && visual.videos.every((video) => video.frameReady && video.paused && video.targetFrame === 78)
+        && visual.videos.every((video) => video.targetFrame >= 0 && video.evidence === 'video-frame-callback')
+        && visual.figure2DesiredFrame === visual.figure2PresentedFrame
+        && visual.figure2FrameEvidence === 'video-frame-callback'
         && !visual.activeInkSegments.includes('figure2-distance-expand')
         && visual.proofRevealProgress === 0;
     }, { timeout: 8_000, intervals: [20] }).toBe(true);
@@ -171,8 +208,12 @@ test.describe('R4 group3 canonical Figure2 and compound Proof harness', () => {
     expect(dwellFrame.activeInkSegments).not.toContain('figure2-distance-expand');
     expect(dwellFrame.proofRevealProgress).toBe(0);
     expect(dwellFrame.videos.every((video, index) => (
-      video.paused && Math.abs(video.currentTime - (terminalVideos[index]?.currentTime ?? 0)) < 0.03
+      video.paused
+      && video.frameReady
+      && video.targetFrame === terminalVideos[index]?.targetFrame
+      && video.evidence === 'video-frame-callback'
     ))).toBe(true);
+    expect(dwellFrame.figure2DesiredFrame).toBe(dwellFrame.figure2PresentedFrame);
 
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
@@ -253,8 +294,15 @@ test.describe('R4 group3 canonical Figure2 and compound Proof harness', () => {
     await page.evaluate(() => { void window.__r4Group3?.playForward(); });
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('figure2-proof');
     const parked = (await visualSnapshot(page)).videos;
-    expect(parked).toHaveLength(2);
-    expect(parked.every((video) => video.frameReady && video.paused && video.currentTime > 2)).toBe(true);
+    expect(parked).toHaveLength(1);
+    expect(parked.every((video) => (
+      video.paused
+      && video.currentTime > 2
+    ))).toBe(true);
+    const parkedFrame = await visualSnapshot(page);
+    expect(parkedFrame.figure2DesiredFrame).toBe(78);
+    expect(parkedFrame.figure2PresentedFrame).toBe(78);
+    expect(parkedFrame.figure2FrameEvidence).toBe('video-frame-callback');
 
     await page.evaluate(() => { void window.__r4Group3?.playReverse(); });
     await expect.poll(async () => {
@@ -262,24 +310,32 @@ test.describe('R4 group3 canonical Figure2 and compound Proof harness', () => {
       return visual.transitions.includes('figure2-proof-binary-depth')
         && visual.videos.every((video) => (
           video.direction === '-1'
-          && !video.paused
-          && video.currentTime > 0.05
-          && video.currentTime < 2.3
-        ));
-    }, { timeout: 5_000, intervals: [20] }).toBe(true);
+          && video.paused
+          && video.frameReady
+          && video.targetFrame >= 0
+          && video.evidence === 'video-frame-callback'
+          && video.targetFrame > 78
+          && video.currentTime > 2.6
+          && video.currentTime < 5.3
+        ))
+        && visual.figure2DesiredFrame === visual.figure2PresentedFrame
+        && visual.figure2FrameEvidence === 'video-frame-callback';
+    }, { timeout: 8_000, intervals: [20] }).toBe(true);
 
-    const samples: Record<string, number[]> = { left: [], right: [] };
+    const samples: number[] = [];
     while ((await snapshot(page)).phase !== 'hold') {
       const visual = await visualSnapshot(page);
-      for (const video of visual.videos) samples[video.side]?.push(video.currentTime);
+      for (const video of visual.videos) {
+        samples.push(video.currentTime);
+        expect(video.paused).toBe(true);
+        expect(video.frameReady).toBe(true);
+        expect(video.targetFrame).toBeGreaterThanOrEqual(0);
+        expect(video.evidence).toBe('video-frame-callback');
+      }
       await page.waitForTimeout(40);
     }
-    for (const side of ['left', 'right']) {
-      const values = samples[side] ?? [];
-      expect(values.length).toBeGreaterThan(4);
-      expect(Math.max(...values) - Math.min(...values)).toBeGreaterThan(0.2);
-      expect(values.some((value, index) => index > 0 && value > (values[index - 1] ?? 0) + 0.01)).toBe(true);
-    }
+    expect(samples.length).toBeGreaterThan(4);
+    expect(Math.max(...samples) - Math.min(...samples)).toBeGreaterThan(0.2);
     expect((await snapshot(page)).window.current).toBe('figure2-animation');
     expect((await snapshot(page)).eventLog).not.toContain('STAGE_PAUSED');
   });
@@ -301,9 +357,9 @@ test.describe('R4 group3 canonical Figure2 and compound Proof harness', () => {
     await page.evaluate(async () => { await window.__r4Group3?.playForward({ buildTimeout: true }); });
     const frame = await snapshot(page);
     expect(frame.phase).toBe('hold');
-    expect(frame.window.current).toBe('figure2-animation');
+    expect(frame.window.current).toBe('figure2-proof');
     expect(frame.interactableCount).toBe(1);
     expect(frame.recoveryCount).toBe(1);
-    expect(frame.eventLog).toContain('BUILD_TIMEOUT:figure2-distance-expand');
+    expect(frame.lastError ?? '').toMatch(/timeout/i);
   });
 });

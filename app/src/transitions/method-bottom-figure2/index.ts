@@ -39,6 +39,13 @@ export function createMethodBottomFigure2Transition(options: { delayMs?: () => n
     sample: sampleMethodBottomFigure2,
     ease: 1.25,
     prepareEndpoints: ({ to }) => renderFigure2AnimationProgress(to, 0, { videoMode: 'none' }),
+    prepareTargetPresentation: (roots, context) => {
+      const targetRoot = context.target === 'to' ? roots.to : roots.from;
+      if (!targetRoot?.querySelector('[data-figure2-combined-video]')) {
+        return;
+      }
+      return ensureFigure2HoldFrame(targetRoot);
+    },
     warm: (context) => ensureFigure2HoldFrame(
       context.to.element!.querySelector<HTMLElement>('[data-r4-scene="figure2-animation"]')
         ?? context.to.element!

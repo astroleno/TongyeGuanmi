@@ -1,17 +1,28 @@
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 import {
   disposeTimelineVideoDriver,
-  driveTimelineVideo,
   prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
+  type TimelineVideoDriveInput,
+  type TimelineVideoFrameResult
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
-import { mapAodTimelineToMediaProgress, renderAodTransitionProgress } from './progress';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { progressForFrameIndex } from '../../media/frame-timebase';
+import { VIDEO_FRAME_MAPS } from '../../media/video-frame-maps';
+import type {
+  SegmentProgressReceipt,
+  SegmentProgressRequest
+} from '../../story/types';
+import {
+  mapAodMediaToTimelineProgress,
+  mapAodTimelineToMediaProgress,
+  renderAodTransitionProgress
+} from './progress';
 
 export {
   AOD_PHONE_TIMELINE_ALPHA_START,
   AOD_PHONE_TIMELINE_ALPHA_END,
   AOD_TIMELINE_ALPHA_END,
+  mapAodMediaToTimelineProgress,
   mapAodTimelineToMediaProgress,
   renderAodTransitionProgress
 } from './progress';
@@ -22,10 +33,12 @@ export const AOD_FIGURE_VIDEO_SRC = new URL('../../../../assets/aod-figure-motio
 export const AOD_FIGURE_HEVC_ALPHA_SRC = new URL('../../../../assets/aod-figure-motion-hevc-alpha.mp4', import.meta.url).href;
 export const AOD_MEDIA_KEY = 'aod-figure-motion';
 export const AOD_FIGURE_END_SECONDS = 2.567;
+const AOD_FRAME_MAP = VIDEO_FRAME_MAPS[AOD_MEDIA_KEY];
 
 export type AodMediaRun = Readonly<{
   runId: string;
   direction: 1 | -1;
+  sequence?: number;
   reducedMotion?: boolean;
   signal?: AbortSignal;
   timelineDurationMs?: number;
@@ -66,9 +79,58 @@ function aodMediaInput(
     mode,
     nativePlaybackDirection: 1,
     reducedMotion: Boolean(mediaRun.reducedMotion),
-    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
+    allowSeekedFrameFallback: false,
+    allowPlaybackNudge: false,
+    frameMap: AOD_FRAME_MAP,
+    ...(mediaRun.sequence !== undefined ? { sequence: mediaRun.sequence } : {}),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };
+}
+
+export function aodRawProgressForFrame(frameIndex: number): number {
+  return mapAodMediaToTimelineProgress(progressForFrameIndex(AOD_FRAME_MAP, frameIndex));
+}
+
+export function aodSegmentProgressReceipt(
+  request: SegmentProgressRequest,
+  frame: TimelineVideoFrameResult
+): SegmentProgressReceipt {
+  return {
+    status: frame.status === 'ready' ? 'presented' : 'stale',
+    runId: request.runId,
+    sequence: request.sequence,
+    desiredProgress: request.desiredProgress,
+    presentedProgress: frame.status === 'ready'
+      ? aodRawProgressForFrame(frame.presentedFrameIndex)
+      : request.desiredProgress,
+    evidence: frame.evidence === 'video-frame-callback'
+      ? 'video-frame-callback'
+      : 'runtime'
+  };
+}
+
+export function requestAodAnimationFrame(
+  root: HTMLElement | null | undefined,
+  progress: number,
+  mediaRun: AodMediaRun
+): Promise<TimelineVideoFrameResult> {
+  const section = aodSection(root);
+  const video = aodVideo(root, mediaRun.video);
+  if (!section || !video) {
+    return Promise.reject(new Error('AOD media unavailable'));
+  }
+  section.setAttribute('data-aod-playback-direction', String(mediaRun.direction));
+  section.setAttribute('data-aod-playback-run', mediaRun.runId);
+  return prepareTimelineVideoFrame(video, aodMediaInput(progress, mediaRun, 'timeline')).then((result) => {
+    if (!result) {
+      throw new Error('AOD frame preparation returned no result');
+    }
+    if (result.status === 'ready') {
+      section.dataset.aodDesiredFrame = String(result.targetFrameIndex);
+      section.dataset.aodPresentedFrame = String(result.presentedFrameIndex);
+    }
+    return result;
+  });
 }
 
 export async function prepareAodAnimationFrame(
@@ -82,7 +144,7 @@ export async function prepareAodAnimationFrame(
     throw new Error('AOD media unavailable');
   }
   try {
-    const frame = await prepareTimelineVideoFrame(video, aodMediaInput(progress, mediaRun, 'timeline'));
+    const frame = await requestAodAnimationFrame(root, progress, mediaRun);
     if (frame?.status !== 'ready') {
       throw new Error('AOD frame stale');
     }
@@ -106,12 +168,10 @@ export function renderAodExitProgress(
   const section = aodSection(root);
   renderAodTransitionProgress(section ?? root, progress);
   section?.setAttribute('data-aod-exit-active', 'true');
-  const video = aodVideo(root, mediaRun.video);
-  if (!video) {
-    return;
+  if (mediaRun) {
+    section?.setAttribute('data-aod-playback-direction', String(mediaRun.direction));
+    section?.setAttribute('data-aod-playback-run', mediaRun.runId);
   }
-  mediaRunByVideo.set(video, mediaRun.runId);
-  driveTimelineVideo(video, aodMediaInput(progress, mediaRun));
 }
 
 export function beginAodExitMedia(

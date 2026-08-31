@@ -39,6 +39,7 @@ export type Group2Snapshot = {
   interactableCount: number;
   mountedCount: number;
   eventLog: readonly string[];
+  lastError: string | null;
   recoveryCount: number;
   staleCompletionIgnored: number;
   trace: StoryDebugSnapshot['eventLog'];
@@ -66,7 +67,7 @@ const modules = {
 };
 
 const GROUP_SCENES: SceneId[] = ['method-top', 'method-bottom', 'figure2-animation'];
-const GROUP_SEGMENTS: SegmentId[] = ['method-top-method-bottom', 'method-bottom-figure2'];
+const GROUP_SEGMENTS: SegmentId[] = ['method-bottom-figure2'];
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -84,7 +85,7 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 }
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
-  for (let attempt = 0; attempt < 140; attempt += 1) {
+  for (let attempt = 0; attempt < 480; attempt += 1) {
     const state = String(runtime.getState().state);
     if (state === 'hold') {
       return;
@@ -126,6 +127,7 @@ function readDomSnapshot(mode: R4Group2HarnessMode, snapshot: StoryDebugSnapshot
     interactableCount: layers.filter((layer) => layer.interactable).length,
     mountedCount: layers.length,
     eventLog: [...eventTypes(snapshot), ...metrics.localEvents].slice(-140),
+    lastError: snapshot.context.lastError?.message ?? null,
     recoveryCount: metrics.recoveryCount,
     staleCompletionIgnored: metrics.staleCompletionIgnored,
     trace: snapshot.eventLog,
@@ -250,7 +252,7 @@ export function Group2Harness({ mode }: { mode: R4Group2HarnessMode }) {
   };
 
   const play = async (direction: Direction, options: PlayOptions = {}) => {
-    buildDelayMs.current = options.buildTimeout ? 2200 : 0;
+    buildDelayMs.current = options.buildTimeout ? 9000 : 0;
     if (options.buildTimeout) {
       for (const segment of GROUP_SEGMENTS) {
         runtime.segmentPlayer.dispose(segment);

@@ -3,9 +3,11 @@ import {
   commitFigure2MediaLeg,
   commitFigure2TerminalPair,
   figure2DepthTransformForProgress,
+  figure2SegmentProgressReceipt,
   parkFigure2Media,
   prepareFigure2MediaLeg,
   prepareFigure2TerminalPair,
+  requestFigure2AnimationFrame,
   renderFigure2AnimationProgress,
   renderFigure2Hold,
   type Figure2MediaPreparation
@@ -16,11 +18,14 @@ import { applyLayerVisibility, hiddenVisibility, holdVisibility, range01, smooth
 import type {
   Direction,
   LayerVisibilityState,
+  SegmentProgressReceipt,
+  SegmentProgressRequest,
   SegmentTimelineHandle,
   StagedLegPreparation,
   TransitionContext,
   TransitionModule
 } from '../../story/types';
+import { createRuntimeSegmentProgressReceipt } from '../../story/presented-progress-coordinator';
 import {
   FIGURE2_DISTANCE_EXPAND_SEGMENT
 } from '../../story/figure2-distance-expand-contract';
@@ -117,11 +122,9 @@ export function figure2VideoModeForProofTransition(
   transitionProgress: number,
   direction: Direction = 1
 ): 'native' | 'seek' | 'none' {
-  if (transitionProgress > 0.001) {
-    return 'none';
-  }
   void direction;
-  return 'native';
+  void transitionProgress;
+  return 'none';
 }
 
 class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
@@ -134,7 +137,6 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
   readonly pauses: readonly string[];
 
   private progressValue = 0;
-  private playbackDirection: Direction;
   private disposed = false;
   private animationFrame = 0;
   private reportedTimelineReady = false;
@@ -155,7 +157,6 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       ? ['stage:0']
       : [];
     this.inkRendererRequired = productionInkRendererRequired(context.prefersReducedMotion);
-    this.playbackDirection = context.direction;
     const fromRoot = sceneRoot(context.from.element, 'figure2-animation');
     const stage = sharedStageHost(context);
     const proofOwnershipSurface = stage?.querySelector<HTMLElement>(
@@ -204,6 +205,44 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
 
   reverse(): Promise<void> {
     return this.animateTo(0);
+  }
+
+  presentProgress(request: SegmentProgressRequest): Promise<SegmentProgressReceipt> {
+    if (this.disposed) {
+      return Promise.resolve({
+        status: 'stale',
+        runId: request.runId,
+        sequence: request.sequence,
+        desiredProgress: request.desiredProgress,
+        presentedProgress: request.desiredProgress,
+        evidence: 'runtime'
+      });
+    }
+    const desiredProgress = clamp(request.desiredProgress);
+    if (desiredProgress > FIGURE2_INTRO_END + 0.0001 || this.context.prefersReducedMotion) {
+      return Promise.resolve(createRuntimeSegmentProgressReceipt(request, desiredProgress));
+    }
+    const root = sceneRoot(this.context.from.element, 'figure2-animation');
+    const mediaRun: Figure2MediaPreparation = {
+      ...(this.mediaRun ?? { runId: request.runId }),
+      runId: request.runId,
+      direction: request.direction,
+      sequence: request.sequence,
+      reducedMotion: this.context.prefersReducedMotion,
+      signal: request.signal
+    };
+    const introProgress = figure2IntroProgress(desiredProgress);
+    return requestFigure2AnimationFrame(root, introProgress, mediaRun).then((frame) => {
+      const receipt = figure2SegmentProgressReceipt(
+        { ...request, desiredProgress: introProgress },
+        frame
+      );
+      return {
+        ...receipt,
+        desiredProgress: request.desiredProgress,
+        presentedProgress: clamp(receipt.presentedProgress * FIGURE2_INTRO_END)
+      };
+    });
   }
 
   async prepareLeg(leg: StagedLegPreparation): Promise<void> {
@@ -284,11 +323,6 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     }
     this.assertInkRendererReady();
     const clamped = clamp(value);
-    if (clamped > this.progressValue + 0.0001) {
-      this.playbackDirection = 1;
-    } else if (clamped < this.progressValue - 0.0001) {
-      this.playbackDirection = -1;
-    }
     const intro = figure2IntroProgress(clamped);
     const transition = figure2ProofTransitionProgress(clamped);
     const reveal = figure2ProofRevealProgress(clamped);
@@ -302,12 +336,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof');
     const figureState = renderFigure2AnimationProgress(fromRoot, intro, {
       proofProgress: 0,
-      videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection),
-      mediaRun: {
-        ...(this.mediaRun ?? { runId: this.context.runId }),
-        direction: this.playbackDirection,
-        reducedMotion: this.context.prefersReducedMotion
-      }
+      videoMode: 'none'
     });
     const depthOwnership = inkOwnershipGateProgress(reveal);
     const fieldVisible = reveal > 0.002 && reveal < 0.999;

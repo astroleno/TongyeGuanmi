@@ -15,7 +15,6 @@ import {
   renderPatternForHeroPattern,
   waitForHeroPatternCommittedFrame
 } from './index';
-import { HERO_PATTERN_VIDEO_END_SECONDS } from '../../scenes/hero';
 import { patternCenterForViewport } from '../../scenes/pattern';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from '../__fixtures__/back-half.fixture';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
@@ -61,7 +60,7 @@ class DeferredFrameVideo extends FakeVideo {
   presentFrame(): void {
     const callback = this.frameCallback;
     this.frameCallback = undefined;
-    callback?.(0, {} as VideoFrameCallbackMetadata);
+    callback?.(0, { mediaTime: this.currentTime } as VideoFrameCallbackMetadata);
   }
 
   hasPendingFrame(): boolean {
@@ -274,7 +273,10 @@ describe('hero-pattern transition', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(video.hasPendingFrame()).toBe(true);
+    // The strict endpoint crosses its compositor prime before registering the
+    // causal callback. The deferred fixture therefore has no callback pending
+    // until the prime settles.
+    expect(video.hasPendingFrame()).toBe(false);
     expect(fixture.context.from.element?.style.visibility).toBe('visible');
     expect(fixture.context.from.element?.style.opacity).toBe('0.001');
     expect(fixture.context.from.element?.style.zIndex).toBe('31');
@@ -282,7 +284,7 @@ describe('hero-pattern transition', () => {
     video.presentFrame();
     const timeline = await build;
     expect(video.hasPendingFrame()).toBe(false);
-    expect(video.currentTime).toBeCloseTo(HERO_PATTERN_VIDEO_END_SECONDS);
+    expect(video.currentTime).toBeCloseTo(22 / 24 + 0.002, 6);
     expect(fixture.context.from.element?.style.visibility).toBe('hidden');
     expect(fixture.context.from.element?.style.opacity).toBe('0');
     expect(fixture.context.from.element?.style.zIndex).toBe('');
@@ -290,7 +292,7 @@ describe('hero-pattern transition', () => {
   });
 
   it.each([1, -1] as const)(
-    'nudges a stalled %s compositor but still requires its causal frame callback',
+    'does not nudge or play a stalled %s compositor and still requires its causal frame callback',
     async (direction) => {
       vi.useFakeTimers();
       const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
@@ -303,14 +305,10 @@ describe('hero-pattern transition', () => {
         ...fixture.context,
         direction
       }));
-      await vi.advanceTimersByTimeAsync(249);
+      await vi.advanceTimersByTimeAsync(500);
 
       expect(video.hasPendingFrame()).toBe(true);
       expect(video.playCalls).toBe(0);
-
-      await vi.advanceTimersByTimeAsync(1);
-      expect(video.playCalls).toBe(1);
-      expect(video.paused).toBe(false);
 
       let settled = false;
       void build.then(() => { settled = true; });
@@ -416,6 +414,7 @@ describe('hero-pattern transition', () => {
   });
 
   it('uses independent 900ms/1800ms wall clocks in both directions', async () => {
+    vi.useFakeTimers();
     const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
     const canvas = new FakeCanvas();
     const video = new FakeVideo();
@@ -430,7 +429,9 @@ describe('hero-pattern transition', () => {
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
     fixture.fromRoot.connect('[data-hero-figure-video]', video);
 
-    const timeline = await createHeroPatternTransition().buildTimeline(fixture.context);
+    const build = createHeroPatternTransition().buildTimeline(fixture.context);
+    await vi.advanceTimersByTimeAsync(50);
+    const timeline = await build;
     const flushMicrotasks = async () => {
       for (let index = 0; index < 20; index += 1) await Promise.resolve();
     };
@@ -452,6 +453,8 @@ describe('hero-pattern transition', () => {
     expect(fixture.fromRoot.style.getPropertyValue('--r4-hero-pattern-figure-progress')).toBe('1.0000');
     expect(canvas.dataset.r4InkProgress).toBeUndefined();
 
+    await vi.advanceTimersByTimeAsync(50);
+    await flushMicrotasks();
     // The committed phase boundary is a bounded double-rAF, not part of either clock.
     await present(901);
     await present(902);
@@ -468,6 +471,8 @@ describe('hero-pattern transition', () => {
     expect(fixture.fromRoot.style.getPropertyValue('--r4-hero-pattern-figure-progress')).toBe('1.0000');
     await present(4_504);
     expect(reverseDone).toBe(false);
+    await vi.advanceTimersByTimeAsync(50);
+    await flushMicrotasks();
     await present(4_505);
     await present(4_506);
     await present(5_405);

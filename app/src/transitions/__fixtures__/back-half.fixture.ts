@@ -69,6 +69,9 @@ export class FakeElement {
   }
 
   matches(selector: string): boolean {
+    if (selector === '[data-aod-transition]') {
+      return this.dataset.aodTransition === 'true';
+    }
     if (selector === '[data-reading-scrollport="true"]') {
       return this.dataset.readingScrollport === 'true';
     }
@@ -154,6 +157,10 @@ export class FakeVideo extends FakeElement {
   playCalls = 0;
   preload = 'auto';
   loadCalls = 0;
+  private pendingFrameCallback:
+    | ((now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void)
+    | undefined;
+  private frameCallbackId = 0;
 
   get currentTime(): number {
     return this.time;
@@ -189,12 +196,21 @@ export class FakeVideo extends FakeElement {
   requestVideoFrameCallback(
     callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
   ): number {
-    callback(0, {} as VideoFrameCallbackMetadata);
-    return 1;
+    this.pendingFrameCallback = callback;
+    const callbackId = ++this.frameCallbackId;
+    queueMicrotask(() => {
+      if (this.pendingFrameCallback !== callback) {
+        return;
+      }
+      this.pendingFrameCallback = undefined;
+      callback(0, { mediaTime: this.currentTime } as VideoFrameCallbackMetadata);
+    });
+    return callbackId;
   }
 
-  cancelVideoFrameCallback(): void {
-    // The default fixture presents synchronously, so there is nothing pending.
+  cancelVideoFrameCallback(callbackId: number): void {
+    void callbackId;
+    this.pendingFrameCallback = undefined;
   }
 
   play(): Promise<void> {
@@ -266,6 +282,7 @@ export function createBackHalfDomContext(
       root.dataset.readingScrollport = 'true';
     }
     if (scene === 'aod-animation') {
+      root.dataset.aodTransition = 'true';
       root.connect('[data-aod-figure-video]', new FakeVideo());
     }
     if (scene === 'figure3-animation') {
