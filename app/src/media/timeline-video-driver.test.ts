@@ -6,6 +6,8 @@ import {
   prepareTimelineVideoFrame,
   timelineVideoDriverFor
 } from './timeline-video-driver';
+import { mediaTimeForFrame } from './frame-timebase';
+import { VIDEO_FRAME_MAPS } from './video-frame-maps';
 
 type Listener = () => void;
 
@@ -873,6 +875,138 @@ describe('timeline video driver', () => {
     await Promise.resolve();
 
     expect(rejection).toMatchObject({ code: 'MEDIA_FRAME_CALLBACK_UNAVAILABLE' });
+    driver.dispose();
+  });
+
+  it('returns exact frame receipt fields from RVFC metadata', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    const targetFrameIndex = 23;
+    const targetTime = mediaTimeForFrame(frameMap, targetFrameIndex);
+
+    const readiness = driver.prepareFrame({
+      runId: 'media-exact-receipt:1',
+      direction: 1,
+      progress: targetFrameIndex / frameMap.endFrame,
+      durationFallbackSeconds: 2,
+      frameMap,
+      sequence: 7
+    });
+    video.completeSeek();
+    video.presentFrame(targetTime + 0.0001);
+
+    await expect(readiness).resolves.toMatchObject({
+      status: 'ready',
+      targetFrameIndex,
+      presentedFrameIndex: targetFrameIndex,
+      mediaTimeSeconds: targetTime + 0.0001,
+      evidence: 'video-frame-callback'
+    });
+    expect(video.dataset.timelineVideoTargetFrame).toBe(String(targetFrameIndex));
+    expect(video.dataset.timelineVideoSequence).toBe('7');
+    driver.dispose();
+  });
+
+  it('keeps an adjacent strict RVFC pending until the requested integer frame arrives', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    const targetFrameIndex = 23;
+    const readiness = driver.prepareFrame({
+      runId: 'media-adjacent-receipt:1',
+      direction: 1,
+      progress: targetFrameIndex / frameMap.endFrame,
+      durationFallbackSeconds: 2,
+      frameMap
+    });
+
+    video.completeSeek();
+    video.presentFrame(mediaTimeForFrame(frameMap, targetFrameIndex + 1));
+    let settled = false;
+    void readiness.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(driver.snapshot().frameReady).toBe(false);
+
+    video.presentFrame(mediaTimeForFrame(frameMap, targetFrameIndex));
+    await expect(readiness).resolves.toMatchObject({
+      status: 'ready',
+      targetFrameIndex,
+      presentedFrameIndex: targetFrameIndex
+    });
+    driver.dispose();
+  });
+
+  it('never resolves a strict mapped seek through generic seeked fallback', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    let settled = false;
+
+    try {
+      const readiness = driver.prepareFrame({
+        runId: 'media-strict-no-seeked-fallback:1',
+        direction: 1,
+        progress: 0.5,
+        durationFallbackSeconds: 2,
+        frameMap,
+        allowSeekedFrameFallback: true
+      });
+      void readiness.then(() => {
+        settled = true;
+      });
+      video.completeSeek();
+      await vi.advanceTimersByTimeAsync(240);
+
+      expect(settled).toBe(false);
+      expect(driver.snapshot().frameReady).toBe(false);
+      driver.dispose();
+      await expect(readiness).resolves.toMatchObject({ status: 'stale' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reuses a cached strict proof only when the same integer frame remains under the playhead', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    const targetFrameIndex = 12;
+    const targetProgress = targetFrameIndex / frameMap.endFrame;
+
+    const first = driver.prepareFrame({
+      runId: 'media-cached-proof:1',
+      direction: 1,
+      progress: targetProgress,
+      durationFallbackSeconds: 2,
+      frameMap
+    });
+    video.completeSeek();
+    video.presentFrame(mediaTimeForFrame(frameMap, targetFrameIndex));
+    await expect(first).resolves.toMatchObject({
+      status: 'ready',
+      presentedFrameIndex: targetFrameIndex
+    });
+
+    const seekWrites = video.currentTimeWrites.length;
+    const second = driver.prepareFrame({
+      runId: 'media-cached-proof:2',
+      direction: -1,
+      progress: targetProgress,
+      durationFallbackSeconds: 2,
+      frameMap
+    });
+
+    await expect(second).resolves.toMatchObject({
+      status: 'ready',
+      presentedFrameIndex: targetFrameIndex,
+      evidence: 'video-frame-callback'
+    });
+    expect(video.currentTimeWrites).toHaveLength(seekWrites);
     driver.dispose();
   });
 
