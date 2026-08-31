@@ -856,6 +856,38 @@ describe('timeline video driver', () => {
     driver.dispose();
   });
 
+  it('releases an abandoned seek before accepting the next strict request', async () => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const firstController = new AbortController();
+    const first = driver.prepareFrame({
+      runId: 'media-latest-wins:1',
+      direction: 1,
+      progress: 0.5,
+      durationFallbackSeconds: 10,
+      signal: firstController.signal
+    });
+
+    video.completeSeek();
+    expect(video.currentTimeWrites.at(-1)).toBeCloseTo(4.99, 2);
+    firstController.abort('superseded');
+    await expect(first).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+
+    const second = driver.prepareFrame({
+      runId: 'media-latest-wins:1',
+      direction: 1,
+      progress: 0.6,
+      durationFallbackSeconds: 10
+    });
+    expect(video.currentTimeWrites.at(-1)).toBeCloseTo(5.988, 3);
+
+    video.completeSeek();
+    expect(video.currentTimeWrites.at(-1)).toBeCloseTo(5.988, 3);
+    video.presentFrame();
+    await expect(second).resolves.toMatchObject({ status: 'ready' });
+    driver.dispose();
+  });
+
   it('rejects strict preparation when requestVideoFrameCallback is unavailable', async () => {
     const video = new FakeVideo();
     Object.defineProperty(video, 'requestVideoFrameCallback', { value: undefined });

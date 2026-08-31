@@ -4,6 +4,7 @@ import type {
   LayerHandle,
   LayerVisibilityState,
   SpineSegmentNode,
+  SegmentProgressRequest,
   TransitionContext,
   TransitionPrewarmContext
 } from '../../story/types';
@@ -708,6 +709,89 @@ describe('shared ink transition surface', () => {
     secondTimeline.dispose();
     expect(toElement.dataset.r4EndpointRun).toBeUndefined();
     expect(toElement.dataset.r4EndpointReady).toBeUndefined();
+  });
+
+  it('returns runtime receipts after a proven static endpoint and delegates unproven progress', async () => {
+    const stage = new FakeElement();
+    const fromElement = new FakeElement();
+    const toElement = new FakeElement();
+    stage.append(fromElement);
+    stage.append(toElement);
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+    const segment = {
+      kind: 'segment',
+      id: 'lab-ph',
+      from: 'services',
+      to: 'ttg-animation',
+      policy: { kind: 'snap', chargeThreshold: 0.1 },
+      virtualDuration: 1200
+    } satisfies SpineSegmentNode;
+    const to = layer('ttg-animation', 'next', toElement);
+    const request: SegmentProgressRequest = {
+      runId: 'ink-present-progress:1',
+      direction: 1,
+      sequence: 3,
+      desiredProgress: 0.42,
+      signal: new AbortController().signal
+    };
+    const delegated = vi.fn(() => ({
+      status: 'presented' as const,
+      runId: request.runId,
+      sequence: request.sequence,
+      desiredProgress: request.desiredProgress,
+      presentedProgress: 0.4,
+      evidence: 'video-frame-callback' as const
+    }));
+    const transition = createInkSegmentTransition({
+      id: 'lab-ph',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'present-progress' },
+      prepareEndpoints: () => undefined,
+      prepareTargetPresentation: () => Promise.resolve(),
+      presentTargetProgress: delegated
+    });
+    const timeline = await transition.buildTimeline({
+      segment,
+      from: layer('services', 'current', fromElement),
+      to,
+      stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+      direction: 1,
+      runId: request.runId,
+      prepareToken: 'ink-present-progress:prepare:1',
+      prefersReducedMotion: true,
+      reportMilestone() {}
+    });
+
+    await expect(timeline.presentProgress?.(request)).resolves.toMatchObject({
+      status: 'presented',
+      evidence: 'runtime',
+      presentedProgress: request.desiredProgress
+    });
+    expect(delegated).not.toHaveBeenCalled();
+    timeline.dispose();
+
+    const unproven = await createInkSegmentTransition({
+      id: 'lab-ph',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'present-progress-unproven' },
+      prepareEndpoints: () => undefined,
+      presentTargetProgress: delegated
+    }).buildTimeline({
+      segment,
+      from: layer('services', 'current', fromElement),
+      to,
+      stage: { getLayer: () => undefined, ensureLayer: () => to, releaseLayer() {}, snapshot: () => [] },
+      direction: 1,
+      runId: request.runId,
+      prepareToken: 'ink-present-progress:prepare:2',
+      prefersReducedMotion: true,
+      reportMilestone() {}
+    });
+    await expect(unproven.presentProgress?.(request)).resolves.toMatchObject({
+      status: 'presented',
+      presentedProgress: 0.4,
+      evidence: 'video-frame-callback'
+    });
+    expect(delegated).toHaveBeenCalledOnce();
+    unproven.dispose();
   });
 
   it('renders a staged source only when its root or mapped progress changes', async () => {

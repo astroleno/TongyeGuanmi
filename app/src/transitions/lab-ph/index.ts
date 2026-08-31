@@ -1,7 +1,39 @@
 import { renderLabHold } from '../../scenes/lab';
-import { preparePhAnimationFrame, renderPhHold } from '../../scenes/ph-animation';
+import {
+  phSegmentProgressReceipt,
+  renderPhHold,
+  requestPhAnimationFrame
+} from '../../scenes/ph-animation';
+import { createRuntimeSegmentProgressReceipt } from '../../story/presented-progress-coordinator';
 import { createInkSegmentTransition } from '../shared/ink';
-import type { TransitionModule } from '../../story/types';
+import type { SegmentProgressRequest, TransitionModule } from '../../story/types';
+
+function sceneIs(root: HTMLElement | null, scene: string): boolean {
+  return root?.matches(`[data-r4-scene="${scene}"]`) === true;
+}
+
+function renderLabOrPhHold(root: HTMLElement | null): void {
+  if (sceneIs(root, 'lab')) {
+    renderLabHold(root);
+  } else if (sceneIs(root, 'ph-animation')) {
+    renderPhHold(root);
+  }
+}
+
+function presentPhEndpoint(
+  root: HTMLElement | null,
+  request: SegmentProgressRequest
+) {
+  if (!root || !sceneIs(root, 'ph-animation')) {
+    return createRuntimeSegmentProgressReceipt(request);
+  }
+  return requestPhAnimationFrame(root, 0, {
+    runId: request.runId,
+    direction: request.direction,
+    sequence: request.sequence,
+    signal: request.signal
+  }).then((frame) => phSegmentProgressReceipt(request, frame));
+}
 
 export function createLabPhTransition(options: { delayMs?: () => number } = {}): TransitionModule {
   const transition = createInkSegmentTransition({
@@ -13,28 +45,31 @@ export function createLabPhTransition(options: { delayMs?: () => number } = {}):
       seed: 'lab-ph'
     },
     prepareEndpoints: ({ from, to }) => {
-      renderLabHold(from);
-      renderPhHold(to);
+      renderLabOrPhHold(from);
+      renderLabOrPhHold(to);
     },
+    prepareTargetPresentation: (roots, context) => {
+      const root = context.target === 'to' ? roots.to : roots.from;
+      if (!root || !sceneIs(root, 'ph-animation') || !root.querySelector('[data-ph-alpha-video]')) {
+        return;
+      }
+      return requestPhAnimationFrame(root, 0, {
+        runId: context.runId,
+        direction: context.direction,
+        reducedMotion: context.prefersReducedMotion
+      }).then((frame) => {
+        if (frame.status !== 'ready') {
+          throw new Error('PH endpoint frame became stale');
+        }
+      });
+    },
+    presentSourceProgress: presentPhEndpoint,
+    presentTargetProgress: presentPhEndpoint,
     transitionAttr: 'lab-ph-top-ink'
   });
   return {
     ...transition,
-    requiredMilestones: ['targetReady', 'mediaReady', 'buildReady'],
-    buildTimeline: async (context) => {
-      const root = context.to.element?.querySelector<HTMLElement>('[data-r4-scene="ph-animation"]')
-        ?? context.to.element
-        ?? null;
-      const video = root?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
-      if (video) {
-        await preparePhAnimationFrame(root, 0, {
-          runId: `${context.runId}:entry`,
-          direction: 1,
-          reducedMotion: context.prefersReducedMotion
-        });
-      }
-      return transition.buildTimeline(context);
-    }
+    requiredMilestones: ['targetReady', 'mediaReady', 'buildReady']
   };
 }
 

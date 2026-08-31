@@ -68,6 +68,7 @@ const modules = {
 
 const GROUP_SCENES: SceneId[] = ['lab', 'ph-animation', 'education'];
 const GROUP_SEGMENTS: SegmentId[] = ['lab-ph', 'ph-education'];
+const RUNTIME_IDLE_TIMEOUT_ATTEMPTS = 480;
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -85,7 +86,7 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 }
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
-  for (let attempt = 0; attempt < 160; attempt += 1) {
+  for (let attempt = 0; attempt < RUNTIME_IDLE_TIMEOUT_ATTEMPTS; attempt += 1) {
     const state = String(runtime.getState().state);
     if (state === 'hold') {
       return;
@@ -251,7 +252,7 @@ export function Group6Harness({ mode }: { mode: R4Group6HarnessMode }) {
   };
 
   const play = async (direction: Direction, options: PlayOptions = {}) => {
-    buildDelayMs.current = options.buildTimeout ? 2200 : 0;
+    buildDelayMs.current = options.buildTimeout ? 10_000 : 0;
     if (options.buildTimeout) {
       for (const segment of GROUP_SEGMENTS) {
         runtime.segmentPlayer.dispose(segment);

@@ -5,6 +5,7 @@ import {
   sampleStagedMediaHandoff,
   type StagedMediaRenderContext
 } from './stagedMediaHandoff';
+import type { SegmentProgressReceipt, SegmentProgressRequest } from '../../story/types';
 
 function preparationSignal(): AbortSignal {
   return new AbortController().signal;
@@ -197,5 +198,64 @@ describe('staged media handoff', () => {
 
     timeline.dispose();
     expect(disposals).toEqual([0]);
+  });
+
+  it('waits for the presented media leg and uses immediate runtime receipts for dissolve', async () => {
+    const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
+    const stop = fixture.context.segment.policy.kind === 'stagedSnap'
+      ? fixture.context.segment.policy.stops[0] ?? 0
+      : 0;
+    let release: ((receipt: SegmentProgressReceipt) => void) | undefined;
+    const presentedReceipt = () => ({
+      status: 'presented' as const,
+      runId: fixture.context.runId,
+      sequence: 1,
+      desiredProgress: 0.5,
+      presentedProgress: 0.5,
+      evidence: 'video-frame-callback' as const
+    });
+    const transition = createStagedMediaHandoff({
+      id: 'ph-education',
+      target: { prepareFinalHold: () => undefined },
+      source: {
+        presentProgress: (_root, progress, request) => new Promise((resolve) => {
+          expect(progress).toBeCloseTo(0.5, 8);
+          expect(request.desiredProgress).toBeCloseTo(0.5, 8);
+          release = resolve;
+        }),
+        renderExit: () => undefined
+      }
+    });
+    const timeline = await transition.buildTimeline(fixture.context);
+    const request: SegmentProgressRequest = {
+      runId: fixture.context.runId,
+      direction: 1,
+      sequence: 1,
+      desiredProgress: stop * 0.5,
+      signal: preparationSignal()
+    };
+    const pending = timeline.presentProgress!(request);
+
+    expect(fixture.fromLayer.visibility.opacity).toBe(1);
+    release?.(presentedReceipt());
+    await expect(pending).resolves.toMatchObject({
+      status: 'presented',
+      desiredProgress: request.desiredProgress,
+      presentedProgress: stop * 0.5,
+      evidence: 'video-frame-callback'
+    });
+    expect(fixture.fromLayer.visibility.opacity).toBe(1);
+
+    const dissolve = await timeline.presentProgress!({
+      ...request,
+      sequence: 2,
+      desiredProgress: (stop + 1) / 2
+    });
+    expect(dissolve).toMatchObject({
+      status: 'presented',
+      evidence: 'runtime',
+      presentedProgress: (stop + 1) / 2
+    });
+    timeline.dispose();
   });
 });

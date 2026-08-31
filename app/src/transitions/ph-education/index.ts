@@ -1,8 +1,10 @@
 import { renderEducationHold } from '../../scenes/education';
 import {
   parkPhMedia,
+  phSegmentProgressReceipt,
   preparePhAnimationFrame,
-  renderPhAnimationProgress
+  renderPhAnimationProgress,
+  requestPhAnimationFrame
 } from '../../scenes/ph-animation';
 import { INTRA_CHAPTER_DISSOLVE_MS, PH_PLAYBACK_MS } from '../../story/timings';
 import { positionReadingAtEdge } from '../../stage/reading';
@@ -37,7 +39,14 @@ export function createPhEducationTransition(options: { delayMs?: () => number } 
         }
       },
       dispose: (root) => parkPhMedia(root),
-      renderExit: (root, progress, mediaRun) => renderPhAnimationProgress(root, progress, { mediaRun })
+      presentProgress: (root, progress, request, mediaRun) => requestPhAnimationFrame(root, progress, {
+        runId: request.runId,
+        direction: request.direction,
+        sequence: request.sequence,
+        reducedMotion: mediaRun.prefersReducedMotion,
+        signal: request.signal
+      }).then((frame) => phSegmentProgressReceipt(request, frame)),
+      renderExit: (root, progress) => renderPhAnimationProgress(root, progress)
     }
   });
   return {

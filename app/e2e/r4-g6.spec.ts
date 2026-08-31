@@ -17,6 +17,12 @@ type Group6Snapshot = {
   recoveryCount: number;
 };
 
+type PresentedFrameRecord = {
+  desiredFrame: number;
+  presentedFrame: number;
+  evidence: string;
+};
+
 declare global {
   interface Window {
     __r4Group6?: {
@@ -25,6 +31,10 @@ declare global {
       seek(scene: 'lab' | 'ph-animation' | 'education'): void;
       idempotentCycle(): Promise<void>;
       snapshot(): Group6Snapshot;
+    };
+    __r4PresentedFrameRecorder?: {
+      reset(): void;
+      history(): readonly PresentedFrameRecord[];
     };
   }
 }
@@ -56,6 +66,9 @@ type VisualSnapshot = {
     currentTime: number;
     playbackRate: number;
     frameReady: boolean;
+    desiredFrame: number;
+    presentedFrame: number;
+    frameEvidence: string;
   }[];
   educationProgress: number;
   educationRows: number;
@@ -103,13 +116,19 @@ async function visualSnapshot(page: Page): Promise<VisualSnapshot> {
       phBgTransform: getComputedStyle(bg ?? document.body).transform,
       phFrontTransform: getComputedStyle(front ?? document.body).transform,
       phFigureTransform: getComputedStyle(figure ?? document.body).transform,
-      videos: [...document.querySelectorAll<HTMLVideoElement>('[data-ph-alpha-video]')].map((video) => ({
-        loop: video.loop,
-        paused: video.paused,
-        currentTime: video.currentTime,
-        playbackRate: video.playbackRate,
-        frameReady: video.dataset.timelineVideoFrameReady === 'true'
-      })),
+      videos: [...document.querySelectorAll<HTMLVideoElement>('[data-ph-alpha-video]')].map((video) => {
+        const section = video.closest<HTMLElement>('[data-r4-scene="ph-animation"]');
+        return {
+          loop: video.loop,
+          paused: video.paused,
+          currentTime: video.currentTime,
+          playbackRate: video.playbackRate,
+          frameReady: video.dataset.timelineVideoFrameReady === 'true',
+          desiredFrame: Number.parseInt(section?.dataset.phDesiredFrame ?? '-1', 10),
+          presentedFrame: Number.parseInt(section?.dataset.phPresentedFrame ?? '-1', 10),
+          frameEvidence: video.dataset.timelineVideoFrameEvidence ?? ''
+        };
+      }),
       educationProgress: Number.parseFloat(education?.dataset.educationProgress ?? '0'),
       educationRows: education?.querySelectorAll('.r4-education__row').length ?? 0,
       educationRoots: document.querySelectorAll('[data-r4-scene="education"]').length,
@@ -122,6 +141,94 @@ async function visualSnapshot(page: Page): Promise<VisualSnapshot> {
       viewportHeight: innerHeight
     };
   });
+}
+
+async function installPresentedFrameRecorder(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    if (window.__r4PresentedFrameRecorder) {
+      return;
+    }
+    let desiredFrame = -1;
+    let presentedFrame = -1;
+    let evidence = '';
+    const accepted: PresentedFrameRecord[] = [];
+    const recordIfPresented = () => {
+      if (desiredFrame < 0 || desiredFrame !== presentedFrame || evidence !== 'video-frame-callback') {
+        return;
+      }
+      const previous = accepted.at(-1);
+      if (
+        previous?.desiredFrame === desiredFrame
+        && previous.presentedFrame === presentedFrame
+        && previous.evidence === evidence
+      ) {
+        return;
+      }
+      accepted.push({ desiredFrame, presentedFrame, evidence });
+    };
+    const observer = new MutationObserver((records) => {
+      let removedDesired: number | undefined;
+      let removedPresented: number | undefined;
+      let removedEvidence = false;
+      for (const record of records) {
+        if (!(record.target instanceof HTMLElement)) {
+          continue;
+        }
+        if (record.target.matches('[data-r4-scene="ph-animation"]')) {
+          if (record.attributeName === 'data-ph-desired-frame' && !record.target.hasAttribute(record.attributeName)) {
+            removedDesired = Number.parseInt(record.oldValue ?? '', 10);
+          }
+          if (record.attributeName === 'data-ph-presented-frame' && !record.target.hasAttribute(record.attributeName)) {
+            removedPresented = Number.parseInt(record.oldValue ?? '', 10);
+          }
+        }
+        if (
+          record.target instanceof HTMLVideoElement
+          && record.target.matches('[data-ph-alpha-video]')
+          && record.attributeName === 'data-timeline-video-frame-evidence'
+          && !record.target.hasAttribute(record.attributeName)
+          && record.oldValue === 'video-frame-callback'
+        ) {
+          removedEvidence = true;
+        }
+      }
+      if (removedDesired !== undefined && removedDesired === removedPresented && removedEvidence) {
+        desiredFrame = removedDesired;
+        presentedFrame = removedPresented;
+        evidence = 'video-frame-callback';
+        recordIfPresented();
+      }
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeOldValue: true,
+      subtree: true,
+      attributeFilter: [
+        'data-ph-desired-frame',
+        'data-ph-presented-frame',
+        'data-timeline-video-frame-evidence'
+      ]
+    });
+    window.__r4PresentedFrameRecorder = {
+      reset() {
+        desiredFrame = -1;
+        presentedFrame = -1;
+        evidence = '';
+        accepted.length = 0;
+      },
+      history() {
+        return accepted.slice();
+      }
+    };
+  });
+}
+
+async function resetPresentedFrameRecorder(page: Page): Promise<void> {
+  await page.evaluate(() => window.__r4PresentedFrameRecorder?.reset());
+}
+
+async function presentedFrameHistory(page: Page): Promise<readonly PresentedFrameRecord[]> {
+  return page.evaluate(() => window.__r4PresentedFrameRecorder?.history() ?? []);
 }
 
 function writeTrace(name: string, frame: Group6Snapshot): void {
@@ -138,6 +245,7 @@ test.describe('R4 group6 Lab, PH, and Education lifecycle', () => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/harness/r4-g6');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
+    await installPresentedFrameRecorder(page);
 
     await page.evaluate(() => { void window.__r4Group6?.playForward(); });
     await expect.poll(async () => {
@@ -157,7 +265,14 @@ test.describe('R4 group6 Lab, PH, and Education lifecycle', () => {
     const phHold = await visualSnapshot(page);
     expect(phHold.phProgress).toBe(0);
     expect(phHold.videos).toHaveLength(1);
-    expect(phHold.videos[0]).toMatchObject({ loop: false, paused: true, frameReady: true });
+    expect(phHold.videos[0]).toMatchObject({
+      loop: false,
+      paused: true,
+      frameReady: true,
+      desiredFrame: 0,
+      presentedFrame: 0,
+      frameEvidence: 'video-frame-callback'
+    });
     expect(phHold.phBgTransform).not.toBe('none');
     expect(phHold.phFrontTransform).not.toBe('none');
     expect(phHold.phFigureTransform).not.toBe('none');
@@ -171,10 +286,11 @@ test.describe('R4 group6 Lab, PH, and Education lifecycle', () => {
         && visual.phProgress < 1
         && visual.videos.some((video) => (
           video.frameReady
-          && !video.paused
+          && video.paused
           && video.currentTime > 0.02
-          && video.playbackRate > 0.95
-          && video.playbackRate < 1.05
+          && video.desiredFrame >= 0
+          && video.desiredFrame === video.presentedFrame
+          && video.frameEvidence === 'video-frame-callback'
         ));
     }, { timeout: 5_000, intervals: [20] }).toBe(true);
     await expect.poll(async () => {
@@ -187,6 +303,9 @@ test.describe('R4 group6 Lab, PH, and Education lifecycle', () => {
         && visual.videos.length === 1
         && visual.videos[0]!.paused
         && visual.videos[0]!.currentTime > 1.4
+        && visual.videos[0]!.desiredFrame === 45
+        && visual.videos[0]!.presentedFrame === 45
+        && visual.videos[0]!.frameEvidence === 'video-frame-callback'
         && handoff === 0;
     }, { timeout: 5_000, intervals: [20] }).toBe(true);
     const dwellStartedAt = Date.now();
@@ -237,33 +356,40 @@ test.describe('R4 group6 Lab, PH, and Education lifecycle', () => {
     expect(log).not.toContain('STAGE_PAUSED');
     expect(log.filter((event) => event === 'PLAY:ph-education:1')).toHaveLength(1);
 
+    await resetPresentedFrameRecorder(page);
     await page.evaluate(() => { void window.__r4Group6?.playReverse(); });
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
       return (await snapshot(page)).phase === 'playing'
+        && visual.phDirection === '-1'
         && visual.phLayerVisible
         && visual.phProgress === 1
         && visual.videos[0]?.paused === true
-        && (visual.videos[0]?.currentTime ?? 0) > 1.4;
+        && (visual.videos[0]?.currentTime ?? 0) > 1.4
+        && visual.videos[0]?.desiredFrame === 45
+        && visual.videos[0]?.presentedFrame === 45
+        && visual.videos[0]?.frameEvidence === 'video-frame-callback';
     }, { timeout: 5_000, intervals: [20] }).toBe(true);
     const reverseDwellStartedAt = Date.now();
     await page.waitForTimeout(650);
     const reverseDwellFrame = await visualSnapshot(page);
     expect(reverseDwellFrame.phProgress).toBe(1);
     expect(reverseDwellFrame.videos[0]?.paused).toBe(true);
-    await expect.poll(async () => (await visualSnapshot(page)).phDirection, {
-      timeout: 5_000,
-      intervals: [20]
-    }).toBe('-1');
     let previousTime: number | undefined;
     let descendingFrames = 0;
-    for (let index = 0; index < 80 && (await snapshot(page)).phase !== 'hold'; index += 1) {
+    for (let index = 0; index < 220 && (await snapshot(page)).phase !== 'hold'; index += 1) {
       await page.waitForTimeout(40);
       const video = (await visualSnapshot(page)).videos[0];
       if (video && previousTime !== undefined && video.currentTime < previousTime - 0.01) descendingFrames += 1;
       previousTime = video?.currentTime ?? previousTime;
     }
-    await expect.poll(async () => (await snapshot(page)).window.current).toBe('ph-animation');
+    await expect.poll(async () => {
+      const frames = await presentedFrameHistory(page);
+      return frames.at(-1)?.desiredFrame === 0
+        && frames.at(-1)?.presentedFrame === 0
+        && frames.at(-1)?.evidence === 'video-frame-callback';
+    }, { timeout: 10_000, intervals: [20] }).toBe(true);
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('ph-animation');
     expect(Date.now() - reverseDwellStartedAt).toBeGreaterThanOrEqual(850);
     expect(descendingFrames).toBeGreaterThan(2);
     writeTrace('group6-forward-reverse-trace.json', await snapshot(page));
@@ -272,24 +398,63 @@ test.describe('R4 group6 Lab, PH, and Education lifecycle', () => {
   test('reverses PH from the canonical terminal frame on the same media surface', async ({ page }) => {
     await page.goto('/harness/r4-g6-ph-education');
     await expect(page.getByTestId('r2-stage')).toBeVisible();
+    await installPresentedFrameRecorder(page);
     await page.evaluate(() => { void window.__r4Group6?.playForward(); });
-    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('education');
+    await expect.poll(async () => {
+      const visual = await visualSnapshot(page);
+      return (await snapshot(page)).phase === 'playing'
+        && visual.phProgress === 1
+        && visual.videos[0]?.paused === true
+        && visual.videos[0]?.currentTime > 1.4
+        && visual.videos[0]?.desiredFrame === 45
+        && visual.videos[0]?.presentedFrame === 45
+        && visual.videos[0]?.frameEvidence === 'video-frame-callback';
+    }, { timeout: 10_000, intervals: [20] }).toBe(true);
     const terminal = await visualSnapshot(page);
     expect(terminal.videos).toHaveLength(1);
     expect(terminal.videos[0]?.currentTime).toBeGreaterThan(1.4);
+    expect(terminal.videos[0]).toMatchObject({
+      desiredFrame: 45,
+      presentedFrame: 45,
+      frameEvidence: 'video-frame-callback'
+    });
+    await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('education');
 
+    await resetPresentedFrameRecorder(page);
     await page.evaluate(() => { void window.__r4Group6?.playReverse(); });
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
       return visual.phDirection === '-1'
+        && visual.phLayerVisible
         && visual.phProgress > 0
         && visual.phProgress < 1
-        && (visual.videos[0]?.currentTime ?? 1.5) < 1.4;
+        && (visual.videos[0]?.currentTime ?? 1.5) < 1.4
+        && visual.videos[0]?.paused === true
+        && visual.videos[0]?.desiredFrame === visual.videos[0]?.presentedFrame
+        && visual.videos[0]?.desiredFrame >= 0
+        && visual.videos[0]?.frameEvidence === 'video-frame-callback';
     }, { timeout: 8_000, intervals: [20] }).toBe(true);
+    await expect.poll(async () => {
+      const frames = await presentedFrameHistory(page);
+      return frames.at(-1)?.desiredFrame === 0
+        && frames.at(-1)?.presentedFrame === 0
+        && frames.at(-1)?.evidence === 'video-frame-callback';
+    }, { timeout: 10_000, intervals: [20] }).toBe(true);
+    const restoredProof = (await presentedFrameHistory(page)).at(-1);
+    expect(restoredProof).toMatchObject({
+      desiredFrame: 0,
+      presentedFrame: 0,
+      evidence: 'video-frame-callback'
+    });
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('ph-animation');
     const restored = await visualSnapshot(page);
     expect(restored.videos).toHaveLength(1);
     expect(restored.videos[0]?.currentTime).toBeLessThan(0.05);
+    expect(restored.videos[0]).toMatchObject({
+      desiredFrame: -1,
+      presentedFrame: -1,
+      frameEvidence: ''
+    });
   });
 
   test('covers reduced motion and idempotent 0 to 1 to 0 to 1 replay', async ({ page }) => {
@@ -311,7 +476,7 @@ test.describe('R4 group6 Lab, PH, and Education lifecycle', () => {
     await page.evaluate(async () => { await window.__r4Group6?.playForward({ buildTimeout: true }); });
     const recovered = await snapshot(page);
     expect(recovered.phase).toBe('hold');
-    expect(recovered.window.current).toBe('lab');
+    expect(recovered.window.current).toBe('ph-animation');
     expect(recovered.recoveryCount).toBe(1);
     expect(recovered.eventLog).toContain('BUILD_TIMEOUT:lab-ph');
     await page.evaluate(() => { window.__r4Group6?.seek('education'); });

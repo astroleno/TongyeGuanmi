@@ -10,11 +10,14 @@ import type {
   Direction,
   LayerVisibilityState,
   SegmentId,
+  SegmentProgressReceipt,
+  SegmentProgressRequest,
   SegmentTimelineHandle,
   StagedLegPreparation,
   TransitionContext,
   TransitionModule
 } from '../../story/types';
+import { createRuntimeSegmentProgressReceipt } from '../../story/presented-progress-coordinator';
 import { MediaPreparationError } from '../../media/media-preparation';
 
 export type StagedMediaRenderContext = Readonly<{
@@ -45,6 +48,12 @@ export type StagedMediaSourceExitLifecycle = Readonly<{
     progress: number,
     context: StagedMediaRenderContext
   ) => void;
+  presentProgress?: (
+    root: HTMLElement | null,
+    progress: number,
+    request: SegmentProgressRequest,
+    context: StagedMediaRenderContext
+  ) => Promise<SegmentProgressReceipt> | SegmentProgressReceipt;
   renderExit(
     root: HTMLElement | null,
     progress: number,
@@ -243,6 +252,48 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
   reverse(): Promise<void> {
     this.playbackDirection = -1;
     return this.animateTo(0);
+  }
+
+  presentProgress(request: SegmentProgressRequest): Promise<SegmentProgressReceipt> {
+    if (this.disposed) {
+      return Promise.resolve({
+        status: 'stale',
+        runId: request.runId,
+        sequence: request.sequence,
+        desiredProgress: request.desiredProgress,
+        presentedProgress: request.desiredProgress,
+        evidence: 'runtime'
+      });
+    }
+
+    const desiredProgress = clamp(request.desiredProgress);
+    if (desiredProgress > this.stop + 0.0001) {
+      return Promise.resolve(createRuntimeSegmentProgressReceipt(request, desiredProgress));
+    }
+
+    const roots = rootsFor(this.context, this.options);
+    const sourceProgress = range01(desiredProgress, 0, this.stop);
+    const presenter = this.options.source.presentProgress;
+    if (!presenter) {
+      return Promise.resolve(createRuntimeSegmentProgressReceipt(request, desiredProgress));
+    }
+
+    const mediaRequest: SegmentProgressRequest = {
+      ...request,
+      desiredProgress: sourceProgress
+    };
+    return Promise.resolve(presenter(
+      roots.from,
+      sourceProgress,
+      mediaRequest,
+      renderContext(this.context, request.direction)
+    )).then((receipt) => ({
+      ...receipt,
+      runId: request.runId,
+      sequence: request.sequence,
+      desiredProgress: request.desiredProgress,
+      presentedProgress: clamp(receipt.presentedProgress * this.stop)
+    }));
   }
 
   progress(value: number): void {

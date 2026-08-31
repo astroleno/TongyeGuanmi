@@ -4,11 +4,14 @@ import type {
   Direction,
   LayerVisibilityState,
   SegmentId,
+  SegmentProgressReceipt,
+  SegmentProgressRequest,
   SegmentTimelineHandle,
   TransitionContext,
   TransitionPrewarmContext,
   TransitionModule
 } from '../../story/types';
+import { createRuntimeSegmentProgressReceipt } from '../../story/presented-progress-coordinator';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from './layerElevation';
 import {
   createInkFieldRenderer,
@@ -66,6 +69,17 @@ export type InkTargetPresentationContext = InkSourceRenderContext & Readonly<{
   target: 'from' | 'to';
 }>;
 
+export type InkMediaPresentationContext = InkSourceRenderContext & Readonly<{
+  root: HTMLElement | null;
+  target: 'from' | 'to';
+}>;
+
+export type InkMediaPresenter = (
+  root: HTMLElement | null,
+  request: SegmentProgressRequest,
+  context: InkMediaPresentationContext
+) => Promise<SegmentProgressReceipt> | SegmentProgressReceipt;
+
 export type InkPlaybackPhase = Readonly<{
   from: number;
   to: number;
@@ -95,6 +109,8 @@ export type InkSegmentOptions = {
     roots: InkEndpointRoots,
     context: InkTargetPresentationContext
   ) => Promise<void> | void;
+  presentSourceProgress?: InkMediaPresenter;
+  presentTargetProgress?: InkMediaPresenter;
   renderSource?: (
     root: HTMLElement | null,
     progress: number,
@@ -377,13 +393,15 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private readonly revealSurfaces = new Set<HTMLElement>();
   private readonly concealSurfaces = new Set<HTMLElement>();
   private readonly phaseController = new AbortController();
+  private readonly targetPresentationProven: boolean;
 
   constructor(
     private readonly context: TransitionContext,
     private readonly options: InkSegmentOptions,
     private readonly endpointOwnership: InkEndpointRunOwnership,
     preparedRoots: InkEndpointRoots,
-    preparedSurface?: PreparedInkSurface
+    preparedSurface?: PreparedInkSurface,
+    targetPresentationProven = false
   ) {
     const generation = `${context.runId}:${context.prepareToken}`;
     this.generation = generation;
@@ -396,6 +414,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.preparedFromRoot = preparedRoots.from;
     this.preparedToRoot = preparedRoots.to;
     this.endpointsPrepared = true;
+    this.targetPresentationProven = targetPresentationProven;
     this.motionLeases = createSceneMotionLeaseGroup(`${context.runId}:${this.id}`);
     const stops = options.stops ?? [];
     this.labels = Object.fromEntries([
@@ -490,6 +509,41 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   reverse(): Promise<void> {
     this.playbackDirection = -1;
     return this.animateTo(0);
+  }
+
+  presentProgress(request: SegmentProgressRequest): Promise<SegmentProgressReceipt> {
+    if (this.disposed) {
+      return Promise.resolve({
+        status: 'stale',
+        runId: request.runId,
+        sequence: request.sequence,
+        desiredProgress: request.desiredProgress,
+        presentedProgress: request.desiredProgress,
+        evidence: 'runtime'
+      });
+    }
+
+    const target = request.direction === 1 ? 'to' : 'from';
+    const presenter = request.direction === 1
+      ? this.options.presentTargetProgress
+      : this.options.presentSourceProgress;
+    if (this.targetPresentationProven || !presenter) {
+      return Promise.resolve(createRuntimeSegmentProgressReceipt(request));
+    }
+
+    const roots = {
+      from: sceneRoot(liveLayerElement(this.context.from), this.context.from.scene, this.rootSelector),
+      to: sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.rootSelector)
+    };
+    const root = target === 'to' ? roots.to : roots.from;
+    return Promise.resolve(presenter(root, request, {
+      runId: request.runId,
+      prepareToken: this.context.prepareToken,
+      direction: request.direction,
+      prefersReducedMotion: this.reducedMotion,
+      root,
+      target
+    }));
   }
 
   progress(value: number): void {
@@ -1000,7 +1054,14 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
           target: context.direction === 1 ? 'to' : 'from'
         });
         ownership.markReady();
-        return new InkSegmentTimeline(context, options, ownership, roots, prepared);
+        return new InkSegmentTimeline(
+          context,
+          options,
+          ownership,
+          roots,
+          prepared,
+          Boolean(options.prepareTargetPresentation)
+        );
       } catch (error) {
         disposePreparedSurface(prepared);
         ownership.dispose();

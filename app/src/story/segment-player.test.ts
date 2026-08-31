@@ -315,6 +315,8 @@ describe('SegmentPlayer', () => {
   });
 
   it('commits a frame-lock snap only after the exact presented receipt', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', undefined);
     const pending = deferred<SegmentProgressReceipt>();
     const requests: SegmentProgressRequest[] = [];
     const progress = vi.fn();
@@ -324,7 +326,9 @@ describe('SegmentPlayer', () => {
       play,
       presentProgress: (request) => {
         requests.push(request);
-        return pending.promise;
+        return request.desiredProgress >= 1
+          ? pending.promise
+          : Promise.resolve(presentedProgressReceipt(request));
       },
       progress,
       reverse,
@@ -338,18 +342,21 @@ describe('SegmentPlayer', () => {
     });
 
     const result = player.play('hero-pattern', 1, { runId: 'frame-lock-snap:1' });
-    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(3200);
+    await flushMicrotasks();
 
-    expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({
-      runId: 'frame-lock-snap:1', sequence: 1, desiredProgress: 1
+    expect(requests[0]?.desiredProgress).toBeGreaterThan(0);
+    expect(requests[0]?.desiredProgress).toBeLessThan(1);
+    expect(requests.at(-1)).toMatchObject({
+      runId: 'frame-lock-snap:1', desiredProgress: 1
     });
-    expect(progress).toHaveBeenLastCalledWith(0);
-    expect(player.snapshot()).toMatchObject({ progress: 0 });
+    expect(progress).not.toHaveBeenCalledWith(1);
+    expect(player.snapshot()?.progress).toBeLessThan(1);
     expect(play).not.toHaveBeenCalled();
     expect(reverse).not.toHaveBeenCalled();
 
-    pending.resolve(presentedProgressReceipt(requests[0]!));
+    pending.resolve(presentedProgressReceipt(requests.at(-1)!));
     await expect(result).resolves.toEqual({
       status: 'completed',
       runId: 'frame-lock-snap:1',
@@ -360,6 +367,8 @@ describe('SegmentPlayer', () => {
   });
 
   it('gates a reverse frame-lock endpoint on its receipt and ignores a late abort', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestAnimationFrame', undefined);
     const pending = deferred<SegmentProgressReceipt>();
     const requests: SegmentProgressRequest[] = [];
     const progress = vi.fn();
@@ -367,7 +376,9 @@ describe('SegmentPlayer', () => {
       play: vi.fn(() => Promise.resolve()),
       presentProgress: (request) => {
         requests.push(request);
-        return pending.promise;
+        return request.desiredProgress <= 0
+          ? pending.promise
+          : Promise.resolve(presentedProgressReceipt(request));
       },
       progress,
       reverse: vi.fn(() => Promise.resolve()),
@@ -381,14 +392,18 @@ describe('SegmentPlayer', () => {
     });
 
     const result = player.play('hero-pattern', -1, { runId: 'frame-lock-reverse:1' });
-    await vi.waitFor(() => expect(requests).toHaveLength(1));
-    expect(requests[0]).toMatchObject({ sequence: 1, desiredProgress: 0, direction: -1 });
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(3200);
+    await flushMicrotasks();
+    expect(requests[0]?.desiredProgress).toBeLessThan(1);
+    expect(requests[0]?.desiredProgress).toBeGreaterThan(0);
+    expect(requests.at(-1)).toMatchObject({ desiredProgress: 0, direction: -1 });
     player.abort('seek');
     await expect(result).resolves.toMatchObject({ status: 'aborted', reason: 'seek' });
 
-    pending.resolve(presentedProgressReceipt(requests[0]!));
+    pending.resolve(presentedProgressReceipt(requests.at(-1)!));
     await flushMicrotasks();
-    expect(progress).toHaveBeenLastCalledWith(1);
+    expect(progress.mock.calls.at(-1)?.[0]).toBeGreaterThan(0);
     expect(progress).not.toHaveBeenCalledWith(0);
   });
 

@@ -88,6 +88,10 @@ type ActiveRun = {
     idleTimer?: ReturnType<typeof setTimeout>;
     frame?: ScheduledFrame;
   };
+  frameLockSnap?: {
+    generation: number;
+    frame?: ScheduledFrame;
+  };
   settled: boolean;
   resolve(result: SegmentResult): void;
 };
@@ -205,6 +209,13 @@ function detectPrefersReducedMotion(): boolean {
   return typeof window !== 'undefined' &&
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function easeInOutCubic(value: number): number {
+  const progress = Math.min(1, Math.max(0, value));
+  return progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 }
 
 export class SegmentPlayer {
@@ -373,7 +384,7 @@ export class SegmentPlayer {
         }
         if (run.progressCoordinator) {
           timeline.progress(run.progress);
-          this.finishFrameLockRun(run, direction === 1 ? 1 : 0);
+          this.playFrameLockSnap(run, segment.virtualDuration);
           return;
         }
         const playback = direction === 1 ? (timeline.progress(0), timeline.play(direction)) : (timeline.progress(1), timeline.reverse());
@@ -590,10 +601,6 @@ export class SegmentPlayer {
     });
   }
 
-  private finishFrameLockRun(run: ActiveRun, target: number): void {
-    this.requestFrameLockProgress(run, target, () => this.settleCompletedRun(run));
-  }
-
   private settleCompletedRun(run: ActiveRun): void {
     if (run.settled || this.active?.runId !== run.runId) return;
     this.settleRun(run, {
@@ -628,6 +635,7 @@ export class SegmentPlayer {
       delete run.staged.boundaryTimer;
     }
     this.cancelScrubSnap(run);
+    this.cancelFrameLockSnap(run);
     run.progressCoordinator?.dispose(result.status === 'aborted' ? result.reason : result.status);
     run.progressCoordinator = undefined;
     run.settled = true;
@@ -664,6 +672,58 @@ export class SegmentPlayer {
       cancelScheduledFrame(scrub.frame);
       delete scrub.frame;
     }
+  }
+
+  private cancelFrameLockSnap(run: ActiveRun): void {
+    const snap = run.frameLockSnap;
+    if (!snap) {
+      return;
+    }
+    snap.generation += 1;
+    if (snap.frame) {
+      cancelScheduledFrame(snap.frame);
+      delete snap.frame;
+    }
+  }
+
+  private playFrameLockSnap(run: ActiveRun, virtualDurationMs: number): void {
+    const snap = run.frameLockSnap ?? { generation: 0 };
+    run.frameLockSnap = snap;
+    const generation = snap.generation + 1;
+    snap.generation = generation;
+    const start = run.progress;
+    const target = run.direction === 1 ? 1 : 0;
+    const distance = Math.abs(target - start);
+    const durationMs = this.prefersReducedMotion()
+      ? 0
+      : Math.max(0, virtualDurationMs * distance);
+    const startedAt = performance.now();
+    const tick = () => {
+      delete snap.frame;
+      if (run.settled || this.active?.runId !== run.runId || snap.generation !== generation) {
+        return;
+      }
+      const elapsedRatio = durationMs <= 0
+        ? 1
+        : Math.min(1, (performance.now() - startedAt) / durationMs);
+      const eased = easeInOutCubic(elapsedRatio);
+      const desiredProgress = start + (target - start) * eased;
+      this.requestFrameLockProgress(
+        run,
+        desiredProgress,
+        elapsedRatio >= 1 ? () => this.settleCompletedRun(run) : undefined
+      );
+      if (elapsedRatio >= 1) {
+        return;
+      }
+      snap.frame = scheduleFrame(tick, Math.min(16, Math.max(1, durationMs * (1 - elapsedRatio))));
+    };
+
+    if (durationMs <= 0) {
+      tick();
+      return;
+    }
+    snap.frame = scheduleFrame(tick, Math.min(16, durationMs));
   }
 
   private armScrubSnap(run: ActiveRun, timeline: SegmentTimelineHandle, delayMs: number): void {

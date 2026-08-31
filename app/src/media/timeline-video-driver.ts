@@ -918,7 +918,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return;
     }
     if (
-      this.video.readyState < 2
+      (this.video.readyState < 2 && !frame.frameMap)
       || (this.video.seeking && evidence !== 'video-frame-callback')
     ) {
       this.presentFrame(frame);
@@ -1033,6 +1033,27 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       waiter.generation === frame.generation
       && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
     ));
+    if (
+      !stillWaiting
+      && this.inFlightSeek?.generation === frame.generation
+      && Math.abs(this.inFlightSeek.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ) {
+      // An aborted latest-wins waiter must release the seek ownership too.
+      // WebKit can clear `seeking` without emitting the matching `seeked`
+      // event, which would otherwise leave every later strict request queued
+      // behind a frame nobody is waiting to prove.
+      this.inFlightSeek = undefined;
+      this.flushQueuedSeek();
+    }
+    if (
+      !stillWaiting
+      && this.primingSeek?.generation === frame.generation
+      && Math.abs(this.primingSeek.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
+    ) {
+      this.cancelPrimingCompletion();
+      this.primingSeek = undefined;
+      this.flushQueuedSeek();
+    }
     if (
       !stillWaiting
       && this.pendingEndpointPrime?.generation === frame.generation

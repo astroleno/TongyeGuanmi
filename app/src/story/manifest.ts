@@ -315,14 +315,18 @@ function incomingAnimationMediaPlayback(
     return undefined;
   }
   const reverseRequired = segment === 'method-bottom-figure2' || segment === 'lab-ph';
+  const phEndpointFrameLock = segment === 'lab-ph' && targetScene === 'ph-animation';
   return [
     mediaPlaybackContract(
       segment,
       media,
       targetScene,
       {
-        forwardMode: 'timeline',
-        ...(reverseRequired ? { reverseMode: 'timeline' as const, reverseRequired: true } : {}),
+        forwardMode: phEndpointFrameLock ? 'frame-lock' : 'timeline',
+        ...(reverseRequired ? {
+          reverseMode: phEndpointFrameLock ? 'frame-lock' : 'timeline' as const,
+          reverseRequired: true
+        } : {}),
         preparingTimeoutMs: stagedMediaPreparingTimeoutMs
       }
     )
@@ -395,8 +399,8 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           phAnimationMedia,
           'education',
           {
-            forwardMode: 'play',
-            reverseMode: 'timeline',
+            forwardMode: 'frame-lock',
+            reverseMode: 'frame-lock',
             reverseRequired: true,
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
           }

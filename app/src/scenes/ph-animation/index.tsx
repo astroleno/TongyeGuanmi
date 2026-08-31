@@ -1,13 +1,20 @@
 import { useEffect, useRef } from 'react';
 import {
   disposeTimelineVideoDriver,
-  driveTimelineVideo,
   prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
+  type TimelineVideoDriveInput,
+  type TimelineVideoFrameResult
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { progressForFrameIndex } from '../../media/frame-timebase';
+import { videoFrameMapFor } from '../../media/video-frame-maps';
 import { PH_PLAYBACK_MS } from '../../story/timings';
-import type { SceneComponentProps, SceneModule } from '../../story/types';
+import type {
+  SceneComponentProps,
+  SceneModule,
+  SegmentProgressReceipt,
+  SegmentProgressRequest
+} from '../../story/types';
 
 export const PH_MEDIA_KEY = 'ph-figure-motion';
 export const PH_BG_SRC = new URL('../../../../assets/ph_background.webp', import.meta.url).href;
@@ -27,11 +34,13 @@ export type PhRenderState = {
 export type PhMediaRun = {
   runId: string;
   direction: 1 | -1;
+  sequence?: number;
   reducedMotion?: boolean;
   signal?: AbortSignal;
 };
 
 type PhRenderOptions = {
+  /** @deprecated Kept for callers compiled during the migration; it never drives media. */
   mediaRun?: PhMediaRun;
 };
 
@@ -63,27 +72,81 @@ function phMediaInput(
     startSeconds: 0,
     endSeconds: PH_FIGURE_END_SECONDS,
     timelineDurationMs: PH_PLAYBACK_MS,
-    mode: mediaRun.direction === 1 ? 'native-preferred' : 'timeline',
-    nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
+    mode: 'timeline',
+    frameMap: videoFrameMapFor(PH_MEDIA_KEY),
+    allowPlaybackNudge: false,
+    ...(mediaRun.sequence !== undefined ? { sequence: mediaRun.sequence } : {}),
     ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
   };
 }
 
-function drivePhPlayback(
+function writePhPlaybackRequest(
   section: HTMLElement | null,
   progress: number,
-  mediaProgress: number,
-  mediaRun: NonNullable<PhRenderOptions['mediaRun']>
+  mediaRun: PhMediaRun
 ): void {
   const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
   section?.setAttribute('data-ph-playback-direction', String(mediaRun.direction));
   section?.setAttribute('data-ph-playback-run', mediaRun.runId);
   section?.setAttribute('data-ph-raw-progress', progress.toFixed(4));
   section?.setAttribute('data-ph-playback-active', String(progress > 0.001 && progress < 0.999));
-  const snapshot = driveTimelineVideo(video, phMediaInput(mediaProgress, mediaRun));
-  section?.setAttribute('data-ph-playback-fallback', String(snapshot?.nativeFallback ?? false));
+  if (video) {
+    section?.setAttribute('data-ph-playback-fallback', video.dataset.timelineVideoFallback ?? 'false');
+  }
+}
+
+export function phRawProgressForFrame(frameIndex: number): number {
+  const frameMap = videoFrameMapFor(PH_MEDIA_KEY);
+  const mediaProgress = progressForFrameIndex(frameMap, frameIndex);
+  // phPlaybackProgress(p) = .78p + .22p². Invert the authored easing so the
+  // visual timeline commits at the master progress represented by the proof.
+  return clamp(
+    (-0.78 + Math.sqrt(0.78 * 0.78 + 0.88 * mediaProgress)) / 0.44
+  );
+}
+
+export function phSegmentProgressReceipt(
+  request: SegmentProgressRequest,
+  frame: TimelineVideoFrameResult
+): SegmentProgressReceipt {
+  return {
+    status: frame.status === 'ready' ? 'presented' : 'stale',
+    runId: request.runId,
+    sequence: request.sequence,
+    desiredProgress: request.desiredProgress,
+    presentedProgress: frame.status === 'ready'
+      ? phRawProgressForFrame(frame.presentedFrameIndex)
+      : request.desiredProgress,
+    evidence: frame.evidence === 'video-frame-callback'
+      ? 'video-frame-callback'
+      : 'runtime'
+  };
+}
+
+export function requestPhAnimationFrame(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  mediaRun: PhMediaRun
+): Promise<TimelineVideoFrameResult> {
+  const section = phSection(root);
+  const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
+  if (!section || !video) {
+    return Promise.reject(new Error('PH media surface is unavailable'));
+  }
+  writePhPlaybackRequest(section, rawProgress, mediaRun);
+  const input = phMediaInput(phPlaybackProgress(rawProgress), mediaRun);
+  return prepareTimelineVideoFrame(video, input).then((result) => {
+    if (!result) {
+      throw new Error('PH media frame preparation returned no result');
+    }
+    if (result.status === 'ready') {
+      section.dataset.phDesiredFrame = String(result.targetFrameIndex);
+      section.dataset.phPresentedFrame = String(result.presentedFrameIndex);
+      section.dataset.phPlaybackFallback = video.dataset.timelineVideoFallback ?? 'false';
+    }
+    return result;
+  });
 }
 
 export function preparePhAnimationFrame(
@@ -91,17 +154,8 @@ export function preparePhAnimationFrame(
   rawProgress: number,
   mediaRun: PhMediaRun
 ): Promise<void> {
-  renderPhAnimationProgress(root, rawProgress);
-  const section = phSection(root);
-  const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
-  if (!section || !video) {
-    return Promise.reject(new Error('PH media surface is unavailable'));
-  }
-  return prepareTimelineVideoFrame(
-    video,
-    phMediaInput(phPlaybackProgress(rawProgress), mediaRun)
-  ).then((result) => {
-    if (result?.status !== 'ready') {
+  return requestPhAnimationFrame(root, rawProgress, mediaRun).then((result) => {
+    if (result.status !== 'ready') {
       throw new Error('PH media frame preparation became stale');
     }
   });
@@ -122,11 +176,11 @@ export function renderPhAnimationProgress(root: HTMLElement | null | undefined, 
   section?.style.setProperty('--ph-figure-parallax-y', `${figureY.toFixed(2)}px`);
   section?.setAttribute('data-ph-progress', progress.toFixed(4));
   if (options.mediaRun) {
-    drivePhPlayback(section, raw, progress, options.mediaRun);
-  } else {
-    section?.setAttribute('data-ph-playback-active', 'false');
-    section?.setAttribute('data-ph-raw-progress', raw.toFixed(4));
+    section?.setAttribute('data-ph-playback-direction', String(options.mediaRun.direction));
+    section?.setAttribute('data-ph-playback-run', options.mediaRun.runId);
   }
+  section?.setAttribute('data-ph-raw-progress', raw.toFixed(4));
+  section?.setAttribute('data-ph-playback-active', String(raw > 0.001 && raw < 0.999));
 
   return { progress, bgY, frontY, figureY };
 }
@@ -138,11 +192,14 @@ export function renderPhHold(root: HTMLElement | null): void {
 export function parkPhMedia(root: HTMLElement | null | undefined): void {
   const section = phSection(root);
   const video = section?.querySelector<HTMLVideoElement>('[data-ph-alpha-video]');
-  if (!video) {
+  if (!video || !section) {
     return;
   }
   disposeTimelineVideoDriver(video);
   video.pause();
+  delete section.dataset.phDesiredFrame;
+  delete section.dataset.phPresentedFrame;
+  delete section.dataset.phPlaybackFallback;
 }
 
 function PhAnimationScene({ registerHandle }: SceneComponentProps) {
@@ -160,7 +217,7 @@ function PhAnimationScene({ registerHandle }: SceneComponentProps) {
     }
     const controller = root && video ? new AbortController() : null;
     if (root && video && controller) {
-      void preparePhAnimationFrame(root, 0, {
+      void requestPhAnimationFrame(root, 0, {
         runId: 'ph-prewarm',
         direction: 1,
         signal: controller.signal

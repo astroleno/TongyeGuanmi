@@ -6,7 +6,7 @@ import { createLabPhTransition } from './lab-ph';
 import { createPhEducationTransition, PH_EDUCATION_ANIMATION_STOP } from './ph-education';
 import { PH_PLAYBACK_MS, TERMINAL_DWELL_MS } from '../story/timings';
 import { renderEducationHold } from '../scenes/education';
-import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SegmentTimelineHandle, SpineSegmentNode, StagedLegPreparation, TransitionContext, TransitionModule } from '../story/types';
+import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SegmentProgressReceipt, SegmentProgressRequest, SegmentTimelineHandle, SpineSegmentNode, StagedLegPreparation, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
 
 const stylesheet = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
@@ -15,12 +15,65 @@ function preparationSignal(): AbortSignal {
   return new AbortController().signal;
 }
 
+class ExactFakeVideo extends FakeVideo {
+  private callbackId = 0;
+  private readonly frameCallbacks = new Map<number, (
+    now: DOMHighResTimeStamp,
+    metadata: VideoFrameCallbackMetadata
+  ) => void>();
+
+  override requestVideoFrameCallback(
+    callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void
+  ): number {
+    const handle = ++this.callbackId;
+    this.frameCallbacks.set(handle, callback);
+    queueMicrotask(() => {
+      const pending = this.frameCallbacks.get(handle);
+      if (!pending) {
+        return;
+      }
+      this.frameCallbacks.delete(handle);
+      pending(0, { mediaTime: this.currentTime } as VideoFrameCallbackMetadata);
+    });
+    return handle;
+  }
+
+  override cancelVideoFrameCallback(handle?: number): void {
+    if (handle === undefined) {
+      this.frameCallbacks.clear();
+      return;
+    }
+    this.frameCallbacks.delete(handle);
+  }
+}
+
 async function prepareAndCommit(
   timeline: SegmentTimelineHandle,
   leg: StagedLegPreparation
 ): Promise<void> {
   await timeline.prepareLeg?.(leg);
   timeline.commitLeg?.(leg);
+}
+
+async function presentAndCommit(
+  timeline: SegmentTimelineHandle,
+  runId: StagedLegPreparation['runId'],
+  direction: 1 | -1,
+  desiredProgress: number,
+  sequence: number
+): Promise<SegmentProgressReceipt> {
+  const request: SegmentProgressRequest = {
+    runId,
+    direction,
+    sequence,
+    desiredProgress,
+    signal: preparationSignal()
+  };
+  const receipt = await timeline.presentProgress!(request);
+  if (receipt.status === 'presented') {
+    timeline.progress(receipt.presentedProgress);
+  }
+  return receipt;
 }
 
 afterEach(() => {
@@ -123,7 +176,7 @@ describe('R4 group6 transitions', () => {
 
   it('prewarms PH frame zero before the Lab handoff without unloading its media surface', async () => {
     const fixture = createBackHalfDomContext('lab-ph', 'lab', 'ph-animation');
-    const video = new FakeVideo();
+    const video = new ExactFakeVideo();
     fixture.toRoot.connect('[data-ph-alpha-video]', video);
     vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
 
@@ -140,7 +193,7 @@ describe('R4 group6 transitions', () => {
 
   it('plays PH to its terminal frame, dwells one second, then dissolves to Education without Ink', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
-    const video = new FakeVideo();
+    const video = new ExactFakeVideo();
     video.duration = 1.533;
     const canvas = new FakeCanvas();
     fixture.fromRoot.connect('[data-ph-alpha-video]', video);
@@ -155,7 +208,8 @@ describe('R4 group6 transitions', () => {
     });
     expect(PH_PLAYBACK_MS).toBe(1520);
     expect(PH_EDUCATION_ANIMATION_STOP).toBeCloseTo(1520 / 2120, 6);
-    expect(phEducation.mediaPlayback?.[0]?.reverse).toEqual({ mode: 'timeline', required: true });
+    expect(phEducation.mediaPlayback?.[0]?.forward).toEqual({ mode: 'frame-lock', required: true });
+    expect(phEducation.mediaPlayback?.[0]?.reverse).toEqual({ mode: 'frame-lock', required: true });
     if (phEducation.policy.kind !== 'stagedSnap') {
       throw new Error('ph-education must be staged');
     }
@@ -179,14 +233,14 @@ describe('R4 group6 transitions', () => {
       signal: preparationSignal()
     });
 
-    timeline.progress(stop / 2);
+    await presentAndCommit(timeline, fixture.context.runId, 1, stop / 2, 1);
     const forwardMidTime = video.currentTime;
     expect(Number(fixture.fromRoot.dataset.phProgress)).toBeGreaterThan(0);
     expect(Number(fixture.fromRoot.dataset.phProgress)).toBeLessThan(1);
     expect(canvas.dataset.r4InkProgress).toBeUndefined();
     expect(fixture.toLayer.visibility.visible).toBe(false);
 
-    timeline.progress(stop);
+    await presentAndCommit(timeline, fixture.context.runId, 1, stop, 2);
     expect(fixture.fromRoot.dataset.phProgress).toBe('1.0000');
     expect(canvas.dataset.r4InkProgress).toBeUndefined();
     expect(timeline.pauses).toEqual([]);
@@ -204,7 +258,7 @@ describe('R4 group6 transitions', () => {
       signal: preparationSignal()
     });
 
-    timeline.progress((stop + 1) / 2);
+    await presentAndCommit(timeline, fixture.context.runId, 1, (stop + 1) / 2, 3);
     expect(fixture.fromRoot.dataset.phProgress).toBe('1.0000');
     expect(fixture.toRoot.dataset.educationProgress).toBe('1.0000');
     expect(fixture.toRoot.style.getPropertyValue('--r4-education-y')).toBe('0.00px');
@@ -228,19 +282,19 @@ describe('R4 group6 transitions', () => {
       to: fixture.stage.children[1]
     });
     expect(fixture.stage.children).toHaveLength(2);
-    for (const progress of [(stop + 2) / 3, (stop + 3) / 4]) {
-      timeline.progress(progress);
+    for (const [index, progress] of [(stop + 2) / 3, (stop + 3) / 4].entries()) {
+      await presentAndCommit(timeline, fixture.context.runId, 1, progress, index + 4);
     }
     expect(video.currentTimeWrites).toBe(writesAtStop);
 
     expect(video.currentTime).toBeGreaterThanOrEqual(forwardMidTime);
-    expect(video.playCalls).toBeGreaterThan(0);
+    expect(video.playCalls).toBe(0);
     timeline.dispose();
   });
 
   it('keeps the Education receiver at its final layout and top edge through p=.99, p=1 and dispose', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
-    const video = new FakeVideo();
+    const video = new ExactFakeVideo();
     fixture.fromRoot.connect('[data-ph-alpha-video]', video);
     fixture.toRoot.scrollTop = 360;
     const timeline = await createPhEducationTransition().buildTimeline(fixture.context);
@@ -278,7 +332,7 @@ describe('R4 group6 transitions', () => {
 
   it('reverses PH from its first pause with one fixed preparation and descending presented targets', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
-    const video = new FakeVideo();
+    const video = new ExactFakeVideo();
     video.duration = 1.533;
     fixture.fromRoot.connect('[data-ph-alpha-video]', video);
     const timeline = await createPhEducationTransition().buildTimeline(fixture.context);
@@ -293,7 +347,7 @@ describe('R4 group6 transitions', () => {
       durationMs: PH_PLAYBACK_MS,
       signal: preparationSignal()
     });
-    timeline.progress(PH_EDUCATION_ANIMATION_STOP);
+    await presentAndCommit(timeline, fixture.context.runId, 1, PH_EDUCATION_ANIMATION_STOP, 1);
     expect(video.currentTime).toBeCloseTo(1.5, 3);
     const forwardPlayCalls = video.playCalls;
 
@@ -309,14 +363,17 @@ describe('R4 group6 transitions', () => {
       signal: preparationSignal()
     });
     const samples: number[] = [];
-    for (const progress of [0.75, 0.5, 0.25].map((value) => value * PH_EDUCATION_ANIMATION_STOP)) {
-      timeline.progress(progress);
+    for (const [index, progress] of [0.75, 0.5, 0.25]
+      .map((value) => value * PH_EDUCATION_ANIMATION_STOP)
+      .entries()) {
+      await presentAndCommit(timeline, fixture.context.runId, -1, progress, index + 2);
       samples.push(video.currentTime);
     }
+    expect(samples[0]).toBeLessThan(1.5);
     expect(samples[0]).toBeGreaterThan(samples[1] ?? 0);
     expect(samples[1]).toBeGreaterThan(samples[2] ?? 0);
     expect(video.playCalls).toBe(forwardPlayCalls);
-    timeline.progress(0);
+    await presentAndCommit(timeline, fixture.context.runId, -1, 0, 5);
     expect(video.currentTime).toBe(0);
   });
 
@@ -326,7 +383,7 @@ describe('R4 group6 transitions', () => {
 
     expect(transition.requiredMilestones).toEqual(['targetReady', 'mediaReady', 'buildReady']);
     expect(transition.mediaPlayback).toEqual(manifestSegment.mediaPlayback);
-    expect(transition.mediaPlayback?.[0]?.forward).toEqual({ mode: 'play', required: true });
+    expect(transition.mediaPlayback?.[0]?.forward).toEqual({ mode: 'frame-lock', required: true });
   });
 
   it('keeps the PH source hidden until its reverse terminal frame is presented', async () => {
@@ -374,7 +431,7 @@ describe('R4 group6 transitions', () => {
         }
         const callback = this.frameCallback;
         this.frameCallback = undefined;
-        callback?.(0, {} as VideoFrameCallbackMetadata);
+        callback?.(0, { mediaTime: this.currentTime } as VideoFrameCallbackMetadata);
       }
     }
 
@@ -419,7 +476,7 @@ describe('R4 group6 transitions', () => {
 
   it('keeps PH re-entrant across twenty explicit alternating runs without reading stale DOM direction', async () => {
     const fixture = createBackHalfDomContext('ph-education', 'ph-animation', 'education');
-    const video = new FakeVideo();
+    const video = new ExactFakeVideo();
     video.duration = 76 / 30;
     fixture.fromRoot.connect('[data-ph-alpha-video]', video);
     vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
@@ -458,13 +515,25 @@ describe('R4 group6 transitions', () => {
         signal: preparationSignal(),
         ...(direction === -1 ? { resumedStageIndex: 0 } : {})
       });
-      timeline.progress(PH_EDUCATION_ANIMATION_STOP * 0.5);
+      await presentAndCommit(
+        timeline,
+        runContext.runId,
+        direction,
+        PH_EDUCATION_ANIMATION_STOP * 0.5,
+        1
+      );
 
       expect(fixture.fromRoot.dataset.phPlaybackDirection).toBe(String(direction));
       expect(video.currentTime).toBeGreaterThan(0);
       expect(video.currentTime).toBeLessThan(video.duration);
 
-      timeline.progress(direction === 1 ? PH_EDUCATION_ANIMATION_STOP : 0);
+      await presentAndCommit(
+        timeline,
+        runContext.runId,
+        direction,
+        direction === 1 ? PH_EDUCATION_ANIMATION_STOP : 0,
+        2
+      );
       expect(video.currentTime).toBeCloseTo(direction === 1 ? 1.5 : 0, 2);
       timeline.dispose();
     }
