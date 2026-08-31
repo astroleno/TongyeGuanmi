@@ -212,7 +212,7 @@ describe('hero-pattern transition', () => {
     }
   );
 
-  it('reuses the presented prewarm proof after the physical playhead drifts within its accepted window', async () => {
+  it('re-seeks when the physical playhead drifts to another integer frame', async () => {
     const fixture = createBackHalfDomContext('hero-pattern', 'hero', 'pattern');
     const canvas = new FakeCanvas();
     const video = new FakeVideo();
@@ -233,15 +233,15 @@ describe('hero-pattern transition', () => {
     expect(video.currentTime).toBe(0);
     expect(video.playCalls).toBe(0);
 
-    // A real Chromium slow sample presented the requested 0s frame through
-    // rVFC, then exposed a settled 0.051944s playhead at keydown. The driver
-    // still owns the exact same endpoint proof, so the mutable playhead must
-    // not veto that proof during the timeline generation handoff.
+    // A physical playhead drift that quantizes to another integer frame cannot
+    // reuse the old rVFC proof. The strict driver must seek and prove frame 0
+    // again rather than treating currentTime as evidence.
     video.currentTime = .051944;
     const warmSeekWrites = video.currentTimeWrites;
     const timeline = await transition.buildTimeline(fixture.context);
 
-    expect(video.currentTimeWrites).toBe(warmSeekWrites);
+    expect(video.currentTimeWrites).toBeGreaterThan(warmSeekWrites);
+    expect(video.currentTime).toBe(0);
     expect(fixture.stage.children).toHaveLength(stageChildrenBeforePrewarm + 1);
     timeline.dispose();
   });
@@ -273,14 +273,12 @@ describe('hero-pattern transition', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // The strict endpoint crosses its compositor prime before registering the
-    // causal callback. The deferred fixture therefore has no callback pending
-    // until the prime settles.
-    expect(video.hasPendingFrame()).toBe(false);
+    // The reverse endpoint starts away from the target, so the driver seeks
+    // directly and waits for the causal callback.
+    expect(video.hasPendingFrame()).toBe(true);
     expect(fixture.context.from.element?.style.visibility).toBe('visible');
     expect(fixture.context.from.element?.style.opacity).toBe('0.001');
     expect(fixture.context.from.element?.style.zIndex).toBe('31');
-    await vi.advanceTimersByTimeAsync(50);
     video.presentFrame();
     const timeline = await build;
     expect(video.hasPendingFrame()).toBe(false);

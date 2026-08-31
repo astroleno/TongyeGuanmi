@@ -469,6 +469,7 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
           }}
           className="r4-hero-scene__figure"
           data-hero-figure-video
+          data-media-key={HERO_MEDIA_KEY}
           poster={HERO_FIGURE_POSTER}
           muted
           playsInline
