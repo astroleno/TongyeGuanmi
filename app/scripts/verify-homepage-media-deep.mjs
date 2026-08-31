@@ -7,7 +7,8 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import {
   alphaVideoSourcePairs,
-  canonicalVideoContracts
+  canonicalVideoContracts,
+  packedAlphaVideoSources
 } from './homepage-media-contract.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -16,6 +17,14 @@ const repoDir = path.dirname(appDir);
 const TIMING_TOLERANCE_SECONDS = 0.001;
 const HEVC_TIMING_TOLERANCE_SECONDS = 0.002;
 const HEVC_MAX_GOP_FRAMES = 8;
+const packedToWebm = new Map([
+  ['assets/figure1-rgb-alpha.mp4', 'assets/figure1.webm'],
+  ['assets/figure2-pair-motion-rgb-alpha.mp4', 'assets/figure2-pair-motion.webm'],
+  ['assets/aod-figure-motion-rgb-alpha.mp4', 'assets/aod-figure-motion.webm'],
+  ['assets/ph-figure-motion-rgb-alpha.mp4', 'assets/ph-figure-motion.webm'],
+  ['assets/crane-figure-motion-rgb-alpha.mp4', 'assets/crane-figure-motion.webm'],
+  ['assets/crane-flock-motion-rgb-alpha.mp4', 'assets/crane-flock-motion.webm']
+]);
 const SWIFT_ALPHA_CHECK = [
   'import AVFoundation',
   'import Foundation',
@@ -1070,6 +1079,8 @@ async function inspectHevcAlphaCharacteristics() {
 }
 
 async function inspectHevcAlphaPair(pair, alphaSources) {
+  const frameMapContract = canonicalVideoContracts.find((contract) => contract.source === pair.webm);
+  assert(frameMapContract?.frameMap, `${pair.webm} has no production frame map`);
   const [webmProbe, hevcProbe] = await Promise.all([
     ffprobe(pair.webm, [
       '-count_frames',
@@ -1079,12 +1090,13 @@ async function inspectHevcAlphaPair(pair, alphaSources) {
     ffprobe(pair.hevc, [
       '-count_frames',
       '-select_streams', 'v:0',
-      '-show_entries', 'stream=codec_name,codec_tag_string,width,height,sample_aspect_ratio,r_frame_rate,nb_read_frames:format=duration:frame=key_frame'
+      '-show_entries', 'stream=codec_name,codec_tag_string,width,height,sample_aspect_ratio,r_frame_rate,avg_frame_rate,nb_read_frames:format=duration:frame=key_frame,best_effort_timestamp_time'
     ])
   ]);
   const webm = webmProbe.streams?.[0];
   const hevc = hevcProbe.streams?.[0];
   const frames = hevcProbe.frames ?? [];
+  const framePts = frames.map((frame) => Number(frame.best_effort_timestamp_time));
   const keyframeIndexes = frames.flatMap((frame, index) => (
     Number(frame.key_frame) === 1 ? [index] : []
   ));
@@ -1117,6 +1129,7 @@ async function inspectHevcAlphaPair(pair, alphaSources) {
     `${pair.hevc} trailing GOP exceeds ${HEVC_MAX_GOP_FRAMES} frames`
   );
   assert(alphaSources.has(repoPath(pair.hevc)), `${pair.hevc} AVFoundation alpha check missing`);
+  assertFrameMapProbe(frameMapContract, hevc, framePts, pair.hevc);
 
   return {
     webm: pair.webm,
@@ -1133,6 +1146,27 @@ async function inspectHevcAlphaPair(pair, alphaSources) {
     maxGopFrames: HEVC_MAX_GOP_FRAMES,
     avFoundationAlpha: true
   };
+}
+
+function assertFrameMapProbe(contract, stream, framePts, label) {
+  const map = contract.frameMap;
+  assert(map, `${label} has no frame map metadata`);
+  const [fpsNumerator, fpsDenominator] = contract.fps.split('/').map(Number);
+  assert(map.fpsNumerator === fpsNumerator, `${label} frame map numerator disagrees with fps`);
+  assert(map.fpsDenominator === fpsDenominator, `${label} frame map denominator disagrees with fps`);
+  assert(map.frameCount === contract.frames, `${label} frame map count disagrees with contract`);
+  assert(map.startFrame >= 0 && map.startFrame <= map.endFrame && map.endFrame < map.frameCount,
+    `${label} frame map range is invalid`);
+  assert(String(stream?.r_frame_rate) === contract.fps, `${label} real fps must be ${contract.fps}`);
+  assert(Number(stream?.nb_read_frames) === map.frameCount, `${label} frame count disagrees with map`);
+  assert(framePts.length === map.frameCount, `${label} PTS sample count disagrees with map`);
+  assertNear(framePts[0], map.firstPtsSeconds, `${label} frame-map first PTS`);
+  assertNear(framePts.at(-1), map.firstPtsSeconds + (map.frameCount - 1) * map.fpsDenominator / map.fpsNumerator,
+    `${label} frame-map last PTS`);
+  const frameStep = map.fpsDenominator / map.fpsNumerator;
+  for (let index = 1; index < framePts.length; index += 1) {
+    assertNear(framePts[index] - framePts[index - 1], frameStep, `${label} frame-map cadence at frame ${index}`);
+  }
 }
 
 async function inspectCanonicalVideo(contract) {
@@ -1157,12 +1191,7 @@ async function inspectCanonicalVideo(contract) {
   assertNear(duration, contract.duration, `${contract.source} duration`);
   assertNear(framePts[0], contract.firstPts, `${contract.source} first PTS`);
   assertNear(framePts.at(-1), contract.lastPts, `${contract.source} last PTS`);
-
-  const expectedFrameStep = 1 / 30;
-  for (let index = 1; index < framePts.length; index += 1) {
-    const cadence = framePts[index] - framePts[index - 1];
-    assertNear(cadence, expectedFrameStep, `${contract.source} cadence at frame ${index}`);
-  }
+  assertFrameMapProbe(contract, stream, framePts, contract.source);
 
   assert(streamAlphaMode(stream) === '1', `${contract.source} alpha_mode tag must be 1`);
   assert(keyframeIndexes.length === contract.keyframes, `${contract.source} keyframe count ${keyframeIndexes.length} != ${contract.keyframes}`);
@@ -1187,6 +1216,29 @@ async function inspectCanonicalVideo(contract) {
   };
 }
 
+async function inspectPackedFrameMap(source) {
+  const webmSource = packedToWebm.get(source);
+  const contract = canonicalVideoContracts.find((entry) => entry.source === webmSource);
+  assert(contract, `${source} has no canonical WebM frame-map contract`);
+  const probe = await ffprobe(source, [
+    '-count_frames',
+    '-select_streams', 'v:0',
+    '-show_entries', 'stream=avg_frame_rate,r_frame_rate,nb_read_frames:frame=best_effort_timestamp_time'
+  ]);
+  const stream = probe.streams?.[0];
+  const framePts = (probe.frames ?? []).map((frame) => Number(frame.best_effort_timestamp_time));
+  assertFrameMapProbe(contract, stream, framePts, source);
+  return {
+    source,
+    canonicalSource: webmSource,
+    fps: stream.r_frame_rate,
+    frames: Number(stream.nb_read_frames),
+    firstPts: framePts[0],
+    lastPts: framePts.at(-1),
+    frameMap: contract.frameMap
+  };
+}
+
 const canonicalVideos = [];
 for (const contract of canonicalVideoContracts) {
   canonicalVideos.push(await inspectCanonicalVideo(contract));
@@ -1195,6 +1247,10 @@ const alphaSources = await inspectHevcAlphaCharacteristics();
 const hevcAlphaVideos = [];
 for (const pair of alphaVideoSourcePairs) {
   hevcAlphaVideos.push(await inspectHevcAlphaPair(pair, alphaSources));
+}
+const packedAlphaVideos = [];
+for (const source of packedAlphaVideoSources) {
+  packedAlphaVideos.push(await inspectPackedFrameMap(source));
 }
 const [figure2Combined, phEdgeSpill, aodAlpha, craneSingleSource, heroTrimmed, craneFlockVisual, craneFlockCorrectedFrame] = await Promise.all([
   inspectFigure2CombinedContract(),
@@ -1207,9 +1263,10 @@ const [figure2Combined, phEdgeSpill, aodAlpha, craneSingleSource, heroTrimmed, c
 ]);
 process.stdout.write(`${JSON.stringify({
   qualification: 'homepage-media-deep',
-  files: canonicalVideos.length + hevcAlphaVideos.length,
+  files: canonicalVideos.length + hevcAlphaVideos.length + packedAlphaVideos.length,
   canonicalVideos,
   hevcAlphaVideos,
+  packedAlphaVideos,
   figure2Combined,
   phEdgeSpill,
   aodAlpha,

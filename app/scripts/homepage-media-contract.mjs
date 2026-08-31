@@ -406,6 +406,24 @@ export const frozenHomepageMedia = [
 
 export const canonicalVideoContracts = [
   {
+    source: 'assets/figure1.webm',
+    fps: '24/1',
+    frames: 49,
+    duration: 2.042,
+    firstPts: 0,
+    lastPts: 2,
+    keyframes: 7,
+    maxGopFrames: 8,
+    frameMap: {
+      fpsNumerator: 24,
+      fpsDenominator: 1,
+      firstPtsSeconds: 0,
+      frameCount: 49,
+      startFrame: 0,
+      endFrame: 48
+    }
+  },
+  {
     source: 'assets/figure2-pair-motion.webm',
     fps: '30/1',
     frames: 156,
@@ -413,7 +431,15 @@ export const canonicalVideoContracts = [
     firstPts: 0,
     lastPts: 5.167,
     keyframes: 13,
-    maxGopFrames: 13
+    maxGopFrames: 13,
+    frameMap: {
+      fpsNumerator: 30,
+      fpsDenominator: 1,
+      firstPtsSeconds: 0,
+      frameCount: 156,
+      startFrame: 0,
+      endFrame: 155
+    }
   },
   {
     source: 'assets/ph-figure-motion.webm',
@@ -423,7 +449,15 @@ export const canonicalVideoContracts = [
     firstPts: 0,
     lastPts: 1.5,
     keyframes: 6,
-    maxGopFrames: 8
+    maxGopFrames: 8,
+    frameMap: {
+      fpsNumerator: 30,
+      fpsDenominator: 1,
+      firstPtsSeconds: 0,
+      frameCount: 46,
+      startFrame: 0,
+      endFrame: 45
+    }
   },
   {
     source: 'assets/ttg-figure-motion.webm',
@@ -433,7 +467,15 @@ export const canonicalVideoContracts = [
     firstPts: 0,
     lastPts: 2.467,
     keyframes: 10,
-    maxGopFrames: 8
+    maxGopFrames: 8,
+    frameMap: {
+      fpsNumerator: 30,
+      fpsDenominator: 1,
+      firstPtsSeconds: 0,
+      frameCount: 75,
+      startFrame: 0,
+      endFrame: 74
+    }
   },
   {
     source: 'assets/crane-figure-motion.webm',
@@ -443,7 +485,15 @@ export const canonicalVideoContracts = [
     firstPts: 0,
     lastPts: 2.467,
     keyframes: 10,
-    maxGopFrames: 8
+    maxGopFrames: 8,
+    frameMap: {
+      fpsNumerator: 30,
+      fpsDenominator: 1,
+      firstPtsSeconds: 0,
+      frameCount: 75,
+      startFrame: 0,
+      endFrame: 74
+    }
   },
   {
     source: 'assets/crane-flock-motion.webm',
@@ -453,7 +503,15 @@ export const canonicalVideoContracts = [
     firstPts: 0,
     lastPts: 2.433,
     keyframes: 10,
-    maxGopFrames: 8
+    maxGopFrames: 8,
+    frameMap: {
+      fpsNumerator: 30,
+      fpsDenominator: 1,
+      firstPtsSeconds: 0,
+      frameCount: 74,
+      startFrame: 0,
+      endFrame: 73
+    }
   },
   {
     source: 'assets/aod-figure-motion.webm',
@@ -463,7 +521,15 @@ export const canonicalVideoContracts = [
     firstPts: 0,
     lastPts: 2.567,
     keyframes: 10,
-    maxGopFrames: 8
+    maxGopFrames: 8,
+    frameMap: {
+      fpsNumerator: 30,
+      fpsDenominator: 1,
+      firstPtsSeconds: 0,
+      frameCount: 78,
+      startFrame: 0,
+      endFrame: 77
+    }
   },
   {
     source: 'assets/figure3-motion.webm',
@@ -473,6 +539,14 @@ export const canonicalVideoContracts = [
     firstPts: 0,
     lastPts: 2.567,
     keyframes: 10,
-    maxGopFrames: 8
+    maxGopFrames: 8,
+    frameMap: {
+      fpsNumerator: 30,
+      fpsDenominator: 1,
+      firstPtsSeconds: 0,
+      frameCount: 78,
+      startFrame: 0,
+      endFrame: 77
+    }
   }
 ];
