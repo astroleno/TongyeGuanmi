@@ -5,7 +5,7 @@ import { hashForScene } from '../navigation';
 import { PHONE_FIGURE2_ARCH_SRC, RetainedFigure2Arch } from '../../stage/PhoneRetainedFigure2Arch';
 import { phoneManifest, phoneNativePrewarmScenes, phoneRetainedFigure2ArchOwner, phoneSceneById,
   type PhoneSceneId, type PhoneSegmentId } from './manifest';
-import { createPhonePresentation, runPhoneCleanupSteps, type PhoneLeafReportBinding,
+import { createPhonePresentation, phoneIdentitySignature, runPhoneCleanupSteps, type PhoneLeafReportBinding,
   type PhoneLeafReportPort, type PhonePresentation } from './presentation';
 import type { PhoneAttemptKey, PhoneDependencyRef, PhoneEntryRequest, PhoneStoryEffect, PhoneStorySnapshot,
   PhoneTransactionLeg, PhoneViewportSnapshot } from './protocol';
@@ -449,9 +449,7 @@ function bindingFor(
 }
 
 function portKey(binding: PhoneLeafReportBinding): string {
-  return binding.leg === 'effect' && binding.attempt.segmentId
-    ? `effect|${binding.attempt.segmentId}`
-    : [binding.attempt.transactionId, binding.stageIndex, binding.leg].join('|');
+  return [binding.leg, phoneIdentitySignature(binding.allowedSurfaceIds, ',')].join('|');
 }
 
 export function PhoneStoryShell({
@@ -511,11 +509,6 @@ export function PhoneStoryShell({
     const created = owners.engine.createLeafReportPort(binding); reportPorts.current.set(key, created);
     return created;
   };
-  if (connectedRef.current && snapshot.status === 'transaction') {
-    const prefix = [snapshot.transaction.attempt.transactionId, snapshot.transaction.stageIndex].join('|'); const effectKey = snapshot.transaction.attempt.segmentId ? `effect|${snapshot.transaction.attempt.segmentId}` : null; for (const key of reportPorts.current.keys()) if (!key.startsWith(`${prefix}|`) && key !== effectKey) reportPorts.current.delete(key);
-  } else {
-    for (const key of reportPorts.current.keys()) if (!key.startsWith('effect|')) reportPorts.current.delete(key);
-  }
   const roles = bufferRoles(snapshot);
   const stablePlaneRevision = snapshot.presentationProof?.planeRevision ?? null;
   const stableCommitKey = snapshot.stableCommit

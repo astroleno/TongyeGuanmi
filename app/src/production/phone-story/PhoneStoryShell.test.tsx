@@ -104,7 +104,7 @@ vi.mock('./runtime', () => ({
           throw new Error('report ports require the active route connection');
         }
         return Object.freeze({
-          registerMount: vi.fn(), reportPrepared: vi.fn(), reportFrame: vi.fn(),
+          rebind: vi.fn(), registerMount: vi.fn(), reportPrepared: vi.fn(), reportFrame: vi.fn(),
           reportProgress: vi.fn(), reportComplete: vi.fn(), reportFailure: vi.fn()
         }) satisfies PhoneLeafReportPort;
       }),
@@ -126,6 +126,9 @@ vi.mock('./runtime', () => ({
 }));
 
 vi.mock('./presentation', () => ({
+  phoneIdentitySignature: (values: readonly string[], separator = '|') => (
+    [...values].sort().join(separator)
+  ),
   runPhoneCleanupSteps: (label: string, steps: readonly (() => void)[]) => {
     const errors: unknown[] = [];
     for (const step of steps) {
@@ -289,6 +292,27 @@ function stableSnapshot(): SnapshotRecord {
     presentationProof: { commitSequence: 1, planeRevision: 1 },
     scroll: { x: 0, y: 0, sampledAt: 0, origin: 'runtime' },
     input: { enabled: true }
+  };
+}
+
+function retryHeroSnapshot(): SnapshotRecord {
+  const initial = bootSnapshot();
+  const activeAttempt = attempt('entry', 2);
+  const transaction = initial.transaction as SnapshotRecord;
+  return {
+    ...initial,
+    stateRevision: 3,
+    lastTransactionGeneration: 2,
+    transaction: {
+      ...transaction,
+      mode: 'entry',
+      attempt: activeAttempt,
+      requiredPrepared: [{
+        attempt: activeAttempt, stageIndex: 0, leg: 'target', kind: 'module-loaded',
+        surfaceId: null, planeRevision: null
+      }],
+      evidence: loadedEvidence(activeAttempt)
+    }
   };
 }
 
@@ -939,6 +963,22 @@ describe('clean PhoneStoryShell ownership', () => {
       pathname: '/', hash: '#contact', origin: 'menu'
     });
     expect(probe.engines).toHaveLength(created);
+    act(() => root.unmount());
+  });
+
+  it('reuses a logical scene report port across a retry of the mounted target', () => {
+    const { root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    const firstReports = probe.sceneProps.at(-1)?.reports as PhoneLeafReportPort;
+    expect(firstReports).toBeDefined();
+    const initialPortCount = engine.createLeafReportPort.mock.calls.length;
+
+    act(() => engine.publish(retryHeroSnapshot()));
+
+    expect(engine.createLeafReportPort).toHaveBeenCalledTimes(initialPortCount);
+    expect(probe.sceneProps.at(-1)?.reports).toBe(firstReports);
+    expect(firstReports.rebind).toHaveBeenCalledTimes(1);
     act(() => root.unmount());
   });
 
