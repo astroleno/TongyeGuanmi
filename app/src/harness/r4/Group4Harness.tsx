@@ -84,7 +84,7 @@ function holdVisibilityForWindow(window: LayerWindowSnapshot): Partial<Record<Sc
 }
 
 async function waitForRuntimeIdle(runtime: ReturnType<typeof createDirectorRuntime>): Promise<void> {
-  for (let attempt = 0; attempt < 180; attempt += 1) {
+  for (let attempt = 0; attempt < 600; attempt += 1) {
     const state = String(runtime.getState().state);
     if (state === 'hold') {
       return;
@@ -250,7 +250,7 @@ export function Group4Harness({ mode }: { mode: R4Group4HarnessMode }) {
   };
 
   const play = async (direction: Direction, options: PlayOptions = {}) => {
-    buildDelayMs.current = options.buildTimeout ? 2200 : 0;
+    buildDelayMs.current = options.buildTimeout ? 8500 : 0;
     if (options.buildTimeout) {
       for (const segment of GROUP_SEGMENTS) {
         runtime.segmentPlayer.dispose(segment);

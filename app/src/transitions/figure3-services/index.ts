@@ -3,7 +3,11 @@ import { hiddenVisibility, holdVisibility, range01, smoothStep } from '../../pil
 import {
   FIGURE3_HOLD_PROGRESS,
   FIGURE3_MEDIA_KEY,
+  figure3MediaProgressForFrame,
+  figure3MediaProgressForRawProgress,
+  figure3SegmentProgressReceipt,
   prepareFigure3AnimationFrame,
+  requestFigure3AnimationFrame,
   renderFigure3AnimationProgress,
   type Figure3MediaRun
 } from '../../scenes/figure3-animation';
@@ -15,6 +19,7 @@ import {
 import { positionReadingAtEdge } from '../../stage/reading';
 import { createTransitionLayerElevation, type TransitionLayerElevation } from '../shared/layerElevation';
 import type { Direction, LayerVisibilityState, SegmentTimelineHandle, TransitionContext, TransitionModule } from '../../story/types';
+import type { SegmentProgressReceipt, SegmentProgressRequest } from '../../story/types';
 import { FIGURE3_SERVICES_DURATION_MS } from '../../story/timings';
 
 export { FIGURE3_SERVICES_DURATION_MS } from '../../story/timings';
@@ -60,6 +65,45 @@ function sampleFigure3Services(
   };
 }
 
+function figure3ServicesMediaProgressForMasterProgress(progress: number): number {
+  return figure3MediaProgressForRawProgress(sampleFigure3ServicesChannels(progress).mediaProgress);
+}
+
+function inverseFigure3ServicesMediaProgress(mediaProgress: number): number {
+  const target = Math.min(1, Math.max(0, mediaProgress));
+  if (target >= 0.999999) {
+    return 0.96;
+  }
+  let lower = 0;
+  let upper = 0.96;
+  for (let index = 0; index < 24; index += 1) {
+    const middle = (lower + upper) / 2;
+    if (figure3ServicesMediaProgressForMasterProgress(middle) < target) {
+      lower = middle;
+    } else {
+      upper = middle;
+    }
+  }
+  return (lower + upper) / 2;
+}
+
+function figure3ServicesProgressReceipt(
+  request: SegmentProgressRequest,
+  frame: Awaited<ReturnType<typeof requestFigure3AnimationFrame>>
+): SegmentProgressReceipt {
+  const receipt = figure3SegmentProgressReceipt(
+    { ...request, desiredProgress: sampleFigure3ServicesChannels(request.desiredProgress).mediaProgress },
+    frame
+  );
+  return {
+    ...receipt,
+    desiredProgress: request.desiredProgress,
+    presentedProgress: frame.status === 'ready'
+      ? inverseFigure3ServicesMediaProgress(figure3MediaProgressForFrame(frame.presentedFrameIndex))
+      : request.desiredProgress
+  };
+}
+
 function writeTransitionRun(element: HTMLElement | null | undefined, name: string, runId: string): void {
   if (!element) return;
   transitionRunByElement.set(element, runId);
@@ -77,12 +121,14 @@ function clearTransitionRun(element: HTMLElement | null | undefined, runId: stri
 class Figure3ServicesTimeline implements SegmentTimelineHandle {
   readonly labels: Readonly<Record<string, number>>;
   readonly pauses: readonly string[];
+  private readonly context: TransitionContext;
   private readonly timeline: PilotProgressTimeline;
   private readonly elevation: TransitionLayerElevation;
   private readonly toElement: HTMLElement | null | undefined;
   private readonly mediaRun: Figure3MediaRun;
 
   constructor(context: TransitionContext, durationMs: number, mediaRun: Figure3MediaRun) {
+    this.context = context;
     this.elevation = createTransitionLayerElevation(context.to.element);
     this.toElement = context.to.element;
     this.mediaRun = mediaRun;
@@ -154,6 +200,42 @@ class Figure3ServicesTimeline implements SegmentTimelineHandle {
     return this.timeline.sample(progress);
   }
 
+  presentProgress(request: SegmentProgressRequest): Promise<SegmentProgressReceipt> {
+    if (this.context.prefersReducedMotion) {
+      return Promise.resolve({
+        status: 'presented',
+        runId: request.runId,
+        sequence: request.sequence,
+        desiredProgress: request.desiredProgress,
+        presentedProgress: request.desiredProgress,
+        evidence: 'runtime'
+      });
+    }
+    const desiredProgress = Math.min(1, Math.max(0, request.desiredProgress));
+    if (desiredProgress > 0.96 + 0.0001) {
+      return Promise.resolve({
+        status: 'presented',
+        runId: request.runId,
+        sequence: request.sequence,
+        desiredProgress: request.desiredProgress,
+        presentedProgress: desiredProgress,
+        evidence: 'runtime'
+      });
+    }
+    const channels = sampleFigure3ServicesChannels(desiredProgress);
+    return requestFigure3AnimationFrame(
+      rootFor(this.context.from.element, 'figure3-animation'),
+      channels.mediaProgress,
+      {
+        ...this.mediaRun,
+        runId: request.runId,
+        direction: request.direction,
+        sequence: request.sequence,
+        signal: request.signal
+      }
+    ).then((frame) => figure3ServicesProgressReceipt(request, frame));
+  }
+
   rootIdentity() {
     return this.timeline.rootIdentity();
   }
@@ -168,8 +250,8 @@ export function createFigure3ServicesTransition(options: { delayMs?: () => numbe
       {
         id: 'figure3-alpha',
         media: [FIGURE3_MEDIA_KEY],
-        forward: { mode: 'play', required: true },
-        reverse: { mode: 'timeline', required: true },
+        forward: { mode: 'frame-lock', required: true },
+        reverse: { mode: 'frame-lock', required: true },
         readyMilestones: ['targetReady', 'mediaReady'],
         terminalFallbackScene: 'services',
         preparingTimeoutMs: 1800
@@ -188,13 +270,12 @@ export function createFigure3ServicesTransition(options: { delayMs?: () => numbe
       }
       const source = rootFor(context.from.element, 'figure3-animation');
       positionReadingAtEdge(context.to.element, 'top');
-      const video = source?.querySelector<HTMLVideoElement>('[data-figure3-alpha-video]');
       const mediaRun: Figure3MediaRun = {
         runId: context.runId,
         direction: context.direction,
         reducedMotion: context.prefersReducedMotion
       };
-      if (video) {
+      if (source?.querySelector('[data-figure3-alpha-video]')) {
         await prepareFigure3AnimationFrame(source, context.direction === 1 ? 0 : 1, mediaRun);
       }
       return new Figure3ServicesTimeline(

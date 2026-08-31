@@ -315,13 +315,20 @@ function incomingAnimationMediaPlayback(
   if (!media) {
     return undefined;
   }
-  const reverseRequired = segment === 'method-bottom-figure2' || segment === 'lab-ph';
+  const reverseRequired = segment === 'method-bottom-figure2'
+    || segment === 'lab-ph'
+    || segment === 'brand-figure3'
+    || segment === 'services-ttg';
   const frameLock = (
     segment === 'star-map-aod' && targetScene === 'aod-animation'
   ) || (
     segment === 'method-bottom-figure2' && targetScene === 'figure2-animation'
   ) || (
     segment === 'lab-ph' && targetScene === 'ph-animation'
+  ) || (
+    segment === 'brand-figure3' && targetScene === 'figure3-animation'
+  ) || (
+    segment === 'services-ttg' && targetScene === 'ttg-animation'
   );
   const reverseFrameLock = frameLock && (reverseRequired || segment === 'star-map-aod');
   return [
@@ -377,8 +384,8 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           figure3AnimationMedia,
           'services',
           {
-            forwardMode: 'play',
-            reverseMode: 'timeline',
+            forwardMode: 'frame-lock',
+            reverseMode: 'frame-lock',
             reverseRequired: true
           }
         )
@@ -406,7 +413,8 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           ttgAnimationMedia,
           'lab',
           {
-            reverseMode: 'timeline',
+            forwardMode: 'frame-lock',
+            reverseMode: 'frame-lock',
             reverseRequired: true,
             forwardMedia: ttgAnimationMedia,
             reverseMedia: ttgAnimationMedia,

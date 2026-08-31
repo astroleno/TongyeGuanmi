@@ -145,11 +145,11 @@ describe('story manifest contract', () => {
     for (const segment of mediaSegments) {
       expect(segment.mediaPlayback?.[0]).toMatchObject({
         forward: {
-          mode: segment.id === 'aod-method-top' ? 'frame-lock' : 'play',
+          mode: ['aod-method-top', 'figure3-services'].includes(segment.id) ? 'frame-lock' : 'play',
           required: true
         },
         reverse: {
-          mode: segment.id === 'aod-method-top' ? 'frame-lock' : 'timeline',
+          mode: ['aod-method-top', 'figure3-services'].includes(segment.id) ? 'frame-lock' : 'timeline',
           required: true
         },
         readyMilestones: ['targetReady', 'mediaReady']
@@ -215,11 +215,22 @@ describe('story manifest contract', () => {
           expect.objectContaining({
             media,
             forward: expect.objectContaining({
-              mode: ['star-map-aod', 'method-bottom-figure2', 'lab-ph'].includes(id)
+              mode: [
+                'star-map-aod',
+                'method-bottom-figure2',
+                'brand-figure3',
+                'services-ttg',
+                'lab-ph'
+              ].includes(id)
                 ? 'frame-lock'
                 : 'timeline',
               required: true
             }),
+            ...( ['star-map-aod', 'method-bottom-figure2', 'brand-figure3', 'services-ttg', 'lab-ph'].includes(id)
+              ? {
+                  reverse: expect.objectContaining({ mode: 'frame-lock', required: true })
+                }
+              : {}),
             preparingTimeoutMs: 8000
           })
         ]
@@ -326,12 +337,12 @@ describe('story manifest contract', () => {
       },
       mediaPlayback: [{
         forward: {
-          mode: 'play',
+          mode: 'frame-lock',
           required: true,
           media: ['ttg-figure-motion']
         },
         reverse: {
-          mode: 'timeline',
+          mode: 'frame-lock',
           required: true,
           media: ['ttg-figure-motion']
         }

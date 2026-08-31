@@ -50,6 +50,9 @@ type Group4VisualSnapshot = {
   figure3Progress: number;
   figure3VideoOpacity: number;
   figure3FillOpacity: number;
+  figure3DesiredFrame: number | null;
+  figure3PresentedFrame: number | null;
+  figure3FrameEvidence: string | null;
   figure3Videos: readonly { loop: boolean; paused: boolean; currentTime: number }[];
   servicesProgress: number;
   servicesRows: number;
@@ -89,6 +92,13 @@ async function visualSnapshot(page: Page): Promise<Group4VisualSnapshot> {
       figure3Progress: Number.parseFloat(figureRoot?.dataset.figure3Progress ?? '0'),
       figure3VideoOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--figure3-video-opacity') ?? '0'),
       figure3FillOpacity: Number.parseFloat(figureStyle?.getPropertyValue('--figure3-fill-opacity') ?? '0'),
+      figure3DesiredFrame: figureRoot?.dataset.figure3DesiredFrame
+        ? Number.parseInt(figureRoot.dataset.figure3DesiredFrame, 10)
+        : null,
+      figure3PresentedFrame: figureRoot?.dataset.figure3PresentedFrame
+        ? Number.parseInt(figureRoot.dataset.figure3PresentedFrame, 10)
+        : null,
+      figure3FrameEvidence: figureRoot?.dataset.figure3FrameEvidence ?? null,
       figure3Videos: [...document.querySelectorAll<HTMLVideoElement>('[data-figure3-alpha-video]')].map((video) => ({
         loop: video.loop,
         paused: video.paused,
@@ -169,6 +179,9 @@ test.describe('R4 group4 brand figure3 services harness', () => {
     expect(figureHold.figure3FillOpacity).toBeLessThan(0.05);
     expect(figureHold.figure3Videos).toHaveLength(1);
     expect(figureHold.figure3Videos.every((video) => video.loop === false && video.paused)).toBe(true);
+    expect(figureHold.figure3DesiredFrame).toBe(0);
+    expect(figureHold.figure3PresentedFrame).toBe(0);
+    expect(figureHold.figure3FrameEvidence).toBe('video-frame-callback');
 
     await page.evaluate(() => {
       void window.__r4Group4?.playForward();
@@ -181,6 +194,9 @@ test.describe('R4 group4 brand figure3 services harness', () => {
     expect(figureTerminal.servicesElevated).toBe(false);
     expect(figureTerminal.transitions).not.toContain('figure3-services-copy-cue');
     expect(figureTerminal.figure3VideoOpacity).toBeGreaterThan(0.95);
+    expect(figureTerminal.figure3DesiredFrame).toBe(77);
+    expect(figureTerminal.figure3PresentedFrame).toBe(77);
+    expect(figureTerminal.figure3FrameEvidence).toBe('video-frame-callback');
     const servicesHold = await visualSnapshot(page);
     expect(servicesHold.servicesProgress).toBe(1);
     expect(servicesHold.servicesRows).toBe(4);
@@ -235,7 +251,7 @@ test.describe('R4 group4 brand figure3 services harness', () => {
 
     const recovered = await snapshot(page);
     expect(recovered.phase).toBe('hold');
-    expect(recovered.window.current).toBe('brand');
+    expect(recovered.window.current).toBe('figure3-animation');
     expect(recovered.recoveryCount).toBe(1);
     expect(recovered.eventLog).toContain('BUILD_TIMEOUT:brand-figure3');
 

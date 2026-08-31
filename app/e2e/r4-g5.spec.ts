@@ -47,6 +47,9 @@ type VisualSnapshot = {
   ttgProgress: number;
   ttgDirection: string;
   ttgLayerVisible: boolean;
+  ttgDesiredFrame: number | null;
+  ttgPresentedFrame: number | null;
+  ttgFrameEvidence: string | null;
   videos: readonly { currentTime: number; paused: boolean; frameReady: boolean }[];
   labProgress: number;
   labRows: number;
@@ -81,6 +84,13 @@ async function visualSnapshot(page: Page): Promise<VisualSnapshot> {
       ttgProgress: Number.parseFloat(ttg?.dataset.ttgProgress ?? '0'),
       ttgDirection: ttg?.dataset.ttgPlaybackDirection ?? '',
       ttgLayerVisible: ttg?.closest<HTMLElement>('[data-stage-layer]')?.dataset.visible === 'true',
+      ttgDesiredFrame: ttg?.dataset.ttgDesiredFrame
+        ? Number.parseInt(ttg.dataset.ttgDesiredFrame, 10)
+        : null,
+      ttgPresentedFrame: ttg?.dataset.ttgPresentedFrame
+        ? Number.parseInt(ttg.dataset.ttgPresentedFrame, 10)
+        : null,
+      ttgFrameEvidence: ttg?.dataset.ttgFrameEvidence ?? null,
       videos: [...document.querySelectorAll<HTMLVideoElement>('[data-ttg-figure-video]')].map((video) => ({
         currentTime: video.currentTime,
         paused: video.paused,
@@ -129,6 +139,9 @@ test.describe('R4 group5 Services, TTG, and Lab lifecycle', () => {
     expect(ttgHold.ttgProgress).toBe(0);
     expect(ttgHold.videos).toHaveLength(1);
     expect(ttgHold.videos[0]).toMatchObject({ paused: true, frameReady: true });
+    expect(ttgHold.ttgDesiredFrame).toBe(0);
+    expect(ttgHold.ttgPresentedFrame).toBe(0);
+    expect(ttgHold.ttgFrameEvidence).toBe('video-frame-callback');
 
     await installEndpointProbe(page, 'lab', '.r4-lab');
     await page.evaluate(() => { void window.__r4Group5?.playForward(); });
@@ -137,7 +150,10 @@ test.describe('R4 group5 Services, TTG, and Lab lifecycle', () => {
       return visual.ttgDirection === '1'
         && visual.ttgProgress > 0
         && visual.ttgProgress < 1
-        && visual.videos.some((video) => video.frameReady && (!video.paused || video.currentTime > 0.05));
+        && visual.videos.some((video) => video.frameReady && video.paused)
+        && visual.ttgDesiredFrame !== null
+        && visual.ttgDesiredFrame === visual.ttgPresentedFrame
+        && visual.ttgFrameEvidence === 'video-frame-callback';
     }, { timeout: 5_000, intervals: [20] }).toBe(true);
     await expect.poll(async () => {
       const visual = await visualSnapshot(page);
@@ -153,6 +169,10 @@ test.describe('R4 group5 Services, TTG, and Lab lifecycle', () => {
     }, { timeout: 6_000, intervals: [20] }).toBe(true);
     const dwellStartedAt = Date.now();
     const terminalTime = (await visualSnapshot(page)).videos[0]!.currentTime;
+    const terminalVisual = await visualSnapshot(page);
+    expect(terminalVisual.ttgDesiredFrame).toBe(74);
+    expect(terminalVisual.ttgPresentedFrame).toBe(74);
+    expect(terminalVisual.ttgFrameEvidence).toBe('video-frame-callback');
     await page.waitForTimeout(650);
     const dwellFrame = await visualSnapshot(page);
     expect((await snapshot(page)).phase).toBe('playing');
@@ -195,6 +215,9 @@ test.describe('R4 group5 Services, TTG, and Lab lifecycle', () => {
         && visual.ttgLayerVisible
         && visual.ttgProgress === 1
         && visual.videos[0]?.paused === true
+        && visual.ttgDesiredFrame === 74
+        && visual.ttgPresentedFrame === 74
+        && visual.ttgFrameEvidence === 'video-frame-callback'
         && (visual.videos[0]?.currentTime ?? 0) > 2.4;
     }, { timeout: 5_000, intervals: [20] }).toBe(true);
     const reverseDwellStartedAt = Date.now();
@@ -235,12 +258,18 @@ test.describe('R4 group5 Services, TTG, and Lab lifecycle', () => {
       return visual.ttgDirection === '-1'
         && visual.ttgProgress > 0
         && visual.ttgProgress < 1
+        && visual.ttgDesiredFrame !== null
+        && visual.ttgDesiredFrame === visual.ttgPresentedFrame
+        && visual.ttgFrameEvidence === 'video-frame-callback'
         && (visual.videos[0]?.currentTime ?? 2.5) < 2.4;
     }, { timeout: 8_000, intervals: [20] }).toBe(true);
     await expect.poll(async () => (await snapshot(page)).window.current, { timeout: 10_000 }).toBe('ttg-animation');
     const restored = await visualSnapshot(page);
     expect(restored.videos).toHaveLength(1);
     expect(restored.videos[0]?.currentTime).toBeLessThan(0.05);
+    expect(restored.ttgDesiredFrame).toBe(0);
+    expect(restored.ttgPresentedFrame).toBe(0);
+    expect(restored.ttgFrameEvidence).toBe('video-frame-callback');
   });
 
   test('covers reduced motion and idempotent 0 to 1 to 0 to 1 replay', async ({ page }) => {
@@ -262,7 +291,7 @@ test.describe('R4 group5 Services, TTG, and Lab lifecycle', () => {
     await page.evaluate(async () => { await window.__r4Group5?.playForward({ buildTimeout: true }); });
     const recovered = await snapshot(page);
     expect(recovered.phase).toBe('hold');
-    expect(recovered.window.current).toBe('services');
+    expect(recovered.window.current).toBe('ttg-animation');
     expect(recovered.recoveryCount).toBe(1);
     expect(recovered.eventLog).toContain('BUILD_TIMEOUT:services-ttg');
     await page.evaluate(() => { window.__r4Group5?.seek('lab'); });

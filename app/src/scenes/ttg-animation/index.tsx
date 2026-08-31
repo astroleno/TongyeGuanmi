@@ -4,11 +4,19 @@ import {
   driveTimelineVideo,
   prepareTimelineVideoFrame,
   type TimelineVideoDriveInput,
-  type TimelineVideoDriverSnapshot
+  type TimelineVideoDriverSnapshot,
+  type TimelineVideoFrameResult
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { progressForFrameIndex } from '../../media/frame-timebase';
+import { VIDEO_FRAME_MAPS } from '../../media/video-frame-maps';
 import { TTG_PLAYBACK_MS } from '../../story/timings';
-import type { SceneComponentProps, SceneModule } from '../../story/types';
+import type {
+  SceneComponentProps,
+  SceneModule,
+  SegmentProgressReceipt,
+  SegmentProgressRequest
+} from '../../story/types';
 
 export const TTG_MEDIA_KEY = 'ttg-figure-motion';
 export const TTG_BG_SRC = new URL('../../../../assets/ttg-background.webp', import.meta.url).href;
@@ -18,6 +26,7 @@ export const TTG_FIGURE_VIDEO_SRC = new URL('../../../../assets/ttg-figure-motio
 export const TTG_FIGURE_HEVC_ALPHA_SRC = new URL('../../../../assets/ttg-figure-motion-hevc-alpha.mp4', import.meta.url).href;
 export const TTG_FIGURE_END_SECONDS = 2.467;
 export const TTG_HOLD_PROGRESS = 0;
+export const TTG_FRAME_MAP = VIDEO_FRAME_MAPS[TTG_MEDIA_KEY];
 
 export type TtgRenderState = {
   progress: number;
@@ -31,6 +40,7 @@ export type TtgRenderState = {
 export type TtgMediaRun = {
   runId: string;
   direction: 1 | -1;
+  sequence?: number;
   reducedMotion?: boolean;
   signal?: AbortSignal;
 };
@@ -109,7 +119,7 @@ function managerFor(section: HTMLElement): TtgMediaManager {
 function mediaInput(
   mediaRun: TtgMediaRun,
   progress: number,
-  mode: TimelineVideoDriveInput['mode'] = mediaRun.direction === 1 ? 'native-preferred' : 'timeline'
+  mode: TimelineVideoDriveInput['mode'] = 'timeline'
 ): TimelineVideoDriveInput {
   return {
     runId: mediaRun.runId,
@@ -121,9 +131,30 @@ function mediaInput(
     timelineDurationMs: TTG_PLAYBACK_MS,
     mode,
     nativePlaybackDirection: 1,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
+    allowSeekedFrameFallback: false,
+    allowPlaybackNudge: false,
+    frameMap: TTG_FRAME_MAP,
+    ...(mediaRun.sequence !== undefined ? { sequence: mediaRun.sequence } : {}),
     ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
+  };
+}
+
+export function ttgSegmentProgressReceipt(
+  request: SegmentProgressRequest,
+  frame: TimelineVideoFrameResult
+): SegmentProgressReceipt {
+  return {
+    status: frame.status === 'ready' ? 'presented' : 'stale',
+    runId: request.runId,
+    sequence: request.sequence,
+    desiredProgress: request.desiredProgress,
+    presentedProgress: frame.status === 'ready'
+      ? progressForFrameIndex(TTG_FRAME_MAP, frame.presentedFrameIndex)
+      : request.desiredProgress,
+    evidence: frame.evidence === 'video-frame-callback'
+      ? 'video-frame-callback'
+      : 'runtime'
   };
 }
 
@@ -145,10 +176,7 @@ async function prepareMedia(
   const manager = managerFor(section);
   const generation = ++manager.generation;
   try {
-    const result = await prepareTimelineVideoFrame(
-      manager.video,
-      mediaInput(mediaRun, progress, 'timeline')
-    );
+    const result = await requestTtgAnimationFrame(section, progress, mediaRun);
     if (
       mediaRun.signal?.aborted
       || manager.generation !== generation
@@ -169,6 +197,31 @@ async function prepareMedia(
   section.dataset.ttgPendingMediaRun = mediaRun.runId;
   section.dataset.ttgPendingMediaDirection = String(mediaRun.direction);
   delete section.dataset.ttgStaticMediaFallback;
+}
+
+export function requestTtgAnimationFrame(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  mediaRun: TtgMediaRun
+): Promise<TimelineVideoFrameResult> {
+  const section = ttgSection(root);
+  const video = section ? managerFor(section).video : null;
+  if (!section || !video) {
+    return Promise.reject(new Error('TTG media unavailable'));
+  }
+  section.setAttribute('data-ttg-playback-direction', String(mediaRun.direction));
+  section.setAttribute('data-ttg-playback-run', mediaRun.runId);
+  return prepareTimelineVideoFrame(video, mediaInput(mediaRun, rawProgress, 'timeline')).then((result) => {
+    if (!result) {
+      throw new Error('TTG frame preparation returned no result');
+    }
+    if (result.status === 'ready') {
+      section.dataset.ttgDesiredFrame = String(result.targetFrameIndex);
+      section.dataset.ttgPresentedFrame = String(result.presentedFrameIndex);
+      section.dataset.ttgFrameEvidence = result.evidence ?? 'runtime';
+    }
+    return result;
+  });
 }
 
 function commitPreparedMedia(section: HTMLElement, mediaRun: TtgMediaRun): void {
@@ -194,30 +247,6 @@ function commitPreparedMedia(section: HTMLElement, mediaRun: TtgMediaRun): void 
   delete section.dataset.ttgPendingMediaRun;
   delete section.dataset.ttgPendingMediaDirection;
   delete section.dataset.ttgStaticMediaFallback;
-}
-
-function driveFigurePlayback(
-  section: HTMLElement | null,
-  progress: number,
-  mediaRun: TtgMediaRun
-): void {
-  section?.setAttribute('data-ttg-playback-direction', String(mediaRun.direction));
-  section?.setAttribute('data-ttg-playback-run', mediaRun.runId);
-  section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
-  section?.setAttribute('data-ttg-playback-active', String(progress > 0.001 && progress < 0.999));
-  if (!section) {
-    return;
-  }
-  const manager = mediaManagers.get(section);
-  if (
-    !manager
-    || manager.activeRunId !== mediaRun.runId
-    || manager.activeDirection !== mediaRun.direction
-  ) {
-    return;
-  }
-  manager.snapshot = driveTimelineVideo(manager.video, mediaInput(mediaRun, progress));
-  section.dataset.ttgPlaybackFallback = String(manager.snapshot?.nativeFallback ?? false);
 }
 
 export async function prepareTtgAnimationFrame(
@@ -351,7 +380,10 @@ export function renderTtgAnimationProgress(root: HTMLElement | null | undefined,
   }
 
   if (options.mediaRun) {
-    driveFigurePlayback(section, progress, options.mediaRun);
+    section?.setAttribute('data-ttg-playback-direction', String(options.mediaRun.direction));
+    section?.setAttribute('data-ttg-playback-run', options.mediaRun.runId);
+    section?.setAttribute('data-ttg-playback-active', 'false');
+    section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));
   } else {
     section?.setAttribute('data-ttg-playback-active', 'false');
     section?.setAttribute('data-ttg-raw-progress', progress.toFixed(4));

@@ -19,13 +19,13 @@ export function createBrandFigure3Transition(options: { delayMs?: () => number }
       renderBrandHold(from);
       renderFigure3Hold(to);
     },
-    prepareTargetPresentation: ({ to }, context) => {
-      if (context.direction === -1 || context.prefersReducedMotion) {
+    prepareTargetPresentation: (roots, context) => {
+      if (context.target !== 'to' || context.prefersReducedMotion) {
         return;
       }
-      return prepareFigure3AnimationFrame(to, 0, {
+      return prepareFigure3AnimationFrame(roots.to, 0, {
         runId: context.runId,
-        direction: 1,
+        direction: context.direction,
         reducedMotion: context.prefersReducedMotion
       });
     },

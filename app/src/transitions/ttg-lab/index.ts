@@ -6,7 +6,9 @@ import {
   parkTtgMedia,
   prepareTtgPlaybackLeg,
   prepareTtgSourceTerminal,
-  renderTtgAnimationProgress
+  requestTtgAnimationFrame,
+  renderTtgAnimationProgress,
+  ttgSegmentProgressReceipt
 } from '../../scenes/ttg-animation';
 import { INTRA_CHAPTER_DISSOLVE_MS, TTG_PLAYBACK_MS } from '../../story/timings';
 import { positionReadingAtEdge } from '../../stage/reading';
@@ -36,6 +38,15 @@ export function createTtgLabTransition(options: { delayMs?: () => number } = {})
           return prepareTtgSourceTerminal(root, { ...mediaRun, signal: leg.signal });
         }
       },
+      presentProgress: (root, progress, request, mediaRun) => (
+        requestTtgAnimationFrame(root, progress, {
+          runId: request.runId,
+          direction: request.direction,
+          sequence: request.sequence,
+          reducedMotion: mediaRun.prefersReducedMotion,
+          signal: request.signal
+        }).then((frame) => ttgSegmentProgressReceipt(request, frame))
+      ),
       commitLegStart: (root, leg, mediaRun) => {
         if (leg.legIndex === 0 || leg.direction === -1) {
           commitTtgPlaybackLeg(root, mediaRun);

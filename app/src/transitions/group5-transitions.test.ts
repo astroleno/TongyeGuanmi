@@ -6,7 +6,13 @@ import { ttgAnimationScene, ttgMediaSnapshot } from '../scenes/ttg-animation';
 import { renderLabHold } from '../scenes/lab';
 import { storyManifest } from '../story/manifest';
 import { TERMINAL_DWELL_MS } from '../story/timings';
-import type { SegmentId, SegmentTimelineHandle, SpineSegmentNode, StagedLegPreparation } from '../story/types';
+import type {
+  SegmentId,
+  SegmentProgressRequest,
+  SegmentTimelineHandle,
+  SpineSegmentNode,
+  StagedLegPreparation
+} from '../story/types';
 import { createBackHalfDomContext, FakeVideo } from './__fixtures__/back-half.fixture';
 import { createTtgLabTransition, TTG_LAB_ANIMATION_STOP } from './ttg-lab';
 
@@ -54,6 +60,21 @@ async function prepareAndCommit(
   timeline.commitLeg?.(nextLeg);
 }
 
+function progressRequest(
+  runId: `${string}:${number}`,
+  direction: 1 | -1,
+  sequence: number,
+  desiredProgress: number
+): SegmentProgressRequest {
+  return {
+    runId,
+    direction,
+    sequence,
+    desiredProgress,
+    signal: new AbortController().signal
+  };
+}
+
 describe('TTG canonical directional media', () => {
   it('renders one canonical surface and gates it on a prepared frame', () => {
     const markup = renderToStaticMarkup(createElement(ttgAnimationScene.Component, {
@@ -75,17 +96,17 @@ describe('TTG canonical directional media', () => {
     expect(stylesheet).toContain('video.ttg-layer--figure[data-timeline-video-frame-ready="true"]');
   });
 
-  it('declares one shared canonical key with native forward and timeline reverse contracts', () => {
+  it('declares one shared canonical key with strict contracts in both directions', () => {
     const playback = segment('ttg-lab').mediaPlayback?.[0];
 
     expect(playback).toMatchObject({
       media: ['ttg-figure-motion'],
-      forward: { mode: 'play', required: true, media: ['ttg-figure-motion'] },
-      reverse: { mode: 'timeline', required: true, media: ['ttg-figure-motion'] }
+      forward: { mode: 'frame-lock', required: true, media: ['ttg-figure-motion'] },
+      reverse: { mode: 'frame-lock', required: true, media: ['ttg-figure-motion'] }
     });
   });
 
-  it('holds the prepared first TTG frame, then uses native forward playback and pauses at the terminal frame', async () => {
+  it('holds the prepared first TTG frame and commits only exact presented frames', async () => {
     const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
     const video = new FakeVideo();
     connectTtgMedia(fixture.fromRoot, video);
@@ -97,14 +118,39 @@ describe('TTG canonical directional media', () => {
     expect(video.playCalls).toBe(0);
     expect(video.paused).toBe(true);
 
-    timeline.progress(TTG_LAB_ANIMATION_STOP * 0.45);
-    await Promise.resolve();
-    expect(video.playCalls).toBe(1);
-    expect(video.paused).toBe(false);
-
-    timeline.progress(TTG_LAB_ANIMATION_STOP);
+    const middleRequest = progressRequest(
+      fixture.context.runId,
+      1,
+      1,
+      TTG_LAB_ANIMATION_STOP * 0.45
+    );
+    const middle = await timeline.presentProgress?.(middleRequest);
+    expect(middle).toMatchObject({
+      status: 'presented',
+      desiredProgress: middleRequest.desiredProgress,
+      evidence: 'video-frame-callback'
+    });
+    expect(video.playCalls).toBe(0);
     expect(video.paused).toBe(true);
-    expect(video.currentTime).toBeCloseTo(2.467, 3);
+    expect(fixture.fromRoot.dataset.ttgDesiredFrame).toBe(fixture.fromRoot.dataset.ttgPresentedFrame);
+    timeline.progress(middle?.presentedProgress ?? 0);
+
+    const terminal = await timeline.presentProgress?.(progressRequest(
+      fixture.context.runId,
+      1,
+      2,
+      TTG_LAB_ANIMATION_STOP
+    ));
+    expect(terminal).toMatchObject({
+      status: 'presented',
+      presentedProgress: TTG_LAB_ANIMATION_STOP,
+      evidence: 'video-frame-callback'
+    });
+    timeline.progress(terminal?.presentedProgress ?? TTG_LAB_ANIMATION_STOP);
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBeGreaterThan(2.4);
+    expect(fixture.fromRoot.dataset.ttgDesiredFrame).toBe(fixture.fromRoot.dataset.ttgPresentedFrame);
+    expect(video.playCalls).toBe(0);
     expect(ttgMediaSnapshot(fixture.fromRoot as unknown as HTMLElement)).toMatchObject({
       activeDirection: 1,
       activeRunId: fixture.context.runId,
@@ -113,7 +159,7 @@ describe('TTG canonical directional media', () => {
     timeline.dispose();
   });
 
-  it('reverses that same TTG element through descending timeline seeks without negative playback', async () => {
+  it('reverses that same TTG element through descending exact seeks without negative playback', async () => {
     const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
     const video = new FakeVideo();
     connectTtgMedia(fixture.fromRoot, video);
@@ -126,7 +172,17 @@ describe('TTG canonical directional media', () => {
     const timeline = await createTtgLabTransition().buildTimeline(reverseContext);
 
     await prepareAndCommit(timeline, leg(reverseContext.runId, -1, 0, TTG_LAB_ANIMATION_STOP, 0));
-    timeline.progress(TTG_LAB_ANIMATION_STOP * 0.45);
+    const firstReverse = await timeline.presentProgress?.(progressRequest(
+      reverseContext.runId,
+      -1,
+      1,
+      TTG_LAB_ANIMATION_STOP * 0.55
+    ));
+    expect(firstReverse).toMatchObject({
+      status: 'presented',
+      evidence: 'video-frame-callback'
+    });
+    timeline.progress(firstReverse?.presentedProgress ?? 0);
 
     expect(video.playCalls).toBe(0);
     expect(video.playbackRate).toBeGreaterThan(0);
@@ -136,6 +192,26 @@ describe('TTG canonical directional media', () => {
       activeDirection: -1,
       activeRunId: reverseContext.runId
     });
+    timeline.dispose();
+  });
+
+  it('marks superseded TTG receipts stale and keeps the latest exact frame', async () => {
+    const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
+    const video = new FakeVideo();
+    connectTtgMedia(fixture.fromRoot, video);
+    const timeline = await createTtgLabTransition().buildTimeline(fixture.context);
+
+    await prepareAndCommit(timeline, leg(fixture.context.runId, 1, 0, 0, TTG_LAB_ANIMATION_STOP));
+    const stale = timeline.presentProgress?.(progressRequest(fixture.context.runId, 1, 1, .2));
+    const latest = timeline.presentProgress?.(progressRequest(fixture.context.runId, 1, 2, .7));
+
+    await expect(stale).resolves.toMatchObject({ status: 'stale', sequence: 1 });
+    await expect(latest).resolves.toMatchObject({
+      status: 'presented',
+      sequence: 2,
+      evidence: 'video-frame-callback'
+    });
+    expect(fixture.fromRoot.dataset.ttgDesiredFrame).toBe(fixture.fromRoot.dataset.ttgPresentedFrame);
     timeline.dispose();
   });
 

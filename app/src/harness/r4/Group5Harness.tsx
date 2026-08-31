@@ -253,7 +253,7 @@ export function Group5Harness({ mode }: { mode: R4Group5HarnessMode }) {
   };
 
   const play = async (direction: Direction, options: PlayOptions = {}) => {
-    buildDelayMs.current = options.buildTimeout ? 2200 : 0;
+    buildDelayMs.current = options.buildTimeout ? 8500 : 0;
     if (options.buildTimeout) {
       for (const segment of GROUP_SEGMENTS) {
         runtime.segmentPlayer.dispose(segment);

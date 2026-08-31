@@ -1,18 +1,26 @@
 import { useEffect, useRef } from 'react';
 import {
   disposeTimelineVideoDriver,
-  driveTimelineVideo,
   prepareTimelineVideoFrame,
-  type TimelineVideoDriveInput
+  type TimelineVideoDriveInput,
+  type TimelineVideoFrameResult
 } from '../../media/timeline-video-driver';
-import { AlphaVideoSources, browserPrefersHevcAlpha } from '../../media/alpha-video-sources';
+import { AlphaVideoSources } from '../../media/alpha-video-sources';
+import { progressForFrameIndex } from '../../media/frame-timebase';
+import { VIDEO_FRAME_MAPS } from '../../media/video-frame-maps';
 import { FIGURE3_SERVICES_DURATION_MS } from '../../story/timings';
-import type { SceneComponentProps, SceneModule } from '../../story/types';
+import type {
+  SceneComponentProps,
+  SceneModule,
+  SegmentProgressReceipt,
+  SegmentProgressRequest
+} from '../../story/types';
 
 export const FIGURE3_MEDIA_KEY = 'figure3-motion';
 export const FIGURE3_VIDEO_SRC = new URL('../../../../assets/figure3-motion.webm', import.meta.url).href;
 export const FIGURE3_HEVC_ALPHA_SRC = new URL('../../../../assets/figure3-motion-hevc-alpha.mp4', import.meta.url).href;
 export const FIGURE3_END_SECONDS = 2.567;
+export const FIGURE3_FRAME_MAP = VIDEO_FRAME_MAPS[FIGURE3_MEDIA_KEY];
 
 export type Figure3RenderState = {
   progress: number;
@@ -24,7 +32,9 @@ export type Figure3RenderState = {
 export type Figure3MediaRun = Readonly<{
   runId: string;
   direction: 1 | -1;
+  sequence?: number;
   reducedMotion?: boolean;
+  signal?: AbortSignal;
 }>;
 
 type Figure3RenderOptions = Readonly<{
@@ -41,6 +51,21 @@ const acceleratedProgress = (progress: number) => {
   const p = clamp(progress);
   return clamp(0.78 * p + 0.22 * p * p);
 };
+
+function inverseAcceleratedProgress(progress: number): number {
+  const target = clamp(progress);
+  let lower = 0;
+  let upper = 1;
+  for (let index = 0; index < 24; index += 1) {
+    const middle = (lower + upper) / 2;
+    if (acceleratedProgress(middle) < target) {
+      lower = middle;
+    } else {
+      upper = middle;
+    }
+  }
+  return (lower + upper) / 2;
+}
 
 export const FIGURE3_HOLD_PROGRESS = 0;
 
@@ -59,10 +84,40 @@ function figure3MediaInput(progress: number, mediaRun: Figure3MediaRun): Timelin
     startSeconds: 0,
     endSeconds: FIGURE3_END_SECONDS,
     timelineDurationMs: FIGURE3_SERVICES_DURATION_MS,
-    mode: mediaRun.direction === 1 ? 'native-preferred' : 'timeline',
+    mode: 'timeline',
     nativePlaybackDirection: 1,
     reducedMotion: Boolean(mediaRun.reducedMotion),
-    allowSeekedFrameFallback: browserPrefersHevcAlpha()
+    allowSeekedFrameFallback: false,
+    allowPlaybackNudge: false,
+    frameMap: FIGURE3_FRAME_MAP,
+    ...(mediaRun.sequence !== undefined ? { sequence: mediaRun.sequence } : {}),
+    ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
+  };
+}
+
+export function figure3MediaProgressForFrame(frameIndex: number): number {
+  return inverseAcceleratedProgress(progressForFrameIndex(FIGURE3_FRAME_MAP, frameIndex));
+}
+
+export function figure3MediaProgressForRawProgress(rawProgress: number): number {
+  return acceleratedProgress(rawProgress);
+}
+
+export function figure3SegmentProgressReceipt(
+  request: SegmentProgressRequest,
+  frame: TimelineVideoFrameResult
+): SegmentProgressReceipt {
+  return {
+    status: frame.status === 'ready' ? 'presented' : 'stale',
+    runId: request.runId,
+    sequence: request.sequence,
+    desiredProgress: request.desiredProgress,
+    presentedProgress: frame.status === 'ready'
+      ? figure3MediaProgressForFrame(frame.presentedFrameIndex)
+      : request.desiredProgress,
+    evidence: frame.evidence === 'video-frame-callback'
+      ? 'video-frame-callback'
+      : 'runtime'
   };
 }
 
@@ -89,14 +144,8 @@ export function renderFigure3AnimationProgress(
   section?.style.setProperty('--figure3-video-scale', videoScale.toFixed(4));
   section?.setAttribute('data-figure3-progress', progressValue);
   if (options.mediaRun) {
-    const video = section?.querySelector<HTMLVideoElement>('[data-figure3-alpha-video]');
-    if (video && (
-      video.dataset.timelineVideoRun !== options.mediaRun.runId
-      || video.dataset.timelineVideoDirection !== String(options.mediaRun.direction)
-      || video.dataset.timelineVideoProgress !== progressValue
-    )) {
-      driveTimelineVideo(video, figure3MediaInput(progress, options.mediaRun));
-    }
+    section?.setAttribute('data-figure3-playback-run', options.mediaRun.runId);
+    section?.setAttribute('data-figure3-playback-direction', String(options.mediaRun.direction));
   }
 
   return { progress, fillOpacity, videoOpacity, videoScale };
@@ -106,17 +155,36 @@ export function renderFigure3Hold(root: HTMLElement | null): void {
   renderFigure3AnimationProgress(root, FIGURE3_HOLD_PROGRESS);
 }
 
+export function requestFigure3AnimationFrame(
+  root: HTMLElement | null | undefined,
+  rawProgress: number,
+  mediaRun: Figure3MediaRun
+): Promise<TimelineVideoFrameResult> {
+  const section = figure3Section(root);
+  const video = section?.querySelector<HTMLVideoElement>('[data-figure3-alpha-video]');
+  if (!video) {
+    return Promise.reject(new Error('figure3 media unavailable'));
+  }
+  return prepareTimelineVideoFrame(video, figure3MediaInput(figure3MediaProgressForRawProgress(rawProgress), mediaRun)).then((result) => {
+    if (!result) {
+      throw new Error('figure3 frame preparation returned no result');
+    }
+    if (result.status === 'ready') {
+      section?.setAttribute('data-figure3-desired-frame', String(result.targetFrameIndex));
+      section?.setAttribute('data-figure3-presented-frame', String(result.presentedFrameIndex));
+      section?.setAttribute('data-figure3-frame-evidence', result.evidence ?? 'runtime');
+    }
+    return result;
+  });
+}
+
 export function prepareFigure3AnimationFrame(
   root: HTMLElement | null | undefined,
   rawProgress: number,
   mediaRun: Figure3MediaRun
 ): Promise<void> {
-  const video = figure3Section(root)?.querySelector<HTMLVideoElement>('[data-figure3-alpha-video]');
-  if (!video) {
-    return Promise.reject(new Error('figure3 media unavailable'));
-  }
-  return prepareTimelineVideoFrame(video, figure3MediaInput(acceleratedProgress(rawProgress), mediaRun)).then((result) => {
-    if (result?.status !== 'ready') {
+  return requestFigure3AnimationFrame(root, rawProgress, mediaRun).then((result) => {
+    if (result.status !== 'ready') {
       throw new Error('figure3 frame stale');
     }
   });
