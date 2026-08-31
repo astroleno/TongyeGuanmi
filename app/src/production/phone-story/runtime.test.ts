@@ -26,6 +26,8 @@ import type {
 import { describePhoneLeafMount } from './presentation';
 import type {
   PhoneEvidenceSlot,
+  PhoneMediaFrameReceipt,
+  PhoneMediaFrameRequest,
   PhoneStoryEffect,
   PhoneStoryEvent,
   PhoneStorySnapshot,
@@ -1165,6 +1167,11 @@ function commandFixture(
         surfaceId, status: 'fulfilled' as const
       }))
     })),
+    presentFrame: vi.fn(async (request: PhoneMediaFrameRequest): Promise<PhoneMediaFrameReceipt> => ({
+      status: 'presented', frameToken: request.frameToken, sequence: request.sequence,
+      desiredProgress: request.desiredProgress,
+      presentedProgress: request.desiredProgress, evidence: 'runtime'
+    })),
     render: vi.fn(),
     setMediaPhase: vi.fn(),
     settle: vi.fn(),
@@ -1293,7 +1300,7 @@ describe('phone runtime projector bridge', () => {
     disconnect();
   });
 
-  it('maps one reducer progress into distinct endpoint, effect, and plane channels', () => {
+  it('maps one reducer progress into distinct endpoint, effect, and plane channels', async () => {
     const fixture = createEnvironment();
     const applyTransitionFrame = vi.fn();
     const presentation = {
@@ -1326,6 +1333,7 @@ describe('phone runtime projector bridge', () => {
     reachPlaying(runtime, fixture);
     fixture.advance(1500);
     fixture.flushFrames();
+    await vi.waitFor(() => expect(source.commands.render).toHaveBeenLastCalledWith(1));
 
     expect(source.commands.render).toHaveBeenLastCalledWith(1);
     expect(target.commands.render).toHaveBeenLastCalledWith(0);
@@ -3064,7 +3072,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(commands.dispose).toHaveBeenCalledWith('route-dispose');
   });
 
-  it('schedules canonical dwell completion through the runtime timer queue', () => {
+  it('schedules canonical dwell completion through the runtime timer queue', async () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#figure2-animation');
     const disconnect = runtime.connect();
@@ -3081,6 +3089,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(currentTransaction(runtime).phase).toBe('playing');
     fixture.advance(100_000);
     fixture.flushFrames();
+    await vi.waitFor(() => expect(currentTransaction(runtime).phase).toBe('dwelling'));
     const dwelling = currentTransaction(runtime);
     expect(dwelling.phase).toBe('dwelling');
     expect(fixture.counts().timers).toBe(1);

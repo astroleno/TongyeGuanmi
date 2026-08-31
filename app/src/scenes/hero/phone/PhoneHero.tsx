@@ -8,9 +8,14 @@ import {
 } from 'react';
 import { TextReveal, TextRevealItem } from '../../../components/TextReveal';
 import {
-  createPackedAlphaVideoCompositor,
-  type PackedAlphaVideoCompositor
-} from '../../../media/packed-alpha-video';
+  createPhonePackedAlphaSurface,
+  type PhonePackedAlphaSurface,
+  type PhonePackedAlphaSurfaceFailure
+} from '../../../media/phone-packed-alpha-surface';
+import { frameIndexForProgress, progressForFrameIndex } from '../../../media/frame-timebase';
+import { phoneMediaUrlFor } from '../../../media/phone-media';
+import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
+import { videoFrameMapFor } from '../../../media/video-frame-maps';
 import type {
   PhoneActivationInvocation,
   PhoneLeafCommandHandle,
@@ -25,14 +30,15 @@ import {
 } from '../motion';
 import { HOME_COPY } from '../../../story/copy';
 import { assertPhoneMediaOwner } from '../../../story/media';
+import type {
+  PhoneMediaFrameReceipt,
+  PhoneMediaFrameRequest
+} from '../../../production/phone-story/protocol';
 import {
   createRadialInkIntroController,
   type RadialInkIntroController
 } from '../../../transitions/shared/radialInkIntro';
-import {
-  createPhoneFigurePlayback,
-  type PhoneFigurePlayback
-} from './PhoneHero.motion';
+import { PHONE_FIGURE_DURATION_SECONDS } from './PhoneHero.motion';
 import './PhoneHero.css';
 
 assertPhoneMediaOwner('hero-back', 'hero');
@@ -42,10 +48,9 @@ assertPhoneMediaOwner('hero-figure-packed', 'hero');
 
 const HERO_BACK_IMAGE = new URL('../../../../../assets/hero-back.webp', import.meta.url).href;
 const HERO_MIDDLE_IMAGE = new URL('../../../../../assets/hero-middle.webp', import.meta.url).href;
-const HERO_FIGURE_POSTER = new URL('../../../../../assets/hero-figure-poster.webp', import.meta.url).href;
-const HERO_FIGURE_PACKED_ALPHA_VIDEO = new URL(
-  '../../../../../assets/figure1-rgb-alpha.mp4', import.meta.url
-).href;
+const HERO_FIGURE_POSTER = phoneMediaUrlFor('hero-figure-poster', 'hero');
+const HERO_FIGURE_PACKED_ALPHA_VIDEO = phoneMediaUrlFor('hero-figure-packed', 'hero');
+const HERO_FIGURE_FRAME_MAP = videoFrameMapFor('hero-figure-motion');
 const HERO_SUBTITLE = HOME_COPY[4]!;
 const subtitleBreak = HERO_SUBTITLE.indexOf('，') + 1;
 const HERO_SUBTITLE_LINES = subtitleBreak > 0
@@ -158,34 +163,54 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
   const subtitleRef = useRef<HTMLDivElement | null>(null);
   const cueRef = useRef<HTMLSpanElement | null>(null);
   const vignetteRef = useRef<HTMLDivElement | null>(null);
-  const playbackRef = useRef<PhoneFigurePlayback | null>(null);
-  const compositorRef = useRef<PackedAlphaVideoCompositor | null>(null);
+  const surfaceRef = useRef<PhonePackedAlphaSurface | null>(null);
   const introInkRef = useRef<RadialInkIntroController | null>(null);
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
-  const generationRef = useRef(0);
+  const surfaceGenerationRef = useRef(0);
   const frameGenerationRef = useRef(0);
+  const frameSequenceRef = useRef(0);
   const reportedFrameTokenRef = useRef<string | null>(null);
   const imagesReadyRef = useRef(false);
   const mountedRef = useRef(false);
   const activeRef = useRef(false);
   const mediaRunTokenRef = useRef<string | null>(null);
+  const mediaPhaseRef = useRef<'primed' | 'playing' | 'held'>('held');
   const renderedRef = useRef(false);
   const entranceStateRef = useRef<HeroEntranceState>('idle');
   const stableReverseArrivalRef = useRef(false);
-  const lastProgressRef = useRef(Number.NaN);
   const disposeEntranceRef = useRef<(() => void) | null>(null);
   const [titleActive, setTitleActive] = useState(false);
 
   const reportCurrentFrame = useCallback(() => {
     const binding = bindingRef.current;
     if (!binding || !imagesReadyRef.current
-      || frameGenerationRef.current !== generationRef.current
+      || !surfaceGenerationRef.current
+      || frameGenerationRef.current !== surfaceGenerationRef.current
       || reportedFrameTokenRef.current === binding.frameToken) return;
     reportedFrameTokenRef.current = binding.frameToken;
     binding.reports.reportFrame('hero-figure-canvas', {
       kind: 'frame', token: binding.frameToken, presented: true,
-      frameId: `hero-packed:${generationRef.current}`,
-      detail: { imagesDecoded: true, compositorDrawn: true }
+      frameId: `hero-packed:${surfaceGenerationRef.current}:${frameSequenceRef.current}`,
+      detail: {
+        imagesDecoded: true,
+        compositorDrawn: true,
+        generation: surfaceGenerationRef.current,
+        sequence: frameSequenceRef.current
+      }
+    });
+  }, []);
+
+  const reportFailure = useCallback((failure: PhonePackedAlphaSurfaceFailure) => {
+    if (failure.generation < surfaceGenerationRef.current) return;
+    surfaceGenerationRef.current = failure.generation;
+    frameGenerationRef.current = 0;
+    figureParallaxRef.current?.removeAttribute('data-portrait-figure-alpha');
+    figureParallaxRef.current?.removeAttribute('data-portrait-figure-frame');
+    bindingRef.current?.reports.reportFailure({
+      code: `hero-${failure.code}`,
+      message: failure.message,
+      recoverable: true,
+      detail: { generation: failure.generation }
     });
   }, []);
 
@@ -209,7 +234,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
   }, []);
 
   const enterStableHero = useCallback(() => {
-    activeRef.current = true; compositorRef.current?.setActive(true); playbackRef.current?.setActive(true);
+    activeRef.current = true;
   }, []);
 
   const completeEntrance = useCallback(() => {
@@ -234,47 +259,59 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
     });
   }, [cancelEntrance, enterStableHero, renderEntrance]);
 
-  const renewCompositor = useCallback(() => {
-    const video = figureVideoRef.current;
+  const presentFrame = useCallback(async (
+    request: PhoneMediaFrameRequest
+  ): Promise<PhoneMediaFrameReceipt> => {
+    const { frameToken: token, transactionId: id, direction, sequence,
+      desiredProgress: wanted, signal } = request;
+    const binding = bindingRef.current;
+    const surface = surfaceRef.current;
     const canvas = figureCanvasRef.current;
-    if (!mountedRef.current || !video || !canvas) return;
-    compositorRef.current?.dispose('reactivatable');
-    const generation = ++generationRef.current;
-    frameGenerationRef.current = 0;
-    reportedFrameTokenRef.current = null;
-    const compositor = createPackedAlphaVideoCompositor({
-      video,
-      canvas,
-      onFrame: () => {
-        if (!mountedRef.current || generation !== generationRef.current) return;
-        frameGenerationRef.current = generation;
-        figureParallaxRef.current?.setAttribute('data-portrait-figure-alpha', 'verified');
-        figureParallaxRef.current?.setAttribute('data-portrait-figure-frame', 'ready');
-        reportCurrentFrame();
-      }
-    });
-    compositorRef.current = compositor;
-    compositor.setActive(activeRef.current);
-    if (['webgl-unavailable', 'setup-failed'].includes(canvas.dataset.packedAlphaStatus ?? '')) {
-      bindingRef.current?.reports.reportFailure({
-        code: 'hero-compositor-unavailable',
-        message: 'Hero packed-alpha compositor could not be created',
-        recoverable: true
-      });
+    const generation = surfaceGenerationRef.current;
+    if (!binding || binding.frameToken !== token || binding.transactionId !== id
+      || (binding.direction !== undefined && binding.direction !== null
+        && (binding.direction === 'reverse' ? -1 : 1) !== direction)
+      || !surface || !canvas || !generation) {
+      throw new Error('Hero presenter missing');
     }
-  }, [reportCurrentFrame]);
+    const desiredFrameIndex = frameIndexForProgress(HERO_FIGURE_FRAME_MAP, wanted);
+    const receipt = await surface.presentFrame({
+      runId: id,
+      direction,
+      sequence,
+      desiredProgress: wanted,
+      frameMap: HERO_FIGURE_FRAME_MAP,
+      signal
+    });
+    const exact = receipt.status === 'presented'
+      && receipt.runId === id
+      && receipt.sequence === sequence
+      && receipt.presentedFrameIndex === desiredFrameIndex
+      && receipt.canvas === canvas
+      && receipt.generation === generation
+      && bindingRef.current === binding;
+    return {
+      ...receipt,
+      status: exact ? 'presented' : 'stale',
+      frameToken: token,
+      desiredProgress: wanted,
+      presentedProgress: exact
+        ? progressForFrameIndex(HERO_FIGURE_FRAME_MAP, desiredFrameIndex)
+        : wanted
+    };
+  }, []);
 
   const commands = useMemo(() => {
     const commandHandle: PhoneHeroMigrationCommands = {
       rebind(binding) {
         bindingRef.current = binding;
         mediaRunTokenRef.current = null;
-        playbackRef.current?.setRun(binding.frameToken, binding.direction);
+        mediaPhaseRef.current = 'held';
         if (!(binding.segmentId === 'hero-pattern' && binding.direction === 'reverse')) {
           stableReverseArrivalRef.current = false;
         }
+        frameSequenceRef.current = 0;
         reportedFrameTokenRef.current = null;
-        renewCompositor();
         reportCurrentFrame();
       },
       activate(command): PhoneActivationInvocation {
@@ -284,54 +321,72 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
             invoked: false, settlements: [] };
         }
         activeRef.current = true;
-        compositorRef.current?.setActive(true);
-        playbackRef.current?.setActive(false);
         const video = figureVideoRef.current;
-        if (!video) return { invocationId: command.invocationId, surfaceIds: expected,
+        const surface = surfaceRef.current;
+        if (!video || !surface) return { invocationId: command.invocationId, surfaceIds: expected,
           invoked: false, settlements: [] };
         const runToken = command.runToken ?? command.invocationId;
         mediaRunTokenRef.current = runToken;
-        playbackRef.current?.setRun(runToken, bindingRef.current?.direction);
-        const settled = playbackRef.current?.primeFromGesture(command.direction, (error: unknown) => {
-          const current = bindingRef.current;
-          if (!current || !mountedRef.current || mediaRunTokenRef.current !== runToken) return;
-          current.reports.reportFailure({
-            code: 'hero-activation-playback-rejected',
-            message: error instanceof Error ? error.message : String(error),
-            recoverable: true,
-            detail: { runToken }
-          });
-        }) ?? Promise.resolve();
+        mediaPhaseRef.current = 'primed';
+        frameSequenceRef.current = 0;
+        reportedFrameTokenRef.current = null;
+        frameGenerationRef.current = 0;
+        const generation = surface.activate(command.direction === 'reverse' ? 'endpoint' : 'initial');
+        surfaceGenerationRef.current = generation;
+        if (generation > 0) {
+          figureParallaxRef.current?.setAttribute('data-portrait-figure-alpha', 'probing');
+          figureParallaxRef.current?.setAttribute('data-portrait-figure-frame', 'awaiting');
+        }
+        const binding = bindingRef.current;
+        const settled = primePhoneNativeVideo(video, {
+          isCurrent: () => mountedRef.current
+            && mediaRunTokenRef.current === runToken
+            && surfaceGenerationRef.current === generation
+            && bindingRef.current === binding,
+          phase: () => mediaPhaseRef.current,
+          onRejected: (error: unknown) => {
+            const current = bindingRef.current;
+            if (!current || !mountedRef.current || mediaRunTokenRef.current !== runToken) return;
+            current.reports.reportFailure({
+              code: 'hero-activation-playback-rejected',
+              message: error instanceof Error ? error.message : String(error),
+              recoverable: true,
+              detail: { runToken }
+            });
+          }
+        });
         return {
           invocationId: command.invocationId,
           surfaceIds: expected,
-          invoked: true,
-          settlements: [{ surfaceId: expected[0]!, status: 'pending', settled }]
+          invoked: generation > 0,
+          settlements: generation > 0
+            ? [{ surfaceId: expected[0]!, status: 'pending', settled }]
+            : []
         };
       },
+      presentFrame,
       setMediaPhase(command) {
         const binding = bindingRef.current;
         const video = figureVideoRef.current;
-        if (!binding || !video || !mountedRef.current) return;
+        const surface = surfaceRef.current;
+        if (!binding || !video || !surface || !mountedRef.current) return;
         if (mediaRunTokenRef.current !== null
           && mediaRunTokenRef.current !== command.runToken) return;
         if (stableReverseArrivalRef.current
           && (command.phase === 'primed' || command.phase === 'held')) return;
         mediaRunTokenRef.current = command.runToken;
-        playbackRef.current?.setRun(command.runToken, binding.direction);
+        mediaPhaseRef.current = command.phase;
         if (command.phase === 'primed') {
-          playbackRef.current?.setActive(false);
           video.pause();
           return;
         }
         if (command.phase === 'held') {
-          playbackRef.current?.setActive(false);
           video.pause();
           return;
         }
         activeRef.current = true;
-        compositorRef.current?.setActive(true);
-        playbackRef.current?.setActive(true);
+        surface.setMode?.('forward', true);
+        video.pause();
       },
       render(progress) {
         const clamped = renderHeroStage({
@@ -341,11 +396,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
           vignette: vignetteRef.current
         }, progress);
         if (clamped > 0.0001) renderedRef.current = true;
-        if (!Number.isFinite(lastProgressRef.current)
-          || Math.abs(clamped - lastProgressRef.current) >= 0.003) {
-          lastProgressRef.current = clamped;
-          playbackRef.current?.scrub(clamped);
-        }
+        if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
       },
       settle(endpoint) {
         if (endpoint === 0) {
@@ -358,22 +409,22 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
             completeEntrance();
           }
           if (entranceStateRef.current === 'completed') enterStableHero();
-          else playbackRef.current?.settle();
           return;
         }
-        playbackRef.current?.setActive(true);
         if (bindingRef.current?.segmentId === 'hero-pattern') commandHandle.render(1);
         else if (!renderedRef.current) startEntrance();
         else { commandHandle.render(0); completeEntrance(); }
-        playbackRef.current?.settle();
       },
       pause() {
         activeRef.current = false;
         mediaRunTokenRef.current = null;
         stableReverseArrivalRef.current = false;
         cancelEntrance();
-        playbackRef.current?.setActive(false);
-        compositorRef.current?.setActive(false);
+        mediaPhaseRef.current = 'held';
+        figureVideoRef.current?.pause();
+        surfaceRef.current?.release();
+        surfaceGenerationRef.current = 0;
+        frameGenerationRef.current = 0;
         figureParallaxRef.current?.removeAttribute('data-portrait-figure-alpha');
         figureParallaxRef.current?.removeAttribute('data-portrait-figure-frame');
       },
@@ -382,10 +433,12 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         mediaRunTokenRef.current = null;
         stableReverseArrivalRef.current = false;
         cancelEntrance();
-        playbackRef.current?.dispose();
-        playbackRef.current = null;
-        compositorRef.current?.dispose('terminal');
-        compositorRef.current = null;
+        mediaPhaseRef.current = 'held';
+        figureVideoRef.current?.pause();
+        surfaceRef.current?.dispose('reactivatable');
+        surfaceRef.current = null;
+        surfaceGenerationRef.current = 0;
+        frameGenerationRef.current = 0;
         introInkRef.current?.dispose();
         introInkRef.current = null;
       },
@@ -402,7 +455,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       }
     };
     return Object.freeze(commandHandle);
-  }, [cancelEntrance, completeEntrance, enterStableHero, renewCompositor,
+  }, [cancelEntrance, completeEntrance, enterStableHero, presentFrame,
     reportCurrentFrame, startEntrance]);
 
   useLayoutEffect(() => {
@@ -419,9 +472,50 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
     stableReverseArrivalRef.current = false;
     imagesReadyRef.current = false;
     renderedRef.current = false;
-    lastProgressRef.current = Number.NaN;
+    surfaceGenerationRef.current = 0;
+    frameGenerationRef.current = 0;
+    frameSequenceRef.current = 0;
+    mediaPhaseRef.current = 'held';
     renderHeroProgress(root, 0);
-    playbackRef.current = createPhoneFigurePlayback(video, HERO_FIGURE_PACKED_ALPHA_VIDEO);
+    const container = canvas.parentElement;
+    if (!container) return;
+    const surface = createPhonePackedAlphaSurface({
+      root,
+      container,
+      canvas,
+      video,
+      packedSourceUrl: HERO_FIGURE_PACKED_ALPHA_VIDEO,
+      endpointSeconds: PHONE_FIGURE_DURATION_SECONDS,
+      statusDataset: 'phoneHeroAlpha',
+      layerName: 'hero-figure',
+      canvasClassName: canvas.className,
+      frameMap: HERO_FIGURE_FRAME_MAP,
+      renewCanvasAfterFailure: true,
+      onCanvasRenewed: (renewed) => {
+        figureCanvasRef.current = renewed;
+        frameGenerationRef.current = 0;
+        delete renewed.dataset.packedAlphaFrameReady;
+      },
+      onFrame: ({ canvas: drawnCanvas, generation }) => {
+        const binding = bindingRef.current;
+        if (!binding || !mountedRef.current
+          || generation !== surfaceGenerationRef.current
+          || drawnCanvas !== figureCanvasRef.current
+          || drawnCanvas.dataset.packedAlphaFrameReady !== 'true') return;
+        frameGenerationRef.current = generation;
+        ++frameSequenceRef.current;
+        figureParallaxRef.current?.setAttribute('data-portrait-figure-alpha', 'verified');
+        figureParallaxRef.current?.setAttribute('data-portrait-figure-frame', 'ready');
+        reportCurrentFrame();
+      },
+      onFailure: reportFailure
+    });
+    surfaceRef.current = surface;
+    const canvasSurface = {
+      id: 'hero-figure-canvas',
+      get element() { return figureCanvasRef.current ?? canvas; },
+      kind: 'canvas-webgl' as const
+    };
     introInkRef.current = createRadialInkIntroController({
       canvas: introCanvas,
       revealSurface: back,
@@ -441,7 +535,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         { id: 'hero-middle-image', element: middle, kind: 'image' },
         { id: 'hero-figure-poster', element: poster, kind: 'image' },
         { id: 'hero-figure-video', element: video, kind: 'video' },
-        { id: 'hero-figure-canvas', element: canvas, kind: 'canvas-webgl' },
+        canvasSurface,
         { id: 'hero-intro-ink', element: introCanvas, kind: 'canvas-2d' }
       ],
       commands
@@ -468,16 +562,17 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       stableReverseArrivalRef.current = false;
       entranceStateRef.current = 'idle';
       cancelEntrance();
-      playbackRef.current?.dispose();
-      playbackRef.current = null;
-      compositorRef.current?.dispose('reactivatable');
-      compositorRef.current = null;
+      figureVideoRef.current?.pause();
+      surfaceGenerationRef.current = 0;
+      frameGenerationRef.current = 0;
+      surface.dispose('reactivatable');
+      if (surfaceRef.current === surface) surfaceRef.current = null;
       introInkRef.current?.dispose();
       introInkRef.current = null;
       bindingRef.current = null;
       delete root.dataset.phoneHeroImages;
     };
-  }, [cancelEntrance, commands, reportCurrentFrame, reports]);
+  }, [cancelEntrance, commands, reportCurrentFrame, reportFailure, reports]);
 
   return (
     <section

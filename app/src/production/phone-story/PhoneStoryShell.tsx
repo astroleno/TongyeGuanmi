@@ -514,6 +514,8 @@ export function PhoneStoryShell({
   const stableCommitKey = snapshot.stableCommit
     ? `${snapshot.stableCommit.commitSequence}|${snapshot.stableCommit.direction}|${snapshot.stableCommit.landingAlias}|${roles.source}|${stablePlaneRevision}|${loaderHidden}`
     : null;
+  const stableCommitChanged = stableCommitKey !== null
+    && lastStableCommitKeyRef.current !== stableCommitKey;
   useLayoutEffect(() => {
     if (!connectedRef.current || snapshot.status !== 'stable' || !stableScene || stableCommitKey === null) return;
     const shell = document.querySelector<HTMLElement>(`.phone-story[data-phone-scope="${scope}"]`); const mirror = shell?.querySelector<HTMLElement>(`[data-phone-native-mirror="${stableScene}"]`) ?? null;
@@ -570,7 +572,7 @@ export function PhoneStoryShell({
     } else effect = owners.effectTopology.clear();
   } else if (connectedRef.current && snapshot.stableCommit) {
     const stableEffect = snapshot.status === 'stable' ? owners.effectTopology.finish() : owners.effectTopology.clear(); effect = stableEffect; const retainedSegment = stableEffect ? phoneManifest.segments.find(({ id }) => id === stableEffect.segmentId) : null; owners.sceneTopology.setPair(retainedSegment ? [retainedSegment.source, retainedSegment.target] : null); scenes.push(...owners.sceneTopology.stable(snapshot.stableCommit.sceneId, roles.source, roles.receiver));
-    if (snapshot.status === 'stable') for (const sceneId of stablePrewarmScenes) if (!scenes.some((scene) => scene.sceneId === sceneId)) scenes.push(owners.sceneTopology.retain(sceneId, roles.receiver, () => owners.engine.createPrewarmLeafReportPort(sceneId)));
+    if (snapshot.status === 'stable') for (const sceneId of stablePrewarmScenes) if (!scenes.some((scene) => scene.sceneId === sceneId)) scenes.push(owners.sceneTopology.retain(sceneId, roles.receiver, () => owners.engine.createPrewarmLeafReportPort(sceneId), stableCommitChanged, stableCommitChanged));
   } else effect = owners.effectTopology.clear();
   owners.sceneTopology.prune(scenes);
   const sourceScenes = scenes.filter(({ buffer }) => buffer === roles.source);

@@ -1,7 +1,7 @@
 import {
   CRANE_TIMELINE_DURATION_SECONDS,
   CRANE_VIDEO_END_SECONDS
-} from '..';
+} from '../media';
 
 const FIGURE_START_SECONDS = .5;
 const FLOCK_END_SECONDS = 2.5;

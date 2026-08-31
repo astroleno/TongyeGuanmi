@@ -43,6 +43,21 @@ test('formal phone route boots one clean authority without the QA module', async
     .toHaveAttribute('data-loader-status', 'hidden');
 });
 
+test('formal media routes survive native handoff retries without duplicate registration', async ({
+  page
+}) => {
+  await page.goto('/#ph-animation', { waitUntil: 'domcontentloaded' });
+  await expectCleanShell(page, 'formal', 'ph-animation');
+
+  await page.goto('/#lab', { waitUntil: 'domcontentloaded' });
+  await expectCleanShell(page, 'formal', 'lab');
+
+  await page.goto('/#ph-animation', { waitUntil: 'domcontentloaded' });
+  await expectCleanShell(page, 'formal', 'ph-animation');
+  await expect(page.locator('.phone-story')).toHaveCount(1);
+  await expect(page.locator('[data-phone-retry]')).toHaveCount(0);
+});
+
 test('all sixteen formal hashes enter through the same implementation', async ({ page }) => {
   for (const [index, scene] of SCENES.entries()) {
     await page.goto(`/?r5-direct-entry=${index}#${scene}`, {

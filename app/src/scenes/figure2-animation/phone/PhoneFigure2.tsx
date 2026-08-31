@@ -1,16 +1,16 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  primePhoneNativeVideo,
-  type PhoneNativeVideoPrimeOptions
+  primePhoneNativeVideo
 } from '../../../media/phone-native-video-prime';
-import { driveTimelineVideo } from '../../../media/timeline-video-driver';
 import {
   createPhonePackedAlphaSurface,
   type PhonePackedAlphaSurface,
   type PhonePackedAlphaSurfaceFailure
 } from '../../../media/phone-packed-alpha-surface';
 import { phoneMediaUrlFor } from '../../../media/phone-media';
+import { frameIndexForProgress, progressForFrameIndex } from '../../../media/frame-timebase';
+import { videoFrameMapFor } from '../../../media/video-frame-maps';
 import type {
   PhoneActivationInvocation,
   PhoneLeafCommandHandle,
@@ -23,6 +23,10 @@ import {
   parkFigure2Media,
   renderFigure2AnimationProgress
 } from '..';
+import type {
+  PhoneMediaFrameReceipt,
+  PhoneMediaFrameRequest
+} from '../../../production/phone-story/protocol';
 import './PhoneFigure2.css';
 
 const Figure2Surface = figure2AnimationScene.Component;
@@ -34,6 +38,17 @@ const FIGURE2_POSTER_IMAGE = phoneMediaUrlFor(
 );
 const FIGURE2_ENDPOINT_SECONDS = 2.6;
 const FIGURE2_STAGED_SEGMENT = 'figure2-distance-expand';
+const FIGURE2_FRAME_MAP = videoFrameMapFor('figure2-pair-motion');
+const FIGURE2_FORWARD_FRAME_MAP = {
+  ...FIGURE2_FRAME_MAP,
+  startFrame: 0,
+  endFrame: FIGURE2_FRAME_MAP.frameCount / 2
+} as const;
+const FIGURE2_REVERSE_FRAME_MAP = {
+  ...FIGURE2_FRAME_MAP,
+  startFrame: FIGURE2_FRAME_MAP.frameCount / 2,
+  endFrame: FIGURE2_FRAME_MAP.frameCount - 1
+} as const;
 
 function waitForDecodedImage(image: HTMLImageElement): Promise<void> {
   if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
@@ -60,6 +75,10 @@ function isFigure2MediaLeg(binding: PhoneLeafGenerationBinding | null): boolean 
   return binding.direction === 'reverse' ? binding.stageIndex === 1 : binding.stageIndex === 0;
 }
 
+function frameMapForDirection(direction: 1 | -1) {
+  return direction === 1 ? FIGURE2_FORWARD_FRAME_MAP : FIGURE2_REVERSE_FRAME_MAP;
+}
+
 function holdFigure2Media(video: HTMLVideoElement | null): void {
   if (!video) return;
   video.pause();
@@ -72,32 +91,6 @@ function holdFigure2Media(video: HTMLVideoElement | null): void {
     // Source replacement races can reject an endpoint write; the packed
     // surface's endpoint seek listener will retry after metadata arrives.
   }
-}
-
-function figure2TimelineMediaInput(runId: string, direction: 1 | -1, progress: number) {
-  return {
-    runId,
-    direction,
-    progress: Math.min(1, Math.max(0, progress)),
-    durationFallbackSeconds: FIGURE2_ENDPOINT_SECONDS,
-    startSeconds: 0,
-    endSeconds: FIGURE2_ENDPOINT_SECONDS,
-    timelineDurationMs: FIGURE2_ENDPOINT_SECONDS * 1000,
-    mode: 'timeline' as const,
-    nativePlaybackDirection: 1 as const,
-    allowSeekedFrameFallback: true,
-    allowPlaybackNudge: false
-  };
-}
-
-function primeFigure2Video(
-  video: HTMLVideoElement,
-  endpointSeconds = 0,
-  options?: PhoneNativeVideoPrimeOptions
-): Promise<void> {
-  return primePhoneNativeVideo(video, options).then(() => {
-    try { video.currentTime = endpointSeconds; } catch { /* metadata may still be settling */ }
-  });
 }
 
 /** Genuine Figure2 leaf with one decoded source and one visible Canvas.
@@ -140,21 +133,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
     renderFigure2AnimationProgress(sceneRef.current, clamped, { videoMode: 'none' });
     const binding = bindingRef.current;
     const staged = binding?.segmentId === FIGURE2_STAGED_SEGMENT;
-    if (mediaPhaseRef.current === 'playing' && isFigure2MediaLeg(binding)
-      && videoRef.current) {
-      const direction: 1 | -1 = binding?.direction === 'reverse' ? -1 : 1;
-      try {
-        driveTimelineVideo(videoRef.current, {
-          ...figure2TimelineMediaInput(
-            mediaRunTokenRef.current ?? binding?.frameToken ?? 'figure2-media',
-            direction, clamped
-          )
-        });
-      } catch { /* detached media is fail-closed for this paint */
-      }
-    }
-    const hold = staged && (!isFigure2MediaLeg(binding)
-      || binding.direction === 'forward' && binding.stageIndex === 0 && clamped >= .999);
+    const hold = staged && !isFigure2MediaLeg(binding);
     if (hold) holdFigure2Media(videoRef.current);
     if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
   }, []);
@@ -172,12 +151,62 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
     });
   }, []);
 
+  const presentFrame = useCallback(async (
+    request: PhoneMediaFrameRequest
+  ): Promise<PhoneMediaFrameReceipt> => {
+    const { frameToken: token, transactionId: id, direction, sequence,
+      desiredProgress: wanted, signal } = request;
+    const binding = bindingRef.current;
+    const surface = surfaceRef.current;
+    const canvas = canvasRef.current;
+    const generation = surfaceGenerationRef.current;
+    if (!binding || !isFigure2MediaLeg(binding) || binding.frameToken !== token
+      || binding.transactionId !== id
+      || (binding.direction !== undefined && binding.direction !== null
+        && (binding.direction === 'reverse' ? -1 : 1) !== direction)
+      || !surface || !canvas || !generation) {
+      throw new Error('Figure2 presenter missing');
+    }
+    const frameMap = frameMapForDirection(direction);
+    const mediaProgress = direction === 1
+      ? Math.min(1, Math.max(0, wanted))
+      : 1 - Math.min(1, Math.max(0, wanted));
+    const desiredFrameIndex = frameIndexForProgress(frameMap, mediaProgress);
+    const receipt = await surface.presentFrame({
+      runId: id,
+      direction,
+      sequence,
+      desiredProgress: mediaProgress,
+      frameMap,
+      signal
+    });
+    const exact = receipt.status === 'presented'
+      && receipt.runId === id
+      && receipt.sequence === sequence
+      && receipt.presentedFrameIndex === desiredFrameIndex
+      && receipt.canvas === canvas
+      && receipt.generation === generation
+      && bindingRef.current === binding;
+    const presentedMediaProgress = progressForFrameIndex(frameMap, desiredFrameIndex);
+    return {
+      ...receipt,
+      status: exact ? 'presented' : 'stale',
+      frameToken: token,
+      desiredProgress: wanted,
+      presentedProgress: exact
+        ? direction === 1 ? presentedMediaProgress : 1 - presentedMediaProgress
+        : wanted
+    };
+  }, []);
+
   const setMediaPhase = useCallback((command: import('../../../production/phone-story/protocol').PhoneMediaPhaseCommand) => {
     const binding = bindingRef.current;
     const video = videoRef.current;
     if (!binding || !video || disposedRef.current) return;
+    if (mediaRunTokenRef.current !== null
+      && mediaRunTokenRef.current !== command.runToken) return;
+    mediaRunTokenRef.current = command.runToken;
     if (command.phase === 'primed') {
-      mediaRunTokenRef.current = command.runToken;
       mediaPhaseRef.current = 'primed';
       if (!isFigure2MediaLeg(binding)) {
         surfaceRef.current?.setMode?.('endpoint');
@@ -185,7 +214,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
         surfaceRef.current?.probe();
         return;
       }
-      video.pause(); try { video.currentTime = 0; } catch { /* source may still be loading */ }
+      video.pause();
       return;
     }
     if (command.phase === 'held' || !isFigure2MediaLeg(binding)) {
@@ -193,11 +222,9 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       holdFigure2Media(video);
       return;
     }
-    if (mediaRunTokenRef.current !== null
-      && mediaRunTokenRef.current !== command.runToken) return;
-    mediaRunTokenRef.current = command.runToken;
     mediaPhaseRef.current = 'playing';
-    surfaceRef.current?.setMode?.('forward');
+    surfaceRef.current?.setMode?.('forward', true);
+    video.pause();
   }, []);
 
   const probePrewarmFrame = useCallback((generation: number) => {
@@ -267,10 +294,10 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
             : []
         };
       }
-      const settled = primeFigure2Video(
-        video, 0, {
+      const runToken = command.runToken ?? command.invocationId;
+      const settled = primePhoneNativeVideo(video, {
           isCurrent: () => !disposedRef.current
-            && mediaRunTokenRef.current === (command.runToken ?? command.invocationId)
+            && mediaRunTokenRef.current === runToken
             && bindingRef.current === binding,
           phase: () => mediaPhaseRef.current,
           onRejected: (error: unknown) => {
@@ -279,11 +306,10 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
               code: 'figure2-activation-playback-rejected',
               message: error instanceof Error ? error.message : String(error),
               recoverable: true,
-              detail: { runToken: command.runToken ?? command.invocationId }
+              detail: { runToken }
             });
           }
-        }
-      ).then(() => {
+        }).then(() => {
         if (generation !== surfaceGenerationRef.current) {
           throw new Error('Figure2 activation was superseded before media prime');
         }
@@ -298,6 +324,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
           : []
       };
     },
+    presentFrame,
     setMediaPhase,
     render,
     settle(endpoint) {
@@ -330,7 +357,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       disposeFigure2Media(sceneRef.current);
       bindingRef.current = null;
     }
-  }), [probePrewarmFrame, render, reportPoster, setMediaPhase]);
+  }), [presentFrame, probePrewarmFrame, render, reportPoster, setMediaPhase]);
 
   const registerHandle = useCallback((name: string, element: HTMLElement | null) => {
     if (name !== 'stage') return;
@@ -370,6 +397,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       statusDataset: 'phoneFigure2Alpha',
       layerName: 'figure2-pair',
       canvasClassName: canvas.className,
+      frameMap: FIGURE2_FRAME_MAP,
       renewCanvasAfterFailure: true,
       onCanvasRenewed: (renewed) => {
         canvasRef.current = renewed;
@@ -384,10 +412,11 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
         if (!isFigure2MediaLeg(binding)
           && (!video.paused || Math.abs(video.currentTime - FIGURE2_ENDPOINT_SECONDS) > .03)) return;
         root.dataset.phoneFigure2CanvasReady = 'true';
+        const sequence = ++frameSequenceRef.current;
         binding.reports.reportFrame('figure2-pair-canvas', {
           kind: 'frame', token: binding.frameToken, presented: true,
-          frameId: `figure2-packed:${generation}:${frameSequenceRef.current}`,
-          detail: { compositorDrawn: true, generation }
+          frameId: `figure2-packed:${generation}:${sequence}`,
+          detail: { compositorDrawn: true, generation, sequence }
         });
       },
       onFailure: reportFailure

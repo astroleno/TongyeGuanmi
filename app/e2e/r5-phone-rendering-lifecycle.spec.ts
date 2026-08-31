@@ -10,6 +10,27 @@ async function sendIntent(page: Page, direction: 'forward' | 'reverse'): Promise
   await page.keyboard.press(direction === 'forward' ? 'ArrowDown' : 'ArrowUp');
 }
 
+async function moveNativeReadingToBoundary(
+  page: Page,
+  direction: 'forward' | 'reverse'
+): Promise<void> {
+  await page.evaluate((requestedDirection) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    if (shell?.dataset.phoneReading !== 'enabled') return;
+    const owner = document.scrollingElement ?? document.documentElement;
+    owner.scrollTop = requestedDirection === 'forward'
+      ? owner.scrollHeight - owner.clientHeight : 0;
+  }, direction);
+  await page.waitForFunction((requestedDirection) => {
+    const shell = document.querySelector<HTMLElement>('.phone-story');
+    if (shell?.dataset.phoneReading !== 'enabled') return true;
+    const owner = document.scrollingElement ?? document.documentElement;
+    const maximum = Math.max(0, owner.scrollHeight - owner.clientHeight);
+    return requestedDirection === 'forward'
+      ? owner.scrollTop >= maximum - 1 : owner.scrollTop <= 1;
+  }, direction);
+}
+
 async function completeAdjacentLeg(
   page: Page,
   source: string,
@@ -17,6 +38,7 @@ async function completeAdjacentLeg(
   direction: 'forward' | 'reverse'
 ): Promise<void> {
   const before = await readCommitSequence(page);
+  await moveNativeReadingToBoundary(page, direction);
   await sendIntent(page, direction);
   await page.waitForFunction(({ expected, after }) => {
     const shell = document.querySelector<HTMLElement>('.phone-story');
@@ -88,6 +110,7 @@ test('clean PH packed-alpha reactivation and Lab Ink recreation never reuse a lo
   await page.goto('/#lab', { waitUntil: 'domcontentloaded' });
   await waitForCommitSequence(page, 'lab', 0);
   const before = await readCommitSequence(page);
+  await moveNativeReadingToBoundary(page, 'forward');
   await sendIntent(page, 'forward');
   const ink = page.locator('[data-r4-ink-segment="lab-ph"]');
   await expect(ink).toBeAttached();

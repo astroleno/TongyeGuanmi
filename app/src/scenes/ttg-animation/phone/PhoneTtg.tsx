@@ -22,9 +22,9 @@ import {
   TTG_FIGURE_VIDEO_SRC,
   TTG_FRONT_SRC,
   TTG_MEDIA_KEY,
-  TTG_MIDDLE_SRC,
-  renderTtgAnimationProgress
-} from '..';
+  TTG_MIDDLE_SRC
+} from '../scene';
+import { renderTtgAnimationProgress } from '../visual';
 import './PhoneTtg.css';
 
 function clamp(value: number): number {

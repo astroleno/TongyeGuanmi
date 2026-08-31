@@ -9,35 +9,57 @@ import type {
   PhoneLeafMountRegistration,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
+import type { VideoFrameMap } from '../../../media/frame-timebase';
+
+type SurfaceProbeOptions = Readonly<{
+  canvas?: HTMLCanvasElement;
+  onCanvasRenewed?(canvas: HTMLCanvasElement): void;
+  onFailure?(failure: Readonly<{ code: string; message: string; generation: number }>): void;
+  onFrame?(frame: Readonly<{ canvas: HTMLCanvasElement; generation: number }>): void;
+}>;
+
+type SurfaceProbeRequest = Readonly<{
+  runId: string;
+  sequence: number;
+  desiredProgress: number;
+  frameMap: VideoFrameMap;
+}>;
 
 const surfaceProbe = vi.hoisted(() => ({
-  options: null as null | Readonly<{
-    onCanvasRenewed?(canvas: HTMLCanvasElement): void;
-    onFailure?(failure: Readonly<{ code: string; message: string; generation: number }>): void;
-    onFrame?(frame: Readonly<{ canvas: HTMLCanvasElement; generation: number }>): void;
-  }>,
+  options: null as null | SurfaceProbeOptions,
+  activeCanvas: null as HTMLCanvasElement | null,
+  activeGeneration: 0,
   activate: vi.fn(() => 1),
   setMode: vi.fn(),
   render: vi.fn(() => true),
-  release: vi.fn(),
-  dispose: vi.fn()
-}));
-
-const timelineProbe = vi.hoisted(() => ({
-  drive: vi.fn((video: HTMLVideoElement, input: Readonly<{ progress: number }>) => {
-    try { video.currentTime = input.progress * 2.567; } catch { /* detached media */ }
-  }),
-  prepare: vi.fn(async (
-    video: HTMLVideoElement,
-    input: Readonly<{ progress: number }>
-  ) => {
-    try { video.currentTime = input.progress * 2.567; } catch { /* detached media */ }
+  probe: vi.fn(() => true),
+  presentFrame: vi.fn(async (request: SurfaceProbeRequest) => {
+    const { frameMap } = request;
+    const progress = Math.min(1, Math.max(0, request.desiredProgress));
+    const desiredFrameIndex = progress === 0
+      ? frameMap.startFrame
+      : progress === 1
+        ? frameMap.endFrame
+        : Math.round(frameMap.startFrame + progress * (frameMap.endFrame - frameMap.startFrame));
+    const canvas = surfaceProbe.activeCanvas ?? surfaceProbe.options?.canvas;
+    if (canvas) canvas.dataset.packedAlphaFrameReady = 'true';
+    if (canvas) surfaceProbe.options?.onFrame?.({
+      canvas, generation: surfaceProbe.activeGeneration
+    });
     return {
-      status: 'ready' as const,
-      runId: 'aod:test', direction: 1 as const, generation: 1,
-      targetTime: input.progress * 2.567
+      status: 'presented' as const,
+      runId: request.runId,
+      sequence: request.sequence,
+      desiredFrameIndex,
+      presentedFrameIndex: desiredFrameIndex,
+      mediaTimeSeconds: desiredFrameIndex / frameMap.fpsNumerator * frameMap.fpsDenominator,
+      presentedProgress: progress,
+      evidence: 'packed-canvas-draw' as const,
+      canvas: canvas!,
+      generation: surfaceProbe.activeGeneration
     };
   }),
+  release: vi.fn(),
   dispose: vi.fn()
 }));
 
@@ -46,18 +68,14 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
     surfaceProbe.options = options;
     return {
       activate: surfaceProbe.activate,
+      presentFrame: surfaceProbe.presentFrame,
       setMode: surfaceProbe.setMode,
+      probe: surfaceProbe.probe,
       render: surfaceProbe.render,
       release: surfaceProbe.release,
       dispose: surfaceProbe.dispose
     };
   })
-}));
-
-vi.mock('../../../media/timeline-video-driver', () => ({
-  driveTimelineVideo: timelineProbe.drive,
-  prepareTimelineVideoFrame: timelineProbe.prepare,
-  disposeTimelineVideoDriver: timelineProbe.dispose
 }));
 
 import {
@@ -87,26 +105,44 @@ describe('clean PhoneAod leaf', () => {
 
   beforeEach(() => {
     surfaceProbe.options = null;
-    surfaceProbe.activate.mockReset().mockReturnValue(1);
+    surfaceProbe.activeCanvas = null;
+    surfaceProbe.activeGeneration = 0;
+    surfaceProbe.activate.mockReset().mockImplementation(() => {
+      surfaceProbe.activeCanvas = surfaceProbe.options?.canvas ?? null;
+      surfaceProbe.activeGeneration = 1;
+      return surfaceProbe.activeGeneration;
+    });
     surfaceProbe.setMode.mockReset();
     surfaceProbe.render.mockReset().mockReturnValue(true);
-    surfaceProbe.release.mockReset();
-    surfaceProbe.dispose.mockReset();
-    timelineProbe.prepare.mockReset().mockImplementation(async (
-      video: HTMLVideoElement,
-      input: Readonly<{ progress: number }>
-    ) => {
-      try { video.currentTime = input.progress * 2.567; } catch { /* detached media */ }
+    surfaceProbe.probe.mockReset().mockReturnValue(true);
+    surfaceProbe.presentFrame.mockReset().mockImplementation(async (request: SurfaceProbeRequest) => {
+      const { frameMap } = request;
+      const progress = Math.min(1, Math.max(0, request.desiredProgress));
+      const desiredFrameIndex = progress === 0
+        ? frameMap.startFrame
+        : progress === 1
+          ? frameMap.endFrame
+          : Math.round(frameMap.startFrame + progress * (frameMap.endFrame - frameMap.startFrame));
+      const canvas = surfaceProbe.activeCanvas ?? surfaceProbe.options?.canvas;
+      if (canvas) canvas.dataset.packedAlphaFrameReady = 'true';
+      if (canvas) surfaceProbe.options?.onFrame?.({
+        canvas, generation: surfaceProbe.activeGeneration
+      });
       return {
-        status: 'ready' as const,
-        runId: 'aod:test', direction: 1 as const, generation: 1,
-        targetTime: input.progress * 2.567
+        status: 'presented' as const,
+        runId: request.runId,
+        sequence: request.sequence,
+        desiredFrameIndex,
+        presentedFrameIndex: desiredFrameIndex,
+        mediaTimeSeconds: desiredFrameIndex / frameMap.fpsNumerator * frameMap.fpsDenominator,
+        presentedProgress: progress,
+        evidence: 'packed-canvas-draw' as const,
+        canvas: canvas!,
+        generation: surfaceProbe.activeGeneration
       };
     });
-    timelineProbe.drive.mockReset().mockImplementation((video, input) => {
-      try { video.currentTime = input.progress * 2.567; } catch { /* detached media */ }
-    });
-    timelineProbe.dispose.mockReset();
+    surfaceProbe.release.mockReset();
+    surfaceProbe.dispose.mockReset();
     host = document.createElement('div');
     document.body.replaceChildren(host);
     root = createRoot(host);
@@ -124,7 +160,8 @@ describe('clean PhoneAod leaf', () => {
       ['aod-figure-canvas', 'canvas-webgl']
     ]);
     expect(Object.keys(mount.registration()?.commands ?? {}).sort()).toEqual([
-      'activate', 'dispose', 'pause', 'rebind', 'render', 'setMediaPhase', 'settle'
+      'activate', 'dispose', 'pause', 'presentFrame', 'rebind', 'render',
+      'setMediaPhase', 'settle'
     ]);
     expect(mount.registration()?.root.querySelector(
       '[data-phone-landing="aod-semantic-edge"]'
@@ -133,7 +170,7 @@ describe('clean PhoneAod leaf', () => {
 
     const current = reportFixture();
     mount.registration()?.commands.rebind({
-      reports: current.reports, frameToken: 'aod:frame:1'
+      reports: current.reports, frameToken: 'aod:frame:1', transactionId: 'aod:transaction:1'
     });
     const invocation = mount.registration()?.commands.activate({
       invocationId: 'activation:1',
@@ -151,14 +188,19 @@ describe('clean PhoneAod leaf', () => {
     });
     await expect(invocation?.settlements[0]?.status === 'pending'
       ? invocation.settlements[0].settled : Promise.reject()).resolves.toBeUndefined();
-    expect(surfaceProbe.render).toHaveBeenCalledTimes(1);
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledTimes(4);
+    const receipt = await mount.registration()?.commands.presentFrame?.({
+      frameToken: 'aod:frame:1', transactionId: 'aod:transaction:1', direction: 1,
+      sequence: 1, desiredProgress: .48, signal: new AbortController().signal
+    });
+    expect(receipt).toMatchObject({
+      status: 'presented', frameToken: 'aod:frame:1', sequence: 1,
+      desiredProgress: .48, presentedProgress: expect.closeTo(.48, 5),
+      evidence: 'packed-canvas-draw'
+    });
+    expect(surfaceProbe.presentFrame).toHaveBeenCalledTimes(1);
     mount.registration()?.commands.pause('outside-closure');
     expect(host.querySelector<HTMLElement>('[data-aod-transition]')
       ?.getAttribute('data-aod-exit-active')).toBeNull();
-    expect(timelineProbe.prepare).toHaveBeenCalledWith(
-      expect.any(HTMLVideoElement), expect.objectContaining({ progress: 0 })
-    );
   });
 
   it('does not let a late prime resolve pause AOD after formal playback starts', async () => {
@@ -217,7 +259,7 @@ describe('clean PhoneAod leaf', () => {
       phase: 'playing', runToken, direction: 'forward', stageIndex: 0
     });
 
-    expect(surfaceProbe.setMode).toHaveBeenCalledWith('forward');
+    expect(surfaceProbe.setMode).toHaveBeenCalledWith('forward', true);
     expect(play.mock.calls.length).toBe(primeCalls);
   });
 
@@ -290,12 +332,14 @@ describe('clean PhoneAod leaf', () => {
     );
   });
 
-  it('latches the reverse endpoint before the packed surface activates', async () => {
+  it('activates the reverse endpoint without using a second timeline clock', async () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
     const current = reportFixture();
     const commands = mount.registration()!.commands;
-    commands.rebind({ reports: current.reports, frameToken: 'aod:reverse:1' });
+    commands.rebind({
+      reports: current.reports, frameToken: 'aod:reverse:1', transactionId: 'aod:reverse'
+    });
 
     commands.render(1);
     const invocation = commands.activate({
@@ -310,14 +354,12 @@ describe('clean PhoneAod leaf', () => {
     if (settlement?.status !== 'pending') throw new Error('missing activation settlement');
 
     await expect(settlement.settled).resolves.toBeUndefined();
-    expect(timelineProbe.prepare).toHaveBeenCalledWith(
-      expect.any(HTMLVideoElement), expect.objectContaining({ progress: 1 })
-    );
-    expect(surfaceProbe.render).toHaveBeenCalledTimes(1);
+    expect(surfaceProbe.activate).toHaveBeenCalledWith('endpoint');
+    expect(surfaceProbe.presentFrame).not.toHaveBeenCalled();
   });
 
-  it('rejects activation when frame preparation fails and reports the failure', async () => {
-    timelineProbe.prepare.mockRejectedValueOnce(new Error('decode failed'));
+  it('rejects activation when the packed surface cannot allocate a generation', async () => {
+    surfaceProbe.activate.mockReturnValueOnce(0);
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
     const current = reportFixture();
@@ -329,15 +371,9 @@ describe('clean PhoneAod leaf', () => {
       credit: 'direct-muted-autoplay',
       playback: true
     });
-    const settlement = invocation.settlements[0];
-    if (settlement?.status !== 'pending') throw new Error('missing activation settlement');
-
-    await expect(settlement.settled).rejects.toThrow('decode failed');
-    expect(current.reports.reportFailure).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'aod-frame-preparation-failed',
-      message: 'decode failed'
-    }));
-    expect(surfaceProbe.render).not.toHaveBeenCalled();
+    expect(invocation).toMatchObject({ invoked: false, settlements: [] });
+    expect(current.reports.reportFailure).not.toHaveBeenCalled();
+    expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
   });
 
   it('accepts only the current generation draw and tracks a renewed Canvas', async () => {
@@ -433,53 +469,43 @@ describe('clean PhoneAod leaf', () => {
     expect(scene.dataset.portraitAodProgress).toBe('1.0000');
   });
 
-  it('projects playing progress onto the paused video clock', async () => {
+  it('keeps render visual-only and maps exact AOD frames to master progress', async () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
     const commands = mount.registration()!.commands;
     const video = host.querySelector<HTMLVideoElement>('[data-aod-figure-video]')!;
-    Object.defineProperty(video, 'duration', { configurable: true, value: 2.567 });
-    Object.defineProperty(video, 'currentTime', { configurable: true, writable: true, value: 0 });
-    commands.rebind({ reports: reportFixture().reports, frameToken: 'aod:clock:1' });
+    const frameToken = 'aod:frame-lock:1';
+    const transactionId = 'aod:frame-lock';
+    commands.rebind({ reports: reportFixture().reports, frameToken, transactionId });
     const invocation = commands.activate({
-      invocationId: 'activation:clock', surfaceIds: ['aod-figure-video'],
-      credit: 'physical-epoch', playback: true
+      invocationId: 'activation:frame-lock', surfaceIds: ['aod-figure-video'],
+      credit: 'physical-epoch', playback: true, direction: 'forward',
+      runToken: transactionId
     });
     const settlement = invocation.settlements[0];
     if (settlement?.status === 'pending') await settlement.settled;
-    await act(async () => {
-      commands.render(.75);
-      await Promise.resolve();
-    });
-    expect(video.currentTime).toBeGreaterThan(0);
-    expect(video.currentTime).toBeLessThan(2.567);
-    expect(surfaceProbe.render).toHaveBeenCalled();
-  });
-
-  it('uses the authored AOD mapping for the visible forward media clock', async () => {
-    const mount = reportFixture();
-    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
-    const commands = mount.registration()!.commands;
-    const video = host.querySelector<HTMLVideoElement>('[data-aod-figure-video]')!;
-    const runToken = 'aod:visible-clock:1';
-    commands.rebind({ reports: mount.reports, frameToken: runToken });
-    const invocation = commands.activate({
-      invocationId: 'activation:visible-clock', surfaceIds: ['aod-figure-video'],
-      credit: 'physical-epoch', playback: true, direction: 'forward', runToken
-    });
-    const settlement = invocation.settlements[0];
-    if (settlement?.status === 'pending') await settlement.settled;
+    const beforeTime = video.currentTime;
     commands.setMediaPhase?.({
-      phase: 'playing', runToken, direction: 'forward', stageIndex: 0
+      phase: 'playing', runToken: transactionId, direction: 'forward', stageIndex: 0
     });
-    commands.render(.48);
+    commands.render(.75);
+    expect(video.currentTime).toBe(beforeTime);
+    expect(surfaceProbe.presentFrame).not.toHaveBeenCalled();
 
-    expect(timelineProbe.drive).toHaveBeenCalledWith(
-      video,
-      expect.objectContaining({ progress: expect.closeTo(.2077922, 4) })
-    );
-    expect(video.currentTime).toBeGreaterThan(0);
-    expect(video.currentTime).toBeLessThan(2.567);
+    const receipt = await commands.presentFrame?.({
+      frameToken, transactionId, direction: 1, sequence: 1,
+      desiredProgress: .48, signal: new AbortController().signal
+    });
+    expect(receipt).toMatchObject({
+      status: 'presented', frameToken, sequence: 1,
+      desiredProgress: .48, presentedProgress: expect.closeTo(.48, 5),
+      evidence: 'packed-canvas-draw'
+    });
+    expect(surfaceProbe.presentFrame).toHaveBeenCalledWith(expect.objectContaining({
+      runId: transactionId,
+      desiredProgress: expect.closeTo(.2077922, 4),
+      frameMap: expect.objectContaining({ frameCount: 78 })
+    }));
   });
 
   it('keeps the canonical figure geometry and makes the first Canvas frame own the live surface', async () => {

@@ -29,7 +29,7 @@ import {
   CRANE_FLOCK_VIDEO_SRC,
   CRANE_PAPER_SRC,
   CRANE_VIDEO_END_SECONDS
-} from '..';
+} from '../media';
 import {
   phoneCraneMediaProgressForTimeline,
   phoneCranePresentedTimelineProgress,

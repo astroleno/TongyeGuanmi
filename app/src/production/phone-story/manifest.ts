@@ -165,9 +165,7 @@ const ttgPlaybackStop = TTG_PLAYBACK_MS
 const phPlaybackStop = PH_PLAYBACK_MS / (PH_PLAYBACK_MS + INTRA_CHAPTER_DISSOLVE_MS); const cranePlaybackStop = CRANE_CONTACT_DURATION_MS / PHONE_CRANE_CONTACT_DURATION_MS;
 
 export const phoneSegmentChoreography = Object.freeze({
-  'hero-pattern': choreography(
-    ['range', 0, heroMotionStop], 0, ['range', heroMotionStop, 1], 'source', 'source'
-  ),
+  'hero-pattern': choreography(['range', 0, heroMotionStop], 0, ['range', heroMotionStop, 1], 'source', 'source', 1, 1, 'canonical-target', 'frame-lock'),
   'pattern-star-map': choreography(
     ['range', 0, PATTERN_COLLAPSE_STOP], 1,
     ['range', PATTERN_COLLAPSE_STOP, 1], 'none', 'none'
@@ -175,14 +173,14 @@ export const phoneSegmentChoreography = Object.freeze({
   'star-map-aod': choreography(1, 0, 'linear', 'none', 'none'),
   'aod-method-top': choreography(
     'linear', ['step', .8], 'linear', 'source', 'source', ['fade', .7, 1], 1,
-    'canonical-source'
+    'canonical-source', 'frame-lock'
   ),
   'method-bottom-figure2': choreography(
     1, 0, ['range', 0, .8], 'none', 'none'
   ),
   'figure2-distance-expand': choreography(
     ['range', 0, .72], 0, ['smooth', .748, .9832], 'source', 'source',
-    1, 1
+    1, 1, 'canonical-target', 'frame-lock'
   ),
   'figure2-proof-brand': choreography(1, 1, 'linear', 'none', 'none'),
   'brand-figure3': choreography(1, 0, 'linear', 'target', 'none', 1, 1,

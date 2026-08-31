@@ -7,14 +7,51 @@ import type {
   PhoneLeafMountRegistration,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
+import type { VideoFrameMap } from '../../../media/frame-timebase';
+
+type SurfaceProbeOptions = Readonly<{
+  canvas?: HTMLCanvasElement;
+  onCanvasRenewed?(canvas: HTMLCanvasElement): void;
+  onFailure?(failure: Readonly<{ code: string; message: string; generation: number }>): void;
+  onFrame?(frame: Readonly<{ canvas: HTMLCanvasElement; generation: number }>): void;
+}>;
+
+type SurfaceProbeRequest = Readonly<{
+  runId: string;
+  sequence: number;
+  desiredProgress: number;
+  frameMap: VideoFrameMap;
+}>;
 
 const probe = vi.hoisted(() => ({
-  surfaceOptions: null as null | Record<string, unknown>,
+  surfaceOptions: null as null | SurfaceProbeOptions,
+  activeCanvas: null as HTMLCanvasElement | null,
+  activeGeneration: 0,
   activate: vi.fn(() => 1), renderSurface: vi.fn(() => true),
   probeSurface: vi.fn(() => true),
-  driveTimelineVideo: vi.fn((video: HTMLVideoElement, input: { progress: number }) => {
-    video.currentTime = input.progress * 2.6;
-    return {};
+  setMode: vi.fn(),
+  presentFrame: vi.fn(async (request: SurfaceProbeRequest) => {
+    const { frameMap } = request;
+    const progress = Math.min(1, Math.max(0, request.desiredProgress));
+    const desiredFrameIndex = progress === 0
+      ? frameMap.startFrame
+      : progress === 1
+        ? frameMap.endFrame
+        : Math.round(frameMap.startFrame + progress * (frameMap.endFrame - frameMap.startFrame));
+    const canvas = probe.activeCanvas ?? probe.surfaceOptions?.canvas;
+    if (canvas) probe.surfaceOptions?.onFrame?.({ canvas, generation: probe.activeGeneration });
+    return {
+      status: 'presented' as const,
+      runId: request.runId,
+      sequence: request.sequence,
+      desiredFrameIndex,
+      presentedFrameIndex: desiredFrameIndex,
+      mediaTimeSeconds: desiredFrameIndex / frameMap.fpsNumerator * frameMap.fpsDenominator,
+      presentedProgress: progress,
+      evidence: 'packed-canvas-draw' as const,
+      canvas: canvas!,
+      generation: probe.activeGeneration
+    };
   }),
   release: vi.fn(), disposeSurface: vi.fn(), renderProgress: vi.fn()
 }));
@@ -34,16 +71,13 @@ vi.mock('../index', () => ({
 
 vi.mock('../../../media/phone-packed-alpha-surface', () => ({
   createPhonePackedAlphaSurface: vi.fn((options: Record<string, unknown>) => {
-    probe.surfaceOptions = options;
+    probe.surfaceOptions = options as unknown as SurfaceProbeOptions;
     return {
       activate: probe.activate, probe: probe.probeSurface, render: probe.renderSurface,
+      presentFrame: probe.presentFrame, setMode: probe.setMode,
       release: probe.release, dispose: probe.disposeSurface
     };
   })
-}));
-
-vi.mock('../../../media/timeline-video-driver', () => ({
-  driveTimelineVideo: probe.driveTimelineVideo
 }));
 
 import { PhoneFigure2 } from './PhoneFigure2';
@@ -63,12 +97,38 @@ function reportFixture() {
 describe('clean PhoneFigure2 leaf', () => {
   beforeEach(() => {
     probe.surfaceOptions = null;
-    probe.activate.mockReset().mockReturnValue(1);
+    probe.activeCanvas = null;
+    probe.activeGeneration = 0;
+    probe.activate.mockReset().mockImplementation(() => {
+      probe.activeCanvas = probe.surfaceOptions?.canvas ?? null;
+      probe.activeGeneration = 1;
+      return probe.activeGeneration;
+    });
     probe.renderSurface.mockReset().mockReturnValue(true);
     probe.probeSurface.mockReset().mockReturnValue(true);
-    probe.driveTimelineVideo.mockReset().mockImplementation((video, input) => {
-      video.currentTime = input.progress * 2.6;
-      return {};
+    probe.setMode.mockReset();
+    probe.presentFrame.mockReset().mockImplementation(async (request: SurfaceProbeRequest) => {
+      const { frameMap } = request;
+      const progress = Math.min(1, Math.max(0, request.desiredProgress));
+      const desiredFrameIndex = progress === 0
+        ? frameMap.startFrame
+        : progress === 1
+          ? frameMap.endFrame
+          : Math.round(frameMap.startFrame + progress * (frameMap.endFrame - frameMap.startFrame));
+      const canvas = probe.activeCanvas ?? probe.surfaceOptions?.canvas;
+      if (canvas) probe.surfaceOptions?.onFrame?.({ canvas, generation: probe.activeGeneration });
+      return {
+        status: 'presented' as const,
+        runId: request.runId,
+        sequence: request.sequence,
+        desiredFrameIndex,
+        presentedFrameIndex: desiredFrameIndex,
+        mediaTimeSeconds: desiredFrameIndex / frameMap.fpsNumerator * frameMap.fpsDenominator,
+        presentedProgress: progress,
+        evidence: 'packed-canvas-draw' as const,
+        canvas: canvas!,
+        generation: probe.activeGeneration
+      };
     });
     probe.release.mockReset();
     probe.disposeSurface.mockReset();
@@ -204,7 +264,7 @@ describe('clean PhoneFigure2 leaf', () => {
     expect(play).not.toHaveBeenCalled();
   });
 
-  it('pauses at 2.6 seconds for the depth leg and resumes only for the reverse media leg', async () => {
+  it('keeps staged holds at the endpoint and presents forward/reverse media frames exactly', async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause');
     const host = document.createElement('div');
@@ -213,64 +273,75 @@ describe('clean PhoneFigure2 leaf', () => {
     await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
     const commands = mount.registration()!.commands;
     const video = host.querySelector<HTMLVideoElement>('[data-figure2-combined-video]')!;
+    const forwardToken = 'figure2:stage:forward:0';
+    const forwardTransaction = 'figure2:forward';
     commands.rebind({
-      reports: mount.reports, frameToken: 'figure2:stage:forward:0',
+      reports: mount.reports, frameToken: forwardToken, transactionId: forwardTransaction,
       segmentId: 'figure2-distance-expand', stageIndex: 0, direction: 'forward'
     });
     const forward = commands.activate({
       invocationId: 'figure2:stage:forward', surfaceIds: ['figure2-pair-video'],
       credit: 'physical-epoch', playback: true,
-      runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 0
+      runToken: forwardTransaction, direction: 'forward', stageIndex: 0
     });
     await act(async () => {
       await Promise.all(forward.settlements.flatMap((settlement) => (
         settlement.status === 'pending' ? [settlement.settled] : []
       )));
     });
-    commands.setMediaPhase?.({ phase: 'playing', runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 0 });
+    const mediaTimeBeforeRender = video.currentTime;
+    commands.setMediaPhase?.({ phase: 'playing', runToken: forwardTransaction, direction: 'forward', stageIndex: 0 });
     commands.render(.5);
-    expect(probe.driveTimelineVideo).toHaveBeenCalledWith(
-      video, expect.objectContaining({ progress: .5, direction: 1 })
-    );
-    commands.render(1);
-    commands.setMediaPhase?.({ phase: 'held', runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 0 });
+    expect(video.currentTime).toBe(mediaTimeBeforeRender);
+    expect(probe.presentFrame).not.toHaveBeenCalled();
+    const forwardReceipt = await commands.presentFrame?.({
+      frameToken: forwardToken, transactionId: forwardTransaction, direction: 1,
+      sequence: 1, desiredProgress: .5, signal: new AbortController().signal
+    });
+    expect(forwardReceipt).toMatchObject({
+      status: 'presented', frameToken: forwardToken, presentedProgress: expect.closeTo(.5, 5)
+    });
+    expect(probe.presentFrame).toHaveBeenCalledWith(expect.objectContaining({
+      runId: forwardTransaction, direction: 1, desiredProgress: .5,
+      frameMap: expect.objectContaining({ startFrame: 0, endFrame: 78 })
+    }));
+    commands.setMediaPhase?.({ phase: 'held', runToken: forwardTransaction, direction: 'forward', stageIndex: 0 });
     expect(video.paused).toBe(true);
-    expect(video.currentTime).toBeCloseTo(2.6, 1);
 
     commands.rebind({
-      reports: mount.reports, frameToken: 'figure2:stage:forward:1',
+      reports: mount.reports, frameToken: 'figure2:stage:forward:1', transactionId: 'figure2:held',
       segmentId: 'figure2-distance-expand', stageIndex: 1, direction: 'forward'
     });
-    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:forward:stage0', direction: 'forward', stageIndex: 1 });
+    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:held', direction: 'forward', stageIndex: 1 });
     expect(video.paused).toBe(true);
     expect(video.currentTime).toBeCloseTo(2.6, 1);
 
+    const reverseToken = 'figure2:stage:reverse:1';
+    const reverseTransaction = 'figure2:reverse';
     commands.rebind({
-      reports: mount.reports, frameToken: 'figure2:stage:reverse:0',
-      segmentId: 'figure2-distance-expand', stageIndex: 0, direction: 'reverse'
+      reports: mount.reports, frameToken: reverseToken, transactionId: reverseTransaction,
+      segmentId: 'figure2-distance-expand', stageIndex: 1, direction: 'reverse'
     });
     const reverse = commands.activate({
       invocationId: 'figure2:stage:reverse', surfaceIds: ['figure2-pair-video'],
-      credit: 'physical-epoch', playback: true
+      credit: 'physical-epoch', playback: true, direction: 'reverse',
+      runToken: reverseTransaction, stageIndex: 1
     });
-    await act(async () => {
-      await Promise.all(reverse.settlements.flatMap((settlement) => (
-        settlement.status === 'pending' ? [settlement.settled] : []
-      )));
+    expect(reverse.settlements).toEqual([{ surfaceId: 'figure2-pair-video', status: 'fulfilled' }]);
+    const playsBeforeReverseFrame = play.mock.calls.length;
+    const reverseReceipt = await commands.presentFrame?.({
+      frameToken: reverseToken, transactionId: reverseTransaction, direction: -1,
+      sequence: 1, desiredProgress: .25, signal: new AbortController().signal
     });
-    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse:stage0', direction: 'reverse', stageIndex: 0 });
-    expect(video.paused).toBe(true);
-    expect(video.currentTime).toBeCloseTo(2.6, 1);
-    const playsBeforeReverseMedia = play.mock.calls.length;
-    commands.rebind({
-      reports: mount.reports, frameToken: 'figure2:stage:reverse:1',
-      segmentId: 'figure2-distance-expand', stageIndex: 1, direction: 'reverse'
+    expect(reverseReceipt).toMatchObject({
+      status: 'presented', frameToken: reverseToken,
+      presentedProgress: expect.closeTo(1 - 58 / 77, 5)
     });
-    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse:stage0', direction: 'reverse', stageIndex: 1 });
-    commands.setMediaPhase?.({ phase: 'playing', runToken: 'figure2:reverse:stage0', direction: 'reverse', stageIndex: 1 });
-    commands.render(0);
-    expect(play.mock.calls.length).toBe(playsBeforeReverseMedia);
-    expect(probe.driveTimelineVideo).toHaveBeenCalled();
+    expect(probe.presentFrame).toHaveBeenLastCalledWith(expect.objectContaining({
+      runId: reverseTransaction, direction: -1, desiredProgress: .75,
+      frameMap: expect.objectContaining({ startFrame: 78, endFrame: 155 })
+    }));
+    expect(play.mock.calls.length).toBe(playsBeforeReverseFrame);
     expect(pause).toHaveBeenCalled();
     act(() => root.unmount());
   });
@@ -306,10 +377,7 @@ describe('clean PhoneFigure2 leaf', () => {
   });
 
   it('keeps reverse depth warmup hidden until the paused endpoint is reproved', async () => {
-    let resolvePlay: () => void = () => undefined;
-    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => (
-      new Promise<void>((resolve) => { resolvePlay = resolve; })
-    ));
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     const host = document.createElement('div');
     const root = createRoot(host);
     const mount = reportFixture();
@@ -321,6 +389,7 @@ describe('clean PhoneFigure2 leaf', () => {
     commands.rebind({
       reports: mount.reports,
       frameToken: 'figure2:reverse-depth:hidden',
+      transactionId: 'figure2:reverse-depth',
       segmentId: 'figure2-distance-expand',
       stageIndex: 0,
       direction: 'reverse'
@@ -329,10 +398,13 @@ describe('clean PhoneFigure2 leaf', () => {
     const activation = commands.activate({
       invocationId: 'figure2:reverse-depth:activation',
       surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch', direction: 'reverse',
-      playback: true
+      playback: true, runToken: 'figure2:reverse-depth'
     });
     expect(play).not.toHaveBeenCalled();
-    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse-depth:activation', direction: 'reverse', stageIndex: 0 });
+    expect(activation.settlements).toEqual([
+      { surfaceId: 'figure2-pair-video', status: 'fulfilled' }
+    ]);
+    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse-depth', direction: 'reverse', stageIndex: 0 });
     expect(scene.hasAttribute('data-phone-figure2-canvas-ready')).toBe(false);
 
     video.currentTime = 2.4;
@@ -346,13 +418,7 @@ describe('clean PhoneFigure2 leaf', () => {
     expect(scene.hasAttribute('data-phone-figure2-canvas-ready')).toBe(false);
     expect(mount.reports.reportFrame).not.toHaveBeenCalled();
 
-    await act(async () => {
-      resolvePlay();
-      await Promise.all(activation.settlements.flatMap((settlement) => (
-        settlement.status === 'pending' ? [settlement.settled] : []
-      )));
-    });
-    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse-depth:activation', direction: 'reverse', stageIndex: 0 });
+    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse-depth', direction: 'reverse', stageIndex: 0 });
     expect(video.currentTime).toBeCloseTo(2.6, 1);
 
     (probe.surfaceOptions?.onFrame as ((frame: {
@@ -367,7 +433,7 @@ describe('clean PhoneFigure2 leaf', () => {
     act(() => root.unmount());
   });
 
-  it('seeks the reverse media leg from 2.6 seconds to zero without native playback', async () => {
+  it('presents reverse media targets from the retained endpoint without native playback', async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -376,45 +442,34 @@ describe('clean PhoneFigure2 leaf', () => {
     const commands = mount.registration()!.commands;
     commands.rebind({
       reports: mount.reports,
-      frameToken: 'figure2:reverse-resume:hold',
+      frameToken: 'figure2:reverse-resume:media',
+      transactionId: 'figure2:reverse-resume',
       segmentId: 'figure2-distance-expand',
-      stageIndex: 0,
+      stageIndex: 1,
       direction: 'reverse'
     });
     const activation = commands.activate({
       invocationId: 'figure2:reverse-resume:activation',
       surfaceIds: ['figure2-pair-video'], credit: 'physical-epoch', direction: 'reverse',
-      playback: true
+      playback: true, runToken: 'figure2:reverse-resume', stageIndex: 1
     });
-    await act(async () => {
-      await Promise.all(activation.settlements.flatMap((settlement) => (
-        settlement.status === 'pending' ? [settlement.settled] : []
-      )));
-    });
-    commands.setMediaPhase?.({ phase: 'primed', runToken: 'figure2:reverse-resume:activation', direction: 'reverse', stageIndex: 0 });
-    await act(async () => {
-      commands.rebind({
-        reports: mount.reports,
+    expect(activation.settlements).toEqual([
+      { surfaceId: 'figure2-pair-video', status: 'fulfilled' }
+    ]);
+    const playsBeforeReverseMedia = play.mock.calls.length;
+    const targets = [1, .5, 0] as const;
+    const receipts = await Promise.all(targets.map((desiredProgress, index) => (
+      commands.presentFrame?.({
         frameToken: 'figure2:reverse-resume:media',
-        segmentId: 'figure2-distance-expand',
-        stageIndex: 1,
-        direction: 'reverse'
-      });
-      const playsBeforeReverseMedia = play.mock.calls.length;
-      commands.setMediaPhase?.({ phase: 'playing', runToken: 'figure2:reverse-resume:media', direction: 'reverse', stageIndex: 1 });
-      // The reverse runtime drives the target progress from the closing
-      // endpoint back to the opening endpoint.
-      commands.render(1);
-      commands.render(.5);
-      commands.render(0);
-      expect(play.mock.calls.length).toBe(playsBeforeReverseMedia);
-    });
-
-    expect(probe.driveTimelineVideo).toHaveBeenCalledTimes(3);
-    expect(probe.driveTimelineVideo.mock.calls.map(([, input]) => input.progress))
-      .toEqual([1, .5, 0]);
-    const video = host.querySelector<HTMLVideoElement>('[data-figure2-combined-video]')!;
-    expect(video.currentTime).toBeCloseTo(0, 3);
+        transactionId: 'figure2:reverse-resume', direction: -1,
+        sequence: index + 1, desiredProgress,
+        signal: new AbortController().signal
+      })
+    )));
+    expect(receipts.every((receipt) => receipt?.status === 'presented')).toBe(true);
+    expect(probe.presentFrame.mock.calls.map(([request]) => request.desiredProgress))
+      .toEqual([0, .5, 1]);
+    expect(play.mock.calls.length).toBe(playsBeforeReverseMedia);
     expect(mount.reports.reportFailure).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
