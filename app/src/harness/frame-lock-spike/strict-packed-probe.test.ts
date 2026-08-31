@@ -75,11 +75,20 @@ function request(sequence: number, desiredProgress = 0.5): StrictPackedProbeRequ
   };
 }
 
-function frame(generation: number, frameIndex: number): { canvas: HTMLCanvasElement; generation: number } {
+function frame(
+  generation: number,
+  frameIndex: number
+): {
+  canvas: HTMLCanvasElement;
+  generation: number;
+  mediaTimeSeconds: number;
+  frameIndex: number;
+} {
   const canvas = document.createElement('canvas');
+  const mediaTimeSeconds = mediaTimeForFrame(frameMap, frameIndex);
   canvas.dataset.packedAlphaFrameReady = 'true';
-  canvas.dataset.packedAlphaMediaTime = String(mediaTimeForFrame(frameMap, frameIndex));
-  return { canvas, generation };
+  canvas.dataset.packedAlphaMediaTime = String(mediaTimeSeconds);
+  return { canvas, generation, mediaTimeSeconds, frameIndex };
 }
 
 describe('strict packed-alpha probe', () => {

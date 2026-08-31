@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const compositorProbe = vi.hoisted(() => ({
   setupFailure: false,
   renderResult: true,
-  callbacks: [] as Array<() => void>,
+  callbacks: [] as Array<(frame?: Readonly<{ mediaTimeSeconds: number }>) => void>,
   failures: [] as Array<(failure: Readonly<{ code: 'context-lost'; message: string }>) => void>,
   disposals: [] as Array<ReturnType<typeof vi.fn>>
 }));
@@ -18,7 +18,7 @@ vi.mock('./packed-alpha-video', async () => {
     ...actual,
     createPackedAlphaVideoCompositor: vi.fn((options: Readonly<{
       canvas: HTMLCanvasElement;
-      onFrame?: () => void;
+      onFrame?: (frame?: Readonly<{ mediaTimeSeconds: number }>) => void;
       onFailure?: (failure: Readonly<{ code: 'context-lost'; message: string }>) => void;
     }>) => {
       if (options.onFrame) compositorProbe.callbacks.push(options.onFrame);
@@ -51,6 +51,8 @@ import {
   createPhonePackedAlphaSurface,
   releasePhonePackedAlphaWhenHidden
 } from './phone-packed-alpha-surface';
+import { mediaTimeForFrame } from './frame-timebase';
+import { VIDEO_FRAME_MAPS } from './video-frame-maps';
 
 function fixture(options: Readonly<{ injected?: boolean; failure?: boolean }> = {}) {
   const root = document.createElement('section');
@@ -106,7 +108,7 @@ describe('canonical phone packed-alpha surface', () => {
     expect(current.onFrame).not.toHaveBeenCalled();
     compositorProbe.callbacks[0]?.();
     expect(current.onFrame).toHaveBeenLastCalledWith({
-      canvas: current.canvas, generation: first
+      canvas: current.canvas, generation: first, mediaTimeSeconds: 0, frameIndex: -1
     });
 
     current.surface.release();
@@ -115,9 +117,139 @@ describe('canonical phone packed-alpha surface', () => {
     expect(current.onFrame).toHaveBeenCalledTimes(1);
     compositorProbe.callbacks[1]?.();
     expect(current.onFrame).toHaveBeenLastCalledWith({
-      canvas: current.canvas, generation: second
+      canvas: current.canvas, generation: second, mediaTimeSeconds: 0, frameIndex: -1
     });
     expect(second).toBeGreaterThan(first);
+    current.surface.dispose('terminal');
+  });
+
+  it('returns a packed-canvas receipt only for the exact requested frame', async () => {
+    const current = fixture();
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    const generation = current.surface.activate('forward');
+    const targetFrameIndex = 23;
+    const request = {
+      runId: 'phone-packed-receipt:1',
+      direction: 1 as const,
+      sequence: 1,
+      desiredProgress: targetFrameIndex / frameMap.endFrame,
+      frameMap,
+      signal: new AbortController().signal
+    };
+    const receipt = current.surface.presentFrame(request);
+
+    compositorProbe.callbacks[0]?.({
+      mediaTimeSeconds: mediaTimeForFrame(frameMap, targetFrameIndex + 1)
+    });
+    let settled = false;
+    void receipt.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    const mediaTimeSeconds = mediaTimeForFrame(frameMap, targetFrameIndex);
+    compositorProbe.callbacks[0]?.({ mediaTimeSeconds });
+    await expect(receipt).resolves.toMatchObject({
+      status: 'presented',
+      desiredFrameIndex: targetFrameIndex,
+      presentedFrameIndex: targetFrameIndex,
+      mediaTimeSeconds,
+      evidence: 'packed-canvas-draw',
+      generation
+    });
+    expect(current.onFrame).toHaveBeenLastCalledWith({
+      canvas: current.canvas,
+      generation,
+      mediaTimeSeconds,
+      frameIndex: targetFrameIndex
+    });
+    current.surface.dispose('terminal');
+  });
+
+  it('coalesces packed frame requests and makes an older sequence stale', async () => {
+    const current = fixture();
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    const generation = current.surface.activate('forward');
+    const signal = new AbortController().signal;
+    const first = current.surface.presentFrame({
+      runId: 'phone-packed-latest:1',
+      direction: 1,
+      sequence: 1,
+      desiredProgress: 1 / frameMap.endFrame,
+      frameMap,
+      signal
+    });
+    const second = current.surface.presentFrame({
+      runId: 'phone-packed-latest:1',
+      direction: 1,
+      sequence: 2,
+      desiredProgress: 44 / frameMap.endFrame,
+      frameMap,
+      signal
+    });
+
+    await expect(first).resolves.toMatchObject({ status: 'stale', sequence: 1 });
+    compositorProbe.callbacks[0]?.({ mediaTimeSeconds: mediaTimeForFrame(frameMap, 44) });
+    await expect(second).resolves.toMatchObject({
+      status: 'presented',
+      sequence: 2,
+      desiredFrameIndex: 44,
+      presentedFrameIndex: 44,
+      generation
+    });
+    current.surface.dispose('terminal');
+  });
+
+  it('rejects a failed packed render and resolves pending work stale on release', async () => {
+    const failed = fixture();
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    failed.surface.activate('forward');
+    Object.defineProperty(failed.video, 'readyState', {
+      configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA
+    });
+    compositorProbe.renderResult = false;
+    await expect(failed.surface.presentFrame({
+      runId: 'phone-packed-render-failure:1',
+      direction: 1,
+      sequence: 1,
+      desiredProgress: 0,
+      frameMap,
+      signal: new AbortController().signal
+    })).rejects.toThrow('Packed-alpha frame render failed');
+    failed.surface.dispose('terminal');
+
+    compositorProbe.renderResult = true;
+    const released = fixture();
+    released.surface.activate('forward');
+    const pending = released.surface.presentFrame({
+      runId: 'phone-packed-release:1',
+      direction: 1,
+      sequence: 1,
+      desiredProgress: 0.5,
+      frameMap,
+      signal: new AbortController().signal
+    });
+    released.surface.release();
+    await expect(pending).resolves.toMatchObject({ status: 'stale' });
+    released.surface.dispose('terminal');
+  });
+
+  it('rejects a present request when its signal aborts', async () => {
+    const current = fixture();
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    current.surface.activate('forward');
+    const controller = new AbortController();
+    const pending = current.surface.presentFrame({
+      runId: 'phone-packed-abort:1',
+      direction: 1,
+      sequence: 1,
+      desiredProgress: 0.5,
+      frameMap,
+      signal: controller.signal
+    });
+    controller.abort('abort test');
+    await expect(pending).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
     current.surface.dispose('terminal');
   });
 
@@ -140,7 +272,7 @@ describe('canonical phone packed-alpha surface', () => {
     expect(current.onFrame).not.toHaveBeenCalled();
     compositorProbe.callbacks[1]?.();
     expect(current.onFrame).toHaveBeenCalledWith({
-      canvas: current.currentCanvas(), generation: second
+      canvas: current.currentCanvas(), generation: second, mediaTimeSeconds: 0, frameIndex: -1
     });
     current.surface.dispose('terminal');
   });
@@ -157,7 +289,7 @@ describe('canonical phone packed-alpha surface', () => {
     expect(current.surface.probe()).toBe(true);
     compositorProbe.callbacks[0]?.();
     expect(current.onFrame).toHaveBeenCalledWith({
-      canvas: current.canvas, generation
+      canvas: current.canvas, generation, mediaTimeSeconds: 0, frameIndex: -1
     });
     current.surface.dispose('terminal');
   });

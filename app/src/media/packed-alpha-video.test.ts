@@ -402,6 +402,23 @@ describe('packed alpha video', () => {
     compositor.dispose();
   });
 
+  it('reports the media timestamp attached to a successful draw', () => {
+    const probe = createGlProbe();
+    const canvas = new CanvasProbe(probe.gl);
+    const video = new VideoProbe();
+    video.readyState = 2;
+    video.currentTime = 1.25;
+    const onFrame = vi.fn();
+    const compositor = createPackedAlphaVideoCompositor({
+      canvas: canvas as unknown as HTMLCanvasElement,
+      video: video as unknown as HTMLVideoElement,
+      onFrame
+    });
+
+    expect(onFrame).toHaveBeenCalledWith({ mediaTimeSeconds: 1.25 });
+    compositor.dispose();
+  });
+
   it('reports unavailable WebGL and a failed frame upload synchronously', () => {
     const unavailableCanvas = new CanvasProbe(
       null as unknown as WebGLRenderingContext

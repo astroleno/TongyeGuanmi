@@ -15,6 +15,11 @@ export type PackedAlphaVideoCompositor = Readonly<{
   dispose(retirement?: PackedAlphaContextRetirement): void;
 }>;
 
+export type PackedAlphaVideoFrame = Readonly<{
+  /** The media timestamp observed after the successful WebGL draw. */
+  mediaTimeSeconds: number;
+}>;
+
 const PACKED_ALPHA_DATA_KEYS = [
   'packedAlphaStatus',
   'packedAlphaFrameReady',
@@ -52,7 +57,7 @@ export function renewPackedAlphaCanvas(
 type PackedAlphaVideoOptions = Readonly<{
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
-  onFrame?: () => void;
+  onFrame?: (frame: PackedAlphaVideoFrame) => void;
   onFailure?: (failure: PackedAlphaVideoFailure) => void;
 }>;
 
@@ -325,8 +330,9 @@ export function createPackedAlphaVideoCompositor(
     canvas.dataset.packedAlphaStatus = 'ready';
     canvas.dataset.packedAlphaFrameReady = 'true';
     canvas.dataset.packedAlphaFrame = String(renderedFrames);
-    canvas.dataset.packedAlphaMediaTime = video.currentTime.toFixed(4);
-    options.onFrame?.();
+    const mediaTimeSeconds = video.currentTime;
+    canvas.dataset.packedAlphaMediaTime = mediaTimeSeconds.toFixed(4);
+    options.onFrame?.({ mediaTimeSeconds });
     return true;
   };
 
