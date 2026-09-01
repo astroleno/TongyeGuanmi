@@ -87,7 +87,7 @@ export function phoneReadingEdges(owner: PhoneReadingScrollOwner): Readonly<{
 type QueuedEvent = Readonly<{ sequence: number; event: PhoneStoryEvent }>;
 type DeadlineLease = Readonly<{ key: string; handle: PhoneRuntimeTimerHandle; connection: number }>;
 type ReportState = { valid: boolean; binding: PhoneLeafReportBinding; p?: PhoneSceneId; r?: true };
-type LeafLease = { key: string; reports: ReportState; mount: PhoneLeafMountLease; activeDecoders: number; disposed: boolean; frameToken: string | null };
+type LeafLease = { key: string; reports: ReportState; registration: PhoneLeafMountRegistration; mount: PhoneLeafMountLease; activeDecoders: number; disposed: boolean; frameToken: string | null };
 type PendingLoad = { controller: AbortController; waiters: Array<Readonly<{ effect: Extract<PhoneStoryEffect, { type: 'load-dependencies' }>; connection: number }>> };
 type PlaybackLease = Readonly<{ h: PhoneRuntimeTimerHandle; a: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>; s: number; t: number; d: number; f: number; o: number }>;
 type ActivationLease = Readonly<{ invocationId: string; attempt: PhoneAttemptKey; surfaceIds: readonly string[]; leaves: readonly LeafLease[]; connection: number }>;
@@ -316,6 +316,14 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
 
   const mountedLease = (state: ReportState): LeafLease | null => [...leaves.values()].find((lease) => !lease.disposed && lease.reports === state) ?? null;
 
+  const releaseReplayedLease = (lease: LeafLease): void => {
+    if (lease.disposed) return; runPhoneCleanupSteps('Phone leaf replay cleanup failed', [
+      () => { lease.disposed = true; leaves.delete(lease.key); lease.frameToken = null; },
+      () => environment.observeLifecycle?.('unregister'), () => lease.mount.release(),
+      () => updateResources({ ...lease.mount.resources, activeDecoders: lease.activeDecoders }, -1),
+      () => environment.observeLifecycle?.('release')]);
+  };
+
   const closeReports = (state: ReportState, observe = true): void => {
     if (!state.valid) return;
     state.valid = false;
@@ -366,30 +374,25 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       rebind: (binding: PhoneLeafReportBinding) => { if (!connected || snapshot.status !== 'transaction') return; const closed = closePhoneLeafReportBinding(binding); if (!sameAttempt(closed.attempt, snapshot.transaction.attempt) || closed.stageIndex !== snapshot.transaction.stageIndex || closed.planeRevision !== snapshot.transaction.planeRevision) return; assertPhoneLeafReportBindingContract(closed, snapshot.transaction); if (state.valid && samePhoneLeafReportBinding(state.binding, closed)) return; state = rebindReportState(state, closed); },
       registerMount: (registration: PhoneLeafMountRegistration) => {
         state = reviveLateReportState(state) ?? state;
-        if (!state.valid) return;
-        const key = phoneLeafMountKey(state.binding);
-        const existing = leaves.get(key);
-        if (existing?.mount.isAttached()) throw new Error(`already registered: ${key}`);
+        if (!state.valid) return; const key = phoneLeafMountKey(state.binding);
+        let existing = leaves.get(key);
+        if (existing?.mount.isAttached()) {
+          const isStrictModeReplay = existing.registration.root === registration.root && existing.registration.commands === registration.commands;
+          if (!isStrictModeReplay) throw new Error(`already registered: ${key}`);
+          releaseReplayedLease(existing); existing = undefined;
+        }
         if (existing) {
-          const replacesOwnState = existing.reports === state;
-          const binding = state.binding;
+          const replacesOwnState = existing.reports === state, binding = state.binding;
           const prewarm = state.p, ready = state.r;
           retireLease(existing, 'generation-replaced');
           if (replacesOwnState) { state = { valid: true, binding, ...(prewarm ? { p: prewarm } : {}), ...(ready ? { r: ready } : {}) }; reportStates.add(state); }
         }
         const mount = presentation.registerLeafMount({ binding: state.binding, registration });
         const expected = phoneIdentitySignature(state.binding.allowedSurfaceIds);
-        if (phoneIdentitySignature(mount.surfaceIds) !== expected
-          || mount.resources.activeDecoders !== 0) {
-          mount.release();
-          throw new Error(`mismatch: ${key}`);
-        }
-        try { updateResources(mount.resources, 1); } catch (error) {
-          mount.release();
-          throw error;
-        }
+        if (phoneIdentitySignature(mount.surfaceIds) !== expected || mount.resources.activeDecoders !== 0) { mount.release(); throw new Error(`mismatch: ${key}`); }
+        try { updateResources(mount.resources, 1); } catch (error) { mount.release(); throw error; }
         const lease: LeafLease = {
-          key, reports: state, mount, activeDecoders: 0, disposed: false, frameToken: null
+          key, reports: state, registration, mount, activeDecoders: 0, disposed: false, frameToken: null
         };
         if (state.p) rejectedLoads.delete(`scene:${state.p}`);
         leaves.set(key, lease);

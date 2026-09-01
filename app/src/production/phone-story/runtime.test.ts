@@ -2725,6 +2725,62 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('replaces an identical StrictMode replay registration without rejecting the phone route', () => {
+    const fixture = createEnvironment();
+    const releases = vi.fn();
+    const authority = createPresentationAuthority();
+    const presentation: PhonePresentation = {
+      ...authority,
+      registerLeafMount: (request) => ({
+        ...describePhoneLeafMount(request),
+        registrationKey: 'strict-mode-replay',
+        commands: request.registration.commands,
+        isAttached: () => true,
+        rebind: () => undefined,
+        release: releases
+      })
+    };
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#home', origin: 'initial' },
+      environment: fixture.port,
+      presentation
+    });
+    const disconnect = runtime.connect();
+    const transaction = currentTransaction(runtime);
+    const scene = phoneSceneById(transaction.candidateSceneId);
+    const root = {} as HTMLElement;
+    const { commands } = commandFixture();
+    const binding: PhoneLeafReportBinding = {
+      attempt: transaction.attempt,
+      stageIndex: transaction.stageIndex,
+      leg: 'target',
+      allowedReports: transaction.requiredPrepared.map(({ kind }) => kind),
+      allowedSurfaceIds: scene.surfaces,
+      planeRevision: transaction.planeRevision
+    };
+    const registration = {
+      root,
+      surfaces: scene.surfaces.map((id) => ({
+        id,
+        element: {} as HTMLElement,
+        kind: id.includes('video') ? 'video' as const
+          : /(?:image|poster|arch)/.test(id) ? 'image' as const
+          : ['hero-intro-ink', 'star-map-canvas', 'figure3-paper-canvas'].includes(id)
+            ? 'canvas-2d' as const
+            : id.includes('canvas') ? 'canvas-webgl' as const : 'dom' as const
+      })),
+      commands
+    };
+    const reports = runtime.createLeafReportPort(binding);
+
+    reports.registerMount(registration);
+    const resourcesAfterFirstRegistration = [...fixture.resources];
+    expect(() => reports.registerMount(registration)).not.toThrow();
+    expect(releases).toHaveBeenCalledTimes(1);
+    expect(fixture.resources.at(-1)).toEqual(resourcesAfterFirstRegistration.at(-1));
+    disconnect();
+  });
+
   it('retires a detached retained mount before React registers its replacement', () => {
     const fixture = createEnvironment();
     const authority = createPresentationAuthority();
