@@ -3,13 +3,17 @@
 - Date: 2026-09-07
 - Branch: `codex/frame-lock-seek-migration`
 - Worktree: `/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.worktrees/codex-frame-lock-seek-migration`
-- HEAD at closure: `0a610e48c6ed0ae78b3434ffe12077be18f0941e`
-- Dirty tracked-diff SHA-256 at closure: `3913098377c1f08efe4474d942b77ef16496727c565e74b088b7b8c3e5dcea82`
+- Closure base before the committed changes: `0a610e48c6ed0ae78b3434ffe12077be18f0941e`
+- Pre-commit closure tracked-diff SHA-256: `3913098377c1f08efe4474d942b77ef16496727c565e74b088b7b8c3e5dcea82`
+- Initial implementation/closure commit: `c533408333584cc02e290c633e5563a3416adc0e`
+- Review follow-up implementation commit: `baa9ebf477edec3b0fd94c1952728d767554a54c`
 - Historical freeze HEAD: `9ec3e2bbcd5137f706ba3f19f64de637981f47cb`
 - Main reference: `6145cfe`; main tracked content was not modified by this
   worktree. The unrelated main-worktree untracked `.playwright-cli/` was left
   untouched.
-- Status: Task 18 is complete at `0a610e4`; Tasks 19–22 are not started.
+- Status: Task 18 is complete at `baa9ebf`; `c533408` records the initial
+  implementation/closure changes and `baa9ebf` closes the review correction;
+  Tasks 19–22 are not started.
 - Closure summary: the current-only PH/Lab and formal native-handoff failures
   were fixed in the shared phone authority/recovery path and covered by the
   warm-entry runtime regression test. The three non-Hero T18 failures were
@@ -18,7 +22,9 @@
   WebKit Hero pacing failure was also baseline-same and receives the same
   exact-scope treatment. The AOD endpoint failure was a timing-sensitive
   assertion oracle; a MutationObserver records the exact `1.0000` endpoint
-  without weakening the endpoint proof or adding an exemption.
+  without weakening the endpoint proof or adding an exemption. The review
+  follow-up bounds warm-entry retention to manifest-adjacent native prewarm
+  sources and retires every non-adjacent source.
 - Current post-freeze status: the correctness-review follow-up has passed the
   new timer-prime, live-clock hard-release, TTG held/playing, focused sibling,
   budget, repeated WebKit, and Chromium Figure3 checks. Task 18's first full
@@ -1267,19 +1273,23 @@ follow-up work and are not permanent skips.
 
 ## Task 18 closure — 2026-09-07
 
-This closure section supersedes the historical gate list above. The accepted
-tree is `0a610e48c6ed0ae78b3434ffe12077be18f0941e`; Tasks 19–22 remain
-unstarted.
+This closure section supersedes the historical gate list above. The initial
+implementation/closure commit is `c533408333584cc02e290c633e5563a3416adc0e`;
+the accepted post-review tree is `baa9ebf477edec3b0fd94c1952728d767554a54c`.
+Tasks 19–22 remain unstarted.
 
 ### Shared current-only fixes and A/B classification
 
 The current-only PH/Lab reactivation and formal native-handoff failures were
 resolved in the shared phone authority/recovery path. The final runtime change
-also retains a departing non-native source lease for both `segment` and `entry`
-transactions when the committed native neighbor needs that source as its
-prewarm. The new runtime regression test proves warm-entry pause/retention,
-no disposal, and a still-ready native handoff. The focused PH/lifecycle and
-formal-handoff WebKit checks passed `2/2` after the final build.
+retains a departing non-native source lease for both `segment` and `entry`
+transactions only when that source is listed by
+`phoneNativePrewarmScenes(next.stableCommit.sceneId)`. The review follow-up
+therefore retires a non-adjacent source such as `figure3-animation → lab`,
+while retaining adjacent `ph-animation → lab`. The runtime tests cover the
+adjacent case, the non-adjacent case, and every ordered non-native-source to
+native-target warm entry with final resource counts. The focused PH/lifecycle
+and formal-handoff WebKit checks passed `2/2` after the final build.
 
 | Original failure | Current tree vs `9ec3e2b` | Disposition and owner |
 | --- | --- | --- |
@@ -1325,13 +1335,16 @@ were not applied to the TTG, lifecycle, formal-story, or later release cells:
 | `phone-portrait-chromium` + `r5-ttg-alpha.spec.ts` | `2/2` passed |
 | `phone-portrait-webkit` + `r5-ttg-alpha.spec.ts` | `2/2` passed |
 
-The focused current AOD endpoint repetition passed `5/5` after the oracle
-correction. The final deterministic suite passed `194` files and `1,526`
+The original `c533408` build artifact was
+`319278c59fdc4cdc197fe9612e9c70e31b3602c4d4216ebb530511458f5b4a85`.
+After the review follow-up, the focused current AOD endpoint repetition
+passed `5/5`; the final deterministic suite passed `194` files and `1,528`
 tests; typecheck and lint passed. The final production build passed the
-unchanged budgets with `phoneJsRawBytes=659497`, `totalJsRawBytes=659497`,
-`desktopJsRawBytes=576450`, and artifact tree SHA-256
-`6356dbb2c6c103f98426b7e4a6dc02af12cb8a9bff39214e726e501ef6ab7213`.
+unchanged budgets with source commit `baa9ebf`,
+`phoneJsRawBytes=659468`, `totalJsRawBytes=659468`,
+`desktopJsRawBytes=576450`, and final artifact tree SHA-256
+`b5c715eeae639a18696ca7fdd1816fd6e1f42309ba012fb4fc2bc484d11ac489`.
 
-Task 18 is therefore **complete** at closure base `0a610e4`; the commit that
-records this closure ledger and the final test-only oracle/runtime regression
-changes is the next repository revision.
+Task 18 is therefore **complete** at accepted post-review tree `baa9ebf`.
+The closure ledger is updated in the documentation commit immediately after
+the review follow-up.
