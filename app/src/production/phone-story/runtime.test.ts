@@ -13,7 +13,7 @@ import {
   type PhoneStoryRuntimeEnvironment
 } from './runtime';
 import { phoneTransactionActivationSurfaceIds } from './machine';
-import { phoneManifest, phoneNativeHandoffDescriptor, phoneSceneById, phoneSegmentChoreographyFrame } from './manifest';
+import { phoneManifest, phoneNativeHandoffDescriptor, phoneNativePrewarmScenes, phoneSceneById, phoneSegmentChoreographyFrame } from './manifest';
 import type {
   PhoneLeafCommandHandle,
   PhoneLeafGenerationBinding,
@@ -3152,6 +3152,59 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(source.commands.dispose).not.toHaveBeenCalled();
     expect(runtime.nativeHandoff('forward')[1]).toBeNull();
     disconnect();
+  });
+
+  it('retires non-adjacent departing media after a warm entry to a native scene', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#figure3-animation');
+    const disconnect = runtime.connect();
+    const source = commandFixture();
+    registerCurrentLeaf(runtime, source.commands);
+    proveCurrent(runtime, fixture);
+
+    runtime.requestEntry({ pathname: '/', hash: '#lab', origin: 'hash' });
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'lab' }
+    });
+    expect(source.commands.pause).toHaveBeenCalledWith('outside-closure');
+    expect(source.commands.dispose).toHaveBeenCalledWith('closure-retired');
+    expect(fixture.resources.at(-1)).toEqual({
+      videos: 0, activeDecoders: 0, canvases: 0, webglContexts: 0
+    });
+    disconnect();
+  });
+
+  it('keeps only adjacent media resources for every ordered warm entry to a native scene', () => {
+    const sources = phoneManifest.scenes.filter(({ plane }) => plane !== 'native');
+    const targets = phoneManifest.scenes.filter(({ plane }) => plane === 'native');
+
+    for (const sourceScene of sources) for (const targetScene of targets) {
+      if (sourceScene.id === targetScene.id) continue;
+      const fixture = createEnvironment();
+      const runtime = createRuntime(fixture, sourceScene.directEntry.canonicalHash);
+      const disconnect = runtime.connect();
+      const source = commandFixture();
+      registerCurrentLeaf(runtime, source.commands);
+      proveCurrent(runtime, fixture);
+
+      runtime.requestEntry({ pathname: '/', hash: targetScene.directEntry.canonicalHash, origin: 'hash' });
+      registerCurrentLeaf(runtime, commandFixture().commands);
+      proveCurrent(runtime, fixture);
+
+      const adjacent = phoneNativePrewarmScenes(targetScene.id).includes(sourceScene.id)
+        || (['forward', 'reverse'] as const).some((direction) => (
+          phoneNativeHandoffDescriptor(targetScene.id, direction)?.[0] === sourceScene.id
+        ));
+      const expected = adjacent
+        ? { ...sourceScene.directEntry.closure.resourceBudget, activeDecoders: 0 }
+        : { videos: 0, activeDecoders: 0, canvases: 0, webglContexts: 0 };
+      expect(fixture.resources.at(-1), `${sourceScene.id} -> ${targetScene.id}`).toEqual(expected);
+      expect(source.commands.dispose, `${sourceScene.id} -> ${targetScene.id}`).toHaveBeenCalledTimes(adjacent ? 0 : 1);
+      disconnect();
+    }
   });
 
   it('does not consume touchend activation for static choreography even when its closure mounts video', () => {
