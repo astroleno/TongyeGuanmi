@@ -74,7 +74,7 @@ describe('PhoneCrane', () => {
     expect(phoneCranePresentationProgress(0.25)).toBe(0.25);
   });
 
-  it('uses clean runtime commands with the authored half-second media stagger', () => {
+  it('uses clean runtime commands with an atomic presented-frame pair', () => {
     expect(source).toContain('createPhonePackedAlphaSurface');
     expect(source).toContain('figureCanvasRef');
     expect(source).toContain('flockCanvasRef');
@@ -83,7 +83,8 @@ describe('PhoneCrane', () => {
     expect(source).toContain('binding.reports.reportFrame(surfaceId');
     expect(source).toContain("'crane-figure-canvas'");
     expect(source).toContain("'crane-flock-canvas'");
-    expect(source).toContain('driveTimelineVideo');
+    expect(source).toContain('createPresentedFrameBarrier');
+    expect(source).not.toContain('driveTimelineVideo');
     expect(source).toContain("surface.dispose('reactivatable')");
     expect(source).not.toContain('createPortal');
     expect(source).not.toContain('useState');

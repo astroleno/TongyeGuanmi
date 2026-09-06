@@ -234,7 +234,7 @@ export default defineConfig({
     emptyOutDir: true,
     manifest: true,
     minify: 'terser',
-    terserOptions: { compress: { hoist_props: true, keep_fargs: false, module: true, passes: 10, pure_getters: true, toplevel: true, unsafe: true }, mangle: { module: true, toplevel: true } },
+    terserOptions: { compress: { hoist_props: true, keep_fargs: false, module: true, passes: 10, pure_getters: true, toplevel: true, unsafe: true, unsafe_arrows: true, unsafe_comps: true, unsafe_Function: true, unsafe_math: true, unsafe_methods: true, unsafe_proto: true, unsafe_regexp: true, unsafe_symbols: true, unsafe_undefined: true }, mangle: { module: true, toplevel: true } },
     assetsInlineLimit: 0,
     cssCodeSplit: true,
     modulePreload: false,
@@ -245,7 +245,10 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash:7].js',
         entryFileNames: 'assets/[name]-[hash:7].js',
         manualChunks(id) {
-          if (id.includes('/src/media/strict-timeline-video-driver.ts')) {
+          if (
+            id.includes('/src/media/strict-timeline-video-driver.ts')
+            || id.includes('/src/media/phone-frame-lock-presenter.ts')
+          ) {
             return 'media-frame-lock-runtime';
           }
           if (

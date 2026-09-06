@@ -373,6 +373,41 @@ describe('canonical phone packed-alpha surface', () => {
     current.surface.dispose('terminal');
   });
 
+  it('seeks a retained surface back to frame zero for an exact endpoint reproof', async () => {
+    const current = fixture();
+    const frameMap = VIDEO_FRAME_MAPS['ph-figure-motion'];
+    const generation = current.surface.activate('forward');
+    Object.defineProperty(current.video, 'paused', {
+      configurable: true, value: true
+    });
+    Object.defineProperty(current.video, 'seeking', {
+      configurable: true, value: false
+    });
+    current.video.currentTime = .8;
+
+    current.surface.setMode?.('initial', true);
+    current.surface.probe();
+    compositorProbe.callbacks[0]?.({ mediaTimeSeconds: .8 });
+    expect(current.onFrame).not.toHaveBeenCalled();
+
+    const pending = current.surface.presentFrame({
+      runId: 'phone-packed-endpoint-reproof:1', direction: 1, sequence: 9,
+      desiredProgress: 0, frameMap, signal: new AbortController().signal
+    });
+    expect(current.video.currentTime).toBe(0);
+    compositorProbe.callbacks[0]?.({ mediaTimeSeconds: 0 });
+
+    await expect(pending).resolves.toMatchObject({
+      status: 'presented', desiredFrameIndex: frameMap.startFrame,
+      presentedFrameIndex: frameMap.startFrame, generation
+    });
+    expect(current.onFrame).toHaveBeenLastCalledWith({
+      canvas: current.canvas, generation, mediaTimeSeconds: 0,
+      frameIndex: frameMap.startFrame
+    });
+    current.surface.dispose('terminal');
+  });
+
   it('reports setup and context loss immediately and retires their token', () => {
     compositorProbe.setupFailure = true;
     const setup = fixture();

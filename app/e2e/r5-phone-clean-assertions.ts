@@ -481,6 +481,302 @@ export async function readPhoneStoryDiagnostic(page: Page): Promise<Readonly<{
   });
 }
 
+export type Figure3MediaDiagnosticEvent = Readonly<{
+  time: number;
+  kind: string;
+  detail: Readonly<Record<string, unknown>>;
+  video: Readonly<{
+    currentSrc: string | null;
+    src: string | null;
+    readyState: number | null;
+    networkState: number | null;
+    currentTime: number | null;
+    seeking: boolean | null;
+    paused: boolean | null;
+    duration: number | null;
+    errorCode: number | null;
+    timeline: Readonly<Record<string, string>>;
+  }> | null;
+  figure3: Readonly<Record<string, string>> | null;
+  shell: Readonly<Record<string, string>> | null;
+  canvas: Readonly<Record<string, string>> | null;
+}>;
+
+export type Figure3MediaDiagnostic = Readonly<{
+  marks: readonly Readonly<{
+    label: string;
+    time: number;
+    eventIndex: number;
+  }>[];
+  events: readonly Figure3MediaDiagnosticEvent[];
+}>;
+
+/**
+ * Install a test-only recorder for the Figure3 media lifecycle. It patches
+ * browser prototypes in the page init script, so the formal activation's
+ * play/seek/RVFC order is observed before application code runs.
+ */
+export async function startFigure3MediaDiagnostic(page: Page): Promise<{
+  mark(label: string): Promise<void>;
+  stop(): Promise<Figure3MediaDiagnostic>;
+}> {
+  await page.addInitScript(() => {
+    type Recorder = {
+      marks: Array<{ label: string; time: number; eventIndex: number }>;
+      events: Figure3MediaDiagnosticEvent[];
+      interval: number;
+      observer: MutationObserver | null;
+    };
+    const owner = window as typeof window & {
+      __r5Figure3MediaDiagnostic?: Recorder;
+    };
+    if (owner.__r5Figure3MediaDiagnostic) return;
+
+    const recorder: Recorder = { marks: [], events: [], interval: 0, observer: null };
+    owner.__r5Figure3MediaDiagnostic = recorder;
+    const isFigure3Video = (target: EventTarget | null): target is HTMLVideoElement => {
+      if (!(target instanceof HTMLVideoElement)) return false;
+      return target.dataset.mediaKey === 'figure3-motion'
+        || Boolean(target.closest('.phone-figure3'));
+    };
+    const errorText = (error: unknown): string => error instanceof Error
+      ? `${error.name}: ${error.message}` : String(error);
+    const videoSnapshot = (video: HTMLVideoElement | null) => {
+      if (!video) return null;
+      const figure3 = video.closest<HTMLElement>('.phone-figure3');
+      const shell = video.closest<HTMLElement>('.phone-story');
+      const canvas = figure3?.querySelector<HTMLElement>(
+        '[data-phone-figure3-paper-canvas]'
+      ) ?? null;
+      const timeline = Object.fromEntries(Object.entries(video.dataset).filter(([key]) => (
+        key.startsWith('timelineVideo')
+      )));
+      return {
+        currentSrc: video.currentSrc || null,
+        src: video.currentSrc || video.querySelector('source')?.src || null,
+        readyState: video.readyState,
+        networkState: video.networkState,
+        currentTime: video.currentTime,
+        seeking: video.seeking,
+        paused: video.paused,
+        duration: video.duration,
+        errorCode: video.error?.code ?? null,
+        timeline,
+        figure3: figure3 ? { ...figure3.dataset } : null,
+        shell: shell ? { ...shell.dataset } : null,
+        canvas: canvas ? { ...canvas.dataset } : null
+      };
+    };
+    const record = (
+      kind: string,
+      video: HTMLVideoElement,
+      detail: Readonly<Record<string, unknown>> = {}
+    ) => {
+      if (recorder.events.length >= 5000) return;
+      const snapshot = videoSnapshot(video);
+      if (!snapshot) return;
+      recorder.events.push({
+        time: Number(performance.now().toFixed(3)), kind, detail: { ...detail },
+        video: {
+          currentSrc: snapshot.currentSrc,
+          src: snapshot.src,
+          readyState: snapshot.readyState,
+          networkState: snapshot.networkState,
+          currentTime: snapshot.currentTime,
+          seeking: snapshot.seeking,
+          paused: snapshot.paused,
+          duration: snapshot.duration,
+          errorCode: snapshot.errorCode,
+          timeline: snapshot.timeline
+        },
+        figure3: snapshot.figure3,
+        shell: snapshot.shell,
+        canvas: snapshot.canvas
+      });
+    };
+    const findFigure3Video = (): HTMLVideoElement | null => (
+      document.querySelector<HTMLVideoElement>('.phone-figure3 video')
+    );
+
+    const originalPlay = HTMLMediaElement.prototype.play;
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      configurable: true, writable: true,
+      value: function patchedPlay(this: HTMLMediaElement) {
+        const watched = isFigure3Video(this);
+        if (watched) record('play-call', this);
+        let result: Promise<void> | undefined;
+        try {
+          result = originalPlay.call(this);
+        } catch (error) {
+          if (watched) record('play-throw', this, { error: errorText(error) });
+          throw error;
+        }
+        if (watched && result && typeof result.then === 'function') {
+          result.then(
+            () => record('play-fulfilled', this),
+            (error: unknown) => record('play-rejected', this, { error: errorText(error) })
+          );
+        }
+        return result;
+      }
+    });
+    const originalPause = HTMLMediaElement.prototype.pause;
+    Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
+      configurable: true, writable: true,
+      value: function patchedPause(this: HTMLMediaElement) {
+        if (isFigure3Video(this)) record('pause-call', this);
+        return originalPause.call(this);
+      }
+    });
+    const originalLoad = HTMLMediaElement.prototype.load;
+    Object.defineProperty(HTMLMediaElement.prototype, 'load', {
+      configurable: true, writable: true,
+      value: function patchedLoad(this: HTMLMediaElement) {
+        if (isFigure3Video(this)) record('load-call', this);
+        return originalLoad.call(this);
+      }
+    });
+
+    let installingDiagnosticListener = false;
+    const originalAddEventListener = EventTarget.prototype.addEventListener;
+    Object.defineProperty(EventTarget.prototype, 'addEventListener', {
+      configurable: true, writable: true,
+      value: function patchedAddEventListener(
+        this: EventTarget,
+        type: string,
+        listener: EventListenerOrEventListenerObject | null,
+        options?: boolean | AddEventListenerOptions
+      ) {
+        if (type === 'seeked' && isFigure3Video(this)) {
+          record('seeked-register', this, {
+            source: installingDiagnosticListener ? 'diagnostic' : 'application'
+          });
+        }
+        return originalAddEventListener.call(this, type, listener, options);
+      }
+    });
+    const originalRemoveEventListener = EventTarget.prototype.removeEventListener;
+    Object.defineProperty(EventTarget.prototype, 'removeEventListener', {
+      configurable: true, writable: true,
+      value: function patchedRemoveEventListener(
+        this: EventTarget,
+        type: string,
+        listener: EventListenerOrEventListenerObject | null,
+        options?: boolean | EventListenerOptions
+      ) {
+        if (type === 'seeked' && isFigure3Video(this)) {
+          record('seeked-unregister', this, { source: 'application' });
+        }
+        return originalRemoveEventListener.call(this, type, listener, options);
+      }
+    });
+
+    const originalRequest = HTMLVideoElement.prototype.requestVideoFrameCallback;
+    if (typeof originalRequest === 'function') {
+      Object.defineProperty(HTMLVideoElement.prototype, 'requestVideoFrameCallback', {
+        configurable: true, writable: true,
+        value: function patchedRequest(
+          this: HTMLVideoElement,
+          callback: VideoFrameRequestCallback
+        ) {
+          const handle = originalRequest.call(this, (now, metadata) => {
+            record('rvfc-callback', this, {
+              now, mediaTime: metadata.mediaTime,
+              presentedFrames: metadata.presentedFrames,
+              expectedDisplayTime: metadata.expectedDisplayTime,
+              width: metadata.width, height: metadata.height
+            });
+            return callback(now, metadata);
+          });
+          if (isFigure3Video(this)) record('rvfc-register', this, { handle });
+          return handle;
+        }
+      });
+    }
+    const originalCancel = HTMLVideoElement.prototype.cancelVideoFrameCallback;
+    if (typeof originalCancel === 'function') {
+      Object.defineProperty(HTMLVideoElement.prototype, 'cancelVideoFrameCallback', {
+        configurable: true, writable: true,
+        value: function patchedCancel(this: HTMLVideoElement, handle: number) {
+          if (isFigure3Video(this)) record('rvfc-cancel', this, { handle });
+          return originalCancel.call(this, handle);
+        }
+      });
+    }
+
+    const watchedVideos = new WeakSet<HTMLVideoElement>();
+    const eventTypes = [
+      'loadedmetadata', 'loadeddata', 'canplay', 'playing', 'pause', 'seeking',
+      'seeked', 'waiting', 'stalled', 'durationchange', 'emptied', 'error'
+    ];
+    const attachEventRecorder = (video: HTMLVideoElement) => {
+      if (watchedVideos.has(video)) return;
+      watchedVideos.add(video);
+      installingDiagnosticListener = true;
+      for (const type of eventTypes) {
+        video.addEventListener(type, () => record(`${type}-callback`, video), true);
+      }
+      installingDiagnosticListener = false;
+    };
+    const scan = () => {
+      document.querySelectorAll<HTMLVideoElement>('.phone-figure3 video')
+        .forEach(attachEventRecorder);
+    };
+    recorder.observer = new MutationObserver(scan);
+    recorder.observer.observe(document, { childList: true, subtree: true });
+    scan();
+    recorder.interval = window.setInterval(() => {
+      const video = findFigure3Video();
+      if (video) record('sample', video);
+    }, 50);
+  });
+
+  let stopped = false;
+  let final: Figure3MediaDiagnostic | null = null;
+  return {
+    mark: async (label: string) => {
+      if (stopped) return;
+      await page.evaluate((nextLabel) => {
+        const owner = window as typeof window & {
+          __r5Figure3MediaDiagnostic?: {
+            marks: Array<{ label: string; time: number; eventIndex: number }>;
+            events: unknown[];
+          };
+        };
+        const recorder = owner.__r5Figure3MediaDiagnostic;
+        if (!recorder) return;
+        recorder.marks.push({
+          label: nextLabel,
+          time: Number(performance.now().toFixed(3)),
+          eventIndex: recorder.events.length
+        });
+      }, label);
+    },
+    stop: async () => {
+      if (final) return final;
+      stopped = true;
+      final = await page.evaluate(() => {
+        const owner = window as typeof window & {
+          __r5Figure3MediaDiagnostic?: {
+            marks: Array<{ label: string; time: number; eventIndex: number }>;
+            events: Figure3MediaDiagnosticEvent[];
+            interval: number;
+            observer: MutationObserver | null;
+          };
+        };
+        const recorder = owner.__r5Figure3MediaDiagnostic;
+        if (!recorder) return { marks: [], events: [] };
+        window.clearInterval(recorder.interval);
+        recorder.observer?.disconnect();
+        const result = { marks: recorder.marks, events: recorder.events };
+        delete owner.__r5Figure3MediaDiagnostic;
+        return result;
+      });
+      return final;
+    }
+  };
+}
+
 export type PhoneStoryFrameSample = Readonly<{
   time: number;
   shell: Readonly<Record<string, string>> | null;
@@ -500,6 +796,7 @@ export type PhoneStoryFrameSample = Readonly<{
     role: string | null;
     maskImage: string;
     maskSize: string;
+    maskPosition: string;
     maskRun: string | null;
     maskPolarity: string | null;
     maskProgress: number | null;
@@ -508,6 +805,7 @@ export type PhoneStoryFrameSample = Readonly<{
     role: string | null;
     maskImage: string;
     maskSize: string;
+    maskPosition: string;
     maskRun: string | null;
     maskPolarity: string | null;
     maskProgress: number | null;
@@ -537,6 +835,7 @@ export type PhoneStoryFrameSample = Readonly<{
     clipPath: string;
     maskImage: string;
     maskSize: string;
+    maskPosition: string;
     maskRepeat: string;
     maskMode: string;
   }>[];
@@ -668,6 +967,8 @@ export async function recordPhoneStoryFrames(
             || getComputedStyle(proofSurface).maskImage,
           maskSize: getComputedStyle(proofSurface).webkitMaskSize
             || getComputedStyle(proofSurface).maskSize,
+          maskPosition: getComputedStyle(proofSurface).webkitMaskPosition
+            || getComputedStyle(proofSurface).maskPosition,
           maskRun: proofSurface.dataset.r4DepthMaskRun ?? null,
           maskPolarity: proofSurface.dataset.r4DepthMaskPolarity ?? null,
           maskProgress: Number.isFinite(Number(proofSurface.dataset.r4DepthMaskProgress))
@@ -679,6 +980,8 @@ export async function recordPhoneStoryFrames(
             || getComputedStyle(figure2Surface).maskImage,
           maskSize: getComputedStyle(figure2Surface).webkitMaskSize
             || getComputedStyle(figure2Surface).maskSize,
+          maskPosition: getComputedStyle(figure2Surface).webkitMaskPosition
+            || getComputedStyle(figure2Surface).maskPosition,
           maskRun: figure2Surface.dataset.r4DepthMaskRun ?? null,
           maskPolarity: figure2Surface.dataset.r4DepthMaskPolarity ?? null,
           maskProgress: Number.isFinite(Number(figure2Surface.dataset.r4DepthMaskProgress))
@@ -715,6 +1018,7 @@ export async function recordPhoneStoryFrames(
             clipPath: style.clipPath,
             maskImage: style.maskImage || style.webkitMaskImage,
             maskSize: style.maskSize || style.webkitMaskSize,
+            maskPosition: style.maskPosition || style.webkitMaskPosition,
             maskRepeat: style.maskRepeat || style.webkitMaskRepeat,
             maskMode: style.maskMode
           };

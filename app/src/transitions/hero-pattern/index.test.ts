@@ -16,6 +16,9 @@ import {
   waitForHeroPatternCommittedFrame
 } from './index';
 import { patternCenterForViewport } from '../../scenes/pattern';
+import { frameIndexForMediaTime } from '../../media/frame-timebase';
+import { videoFrameMapFor } from '../../media/video-frame-maps';
+import { HERO_PATTERN_VIDEO_END_SECONDS } from '../../scenes/hero';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from '../__fixtures__/back-half.fixture';
 import type { LayerHandle, LayerVisibilityState, SpineSegmentNode, TransitionContext } from '../../story/types';
 
@@ -230,7 +233,9 @@ describe('hero-pattern transition', () => {
     expect(fixture.stage.children).toHaveLength(stageChildrenBeforePrewarm);
     expect(video.preload).toBe('auto');
     expect(video.dataset.timelineVideoFrameReady).toBe('true');
-    expect(video.currentTime).toBe(0);
+    const frameMap = videoFrameMapFor('hero-figure-motion');
+    expect(frameIndexForMediaTime(frameMap, video.currentTime)).toBe(frameMap.startFrame);
+    expect(fixture.fromRoot.dataset.heroPresentedFrame).toBe(String(frameMap.startFrame));
     expect(video.playCalls).toBe(0);
 
     // A physical playhead drift that quantizes to another integer frame cannot
@@ -241,7 +246,8 @@ describe('hero-pattern transition', () => {
     const timeline = await transition.buildTimeline(fixture.context);
 
     expect(video.currentTimeWrites).toBeGreaterThan(warmSeekWrites);
-    expect(video.currentTime).toBe(0);
+    expect(frameIndexForMediaTime(frameMap, video.currentTime)).toBe(frameMap.startFrame);
+    expect(fixture.fromRoot.dataset.heroPresentedFrame).toBe(String(frameMap.startFrame));
     expect(fixture.stage.children).toHaveLength(stageChildrenBeforePrewarm + 1);
     timeline.dispose();
   });
@@ -282,7 +288,10 @@ describe('hero-pattern transition', () => {
     video.presentFrame();
     const timeline = await build;
     expect(video.hasPendingFrame()).toBe(false);
-    expect(video.currentTime).toBeCloseTo(22 / 24 + 0.002, 6);
+    const frameMap = videoFrameMapFor('hero-figure-motion');
+    const endpointFrame = Math.round(HERO_PATTERN_VIDEO_END_SECONDS * frameMap.fpsNumerator / frameMap.fpsDenominator);
+    expect(frameIndexForMediaTime(frameMap, video.currentTime)).toBe(endpointFrame);
+    expect(fixture.fromRoot.dataset.heroPresentedFrame).toBe(String(endpointFrame));
     expect(fixture.context.from.element?.style.visibility).toBe('hidden');
     expect(fixture.context.from.element?.style.opacity).toBe('0');
     expect(fixture.context.from.element?.style.zIndex).toBe('');

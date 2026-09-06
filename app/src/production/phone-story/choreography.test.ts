@@ -54,9 +54,9 @@ const mediaClockModes = {
   'hero-pattern': 'frame-lock', 'pattern-star-map': 'none', 'star-map-aod': 'none',
   'aod-method-top': 'frame-lock', 'method-bottom-figure2': 'none',
   'figure2-distance-expand': 'frame-lock', 'figure2-proof-brand': 'none',
-  'brand-figure3': 'none', 'figure3-services': 'legacy', 'services-ttg': 'none',
-  'ttg-lab': 'legacy', 'lab-ph': 'none', 'ph-education': 'frame-lock',
-  'education-crane': 'none', 'crane-contact': 'legacy'
+  'brand-figure3': 'none', 'figure3-services': 'frame-lock', 'services-ttg': 'none',
+  'ttg-lab': 'frame-lock', 'lab-ph': 'none', 'ph-education': 'frame-lock',
+  'education-crane': 'none', 'crane-contact': 'frame-lock'
 } as const satisfies Readonly<Record<PhoneSegmentId, 'none' | 'legacy' | 'frame-lock'>>;
 
 const activationOwners = {

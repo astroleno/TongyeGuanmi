@@ -514,8 +514,6 @@ export function PhoneStoryShell({
   const stableCommitKey = snapshot.stableCommit
     ? `${snapshot.stableCommit.commitSequence}|${snapshot.stableCommit.direction}|${snapshot.stableCommit.landingAlias}|${roles.source}|${stablePlaneRevision}|${loaderHidden}`
     : null;
-  const stableCommitChanged = stableCommitKey !== null
-    && lastStableCommitKeyRef.current !== stableCommitKey;
   useLayoutEffect(() => {
     if (!connectedRef.current || snapshot.status !== 'stable' || !stableScene || stableCommitKey === null) return;
     const shell = document.querySelector<HTMLElement>(`.phone-story[data-phone-scope="${scope}"]`); const mirror = shell?.querySelector<HTMLElement>(`[data-phone-native-mirror="${stableScene}"]`) ?? null;
@@ -572,7 +570,7 @@ export function PhoneStoryShell({
     } else effect = owners.effectTopology.clear();
   } else if (connectedRef.current && snapshot.stableCommit) {
     const stableEffect = snapshot.status === 'stable' ? owners.effectTopology.finish() : owners.effectTopology.clear(); effect = stableEffect; const retainedSegment = stableEffect ? phoneManifest.segments.find(({ id }) => id === stableEffect.segmentId) : null; owners.sceneTopology.setPair(retainedSegment ? [retainedSegment.source, retainedSegment.target] : null); scenes.push(...owners.sceneTopology.stable(snapshot.stableCommit.sceneId, roles.source, roles.receiver));
-    if (snapshot.status === 'stable') for (const sceneId of stablePrewarmScenes) if (!scenes.some((scene) => scene.sceneId === sceneId)) scenes.push(owners.sceneTopology.retain(sceneId, roles.receiver, () => owners.engine.createPrewarmLeafReportPort(sceneId), stableCommitChanged, stableCommitChanged));
+    if (snapshot.status === 'stable') for (const sceneId of stablePrewarmScenes) if (!scenes.some((scene) => scene.sceneId === sceneId)) scenes.push(owners.sceneTopology.retain(sceneId, roles.receiver, () => owners.engine.createPrewarmLeafReportPort(sceneId)));
   } else effect = owners.effectTopology.clear();
   owners.sceneTopology.prune(scenes);
   const sourceScenes = scenes.filter(({ buffer }) => buffer === roles.source);
@@ -599,7 +597,9 @@ export function PhoneStoryShell({
   const moduleFault = faulted && snapshot.status === 'faulted' && (snapshot.fault.code.includes('module') || snapshot.fault.code.includes('chunk')); const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
   const retainedFigure2ArchMounted = connectedRef.current && scenes.some(({ sceneId }) => PHONE_FIGURE2_ARCH_SCENES.has(sceneId)); const retainedFigure2ArchOwner = phoneFigure2ArchOwner(snapshot);
   const retainedFigure2ArchAttempt: PhoneAttemptKey | null = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null; const retainedFigure2ArchMotion = phoneFigure2ArchMotion(snapshot);
-  const retainedEffectSegment = effect ? phoneManifest.segments.find(({ id }) => id === effect.segmentId) ?? null : null;
+  const retainedEffectSegment = snapshot.status === 'transaction'
+    ? phoneManifest.segments.find(({ id }) => id === snapshot.transaction.attempt.segmentId) ?? null
+    : effect ? phoneManifest.segments.find(({ id }) => id === effect.segmentId) ?? null : null;
   const effectAboveBoth = retainedEffectSegment?.effectPlacement === 'above-both';
   const navigate = (sceneId: PhoneSceneId) => { setMenuOpen(false);
     owners.engine.requestEntry({

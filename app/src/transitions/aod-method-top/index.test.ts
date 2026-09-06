@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { frameIndexForMediaTime } from '../../media/frame-timebase';
+import { videoFrameMapFor } from '../../media/video-frame-maps';
 import { hiddenVisibility, holdVisibility } from '../../pilot/visibility';
 import { storyManifest } from '../../story/manifest';
 import type {
@@ -159,6 +161,7 @@ describe('AOD Method transition media contract', () => {
       throw new Error('AOD frame-lock presenter missing');
     }
 
+    const frameMap = videoFrameMapFor('aod-figure-motion');
     const presented: number[] = [];
     for (const [index, progress] of [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0].entries()) {
       const request: SegmentProgressRequest = {
@@ -174,11 +177,11 @@ describe('AOD Method transition media contract', () => {
         status: 'presented',
         evidence: 'video-frame-callback'
       });
-      presented.push(video.currentTime);
+      presented.push(frameIndexForMediaTime(frameMap, video.currentTime));
     }
 
-    expect(presented[0]).toBeCloseTo(65 / 30, 6);
-    expect(presented.at(-1)).toBe(0);
+    expect(presented[0]).toBe(65);
+    expect(presented.at(-1)).toBe(frameMap.startFrame);
     expect(new Set(presented).size).toBe(10);
     for (let index = 1; index < presented.length; index += 1) {
       expect(presented[index - 1]).toBeGreaterThan(presented[index] ?? 0);

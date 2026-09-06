@@ -6,6 +6,8 @@ import { createLabPhTransition } from './lab-ph';
 import { createPhEducationTransition, PH_EDUCATION_ANIMATION_STOP } from './ph-education';
 import { PH_PLAYBACK_MS, TERMINAL_DWELL_MS } from '../story/timings';
 import { renderEducationHold } from '../scenes/education';
+import { frameIndexForMediaTime } from '../media/frame-timebase';
+import { videoFrameMapFor } from '../media/video-frame-maps';
 import type { LayerHandle, LayerVisibilityState, SceneId, SegmentId, SegmentProgressReceipt, SegmentProgressRequest, SegmentTimelineHandle, SpineSegmentNode, StagedLegPreparation, TransitionContext, TransitionModule } from '../story/types';
 import { createBackHalfDomContext, FakeCanvas, FakeVideo } from './__fixtures__/back-half.fixture';
 
@@ -186,7 +188,9 @@ describe('R4 group6 transitions', () => {
     expect(transition.requiredMilestones).toEqual(['targetReady', 'mediaReady', 'buildReady']);
     expect(video.preload).toBe('auto');
     expect(video.currentTimeWrites).toBeGreaterThan(0);
-    expect(video.currentTime).toBe(0);
+    const frameMap = videoFrameMapFor('ph-figure-motion');
+    expect(frameIndexForMediaTime(frameMap, video.currentTime)).toBe(frameMap.startFrame);
+    expect(fixture.toRoot.dataset.phPresentedFrame).toBe(String(frameMap.startFrame));
     expect(video.loadCalls).toBe(0);
     timeline.dispose();
   });
@@ -380,7 +384,9 @@ describe('R4 group6 transitions', () => {
     expect(samples[1]).toBeGreaterThan(samples[2] ?? 0);
     expect(video.playCalls).toBe(forwardPlayCalls);
     await presentAndCommit(timeline, fixture.context.runId, -1, 0, 5);
-    expect(video.currentTime).toBe(0);
+    const frameMap = videoFrameMapFor('ph-figure-motion');
+    expect(frameIndexForMediaTime(frameMap, video.currentTime)).toBe(frameMap.startFrame);
+    expect(fixture.fromRoot.dataset.phPresentedFrame).toBe(String(frameMap.startFrame));
   });
 
   it('keeps the PH media and milestone contracts equal to the manifest', () => {

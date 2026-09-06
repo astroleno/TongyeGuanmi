@@ -51,6 +51,7 @@ export type StrictTimelineVideoDriverSnapshot = Readonly<{
 
 export type StrictTimelineVideoDriver = Readonly<{
   prepareFrame(input: StrictTimelineVideoFrameInput): Promise<StrictTimelineVideoFrameResult>;
+  cancelFrame(runId: string, direction: Direction, sequence: number): void;
   snapshot(): StrictTimelineVideoDriverSnapshot;
   dispose(): void;
 }>;
@@ -106,9 +107,13 @@ type VideoWithFrameCallbacks = HTMLVideoElement & {
 const SEEK_TOLERANCE_SECONDS = 0.001;
 const PRIME_OFFSET_SECONDS = 0.05;
 const PRIME_SETTLE_DELAY_MS = 50;
-const END_SEEK_OFFSET_SECONDS = 0.002;
+// Seeking exactly at a PTS can make Chromium/WebKit report the preceding
+// decoded frame. Stay inside the requested frame's presentation window; the
+// RVFC metadata remains the only accepted proof.
+const FRAME_BOUNDARY_OFFSET_SECONDS = 0.004;
+const TIMELINE_VIDEO_DIAGNOSTIC_KEYS = 'Run Direction Generation Progress Target TargetFrame Sequence FrameReady FrameEvidence StaticFallback DesiredFrame PresentedFrame FrameLag Evidence SeekMs StaleCount ClockPending'.split(' ');
 
-function clamp(value: number): number {
+export function clampProgress(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
@@ -207,6 +212,17 @@ class StrictTimelineVideoDriverImpl implements StrictTimelineVideoDriver {
     return promise;
   }
 
+  cancelFrame(runId: string, direction: Direction, sequence: number): void {
+    const frame = this.latest;
+    if (!frame || frame.runId !== runId || frame.direction !== direction
+      || frame.sequence !== sequence) return;
+    if (!(this.priming && this.video.seeking)) this.markStaticFallback();
+    this.latest = undefined;
+    this.readyGeneration = 0;
+    this.resolvePendingStale();
+    this.clearDiagnostics();
+  }
+
   snapshot(): StrictTimelineVideoDriverSnapshot {
     return {
       runId: this.runId,
@@ -233,7 +249,6 @@ class StrictTimelineVideoDriverImpl implements StrictTimelineVideoDriver {
     this.video.removeEventListener('abort', this.onAbort);
     this.queued = undefined;
     this.inFlight = undefined;
-    this.priming = undefined;
     this.latest = undefined;
     this.clearDiagnostics();
   }
@@ -264,7 +279,7 @@ class StrictTimelineVideoDriverImpl implements StrictTimelineVideoDriver {
 
   private makeFrame(input: StrictTimelineVideoFrameInput): DesiredFrame {
     const frameMap = validateVideoFrameMap(input.frameMap);
-    const progress = clamp(input.progress);
+    const progress = clampProgress(input.progress);
     const targetFrameIndex = frameIndexForProgress(frameMap, progress);
     return {
       generation: this.generation,
@@ -290,7 +305,8 @@ class StrictTimelineVideoDriverImpl implements StrictTimelineVideoDriver {
     this.readyFrameIndex = -1;
     this.readyTime = Number.NaN;
     this.cancelCallback();
-    this.cancelPrime();
+    if (this.priming && this.video.seeking) this.cancelPrimeTimer();
+    else this.cancelPrime();
     this.video.pause();
     this.resolvePendingStale();
     delete this.video.dataset.timelineVideoStaticFallback;
@@ -356,7 +372,6 @@ class StrictTimelineVideoDriverImpl implements StrictTimelineVideoDriver {
     const frame = this.priming;
     if (!frame) return;
     this.cancelPrime();
-    this.priming = undefined;
     if (this.disposed || !sameFrame(this.latest, frame)) {
       this.flush();
       return;
@@ -366,12 +381,11 @@ class StrictTimelineVideoDriverImpl implements StrictTimelineVideoDriver {
   }
 
   private physicalSeekTime(frame: DesiredFrame, durationFallbackSeconds: number): number {
-    if (frame.targetFrameIndex !== frame.frameMap.endFrame) return frame.targetTime;
     const duration = fallbackDuration(
       this.video,
-      Math.max(frame.targetTime + END_SEEK_OFFSET_SECONDS, durationFallbackSeconds)
+      Math.max(frame.targetTime + FRAME_BOUNDARY_OFFSET_SECONDS, durationFallbackSeconds)
     );
-    return Math.min(duration, frame.targetTime + END_SEEK_OFFSET_SECONDS);
+    return Math.min(duration, frame.targetTime + FRAME_BOUNDARY_OFFSET_SECONDS);
   }
 
   private latestInputDuration(): number {
@@ -488,6 +502,11 @@ class StrictTimelineVideoDriverImpl implements StrictTimelineVideoDriver {
   }
 
   private cancelPrime(): void {
+    this.cancelPrimeTimer();
+    this.priming = undefined;
+  }
+
+  private cancelPrimeTimer(): void {
     if (this.primeTimer !== undefined) clearTimeout(this.primeTimer);
     this.primeTimer = undefined;
   }
@@ -512,16 +531,9 @@ class StrictTimelineVideoDriverImpl implements StrictTimelineVideoDriver {
   }
 
   private clearDiagnostics(): void {
-    delete this.video.dataset.timelineVideoRun;
-    delete this.video.dataset.timelineVideoDirection;
-    delete this.video.dataset.timelineVideoGeneration;
-    delete this.video.dataset.timelineVideoProgress;
-    delete this.video.dataset.timelineVideoTarget;
-    delete this.video.dataset.timelineVideoTargetFrame;
-    delete this.video.dataset.timelineVideoSequence;
-    delete this.video.dataset.timelineVideoFrameReady;
-    delete this.video.dataset.timelineVideoFrameEvidence;
-    delete this.video.dataset.timelineVideoStaticFallback;
+    for (const key of TIMELINE_VIDEO_DIAGNOSTIC_KEYS) {
+      delete this.video.dataset[`timelineVideo${key}`];
+    }
   }
 }
 
@@ -622,12 +634,15 @@ class StrictPresentedFrameClock implements PresentedFrameClock {
   private latest: PresentedFrameRequest | undefined;
   private snapshotValue: PresentedFrameClockSnapshot = EMPTY_CLOCK_SNAPSHOT;
   private staleCount = 0;
+  private driver: StrictTimelineVideoDriver;
 
-  constructor(private readonly video: HTMLVideoElement) {}
+  constructor(private readonly video: HTMLVideoElement) {
+    this.driver = strictTimelineVideoDriverFor(video);
+  }
 
   request(request: PresentedFrameRequest): Promise<PresentedFrameReceipt> {
     const frameMap = validateVideoFrameMap(request.frameMap);
-    const desiredProgress = clamp(request.desiredProgress);
+    const desiredProgress = clampProgress(request.desiredProgress);
     const desiredFrameIndex = frameIndexForProgress(frameMap, desiredProgress);
     if (
       this.latest
@@ -639,6 +654,8 @@ class StrictPresentedFrameClock implements PresentedFrameClock {
       return Promise.resolve(clockStale(request, desiredFrameIndex, this.snapshotValue.presentedProgress ?? desiredProgress));
     }
     if (this.disposed) return Promise.resolve(clockStale(request, desiredFrameIndex, desiredProgress));
+
+    this.driver = strictTimelineVideoDriverFor(this.video);
 
     this.latest = request;
     const startedAt = performance.now();
@@ -659,7 +676,7 @@ class StrictPresentedFrameClock implements PresentedFrameClock {
       staleCount: this.staleCount
     };
     this.writeDiagnostics();
-    return strictTimelineVideoDriverFor(this.video).prepareFrame({
+    return this.driver.prepareFrame({
       runId: request.runId,
       direction: request.direction,
       progress: desiredProgress,
@@ -675,13 +692,15 @@ class StrictPresentedFrameClock implements PresentedFrameClock {
         && frame.presentedFrameIndex === desiredFrameIndex;
       if (!current || !exact) {
         this.staleCount += 1;
-        this.snapshotValue = {
-          ...this.snapshotValue,
-          seekLatencyMs: latency,
-          pending: current,
-          staleCount: this.staleCount
-        };
-        this.writeDiagnostics();
+        if (!this.disposed) {
+          this.snapshotValue = {
+            ...this.snapshotValue,
+            seekLatencyMs: latency,
+            pending: current,
+            staleCount: this.staleCount
+          };
+          this.writeDiagnostics();
+        }
         return clockStale(request, desiredFrameIndex, this.snapshotValue.presentedProgress ?? desiredProgress);
       }
       const presentedProgress = progressForFrameIndex(frameMap, frame.presentedFrameIndex);
@@ -709,7 +728,7 @@ class StrictPresentedFrameClock implements PresentedFrameClock {
         evidence: 'video-frame-callback' as const
       };
     }).catch((error: unknown) => {
-      if (sameRequest(this.latest, request)) {
+      if (!this.disposed && sameRequest(this.latest, request)) {
         this.snapshotValue = {
           ...this.snapshotValue,
           seekLatencyMs: Math.max(0, performance.now() - startedAt),
@@ -729,9 +748,11 @@ class StrictPresentedFrameClock implements PresentedFrameClock {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    const latest = this.latest;
     this.latest = undefined;
-    strictTimelineVideoDriverFor(this.video).dispose();
-    this.clearDiagnostics();
+    if (latest) this.driver.cancelFrame(
+      latest.runId, latest.direction, latest.sequence
+    );
     this.snapshotValue = { ...EMPTY_CLOCK_SNAPSHOT, staleCount: this.staleCount };
   }
 
@@ -748,17 +769,6 @@ class StrictPresentedFrameClock implements PresentedFrameClock {
     dataset.timelineVideoClockPending = String(snapshot.pending);
   }
 
-  private clearDiagnostics(): void {
-    const dataset = this.video.dataset;
-    delete dataset.timelineVideoDesiredFrame;
-    delete dataset.timelineVideoPresentedFrame;
-    delete dataset.timelineVideoFrameLag;
-    delete dataset.timelineVideoSequence;
-    delete dataset.timelineVideoEvidence;
-    delete dataset.timelineVideoSeekMs;
-    delete dataset.timelineVideoStaleCount;
-    delete dataset.timelineVideoClockPending;
-  }
 }
 
 export function createVideoPresentedFrameClock(video: HTMLVideoElement): PresentedFrameClock {

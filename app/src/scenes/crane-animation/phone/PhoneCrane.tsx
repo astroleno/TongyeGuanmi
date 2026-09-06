@@ -1,6 +1,10 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { AlphaVideoSources } from '../../../media/alpha-video-sources';
-import { disposeTimelineVideoDriver, driveTimelineVideo } from '../../../media/timeline-video-driver';
+import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
+import {
+  createPresentedFrameBarrier,
+  type PresentedFrameBarrier
+} from '../../../media/presented-frame-barrier';
 import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
 import {
   createPhonePackedAlphaSurface,
@@ -15,7 +19,20 @@ import type {
   PhoneLeafGenerationBinding,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
-import type { PhoneLeafDisposeReason } from '../../../production/phone-story/protocol';
+import type {
+  PhoneLeafDisposeReason,
+  PhoneMediaFrameReceipt,
+  PhoneMediaFrameRequest
+} from '../../../production/phone-story/protocol';
+import {
+  CRANE_FIGURE_FRAME_MAP,
+  CRANE_FLOCK_FRAME_MAP,
+  CRANE_MASTER_FRAME_MAP
+} from '..';
+import {
+  CRANE_CONTACT_DURATION_MS,
+  PHONE_CRANE_CONTACT_DURATION_MS
+} from '../../../story/timings';
 import {
   CRANE_ARCH_SRC,
   CRANE_CLOUD_BACK_SRC,
@@ -32,7 +49,6 @@ import {
 } from '../media';
 import {
   phoneCraneMediaProgressForTimeline,
-  phoneCranePresentedTimelineProgress,
 } from './PhoneCrane.autoplay';
 import {
   renderPhoneCranePresentation,
@@ -46,6 +62,27 @@ const PHONE_CRANE_FIGURE_PACKED = phoneMediaUrlFor(
 const PHONE_CRANE_FLOCK_PACKED = phoneMediaUrlFor(
   'crane-flock-packed', 'crane-animation'
 );
+const PHONE_CRANE_SEGMENT_PROGRESS_STOP = (
+  CRANE_CONTACT_DURATION_MS / PHONE_CRANE_CONTACT_DURATION_MS
+);
+
+type PhoneCraneRollbackProof = {
+  frameToken: string;
+  sequence: number;
+  status: 'pending' | 'failed';
+};
+
+function phoneCraneLocalProgressForRequest(
+  rawProgress: number,
+  binding: PhoneLeafGenerationBinding
+): number {
+  const isCraneContactClock = binding.segmentId === 'crane-contact'
+    && binding.leg === (binding.direction === 'forward' ? 'source' : 'target');
+  const progress = isCraneContactClock
+    ? rawProgress / PHONE_CRANE_SEGMENT_PROGRESS_STOP
+    : rawProgress;
+  return Math.min(1, Math.max(0, progress));
+}
 
 function rootFor(root: HTMLElement | null | undefined): HTMLElement | null {
   return root?.matches('[data-r4-scene="crane-animation"]')
@@ -104,11 +141,16 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
   const admissionGenerationsRef = useRef<[number, number]>([0, 0]);
   const readyMaskRef = useRef(0);
   const progressRef = useRef(0);
-  const presentedProgressRef = useRef(0);
   const directionRef = useRef<PhoneCranePlaybackDirection>(1);
   const mediaRunTokenRef = useRef<string | null>(null);
   const mediaPhaseRef = useRef<'primed' | 'playing' | 'held'>('primed');
   const pairProofFrameRef = useRef(0);
+  const frameBarrierRef = useRef<PresentedFrameBarrier | null>(null);
+  const frameLockSequenceRef = useRef<number | null>(null);
+  const lastFrameRequestSequenceRef = useRef(0);
+  const rollbackProofRef = useRef<PhoneCraneRollbackProof | null>(null);
+  const rollbackProofControllerRef = useRef<AbortController | null>(null);
+  const rollbackReproofInProgressRef = useRef(false);
   const disposedRef = useRef(false);
 
   const updatePairPresentation = useCallback(() => {
@@ -172,56 +214,20 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     });
   }, [stopPairProof, updatePairPresentation]);
 
-  const syncPresentedClock = useCallback(() => {
-    const mediaProgress = [figureCanvasRef.current, flockCanvasRef.current].map(
-      (canvas, index) => Number(canvas?.dataset.packedAlphaGeneration)
-        === surfaceGenerationsRef.current[index]
-        && Number.isFinite(Number(canvas?.dataset.packedAlphaMediaTime))
-        ? Math.min(1, Math.max(0,
-          Number(canvas?.dataset.packedAlphaMediaTime) / CRANE_VIDEO_END_SECONDS))
-        : null
-    );
-    const presented = phoneCranePresentedTimelineProgress(
-      progressRef.current, directionRef.current,
-      mediaProgress[0] ?? null, mediaProgress[1] ?? null,
-      presentedProgressRef.current
-    );
-    presentedProgressRef.current = presented;
-    renderPhoneCranePresentation(rootRef.current, presented, directionRef.current);
-  }, []);
-
   const render = useCallback((rawProgress: number) => {
     const progress = Math.min(1, Math.max(0, rawProgress));
     progressRef.current = progress;
-    const videos = [figureVideoRef.current, flockVideoRef.current] as const;
-    if (mediaPhaseRef.current === 'playing' && videos.every(Boolean)) {
-      const media = phoneCraneMediaProgressForTimeline(progress);
-      const runId = mediaRunTokenRef.current ?? bindingRef.current?.frameToken ?? 'crane';
-      [media.figure, media.flock].forEach((laneProgress, index) => {
-        driveTimelineVideo(videos[index]!, {
-          runId: `${runId}:${index}`,
-          direction: directionRef.current,
-          progress: laneProgress,
-          durationFallbackSeconds: CRANE_VIDEO_END_SECONDS,
-          startSeconds: 0,
-          endSeconds: CRANE_VIDEO_END_SECONDS,
-          mode: 'timeline',
-          allowPlaybackNudge: false
-        });
-      });
-      syncPresentedClock();
-    } else {
-      presentedProgressRef.current = progress;
-      renderPhoneCranePresentation(rootRef.current, progress, directionRef.current);
-    }
+    renderPhoneCranePresentation(rootRef.current, progress, directionRef.current);
     for (const [index, surface] of (surfacesRef.current ?? []).entries()) {
       if ((admissionGenerationsRef.current[index] ?? 0) > 0) surface.probe();
     }
-  }, [syncPresentedClock]);
+  }, []);
 
   const activateSurfaces = useCallback((mode: PhonePackedAlphaSurfaceMode) => {
     const surfaces = surfacesRef.current;
     if (!surfaces || disposedRef.current) return [0, 0] as const;
+    frameBarrierRef.current?.dispose();
+    frameBarrierRef.current = null;
     const generations = surfaces.map((surface) => surface.activate(mode)) as [number, number];
     surfaceGenerationsRef.current = generations;
     return generations;
@@ -248,27 +254,240 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     return false;
   }, []);
 
+  const cancelRollbackReproof = useCallback(() => {
+    rollbackProofControllerRef.current?.abort();
+    rollbackProofControllerRef.current = null;
+    rollbackProofRef.current = null;
+    rollbackReproofInProgressRef.current = false;
+  }, []);
+
+  const nextRollbackFrameSequence = useCallback((binding: PhoneLeafGenerationBinding) => {
+    const tokenSequence = Number(binding.frameToken.match(/:frame:(\d+)$/)?.[1] ?? 0);
+    const sequence = Math.max(lastFrameRequestSequenceRef.current, tokenSequence) + 1;
+    lastFrameRequestSequenceRef.current = sequence;
+    return sequence;
+  }, []);
+
+  const frameBarrierFor = useCallback((): PresentedFrameBarrier | null => {
+    const surfaces = surfacesRef.current;
+    if (!surfaces || surfaces.length !== 2) return null;
+    let barrier = frameBarrierRef.current;
+    if (!barrier) {
+      const mediaProgress = phoneCraneMediaProgressForTimeline;
+      barrier = createPresentedFrameBarrier([
+        {
+          clock: { request: (childRequest) => surfaces[0].presentFrame(childRequest) },
+          frameMap: CRANE_FIGURE_FRAME_MAP,
+          mapProgress: (progress) => mediaProgress(progress).figure
+        },
+        {
+          clock: { request: (childRequest) => surfaces[1].presentFrame(childRequest) },
+          frameMap: CRANE_FLOCK_FRAME_MAP,
+          mapProgress: (progress) => mediaProgress(progress).flock
+        }
+      ]);
+      frameBarrierRef.current = barrier;
+    }
+    return barrier;
+  }, []);
+
+  const presentFrame = useCallback((request: PhoneMediaFrameRequest): Promise<PhoneMediaFrameReceipt> => {
+    const active = bindingRef.current;
+    const matches = active && active.frameToken === request.frameToken
+      && (!active.direction || (active.direction === 'reverse') === (request.direction === -1));
+    const stale = (): PhoneMediaFrameReceipt => ({
+      ...request, status: 'stale', presentedProgress: request.desiredProgress,
+      presentedFrameIndex: -1, evidence: 'packed-canvas-draw'
+    });
+    if (!active || !matches || !surfacesRef.current || disposedRef.current) {
+      return Promise.resolve(stale());
+    }
+    const barrier = frameBarrierFor();
+    if (!barrier) return Promise.resolve(stale());
+    lastFrameRequestSequenceRef.current = Math.max(
+      lastFrameRequestSequenceRef.current, request.sequence
+    );
+    const localProgress = phoneCraneLocalProgressForRequest(
+      request.desiredProgress, active
+    );
+    frameLockSequenceRef.current = request.sequence;
+    return barrier.request({
+      ...request, runId: request.transactionId,
+      desiredProgress: localProgress, frameMap: CRANE_MASTER_FRAME_MAP
+    }).then((receipt) => {
+      const current = bindingRef.current;
+      const currentMatches = Boolean(current && current.frameToken === request.frameToken
+        && (!current.direction || (current.direction === 'reverse') === (request.direction === -1)));
+      if (receipt.status !== 'presented' || !currentMatches || !current
+        || frameLockSequenceRef.current !== request.sequence) return stale();
+      const generations = surfaceGenerationsRef.current;
+      const admitted = generations.every((generation, index) => (
+        generation > 0 && admissionGenerationsRef.current[index] === generation
+      ));
+      if (!admitted) return stale();
+      const rollbackProof = rollbackProofRef.current;
+      if (rollbackProof?.frameToken === request.frameToken
+        && rollbackProof.sequence === request.sequence) {
+        rollbackProofRef.current = null;
+      }
+      reportLane(current, 0, generations[0]);
+      reportLane(current, 1, generations[1]);
+      return {
+        ...request, status: 'presented' as const,
+        presentedProgress: request.desiredProgress,
+        presentedFrameIndex: receipt.presentedFrameIndex,
+        evidence: receipt.evidence
+      };
+    }).finally(() => {
+      if (frameLockSequenceRef.current === request.sequence) {
+        frameLockSequenceRef.current = null;
+      }
+    });
+  }, [frameBarrierFor, reportLane]);
+
+  const startRollbackReproof = useCallback((binding: PhoneLeafGenerationBinding) => {
+    const generations = surfaceGenerationsRef.current;
+    if (!surfacesRef.current || !generations.every((generation) => generation > 0)) {
+      rollbackReproofInProgressRef.current = false;
+      return;
+    }
+    const sequence = nextRollbackFrameSequence(binding);
+    const proof: PhoneCraneRollbackProof = {
+      frameToken: binding.frameToken, sequence, status: 'pending'
+    };
+    const controller = new AbortController();
+    rollbackProofRef.current = proof;
+    rollbackProofControllerRef.current = controller;
+    const direction = binding.direction === 'reverse' ? -1 : 1;
+    void presentFrame({
+      frameToken: binding.frameToken,
+      transactionId: binding.transactionId ?? binding.frameToken,
+      direction,
+      sequence,
+      desiredProgress: binding.reproof?.endpoint ?? 0,
+      signal: controller.signal
+    }).then((receipt) => {
+      if (rollbackProofRef.current !== proof) {
+        if (rollbackProofControllerRef.current === controller) {
+          rollbackProofControllerRef.current = null;
+          rollbackReproofInProgressRef.current = false;
+        }
+        return;
+      }
+      if (receipt.status === 'presented' && receipt.frameToken === binding.frameToken
+        && receipt.sequence === sequence) {
+        rollbackProofRef.current = null;
+        rollbackProofControllerRef.current = null;
+        rollbackReproofInProgressRef.current = false;
+        return;
+      }
+      proof.status = 'failed';
+      rollbackProofControllerRef.current = null;
+      rollbackReproofInProgressRef.current = false;
+      if (admissionGenerationsRef.current.every((generation, index) => (
+        generation > 0 && generation === surfaceGenerationsRef.current[index]
+      ))) {
+        binding.reports.reportFailure({
+          code: 'crane-rollback-reproof-failed',
+          message: 'Crane rollback endpoint Canvas proof was stale',
+          recoverable: true,
+          detail: { endpoint: binding.reproof?.endpoint ?? 0, sequence }
+        });
+      }
+    }, (error: unknown) => {
+      if (rollbackProofRef.current !== proof) {
+        if (rollbackProofControllerRef.current === controller) {
+          rollbackProofControllerRef.current = null;
+          rollbackReproofInProgressRef.current = false;
+        }
+        return;
+      }
+      proof.status = 'failed';
+      rollbackProofControllerRef.current = null;
+      rollbackReproofInProgressRef.current = false;
+      if (admissionGenerationsRef.current.every((generation, index) => (
+        generation > 0 && generation === surfaceGenerationsRef.current[index]
+      ))) {
+        binding.reports.reportFailure({
+          code: 'crane-rollback-reproof-failed',
+          message: error instanceof Error ? error.message : String(error),
+          recoverable: true,
+          detail: { endpoint: binding.reproof?.endpoint ?? 0, sequence }
+        });
+      }
+    });
+  }, [nextRollbackFrameSequence, presentFrame]);
+
+  const reproveRollbackBinding = useCallback((
+    binding: PhoneLeafGenerationBinding,
+    reactivate: boolean
+  ) => {
+    cancelRollbackReproof();
+    rollbackReproofInProgressRef.current = true;
+    readyMaskRef.current = 0;
+    const endpoint = binding.reproof?.endpoint ?? 0;
+    const generations = reactivate
+      ? activateSurfaces(endpoint === 1 ? 'endpoint' : 'initial')
+      : surfaceGenerationsRef.current;
+    admissionGenerationsRef.current = [...generations];
+    if (!reactivate) {
+      for (const surface of surfacesRef.current ?? []) {
+        surface.setMode?.(endpoint === 1 ? 'endpoint' : 'initial', true);
+        surface.probe();
+      }
+    }
+    updatePairPresentation();
+    startRollbackReproof(binding);
+  }, [activateSurfaces, cancelRollbackReproof, startRollbackReproof, updatePairPresentation]);
+
   const commands = useMemo<PhoneLeafCommandHandle>(() => Object.freeze({
     rebind(binding: PhoneLeafGenerationBinding) {
       const previous = bindingRef.current;
       const sameTransaction = previous?.transactionId
         && previous.transactionId === binding.transactionId;
+      const rollbackBinding = binding.mode === binding.leg && binding.reproof;
+      const rollbackNeedsActivation = Boolean(rollbackBinding && (
+        readyMaskRef.current !== 3
+        || surfaceGenerationsRef.current.some((generation, index) => (
+          generation <= 0 || admissionGenerationsRef.current[index] !== generation
+        ))
+      ));
       bindingRef.current = binding;
       if (sameTransaction) {
+        if (rollbackProofRef.current || rollbackNeedsActivation) {
+          reproveRollbackBinding(binding, rollbackNeedsActivation);
+          return;
+        }
         admissionGenerationsRef.current.forEach((generation, index) => {
-          if (generation && readyMaskRef.current & (1 << index)) reportLane(binding, index as 0 | 1, generation);
+          if (frameLockSequenceRef.current === null
+            && generation && readyMaskRef.current & (1 << index)) {
+            reportLane(binding, index as 0 | 1, generation);
+          }
         });
         return;
       }
+      cancelRollbackReproof();
+      frameBarrierRef.current?.dispose();
+      frameBarrierRef.current = null;
+      frameLockSequenceRef.current = null;
       mediaRunTokenRef.current = null;
       mediaPhaseRef.current = 'primed';
-      directionRef.current = binding.direction === 'reverse' ? -1 : 1;
-      progressRef.current = directionRef.current === -1 ? 1 : 0;
-      presentedProgressRef.current = progressRef.current;
-      renderPhoneCranePresentation(rootRef.current, progressRef.current, directionRef.current);
-      const reproof = binding.segmentId === null && readyMaskRef.current === 3;
-      admissionGenerationsRef.current = reproof ? [...surfaceGenerationsRef.current] : [0, 0];
-      if (reproof) { reportLane(binding, 0, surfaceGenerationsRef.current[0]); reportLane(binding, 1, surfaceGenerationsRef.current[1]); }
+      const rollbackReproof = Boolean(rollbackBinding);
+      const endpoint = rollbackReproof ? binding.reproof!.endpoint
+        : binding.direction === 'reverse' ? 1 : 0;
+      directionRef.current = endpoint === 0 ? 1 : -1;
+      progressRef.current = endpoint;
+      renderPhoneCranePresentation(rootRef.current, endpoint, directionRef.current);
+      if (rollbackReproof) {
+        reproveRollbackBinding(binding, rollbackNeedsActivation);
+        return;
+      }
+      const lifecycleReproof = binding.segmentId === null && readyMaskRef.current === 3;
+      admissionGenerationsRef.current = lifecycleReproof ? [...surfaceGenerationsRef.current] : [0, 0];
+      if (lifecycleReproof) {
+        reportLane(binding, 0, surfaceGenerationsRef.current[0]);
+        reportLane(binding, 1, surfaceGenerationsRef.current[1]);
+      }
     },
     activate(command): PhoneActivationInvocation {
       const expected = ['crane-figure-video', 'crane-flock-video'];
@@ -317,7 +536,6 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
         admissionGenerationsRef.current = [...generations];
       }
       progressRef.current = endpoint ? 1 : 0;
-      presentedProgressRef.current = progressRef.current;
       renderPhoneCranePresentation(rootRef.current, progressRef.current, direction);
       for (const video of videos) {
         disposeTimelineVideoDriver(video!);
@@ -385,11 +603,11 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       for (const video of videos) video?.pause();
       render(progressRef.current);
     },
+    presentFrame,
     render,
     settle(endpoint) {
       directionRef.current = endpoint === 0 ? 1 : -1;
       progressRef.current = endpoint;
-      presentedProgressRef.current = endpoint;
       renderPhoneCranePresentation(rootRef.current, endpoint, directionRef.current);
       const videos = [figureVideoRef.current, flockVideoRef.current] as const;
       if (endpoint === 1) verifyTerminalFrames();
@@ -401,6 +619,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       }
     },
     pause() {
+      cancelRollbackReproof();
       mediaRunTokenRef.current = null;
       mediaPhaseRef.current = 'held';
       admissionGenerationsRef.current = [0, 0];
@@ -410,6 +629,10 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     dispose(reason: PhoneLeafDisposeReason) {
       if (disposedRef.current) return;
       disposedRef.current = true;
+      cancelRollbackReproof();
+      frameBarrierRef.current?.dispose();
+      frameBarrierRef.current = null;
+      frameLockSequenceRef.current = null;
       stopPairProof();
       mediaRunTokenRef.current = null;
       admissionGenerationsRef.current = [0, 0];
@@ -422,8 +645,9 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       bindingRef.current = null;
     }
   }), [
-    activateSurfaces, render, reportLane, startPairProof, stopPairProof,
-    updatePairPresentation, verifyTerminalFrames
+    activateSurfaces, cancelRollbackReproof, presentFrame, render, reportLane,
+    reproveRollbackBinding, startPairProof, stopPairProof, updatePairPresentation,
+    verifyTerminalFrames
   ]);
 
   useLayoutEffect(() => {
@@ -457,9 +681,11 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
           || canvas !== canvasRef.current) return;
       readyMaskRef.current |= 1 << index;
       if (readyMaskRef.current === 3) stopPairProof();
-      syncPresentedClock();
       updatePairPresentation();
-      reportLane(binding, index, generation);
+      if (frameLockSequenceRef.current === null && !rollbackProofRef.current
+        && !rollbackReproofInProgressRef.current) {
+        reportLane(binding, index, generation);
+      }
     };
     const figureSurface = createPhonePackedAlphaSurface({
       root,
@@ -522,6 +748,10 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
     });
     return () => {
       disposedRef.current = true;
+      cancelRollbackReproof();
+      frameBarrierRef.current?.dispose();
+      frameBarrierRef.current = null;
+      frameLockSequenceRef.current = null;
       admissionGenerationsRef.current = [0, 0];
       surfaceGenerationsRef.current = [0, 0];
       readyMaskRef.current = 0;
@@ -535,8 +765,8 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       bindingRef.current = null;
     };
   }, [
-    commands, render, reportFailure, reportLane, reports, stopPairProof,
-    syncPresentedClock, updatePairPresentation
+    cancelRollbackReproof, commands, render, reportFailure, reportLane, reports,
+    stopPairProof, updatePairPresentation
   ]);
 
   return (

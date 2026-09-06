@@ -9,6 +9,7 @@ import {
   phoneFigure3CanStartPreparedRun,
   phoneFigure3EndpointIsPresented,
   phoneFigure3Frame,
+  phoneFigure3HasReusableEndpointFrame,
   phoneFigure3MediaAction,
   phoneFigure3RunStartEndpoint,
   releasePhoneFigure3Video
@@ -44,7 +45,7 @@ describe('PhoneFigure3', () => {
   });
 
   it('bounds the physical endpoint gate before the visible poster takes over', () => {
-    expect(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS).toBe(1000);
+    expect(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS).toBe(1500);
   });
 
   it('uses stable endpoints for media failure and reduced motion', () => {
@@ -91,6 +92,31 @@ describe('PhoneFigure3', () => {
     expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, false)).toBe(true);
     expect(phoneFigure3EndpointIsPresented(1, 2.567, 1, false)).toBe(false);
     expect(phoneFigure3EndpointIsPresented(1, 2.567, 2, true)).toBe(false);
+  });
+
+  it('reuses only a Canvas frame with an exact mapped video endpoint', () => {
+    const video = {
+      currentTime: 0,
+      readyState: 2,
+      seeking: false
+    } as Pick<HTMLVideoElement, 'currentTime' | 'readyState' | 'seeking'>;
+    const canvas = {
+      dataset: {
+        phoneFigure3PaperFrame: 'ready',
+        phoneFigure3PaperEndpoint: 'initial',
+        phoneFigure3PaperFrameIndex: '0'
+      }
+    } as Pick<HTMLCanvasElement, 'dataset'>;
+
+    expect(phoneFigure3HasReusableEndpointFrame(video, canvas, 0)).toBe(true);
+    expect(phoneFigure3HasReusableEndpointFrame(video, canvas, 1)).toBe(false);
+
+    video.currentTime = 77 / 30;
+    canvas.dataset.phoneFigure3PaperEndpoint = 'terminal';
+    canvas.dataset.phoneFigure3PaperFrameIndex = '77';
+    expect(phoneFigure3HasReusableEndpointFrame(video, canvas, 1)).toBe(true);
+    canvas.dataset.phoneFigure3PaperFrameIndex = '76';
+    expect(phoneFigure3HasReusableEndpointFrame(video, canvas, 1)).toBe(false);
   });
 
   it('disposes the retired video source and decoder', () => {

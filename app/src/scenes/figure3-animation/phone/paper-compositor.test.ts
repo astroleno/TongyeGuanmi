@@ -41,7 +41,10 @@ describe('Figure3 phone paper compositor', () => {
       getContext: vi.fn(() => context)
     } as unknown as HTMLCanvasElement;
     const video = {
-      readyState: 2,
+      // RVFC has already proved the decoded callback; the compositor must not
+      // reject a valid frame merely because WebKit/Chromium reports a volatile
+      // readyState of HAVE_METADATA during the callback turn.
+      readyState: 1,
       videoWidth: 1280,
       videoHeight: 720
     } as unknown as HTMLVideoElement;

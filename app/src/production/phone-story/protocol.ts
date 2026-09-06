@@ -43,7 +43,7 @@ export type PhoneFrameToken = string;
 export type PhoneReportToken = string;
 
 export type PhoneMediaFrameRequest = Readonly<{ frameToken: PhoneFrameToken; transactionId: string; direction: 1 | -1; sequence: number; desiredProgress: number; signal: AbortSignal }>;
-export type PhoneMediaFrameReceipt = Readonly<{ status: 'presented' | 'stale'; frameToken: PhoneFrameToken; sequence: number; desiredProgress: number; presentedProgress: number; evidence: 'video-frame-callback' | 'packed-canvas-draw' | 'scene-canvas-draw' | 'legacy-migration' | 'runtime' }>;
+export type PhoneMediaFrameReceipt = Readonly<{ status: 'presented' | 'stale'; frameToken: PhoneFrameToken; sequence: number; desiredProgress: number; presentedProgress: number; presentedFrameIndex?: number; evidence: 'video-frame-callback' | 'packed-canvas-draw' | 'scene-canvas-draw' | 'legacy-migration' | 'runtime' }>;
 
 export type PhoneSerializablePrimitive =
   | boolean

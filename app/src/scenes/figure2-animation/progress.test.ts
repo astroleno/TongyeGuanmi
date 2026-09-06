@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { frameIndexForMediaTime } from '../../media/frame-timebase';
+import { videoFrameMapFor } from '../../media/video-frame-maps';
 import {
   FIGURE2_INTRO_PLAYBACK_MS,
   commitFigure2MediaLeg,
@@ -252,13 +254,15 @@ describe('Figure2 canonical media', () => {
       sequence: 1
     });
     video.presentRequestedFrame();
-    await expect(forward).resolves.toMatchObject({
+    const forwardFrame = await forward;
+    expect(forwardFrame).toMatchObject({
       status: 'ready',
       targetFrameIndex: 39,
       presentedFrameIndex: 39,
       evidence: 'video-frame-callback'
     });
-    expect(video.currentTime).toBeCloseTo(39 / 30, 6);
+    const frameMap = videoFrameMapFor('figure2-pair-motion');
+    expect(frameIndexForMediaTime(frameMap, video.currentTime)).toBe(forwardFrame.presentedFrameIndex);
 
     const reverse = requestFigure2AnimationFrame(root as unknown as HTMLElement, 0.5, {
       runId: 'phone-reverse:1',
@@ -266,13 +270,14 @@ describe('Figure2 canonical media', () => {
       sequence: 2
     });
     video.presentRequestedFrame();
-    await expect(reverse).resolves.toMatchObject({
+    const reverseFrame = await reverse;
+    expect(reverseFrame).toMatchObject({
       status: 'ready',
       targetFrameIndex: 117,
       presentedFrameIndex: 117,
       evidence: 'video-frame-callback'
     });
-    expect(video.currentTime).toBeCloseTo(117 / 30, 6);
+    expect(frameIndexForMediaTime(frameMap, video.currentTime)).toBe(reverseFrame.presentedFrameIndex);
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 

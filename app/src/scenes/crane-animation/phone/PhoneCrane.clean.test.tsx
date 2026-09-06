@@ -5,15 +5,25 @@ import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   PhoneLeafMountRegistration,
+  PhoneLeafGenerationBinding,
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
+import {
+  CRANE_CONTACT_DURATION_MS,
+  PHONE_CRANE_CONTACT_DURATION_MS
+} from '../../../story/timings';
 import { CRANE_VIDEO_END_SECONDS } from '..';
 
 const packedProbe = vi.hoisted(() => ({
   options: [] as Record<string, unknown>[],
   generations: [0, 0],
+  pending: [] as Array<{
+    request: Record<string, unknown>;
+    resolve: (receipt: unknown) => void;
+  }>,
   surfaces: [] as Array<{
     activate: ReturnType<typeof vi.fn>;
+    presentFrame: ReturnType<typeof vi.fn>;
     setMode: ReturnType<typeof vi.fn>;
     probe: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
@@ -28,6 +38,9 @@ vi.mock('../../../media/phone-packed-alpha-surface', () => ({
     packedProbe.options.push(options);
     const surface = {
       activate: vi.fn(() => ++packedProbe.generations[index]!),
+      presentFrame: vi.fn((request: Record<string, unknown>) => new Promise((resolve) => {
+        packedProbe.pending.push({ request, resolve });
+      })),
       setMode: vi.fn(),
       probe: vi.fn(() => false),
       render: vi.fn(() => true),
@@ -57,6 +70,7 @@ describe('clean PhoneCrane leaf', () => {
   beforeEach(() => {
     packedProbe.options = [];
     packedProbe.generations = [0, 0];
+    packedProbe.pending = [];
     packedProbe.surfaces = [];
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
@@ -309,6 +323,174 @@ describe('clean PhoneCrane leaf', () => {
     act(() => root.unmount());
   });
 
+  it('re-proves the stable endpoint pair for rollback without inferring from the segment', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvases = host.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]');
+    const frames = packedProbe.options.map(({ onFrame }) => onFrame as (frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void);
+    const initialBinding: PhoneLeafGenerationBinding = {
+      reports: mount.reports, frameToken: 'crane:initial', transactionId: 'crane:initial',
+      segmentId: null, direction: 'forward', leg: 'target'
+    };
+    commands.rebind(initialBinding);
+    const activation = commands.activate({
+      invocationId: 'crane:initial:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', direction: 'forward'
+    });
+    await Promise.all(activation.settlements.flatMap((settlement) => (
+      settlement.status === 'pending' ? [settlement.settled] : []
+    )));
+    frames.forEach((frame, index) => frame({ canvas: canvases[index]!, generation: 1 }));
+    mount.reports.reportFrame.mockClear();
+
+    const rollbackBinding = {
+      reports: mount.reports,
+      frameToken: 'crane:rollback',
+      transactionId: 'crane:rollback',
+      segmentId: 'crane-contact',
+      direction: 'forward',
+      leg: 'rollback',
+      mode: 'rollback',
+      reproof: { endpoint: 0 }
+    } as PhoneLeafGenerationBinding;
+    commands.rebind(rollbackBinding);
+
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+    expect(packedProbe.surfaces.map(({ setMode }) => setMode)).toEqual([
+      expect.any(Function), expect.any(Function)
+    ]);
+    frames.forEach((frame, index) => frame({ canvas: canvases[index]!, generation: 1 }));
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+    await Promise.resolve();
+    expect(packedProbe.pending).toHaveLength(2);
+    for (const [index, pending] of packedProbe.pending.entries()) {
+      const request = pending.request as {
+        runId: string; sequence: number; desiredProgress: number;
+        frameMap: { startFrame: number; endFrame: number };
+      };
+      const frameIndex = Math.round(
+        request.frameMap.startFrame
+          + request.desiredProgress * (request.frameMap.endFrame - request.frameMap.startFrame)
+      );
+      pending.resolve({
+        status: 'presented', runId: request.runId, sequence: request.sequence,
+        desiredFrameIndex: frameIndex, presentedFrameIndex: frameIndex,
+        mediaTimeSeconds: 0, presentedProgress: request.desiredProgress,
+        evidence: 'packed-canvas-draw', canvas: canvases[index], generation: 1
+      });
+    }
+    await vi.waitFor(() => expect(mount.reports.reportFrame).toHaveBeenCalledTimes(2));
+    expect(mount.reports.reportFrame).toHaveBeenNthCalledWith(
+      1, 'crane-figure-canvas', expect.objectContaining({ token: 'crane:rollback' })
+    );
+    expect(mount.reports.reportFrame).toHaveBeenNthCalledWith(
+      2, 'crane-flock-canvas', expect.objectContaining({ token: 'crane:rollback' })
+    );
+    for (const surface of packedProbe.surfaces) {
+      expect(surface.setMode).toHaveBeenCalledWith('initial', true);
+    }
+    act(() => root.unmount());
+  });
+
+  it('re-seeks a retained mid-media pair before reporting the rollback proof', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvases = host.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]');
+    const frames = packedProbe.options.map(({ onFrame }) => onFrame as (frame: {
+      canvas: HTMLCanvasElement; generation: number;
+    }) => void);
+    const initialBinding: PhoneLeafGenerationBinding = {
+      reports: mount.reports, frameToken: 'crane:mid-media', transactionId: 'crane:mid-media',
+      segmentId: 'crane-contact', direction: 'forward', leg: 'source'
+    };
+    commands.rebind(initialBinding);
+    const activation = commands.activate({
+      invocationId: 'crane:mid-media:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', direction: 'forward'
+    });
+    await Promise.all(activation.settlements.flatMap((settlement) => (
+      settlement.status === 'pending' ? [settlement.settled] : []
+    )));
+    frames.forEach((frame, index) => frame({ canvas: canvases[index]!, generation: 1 }));
+
+    const midMedia = commands.presentFrame!({
+      frameToken: initialBinding.frameToken,
+      transactionId: initialBinding.transactionId!,
+      direction: 1, sequence: 41, desiredProgress: .6,
+      signal: new AbortController().signal
+    });
+    await Promise.resolve();
+    const midRequests = [...packedProbe.pending];
+    expect(midRequests).toHaveLength(2);
+    midRequests.forEach(({ request, resolve }, index) => {
+      const frameRequest = request as {
+        runId: string; sequence: number; desiredProgress: number;
+        frameMap: { startFrame: number; endFrame: number };
+      };
+      const frameIndex = Math.round(
+        frameRequest.frameMap.startFrame
+          + frameRequest.desiredProgress
+          * (frameRequest.frameMap.endFrame - frameRequest.frameMap.startFrame)
+      );
+      resolve({
+        status: 'presented', runId: frameRequest.runId, sequence: frameRequest.sequence,
+        desiredFrameIndex: frameIndex, presentedFrameIndex: frameIndex,
+        mediaTimeSeconds: .6, presentedProgress: frameRequest.desiredProgress,
+        evidence: 'packed-canvas-draw', canvas: canvases[index], generation: 1
+      });
+    });
+    await expect(midMedia).resolves.toMatchObject({ status: 'presented', sequence: 41 });
+    packedProbe.pending = [];
+    mount.reports.reportFrame.mockClear();
+
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'crane:mid-media:rollback',
+      transactionId: 'crane:mid-media:rollback',
+      segmentId: 'crane-contact', direction: 'forward', leg: 'rollback',
+      mode: 'rollback', reproof: { endpoint: 0 }
+    });
+    await Promise.resolve();
+
+    expect(packedProbe.pending).toHaveLength(2);
+    expect(packedProbe.pending.map(({ request }) => request.desiredProgress)).toEqual([0, 0]);
+    expect(new Set(packedProbe.pending.map(({ request }) => request.sequence))).toEqual(new Set([42]));
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+
+    for (const [index, pending] of packedProbe.pending.entries()) {
+      const frameRequest = pending.request as {
+        runId: string; sequence: number; desiredProgress: number;
+        frameMap: { startFrame: number; endFrame: number };
+      };
+      const frameIndex = Math.round(
+        frameRequest.frameMap.startFrame
+          + frameRequest.desiredProgress
+          * (frameRequest.frameMap.endFrame - frameRequest.frameMap.startFrame)
+      );
+      pending.resolve({
+        status: 'presented', runId: frameRequest.runId, sequence: frameRequest.sequence,
+        desiredFrameIndex: frameIndex, presentedFrameIndex: frameIndex,
+        mediaTimeSeconds: 0, presentedProgress: frameRequest.desiredProgress,
+        evidence: 'packed-canvas-draw', canvas: canvases[index], generation: 1
+      });
+    }
+    await vi.waitFor(() => expect(mount.reports.reportFrame).toHaveBeenCalledTimes(2));
+    expect(mount.reports.reportFrame.mock.calls.map(([surfaceId]) => surfaceId)).toEqual([
+      'crane-figure-canvas', 'crane-flock-canvas'
+    ]);
+    act(() => root.unmount());
+  });
+
   it('primes both paused initial frames once and enters timeline playback without native clocks', async () => {
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -416,6 +598,251 @@ describe('clean PhoneCrane leaf', () => {
     expect(figurePlay).toHaveBeenCalledOnce();
     expect(figure.currentTime).toBe(0);
     expect(flockPlay).toHaveBeenCalledOnce();
+    act(() => root.unmount());
+  });
+
+  it('reports a frame-lock proof only after both lanes present the same sequence', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvases = host.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]');
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'crane:frame-lock:1',
+      transactionId: 'crane:frame-lock',
+      segmentId: 'crane-contact',
+      direction: 'forward',
+      leg: 'source'
+    });
+    commands.activate({
+      invocationId: 'crane:frame-lock:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', direction: 'forward'
+    });
+    mount.reports.reportFrame.mockClear();
+
+    const resultPromise = commands.presentFrame!({
+      frameToken: 'crane:frame-lock:1',
+      transactionId: 'crane:frame-lock',
+      direction: 1,
+      sequence: 17,
+      desiredProgress: .6,
+      signal: new AbortController().signal
+    });
+    await Promise.resolve();
+
+    expect(packedProbe.pending).toHaveLength(2);
+    expect(packedProbe.pending.map(({ request }) => request.sequence)).toEqual([17, 17]);
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+
+    const present = (index: number) => {
+      const pending = packedProbe.pending[index]!;
+      const request = pending.request as {
+        runId: string; sequence: number; desiredProgress: number;
+        frameMap: { startFrame: number; endFrame: number };
+      };
+      const frameIndex = Math.round(
+        request.frameMap.startFrame
+          + request.desiredProgress * (request.frameMap.endFrame - request.frameMap.startFrame)
+      );
+      pending.resolve({
+        status: 'presented', runId: request.runId, sequence: request.sequence,
+        desiredFrameIndex: frameIndex, presentedFrameIndex: frameIndex,
+        mediaTimeSeconds: 1, presentedProgress: request.desiredProgress,
+        evidence: 'packed-canvas-draw', canvas: canvases[index], generation: 1
+      });
+    };
+
+    present(0);
+    await Promise.resolve();
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
+    present(1);
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'presented', frameToken: 'crane:frame-lock:1', sequence: 17,
+      desiredProgress: .6, presentedProgress: .6, evidence: 'packed-canvas-draw'
+    });
+    expect(mount.reports.reportFrame).toHaveBeenCalledTimes(2);
+    expect(mount.reports.reportFrame.mock.calls.map(([surfaceId]) => surfaceId)).toEqual([
+      'crane-figure-canvas', 'crane-flock-canvas'
+    ]);
+    act(() => root.unmount());
+  });
+
+  it('projects the Crane segment tail onto the local terminal frame before locking both lanes', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'crane:frame-lock:tail',
+      transactionId: 'crane:frame-lock:tail',
+      segmentId: 'crane-contact',
+      direction: 'forward',
+      leg: 'source'
+    });
+    commands.activate({
+      invocationId: 'crane:frame-lock:tail:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', direction: 'forward'
+    });
+
+    const masterProgress = CRANE_CONTACT_DURATION_MS / PHONE_CRANE_CONTACT_DURATION_MS;
+    const resultPromise = commands.presentFrame!({
+      frameToken: 'crane:frame-lock:tail',
+      transactionId: 'crane:frame-lock:tail',
+      direction: 1,
+      sequence: 31,
+      desiredProgress: masterProgress,
+      signal: new AbortController().signal
+    });
+    await Promise.resolve();
+
+    expect(packedProbe.pending).toHaveLength(2);
+    expect(packedProbe.pending.map(({ request }) => request.desiredProgress))
+      .toEqual([1, 1]);
+
+    const canvases = host.querySelectorAll<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas]'
+    );
+    for (const [index, pending] of packedProbe.pending.entries()) {
+      const request = pending.request as {
+        runId: string; sequence: number; desiredProgress: number;
+        frameMap: { startFrame: number; endFrame: number };
+      };
+      const frameIndex = Math.round(
+        request.frameMap.startFrame
+          + request.desiredProgress * (request.frameMap.endFrame - request.frameMap.startFrame)
+      );
+      pending.resolve({
+        status: 'presented', runId: request.runId, sequence: request.sequence,
+        desiredFrameIndex: frameIndex, presentedFrameIndex: frameIndex,
+        mediaTimeSeconds: 1, presentedProgress: request.desiredProgress,
+        evidence: 'packed-canvas-draw', canvas: canvases[index], generation: 1
+      });
+    }
+
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'presented', desiredProgress: masterProgress,
+      presentedProgress: masterProgress
+    });
+    act(() => root.unmount());
+  });
+
+  it('projects the reverse Crane owner through the same local terminal boundary', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'crane:frame-lock:reverse-tail',
+      transactionId: 'crane:frame-lock:reverse-tail',
+      segmentId: 'crane-contact',
+      direction: 'reverse',
+      leg: 'target'
+    });
+    commands.activate({
+      invocationId: 'crane:frame-lock:reverse-tail:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', direction: 'reverse'
+    });
+
+    const masterProgress = CRANE_CONTACT_DURATION_MS / PHONE_CRANE_CONTACT_DURATION_MS;
+    const resultPromise = commands.presentFrame!({
+      frameToken: 'crane:frame-lock:reverse-tail',
+      transactionId: 'crane:frame-lock:reverse-tail',
+      direction: -1,
+      sequence: 37,
+      desiredProgress: masterProgress,
+      signal: new AbortController().signal
+    });
+    await Promise.resolve();
+
+    expect(packedProbe.pending).toHaveLength(2);
+    expect(packedProbe.pending.map(({ request }) => request.desiredProgress))
+      .toEqual([1, 1]);
+
+    const canvases = host.querySelectorAll<HTMLCanvasElement>(
+      '[data-phone-packed-alpha-canvas]'
+    );
+    for (const [index, pending] of packedProbe.pending.entries()) {
+      const request = pending.request as {
+        runId: string; sequence: number; desiredProgress: number;
+        frameMap: { startFrame: number; endFrame: number };
+      };
+      const frameIndex = Math.round(
+        request.frameMap.startFrame
+          + request.desiredProgress * (request.frameMap.endFrame - request.frameMap.startFrame)
+      );
+      pending.resolve({
+        status: 'presented', runId: request.runId, sequence: request.sequence,
+        desiredFrameIndex: frameIndex, presentedFrameIndex: frameIndex,
+        mediaTimeSeconds: 1, presentedProgress: request.desiredProgress,
+        evidence: 'packed-canvas-draw', canvas: canvases[index], generation: 1
+      });
+    }
+
+    await expect(resultPromise).resolves.toMatchObject({
+      status: 'presented', desiredProgress: masterProgress,
+      presentedProgress: masterProgress
+    });
+    act(() => root.unmount());
+  });
+
+  it('does not report either Crane lane when one frame-lock child is stale', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    const canvases = host.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]');
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'crane:frame-lock:stale',
+      transactionId: 'crane:frame-lock:stale',
+      segmentId: 'crane-contact', direction: 'reverse', leg: 'source'
+    });
+    commands.activate({
+      invocationId: 'crane:frame-lock:stale:activation',
+      surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+      credit: 'physical-epoch', direction: 'reverse'
+    });
+    mount.reports.reportFrame.mockClear();
+    const resultPromise = commands.presentFrame!({
+      frameToken: 'crane:frame-lock:stale',
+      transactionId: 'crane:frame-lock:stale',
+      direction: -1, sequence: 23, desiredProgress: .4,
+      signal: new AbortController().signal
+    });
+    await Promise.resolve();
+    const first = packedProbe.pending[0]!;
+    const second = packedProbe.pending[1]!;
+    const resolveReceipt = (pending: typeof first, status: 'presented' | 'stale') => {
+      const request = pending.request as {
+        runId: string; sequence: number; desiredProgress: number;
+        frameMap: { startFrame: number; endFrame: number };
+      };
+      const frameIndex = Math.round(
+        request.frameMap.startFrame
+          + request.desiredProgress * (request.frameMap.endFrame - request.frameMap.startFrame)
+      );
+      pending.resolve({
+        status, runId: request.runId, sequence: request.sequence,
+        desiredFrameIndex: frameIndex, presentedFrameIndex: status === 'presented' ? frameIndex : -1,
+        mediaTimeSeconds: status === 'presented' ? 1 : Number.NaN,
+        presentedProgress: request.desiredProgress, evidence: 'packed-canvas-draw',
+        canvas: canvases[0], generation: 1
+      });
+    };
+    resolveReceipt(first, 'presented');
+    resolveReceipt(second, 'stale');
+    await expect(resultPromise).resolves.toMatchObject({ status: 'stale' });
+    expect(mount.reports.reportFrame).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
 

@@ -13,26 +13,40 @@ const probe = vi.hoisted(() => ({
   driveFrame: vi.fn(),
   prepareFrame: vi.fn(async (
     video: HTMLVideoElement,
-    input: Readonly<{ progress: number }>
+    input: Readonly<{ progress: number; runId: string; direction: 1 | -1 }>
   ) => {
-    video.currentTime = input.progress * 2.467;
+    const presentedFrameIndex = Math.round(
+      Math.min(1, Math.max(0, input.progress)) * 74
+    );
+    const mediaTimeSeconds = presentedFrameIndex / 30;
+    video.currentTime = mediaTimeSeconds;
     Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
     Object.defineProperty(video, 'seeking', { configurable: true, value: false });
     return {
       status: 'ready' as const,
-      runId: 'ttg:test',
-      direction: 1 as const,
+      runId: input.runId,
+      direction: input.direction,
       generation: 1,
-      targetTime: video.currentTime
+      targetTime: mediaTimeSeconds,
+      targetFrameIndex: presentedFrameIndex,
+      presentedFrameIndex,
+      mediaTimeSeconds,
+      evidence: 'video-frame-callback' as const
     };
-  })
+  }),
+  createClock: vi.fn()
 }));
 
 vi.mock('../../../media/timeline-video-driver', () => ({
   TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS: .05,
+}));
+
+vi.mock('../../../media/strict-timeline-video-driver', () => ({
+  clampProgress: (value: number) => Math.min(1, Math.max(0, value)),
+  disposeStrictTimelineVideoDriver: probe.disposeDriver,
   disposeTimelineVideoDriver: probe.disposeDriver,
-  driveTimelineVideo: probe.driveFrame,
-  prepareTimelineVideoFrame: probe.prepareFrame
+  prepareTimelineVideoFrame: probe.prepareFrame,
+  createVideoPresentedFrameClock: probe.createClock
 }));
 
 import { PhoneTtg, phoneTtgHasReusableEndpointFrame } from './PhoneTtg';
@@ -52,6 +66,36 @@ function reportFixture() {
 describe('clean PhoneTtg leaf', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    probe.createClock.mockImplementation((video: HTMLVideoElement) => ({
+      request: vi.fn(async (input: Readonly<{
+        runId: string;
+        direction: 1 | -1;
+        sequence: number;
+        desiredProgress: number;
+      }>) => {
+        const frame = await probe.prepareFrame(video, {
+          progress: input.desiredProgress,
+          runId: input.runId,
+          direction: input.direction
+        });
+        const desiredFrameIndex = Math.round(
+          Math.min(1, Math.max(0, input.desiredProgress)) * 74
+        );
+        return {
+          status: frame.status === 'ready' && frame.presentedFrameIndex === desiredFrameIndex
+            ? 'presented' as const : 'stale' as const,
+          runId: input.runId,
+          sequence: input.sequence,
+          desiredFrameIndex,
+          presentedFrameIndex: frame.presentedFrameIndex,
+          mediaTimeSeconds: frame.mediaTimeSeconds,
+          presentedProgress: frame.presentedFrameIndex / 74,
+          evidence: 'video-frame-callback' as const
+        };
+      }),
+      snapshot: vi.fn(() => ({})),
+      dispose: probe.disposeDriver
+    }));
   });
 
   it('keeps one decoder, proves exact endpoint frames, and hard-retires only on dispose', async () => {
@@ -96,10 +140,7 @@ describe('clean PhoneTtg leaf', () => {
     });
     expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled();
     mount.registration()?.commands.render(.5);
-    expect(probe.driveFrame).toHaveBeenCalledWith(video, expect.objectContaining({
-      progress: .5,
-      runId: expect.stringContaining('ttg:frame:2')
-    }));
+    expect(probe.driveFrame).not.toHaveBeenCalled();
     const preparationCount = probe.prepareFrame.mock.calls.length;
     mount.registration()?.commands.pause('outside-closure');
     expect(video.querySelector('source')?.getAttribute('src')).not.toBeNull();
@@ -127,16 +168,89 @@ describe('clean PhoneTtg leaf', () => {
     act(() => root.unmount());
   });
 
-  it('accepts the driver-owned causal endpoint before Chromium clears seeking', async () => {
+  it('keeps the live presenter reusable across held and playing phases', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
-    probe.prepareFrame.mockImplementationOnce(async (video: HTMLVideoElement) => {
-      video.currentTime = 2.467;
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneTtg reports={mount.reports} />); });
+
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: mount.reports, frameToken: 'ttg:held-playing:1' });
+    commands.setMediaPhase?.({
+      phase: 'held', runToken: 'ttg:held-playing', direction: 'forward', stageIndex: 0
+    });
+
+    expect(probe.disposeDriver).not.toHaveBeenCalled();
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'ttg:held-playing', direction: 'forward', stageIndex: 0
+    });
+    const receipt = await commands.presentFrame?.({
+      frameToken: 'ttg:held-playing:1',
+      transactionId: 'ttg:held-playing:transaction',
+      direction: 1,
+      sequence: 1,
+      desiredProgress: 0,
+      signal: new AbortController().signal
+    });
+    expect(receipt).toMatchObject({
+      status: 'presented', frameToken: 'ttg:held-playing:1', sequence: 1,
+      evidence: 'video-frame-callback'
+    });
+    act(() => root.unmount());
+  });
+
+  it('returns master progress while the terminal media frame is held through the dissolve tail', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneTtg reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.render(.95);
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'ttg:lab-tail:1',
+      transactionId: 'ttg:lab-tail',
+      segmentId: 'ttg-lab',
+      direction: 'forward',
+      leg: 'source'
+    });
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'ttg:lab-tail', direction: 'forward', stageIndex: 0
+    });
+
+    const receipt = await commands.presentFrame?.({
+      frameToken: 'ttg:lab-tail:1',
+      transactionId: 'ttg:lab-tail',
+      direction: 1,
+      sequence: 1,
+      desiredProgress: .95,
+      signal: new AbortController().signal
+    });
+
+    expect(receipt).toMatchObject({
+      status: 'presented', presentedProgress: .95, presentedFrameIndex: 74
+    });
+    act(() => root.unmount());
+  });
+
+  it('accepts an exact RVFC endpoint proof even while the element is still seeking', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    probe.prepareFrame.mockImplementationOnce(async (
+      video: HTMLVideoElement,
+      input: Readonly<{ runId: string; direction: 1 | -1 }>
+    ) => {
+      video.currentTime = 74 / 30;
       Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
       Object.defineProperty(video, 'seeking', { configurable: true, value: true });
       return {
-        status: 'ready' as const, runId: 'ttg:causal', direction: 1 as const,
-        generation: 1, targetTime: video.currentTime
+        status: 'ready' as const, runId: input.runId, direction: input.direction,
+        generation: 1, targetTime: video.currentTime,
+        targetFrameIndex: 74, presentedFrameIndex: 74,
+        mediaTimeSeconds: video.currentTime,
+        evidence: 'video-frame-callback' as const
       };
     });
     const host = document.createElement('div');
@@ -288,14 +402,18 @@ describe('clean PhoneTtg leaf', () => {
 
   it('rejects activation replaced while its causal frame promise is pending', async () => {
     let releaseFrame: () => void = () => undefined;
-    probe.prepareFrame.mockImplementationOnce((video: HTMLVideoElement) => (
+    probe.prepareFrame.mockImplementationOnce(() => (
       new Promise((resolve) => {
         releaseFrame = () => resolve({
           status: 'ready' as const,
-          runId: 'ttg:pending-activation',
+          runId: 'ttg:pending-activation:invocation',
           direction: 1 as const,
           generation: 1,
-          targetTime: video.currentTime
+          targetTime: 0,
+          targetFrameIndex: 0,
+          presentedFrameIndex: 0,
+          mediaTimeSeconds: 0,
+          evidence: 'video-frame-callback' as const
         });
       })
     ));
@@ -337,13 +455,19 @@ describe('clean PhoneTtg leaf', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
-    probe.prepareFrame.mockImplementationOnce(async (video: HTMLVideoElement) => {
+    probe.prepareFrame.mockImplementationOnce(async (
+      video: HTMLVideoElement,
+      input: Readonly<{ runId: string; direction: 1 | -1 }>
+    ) => {
       video.currentTime = .051;
       Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
       Object.defineProperty(video, 'seeking', { configurable: true, value: true });
       return {
-        status: 'ready' as const, runId: 'ttg:webkit-start', direction: 1 as const,
-        generation: 1, targetTime: 0
+        status: 'ready' as const, runId: input.runId, direction: input.direction,
+        generation: 1, targetTime: 0,
+        targetFrameIndex: 0, presentedFrameIndex: 0,
+        mediaTimeSeconds: 0,
+        evidence: 'video-frame-callback' as const
       };
     });
     const host = document.createElement('div');

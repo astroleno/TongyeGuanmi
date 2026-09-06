@@ -14,25 +14,43 @@ const probe = vi.hoisted(() => ({
   disposeCompositor: vi.fn(),
   prepareFrame: vi.fn(async (
     video: HTMLVideoElement,
-    input: Readonly<{ progress: number }>
+    input: Readonly<{ progress: number; runId: string; direction: 1 | -1 }>
   ) => {
-    video.currentTime = input.progress * 2.567;
+    const presentedFrameIndex = Math.round(
+      Math.min(1, Math.max(0, input.progress)) * 77
+    );
+    const mediaTimeSeconds = presentedFrameIndex / 30;
+    video.currentTime = mediaTimeSeconds;
     Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
     Object.defineProperty(video, 'seeking', { configurable: true, value: false });
     return {
       status: 'ready' as const,
-      runId: 'figure3:test',
-      direction: 1 as const,
+      runId: input.runId,
+      direction: input.direction,
       generation: 1,
-      targetTime: video.currentTime
+      targetTime: mediaTimeSeconds,
+      targetFrameIndex: presentedFrameIndex,
+      presentedFrameIndex,
+      mediaTimeSeconds,
+      evidence: 'video-frame-callback' as const
     };
   }),
   disposeDriver: vi.fn(),
+  createClock: vi.fn(),
   renderProgress: vi.fn()
 }));
 
 vi.mock('..', () => ({
   FIGURE3_END_SECONDS: 2.567,
+  FIGURE3_FRAME_MAP: {
+    fpsNumerator: 30, fpsDenominator: 1, firstPtsSeconds: 0,
+    frameCount: 78, startFrame: 0, endFrame: 77
+  },
+  FIGURE3_MEDIA_KEY: 'figure3-motion',
+  figure3MediaProgressForRawProgress: (progress: number) => (
+    .78 * progress + .22 * progress * progress
+  ),
+  figure3MediaProgressForFrame: (frameIndex: number) => frameIndex / 77,
   figure3AnimationScene: {
     Component: ({ registerHandle }: {
       registerHandle(name: string, element: HTMLElement | null): void;
@@ -53,9 +71,12 @@ vi.mock('..', () => ({
   renderFigure3AnimationProgress: probe.renderProgress
 }));
 
-vi.mock('../../../media/timeline-video-driver', () => ({
+vi.mock('../../../media/strict-timeline-video-driver', () => ({
+  clampProgress: (value: number) => Math.min(1, Math.max(0, value)),
+  disposeStrictTimelineVideoDriver: probe.disposeDriver,
   disposeTimelineVideoDriver: probe.disposeDriver,
-  prepareTimelineVideoFrame: probe.prepareFrame
+  prepareTimelineVideoFrame: probe.prepareFrame,
+  createVideoPresentedFrameClock: probe.createClock
 }));
 
 vi.mock('./paper-compositor', () => ({
@@ -95,6 +116,55 @@ function reportFixture() {
 describe('clean PhoneFigure3 leaf', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    probe.createClock.mockImplementation((video: HTMLVideoElement) => {
+      let disposed = false;
+      const request = vi.fn(async (input: Readonly<{
+        runId: string;
+        direction: 1 | -1;
+        sequence: number;
+        desiredProgress: number;
+      }>) => {
+        const frame = await probe.prepareFrame(video, {
+          progress: input.desiredProgress,
+          runId: input.runId,
+          direction: input.direction
+        });
+        const desiredFrameIndex = Math.round(
+          Math.min(1, Math.max(0, input.desiredProgress)) * 77
+        );
+        if (disposed) {
+          return {
+            status: 'stale' as const,
+            runId: input.runId,
+            sequence: input.sequence,
+            desiredFrameIndex,
+            presentedFrameIndex: -1,
+            mediaTimeSeconds: Number.NaN,
+            presentedProgress: input.desiredProgress,
+            evidence: 'runtime' as const
+          };
+        }
+        return {
+          status: frame.status === 'ready' && frame.presentedFrameIndex === desiredFrameIndex
+            ? 'presented' as const : 'stale' as const,
+          runId: input.runId,
+          sequence: input.sequence,
+          desiredFrameIndex,
+          presentedFrameIndex: frame.presentedFrameIndex,
+          mediaTimeSeconds: frame.mediaTimeSeconds,
+          presentedProgress: frame.presentedFrameIndex / 77,
+          evidence: 'video-frame-callback' as const
+        };
+      });
+      return {
+        request,
+        snapshot: vi.fn(() => ({})),
+        dispose: () => {
+          disposed = true;
+          probe.disposeDriver();
+        }
+      };
+    });
   });
 
   it('keeps the Figure3 media source usable through StrictMode effect replay', async () => {
@@ -192,6 +262,81 @@ describe('clean PhoneFigure3 leaf', () => {
     act(() => root.unmount());
   });
 
+  it('characterizes repeated prewarm ownership after a decoded frame-zero proof', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+
+    const first = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: first.reports,
+      frameToken: 'figure3:prewarm-characterization:first',
+      segmentId: 'brand-figure3'
+    });
+    const firstActivation = mount.registration()?.commands.activate({
+      invocationId: 'figure3:prewarm-characterization:first-activation',
+      surfaceIds: ['figure3-video'],
+      credit: 'physical-epoch', playback: false
+    });
+    await act(async () => {
+      await Promise.all(firstActivation?.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )) ?? []);
+    });
+    expect(host.querySelector<HTMLElement>('.phone-figure3')?.dataset.phoneFigure3InitialSurface)
+      .toBe('video-frame-zero');
+
+    probe.prepareFrame.mockClear();
+    play.mockClear();
+    const prewarm = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: prewarm.reports,
+      frameToken: 'prewarm:figure3-animation:frame:2',
+      segmentId: 'brand-figure3'
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(probe.prepareFrame).not.toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
+    expect(prewarm.reports.reportPrepared).not.toHaveBeenCalled();
+
+    probe.prepareFrame.mockClear();
+    const formal = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: formal.reports,
+      frameToken: 'figure3:prewarm-characterization:formal',
+      segmentId: 'brand-figure3'
+    });
+    const formalActivation = mount.registration()?.commands.activate({
+      invocationId: 'figure3:prewarm-characterization:formal-activation',
+      surfaceIds: ['figure3-video'],
+      credit: 'physical-epoch', playback: false
+    });
+    await act(async () => {
+      await Promise.all(formalActivation?.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )) ?? []);
+    });
+
+    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+    expect(formal.reports.reportPrepared).toHaveBeenCalledWith(
+      'figure3-initial-composite', expect.objectContaining({
+        token: expect.stringContaining('figure3:prewarm-characterization:formal'),
+        detail: expect.objectContaining({ winner: 'video-frame-zero' })
+      })
+    );
+    expect(host.querySelector<HTMLElement>('.phone-figure3')?.dataset.phoneFigure3InitialSurface)
+      .toBe('video-frame-zero');
+    act(() => root.unmount());
+  });
+
   it('requires a fresh video-frame-zero proof after a prewarm poster fallback', async () => {
     vi.useFakeTimers();
     try {
@@ -231,7 +376,9 @@ describe('clean PhoneFigure3 leaf', () => {
           Object.defineProperty(video, 'seeking', { configurable: true, value: false });
           resolve({
             status: 'ready', runId: 'figure3:formal', direction: 1,
-            generation: 2, targetTime: 0
+            generation: 2, targetTime: 0,
+            targetFrameIndex: 0, presentedFrameIndex: 0,
+            mediaTimeSeconds: 0, evidence: 'video-frame-callback'
           });
         };
       }));
@@ -420,11 +567,7 @@ describe('clean PhoneFigure3 leaf', () => {
     video.currentTime = 1.2;
     probe.paint();
     expect(retained.reports.reportFrame).toHaveBeenCalledTimes(endpointProofCount);
-    expect(probe.renderProgress).toHaveBeenCalledWith(
-      expect.any(HTMLElement), .62, expect.objectContaining({
-        mediaRun: expect.objectContaining({ runId: expect.stringContaining('figure3:frame:4') })
-      })
-    );
+    expect(probe.renderProgress).toHaveBeenCalledWith(expect.any(HTMLElement), .62);
     mount.registration()?.commands.pause('outside-closure');
     expect(probe.disposeCompositor).not.toHaveBeenCalled();
     mount.registration()?.commands.dispose('closure-retired');
@@ -466,7 +609,7 @@ describe('clean PhoneFigure3 leaf', () => {
     });
 
     expect(probe.renderProgress).toHaveBeenLastCalledWith(
-      expect.any(HTMLElement), 1, undefined
+      expect.any(HTMLElement), 1
     );
     expect(probe.prepareFrame).not.toHaveBeenCalled();
     expect(recovered.reports.reportFrame).toHaveBeenCalledWith(
@@ -521,6 +664,60 @@ describe('clean PhoneFigure3 leaf', () => {
     expect(renewed.reports.reportFrame).toHaveBeenCalledWith(
       'figure3-paper-canvas', expect.objectContaining({
         kind: 'frame', token: 'figure3:activation-owner:2', presented: true
+      })
+    );
+    act(() => root.unmount());
+  });
+
+  it('reprepares a new target binding after activation has claimed the decoder', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+
+    const first = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: first.reports,
+      frameToken: 'figure3:activation-rebind:1',
+      segmentId: 'brand-figure3',
+      direction: 'forward',
+      leg: 'target'
+    });
+    const invocation = mount.registration()?.commands.activate({
+      invocationId: 'figure3:activation-rebind:activation',
+      surfaceIds: ['figure3-video'],
+      credit: 'physical-epoch', playback: false
+    });
+    await act(async () => {
+      await Promise.all(invocation?.settlements.flatMap((settlement) => (
+        settlement.status === 'pending' ? [settlement.settled] : []
+      )) ?? []);
+    });
+
+    const video = host.querySelector<HTMLVideoElement>('video');
+    if (!video) throw new Error('missing Figure3 activation video');
+    video.currentTime = .05;
+    probe.prepareFrame.mockClear();
+    const renewed = reportFixture();
+    mount.registration()?.commands.rebind({
+      reports: renewed.reports,
+      frameToken: 'figure3:activation-rebind:2',
+      segmentId: 'brand-figure3',
+      direction: 'forward',
+      leg: 'target'
+    });
+
+    await act(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+    expect(renewed.reports.reportPrepared).toHaveBeenCalledWith(
+      'figure3-initial-composite', expect.objectContaining({
+        detail: expect.objectContaining({ winner: 'video-frame-zero' })
       })
     );
     act(() => root.unmount());
@@ -712,14 +909,21 @@ describe('clean PhoneFigure3 leaf', () => {
 
   it('rejects activation replaced while its causal frame promise is pending', async () => {
     let releaseFrame: () => void = () => undefined;
-    probe.prepareFrame.mockImplementationOnce((video: HTMLVideoElement) => (
+    probe.prepareFrame.mockImplementationOnce((
+      _video: HTMLVideoElement,
+      input: Readonly<{ runId: string; direction: 1 | -1 }>
+    ) => (
       new Promise((resolve) => {
         releaseFrame = () => resolve({
           status: 'ready' as const,
-          runId: 'figure3:pending-activation',
-          direction: 1 as const,
+          runId: input.runId,
+          direction: input.direction,
           generation: 1,
-          targetTime: video.currentTime
+          targetTime: 0,
+          targetFrameIndex: 0,
+          presentedFrameIndex: 0,
+          mediaTimeSeconds: 0,
+          evidence: 'video-frame-callback' as const
         });
       })
     ));
@@ -761,13 +965,19 @@ describe('clean PhoneFigure3 leaf', () => {
   it('accepts the driver-owned causal frame before Chromium clears seeking', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
-    probe.prepareFrame.mockImplementationOnce(async (video: HTMLVideoElement) => {
-      video.currentTime = 2.567;
+    probe.prepareFrame.mockImplementationOnce(async (
+      video: HTMLVideoElement,
+      input: Readonly<{ runId: string; direction: 1 | -1 }>
+    ) => {
+      video.currentTime = 77 / 30;
       Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
       Object.defineProperty(video, 'seeking', { configurable: true, value: true });
       return {
-        status: 'ready' as const, runId: 'figure3:causal', direction: 1 as const,
-        generation: 1, targetTime: video.currentTime
+        status: 'ready' as const, runId: input.runId, direction: input.direction,
+        generation: 1, targetTime: video.currentTime,
+        targetFrameIndex: 77, presentedFrameIndex: 77,
+        mediaTimeSeconds: video.currentTime,
+        evidence: 'video-frame-callback' as const
       };
     });
     const host = document.createElement('div');
@@ -795,13 +1005,19 @@ describe('clean PhoneFigure3 leaf', () => {
   it('settles the initial hold from decoded video frame zero and reports the winning composite', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
-    probe.prepareFrame.mockImplementationOnce(async (video: HTMLVideoElement) => {
+    probe.prepareFrame.mockImplementationOnce(async (
+      video: HTMLVideoElement,
+      input: Readonly<{ runId: string; direction: 1 | -1 }>
+    ) => {
       video.currentTime = 0;
       Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
       Object.defineProperty(video, 'seeking', { configurable: true, value: false });
       return {
-        status: 'ready' as const, runId: 'figure3:causal-drift', direction: 1 as const,
-        generation: 1, targetTime: 0
+        status: 'ready' as const, runId: input.runId, direction: input.direction,
+        generation: 1, targetTime: 0,
+        targetFrameIndex: 0, presentedFrameIndex: 0,
+        mediaTimeSeconds: 0,
+        evidence: 'video-frame-callback' as const
       };
     });
     const host = document.createElement('div');
@@ -843,6 +1059,74 @@ describe('clean PhoneFigure3 leaf', () => {
     });
     expect(probe.prepareFrame).toHaveBeenCalledOnce();
     expect(video.currentTime).toBe(0);
+    act(() => root.unmount());
+  });
+
+  it('uses the reverse binding direction when preparing an initial frame', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+    const current = reportFixture();
+    probe.prepareFrame.mockClear();
+
+    mount.registration()?.commands.rebind({
+      reports: current.reports,
+      frameToken: 'figure3:reverse-initial:1',
+      segmentId: 'figure3-services',
+      direction: 'reverse',
+      leg: 'target'
+    });
+
+    await act(async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(probe.prepareFrame).toHaveBeenCalledOnce();
+    expect(probe.prepareFrame.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      direction: -1
+    }));
+    expect(current.reports.reportPrepared).toHaveBeenCalledWith(
+      'figure3-initial-composite', expect.objectContaining({
+        detail: expect.objectContaining({ winner: 'video-frame-zero' })
+      })
+    );
+    act(() => root.unmount());
+  });
+
+  it('returns master progress while the terminal media frame is held through the fade tail', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure3 reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.render(.99);
+    commands.rebind({
+      reports: mount.reports,
+      frameToken: 'figure3:services-tail:1',
+      transactionId: 'figure3:services-tail',
+      segmentId: 'figure3-services',
+      direction: 'forward',
+      leg: 'source'
+    });
+    commands.setMediaPhase?.({
+      phase: 'playing', runToken: 'figure3:services-tail', direction: 'forward', stageIndex: 0
+    });
+
+    const receipt = await commands.presentFrame?.({
+      frameToken: 'figure3:services-tail:1',
+      transactionId: 'figure3:services-tail',
+      direction: 1,
+      sequence: 1,
+      desiredProgress: .99,
+      signal: new AbortController().signal
+    });
+
+    expect(receipt).toMatchObject({
+      status: 'presented', presentedProgress: .99, presentedFrameIndex: 77
+    });
     act(() => root.unmount());
   });
 });

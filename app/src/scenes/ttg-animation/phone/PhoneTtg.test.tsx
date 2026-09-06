@@ -90,7 +90,8 @@ describe('PhoneTtg', () => {
       seeking: false,
       dataset: {
         phoneGroup45FrameReady: 'true',
-        phoneTtgEndpointReady: 'terminal'
+        phoneTtgEndpointReady: 'terminal',
+        phoneTtgPresentedFrame: '74'
       }
     } as unknown as HTMLVideoElement)).toBe(true);
     expect(phoneTtgHasReusableTerminalFrame({
@@ -113,7 +114,8 @@ describe('PhoneTtg', () => {
       seeking: false,
       dataset: {
         phoneGroup45FrameReady: 'true',
-        phoneTtgEndpointReady: 'initial'
+        phoneTtgEndpointReady: 'initial',
+        phoneTtgPresentedFrame: '0'
       }
     } as unknown as HTMLVideoElement, 0)).toBe(true);
     expect(phoneTtgHasReusableEndpointFrame({

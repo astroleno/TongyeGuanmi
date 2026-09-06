@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { FakeElement, FakeVideo } from '../../transitions/__fixtures__/back-half.fixture';
-import { mediaTimeForFrame } from '../../media/frame-timebase';
+import { frameIndexForMediaTime } from '../../media/frame-timebase';
 import { videoFrameMapFor } from '../../media/video-frame-maps';
 import {
   parkPhMedia,
@@ -102,7 +102,7 @@ describe('PH media residency', () => {
     expect(forward.presentedFrameIndex).toBe(forward.targetFrameIndex);
     expect(reverse.presentedFrameIndex).toBe(reverse.targetFrameIndex);
     expect(video.playCalls).toBe(0);
-    expect(video.currentTime).toBe(mediaTimeForFrame(frameMap, reverse.targetFrameIndex));
+    expect(frameIndexForMediaTime(frameMap, video.currentTime)).toBe(reverse.presentedFrameIndex);
     expect(phPlaybackProgress(phRawProgressForFrame(forward.presentedFrameIndex))).toBeCloseTo(
       forward.presentedFrameIndex / frameMap.endFrame,
       8

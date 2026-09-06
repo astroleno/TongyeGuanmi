@@ -73,8 +73,7 @@ export function paintPhoneFigure3PaperFrame(
   paperColor = PHONE_FIGURE3_PAPER_COLOR
 ): boolean {
   if (
-    video.readyState < 2
-    || video.videoWidth <= 0
+    video.videoWidth <= 0
     || video.videoHeight <= 0
   ) {
     return false;

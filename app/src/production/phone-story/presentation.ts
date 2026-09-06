@@ -10,7 +10,7 @@ import type {
 } from './protocol';
 import { samePhoneAttempt } from './protocol';
 import { phoneManifest, phonePreparedSurfaceIds, phoneRetainedFigure2ArchOwner, phoneSceneById,
-  phoneEntryForLocation, type PhoneInkOwnership, type PhoneSceneId, type PhoneSegmentId,
+  phoneEntryForLocation, phoneSceneStableHold, type PhoneInkOwnership, type PhoneSceneId, type PhoneSegmentId,
   type PhoneTransitionProjection } from './manifest';
 
 export type PhoneSurfaceKind = 'dom' | 'image' | 'video' | 'canvas-2d' | 'canvas-webgl';
@@ -83,13 +83,14 @@ export type PhoneLeafReportPort = Readonly<{
   reportFailure(failure: PhoneFailure): void;
 }>;
 
-export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken; transactionId?: string; segmentId?: string | null; stageIndex?: number; direction?: 'forward' | 'reverse' | null; leg?: PhoneTransactionLeg }>;
+export type PhoneLeafReproofPolicy = Readonly<{ endpoint: 0 | 1 }>;
 
-export function createPhoneLeafGenerationBinding(reports: PhoneLeafReportPort, transactionId: string, sequence: number, segmentId: string | null = null, stageIndex?: number, direction?: 'forward' | 'reverse' | null, leg?: PhoneTransactionLeg): PhoneLeafGenerationBinding {
-  return Object.freeze({
-    reports, frameToken: `${transactionId}:frame:${sequence}`, transactionId, segmentId,
-    ...(stageIndex === undefined ? {} : { stageIndex }), ...(direction === undefined ? {} : { direction }), ...(leg === undefined ? {} : { leg })
-  });
+export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken; transactionId?: string; segmentId?: string | null; stageIndex?: number; direction?: 'forward' | 'reverse' | null; leg?: PhoneTransactionLeg; mode?: PhoneAttemptKey['mode']; reproof?: PhoneLeafReproofPolicy }>;
+
+function phoneLeafReproofPolicy(attempt: PhoneAttemptKey<PhoneSceneId, PhoneSegmentId>, leg: PhoneTransactionLeg): PhoneLeafReproofPolicy | undefined { return attempt.mode === 'rollback' && leg === 'rollback' && attempt.sceneId ? { endpoint: phoneSceneStableHold(attempt.sceneId) } : undefined; }
+
+export function createPhoneLeafGenerationBinding(reports: PhoneLeafReportPort, transactionId: string, sequence: number, segmentId: string | null = null, stageIndex?: number, direction?: 'forward' | 'reverse' | null, leg?: PhoneTransactionLeg, mode?: PhoneAttemptKey['mode'], reproof?: PhoneLeafReproofPolicy): PhoneLeafGenerationBinding {
+  return Object.freeze({ reports, frameToken: `${transactionId}:frame:${sequence}`, transactionId, segmentId, ...(stageIndex === undefined ? {} : { stageIndex }), ...(direction === undefined ? {} : { direction }), ...(leg === undefined ? {} : { leg }), ...(mode === undefined ? {} : { mode }), ...(reproof === undefined ? {} : { reproof }) });
 }
 
 export function bindPhoneLeafGeneration(
@@ -102,7 +103,8 @@ export function bindPhoneLeafGeneration(
 ): PhoneFrameToken {
   const generation = createPhoneLeafGenerationBinding(
     reports, binding.attempt.transactionId, sequence, binding.attempt.segmentId,
-    binding.stageIndex, binding.attempt.direction, binding.leg
+    binding.stageIndex, binding.attempt.direction, binding.leg, binding.attempt.mode,
+    phoneLeafReproofPolicy(binding.attempt, binding.leg)
   );
   beforeRebind?.(generation.frameToken);
   if (rebindMount) mount.rebind(binding);
@@ -251,8 +253,7 @@ export function createPhoneRetainedLeafBinding(
     allowedReports: transaction.requiredPrepared.filter(({ leg: slotLeg }) => (
       slotLeg === leg
     )).map(({ kind }) => kind),
-    allowedSurfaceIds: surfaceIds,
-    planeRevision: transaction.planeRevision
+    allowedSurfaceIds: surfaceIds, planeRevision: transaction.planeRevision
   });
 }
 

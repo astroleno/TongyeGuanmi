@@ -869,6 +869,21 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
+  it('does not remount a retained media prewarm across native stable commits', () => {
+    const { root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(nativeStableSnapshot('brand', 14)));
+    const prewarmReports = probe.sceneProps.at(-1)?.reports;
+    expect(prewarmReports).toBeDefined();
+
+    act(() => engine.publish(nativeStableSnapshot('brand', 15)));
+
+    expect(engine.createPrewarmLeafReportPort).toHaveBeenCalledTimes(1);
+    expect(probe.sceneProps.at(-1)?.reports).toBe(prewarmReports);
+    act(() => root.unmount());
+  });
+
   it('keeps the Lab media neighbours on the same mounts throughout native reading', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
@@ -1592,6 +1607,22 @@ describe('clean PhoneStoryShell ownership', () => {
       .toBe(recoveredHero);
     expect(host.querySelector('[data-phone-buffer="b"]')?.getAttribute('data-phone-plane'))
       .toBe('source');
+    act(() => root.unmount());
+  });
+
+  it('keeps an above-both effect slot at the story root during rollback before dependencies are reloaded', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    const rollback = rollbackSnapshot();
+    if (!rollback.transaction) throw new Error('missing rollback transaction');
+    const transaction = rollback.transaction as SnapshotRecord;
+    act(() => engine.publish({
+      ...rollback,
+      transaction: { ...transaction, evidence: [] }
+    }));
+    expect(host.querySelector('[data-phone-plane="effect"]')?.parentElement)
+      .toBe(host.querySelector('.phone-story'));
     act(() => root.unmount());
   });
 

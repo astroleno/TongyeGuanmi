@@ -187,12 +187,12 @@ export const phoneSegmentChoreography = Object.freeze({
     'canonical-source'),
   'figure3-services': choreography(
     ['smooth', 0, .96], ['smooth', .8, .94], 'linear', 'source', 'source',
-    ['fade', .9, .98], ['smooth', .8, .96]
+    ['fade', .9, .98], ['smooth', .8, .96], 'canonical-target', 'frame-lock'
   ),
   'services-ttg': choreography(1, 0, 'linear', 'target', 'none'),
   'ttg-lab': choreography(
     ['range', 0, ttgPlaybackStop], 1, 'linear', 'source', 'source',
-    ['inverse-range', ttgPlaybackStop, 1], ['range', ttgPlaybackStop, 1]
+    ['inverse-range', ttgPlaybackStop, 1], ['range', ttgPlaybackStop, 1], 'canonical-target', 'frame-lock'
   ),
   'lab-ph': choreography(1, 0, 'linear', 'target', 'none'),
   'ph-education': choreography(
@@ -200,7 +200,7 @@ export const phoneSegmentChoreography = Object.freeze({
     ['inverse-range', phPlaybackStop, 1], ['range', phPlaybackStop, 1], 'canonical-target', 'frame-lock'
   ),
   'education-crane': choreography(1, 0, 'linear', 'target', 'none'),
-  'crane-contact': choreography(['range', 0, cranePlaybackStop], ['range', .8, 1], ['range', .8, 1], 'source', 'source', ['fade', .999, 1], 1)
+  'crane-contact': choreography(['range', 0, cranePlaybackStop], ['range', .8, 1], ['range', .8, 1], 'source', 'source', ['fade', .999, 1], 1, 'canonical-target', 'frame-lock')
 } satisfies Readonly<Record<PhoneSegmentId, PhoneSegmentChoreography>>);
 
 const phoneStableHolds = Object.freeze({
@@ -272,8 +272,7 @@ export function phoneSegmentChoreographyFrame(
     activationOwner: spec.activationOwner, mediaClockOwner: canonicalMediaClockOwner,
     mediaClockMode: canonicalMediaClockOwner === 'none' ? 'none' : spec.mediaClockMode,
     foregroundOwner: spec.foregroundOwner === 'canonical-source'
-      ? 'source'
-      : 'target'
+      ? 'source' : 'target'
   };
   if (direction === 'forward') return Object.freeze(canonical);
   return Object.freeze({
@@ -536,6 +535,7 @@ function segmentLeg(
   source: PhoneSceneId, target: PhoneSceneId,
   timing: PhoneTimingReference, profile: SegmentProfile
 ): PhoneSegmentLeg {
+  const choreographyFrame = phoneSegmentChoreographyFrame(id, 0, direction);
   return {
     direction, source, target, effectSurface: profile.effectSurface,
     closure: segmentClosure(id, source, target, profile), preparePolicy,
@@ -550,9 +550,9 @@ function segmentLeg(
     deadlineProfile: profile.deadlineProfile, deadlinePolicy: deadlineProfiles[profile.deadlineProfile],
     mediaActivation: mediaActivation(
       profile.resourceBudget,
-      (phoneSegmentChoreographyFrame(id, 0, direction).activationOwner === 'source'
+      (choreographyFrame.activationOwner === 'source'
         && sceneSeeds[source].resourceBudget.videos > 0)
-        || (phoneSegmentChoreographyFrame(id, 0, direction).activationOwner === 'target'
+        || (choreographyFrame.activationOwner === 'target'
           && sceneSeeds[target].resourceBudget.videos > 0)
     )
   };

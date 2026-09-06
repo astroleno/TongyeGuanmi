@@ -101,10 +101,34 @@ describe('phone native reading edge contract', () => {
     const disconnect = runtime.connect();
     proveCurrent(runtime, fixture);
     expect(runtime.nativeHandoff('forward')[1]).toBe('mount');
+    expect(runtime.nativeHandoff('forward')[0]).not.toBeNull();
     const reports = runtime.createPrewarmLeafReportPort('ph-animation');
     expect(runtime.nativeHandoff('forward')[1]).toBe('surface');
+    expect(runtime.nativeHandoff('forward')[0]).not.toBeNull();
     registerPrewarmLeaf(runtime, 'ph-animation', commandFixture().commands, reports);
     expect(runtime.nativeHandoff('forward')[1]).toBeNull();
+    expect(runtime.nativeHandoff('forward')[0]).not.toBeNull();
+    disconnect();
+  });
+
+  it('admits an edge handoff while the target media leaf is still loading', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#lab');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    runtime.createPrewarmLeafReportPort('ph-animation');
+    const handoffToken = runtime.nativeHandoff('forward')[0];
+    expect(handoffToken).not.toBeNull();
+
+    fixture.emit({
+      type: 'input', kind: 'touch', delta: 300, fresh: true,
+      trusted: true, target: 'story', handoffToken: handoffToken!
+    });
+
+    expect(currentTransaction(runtime)).toMatchObject({
+      mode: 'segment', sourceSceneId: 'lab', candidateSceneId: 'ph-animation',
+      attempt: { segmentId: 'lab-ph', direction: 'forward' }
+    });
     disconnect();
   });
 
@@ -543,7 +567,8 @@ function reachPlaying(runtime: PhoneStoryRuntime, fixture: EnvironmentFixture): 
 
 function registerCurrentLeaf(
   runtime: PhoneStoryRuntime,
-  commands: PhoneLeafCommandHandle
+  commands: PhoneLeafCommandHandle,
+  root: HTMLElement = {} as HTMLElement
 ) {
   const transaction = currentTransaction(runtime);
   const scene = phoneSceneById(transaction.candidateSceneId);
@@ -557,7 +582,7 @@ function registerCurrentLeaf(
   };
   const reports = runtime.createLeafReportPort(binding);
   reports.registerMount({
-    root: {} as HTMLElement,
+    root,
     surfaces: scene.surfaces.map((id) => ({
       id,
       element: {} as HTMLElement,
@@ -576,11 +601,12 @@ function registerPrewarmLeaf(
   runtime: PhoneStoryRuntime,
   sceneId: Parameters<PhoneStoryRuntime['createPrewarmLeafReportPort']>[0],
   commands: PhoneLeafCommandHandle = commandFixture().commands,
-  reports = runtime.createPrewarmLeafReportPort(sceneId)
+  reports = runtime.createPrewarmLeafReportPort(sceneId),
+  root: HTMLElement = {} as HTMLElement
 ) {
   const scene = phoneSceneById(sceneId);
   reports.registerMount({
-    root: {} as HTMLElement,
+    root,
     surfaces: scene.surfaces.map((id) => ({
       id,
       element: {} as HTMLElement,
@@ -2108,6 +2134,32 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('uses an approved static fallback without asking its frame-lock owner for a receipt', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#services');
+    const disconnect = runtime.connect();
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    const target = commandFixture();
+    const fallbackRoot = {
+      dataset: { phoneMediaState: 'fallback' }
+    } as unknown as HTMLElement;
+    registerPrewarmLeaf(runtime, 'figure3-animation', target.commands,
+      undefined, fallbackRoot);
+    emitReadyNativeInput(runtime, fixture, 'reverse');
+    registerCurrentEffect(runtime, commandFixture().commands);
+    reachPlaying(runtime, fixture);
+
+    const before = currentTransaction(runtime).progress;
+    fixture.advance(100);
+    fixture.flushFrames();
+
+    expect(target.commands.presentFrame).not.toHaveBeenCalled();
+    expect(currentTransaction(runtime).progress).toBeLessThan(before);
+    expect(currentTransaction(runtime).failure).toBeNull();
+    disconnect();
+  });
+
   it('consumes a completed Hero-to-Pattern touch epoch through Hero before Pattern proof', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#home');
@@ -2776,6 +2828,13 @@ describe('phone runtime effects, media activation, and disposal', () => {
     reports.registerMount(registration);
     const resourcesAfterFirstRegistration = [...fixture.resources];
     expect(() => reports.registerMount(registration)).not.toThrow();
+    expect(commands.pause).not.toHaveBeenCalled();
+    expect(commands.dispose).not.toHaveBeenCalled();
+    expect(commands.activate({
+      invocationId: 'strict-mode-replay:activate',
+      surfaceIds: scene.surfaces,
+      credit: 'physical-epoch'
+    }).invoked).toBe(true);
     expect(releases).toHaveBeenCalledTimes(1);
     expect(fixture.resources.at(-1)).toEqual(resourcesAfterFirstRegistration.at(-1));
     disconnect();
@@ -3039,6 +3098,37 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(source.commands.pause).toHaveBeenLastCalledWith('outside-closure');
     expect(fixture.resources.at(-1)?.activeDecoders).toBe(0);
     expect(runtime.nativeHandoff('reverse')[0]).not.toBeNull();
+    disconnect();
+  });
+
+  it('retains the native R-pair partner lease while its visual slot remains in the topology', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#crane-animation');
+    const disconnect = runtime.connect();
+    const crane = commandFixture();
+    registerCurrentLeaf(runtime, crane.commands);
+    proveCurrent(runtime, fixture);
+
+    fixture.emit({
+      type: 'input', kind: 'wheel', delta: 100, fresh: true,
+      target: 'story', trusted: true
+    });
+    const contact = commandFixture();
+    registerCurrentLeaf(runtime, contact.commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'contact' }
+    });
+
+    emitReadyNativeInput(runtime, fixture, 'reverse');
+    proveCurrent(runtime, fixture);
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'crane-animation' }
+    });
+
+    expect(contact.commands.pause).toHaveBeenCalledWith('outside-closure');
+    expect(contact.commands.dispose).not.toHaveBeenCalled();
     disconnect();
   });
 

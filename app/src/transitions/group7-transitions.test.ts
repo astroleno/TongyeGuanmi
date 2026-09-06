@@ -3,6 +3,7 @@ import { storyManifest } from '../story/manifest';
 import { verifySegmentTimeline } from '../story/verifySegmentTimeline';
 import { CRANE_CONTACT_COPY_CUE, createCraneContactTransition } from './crane-contact';
 import { createEducationCraneTransition } from './education-crane';
+import { frameIndexForMediaTime } from '../media/frame-timebase';
 import {
   CRANE_MEDIA_PLAYBACK_MS,
   CRANE_PLAYBACK_MS,
@@ -616,6 +617,7 @@ describe('R4 group7 transitions', () => {
       });
       expect(receipt?.status).toBe('presented');
       timeline.progress(receipt?.presentedProgress ?? desiredProgress);
+      return receipt!;
     };
 
     await commit(0.2, 1, 1);
@@ -652,9 +654,16 @@ describe('R4 group7 transitions', () => {
     expect(fixture.figureVideo.currentTime).toBeCloseTo(forwardFigureAtHalf, 3);
     expect(fixture.flockVideo.currentTime).toBeCloseTo(forwardFlockAtHalf, 3);
     expect(fixture.craneRoot.dataset.cranePlaybackDirection).toBe('-1');
-    await commit(0, 5, -1);
-    expect(fixture.figureVideo.currentTime).toBe(0);
-    expect(fixture.flockVideo.currentTime).toBe(0);
+    const reverseStart = await commit(0, 5, -1);
+    expect(reverseStart).toMatchObject({ status: 'presented', evidence: 'video-frame-callback' });
+    expect(frameIndexForMediaTime(CRANE_FIGURE_FRAME_MAP, fixture.figureVideo.currentTime))
+      .toBe(CRANE_FIGURE_FRAME_MAP.startFrame);
+    expect(frameIndexForMediaTime(CRANE_FLOCK_FRAME_MAP, fixture.flockVideo.currentTime))
+      .toBe(CRANE_FLOCK_FRAME_MAP.startFrame);
+    expect(fixture.figureVideo.dataset.timelineVideoPresentedFrame)
+      .toBe(String(CRANE_FIGURE_FRAME_MAP.startFrame));
+    expect(fixture.flockVideo.dataset.timelineVideoPresentedFrame)
+      .toBe(String(CRANE_FLOCK_FRAME_MAP.startFrame));
   });
 
   it('preserves Crane and Contact presentation when disposing independently at both endpoints', async () => {
