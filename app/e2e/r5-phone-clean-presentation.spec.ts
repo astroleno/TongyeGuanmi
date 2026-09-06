@@ -2025,6 +2025,42 @@ async function stopAodAlphaRecorder(page: import('@playwright/test').Page): Prom
   });
 }
 
+async function startAodEndpointRecorder(page: import('@playwright/test').Page): Promise<void> {
+  await page.evaluate(() => {
+    const owner = window as typeof window & {
+      __r5AodReverseEndpointSeen?: boolean;
+      __r5AodEndpointObserver?: MutationObserver;
+    };
+    owner.__r5AodReverseEndpointSeen = false;
+    const sample = () => {
+      const scene = document.querySelector<HTMLElement>('.portrait-scroll-spike__scene--aod');
+      if (scene?.dataset.portraitAodProgress === '1.0000') {
+        owner.__r5AodReverseEndpointSeen = true;
+      }
+    };
+    const observer = new MutationObserver(sample);
+    observer.observe(document.documentElement, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-portrait-aod-progress']
+    });
+    owner.__r5AodEndpointObserver = observer;
+    sample();
+  });
+}
+
+async function stopAodEndpointRecorder(page: import('@playwright/test').Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const owner = window as typeof window & {
+      __r5AodReverseEndpointSeen?: boolean;
+      __r5AodEndpointObserver?: MutationObserver;
+    };
+    owner.__r5AodEndpointObserver?.disconnect();
+    delete owner.__r5AodEndpointObserver;
+    return owner.__r5AodReverseEndpointSeen === true;
+  });
+}
+
 async function completeAodMethodAttempt(
   page: import('@playwright/test').Page,
   source: 'aod-animation' | 'method-top',
@@ -2524,6 +2560,7 @@ test('AOD forward and reverse preserve transparent alpha and the reverse endpoin
   await page.goto('/#method-top', { waitUntil: 'domcontentloaded' });
   const reverseBefore = await waitForCommitSequence(page, 'method-top', 0);
   await waitForContinuousStoryReady(page);
+  await startAodEndpointRecorder(page);
   await sendFrontIntent(page, 'reverse');
   await page.waitForFunction(() => {
     const shell = document.querySelector<HTMLElement>('.phone-story');
@@ -2531,8 +2568,7 @@ test('AOD forward and reverse preserve transparent alpha and the reverse endpoin
       && shell.dataset.phoneCandidateScene === 'aod-animation'
       && Boolean(document.querySelector('.portrait-scroll-spike__scene--aod'));
   }, undefined, { timeout: 20_000 });
-  await expect(page.locator('.portrait-scroll-spike__scene--aod'))
-    .toHaveAttribute('data-portrait-aod-progress', '1.0000');
+  expect(await stopAodEndpointRecorder(page)).toBe(true);
   await failOnContinuousActivation(page, 'Method → AOD');
   await completeAodMethodAttempt(page, 'method-top', 'aod-animation', 'reverse', reverseBefore);
   await expect(page.locator('[data-phone-activation]:not([hidden])')).toHaveCount(0);

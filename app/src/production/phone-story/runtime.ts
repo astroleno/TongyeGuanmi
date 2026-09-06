@@ -981,7 +981,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       stableDependencyAttempt = transaction.attempt;
       const retainedLeg = transaction.commitIntent === 'rollback' ? 'rollback' : 'target';
       const retainsPair = transaction.closure.retireAfter === 'pair-exit-or-route-dispose';
-      const retainsDepartingMedia = transaction.sourceSceneId !== null && transaction.mode === 'segment'
+      const retainsDepartingMedia = transaction.sourceSceneId !== null && (transaction.mode === 'segment' || transaction.mode === 'entry')
         && phoneSceneById(next.stableCommit.sceneId).plane === 'native' && phoneSceneById(transaction.sourceSceneId).plane !== 'native';
       for (const lease of matching) { const state = lease.reports, keepsStableMount = state.binding.attempt.sceneId === next.stableCommit.sceneId && state.binding.leg === retainedLeg, keepsDeparting = retainsDepartingMedia && state.binding.leg === 'source', retainedScene = state.binding.leg === 'source' ? transaction.sourceSceneId : transaction.candidateSceneId;
         if (keepsStableMount) closeReports(state);

@@ -3132,6 +3132,28 @@ describe('phone runtime effects, media activation, and disposal', () => {
     disconnect();
   });
 
+  it('retains departing media as a native-neighbor prewarm after a warm entry', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#ph-animation');
+    const disconnect = runtime.connect();
+    const source = commandFixture();
+    registerCurrentLeaf(runtime, source.commands);
+    proveCurrent(runtime, fixture);
+
+    runtime.requestEntry({ pathname: '/', hash: '#lab', origin: 'hash' });
+    const target = commandFixture();
+    registerCurrentLeaf(runtime, target.commands);
+    proveCurrent(runtime, fixture);
+
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: 'stable', stableCommit: { sceneId: 'lab' }
+    });
+    expect(source.commands.pause).toHaveBeenCalledWith('outside-closure');
+    expect(source.commands.dispose).not.toHaveBeenCalled();
+    expect(runtime.nativeHandoff('forward')[1]).toBeNull();
+    disconnect();
+  });
+
   it('does not consume touchend activation for static choreography even when its closure mounts video', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#star-map');
