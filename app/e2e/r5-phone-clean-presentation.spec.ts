@@ -3270,21 +3270,29 @@ test('Figure2 retained arch enters with the target boundary and survives commit'
   await prepareCompleteStoryNativeEdge(page, 'method-top', 'forward');
   await sendFrontIntent(page, 'forward');
   const arch = page.locator('[data-stage-retained-figure2-arch="true"]');
-  await page.waitForFunction(() => {
+  const preparing = await (await page.waitForFunction(() => {
     const shell = document.querySelector<HTMLElement>('.phone-story');
     const target = document.querySelector<HTMLElement>(
       '.phone-story__retained-figure2-arch-layer[data-phone-figure2-arch-owner="target"]'
     );
-    return shell?.dataset.phoneCandidateScene === 'figure2-animation'
-      && shell.dataset.phoneStatus === 'transaction'
-      && !shell.hasAttribute('data-phone-transition-live')
-      && target !== null;
-  }, undefined, { timeout: 15_000 });
-  const preparing = await arch.evaluate((element) => ({
-    visibility: getComputedStyle(element).visibility,
-    opacity: Number(getComputedStyle(element).opacity),
-    ready: element.getAttribute('data-phone-figure2-arch-ready')
-  }));
+    const element = target?.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]');
+    if (!shell || !element || !target
+      || shell.dataset.phoneCandidateScene !== 'figure2-animation'
+      || shell.dataset.phoneStatus !== 'transaction'
+      || shell.hasAttribute('data-phone-transition-live')) return null;
+    const style = getComputedStyle(element);
+    return {
+      visibility: style.visibility,
+      opacity: Number(style.opacity),
+      ready: element.getAttribute('data-phone-figure2-arch-ready')
+    };
+  }, undefined, { timeout: 15_000 })).jsonValue() as Readonly<{
+    visibility: string;
+    opacity: number;
+    ready: string | null;
+  }> | null;
+  expect(preparing).not.toBeNull();
+  if (!preparing) throw new Error('missing atomic Figure2 preparing snapshot');
   expect(preparing.visibility).toBe('hidden');
   expect(preparing.opacity).toBe(0);
 
