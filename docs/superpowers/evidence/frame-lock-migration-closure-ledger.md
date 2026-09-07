@@ -7,13 +7,15 @@
 - Pre-commit closure tracked-diff SHA-256: `3913098377c1f08efe4474d942b77ef16496727c565e74b088b7b8c3e5dcea82`
 - Initial implementation/closure commit: `c533408333584cc02e290c633e5563a3416adc0e`
 - Review follow-up implementation commit: `baa9ebf477edec3b0fd94c1952728d767554a54c`
+- Review test-hardening commit: `95c1e1303f988af5ebedc78936c41e6c6cfb6713`
 - Historical freeze HEAD: `9ec3e2bbcd5137f706ba3f19f64de637981f47cb`
 - Main reference: `6145cfe`; main tracked content was not modified by this
   worktree. The unrelated main-worktree untracked `.playwright-cli/` was left
   untouched.
-- Status: Task 18 is complete at `baa9ebf`; `c533408` records the initial
-  implementation/closure changes and `baa9ebf` closes the review correction;
-  Tasks 19–22 are not started.
+- Status: Task 18 is complete at `95c1e13`; `c533408` records the initial
+  implementation/closure changes, `baa9ebf` closes the runtime review
+  correction, and `95c1e13` closes the Figure2 E2E review correction; Tasks
+  19–22 are not started.
 - Closure summary: the current-only PH/Lab and formal native-handoff failures
   were fixed in the shared phone authority/recovery path and covered by the
   warm-entry runtime regression test. The three non-Hero T18 failures were
@@ -1275,7 +1277,7 @@ follow-up work and are not permanent skips.
 
 This closure section supersedes the historical gate list above. The initial
 implementation/closure commit is `c533408333584cc02e290c633e5563a3416adc0e`;
-the accepted post-review tree is `baa9ebf477edec3b0fd94c1952728d767554a54c`.
+the accepted post-review tree is `95c1e1303f988af5ebedc78936c41e6c6cfb6713`.
 Tasks 19–22 remain unstarted.
 
 ### Shared current-only fixes and A/B classification
@@ -1313,6 +1315,14 @@ the assertion now records the exact endpoint with a `MutationObserver`. The
 mapped progress, transparent-alpha, frame, commit, and no-activation proofs
 remain unchanged, and no AOD exemption was added.
 
+The correctness review also found a TOCTOU window in the Figure2 retained-arch
+preparation assertion: the test first waited for shell state and then read
+computed style in a separate page evaluation. Commit `95c1e13` makes that
+test-only observation atomic. One `page.waitForFunction` now checks the shell,
+candidate, transaction, transition-live, target, and arch state together and
+returns the computed visibility/opacity/ready snapshot used by the assertions.
+Production code and the build artifact are unchanged.
+
 ### Exact Task 18 presentation exclusions
 
 The following six titles are excluded only from the two phone-portrait
@@ -1345,6 +1355,12 @@ unchanged budgets with source commit `baa9ebf`,
 `desktopJsRawBytes=576450`, and final artifact tree SHA-256
 `b5c715eeae639a18696ca7fdd1816fd6e1f42309ba012fb4fc2bc484d11ac489`.
 
-Task 18 is therefore **complete** at accepted post-review tree `baa9ebf`.
+After the atomic Figure2 assertion change, the focused retained-arch WebKit
+case passed `1/1`, and the full WebKit presentation cell with the same six
+exact title exclusions passed `81` tests with `2` existing skips (`83`
+scheduled). The existing focused and full-grid results above remain valid;
+this rerun adds fresh evidence for the test-only correction.
+
+Task 18 is therefore **complete** at accepted post-review tree `95c1e13`.
 The closure ledger is updated in the documentation commit immediately after
 the review follow-up.
