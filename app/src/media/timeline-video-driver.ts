@@ -191,6 +191,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   readonly #onLoadedData = () => {
     if (!this.#waitingForInitialData || this.#video.readyState < 2) return;
     this.#waitingForInitialData = false;
+    // Endpoint preparation can start while the preceding animation seek has
+    // lowered readyState. Its seeked event enters this branch, so retire the
+    // physically settled seek before it can block the endpoint's own proof.
+    if (!this.#video.seeking) this.#inFlightSeek = undefined;
     // A seek before the initial sample exists can be silently reset by source
     // selection. Prime only after loadeddata so the return seek owns a real frame.
     const result = this.#startPendingEndpointPrime();

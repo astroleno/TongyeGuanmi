@@ -233,6 +233,49 @@ describe('timeline video driver', () => {
     driver.dispose();
   });
 
+  it.each(['seeked', 'loadeddata', 'loadeddata-during-seek'])(
+    'releases completed seek ownership before a waiting endpoint primes via %s', async (event) => {
+      vi.useFakeTimers();
+      const video = new FakeVideo();
+      const driver = createTimelineVideoDriver(videoElement(video));
+      const input = {
+        runId: 'media-data-handoff:1',
+        direction: 1 as const,
+        durationFallbackSeconds: 10
+      };
+      try {
+        driver.drive({ ...input, progress: 0.8 });
+        video.readyState = 1;
+        const readiness = driver.prepareFrame({ ...input, progress: 1 });
+        await vi.advanceTimersByTimeAsync(100);
+        expect(video.currentTimeWrites).toHaveLength(1);
+        video.readyState = 4;
+        if (event === 'loadeddata-during-seek') {
+          video.dispatch('loadeddata');
+          expect(video.currentTimeWrites).toHaveLength(1);
+          video.completeSeek();
+        } else if (event === 'loadeddata') {
+          video.seeking = false;
+          video.dispatch('loadeddata');
+        } else {
+          video.completeSeek();
+        }
+        expect(video.currentTimeWrites.at(-1)).toBeCloseTo(9.93, 2);
+        expect(driver.snapshot().frameReady).toBe(false);
+        video.completeSeek();
+        expect(video.currentTimeWrites.at(-1)).toBeCloseTo(9.98, 2);
+        video.completeSeek();
+        expect(driver.snapshot().frameReady).toBe(false);
+        video.presentFrame();
+        await expect(readiness).resolves.toMatchObject({ status: 'ready', targetTime: 9.98 });
+      } finally {
+        driver.dispose();
+        expect(vi.getTimerCount()).toBe(0);
+        vi.useRealTimers();
+      }
+    }
+  );
+
   it('consumes a pending endpoint prime before a synchronously settled seek can re-enter it', async () => {
     vi.useFakeTimers();
     const video = new FakeVideo();
