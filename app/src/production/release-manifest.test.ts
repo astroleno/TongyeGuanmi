@@ -678,6 +678,17 @@ it('keeps deep WebM qualification local and out of GitHub workflows', () => {
   expect(workflowSources).not.toContain('evidence:memory:release');
 });
 
+it('requires packed-alpha decode qualification before the formal release build', () => {
+  expect(appPackage.scripts.build).not.toContain('verify:phone-packed-alpha');
+  expect(appPackage.scripts['verify:phone-packed-alpha']).toBe(
+    'node scripts/verify-phone-packed-alpha-masters.mjs'
+  );
+  expect(appPackage.scripts['release:prepare']).toBe(
+    'pnpm run verify:phone-packed-alpha && R5_REQUIRE_RELEASE_IDENTITY=1 '
+      + 'R5_REQUIRE_CDN=1 R5_RELEASE_MANIFEST_PHASE=prepare pnpm run build'
+  );
+});
+
 it('marks an ordinary dirty build as unbound instead of naming a release candidate', () => {
   const { fixtureScript, repoDir, sourceCommit } = createFixture();
   writeFileSync(path.join(repoDir, 'uncommitted.txt'), 'dirty\n', 'utf8');
