@@ -5,12 +5,25 @@ test.use({ javaScriptEnabled: false });
 test('no-JS HTML exposes core正文, metadata, navigation, and scrollable anchors', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-  await expect(page).toHaveTitle('同野观幂｜AI 转型与能力建设');
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', '/');
+  await expect(page).toHaveTitle('同野观幂｜企业 AI 转型咨询、培训与场景落地');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://tongye.me/');
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+    'content',
+    'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1'
+  );
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+    'content',
+    'https://tongye.me/og-image.webp'
+  );
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
+  await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(1);
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
   await expect(page.locator('#root')).toBeEmpty();
   await expect(page.locator('[data-static-story-content="true"]')).toBeVisible();
   await expect(page.locator('[data-static-story-content="true"] h1')).toHaveCount(1);
+  await expect(page.locator('[data-static-story-content="true"] h1')).toHaveText(
+    '同野观幂｜企业 AI 转型咨询与场景落地'
+  );
   await expect(page.locator('#home')).toContainText('你的同行不是更聪明');
   await expect(page.locator('#method')).toContainText('先识场，再立法');
   await expect(page.locator('#services')).toContainText('先跑通');
@@ -37,4 +50,50 @@ test('no-JS HTML exposes core正文, metadata, navigation, and scrollable anchor
   );
   expect(await page.evaluate(() => document.body.scrollHeight > window.innerHeight)).toBe(true);
   expect(await page.locator('[inert], [style*="visibility: hidden"], [style*="opacity: 0"]').count()).toBe(0);
+});
+
+test('crawler endpoints are real machine-readable resources rather than SPA fallbacks', async ({ request }) => {
+  const robots = await request.get('/robots.txt');
+  expect(robots.status()).toBe(200);
+  expect(robots.headers()['content-type']).toContain('text/plain');
+  expect(await robots.text()).toContain('Sitemap: https://tongye.me/sitemap.xml');
+
+  const sitemap = await request.get('/sitemap.xml');
+  expect(sitemap.status()).toBe(200);
+  expect(sitemap.headers()['content-type']).toMatch(/(?:application|text)\/xml/);
+  expect(await sitemap.text()).toContain('<loc>https://tongye.me/</loc>');
+
+  const llms = await request.get('/llms.txt');
+  expect(llms.status()).toBe(200);
+  expect(llms.headers()['content-type']).toContain('text/plain');
+  expect(await llms.text()).toContain('# 同野观幂');
+});
+
+test('public service and FAQ pages are complete without JavaScript or cinematic assets', async ({ page }) => {
+  const requests: string[] = [];
+  page.on('request', (request) => requests.push(request.url()));
+  for (const route of ['/services/', '/faq/']) {
+    const response = await page.goto(route);
+    expect(response?.status()).toBe(200);
+    await expect(page.locator('h1')).toBeVisible();
+    await expect(page.locator('h1')).toHaveCount(1);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `https://tongye.me${route}`);
+    await expect(page.locator('nav[aria-label="主导航"] a[aria-current="page"]')).toHaveAttribute('href', route);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect(page.locator('a[href="/#contact"]').first()).toBeVisible();
+  }
+  await expect(page.locator('.answer')).toHaveCount(6);
+  await page.locator('.question-index a[href="#after-delivery"]').click();
+  await expect(page.locator('#after-delivery')).toBeInViewport();
+  expect(requests.some((url) => /\.(?:js|mp4|webm)(?:[?#]|$)/.test(url))).toBe(false);
+});
+
+test('public content routes canonicalize while unknown paths return a real 404', async ({ request }) => {
+  for (const [source, target] of [['/services', '/services/'], ['/faq/index.html', '/faq/']]) {
+    const response = await request.get(`${source}?from=check`, {maxRedirects: 0});
+    expect(response.status()).toBe(301);
+    expect(response.headers().location).toBe(`${target}?from=check`);
+  }
+  expect((await request.get('/seo-audit-not-a-real-page')).status()).toBe(404);
+  expect((await request.get('/missing-seo-image.webp')).status()).toBe(404);
 });

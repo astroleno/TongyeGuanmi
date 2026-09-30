@@ -31,7 +31,11 @@ describe('crawlable static story shell', () => {
       expect(html).toContain(`id="${anchor}"`);
     }
     expect(html).not.toContain('id="philosophy"');
-    expect(html.match(/<h1>/g)).toHaveLength(1);
+    expect(html.match(/<h1\b/g)).toHaveLength(1);
+    expect(html).toContain(
+      '<h1 id="static-home-title" data-static-primary-heading="true">同野观幂｜企业 AI 转型咨询与场景落地</h1>'
+    );
+    expect(html).not.toMatch(/<p>[同野观幂]<\/p>/);
   });
 
   it('does not hide or inert no-JS正文', () => {

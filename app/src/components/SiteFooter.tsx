@@ -8,6 +8,8 @@ export function SiteFooter() {
         <span>{SITE_META.footer.tagline}</span>
       </div>
       <div className="site-footer__records">
+        <a className="site-footer__record" href="/services/">服务说明</a>
+        <a className="site-footer__record" href="/faq/">常见问题</a>
         <a className="site-footer__record" href={SITE_META.footer.filingUrl}>
           {SITE_META.footer.filingText}
         </a>

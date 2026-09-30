@@ -29,3 +29,10 @@ jobs:
 
       - name: Lint, typecheck, unit tests, and production build
         run: pnpm run verify:all
+
+      - name: Verify scoped routing migration and atomic rollback
+        run: |
+          python3 scripts/test-prepare-seo-nginx.py
+          python3 scripts/test-promote-r5-site.py
+          bash -n scripts/promote-r5-site.sh
+          node --check scripts/deploy-r5-release.mjs

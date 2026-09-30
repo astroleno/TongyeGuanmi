@@ -12,6 +12,7 @@ const copyPath = path.join(repoDir, 'docs/react-refactor/inventory/copy-referenc
 const staticCopyOmissionsPath = path.join(appDir, 'build/static-copy-omissions.json');
 const faviconSourcePath = path.join(repoDir, 'assets/favicon.svg');
 const titleFontSourcePath = path.join(repoDir, 'assets/fonts/qiji-title-subset.ttf');
+const socialImageSourcePath = path.join(repoDir, 'assets/hero-back.webp');
 const releaseId = process.env.R5_RELEASE_ID?.trim() ?? '';
 const requireCdn = process.env.R5_REQUIRE_CDN === '1';
 const assetCdnOrigin = new URL(
@@ -512,10 +513,13 @@ async function filesBelow(directory) {
 }
 
 if (path.resolve(process.argv[1] ?? '') === SCRIPT_PATH) {
-const [html, copy, staticCopyOmissions] = await Promise.all([
+const [html, copy, staticCopyOmissions, robotsText, sitemapText, llmsText] = await Promise.all([
   readFile(indexPath, 'utf8'),
   readFile(copyPath, 'utf8').then(JSON.parse),
-  readFile(staticCopyOmissionsPath, 'utf8').then(JSON.parse)
+  readFile(staticCopyOmissionsPath, 'utf8').then(JSON.parse),
+  readFile(path.join(distDir, 'robots.txt'), 'utf8'),
+  readFile(path.join(distDir, 'sitemap.xml'), 'utf8'),
+  readFile(path.join(distDir, 'llms.txt'), 'utf8')
 ]);
 const text = visibleText(html);
 const staticCopyOmissionSet = new Set(staticCopyOmissions);
@@ -549,15 +553,26 @@ const initialScriptSrcs = (html.match(/<script\b[^>]*\bsrc=["'][^"']+["'][^>]*>/
   .filter(Boolean);
 assert(initialScriptSrcs.length === 1, 'release build must emit exactly one initial JavaScript entry');
 
-const [faviconBytes, faviconSourceBytes, titleFontBytes, titleFontSourceBytes, ...stylesheets] = await Promise.all([
+const [
+  faviconBytes,
+  faviconSourceBytes,
+  titleFontBytes,
+  titleFontSourceBytes,
+  socialImageBytes,
+  socialImageSourceBytes,
+  ...stylesheets
+] = await Promise.all([
   readFile(distPathFromHref(faviconHref, 'release favicon')),
   readFile(faviconSourcePath),
   readFile(distPathFromHref(titleFontHref, 'release title font preload')),
   readFile(titleFontSourcePath),
+  readFile(path.join(distDir, 'og-image.webp')),
+  readFile(socialImageSourcePath),
   ...stylesheetHrefs.map((href) => readFile(distPathFromHref(href, 'release stylesheet'), 'utf8'))
 ]);
 assert(faviconBytes.equals(faviconSourceBytes), 'emitted favicon bytes differ from assets/favicon.svg');
 assert(titleFontBytes.equals(titleFontSourceBytes), 'emitted title font bytes differ from assets/fonts/qiji-title-subset.ttf');
+assert(socialImageBytes.equals(socialImageSourceBytes), 'emitted social image differs from assets/hero-back.webp');
 const initialCss = stylesheets.join('\n');
 for (const token of ['@font-face', '--font-title:', '--font-sans:', '--font-traditional:']) {
   assert(initialCss.includes(token), `initial stylesheet is missing ${token}`);
@@ -572,13 +587,33 @@ assert(
   'Star Map production copy must retain the canonical opaque text color'
 );
 
-assert(html.includes('<title>同野观幂｜AI 转型与能力建设</title>'), 'release title is missing');
+assert(html.includes('<title>同野观幂｜企业 AI 转型咨询、培训与场景落地</title>'), 'release title is missing');
 assert(
-  html.includes('同野观幂是一家面向组织与个人能力建设的 AI 转型咨询公司'),
+  html.includes('同野观幂为企业提供 AI 转型咨询、管理层共识、岗位培训、场景共创'),
   'release description is missing'
 );
-assert(html.includes('<link rel="canonical" href="/">'), 'release canonical link is missing');
+assert(html.includes('<link rel="canonical" href="https://tongye.me/">'), 'release canonical link is missing');
+assert(html.includes('<meta property="og:image" content="https://tongye.me/og-image.webp">'), 'release Open Graph image is missing');
+assert(html.includes('<meta name="twitter:card" content="summary_large_image">'), 'release Twitter card is missing');
+assert(html.includes('<meta name="robots" content="index,follow,max-image-preview:large'), 'release robots directives are missing');
 assert(html.includes('<html lang="zh-CN">'), 'release language is missing');
+const jsonLdMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
+assert(jsonLdMatch, 'release JSON-LD is missing');
+const jsonLd = JSON.parse(jsonLdMatch[1]);
+assert(jsonLd['@context'] === 'https://schema.org', 'release JSON-LD context is invalid');
+assert(
+  jsonLd['@graph']?.some((entry) => entry['@type'] === 'Organization')
+    && jsonLd['@graph']?.some((entry) => entry['@type'] === 'WebSite')
+    && jsonLd['@graph']?.some((entry) => entry['@type'] === 'WebPage'),
+  'release JSON-LD graph is incomplete'
+);
+assert(robotsText.includes('Sitemap: https://tongye.me/sitemap.xml'), 'release robots.txt has no sitemap');
+assert(!/<html\b/i.test(robotsText), 'release robots.txt is an HTML fallback');
+assert(sitemapText.includes('<loc>https://tongye.me/</loc>'), 'release sitemap has no canonical homepage');
+assert(!/<html\b/i.test(sitemapText), 'release sitemap.xml is an HTML fallback');
+assert(llmsText.includes('# 同野观幂'), 'release llms.txt is missing its entity heading');
+assert(!/<html\b/i.test(llmsText), 'release llms.txt is an HTML fallback');
+await import('./verify-seo-build.mjs');
 assert(
   html.includes('data-loader-ink-fallback="true"'),
   'release HTML is missing the loader Ink CSS fallback contract'

@@ -1,4 +1,5 @@
 import { SITE_META } from '../src/content/site-meta';
+import { SEO_META } from './seo-meta';
 import staticCopyOmissions from './static-copy-omissions.json';
 
 export type StaticCopySection = {
@@ -23,14 +24,46 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
-function renderSection(section: StaticCopySection, headingTag: 'h1' | 'h2'): string {
-  const [heading = section.sectionId, ...paragraphs] = section.normalizedText;
+type SectionRenderOptions = Readonly<{
+  heading?: string;
+  paragraphs?: readonly string[];
+  primary?: boolean;
+}>;
+
+function renderSection(
+  section: StaticCopySection,
+  headingTag: 'h1' | 'h2',
+  options: SectionRenderOptions = {}
+): string {
+  const [defaultHeading = section.sectionId, ...defaultParagraphs] = section.normalizedText;
+  const heading = options.heading ?? defaultHeading;
+  const paragraphs = options.paragraphs ?? defaultParagraphs;
+  const headingId = `static-${section.sectionId}-title`;
+  const primaryAttribute = options.primary ? ' data-static-primary-heading="true"' : '';
   return [
-    `<section id="${escapeHtml(section.sectionId)}" data-static-section="${escapeHtml(section.sectionId)}">`,
-    `<${headingTag}>${escapeHtml(heading)}</${headingTag}>`,
+    `<section id="${escapeHtml(section.sectionId)}" data-static-section="${escapeHtml(section.sectionId)}" aria-labelledby="${escapeHtml(headingId)}">`,
+    `<${headingTag} id="${escapeHtml(headingId)}"${primaryAttribute}>${escapeHtml(heading)}</${headingTag}>`,
     ...paragraphs.map((text) => `<p>${escapeHtml(text)}</p>`),
     '</section>'
   ].join('\n');
+}
+
+function renderStorySection(section: StaticCopySection, index: number): string {
+  if (index !== 0) {
+    return renderSection(section, 'h2');
+  }
+
+  const splitBrand = section.sectionId === 'home'
+    && section.normalizedText.slice(0, 4).join('') === SEO_META.brandName;
+  const paragraphs = splitBrand
+    ? section.normalizedText.slice(4)
+    : section.normalizedText.slice(1);
+
+  return renderSection(section, 'h1', {
+    heading: SEO_META.homeHeading,
+    paragraphs,
+    primary: true
+  });
 }
 
 export function renderStaticStoryShell(copy: StaticCopyReference): string {
@@ -52,7 +85,7 @@ export function renderStaticStoryShell(copy: StaticCopyReference): string {
     '</nav>',
     '</header>',
     '<main class="static-content__main">',
-    ...sections.map((section, index) => renderSection(section, index === 0 ? 'h1' : 'h2')),
+    ...sections.map(renderStorySection),
     '</main>',
     '<footer class="site-footer" data-site-footer="true">',
     '<div class="site-footer__meta">',
@@ -60,6 +93,8 @@ export function renderStaticStoryShell(copy: StaticCopyReference): string {
     `<span>${escapeHtml(SITE_META.footer.tagline)}</span>`,
     '</div>',
     '<div class="site-footer__records">',
+    '<a class="site-footer__record" href="/services/">服务说明</a>',
+    '<a class="site-footer__record" href="/faq/">常见问题</a>',
     `<a class="site-footer__record" href="${escapeHtml(SITE_META.footer.filingUrl)}">${escapeHtml(SITE_META.footer.filingText)}</a>`,
     `<a class="site-footer__record" href="${escapeHtml(SITE_META.footer.publicSecurityUrl)}" target="_blank" rel="noreferrer" aria-label="${escapeHtml(SITE_META.footer.publicSecurityAriaLabel)}">${escapeHtml(SITE_META.footer.publicSecurityText)}</a>`,
     '</div>',

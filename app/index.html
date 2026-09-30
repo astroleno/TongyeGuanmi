@@ -8,7 +8,7 @@
     <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="../assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
     <link id="phone-first-art" rel="preload" href="../assets/hero-back.webp" as="image" crossorigin fetchpriority="high" media="not all" />
-    <!--__CANONICAL_LINK__-->
+    <!--__SEO_HEAD__-->
     <!--__R5_CDN_RUNTIME__-->
     <title>__SITE_TITLE__</title>
     <script>
@@ -57,6 +57,27 @@
     <noscript><style>#story-loader-static { display: none !important; }</style></noscript>
     <div id="root"></div>
     <!--__STATIC_STORY_CONTENT__-->
+    <script>
+      (() => {
+        const selector = '[data-static-primary-heading="true"]';
+        const syncStaticHeading = () => {
+          const source = document.querySelector(selector);
+          const targetTag = document.documentElement.dataset.storyHydrated === 'true' ? 'p' : 'h1';
+          if (!source || source.tagName.toLowerCase() === targetTag) return;
+          const replacement = document.createElement(targetTag);
+          for (const attribute of source.attributes) {
+            replacement.setAttribute(attribute.name, attribute.value);
+          }
+          while (source.firstChild) replacement.append(source.firstChild);
+          source.replaceWith(replacement);
+        };
+        new MutationObserver(syncStaticHeading).observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['data-story-hydrated']
+        });
+        syncStaticHeading();
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

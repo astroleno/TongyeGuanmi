@@ -5,8 +5,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import type { Plugin, Rollup } from 'vite';
+import { renderSeoHead } from './build/seo-head';
+import { SEO_META } from './build/seo-meta';
+import { seoPagesPlugin } from './build/seo-plugin';
 import { renderStaticStoryShell, type StaticCopyReference } from './build/static-shell';
-import { SITE_META } from './src/content/site-meta';
 
 const repoRoot = fileURLToPath(new URL('../', import.meta.url));
 const documentBuildId = process.env.R5_SOURCE_COMMIT?.trim() || (() => {
@@ -103,10 +105,10 @@ function staticStoryShellPlugin() {
           ? `<script>var $a=${JSON.stringify(`${assetCdnBase}/releases/${releaseId}/assets/`)},$m=${JSON.stringify(`${mediaCdnBase}/releases/${releaseId}/assets/`)}</script>`
           : '';
         return html
-          .replace('__SITE_LANGUAGE__', escapeAttribute(SITE_META.language))
-          .replace('__SITE_DESCRIPTION__', escapeAttribute(SITE_META.description))
-          .replace('__SITE_TITLE__', escapeAttribute(SITE_META.title))
-          .replace('<!--__CANONICAL_LINK__-->', `<link rel="canonical" href="${SITE_META.canonicalPath}">`)
+          .replace('__SITE_LANGUAGE__', escapeAttribute(SEO_META.language))
+          .replace('__SITE_DESCRIPTION__', escapeAttribute(SEO_META.description))
+          .replace('__SITE_TITLE__', escapeAttribute(SEO_META.title))
+          .replace('<!--__SEO_HEAD__-->', renderSeoHead())
           .replace('<!--__R5_CDN_RUNTIME__-->', releaseId
             ? `<link rel="preconnect" href="${assetCdnBase}" crossorigin><link rel="preconnect" href="${mediaCdnBase}" crossorigin>${cdnRuntime}`
             : cdnRuntime)
@@ -194,6 +196,7 @@ function r5ModuleProvenancePlugin(): Plugin {
 }
 
 export default defineConfig({
+  appType: 'mpa',
   worker: {
     format: 'es',
     plugins: () => [{
@@ -204,7 +207,7 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_R5_DOCUMENT_BUILD_ID': JSON.stringify(documentBuildId)
   },
-  plugins: [react(), staticStoryShellPlugin(), r5ModuleProvenancePlugin()],
+  plugins: [react(), staticStoryShellPlugin(), seoPagesPlugin(), r5ModuleProvenancePlugin()],
   ...(releaseId
     ? {
         experimental: {

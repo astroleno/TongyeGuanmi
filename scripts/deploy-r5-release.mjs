@@ -58,6 +58,76 @@ async function publicSmoke(releaseId, sourceCommit) {
   if (homepage.status !== 200 || !html.includes('同野观幂')) {
     throw new Error(`public homepage failed with ${homepage.status}`);
   }
+  for (const route of ['/services/', '/faq/']) {
+    const response = await fetch(`https://tongye.me${route}`, {
+      cache: 'no-store', signal: AbortSignal.timeout(20_000)
+    });
+    const body = await response.text();
+    if (response.status !== 200 || !response.headers.get('content-type')?.includes('text/html')
+      || !body.includes(`<link rel="canonical" href="https://tongye.me${route}">`)
+      || !body.includes('<h1>') || /<script\b[^>]*\bsrc=|<video\b/i.test(body)
+      || /noindex/i.test(response.headers.get('x-robots-tag') ?? '')) {
+      throw new Error(`public ${route} failed its static content contract`);
+    }
+  }
+  for (const route of ['/seo-release-not-a-real-page', '/missing-seo-image.webp', '/harness/hero']) {
+    const response = await fetch(`https://tongye.me${route}`, {
+      cache: 'no-store', signal: AbortSignal.timeout(20_000)
+    });
+    if (response.status !== 404) throw new Error(`public ${route} returned ${response.status}, expected 404`);
+    await response.body?.cancel();
+  }
+  for (const route of ['/services', '/faq/index.html']) {
+    const response = await fetch(`https://tongye.me${route}`, {
+      redirect: 'manual', signal: AbortSignal.timeout(20_000)
+    });
+    const target = route.startsWith('/services') ? '/services/' : '/faq/';
+    if (response.status !== 301 || new URL(response.headers.get('location') ?? '', 'https://tongye.me').pathname !== target) {
+      throw new Error(`public ${route} does not canonicalize`);
+    }
+    await response.body?.cancel();
+  }
+  for (const resource of [
+    {
+      path: '/robots.txt',
+      contentType: 'text/plain',
+      includes: 'Sitemap: https://tongye.me/sitemap.xml'
+    },
+    {
+      path: '/sitemap.xml',
+      contentType: 'xml',
+      includes: '<loc>https://tongye.me/</loc>'
+    },
+    {
+      path: '/llms.txt',
+      contentType: 'text/plain',
+      includes: '# 同野观幂'
+    }
+  ]) {
+    const response = await fetch(`https://tongye.me${resource.path}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(20_000)
+    });
+    const body = await response.text();
+    if (
+      response.status !== 200
+      || !response.headers.get('content-type')?.includes(resource.contentType)
+      || !body.includes(resource.includes)
+      || /<html\b/i.test(body)
+    ) {
+      throw new Error(`public ${resource.path} is not a valid machine-readable resource`);
+    }
+  }
+  const socialImage = await fetch('https://tongye.me/og-image.webp', {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(20_000)
+  });
+  if (
+    socialImage.status !== 200
+    || !socialImage.headers.get('content-type')?.includes('image/webp')
+  ) {
+    throw new Error('public social image is unavailable');
+  }
   const www = await fetch('https://www.tongye.me/', {
     redirect: 'manual',
     signal: AbortSignal.timeout(20_000)
@@ -92,8 +162,6 @@ const sshKey = path.resolve(
 );
 const releaseId = deployManifest.releaseId;
 const remoteTemp = `/tmp/tongye-release-${releaseId}`;
-const siteRoot = '/www/wwwroot/tongye.me';
-const releaseRoot = `${siteRoot}/releases/${releaseId}`;
 const uploader = path.resolve('scripts/upload-cos-release.py');
 const cdnVerifier = path.resolve('app/scripts/verify-cdn-release.mjs');
 const sshTransport = `ssh -i ${sshKey} -o IdentitiesOnly=yes`;
@@ -114,6 +182,13 @@ run('scp', [
   '-o', 'IdentitiesOnly=yes',
   uploader,
   `${sshTarget}:${remoteTemp}/upload-cos-release.py`
+]);
+run('scp', [
+  '-i', sshKey, '-o', 'IdentitiesOnly=yes',
+  path.resolve('scripts/prepare-seo-nginx.py'),
+  path.resolve('scripts/promote-r5-site.sh'),
+  path.resolve('ops/nginx/tongye-seo-routes.inc'),
+  `${sshTarget}:${remoteTemp}/`
 ]);
 run('ssh', sshArgs(
   sshKey,
@@ -141,21 +216,7 @@ run(process.execPath, [cdnVerifier], {
 run('ssh', sshArgs(
   sshKey,
   sshTarget,
-  [
-    'set -eu',
-    `sudo install -d -m 755 ${siteRoot}/releases`,
-    `sudo test ! -e ${releaseRoot}`,
-    `sudo rm -rf ${releaseRoot}.staging`,
-    `sudo install -d -m 755 ${releaseRoot}.staging`,
-    `sudo rsync -a --delete ${remoteTemp}/site/ ${releaseRoot}.staging/`,
-    `sudo chown -R www:www ${releaseRoot}.staging`,
-    `sudo mv ${releaseRoot}.staging ${releaseRoot}`,
-    `readlink -f ${siteRoot}/current > ${remoteTemp}/previous-release.txt || :`,
-    'sudo nginx -t',
-    `sudo ln -sfn ${releaseRoot} ${siteRoot}/.current-${releaseId}`,
-    `sudo mv -Tf ${siteRoot}/.current-${releaseId} ${siteRoot}/current`,
-    'sudo systemctl reload nginx'
-  ].join('; ')
+  `sudo bash ${remoteTemp}/promote-r5-site.sh ${releaseId} ${remoteTemp}`
 ));
 
 try {
@@ -164,13 +225,7 @@ try {
   run('ssh', sshArgs(
     sshKey,
     sshTarget,
-    [
-      'set -eu',
-      `previous=$(cat ${remoteTemp}/previous-release.txt 2>/dev/null || true)`,
-      `if [ -n "$previous" ] && [ -d "$previous" ]; then sudo ln -sfn "$previous" ${siteRoot}/.current-rollback; sudo mv -Tf ${siteRoot}/.current-rollback ${siteRoot}/current; else sudo rm -f ${siteRoot}/current; fi`,
-      'sudo nginx -t',
-      'sudo systemctl reload nginx'
-    ].join('; ')
+    `sudo bash ${remoteTemp}/promote-r5-site.sh ${releaseId} ${remoteTemp} --rollback`
   ));
   throw error;
 }

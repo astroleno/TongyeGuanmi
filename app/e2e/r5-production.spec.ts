@@ -26,12 +26,15 @@ test('public root boots the production StoryApp without scaffold or harness code
   await expect(page.locator('[data-production-story-app="true"]')).toBeVisible();
   await expect(page.locator('[data-testid="r0-scaffold"]')).toHaveCount(0);
   await expect(page.locator('.static-content')).toBeHidden();
+  await expect(page.locator('.static-content h1')).toHaveCount(0);
+  await expect(page.locator('.static-content [data-static-primary-heading="true"]')).toHaveCount(1);
+  await expect(page.locator('h1')).toHaveCount(1);
   await expect(page.locator('.site-nav')).toBeHidden();
   await expect(page.locator('.scroll-edge-blur')).toBeHidden();
-  await expect(page).toHaveTitle('同野观幂｜AI 转型与能力建设');
+  await expect(page).toHaveTitle('同野观幂｜企业 AI 转型咨询、培训与场景落地');
   await expect(page.locator('meta[name="description"]')).toHaveAttribute(
     'content',
-    /同野观幂是一家面向组织与个人能力建设的 AI 转型咨询公司/
+    /同野观幂为企业提供 AI 转型咨询、管理层共识、岗位培训、场景共创/
   );
   expect(snapshot.current).toBe('hero');
   expect(new URL(page.url()).hash).toBe('');
@@ -327,7 +330,7 @@ test('Hero boot failure removes the loader and leaves the crawlable static shell
   const loader = page.locator('[data-story-loader="true"]');
   await expect(loader).toBeHidden({ timeout: 3_000 });
   await expect(page.locator('.static-content')).toBeVisible();
-  await expect(page.locator('.static-content h1')).toContainText('同');
+  await expect(page.locator('.static-content h1')).toHaveText('同野观幂｜企业 AI 转型咨询与场景落地');
   await expect(page.locator('[data-production-story-app="true"]')).toBeHidden();
   expect(await page.locator('html').getAttribute('data-story-hydrated')).toBeNull();
 });
@@ -1230,11 +1233,11 @@ test('Contact reverse recovery stays local while only its explicit link may retu
 
 test('legacy and harness URLs cannot reach an old/default runtime in release output', async ({ page }) => {
 
-  await page.goto('/aod.html');
-  await expect(page.getByRole('heading', { name: '页面不存在' })).toBeVisible();
+  expect((await page.goto('/aod.html'))?.status()).toBe(404);
+  await expect(page.getByRole('heading', { name: '页面未找到' })).toBeVisible();
   expect(await page.locator('script[src*="js/main.js"]').count()).toBe(0);
 
-  await page.goto('/harness/r4-g1');
-  await expect(page.getByRole('heading', { name: '页面不存在' })).toBeVisible();
+  expect((await page.goto('/harness/r4-g1'))?.status()).toBe(404);
+  await expect(page.getByRole('heading', { name: '页面未找到' })).toBeVisible();
   expect(await page.evaluate(() => '__r4Group1' in window)).toBe(false);
 });

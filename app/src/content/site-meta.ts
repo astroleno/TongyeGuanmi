@@ -1,8 +1,4 @@
 export const SITE_META = {
-  language: 'zh-CN',
-  title: '同野观幂｜AI 转型与能力建设',
-  description: '同野观幂是一家面向组织与个人能力建设的 AI 转型咨询公司，帮助企业把 AI 变成团队真正会用、业务真正用得上的能力。',
-  canonicalPath: '/',
   footer: {
     company: '© 上海同野观幂科技有限公司',
     tagline: 'AI Transformation & Capability Building',
