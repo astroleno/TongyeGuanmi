@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   FIGURE2_INTRO_PLAYBACK_MS,
+  Figure2AnimationScene,
   commitFigure2MediaLeg,
   disposeFigure2Media,
   ensureFigure2HoldFrame,
@@ -175,6 +176,16 @@ function mediaRoot(images: readonly FakeImage[] = [], retainedArch: FakeImage | 
 }
 
 describe('Figure2 canonical media', () => {
+  it('defers phone decoder loading without downloading a desktop alpha source', () => {
+    const markup = renderToStaticMarkup(createElement(Figure2AnimationScene, {
+      scene: 'figure2-animation', hidden: false, packedAlpha: true
+    }));
+    expect(markup).toContain('preload="none"');
+    expect(markup).not.toContain('<source');
+    expect(markup).not.toContain('figure2-pair-motion.webm');
+    expect(markup).not.toContain('figure2-pair-motion-hevc-alpha.mp4');
+  });
+
   it('renders one bidirectional canonical surface with no poster or bridge surface', () => {
     const markup = renderToStaticMarkup(createElement(figure2AnimationScene.Component, {
       scene: 'figure2-animation',
@@ -184,6 +195,7 @@ describe('Figure2 canonical media', () => {
     expect(markup.match(/data-figure2-video=/g)).toHaveLength(1);
     expect(markup).toContain('data-figure2-combined-video="true"');
     expect(markup).toContain('data-media-key="figure2-pair-motion"');
+    expect(markup).toContain('preload="auto"');
     expect(markup).toContain('figure2-pair-motion.webm');
     expect(markup).toContain('figure2-pair-motion-hevc-alpha.mp4');
     expect(markup).not.toContain('poster');
@@ -248,7 +260,7 @@ describe('Figure2 canonical media', () => {
       videoMode: 'seek',
       mediaRun: { runId: 'phone-reverse:1', direction: -1 }
     });
-    expect(video.dataset.timelineVideoTarget).toBe('3.8900');
+    expect(video.dataset.timelineVideoTarget).toBe('3.9000'); // Nearest authored 30 fps frame.
     expect(video.dataset.timelineVideoDirection).toBe('-1');
     disposeFigure2Media(root as unknown as HTMLElement);
   });

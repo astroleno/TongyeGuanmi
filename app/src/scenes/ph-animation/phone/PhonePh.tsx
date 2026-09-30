@@ -1,5 +1,4 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
-import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
 import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
 import {
@@ -19,8 +18,6 @@ import type { PhoneLeafDisposeReason } from '../../../production/phone-story/pro
 import {
   PH_BG_SRC,
   PH_FIGURE_END_SECONDS,
-  PH_FIGURE_HEVC_ALPHA_SRC,
-  PH_FIGURE_VIDEO_SRC,
   PH_FRONT_SRC,
   PH_MEDIA_KEY,
   parkPhMedia
@@ -160,7 +157,9 @@ export function PhonePh({ reports }: PhonePhProps) {
       if (!sameRun) {
         mediaRunTokenRef.current = null;
         mediaPhaseRef.current = 'held';
-        admissionGenerationRef.current = binding.segmentId === null ? readyGenerationRef.current : 0;
+        const retainedFrame = (binding.segmentId === null || binding.leg === 'rollback')
+          && readyGenerationRef.current === surfaceGenerationRef.current;
+        admissionGenerationRef.current = retainedFrame ? readyGenerationRef.current : 0;
       }
       const admitted = admissionGenerationRef.current;
       if (admitted > 0 && admitted === readyGenerationRef.current) reportGeneration(binding, admitted);
@@ -348,7 +347,7 @@ export function PhonePh({ reports }: PhonePhProps) {
       get element() { return canvasRef.current ?? canvas; },
       kind: 'canvas-webgl' as const
     };
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root: mountRoot,
       surfaces: [
         { id: 'ph-figure-video', element: video, kind: 'video' },
@@ -357,6 +356,7 @@ export function PhonePh({ reports }: PhonePhProps) {
       commands
     });
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       admissionGenerationRef.current = 0;
       surfaceGenerationRef.current = 0;
@@ -400,14 +400,9 @@ export function PhonePh({ reports }: PhonePhProps) {
                     data-ph-alpha-video
                     data-media-key={PH_MEDIA_KEY}
                     muted
-                    preload="auto"
+                    preload="none"
                     playsInline
-                  >
-                    <AlphaVideoSources
-                      webm={PH_FIGURE_VIDEO_SRC}
-                      hevc={PH_FIGURE_HEVC_ALPHA_SRC}
-                    />
-                  </video>
+                  />
                   <canvas
                     ref={canvasRef}
                     className="ph-layer ph-layer--figure phone-ph__figure-canvas"

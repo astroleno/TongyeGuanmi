@@ -45,6 +45,9 @@ export const packedAlphaVideoSources = [
 ];
 
 export const portraitOnlyImageSources = [
+  'assets/phone/pattern-background.webp',
+  'assets/phone/hero-figure-poster.webp',
+  'assets/phone/ttg-foreground.webp',
   'assets/aod-figure-opening.webp',
   'assets/figure2-pair-opening.webp',
   'assets/figure2-phone-foreground-arch.webp',
@@ -54,6 +57,24 @@ export const portraitOnlyImageSources = [
 ];
 
 export const frozenHomepageMedia = [
+  {
+    source: 'assets/phone/pattern-background.webp',
+    category: 'portrait-adopted-webp',
+    bytes: 27356,
+    sha256: '06cb5f9c492f56a39cdb82c0da95f41946ae55a161c1b2fc259727db42df4513'
+  },
+  {
+    source: 'assets/phone/hero-figure-poster.webp',
+    category: 'portrait-adopted-webp',
+    bytes: 88056,
+    sha256: '2fd792c09a4c678e3d5309a007cdd173782d9ec6842dfab5a44009246002dd1f'
+  },
+  {
+    source: 'assets/phone/ttg-foreground.webp',
+    category: 'portrait-adopted-webp',
+    bytes: 194620,
+    sha256: 'c0a539b541564ddffad602919370207a6d9d827f540b9f648b3ed036f37e2419'
+  },
   {
     source: 'assets/figure1.webm',
     category: 'hero-animation',
@@ -153,14 +174,14 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/figure1-rgb-alpha.mp4',
     category: 'portrait-packed-alpha',
-    bytes: 1499360,
-    sha256: '7548484ebd66a4ebe8a8f3a95647df66558dc9ac2b6e5f0d6fc8fa5dcc445b64'
+    bytes: 1486671,
+    sha256: 'a04c4cce806327ffa0ef67f73d847e6f9b2d152150dda4237b7f49d02f5eccd0'
   },
   {
     source: 'assets/figure2-pair-motion-rgb-alpha.mp4',
     category: 'portrait-packed-alpha',
-    bytes: 8180603,
-    sha256: 'd472ec0767f1d113ae8020ed232c763ba53c5821deb725660601172954bc63ef'
+    bytes: 4863786,
+    sha256: 'fee60584dae2716f0bc3e0507483959e7309b2c1f0936afa04e3ec5d4443426f'
   },
   {
     source: 'assets/aod-figure-motion-rgb-alpha.mp4',
@@ -231,8 +252,8 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/figure2-phone-foreground-arch.webp',
     category: 'portrait-adopted-webp',
-    bytes: 697046,
-    sha256: 'fdf7cc96d69a0e886493c07c29958bd1be2d2ae107405295313740fc862a94b5'
+    bytes: 286206,
+    sha256: '1a5d86c6d640644cac5d633af8ce086c9434c24f92eb999f5629af4df3c227ad'
   },
   {
     source: 'assets/figure2-pair-opening.webp',

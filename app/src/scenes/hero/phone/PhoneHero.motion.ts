@@ -184,6 +184,7 @@ export function createPhoneFigurePlayback(
         direction: runDirection,
         progress,
         durationFallbackSeconds: PHONE_FIGURE_DURATION_SECONDS,
+        frameRate: 24,
         startSeconds: 0,
         endSeconds: PHONE_FIGURE_DURATION_SECONDS - PHONE_FIGURE_END_EPSILON_SECONDS,
         mode: 'timeline',

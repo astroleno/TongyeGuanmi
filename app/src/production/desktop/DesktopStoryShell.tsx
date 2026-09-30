@@ -249,7 +249,7 @@ export function DesktopStoryShell({ spikeRoute }: DesktopStoryShellProps = {}) {
   }), [layerStore, registry]);
 
   const runtimeSnapshot = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
-  const layerSnapshot = useSyncExternalStore(layerStore.subscribe, layerStore.getSnapshot, layerStore.getSnapshot);
+  const layerSnapshot = useSyncExternalStore(layerStore.subscribeRender, layerStore.getRenderSnapshot, layerStore.getRenderSnapshot);
   const currentScene = runtimeSnapshot.context.layerWindow.current;
   const loaderMode: StoryLoaderMode = reducedMotion
     ? 'reduced'

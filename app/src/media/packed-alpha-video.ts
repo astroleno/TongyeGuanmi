@@ -109,6 +109,7 @@ export function packedAlphaFrameSize(
 export function setPackedAlphaVideoSource(video: HTMLVideoElement, sourceUrl: string): void {
   const ownerDocument = video.ownerDocument
     ?? (typeof document === 'undefined' ? undefined : document);
+  video.crossOrigin = 'anonymous';
   video.pause();
   video.autoplay = false;
   video.loop = false;
@@ -259,6 +260,9 @@ export function createPackedAlphaVideoCompositor(
   let frameCallback = 0;
   let animationFrame = 0;
   let renderedFrames = 0;
+  let uploadedTime = Number.NaN;
+  let uploadedFrames = -1;
+  let uploadedSize = '';
 
   gl.useProgram(program);
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -303,7 +307,12 @@ export function createPackedAlphaVideoCompositor(
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     try {
-      gl.texImage2D(
+      const decodedFrames = video.getVideoPlaybackQuality?.().totalVideoFrames ?? -1;
+      const size = `${video.videoWidth}:${video.videoHeight}`;
+      // Repaint retained textures for proof callbacks, but upload a decoded
+      // frame only once. A seek in flight can still expose the previous frame.
+      if (video.seeking || uploadedTime !== video.currentTime
+        || uploadedFrames !== decodedFrames || uploadedSize !== size) gl.texImage2D(
         gl.TEXTURE_2D,
         0,
         gl.RGBA,
@@ -311,6 +320,9 @@ export function createPackedAlphaVideoCompositor(
         gl.UNSIGNED_BYTE,
         video
       );
+      uploadedTime = video.seeking ? Number.NaN : video.currentTime;
+      uploadedFrames = decodedFrames;
+      uploadedSize = size;
     } catch {
       canvas.dataset.packedAlphaStatus = 'frame-upload-failed';
       options.onFailure?.({

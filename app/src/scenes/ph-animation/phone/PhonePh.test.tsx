@@ -42,7 +42,8 @@ describe('PhonePh', () => {
     expect(markup.match(/data-r4-scene="ph-animation"/g)).toHaveLength(1);
     expect(markup.match(/data-media-key="ph-figure-motion"/g)).toHaveLength(1);
     expect(markup).toContain('data-phone-scene="ph-animation"');
-    expect(markup).toContain('preload="auto"');
+    expect(markup).toContain('preload="none"');
+    expect(markup).not.toContain('<source');
   });
 
   it('uses stable reduced-motion endpoints in canonical order', () => {

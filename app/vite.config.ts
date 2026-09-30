@@ -107,7 +107,9 @@ function staticStoryShellPlugin() {
           .replace('__SITE_DESCRIPTION__', escapeAttribute(SITE_META.description))
           .replace('__SITE_TITLE__', escapeAttribute(SITE_META.title))
           .replace('<!--__CANONICAL_LINK__-->', `<link rel="canonical" href="${SITE_META.canonicalPath}">`)
-          .replace('<!--__R5_CDN_RUNTIME__-->', cdnRuntime)
+          .replace('<!--__R5_CDN_RUNTIME__-->', releaseId
+            ? `<link rel="preconnect" href="${assetCdnBase}" crossorigin><link rel="preconnect" href="${mediaCdnBase}" crossorigin>${cdnRuntime}`
+            : cdnRuntime)
           .replace('<!--__STATIC_STORY_CONTENT__-->', renderStaticStoryShell(copyReference));
       }
     }
@@ -192,6 +194,13 @@ function r5ModuleProvenancePlugin(): Plugin {
 }
 
 export default defineConfig({
+  worker: {
+    format: 'es',
+    plugins: () => [{
+      name: 'star-worker-fallback-exports',
+      options: (options) => ({ ...options, preserveEntrySignatures: 'strict' })
+    }]
+  },
   define: {
     'import.meta.env.VITE_R5_DOCUMENT_BUILD_ID': JSON.stringify(documentBuildId)
   },
@@ -223,6 +232,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Architecture fixtures build TypeScript programs; concurrent suites can
+    // exhaust CPU and hit their unchanged per-test deadlines on local runners.
+    maxWorkers: 1,
     include: [
       'src/**/*.test.{ts,tsx}',
       'eslint-rules/**/*.test.mjs',

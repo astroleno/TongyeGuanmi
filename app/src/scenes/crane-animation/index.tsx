@@ -237,7 +237,7 @@ function CraneAnimationScene({ registerHandle }: SceneComponentProps) {
             <div className="crane-layer-stack" data-transition-ghost="crane-motion" aria-hidden="true">
               <img className="crane-layer crane-layer--cloud-back" src={CRANE_CLOUD_BACK_SRC} alt="" />
               <div className="crane-video-transition crane-video-transition--figure">
-                <video
+                <video crossOrigin="anonymous"
                   ref={(element) => registerHandle?.('figure-video', element)}
                   className="crane-figure-video"
                   data-crane-figure-video
@@ -256,7 +256,7 @@ function CraneAnimationScene({ registerHandle }: SceneComponentProps) {
               <img className="crane-layer crane-layer--cloud-front" src={CRANE_CLOUD_FRONT_SRC} alt="" />
               <img className="crane-layer crane-layer--cloud-front-second" src={CRANE_CLOUD_FRONT_SECOND_SRC} alt="" />
               <div className="crane-video-transition crane-video-transition--front">
-                <video
+                <video crossOrigin="anonymous"
                   ref={(element) => registerHandle?.('flock-video', element)}
                   className="crane-figure-video crane-figure-video--front"
                   data-crane-figure-front-video

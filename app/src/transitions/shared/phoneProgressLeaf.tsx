@@ -13,7 +13,7 @@ export function createPhoneProgressLeaf(options: Readonly<{
   }) satisfies PhoneLeafCommandHandle;
   function PhoneProgressLeaf({ reports }: Readonly<{ reports: PhoneLeafReportPort }>) {
     const rootRef = useRef<HTMLDivElement | null>(null);
-    useLayoutEffect(() => { const root = rootRef.current; if (root) reports.registerMount({ root,
+    useLayoutEffect(() => { const root = rootRef.current; if (root) return reports.registerMount({ root,
       surfaces: [{ id: options.surfaceId, element: root, kind: 'dom' }], commands }); }, [commands, reports]);
     return createElement('div', { ref: rootRef, 'data-phone-transition': options.segmentId,
       'aria-hidden': 'true' });

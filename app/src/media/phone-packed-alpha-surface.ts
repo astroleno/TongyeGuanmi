@@ -83,6 +83,7 @@ export function createPhonePackedAlphaSurface(
   let dormantCompositor: PackedAlphaVideoCompositor | undefined;
   let mode: PhonePackedAlphaSurfaceMode | undefined;
   let frameTimeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+  let frameReady: (() => void) | undefined;
   let endpointSeek: (() => void) | undefined;
   let disposed = false;
   let generationSequence = 0;
@@ -92,6 +93,13 @@ export function createPhonePackedAlphaSurface(
   if (retainedCanvas) {
     retainedCanvas.dataset.packedAlphaCompositorActive = semanticBoolean(false);
   }
+
+  const clearFrameDeadline = () => {
+    if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
+    frameTimeout = undefined;
+    if (frameReady) video.removeEventListener('loadeddata', frameReady);
+    frameReady = undefined;
+  };
 
   const clearEndpointSeek = () => {
     if (!endpointSeek) return;
@@ -127,8 +135,7 @@ export function createPhonePackedAlphaSurface(
   };
 
   const clearPresentation = (retirement: PackedAlphaContextRetirement) => {
-    if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-    frameTimeout = undefined;
+    clearFrameDeadline();
     clearEndpointSeek();
     activeGeneration = 0;
     retireCompositor(retirement);
@@ -141,8 +148,7 @@ export function createPhonePackedAlphaSurface(
     generation: number
   ) => {
     if (disposed || generation === 0 || generation !== activeGeneration) return;
-    if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-    frameTimeout = undefined;
+    clearFrameDeadline();
     clearEndpointSeek();
     activeGeneration = 0;
     mode = undefined;
@@ -160,8 +166,7 @@ export function createPhonePackedAlphaSurface(
       }, generation);
       return;
     }
-    if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-    frameTimeout = undefined;
+    clearFrameDeadline();
     clearEndpointSeek();
     retireCompositor(ownsCanvas ? 'terminal' : 'reactivatable');
     retireCanvas();
@@ -169,8 +174,7 @@ export function createPhonePackedAlphaSurface(
   };
 
   const deferForwardProbeUntilPlayback = () => {
-    if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-    frameTimeout = undefined;
+    clearFrameDeadline();
     if (mode === 'forward') root.dataset[statusDataset] = 'awaiting-native-playback';
   };
 
@@ -234,8 +238,7 @@ export function createPhonePackedAlphaSurface(
             delete canvasForGeneration.dataset.packedAlphaMediaTime;
             return;
           }
-          if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-          frameTimeout = undefined;
+          clearFrameDeadline();
           root.dataset[statusDataset] = 'verified';
           options.onFrame?.({ canvas: canvasForGeneration, generation });
         },
@@ -290,18 +293,25 @@ export function createPhonePackedAlphaSurface(
           // loadeddata presents frame zero after source selection.
         }
       }
-      frameTimeout = globalThis.setTimeout(() => {
-        if (generation !== activeGeneration || root.dataset[statusDataset] === 'verified') return;
-        if (mode === 'forward') deferForwardProbeUntilPlayback();
-        else settleStaticFallback(generation);
-      }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
+      // The runtime owns network preparation. Start the compositor deadline
+      // only once media data exists, so slow TLS/downloads are not GPU failures.
+      frameReady = () => {
+        if (generation !== activeGeneration || root.dataset[statusDataset] === 'verified'
+          || frameTimeout !== undefined) return;
+        frameTimeout = globalThis.setTimeout(() => {
+          if (generation !== activeGeneration || root.dataset[statusDataset] === 'verified') return;
+          if (mode === 'forward') deferForwardProbeUntilPlayback();
+          else settleStaticFallback(generation);
+        }, options.frameTimeoutMs ?? DEFAULT_FRAME_TIMEOUT_MS);
+      };
+      video.addEventListener('loadeddata', frameReady, { once: true });
+      if (video.readyState >= HAVE_CURRENT_DATA) frameReady();
       return generation;
     },
     setMode(nextMode: PhonePackedAlphaSurfaceMode, preservePresentation = false) {
       if (disposed || activeGeneration === 0) return;
       mode = nextMode;
-      if (frameTimeout !== undefined) globalThis.clearTimeout(frameTimeout);
-      frameTimeout = undefined;
+      clearFrameDeadline();
       if (!preservePresentation || root.dataset[statusDataset] !== 'verified') {
         root.dataset[statusDataset] = nextMode === 'forward'
           ? 'awaiting-native-playback' : 'probing';

@@ -16,9 +16,9 @@ const posterOutput = 'assets/figure2-pair-opening.webp';
 const frozenBySource = new Map(
   frozenHomepageMedia.map((entry) => [entry.source, entry])
 );
-const CRF = 12;
+const CRF = 22;
 const POSTER_QUALITY = 90;
-const MAX_GOP_FRAMES = 30;
+const MAX_GOP_FRAMES = 6;
 const EXPECTED_WIDTH = 1584;
 const EXPECTED_HEIGHT = 660;
 const EXPECTED_FRAMES = 156;
@@ -81,8 +81,8 @@ async function inspectCandidate(candidate) {
 
 async function ssim(sourceFile, candidate, mode) {
   const filter = mode === 'alpha'
-    ? '[0:v]format=rgba,alphaextract[src];[1:v]crop=792:660:792:0,format=gray[packed];[src][packed]ssim'
-    : '[0:v]format=gbrp[src];[1:v]crop=792:660:0:0,format=gbrp[packed];[src][packed]ssim';
+    ? '[0:v]format=rgba,alphaextract,settb=1/30,setpts=N[src];[1:v]crop=792:660:792:0,format=gray,settb=1/30,setpts=N[packed];[src][packed]ssim'
+    : '[0:v]format=gbrp,settb=1/30,setpts=N[src];[1:v]crop=792:660:0:0,format=gbrp,settb=1/30,setpts=N[packed];[src][packed]ssim';
   const { stderr } = await execFileAsync('ffmpeg', [
     '-hide_banner', '-loglevel', 'info',
     '-c:v', 'libvpx-vp9', '-i', sourceFile,
@@ -115,16 +115,19 @@ try {
     '-y', '-hide_banner', '-loglevel', 'error',
     '-c:v', 'libvpx-vp9',
     '-i', sourceFile,
+    '-filter_complex_threads', '2',
     '-filter_complex',
     '[0:v]format=rgba,split=2[color][matte];[color]format=rgb24[colorrgb];[matte]alphaextract,format=gray,format=rgb24[alphargb];[colorrgb][alphargb]hstack=inputs=2,format=yuv420p[packed]',
     '-map', '[packed]',
     '-an',
     '-c:v', 'libx264',
+    '-threads', '2',
     '-preset', 'slow',
     '-crf', String(CRF),
     '-g', String(MAX_GOP_FRAMES),
     '-keyint_min', String(MAX_GOP_FRAMES),
     '-sc_threshold', '0',
+    '-bf', '0',
     '-map_metadata', '-1',
     '-movflags', '+faststart',
     candidate

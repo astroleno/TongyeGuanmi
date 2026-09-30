@@ -192,7 +192,7 @@ export function createPhoneChunkRecoveryController(
     if (persist && failed && environment.storage) {
       try {
         environment.storage.setItem(lineageStorageKey, JSON.stringify(failed));
-      } catch {}
+      } catch { /* Storage can be unavailable inside embedded browsers. */ }
     }
     publish({ status: 'fail-closed', lineage: failed, message });
     return 'fail-closed';
@@ -273,7 +273,7 @@ export function createPhoneChunkRecoveryController(
     return pending;
   };
   const markStable = (proof: PhoneStableRecoveryProof) => {
-    try { const stored = environment.storage?.getItem(lineageStorageKey); if (proof.commitSequence === 1 && stored) { const lineage: unknown = JSON.parse(stored); if (validLineage(lineage) && lineage.failedModuleClass === 'transition-leaf') return; } environment.storage?.removeItem(lineageStorageKey); } catch {}
+    try { const stored = environment.storage?.getItem(lineageStorageKey); if (proof.commitSequence === 1 && stored) { const lineage: unknown = JSON.parse(stored); if (validLineage(lineage) && lineage.failedModuleClass === 'transition-leaf') return; } environment.storage?.removeItem(lineageStorageKey); } catch { /* A stable frame does not depend on storage access. */ }
     publish({ status: 'idle' });
   };
   const port: PhoneChunkRecoveryPort = Object.freeze({
@@ -312,7 +312,7 @@ export function createPhoneChunkRecoveryController(
 
 export function createBrowserPhoneChunkRecoveryController(): PhoneChunkRecoveryController {
   let storage: RecoveryStorage | null = null;
-  try { storage = window.sessionStorage; } catch {}
+  try { storage = window.sessionStorage; } catch { /* Fall back to in-memory recovery. */ }
   return createPhoneChunkRecoveryController({
     currentBuildId: import.meta.env.VITE_R5_DOCUMENT_BUILD_ID || 'development',
     entryUrl: window.location.href,
@@ -331,7 +331,7 @@ export function createBrowserPhoneChunkRecoveryController(): PhoneChunkRecoveryC
             window.location.replace(`${target.pathname}${target.search}${target.hash}`);
             return;
           }
-        } catch {}
+        } catch { /* An invalid saved entry falls back to the current URL. */ }
       }
       window.location.reload();
     },

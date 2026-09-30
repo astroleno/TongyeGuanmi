@@ -145,12 +145,13 @@ export function PhoneContact({ reports }: Readonly<{
     if (!mount || !root) return;
     disposedRef.current = false;
     renderContactHold(root);
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root: mount,
       surfaces: [{ id: 'contact-root', element: root, kind: 'dom' }],
       commands
     });
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       cancelPaint();
       bindingRef.current = null;

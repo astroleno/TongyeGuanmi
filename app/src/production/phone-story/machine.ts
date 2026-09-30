@@ -36,9 +36,11 @@ type TransactionOptions = Readonly<{
   failure?: PhoneFailure | null;
 }>;
 
+const deeplyFrozen = new WeakSet<object>();
 function freezeOwned<T>(value: T): T {
-  if (value === null || typeof value !== 'object') return value;
+  if (value === null || typeof value !== 'object' || deeplyFrozen.has(value)) return value;
   for (const nested of Object.values(value)) freezeOwned(nested);
+  deeplyFrozen.add(value);
   return Object.isFrozen(value) ? value : Object.freeze(value);
 }
 

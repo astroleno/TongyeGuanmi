@@ -44,7 +44,7 @@ export const METHOD_TOP_COPY = METHOD_COPY.slice(0, 8);
 export const METHOD_STEPS_COPY = METHOD_COPY.slice(8, 23);
 
 const defaults = {
-  buildTimeoutMs: 1800,
+  buildTimeoutMs: 20000,
   chargeThreshold: 0.1,
   chargeDecayPerMs: 0.001,
   settlingMs: 420
@@ -55,7 +55,9 @@ const fallbackDurations = {
   readingMs: 900
 } as const;
 
-const stagedMediaPreparingTimeoutMs = 8000;
+// This bounds CDN preparation, not animation duration. Cold mobile/desktop
+// connections must have time to deliver data before readiness can be proved.
+const stagedMediaPreparingTimeoutMs = 20000;
 
 function transitionSeed(legacyTransitionId: string, seed: InventoryManifestSeed) {
   const found = seed.transitions.find((transition) => transition.legacyTransitionId === legacyTransitionId);

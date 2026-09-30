@@ -66,6 +66,7 @@ export type PhoneSceneModule<SceneId extends string = string> = Readonly<{
   phoneSceneId: SceneId;
   default: ComponentType<PhoneSceneLeafProps>;
   Reading?: ComponentType<PhoneSceneReadingProps>;
+  prewarm?(): Promise<void>;
 }>;
 export type PhoneSceneLoader<SceneId extends string = string> =
   () => Promise<PhoneSceneModule<SceneId>>;
@@ -307,5 +308,5 @@ export function PhoneSceneReading<SceneId extends string>({
 }
 
 export function loadPhoneSceneModule(sceneId: string): Promise<PhoneSceneModule> {
-  return defaultSceneRegistry.load(sceneId);
+  return defaultSceneRegistry.load(sceneId).then((module) => { void module.prewarm?.().catch(() => undefined); return module; });
 }

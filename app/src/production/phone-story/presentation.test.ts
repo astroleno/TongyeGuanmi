@@ -331,6 +331,20 @@ function registerScene(
 }
 
 describe('phone presentation semantic plane', () => {
+  it('can reprove the Pattern canvas after its source image has faded out', () => {
+    const fixture = createStoryFixture();
+    fixture.presentation.attachRoot(fixture.story);
+    const attempt = attemptFor('pattern', 'rollback');
+    const { root, surfaces } = registerScene(fixture, 'pattern', attempt, 'rollback');
+    fixture.setStyle(surfaces.get('pattern-image')!, computedStyle({ opacity: '0' }));
+    const composite = fakeElement('pattern-composite', rect(0, 0, 390, 844));
+    append(root, composite);
+    select(root, '[data-portrait-pattern-bloom][data-ink-texture-ready="true"]', composite);
+    const request = planeRequest('pattern', attempt, 'rollback');
+    expect(fixture.presentation.verifyRollback(request).failure).toBeNull();
+    fixture.setStyle(composite, computedStyle({ visibility: 'hidden' }));
+    expect(fixture.presentation.verifyRollback(request).failure?.code).toBe('presentation-frame-invalid');
+  });
   it('keeps a reverse Figure2 source proof on its captured opening landing', () => {
     const attempt = attemptFor(
       'figure2-proof', 'segment', 'figure2-distance-expand', 'reverse', 7
@@ -706,7 +720,8 @@ describe('phone presentation semantic plane', () => {
   it('re-proves rollback from the retained source plane instead of exposing the receiver', () => {
     const fixture = createStoryFixture();
     fixture.presentation.attachRoot(fixture.story);
-    const attempt = attemptFor('pattern', 'rollback');
+    // Failed segment identity survives rollback; its effect has already unmounted.
+    const attempt = { ...attemptFor('pattern', 'rollback'), segmentId: 'hero-pattern' as const };
     registerScene(fixture, 'pattern', attempt, 'rollback');
     const result = fixture.presentation.verifyRollback(
       planeRequest('pattern', attempt, 'rollback')

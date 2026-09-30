@@ -25,6 +25,7 @@ import {
 } from '../motion';
 import { HOME_COPY } from '../../../story/copy';
 import { assertPhoneMediaOwner } from '../../../story/media';
+import { prewarmImages } from '../../../media/image-prewarm';
 import {
   createRadialInkIntroController,
   type RadialInkIntroController
@@ -42,11 +43,12 @@ assertPhoneMediaOwner('hero-figure-packed', 'hero');
 
 const HERO_BACK_IMAGE = new URL('../../../../../assets/hero-back.webp', import.meta.url).href;
 const HERO_MIDDLE_IMAGE = new URL('../../../../../assets/hero-middle.webp', import.meta.url).href;
-const HERO_FIGURE_POSTER = new URL('../../../../../assets/hero-figure-poster.webp', import.meta.url).href;
+const HERO_FIGURE_POSTER = new URL('../../../../../assets/phone/hero-figure-poster.webp', import.meta.url).href;
 const HERO_FIGURE_PACKED_ALPHA_VIDEO = new URL(
   '../../../../../assets/figure1-rgb-alpha.mp4', import.meta.url
 ).href;
 const HERO_SUBTITLE = HOME_COPY[4]!;
+export const prewarm = () => prewarmImages([HERO_BACK_IMAGE, HERO_MIDDLE_IMAGE, HERO_FIGURE_POSTER]);
 const subtitleBreak = HERO_SUBTITLE.indexOf('，') + 1;
 const HERO_SUBTITLE_LINES = subtitleBreak > 0
   ? [HERO_SUBTITLE.slice(0, subtitleBreak), HERO_SUBTITLE.slice(subtitleBreak)]
@@ -434,7 +436,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       })
     });
     introInkRef.current.prewarm();
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root,
       surfaces: [
         { id: 'hero-back-image', element: back, kind: 'image' },
@@ -461,6 +463,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       });
     });
     return () => {
+      unregisterMount?.();
       current = false;
       mountedRef.current = false;
       activeRef.current = false;
@@ -489,7 +492,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       <div ref={backMotionRef} className="portrait-scroll-spike__hero-back-motion" aria-hidden="true">
         <div ref={backParallaxRef} className="portrait-scroll-spike__hero-back-parallax">
           <div className="portrait-scroll-spike__hero-back-intro">
-            <img ref={backImageRef} className="portrait-scroll-spike__hero-back" src={HERO_BACK_IMAGE} alt="" />
+            <img ref={backImageRef} crossOrigin="anonymous" fetchPriority="high" decoding="async" className="portrait-scroll-spike__hero-back" src={HERO_BACK_IMAGE} alt="" />
             <canvas ref={introInkCanvasRef} className="portrait-scroll-spike__hero-intro-ink" data-portrait-hero-intro-ink aria-hidden="true" />
           </div>
         </div>
@@ -497,14 +500,14 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       <div ref={middleMotionRef} className="portrait-scroll-spike__hero-middle-motion" aria-hidden="true">
         <div ref={middleParallaxRef} className="portrait-scroll-spike__hero-middle-parallax">
           <div className="portrait-scroll-spike__hero-middle-intro">
-            <img ref={middleImageRef} className="portrait-scroll-spike__hero-middle" src={HERO_MIDDLE_IMAGE} alt="" />
+            <img ref={middleImageRef} crossOrigin="anonymous" decoding="async" className="portrait-scroll-spike__hero-middle" src={HERO_MIDDLE_IMAGE} alt="" />
           </div>
         </div>
       </div>
       <div ref={figureMotionRef} className="portrait-scroll-spike__hero-figure-motion" aria-hidden="true">
         <div ref={figureParallaxRef} className="portrait-scroll-spike__hero-figure-parallax">
           <div className="portrait-scroll-spike__hero-figure-intro">
-            <img ref={figurePosterRef} className="portrait-scroll-spike__hero-figure-poster" data-portrait-figure-poster src={HERO_FIGURE_POSTER} alt="" />
+            <img ref={figurePosterRef} crossOrigin="anonymous" decoding="async" className="portrait-scroll-spike__hero-figure-poster" data-portrait-figure-poster src={HERO_FIGURE_POSTER} alt="" />
             <canvas ref={figureCanvasRef} className="portrait-scroll-spike__hero-figure" data-portrait-figure-canvas aria-hidden="true" />
             <video ref={figureVideoRef} className="portrait-scroll-spike__hero-figure-source" data-portrait-figure-video muted playsInline preload="auto" />
           </div>

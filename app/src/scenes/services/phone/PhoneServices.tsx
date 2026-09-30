@@ -115,12 +115,13 @@ export function PhoneServices({ reports }: Readonly<{ reports: PhoneLeafReportPo
     if (!root) return;
     disposedRef.current = false;
     render(1);
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root,
       surfaces: [{ id: 'services-root', element: root, kind: 'dom' }],
       commands
     });
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       cancelPaint();
       bindingRef.current = null;

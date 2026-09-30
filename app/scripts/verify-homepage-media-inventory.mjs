@@ -73,12 +73,19 @@ const presentationWebpSources = [
 
 const retainedImageSources = [];
 
-const heroPreScrollSources = new Set([
+const desktopHeroImageSources = [
   'assets/hero-back.webp',
   'assets/hero-middle.webp',
   'assets/middle1_depth.webp',
   'assets/hero-figure-poster.webp'
-]);
+];
+const patternLayerSources = presentationWebpSources.filter((source) => source.includes('/alpha-layers/'));
+const phoneWarmGroups = [
+  ['assets/hero-back.webp', 'assets/hero-middle.webp', 'assets/phone/hero-figure-poster.webp'],
+  ['assets/phone/pattern-background.webp', ...patternLayerSources],
+  ['assets/back2.webp']
+];
+const phoneHeroWarmSources = [...phoneWarmGroups[0], 'assets/figure1-rgb-alpha.mp4', ...phoneWarmGroups[1]];
 
 const forbiddenEmittedNames = [
   /hero-figure-scrub/i,
@@ -191,12 +198,12 @@ const inventorySources = [
 const frozenMediaBySource = new Map(
   frozenHomepageMedia.map((entry) => [entry.source, entry])
 );
-assert(inventorySources.length === 58, `expected 58 homepage source entries, found ${inventorySources.length}`);
-assert(frozenHomepageMedia.length === 58, `expected 58 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
+assert(inventorySources.length === 61, `expected 61 homepage source entries, found ${inventorySources.length}`);
+assert(frozenHomepageMedia.length === 61, `expected 61 frozen homepage media entries, found ${frozenHomepageMedia.length}`);
 assert(frozenMediaBySource.size === frozenHomepageMedia.length, 'frozen homepage media sources must be unique');
 assert(frozenMediaBySource.size === inventorySources.length, 'frozen homepage media contract must cover the full inventory');
 assert(adoptedWebpSources.length === 11, `expected 11 adopted WebP sources, found ${adoptedWebpSources.length}`);
-assert(portraitOnlyImageSources.length === 6, `expected 6 portrait-only WebP sources, found ${portraitOnlyImageSources.length}`);
+assert(portraitOnlyImageSources.length === 9, `expected 9 portrait-only WebP sources, found ${portraitOnlyImageSources.length}`);
 assert(semanticLosslessWebpSources.length === 4, `expected 4 semantic lossless WebP sources, found ${semanticLosslessWebpSources.length}`);
 assert(presentationWebpSources.length === 15, `expected 15 presentation WebP sources, found ${presentationWebpSources.length}`);
 assert(animationWebmSources.length === 8, `expected 8 animation WebM sources, found ${animationWebmSources.length}`);
@@ -259,10 +266,10 @@ const emittedMp4 = emittedEntries.filter((entry) => mediaExtension(entry.path) =
 const emittedWebp = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.webp');
 const emittedJpg = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.jpg');
 const emittedPng = emittedEntries.filter((entry) => mediaExtension(entry.path) === '.png');
-assert(emittedMedia.length === 58, `expected exactly 58 emitted homepage media files, found ${emittedMedia.length}`);
+assert(emittedMedia.length === 61, `expected exactly 61 emitted homepage media files, found ${emittedMedia.length}`);
 assert(emittedWebm.length === 8, `expected exactly 8 emitted animation WebM files, found ${emittedWebm.length}`);
 assert(emittedMp4.length === 14, `expected exactly 14 emitted animation MP4 files, found ${emittedMp4.length}`);
-assert(emittedWebp.length === 36, `expected exactly 36 emitted WebP files, found ${emittedWebp.length}`);
+assert(emittedWebp.length === 39, `expected exactly 39 emitted WebP files, found ${emittedWebp.length}`);
 assert(emittedJpg.length === 0, `production JPG emit is forbidden, found ${emittedJpg.length}`);
 assert(emittedPng.length === 0, `production PNG emit is forbidden, found ${emittedPng.length}`);
 for (const entry of emittedEntries) {
@@ -290,8 +297,20 @@ const desktopStaticPathBytes = desktopWebpBytes + webmBytes;
 const iosStaticPathBytes = webpBytes + hevcBytes;
 const portraitPackedAlphaStaticPathBytes = webpBytes + packedAlphaVideoBytes;
 const largestHomepageMediaBytes = Math.max(...inventory.map(({ bytes }) => bytes));
-const heroPreScrollInventory = inventory.filter((entry) => heroPreScrollSources.has(entry.source));
+// This is an explicit static media model, not a browser transfer measurement.
+// Phone includes its opening video and every adjacent Pattern image. Desktop
+// initial presentation uses posters; idle video warmup is measured separately
+// by the public browser audit, including its selected codec and Range requests.
+const startupSources = new Set([...desktopHeroImageSources, ...phoneHeroWarmSources]);
+const heroPreScrollInventory = inventory.filter((entry) => startupSources.has(entry.source));
 const heroBeforeFirstScrollBytes = heroPreScrollInventory.reduce((sum, entry) => sum + entry.bytes, 0);
+const sourceBytes = (sources) => inventory.filter((entry) => sources.includes(entry.source)).reduce((sum, entry) => sum + entry.bytes, 0);
+const phoneHeroWithAdjacentWarmBytes = sourceBytes(phoneHeroWarmSources);
+const desktopHeroPosterBytes = sourceBytes(desktopHeroImageSources);
+for (const sources of phoneWarmGroups) {
+  assert(sourceBytes(sources) <= MiB, `optional image warm group exceeds 1 MiB: ${sources.join(', ')}`);
+}
+assert(phoneHeroWithAdjacentWarmBytes <= 3 * MiB, 'phone Hero and adjacent media exceed 3 MiB');
 assert(
   homepageRuntimeBytes <= HOMEPAGE_RUNTIME_MEDIA_BYTES_MAX,
   `homepage runtime media exceeded: ${homepageRuntimeBytes} > ${HOMEPAGE_RUNTIME_MEDIA_BYTES_MAX}`
@@ -327,6 +346,8 @@ const report = {
   actual: {
     homepageRuntimeMediaBytes: homepageRuntimeBytes,
     heroBeforeFirstScrollBytes,
+    phoneHeroWithAdjacentWarmBytes,
+    desktopHeroPosterBytes,
     presentationWebpBytes,
     webpBytes,
     desktopWebpBytes,

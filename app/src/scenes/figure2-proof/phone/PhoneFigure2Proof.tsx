@@ -95,12 +95,13 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
     disposedRef.current = false;
     renderFigure2ProofHold(root);
     render(0);
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root,
       surfaces: [{ id: 'figure2-proof-root', element: root, kind: 'dom' }],
       commands
     });
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       cancelPaint();
       bindingRef.current = null;

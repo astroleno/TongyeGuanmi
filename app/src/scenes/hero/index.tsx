@@ -162,6 +162,7 @@ function heroPatternMediaInput(progress: number, mediaRun: HeroPatternMediaRun):
     direction: mediaRun.direction,
     progress,
     durationFallbackSeconds: 2.042,
+    frameRate: 24,
     startSeconds: HERO_VIDEO_START_SECONDS,
     endSeconds: HERO_PATTERN_VIDEO_END_SECONDS,
     endEpsilonSeconds: HERO_VIDEO_END_EPSILON,
@@ -408,7 +409,7 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
             </TextRevealItem>
           </TextReveal>
         </div>
-        <video
+        <video crossOrigin="anonymous"
           ref={(element) => {
             videoRef.current = element;
             registerHandle?.('figure', element);

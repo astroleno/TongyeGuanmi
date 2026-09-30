@@ -13,11 +13,11 @@ export function phoneMediaUrlFor(id: PhoneProductMediaId, owner: SceneId): strin
     case 'hero-middle':
       return new URL('../../../assets/hero-middle.webp', import.meta.url).href;
     case 'hero-figure-poster':
-      return new URL('../../../assets/hero-figure-poster.webp', import.meta.url).href;
+      return new URL('../../../assets/phone/hero-figure-poster.webp', import.meta.url).href;
     case 'hero-figure-packed':
       return new URL('../../../assets/figure1-rgb-alpha.mp4', import.meta.url).href;
     case 'pattern-background':
-      return new URL('../../../assets/pattern-background.webp', import.meta.url).href;
+      return new URL('../../../assets/phone/pattern-background.webp', import.meta.url).href;
     case 'star-map-source':
       return new URL('../../../assets/back2.webp', import.meta.url).href;
     case 'star-map-highlight-mask':

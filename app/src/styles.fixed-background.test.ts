@@ -33,7 +33,10 @@ describe('viewport background contract', () => {
 
   it('releases the hydrated document only for the Shell-owned native reading corridor', () => {
     expect(phoneStoryStylesheet).toMatch(
-      /html\[data-story-hydrated="true"\]:has\(\.phone-story\[data-phone-reading="enabled"\] \[data-phone-input-owner="native-document"\]\),[\s\S]*?\{[^}]*height:\s*auto[^}]*overflow-y:\s*auto[^}]*overscroll-behavior-y:\s*none/s
+      /html\[data-story-hydrated="true"\]:has\(\.phone-story\[data-phone-reading="enabled"\] \[data-phone-input-owner="native-document"\]\),[\s\S]*?:is\(body, #root\)\s*\{[^}]*height:\s*auto[^}]*overflow:\s*visible[^}]*overscroll-behavior:\s*auto/s
+    );
+    expect(phoneStoryStylesheet).toMatch(
+      /html\[data-story-hydrated="true"\]:has\(\.phone-story\[data-phone-reading="enabled"\] \[data-phone-input-owner="native-document"\]\)\s*\{[^}]*overflow-x:\s*hidden[^}]*overflow-y:\s*auto[^}]*overscroll-behavior-y:\s*none/s
     );
   });
 

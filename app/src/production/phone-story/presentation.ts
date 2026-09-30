@@ -76,7 +76,7 @@ export function claimPhoneActivationDecoders<Owner extends { activeDecoders: num
 
 export type PhoneLeafReportPort = Readonly<{
   rebind?(binding: PhoneLeafReportBinding): void;
-  registerMount(registration: PhoneLeafMountRegistration): void;
+  registerMount(registration: PhoneLeafMountRegistration): void | (() => void);
   reportPrepared(surfaceId: PhoneSurfaceId, result: PhonePreparedReport): void;
   reportFrame(surfaceId: PhoneSurfaceId, result: PhoneFrameReport): void;
   reportProgress(progress: number): void; reportComplete(): void;
@@ -697,7 +697,7 @@ export function createPhonePresentation(
     request: PhonePlaneRequest,
     topology: PhoneProjectorTopology
   ): boolean => {
-    const segment = request.attempt.segmentId
+    const segment = request.attempt.mode === 'segment' && request.attempt.segmentId
       ? phoneManifest.segments.find(({ id }) => id === request.attempt.segmentId) : null;
     const effectAboveBoth = segment?.effectPlacement === 'above-both';
     const expectedEffect = effectAboveBoth ? segment.id === 'figure2-distance-expand' ? 55 : 70 : 20;
@@ -879,6 +879,11 @@ export function createPhonePresentation(
 
   const frameIsVisible = (request: PhonePlaneRequest, record: PhoneMountRecord): boolean => {
     const scene = phoneSceneById(request.sceneId);
+    if (scene.id === 'pattern' && record.root && record.facts.get('pattern-image')?.has('image-decoded')) {
+      const composite = record.root.querySelector<HTMLElement>('[data-portrait-pattern-bloom][data-ink-texture-ready="true"]');
+      if (composite && intersectsVisualViewport(composite, request.viewport.visual)
+        && visibleThroughAncestors(composite, record.root, getStyle)) return true;
+    }
     const requiredSurfaces = scene.id === 'figure2-animation' || scene.id === 'figure2-proof' || scene.frame.kind === 'packed-canvas-draw' ? scene.frame.surfaceIds : scene.frame.surfaceIds.slice(0, 1);
     const surfaces = requiredSurfaces.map((id) => id === 'figure2-foreground-arch' ? state.root?.querySelector<HTMLElement>('[data-stage-retained-figure2-arch="true"]') : scene.frame.kind === 'content-post-paint' ? record.root : record.surfaces.get(id)?.element);
     const expectedFact = (id: string): string => id === 'figure2-foreground-arch' || scene.frame.kind === 'image-decode-composite-paint' || scene.frame.kind === 'canvas-or-static-post-paint' ? 'image-decoded' : scene.frame.kind === 'content-post-paint' ? 'static-ready' : scene.frame.kind === 'decoded-composited-frame' && scene.directEntry.closure.resourceBudget.canvases === 0 ? 'video-decoded' : 'canvas-drawn';

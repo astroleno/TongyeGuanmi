@@ -6,11 +6,14 @@ import type {
   PhoneLeafReportPort
 } from '../../../production/phone-story/presentation';
 import { initStarFieldReveal, type StarFieldCamera, type StarFieldReveal } from '../starFieldReveal';
+import { createDesktopNoiseFrame } from '../noise-lattice';
 import { BELIEF_COPY, STAR_MAP_TITLE } from '../../../story/copy';
 import { phoneMediaUrlFor } from '../../../media/phone-media';
+import { prewarmImages } from '../../../media/image-prewarm';
 import './PhoneStarMap.css';
 
 const STAR_MAP_IMAGE = phoneMediaUrlFor('star-map-source', 'star-map');
+export const prewarm = () => prewarmImages([STAR_MAP_IMAGE]);
 const FRAME_INTERVAL_MS = 1000 / 12;
 const PHONE_STAR_CAMERA: StarFieldCamera = Object.freeze({ rotationDegrees: -90, zoom: 1 });
 const STAR_MAP_AMBIENT_PERIOD_SECONDS = 4.4;
@@ -251,6 +254,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     applyProgress(0);
     const reveal = initStarFieldReveal({
       canvas, sourceUrl: STAR_MAP_IMAGE, autoplay: false,
+      createNoiseFrame: createDesktopNoiseFrame,
       highlightSource: 'extract',
       viewport: () => {
         const scale = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
@@ -274,7 +278,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       }
     });
     revealRef.current = reveal;
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root, surfaces: [
         { id: 'star-map-source', element: source, kind: 'image' },
         { id: 'star-map-canvas', element: canvas, kind: 'canvas-2d' }
@@ -304,6 +308,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     });
     readyFrameRef.current = window.requestAnimationFrame(awaitReady);
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       activeRef.current = false;
       sourceReadyRef.current = false;
@@ -330,7 +335,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       aria-labelledby="portrait-spike-star-title">
       <div className="portrait-scroll-spike__star-motion" aria-hidden="true">
         <img ref={sourceRef} className="portrait-scroll-spike__star-source" data-portrait-star-source
-          src={STAR_MAP_IMAGE} alt="" aria-hidden="true" />
+          src={STAR_MAP_IMAGE} crossOrigin="anonymous" alt="" aria-hidden="true" />
         <canvas ref={canvasRef} className="portrait-scroll-spike__star-perlin"
           data-portrait-star-perlin aria-hidden="true" />
       </div>

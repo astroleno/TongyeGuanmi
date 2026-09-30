@@ -1,4 +1,4 @@
-import { createPhoneStoryBoot, phoneTransactionActivationSurfaceIds,
+import { createPhoneStoryBoot, phoneTransactionActivationSurfaceIds, phoneTransactionActivationCredit,
   reducePhoneStory, sameAttempt,
   type PhoneMachineResult, type PhoneMachineSnapshot } from './machine';
 import { phoneManifest, phoneNativeHandoffDescriptor, phoneNativePrewarmScenes, phoneSceneById, phoneSceneStableHold, phoneSegmentBetween,
@@ -56,7 +56,8 @@ export type PhoneNativeHandoffBlockReason = (typeof PHONE_HANDOFF_BLOCK_REASONS)
 export type PhoneNativeHandoffState = readonly [token: string | null, reason: PhoneNativeHandoffBlockReason | null];
 
 export type PhoneStoryRuntime = Readonly<{
-  getSnapshot(): PhoneMachineSnapshot;
+  getSnapshot(): PhoneMachineSnapshot; getRenderSnapshot(): PhoneMachineSnapshot;
+  subscribeRender(listener: () => void): () => void;
   subscribe(listener: () => void): () => void;
   connect(): () => void;
   requestEntry(entry: PhoneEntryRequest): void;
@@ -139,18 +140,12 @@ export function phoneEventPriority(event: PhoneStoryEvent): number {
 
 function adjacentPrewarmDependencies(sceneId: string): readonly PhoneDependencyRef[] {
   return [...new Set(phoneManifest.segments.flatMap((segment) => (
-    segment.source === sceneId
-      ? segment.forward.closure.prewarm
-      : segment.target === sceneId
-        ? segment.reverse.closure.prewarm
-        : []
+    segment.source === sceneId ? segment.forward.closure.prewarm
+      : segment.target === sceneId ? segment.reverse.closure.prewarm : []
   )))];
 }
 
-function progressForLeg(
-  frame: PhoneSegmentChoreographyFrame,
-  leg: PhoneLeafReportBinding['leg']
-): number {
+function progressForLeg(frame: PhoneSegmentChoreographyFrame, leg: PhoneLeafReportBinding['leg']): number {
   if (leg === 'effect') return frame.effectProgress;
   return leg === 'source' ? frame.sourceProgress : frame.targetProgress;
 }
@@ -161,11 +156,8 @@ function commandProgress(
 ): number {
   const { segmentId, direction } = transaction.attempt;
   if (!segmentId || !direction) return transaction.progress;
-  return progressForLeg(
-    phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction,
-      transaction.stageIndex),
-    leg
-  );
+  const frame = phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction, transaction.stageIndex);
+  return progressForLeg(frame, leg);
 }
 
 export const segmentEndpoint = (transaction: Extract<PhoneMachineSnapshot, { status: 'transaction' }>['transaction'], leg: PhoneLeafReportBinding['leg']): 0 | 1 | null => { const { segmentId, direction } = transaction.attempt; if (transaction.mode !== 'segment' || leg === 'effect' || !segmentId || !direction) return null; return progressForLeg(phoneSegmentChoreographyFrame(segmentId, transaction.progress, direction, transaction.stageIndex), leg) >= .5 ? 1 : 0; };
@@ -182,7 +174,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     authorityId: 'disconnected-phone-authority', request: config.initialEntry,
     viewport: sampleViewport(environment.readViewport()), reducedMotion: environment.readReducedMotion()
   });
-  let snapshot = inert.snapshot;
+  let snapshot = inert.snapshot, renderSnapshot = snapshot;
   let connected = false, connection = 0, draining = false;
   let sequence = 0, physicalEpoch = 0, activationSequence = 0, frameSequence = 0;
   let queue: QueuedEvent[] = [];
@@ -197,7 +189,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
     credit: Extract<PhoneStoryEffect, { type: 'activate-surfaces' }>['credit'] }>;
   type FailClosedLineage = { connection: number; failureAttempt: PhoneAttemptKey; settleAttempt: PhoneAttemptKey | null; stableCommit: PhoneMachineSnapshot['stableCommit']; armed: boolean };
   let deferredActivation: DeferredActivation | null = null;
-  const listeners = new Set<() => void>();
+  const listeners = new Set<() => void>(), renderListeners = new Set<() => void>();
   const deadlines = new Map<string, DeadlineLease>();
   const leaves = new Map<string, LeafLease>();
   const reportStates = new Set<ReportState>();
@@ -210,7 +202,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   const rejectedClosures = new Set<string>();
   let resources: PhoneRuntimeResourceCounts = { videos: 0, activeDecoders: 0, canvases: 0, webglContexts: 0 };
 
-  const publish = (): void => { environment.observePublish?.(snapshot); for (const listener of [...listeners]) listener(); };
+  const publish = (frameOnly = false): void => { environment.observePublish?.(snapshot); for (const listener of [...listeners]) listener(); if (!frameOnly) { renderSnapshot = snapshot; for (const listener of [...renderListeners]) listener(); } };
   const publishPrewarm = (): void => { snapshot = { ...snapshot }; publish(); };
   const inspectNativeHandoffLease = (direction: 'forward' | 'reverse'): readonly [LeafLease | null, 0 | 1 | 2 | 3 | 4 | null] | null => {
     if (!connected || snapshot.status !== 'stable') return null;
@@ -427,6 +419,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
             );
           }
         }
+        return () => { if (lease.disposed) return; const active = snapshot.status === 'transaction' ? snapshot.transaction : null; if (active?.phase === 'preparing' && activationClaims.get(lease) === attemptIdentity(active.attempt)) deferredActivation = { attempt: active.attempt, surfaceIds: phoneTransactionActivationSurfaceIds(active), credit: phoneTransactionActivationCredit(active) ?? 'direct-muted-autoplay' }; retireLease(lease, 'generation-replaced', false, true); state = { ...state, valid: true }; reportStates.add(state); };
       },
       reportPrepared: (surfaceId, report) => {
         const lease = mountedLease(state);
@@ -549,14 +542,14 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
   const retireLease = (
     lease: LeafLease,
     reason: PhoneLeafDisposeReason,
-    paused = false
+    paused = false, reactTeardown = false
   ): void => {
     if (lease.disposed) return;
     runPhoneLeafRetirement({
       invalidate: () => closeReports(lease.reports),
       pause: () => pauseLease(lease, 'outside-closure'),
       dispose: () => {
-        lease.mount.commands.dispose(reason);
+        if (!reactTeardown) lease.mount.commands.dispose(reason);
         environment.observeLifecycle?.('dispose');
       },
       markDisposed: () => { lease.disposed = true; leaves.delete(lease.key); },
@@ -800,8 +793,8 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
             : transaction.commitIntent === 'reproject' ? presentation.verifyReproject(request)
               : presentation.verifyVisibleCandidate(request)
       ));
-      if ((transaction.commitIntent === 'reproject' || request.leg === 'target') && result.failure?.recoverable && ['presentation-coverage-invalid', 'presentation-content-invisible'].includes(result.failure.code)) {
-        schedulePlane(effect, activeConnection);
+      if ((transaction.commitIntent === 'reproject' || request.leg === 'target') && result.failure?.recoverable && ['presentation-coverage-invalid', 'presentation-content-invisible', 'presentation-frame-invalid'].includes(result.failure.code)) {
+        schedulePlane(effect, activeConnection); // A re-bound canvas must repaint; keep the original deadline.
         return;
       }
       if (result.failure || !phonePlaneResultIsExact(request, result)) enqueueFor({
@@ -1070,7 +1063,13 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
       environment.cancelFrame(planeFrame);
       planeFrame = null;
     }
-    if (snapshot !== previous) publish();
+    if (snapshot !== previous) publish(previous.status === 'transaction' && snapshot.status === 'transaction'
+      && previous.transaction.phase === 'playing' && snapshot.transaction.phase === 'playing'
+      && previous.transaction.stageIndex === snapshot.transaction.stageIndex
+      && sameAttempt(previous.transaction.attempt, snapshot.transaction.attempt)
+      && previous.transaction.evidence === snapshot.transaction.evidence
+      && previous.viewport === snapshot.viewport && previous.visibility === snapshot.visibility
+      && previous.transaction.progress !== snapshot.transaction.progress);
     const candidate = failClosedPending; if (candidate && !candidate.armed && previous.status === 'transaction' && sameAttempt(previous.transaction.attempt, candidate.failureAttempt) && snapshot.status === 'transaction' && snapshot.stableCommit === candidate.stableCommit) candidate.settleAttempt = snapshot.transaction.attempt;
     if (!ownsConnection(activeConnection)) return;
     syncDeadlines();
@@ -1155,7 +1154,7 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
         prewarmController = null;
         clearPhoneOwnershipRegistries([
           deadlines, pendingLoads, activations, leaves,
-          reportStates, dependencyLeases, listeners
+          reportStates, dependencyLeases, listeners, renderListeners
         ]);
         queue = [];
       }
@@ -1264,10 +1263,9 @@ export function createPhoneStoryRuntime(config: PhoneStoryRuntimeConfig): PhoneS
 
   return Object.freeze({
     getSnapshot: () => snapshot,
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
+    getRenderSnapshot: () => renderSnapshot,
+    subscribeRender: (listener: () => void) => { renderListeners.add(listener); return () => renderListeners.delete(listener); },
+    subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); },
     connect,
     requestEntry: (entry: PhoneEntryRequest) => enqueueFor(
       { type: 'entry-requested', request: entry },

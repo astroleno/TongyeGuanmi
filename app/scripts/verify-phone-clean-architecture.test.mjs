@@ -471,7 +471,7 @@ test('does not confuse an unrelated same-named member with the factory symbol', 
 });
 
 test('rejects every external dependency outside each core file allowlist', async () => {
-  for (const [label, specifier] of Object.entries({
+  for (const specifier of Object.values({
     legacyMachine: '../phone/legacy-machine',
     timeline: '../phone/phone-stage-timeline',
     coordinator: '../phone/phone-transition-coordinator',
@@ -701,6 +701,26 @@ test('rejects a transitive QA dependency in the formal graph', async () => {
       export const loadFormalBridge = () => PhoneBrandLabStory;
     `
   }), 'formal graph must not import the QA shell');
+});
+
+test('follows literal worker URL modules and rejects shadowed or computed URLs', async () => {
+  const entry = `import workerUrl from './frame.worker?worker&url'; void import(workerUrl);`;
+  const clean = await violations({
+    'src/App.tsx': entry,
+    'src/frame.worker.ts': 'export const frame = 1;'
+  });
+  assert.equal(clean.some((message) => message.includes('computed dynamic import()')), false);
+  includes(await violations({
+    'src/App.tsx': entry,
+    'src/frame.worker.ts': "import './production/phone-story/PhoneBrandLabStory';"
+  }), 'formal graph must not import the QA shell');
+  for (const shadow of [
+    'function load(workerUrl) { return import(workerUrl); }',
+    'function load({workerUrl}) { return import(workerUrl); }'
+  ]) {
+    includes(await violations({ 'src/App.tsx': `import workerUrl from './frame.worker?worker&url'; ${shadow}` }),
+      'computed dynamic import()');
+  }
 });
 
 test('rejects legacy mobile-landscape ownership and duplicate orientation listeners', async () => {

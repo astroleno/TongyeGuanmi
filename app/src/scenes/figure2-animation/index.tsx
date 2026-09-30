@@ -175,6 +175,7 @@ function mediaInput(
     direction: preparation.direction,
     progress: clamp(progress),
     durationFallbackSeconds: FIGURE2_VIDEO_DURATION_SECONDS,
+    frameRate: 30,
     startSeconds: preparation.direction === 1 ? 0 : FIGURE2_REVERSE_START_SECONDS,
     endSeconds: preparation.direction === 1
       ? FIGURE2_REVERSE_START_SECONDS
@@ -498,7 +499,7 @@ export function renderFigure2Hold(root: HTMLElement | null): void {
   renderFigure2AnimationProgress(root, 0, { videoMode: 'none' });
 }
 
-function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
+export function Figure2AnimationScene({ registerHandle, packedAlpha }: SceneComponentProps & { packedAlpha?: boolean }) {
   const rootRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -555,7 +556,7 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
             <div className="r4-figure2__people-contact-shadow" aria-hidden="true" />
             <figure className="r4-figure2__figure r4-figure2__figure--combined">
               <div className="r4-figure2__media-stack r4-figure2__media-stack--combined">
-                <video
+                <video crossOrigin="anonymous"
                   ref={(element) => {
                     registerHandle?.('combined-video', element);
                   }}
@@ -565,13 +566,13 @@ function Figure2AnimationScene({ registerHandle }: SceneComponentProps) {
                   data-media-key={FIGURE2_MEDIA_KEY}
                   muted
                   playsInline
-                  preload="auto"
+                  preload={packedAlpha ? 'none' : 'auto'}
                   aria-hidden="true"
                 >
-                  <AlphaVideoSources
+                  {!packedAlpha && <AlphaVideoSources
                     webm={FIGURE2_VIDEO}
                     hevc={FIGURE2_HEVC_ALPHA_VIDEO}
-                  />
+                  />}
                 </video>
                 <canvas
                   className="r4-figure2__packed-alpha-canvas"

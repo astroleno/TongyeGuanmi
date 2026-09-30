@@ -7,15 +7,17 @@ import type {
 } from '../../../production/phone-story/presentation';
 import { BELIEF_COPY } from '../../../story/copy';
 import { assertPhoneMediaOwner } from '../../../story/media';
-import { PatternBloomRenderer } from '../patternBloomRenderer';
+import { PatternBloomRenderer, PATTERN_SOURCE_ART } from '../patternBloomRenderer';
+import { prewarmImages } from '../../../media/image-prewarm';
 import './PhonePattern.css';
 
 assertPhoneMediaOwner('pattern-background', 'pattern');
 
 const PATTERN_BACKGROUND_IMAGE = new URL(
-  '../../../../../assets/pattern-background.webp', import.meta.url
+  '../../../../../assets/phone/pattern-background.webp', import.meta.url
 ).href;
 const PATTERN_CENTER = Object.freeze({ x: 0.5, y: 0.28 });
+export const prewarm = () => prewarmImages([PATTERN_BACKGROUND_IMAGE, ...Object.values(PATTERN_SOURCE_ART)]);
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -196,7 +198,7 @@ export function PhonePattern({ reports }: PhonePatternProps) {
     rendererRef.current = renderer;
     canvas.dataset.portraitPatternRenderer = 'loading';
     canvas.dataset.portraitPatternCenter = '50%,28%';
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root,
       surfaces: [{ id: 'pattern-image', element: image, kind: 'image' }],
       commands
@@ -222,6 +224,7 @@ export function PhonePattern({ reports }: PhonePatternProps) {
       });
     });
     return () => {
+      unregisterMount?.();
       current = false;
       disposedRef.current = true;
       activeRef.current = false;
@@ -247,6 +250,7 @@ export function PhonePattern({ reports }: PhonePatternProps) {
             ref={imageRef}
             className="portrait-scroll-spike__pattern-image"
             src={PATTERN_BACKGROUND_IMAGE}
+            crossOrigin="anonymous"
             alt=""
           />
           <div ref={washRef} className="portrait-scroll-spike__pattern-wash" aria-hidden="true" />

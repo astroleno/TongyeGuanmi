@@ -14,10 +14,16 @@
 }
 
 html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] [data-phone-input-owner="native-document"]),
-html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] [data-phone-input-owner="native-document"]) body,
-html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] [data-phone-input-owner="native-document"]) #root {
+html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] [data-phone-input-owner="native-document"]) :is(body, #root) {
   height: auto;
   min-height: 100%;
+  /* Only the document scrolls. Nested auto/none roots swallow touch and wheel
+     input even when those roots have no scrollable overflow of their own. */
+  overflow: visible;
+  overscroll-behavior: auto;
+}
+
+html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] [data-phone-input-owner="native-document"]) {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: none;

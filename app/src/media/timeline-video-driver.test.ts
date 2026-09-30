@@ -113,6 +113,77 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it('retries failed source selection on explicit preparation and ignores its own reload abort', async () => {
+    const video = new FakeVideo();
+    video.readyState = 0;
+    Object.assign(video, {
+      networkState: 3,
+      load: vi.fn(() => video.dispatch('abort'))
+    });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const ready = driver.prepareFrame({ runId: 'retry-source', direction: 1,
+      progress: 0, durationFallbackSeconds: 10 });
+    expect((video as FakeVideo & { load: ReturnType<typeof vi.fn> }).load).toHaveBeenCalledOnce();
+    video.readyState = 1; video.dispatch('loadedmetadata');
+    video.readyState = 4; video.dispatch('loadeddata');
+    video.completeSeek(); video.completeSeek(); video.presentFrame();
+    await expect(ready).resolves.toMatchObject({ status: 'ready' });
+    driver.dispose();
+  });
+
+  it.each([24, 30])('keeps %i fps forward/reverse targets within half a source frame at every progress sample', (frameRate) => {
+    const video = new FakeVideo();
+    video.duration = 3;
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const startSeconds = .07;
+    const endSeconds = 2.67;
+    for (const direction of [1, -1] as const) {
+      let previous = direction === 1 ? startSeconds : endSeconds;
+      for (let index = 0; index <= 1000; index++) {
+        const progress = direction === 1 ? index / 1000 : 1 - index / 1000;
+        const target = driver.drive({
+          runId: `alignment:${direction}`, direction, progress,
+          durationFallbackSeconds: 3, startSeconds, endSeconds,
+          frameRate, mode: 'timeline', allowPlaybackNudge: false
+        }).targetTime!;
+        const exact = startSeconds + (endSeconds - startSeconds) * progress;
+        expect(Math.abs(target - exact)).toBeLessThanOrEqual(.5 / frameRate + 1e-10);
+        expect(target).toBeGreaterThanOrEqual(startSeconds);
+        expect(target).toBeLessThanOrEqual(endSeconds);
+        expect((target - previous) * direction).toBeGreaterThanOrEqual(-1e-10);
+        if (progress === 0 || progress === 1) expect(target).toBe(exact);
+        previous = target;
+        video.completeSeek();
+        video.presentFrame();
+      }
+    }
+    driver.dispose();
+  });
+
+  it('coalesces subframe scroll samples while preserving exact preparation and terminal frames', async () => {
+    const video = new FakeVideo();
+    video.duration = 2;
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const input = { runId: 'scroll', direction: 1 as const, durationFallbackSeconds: 2,
+      endSeconds: 1.97, frameRate: 24, mode: 'timeline' as const, progress: .31 };
+    const target = driver.drive(input).targetTime!;
+    expect(target * 24).toBeCloseTo(Math.round(target * 24));
+    video.completeSeek(); video.presentFrame();
+    const writes = video.currentTimeWrites.length;
+    driver.drive({ ...input, progress: .312 });
+    expect(video.currentTimeWrites).toHaveLength(writes);
+    const prepared = driver.prepareFrame(input);
+    expect(driver.snapshot().targetTime).toBeCloseTo(1.97 * .31);
+    video.completeSeek(); video.presentFrame();
+    expect((await prepared).status).toBe('ready');
+    driver.drive({ ...input, progress: 1 });
+    expect(driver.snapshot().targetTime).toBe(1.97);
+    video.completeSeek(); video.presentFrame();
+    driver.drive({ ...input, runId: 'reverse', direction: -1, progress: 0 });
+    expect(driver.snapshot().targetTime).toBe(0);
+    driver.dispose();
+  });
+
   it('forces an exact-target seek before waiting for a paused endpoint frame', async () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));
@@ -190,22 +261,100 @@ describe('timeline video driver', () => {
     }
   });
 
-  it('uses the declared media duration to prime the start endpoint before metadata is ready', () => {
+  it('defers a cold endpoint prime until the initial sample exists, then proves the return seek', async () => {
     const video = new FakeVideo();
     video.duration = Number.NaN;
     video.readyState = 0;
     const driver = createTimelineVideoDriver(videoElement(video));
 
-    void driver.prepareFrame({
+    const ready = driver.prepareFrame({
       runId: 'media-cold-start-frame:1',
       direction: 1,
       progress: 0,
       durationFallbackSeconds: 2.042
     });
 
+    expect(video.currentTimeWrites).toHaveLength(0);
+    video.duration = 2.042;
+    video.readyState = 1;
+    video.dispatch('loadedmetadata');
+    expect(video.currentTimeWrites).toHaveLength(0);
+    video.readyState = 2;
+    video.dispatch('loadeddata');
     expect(video.currentTimeWrites).toHaveLength(1);
     expect(video.currentTimeWrites[0]).toBeGreaterThanOrEqual(0.05);
+    video.completeSeek(); video.completeSeek(); video.presentFrame();
+    await expect(ready).resolves.toMatchObject({ status: 'ready', targetTime: 0 });
     driver.dispose();
+  });
+
+  it('resumes a cold terminal prepare when another loadeddata listener seeks first', async () => {
+    const video = new FakeVideo();
+    video.duration = Number.NaN;
+    video.readyState = 0;
+    video.addEventListener('loadeddata', () => {
+      video.currentTime = 2.567;
+      video.readyState = 1;
+    });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const ready = driver.prepareFrame({
+      runId: 'cold-terminal', direction: -1, progress: 1,
+      durationFallbackSeconds: 2.567, endSeconds: 2.567
+    });
+    video.duration = 2.6;
+    video.readyState = 1;
+    video.dispatch('loadedmetadata');
+    expect(driver.snapshot().targetTime).toBe(2.567);
+    video.readyState = 2;
+    video.dispatch('loadeddata');
+    expect(video.currentTimeWrites).toEqual([2.567]);
+    video.readyState = 4;
+    video.completeSeek();
+    expect(video.currentTimeWrites.at(-1)).toBeCloseTo(2.517);
+    video.completeSeek(); video.completeSeek(); video.presentFrame();
+    await expect(ready).resolves.toMatchObject({ status: 'ready', targetTime: 2.567 });
+    driver.dispose();
+  });
+
+  it('finishes an endpoint nudge when seeking clears without a seeked event', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      const ready = driver.prepareFrame({ runId: 'missing-seeked', direction: 1,
+        progress: 0, durationFallbackSeconds: 10 });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(video.currentTimeWrites).toEqual([.05]);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.seeking = false;
+      await vi.advanceTimersByTimeAsync(50);
+      expect(video.currentTimeWrites).toEqual([.05, 0]);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.completeSeek(); video.presentFrame();
+      await expect(ready).resolves.toMatchObject({ status: 'ready', targetTime: 0 });
+    } finally {
+      driver.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels a still-seeking endpoint nudge poll when its preparation is aborted', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const controller = new AbortController();
+    try {
+      const ready = driver.prepareFrame({ runId: 'abort-nudge', direction: 1,
+        progress: 0, durationFallbackSeconds: 10, signal: controller.signal });
+      const rejected = expect(ready).rejects.toThrow();
+      controller.abort();
+      await rejected;
+      expect(vi.getTimerCount()).toBe(0);
+      video.seeking = false;
+      await vi.advanceTimersByTimeAsync(200);
+      expect(video.currentTimeWrites).toEqual([.05]);
+    } finally { driver.dispose(); vi.useRealTimers(); }
   });
 
   it('does not claim frame readiness when the frame callback has not fired', async () => {
@@ -253,6 +402,7 @@ describe('timeline video driver', () => {
       });
       void readiness.then(() => { settled = true; });
 
+
       await vi.advanceTimersByTimeAsync(249);
       expect(video.playCalls).toBe(0);
       await vi.advanceTimersByTimeAsync(1);
@@ -293,7 +443,9 @@ describe('timeline video driver', () => {
 
       expect(video.currentTimeWrites).toHaveLength(seekWritesBeforeDriftRecovery + 1);
       expect(video.currentTimeWrites.at(-1)).toBeCloseTo(4.99);
-      expect(video.paused).toBe(false);
+      // Freeze the nudge before re-seeking, otherwise every late callback can
+      // advance beyond the target again and repeat until the prepare deadline.
+      expect(video.paused).toBe(true);
       expect(settled).toBe(false);
 
       video.completeSeek();
@@ -344,6 +496,71 @@ describe('timeline video driver', () => {
 
     await expect(readiness).resolves.toMatchObject({ status: 'stale' });
     expect(video.paused).toBe(false);
+  });
+
+  it('does not let a stale preparation release its successor', async () => {
+    const video = new FakeVideo();
+    const first = prepareTimelineVideoFrame(videoElement(video), {
+      runId: 'probe:1', direction: 1, progress: .5, durationFallbackSeconds: 10
+    });
+    const second = prepareTimelineVideoFrame(videoElement(video), {
+      runId: 'probe:2', direction: -1, progress: .6, durationFallbackSeconds: 10
+    });
+    await video.play();
+    await expect(first).resolves.toMatchObject({ status: 'stale' });
+    expect(video.paused).toBe(false);
+    video.completeSeek();
+    video.completeSeek();
+    video.presentFrame();
+    await expect(second).resolves.toMatchObject({ status: 'ready' });
+    expect(video.paused).toBe(true);
+  });
+
+  it.each([false, true])('proves a covered desktop frame by decoded readback, never a failed draw (%s)', async (drawFails) => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const drawImage = vi.fn(() => { if (drawFails) throw new Error('decoder unavailable'); });
+    const getImageData = vi.fn();
+    Object.assign(video, {
+      closest: () => ({}),
+      ownerDocument: { createElement: () => ({ getContext: () => ({ drawImage, getImageData }) }) }
+    });
+    let settled = false;
+    try {
+      const readiness = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'covered:1', direction: 1, progress: .5, durationFallbackSeconds: 10
+      });
+      void readiness.then(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(120);
+      expect(drawImage).not.toHaveBeenCalled(); // Still seeking: no decoded proof.
+      video.completeSeek();
+      await vi.advanceTimersByTimeAsync(120);
+      expect(settled).toBe(!drawFails);
+      if (drawFails) {
+        expect(getImageData).not.toHaveBeenCalled();
+        video.presentFrame();
+      } else {
+        expect(getImageData).toHaveBeenCalledWith(0, 0, 1, 1);
+        expect(video.dataset.timelineVideoFrameEvidence).toBe('decoded-canvas');
+      }
+      await expect(readiness).resolves.toMatchObject({ status: 'ready' });
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('unwinds a cold desktop preparation before the ink build deadline', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    video.readyState = 0;
+    Object.assign(video, { closest: () => ({}) });
+    try {
+      const readiness = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'cold-deadline:1', direction: 1, progress: 0, durationFallbackSeconds: 10
+      });
+      const rejection = expect(readiness).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+      await vi.advanceTimersByTimeAsync(19000);
+      await rejection;
+      expect(video.paused).toBe(true);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
   });
 
   it('registers the frame callback before a target seek can present', async () => {

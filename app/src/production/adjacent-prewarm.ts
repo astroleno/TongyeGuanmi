@@ -1,3 +1,5 @@
+import { permitsSpeculativeMedia } from '../media/loading-policy';
+
 type IdleWindow = {
   requestIdleCallback?: (
     callback: () => void,
@@ -13,7 +15,7 @@ export function scheduleAdjacentPrewarm(
   const target = window as unknown as IdleWindow;
   let cancelled = false;
   const run = () => {
-    if (!cancelled) {
+    if (!cancelled && permitsSpeculativeMedia()) {
       void task().catch(() => undefined);
     }
   };

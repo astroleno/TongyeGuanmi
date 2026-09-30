@@ -60,6 +60,7 @@ function aodMediaInput(
     direction: mediaRun.direction,
     progress: mapAodTimelineToMediaProgress(progress),
     durationFallbackSeconds: 2.6,
+    frameRate: 30,
     startSeconds: 0,
     endSeconds: AOD_FIGURE_END_SECONDS,
     timelineDurationMs: mediaRun.timelineDurationMs ?? 2600,
@@ -148,7 +149,7 @@ export function renderAodAnimationHold(root: HTMLElement | null): void {
   renderAodTransitionProgress(root, 0);
 }
 
-function AodAnimationScene({ registerHandle }: SceneComponentProps) {
+export function AodAnimationScene({ registerHandle, packedAlpha = false }: SceneComponentProps & { packedAlpha?: boolean }) {
   return (
     <article
       className="aod-transition r3-aod-animation"
@@ -186,19 +187,19 @@ function AodAnimationScene({ registerHandle }: SceneComponentProps) {
               />
             </div>
 
-            <video
+            <video crossOrigin="anonymous"
               ref={(element) => registerHandle?.('figure-video', element)}
               className="aod-transition__figure-video"
               data-aod-figure-video
               data-media-key={AOD_MEDIA_KEY}
               muted
-              preload="auto"
+              preload={packedAlpha ? 'none' : 'auto'}
               playsInline
             >
-              <AlphaVideoSources
+              {!packedAlpha && <AlphaVideoSources
                 webm={AOD_FIGURE_VIDEO_SRC}
                 hevc={AOD_FIGURE_HEVC_ALPHA_SRC}
-              />
+              />}
             </video>
             <canvas
               className="aod-transition__figure-canvas"

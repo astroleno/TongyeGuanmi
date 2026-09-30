@@ -162,7 +162,7 @@ describe('story manifest contract', () => {
 
     expect(segment).toMatchObject({
       kind: 'segment',
-      buildTimeoutMs: 8000,
+      buildTimeoutMs: 20000,
       policy: {
         kind: 'stagedSnap',
         advance: [{ kind: 'delay', ms: TERMINAL_DWELL_MS }]
@@ -184,7 +184,7 @@ describe('story manifest contract', () => {
           },
           readyMilestones: ['targetReady', 'mediaReady'],
           terminalFallbackScene: 'figure2-proof',
-          preparingTimeoutMs: 8000
+          preparingTimeoutMs: 20000
         }
       ]
     });
@@ -206,13 +206,13 @@ describe('story manifest contract', () => {
       );
       expect(segment, id).toMatchObject({
         kind: 'segment',
-        buildTimeoutMs: 8000,
+        buildTimeoutMs: 20000,
         requiredMilestones: ['targetReady', 'mediaReady', 'buildReady'],
         mediaPlayback: [
           expect.objectContaining({
             media,
             forward: expect.objectContaining({ mode: 'timeline', required: true }),
-            preparingTimeoutMs: 8000
+            preparingTimeoutMs: 20000
           })
         ]
       });
@@ -257,7 +257,7 @@ describe('story manifest contract', () => {
         id: 'method-bottom-figure2',
         from: 'method-top',
         to: 'figure2-animation',
-        buildTimeoutMs: 8000,
+        buildTimeoutMs: 20000,
         requiredMilestones: ['targetReady', 'mediaReady', 'buildReady'],
         mediaPlayback: [
           expect.objectContaining({
@@ -266,7 +266,7 @@ describe('story manifest contract', () => {
             forward: { mode: 'timeline', required: true },
             reverse: { mode: 'timeline', required: true },
             terminalFallbackScene: 'figure2-animation',
-            preparingTimeoutMs: 8000
+            preparingTimeoutMs: 20000
           })
         ]
       })
@@ -368,7 +368,7 @@ describe('story manifest contract', () => {
 
     expect(segment).toMatchObject({
       kind: 'segment',
-      buildTimeoutMs: 8000,
+      buildTimeoutMs: 20000,
       policy: {
         kind: 'snap'
       },

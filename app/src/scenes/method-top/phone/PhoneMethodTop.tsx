@@ -140,12 +140,13 @@ export function PhoneMethodTop({ reports }: PhoneMethodTopProps) {
     if (!root || !surface || !bridge) return;
     disposedRef.current = false;
     render(1);
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root,
       surfaces: [{ id: 'method-root', element: surface, kind: 'dom' }],
       commands
     });
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       cancelPaint();
       bindingRef.current = null;

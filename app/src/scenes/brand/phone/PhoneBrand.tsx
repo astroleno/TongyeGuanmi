@@ -53,6 +53,7 @@ function BrandContent({ reading }: Readonly<{ reading: boolean }>) {
 }
 
 export function Reading(_props: Readonly<{ sceneId: string }>) {
+  void _props; // Shared reading-component signature; Brand has one fixed page.
   return <BrandContent reading />;
 }
 
@@ -113,12 +114,13 @@ export function PhoneBrand({ reports }: Readonly<{ reports: PhoneLeafReportPort 
     if (!root) return;
     disposedRef.current = false;
     render(1);
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root,
       surfaces: [{ id: 'brand-root', element: root, kind: 'dom' }],
       commands
     });
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       cancelPaint();
       bindingRef.current = null;

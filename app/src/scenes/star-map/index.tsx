@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 import { bindSceneMotion, type SceneMotionBinding } from '../../stage/scene-motion';
-import { initStarFieldReveal } from './starFieldReveal';
+import type { StarFieldReveal } from './starFieldReveal';
+import { StarFieldWorkerClient, loadStarFieldFallback } from './star-field-worker-client';
 
 const STAR_MAP_IMAGE = new URL('../../../../assets/back2.webp', import.meta.url).href;
 const STAR_MAP_FRAME_INTERVAL_MS = 1000 / 12;
@@ -70,33 +71,32 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
     let firstFramePainted = false;
     let lastPaintedAt = -Infinity;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const reveal = initStarFieldReveal({
-      canvas,
-      sourceUrl: STAR_MAP_IMAGE,
-      autoplay: false,
-      config: {
-        revealDurationMs: 2800,
-        loopTransitionMs: 1200
-      }
-    });
+    let reveal: StarFieldReveal | null = null;
+    let worker: StarFieldWorkerClient | null = null;
+
+    const presented = () => {
+      if (disposed) return;
+      firstFramePainted = true;
+      canvas.classList.add('is-ready');
+      canvas.dataset.inkTextureReady = 'true';
+      canvas.dataset.inkTextureRevision = String(++revision);
+      scheduleLiveBackground();
+    };
 
     const paintBackground = (now = performance.now(), force = false) => {
-      if (disposed || !reveal.ready || (!force && now - lastPaintedAt < STAR_MAP_FRAME_INTERVAL_MS)) {
+      if (disposed || (!worker && !reveal?.ready) || (!force && now - lastPaintedAt < STAR_MAP_FRAME_INTERVAL_MS)) {
         return false;
       }
       const timeSeconds = now / 1000;
       const pulse = reducedMotion ? 0 : Math.sin(timeSeconds * 0.34) * 0.08 + Math.sin(timeSeconds * 0.17) * 0.05;
-      reveal.renderBackground({
+      const frame = {
         timeSeconds,
         strength: reducedMotion ? 0.72 : 1.05 + pulse,
         noiseFloor: reducedMotion ? 0.02 : 0.028
-      });
-      firstFramePainted = true;
+      };
       lastPaintedAt = now;
-      canvas.classList.add('is-ready');
-      canvas.dataset.inkTextureReady = 'true';
-      revision += 1;
-      canvas.dataset.inkTextureRevision = String(revision);
+      if (worker) worker.render(frame);
+      else { reveal?.renderBackground(frame); presented(); }
       return true;
     };
 
@@ -106,7 +106,7 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
         return;
       }
       paintBackground(now);
-      liveFrame = requestAnimationFrame(renderLiveBackground);
+      scheduleLiveBackground();
     };
 
     const scheduleLiveBackground = () => {
@@ -121,7 +121,7 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
       if (disposed || firstFramePainted) {
         return;
       }
-      if (!reveal.ready) {
+      if (!reveal?.ready) {
         readyFrame = requestAnimationFrame(markReady);
         return;
       }
@@ -129,7 +129,24 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
       scheduleLiveBackground();
     };
 
-    readyFrame = requestAnimationFrame(markReady);
+    const fallback = () => {
+      if (disposed) return;
+      worker?.dispose();
+      worker = null;
+      canvas.dataset.starMapBackend = 'main';
+      void loadStarFieldFallback().then(({ createStarFieldFallback }) => {
+        if (disposed) return;
+        reveal = createStarFieldFallback(canvas, STAR_MAP_IMAGE);
+        // A worker may fail after its first frame; still repaint with the fallback.
+        const ready = () => {
+          readyFrame = 0;
+          if (disposed) return;
+          if (!reveal?.ready) { readyFrame = requestAnimationFrame(ready); return; }
+          paintBackground(performance.now(), true);
+        };
+        readyFrame = requestAnimationFrame(firstFramePainted ? ready : markReady);
+      }, () => { if (!disposed) canvas.dataset.starMapBackend = 'failed'; });
+    };
     const controller: StarMapPaintController = {
       setActive(nextActive) {
         motionActive = nextActive && !reducedMotion;
@@ -137,8 +154,10 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
         if (!motionActive) {
           cancelAnimationFrame(liveFrame);
           liveFrame = 0;
+          if (firstFramePainted) worker?.pause();
           return;
         }
+        if (!firstFramePainted) paintBackground(performance.now(), true);
         scheduleLiveBackground();
       }
     };
@@ -152,6 +171,15 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
       : null;
     motionBindingRef.current = motionBinding;
 
+    if (typeof Worker === 'function' && typeof OffscreenCanvas === 'function') {
+      canvas.dataset.starMapBackend = 'worker';
+      worker = new StarFieldWorkerClient({
+        canvas, sourceUrl: STAR_MAP_IMAGE, onPresented: presented, onFailure: fallback
+      });
+      worker.start();
+      paintBackground(performance.now(), true);
+    } else fallback();
+
     return () => {
       disposed = true;
       motionBinding?.dispose();
@@ -160,7 +188,8 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
       }
       cancelAnimationFrame(readyFrame);
       cancelAnimationFrame(liveFrame);
-      reveal.dispose();
+      worker?.dispose();
+      reveal?.dispose();
       paintControllerRef.current = null;
       if (root?.__r4StarMapPaintController === controller) {
         delete root.__r4StarMapPaintController;
@@ -169,6 +198,7 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
       delete canvas.dataset.inkTextureReady;
       delete canvas.dataset.inkTextureRevision;
       delete canvas.dataset.starMapMotionActive;
+      delete canvas.dataset.starMapBackend;
     };
   }, []);
 

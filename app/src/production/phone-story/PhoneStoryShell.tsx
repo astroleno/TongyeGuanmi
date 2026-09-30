@@ -482,9 +482,9 @@ export function PhoneStoryShell({
     });
   });
   const snapshot = useSyncExternalStore(
-    owners.engine.subscribe,
-    owners.engine.getSnapshot,
-    owners.engine.getSnapshot
+    owners.engine.subscribeRender ?? owners.engine.subscribe,
+    owners.engine.getRenderSnapshot ?? owners.engine.getSnapshot,
+    owners.engine.getRenderSnapshot ?? owners.engine.getSnapshot
   ); const stableScene = snapshot.stableCommit?.sceneId ?? null; nativeHandoffStoreRef.current.snapshot = snapshot;
   const stablePrewarmScenes = stableScene ? phoneNativePrewarmScenes(stableScene) : [];
   useLayoutEffect(() => {

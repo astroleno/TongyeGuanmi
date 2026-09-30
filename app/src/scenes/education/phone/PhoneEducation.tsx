@@ -124,12 +124,13 @@ export function PhoneEducation({ reports }: Readonly<{
     rootRef.current = root;
     disposedRef.current = false;
     renderEducationHold(root);
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root: mount,
       surfaces: [{ id: 'education-root', element: root, kind: 'dom' }],
       commands
     });
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       cancelPaint();
       bindingRef.current = null;

@@ -118,7 +118,7 @@ export function PhoneFigure3ServicesTransition({
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    reports.registerMount({
+    return reports.registerMount({
       root,
       surfaces: [{ id: 'between:figure3-services', element: root, kind: 'dom' }],
       commands

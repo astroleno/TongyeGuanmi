@@ -793,7 +793,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     });
     compositorRef.current = compositor;
     render(0);
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root: mountRoot,
       surfaces: [
         { id: 'figure3-video', element: video, kind: 'video' },
@@ -817,6 +817,7 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
       reportFailure('figure3-initial-poster-decode-rejected', error);
     });
     return () => {
+      unregisterMount?.();
       current = false;
       disposedRef.current = true;
       mediaPresentationEnabledRef.current = false;

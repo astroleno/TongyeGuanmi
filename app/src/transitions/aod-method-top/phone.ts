@@ -24,7 +24,7 @@ export function PhoneAodMethodTopTransition({
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    reports.registerMount({
+    return reports.registerMount({
       root,
       surfaces: [{ id: 'between:aod-method-top', element: root, kind: 'dom' }],
       commands

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const compositorProbe = vi.hoisted(() => ({
   setupFailure: false,
@@ -90,6 +90,7 @@ function fixture(options: Readonly<{ injected?: boolean; failure?: boolean }> = 
 }
 
 describe('canonical phone packed-alpha surface', () => {
+  afterEach(() => vi.useRealTimers());
   beforeEach(() => {
     compositorProbe.setupFailure = false;
     compositorProbe.renderResult = true;
@@ -118,6 +119,34 @@ describe('canonical phone packed-alpha surface', () => {
       canvas: current.canvas, generation: second
     });
     expect(second).toBeGreaterThan(first);
+    current.surface.dispose('terminal');
+  });
+
+  it('does not mistake a slow download for a compositor timeout', () => {
+    vi.useFakeTimers();
+    const current = fixture();
+    current.surface.activate('initial');
+    vi.advanceTimersByTime(10000);
+    expect(current.onFailure).not.toHaveBeenCalled();
+    current.video.dispatchEvent(new Event('loadeddata'));
+    vi.advanceTimersByTime(2999);
+    expect(current.onFailure).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(current.onFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'packed-alpha-static-fallback'
+    }));
+    current.surface.dispose('terminal');
+  });
+
+  it('removes deferred frame deadlines when a generation is released', () => {
+    vi.useFakeTimers();
+    const current = fixture();
+    current.surface.activate('endpoint');
+    current.surface.release();
+    current.video.dispatchEvent(new Event('loadeddata'));
+    vi.advanceTimersByTime(30000);
+    expect(current.onFailure).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
     current.surface.dispose('terminal');
   });
 

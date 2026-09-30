@@ -27,7 +27,7 @@ export const FIGURE2_DISTANCE_EXPAND_SEGMENT = {
     'buildReady',
     'timelineReady'
   ],
-  buildTimeoutMs: 8000,
+  buildTimeoutMs: 20000,
   visual: {
     type: 'disappear',
     media: ['figure2-pair-motion']
@@ -47,6 +47,6 @@ export const FIGURE2_DISTANCE_EXPAND_SEGMENT = {
     },
     readyMilestones: ['targetReady', 'mediaReady'],
     terminalFallbackScene: 'figure2-proof',
-    preparingTimeoutMs: 8000
+    preparingTimeoutMs: 20000
   }]
 } as const satisfies SpineSegmentNode;

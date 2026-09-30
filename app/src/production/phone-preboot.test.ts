@@ -27,9 +27,11 @@ function runPhonePreboot({
 
   const dataset: Record<string, string> = {};
   const styles = new Map<string, string>();
+  const preload = { media: 'not all' };
   runInNewContext(script, {
     Math,
     document: {
+      getElementById: (id: string) => id === 'phone-first-art' ? preload : null,
       documentElement: {
         dataset,
         style: {
@@ -57,10 +59,16 @@ function runPhonePreboot({
     }
   });
 
-  return { dataset, styles };
+  return { dataset, styles, preload };
 }
 
 describe('phone preboot ownership', () => {
+  it('prioritizes Hero art only for a phone home entry', () => {
+    expect(runPhonePreboot({ width: 390, height: 844 }).preload.media).toBe('all');
+    expect(runPhonePreboot({ width: 390, height: 844, hash: '#contact' }).preload.media).toBe('not all');
+    expect(runPhonePreboot({ width: 1440, height: 900, pointerCoarse: false }).preload.media).toBe('not all');
+  });
+
   it('publishes only a presentation-pending cover for supported portrait and landscape phones', () => {
     for (const viewport of [
       { width: 390, height: 844 },

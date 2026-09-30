@@ -395,6 +395,35 @@ describe('Director machine', () => {
     expect(stateValue(actor)).toBe('playing');
   });
 
+  it('ignores outward wheel input at either end instead of preparing a missing segment', () => {
+    for (const [initialScene, direction] of [['hero', -1], ['contact', 1]] as const) {
+      const actor = startDirector({ initialScene });
+      bootToHold(actor);
+      actor.send({ type: 'INPUT_DELTA', delta: direction, source: 'wheel', now: 0 });
+      expect(stateValue(actor)).toBe('hold');
+      expect(context(actor).pendingSegment).toBeUndefined();
+      actor.stop();
+    }
+  });
+
+  it('keeps a valid preparation when a trackpad reverses beyond the story boundary', () => {
+    for (const [initialScene, direction] of [['hero', 1], ['contact', -1]] as const) {
+      const actor = startDirector({ initialScene });
+      bootToHold(actor);
+      actor.send({ type: 'CHARGE_FIRED', direction });
+      const token = context(actor).prepareToken;
+      const segment = context(actor).pendingSegment;
+      actor.send({ type: 'INPUT_DELTA', delta: -direction * .11, source: 'wheel', now: 1 });
+      actor.send({ type: 'CHARGE_FIRED', direction: direction === 1 ? -1 : 1 });
+      expect(stateValue(actor)).toBe('preparing');
+      expect(context(actor).prepareToken).toBe(token);
+      expect(context(actor).pendingSegment).toBe(segment);
+      sendTargetReady(actor);
+      expect(stateValue(actor)).toBe('playing');
+      actor.stop();
+    }
+  });
+
   it('restarts preparing timeout after supersede instead of letting the stale timer recover', async () => {
     const actor = startDirector({ prepareTimeoutMs: 100, manifest: withSegmentsSnap('pattern-star-map') });
     bootToHold(actor);

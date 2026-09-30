@@ -19,13 +19,12 @@ import type {
 } from '../../../production/phone-story/presentation';
 import {
   disposeFigure2Media,
-  figure2AnimationScene,
+  Figure2AnimationScene as Figure2Surface,
   parkFigure2Media,
   renderFigure2AnimationProgress
 } from '..';
 import './PhoneFigure2.css';
 
-const Figure2Surface = figure2AnimationScene.Component;
 const FIGURE2_PACKED_ALPHA_VIDEO = phoneMediaUrlFor(
   'figure2-pair-packed', 'figure2-animation'
 );
@@ -80,6 +79,7 @@ function figure2TimelineMediaInput(runId: string, direction: 1 | -1, progress: n
     direction,
     progress: Math.min(1, Math.max(0, progress)),
     durationFallbackSeconds: FIGURE2_ENDPOINT_SECONDS,
+    frameRate: 30,
     startSeconds: 0,
     endSeconds: FIGURE2_ENDPOINT_SECONDS,
     timelineDurationMs: FIGURE2_ENDPOINT_SECONDS * 1000,
@@ -150,8 +150,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
             direction, clamped
           )
         });
-      } catch {
-      }
+      } catch { /* The surface readiness gate reports a failed media frame. */ }
     }
     const hold = staged && (!isFigure2MediaLeg(binding)
       || binding.direction === 'forward' && binding.stageIndex === 0 && clamped >= .999);
@@ -398,7 +397,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       get element() { return canvasRef.current ?? canvas; },
       kind: 'canvas-webgl' as const
     };
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root,
       surfaces: [
         { id: 'figure2-pair-video', element: video, kind: 'video' },
@@ -421,6 +420,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
       });
     });
     return () => {
+      unregisterMount?.();
       current = false;
       disposedRef.current = true;
       surfaceGenerationRef.current = 0;
@@ -439,6 +439,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
   return (
     <div ref={rootRef} className="phone-figure2" data-testid="r2-stage">
       <Figure2Surface
+        packedAlpha
         scene="figure2-animation"
         hidden={false}
         registerHandle={registerHandle}

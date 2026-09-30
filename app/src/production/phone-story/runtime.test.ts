@@ -541,7 +541,8 @@ function reachPlaying(runtime: PhoneStoryRuntime, fixture: EnvironmentFixture): 
 
 function registerCurrentLeaf(
   runtime: PhoneStoryRuntime,
-  commands: PhoneLeafCommandHandle
+  commands: PhoneLeafCommandHandle,
+  reusedReports?: PhoneLeafReportPort
 ) {
   const transaction = currentTransaction(runtime);
   const scene = phoneSceneById(transaction.candidateSceneId);
@@ -553,8 +554,8 @@ function registerCurrentLeaf(
     allowedSurfaceIds: scene.surfaces,
     planeRevision: transaction.planeRevision
   };
-  const reports = runtime.createLeafReportPort(binding);
-  reports.registerMount({
+  const reports = reusedReports ?? runtime.createLeafReportPort(binding);
+  const unregister = reports.registerMount({
     root: {} as HTMLElement,
     surfaces: scene.surfaces.map((id) => ({
       id,
@@ -567,7 +568,7 @@ function registerCurrentLeaf(
     })),
     commands
   });
-  return { binding, reports };
+  return { binding, reports, unregister };
 }
 
 function registerPrewarmLeaf(
@@ -1184,6 +1185,28 @@ function installDeprecatedStaticPrepare(commands: PhoneLeafCommandHandle) {
 }
 
 describe('phone runtime projector bridge', () => {
+  it.each(['hero', 'crane-animation'] as const)('rebinds retained %s to the source lane before touch activation', (sceneId) => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, sceneId === 'hero' ? '#home' : `#${sceneId}`);
+    const disconnect = runtime.connect();
+    const source = commandFixture();
+    registerCurrentLeaf(runtime, source.commands);
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'touch', delta: 350, fresh: true,
+      trusted: true, target: 'story' });
+    registerCurrentLeaf(runtime, commandFixture().commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    reachPlaying(runtime, fixture);
+    fixture.advance(400);
+    fixture.flushFrames();
+    expect(source.rebindings.at(-1)?.leg).toBe('source');
+    expect(source.commands.setMediaPhase).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'playing', direction: 'forward'
+    }));
+    expect(vi.mocked(source.commands.render).mock.calls.at(-1)?.[0]).toBeGreaterThan(0);
+    disconnect();
+  });
+
   it('settles each segment at its real forward or reverse transaction endpoint', () => {
     const fixture = createEnvironment();
     const runtime = createRuntime(fixture, '#pattern');
@@ -1459,7 +1482,7 @@ describe('phone runtime projector bridge', () => {
     disconnect();
   });
 
-  it.each(['presentation-coverage-invalid', 'presentation-content-invisible'] as const)(
+  it.each(['presentation-coverage-invalid', 'presentation-content-invisible', 'presentation-frame-invalid'] as const)(
   'retries a transient target %s miss inside the bounded plane deadline', (failureCode) => {
     const fixture = createEnvironment();
     const verifyVisibleCandidate = vi.fn()
@@ -1489,6 +1512,29 @@ describe('phone runtime projector bridge', () => {
     fixture.flushFrames();
     expect(verifyVisibleCandidate).toHaveBeenCalledTimes(2);
     expect(runtime.getSnapshot().status).toBe('stable');
+    disconnect();
+  });
+
+  it('does not extend the deadline or accept a persistently invisible target frame', () => {
+    const fixture = createEnvironment();
+    const runtime = createPhoneStoryRuntime({
+      initialEntry: { pathname: '/', hash: '#home', origin: 'initial' },
+      environment: fixture.port,
+      presentation: createProjectorAuthority({ verifyVisibleCandidate: () => ({
+        records: [], failure: { code: 'presentation-frame-invalid',
+          message: 'decoded frame is still missing', recoverable: true }
+      }) }, fixture.port.readViewport)
+    });
+    const disconnect = runtime.connect();
+    prepareCurrentPlane(runtime, fixture);
+    const deadline = currentTransaction(runtime).deadline;
+    fixture.flushFrames(); fixture.advance(500); fixture.flushFrames();
+    expect(currentTransaction(runtime).deadline).toEqual(deadline);
+    expect(runtime.getSnapshot().stableCommit).toBeNull();
+    expect(fixture.counts().timers).toBe(1);
+    fixture.advance(2000); fixture.fireTimers();
+    expect(runtime.getSnapshot().status).toBe('faulted');
+    expect(fixture.counts().frames).toBe(0);
     disconnect();
   });
 
@@ -1552,7 +1598,7 @@ describe('phone runtime projector bridge', () => {
     disconnect();
   });
 
-  it.each(['presentation-coverage-invalid', 'presentation-content-invisible'] as const)(
+  it.each(['presentation-coverage-invalid', 'presentation-content-invisible', 'presentation-frame-invalid'] as const)(
   'retries a transient reproject %s miss inside the bounded reproof deadline', (failureCode) => {
     const fixture = createEnvironment();
     const verifyReproject = vi.fn()
@@ -1988,7 +2034,7 @@ describe('phone runtime effects, media activation, and disposal', () => {
       attempt: { segmentId: 'hero-pattern', direction: 'reverse' },
       activation: 'offered'
     });
-    registerCurrentLeaf(runtime, target.commands);
+    const mounted = registerCurrentLeaf(runtime, target.commands);
     const deprecatedPrepare = installDeprecatedStaticPrepare(target.commands);
     registerCurrentEffect(runtime, commandFixture().commands);
 
@@ -1998,6 +2044,13 @@ describe('phone runtime effects, media activation, and disposal', () => {
       credit: 'direct-muted-autoplay', surfaceIds: ['hero-figure-video']
     }));
     expect(currentTransaction(runtime).activation).toBe('spent');
+    mounted.unregister?.();
+    registerCurrentLeaf(runtime, target.commands, mounted.reports);
+    expect(target.commands.activate).toHaveBeenCalledTimes(2);
+    expect(target.commands.activate).toHaveBeenLastCalledWith(expect.objectContaining({
+      credit: 'direct-muted-autoplay', surfaceIds: ['hero-figure-video']
+    }));
+    expect(fixture.resources.at(-1)?.activeDecoders).toBe(1);
     disconnect();
   });
 
@@ -2239,6 +2292,32 @@ describe('phone runtime effects, media activation, and disposal', () => {
     reports.reportProgress(1);
     reports.reportComplete();
     expect(runtime.getSnapshot()).toBe(before);
+    disconnect();
+  });
+
+  it('renders frame progress through leaf commands without rerendering the React shell', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#pattern');
+    const disconnect = runtime.connect();
+    proveCurrent(runtime, fixture);
+    fixture.emit({ type: 'input', kind: 'wheel', delta: 100, fresh: true, trusted: true, target: 'story' });
+    const commands = commandFixture().commands;
+    registerCurrentLeaf(runtime, commands);
+    registerCurrentEffect(runtime, commandFixture().commands);
+    reachPlaying(runtime, fixture);
+    const renderSnapshot = runtime.getRenderSnapshot();
+    const renderListener = vi.fn();
+    runtime.subscribeRender(renderListener);
+    fixture.advance(16);
+    fixture.flushFrames();
+    expect(runtime.getSnapshot()).not.toBe(renderSnapshot);
+    expect(runtime.getRenderSnapshot()).toBe(renderSnapshot);
+    expect(renderListener).not.toHaveBeenCalled();
+    expect(commands.render).toHaveBeenCalled();
+    fixture.advance(10_000);
+    fixture.flushFrames();
+    expect(runtime.getRenderSnapshot()).not.toBe(renderSnapshot);
+    expect(renderListener).toHaveBeenCalled();
     disconnect();
   });
 
@@ -2700,6 +2779,25 @@ describe('phone runtime effects, media activation, and disposal', () => {
     expect(commands.activate).toHaveBeenCalledTimes(1);
     expect(currentTransaction(runtime).requiredFinal).toEqual([]);
     disconnect();
+  });
+
+  it('releases ownership during React effect replay without destroying the reusable compositor', () => {
+    const fixture = createEnvironment();
+    const runtime = createRuntime(fixture, '#brand');
+    const disconnect = runtime.connect();
+    const { commands } = commandFixture();
+    const { reports, binding, unregister } = registerCurrentLeaf(runtime, commands);
+    unregister?.();
+    unregister?.();
+    expect(commands.dispose).not.toHaveBeenCalled();
+    expect(fixture.resources.at(-1)).toEqual({ videos: 0, activeDecoders: 0, canvases: 0, webglContexts: 0 });
+    const remount = reports.registerMount({ root: {} as HTMLElement,
+      surfaces: binding.allowedSurfaceIds.map((id) => ({ id, element: {} as HTMLElement, kind: 'dom' as const })), commands });
+    expect(commands.rebind).toHaveBeenCalledTimes(2);
+    disconnect();
+    expect(commands.dispose).toHaveBeenCalledOnce();
+    remount?.();
+    expect(commands.dispose).toHaveBeenCalledOnce();
   });
 
   it('retires a detached retained mount before React registers its replacement', () => {

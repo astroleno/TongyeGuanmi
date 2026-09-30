@@ -7,6 +7,7 @@
     <meta name="theme-color" content="#040807" />
     <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="../assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
+    <link id="phone-first-art" rel="preload" href="../assets/hero-back.webp" as="image" crossorigin fetchpriority="high" media="not all" />
     <!--__CANONICAL_LINK__-->
     <!--__R5_CDN_RUNTIME__-->
     <title>__SITE_TITLE__</title>
@@ -25,6 +26,10 @@
           const documentElement = document.documentElement;
           documentElement.dataset.phonePreboot = 'pending';
           documentElement.style.setProperty('--phone-preboot-surface', '#040807');
+          if (location.pathname === '/' && ['', '#home', '#hero'].includes(location.hash)) {
+            const firstArt = document.getElementById('phone-first-art');
+            if (firstArt) firstArt.media = 'all';
+          }
         }
       } catch {}
     </script>

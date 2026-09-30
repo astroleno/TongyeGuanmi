@@ -206,7 +206,7 @@ const deadlineLedger = {
   },
   'D-single-media': {
     moduleLoad: 8000,
-    mediaPrepare: 8000,
+    mediaPrepare: 20000,
     firstFrame: 3000,
     planeApply: 1500,
     scrollConfirm: 1500,
@@ -214,7 +214,7 @@ const deadlineLedger = {
   },
   'D-multi-media': {
     moduleLoad: 10000,
-    mediaPrepare: 10000,
+    mediaPrepare: 25000,
     firstFrame: 4000,
     planeApply: 1500,
     scrollConfirm: 1500,

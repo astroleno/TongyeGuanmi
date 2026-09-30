@@ -198,12 +198,13 @@ export function createPhoneInkLeaf(
       });
       rendererRef.current = renderer;
       renderer?.prewarm(createInkFieldFrame(initialField, .003, viewport));
-      reports.registerMount({
+      const unregisterMount = reports.registerMount({
         root: canvas,
         surfaces: [{ id: options.surfaceId, element: canvas, kind: 'canvas-webgl' }],
         commands
       });
       return () => {
+        unregisterMount?.();
         disposedRef.current = true;
         renderer?.destroy();
         if (rendererRef.current === renderer) rendererRef.current = null;

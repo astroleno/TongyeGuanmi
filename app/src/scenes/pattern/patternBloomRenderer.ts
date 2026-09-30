@@ -262,6 +262,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 let patternLayerImagesPromise: Promise<readonly HTMLImageElement[]> | undefined;
 let patternBackgroundPromise: Promise<HTMLImageElement> | undefined;
+let activeRenderers = 0;
 
 function loadPatternLayerImages(): Promise<readonly HTMLImageElement[]> {
   if (!patternLayerImagesPromise) {
@@ -336,59 +337,62 @@ export function patternBloomSnapshot(progress: number, rotationProgress = progre
 }
 
 export class PatternBloomRenderer {
-  private readonly context: CanvasRenderingContext2D | null;
-  private readonly petalCanvas = document.createElement('canvas');
-  private readonly petalContext = this.petalCanvas.getContext('2d');
-  private readonly flowerCanvas = document.createElement('canvas');
-  private readonly flowerContext = this.flowerCanvas.getContext('2d');
-  private readonly ringCanvases = bloomRings.map(() => document.createElement('canvas'));
-  private width = 0;
-  private height = 0;
-  private dpr = 1;
-  private textureSize = 0;
-  private rafId = 0;
-  private lastRenderedAt = -Infinity;
-  private renderActive = false;
-  private animateMotion = false;
-  private framePending = false;
-  private motionElapsedSeconds = 0;
-  private motionStartedAt = 0;
-  private progress = 0;
-  private rotationProgress = 0;
-  private layers: readonly LoadedLayer[] = [];
-  private ringTextureIndex = 0;
-  private ringStructuralKey = '';
-  private frameRevision = 0;
-  private destroyed = false;
-  private staticFrameRequested = false;
-  private lastFlowerPhase = Number.NaN;
-  private lastFlowerTextureSize = 0;
-  private readyPromise: Promise<void> | undefined;
-  private resolveReady: (() => void) | undefined;
+  readonly #context: CanvasRenderingContext2D | null;
+  readonly #petalCanvas = document.createElement('canvas');
+  readonly #petalContext = this.#petalCanvas.getContext('2d');
+  readonly #flowerCanvas = document.createElement('canvas');
+  readonly #flowerContext = this.#flowerCanvas.getContext('2d');
+  readonly #ringCanvases = bloomRings.map(() => document.createElement('canvas'));
+  #width = 0;
+  #height = 0;
+  #dpr = 1;
+  #textureSize = 0;
+  #rafId = 0;
+  #lastRenderedAt = -Infinity;
+  #renderActive = false;
+  #animateMotion = false;
+  #framePending = false;
+  #motionElapsedSeconds = 0;
+  #motionStartedAt = 0;
+  #progress = 0;
+  #rotationProgress = 0;
+  #layers: readonly LoadedLayer[] = [];
+  #ringTextureIndex = 0;
+  #ringStructuralKey = '';
+  #frameRevision = 0;
+  #destroyed = false;
+  #staticFrameRequested = false;
+  #lastFlowerPhase = Number.NaN;
+  #lastFlowerTextureSize = 0;
+  #readyPromise: Promise<void> | undefined;
+  #resolveReady: (() => void) | undefined;
 
-  constructor(
-    private readonly canvas: HTMLCanvasElement,
-    private readonly options: PatternBloomRendererOptions = {}
-  ) {
-    this.context = canvas.getContext('2d', { alpha: true });
-    this.petalCanvas.dataset.patternTextureRole = 'petal-source';
-    this.flowerCanvas.dataset.patternTextureRole = 'source-flower';
-    for (const ringCanvas of this.ringCanvases) {
+  readonly #canvas: HTMLCanvasElement;
+  readonly #options: PatternBloomRendererOptions;
+
+  constructor(canvas: HTMLCanvasElement, options: PatternBloomRendererOptions = {}) {
+    this.#canvas = canvas;
+    this.#options = options;
+    activeRenderers += 1;
+    this.#context = canvas.getContext('2d', { alpha: true });
+    this.#petalCanvas.dataset.patternTextureRole = 'petal-source';
+    this.#flowerCanvas.dataset.patternTextureRole = 'source-flower';
+    for (const ringCanvas of this.#ringCanvases) {
       ringCanvas.dataset.patternTextureRole = 'ring';
     }
   }
 
   async start(): Promise<void> {
-    if (!this.context || !this.petalContext || !this.flowerContext) {
+    if (!this.#context || !this.#petalContext || !this.#flowerContext) {
       return;
     }
 
     const layers = await loadPatternLayerImages();
-    if (this.destroyed) {
+    if (this.#destroyed) {
       return;
     }
 
-    this.layers = layerConfigs.map((layer, index) => {
+    this.#layers = layerConfigs.map((layer, index) => {
       const image = layers[index];
       if (!image) {
         throw new Error(`Pattern bloom layer failed to load: ${layer.id}`);
@@ -398,52 +402,52 @@ export class PatternBloomRenderer {
         image
       };
     });
-    this.buildSourceTextures();
-    this.resize();
-    this.requestRender();
+    this.#buildSourceTextures();
+    this.#resize();
+    this.#requestRender();
   }
 
   prepareStaticFrame(): Promise<void> {
-    if (this.destroyed) {
+    if (this.#destroyed) {
       return Promise.resolve();
     }
-    if (this.canvas.dataset.inkTextureReady === 'true') {
+    if (this.#canvas.dataset.inkTextureReady === 'true') {
       return Promise.resolve();
     }
-    if (!this.readyPromise) {
-      this.readyPromise = new Promise((resolve) => {
-        this.resolveReady = resolve;
+    if (!this.#readyPromise) {
+      this.#readyPromise = new Promise((resolve) => {
+        this.#resolveReady = resolve;
       });
     }
-    this.staticFrameRequested = true;
-    this.requestRender();
-    return this.readyPromise;
+    this.#staticFrameRequested = true;
+    this.#requestRender();
+    return this.#readyPromise;
   }
 
   setProgress(progress: number): void {
     const next = clamp(progress);
-    if (Math.abs(next - this.progress) < 0.0001 && Math.abs(next - this.rotationProgress) < 0.0001) {
+    if (Math.abs(next - this.#progress) < 0.0001 && Math.abs(next - this.#rotationProgress) < 0.0001) {
       return;
     }
-    this.progress = next;
-    this.rotationProgress = next;
-    this.framePending = true;
-    if (this.layers.length > 0 && this.renderActive) {
-      this.requestRender();
+    this.#progress = next;
+    this.#rotationProgress = next;
+    this.#framePending = true;
+    if (this.#layers.length > 0 && this.#renderActive) {
+      this.#requestRender();
     }
   }
 
   setFrameProgress(collapseProgress: number, rotationProgress = collapseProgress): void {
     const nextProgress = clamp(collapseProgress);
     const nextRotation = clamp(rotationProgress);
-    if (Math.abs(nextProgress - this.progress) < 0.0001 && Math.abs(nextRotation - this.rotationProgress) < 0.0001) {
+    if (Math.abs(nextProgress - this.#progress) < 0.0001 && Math.abs(nextRotation - this.#rotationProgress) < 0.0001) {
       return;
     }
-    this.progress = nextProgress;
-    this.rotationProgress = nextRotation;
-    this.framePending = true;
-    if (this.layers.length > 0 && this.renderActive) {
-      this.requestRender();
+    this.#progress = nextProgress;
+    this.#rotationProgress = nextRotation;
+    this.#framePending = true;
+    if (this.#layers.length > 0 && this.#renderActive) {
+      this.#requestRender();
     }
   }
 
@@ -452,150 +456,156 @@ export class PatternBloomRenderer {
   }
 
   setRenderActive(active: boolean, animate = active): void {
-    if (this.destroyed) {
+    if (this.#destroyed) {
       return;
     }
     const nextAnimateMotion = active && animate;
-    if (this.animateMotion && !nextAnimateMotion) {
-      this.motionElapsedSeconds += Math.max(0, performance.now() - this.motionStartedAt) / 1000;
-    } else if (!this.animateMotion && nextAnimateMotion) {
-      this.motionStartedAt = performance.now();
+    if (this.#animateMotion && !nextAnimateMotion) {
+      this.#motionElapsedSeconds += Math.max(0, performance.now() - this.#motionStartedAt) / 1000;
+    } else if (!this.#animateMotion && nextAnimateMotion) {
+      this.#motionStartedAt = performance.now();
     }
-    const stateChanged = this.renderActive !== active || this.animateMotion !== nextAnimateMotion;
-    this.renderActive = active;
-    this.animateMotion = nextAnimateMotion;
+    const stateChanged = this.#renderActive !== active || this.#animateMotion !== nextAnimateMotion;
+    this.#renderActive = active;
+    this.#animateMotion = nextAnimateMotion;
     if (!stateChanged) {
       return;
     }
     if (active) {
-      this.framePending = true;
-      if (this.layers.length > 0) {
-        this.requestRender();
+      this.#framePending = true;
+      if (this.#layers.length > 0) {
+        this.#requestRender();
       }
       return;
     }
-    if (this.rafId) {
-      window.cancelAnimationFrame(this.rafId);
-      this.rafId = 0;
+    if (this.#rafId) {
+      window.cancelAnimationFrame(this.#rafId);
+      this.#rafId = 0;
     }
   }
 
   renderProgress(progress: number): void {
-    this.progress = clamp(progress);
-    this.rotationProgress = this.progress;
+    this.#progress = clamp(progress);
+    this.#rotationProgress = this.#progress;
     const now = performance.now();
-    this.renderFrame();
-    this.lastRenderedAt = now;
+    this.#renderFrame();
+    this.#lastRenderedAt = now;
   }
 
   destroy(): void {
-    this.destroyed = true;
-    this.staticFrameRequested = false;
-    if (this.rafId) {
-      window.cancelAnimationFrame(this.rafId);
-      this.rafId = 0;
+    if (this.#destroyed) return;
+    this.#destroyed = true;
+    this.#layers = [];
+    if (--activeRenderers === 0) {
+      patternLayerImagesPromise = undefined;
+      patternBackgroundPromise = undefined;
     }
-    this.resolveReady?.();
-    this.resolveReady = undefined;
+    this.#staticFrameRequested = false;
+    if (this.#rafId) {
+      window.cancelAnimationFrame(this.#rafId);
+      this.#rafId = 0;
+    }
+    this.#resolveReady?.();
+    this.#resolveReady = undefined;
     for (const canvas of [
-      this.petalCanvas,
-      this.flowerCanvas,
-      ...this.ringCanvases
+      this.#petalCanvas,
+      this.#flowerCanvas,
+      ...this.#ringCanvases
     ]) {
       canvas.width = 0;
       canvas.height = 0;
     }
   }
 
-  private resize(): void {
+  #resize(): void {
     const dpr = Math.min(window.devicePixelRatio || 1, DPR_LIMIT);
-    const rect = this.canvas.getBoundingClientRect();
+    const rect = this.#canvas.getBoundingClientRect();
     const cssWidth = Math.max(1, rect.width || window.innerWidth || 1);
     const cssHeight = Math.max(1, rect.height || window.innerHeight || 1);
     const width = Math.max(1, Math.round(cssWidth * dpr));
     const height = Math.max(1, Math.round(cssHeight * dpr));
 
-    const viewportChanged = width !== this.width || height !== this.height || dpr !== this.dpr;
+    const viewportChanged = width !== this.#width || height !== this.#height || dpr !== this.#dpr;
     if (viewportChanged) {
       // A mid-session resize (e.g. the iOS toolbar collapsing) must rebuild
       // ring textures synchronously on the next frame; restarting the hidden
       // prewarm would leave rings undrawn for its full multi-frame cycle.
-      const hadViewport = this.width > 0;
-      this.width = width;
-      this.height = height;
-      this.dpr = dpr;
-      this.canvas.width = width;
-      this.canvas.height = height;
-      this.ringStructuralKey = '';
-      this.ringTextureIndex = hadViewport ? bloomRings.length : 0;
+      const hadViewport = this.#width > 0;
+      this.#width = width;
+      this.#height = height;
+      this.#dpr = dpr;
+      this.#canvas.width = width;
+      this.#canvas.height = height;
+      this.#ringStructuralKey = '';
+      this.#ringTextureIndex = hadViewport ? bloomRings.length : 0;
     }
 
-    const metrics = this.getObjectMetrics();
+    const metrics = this.#getObjectMetrics();
     const textureSize = Math.max(
       MIN_FLOWER_TEXTURE_SIZE,
       Math.min(MAX_FLOWER_TEXTURE_SIZE, Math.round(metrics.size))
     );
-    if (textureSize !== this.textureSize) {
-      const hadTextures = this.textureSize > 0;
-      this.textureSize = textureSize;
-      this.flowerCanvas.width = textureSize;
-      this.flowerCanvas.height = textureSize;
-      this.lastFlowerPhase = Number.NaN;
-      this.lastFlowerTextureSize = 0;
-      this.ringStructuralKey = '';
-      this.ringTextureIndex = hadTextures ? bloomRings.length : 0;
+    if (textureSize !== this.#textureSize) {
+      const hadTextures = this.#textureSize > 0;
+      this.#textureSize = textureSize;
+      this.#flowerCanvas.width = textureSize;
+      this.#flowerCanvas.height = textureSize;
+      this.#lastFlowerPhase = Number.NaN;
+      this.#lastFlowerTextureSize = 0;
+      this.#ringStructuralKey = '';
+      this.#ringTextureIndex = hadTextures ? bloomRings.length : 0;
     }
   }
 
-  private getObjectMetrics(): ObjectMetrics {
-    const cssWidth = this.width / this.dpr;
-    const cssHeight = this.height / this.dpr;
-    const cssMetrics = this.options.centerForViewport
+  #getObjectMetrics(): ObjectMetrics {
+    const cssWidth = this.#width / this.#dpr;
+    const cssHeight = this.#height / this.#dpr;
+    const cssMetrics = this.#options.centerForViewport
       ? patternObjectMetricsForCenter(
         cssWidth,
         cssHeight,
-        this.options.centerForViewport(cssWidth, cssHeight)
+        this.#options.centerForViewport(cssWidth, cssHeight)
       )
       : patternObjectMetricsForViewport(cssWidth, cssHeight);
     return {
-      size: cssMetrics.size * this.dpr,
-      centerX: cssMetrics.centerX * this.dpr,
-      centerY: cssMetrics.centerY * this.dpr
+      size: cssMetrics.size * this.#dpr,
+      centerX: cssMetrics.centerX * this.#dpr,
+      centerY: cssMetrics.centerY * this.#dpr
     };
   }
 
-  private buildSourceTextures(): void {
-    if (!this.petalContext) {
+  #buildSourceTextures(): void {
+    if (!this.#petalContext) {
       return;
     }
-    this.petalCanvas.width = SOURCE_SIZE;
-    this.petalCanvas.height = SOURCE_SIZE;
-    this.petalContext.clearRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
+    this.#petalCanvas.width = SOURCE_SIZE;
+    this.#petalCanvas.height = SOURCE_SIZE;
+    this.#petalContext.clearRect(0, 0, SOURCE_SIZE, SOURCE_SIZE);
 
-    for (const layer of this.layers) {
+    for (const layer of this.#layers) {
       if (layer.role === 'decor' || layer.id === '02') {
         continue;
       }
-      drawCenteredLayer(this.petalContext, layer, SOURCE_SIZE, SOURCE_SIZE / 2, SOURCE_SIZE / 2, 0.9);
+      drawCenteredLayer(this.#petalContext, layer, SOURCE_SIZE, SOURCE_SIZE / 2, SOURCE_SIZE / 2, 0.9);
     }
-    this.ringStructuralKey = '';
-    this.ringTextureIndex = 0;
+    this.#ringStructuralKey = '';
+    this.#ringTextureIndex = 0;
   }
 
-  private renderSourceFlowerTexture(phase: number): void {
-    const context = this.flowerContext;
-    const size = this.textureSize;
+  #renderSourceFlowerTexture(phase: number): void {
+    const context = this.#flowerContext;
+    const size = this.#textureSize;
     if (!context || size <= 0) {
       return;
     }
     if (
-      this.lastFlowerTextureSize === size
-      && Math.abs(this.lastFlowerPhase - phase) < 0.0001
+      this.#lastFlowerTextureSize === size
+      && Math.abs(this.#lastFlowerPhase - phase) < 0.0001
     ) {
       return;
     }
     context.clearRect(0, 0, size, size);
-    for (const layer of this.layers) {
+    for (const layer of this.#layers) {
       if (layer.role === 'decor') {
         continue;
       }
@@ -610,16 +620,16 @@ export class PatternBloomRenderer {
         rotationOffset
       );
     }
-    this.lastFlowerPhase = phase;
-    this.lastFlowerTextureSize = size;
+    this.#lastFlowerPhase = phase;
+    this.#lastFlowerTextureSize = size;
   }
 
-  private drawDecorLayers(phase: number, metrics: ObjectMetrics): void {
-    const context = this.context;
+  #drawDecorLayers(phase: number, metrics: ObjectMetrics): void {
+    const context = this.#context;
     if (!context) {
       return;
     }
-    for (const layer of this.layers) {
+    for (const layer of this.#layers) {
       if (layer.role !== 'decor' || !layer.sizeRatio) {
         continue;
       }
@@ -642,20 +652,20 @@ export class PatternBloomRenderer {
     }
   }
 
-  private drawSourceFlower(phase: number, metrics: ObjectMetrics): void {
-    const context = this.context;
-    if (!context || !this.textureSize) {
+  #drawSourceFlower(phase: number, metrics: ObjectMetrics): void {
+    const context = this.#context;
+    if (!context || !this.#textureSize) {
       return;
     }
-    this.renderSourceFlowerTexture(phase);
+    this.#renderSourceFlowerTexture(phase);
     context.save();
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = 'high';
     context.shadowColor = 'rgba(34, 24, 21, 0.24)';
-    context.shadowBlur = Math.min(this.width, this.height) * 0.055;
-    context.shadowOffsetY = Math.min(this.width, this.height) * 0.018;
+    context.shadowBlur = Math.min(this.#width, this.#height) * 0.055;
+    context.shadowOffsetY = Math.min(this.#width, this.#height) * 0.018;
     context.drawImage(
-      this.flowerCanvas,
+      this.#flowerCanvas,
       metrics.centerX - metrics.size / 2,
       metrics.centerY - metrics.size / 2,
       metrics.size,
@@ -664,7 +674,7 @@ export class PatternBloomRenderer {
     context.restore();
   }
 
-  private drawRingTexture(
+  #drawRingTexture(
     canvas: HTMLCanvasElement,
     index: number,
     structuralPhase: number,
@@ -696,7 +706,7 @@ export class PatternBloomRenderer {
     context.clearRect(0, 0, cacheSize, cacheSize);
     context.save();
     context.translate(cacheSize / 2, cacheSize / 2);
-    this.drawOuterPetalKaleidoscope(
+    this.#drawOuterPetalKaleidoscope(
       context,
       cacheSize,
       0,
@@ -708,36 +718,36 @@ export class PatternBloomRenderer {
     canvas.dataset.patternStructuralPhase = structuralPhase.toFixed(4);
   }
 
-  private refreshRingTextures(
+  #refreshRingTextures(
     structuralPhase: number,
     metrics: ObjectMetrics
   ): void {
     const key = `structural:${Math.round(metrics.size)}:${structuralPhase.toFixed(4)}`;
-    if (key === this.ringStructuralKey && this.ringCanvases.every((canvas) => canvas.width > 0)) return;
+    if (key === this.#ringStructuralKey && this.#ringCanvases.every((canvas) => canvas.width > 0)) return;
 
     for (let index = 0; index < bloomRings.length; index += 1) {
-      const canvas = this.ringCanvases[index];
-      if (canvas) this.drawRingTexture(canvas, index, structuralPhase, metrics);
+      const canvas = this.#ringCanvases[index];
+      if (canvas) this.#drawRingTexture(canvas, index, structuralPhase, metrics);
     }
-    this.ringTextureIndex = bloomRings.length;
-    this.ringStructuralKey = key;
+    this.#ringTextureIndex = bloomRings.length;
+    this.#ringStructuralKey = key;
   }
 
-  private buildNextRingTexture(): void {
-    if (!this.textureSize || this.ringTextureIndex >= bloomRings.length) return;
-    const metrics = this.getObjectMetrics();
-    const index = this.ringTextureIndex;
-    this.ringTextureIndex += 1;
-    const canvas = this.ringCanvases[index];
+  #buildNextRingTexture(): void {
+    if (!this.#textureSize || this.#ringTextureIndex >= bloomRings.length) return;
+    const metrics = this.#getObjectMetrics();
+    const index = this.#ringTextureIndex;
+    this.#ringTextureIndex += 1;
+    const canvas = this.#ringCanvases[index];
     if (canvas) {
-      this.drawRingTexture(canvas, index, 0, metrics);
+      this.#drawRingTexture(canvas, index, 0, metrics);
     }
-    if (this.ringTextureIndex === bloomRings.length) {
-      this.ringStructuralKey = `structural:${Math.round(metrics.size)}:0.0000`;
+    if (this.#ringTextureIndex === bloomRings.length) {
+      this.#ringStructuralKey = `structural:${Math.round(metrics.size)}:0.0000`;
     }
   }
 
-  private drawOuterPetalKaleidoscope(
+  #drawOuterPetalKaleidoscope(
     ctx: CanvasRenderingContext2D,
     drawSize: number,
     rotation: number,
@@ -766,20 +776,20 @@ export class PatternBloomRenderer {
         ctx.scale(1, -1);
       }
       ctx.rotate(sampleRotation);
-      ctx.drawImage(this.petalCanvas, -drawSize / 2 + sampleX, -drawSize / 2 + sampleY, drawSize, drawSize);
+      ctx.drawImage(this.#petalCanvas, -drawSize / 2 + sampleX, -drawSize / 2 + sampleY, drawSize, drawSize);
       ctx.restore();
     }
     ctx.restore();
   }
 
-  private buildRingCache(progress: number, rotationProgress: number, metrics: ObjectMetrics): RingCache[] {
+  #buildRingCache(progress: number, rotationProgress: number, metrics: ObjectMetrics): RingCache[] {
     const eased = easeInOutCubic(rotationProgress);
     const collapse = smoothstep(0.02, 1, progress);
     const fieldRotation = interpolate(FINAL_ROTATION, 0, eased);
 
     return bloomRings.flatMap((ring, index) => {
       const drawSize = metrics.size * interpolate(ring.scale, ring.endScale, collapse);
-      const canvas = this.ringCanvases[index];
+      const canvas = this.#ringCanvases[index];
       if (drawSize < 2 || !canvas?.width || !canvas.height) {
         return [];
       }
@@ -792,12 +802,12 @@ export class PatternBloomRenderer {
     });
   }
 
-  private drawPetalField(progress: number, rotationProgress: number, metrics: ObjectMetrics, phase: number): void {
-    const context = this.context;
+  #drawPetalField(progress: number, rotationProgress: number, metrics: ObjectMetrics, phase: number): void {
+    const context = this.#context;
     if (!context) {
       return;
     }
-    for (const ring of this.buildRingCache(progress, rotationProgress, metrics)) {
+    for (const ring of this.#buildRingCache(progress, rotationProgress, metrics)) {
       const rotation = ring.rotationBase + phase * 0.028 * ring.spin;
       context.save();
       context.translate(metrics.centerX, metrics.centerY);
@@ -814,66 +824,66 @@ export class PatternBloomRenderer {
     }
   }
 
-  private motionElapsed(now: number): number {
-    const activeElapsed = this.animateMotion
-      ? Math.max(0, now - this.motionStartedAt) / 1000
+  #motionElapsed(now: number): number {
+    const activeElapsed = this.#animateMotion
+      ? Math.max(0, now - this.#motionStartedAt) / 1000
       : 0;
-    return this.motionElapsedSeconds + activeElapsed;
+    return this.#motionElapsedSeconds + activeElapsed;
   }
 
-  private renderFrame(now = performance.now()): void {
-    const context = this.context;
-    if (!context || this.layers.length === 0) {
+  #renderFrame(now = performance.now()): void {
+    const context = this.#context;
+    if (!context || this.#layers.length === 0) {
       return;
     }
-    this.resize();
-    const metrics = this.getObjectMetrics();
-    const motionSeconds = this.motionElapsed(now);
-    const phases = patternFramePhases(this.progress, motionSeconds);
-    this.refreshRingTextures(phases.ringStructuralPhase, metrics);
-    context.clearRect(0, 0, this.width, this.height);
-    this.drawDecorLayers(phases.liveMotionPhase, metrics);
-    this.drawPetalField(
-      this.progress,
-      this.rotationProgress,
+    this.#resize();
+    const metrics = this.#getObjectMetrics();
+    const motionSeconds = this.#motionElapsed(now);
+    const phases = patternFramePhases(this.#progress, motionSeconds);
+    this.#refreshRingTextures(phases.ringStructuralPhase, metrics);
+    context.clearRect(0, 0, this.#width, this.#height);
+    this.#drawDecorLayers(phases.liveMotionPhase, metrics);
+    this.#drawPetalField(
+      this.#progress,
+      this.#rotationProgress,
       metrics,
       phases.liveMotionPhase
     );
-    this.drawSourceFlower(phases.liveMotionPhase, metrics);
-    this.frameRevision += 1;
-    this.canvas.dataset.inkTextureReady = 'true';
-    this.canvas.dataset.inkTextureRevision = String(this.frameRevision);
+    this.#drawSourceFlower(phases.liveMotionPhase, metrics);
+    this.#frameRevision += 1;
+    this.#canvas.dataset.inkTextureReady = 'true';
+    this.#canvas.dataset.inkTextureRevision = String(this.#frameRevision);
   }
 
-  private requestRender(): void {
-    if (this.destroyed || this.rafId) {
+  #requestRender(): void {
+    if (this.#destroyed || this.#rafId) {
       return;
     }
-    this.rafId = window.requestAnimationFrame((now) => {
-      this.rafId = 0;
-      const prewarming = this.ringTextureIndex < bloomRings.length;
+    this.#rafId = window.requestAnimationFrame((now) => {
+      this.#rafId = 0;
+      const prewarming = this.#ringTextureIndex < bloomRings.length;
       if (prewarming) {
-        this.buildNextRingTexture();
+        this.#buildNextRingTexture();
       }
-      const elapsed = now - this.lastRenderedAt;
-      const structuralFrameDue = !Number.isFinite(this.lastRenderedAt) || elapsed >= STRUCTURAL_FRAME_INTERVAL_MS;
-      const renderRequested = this.framePending || this.animateMotion || this.staticFrameRequested;
+      const elapsed = now - this.#lastRenderedAt;
+      const structuralFrameDue = !Number.isFinite(this.#lastRenderedAt) || elapsed >= STRUCTURAL_FRAME_INTERVAL_MS;
+      const renderRequested = this.#framePending || this.#animateMotion || this.#staticFrameRequested;
       if (!prewarming && renderRequested && structuralFrameDue) {
-        this.renderFrame(now);
-        this.framePending = false;
-        this.lastRenderedAt = now;
-        if (this.staticFrameRequested) {
-          this.staticFrameRequested = false;
-          this.resolveReady?.();
-          this.resolveReady = undefined;
+        this.#renderFrame(now);
+        this.#framePending = false;
+        this.#lastRenderedAt = now;
+        if (this.#staticFrameRequested) {
+          this.#staticFrameRequested = false;
+          this.#resolveReady?.();
+          this.#resolveReady = undefined;
         }
       }
       if (
-        (this.renderActive && (this.framePending || this.animateMotion))
-        || this.staticFrameRequested
-        || this.ringTextureIndex < bloomRings.length
+        (this.#renderActive && (this.#framePending || this.#animateMotion))
+        || this.#staticFrameRequested
+        || this.#ringTextureIndex < bloomRings.length
       ) {
-        this.requestRender();
+        this.#requestRender();
       }
     });
   }

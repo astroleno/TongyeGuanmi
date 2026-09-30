@@ -310,6 +310,7 @@ describe('clean PhoneAod leaf', () => {
     if (settlement?.status !== 'pending') throw new Error('missing activation settlement');
 
     await expect(settlement.settled).resolves.toBeUndefined();
+    expect(surfaceProbe.activate).toHaveBeenCalledWith('endpoint');
     expect(timelineProbe.prepare).toHaveBeenCalledWith(
       expect.any(HTMLVideoElement), expect.objectContaining({ progress: 1 })
     );

@@ -197,7 +197,7 @@ function PhAnimationScene({ registerHandle }: SceneComponentProps) {
             <div className="ph-sun-wash" aria-hidden="true" />
             <div className="ph-layer-stack" aria-hidden="true">
               <img className="ph-layer ph-layer--front" src={PH_FRONT_SRC} alt="" />
-              <video
+              <video crossOrigin="anonymous"
                 ref={(element) => {
                   videoRef.current = element;
                   registerHandle?.('figure-video', element);

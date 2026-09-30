@@ -4,6 +4,7 @@ dist/
 output/
 .release/
 playwright-report/
+.playwright-cli/
 test-results/
 .review-*.png
 .worktrees/

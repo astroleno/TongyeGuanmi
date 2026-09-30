@@ -71,6 +71,7 @@ export function renderPhoneCranePresentation(
   rawProgress: number,
   _direction: PhoneCranePlaybackDirection = 1
 ): void {
+  void _direction; // The timeline progress already includes playback direction.
   const section = rootFor(root);
   if (!section) return;
   const timelineProgress = clamp(rawProgress);

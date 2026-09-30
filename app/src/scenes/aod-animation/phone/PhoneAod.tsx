@@ -15,7 +15,6 @@ import {
   driveTimelineVideo,
   prepareTimelineVideoFrame
 } from '../../../media/timeline-video-driver';
-import { browserPrefersHevcAlpha } from '../../../media/alpha-video-sources';
 import type {
   PhoneActivationInvocation,
   PhoneLeafCommandHandle,
@@ -26,7 +25,7 @@ import {
   AOD_FIGURE_END_SECONDS,
   AOD_PHONE_TIMELINE_ALPHA_END,
   AOD_PHONE_TIMELINE_ALPHA_START,
-  aodAnimationScene,
+  AodAnimationScene,
   mapAodTimelineToMediaProgress,
   renderAodTransitionProgress
 } from '..';
@@ -36,7 +35,6 @@ const AOD_FIGURE_PACKED_ALPHA_VIDEO = phoneMediaUrlFor(
   'aod-figure-packed', 'aod-animation'
 );
 const AOD_FIGURE_POSTER = phoneMediaUrlFor('aod-figure-poster', 'aod-animation');
-const AodScene = aodAnimationScene.Component;
 export const PHONE_AOD_ALPHA_END_PROGRESS = AOD_PHONE_TIMELINE_ALPHA_END;
 export const PHONE_AOD_ALPHA_START_PROGRESS = AOD_PHONE_TIMELINE_ALPHA_START;
 
@@ -77,12 +75,13 @@ function aodTimelineMediaInput(runId: string, direction: 1 | -1, progress: numbe
     direction,
     progress: mapAodTimelineToMediaProgress(progress, AOD_PHONE_TIMELINE_ALPHA_END),
     durationFallbackSeconds: AOD_FIGURE_END_SECONDS,
+    frameRate: 30,
     startSeconds: 0,
     endSeconds: AOD_FIGURE_END_SECONDS,
     timelineDurationMs: AOD_FIGURE_END_SECONDS * 1000,
     mode: 'timeline' as const,
     nativePlaybackDirection: 1 as const,
-    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
+    allowSeekedFrameFallback: true,
     allowPlaybackNudge: false
   };
 }
@@ -188,7 +187,8 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       timelineDurationMs: AOD_FIGURE_END_SECONDS * 1000,
       mode: 'timeline',
       nativePlaybackDirection: 1,
-      allowSeekedFrameFallback: browserPrefersHevcAlpha(),
+      // The hidden H.264 decoder is followed by an actual packed-canvas draw.
+      allowSeekedFrameFallback: true,
       allowPlaybackNudge: false,
       preserveNativePlaybackOnSettle: true
     });
@@ -285,14 +285,16 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         const runToken = command.runToken ?? command.invocationId;
         mediaRunTokenRef.current = runToken;
         mediaPhaseRef.current = 'primed';
-        const activatedGeneration = surface.activate('initial');
+        const primeProgress = desiredProgressRef.current;
+        // Reverse entry proves the terminal frame. An initial-only surface
+        // rejects that correctly decoded frame and stalls the runtime quorum.
+        const activatedGeneration = surface.activate(primeProgress >= .999 ? 'endpoint' : 'initial');
         surfaceGenerationRef.current = activatedGeneration;
         const root = rootRef.current;
         if (root && activatedGeneration > 0) {
           root.dataset.phoneAodPlaybackFrame = 'awaiting';
           setAodExitActive(root, true);
         }
-        const primeProgress = desiredProgressRef.current;
         const settled = primeAodVideo(video, {
           isCurrent: () => !disposedRef.current
             && mediaRunTokenRef.current === runToken
@@ -476,7 +478,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       get element() { return canvasRef.current ?? canvas; },
       kind: 'canvas-webgl' as const
     };
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root,
       surfaces: [
         { id: 'aod-figure-video', element: video, kind: 'video' },
@@ -499,6 +501,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       });
     });
     return () => {
+      unregisterMount?.();
       current = false;
       disposedRef.current = true;
       surfaceGenerationRef.current = 0;
@@ -521,7 +524,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       className="portrait-scroll-spike__scene portrait-scroll-spike__scene--aod"
       aria-hidden="true"
     >
-      <AodScene scene="aod-animation" hidden={false} />
+      <AodAnimationScene scene="aod-animation" hidden={false} packedAlpha />
       {posterHost ? createPortal(
         <img
           ref={posterRef}

@@ -425,7 +425,7 @@ function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
               <img className="ttg-layer ttg-layer--bg" src={TTG_BG_SRC} alt="" />
               <img className="ttg-layer ttg-layer--middle" src={TTG_MIDDLE_SRC} alt="" />
               <img className="ttg-layer ttg-layer--front" src={TTG_FRONT_SRC} alt="" />
-              <video
+              <video crossOrigin="anonymous"
                 ref={(element) => {
                   videoRef.current = element;
                   registerHandle?.('figure-video', element);

@@ -177,6 +177,16 @@ export async function verifyPerformanceBudgets({
   const phoneShellKey = shellEntry('PhoneStoryShell');
   const desktopPresentation = presentationClosure(desktopShellKey);
   const phonePresentation = presentationClosure(phoneShellKey);
+  // Vite emits workers outside the import manifest. Count their full bundled
+  // code against the owning desktop presentation, including duplicated helpers.
+  const desktopWorkers = jsFiles.filter((file) => /^star-field\.worker-.*\.js$/.test(path.basename(file.path)));
+  if (desktopWorkers.length !== 1) throw new Error('Expected one bundled star field worker');
+  for (const worker of desktopWorkers) {
+    if (!desktopPresentation.files.some((file) => file.path === worker.path)) {
+      desktopPresentation.files.push(worker);
+      desktopPresentation.bytes += worker.bytes;
+    }
+  }
   const presentationShellFiles = new Set([
     manifestFile(desktopShellKey).path,
     manifestFile(phoneShellKey).path

@@ -320,7 +320,8 @@ const directorSetup = setup({
       if (event.type !== 'INPUT_DELTA') {
         return false;
       }
-      return Boolean(applyChargeDelta(context.charge, event.delta, nowFrom(event)).fired);
+      const direction = chargeFireDirection(context, event);
+      return Boolean(direction && (context.cursor.status !== 'hold' || segmentFor(context, direction)));
     },
     nextTargetIsScrub: ({ context, event }) => {
       const direction = chargeFireDirection(context, event);
@@ -346,7 +347,8 @@ const directorSetup = setup({
       if (event.type !== 'INPUT_DELTA' || !context.pendingDirection) {
         return false;
       }
-      return directionFromInput(event) === -context.pendingDirection;
+      const direction = directionFromInput(event);
+      return direction === -context.pendingDirection && Boolean(segmentFor(context, direction));
     },
     recoveryFailureMatches: ({ context, event }) => {
       return event.type === 'RECOVERY_FAILED'
@@ -789,6 +791,7 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
             actions: 'supersedePreparingFromInput'
           },
           CHARGE_FIRED: {
+            guard: 'hasChargeTarget',
             target: 'preparing',
             reenter: true,
             actions: 'startPreparingFromCharge'

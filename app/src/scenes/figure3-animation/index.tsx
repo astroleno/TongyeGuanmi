@@ -148,7 +148,7 @@ function Figure3AnimationScene({ registerHandle }: SceneComponentProps) {
       <div className="figure3-transition__sticky">
         <div className="figure3-transition__backdrop" aria-hidden="true" />
         <div className="figure3-transition__stage" aria-hidden="true">
-          <video
+          <video crossOrigin="anonymous"
             ref={(element) => {
               videoRef.current = element;
               registerHandle?.('figure3-video', element);

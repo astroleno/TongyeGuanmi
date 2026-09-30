@@ -22,6 +22,25 @@ function fakeElement() {
 }
 
 describe('LayerStore', () => {
+  it('paints animation opacity without notifying React, but publishes ownership changes', () => {
+    const store = new LayerStore({ hero: holdVisibility(false) });
+    const listener = vi.fn(), render = vi.fn(), element = fakeElement();
+    store.subscribe(listener);
+    const remove = store.subscribeRender(render);
+    store.bindElement('hero', element);
+    const initial = store.getRenderSnapshot();
+    for (const opacity of [.9, .8, .7]) store.setVisibility('hero', { ...holdVisibility(false), opacity });
+    expect(element.style.opacity).toBe('0.7');
+    expect(listener).toHaveBeenCalledTimes(3);
+    expect(render).not.toHaveBeenCalled();
+    expect(store.getRenderSnapshot()).toBe(initial);
+    store.setVisibility('hero', hiddenVisibility());
+    expect(render).toHaveBeenCalledOnce();
+    expect(store.getRenderSnapshot()).toBe(store.getSnapshot());
+    remove();
+    store.setVisibility('hero', holdVisibility(true));
+    expect(render).toHaveBeenCalledOnce();
+  });
   it('publishes one atomic revision and synchronizes the DOM for each changed visibility', () => {
     const store = new LayerStore({ hero: holdVisibility(true) });
     const listener = vi.fn();

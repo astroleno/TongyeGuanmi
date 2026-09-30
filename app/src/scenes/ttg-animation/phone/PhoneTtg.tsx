@@ -20,12 +20,13 @@ import {
   TTG_FIGURE_END_SECONDS,
   TTG_FIGURE_HEVC_ALPHA_SRC,
   TTG_FIGURE_VIDEO_SRC,
-  TTG_FRONT_SRC,
   TTG_MEDIA_KEY,
   TTG_MIDDLE_SRC,
   renderTtgAnimationProgress
 } from '..';
 import './PhoneTtg.css';
+
+const TTG_FRONT_SRC = new URL('../../../../../assets/phone/ttg-foreground.webp', import.meta.url).href;
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -436,12 +437,13 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
     };
     video.addEventListener('error', showStaticFallback);
     render(0);
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root: mountRoot,
       surfaces: [{ id: 'ttg-figure-video', element: video, kind: 'video' }],
       commands
     });
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       pausedRef.current = false;
       preparationGenerationRef.current += 1;
@@ -478,7 +480,7 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
                   <img className="ttg-layer ttg-layer--bg" src={TTG_BG_SRC} alt="" />
                   <img className="ttg-layer ttg-layer--middle" src={TTG_MIDDLE_SRC} alt="" />
                   <img className="ttg-layer ttg-layer--front" src={TTG_FRONT_SRC} alt="" />
-                  <video
+                  <video crossOrigin="anonymous"
                     ref={videoRef}
                     className="ttg-layer ttg-layer--figure"
                     data-ttg-figure-video

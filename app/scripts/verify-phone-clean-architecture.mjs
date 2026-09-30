@@ -187,6 +187,26 @@ function sourceFileFor(file, source) {
 
 function moduleImports(sourceFile) {
   const imports = [];
+  // A Vite worker URL imported from a literal module is an immutable, statically
+  // known dependency. Follow its source graph as well as its emitted URL; do not
+  // allow arbitrary computed imports or a shadowed URL binding through this path.
+  const workerUrls = new Map();
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement) && !statement.importClause?.isTypeOnly
+      && statement.importClause?.name && ts.isStringLiteralLike(statement.moduleSpecifier)) {
+      const specifier = statement.moduleSpecifier.text;
+      if (specifier.startsWith('.') && specifier.endsWith('?worker&url')) {
+        workerUrls.set(statement.importClause.name.text, specifier.slice(0, -'?worker&url'.length));
+      }
+    }
+  }
+  const rejectShadowed = (node) => {
+    if ((ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)
+      || ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isClassDeclaration(node))
+      && node.name && ts.isIdentifier(node.name)) workerUrls.delete(node.name.text);
+    ts.forEachChild(node, rejectShadowed);
+  };
+  rejectShadowed(sourceFile);
   const add = (specifier, typeOnly, node, syntaxViolation) => {
     imports.push({
       specifier: specifier || '<computed>',
@@ -238,6 +258,8 @@ function moduleImports(sourceFile) {
       const argument = node.arguments.length === 1 ? node.arguments[0] : undefined;
       if (argument && ts.isStringLiteralLike(argument)) {
         add(argument.text, false, node);
+      } else if (argument && ts.isIdentifier(argument) && workerUrls.has(argument.text)) {
+        add(workerUrls.get(argument.text), false, node);
       } else {
         add(undefined, false, node, 'computed dynamic import()');
       }

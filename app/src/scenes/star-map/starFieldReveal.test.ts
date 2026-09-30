@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { createGradientNoiseFrame } from './gradient-noise';
 import {
   initStarFieldReveal,
   starFieldCoverTransform,
@@ -59,7 +60,8 @@ describe('StarFieldReveal', () => {
     initStarFieldReveal({
       canvas,
       sourceUrl: 'https://assets.tongye.me/releases/test/assets/back2.webp',
-      autoplay: false
+      autoplay: false,
+      createNoiseFrame: createGradientNoiseFrame
     });
 
     expect(assignments).toEqual([
@@ -74,19 +76,16 @@ describe('StarFieldReveal', () => {
     expect(source).toContain('target.scale(transform.scale, transform.scale)');
   });
 
-  it('keeps domain-warped multi-octave gradient Perlin as the generic profile', () => {
-    expect(source).toContain('fractalPerlin2D');
-    expect(source).toContain('gradientDot');
+  it('passes the source aspect and authored configuration to the selected noise kernel', () => {
+    expect(source).toContain('this.createNoiseFrame(this.config.noise, timeSeconds, width / height)');
     expect(source).toContain('octaves: 4');
     expect(source).toContain('width / height');
     expect(source).toContain("profile: 'gradient-fbm'");
   });
 
   it('also preserves the exact desktop R5 mask profile for portrait parity', () => {
-    expect(source).toContain("noise.profile === 'desktop-r5'");
-    expect(source).toContain('desktopNoise2D');
-    expect(source).toContain('const seedIndex = Math.floor(phase)');
-    expect(source).toContain('seedIndex * 19.31');
+    const phone = readFileSync(new URL('./phone/PhoneStarMap.tsx', import.meta.url), 'utf8');
+    expect(phone).toContain('createNoiseFrame: createDesktopNoiseFrame');
     expect(source).toContain('HIGHLIGHT_OUTPUT_SCALE = 1');
   });
 

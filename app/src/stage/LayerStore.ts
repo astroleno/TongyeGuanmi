@@ -40,43 +40,51 @@ function applyVisibilityToElement(element: HTMLElement, state: LayerVisibilitySt
 }
 
 export class LayerStore implements StageHandle {
-  private readonly handles = new Map<SceneId, LayerHandle>();
-  private readonly elements = new Map<SceneId, HTMLElement>();
-  private readonly listeners = new Set<() => void>();
-  private visibilityByScene: Partial<Record<SceneId, LayerVisibilityState>>;
-  private snapshotValue: LayerStoreSnapshot;
+  readonly #handles = new Map<SceneId, LayerHandle>();
+  readonly #elements = new Map<SceneId, HTMLElement>();
+  readonly #listeners = new Set<() => void>();
+  readonly #renderListeners = new Set<() => void>();
+  #visibilityByScene: Partial<Record<SceneId, LayerVisibilityState>>;
+  #snapshotValue: LayerStoreSnapshot;
+  #renderSnapshot: LayerStoreSnapshot;
 
   constructor(initialVisibility: Partial<Record<SceneId, LayerVisibilityState>> = {}) {
-    this.visibilityByScene = cloneVisibility(initialVisibility);
-    this.snapshotValue = {
+    this.#visibilityByScene = cloneVisibility(initialVisibility);
+    this.#snapshotValue = {
       revision: 0,
-      visibilityByScene: this.visibilityByScene
+      visibilityByScene: this.#visibilityByScene
     };
+    this.#renderSnapshot = this.#snapshotValue;
   }
 
   readonly subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
   };
 
-  readonly getSnapshot = (): LayerStoreSnapshot => this.snapshotValue;
+  readonly getSnapshot = (): LayerStoreSnapshot => this.#snapshotValue;
+  readonly getRenderSnapshot = (): LayerStoreSnapshot => this.#renderSnapshot;
+  readonly subscribeRender = (listener: () => void): (() => void) => {
+    this.#renderListeners.add(listener);
+    return () => this.#renderListeners.delete(listener);
+  };
 
   get revision(): number {
-    return this.snapshotValue.revision;
+    return this.#snapshotValue.revision;
   }
 
   getLayer(scene: SceneId): LayerHandle | undefined {
-    return this.handles.get(scene);
+    return this.#handles.get(scene);
   }
 
   ensureLayer(scene: SceneId, role: StageLayerRole): LayerHandle {
-    const existing = this.handles.get(scene);
+    const existing = this.#handles.get(scene);
     if (existing) {
       existing.role = role;
       return existing;
     }
-    const elementForScene = () => this.elements.get(scene) ?? null;
-    const visibilityForScene = () => this.visibilityByScene[scene] ?? hiddenVisibility();
+    const elementForScene = () => this.#elements.get(scene) ?? null;
+    const visibilityForScene = () => this.#visibilityByScene[scene] ?? hiddenVisibility();
     const setSceneVisibility = (state: LayerVisibilityState) => this.setVisibility(scene, state);
     const handle: LayerHandle = {
       scene,
@@ -94,37 +102,37 @@ export class LayerStore implements StageHandle {
         setSceneVisibility(hiddenVisibility());
       }
     };
-    this.handles.set(scene, handle);
+    this.#handles.set(scene, handle);
     return handle;
   }
 
   releaseLayer(scene: SceneId): void {
-    this.handles.get(scene)?.dispose();
-    this.handles.delete(scene);
+    this.#handles.get(scene)?.dispose();
+    this.#handles.delete(scene);
   }
 
   snapshot(): readonly LayerHandle[] {
-    return [...this.handles.values()];
+    return [...this.#handles.values()];
   }
 
   bindElement(scene: SceneId, element: HTMLElement | null): void {
     if (!element) {
-      this.elements.delete(scene);
+      this.#elements.delete(scene);
       return;
     }
-    this.elements.set(scene, element);
-    applyVisibilityToElement(element, this.visibilityByScene[scene] ?? hiddenVisibility());
+    this.#elements.set(scene, element);
+    applyVisibilityToElement(element, this.#visibilityByScene[scene] ?? hiddenVisibility());
   }
 
   boundElements(): IterableIterator<HTMLElement> {
-    return this.elements.values();
+    return this.#elements.values();
   }
 
   setVisibility(scene: SceneId, state: LayerVisibilityState): boolean {
-    if (visibilityEquals(this.visibilityByScene[scene], state)) {
+    if (visibilityEquals(this.#visibilityByScene[scene], state)) {
       return false;
     }
-    this.commit({ ...this.visibilityByScene, [scene]: { ...state } });
+    this.#commit({ ...this.#visibilityByScene, [scene]: { ...state } });
     return true;
   }
 
@@ -136,29 +144,42 @@ export class LayerStore implements StageHandle {
   }
 
   replaceVisibility(next: Partial<Record<SceneId, LayerVisibilityState>>): boolean {
-    const scenes = new Set([...Object.keys(this.visibilityByScene), ...Object.keys(next)] as SceneId[]);
+    const scenes = new Set([...Object.keys(this.#visibilityByScene), ...Object.keys(next)] as SceneId[]);
     const changed = [...scenes].some((scene) => {
       const nextState = next[scene] ?? hiddenVisibility();
-      return !visibilityEquals(this.visibilityByScene[scene], nextState);
+      return !visibilityEquals(this.#visibilityByScene[scene], nextState);
     });
     if (!changed) {
       return false;
     }
-    this.commit(cloneVisibility(next));
+    this.#commit(cloneVisibility(next));
     return true;
   }
 
-  private commit(next: Partial<Record<SceneId, LayerVisibilityState>>): void {
-    this.visibilityByScene = next;
-    this.snapshotValue = {
-      revision: this.snapshotValue.revision + 1,
-      visibilityByScene: this.visibilityByScene
+  #commit(next: Partial<Record<SceneId, LayerVisibilityState>>): void {
+    const scenes = new Set([...Object.keys(this.#visibilityByScene), ...Object.keys(next)] as SceneId[]);
+    const structureChanged = [...scenes].some((scene) => {
+      const previous = this.#visibilityByScene[scene], current = next[scene];
+      return !previous || !current || previous.mounted !== current.mounted
+        || previous.visible !== current.visible || previous.inert !== current.inert
+        || previous.pointerEvents !== current.pointerEvents
+        || (previous.opacity > .001) !== (current.opacity > .001);
+    });
+    this.#visibilityByScene = next;
+    this.#snapshotValue = {
+      revision: this.#snapshotValue.revision + 1,
+      visibilityByScene: this.#visibilityByScene
     };
-    for (const [scene, element] of this.elements) {
-      applyVisibilityToElement(element, this.visibilityByScene[scene] ?? hiddenVisibility());
+    for (const [scene, element] of this.#elements) {
+      applyVisibilityToElement(element, this.#visibilityByScene[scene] ?? hiddenVisibility());
     }
-    for (const listener of this.listeners) {
+    for (const listener of this.#listeners) {
       listener();
+    }
+    // Opacity is already painted above. React only needs topology and ownership.
+    if (structureChanged) {
+      this.#renderSnapshot = this.#snapshotValue;
+      for (const listener of this.#renderListeners) listener();
     }
   }
 }

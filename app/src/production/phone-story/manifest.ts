@@ -304,11 +304,13 @@ const deadlineProfiles: Readonly<Record<PhoneDeadlineProfileId, PhoneDeadlinePol
     planeApply: 1500, scrollConfirm: 1500, rollback: 4000
   },
   'D-single-media': {
-    moduleLoad: 8000, mediaPrepare: 8000, firstFrame: 3000,
+    // Cold CDN TLS + first-frame data can exceed eight seconds on mobile;
+    // allow a bounded grace period before offering retry.
+    moduleLoad: 8000, mediaPrepare: 20000, firstFrame: 3000,
     planeApply: 1500, scrollConfirm: 1500, rollback: 5000
   },
   'D-multi-media': {
-    moduleLoad: 10000, mediaPrepare: 10000, firstFrame: 4000,
+    moduleLoad: 10000, mediaPrepare: 25000, firstFrame: 4000,
     planeApply: 1500, scrollConfirm: 1500, rollback: 6000
   }
 };

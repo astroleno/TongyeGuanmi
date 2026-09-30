@@ -1,5 +1,4 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
-import { AlphaVideoSources } from '../../../media/alpha-video-sources';
 import { disposeTimelineVideoDriver, driveTimelineVideo } from '../../../media/timeline-video-driver';
 import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
 import {
@@ -21,12 +20,8 @@ import {
   CRANE_CLOUD_BACK_SRC,
   CRANE_CLOUD_FRONT_SECOND_SRC,
   CRANE_CLOUD_FRONT_SRC,
-  CRANE_FIGURE_HEVC_ALPHA_SRC,
   CRANE_FIGURE_MEDIA_KEY,
-  CRANE_FIGURE_VIDEO_SRC,
-  CRANE_FLOCK_HEVC_ALPHA_SRC,
   CRANE_FLOCK_MEDIA_KEY,
-  CRANE_FLOCK_VIDEO_SRC,
   CRANE_PAPER_SRC,
   CRANE_VIDEO_END_SECONDS
 } from '..';
@@ -502,7 +497,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       onFailure: (failure) => reportFailure(1, 'flock', failure)
     });
     surfacesRef.current = [figureSurface, flockSurface];
-    reports.registerMount({
+    const unregisterMount = reports.registerMount({
       root: mountRoot,
       surfaces: [
         { id: 'crane-figure-video', element: figure, kind: 'video' },
@@ -521,6 +516,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       commands
     });
     return () => {
+      unregisterMount?.();
       disposedRef.current = true;
       admissionGenerationsRef.current = [0, 0];
       surfaceGenerationsRef.current = [0, 0];
@@ -561,14 +557,9 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
                     data-crane-figure-video
                     data-media-key={CRANE_FIGURE_MEDIA_KEY}
                     muted
-                    preload="auto"
+                    preload="none"
                     playsInline
-                  >
-                    <AlphaVideoSources
-                      webm={CRANE_FIGURE_VIDEO_SRC}
-                      hevc={CRANE_FIGURE_HEVC_ALPHA_SRC}
-                    />
-                  </video>
+                  />
                   <canvas
                     ref={figureCanvasRef}
                     className="crane-figure-video phone-crane__figure-canvas"
@@ -586,14 +577,9 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
                     data-crane-figure-front-video
                     data-media-key={CRANE_FLOCK_MEDIA_KEY}
                     muted
-                    preload="auto"
+                    preload="none"
                     playsInline
-                  >
-                    <AlphaVideoSources
-                      webm={CRANE_FLOCK_VIDEO_SRC}
-                      hevc={CRANE_FLOCK_HEVC_ALPHA_SRC}
-                    />
-                  </video>
+                  />
                   <canvas
                     ref={flockCanvasRef}
                     className="crane-figure-video crane-figure-video--front phone-crane__flock-canvas"

@@ -20,14 +20,12 @@ const probe = vi.hoisted(() => ({
 }));
 
 vi.mock('../index', () => ({
-  figure2AnimationScene: {
-    Component: ({ registerHandle }: { registerHandle(name: string, value: HTMLElement | null): void }) =>
+  Figure2AnimationScene: ({ registerHandle }: { registerHandle(name: string, value: HTMLElement | null): void }) =>
       createElement('article', { 'data-r4-scene': 'figure2-animation' },
         createElement('div', { ref: (value: HTMLDivElement | null) => registerHandle('stage', value) },
           createElement('div', { className: 'r4-figure2__media-stack--combined' },
             createElement('video', { 'data-figure2-combined-video': true }),
-            createElement('canvas', { 'data-figure2-packed-alpha-canvas': true }))))
-  },
+            createElement('canvas', { 'data-figure2-packed-alpha-canvas': true })))),
   disposeFigure2Media: vi.fn(), parkFigure2Media: vi.fn(),
   renderFigure2AnimationProgress: probe.renderProgress
 }));

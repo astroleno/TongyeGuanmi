@@ -188,6 +188,26 @@ afterEach(() => {
 });
 
 describe('packed alpha video', () => {
+  it('repaints a retained frame without uploading the same video texture again', () => {
+    const probe = createGlProbe();
+    const canvas = new CanvasProbe(probe.gl);
+    const video = new VideoProbe();
+    video.readyState = 2;
+    const compositor = createPackedAlphaVideoCompositor({
+      canvas: canvas as unknown as HTMLCanvasElement,
+      video: video as unknown as HTMLVideoElement
+    });
+    probe.spies.texImage2D.mockClear();
+    video.currentTime = .5;
+    compositor.render();
+    compositor.render();
+    video.dispatch('timeupdate');
+    expect(probe.spies.texImage2D).toHaveBeenCalledTimes(1);
+    video.currentTime = 1;
+    compositor.render();
+    expect(probe.spies.texImage2D).toHaveBeenCalledTimes(2);
+    compositor.dispose();
+  });
   it('maps the side-by-side H.264 frame back to the authored dimensions', () => {
     expect(packedAlphaFrameSize(1_440, 1_280)).toEqual({
       width: 720,
