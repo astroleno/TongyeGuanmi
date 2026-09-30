@@ -52,14 +52,18 @@ export function seoPagesPlugin(): Plugin {
     configureServer(server) {
       development = true;
       server.middlewares.use((req, res, next) => middleware(req, res, next, true));
-      return () => { server.middlewares.use((_req, res) => {
+      return () => { server.middlewares.use((req, res, next) => {
+        // Vite resolves / to /index.html before this hook, then renders HTML
+        // after it. Let that canonical document reach Vite's HTML middleware.
+        if (new URL(req.url ?? '/', 'http://localhost').pathname === '/index.html') return next();
         res.writeHead(404, {'Content-Type': 'text/html; charset=utf-8'});
         res.end(renderNotFound());
       }); };
     },
     configurePreviewServer(server) {
       server.middlewares.use((req, res, next) => middleware(req, res, next, false));
-      return () => { server.middlewares.use((_req, res) => {
+      return () => { server.middlewares.use((req, res, next) => {
+        if (new URL(req.url ?? '/', 'http://localhost').pathname === '/index.html') return next();
         const html = readFileSync(new URL('../../dist/404.html', import.meta.url), 'utf8');
         res.writeHead(404, {'Content-Type': 'text/html; charset=utf-8'});
         res.end(html);
