@@ -198,6 +198,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
           direction: directionRef.current,
           progress: laneProgress,
           durationFallbackSeconds: CRANE_VIDEO_END_SECONDS,
+          frameRate: 30,
           startSeconds: 0,
           endSeconds: CRANE_VIDEO_END_SECONDS,
           mode: 'timeline',
@@ -261,8 +262,10 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
       progressRef.current = directionRef.current === -1 ? 1 : 0;
       presentedProgressRef.current = progressRef.current;
       renderPhoneCranePresentation(rootRef.current, progressRef.current, directionRef.current);
-      const reproof = binding.segmentId === null && readyMaskRef.current === 3;
+      const reproof = (binding.leg === 'rollback' || binding.segmentId === null)
+        && readyMaskRef.current === 3;
       admissionGenerationsRef.current = reproof ? [...surfaceGenerationsRef.current] : [0, 0];
+      updatePairPresentation();
       if (reproof) { reportLane(binding, 0, surfaceGenerationsRef.current[0]); reportLane(binding, 1, surfaceGenerationsRef.current[1]); }
     },
     activate(command): PhoneActivationInvocation {

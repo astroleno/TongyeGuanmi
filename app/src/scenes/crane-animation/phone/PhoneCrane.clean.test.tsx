@@ -63,6 +63,44 @@ describe('clean PhoneCrane leaf', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
   });
 
+  it.each([0, 1, 2, 3])('reproves rollback only after both retained lanes physically drew (mask %s)', async (drawnMask) => {
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    try {
+      await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+      const commands = mount.registration()!.commands;
+      commands.rebind({ reports: mount.reports, frameToken: 'crane:departing',
+        transactionId: 'departing', segmentId: 'crane-contact', leg: 'source' });
+      const invocation = commands.activate({ invocationId: 'crane:activate',
+        surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+        credit: 'physical-epoch', playback: false });
+      await Promise.all(invocation.settlements.flatMap(s => s.status === 'pending' ? [s.settled] : []));
+      const canvases = host.querySelectorAll<HTMLCanvasElement>('[data-phone-packed-alpha-canvas]');
+      for (const [index, { onFrame }] of packedProbe.options.entries()) {
+        if (drawnMask & (1 << index)) {
+          (onFrame as (frame: { canvas: HTMLCanvasElement; generation: number }) => void)({
+            canvas: canvases[index]!, generation: 1
+          });
+        }
+      }
+      commands.pause('rollback');
+      mount.reports.reportFrame.mockClear();
+      commands.rebind({ reports: mount.reports, frameToken: 'crane:rollback',
+        transactionId: 'rollback', segmentId: 'crane-contact', leg: 'rollback' });
+      expect(mount.reports.reportFrame).toHaveBeenCalledTimes(drawnMask === 3 ? 2 : 0);
+      if (drawnMask === 3) for (const id of ['crane-figure-canvas', 'crane-flock-canvas']) {
+        expect(mount.reports.reportFrame).toHaveBeenCalledWith(id,
+          expect.objectContaining({ token: 'crane:rollback', presented: true, frameId: '1' }));
+      }
+      for (const surface of packedProbe.surfaces) expect(surface.activate).toHaveBeenCalledTimes(1);
+    } finally {
+      act(() => root.unmount());
+      vi.restoreAllMocks();
+    }
+  });
+
   it('registers the two authored packed video/Canvas pairs', async () => {
     const host = document.createElement('div');
     const root = createRoot(host);
@@ -417,6 +455,33 @@ describe('clean PhoneCrane leaf', () => {
     expect(figure.currentTime).toBe(0);
     expect(flockPlay).toHaveBeenCalledOnce();
     act(() => root.unmount());
+  });
+
+  it('coalesces intermediate playhead samples onto the authored 30fps source frames', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    try {
+      await act(async () => { root.render(<PhoneCrane reports={mount.reports} />); });
+      const commands = mount.registration()!.commands;
+      commands.rebind({ reports: mount.reports, frameToken: 'crane:quantized' });
+      const invocation = commands.activate({ invocationId: 'crane:quantized',
+        surfaceIds: ['crane-figure-video', 'crane-flock-video'],
+        credit: 'physical-epoch', runToken: 'crane:quantized', direction: 'forward' });
+      await Promise.all(invocation.settlements.flatMap(s => s.status === 'pending' ? [s.settled] : []));
+      commands.setMediaPhase?.({ phase: 'playing', runToken: 'crane:quantized',
+        direction: 'forward', stageIndex: 0 });
+      const videos = [...host.querySelectorAll<HTMLVideoElement>('video')];
+      commands.render(.5);
+      const firstTargets = videos.map(v => v.currentTime);
+      commands.render(.5004);
+      expect(videos.map(v => v.currentTime)).toEqual(firstTargets);
+      for (const target of firstTargets) expect(target * 30).toBeCloseTo(Math.round(target * 30), 8);
+      commands.render(.55);
+      expect(videos.every((v, i) => v.currentTime > firstTargets[i]!)).toBe(true);
+    } finally {
+      act(() => root.unmount());
+    }
   });
 
   it('rejects a forced terminal seek and requires both current-generation terminal Canvas draws', async () => {
