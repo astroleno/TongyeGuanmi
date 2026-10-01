@@ -23,18 +23,18 @@ afterEach(() => {
 });
 
 describe('StoryLoader', () => {
-  it('keeps the legacy two-phrase 5.38s sequence contract', () => {
+  it('keeps the two-phrase sequence compact and legible', () => {
     expect(LOADER_PHRASES).toEqual(['同人于野', '观象知幂']);
-    expect(loaderSequenceDuration('cold-hero')).toBe(5_380);
+    expect(loaderSequenceDuration('cold-hero')).toBe(3_180);
     expect(loaderFrameAt(0, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'waiting' });
-    expect(loaderFrameAt(180, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'revealing' });
-    expect(loaderFrameAt(1_330, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'holding' });
-    expect(loaderFrameAt(1_550, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'concealing' });
-    expect(loaderFrameAt(2_700, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'gap' });
-    expect(loaderFrameAt(2_860, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'revealing' });
-    expect(loaderFrameAt(4_010, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'holding' });
-    expect(loaderFrameAt(4_230, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'concealing' });
-    expect(loaderFrameAt(5_380, 'cold-hero')).toMatchObject({
+    expect(loaderFrameAt(80, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'revealing' });
+    expect(loaderFrameAt(730, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'holding' });
+    expect(loaderFrameAt(930, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'concealing' });
+    expect(loaderFrameAt(1_580, 'cold-hero')).toMatchObject({ phraseIndex: 0, phase: 'gap' });
+    expect(loaderFrameAt(1_680, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'revealing' });
+    expect(loaderFrameAt(2_330, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'holding' });
+    expect(loaderFrameAt(2_530, 'cold-hero')).toMatchObject({ phraseIndex: 1, phase: 'concealing' });
+    expect(loaderFrameAt(3_180, 'cold-hero')).toMatchObject({
       phraseIndex: 1,
       phase: 'complete',
       sequenceComplete: true
@@ -134,6 +134,8 @@ describe('StoryLoader', () => {
     expect(markup).toContain('story-loader__ink-clear');
     expect(markup).toContain('data-loader-ink-canvas="true"');
     expect(markup).toContain('data-loader-ink-status="idle"');
+    expect(markup).toContain('role="progressbar"');
+    expect(markup).toContain('正在展开现场');
     expect(markup.match(/<canvas/g)).toHaveLength(1);
     expect(markup).not.toContain('tabindex="0"');
   });
@@ -146,7 +148,8 @@ describe('StoryLoader', () => {
     expect(loaderIndex).toBeLessThan(rootIndex);
     const staticCover = html.slice(loaderIndex, html.indexOf('<noscript>', loaderIndex));
     expect(staticCover).not.toContain('story-loader__word');
-    expect(staticCover).not.toMatch(/同人于野|观象知幂/);
+    expect(staticCover).toContain('story-loader__progress');
+    expect(staticCover).toContain('正在展开现场');
     expect(html).toContain('data-loader-ink-fallback="true"');
     expect(html).not.toContain('mobile-landscape-entry-static');
     expect(html).toContain('#story-loader-static { display: none !important; }');

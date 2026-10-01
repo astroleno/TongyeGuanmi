@@ -25,6 +25,7 @@ export function structuredData(meta: typeof SEO_META = SEO_META, page: SeoPage =
         name: meta.brandName,
         legalName: meta.legalName,
         url: meta.canonicalUrl,
+        email: SITE_META.contact.email,
         description: meta.description,
         slogan: SITE_META.footer.tagline,
         hasOfferCatalog: {

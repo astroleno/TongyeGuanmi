@@ -177,10 +177,8 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
           <span className="card-label">{PATTERN_COPY[0]}</span>
           <h3>
             <span>让 AI 从</span>
-            <span className="r4-authored-phrase">一场培训</span>
-            <span>，变成</span>
-            <span className="r4-authored-phrase">账上的数字</span>
-            <span>。</span>
+            <span className="r4-authored-phrase">一场培训，变成</span>
+            <span className="r4-authored-phrase">账上的数字。</span>
           </h3>
           <p>{PATTERN_COPY[2]}</p>
         </section>

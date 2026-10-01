@@ -1,5 +1,5 @@
-export const HERO_INTRO_DURATION_MS = 2_700;
-export const HERO_TITLE_START_PROGRESS = 0.78;
+export const HERO_INTRO_DURATION_MS = 1_800;
+export const HERO_TITLE_START_PROGRESS = 0.5;
 export const HERO_RADIAL_INK_FIELD = {
   kind: 'radial' as const,
   origin: { x: 0.5, y: 0.5 },

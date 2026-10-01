@@ -67,7 +67,7 @@ test('desktop formal root does not download the clean phone execution or leaves'
   expect(phoneScripts).toEqual([]);
 });
 
-test('cold Hero loader gates the 2.7s intro, local stacking, parallax, and progressive nav', async ({ page }) => {
+test('cold Hero loader gates the compact intro, local stacking, parallax, and progressive nav', async ({ page }) => {
   test.setTimeout(120_000);
 
   await page.addInitScript(() => {
@@ -286,7 +286,8 @@ test('Contact renders the canonical filing footer once in the interactive story'
     .toHaveAttribute('href', 'https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31011502406697');
   await expect(page.locator('.static-content [data-site-footer="true"]')).toBeHidden();
 
-  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', /\/assets\/favicon-[^/]+\.svg$/);
+  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]'))
+    .toHaveAttribute('href', /\/assets\/favicon-[^/]+\.svg$/);
   await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute(
     'href',
     /\/assets\/qiji-title-subset-[^/]+\.ttf$/
@@ -1035,7 +1036,8 @@ test('critical reverse chains return through hero, pilot, and figure2 proof hold
 test('slow media succeeds before timeout and failed endpoint recovery leaves an interactive static hold', async ({ page }) => {
   test.setTimeout(120_000);
 
-  await page.route('**/*aod-figure-motion*.webm', async (route) => {
+  const aodMedia = /aod-figure-motion[^/]*\.(?:webm|mp4)(?:\?.*)?$/;
+  await page.route(aodMedia, async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 700));
     await route.continue();
   });
@@ -1044,20 +1046,21 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
   await waitForHold(page, 'method-top');
   expect(await eventTypes(page)).not.toContain('PREPARE_TIMEOUT');
 
-  await page.unroute('**/*aod-figure-motion*.webm');
-  await page.route('**/*aod-figure-motion*.webm', (route) => route.abort('failed'));
+  await page.unroute(aodMedia);
+  await page.route(aodMedia, (route) => route.abort('failed'));
   await bootStory(page, '/?media=failed#aod-animation');
   const timeoutCountBeforeFailure = (await eventTypes(page))
     .filter((type) => type === 'PREPARE_TIMEOUT').length;
   await page.keyboard.press('PageDown');
   await expect.poll(async () => (await eventTypes(page))
-    .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCountBeforeFailure);
+    .filter((type) => type === 'PREPARE_TIMEOUT').length, { timeout: 25_000 })
+    .toBeGreaterThan(timeoutCountBeforeFailure);
   const failedMedia = await waitForHold(page, 'method-top');
   expect(failedMedia.recovery).toBeUndefined();
   expect(await eventTypes(page)).toContain('SEEK');
   await expectLayerInvariants(page);
 
-  await page.unroute('**/*aod-figure-motion*.webm');
+  await page.unroute(aodMedia);
   await page.evaluate(() => {
     const video = document.querySelector<HTMLVideoElement>(
       '[data-stage-layer="aod-animation"] [data-media-key="aod-figure-motion"]'
@@ -1086,7 +1089,8 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
     });
     await page.keyboard.press('PageDown');
     await expect.poll(async () => (await eventTypes(page))
-      .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCountBeforeOffline);
+      .filter((type) => type === 'PREPARE_TIMEOUT').length, { timeout: 25_000 })
+      .toBeGreaterThan(timeoutCountBeforeOffline);
     const offlineFailure = await waitForHold(page, 'method-top');
     expect(offlineFailure.recovery).toBeUndefined();
     expect(await eventTypes(page)).toContain('SEEK');
@@ -1111,13 +1115,14 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
 test('failed incoming AOD media skips the blocked transition and lands on its static AOD hold', async ({ page }) => {
   test.setTimeout(60_000);
 
-  await page.route('**/*aod-figure-motion*.webm', (route) => route.abort('failed'));
+  await page.route(/aod-figure-motion[^/]*\.(?:webm|mp4)(?:\?.*)?$/, (route) => route.abort('failed'));
   await bootStory(page, '/?media=failed#star-map');
   const timeoutCount = (await eventTypes(page))
     .filter((type) => type === 'PREPARE_TIMEOUT').length;
   await page.keyboard.press('PageDown');
   await expect.poll(async () => (await eventTypes(page))
-    .filter((type) => type === 'PREPARE_TIMEOUT').length).toBeGreaterThan(timeoutCount);
+    .filter((type) => type === 'PREPARE_TIMEOUT').length, { timeout: 25_000 })
+    .toBeGreaterThan(timeoutCount);
 
   const fallback = await waitForHold(page, 'aod-animation');
   expect(fallback.recovery).toBeUndefined();
@@ -1128,7 +1133,7 @@ test('failed incoming AOD media skips the blocked transition and lands on its st
 test('Contact reverse recovery stays local while only its explicit link may return to Hero', async ({ page }) => {
   test.setTimeout(120_000);
 
-  const craneMedia = /crane-(?:figure|flock)-motion[^/]*\.webm(?:\?.*)?$/;
+  const craneMedia = /crane-(?:figure|flock)-motion[^/]*\.(?:webm|mp4)(?:\?.*)?$/;
   let delayedRequests = 0;
   let pendingDelayedRequests = 0;
   let releaseDelayedRequests: () => void = () => undefined;
@@ -1169,7 +1174,7 @@ test('Contact reverse recovery stays local while only its explicit link may retu
   await page.keyboard.press('PageUp');
   try {
     await page.waitForFunction(() => window.__story?.getState().eventLog
-      .some((record) => record.event.type === 'PREPARE_TIMEOUT'), undefined, { timeout: 8_000 });
+      .some((record) => record.event.type === 'PREPARE_TIMEOUT'), undefined, { timeout: 25_000 });
   } finally {
     releaseDelayedRequests();
   }

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { FAQS, SERVICES } from '../../build/seo-content';
+import { SITE_META } from '../content/site-meta';
 import { canonicalUrl, PUBLIC_PAGES } from '../../build/seo-meta';
 import { renderContentPage, renderLlms, renderRobots, renderSitemap } from '../../build/seo-pages';
 
@@ -17,7 +18,7 @@ describe('public service and FAQ content', () => {
       for (const link of document.querySelectorAll('a[href^="#"]')) {
         expect(document.getElementById(link.getAttribute('href')!.slice(1))).not.toBeNull();
       }
-      expect(document.querySelector('a[href="/#contact"]')).not.toBeNull();
+      expect(document.querySelector(`a[href="${SITE_META.contact.mailto}"]`)).not.toBeNull();
     });
   }
 
@@ -56,6 +57,17 @@ describe('public service and FAQ content', () => {
     for (const route of ['/brand-lab', '/harness/', '/__preview/', '/audit/']) {
       expect(renderRobots()).toContain(`Disallow: ${route}`);
     }
+  });
+
+  it('publishes a directly usable contact channel for people and language models', () => {
+    expect(renderLlms()).toContain(SITE_META.contact.email);
+    expect(renderLlms()).toContain(SITE_META.contact.mailto);
+    const document = new DOMParser().parseFromString(
+      renderContentPage(PUBLIC_PAGES.services, '/content/test.css'),
+      'text/html'
+    );
+    expect(document.querySelector(`a[href="${SITE_META.contact.mailto}"]`)?.textContent)
+      .toContain('预约诊断');
   });
 
   it('escapes HTML text and JSON-LD script terminators', () => {

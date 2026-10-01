@@ -58,6 +58,9 @@ async function publicSmoke(releaseId, sourceCommit) {
   if (homepage.status !== 200 || !html.includes('同野观幂')) {
     throw new Error(`public homepage failed with ${homepage.status}`);
   }
+  if ((homepage.headers.get('cache-control') ?? '').includes('no-store')) {
+    throw new Error('public homepage still disables HTTP revalidation with no-store');
+  }
   for (const route of ['/services/', '/faq/']) {
     const response = await fetch(`https://tongye.me${route}`, {
       cache: 'no-store', signal: AbortSignal.timeout(20_000)
@@ -101,7 +104,12 @@ async function publicSmoke(releaseId, sourceCommit) {
     {
       path: '/llms.txt',
       contentType: 'text/plain',
-      includes: '# 同野观幂'
+      includes: 'aitoshuu@gmail.com'
+    },
+    {
+      path: '/manifest.webmanifest',
+      contentType: 'manifest+json',
+      includes: '/icon-512.png'
     }
   ]) {
     const response = await fetch(`https://tongye.me${resource.path}`, {
@@ -127,6 +135,16 @@ async function publicSmoke(releaseId, sourceCommit) {
     || !socialImage.headers.get('content-type')?.includes('image/webp')
   ) {
     throw new Error('public social image is unavailable');
+  }
+  for (const path of ['/favicon.ico', '/apple-touch-icon.png', '/icon-192.png', '/icon-512.png']) {
+    const response = await fetch(`https://tongye.me${path}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(20_000)
+    });
+    if (response.status !== 200 || !response.headers.get('content-type')?.includes('image/')) {
+      throw new Error(`public ${path} is unavailable`);
+    }
+    await response.body?.cancel();
   }
   const www = await fetch('https://www.tongye.me/', {
     redirect: 'manual',

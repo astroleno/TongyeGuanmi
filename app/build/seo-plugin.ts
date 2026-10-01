@@ -9,12 +9,38 @@ export function seoPagesPlugin(): Plugin {
   let development = false;
   const css = readFileSync(new URL('./content-pages.css', import.meta.url), 'utf8');
   const stylesheet = `/content/pages-${createHash('sha256').update(css).digest('hex').slice(0,12)}.css`;
+  const webManifest = `${JSON.stringify({
+    name: SEO_META.brandName,
+    short_name: SEO_META.brandName,
+    description: SEO_META.description,
+    lang: SEO_META.language,
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    background_color: '#040807',
+    theme_color: '#040807',
+    icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
+    ]
+  }, null, 2)}\n`;
+  const faviconIco = readFileSync(new URL('../../assets/favicon.ico', import.meta.url));
+  const appleTouchIcon = readFileSync(new URL('../../assets/apple-touch-icon.png', import.meta.url));
+  const icon192 = readFileSync(new URL('../../assets/icon-192.png', import.meta.url));
+  const icon512 = readFileSync(new URL('../../assets/icon-512.png', import.meta.url));
   const resources = new Map<string, { type: string; body: string | Buffer }>([
     ['/robots.txt', { type: 'text/plain', body: renderRobots() }],
     ['/sitemap.xml', { type: 'application/xml', body: renderSitemap() }],
     ['/llms.txt', { type: 'text/plain', body: renderLlms() }],
     ['/favicon.svg', { type: 'image/svg+xml', body: readFileSync(new URL('../../assets/favicon.svg', import.meta.url)) }],
-    [SEO_META.socialImage.path, { type: 'image/webp', body: readFileSync(new URL('../../assets/hero-back.webp', import.meta.url)) }],
+    ['/favicon.ico', { type: 'image/x-icon', body: faviconIco }],
+    ['/apple-touch-icon.png', { type: 'image/png', body: appleTouchIcon }],
+    ['/icon-192.png', { type: 'image/png', body: icon192 }],
+    ['/icon-512.png', { type: 'image/png', body: icon512 }],
+    ['/manifest.webmanifest', { type: 'application/manifest+json', body: webManifest }],
+    ['/manifest.json', { type: 'application/manifest+json', body: webManifest }],
+    ['/site.webmanifest', { type: 'application/manifest+json', body: webManifest }],
+    [SEO_META.socialImage.path, { type: 'image/webp', body: readFileSync(new URL('../../assets/og-image.webp', import.meta.url)) }],
     [stylesheet, { type: 'text/css', body: css }],
     ['/404.html', { type: 'text/html', body: renderNotFound() }],
     ...[PUBLIC_PAGES.services, PUBLIC_PAGES.faq].map((page): [string, {type: string; body: string}] => [

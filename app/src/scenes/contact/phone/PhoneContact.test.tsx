@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { hashForScene, sceneFromHash } from '../../../production/navigation';
 import type { PhoneLeafReportPort } from '../../../production/phone-story/presentation';
+import { SITE_META } from '../../../content/site-meta';
 import {
   PHONE_CONTACT_INPUT_POLICY,
   PhoneContact,
@@ -26,7 +27,8 @@ describe('PhoneContact', () => {
     expect(markup).toContain('id="contact"');
     expect(markup.match(/data-r4-scene="contact"/g)).toHaveLength(1);
     expect(markup).toContain('约一次 AI 现场诊断');
-    expect(markup).toContain('href="mailto:contact@example.com');
+    expect(markup).toContain(`href="${SITE_META.contact.mailto}`);
+    expect(markup).toContain(SITE_META.contact.email);
     expect(markup).toContain('href="#top"');
     expect(markup).toContain('data-phone-contact-state="terminal"');
     expect(markup).not.toContain('tabindex="-1"');

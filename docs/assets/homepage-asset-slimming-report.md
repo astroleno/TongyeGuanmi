@@ -1027,3 +1027,20 @@ source/output bytes 与 SHA-256、codec/profile、尺寸、fps、帧数、GOP �
 - `pnpm -C app verify:media:deep`：PASS。
 - `pnpm -C app build`：media inventory、release build 与 performance
   budgets 全部 PASS。
+
+## 2026-10-01：Hero 背景二次压缩
+
+从已记录的原始 authority
+`d4cab484e8f2d8656cf7c7cd0e19c015c7332702:assets/back1.png` 重新编码，
+没有对既有有损 WebP 做二次转码。编码器保持冻结的 `cwebp 1.6.0`，命令为：
+
+```text
+cwebp -quiet -mt -preset picture -m 6 -q 82 -sharp_yuv assets/back1.png -o assets/hero-back.webp
+```
+
+| Production path | 旧 bytes | 新 bytes | 减少 | 新 SHA-256 | 对原始 PNG SSIM |
+| --- | ---: | ---: | ---: | --- | ---: |
+| `assets/hero-back.webp` | 437,030 | 289,038 | 147,992（33.86%） | `6f70e694df3c1bfb2fcc1175716c539528d5534a8f1b20380c3d69608aaab7c2` | 0.961994 |
+
+新文件保持 1586×992；冻结媒体合同同步为新 bytes 与摘要。分享图不再复用
+该运行时背景，而是使用独立的 1200×630、96,068-byte `assets/og-image.webp`。

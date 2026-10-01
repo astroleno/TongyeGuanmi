@@ -7,6 +7,9 @@ const styles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 describe('production global assets', () => {
   it('references canonical favicon and title font sources instead of inline placeholders', () => {
     expect(indexHtml).toContain('href="../assets/favicon.svg"');
+    expect(indexHtml).toContain('href="/favicon.ico"');
+    expect(indexHtml).toContain('href="/apple-touch-icon.png"');
+    expect(indexHtml).toContain('href="/manifest.webmanifest"');
     expect(indexHtml).toContain('href="../assets/fonts/qiji-title-subset.ttf"');
     expect(indexHtml).not.toContain('data:image/svg+xml');
     expect(styles).toContain('@font-face');

@@ -375,7 +375,9 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
             as="h1"
             className="r4-hero-scene__title"
             aria-label="同野观幂"
+            durationMs={900}
             effects={['stagger', 'blur-to-clear', 'rise-up']}
+            staggerMs={100}
             variant="staggered"
           >
             <span aria-hidden="true">
@@ -391,8 +393,8 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
             active={titleActive && !hidden}
             as="p"
             blurPx={6}
-            delayMs={420}
-            durationMs={2850}
+            delayMs={220}
+            durationMs={1200}
             effects={['stagger', 'blur-to-clear', 'rise-up']}
             scaleX={1}
             staggerMs={0}

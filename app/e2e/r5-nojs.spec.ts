@@ -29,6 +29,7 @@ test('no-JS HTML exposes core正文, metadata, navigation, and scrollable anchor
   await expect(page.locator('#services')).toContainText('先跑通');
   await expect(page.locator('#education')).toContainText('先会用');
   await expect(page.locator('#contact')).toContainText('约一次 AI 现场诊断');
+  await expect(page.locator('#contact a[href^="mailto:aitoshuu@gmail.com"]')).toBeVisible();
   await expect(page.locator('a[href="#method"]')).toBeVisible();
   await expect(page.locator('a[href="#contact"]')).toBeVisible();
   const staticText = await page.locator('[data-static-story-content="true"]').innerText();
@@ -43,7 +44,8 @@ test('no-JS HTML exposes core正文, metadata, navigation, and scrollable anchor
     .toHaveAttribute('href', 'https://beian.miit.gov.cn/');
   await expect(footer.getByRole('link', { name: '沪公网安备 31011502406697号（新窗口打开）', exact: true }))
     .toHaveAttribute('href', 'https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=31011502406697');
-  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', /\/assets\/favicon-[^/]+\.svg$/);
+  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]'))
+    .toHaveAttribute('href', /\/assets\/favicon-[^/]+\.svg$/);
   await expect(page.locator('link[rel="preload"][as="font"]')).toHaveAttribute(
     'href',
     /\/assets\/qiji-title-subset-[^/]+\.ttf$/
@@ -67,6 +69,7 @@ test('crawler endpoints are real machine-readable resources rather than SPA fall
   expect(llms.status()).toBe(200);
   expect(llms.headers()['content-type']).toContain('text/plain');
   expect(await llms.text()).toContain('# 同野观幂');
+  expect(await llms.text()).toContain('aitoshuu@gmail.com');
 });
 
 test('public service and FAQ pages are complete without JavaScript or cinematic assets', async ({ page }) => {
@@ -80,7 +83,7 @@ test('public service and FAQ pages are complete without JavaScript or cinematic 
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `https://tongye.me${route}`);
     await expect(page.locator('nav[aria-label="主导航"] a[aria-current="page"]')).toHaveAttribute('href', route);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await expect(page.locator('a[href="/#contact"]').first()).toBeVisible();
+    await expect(page.locator('a[href^="mailto:aitoshuu@gmail.com"]').first()).toBeVisible();
   }
   await expect(page.locator('.answer')).toHaveCount(6);
   await page.locator('.question-index a[href="#after-delivery"]').click();

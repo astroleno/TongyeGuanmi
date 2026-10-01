@@ -9,10 +9,10 @@ import type { LoaderInkStatus as LoaderInkCanvasStatus } from './loader-ink-reve
 export const LOADER_PHRASES = ['同人于野', '观象知幂'] as const;
 
 export const STORY_LOADER_TIMINGS = {
-  startDelayMs: 180,
-  revealMs: 1_150,
-  holdMs: 220,
-  gapMs: 160,
+  startDelayMs: 80,
+  revealMs: 650,
+  holdMs: 200,
+  gapMs: 100,
   exitMs: 420,
   reducedExitMs: 90,
   safetyMs: 8_000
@@ -278,8 +278,19 @@ export function StoryLoader({
           <span>{frame.phrase}</span>
         </div>
       </div>
+      <div className="story-loader__meta">
+        <span className="story-loader__identity">同野观幂</span>
+        <span className="story-loader__status-copy">正在展开现场</span>
+        <span
+          className="story-loader__progress"
+          role="progressbar"
+          aria-label="页面加载进度"
+        >
+          <span className="story-loader__progress-value" />
+        </span>
+      </div>
       <p className="story-loader__announcement r4-visually-hidden" role="status" aria-live="polite" aria-atomic="true">
-        {frame.phrase}
+        正在展开现场：{frame.phrase}
       </p>
     </div>
   );

@@ -27,9 +27,14 @@ const assetsDir = path.join(distDir, 'assets');
 const inventoryPath = path.join(distDir, 'homepage-media-inventory.json');
 const sourceAssetsDir = path.join(repoDir, 'assets');
 const nonHomepageAssetSources = new Set([
+  'assets/apple-touch-icon.png',
+  'assets/favicon.ico',
   'assets/favicon.svg',
   'assets/fonts/OFL-QIJI.txt',
-  'assets/fonts/qiji-title-subset.ttf'
+  'assets/fonts/qiji-title-subset.ttf',
+  'assets/icon-192.png',
+  'assets/icon-512.png',
+  'assets/og-image.webp'
 ]);
 
 const adoptedWebpSources = [

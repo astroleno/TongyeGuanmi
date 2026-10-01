@@ -6,6 +6,9 @@
     <meta name="description" content="__SITE_DESCRIPTION__" />
     <meta name="theme-color" content="#040807" />
     <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preload" href="../assets/fonts/qiji-title-subset.ttf" as="font" type="font/ttf" crossorigin />
     <link id="phone-first-art" rel="preload" href="../assets/hero-back.webp" as="image" crossorigin fetchpriority="high" media="not all" />
     <!--__SEO_HEAD__-->
@@ -43,6 +46,39 @@
       html[data-phone-preboot] #root {
         background: var(--phone-preboot-surface, #040807) !important;
       }
+      .story-loader__meta {
+        position: fixed;
+        inset: auto max(20px, env(safe-area-inset-right)) max(30px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+        z-index: 6;
+        max-width: 420px;
+        margin: auto;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 9px 20px;
+        color: rgba(247, 237, 215, .72);
+        font: 600 12px/1.4 system-ui, sans-serif;
+        letter-spacing: .14em;
+      }
+      .story-loader__status-copy { color: rgba(247, 237, 215, .54); }
+      .story-loader__progress {
+        grid-column: 1/-1;
+        height: 1px;
+        overflow: hidden;
+        background: rgba(247, 237, 215, .16);
+      }
+      .story-loader__progress-value {
+        display: block;
+        width: 6%;
+        height: 100%;
+        background: #e9d8a6;
+        animation: story-loader-progress 3.18s linear forwards;
+      }
+      .story-loader--static .story-loader__progress-value { animation-duration: 8s; }
+      .story-loader[data-loader-status="exiting"] .story-loader__progress-value { width: 100%; }
+      @keyframes story-loader-progress { to { width: 94%; } }
+      @media (prefers-reduced-motion: reduce) {
+        .story-loader__progress-value { width: 86%; animation: none; }
+      }
     </style>
   </head>
   <body>
@@ -53,7 +89,13 @@
       data-loader-ink-fallback="true"
       data-loader-status="running"
       aria-hidden="true"
-    ></div>
+    >
+      <div class="story-loader__meta">
+        <span class="story-loader__identity">同野观幂</span>
+        <span class="story-loader__status-copy">正在展开现场</span>
+        <span class="story-loader__progress"><span class="story-loader__progress-value"></span></span>
+      </div>
+    </div>
     <noscript><style>#story-loader-static { display: none !important; }</style></noscript>
     <div id="root"></div>
     <!--__STATIC_STORY_CONTENT__-->

@@ -12,8 +12,8 @@ export const SEO_META = {
   socialImage: {
     path: '/og-image.webp',
     url: 'https://tongye.me/og-image.webp',
-    width: 1586,
-    height: 992,
+    width: 1200,
+    height: 630,
     alt: '同野观幂企业 AI 转型咨询与场景落地'
   },
   services: [

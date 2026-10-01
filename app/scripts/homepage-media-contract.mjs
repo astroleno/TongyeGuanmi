@@ -210,8 +210,8 @@ export const frozenHomepageMedia = [
   {
     source: 'assets/hero-back.webp',
     category: 'adopted-webp',
-    bytes: 437030,
-    sha256: '0bd7475d5f3fb7c37c842aa804330ad641e774fad1509961003e82c8c391cc56'
+    bytes: 289038,
+    sha256: '6f70e694df3c1bfb2fcc1175716c539528d5534a8f1b20380c3d69608aaab7c2'
   },
   {
     source: 'assets/hero-middle.webp',

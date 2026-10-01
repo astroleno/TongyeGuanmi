@@ -133,8 +133,8 @@ describe('pattern scene renderer', () => {
       hidden: false
     }));
 
-    expect(markup).toContain('class="r4-authored-phrase">一场培训</span>');
-    expect(markup).toContain('class="r4-authored-phrase">账上的数字</span>');
+    expect(markup).toContain('class="r4-authored-phrase">一场培训，变成</span>');
+    expect(markup).toContain('class="r4-authored-phrase">账上的数字。</span>');
     expect(markup.replace(/<[^>]+>/g, '')).toContain(PATTERN_COPY[1]);
   });
 

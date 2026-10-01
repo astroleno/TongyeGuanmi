@@ -12,7 +12,7 @@ const copyPath = path.join(repoDir, 'docs/react-refactor/inventory/copy-referenc
 const staticCopyOmissionsPath = path.join(appDir, 'build/static-copy-omissions.json');
 const faviconSourcePath = path.join(repoDir, 'assets/favicon.svg');
 const titleFontSourcePath = path.join(repoDir, 'assets/fonts/qiji-title-subset.ttf');
-const socialImageSourcePath = path.join(repoDir, 'assets/hero-back.webp');
+const socialImageSourcePath = path.join(repoDir, 'assets/og-image.webp');
 const releaseId = process.env.R5_RELEASE_ID?.trim() ?? '';
 const requireCdn = process.env.R5_REQUIRE_CDN === '1';
 const assetCdnOrigin = new URL(
@@ -572,7 +572,21 @@ const [
 ]);
 assert(faviconBytes.equals(faviconSourceBytes), 'emitted favicon bytes differ from assets/favicon.svg');
 assert(titleFontBytes.equals(titleFontSourceBytes), 'emitted title font bytes differ from assets/fonts/qiji-title-subset.ttf');
-assert(socialImageBytes.equals(socialImageSourceBytes), 'emitted social image differs from assets/hero-back.webp');
+assert(socialImageBytes.equals(socialImageSourceBytes), 'emitted social image differs from assets/og-image.webp');
+for (const filename of ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png']) {
+  const [emitted, source] = await Promise.all([
+    readFile(path.join(distDir, filename)),
+    readFile(path.join(repoDir, 'assets', filename))
+  ]);
+  assert(emitted.equals(source), `emitted ${filename} differs from its source asset`);
+}
+const webManifest = JSON.parse(await readFile(path.join(distDir, 'manifest.webmanifest'), 'utf8'));
+assert(webManifest.name === '同野观幂', 'web manifest name is invalid');
+assert(
+  webManifest.icons?.some((icon) => icon.src === '/icon-192.png' && icon.sizes === '192x192')
+    && webManifest.icons?.some((icon) => icon.src === '/icon-512.png' && icon.sizes === '512x512'),
+  'web manifest icon inventory is invalid'
+);
 const initialCss = stylesheets.join('\n');
 for (const token of ['@font-face', '--font-title:', '--font-sans:', '--font-traditional:']) {
   assert(initialCss.includes(token), `initial stylesheet is missing ${token}`);
@@ -594,6 +608,10 @@ assert(
 );
 assert(html.includes('<link rel="canonical" href="https://tongye.me/">'), 'release canonical link is missing');
 assert(html.includes('<meta property="og:image" content="https://tongye.me/og-image.webp">'), 'release Open Graph image is missing');
+assert(html.includes('<meta property="og:image:width" content="1200">'), 'release Open Graph image width is invalid');
+assert(html.includes('<meta property="og:image:height" content="630">'), 'release Open Graph image height is invalid');
+assert(html.includes('<link rel="manifest" href="/manifest.webmanifest"'), 'release manifest link is missing');
+assert(html.includes('<link rel="apple-touch-icon" href="/apple-touch-icon.png"'), 'release Apple touch icon is missing');
 assert(html.includes('<meta name="twitter:card" content="summary_large_image">'), 'release Twitter card is missing');
 assert(html.includes('<meta name="robots" content="index,follow,max-image-preview:large'), 'release robots directives are missing');
 assert(html.includes('<html lang="zh-CN">'), 'release language is missing');

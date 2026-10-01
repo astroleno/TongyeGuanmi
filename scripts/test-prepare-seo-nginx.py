@@ -15,6 +15,7 @@ class RoutingMigrationTests(unittest.TestCase):
     location = /__preview/example/ { return 302 https://tongye.me/; }
     location = /index.html {
         add_header X-Robots-Tag $tongye_preview_robots always;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
         try_files $uri =404;
     }
     location / { try_files $uri $uri/ /index.html; }
@@ -28,6 +29,8 @@ class RoutingMigrationTests(unittest.TestCase):
         self.assertIn('try_files $uri $uri/ =404;', actual)
         self.assertEqual(actual.count(module.INCLUDE), 1)
         self.assertNotIn('set $tongye_preview_robots', actual)
+        self.assertIn('add_header Cache-Control "public, max-age=0, must-revalidate";', actual)
+        self.assertNotIn('add_header Cache-Control "no-cache, no-store, must-revalidate";', actual)
         self.assertEqual(module.prepare(actual), actual)
 
     def test_unknown_fallback_is_rejected_without_writing(self):

@@ -15,7 +15,16 @@ location = /llms.txt {
     try_files $uri =404;
 }
 location = /og-image.webp {
-    add_header Cache-Control "no-cache";
+    add_header Cache-Control "public, max-age=86400, stale-while-revalidate=604800";
+    try_files $uri =404;
+}
+location = /manifest.webmanifest {
+    types { } default_type application/manifest+json;
+    add_header Cache-Control "public, max-age=86400, stale-while-revalidate=604800";
+    try_files $uri =404;
+}
+location ~ ^/(?:favicon\.ico|apple-touch-icon\.png|icon-(?:192|512)\.png|manifest\.json|site\.webmanifest)$ {
+    add_header Cache-Control "public, max-age=86400, stale-while-revalidate=604800";
     try_files $uri =404;
 }
 location = /services { return 301 /services/$is_args$args; }

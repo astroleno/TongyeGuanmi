@@ -515,14 +515,14 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
       </div>
       <div ref={vignetteRef} className="portrait-scroll-spike__hero-vignette" aria-hidden="true" />
       <div ref={copyRef} className="portrait-scroll-spike__hero-copy">
-        <TextReveal active={titleActive} as="h1" id="portrait-spike-home" aria-label="同野观幂" effects={['stagger', 'blur-to-clear', 'rise-up']} variant="staggered">
+        <TextReveal active={titleActive} as="h1" id="portrait-spike-home" aria-label="同野观幂" durationMs={900} effects={['stagger', 'blur-to-clear', 'rise-up']} staggerMs={100} variant="staggered">
           {HOME_COPY.slice(0, 4).map((character, index) => (
             <TextRevealItem key={character} index={index} aria-hidden="true">{character}</TextRevealItem>
           ))}
         </TextReveal>
       </div>
       <div ref={subtitleRef} className="portrait-scroll-spike__hero-subtitle">
-        <TextReveal active={titleActive} as="p" blurPx={6} delayMs={420} durationMs={2850} effects={['stagger', 'blur-to-clear', 'rise-up']} scaleX={1} staggerMs={0} variant="line" yPx={14}>
+        <TextReveal active={titleActive} as="p" blurPx={6} delayMs={220} durationMs={1200} effects={['stagger', 'blur-to-clear', 'rise-up']} scaleX={1} staggerMs={0} variant="line" yPx={14}>
           <TextRevealItem aria-label={HERO_SUBTITLE}>
             {HERO_SUBTITLE_LINES.map((line) => <span key={line}>{line}</span>)}
           </TextRevealItem>

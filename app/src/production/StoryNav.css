@@ -241,15 +241,19 @@
 @media (max-width: 720px), (orientation: landscape) and (max-height: 500px) and (hover: none) and (pointer: coarse) {
   :root { --nav-h: 58px; }
   .site-nav { z-index: 1100; }
+  .site-nav[data-menu-open="true"] {
+    height: 100dvh;
+    overflow: hidden;
+  }
   .site-nav::before { height: 104px; }
   .site-nav[data-menu-open="true"]::before {
     display: block;
     height: 100dvh;
     opacity: 1;
-    background: linear-gradient(180deg, rgba(4, 8, 7, .96), rgba(4, 8, 7, .84) 58%, rgba(4, 8, 7, .62));
+    background: #040807;
   }
   .site-nav[data-tone="light"][data-menu-open="true"]::before {
-    background: linear-gradient(180deg, rgba(244, 240, 230, .98), rgba(244, 240, 230, .9) 58%, rgba(244, 240, 230, .72));
+    background: #f4f0e6;
   }
   .site-nav-track { min-height: var(--nav-h); height: auto; padding: max(9px, env(safe-area-inset-top, 0px)) 14px 9px; gap: 10px; flex-wrap: wrap; }
   .site-nav .brand-mark { width: 28px; height: 28px; border-radius: 5px; }
@@ -279,6 +283,7 @@
   }
   .site-nav[data-menu-open="true"] .nav-links { display: grid; }
   .site-nav .nav-links :is(a, .nav-read) { justify-content: flex-start; width: 100%; }
+  .site-nav[data-menu-open="true"] .nav-read { color: var(--nav-fg-strong); }
   .site-nav .nav-cta { min-width: 96px; }
 }
 

@@ -28,6 +28,7 @@ type SectionRenderOptions = Readonly<{
   heading?: string;
   paragraphs?: readonly string[];
   primary?: boolean;
+  action?: string;
 }>;
 
 function renderSection(
@@ -44,12 +45,18 @@ function renderSection(
     `<section id="${escapeHtml(section.sectionId)}" data-static-section="${escapeHtml(section.sectionId)}" aria-labelledby="${escapeHtml(headingId)}">`,
     `<${headingTag} id="${escapeHtml(headingId)}"${primaryAttribute}>${escapeHtml(heading)}</${headingTag}>`,
     ...paragraphs.map((text) => `<p>${escapeHtml(text)}</p>`),
+    options.action ?? '',
     '</section>'
   ].join('\n');
 }
 
 function renderStorySection(section: StaticCopySection, index: number): string {
   if (index !== 0) {
+    if (section.sectionId === 'contact') {
+      return renderSection(section, 'h2', {
+        action: `<p><a href="${escapeHtml(SITE_META.contact.mailto)}">${escapeHtml(SITE_META.contact.email)}</a></p>`
+      });
+    }
     return renderSection(section, 'h2');
   }
 

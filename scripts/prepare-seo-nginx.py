@@ -27,6 +27,21 @@ def prepare(source: str) -> str:
         source = source.replace(marker, f'{default}{INCLUDE}\n\n{marker}')
     if len(re.findall(r'tongye-seo-routes\.inc;', source)) != 1:
         raise ValueError('Duplicate SEO routing includes')
+    homepage_pattern = re.compile(r'(location = /index\.html \{[^{}]*?)add_header Cache-Control "no-cache, no-store, must-revalidate";([^{}]*?\})')
+    source, replacements = homepage_pattern.subn(
+        r'\1add_header Cache-Control "public, max-age=0, must-revalidate";\2',
+        source
+    )
+    if replacements == 0 and 'add_header Cache-Control "public, max-age=0, must-revalidate";' not in source:
+        marker = '    location = /index.html {'
+        if source.count(marker) != 1:
+            raise ValueError('Expected exactly one homepage location')
+        source = source.replace(
+            marker,
+            f'{marker}\n        add_header Cache-Control "public, max-age=0, must-revalidate";'
+        )
+    if replacements > 1:
+        raise ValueError('Duplicate homepage cache policies')
     return source
 
 

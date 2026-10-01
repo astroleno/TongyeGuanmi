@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { SiteFooter } from '../../components/SiteFooter';
+import { SITE_META } from '../../content/site-meta';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
 import {
   createPaperEntranceLifecycle,
@@ -43,7 +44,8 @@ function ContactScene({ registerHandle }: SceneComponentProps) {
         <h2>{CONTACT_COPY[1]}</h2>
         <p>{CONTACT_COPY[2]}</p>
         <div className="contact-actions">
-          <a className="btn btn-primary" href="mailto:contact@example.com?subject=%E5%90%8C%E9%87%8E%E8%A7%82%E5%B9%82%20AI%20%E8%AF%8A%E6%96%AD%E5%92%A8%E8%AF%A2">{CONTACT_COPY[3]}</a>
+          <a className="btn btn-primary" href={SITE_META.contact.mailto}>{CONTACT_COPY[3]}</a>
+          <a className="text-link" href={SITE_META.contact.mailto}>{SITE_META.contact.email}</a>
           <a className="text-link" href="#top">{CONTACT_COPY[4]}</a>
         </div>
       </div>

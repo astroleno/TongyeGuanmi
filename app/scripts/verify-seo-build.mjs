@@ -29,7 +29,7 @@ for (const route of paths) {
     const stylesheet = document.querySelector('link[rel="stylesheet"]').getAttribute('href');
     assert.match(stylesheet, /^\/content\/pages-[a-f0-9]{12}\.css$/);
     assert((await readFile(path.join(dist, stylesheet))).length < 12_000, 'content CSS exceeds its standalone budget');
-    assert(document.querySelector('a[href="/#contact"]'));
+    assert(document.querySelector('a[href^="mailto:aitoshuu@gmail.com"]'));
   }
   if (route === '/faq/') {
     const faq = graph.find((entry) => entry['@type'] === 'FAQPage');

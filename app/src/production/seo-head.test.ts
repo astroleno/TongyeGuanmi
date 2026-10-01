@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderSeoHead, structuredData } from '../../build/seo-head';
 import { SEO_META } from '../../build/seo-meta';
+import { SITE_META } from '../content/site-meta';
 
 describe('SEO and GEO head metadata', () => {
   it('renders canonical, crawler, social, and share-image metadata with absolute URLs', () => {
@@ -23,7 +24,8 @@ describe('SEO and GEO head metadata', () => {
     expect(organization).toMatchObject({
       name: SEO_META.brandName,
       legalName: SEO_META.legalName,
-      url: SEO_META.canonicalUrl
+      url: SEO_META.canonicalUrl,
+      email: SITE_META.contact.email
     });
     expect(organization.hasOfferCatalog.itemListElement).toHaveLength(SEO_META.services.length);
     expect(organization.hasOfferCatalog.itemListElement.map(({ itemOffered }) => itemOffered.name))

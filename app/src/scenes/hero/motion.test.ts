@@ -65,11 +65,11 @@ describe('Hero motion', () => {
     expect(sampleHeroScroll(0.92).figureScale).toBe(1.065);
   });
 
-  it('uses the legacy 2.7s intro and title threshold', () => {
-    expect(HERO_INTRO_DURATION_MS).toBe(2_700);
-    expect(HERO_TITLE_START_PROGRESS).toBe(0.78);
-    expect(sampleHeroIntro(0.779)).toMatchObject({ titleActive: false, complete: false });
-    expect(sampleHeroIntro(0.78)).toMatchObject({ titleActive: true, complete: false });
+  it('reveals the title halfway through the compact intro', () => {
+    expect(HERO_INTRO_DURATION_MS).toBe(1_800);
+    expect(HERO_TITLE_START_PROGRESS).toBe(0.5);
+    expect(sampleHeroIntro(0.499)).toMatchObject({ titleActive: false, complete: false });
+    expect(sampleHeroIntro(0.5)).toMatchObject({ titleActive: true, complete: false });
     expect(sampleHeroIntro(1)).toEqual({ progress: 1, titleActive: true, complete: true });
   });
 
