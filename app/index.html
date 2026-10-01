@@ -46,38 +46,37 @@
       html[data-phone-preboot] #root {
         background: var(--phone-preboot-surface, #040807) !important;
       }
-      .story-loader__meta {
+      .story-loader::before,
+      .story-loader::after {
         position: fixed;
         inset: auto max(20px, env(safe-area-inset-right)) max(30px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
         z-index: 6;
         max-width: 420px;
         margin: auto;
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 9px 20px;
         color: rgba(247, 237, 215, .72);
         font: 600 12px/1.4 system-ui, sans-serif;
         letter-spacing: .14em;
+        pointer-events: none;
       }
-      .story-loader__status-copy { color: rgba(247, 237, 215, .54); }
-      .story-loader__progress {
-        grid-column: 1/-1;
-        height: 1px;
-        overflow: hidden;
-        background: rgba(247, 237, 215, .16);
-      }
-      .story-loader__progress-value {
-        display: block;
-        width: 6%;
-        height: 100%;
-        background: #e9d8a6;
+      .story-loader::before {
+        content: '同野观幂';
+        padding-bottom: 10px;
+        background:
+          linear-gradient(#e9d8a6 0 0) 0 100% / 6% 1px no-repeat,
+          linear-gradient(rgba(247, 237, 215, .16) 0 0) 0 100% / 100% 1px no-repeat;
         animation: story-loader-progress 3.18s linear forwards;
       }
-      .story-loader--static .story-loader__progress-value { animation-duration: 8s; }
-      .story-loader[data-loader-status="exiting"] .story-loader__progress-value { width: 100%; }
-      @keyframes story-loader-progress { to { width: 94%; } }
+      .story-loader::after {
+        content: '正在展开现场';
+        padding-bottom: 10px;
+        color: rgba(247, 237, 215, .54);
+        text-align: right;
+      }
+      .story-loader--static::before { animation-duration: 8s; }
+      .story-loader[data-loader-status="exiting"]::before { background-size: 100% 1px, 100% 1px; }
+      @keyframes story-loader-progress { to { background-size: 94% 1px, 100% 1px; } }
       @media (prefers-reduced-motion: reduce) {
-        .story-loader__progress-value { width: 86%; animation: none; }
+        .story-loader::before { background-size: 86% 1px, 100% 1px; animation: none; }
       }
     </style>
   </head>
@@ -89,13 +88,7 @@
       data-loader-ink-fallback="true"
       data-loader-status="running"
       aria-hidden="true"
-    >
-      <div class="story-loader__meta">
-        <span class="story-loader__identity">同野观幂</span>
-        <span class="story-loader__status-copy">正在展开现场</span>
-        <span class="story-loader__progress"><span class="story-loader__progress-value"></span></span>
-      </div>
-    </div>
+    ></div>
     <noscript><style>#story-loader-static { display: none !important; }</style></noscript>
     <div id="root"></div>
     <!--__STATIC_STORY_CONTENT__-->

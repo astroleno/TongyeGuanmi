@@ -135,6 +135,7 @@ describe('StoryLoader', () => {
     expect(markup).toContain('data-loader-ink-canvas="true"');
     expect(markup).toContain('data-loader-ink-status="idle"');
     expect(markup).toContain('role="progressbar"');
+    expect(markup).toContain('aria-label="加载进度"');
     expect(markup).toContain('正在展开现场');
     expect(markup.match(/<canvas/g)).toHaveLength(1);
     expect(markup).not.toContain('tabindex="0"');
@@ -148,8 +149,9 @@ describe('StoryLoader', () => {
     expect(loaderIndex).toBeLessThan(rootIndex);
     const staticCover = html.slice(loaderIndex, html.indexOf('<noscript>', loaderIndex));
     expect(staticCover).not.toContain('story-loader__word');
-    expect(staticCover).toContain('story-loader__progress');
-    expect(staticCover).toContain('正在展开现场');
+    expect(html).toContain("content: '同野观幂'");
+    expect(html).toContain("content: '正在展开现场'");
+    expect(html).toContain('@keyframes story-loader-progress');
     expect(html).toContain('data-loader-ink-fallback="true"');
     expect(html).not.toContain('mobile-landscape-entry-static');
     expect(html).toContain('#story-loader-static { display: none !important; }');

@@ -259,6 +259,8 @@ export function StoryLoader({
       data-loader-ink-status={inkStatus}
       data-loader-phrase={frame.phraseIndex}
       data-loader-phase={frame.phase}
+      role="progressbar"
+      aria-label="加载进度"
       aria-hidden={hidden ? 'true' : undefined}
       inert={status !== 'running' ? true : undefined}
       hidden={hidden}
@@ -277,17 +279,6 @@ export function StoryLoader({
         <div key={`clear-${frame.phraseIndex}`} className="story-loader__ink-clear">
           <span>{frame.phrase}</span>
         </div>
-      </div>
-      <div className="story-loader__meta">
-        <span className="story-loader__identity">同野观幂</span>
-        <span className="story-loader__status-copy">正在展开现场</span>
-        <span
-          className="story-loader__progress"
-          role="progressbar"
-          aria-label="页面加载进度"
-        >
-          <span className="story-loader__progress-value" />
-        </span>
       </div>
       <p className="story-loader__announcement r4-visually-hidden" role="status" aria-live="polite" aria-atomic="true">
         正在展开现场：{frame.phrase}
