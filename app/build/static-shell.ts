@@ -84,7 +84,7 @@ export function renderStaticStoryShell(copy: StaticCopyReference): string {
     '<a href="#contact">联系</a>',
     '</nav>',
     '</header>',
-    '<main class="static-content__main">',
+    '<main class="static-content__main" tabindex="-1">',
     ...sections.map(renderStorySection),
     '</main>',
     '<footer class="site-footer" data-site-footer="true">',

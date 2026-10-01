@@ -49,6 +49,9 @@ afterEach(() => {
   vi.clearAllMocks();
   lifecycle.length = 0;
   document.body.replaceChildren();
+  delete document.documentElement.dataset.phonePreboot;
+  delete document.documentElement.dataset.storyHydrated;
+  delete document.documentElement.dataset.staticReading;
   window.history.replaceState(null, '', '/');
 });
 
@@ -67,7 +70,7 @@ describe('formal route cutover', () => {
       root.render(<PhoneRecoverySurface recovery={{
         ...recovery,
         getSnapshot: () => failClosed
-      }} failed />);
+      }} failed onReadDirectly={vi.fn()} />);
     });
     await act(async () => {
       host.querySelector('button')?.dispatchEvent(new MouseEvent('click', {
@@ -76,6 +79,31 @@ describe('formal route cutover', () => {
     });
 
     expect(recovery.manualReload).toHaveBeenCalledWith();
+    await act(async () => root.unmount());
+  });
+
+  it('lets a failed phone bootstrap reveal the complete static reading path', async () => {
+    const host = document.createElement('div');
+    const staticLoader = document.createElement('div');
+    staticLoader.id = 'story-loader-static';
+    const staticContent = document.createElement('div');
+    staticContent.className = 'static-content';
+    staticContent.innerHTML = '<main class="static-content__main" tabindex="-1">正文</main>';
+    document.body.append(staticLoader, host, staticContent);
+    document.documentElement.dataset.phonePreboot = 'pending';
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(<App chunkRecovery={null} />);
+    });
+    const directReading = host.querySelector('[data-phone-read-directly]') as HTMLButtonElement;
+    expect(directReading).not.toBeNull();
+    await act(async () => directReading.click());
+
+    expect(document.documentElement.dataset.staticReading).toBe('true');
+    expect(document.documentElement.dataset.phonePreboot).toBeUndefined();
+    expect(document.getElementById('story-loader-static')).toBeNull();
+    expect(host.childElementCount).toBe(0);
     await act(async () => root.unmount());
   });
 

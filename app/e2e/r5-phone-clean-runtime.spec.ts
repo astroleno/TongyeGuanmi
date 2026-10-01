@@ -15,8 +15,79 @@ async function expectBootstrapFailClosed(page: Page): Promise<void> {
   await expect(recovery).toBeVisible({ timeout: 20_000 });
   await expect(recovery).toHaveAttribute('role', 'alert');
   await expect(recovery.getByRole('button', { name: '重新加载' })).toBeVisible();
+  await expect(recovery.getByRole('button', { name: '直接阅读' })).toBeVisible();
   await expect(page.locator('.phone-story')).toHaveCount(0);
 }
+
+test('first-screen business chrome stays operable under the cinematic Loader', async ({
+  page
+}, testInfo) => {
+  const startedAt = Date.now();
+  await page.goto('/#home', { waitUntil: 'domcontentloaded' });
+  const shell = page.locator('.phone-story');
+  const nav = page.locator('.site-nav');
+  const loader = page.locator('[data-story-loader="true"]');
+
+  await expect(nav).toBeVisible({ timeout: 5_000 });
+  await expect(shell).toHaveAttribute('data-phone-business-operable', 'true');
+  await expect(loader).toBeVisible();
+  await expect(nav).toHaveAttribute('data-edge-treatment', 'gradient');
+  await expect(page.locator('.scroll-edge-blur')).toHaveCount(0);
+
+  await nav.getByRole('button', { name: '菜单' }).click();
+  await expect(nav.getByRole('link', { name: '留学' })).toBeVisible();
+  await expect(nav.getByRole('button', { name: '直接阅读' })).toBeVisible();
+  const targetSizes = await nav.locator(':is(.brand, .site-nav__toggle, .nav-cta)')
+    .evaluateAll((nodes) => nodes.map((node) => {
+      const box = node.getBoundingClientRect();
+      return { width: box.width, height: box.height };
+    }));
+  expect(
+    targetSizes.every(({ width, height }) => width >= 44 && height >= 44),
+    JSON.stringify(targetSizes)
+  ).toBe(true);
+
+  const metrics = {
+    firstOperableWallMs: Date.now() - startedAt,
+    readableWhileLoaderVisible: await shell.getAttribute('data-phone-business-readable')
+  };
+  expect(metrics.firstOperableWallMs).toBeLessThan(5_000);
+  expect(metrics.readableWhileLoaderVisible).toBe('false');
+  await testInfo.attach('phone-business-first-operable.json', {
+    body: Buffer.from(JSON.stringify(metrics, null, 2)),
+    contentType: 'application/json'
+  });
+
+  await nav.getByRole('button', { name: '直接阅读' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-static-reading', 'true');
+  await expect(page.locator('.phone-story')).toHaveCount(0);
+  await expect(page.locator('.static-content')).toBeVisible();
+  await expect(page.locator('.static-content__main')).toBeFocused();
+});
+
+test('first-screen diagnosis skips the fixed cold choreography and records completion', async ({
+  page
+}, testInfo) => {
+  await page.goto('/#home', { waitUntil: 'domcontentloaded' });
+  const nav = page.locator('.site-nav');
+  const loader = page.locator('[data-story-loader="true"]');
+  await expect(nav).toBeVisible({ timeout: 5_000 });
+  await expect(loader).toHaveAttribute('data-loader-mode', 'cold-hero');
+
+  const navigationStartedAt = await page.evaluate(() => performance.now());
+  await nav.getByRole('link', { name: '预约诊断' }).click();
+  await expect(loader).toHaveAttribute('data-loader-mode', 'reduced');
+  await waitForCommitSequence(page, 'contact', 0);
+  await expect(loader).toBeHidden();
+  await expect(page.locator('.phone-story')).toHaveAttribute('data-phone-business-readable', 'true');
+
+  const metrics = await page.evaluate((start) => ({ navigationMs: performance.now() - start }), navigationStartedAt);
+  expect(metrics.navigationMs).toBeLessThan(8_000);
+  await testInfo.attach('phone-business-contact-navigation.json', {
+    body: Buffer.from(JSON.stringify(metrics, null, 2)),
+    contentType: 'application/json'
+  });
+});
 
 test('formal contract keeps one route-local authority under the opaque Loader', async ({
   page
@@ -126,6 +197,9 @@ test('initial core rejection shares one lineage across one guarded reload and th
     automaticReloadCount: 1,
     status: 'fail-closed'
   });
+  await page.getByRole('button', { name: '直接阅读' }).click();
+  await expect(page.locator('.static-content')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-static-reading', 'true');
 });
 
 test('scene leaf rejection reloads once and reconstructs the direct target from its URL', async ({
@@ -185,12 +259,16 @@ test('a second post-reload leaf rejection stays fail-closed with an accessible r
   });
   await expect(shell).toHaveAttribute('data-phone-commit-sequence', '0');
   await expect(page.locator('[data-phone-retry="true"]')).toBeVisible();
+  await expect(page.locator('[data-phone-read-directly="true"]')).toBeVisible();
   await expect(page.locator('[data-phone-plane="receiver"] > *')).toHaveCount(0);
   expect(leafRequests).toBe(1);
   expect(manifestRequests).toBe(0);
   await page.waitForTimeout(750);
   expect(leafRequests).toBe(1);
   expect(page.url()).toContain('/#figure3-animation');
+  await page.locator('[data-phone-read-directly="true"]').last().click();
+  await expect(page.locator('.static-content')).toBeVisible();
+  await expect(page.locator('.phone-story')).toHaveCount(0);
 });
 
 for (const manifestFailure of [

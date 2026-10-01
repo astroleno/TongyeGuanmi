@@ -41,6 +41,7 @@ describe('crawlable static story shell', () => {
   it('does not hide or inert no-JS正文', () => {
     expect(html).not.toMatch(/\binert\b/);
     expect(html).not.toMatch(/visibility\s*:\s*hidden|opacity\s*:\s*0/);
+    expect(html).toContain('<main class="static-content__main" tabindex="-1">');
   });
 
   it('renders the canonical footer and filing link once in no-JS output', () => {

@@ -1,9 +1,29 @@
 import { publicMenuItems } from './navigation';
+import { activateStaticReading } from './static-reading';
 import { semanticBoolean } from '../runtime/semantic-data-attribute';
 import type { SceneId } from '../story/types';
 import './StoryNav.css';
 
 export type StoryChrome = Readonly<{ tone: 'dark' | 'light' }>;
+
+export { activateStaticReading };
+
+export function PhoneStoryFaultActions({
+  moduleFault,
+  onRetry,
+  onReadDirectly
+}: Readonly<{ moduleFault: boolean; onRetry(): void; onReadDirectly(): void }>) {
+  return (
+    <div className="phone-story__fault-actions" role="group" aria-label="故事加载恢复">
+      <button type="button" className="phone-story__retry" data-phone-retry="true"
+        data-phone-recovery-reload={moduleFault ? 'true' : undefined} onClick={onRetry}>
+        {moduleFault ? '重新加载最新版本' : '重试加载故事'}
+      </button>
+      <button type="button" className="phone-story__read" data-phone-read-directly="true"
+        onClick={onReadDirectly}>直接阅读</button>
+    </div>
+  );
+}
 
 const LIGHT_SCENES = new Set<SceneId>([
   'pattern',
@@ -32,6 +52,8 @@ export type StoryNavProps = {
   /** A partial shell must only expose destinations it can actually render. */
   menuItems?: readonly { label: string; hash: string; scene: SceneId }[];
   showCta?: boolean;
+  edgeTreatment?: 'blur' | 'gradient';
+  onReadDirectly?(): void;
   onToggleMenu(): void;
   onNavigate(scene: SceneId): void;
 };
@@ -42,6 +64,8 @@ export function StoryNav({
   menuOpen,
   menuItems = publicMenuItems,
   showCta = true,
+  edgeTreatment = 'blur',
+  onReadDirectly,
   onToggleMenu,
   onNavigate
 }: StoryNavProps) {
@@ -52,13 +76,14 @@ export function StoryNav({
   return (
     <>
       <nav
-        className="site-nav has-scroll-edge-blur"
+        className={`site-nav${edgeTreatment === 'blur' ? ' has-scroll-edge-blur' : ''}`}
         aria-label="主导航"
         aria-hidden={visible ? undefined : 'true'}
         inert={visible ? undefined : true}
         data-visible={semanticBoolean(visible)}
         data-tone={chrome.tone}
         data-menu-open={semanticBoolean(menuOpen)}
+        data-edge-treatment={edgeTreatment}
       >
         <div className="site-nav-track">
           <a
@@ -100,6 +125,17 @@ export function StoryNav({
                 {item.label}
               </a>
             ))}
+            {onReadDirectly ? (
+              <button
+                className="nav-read"
+                type="button"
+                tabIndex={linkTabIndex}
+                data-story-read-directly="true"
+                onClick={onReadDirectly}
+              >
+                直接阅读
+              </button>
+            ) : null}
           </div>
           {showCta ? (
             <a
@@ -116,7 +152,7 @@ export function StoryNav({
           ) : null}
         </div>
       </nav>
-      {visible ? (
+      {visible && edgeTreatment === 'blur' ? (
         <div
           className="scroll-edge-blur"
           aria-hidden="true"

@@ -43,12 +43,12 @@ describe('StoryNav', () => {
     expect(markup).toContain('class="site-nav__action site-nav__toggle"');
     expect(markup).toContain('class="site-nav__action nav-cta"');
     expect(stylesheet).toMatch(
-      /@media \(max-width: 720px\),[\s\S]*\.site-nav__action\s*\{[^}]*min-height:\s*34px[^}]*border-radius:\s*6px/s
+      /@media \(max-width: 720px\),[\s\S]*\.site-nav__action\s*\{[^}]*min-height:\s*44px[^}]*border-radius:\s*6px/s
     );
     expect(stylesheet).not.toMatch(/font-size:\s*11px/);
     expect(stylesheet).not.toMatch(/font-weight:\s*(?:720|760)/);
     expect(stylesheet).toMatch(
-      /\.site-nav \.nav-links a\s*\{[^}]*font-size:\s*var\(--type-navigation-size\)[^}]*font-weight:\s*var\(--font-weight-strong\)/s
+      /\.site-nav \.nav-links :is\(a, \.nav-read\)\s*\{[^}]*font-size:\s*var\(--type-navigation-size\)[^}]*font-weight:\s*var\(--font-weight-strong\)/s
     );
     expect(markup).not.toContain('inert=""');
     expect(markup.match(/class="scroll-edge-blur__layer"/g)).toHaveLength(7);
@@ -59,6 +59,29 @@ describe('StoryNav', () => {
     expect(stylesheet).toMatch(/\.site-nav\s*\{[^}]*position:\s*fixed[^}]*top:\s*0[^}]*left:\s*0[^}]*width:\s*100vw/s);
     expect(stylesheet).toMatch(/\.scroll-edge-blur\s*\{[^}]*position:\s*fixed[^}]*top:\s*0[^}]*right:\s*0[^}]*left:\s*0[^}]*width:\s*100vw/s);
     expect(stylesheet).not.toMatch(/\.scroll-edge-blur__layer:nth-child\((?:6|7)\)\s*\{[^}]*display:\s*none/s);
+  });
+
+  it('offers a complete lightweight phone menu without mounting the GPU blur stack', () => {
+    const onReadDirectly = vi.fn();
+    const markup = renderToStaticMarkup(createElement(StoryNav, {
+      currentScene: 'hero',
+      visible: true,
+      menuOpen: true,
+      edgeTreatment: 'gradient',
+      onReadDirectly,
+      onToggleMenu: vi.fn(),
+      onNavigate: vi.fn()
+    }));
+
+    expect(markup).toContain('data-edge-treatment="gradient"');
+    expect(markup).toContain('href="#education"');
+    expect(markup).toContain('data-story-read-directly="true"');
+    expect(markup).toContain('直接阅读');
+    expect(markup).not.toContain('has-scroll-edge-blur');
+    expect(markup).not.toContain('scroll-edge-blur__layer');
+    expect(stylesheet).not.toMatch(/a\[href="#education"\]\s*\{\s*display:\s*none/);
+    expect(stylesheet).toMatch(/\.site-nav \.brand\s*\{[^}]*min-height:\s*44px/s);
+    expect(stylesheet).toMatch(/\.site-nav \.nav-links :is\(a, \.nav-read\)\s*\{[^}]*min-height:\s*44px/s);
   });
 
   it('lets a partial shell omit destinations it cannot render', () => {

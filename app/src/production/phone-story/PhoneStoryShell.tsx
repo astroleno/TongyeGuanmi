@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { StoryLoader } from '../StoryLoader';
-import { StoryNav } from '../StoryNav';
+import { activateStaticReading, PhoneStoryFaultActions, StoryNav } from '../StoryNav';
 import { hashForScene } from '../navigation';
 import { PHONE_FIGURE2_ARCH_SRC, RetainedFigure2Arch } from '../../stage/PhoneRetainedFigure2Arch';
 import { phoneManifest, phoneNativePrewarmScenes, phoneRetainedFigure2ArchOwner, phoneSceneById,
@@ -461,7 +461,7 @@ export function PhoneStoryShell({
   chunkRecovery
 }: PhoneStoryShellProps) {
   const rootRef = useRef<HTMLElement | null>(null); const reportPorts = useRef(new Map<string, PhoneLeafReportPort>()); const connectedRef = useRef(false); const lastStableCommitKeyRef = useRef<string | null>(null); const nativeHandoffStoreRef = useRef<PhoneNativeHandoffStore>({ snapshot: null, record: null, readiness: null });
-  const [loaderHidden, setLoaderHidden] = useState(false);
+  const [loaderHidden, setLoaderHidden] = useState(false); const [directReading, setDirectReading] = useState(false); const [businessNavigationRequested, setBusinessNavigationRequested] = useState(false);
   const [owners] = useState(() => {
     const presentation = createProjector();
     const engine = createPhoneStoryRuntime({
@@ -488,6 +488,7 @@ export function PhoneStoryShell({
   ); const stableScene = snapshot.stableCommit?.sceneId ?? null; nativeHandoffStoreRef.current.snapshot = snapshot;
   const stablePrewarmScenes = stableScene ? phoneNativePrewarmScenes(stableScene) : [];
   useLayoutEffect(() => {
+    if (directReading) { activateStaticReading(); return; }
     const root = rootRef.current;
     if (!root) return;
     document.documentElement.dataset.phonePreboot = 'mounted';
@@ -504,7 +505,7 @@ export function PhoneStoryShell({
         owners.effectTopology.clear
       ]);
     };
-  }, [owners]);
+  }, [directReading, owners]);
   const reportPort = (binding: PhoneLeafReportBinding) => {
     const key = portKey(binding); const cached = reportPorts.current.get(key);
     if (cached) { cached.rebind?.(binding); return cached; }
@@ -597,8 +598,7 @@ export function PhoneStoryShell({
   const nativeReadingEnabled = loaderHidden && stableScene !== null
     && phoneSceneById(stableScene).plane === 'native'
     && (snapshot.status === 'stable' || reprojectingCommittedScene);
-  const navigationVisible = interactionEnabled && snapshot.status === 'stable'
-    && stableScene !== null && stableScene !== 'hero' && stableScene !== 'pattern' && stableScene !== 'aod-animation'; const directActivationFallback = snapshot.status === 'transaction'
+  const navigationVisible = connectedRef.current && !directReading; const directActivationFallback = snapshot.status === 'transaction'
     && snapshot.transaction.mode !== 'segment'
     && snapshot.transaction.phase === 'awaiting-media-activation';
   const moduleFault = faulted && snapshot.status === 'faulted' && (snapshot.fault.code.includes('module') || snapshot.fault.code.includes('chunk')); const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -606,7 +606,9 @@ export function PhoneStoryShell({
   const retainedFigure2ArchAttempt: PhoneAttemptKey | null = snapshot.status === 'transaction' ? snapshot.transaction.attempt : null; const retainedFigure2ArchMotion = phoneFigure2ArchMotion(snapshot);
   const retainedEffectSegment = effect ? phoneManifest.segments.find(({ id }) => id === effect.segmentId) ?? null : null;
   const effectAboveBoth = retainedEffectSegment?.effectPlacement === 'above-both';
-  const navigate = (sceneId: PhoneSceneId) => { setMenuOpen(false);
+  const navigate = (sceneId: PhoneSceneId) => {
+    setMenuOpen(false);
+    setBusinessNavigationRequested(true);
     owners.engine.requestEntry({
       pathname: window.location.pathname,
       hash: hashForScene(sceneId),
@@ -621,11 +623,12 @@ export function PhoneStoryShell({
   /> : null}</div>;
   const reportArchReady = () => { const attempt = retainedFigure2ArchAttempt; if (attempt) owners.engine.reportPresentationPrepared({ surfaceId: 'figure2-foreground-arch', attempt, generation: attempt.transactionGeneration, token: `${attempt.transactionId}:arch` }); };
   const reportArchFailure = (error: unknown) => { const attempt = retainedFigure2ArchAttempt; if (attempt) owners.engine.reportPresentationFailure({ surfaceId: 'figure2-foreground-arch', attempt, generation: attempt.transactionGeneration, failure: { code: 'figure2-arch-decode', message: error instanceof Error ? error.message : String(error), recoverable: true } }); };
-  return (
+  return directReading ? null : (
     <main ref={rootRef} className="phone-story" data-phone-scope={scope}
       data-phone-status={snapshot.status}
       data-phone-implementation={PHONE_IMPLEMENTATION_SIGNATURE}
-      data-phone-interaction={interactionEnabled ? 'enabled' : 'disabled'}
+      data-phone-interaction={interactionEnabled ? 'enabled' : 'disabled'} data-phone-business-operable={navigationVisible ? 'true' : 'false'}
+      data-phone-business-readable={loaderHidden && snapshot.status === 'stable' ? 'true' : 'false'}
       data-phone-reading={nativeReadingEnabled ? 'enabled' : 'disabled'}
       data-phone-revision={diagnostics ? snapshot.stateRevision : undefined} data-phone-reduced-motion={diagnostics ? String(reducedMotion) : undefined}
       data-phone-fault-code={diagnostics && snapshot.status === 'faulted' ? snapshot.fault.code : undefined} data-phone-last-failure={diagnostics ? phoneDiagnosticFailureCode(snapshot) : undefined}
@@ -645,7 +648,7 @@ export function PhoneStoryShell({
         }).join(',') : undefined}
     >
       <div data-phone-loader="true">
-        <StoryLoader mode={snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}
+        <StoryLoader mode={businessNavigationRequested ? 'reduced' : snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}
           ready={provenBoot} failed={faulted} allowSafetyExit={false}
           onExitStart={owners.engine.startVisibleEntrance} onHidden={() => setLoaderHidden(true)} />
       </div>
@@ -667,21 +670,14 @@ export function PhoneStoryShell({
       {retainedFigure2ArchMounted ? <div className="phone-story__retained-figure2-arch-layer" data-phone-figure2-arch-owner={retainedFigure2ArchOwner}><RetainedFigure2Arch mounted visible ownerKey={retainedFigure2ArchAttempt?.transactionId ?? (stableScene && PHONE_FIGURE2_ARCH_SCENES.has(stableScene) ? `stable:${snapshot.stableCommit?.commitSequence ?? 0}` : null)} src={PHONE_FIGURE2_ARCH_SRC} motion={retainedFigure2ArchMotion} onDecodeReady={reportArchReady} onDecodeFailure={reportArchFailure} /></div> : null}
       {effectAboveBoth ? effectPlane : null}
       <StoryNav currentScene={navigationScene} visible={navigationVisible} menuOpen={menuOpen}
+        edgeTreatment="gradient" onReadDirectly={() => setDirectReading(true)}
         onToggleMenu={() => setMenuOpen((open) => !open)} onNavigate={navigate} />
       {directActivationFallback ? (
         <button type="button" className="phone-story__activation" data-phone-activation="true">继续播放</button>
       ) : null}
-      {faulted ? (
-        <button
-          type="button"
-          className="phone-story__retry"
-          data-phone-retry="true"
-          data-phone-recovery-reload={moduleFault ? 'true' : undefined}
-          onClick={() => moduleFault && chunkRecovery.manualReload ? chunkRecovery.manualReload() : owners.engine.retry()}
-        >
-          {moduleFault ? '重新加载最新版本' : '重试加载故事'}
-        </button>
-      ) : null}
+      {faulted ? <PhoneStoryFaultActions moduleFault={moduleFault}
+        onRetry={() => moduleFault && chunkRecovery.manualReload ? chunkRecovery.manualReload() : owners.engine.retry()}
+        onReadDirectly={() => setDirectReading(true)} /> : null}
     </main>
   );
 }

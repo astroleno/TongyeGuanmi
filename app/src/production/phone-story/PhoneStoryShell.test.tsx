@@ -215,12 +215,46 @@ vi.mock('../StoryLoader', async () => {
 vi.mock('../StoryNav', async () => {
   const { createElement } = await import('react');
   return {
-    StoryNav: (props: Readonly<{ visible: boolean; onNavigate(sceneId: string): void }>) => createElement('button', {
+    activateStaticReading: vi.fn(() => {
+      document.documentElement.dataset.staticReading = 'true';
+    }),
+    PhoneStoryFaultActions: (props: Readonly<{
+      moduleFault: boolean;
+      onRetry(): void;
+      onReadDirectly(): void;
+    }>) => createElement('div', null,
+      createElement('button', {
+        type: 'button',
+        className: 'phone-story__retry',
+        'data-phone-retry': 'true',
+        'data-phone-recovery-reload': props.moduleFault ? 'true' : undefined,
+        onClick: props.onRetry
+      }, props.moduleFault ? '重新加载最新版本' : '重试加载故事'),
+      createElement('button', {
+        type: 'button',
+        'data-phone-read-directly': 'true',
+        onClick: props.onReadDirectly
+      }, '直接阅读')
+    ),
+    StoryNav: (props: Readonly<{
+      visible: boolean;
+      edgeTreatment?: string;
+      onReadDirectly?(): void;
+      onNavigate(sceneId: string): void;
+    }>) => createElement('div', {
+      'data-phone-nav-visible': String(props.visible),
+      'data-phone-nav-edge': props.edgeTreatment
+    },
+    createElement('button', {
       type: 'button',
       'data-phone-nav-contact': 'true',
-      'data-phone-nav-visible': String(props.visible),
       onClick: () => props.onNavigate('contact')
-    }, 'contact')
+    }, 'contact'),
+    props.onReadDirectly ? createElement('button', {
+      type: 'button',
+      'data-phone-read-directly': 'true',
+      onClick: props.onReadDirectly
+    }, 'read') : null)
   };
 });
 
@@ -543,6 +577,7 @@ beforeEach(() => {
   document.body.replaceChildren();
   delete document.documentElement.dataset.phonePreboot;
   delete document.documentElement.dataset.storyHydrated;
+  delete document.documentElement.dataset.staticReading;
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     value: vi.fn(() => ({ matches: false } as MediaQueryList))
@@ -1295,27 +1330,27 @@ describe('clean PhoneStoryShell ownership', () => {
     }
   });
 
-  it('withholds Topbar chrome until Star Map is the committed scene', () => {
+  it('keeps lightweight business chrome available across Hero and cinematic holds', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     const engine = connectedEngine();
     revealStableStory(engine);
-    const nav = host.querySelector('[data-phone-nav-contact]');
-    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('false');
+    const nav = host.querySelector('[data-phone-nav-visible]');
+    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('true');
 
     act(() => engine.publish({
       ...stableSnapshot(),
       stableCommit: { sceneId: 'pattern', landing: {}, commitSequence: 2 },
       presentationProof: { commitSequence: 2, planeRevision: 2 }
     }));
-    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('false');
+    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('true');
 
     act(() => engine.publish({
       ...stableSnapshot(),
       stableCommit: { sceneId: 'aod-animation', landing: {}, commitSequence: 3 },
       presentationProof: { commitSequence: 3, planeRevision: 3 }
     }));
-    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('false');
+    expect(nav?.getAttribute('data-phone-nav-visible')).toBe('true');
 
     act(() => engine.publish({
       ...stableSnapshot(),
@@ -1323,6 +1358,7 @@ describe('clean PhoneStoryShell ownership', () => {
       presentationProof: { commitSequence: 4, planeRevision: 4 }
     }));
     expect(nav?.getAttribute('data-phone-nav-visible')).toBe('true');
+    expect(nav?.getAttribute('data-phone-nav-edge')).toBe('gradient');
     act(() => root.unmount());
   });
 
@@ -1873,9 +1909,16 @@ describe('clean PhoneStoryShell ownership', () => {
     const styles = readFileSync(resolve(
       process.cwd(), 'src/production/phone-story/styles.css'
     ), 'utf8');
-    expect(styles).toMatch(/\.phone-story__retry\s*\{[^}]*z-index:\s*1001/s);
+    expect(styles).toMatch(/\.phone-story__fault-actions\s*\{[^}]*z-index:\s*1001/s);
     act(() => retry.click());
     expect(engine.retry).toHaveBeenCalledTimes(1);
+
+    const directReading = host.querySelector('[data-phone-read-directly]') as HTMLButtonElement;
+    expect(directReading).not.toBeNull();
+    act(() => directReading.click());
+    expect(host.querySelector('.phone-story')).toBeNull();
+    expect(document.documentElement.dataset.staticReading).toBe('true');
+    expect(engine.disconnectCount).toBe(1);
     act(() => root.unmount());
   });
 

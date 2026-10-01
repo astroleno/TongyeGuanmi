@@ -446,7 +446,8 @@ html[data-portrait-loader-resume="skip"] .route-loading {
 }
 
 .route-loading,
-.route-not-found {
+.route-not-found,
+.route-phone-recovery {
   min-height: 100svh;
   display: grid;
   place-content: center;
@@ -456,6 +457,8 @@ html[data-portrait-loader-resume="skip"] .route-loading {
   color: #171b18;
   text-align: center;
 }
+
+.route-phone-recovery button { min-height: 44px; }
 
 .route-not-found h1,
 .route-not-found p {

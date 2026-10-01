@@ -69,6 +69,8 @@
   align-items: center;
   gap: 8px;
   width: max-content;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--nav-fg-strong);
 }
 
@@ -100,10 +102,16 @@
   min-width: 0;
 }
 
-.site-nav .nav-links a {
+.site-nav .nav-links :is(a, .nav-read) {
   position: relative;
+  min-height: 44px;
   padding: 10px 0;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
   color: var(--nav-fg-muted);
+  font-family: inherit;
   font-size: var(--type-navigation-size);
   font-weight: var(--font-weight-strong);
   line-height: var(--type-navigation-line-height);
@@ -111,7 +119,7 @@
   transition: color .22s ease;
 }
 
-.site-nav .nav-links a::after {
+.site-nav .nav-links :is(a, .nav-read)::after {
   content: "";
   position: absolute;
   right: 0;
@@ -125,8 +133,8 @@
   transition: transform .22s ease;
 }
 
-.site-nav .nav-links a:is(:hover, :focus-visible, .is-active) { color: var(--nav-fg-strong); }
-.site-nav .nav-links a:is(:hover, :focus-visible, .is-active)::after { transform: scaleX(1); }
+.site-nav .nav-links :is(a, .nav-read):is(:hover, :focus-visible, .is-active) { color: var(--nav-fg-strong); }
+.site-nav .nav-links :is(a, .nav-read):is(:hover, :focus-visible, .is-active)::after { transform: scaleX(1); }
 
 .site-nav .nav-cta {
   flex: 0 0 auto;
@@ -134,7 +142,7 @@
   align-items: center;
   justify-content: center;
   min-width: 92px;
-  min-height: 34px;
+  min-height: 44px;
   padding: 0 15px;
   border: 1px solid var(--diagnosis-cta-border);
   border-radius: var(--diagnosis-cta-radius);
@@ -232,11 +240,22 @@
 
 @media (max-width: 720px), (orientation: landscape) and (max-height: 500px) and (hover: none) and (pointer: coarse) {
   :root { --nav-h: 58px; }
-  .site-nav-track { min-height: var(--nav-h); height: auto; padding: 9px 14px; gap: 10px; flex-wrap: wrap; }
+  .site-nav { z-index: 1100; }
+  .site-nav::before { height: 104px; }
+  .site-nav[data-menu-open="true"]::before {
+    display: block;
+    height: 100dvh;
+    opacity: 1;
+    background: linear-gradient(180deg, rgba(4, 8, 7, .96), rgba(4, 8, 7, .84) 58%, rgba(4, 8, 7, .62));
+  }
+  .site-nav[data-tone="light"][data-menu-open="true"]::before {
+    background: linear-gradient(180deg, rgba(244, 240, 230, .98), rgba(244, 240, 230, .9) 58%, rgba(244, 240, 230, .72));
+  }
+  .site-nav-track { min-height: var(--nav-h); height: auto; padding: max(9px, env(safe-area-inset-top, 0px)) 14px 9px; gap: 10px; flex-wrap: wrap; }
   .site-nav .brand-mark { width: 28px; height: 28px; border-radius: 5px; }
   .site-nav .brand-text { display: none; }
   .site-nav__action {
-    min-height: 34px;
+    min-height: 44px;
     padding-inline: 12px;
     border: 1px solid var(--diagnosis-cta-border);
     border-radius: 6px;
@@ -248,17 +267,23 @@
     letter-spacing: .04em;
   }
   .site-nav__toggle { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; }
-  .site-nav .nav-links { display: none; flex: 1 0 100%; justify-content: flex-start; overflow-x: auto; padding: 4px 0 2px; gap: clamp(14px, 4vw, 22px); }
-  .site-nav[data-menu-open="true"] .nav-links { display: flex; }
-  .site-nav .nav-cta { min-width: 84px; }
-}
-
-@media (max-width: 520px) {
-  .site-nav .nav-links a[href="#education"] { display: none; }
+  .site-nav .nav-links {
+    order: 1;
+    display: none;
+    flex: 1 0 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: calc(100dvh - 78px - env(safe-area-inset-top, 0px));
+    overflow-y: auto;
+    padding: 12px 0 max(22px, env(safe-area-inset-bottom, 0px));
+    gap: 2px 18px;
+  }
+  .site-nav[data-menu-open="true"] .nav-links { display: grid; }
+  .site-nav .nav-links :is(a, .nav-read) { justify-content: flex-start; width: 100%; }
+  .site-nav .nav-cta { min-width: 96px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .site-nav, .scroll-edge-blur, .site-nav .nav-links a, .site-nav .nav-links a::after, .site-nav .nav-cta {
+  .site-nav, .scroll-edge-blur, .site-nav .nav-links :is(a, .nav-read), .site-nav .nav-links :is(a, .nav-read)::after, .site-nav .nav-cta {
     transition: none !important;
   }
 }
