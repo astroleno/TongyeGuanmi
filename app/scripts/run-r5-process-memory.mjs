@@ -20,13 +20,15 @@ const port = process.env.R5_PREVIEW_PORT ?? '4173';
 const baseUrl = `http://${host}:${port}`;
 const detached = process.platform !== 'win32';
 const outputPath = path.join(repoDir, 'dist/r5-process-memory.json');
+const proxyServer = process.env.R5_MEMORY_PROXY_SERVER?.trim() || null;
 const environment = {
   platform: process.platform,
   arch: arch(),
   osRelease: osRelease(),
   browserChannel: 'chrome',
   headless: process.env.R5_MEMORY_HEADLESS !== '0',
-  runnerClass: process.env.R5_MEMORY_RUNNER_CLASS?.trim() || null
+  runnerClass: process.env.R5_MEMORY_RUNNER_CLASS?.trim() || null,
+  proxyServer
 };
 const environmentValidation = validateReleaseMemoryEnvironment(environment);
 if (!environmentValidation.valid) {

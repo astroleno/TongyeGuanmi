@@ -31,6 +31,7 @@ const releaseManifestPath = process.env.R5_RELEASE_MANIFEST_PATH
   : path.join(repoDir, 'dist/r5-release-manifest.json');
 const baseUrl = process.env.R5_BASE_URL ?? 'http://127.0.0.1:4173';
 const headless = process.env.R5_MEMORY_HEADLESS !== '0';
+const proxyServer = process.env.R5_MEMORY_PROXY_SERVER?.trim() || null;
 const runId = randomUUID();
 const startedAt = new Date().toISOString();
 const environment = {
@@ -39,7 +40,8 @@ const environment = {
   osRelease: osRelease(),
   browserChannel: 'chrome',
   headless,
-  runnerClass: process.env.R5_MEMORY_RUNNER_CLASS?.trim() || null
+  runnerClass: process.env.R5_MEMORY_RUNNER_CLASS?.trim() || null,
+  proxyServer
 };
 const scenes = [
   'hero',
@@ -252,6 +254,7 @@ await mkdir(path.dirname(outputPath), { recursive: true });
 const browser = await chromium.launch({
   channel: 'chrome',
   headless,
+  ...(proxyServer ? { proxy: { server: proxyServer, bypass: '127.0.0.1,localhost' } } : {}),
   args: [
     '--autoplay-policy=no-user-gesture-required',
     '--disable-background-timer-throttling',

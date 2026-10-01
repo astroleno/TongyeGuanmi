@@ -590,11 +590,13 @@ it('routes deploy builds through the strict release identity gate', () => {
   expect(memoryRunner).toContain('validateProcessMemoryQualification');
   expect(memoryRunner).toContain("path.join(repoDir, 'dist/r5-process-memory.json')");
   expect(memoryRunner).toContain("R5_MEMORY_ARCHIVE_PATH: ''");
+  expect(memoryRunner).toContain('R5_MEMORY_PROXY_SERVER');
   expect(memoryRunner).not.toContain(
     'artifacts/react-refactor/r5-parity-repair-candidate/r5-process-memory.json'
   );
   expect(memoryProfiler).toContain('isBrowserRootCommand(row.command)');
   expect(memoryProfiler).toContain('const pass = samplingSummary.valid');
+  expect(memoryProfiler).toContain("proxy: { server: proxyServer, bypass: '127.0.0.1,localhost' }");
   expect(memoryProfiler).toContain("'figure2-proof',");
   expect(memoryProfiler).not.toContain("'figure2-proof-opening',");
   expect(memoryProfiler).not.toContain("'figure2-proof-cards',");
