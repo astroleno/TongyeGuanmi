@@ -2,6 +2,8 @@
 
 日期：2026-10-01。状态：SEO / GEO v48 已正式发布，发布后复验通过。
 
+后续手机商务入口与直接阅读已在 v51 正式发布，最新运行时为 `334dccf`；发布身份、认证和公网复验见 [手机商务入口、直接阅读与 v51 正式发布](2026-10-01-mobile-business-access-release.md)。本文件保留 v48 的 SEO / GEO 阶段记录。
+
 正式入口：[首页（退出旧预览）](https://tongye.me/__preview/off/)、[服务说明](https://tongye.me/services/)、[常见问题](https://tongye.me/faq/)。运行时提交为 `7b894253be73a65930a6b7399dae1ea89e31f1c8`，版本 `r5-7b89425`，已提交、推送并发布。
 
 ## 目标与已确认架构
