@@ -64,30 +64,20 @@ function NotFound() {
   );
 }
 
-function StaticReadingFallback() {
-  useLayoutEffect(() => {
-    activateStaticReading();
-  }, []);
-  return null;
-}
-
 function RecoveryActions({
-  onReload,
-  onReadDirectly
-}: Readonly<{ onReload(): void; onReadDirectly(): void }>) {
+  onReload
+}: Readonly<{ onReload(): void }>) {
   return (
-    <div className="route-phone-recovery__actions">
+    <div>
       <button type="button" onClick={onReload}>重新加载</button>
-      <button type="button" data-phone-read-directly="true" onClick={onReadDirectly}>
+      <button type="button" data-phone-read-directly="true" onClick={activateStaticReading}>
         直接阅读
       </button>
     </div>
   );
 }
 
-function PhoneBootstrapUnavailable({
-  onReadDirectly
-}: Readonly<{ onReadDirectly(): void }>) {
+function PhoneBootstrapUnavailable() {
   useLayoutEffect(() => {
     document.getElementById('story-loader-static')?.remove();
   }, []);
@@ -95,7 +85,7 @@ function PhoneBootstrapUnavailable({
     <main className="route-phone-recovery" role="alert" data-phone-bootstrap="fail-closed">
       <h1>手机故事暂时无法加载</h1>
       <p>启动恢复边界不可用，请手动重新加载。</p>
-      <RecoveryActions onReload={() => window.location.reload()} onReadDirectly={onReadDirectly} />
+      <RecoveryActions onReload={() => window.location.reload()} />
       <a href="/">返回首页</a>
     </main>
   );
@@ -106,12 +96,10 @@ export type PhoneAppChunkRecovery = Pick<PhoneChunkRecoveryController,
 
 export function PhoneRecoverySurface({
   recovery,
-  failed,
-  onReadDirectly
+  failed
 }: Readonly<{
   recovery: PhoneAppChunkRecovery;
   failed: boolean;
-  onReadDirectly(): void;
 }>) {
   const snapshot = useSyncExternalStore(
     recovery.subscribe,
@@ -129,7 +117,7 @@ export function PhoneRecoverySurface({
     <main className="route-phone-recovery" role="alert" data-phone-bootstrap="fail-closed">
       <h1>手机故事暂时无法加载</h1>
       <p>{snapshot.message}</p>
-      <RecoveryActions onReload={() => recovery.manualReload()} onReadDirectly={onReadDirectly} />
+      <RecoveryActions onReload={() => recovery.manualReload()} />
       <a href="/">返回首页</a>
     </main>
   );
@@ -138,7 +126,6 @@ export function PhoneRecoverySurface({
 type PhoneLazyBoundaryProps = Readonly<{
   recovery: PhoneAppChunkRecovery;
   routeKey: string;
-  onReadDirectly(): void;
   children: ReactNode;
 }>;
 
@@ -167,11 +154,7 @@ class PhoneLazyBoundary extends Component<
 
   render(): ReactNode {
     return this.state.error
-      ? <PhoneRecoverySurface
-          recovery={this.props.recovery}
-          failed
-          onReadDirectly={this.props.onReadDirectly}
-        />
+      ? <PhoneRecoverySurface recovery={this.props.recovery} failed />
       : this.props.children;
   }
 }
@@ -182,8 +165,6 @@ export function App({ chunkRecovery }: Readonly<{
   const path = canUseDOM() ? window.location.pathname : '/';
   const route = appRouteForPath(path, harnessEnabled);
   const [shellFamily] = useState(initialShellFamily);
-  const [staticReading, setStaticReading] = useState(false);
-  if (staticReading) return <StaticReadingFallback />;
   if (route === 'harness') {
     if (!HarnessRouter) return <NotFound />;
     return (
@@ -200,19 +181,12 @@ export function App({ chunkRecovery }: Readonly<{
       </Suspense>
     );
   }
-  if (!chunkRecovery) {
-    return <PhoneBootstrapUnavailable onReadDirectly={() => setStaticReading(true)} />;
-  }
+  if (!chunkRecovery) return <PhoneBootstrapUnavailable />;
   return (
-    <PhoneLazyBoundary
-      recovery={chunkRecovery}
-      routeKey={route}
-      onReadDirectly={() => setStaticReading(true)}
-    >
+    <PhoneLazyBoundary recovery={chunkRecovery} routeKey={route}>
       <Suspense fallback={<PhoneRecoverySurface
         recovery={chunkRecovery}
         failed={false}
-        onReadDirectly={() => setStaticReading(true)}
       />}>
         {route === 'brand-lab'
           ? <PhoneBrandLabStory chunkRecovery={chunkRecovery.port} />

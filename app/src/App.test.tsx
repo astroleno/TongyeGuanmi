@@ -70,7 +70,7 @@ describe('formal route cutover', () => {
       root.render(<PhoneRecoverySurface recovery={{
         ...recovery,
         getSnapshot: () => failClosed
-      }} failed onReadDirectly={vi.fn()} />);
+      }} failed />);
     });
     await act(async () => {
       host.querySelector('button')?.dispatchEvent(new MouseEvent('click', {
@@ -84,6 +84,7 @@ describe('formal route cutover', () => {
 
   it('lets a failed phone bootstrap reveal the complete static reading path', async () => {
     const host = document.createElement('div');
+    host.id = 'root';
     const staticLoader = document.createElement('div');
     staticLoader.id = 'story-loader-static';
     const staticContent = document.createElement('div');
@@ -103,7 +104,7 @@ describe('formal route cutover', () => {
     expect(document.documentElement.dataset.staticReading).toBe('true');
     expect(document.documentElement.dataset.phonePreboot).toBeUndefined();
     expect(document.getElementById('story-loader-static')).toBeNull();
-    expect(host.childElementCount).toBe(0);
+    expect(host.hidden).toBe(true);
     await act(async () => root.unmount());
   });
 

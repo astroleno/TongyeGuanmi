@@ -461,7 +461,7 @@ export function PhoneStoryShell({
   chunkRecovery
 }: PhoneStoryShellProps) {
   const rootRef = useRef<HTMLElement | null>(null); const reportPorts = useRef(new Map<string, PhoneLeafReportPort>()); const connectedRef = useRef(false); const lastStableCommitKeyRef = useRef<string | null>(null); const nativeHandoffStoreRef = useRef<PhoneNativeHandoffStore>({ snapshot: null, record: null, readiness: null });
-  const [loaderHidden, setLoaderHidden] = useState(false); const [directReading, setDirectReading] = useState(false); const [businessNavigationRequested, setBusinessNavigationRequested] = useState(false);
+  const [loaderHidden, setLoaderHidden] = useState(false); const [directReading, setDirectReading] = useState(false); const [fast, setFast] = useState(false);
   const [owners] = useState(() => {
     const presentation = createProjector();
     const engine = createPhoneStoryRuntime({
@@ -598,7 +598,7 @@ export function PhoneStoryShell({
   const nativeReadingEnabled = loaderHidden && stableScene !== null
     && phoneSceneById(stableScene).plane === 'native'
     && (snapshot.status === 'stable' || reprojectingCommittedScene);
-  const navigationVisible = connectedRef.current && !directReading; const directActivationFallback = snapshot.status === 'transaction'
+  const navigationVisible = connectedRef.current; const directActivationFallback = snapshot.status === 'transaction'
     && snapshot.transaction.mode !== 'segment'
     && snapshot.transaction.phase === 'awaiting-media-activation';
   const moduleFault = faulted && snapshot.status === 'faulted' && (snapshot.fault.code.includes('module') || snapshot.fault.code.includes('chunk')); const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -608,13 +608,14 @@ export function PhoneStoryShell({
   const effectAboveBoth = retainedEffectSegment?.effectPlacement === 'above-both';
   const navigate = (sceneId: PhoneSceneId) => {
     setMenuOpen(false);
-    setBusinessNavigationRequested(true);
+    setFast(true);
     owners.engine.requestEntry({
       pathname: window.location.pathname,
       hash: hashForScene(sceneId),
       origin: 'menu'
     });
   };
+  const readDirectly = () => setDirectReading(true);
   const renderScenes = (entries: readonly PhoneSceneRenderSlot<PhoneSceneId>[]) => entries.map((entry) => (
     <PhoneSceneLeaf key={entry.renderKey} sceneId={entry.sceneId} reports={entry.reports} />
   ));
@@ -648,7 +649,7 @@ export function PhoneStoryShell({
         }).join(',') : undefined}
     >
       <div data-phone-loader="true">
-        <StoryLoader mode={businessNavigationRequested ? 'reduced' : snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}
+        <StoryLoader mode={fast ? 'reduced' : snapshot.originalEntry.hash === '#home' ? 'cold-hero' : 'direct'}
           ready={provenBoot} failed={faulted} allowSafetyExit={false}
           onExitStart={owners.engine.startVisibleEntrance} onHidden={() => setLoaderHidden(true)} />
       </div>
@@ -670,14 +671,14 @@ export function PhoneStoryShell({
       {retainedFigure2ArchMounted ? <div className="phone-story__retained-figure2-arch-layer" data-phone-figure2-arch-owner={retainedFigure2ArchOwner}><RetainedFigure2Arch mounted visible ownerKey={retainedFigure2ArchAttempt?.transactionId ?? (stableScene && PHONE_FIGURE2_ARCH_SCENES.has(stableScene) ? `stable:${snapshot.stableCommit?.commitSequence ?? 0}` : null)} src={PHONE_FIGURE2_ARCH_SRC} motion={retainedFigure2ArchMotion} onDecodeReady={reportArchReady} onDecodeFailure={reportArchFailure} /></div> : null}
       {effectAboveBoth ? effectPlane : null}
       <StoryNav currentScene={navigationScene} visible={navigationVisible} menuOpen={menuOpen}
-        edgeTreatment="gradient" onReadDirectly={() => setDirectReading(true)}
+        showBlur={false} onRead={readDirectly}
         onToggleMenu={() => setMenuOpen((open) => !open)} onNavigate={navigate} />
       {directActivationFallback ? (
         <button type="button" className="phone-story__activation" data-phone-activation="true">继续播放</button>
       ) : null}
-      {faulted ? <PhoneStoryFaultActions moduleFault={moduleFault}
+      {faulted ? <PhoneStoryFaultActions reload={moduleFault}
         onRetry={() => moduleFault && chunkRecovery.manualReload ? chunkRecovery.manualReload() : owners.engine.retry()}
-        onReadDirectly={() => setDirectReading(true)} /> : null}
+        onRead={readDirectly} /> : null}
     </main>
   );
 }

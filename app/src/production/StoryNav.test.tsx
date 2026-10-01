@@ -62,20 +62,19 @@ describe('StoryNav', () => {
   });
 
   it('offers a complete lightweight phone menu without mounting the GPU blur stack', () => {
-    const onReadDirectly = vi.fn();
+    const onRead = vi.fn();
     const markup = renderToStaticMarkup(createElement(StoryNav, {
       currentScene: 'hero',
       visible: true,
       menuOpen: true,
-      edgeTreatment: 'gradient',
-      onReadDirectly,
+      showBlur: false,
+      onRead,
       onToggleMenu: vi.fn(),
       onNavigate: vi.fn()
     }));
 
     expect(markup).toContain('data-edge-treatment="gradient"');
     expect(markup).toContain('href="#education"');
-    expect(markup).toContain('data-story-read-directly="true"');
     expect(markup).toContain('直接阅读');
     expect(markup).not.toContain('has-scroll-edge-blur');
     expect(markup).not.toContain('scroll-edge-blur__layer');

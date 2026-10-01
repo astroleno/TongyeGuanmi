@@ -219,41 +219,40 @@ vi.mock('../StoryNav', async () => {
       document.documentElement.dataset.staticReading = 'true';
     }),
     PhoneStoryFaultActions: (props: Readonly<{
-      moduleFault: boolean;
+      reload: boolean;
       onRetry(): void;
-      onReadDirectly(): void;
+      onRead(): void;
     }>) => createElement('div', null,
       createElement('button', {
         type: 'button',
         className: 'phone-story__retry',
         'data-phone-retry': 'true',
-        'data-phone-recovery-reload': props.moduleFault ? 'true' : undefined,
         onClick: props.onRetry
-      }, props.moduleFault ? '重新加载最新版本' : '重试加载故事'),
+      }, props.reload ? '重新加载' : '重试加载'),
       createElement('button', {
         type: 'button',
         'data-phone-read-directly': 'true',
-        onClick: props.onReadDirectly
+        onClick: props.onRead
       }, '直接阅读')
     ),
     StoryNav: (props: Readonly<{
       visible: boolean;
-      edgeTreatment?: string;
-      onReadDirectly?(): void;
+      showBlur?: boolean;
+      onRead?(): void;
       onNavigate(sceneId: string): void;
     }>) => createElement('div', {
       'data-phone-nav-visible': String(props.visible),
-      'data-phone-nav-edge': props.edgeTreatment
+      'data-phone-nav-edge': props.showBlur === false ? 'gradient' : 'blur'
     },
     createElement('button', {
       type: 'button',
       'data-phone-nav-contact': 'true',
       onClick: () => props.onNavigate('contact')
     }, 'contact'),
-    props.onReadDirectly ? createElement('button', {
+    props.onRead ? createElement('button', {
       type: 'button',
       'data-phone-read-directly': 'true',
-      onClick: props.onReadDirectly
+      onClick: props.onRead
     }, 'read') : null)
   };
 });
@@ -1928,8 +1927,8 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.render(<PhoneStoryShell chunkRecovery={recovery} />)); const engine = connectedEngine();
     act(() => engine.publish({ ...faultedSnapshot(), fault: { code: 'module-load-rejected', message: 'chunk rejected', retryable: true } }));
 
-    const retry = host.querySelector('[data-phone-recovery-reload]') as HTMLButtonElement;
-    expect(retry.textContent).toContain('重新加载最新版本');
+    const retry = host.querySelector('[data-phone-retry]') as HTMLButtonElement;
+    expect(retry.textContent).toContain('重新加载');
     act(() => retry.click());
     expect(manualReload).toHaveBeenCalledTimes(1); expect(engine.retry).not.toHaveBeenCalled();
     act(() => root.unmount());

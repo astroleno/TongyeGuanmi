@@ -9,18 +9,18 @@ export type StoryChrome = Readonly<{ tone: 'dark' | 'light' }>;
 export { activateStaticReading };
 
 export function PhoneStoryFaultActions({
-  moduleFault,
+  reload,
   onRetry,
-  onReadDirectly
-}: Readonly<{ moduleFault: boolean; onRetry(): void; onReadDirectly(): void }>) {
+  onRead
+}: Readonly<{ reload: boolean; onRetry(): void; onRead(): void }>) {
   return (
-    <div className="phone-story__fault-actions" role="group" aria-label="故事加载恢复">
+    <div className="phone-story__fault-actions">
       <button type="button" className="phone-story__retry" data-phone-retry="true"
-        data-phone-recovery-reload={moduleFault ? 'true' : undefined} onClick={onRetry}>
-        {moduleFault ? '重新加载最新版本' : '重试加载故事'}
+        onClick={onRetry}>
+        {reload ? '重新加载' : '重试加载'}
       </button>
       <button type="button" className="phone-story__read" data-phone-read-directly="true"
-        onClick={onReadDirectly}>直接阅读</button>
+        onClick={onRead}>直接阅读</button>
     </div>
   );
 }
@@ -52,8 +52,8 @@ export type StoryNavProps = {
   /** A partial shell must only expose destinations it can actually render. */
   menuItems?: readonly { label: string; hash: string; scene: SceneId }[];
   showCta?: boolean;
-  edgeTreatment?: 'blur' | 'gradient';
-  onReadDirectly?(): void;
+  showBlur?: boolean;
+  onRead?(): void;
   onToggleMenu(): void;
   onNavigate(scene: SceneId): void;
 };
@@ -64,8 +64,8 @@ export function StoryNav({
   menuOpen,
   menuItems = publicMenuItems,
   showCta = true,
-  edgeTreatment = 'blur',
-  onReadDirectly,
+  showBlur = true,
+  onRead,
   onToggleMenu,
   onNavigate
 }: StoryNavProps) {
@@ -76,14 +76,14 @@ export function StoryNav({
   return (
     <>
       <nav
-        className={`site-nav${edgeTreatment === 'blur' ? ' has-scroll-edge-blur' : ''}`}
+        className={`site-nav${showBlur ? ' has-scroll-edge-blur' : ''}`}
         aria-label="主导航"
         aria-hidden={visible ? undefined : 'true'}
         inert={visible ? undefined : true}
         data-visible={semanticBoolean(visible)}
         data-tone={chrome.tone}
         data-menu-open={semanticBoolean(menuOpen)}
-        data-edge-treatment={edgeTreatment}
+        data-edge-treatment={showBlur ? 'blur' : 'gradient'}
       >
         <div className="site-nav-track">
           <a
@@ -125,13 +125,12 @@ export function StoryNav({
                 {item.label}
               </a>
             ))}
-            {onReadDirectly ? (
+            {onRead ? (
               <button
                 className="nav-read"
                 type="button"
                 tabIndex={linkTabIndex}
-                data-story-read-directly="true"
-                onClick={onReadDirectly}
+                onClick={onRead}
               >
                 直接阅读
               </button>
@@ -152,7 +151,7 @@ export function StoryNav({
           ) : null}
         </div>
       </nav>
-      {visible && edgeTreatment === 'blur' ? (
+      {visible && showBlur ? (
         <div
           className="scroll-edge-blur"
           aria-hidden="true"
