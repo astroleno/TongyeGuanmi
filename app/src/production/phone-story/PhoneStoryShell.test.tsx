@@ -953,6 +953,13 @@ describe('clean PhoneStoryShell ownership', () => {
       `attach:${engine.presentationId}`,
       `connect:${engine.id}`
     ]);
+    act(() => engine.publish(methodReadingSnapshot()));
+    for (const candidate of probe.engines) candidate.nativeHandoff.mockClear();
+    act(() => window.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 })));
+    expect(engine.nativeHandoff).toHaveBeenCalledWith('forward');
+    for (const discarded of probe.engines.filter((candidate) => candidate !== engine)) {
+      expect(discarded.nativeHandoff).not.toHaveBeenCalled();
+    }
     act(() => root.unmount());
     expect(probe.activeConnections).toBe(0);
     expect(connected[0]).toMatchObject({ connectCount: 2, disconnectCount: 2 });
@@ -976,20 +983,23 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
-  it('starts Hero only with Loader exit and keeps story input disabled until hidden', () => {
+  it('starts Hero only with Loader exit and hides navigation and story input until hidden', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
     const engine = connectedEngine();
     act(() => engine.publish(stableSnapshot()));
     const shell = host.querySelector('.phone-story');
     expect(shell?.getAttribute('data-phone-interaction')).toBe('disabled');
+    expect(host.querySelector('[data-phone-nav-visible]')?.getAttribute('data-phone-nav-visible')).toBe('false');
     const loader = probe.loaderProps.at(-1)!;
     act(() => (loader.onExitStart as (reason: string) => void)('ready'));
     expect(engine.startVisibleEntrance).toHaveBeenCalledTimes(1);
     expect(shell?.getAttribute('data-phone-interaction')).toBe('disabled');
+    expect(host.querySelector('[data-phone-nav-visible]')?.getAttribute('data-phone-nav-visible')).toBe('false');
     act(() => (loader.onHidden as (reason: string) => void)('ready'));
     expect(engine.startVisibleEntrance).toHaveBeenCalledTimes(1);
     expect(shell?.getAttribute('data-phone-interaction')).toBe('enabled');
+    expect(host.querySelector('[data-phone-nav-visible]')?.getAttribute('data-phone-nav-visible')).toBe('true');
     act(() => root.unmount());
   });
 
@@ -1433,6 +1443,16 @@ describe('clean PhoneStoryShell ownership', () => {
       kind: 'touch', delta: 300, fresh: true, target: 'story'
     });
     expect(engine.hostEvents.filter(({ type }) => type === 'activation')).toEqual([]);
+    act(() => root.unmount());
+  });
+
+  it('does not label an armed preparation deadline as an observed failure', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell diagnostics scope="harness" chunkRecovery={chunkRecovery} />));
+    const next = segmentSnapshot();
+    (next.transaction as Record<string, unknown>).deadline = { kind: 'mediaPrepare', at: 20000 };
+    act(() => connectedEngine().publish(next));
+    expect(host.querySelector('.phone-story')?.hasAttribute('data-phone-last-failure')).toBe(false);
     act(() => root.unmount());
   });
 

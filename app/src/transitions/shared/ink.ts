@@ -62,6 +62,7 @@ export type InkSourceRenderContext = Readonly<{
 }>;
 
 export type InkTargetPresentationContext = InkSourceRenderContext & Readonly<{
+  signal?: AbortSignal | undefined;
   generation: string;
   target: 'from' | 'to';
 }>;
@@ -950,6 +951,7 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
       try {
         options.prepareEndpoints(roots);
         await options.prepareTargetPresentation?.(roots, {
+          signal: context.signal,
           runId: context.runId,
           prepareToken: context.prepareToken,
           direction: context.direction,
@@ -995,6 +997,7 @@ export function createInkSegmentTransition(options: InkSegmentOptions): Transiti
           runId: context.runId,
           prepareToken: context.prepareToken,
           direction: context.direction,
+          signal: context.signal,
           prefersReducedMotion: context.prefersReducedMotion,
           generation,
           target: context.direction === 1 ? 'to' : 'from'

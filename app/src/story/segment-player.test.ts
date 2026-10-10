@@ -190,6 +190,7 @@ describe('SegmentPlayer', () => {
     });
 
     const pending = player.ensureBuilt('hero-pattern');
+    await flushMicrotasks();
     player.disposeAll();
     lateBuild.resolve({
       play: () => Promise.resolve(),
@@ -203,6 +204,55 @@ describe('SegmentPlayer', () => {
     await expect(player.ensureBuilt('hero-pattern')).resolves.toBe(replacementTimeline);
     expect(lateDispose).toHaveBeenCalledOnce();
     expect(buildTimeline).toHaveBeenCalledTimes(2);
+  });
+
+  it('propagates preparation cancellation to the builder and disposes its late result', async () => {
+    const late = deferred<SegmentTimelineHandle>();
+    const controller = new AbortController();
+    const buildTimeline = vi.fn<TransitionModule['buildTimeline']>(() => late.promise);
+    const player = new SegmentPlayer({ transitions: { 'hero-pattern': { id: 'hero-pattern', buildTimeline } } });
+    const pending = player.ensureBuilt('hero-pattern', { signal: controller.signal });
+    await flushMicrotasks();
+    const reason = new Error('direction superseded');
+    controller.abort(reason);
+    await expect(pending).rejects.toBe(reason);
+    expect(buildTimeline.mock.calls[0]?.[0].signal?.aborted).toBe(true);
+    const dispose = vi.fn();
+    late.resolve({ play: async () => {}, reverse: async () => {}, progress: vi.fn(), jumpToEnd: vi.fn(), dispose });
+    await flushMicrotasks(); await flushMicrotasks();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('does not start a builder for an already-cancelled preparation', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('already cancelled'));
+    const buildTimeline = vi.fn<TransitionModule['buildTimeline']>();
+    const player = new SegmentPlayer({ transitions: { 'hero-pattern': { id: 'hero-pattern', buildTimeline } } });
+    await expect(player.ensureBuilt('hero-pattern', { signal: controller.signal })).rejects.toThrow('already cancelled');
+    expect(buildTimeline).not.toHaveBeenCalled();
+  });
+
+  it('starts a fresh generation immediately after cancellation without reusing the rejected build', async () => {
+    const late = deferred<SegmentTimelineHandle>();
+    const controller = new AbortController();
+    const replacement: SegmentTimelineHandle = {
+      play: async () => {}, reverse: async () => {}, progress: vi.fn(), jumpToEnd: vi.fn(), dispose: vi.fn()
+    };
+    const buildTimeline = vi.fn<TransitionModule['buildTimeline']>()
+      .mockImplementationOnce(() => late.promise).mockReturnValueOnce(replacement);
+    const player = new SegmentPlayer({ transitions: { 'hero-pattern': { id: 'hero-pattern', buildTimeline } } });
+    const first = player.ensureBuilt('hero-pattern', { signal: controller.signal });
+    await flushMicrotasks();
+    controller.abort(new Error('superseded'));
+    const second = player.ensureBuilt('hero-pattern');
+    await expect(first).rejects.toThrow('superseded');
+    await expect(second).resolves.toBe(replacement);
+    const dispose = vi.fn();
+    late.resolve({ ...replacement, dispose });
+    await flushMicrotasks(); await flushMicrotasks();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(await player.ensureBuilt('hero-pattern')).toBe(replacement);
+    player.disposeAll();
   });
 
   it('deduplicates concurrent builds for the same segment', async () => {

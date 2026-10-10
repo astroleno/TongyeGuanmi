@@ -353,7 +353,7 @@ describe('clean PhonePh leaf', () => {
     act(() => root.unmount());
   });
 
-  it('primes a paused initial frame on incoming activation and plays only on outgoing activation', async () => {
+  it('primes for activation but keeps outgoing timeline playback paused', async () => {
     const host = document.createElement('div');
     const root = createRoot(host);
     const mount = reportFixture();
@@ -384,7 +384,7 @@ describe('clean PhonePh leaf', () => {
     commands.setMediaPhase?.({
       phase: 'playing', runToken: 'ph:outgoing', direction: 'forward', stageIndex: 0
     });
-    expect(play).toHaveBeenCalledTimes(3);
+    expect(play).toHaveBeenCalledTimes(2);
     const pause = vi.mocked(HTMLMediaElement.prototype.pause);
     pause.mockClear();
     commands.render(0);
@@ -541,7 +541,7 @@ describe('clean PhonePh leaf', () => {
       direction: 'forward', stageIndex: 0
     });
     expect(surfaceProbe.setMode).toHaveBeenLastCalledWith('forward', true);
-    expect(play).toHaveBeenCalledOnce();
+    expect(play).not.toHaveBeenCalled();
     act(() => root.unmount());
   });
 

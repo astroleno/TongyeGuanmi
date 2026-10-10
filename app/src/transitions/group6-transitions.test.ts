@@ -234,7 +234,8 @@ describe('R4 group6 transitions', () => {
     expect(video.currentTimeWrites).toBe(writesAtStop);
 
     expect(video.currentTime).toBeGreaterThanOrEqual(forwardMidTime);
-    expect(video.playCalls).toBeGreaterThan(0);
+    expect(video.playCalls).toBe(0);
+    expect(video.paused).toBe(true);
     timeline.dispose();
   });
 
@@ -326,7 +327,7 @@ describe('R4 group6 transitions', () => {
 
     expect(transition.requiredMilestones).toEqual(['targetReady', 'mediaReady', 'buildReady']);
     expect(transition.mediaPlayback).toEqual(manifestSegment.mediaPlayback);
-    expect(transition.mediaPlayback?.[0]?.forward).toEqual({ mode: 'play', required: true });
+    expect(transition.mediaPlayback?.[0]?.forward).toEqual({ mode: 'timeline', required: true });
   });
 
   it('keeps the PH source hidden until its reverse terminal frame is presented', async () => {

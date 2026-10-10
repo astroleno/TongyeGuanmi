@@ -6,6 +6,7 @@ import { storyManifest } from '../story/manifest';
 import { BuildTimeoutError, SegmentPlayer } from '../story/segment-player';
 import { StorySpine } from '../story/spine';
 import { toError } from './recovery';
+import { MediaPreparationError } from '../media/media-preparation';
 import type {
   DirectorEvent,
   Direction,
@@ -61,6 +62,7 @@ export type RuntimeReadyGateArgs = {
   prepareToken: PrepareToken;
   direction: Direction;
   targetScene: SceneId;
+  signal: AbortSignal;
 };
 
 export type RuntimeBuildGateArgs = RuntimeReadyGateArgs & {
@@ -235,6 +237,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
   const ringBuffer = new EventRingBuffer(options.ringBufferSize ?? 120);
   const listeners = new Set<RuntimeListener>();
   let handledPrepareToken: DirectorContext['prepareToken'];
+  let preparationController: AbortController | undefined;
   let handledRunId: DirectorContext['activeRunId'];
   let handledRetiringKey = '';
   let pendingScrubDelta = 0;
@@ -287,6 +290,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       return runtime;
     },
     stop() {
+      preparationController?.abort();
       runtime.segmentPlayer.disposeAll();
       actorSubscription?.unsubscribe();
       actorSubscription = undefined;
@@ -333,6 +337,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
         if (
           routed.type === 'BOOT_FAILED'
           || routed.type === 'PREPARE_TIMEOUT'
+          || routed.type === 'PREPARE_FAILED'
           || routed.type === 'BUILD_TIMEOUT'
           || routed.type === 'PLAYBACK_FAILED'
         ) {
@@ -512,6 +517,12 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
 
   async function prepareSegment(prepareToken: NonNullable<DirectorContext['prepareToken']>, segmentId: SegmentId): Promise<void> {
     const preparingActor = actor;
+    preparationController?.abort();
+    const controller = new AbortController();
+    preparationController = controller;
+    const subscription = preparingActor.subscribe((snapshot) => {
+      if (snapshot.value !== 'preparing' || snapshot.context.prepareToken !== prepareToken) controller.abort();
+    });
     const context = preparingActor.getSnapshot().context;
     const segment = findSegment(context.manifest, segmentId);
     const direction = context.pendingDirection ?? 1;
@@ -521,7 +532,8 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       segment,
       prepareToken,
       direction,
-      targetScene: target
+      targetScene: target,
+      signal: controller.signal
     };
     const buildGateArgs: RuntimeBuildGateArgs = {
       ...gateArgs,
@@ -545,6 +557,7 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       }
       options.readyGate?.beginBuild?.(buildGateArgs);
       await runtime.segmentPlayer.ensureBuilt(segmentId, {
+        signal: controller.signal,
         runId: prepareRunId,
         prepareToken,
         timeoutMs: segment.buildTimeoutMs ?? context.manifest.defaults.buildTimeoutMs,
@@ -568,10 +581,19 @@ export function createDirectorRuntime(options: DirectorRuntimeOptions = {}) {
       }
     } catch (error) {
       const current = preparingActor.getSnapshot();
-      if (actor === preparingActor && current.value === 'preparing' && current.context.prepareToken === prepareToken && !(error instanceof BuildTimeoutError)) {
-        runtime.send({ type: 'PREPARE_TIMEOUT', segment: segmentId, prepareToken });
+      if (!controller.signal.aborted && actor === preparingActor && current.value === 'preparing' && current.context.prepareToken === prepareToken && !(error instanceof BuildTimeoutError)) {
+        const normalized = toError(error);
+        runtime.send({
+          type: normalized instanceof MediaPreparationError && normalized.code === 'MEDIA_PREPARATION_TIMEOUT'
+            ? 'PREPARE_TIMEOUT' : 'PREPARE_FAILED',
+          segment: segmentId, prepareToken, error: normalized
+        });
       }
       return;
+    } finally {
+      subscription.unsubscribe();
+      controller.abort();
+      if (preparationController === controller) preparationController = undefined;
     }
 
     const current = preparingActor.getSnapshot();

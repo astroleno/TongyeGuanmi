@@ -1,4 +1,7 @@
 import type { HandleRegistry } from '../story/registry';
+import { createLinkedAbortController, MediaPreparationError } from '../media/media-preparation';
+import { prepareTimelineVideoFrame } from '../media/timeline-video-driver';
+import { browserPrefersHevcAlpha } from '../media/alpha-video-sources';
 import type {
   Direction,
   MediaKey,
@@ -12,6 +15,7 @@ const HAVE_FUTURE_DATA = 3;
 type RequiredMedia = {
   key: MediaKey;
   timeoutMs: number;
+  timeline: boolean;
 };
 
 export type WaitForRequiredMediaReadyOptions = {
@@ -22,6 +26,7 @@ export type WaitForRequiredMediaReadyOptions = {
   getMediaElement(key: MediaKey): HTMLMediaElement | null;
   pollIntervalMs?: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
 };
 
 function requiredMedia(segment: SpineSegmentNode, direction: Direction): readonly RequiredMedia[] {
@@ -35,6 +40,7 @@ function requiredMedia(segment: SpineSegmentNode, direction: Direction): readonl
       const existing = byKey.get(key);
       byKey.set(key, {
         key,
+        timeline: directionContract.mode === 'timeline' || directionContract.mode === 'scrub',
         timeoutMs: existing
           ? Math.min(existing.timeoutMs, contract.preparingTimeoutMs)
           : contract.preparingTimeoutMs
@@ -71,34 +77,53 @@ export function findMediaElementByKey(
   return null;
 }
 
-function waitForDecodedMedia(
+async function waitForDecodedMedia(
   key: MediaKey,
   getMediaElement: (key: MediaKey) => HTMLMediaElement | null,
   timeoutMs: number,
-  pollIntervalMs: number
+  pollIntervalMs: number,
+  timeline: boolean,
+  signal?: AbortSignal
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const startedAt = Date.now();
-
-    const check = () => {
-      const media = getMediaElement(key);
-      if (media && media.readyState >= HAVE_FUTURE_DATA) {
-        resolve();
-        return;
-      }
-      if (media && media.preload !== 'auto') {
-        media.preload = 'auto';
-        media.load?.();
-      }
-      if (Date.now() - startedAt >= timeoutMs) {
-        reject(new Error(`Media ${key} timed out before decoded future data was ready`));
-        return;
-      }
-      setTimeout(check, pollIntervalMs);
-    };
-
-    check();
-  });
+  const linked = createLinkedAbortController(signal);
+  const controller = linked.controller;
+  const deadline = setTimeout(() => controller.abort(new MediaPreparationError(
+    'MEDIA_PREPARATION_TIMEOUT', `Media ${key} admission timed out after ${timeoutMs}ms`
+  )), timeoutMs);
+  try {
+    const media = await new Promise<HTMLMediaElement>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const finish = () => { clearTimeout(timer); controller.signal.removeEventListener('abort', abort); };
+      const abort = () => { finish(); reject(controller.signal.reason); };
+      const check = () => {
+        if (controller.signal.aborted) { abort(); return; }
+        const element = getMediaElement(key);
+        if (element?.error) {
+          finish(); reject(new MediaPreparationError('MEDIA_ELEMENT_ERROR',
+            `${key}: ${element.error.message}`, { cause: element.error })); return;
+        }
+        if (element && (timeline || element.readyState >= HAVE_FUTURE_DATA)) {
+          finish(); resolve(element); return;
+        }
+        if (element && element.preload !== 'auto') { element.preload = 'auto'; element.load(); }
+        timer = setTimeout(check, pollIntervalMs);
+      };
+      controller.signal.addEventListener('abort', abort, { once: true });
+      check();
+    });
+    if (timeline) {
+      // Decoder admission needs a presented first frame, not continuous-play
+      // buffering. Build/prepareLeg still proves the exact authored endpoint.
+      const proof = await prepareTimelineVideoFrame(media as HTMLVideoElement, {
+        runId: `admission:${key}`, direction: 1, progress: 0,
+        durationFallbackSeconds: Number.isFinite(media.duration) ? media.duration : 1,
+        allowSeekedFrameFallback: browserPrefersHevcAlpha(), signal: controller.signal
+      });
+      if (proof?.status !== 'ready') throw new MediaPreparationError(
+        'MEDIA_PREPARATION_ABORTED', `Media ${key} admission superseded`
+      );
+    }
+  } finally { clearTimeout(deadline); linked.dispose(); }
 }
 
 export async function waitForRequiredMediaReady(
@@ -114,16 +139,17 @@ export async function waitForRequiredMediaReady(
     options.registry.beginMediaGate(key, guard);
   }
 
-  await Promise.all(required.map(async ({ key, timeoutMs }) => {
+  const linked = createLinkedAbortController(options.signal);
+  try { await Promise.all(required.map(async ({ key, timeoutMs, timeline }) => {
     await waitForDecodedMedia(
       key,
       options.getMediaElement,
       options.timeoutMs ?? timeoutMs,
-      Math.max(1, options.pollIntervalMs ?? 8)
+      Math.max(1, options.pollIntervalMs ?? 8), timeline, linked.controller.signal
     );
     const result = options.registry.reportMediaReady(key, guard);
     if (!result.accepted) {
       throw new Error(`Media ${key} readiness rejected: ${result.reason}`);
     }
-  }));
+  })); } finally { linked.controller.abort(); linked.dispose(); }
 }

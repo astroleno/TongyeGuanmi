@@ -53,6 +53,7 @@ export function createStarMapAodTransition(options: {
         return;
       }
       return prepareAodAnimationFrame(to, 0, {
+        signal: context.signal,
         runId: context.runId,
         direction: 1,
         reducedMotion: context.prefersReducedMotion

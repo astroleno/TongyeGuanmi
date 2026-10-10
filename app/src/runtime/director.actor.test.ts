@@ -726,7 +726,10 @@ describe('director runtime actor loop', () => {
     await flush(30);
 
     const recovered = runtime.getState();
-    const prepareFailureIndex = recovered.eventLog.findIndex((record) => record.event.type === 'PREPARE_TIMEOUT');
+    const prepareFailureIndex = recovered.eventLog.findIndex((record) => record.event.type === 'PREPARE_FAILED');
+    expect(recovered.eventLog[prepareFailureIndex]?.event).toMatchObject({
+      type: 'PREPARE_FAILED', error: new Error('AOD reverse presented frame failed')
+    });
     const recoveryWindows = recovered.eventLog.slice(prepareFailureIndex).map((record) => record.layerWindow.current);
     runtime.stop();
 
@@ -743,7 +746,7 @@ describe('director runtime actor loop', () => {
     expect(recoveryWindows).not.toContain('hero');
   });
 
-  it('enters the declared static AOD hold when forward media preparation cannot start', async () => {
+  it('retains the proved source without rebuilding unavailable forward media', async () => {
     let buildCount = 0;
     const runtime = createDirectorRuntime({
       actorEpoch: 'aod-forward-static-fallback',
@@ -770,16 +773,18 @@ describe('director runtime actor loop', () => {
     const recovered = runtime.getState();
     runtime.stop();
 
-    expect(buildCount).toBe(1);
+    expect(buildCount).toBe(0);
     expect(recovered).toMatchObject({
       state: 'hold',
       context: {
-        cursor: { status: 'hold', scene: 'aod-animation' },
-        layerWindow: { current: 'aod-animation' },
+        cursor: { status: 'hold', scene: 'star-map' },
+        layerWindow: { current: 'star-map' },
+        lastError: new Error('cellular media preload blocked'),
         recovery: undefined
       }
     });
-    expect(recovered.eventLog.map((record) => record.event.type)).toContain('PREPARE_TIMEOUT');
+    expect(recovered.eventLog.map((record) => record.event.type)).toContain('PREPARE_FAILED');
+    expect(recovered.eventLog.map((record) => record.event.type)).not.toContain('PREPARE_TIMEOUT');
   });
 
   it('keeps Contact usable for an explicit retry after local rollback', async () => {

@@ -28,7 +28,7 @@ export type PhMediaRun = {
   runId: string;
   direction: 1 | -1;
   reducedMotion?: boolean;
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
 };
 
 type PhRenderOptions = {
@@ -63,8 +63,8 @@ function phMediaInput(
     startSeconds: 0,
     endSeconds: PH_FIGURE_END_SECONDS,
     timelineDurationMs: PH_PLAYBACK_MS,
-    mode: mediaRun.direction === 1 ? 'native-preferred' : 'timeline',
-    nativePlaybackDirection: 1,
+    mode: 'timeline',
+    frameRate: 30,
     allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})

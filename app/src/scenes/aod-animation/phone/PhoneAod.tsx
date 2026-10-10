@@ -80,7 +80,6 @@ function aodTimelineMediaInput(runId: string, direction: 1 | -1, progress: numbe
     endSeconds: AOD_FIGURE_END_SECONDS,
     timelineDurationMs: AOD_FIGURE_END_SECONDS * 1000,
     mode: 'timeline' as const,
-    nativePlaybackDirection: 1 as const,
     allowSeekedFrameFallback: true,
     allowPlaybackNudge: false
   };
@@ -186,11 +185,9 @@ export function PhoneAod({ reports }: PhoneAodProps) {
       endSeconds: AOD_FIGURE_END_SECONDS,
       timelineDurationMs: AOD_FIGURE_END_SECONDS * 1000,
       mode: 'timeline',
-      nativePlaybackDirection: 1,
       // The hidden H.264 decoder is followed by an actual packed-canvas draw.
       allowSeekedFrameFallback: true,
-      allowPlaybackNudge: false,
-      preserveNativePlaybackOnSettle: true
+      allowPlaybackNudge: false
     });
     if (generation !== surfaceGenerationRef.current || disposedRef.current
       || result?.status !== 'ready') return 'stale';

@@ -474,13 +474,14 @@ export function PhoneStoryShell({
       },
       chunkRecovery
     });
-    nativeHandoffStoreRef.current.readiness = (direction) => engine.nativeHandoff(direction)[0];
     return Object.freeze({
       presentation, engine,
       sceneTopology: createPhoneSceneTopology<PhoneSceneId>(),
       effectTopology: createPhoneEffectTopology<PhoneSegmentId>()
     });
   });
+  // StrictMode may discard an initializer result; bind only the retained owner.
+  nativeHandoffStoreRef.current.readiness = (direction) => owners.engine.nativeHandoff(direction)[0];
   const snapshot = useSyncExternalStore(
     owners.engine.subscribeRender ?? owners.engine.subscribe,
     owners.engine.getRenderSnapshot ?? owners.engine.getSnapshot,
@@ -598,7 +599,7 @@ export function PhoneStoryShell({
   const nativeReadingEnabled = loaderHidden && stableScene !== null
     && phoneSceneById(stableScene).plane === 'native'
     && (snapshot.status === 'stable' || reprojectingCommittedScene);
-  const navigationVisible = connectedRef.current; const directActivationFallback = snapshot.status === 'transaction'
+  const navigationVisible = connectedRef.current && loaderHidden; const directActivationFallback = snapshot.status === 'transaction'
     && snapshot.transaction.mode !== 'segment'
     && snapshot.transaction.phase === 'awaiting-media-activation';
   const moduleFault = faulted && snapshot.status === 'faulted' && (snapshot.fault.code.includes('module') || snapshot.fault.code.includes('chunk')); const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;

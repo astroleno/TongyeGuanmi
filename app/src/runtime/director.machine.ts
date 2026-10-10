@@ -249,11 +249,12 @@ function segmentRecoveryFromEvent(
   let reason: SegmentRecoveryReason;
   let error: unknown;
 
-  if (event.type === 'PREPARE_TIMEOUT' || event.type === 'BUILD_TIMEOUT') {
+  if (event.type === 'PREPARE_TIMEOUT' || event.type === 'PREPARE_FAILED' || event.type === 'BUILD_TIMEOUT') {
     segmentId = event.segment;
     direction = context.pendingDirection ?? context.activeDirection;
-    reason = event.type === 'PREPARE_TIMEOUT' ? 'prepare-timeout' : 'build-timeout';
-    error = new Error(event.type);
+    reason = event.type === 'BUILD_TIMEOUT' ? 'build-timeout'
+      : event.type === 'PREPARE_FAILED' ? 'prepare-failed' : 'prepare-timeout';
+    error = 'error' in event && event.error ? event.error : new Error(event.type);
   } else if (event.type === 'PLAYBACK_FAILED') {
     segmentId = context.activeSegment;
     direction = context.activeDirection;
@@ -775,6 +776,11 @@ export function createDirectorMachine(options: DirectorMachineOptions = {}) {
             actions: 'startPlaying'
           },
           PREPARE_TIMEOUT: {
+            guard: 'validPrepareToken',
+            target: 'recovering',
+            actions: 'recoverFromEvent'
+          },
+          PREPARE_FAILED: {
             guard: 'validPrepareToken',
             target: 'recovering',
             actions: 'recoverFromEvent'

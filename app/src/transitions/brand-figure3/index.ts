@@ -24,6 +24,7 @@ export function createBrandFigure3Transition(options: { delayMs?: () => number }
         return;
       }
       return prepareFigure3AnimationFrame(to, 0, {
+        signal: context.signal,
         runId: context.runId,
         direction: 1,
         reducedMotion: context.prefersReducedMotion

@@ -50,14 +50,8 @@ export function phoneDiagnosticBlockedBy(snapshot: PhoneStorySnapshot):
 export function phoneDiagnosticFailureCode(snapshot: PhoneStorySnapshot): string | undefined {
   if (snapshot.status === 'faulted') return snapshot.fault.code;
   if (snapshot.status !== 'transaction') return undefined;
-  if (snapshot.transaction.failure?.code) return snapshot.transaction.failure.code;
-  if (snapshot.transaction.phase === 'awaiting-media-activation') return 'media-activation-timeout';
-  switch (snapshot.transaction.deadline?.operation) {
-    case 'moduleLoad': return 'module-load-timeout';
-    case 'mediaPrepare': case 'firstFrame': return 'media-prepare-timeout';
-    case 'planeApply': case 'scrollConfirm': return 'presentation-proof-timeout';
-    default: return undefined;
-  }
+  // An armed deadline describes a pending operation, not an observed failure.
+  return snapshot.transaction.failure?.code;
 }
 
 export type PhoneSceneLeafProps = Readonly<{ reports: PhoneLeafReportPort }>;

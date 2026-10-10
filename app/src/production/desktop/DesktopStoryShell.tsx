@@ -215,11 +215,12 @@ export function DesktopStoryShell({ spikeRoute }: DesktopStoryShellProps = {}) {
     useSyntheticTransitions: false,
     prefersReducedMotion: detectReducedMotion,
     readyGate: {
-      waitForTargetReady: async ({ targetScene, segment, direction }) => {
+      waitForTargetReady: async ({ targetScene, segment, direction, signal }) => {
         await ensureSceneRef.current?.(targetScene);
         const timeoutMs = segment.buildTimeoutMs ?? storyManifest.defaults.buildTimeoutMs;
         const startedAt = Date.now();
         while (!registry.isTargetReady(targetScene)) {
+          signal.throwIfAborted();
           if (Date.now() - startedAt >= timeoutMs) {
             throw new Error(`targetReady timed out for ${targetScene}`);
           }
@@ -231,11 +232,12 @@ export function DesktopStoryShell({ spikeRoute }: DesktopStoryShellProps = {}) {
           positionReadingAtEdge(targetLayer, direction === 1 ? 'top' : 'bottom');
         }
       },
-      waitForMediaReady: ({ segment, prepareToken, direction }) =>
+      waitForMediaReady: ({ segment, prepareToken, direction, signal }) =>
         waitForRequiredMediaReady({
           segment,
           prepareToken,
           direction,
+          signal,
           registry,
           getMediaElement: (key) => findMediaElementByKey(layerStore.boundElements(), key)
         }),

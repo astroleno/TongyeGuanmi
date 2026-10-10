@@ -200,6 +200,7 @@ export function createHeroPatternTransition(options: { delayMs?: () => number } 
           // after construction and before requesting the causal frame.
           exposeSourceForFrame();
           await prepareHeroPatternBoundary(root, context.direction === 1 ? 0 : 1, {
+            signal: context.signal,
             runId: context.runId,
             direction: context.direction,
             reducedMotion: context.prefersReducedMotion

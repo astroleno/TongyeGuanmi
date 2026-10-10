@@ -1,6 +1,7 @@
 import type { Direction } from '../story/types';
 import { MediaPreparationError } from './media-preparation';
 
+/** Legacy native requests are accepted as paused timeline seeks. */
 export type TimelineVideoMode = 'timeline' | 'native-preferred';
 
 export type TimelineVideoEndpointPolicy = Readonly<{
@@ -20,7 +21,6 @@ export type TimelineVideoDriveInput = Readonly<{
   endEpsilonSeconds?: number;
   timelineDurationMs?: number;
   mode?: TimelineVideoMode;
-  nativePlaybackDirection?: Direction;
   endpointPolicy?: TimelineVideoEndpointPolicy;
   reducedMotion?: boolean | undefined;
   /**
@@ -32,9 +32,9 @@ export type TimelineVideoDriveInput = Readonly<{
   allowSeekedFrameFallback?: boolean | undefined;
   /** Keep a preparation seek paused; formal playback is issued by the runtime phase command. */
   allowPlaybackNudge?: boolean | undefined;
-  /** Let a preparation started before the phase command hand playback back to the native clock. */
-  preserveNativePlaybackOnSettle?: boolean | undefined;
   signal?: AbortSignal | undefined;
+  /** One bounded preparation retry may reselect a stalled source. Never used by animation ticks. */
+  reloadSource?: boolean;
 }>;
 
 export type TimelineVideoFrameResult = Readonly<{
@@ -140,12 +140,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   #primingCompletionTimer: ReturnType<typeof setTimeout> | undefined;
   readonly #waiters = new Set<FrameWaiter>();
   #nativeFallback = false;
-  #nativeStarted = false;
-  #nativeAttempt = 0;
-  #pendingNative: Readonly<{
-    desired: DesiredFrame;
-    input: TimelineVideoDriveInput;
-  }> | undefined;
   #frameReadyGeneration = 0;
   #readyTime = Number.NaN;
   #frameCallbackId: number | undefined;
@@ -243,15 +237,12 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.#writeDiagnostics(desired);
     this.#configureElement();
 
-    const nativeEligible = input.mode === 'native-preferred'
-      && (input.nativePlaybackDirection ?? input.direction) === 1
-      && !input.reducedMotion;
     const endpoint = desired.progress <= 0.001
       ? 'start'
       : desired.progress >= 0.999
         ? 'end'
         : undefined;
-    if (endpoint && !(endpoint === 'start' && nativeEligible)) {
+    if (endpoint) {
       this.#stopNativePlayback();
       if (this.#canReusePresentedFrame(desired)) {
         this.#markFrameReady(desired, 'playhead-reuse');
@@ -264,13 +255,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return this.snapshot();
     }
 
-    if (!nativeEligible || this.#nativeFallback) {
-      this.#stopNativePlayback();
-      this.#scheduleSeek(desired);
-      return this.snapshot();
-    }
-
-    this.#driveNative(desired, input);
+    this.#stopNativePlayback();
+    this.#scheduleSeek(desired);
     return this.snapshot();
   }
 
@@ -284,7 +270,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
     // Chromium can exhaust <source> candidates after a transient CDN timeout.
     // Retry selection only on an explicit preparation, never on animation ticks.
-    if (this.#video.networkState === 3 && this.#video.readyState === 0) {
+    if (input.reloadSource || (this.#video.networkState === 3 && this.#video.readyState === 0)) {
       this.#reloadingFailedSource = true;
       this.#video.load();
     }
@@ -403,9 +389,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.#runId = input.runId;
       this.#direction = input.direction;
       this.#nativeFallback = false;
-      this.#nativeStarted = false;
-      this.#pendingNative = undefined;
-      this.#nativeAttempt += 1;
       this.#frameReadyGeneration = 0;
       // The generation identity is stale, but its last presented media time is
       // still useful evidence if the next generation targets the same frame.
@@ -438,7 +421,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     const time = start + (end - start) * clamped;
     const fps = input.frameRate ?? 0;
     const targetTime = Number.isFinite(fps) && fps > 0 && clamped > 0 && clamped < 1
-      && input.mode !== 'native-preferred'
       ? Math.max(start, Math.min(end, Math.round(time * fps) / fps)) : time;
     return {
       generation: this.#generation,
@@ -459,73 +441,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.#video.playsInline = true;
   }
 
-  #driveNative(desired: DesiredFrame, input: TimelineVideoDriveInput): void {
-    if (this.#nativeStarted && !this.#video.paused) {
-      return;
-    }
-    const frameReady = this.#frameReadyGeneration === desired.generation
-      && Math.abs(this.#readyTime - desired.targetTime) <= SEEK_TOLERANCE_SECONDS;
-    if (!frameReady) {
-      this.#pendingNative = { desired, input };
-      this.#scheduleSeek(desired);
-      return;
-    }
-    this.#pendingNative = undefined;
-    this.#startNativePlayback(desired, input);
-  }
-
-  #startNativePlayback(desired: DesiredFrame, input: TimelineVideoDriveInput): void {
-    if (
-      this.#disposed
-      || desired.generation !== this.#generation
-      || (this.#nativeStarted && !this.#video.paused)
-    ) {
-      return;
-    }
-    const duration = finiteDuration(this.#video, input.durationFallbackSeconds);
-    const end = Math.max(desired.targetTime, Math.min(duration, input.endSeconds ?? duration));
-    const remainingMediaSeconds = Math.max(0.001, end - desired.targetTime);
-    const remainingTimelineSeconds = Math.max(
-      0.05,
-      ((input.timelineDurationMs ?? remainingMediaSeconds * 1000) / 1000) * (1 - desired.progress)
-    );
-    this.#video.playbackRate = Math.min(4, Math.max(0.25, remainingMediaSeconds / remainingTimelineSeconds));
-    this.#nativeStarted = true;
-    const nativeAttempt = ++this.#nativeAttempt;
-    let playback: Promise<void> | undefined;
-    try {
-      playback = this.#video.play();
-    } catch {
-      playback = Promise.reject(new Error('native playback rejected'));
-    }
-    void playback?.catch(() => {
-      if (
-        this.#disposed
-        || desired.generation !== this.#generation
-        || nativeAttempt !== this.#nativeAttempt
-      ) {
-        return;
-      }
-      this.#nativeFallback = true;
-      this.#nativeStarted = false;
-      this.#video.dataset.timelineVideoFallback = 'true';
-      this.#video.pause();
-      if (this.#latest?.generation === this.#generation) {
-        this.#scheduleSeek(this.#latest);
-      }
-    });
-  }
-
   #stopNativePlayback(): void {
-    this.#nativeAttempt += 1;
-    this.#pendingNative = undefined;
-    if (this.#nativeStarted || !this.#video.paused) {
+    if (!this.#video.paused) {
       // Native playback has already presented this playhead; preserve it before
       // pausing so a reverse generation can reuse the terminal frame.
       this.#readyTime = this.#video.currentTime;
       this.#video.pause();
     }
-    this.#nativeStarted = false;
   }
 
   #canReusePresentedFrame(desired: DesiredFrame): boolean {
@@ -784,7 +706,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     // Explicit preparation may instead prove the settled decoded sample by
     // reading it through canvas. Ordinary playback remains callback-driven.
     const decodedProbe = !frame.allowSeekedFrameFallback
-      && framePreparationOwners.has(this.#video)
+      && framePreparations.has(this.#video)
       && Boolean(this.#video.closest?.('[data-stage-layer]'));
     if (
       (!frame.allowSeekedFrameFallback && !decodedProbe)
@@ -820,9 +742,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
           waiter.generation === frame.generation
           && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
         ));
-        const pendingNative = this.#pendingNative?.desired;
-        if (waiting || pendingNative?.generation === frame.generation
-          && Math.abs(pendingNative.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS) {
+        if (waiting) {
           this.#armSeekedFrameFallback(frame);
         }
         return;
@@ -891,15 +811,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       ) {
         this.#resolveWaiter(waiter, 'ready');
       }
-    }
-    const pendingNative = this.#pendingNative;
-    if (
-      pendingNative
-      && pendingNative.desired.generation === frame.generation
-      && Math.abs(pendingNative.desired.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
-    ) {
-      this.#pendingNative = undefined;
-      this.#startNativePlayback(pendingNative.desired, pendingNative.input);
     }
   }
 
@@ -987,14 +898,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     ) {
       return;
     }
-    const pendingNative = this.#pendingNative?.desired;
-    if (
-      stillWaiting
-      || (
-        pendingNative?.generation === frame.generation
-        && Math.abs(pendingNative.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
-      )
-    ) {
+    if (stillWaiting) {
       return;
     }
     this.#cancelFrameCallback();
@@ -1039,7 +943,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 }
 
 const sharedDrivers = new WeakMap<HTMLVideoElement, TimelineVideoDriver>();
-const framePreparationOwners = new WeakMap<HTMLVideoElement, symbol>();
+type SharedFramePreparation = {
+  key: string;
+  controller: AbortController;
+  users: Set<symbol>;
+  promise: Promise<TimelineVideoFrameResult>;
+};
+const framePreparations = new WeakMap<HTMLVideoElement, SharedFramePreparation>();
+export const FRAME_PREPARATION_STALL_MS = 4000;
+const FRAME_PREPARATION_DEADLINE_MS = 19000;
 
 export function createTimelineVideoDriver(video: HTMLVideoElement): TimelineVideoDriver {
   return new TimelineVideoDriverImpl(video);
@@ -1057,6 +969,8 @@ export function timelineVideoDriverFor(video: HTMLVideoElement): TimelineVideoDr
     if (sharedDrivers.get(video) !== driver) {
       return;
     }
+    framePreparations.get(video)?.controller.abort('retired');
+    framePreparations.delete(video);
     sharedDrivers.delete(video);
     driver.dispose();
     if (managedVideo.__r5TimelineVideoDispose === dispose) {
@@ -1068,7 +982,8 @@ export function timelineVideoDriverFor(video: HTMLVideoElement): TimelineVideoDr
 }
 
 export function disposeTimelineVideoDriver(video: HTMLVideoElement): void {
-  framePreparationOwners.delete(video);
+  framePreparations.get(video)?.controller.abort('retired');
+  framePreparations.delete(video);
   const managedVideo = video as TimelineManagedVideo;
   if (managedVideo.__r5TimelineVideoDispose) {
     managedVideo.__r5TimelineVideoDispose();
@@ -1090,25 +1005,108 @@ export function prepareTimelineVideoFrame(
   input: TimelineVideoDriveInput
 ): Promise<TimelineVideoFrameResult | undefined> {
   if (!video) return Promise.resolve(undefined);
-  const owner = Symbol(input.runId);
-  framePreparationOwners.set(video, owner);
-  // Unsignaled ink builds must unwind ownership before the outer 20s deadline.
-  const guard = !input.signal && video.closest?.('[data-stage-layer]') ? new AbortController() : undefined;
-  const deadline = guard ? setTimeout(() => guard.abort(), 19000) : undefined;
-  const preparation = timelineVideoDriverFor(video).prepareFrame(guard ? { ...input, signal: guard.signal } : input);
-  // A covered paused video may settle its seek without submitting an rVFC.
-  // Muted playback only nudges the compositor; readiness still requires the
-  // causal callback, and the element is paused again before preparation exits.
-  const nudge = input.allowPlaybackNudge === false ? undefined : setTimeout(() => {
-    if (!input.signal?.aborted && framePreparationOwners.get(video) === owner) {
-      void video.play().catch(() => undefined);
-    }
-  }, PAUSED_COMPOSITOR_NUDGE_MS);
-  return preparation.finally(() => {
-    if (deadline !== undefined) clearTimeout(deadline);
-    if (nudge !== undefined) clearTimeout(nudge);
-    if (framePreparationOwners.get(video) !== owner) return;
-    framePreparationOwners.delete(video);
-    if (input.preserveNativePlaybackOnSettle !== true) video.pause();
+  if (input.signal?.aborted) return Promise.reject(preparationAbort(input.signal.reason));
+  const duration = finiteDuration(video, input.durationFallbackSeconds);
+  const start = Math.min(duration, Math.max(0, input.startSeconds ?? 0));
+  const end = Math.max(start, Math.min(duration - (input.endEpsilonSeconds ?? DEFAULT_END_EPSILON_SECONDS), input.endSeconds ?? duration));
+  // Run identities may change between prewarm, admission and build. A physical
+  // endpoint with the same proof policy shares its decoder work, not its lease.
+  const key = [start + (end - start) * clamp(input.progress), input.direction,
+    input.allowPlaybackNudge === false, input.allowSeekedFrameFallback === true].join(':');
+  let entry = framePreparations.get(video);
+  if (!entry || entry.controller.signal.aborted || entry.key !== key) {
+    entry?.controller.abort('superseded');
+    const controller = new AbortController();
+    entry = { key, controller, users: new Set(), promise: undefined! };
+    framePreparations.set(video, entry);
+    const owned = entry;
+    entry.promise = runFramePreparation(video, input, controller).finally(() => {
+      if (framePreparations.get(video) !== owned) return;
+      framePreparations.delete(video);
+      video.pause();
+    });
+  }
+  const owned = entry;
+  const lease = Symbol(input.runId);
+  owned.users.add(lease);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return false;
+      settled = true;
+      input.signal?.removeEventListener('abort', abort);
+      owned.users.delete(lease);
+      if (!owned.users.size) owned.controller.abort('unobserved');
+      return true;
+    };
+    const abort = () => { if (finish()) reject(preparationAbort(input.signal?.reason)); };
+    input.signal?.addEventListener('abort', abort, { once: true });
+    owned.promise.then((result) => {
+      if (finish()) resolve({ ...result, runId: input.runId, direction: input.direction });
+    }, (error: unknown) => { if (finish()) reject(error); });
   });
+}
+
+function preparationAbort(reason: unknown): Error {
+  return reason instanceof MediaPreparationError ? reason
+    : new MediaPreparationError('MEDIA_PREPARATION_ABORTED', 'Media preparation cancelled', { cause: reason });
+}
+
+async function runFramePreparation(
+  video: HTMLVideoElement, input: TimelineVideoDriveInput, controller: AbortController
+): Promise<TimelineVideoFrameResult> {
+  const deadline = setTimeout(() => controller.abort(new MediaPreparationError(
+    'MEDIA_PREPARATION_TIMEOUT', `Frame deadline for ${input.runId}`
+  )), FRAME_PREPARATION_DEADLINE_MS);
+  let driver = timelineVideoDriverFor(video);
+  const sourceAlreadyFailed = video.networkState === 3 && video.readyState === 0;
+  try {
+    for (let attempt = 0; ; attempt++) {
+      const trial = new AbortController();
+      const abort = () => trial.abort(controller.signal.reason);
+      controller.signal.addEventListener('abort', abort, { once: true });
+      if (controller.signal.aborted) abort();
+      let signature = '';
+      let changedAt = Date.now();
+      const progress = () => { changedAt = Date.now(); };
+      video.addEventListener('progress', progress);
+      const watch = setInterval(() => {
+        const buffered = video.buffered;
+        const next = [video.readyState, video.currentTime, video.seeking,
+          buffered?.length ? buffered.end(buffered.length - 1) : 0].join(':');
+        if (next !== signature) { signature = next; changedAt = Date.now(); }
+        else if (Date.now() - changedAt >= FRAME_PREPARATION_STALL_MS) {
+          trial.abort(new MediaPreparationError('MEDIA_PREPARATION_STALLED',
+            `Frame stalled for ${input.runId}; readyState=${video.readyState}; seeking=${video.seeking}`));
+        }
+      }, 250);
+      const nudge = input.allowPlaybackNudge === false ? undefined : setTimeout(() => {
+        if (!trial.signal.aborted) void video.play().catch(() => undefined);
+      }, PAUSED_COMPOSITOR_NUDGE_MS);
+      try {
+        return await driver.prepareFrame({ ...input, signal: trial.signal, reloadSource: attempt > 0 });
+      } catch (error) {
+        if (controller.signal.aborted) {
+          if (typeof controller.signal.reason === 'string') {
+            const state = driver.snapshot();
+            return { status: 'stale', runId: input.runId, direction: input.direction,
+              generation: state.generation, targetTime: state.targetTime ?? 0 };
+          }
+          throw preparationAbort(controller.signal.reason);
+        }
+        if (attempt > 0 || sourceAlreadyFailed || !(error instanceof MediaPreparationError)
+          || error.code !== 'MEDIA_PREPARATION_STALLED') throw error;
+        // Reset a physically stuck seek once, with the original overall deadline.
+        driver.dispose();
+        sharedDrivers.delete(video);
+        driver = timelineVideoDriverFor(video);
+        video.dataset.timelineVideoRetry = '1';
+      } finally {
+        clearInterval(watch);
+        video.removeEventListener('progress', progress);
+        if (nudge !== undefined) clearTimeout(nudge);
+        controller.signal.removeEventListener('abort', abort);
+      }
+    }
+  } finally { clearTimeout(deadline); }
 }

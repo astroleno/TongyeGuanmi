@@ -207,7 +207,6 @@ function figure3TimelineMediaInput(
     endSeconds: FIGURE3_END_SECONDS,
     timelineDurationMs: FIGURE3_END_SECONDS * 1000,
     mode: 'timeline',
-    nativePlaybackDirection: 1,
     allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     allowPlaybackNudge: false
   };

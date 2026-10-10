@@ -341,7 +341,7 @@ describe('Figure2 canonical media', () => {
     disposeFigure2Media(root as unknown as HTMLElement);
   });
 
-  it('prepare-firsts the combined video before native-preferred forward playback', async () => {
+  it('prepare-firsts the combined video before paused forward seeking', async () => {
     const { root, video } = mediaRoot();
     const mediaRun = { runId: 'figure2-forward:1', direction: 1 as const, timelineDurationMs: FIGURE2_INTRO_PLAYBACK_MS };
     const preparation = prepareFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
@@ -352,7 +352,8 @@ describe('Figure2 canonical media', () => {
 
     commitFigure2MediaLeg(root as unknown as HTMLElement, mediaRun);
     await Promise.resolve();
-    expect(video.playCalls).toBe(1);
+    expect(video.playCalls).toBe(0);
+    expect(video.paused).toBe(true);
     expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({
       activeDirection: 1,
       activeRunId: 'figure2-forward:1',
@@ -393,7 +394,7 @@ describe('Figure2 canonical media', () => {
     }
   );
 
-  it('plays the second half natively for reverse without per-progress seeks', async () => {
+  it('seeks the authored second half for reverse without native playback', async () => {
     const { root, video } = mediaRoot();
     renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.62);
     const reverse = { runId: 'figure2-reverse:2', direction: -1 as const, timelineDurationMs: FIGURE2_INTRO_PLAYBACK_MS };
@@ -403,10 +404,11 @@ describe('Figure2 canonical media', () => {
     await preparation;
     const seekWrites = video.seekWrites.length;
     commitFigure2MediaLeg(root as unknown as HTMLElement, reverse);
-    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.43, { videoMode: 'native', mediaRun: reverse });
+    renderFigure2AnimationProgress(root as unknown as HTMLElement, 0.43, { videoMode: 'seek', mediaRun: reverse });
 
-    expect(video.playCalls).toBe(1);
-    expect(video.seekWrites).toHaveLength(seekWrites);
+    expect(video.playCalls).toBe(0);
+    expect(video.paused).toBe(true);
+    expect(video.seekWrites.length).toBeGreaterThan(seekWrites);
     expect(video.dataset.timelineVideoProgress).toBe('0.5700');
     expect(video.dataset.timelineVideoDirection).toBe('-1');
     expect(figure2DirectionalMediaSnapshot(root as unknown as HTMLElement)).toMatchObject({

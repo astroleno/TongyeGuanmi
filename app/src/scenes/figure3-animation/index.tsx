@@ -22,6 +22,7 @@ export type Figure3RenderState = {
 };
 
 export type Figure3MediaRun = Readonly<{
+  signal?: AbortSignal | undefined;
   runId: string;
   direction: 1 | -1;
   reducedMotion?: boolean;
@@ -59,10 +60,12 @@ function figure3MediaInput(progress: number, mediaRun: Figure3MediaRun): Timelin
     startSeconds: 0,
     endSeconds: FIGURE3_END_SECONDS,
     timelineDurationMs: FIGURE3_SERVICES_DURATION_MS,
-    mode: mediaRun.direction === 1 ? 'native-preferred' : 'timeline',
-    nativePlaybackDirection: 1,
+    mode: 'timeline',
+    frameRate: 30,
+    allowPlaybackNudge: false,
     reducedMotion: Boolean(mediaRun.reducedMotion),
-    allowSeekedFrameFallback: browserPrefersHevcAlpha()
+    allowSeekedFrameFallback: browserPrefersHevcAlpha(),
+    signal: mediaRun.signal
   };
 }
 

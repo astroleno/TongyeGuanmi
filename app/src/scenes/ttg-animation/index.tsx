@@ -109,7 +109,7 @@ function managerFor(section: HTMLElement): TtgMediaManager {
 function mediaInput(
   mediaRun: TtgMediaRun,
   progress: number,
-  mode: TimelineVideoDriveInput['mode'] = mediaRun.direction === 1 ? 'native-preferred' : 'timeline'
+  mode: TimelineVideoDriveInput['mode'] = 'timeline'
 ): TimelineVideoDriveInput {
   return {
     runId: mediaRun.runId,
@@ -120,7 +120,7 @@ function mediaInput(
     endSeconds: TTG_FIGURE_END_SECONDS,
     timelineDurationMs: TTG_PLAYBACK_MS,
     mode,
-    nativePlaybackDirection: 1,
+    frameRate: 30,
     allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})

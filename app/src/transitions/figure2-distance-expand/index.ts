@@ -121,7 +121,7 @@ export function figure2VideoModeForProofTransition(
     return 'none';
   }
   void direction;
-  return 'native';
+  return 'seek';
 }
 
 class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {

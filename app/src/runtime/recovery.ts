@@ -23,6 +23,7 @@ export type BootRecoveryPlan = {
 
 export type SegmentRecoveryReason =
   | 'prepare-timeout'
+  | 'prepare-failed'
   | 'build-timeout'
   | 'playback-failed'
   | 'segment-aborted';
@@ -78,7 +79,7 @@ export function createSegmentRecoveryPlan(
 ): SegmentRecoveryPlan {
   const normalized = error === undefined ? undefined : toError(error);
   const forwardMediaFallback = direction === 1
-    && reason !== 'segment-aborted'
+    && reason !== 'segment-aborted' && reason !== 'prepare-timeout' && reason !== 'prepare-failed'
     ? segment.mediaPlayback?.find((contract) => contract.forward.required)?.terminalFallbackScene
     : undefined;
   return {

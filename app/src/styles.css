@@ -524,8 +524,7 @@ html[data-portrait-loader-resume="skip"] .route-loading {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .story-loader,
-  .story-loader::before {
+  .story-loader {
     transition: none !important;
     animation: none !important;
   }

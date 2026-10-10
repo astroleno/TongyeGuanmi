@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { prepareTimelineVideoFrame } from '../../media/timeline-video-driver';
 import { storyManifest } from '../../story/manifest';
 import { HandleRegistry } from '../../story/registry';
 import type { SpineSegmentNode } from '../../story/types';
@@ -10,6 +11,8 @@ import {
 } from './mediaGate';
 
 type FakeMedia = HTMLMediaElement & { readyState: number };
+
+vi.mock('../../media/timeline-video-driver', () => ({ prepareTimelineVideoFrame: vi.fn() }));
 
 function segment(id: SpineSegmentNode['id']): SpineSegmentNode {
   const found = storyManifest.nodes.find(
@@ -53,7 +56,11 @@ describe('R4 contract-driven media readiness gate', () => {
     ]);
   });
 
-  it('does not resolve until the required video has decoded future data', async () => {
+  it('does not resolve until the shared driver proves the required frame', async () => {
+    let present!: () => void;
+    vi.mocked(prepareTimelineVideoFrame).mockImplementationOnce(() => new Promise((resolve) => {
+      present = () => resolve({ status: 'ready', runId: 'proof', direction: 1, generation: 1, targetTime: 0 });
+    }));
     const registry = new HandleRegistry();
     const video = fakeMedia('figure2-pair-motion');
     const byKey = new Map([
@@ -75,6 +82,8 @@ describe('R4 contract-driven media readiness gate', () => {
     await new Promise((resolve) => setTimeout(resolve, 4));
     expect(settled).toBe(false);
     video.readyState = 3;
+    expect(settled).toBe(false);
+    present();
     await ready;
 
     expect(registry.snapshot().mediaReady).toEqual([

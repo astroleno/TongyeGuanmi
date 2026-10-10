@@ -45,8 +45,8 @@ describe('recovery', () => {
     });
   });
 
-  it.each(['prepare-timeout', 'playback-failed'] as const)(
-    'uses the declared forward media fallback scene after %s',
+  it.each(['prepare-timeout', 'prepare-failed', 'playback-failed'] as const)(
+    'keeps unprepared targets hidden and uses the playback fallback only after %s',
     (reason) => {
       const segment = storyManifest.nodes.find(
         (node) => node.kind === 'segment' && node.id === 'star-map-aod'
@@ -63,7 +63,7 @@ describe('recovery', () => {
         committedScene: 'star-map',
         segment: 'star-map-aod',
         direction: 1,
-        endpoint: 'aod-animation',
+        endpoint: reason === 'playback-failed' ? 'aod-animation' : 'star-map',
         reason
       });
     }

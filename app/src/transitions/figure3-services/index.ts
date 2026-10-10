@@ -168,7 +168,7 @@ export function createFigure3ServicesTransition(options: { delayMs?: () => numbe
       {
         id: 'figure3-alpha',
         media: [FIGURE3_MEDIA_KEY],
-        forward: { mode: 'play', required: true },
+        forward: { mode: 'timeline', required: true },
         reverse: { mode: 'timeline', required: true },
         readyMilestones: ['targetReady', 'mediaReady'],
         terminalFallbackScene: 'services',
@@ -195,7 +195,9 @@ export function createFigure3ServicesTransition(options: { delayMs?: () => numbe
         reducedMotion: context.prefersReducedMotion
       };
       if (video) {
-        await prepareFigure3AnimationFrame(source, context.direction === 1 ? 0 : 1, mediaRun);
+        await prepareFigure3AnimationFrame(source, context.direction === 1 ? 0 : 1, {
+          ...mediaRun, signal: context.signal
+        });
       }
       return new Figure3ServicesTimeline(
         context,

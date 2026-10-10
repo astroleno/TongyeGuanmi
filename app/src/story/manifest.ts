@@ -275,7 +275,7 @@ function mediaPlaybackContract(
     id,
     media,
     forward: {
-      mode: options.forwardMode ?? 'play',
+      mode: options.forwardMode ?? 'timeline',
       required: true,
       ...(options.forwardMedia ? { media: options.forwardMedia } : {})
     },
@@ -353,7 +353,7 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           figure3AnimationMedia,
           'services',
           {
-            forwardMode: 'play',
+            forwardMode: 'timeline',
             reverseMode: 'timeline',
             reverseRequired: true
           }
@@ -366,8 +366,8 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           figure2AnimationMedia,
           'figure2-proof',
           {
-            forwardMode: 'play',
-            reverseMode: 'play',
+            forwardMode: 'timeline',
+            reverseMode: 'timeline',
             reverseRequired: true,
             forwardMedia: figure2AnimationMedia,
             reverseMedia: figure2AnimationMedia,
@@ -397,7 +397,7 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           phAnimationMedia,
           'education',
           {
-            forwardMode: 'play',
+            forwardMode: 'timeline',
             reverseMode: 'timeline',
             reverseRequired: true,
             preparingTimeoutMs: stagedMediaPreparingTimeoutMs
@@ -410,7 +410,7 @@ export function mediaPlaybackFor(segment: SegmentId): readonly MediaPlaybackCont
           'crane-transition',
           craneAnimationMedia,
           'contact',
-          { forwardMode: 'play', reverseMode: 'timeline', reverseRequired: true }
+          { forwardMode: 'timeline', reverseMode: 'timeline', reverseRequired: true }
         )
       ];
     default:

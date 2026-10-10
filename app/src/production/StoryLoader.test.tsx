@@ -149,9 +149,9 @@ describe('StoryLoader', () => {
     expect(loaderIndex).toBeLessThan(rootIndex);
     const staticCover = html.slice(loaderIndex, html.indexOf('<noscript>', loaderIndex));
     expect(staticCover).not.toContain('story-loader__word');
-    expect(html).toContain("content: '同野观幂'");
-    expect(html).toContain("content: '正在展开现场'");
-    expect(html).toContain('@keyframes story-loader-progress');
+    expect(html).not.toContain('.story-loader::before');
+    expect(html).not.toContain('.story-loader::after');
+    expect(html).not.toContain('@keyframes story-loader-progress');
     expect(html).toContain('data-loader-ink-fallback="true"');
     expect(html).not.toContain('mobile-landscape-entry-static');
     expect(html).toContain('#story-loader-static { display: none !important; }');

@@ -151,6 +151,8 @@ export type SegmentTimelineHandle = {
 };
 
 export type TransitionContext = {
+  /** Cancels preparation only; a completed timeline owns its playback lifetime. */
+  signal?: AbortSignal;
   segment: SpineSegmentNode;
   stage: StageHandle;
   from: LayerHandle;

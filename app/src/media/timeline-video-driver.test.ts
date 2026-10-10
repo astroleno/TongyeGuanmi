@@ -21,6 +21,7 @@ class FakeVideo {
   playsInline = false;
   playbackRate = 1;
   playCalls = 0;
+  loadCalls = 0;
   rejectNextPlay = false;
   throwOnCurrentTimeWrite = false;
   presentFrameOnCurrentTimeWrite = false;
@@ -55,6 +56,13 @@ class FakeVideo {
 
   pause(): void {
     this.paused = true;
+  }
+
+  load(): void {
+    this.loadCalls++;
+    this.readyState = 0;
+    this.seeking = false;
+    this.dispatch('abort');
   }
 
   play(): Promise<void> {
@@ -590,6 +598,97 @@ describe('timeline video driver', () => {
     } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
   });
 
+  it('shares prewarm/admission work while cancellation releases only its own lease', async () => {
+    const video = new FakeVideo();
+    const controller = new AbortController();
+    const input = { direction: 1 as const, progress: .5, durationFallbackSeconds: 10 };
+    const first = prepareTimelineVideoFrame(videoElement(video), {
+      ...input, runId: 'prewarm', signal: controller.signal
+    });
+    const writes = video.currentTimeWrites.length;
+    const second = prepareTimelineVideoFrame(videoElement(video), { ...input, runId: 'entry' });
+    expect(video.currentTimeWrites).toHaveLength(writes);
+    controller.abort();
+    await expect(first).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+    video.completeSeek(); video.presentFrame();
+    await expect(second).resolves.toMatchObject({ status: 'ready', runId: 'entry' });
+    disposeTimelineVideoDriver(videoElement(video));
+  });
+
+  it('recovers one stalled source without accepting readiness before the exact frame', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    video.readyState = 1;
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'retry', direction: 1, progress: .5, durationFallbackSeconds: 10,
+        allowPlaybackNudge: false
+      });
+      let settled = false;
+      void pending.then(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(4500);
+      expect(video.loadCalls).toBe(1);
+      expect(settled).toBe(false);
+      video.readyState = 4; video.dispatch('loadeddata');
+      video.completeSeek(); video.presentFrame();
+      await expect(pending).resolves.toMatchObject({ status: 'ready' });
+      expect(video.playCalls).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('stops a cancelled final lease before any retry can reload the source', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    video.readyState = 0;
+    const controller = new AbortController();
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'cancel', direction: 1, progress: 0, durationFallbackSeconds: 10,
+        signal: controller.signal
+      });
+      controller.abort();
+      await expect(pending).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+      await vi.advanceTimersByTimeAsync(20000);
+      expect(video.loadCalls).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('does not reload a progressing download but still enforces the overall deadline', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    video.readyState = 0;
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'slow-download', direction: 1, progress: 0, durationFallbackSeconds: 10
+      });
+      const rejection = expect(pending).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_TIMEOUT' });
+      for (let index = 0; index < 6; index++) {
+        await vi.advanceTimersByTimeAsync(3000);
+        video.dispatch('progress');
+        expect(video.loadCalls).toBe(0);
+      }
+      await vi.advanceTimersByTimeAsync(1000);
+      await rejection;
+      expect(video.loadCalls).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('counts failed source reselection against the same single reload allowance', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    video.readyState = 0;
+    Object.assign(video, { networkState: 3 });
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'failed-source', direction: 1, progress: 0, durationFallbackSeconds: 10
+      });
+      const rejection = expect(pending).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_STALLED' });
+      await vi.advanceTimersByTimeAsync(19000);
+      await rejection;
+      expect(video.loadCalls).toBe(1);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
   it('unwinds a cold desktop preparation before the ink build deadline', async () => {
     vi.useFakeTimers();
     const video = new FakeVideo();
@@ -599,9 +698,10 @@ describe('timeline video driver', () => {
       const readiness = prepareTimelineVideoFrame(videoElement(video), {
         runId: 'cold-deadline:1', direction: 1, progress: 0, durationFallbackSeconds: 10
       });
-      const rejection = expect(readiness).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+      const rejection = expect(readiness).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_STALLED' });
       await vi.advanceTimersByTimeAsync(19000);
       await rejection;
+      expect(video.loadCalls).toBe(1);
       expect(video.paused).toBe(true);
     } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
   });
@@ -1136,35 +1236,20 @@ describe('timeline video driver', () => {
     driver.dispose();
   });
 
-  it('starts native only after its initial frame and preserves its presented terminal', async () => {
+  it('keeps legacy native requests on the paused seek clock in either direction', () => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));
-    const input = {
-      runId: 'media-presented-native:1',
-      direction: 1 as const,
-      durationFallbackSeconds: 10,
-      timelineDurationMs: 2_000,
-      mode: 'native-preferred' as const
-    };
-
-    driver.drive({ ...input, progress: 0.2 });
-
-    expect(video.playCalls).toBe(0);
-    video.completeSeek();
-    expect(video.playCalls).toBe(0);
-    video.presentFrame();
-    await Promise.resolve();
-    expect(video.playCalls).toBe(1);
-
-    video.currentTime = 9.98;
-    video.completeSeek();
-    driver.drive({ ...input, progress: 1 });
-    await expect(driver.prepareFrame({
-      ...input,
-      runId: 'media-presented-native:2',
-      direction: -1,
-      progress: 1
-    })).resolves.toMatchObject({ status: 'ready', direction: -1 });
+    for (const direction of [1, -1] as const) {
+      for (const progress of [0, .2, .6, 1]) {
+        driver.drive({ runId: 'seek:' + direction, direction, progress,
+          durationFallbackSeconds: 10, mode: 'native-preferred' });
+        video.completeSeek(); video.presentFrame();
+        expect(video.playCalls).toBe(0);
+        expect(video.paused).toBe(true);
+        expect(video.currentTime).toBeCloseTo(progress * 9.98);
+      }
+    }
+    driver.dispose();
   });
 
   it('uses the transition direction and coalesces unresolved seeks to the latest progress', () => {
@@ -1253,72 +1338,6 @@ describe('timeline video driver', () => {
     });
   });
 
-  it('keeps native playback rejection local to one run', async () => {
-    const video = new FakeVideo();
-    video.rejectNextPlay = true;
-    const driver = createTimelineVideoDriver(videoElement(video));
-    const base = {
-      direction: 1 as const,
-      progress: 0.2,
-      durationFallbackSeconds: 10,
-      timelineDurationMs: 2_000,
-      mode: 'native-preferred' as const
-    };
-
-    driver.drive({ ...base, runId: 'media-test:1' });
-    video.completeSeek();
-    video.presentFrame();
-    await Promise.resolve();
-
-    expect(driver.snapshot()).toMatchObject({ runId: 'media-test:1', nativeFallback: true });
-    expect(video.playCalls).toBe(1);
-
-    driver.drive({ ...base, runId: 'media-test:2' });
-    video.completeSeek();
-    video.presentFrame();
-    await Promise.resolve();
-
-    expect(video.playCalls).toBe(2);
-    expect(driver.snapshot()).toMatchObject({ runId: 'media-test:2', nativeFallback: false });
-  });
-
-  it('ignores an older play rejection after a newer attempt in the same run', async () => {
-    const video = new FakeVideo();
-    const pending: Array<{
-      resolve(): void;
-      reject(error: Error): void;
-    }> = [];
-    video.play = () => {
-      video.playCalls += 1;
-      return new Promise<void>((resolve, reject) => {
-        pending.push({ resolve, reject });
-      });
-    };
-    const driver = createTimelineVideoDriver(videoElement(video));
-    const input = {
-      runId: 'media-test:one-run',
-      direction: 1 as const,
-      durationFallbackSeconds: 10,
-      timelineDurationMs: 2_000,
-      mode: 'native-preferred' as const
-    };
-
-    driver.drive({ ...input, progress: 0.2 });
-    video.completeSeek();
-    video.presentFrame();
-    driver.drive({ ...input, progress: 0.3 });
-    video.completeSeek();
-    video.presentFrame();
-    pending[0]?.reject(new Error('stale autoplay rejection'));
-    pending[1]?.resolve();
-    await Promise.resolve();
-
-    expect(video.playCalls).toBe(2);
-    expect(driver.snapshot()).toMatchObject({
-      runId: 'media-test:one-run',
-      nativeFallback: false
-    });
-  });
 
   it('resolves reduced motion directly to the requested endpoint without playback', () => {
     const video = new FakeVideo();

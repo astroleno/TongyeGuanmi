@@ -75,17 +75,17 @@ describe('TTG canonical directional media', () => {
     expect(stylesheet).toContain('video.ttg-layer--figure[data-timeline-video-frame-ready="true"]');
   });
 
-  it('declares one shared canonical key with native forward and timeline reverse contracts', () => {
+  it('declares one shared canonical key with timeline contracts in both directions', () => {
     const playback = segment('ttg-lab').mediaPlayback?.[0];
 
     expect(playback).toMatchObject({
       media: ['ttg-figure-motion'],
-      forward: { mode: 'play', required: true, media: ['ttg-figure-motion'] },
+      forward: { mode: 'timeline', required: true, media: ['ttg-figure-motion'] },
       reverse: { mode: 'timeline', required: true, media: ['ttg-figure-motion'] }
     });
   });
 
-  it('holds the prepared first TTG frame, then uses native forward playback and pauses at the terminal frame', async () => {
+  it('holds the prepared first TTG frame, then seeks forward while staying paused', async () => {
     const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
     const video = new FakeVideo();
     connectTtgMedia(fixture.fromRoot, video);
@@ -99,8 +99,9 @@ describe('TTG canonical directional media', () => {
 
     timeline.progress(TTG_LAB_ANIMATION_STOP * 0.45);
     await Promise.resolve();
-    expect(video.playCalls).toBe(1);
-    expect(video.paused).toBe(false);
+    expect(video.playCalls).toBe(0);
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBeGreaterThan(0);
 
     timeline.progress(TTG_LAB_ANIMATION_STOP);
     expect(video.paused).toBe(true);

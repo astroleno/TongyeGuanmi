@@ -205,7 +205,8 @@ export type DirectorEvent =
   | { type: 'CHARGE_FIRED'; direction: Direction; now?: number }
   | { type: 'TARGET_READY'; scene: SceneId; prepareToken: PrepareToken }
   | { type: 'MEDIA_READY'; key: MilestoneKey; prepareToken?: PrepareToken; runId?: SegmentRunId }
-  | { type: 'PREPARE_TIMEOUT'; segment: SegmentId; prepareToken: PrepareToken }
+  | { type: 'PREPARE_TIMEOUT'; segment: SegmentId; prepareToken: PrepareToken; error?: Error }
+  | { type: 'PREPARE_FAILED'; segment: SegmentId; prepareToken: PrepareToken; error: Error }
   | { type: 'BUILD_TIMEOUT'; segment: SegmentId; runId?: SegmentRunId; prepareToken?: PrepareToken }
   | { type: 'PLAYBACK_DONE'; runId: SegmentRunId }
   | { type: 'PLAYBACK_FAILED'; runId: SegmentRunId; error: Error }

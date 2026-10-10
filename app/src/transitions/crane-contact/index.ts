@@ -82,7 +82,6 @@ class CraneContactTimeline implements SegmentTimelineHandle {
   private readonly runId: string;
   private renderedProgress = 0;
   private playbackDirection: Direction;
-  private nativePlayback = false;
 
   constructor(context: TransitionContext) {
     this.elevation = createTransitionLayerElevation(context.to.element);
@@ -114,7 +113,6 @@ class CraneContactTimeline implements SegmentTimelineHandle {
             mediaRun: {
               runId: context.runId,
               direction: this.playbackDirection,
-              nativePlayback: this.nativePlayback,
               reducedMotion: context.prefersReducedMotion
             }
           }
@@ -129,26 +127,20 @@ class CraneContactTimeline implements SegmentTimelineHandle {
 
   play(): Promise<void> {
     this.playbackDirection = 1;
-    this.nativePlayback = true;
-    return this.timeline.play().finally(() => {
-      this.nativePlayback = false;
-    });
+    return this.timeline.play();
   }
 
   progress(value: number): void {
-    this.nativePlayback = false;
     this.timeline.progress(value);
   }
 
   reverse(): Promise<void> {
     this.playbackDirection = -1;
-    this.nativePlayback = false;
     return this.timeline.reverse();
   }
 
   jumpToEnd(direction: Direction): void {
     this.playbackDirection = direction;
-    this.nativePlayback = false;
     this.timeline.jumpToEnd(direction);
   }
 
@@ -186,7 +178,7 @@ export function createCraneContactTransition(options: { delayMs?: () => number }
       {
         id: 'crane-transition',
         media: [CRANE_FIGURE_MEDIA_KEY, CRANE_FLOCK_MEDIA_KEY],
-        forward: { mode: 'play', required: true },
+        forward: { mode: 'timeline', required: true },
         reverse: { mode: 'timeline', required: true },
         readyMilestones: ['targetReady', 'mediaReady'],
         terminalFallbackScene: 'contact',
@@ -220,6 +212,7 @@ export function createCraneContactTransition(options: { delayMs?: () => number }
           {
             runId: context.runId,
             direction: context.direction,
+            signal: context.signal,
             reducedMotion: context.prefersReducedMotion
           }
         );

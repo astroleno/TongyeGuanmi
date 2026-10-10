@@ -30,6 +30,7 @@ export function createLabPhTransition(options: { delayMs?: () => number } = {}):
         await preparePhAnimationFrame(root, 0, {
           runId: `${context.runId}:entry`,
           direction: 1,
+          signal: context.signal,
           reducedMotion: context.prefersReducedMotion
         });
       }

@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
-import { disposeTimelineVideoDriver } from '../../../media/timeline-video-driver';
+import { disposeTimelineVideoDriver, driveTimelineVideo } from '../../../media/timeline-video-driver';
 import {
   createPhonePackedAlphaSurface,
   type PhonePackedAlphaSurface,
@@ -20,13 +20,13 @@ import {
   PH_FIGURE_END_SECONDS,
   PH_FRONT_SRC,
   PH_MEDIA_KEY,
+  phPlaybackProgress,
   parkPhMedia
 } from '..';
 import {
   renderPhonePhPresentation,
   type PhonePhPlaybackDirection
 } from './PhonePh.motion';
-import { seekPhonePhReverseFrame } from './PhonePh.reverse';
 import './PhonePh.css';
 
 const PHONE_PH_PACKED_VIDEO = phoneMediaUrlFor(
@@ -122,8 +122,13 @@ export function PhonePh({ reports }: PhonePhProps) {
     if (progress < progressRef.current - .0001) directionRef.current = -1;
     progressRef.current = progress;
     renderPhonePhPresentation(rootRef.current, progress, directionRef.current);
-    if (directionRef.current === -1) {
-      seekPhonePhReverseFrame(videoRef.current, progress);
+    if (mediaPhaseRef.current === 'playing' && videoRef.current) {
+      driveTimelineVideo(videoRef.current, {
+        runId: mediaRunTokenRef.current ?? bindingRef.current?.frameToken ?? 'ph',
+        direction: directionRef.current, progress: phPlaybackProgress(progress),
+        durationFallbackSeconds: 1.533, endSeconds: PH_FIGURE_END_SECONDS,
+        mode: 'timeline', frameRate: 30, allowPlaybackNudge: false
+      });
     }
     if (admissionGenerationRef.current > 0) {
       surfaceRef.current?.probe();
@@ -254,21 +259,8 @@ export function PhonePh({ reports }: PhonePhProps) {
       }
       surfaceRef.current?.setMode?.('forward', true);
       mediaPhaseRef.current = 'playing';
-      if (command.direction === 'reverse') {
-        // Reverse PH is presented-frame sampling; HTML video cannot run
-        // backwards, so render() owns the paused decoder seek.
-        video.pause();
-        return;
-      }
-      let playback: Promise<void>;
-      try { playback = Promise.resolve(video.play()); }
-      catch (error) { playback = Promise.reject(error); }
-      void playback.catch((error: unknown) => binding.reports.reportFailure({
-        code: 'ph-playback-rejected',
-        message: error instanceof Error ? error.message : String(error),
-        recoverable: true,
-        detail: { runToken: command.runToken, direction: command.direction }
-      }));
+      video.pause();
+      render(progressRef.current);
     },
     render,
     settle(endpoint) {

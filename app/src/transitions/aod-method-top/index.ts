@@ -144,6 +144,7 @@ export function createAodMethodTopTransition(options: {
             direction: context.direction,
             reducedMotion: context.prefersReducedMotion,
             timelineDurationMs: AOD_METHOD_TOP_DURATION_MS,
+            signal: context.signal,
             video
           }
         );

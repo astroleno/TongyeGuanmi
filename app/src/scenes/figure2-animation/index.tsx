@@ -168,7 +168,7 @@ function retainedFigure2Arch(root: HTMLElement | null | undefined): HTMLImageEle
 function mediaInput(
   preparation: Figure2MediaPreparation,
   progress: number,
-  mode: TimelineVideoDriveInput['mode'] = 'native-preferred'
+  mode: TimelineVideoDriveInput['mode'] = 'timeline'
 ): TimelineVideoDriveInput {
   return {
     runId: preparation.runId,
@@ -182,7 +182,6 @@ function mediaInput(
       : FIGURE2_VIDEO_DURATION_SECONDS,
     timelineDurationMs: preparation.timelineDurationMs ?? FIGURE2_INTRO_PLAYBACK_MS,
     mode,
-    nativePlaybackDirection: 1,
     reducedMotion: preparation.reducedMotion,
     allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     signal: preparation.signal

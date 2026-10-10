@@ -43,9 +43,8 @@ export type CraneRenderState = {
 export type CraneMediaRun = Readonly<{
   runId: string;
   direction: 1 | -1;
-  nativePlayback?: boolean;
   reducedMotion?: boolean;
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
 }>;
 
 type CraneRenderOptions = { mediaRun?: CraneMediaRun };
@@ -75,21 +74,15 @@ function driveCraneTimeline(
   progress: number,
   figureProgress: number,
   flockProgress: number,
-  figureActive: boolean,
   mediaRun: NonNullable<CraneRenderOptions['mediaRun']>
 ): void {
   const figureVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-video]');
   const flockVideo = section?.querySelector<HTMLVideoElement>('[data-crane-figure-front-video]');
-  for (const [video, mediaProgress, nativeEligible] of [
-    [figureVideo, figureProgress, figureActive && figureProgress > 0.001],
-    [flockVideo, flockProgress, progress > 0.001 && flockProgress < 0.999]
+  for (const [video, mediaProgress] of [
+    [figureVideo, figureProgress],
+    [flockVideo, flockProgress]
   ] as const) {
-    const preparedStart = mediaRun.nativePlayback
-      && nativeEligible
-      && video?.paused
-      && video.currentTime < 0.05
-      && video.dataset.timelineVideoFrameReady === 'true';
-    driveTimelineVideo(video, craneMediaInput(preparedStart ? 0 : mediaProgress, mediaRun, nativeEligible));
+    driveTimelineVideo(video, craneMediaInput(mediaProgress, mediaRun));
   }
   section?.setAttribute('data-crane-playback-direction', String(mediaRun.direction));
   section?.setAttribute('data-crane-playback-run', mediaRun.runId);
@@ -98,8 +91,7 @@ function driveCraneTimeline(
 
 function craneMediaInput(
   progress: number,
-  mediaRun: CraneMediaRun,
-  nativeEligible = true
+  mediaRun: CraneMediaRun
 ): TimelineVideoDriveInput {
   return {
     runId: mediaRun.runId,
@@ -109,10 +101,8 @@ function craneMediaInput(
     startSeconds: 0,
     endSeconds: CRANE_VIDEO_END_SECONDS,
     timelineDurationMs: CRANE_MEDIA_PLAYBACK_MS,
-    mode: mediaRun.direction === 1 && mediaRun.nativePlayback && nativeEligible
-      ? 'native-preferred'
-      : 'timeline',
-    nativePlaybackDirection: 1,
+    mode: 'timeline',
+    frameRate: 30,
     allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     ...(mediaRun.reducedMotion !== undefined ? { reducedMotion: mediaRun.reducedMotion } : {}),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})
@@ -135,11 +125,11 @@ export async function prepareCraneAnimationFrame(
     const frames = await Promise.all([
       prepareTimelineVideoFrame(
         figureVideo,
-        craneMediaInput(range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS), mediaRun, false)
+        craneMediaInput(range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS), mediaRun)
       ),
       prepareTimelineVideoFrame(
         flockVideo,
-        craneMediaInput(range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS), mediaRun, false)
+        craneMediaInput(range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS), mediaRun)
       )
     ]);
     if (frames.some((frame) => frame?.status !== 'ready')) {
@@ -200,9 +190,9 @@ export function renderCraneAnimationProgress(root: HTMLElement | null | undefine
   const figureProgress = range01(time, FIGURE_START_SECONDS, FIGURE_END_SECONDS);
   const flockProgress = range01(time, FLOCK_START_SECONDS, FLOCK_END_SECONDS);
   if (options.mediaRun) {
-    driveCraneTimeline(section, timelineProgress, figureProgress, flockProgress, figureActive, options.mediaRun);
+    driveCraneTimeline(section, timelineProgress, figureProgress, flockProgress, options.mediaRun);
   } else {
-    driveCraneTimeline(section, timelineProgress, figureProgress, flockProgress, figureActive, {
+    driveCraneTimeline(section, timelineProgress, figureProgress, flockProgress, {
       runId: 'crane-hold',
       direction: -1
     });

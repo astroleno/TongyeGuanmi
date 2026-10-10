@@ -84,7 +84,6 @@ function figure2TimelineMediaInput(runId: string, direction: 1 | -1, progress: n
     endSeconds: FIGURE2_ENDPOINT_SECONDS,
     timelineDurationMs: FIGURE2_ENDPOINT_SECONDS * 1000,
     mode: 'timeline' as const,
-    nativePlaybackDirection: 1 as const,
     allowSeekedFrameFallback: true,
     allowPlaybackNudge: false
   };

@@ -145,7 +145,7 @@ describe('story manifest contract', () => {
     for (const segment of mediaSegments) {
       expect(segment.mediaPlayback?.[0]).toMatchObject({
         forward: {
-          mode: segment.id === 'aod-method-top' ? 'timeline' : 'play',
+          mode: 'timeline',
           required: true
         },
         reverse: { mode: 'timeline', required: true },
@@ -173,12 +173,12 @@ describe('story manifest contract', () => {
           id: 'figure2-pair',
           media: ['figure2-pair-motion'],
           forward: {
-            mode: 'play',
+            mode: 'timeline',
             required: true,
             media: ['figure2-pair-motion']
           },
           reverse: {
-            mode: 'play',
+            mode: 'timeline',
             required: true,
             media: ['figure2-pair-motion']
           },
@@ -318,7 +318,7 @@ describe('story manifest contract', () => {
       },
       mediaPlayback: [{
         forward: {
-          mode: 'play',
+          mode: 'timeline',
           required: true,
           media: ['ttg-figure-motion']
         },
@@ -342,7 +342,7 @@ describe('story manifest contract', () => {
         media: ['ph-figure-motion']
       },
       mediaPlayback: [{
-        forward: { mode: 'play', required: true },
+        forward: { mode: 'timeline', required: true },
         reverse: { mode: 'timeline', required: true }
       }]
     });

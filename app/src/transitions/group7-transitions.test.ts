@@ -417,8 +417,8 @@ describe('R4 group7 transitions', () => {
     expect(fixture.figureVideo.playCalls).toBe(0);
     expect(fixture.flockVideo.playCalls).toBe(0);
     expect(fixture.craneRoot.dataset.cranePlaybackActive).toBe('true');
-    expect(transition.mediaPlayback?.[0]?.forward.mode).toBe('play');
-    expect(craneSegment.mediaPlayback?.[0]?.forward.mode).toBe('play');
+    expect(transition.mediaPlayback?.[0]?.forward.mode).toBe('timeline');
+    expect(craneSegment.mediaPlayback?.[0]?.forward.mode).toBe('timeline');
     expect(transition.mediaPlayback?.[0]?.reverse).toEqual({ mode: 'timeline', required: true });
     expect(craneSegment.mediaPlayback?.[0]?.reverse).toEqual({ mode: 'timeline', required: true });
 
@@ -441,7 +441,7 @@ describe('R4 group7 transitions', () => {
     expect(fixture.flockVideo.paused).toBe(true);
   });
 
-  it('prepares both Crane endpoints before playback and honors the 0s/0.5s native starts', async () => {
+  it('prepares both Crane endpoints and honors the 0s/0.5s timeline starts', async () => {
     let nextFrame: FrameRequestCallback | undefined;
     vi.stubGlobal('performance', { now: () => 0 });
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -459,13 +459,15 @@ describe('R4 group7 transitions', () => {
 
     const playback = timeline.play(1);
     nextFrame?.(100);
-    await vi.waitFor(() => expect(fixture.flockVideo.playCalls).toBe(1));
+    await vi.waitFor(() => expect(fixture.flockVideo.currentTime).toBeGreaterThan(0));
     expect(fixture.figureVideo.playCalls).toBe(0);
-    expect(fixture.flockVideo.playbackRate).toBeCloseTo(2.467 / 2.5, 3);
+    expect(fixture.figureVideo.currentTime).toBe(0);
+    expect(fixture.flockVideo.playCalls).toBe(0);
 
     nextFrame?.(600);
-    await vi.waitFor(() => expect(fixture.figureVideo.playCalls).toBe(1));
-    expect(fixture.figureVideo.playbackRate).toBeCloseTo(2.467 / 2.5, 3);
+    await vi.waitFor(() => expect(fixture.figureVideo.currentTime).toBeGreaterThan(0));
+    expect(fixture.figureVideo.playCalls).toBe(0);
+    expect(fixture.figureVideo.paused).toBe(true);
 
     nextFrame?.(3000);
     await playback;

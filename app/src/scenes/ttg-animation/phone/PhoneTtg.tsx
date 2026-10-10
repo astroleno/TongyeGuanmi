@@ -179,7 +179,6 @@ function ttgTimelineMediaInput(
     endSeconds: TTG_FIGURE_END_SECONDS,
     timelineDurationMs: TTG_PLAYBACK_MS,
     mode: 'timeline',
-    nativePlaybackDirection: 1,
     // The fallback is causal: it still requires the target currentTime,
     // decoded data, a settled seek, and the current driver generation.
     allowSeekedFrameFallback: true,

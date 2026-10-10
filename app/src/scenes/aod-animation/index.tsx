@@ -27,7 +27,7 @@ export type AodMediaRun = Readonly<{
   runId: string;
   direction: 1 | -1;
   reducedMotion?: boolean;
-  signal?: AbortSignal;
+  signal?: AbortSignal | undefined;
   timelineDurationMs?: number;
   video?: HTMLVideoElement | null;
 }>;
@@ -65,7 +65,6 @@ function aodMediaInput(
     endSeconds: AOD_FIGURE_END_SECONDS,
     timelineDurationMs: mediaRun.timelineDurationMs ?? 2600,
     mode,
-    nativePlaybackDirection: 1,
     reducedMotion: Boolean(mediaRun.reducedMotion),
     allowSeekedFrameFallback: browserPrefersHevcAlpha(),
     ...(mediaRun.signal ? { signal: mediaRun.signal } : {})

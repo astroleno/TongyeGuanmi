@@ -1,5 +1,5 @@
 import { storyManifest } from './manifest';
-import { MediaPreparationError } from '../media/media-preparation';
+import { createLinkedAbortController, MediaPreparationError } from '../media/media-preparation';
 import type {
   Direction,
   DirectorEvent,
@@ -30,6 +30,7 @@ export type SegmentPlayerMailbox = {
 };
 
 export type EnsureBuiltOptions = {
+  signal?: AbortSignal;
   runId?: SegmentRunId;
   prepareToken?: PrepareToken;
   timeoutMs?: number;
@@ -106,6 +107,7 @@ class BuildCancelledError extends Error {
 }
 
 type PendingBuild = {
+  controller: AbortController;
   generation: number;
   promise: Promise<SegmentTimelineHandle>;
 };
@@ -235,8 +237,12 @@ export class SegmentPlayer {
       return Promise.resolve(cached);
     }
     const pending = this.pendingBuilds.get(id);
-    if (pending) {
+    if (pending && !pending.controller.signal.aborted) {
       return pending.promise;
+    }
+    if (pending) {
+      this.pendingBuilds.delete(id);
+      this.buildGenerations.set(id, pending.generation + 1);
     }
 
     const segment = this.findSegment(id);
@@ -245,13 +251,16 @@ export class SegmentPlayer {
     const prepareToken = options.prepareToken ?? `${this.actorEpoch}:prepare:0`;
     const direction = options.direction ?? 1;
     const generation = this.buildGenerations.get(id) ?? 0;
+    const linked = createLinkedAbortController(options.signal);
+    const controller = linked.controller;
     const from = this.stage.ensureLayer(segment.from, direction === 1 ? 'current' : 'next');
     const to = this.stage.ensureLayer(segment.to, direction === 1 ? 'next' : 'current');
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let buildExpired = false;
-    const buildPromise = this.resolveTransition(id).then((transition) =>
-      transition.buildTimeline({
+    const buildPromise = this.resolveTransition(id).then((transition) => {
+      if (controller.signal.aborted) throw controller.signal.reason;
+      return transition.buildTimeline({
           segment,
           stage: this.stage,
           from,
@@ -259,12 +268,14 @@ export class SegmentPlayer {
           direction,
           runId,
           prepareToken,
+          signal: controller.signal,
           prefersReducedMotion: this.prefersReducedMotion(),
           reportMilestone: (milestone) => this.reportMilestone(milestone)
-        })
-    ).then((timeline) => {
-      if (buildExpired) {
+        });
+    }).then((timeline) => {
+      if (buildExpired || controller.signal.aborted) {
         timeline.dispose();
+        throw controller.signal.reason;
       } else if ((this.buildGenerations.get(id) ?? 0) !== generation) {
         timeline.dispose();
         throw new BuildCancelledError(id);
@@ -274,11 +285,19 @@ export class SegmentPlayer {
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeout = setTimeout(() => {
         buildExpired = true;
-        reject(new BuildTimeoutError(id, timeoutMs));
+        const error = new BuildTimeoutError(id, timeoutMs);
+        controller.abort(error);
+        reject(error);
       }, timeoutMs);
     });
 
-    const pendingPromise = Promise.race([buildPromise, timeoutPromise])
+    let onAbort: () => void;
+    const aborted = new Promise<never>((_, reject) => {
+      onAbort = () => reject(controller.signal.reason ?? new BuildCancelledError(id));
+      if (controller.signal.aborted) onAbort();
+      else controller.signal.addEventListener('abort', onAbort, { once: true });
+    });
+    const pendingPromise = Promise.race([buildPromise, timeoutPromise, aborted])
       .then((timeline) => {
         if ((this.buildGenerations.get(id) ?? 0) !== generation) {
           timeline.dispose();
@@ -300,6 +319,8 @@ export class SegmentPlayer {
         throw normalized;
       })
       .finally(() => {
+        linked.dispose();
+        controller.signal.removeEventListener('abort', onAbort);
         if (timeout) {
           clearTimeout(timeout);
         }
@@ -307,7 +328,7 @@ export class SegmentPlayer {
           this.pendingBuilds.delete(id);
         }
       });
-    this.pendingBuilds.set(id, { generation, promise: pendingPromise });
+    this.pendingBuilds.set(id, { generation, promise: pendingPromise, controller });
     return pendingPromise;
   }
 
@@ -476,6 +497,7 @@ export class SegmentPlayer {
     }
     this.built.get(id)?.dispose();
     this.built.delete(id);
+    this.pendingBuilds.get(id)?.controller.abort(new BuildCancelledError(id));
     this.buildGenerations.set(id, (this.buildGenerations.get(id) ?? 0) + 1);
     this.pendingBuilds.delete(id);
   }

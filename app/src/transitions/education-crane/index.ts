@@ -24,6 +24,7 @@ export function createEducationCraneTransition(options: { delayMs?: () => number
         return;
       }
       return prepareCraneAnimationFrame(to, 0, {
+        signal: context.signal,
         runId: context.runId,
         direction: 1,
         reducedMotion: context.prefersReducedMotion
