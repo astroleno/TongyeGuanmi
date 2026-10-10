@@ -1610,6 +1610,26 @@ describe('clean PhoneStoryShell ownership', () => {
     act(() => root.unmount());
   });
 
+  it('recreates a terminally faulted leaf once on retry instead of reusing retired media', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine();
+    act(() => engine.publish(stableSnapshot()));
+    const retired = host.querySelector('[data-phone-scene-leaf="hero"]');
+    act(() => engine.publish({ ...faultedSnapshot(),
+      stableCommit: stableSnapshot().stableCommit,
+      presentationProof: stableSnapshot().presentationProof }));
+    act(() => engine.publish(recoverySnapshot()));
+    const renewed = host.querySelector('[data-phone-scene-leaf="hero"]');
+    expect(renewed).not.toBeNull();
+    expect(renewed).not.toBe(retired);
+    act(() => engine.publish({ ...recoverySnapshot(), stateRevision: 6 }));
+    expect(host.querySelector('[data-phone-scene-leaf="hero"]')).toBe(renewed);
+    act(() => engine.publish(stableSnapshot()));
+    expect(host.querySelector('[data-phone-scene-leaf="hero"]')).toBe(renewed);
+    act(() => root.unmount());
+  });
+
   it('commits a native reading handoff with the new stable plane before paint', () => {
     const { host, root } = hostRoot();
     const originalScrollingElement = Object.getOwnPropertyDescriptor(document, 'scrollingElement');

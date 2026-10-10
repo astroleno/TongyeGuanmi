@@ -487,6 +487,9 @@ export function PhoneStoryShell({
     owners.engine.getRenderSnapshot ?? owners.engine.getSnapshot,
     owners.engine.getRenderSnapshot ?? owners.engine.getSnapshot
   ); const stableScene = snapshot.stableCommit?.sceneId ?? null; nativeHandoffStoreRef.current.snapshot = snapshot;
+  const faultedLeafRef = useRef(false);
+  if (snapshot.status === 'faulted') faultedLeafRef.current = true;
+  else if (snapshot.status === 'stable') faultedLeafRef.current = false;
   const stablePrewarmScenes = stableScene ? phoneNativePrewarmScenes(stableScene) : [];
   useLayoutEffect(() => {
     if (directReading) { activateStaticReading(); return; }
@@ -563,7 +566,8 @@ export function PhoneStoryShell({
       const retainsPrewarm = stablePrewarmScenes.includes(sceneId);
       scenes.push(owners.sceneTopology.retain(sceneId,
         transaction.mode === 'rollback' ? roles.source : roles.receiver,
-        () => reportPort(binding), transaction.mode !== 'rollback' && !promoted && !retainsPrewarm));
+        () => reportPort(binding), transaction.mode !== 'rollback' && !promoted && !retainsPrewarm,
+        transaction.mode === 'recovery' && faultedLeafRef.current));
     }
     const segmentId = transaction.attempt.segmentId;
     const direction = transaction.attempt.direction;

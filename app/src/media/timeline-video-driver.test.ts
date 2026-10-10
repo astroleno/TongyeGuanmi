@@ -121,6 +121,22 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it.each([1, -1] as const)('does not let a late mismatched frame replace the latest queued seek (%i)', (direction) => {
+    const video = new FakeVideo();
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const input = { runId: 'late-frame', direction,
+      durationFallbackSeconds: 10, endSeconds: 9, mode: 'timeline' as const };
+    driver.drive({ ...input, progress: direction === 1 ? .2 : .8 });
+    driver.drive({ ...input, progress: direction === 1 ? .8 : .2 });
+    video.presentFrame(.1);
+    video.completeSeek();
+    expect(video.currentTimeWrites.at(-1)).toBeCloseTo(direction === 1 ? 7.2 : 1.8);
+    video.completeSeek();
+    video.presentFrame();
+    expect(driver.snapshot().frameReady).toBe(true);
+    driver.dispose();
+  });
+
   it('retries failed source selection on explicit preparation and ignores its own reload abort', async () => {
     const video = new FakeVideo();
     video.readyState = 0;

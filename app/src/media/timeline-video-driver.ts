@@ -672,7 +672,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
           if (this.#waiters.size > 0 && this.#latestInput?.allowPlaybackNudge !== false) {
             this.#video.pause();
           }
-          this.#scheduleSeek(frame);
+          // Animation ticks may already own a newer target. A late callback
+          // must not replace that queued target with its obsolete sample.
+          this.#scheduleSeek(this.#latest ?? frame);
           return;
         }
         if (
