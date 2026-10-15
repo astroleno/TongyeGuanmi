@@ -18,7 +18,15 @@ export function scrollPositionForHash(index: ScrollSpine, hash: string, root: HT
   const surface = root.querySelector<HTMLElement>(`[data-scroll-content="${scene}"]`);
   const element = panel && surface?.querySelector<HTMLElement>(`[data-r4-proof-panel="${panel}"]`);
   const offset = element && surface ? element.getBoundingClientRect().top - surface.getBoundingClientRect().top : 0;
-  return Math.min(range.end, range.start + Math.max(0, offset));
+  const target = Math.min(range.end, range.start + Math.max(0, offset));
+  // Native scrolling can round fractional coordinates into the preceding
+  // transition. Keep positive holds inside their half-open interval, including
+  // Proof aliases whose text anchor lies beyond the last readable pixel.
+  const firstPixel = Math.ceil(range.start);
+  const lastPixel = Math.ceil(range.end) - 1;
+  return lastPixel >= firstPixel
+    ? Math.max(firstPixel, Math.min(lastPixel, Math.round(target)))
+    : target; // Preserve zero-length landmarks and subpixel-only holds.
 }
 
 export type ScrollTextBookmark = Readonly<{ rangeId: string; node: HTMLElement; viewportTop: number }>;

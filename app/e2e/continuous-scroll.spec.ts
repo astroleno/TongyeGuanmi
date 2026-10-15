@@ -438,9 +438,14 @@ for (const platform of ['desktop', 'phone'] as const) {
       await expect.poll(async () => (await state(page))?.desired.rangeId, { timeout: 25000 }).toBe('hold:figure2-proof');
       await expect.poll(async () => (await state(page))?.desired.readingOffset).toBeGreaterThan(700);
       const navigate = (hash: string) => page.evaluate((hash) => (window as unknown as { __r5ScrollStory: { navigate(hash: string): void } }).__r5ScrollStory.navigate(hash), hash);
+      await navigate('#figure2-proof-closing');
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await expect.poll(async () => (await state(page))?.desired.rangeId).toBe('hold:figure2-proof');
+      await expect.poll(async () => (await state(page))?.desired.readingOffset).toBeGreaterThan(700);
       await navigate('#services'); await seekRange(page, 'hold:services', .6);
       const saved = (await state(page))!.desired.readingOffset;
       await navigate('#education');
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await expect.poll(async () => (await state(page))?.desired.rangeId).toBe('hold:education');
       await page.goBack();
       await expect.poll(async () => (await state(page))?.desired.rangeId).toBe('hold:services');

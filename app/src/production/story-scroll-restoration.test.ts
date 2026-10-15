@@ -23,7 +23,42 @@ describe('semantic scroll restoration', () => {
     surface.getBoundingClientRect = () => ({ top: -900 } as DOMRect);
     node.getBoundingClientRect = () => ({ top: -100 } as DOMRect);
     const start = index.ranges.find(({ id }) => id === 'hold:figure2-proof')!.start;
-    expect(scrollPositionForHash(index, '#figure2-proof-cards', root)).toBe(start + 800);
+    expect(scrollPositionForHash(index, '#figure2-proof-cards', root)).toBe(Math.round(start + 800));
+  });
+  it.each(['desktop', 'phone'] as const)('keeps chapter targets inside the hold after native pixel rounding on %s', platform => {
+    const index = createScrollSpine({ viewportHeight: 844, platform, contentHeights: {
+      'method-top': 1800, 'figure2-proof': 2600, brand: 1600,
+      services: 2200, lab: 1900, education: 2000, contact: 1700
+    } });
+    const root = document.createElement('main');
+    for (const range of index.ranges.filter(range => range.kind === 'hold' && range.reading)) {
+      const hash = range.scene === 'method-top' ? '#method' : `#${range.scene}`;
+      const target = scrollPositionForHash(index, hash, root);
+      expect(target).toBe(Math.ceil(range.start));
+      expect(locateScrollPosition(index, Math.round(target)).rangeId).toBe(range.id);
+    }
+    // This fractional start formerly rounded back into ph-education.
+    const education = index.ranges.find(({ id }) => id === 'hold:education')!;
+    expect(Math.round(education.start)).toBeLessThan(education.start);
+  });
+  it('clamps a late Proof alias to the last reachable pixel before the outgoing transition', () => {
+    const index = createScrollSpine({ viewportHeight: 844, contentHeights: { 'figure2-proof': 2400 } });
+    const root = document.createElement('main');
+    root.innerHTML = '<section data-scroll-content="figure2-proof"><div data-r4-proof-panel="closing"></div></section>';
+    const surface = root.firstElementChild as HTMLElement;
+    const node = surface.firstElementChild as HTMLElement;
+    surface.getBoundingClientRect = () => ({ top: -900 } as DOMRect);
+    node.getBoundingClientRect = () => ({ top: 3000 } as DOMRect);
+    const range = index.ranges.find(({ id }) => id === 'hold:figure2-proof')!;
+    const target = scrollPositionForHash(index, '#figure2-proof-closing', root);
+    expect(target).toBe(Math.ceil(range.end) - 1);
+    expect(locateScrollPosition(index, target).rangeId).toBe(range.id);
+  });
+  it('preserves zero-length scene landmarks', () => {
+    const index = createScrollSpine({ viewportHeight: 844 });
+    const range = index.ranges.find(({ id }) => id === 'hold:brand')!;
+    expect(range.end).toBe(range.start);
+    expect(scrollPositionForHash(index, '#brand', document.createElement('main'))).toBe(range.start);
   });
   it('preserves the visible text block after reflow and rejects a detached block', () => {
     const index = createScrollSpine({ viewportHeight: 800, contentHeights: { lab: 2000 } });
