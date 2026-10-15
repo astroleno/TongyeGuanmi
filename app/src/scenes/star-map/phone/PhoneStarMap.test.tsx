@@ -146,6 +146,21 @@ describe('clean PhoneStarMap leaf', () => {
       .toBe('1');
   });
 
+  it.each([.25, .75, 1])('keeps a late decoded scroll frame on progress %s rather than the ready RAF clock', async progress => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneStarMap reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: mount.reports, frameToken: 'scroll:star', sampling: 'scroll' });
+    commands.render(progress);
+    expect(revealProbe.instance!.renderBackground).not.toHaveBeenCalled();
+    await prepareReadySource(host, frames);
+    expect(revealProbe.instance!.renderBackground).toHaveBeenLastCalledWith(expect.objectContaining({ timeSeconds: progress * 12 }));
+    commands.render(progress);
+    expect(revealProbe.instance!.renderBackground).toHaveBeenLastCalledWith(expect.objectContaining({ timeSeconds: progress * 12 }));
+    expect(frames).toHaveLength(0);
+    await act(async () => root.unmount());
+  });
+
   it('gives only the ambient Perlin layer a visible breathing range over its 4.4s cycle', () => {
     const layers = [0, 1.1, 2.2].map((seconds) => (
       phoneStarMapAmbientLayer(seconds, false)

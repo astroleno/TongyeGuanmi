@@ -100,6 +100,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
   const copyRef = useRef<HTMLDivElement | null>(null);
   const revealRef = useRef<StarFieldReveal | null>(null);
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
+  const scrollProgressRef = useRef(0);
   const readyFrameRef = useRef(0);
   const liveFrameRef = useRef(0);
   const lastPaintedAtRef = useRef(-Infinity);
@@ -191,6 +192,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
 
   const applyProgress = useCallback((rawProgress: number) => {
     const frame = phoneStarMapFrame(rawProgress);
+    scrollProgressRef.current = frame.progress;
     if (canvasRef.current) {
       canvasRef.current.dataset.portraitStarPerlinProgress = frame.progress.toFixed(4);
     }
@@ -293,7 +295,9 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
         readyFrameRef.current = window.requestAnimationFrame(awaitReady);
         return;
       }
-      paint(time, true);
+      // A late decoded frame must use the latest scrub pose, not overwrite it
+      // with wall time after the scroll renderer has already sampled the leaf.
+      paint(bindingRef.current?.sampling === 'scroll' ? scrollProgressRef.current * 12000 : time, true);
     };
     void waitForDecodedImage(source).then(() => {
       if (disposedRef.current) return;
