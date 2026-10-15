@@ -37,6 +37,47 @@
 
 本轮证据目录 `/tmp/tongye-20261015-iteration-JruRTg/`：`timing-before.json`、`phone-timing-before.json`、`timing-after.json`、`pattern-before.json`、`pattern-after.json`、`performance-matrix.json`、`performance-matrix-after.json`、`media-chromium-desktop.json`、`full-after.json`，以及对应截图和每帧采样。未创建 HTML 报告。
 
+### 补充：实际修复原生像素量化，不只补验收
+
+`4aa06e31baef6c22d3e71b8fad859ba191bbe74f` 的完整本地 Lint、类型、生产构建和 **207 文件／1694 项单测**通过，产物树为 `e4484bcdfab80c65412f5cb13e080665d41a30a710573c4376c41f06823d2e08`。其浏览器长跑为 **94 通过、3 失败、4 原有能力跳过、1 未运行**（17.2 分钟；`full-navigation.json`）。双端／双引擎全 15 段正反向及两轮资源往返通过；Chromium 双端与 WebKit 桌面的全段中点画面对比通过，但这不是整轮通过。
+
+失败不是都能归因于负载：手机 `/brand-lab` 停在上一段 99.9605%；WebKit 手机取消减少动态效果后，Education 又落回 PH 末端；WebKit 手机中点画面测试离开 Pattern 时，不能进入零长度 Contact，停在 Crane 99.9693%。这些快照已 ready、视频已暂停并收敛，不能当成解码超时或扩大 25 秒等待来处理。
+
+直接测原生坐标（`native-rounding.json`）：Chromium 将 `1000.6` 变成 `1001`，WebKit 将 `1000.6`／`1000.99` 都变成 `1000`；WebKit 的逻辑末端 `30303.73333333333` 只能抵达 `30303`。因此仅处理正长度 hold 不够，零长度入口、重排恢复和末端也必须处理。
+
+`bf39813` 在同一个 Lenis／RAF owner 内，仅为程序立即定位保留不足 1 CSS 像素的原生舍入差。原生位置一变化或开始 smooth 输入立即解除；不会重新套回旧值。资源唤醒、前后台恢复与动态效果切换保留静止入口；取消已有惯性仍取当前原生位置，不重放隐藏时间。开发中原运动偏好测试抓出了取旧动画坐标的错误（旧原型全量 1699/1700），已保留断言修正；该提交 **207 文件／1704 项单测**和完整构建／Lint 通过。新测试覆盖四舍五入、向下截断、原生／smooth 输入解除、原生限位、前后台与动态效果切换。
+
+`d562bed3158eff1d954a1021a1f824548e66cbba` 另将文档总高度向上取整，最多补不足 1px 的末端物理范围，保证不经程序定位的原生滚动也能到达 Contact；各段起止、原时间比和曲线不变。浏览器页脚用例增加“离开已定位点 → 原生回顶 → 原生到底”，品牌入口增加原生帧后及刷新后的第 0 帧检查，没有放宽原断言或时限。
+
+最终构建绑定该 clean source，产物树 `ed78950b2fdd03555ae7d958e3a7db8fea017bca0400e7445216452122e93bca`；CSS **75,673 B**、desktop JS **513,477 B**、phone JS **615,275 B**，原上限全部通过，手机余量 **50,325 B**。完整构建、Lint 和 **207 文件／1705 项单测**通过（`unit-terminal-final.json`），没有通过累加不同失败轮次来得出全量结论。清单仍为 `pending-memory`，candidate/tag 为空、CDN disabled。
+
+同产物先跑关键 12 项：10 通过、1 失败、1 未运行（`final-critical.json`）。WebKit 手机 Figure2 重挂准备超时，错误清理后的快照为 playhead 0／旧证明 2.0667；不能仅据此断言时间重置是原因。逐事件采集的 90 次定位／重挂随后通过（`remount-trace.json`）。未修改代码或时限，完整关键组复跑 **12/12 通过**（`final-critical-repeat.json`）；该偶发失败根因仍未定位，不因复跑通过而撤销风险。
+
+同一产物其余 90 项另跑为 **86 通过、4 原有 WebKit 输入注入能力跳过**（`final-remaining.json`，13.8 分钟）。两批的用例身份已与完整 102 项清单核对：无重复、无缺项、无额外项、无重试／flaky，合计 **98 通过／4 跳过**（`final-coverage.json`）。不是将首批失败轮次中的 10 个通过拼成“全绿”。这证明本次功能和画面对比覆盖，不消除上段的偶发可靠性风险，也不替代性能、冻结内存或真机认证。
+
+最终产物另完成四组八代表段性能重采（`performance-matrix-final.json`）：**32/32 完整前台采样**、正确区间／当前 epoch、暂停视频、最终 80% 画面检查通过，停止后收敛最长 **66ms**，无页面／console error，也没有本轮媒体准备中断。但性能资格仍未通过：
+
+| 环境 | 空白页 RAF P95 | 完成段数 | 满足全部原门槛 |
+| --- | ---: | ---: | ---: |
+| Chromium 桌面 | 16.7ms | 8/8 | 4/8 |
+| Chromium 手机模拟 | 16.8ms | 8/8 | 7/8 |
+| WebKit 桌面 | 35ms | 8/8 | 0/8，LongTasks 不可测 |
+| WebKit 手机模拟 | 35ms | 8/8 | 0/8，LongTasks 不可测 |
+
+Chromium 桌面 Pattern 帧间隔 P95 **83.3ms**；Hero／Figure2／Crane 的目标跟随 P95 分别约 **370.4／368.6／148.1ms**。手机仅 Pattern 未通过：帧间隔 P95 **33.4ms**、2 次超过 50ms 的长任务。WebKit 在空白页就超过 20ms，不能据此将全部失败归因于应用，也不能将该环境写成 60Hz 合格；LongTasks 仍为 `null`。本轮负载约 4–10，接电低电量模式仍为 1，未更改全局电源选项。没有与同负载、同环境的原版本做受控性能 A/B，因此不以不同轮次的通过率宣称优化提速。
+
+验收结论：不是“只剩真机”——性能原门槛、上述未定位的 WebKit 偶发准备超时、冻结身份两轮内存和真实设备／旧系统复测仍未关闭。未新增 tag、发布候选或部署。最新 source 的远端 CI 结果尚未返回；不能把前面的 eb4dad4 CI 成功转记到 d562bed。
+
+该产物冷 Hero → 点击留学菜单 → 刷新 → Proof 尾部别名的双引擎／双端 **4/4 流程**通过（`navigation-qa.json`）：标题与 URL、非空正文、无错误覆盖、无 page／console error／HTTP 错误、当前 epoch 与活动阅读层通过，8 张截图保留，桌面 Hero 与 WebKit 手机 Education 已实看。WebKit 两端各有原字体 preload 延迟使用警告，保留原字体与版式。
+
+最终前后画面对比（`pattern-after-final.json`）为 **19/20 通过**；WebKit 手机 75% 像素差 **0.569024%**，超过原 **0.5%**。实看差异集中于星图高光，不能将这轮记为 20/20；旧 `pattern-after.json` 的 20/20 只属于前面的 eb4dad4 产物。
+
+### 补充：异步星图高光必须使用进度时钟
+
+检查发现一个可独立复现的时钟混用：`PhoneStarMap.render` 在 scroll 模式使用 `progress * 12000`，图像异步就绪回调却调用 `paint(readyRafTime)`。当回调晚于滚动命令时，会用墙上时间覆盖正确画面。新增 25%／75%／100% 三项单测，在旧代码上都绘成 0.016 秒，而非 3／9／12 秒，三项均失败。
+
+修复用 ref 保存最新进度，仅修正该就绪回调；不增加 React 重渲染或 RAF，不改原环境模式 12fps 时钟、4.4 秒呼吸曲线、强度、噪声、光晕或摄影参数。相关 **4 文件／20 单测**、类型和定向 Lint 通过，原 5 项行为契约保留。此缺陷成立，但尚不能断定它是上述像素超限的唯一原因；新产物验收另补，不改基线或提高容差。
+
 ## 2026-10-15 验收工具迁移与提交迭代
 
 用户批准继续原方案内迭代、直接 commit 并 push 到 `origin/main`，不部署网站。没有创建 agent、分支或 worktree。只删除了明确批准的 `.release/r5-7b89425/cdn`、`.release/r5-334dccf/cdn`、`.release/r5-a4ba76c/cdn` 三份旧本地 CDN 副本（约 228 MiB）；各自 site、清单和内存证据、v54/v55 完整包及源码素材保留，可从对应 Git 版本重建。
