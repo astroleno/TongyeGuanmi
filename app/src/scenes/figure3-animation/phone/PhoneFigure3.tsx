@@ -402,7 +402,9 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.dataset.phoneFigure3PaperScale = frame.videoScale.toFixed(4);
-      if (mediaRun) compositorRef.current?.paint();
+      // Scroll coherence copies the accepted decoder sample in its `present`
+      // phase, including the held Brand receiver; avoid painting it twice.
+      if (mediaRun && bindingRef.current?.sampling !== 'scroll') compositorRef.current?.paint();
     }
   }, [currentRunId]);
 

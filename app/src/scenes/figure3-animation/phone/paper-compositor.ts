@@ -1,4 +1,4 @@
-import { canCompositeScrollMedia } from '../../../media/scroll-media-sampling';
+import { canCompositeScrollMedia, registerScrollMediaCompositor } from '../../../media/scroll-media-sampling';
 export const PHONE_FIGURE3_PAPER_COLOR = '#ede4d2';
 
 const MAX_CANVAS_PIXEL_RATIO = 2;
@@ -164,6 +164,10 @@ export function createPhoneFigure3PaperCompositor({
     if (painted) onPresentedFrame?.();
     return painted;
   };
+  // A paused endpoint may have produced an empty first loadeddata raster.
+  // Once coherence owns this decoder, event-driven paints are intentionally
+  // blocked; its accepted sample must copy the actual frame in `present` too.
+  const unregisterScrollCompositor = registerScrollMediaCompositor(video, paint);
 
   const cancelScheduledFrame = () => {
     if (videoFrame !== undefined) {
@@ -226,6 +230,7 @@ export function createPhoneFigure3PaperCompositor({
     dispose() {
       if (disposed) return;
       disposed = true;
+      unregisterScrollCompositor();
       cancelScheduledFrame();
       for (const event of ['loadeddata', 'canplay', 'seeked', 'timeupdate', 'play', 'playing']) {
         video.removeEventListener(event, onFrameEvidence);

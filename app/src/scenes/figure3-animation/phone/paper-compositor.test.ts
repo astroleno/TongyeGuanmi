@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { compositeScrollMedia, sampleScrollMedia } from '../../../media/scroll-media-sampling';
 import {
   PHONE_FIGURE3_PAPER_COLOR,
   createPhoneFigure3PaperCompositor,
@@ -120,5 +121,33 @@ describe('Figure3 phone paper compositor', () => {
     expect(onFrame).toHaveBeenCalledOnce();
     expect(onPresentedFrame).toHaveBeenCalledTimes(2);
     compositor.dispose();
+  });
+
+  it('repaints the decoded scroll sample in the coherent presentation phase, including held endpoints', () => {
+    const context = { clearRect: vi.fn(), drawImage: vi.fn(), fillRect: vi.fn(),
+      setTransform: vi.fn(), globalCompositeOperation: 'source-over' };
+    const video = { dataset: { scrollMediaCoherent: 'true' }, readyState: 2,
+      videoWidth: 1280, videoHeight: 720, paused: true, ended: false,
+      addEventListener: vi.fn(), removeEventListener: vi.fn()
+    } as unknown as HTMLVideoElement;
+    const canvas = { width: 390, height: 844, clientWidth: 390, clientHeight: 844,
+      dataset: {}, getBoundingClientRect: () => ({ width: 390, height: 844 }),
+      getContext: () => context
+    } as unknown as HTMLCanvasElement;
+    const onPresentedFrame = vi.fn();
+    const compositor = createPhoneFigure3PaperCompositor({ video, canvas, onPresentedFrame });
+    expect(context.drawImage).not.toHaveBeenCalled();
+    expect(compositor.paint()).toBe(false);
+    expect(sampleScrollMedia('request', () => compositeScrollMedia(video))).toBe(false);
+    expect(sampleScrollMedia('present', () => compositeScrollMedia(video))).toBe(true);
+    expect(context.drawImage).toHaveBeenCalledOnce();
+    expect(onPresentedFrame).toHaveBeenCalledOnce();
+    // Another settled endpoint still needs its real frame copied, even if no
+    // formal scene playback clock is active (Brand → Figure3).
+    expect(sampleScrollMedia('present', () => compositeScrollMedia(video))).toBe(true);
+    expect(context.drawImage).toHaveBeenCalledTimes(2);
+    compositor.dispose();
+    sampleScrollMedia('present', () => compositeScrollMedia(video));
+    expect(context.drawImage).toHaveBeenCalledTimes(2);
   });
 });

@@ -107,6 +107,18 @@ function webGlHarness() {
 }
 
 describe('ink WebGL resource lifecycle', () => {
+  it('samples an explicit effect clock including zero instead of wall time', () => {
+    const { canvas, gl } = webGlHarness();
+    const transition = createInkBoundaryTransition(canvas);
+    const frame = createInkFieldFrame({ kind: 'radial', origin: { x: .5, y: .28 }, seed: 'scroll-clock' }, .5, { width: 390, height: 844 });
+    for (const timeSeconds of [6, 0, 6]) {
+      gl.uniform1f.mockClear();
+      transition?.render({ ...frame, timeSeconds });
+      expect(gl.uniform1f).toHaveBeenCalledWith('T', timeSeconds);
+    }
+    transition?.destroy();
+  });
+
   it('borrows one GL context, copies its own output and never retires the lender', () => {
     const { canvas: sharedCanvas, gl, loseContext } = webGlHarness();
     const output = { clearRect: vi.fn(), drawImage: vi.fn() };

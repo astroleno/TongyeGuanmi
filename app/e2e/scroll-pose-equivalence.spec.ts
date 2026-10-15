@@ -51,6 +51,121 @@ for (const platform of ['desktop', 'phone'] as const) {
       await seek(page, 'hold:contact', .5);
       await seek(page, 'crane-contact', .5);
     });
+    if (platform === 'phone') test('Figure3 remount presents its decoded endpoint after an empty initial video draw', async ({ page }) => {
+      await page.addInitScript(() => {
+        const draw = CanvasRenderingContext2D.prototype.drawImage;
+        CanvasRenderingContext2D.prototype.drawImage = function (...args: Parameters<typeof draw>) {
+          const source = args[0];
+          // Reproduce WebKit's loadeddata-before-drawable-frame timing without
+          // changing the decoder, its target, or any readiness/visual threshold.
+          if (source instanceof HTMLVideoElement && source.dataset.mediaKey === 'figure3-motion'
+            && this.canvas.dataset.phoneFigure3PaperCanvas !== undefined
+            && source.dataset.timelineVideoFrameReady !== 'true') return;
+          Reflect.apply(draw, this, args);
+        };
+      });
+      await page.goto('/#method');
+      await page.waitForFunction(() => Boolean((window as unknown as { __r5ScrollStory?: unknown }).__r5ScrollStory));
+      await page.locator('.story-loader').waitFor({ state: 'hidden' });
+      let baseline: Buffer | null = null;
+      for (let cycle = 0; cycle < 4; cycle++) {
+        if (cycle) await seek(page, 'hold:contact', 0);
+        await seek(page, 'brand-figure3', .5);
+        const darkSamples = await page.evaluate(() => {
+          const canvas = document.querySelector<HTMLCanvasElement>('[data-phone-figure3-paper-canvas]')!;
+          const sample = document.createElement('canvas'); sample.width = sample.height = 64;
+          const context = sample.getContext('2d')!; context.drawImage(canvas, 0, 0, 64, 64);
+          const pixels = context.getImageData(0, 0, 64, 64).data;
+          let ink = 0;
+          for (let i = 0; i < pixels.length; i += 4) if (pixels[i]! < 180 && pixels[i + 3]! > 24) ink++;
+          return ink;
+        });
+        expect(darkSamples, 'ready must contain the real figure, not just its paper background').toBeGreaterThan(100);
+        const image = await page.screenshot();
+        if (baseline) expect(difference(baseline, image), `remount ${cycle}`).toBeLessThanOrEqual(.005);
+        else baseline = image;
+      }
+    });
+    test('Pattern 75% keeps its particle and scene rasters after parking, reverse and remount', async ({ page }) => {
+      type Readback = { width: number; height: number; rgba: string; painted: number; time: number };
+      type Probe = { __patternReadback: Readback | null; __patternReadbackArmed: boolean };
+      await page.addInitScript(() => {
+        const probe = window as unknown as Probe;
+        const names = new WeakMap<WebGLUniformLocation, string>();
+        const progress = new WeakMap<WebGLRenderingContext, number>();
+        const times = new WeakMap<WebGLRenderingContext, number>();
+        const getLocation = WebGLRenderingContext.prototype.getUniformLocation;
+        WebGLRenderingContext.prototype.getUniformLocation = function (program, name) {
+          const location = getLocation.call(this, program, name);
+          if (location) names.set(location, name);
+          return location;
+        };
+        const setFloat = WebGLRenderingContext.prototype.uniform1f;
+        WebGLRenderingContext.prototype.uniform1f = function (location, value) {
+          if (location && names.get(location) === 'P') progress.set(this, value);
+          if (location && names.get(location) === 'T') times.set(this, value);
+          return setFloat.call(this, location, value);
+        };
+        const draw = WebGLRenderingContext.prototype.drawArrays;
+        WebGLRenderingContext.prototype.drawArrays = function (mode, first, count) {
+          draw.call(this, mode, first, count);
+          if (!probe.__patternReadbackArmed || !(this.canvas instanceof HTMLCanvasElement)
+            || this.canvas.dataset.r4InkSegment !== 'pattern-star-map'
+            || Math.abs((progress.get(this) ?? -1) - .5) > .0001) return;
+          // Window-managed GL deliberately discards its backing buffer after
+          // presentation. Read in the draw task, not two compositor frames later.
+          const width = this.drawingBufferWidth, height = this.drawingBufferHeight;
+          const pixels = new Uint8Array(width * height * 4);
+          this.readPixels(0, 0, width, height, this.RGBA, this.UNSIGNED_BYTE, pixels);
+          let painted = 0, binary = '';
+          for (let offset = 3; offset < pixels.length; offset += 4) if (pixels[offset]! > 24) painted++;
+          for (let offset = 0; offset < pixels.length; offset += 16384) {
+            binary += String.fromCharCode(...pixels.subarray(offset, offset + 16384));
+          }
+          probe.__patternReadback = { width, height, rgba: btoa(binary), painted, time: times.get(this) ?? NaN };
+          probe.__patternReadbackArmed = false;
+        };
+      });
+      await page.goto('/#method');
+      await page.waitForFunction(() => Boolean((window as unknown as { __r5ScrollStory?: unknown }).__r5ScrollStory));
+      await page.locator('.story-loader').waitFor({ state: 'hidden' });
+      await seek(page, 'pattern-star-map', .25);
+      await seek(page, 'pattern-star-map', .75);
+      const raster = async () => {
+        await page.evaluate(() => {
+          const probe = window as unknown as Probe;
+          probe.__patternReadback = null;
+          probe.__patternReadbackArmed = true;
+          const api = (window as unknown as { __r5ScrollStory: {
+            snapshot(): { desired: { scroll: number } }; seek(y: number): void;
+          } }).__r5ScrollStory;
+          api.seek(api.snapshot().desired.scroll);
+        });
+        await page.waitForFunction(() => Boolean((window as unknown as Probe).__patternReadback), undefined, { timeout: 10000 });
+        const image = await page.evaluate(() => (window as unknown as Probe).__patternReadback!);
+        expect(image.painted, 'must read a real nonblank draw, not a discarded GL buffer').toBeGreaterThan(100);
+        expect(image.time).toBeCloseTo(6, 5);
+        return { width: image.width, height: image.height, data: Buffer.from(image.rgba, 'base64') };
+      };
+      const beforeInk = await raster();
+      const before = await page.screenshot();
+      await page.waitForTimeout(500);
+      for (const approach of ['parked', 'reverse', 'remount']) {
+        if (approach !== 'parked') {
+          await seek(page, approach === 'reverse' ? 'pattern-star-map' : 'hold:contact', approach === 'reverse' ? .25 : 0);
+          await seek(page, 'pattern-star-map', .75);
+        }
+        expect(difference(before, await page.screenshot()), `${approach} full scene`).toBeLessThanOrEqual(.005);
+        const ink = await raster();
+        expect([ink.width, ink.height, ink.data.length]).toEqual([beforeInk.width, beforeInk.height, beforeInk.data.length]);
+        let changed = 0;
+        for (let offset = 0; offset < ink.data.length; offset += 4) {
+          if ([0, 1, 2, 3].some(channel => Math.abs(ink.data[offset + channel]! - beforeInk.data[offset + channel]!) > 24)) changed++;
+        }
+        expect(changed, `${approach} particles must use the same pose clock`).toBe(0);
+        expect(difference(before, await page.screenshot()), `${approach} redraw`).toBeLessThanOrEqual(.005);
+      }
+    });
     if (platform === 'phone') test('Hero entry midpoint preserves both layers after reverse and remount', async ({ page }) => {
       await page.goto('/');
       await page.waitForFunction(() => Boolean((window as unknown as { __r5ScrollStory?: unknown }).__r5ScrollStory));

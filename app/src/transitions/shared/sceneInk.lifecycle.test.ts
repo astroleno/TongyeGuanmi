@@ -57,6 +57,26 @@ beforeEach(() => {
 });
 
 describe('shared ink renderer lifecycle', () => {
+  it('uses the same scroll particle clock for repeat, reverse and remount poses without changing legacy frames', () => {
+    const { surface } = canvas();
+    Object.assign(surface, { closest: () => ({}) });
+    const frame = createInkFieldFrame({ kind: 'radial', origin: { x: .5, y: .28 }, seed: 'clock' }, .5, { width: 390, height: 844 });
+    const renderer = createInkFieldRenderer(surface);
+    renderer?.render(frame);
+    expect(vendor.boundaryRender).toHaveBeenLastCalledWith({ ...frame, timeSeconds: 6 }, 0, 0);
+    renderer?.render({ ...frame, progress: .25 });
+    expect(vendor.boundaryRender).toHaveBeenLastCalledWith({ ...frame, progress: .25, timeSeconds: 3 }, 0, 0);
+    renderer?.render(frame);
+    expect(vendor.boundaryRender).toHaveBeenLastCalledWith({ ...frame, timeSeconds: 6 }, 0, 0);
+    renderer?.destroy();
+    const remount = canvas();
+    Object.assign(remount.surface, { closest: () => ({}) });
+    const next = createInkFieldRenderer(remount.surface);
+    next?.render(frame);
+    expect(vendor.boundaryRender).toHaveBeenLastCalledWith({ ...frame, timeSeconds: 6 }, 0, 0);
+    next?.destroy();
+  });
+
   it('forwards one boundary frame and releases WebGL resources before removing its canvas', () => {
     const { surface } = canvas();
     const renderer = createInkFieldRenderer(surface);

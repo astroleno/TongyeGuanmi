@@ -258,7 +258,11 @@ export function createInkFieldRenderer(
       } else {
         markBoundaryFrame(canvas, frame);
       }
-      transition?.render(frame, 0, 0);
+      // Particle drift belongs to the scrub pose too, not the time spent
+      // loading, parking, or approaching this same position from another side.
+      const sampled = canvas.closest?.('[data-scroll-platform]')
+        ? { ...frame, timeSeconds: frame.progress * 12 } : frame;
+      transition?.render(sampled, 0, 0);
     },
     prewarm(frame: InkFieldFrame) {
       if (!isActive()) {

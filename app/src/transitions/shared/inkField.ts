@@ -39,6 +39,8 @@ type InkFieldFrameBase<Spec extends InkFieldSpec> = Readonly<{
   spec: Spec;
   viewport: InkViewport;
   progress: number;
+  /** Explicit pose clock for scroll sampling; legacy effects retain wall time. */
+  timeSeconds?: number;
   seed: number;
   ownership: Readonly<{
     revealClip?: string;

@@ -440,7 +440,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
       }
       gl.uniform2f(uniforms.resolution, width, height);
       gl.uniform1f(uniforms.progress, visibleProgress);
-      gl.uniform1f(uniforms.time, performance.now() * 0.001);
+      gl.uniform1f(uniforms.time, frame.timeSeconds ?? performance.now() * 0.001);
       gl.uniform1f(uniforms.seed, frame.seed / 0xffffffff);
       gl.uniform1f(uniforms.colorLift, colorLift);
       gl.uniform1f(uniforms.particleGain, particleGain);
