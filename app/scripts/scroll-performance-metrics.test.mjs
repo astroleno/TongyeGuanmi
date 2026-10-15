@@ -8,7 +8,7 @@ function healthyRun() {
     desired: .2 + index * .6 / 600, documentPose: .2 + index * .6 / 600,
     presented: .2 + index * .6 / 600 - .001, rangeId: id,
     epoch: 1, presentedEpoch: 1, visible: true,
-    videos: [{ target: index / 600, sourceTime: index / 600, paused: true }]
+    videos: [{ target: index / 600, presentedTime: index / 600, sourceTime: index / 600, paused: true }]
   }));
   return { id, samples, longTasks: [], longTasksSupported: true, convergenceMs: 20,
     final: { desired: { rangeId: id, progress: .8 }, presented: { progress: .8, epoch: 1 }, intent: { epoch: 1 },
@@ -35,6 +35,13 @@ describe('continuous-scroll performance evidence', () => {
     expect(summarizeScrollPerformance({ ...healthyRun(), longTasksSupported: false })).toMatchObject({
       passed: false, measuredPassed: true, unavailable: ['longTasks'], metrics: { over50msTasks: null }
     });
+  });
+  it('separates an in-flight request from the source-frame error of its presented proof', () => {
+    const run = healthyRun();
+    run.samples = run.samples.map(s => ({ ...s,
+      videos: [{ target: 1.3, presentedTime: 1, sourceTime: 1, paused: true }] }));
+    expect(summarizeScrollPerformance(run).metrics).toMatchObject({ sourceFrameErrorSecondsP95: 0 });
+    expect(summarizeScrollPerformance(run).metrics.requestedFrameLagSecondsP95).toBeCloseTo(.3);
   });
   it('rejects measured long tasks without changing the 50ms boundary', () => {
     expect(summarizeScrollPerformance({ ...healthyRun(), longTasks: [{ duration: 50 }] }).passed).toBe(true);

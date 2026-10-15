@@ -26,6 +26,8 @@ export function summarizeScrollPerformance(result) {
     poseLagP95: percentile95(presented.map((sample) => Math.max(0, sample.desired - sample.presented) * 10000 / .6)),
     documentPoseLagP95: percentile95(presented.map((sample) => Math.max(0, sample.documentPose - sample.presented) * 10000 / .6)),
     sourceFrameErrorSecondsP95: percentile95(samples.flatMap((sample) => (sample.videos ?? [])
+      .filter((video) => video.sourceTime !== null).map((video) => Math.abs(video.presentedTime - video.sourceTime)))),
+    requestedFrameLagSecondsP95: percentile95(samples.flatMap((sample) => (sample.videos ?? [])
       .filter((video) => video.sourceTime !== null).map((video) => Math.abs(video.target - video.sourceTime)))),
     allVideosPaused: samples.length > 0 && samples.every((sample) => Array.isArray(sample.videos)
       && sample.videos.every((video) => video.paused === true)),

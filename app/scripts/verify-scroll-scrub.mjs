@@ -88,7 +88,7 @@ try {
           // scheduling this callback. Use one clock for the entire sweep.
           start ??= now; previous ??= now;
           const progress = .2 + .6 * Math.min(1, (now - start) / duration);
-          window.scrollTo(0, range.start + (range.end - range.start) * progress);
+          window.scrollTo(0, Math.round(range.start + (range.end - range.start) * progress));
           const state = api.snapshot();
           samples.push({ time: now - start, interval: now - previous,
             rangeId: state.desired.rangeId, epoch: state.intent.epoch, presentedEpoch: state.presented?.epoch ?? null,
