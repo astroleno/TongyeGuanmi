@@ -11,6 +11,7 @@ import {
 } from './patternBloomRenderer';
 
 class FakeCanvasContext {
+  constructor(readonly canvas: FakeCanvas) {}
   private filterValue = 'none';
   clearRectCount = 0;
   filteredDrawCount = 0;
@@ -20,6 +21,7 @@ class FakeCanvasContext {
   shadowColor = 'transparent';
   shadowOffsetY = 0;
   rotations: number[] = [];
+  draws: unknown[][] = [];
 
   arc(): void {}
   beginPath(): void {}
@@ -30,7 +32,8 @@ class FakeCanvasContext {
   closePath(): void {}
   get filter(): string { return this.filterValue; }
   set filter(value: string) { this.filterValue = value; }
-  drawImage(): void {
+  drawImage(...args: unknown[]): void {
+    this.draws.push(args);
     if (this.filterValue !== 'none') {
       this.filteredDrawCount += 1;
     }
@@ -47,7 +50,7 @@ class FakeCanvas {
   dataset: Record<string, string> = {};
   height = 0;
   width = 0;
-  readonly context = new FakeCanvasContext();
+  readonly context = new FakeCanvasContext(this);
   readonly contextOptions: Array<CanvasRenderingContext2DSettings | undefined> = [];
 
   getBoundingClientRect(): DOMRect {
@@ -407,6 +410,74 @@ describe('PatternBloomRenderer', () => {
     expect(liveRingCanvases.every((canvas) => canvas.context.filteredDrawCount > 0)).toBe(true);
     expect(outputContext.filteredDrawCount).toBe(0);
     expect(outputContext.shadowBlur).toBeGreaterThan(0);
+    renderer.destroy();
+  });
+
+  it('filters only the source crop needed by each wedge without changing ring resolution or destinations', async () => {
+    const harness = installRendererDom();
+    const renderer = new PatternBloomRenderer(harness.canvas);
+    await renderer.start();
+    const rings = harness.createElement.mock.results.map(({ value }) => value as FakeCanvas)
+      .filter(canvas => canvas.dataset.patternTextureRole === 'ring');
+    for (const progress of [0, .25, .5, .75, 1]) {
+      renderer.renderScrollProgress(progress, progress * 12);
+      for (const canvas of rings) {
+        const draws = canvas.context.draws.slice(-7);
+        expect(draws).toHaveLength(7);
+        for (const draw of draws.slice(0, 4)) {
+          expect(draw).toHaveLength(9);
+          const [sx, sy, sw, sh, dx, dy, dw, dh] = draw.slice(1) as number[];
+          expect(sx).toBeGreaterThanOrEqual(0);
+          expect(sy).toBeGreaterThanOrEqual(0);
+          expect(sx! + sw!).toBeLessThanOrEqual(1152);
+          expect(sy! + sh!).toBeLessThanOrEqual(1152);
+          expect(sw! * sh!).toBeLessThan(1152 * 1152 * .9);
+          expect(dw! / sw!).toBeCloseTo(canvas.width / 1152, 10);
+          expect(dh! / sh!).toBeCloseTo(canvas.height / 1152, 10);
+          expect(dx).toBeGreaterThanOrEqual(-canvas.width / 2);
+          expect(dy).toBeGreaterThanOrEqual(-canvas.height / 2);
+        }
+        for (const draw of draws.slice(4)) {
+          expect(draw).toHaveLength(9);
+          expect((draw[0] as FakeCanvas).dataset.patternTextureRole).toBe('quarter');
+          const [sx, sy, sw, sh, dx, dy, dw, dh] = draw.slice(1) as number[];
+          expect([sx, sy, dw, dh]).toEqual([0, 0, sw, sh]);
+          expect(dx! + canvas.width / 2).toBe(canvas.width - sw!);
+          expect(dy! + canvas.height / 2).toBe(canvas.height - sh!);
+          expect(sw! * sh!).toBeLessThan(canvas.width * canvas.height * .34);
+        }
+      }
+      const quarter = harness.createElement.mock.results.map(({ value }) => value as FakeCanvas)
+        .find(canvas => canvas.dataset.patternTextureRole === 'quarter')!;
+      expect(quarter.width).toBeLessThanOrEqual(592);
+      expect(quarter.height).toBeLessThanOrEqual(766);
+      expect(quarter.context.draws.at(-1)?.[0]).toBe(rings.at(-1));
+    }
+    expect(rings.map(canvas => canvas.width)).toEqual([320, 320, 320, 320, 320, 320]);
+    const quarters = harness.createElement.mock.results.map(({ value }) => value as FakeCanvas)
+      .filter(canvas => canvas.dataset.patternTextureRole === 'quarter');
+    expect(quarters).toHaveLength(1);
+    expect(quarters[0]?.width).toBe(162);
+    expect(quarters[0]?.height).toBe(209);
+    renderer.destroy();
+    expect(quarters[0]?.width).toBe(0);
+  });
+
+  it('falls back to all sixteen filtered wedges if the shared quarter context is unavailable', async () => {
+    const harness = installRendererDom();
+    let allocations = 0;
+    harness.createElement.mockImplementation(() => {
+      const canvas = new FakeCanvas();
+      if (++allocations === 9) vi.spyOn(canvas, 'getContext').mockReturnValue(null as unknown as CanvasRenderingContext2D);
+      return canvas;
+    });
+    const renderer = new PatternBloomRenderer(harness.canvas);
+    await renderer.start();
+    renderer.renderScrollProgress(.4, 4.8);
+    const rings = harness.createElement.mock.results.map(({ value }) => value as FakeCanvas)
+      .filter(canvas => canvas.dataset.patternTextureRole === 'ring');
+    expect(rings).toHaveLength(6);
+    expect(rings.every(canvas => canvas.context.filteredDrawCount === 16)).toBe(true);
     renderer.destroy();
   });
 

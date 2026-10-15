@@ -104,6 +104,10 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
   const readyFrameRef = useRef(0);
   const liveFrameRef = useRef(0);
   const lastPaintedAtRef = useRef(-Infinity);
+  const scrollRasterRef = useRef<Readonly<{
+    time: number; reduced: boolean; width: number; height: number;
+    pixelRatio: number; rasterWidth: number; rasterHeight: number;
+  }> | null>(null);
   const revisionRef = useRef(0);
   const firstFramePaintedRef = useRef(false);
   const sourceReadyRef = useRef(false);
@@ -144,6 +148,17 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     if (!reveal?.ready || !canvas || disposedRef.current
       || (!force && now - lastPaintedAtRef.current < FRAME_INTERVAL_MS)) return false;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const scroll = bindingRef.current?.sampling === 'scroll';
+    const width = canvas.clientWidth || canvas.parentElement?.clientWidth || window.innerWidth;
+    const height = canvas.clientHeight || canvas.parentElement?.clientHeight || window.innerHeight;
+    const pixelRatio = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+    const previous = scrollRasterRef.current;
+    if (scroll && previous?.time === now && previous.reduced === reducedMotion
+      && previous.width === width && previous.height === height && previous.pixelRatio === pixelRatio
+      && previous.rasterWidth === canvas.width && previous.rasterHeight === canvas.height) {
+      reportCurrentFrame();
+      return true;
+    }
     const seconds = now / 1000;
     const ambient = phoneStarMapAmbientLayer(seconds, reducedMotion);
     reveal.renderBackground({
@@ -153,6 +168,10 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
       camera: PHONE_STAR_CAMERA,
       drawSource: false
     });
+    scrollRasterRef.current = scroll ? {
+      time: now, reduced: reducedMotion, width, height, pixelRatio,
+      rasterWidth: canvas.width, rasterHeight: canvas.height
+    } : null;
     firstFramePaintedRef.current = true;
     lastPaintedAtRef.current = now;
     revisionRef.current += 1;
@@ -251,6 +270,7 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
     disposedRef.current = false;
     sourceReadyRef.current = false;
     firstFramePaintedRef.current = false;
+    scrollRasterRef.current = null;
     reportedTokenRef.current = null;
     reportedSourceTokenRef.current = null;
     revisionRef.current = 0;

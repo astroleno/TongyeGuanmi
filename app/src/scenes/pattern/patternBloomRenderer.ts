@@ -343,6 +343,8 @@ export class PatternBloomRenderer {
   readonly #flowerCanvas = document.createElement('canvas');
   readonly #flowerContext = this.#flowerCanvas.getContext('2d');
   readonly #ringCanvases = bloomRings.map(() => document.createElement('canvas'));
+  readonly #quarterCanvas = document.createElement('canvas');
+  readonly #quarterContext = this.#quarterCanvas.getContext('2d');
   #width = 0;
   #height = 0;
   #dpr = 1;
@@ -377,6 +379,7 @@ export class PatternBloomRenderer {
     this.#context = canvas.getContext('2d', { alpha: true });
     this.#petalCanvas.dataset.patternTextureRole = 'petal-source';
     this.#flowerCanvas.dataset.patternTextureRole = 'source-flower';
+    this.#quarterCanvas.dataset.patternTextureRole = 'quarter';
     for (const ringCanvas of this.#ringCanvases) {
       ringCanvas.dataset.patternTextureRole = 'ring';
     }
@@ -519,6 +522,7 @@ export class PatternBloomRenderer {
     for (const canvas of [
       this.#petalCanvas,
       this.#flowerCanvas,
+      this.#quarterCanvas,
       ...this.#ringCanvases
     ]) {
       canvas.width = 0;
@@ -770,23 +774,71 @@ export class PatternBloomRenderer {
     const sampleX = Math.cos(phase * 0.13 + spin) * drawSize * 0.012;
     const sampleY = Math.sin(phase * 0.11 - spin) * drawSize * 0.012;
 
+    // Each clipped wedge samples only the right-hand strip of the petal.
+    // Filtering the entire square sixteen times wastes most raster work.
+    // Keep integer source bounds and a conservative six-sigma blur halo;
+    // reflected wedges have the same symmetric bounds before sampleRotation.
+    const padding = (Number.parseFloat(filter.slice(5)) || 0) * 6 + 2;
+    const sourceScale = SOURCE_SIZE / drawSize;
+    const halfWedge = wedge / 2 + 0.003;
+    const minY = radius * Math.min(0, Math.sin(-halfWedge - sampleRotation));
+    const maxY = radius * Math.max(0, Math.sin(halfWedge - sampleRotation));
+    const x = -drawSize / 2 + sampleX;
+    const y = -drawSize / 2 + sampleY;
+    const sourceX = Math.max(0, Math.floor((-x - padding) * sourceScale));
+    const sourceY = Math.max(0, Math.floor((minY - y - padding) * sourceScale));
+    const sourceWidth = SOURCE_SIZE - sourceX;
+    const sourceHeight = Math.min(SOURCE_SIZE, Math.ceil((maxY - y + padding) * sourceScale)) - sourceY;
+
     ctx.save();
     ctx.rotate(rotation);
     ctx.filter = filter;
-    for (let index = 0; index < OUTER_KALEIDOSCOPE_SEGMENTS; index += 1) {
-      ctx.save();
-      ctx.rotate(index * wedge);
+    const drawWedge = () => {
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, radius, -wedge / 2 - 0.003, wedge / 2 + 0.003);
       ctx.closePath();
       ctx.clip();
-      if (index % 2 === 1) {
-        ctx.scale(1, -1);
-      }
       ctx.rotate(sampleRotation);
-      ctx.drawImage(this.#petalCanvas, -drawSize / 2 + sampleX, -drawSize / 2 + sampleY, drawSize, drawSize);
+      ctx.drawImage(this.#petalCanvas,
+        sourceX, sourceY, sourceWidth, sourceHeight,
+        x + sourceX / sourceScale, y + sourceY / sourceScale,
+        sourceWidth / sourceScale, sourceHeight / sourceScale);
+    };
+    // The first four clipped wedges occupy only the lower-right quarter,
+    // plus the first wedge's negative-y tip. Keep integer bounds and a two
+    // pixel antialias halo; copy at 1:1 so clipping adds no resampling.
+    const quarterX = Math.max(0, Math.floor(drawSize / 2) - 2);
+    const quarterY = Math.max(0, Math.floor(drawSize / 2 - radius * Math.sin(halfWedge)) - 2);
+    const quarterWidth = drawSize - quarterX;
+    const quarterHeight = drawSize - quarterY;
+    const scratch = this.#quarterCanvas;
+    const scratchContext = this.#quarterContext;
+    // Four authored wedges form one quarter. Copy only at right angles:
+    // arbitrary-angle bitmap reuse would add a second resampling pass.
+    for (let index = 0; index < (scratchContext ? 4 : OUTER_KALEIDOSCOPE_SEGMENTS); index += 1) {
+      ctx.save();
+      ctx.rotate(index * wedge);
+      if (index % 2 === 1) ctx.scale(1, -1);
+      drawWedge();
       ctx.restore();
+    }
+    if (scratchContext) {
+      if (scratch.width !== quarterWidth) scratch.width = quarterWidth;
+      if (scratch.height !== quarterHeight) scratch.height = quarterHeight;
+      scratchContext.clearRect(0, 0, quarterWidth, quarterHeight);
+      scratchContext.drawImage(ctx.canvas, quarterX, quarterY, quarterWidth, quarterHeight,
+        0, 0, quarterWidth, quarterHeight);
+    }
+    if (scratchContext) {
+      for (let quarter = 1; quarter < 4; quarter += 1) {
+        ctx.save();
+        ctx.rotate(quarter * TAU / 4);
+        ctx.filter = 'none';
+        ctx.drawImage(scratch, 0, 0, quarterWidth, quarterHeight,
+          quarterX - drawSize / 2, quarterY - drawSize / 2, quarterWidth, quarterHeight);
+        ctx.restore();
+      }
     }
     ctx.restore();
   }

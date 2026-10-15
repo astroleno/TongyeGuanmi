@@ -174,6 +174,47 @@ describe('clean PhoneStarMap leaf', () => {
     expect(phoneStarMapAmbientLayer(2.2, true)).toEqual({ strength: .72, noiseFloor: .02 });
   });
 
+  it('reuses an identical scroll raster across tokens but redraws on reverse, viewport and motion changes', async () => {
+    let reduced = false;
+    vi.stubGlobal('matchMedia', () => ({ matches: reduced }));
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneStarMap reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: mount.reports, frameToken: 'scroll:star:1', sampling: 'scroll' });
+    commands.render(1);
+    await prepareReadySource(host, frames);
+    const draw = revealProbe.instance!.renderBackground;
+    const initial = draw.mock.calls.length;
+    for (let frame = 0; frame < 60; frame++) commands.render(1);
+    expect(draw).toHaveBeenCalledTimes(initial);
+    const rebound = reportFixture();
+    commands.rebind({ reports: rebound.reports, frameToken: 'scroll:star:2', sampling: 'scroll' });
+    commands.render(1);
+    expect(draw).toHaveBeenCalledTimes(initial);
+    expect(rebound.reports.reportFrame).toHaveBeenCalledWith('star-map-canvas', expect.objectContaining({ token: 'scroll:star:2', presented: true }));
+    commands.render(.25);
+    expect(draw).toHaveBeenCalledTimes(initial + 1);
+    commands.render(1);
+    expect(draw).toHaveBeenCalledTimes(initial + 2);
+    const canvas = host.querySelector<HTMLCanvasElement>('[data-portrait-star-perlin]')!;
+    Object.defineProperty(canvas, 'clientWidth', { configurable: true, value: 430 });
+    commands.render(1);
+    expect(draw).toHaveBeenCalledTimes(initial + 3);
+    reduced = true;
+    commands.render(1);
+    expect(draw).toHaveBeenCalledTimes(initial + 4);
+    expect(draw).toHaveBeenLastCalledWith(expect.objectContaining({ strength: .72, noiseFloor: .02 }));
+    canvas.width += 1;
+    commands.render(1);
+    expect(draw).toHaveBeenCalledTimes(initial + 5);
+    vi.stubGlobal('devicePixelRatio', 2);
+    commands.render(1);
+    expect(draw).toHaveBeenCalledTimes(initial + 6);
+    expect(frames).toHaveLength(0);
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  });
+
   it('uses the desktop-scale glow hierarchy instead of a broad full-frame wash', async () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhoneStarMap reports={mount.reports} />); });
