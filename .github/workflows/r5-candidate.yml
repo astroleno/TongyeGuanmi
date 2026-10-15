@@ -36,3 +36,15 @@ jobs:
           python3 scripts/test-promote-r5-site.py
           bash -n scripts/promote-r5-site.sh
           node --check scripts/deploy-r5-release.mjs
+
+      - name: Save checked production preview for browser verification
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: r5-preview-${{ github.sha }}
+          path: dist/
+          # The Vite manifest is part of the hashed preview, not a secret file.
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3

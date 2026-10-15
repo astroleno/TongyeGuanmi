@@ -1,10 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function state(page: Page) {
-  return page.evaluate(() => (window as unknown as { __r5ScrollStory: { snapshot(): {
+type ScrollTestWindow = Window & { __r5ScrollStory?: { snapshot(): {
     desired: { rangeId: string; progress: number; scroll: number; readingOffset: number };
     presented: { progress: number } | null; view: { status: string; error: string | null };
-  } } }).__r5ScrollStory?.snapshot());
+  } } };
+
+async function state(page: Page) {
+  return page.evaluate(() => (window as ScrollTestWindow).__r5ScrollStory?.snapshot());
 }
 
 async function seekRange(page: Page, id: string, progress: number) {
@@ -15,8 +17,15 @@ async function seekRange(page: Page, id: string, progress: number) {
     const range = api.index().ranges.find((entry) => entry.id === id)!;
     api.seek(range.start + (range.end - range.start) * progress);
   }, { id, progress });
-  await expect.poll(async () => (await state(page))?.desired.rangeId).toBe(id);
-  await expect.poll(async () => (await state(page))?.view, { timeout: 25000 }).toMatchObject({ status: 'ready', error: null });
+  // Poll beside the runtime instead of repeatedly serializing snapshots over
+  // the browser connection. Preserve both original deadlines and conditions.
+  await page.waitForFunction((id) => (window as ScrollTestWindow).__r5ScrollStory?.snapshot().desired.rangeId === id,
+    id, { timeout: 10000 });
+  await page.waitForFunction(() => {
+    const view = (window as ScrollTestWindow).__r5ScrollStory?.snapshot().view;
+    if (view?.status === 'failed') throw new Error(view.error ?? 'Scroll preparation failed');
+    return view?.status === 'ready' && view.error === null;
+  }, undefined, { timeout: 25000 });
 }
 
 for (const platform of ['desktop', 'phone'] as const) {
@@ -268,11 +277,14 @@ for (const platform of ['desktop', 'phone'] as const) {
           const clamp = (p: number) => Math.min(1, Math.max(0, p));
           const ttg = clamp(progress * 3100 / 2500);
           const ph = clamp(progress * 2120 / 1520);
+          // Phone retains its authored 3.4s Contact reveal; the paired motion
+          // finishes at 3s. Keep this expectation independent of the sampler.
+          const craneSeconds = progress * (platform === 'phone' ? 3.4 : 3);
           const expected: Record<string, number> = {
             'ttg-figure-motion': ttg * 2.467,
             'ph-figure-motion': (.78 * ph + .22 * ph * ph) * 1.5,
-            'crane-figure-motion': clamp((progress * 3 - .5) / 2.5) * 2.467,
-            'crane-flock-motion': clamp(progress * 3 / 2.5) * 2.467
+            'crane-figure-motion': clamp((craneSeconds - .5) / 2.5) * 2.467,
+            'crane-flock-motion': clamp(craneSeconds / 2.5) * 2.467
           };
           expect(times.length).toBe(id === 'crane-contact' ? 2 : 1);
           for (const media of times) {
