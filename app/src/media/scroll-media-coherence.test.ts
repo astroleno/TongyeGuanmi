@@ -18,6 +18,25 @@ describe('atomic scroll media sampling', () => {
     Object.defineProperty(element, 'currentTime', { get: () => states.get(element)!.physicalTime ?? states.get(element)!.presentedTime ?? 0 });
     return element;
   };
+  it('paints a media-free window once per sample, in the presenting phase', () => {
+    const coordinator = createScrollMediaCoherence([]);
+    const phases: string[] = [];
+    const paint = vi.fn(() => phases.push(scrollMediaSamplingPhase()));
+    expect(coordinator.render(pose(.2), intent(1), paint)).toEqual({ progress: .2, revision: 1, epoch: 1 });
+    expect(paint).toHaveBeenCalledTimes(1);
+    expect(phases).toEqual(['present']);
+    // Same coordinates can still need a repaint after a resource update.
+    expect(coordinator.render(pose(.2), intent(2), paint)).toEqual({ progress: .2, revision: 2, epoch: 1 });
+    expect(paint).toHaveBeenCalledTimes(2);
+    expect(coordinator.render(pose(.1), intent(3, 2), paint)).toEqual({ progress: .1, revision: 3, epoch: 2 });
+    coordinator.dispose();
+  });
+  it('does not report a media-free pose when its drawing fails', () => {
+    const coordinator = createScrollMediaCoherence([]);
+    expect(() => coordinator.render(pose(.2), intent(1), () => { throw new Error('Canvas lost'); })).toThrow('Canvas lost');
+    expect(scrollMediaSamplingPhase()).toBe('live');
+    coordinator.dispose();
+  });
   it('commits a decoded prior sample while submitting the latest target without starvation', () => {
     const media = video(); const coordinator = createScrollMediaCoherence([media]);
     const paints: Array<[string, number]> = [];

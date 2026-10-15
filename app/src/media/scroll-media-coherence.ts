@@ -19,6 +19,12 @@ export function createScrollMediaCoherence(videos: readonly HTMLVideoElement[]) 
   return {
     dispose() { for (const video of videos) if (owners.get(video) === owner) { owners.delete(video); delete video.dataset.scrollMediaCoherent; } },
     render(position: ScrollPosition, intent: ScrollIntent, paint: (position: ScrollPosition) => void): ScrollPresentedFrame | null {
+      // No decoder targets need collecting in a media-free window. Painting
+      // in both phases would redraw the same Canvas/ink pose twice per frame.
+      if (!videos.length) {
+        sampleScrollMedia('present', () => paint(position));
+        return { progress: position.progress, revision: intent.revision, epoch: intent.epoch };
+      }
       history = history.filter((sample) => sample.intent.epoch === intent.epoch);
       if (shown?.intent.epoch !== intent.epoch) shown = null;
       const requests = collectScrollMediaRequests(() => paint(position));
@@ -32,7 +38,7 @@ export function createScrollMediaCoherence(videos: readonly HTMLVideoElement[]) 
           && Math.abs(videos[i]!.currentTime - state.presentedPlayheadTime) <= .002;
       });
       const candidate = [...history].reverse().find(matches);
-      let current = videos.length === 0 ? { position, intent, targets: [] } : candidate;
+      let current = candidate;
       if (current) {
         const position = current.position;
         const composed = sampleScrollMedia('present', () => { paint(position); return videos.every(compositeScrollMedia); });
