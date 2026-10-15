@@ -113,6 +113,13 @@ for (const platform of ['desktop', 'phone'] as const) {
       await seek(page, 'hold:contact', .98);
       await expect(page.locator('[data-scroll-content="contact"]')).not.toHaveAttribute('inert', '');
       await expect(page.locator('[data-scroll-content="contact"] a[href="/services/"]')).toBeVisible();
+      // Leave the parked seek, then reach Contact using only the native axis.
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForFunction(() => (window as unknown as { __r5ScrollStory: { snapshot(): { desired: { rangeId: string } } } })
+        .__r5ScrollStory.snapshot().desired.rangeId === 'hold:hero');
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await page.waitForFunction(() => (window as unknown as { __r5ScrollStory: { snapshot(): { desired: { rangeId: string } } } })
+        .__r5ScrollStory.snapshot().desired.rangeId === 'hold:contact');
       await page.goto('/brand-lab');
       await expect(page.locator('[data-scroll-platform="phone"]')).toHaveAttribute('data-phone-scope', 'brand-lab');
       await page.waitForFunction(() => (window as unknown as { __r5ScrollStory?: { snapshot(): { view: { status: string } } } })

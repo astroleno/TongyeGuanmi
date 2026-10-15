@@ -35,6 +35,19 @@ describe('single document scroll geometry', () => {
     }
     layout.dispose();
   });
+  it('makes the terminal landmark reachable after native limit truncation without changing authored ranges', () => {
+    root.dataset.scrollPlatform = 'phone';
+    const layout = createStoryScrollLayout(root, vi.fn()); layout.measure();
+    const index = layout.getIndex();
+    expect(Number.isInteger(index.maxScroll)).toBe(false);
+    const nativeLimit = Math.floor(Number.parseFloat(root.style.minHeight) - index.viewportHeight);
+    expect(nativeLimit).toBeGreaterThanOrEqual(index.maxScroll);
+    expect(nativeLimit - index.maxScroll).toBeLessThan(1);
+    expect(layout.locate(nativeLimit).rangeId).toBe('hold:contact');
+    const crane = index.ranges.find(range => range.id === 'crane-contact')!;
+    expect((crane.end - crane.start) / 844).toBeCloseTo(3400 / 1200, 12);
+    layout.dispose();
+  });
   it('clips incoming reading to the viewport while preserving full reading geometry and hiding unprepared receivers', () => {
     const proof = root.querySelector<HTMLElement>('[data-scroll-content="figure2-proof"]')!;
     Object.defineProperty(proof, 'scrollHeight', { value: 2532 });

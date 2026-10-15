@@ -44,7 +44,9 @@ export function createStoryScrollLayout(root: HTMLElement, changed: (index: Scro
       const slot = slots.get(scene.scene);
       if (slot) { slot.style.height = `${scene.end - scene.start}px`; slot.dataset.scrollStart = String(scene.start); }
     }
-    root.style.minHeight = `${index.totalHeight}px`;
+    // WebKit truncates the native scroll limit. Round only the terminal document
+    // extent up so native scrolling can reach the final logical landmark.
+    root.style.minHeight = `${Math.ceil(index.totalHeight)}px`;
     if (different || revision === 0) {
       revision += 1;
       const textY = previous?.kind === 'hold'
