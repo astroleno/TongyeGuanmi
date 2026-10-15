@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+umask 077
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+
+exec 9>/run/tongye-cdn-cert-cron.lock
+if ! flock -n 9; then
+  logger -t tongye-cdn-cert "renewal already running; skipped"
+  exit 0
+fi
+
+set -a
+. /etc/tongye-cdn-cert/secrets.env
+set +a
+
+# Only renew the shared certificate for the two CDN domains. acme.sh returns
+# 2 when renewal is not due; reconcile still verifies the live edge certificate.
+renew_status=0
+/root/.acme.sh/acme.sh --renew -d assets.tongye.me --ecc --home /root/.acme.sh || renew_status=$?
+deploy_status=0
+/usr/local/sbin/tongye-cdn-cert-deploy reconcile || deploy_status=$?
+if [ "$deploy_status" -ne 0 ]; then
+  logger -p daemon.err -t tongye-cdn-cert "CDN certificate reconciliation failed"
+  exit "$deploy_status"
+fi
+case "$renew_status" in
+  0|2) exit 0 ;;
+  *) logger -p daemon.err -t tongye-cdn-cert "CDN certificate renewal failed"; exit "$renew_status" ;;
+esac
