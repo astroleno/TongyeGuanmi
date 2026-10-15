@@ -115,9 +115,18 @@ for (const platform of ['desktop', 'phone'] as const) {
       await expect(page.locator('[data-scroll-content="contact"] a[href="/services/"]')).toBeVisible();
       await page.goto('/brand-lab');
       await expect(page.locator('[data-scroll-platform="phone"]')).toHaveAttribute('data-phone-scope', 'brand-lab');
+      await page.waitForFunction(() => (window as unknown as { __r5ScrollStory?: { snapshot(): { view: { status: string } } } })
+        .__r5ScrollStory?.snapshot().view.status === 'ready');
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await expect(page.locator('.story-scroll')).toHaveAttribute('data-scroll-scene', 'brand');
       // A short Brand hold is a zero-length landmark; its outgoing pose at 0
       // is the same semantic entry, not evidence of automatic playback.
+      await expect(page.locator('.story-scroll')).toHaveAttribute('data-scroll-progress', '0.00000');
+      await page.reload();
+      await page.waitForFunction(() => (window as unknown as { __r5ScrollStory?: { snapshot(): { view: { status: string } } } })
+        .__r5ScrollStory?.snapshot().view.status === 'ready');
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await expect(page.locator('.story-scroll')).toHaveAttribute('data-scroll-scene', 'brand');
       await expect(page.locator('.story-scroll')).toHaveAttribute('data-scroll-progress', '0.00000');
     });
   });

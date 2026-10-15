@@ -25,9 +25,15 @@ export function createStoryScrollSource(onFrame: (position: number, now: number)
   let frame = 0;
   let disposed = false;
   let suspended = false;
+  let parkedSeek: { actual: number; requested: number } | null = null;
   // Native events can arrive while Lenis ignores its own immediate-scroll event.
   // Outside an active smooth animation the document, not animatedScroll, owns position.
-  const position = () => lenis.isScrolling === 'smooth' ? lenis.scroll : lenis.actualScroll;
+  const position = () => {
+    const actual = lenis.actualScroll;
+    const smooth = lenis.isScrolling === 'smooth';
+    if (parkedSeek && (smooth || actual !== parkedSeek.actual)) parkedSeek = null;
+    return smooth ? lenis.scroll : parkedSeek?.requested ?? actual;
+  };
   const wake = () => {
     if (!disposed && !suspended && !frame) frame = requestAnimationFrame(tick);
   };
@@ -57,14 +63,23 @@ export function createStoryScrollSource(onFrame: (position: number, now: number)
   window.addEventListener('scroll', wake, { passive: true });
   if (syncTouch) window.addEventListener('touchcancel', cancelTouch, { passive: true });
   const seek = (position: number) => {
-    lenis.scrollTo(Number.isFinite(position) ? position : 0, { immediate: true, force: true });
+    const requested = Number.isFinite(position) ? position : 0;
+    parkedSeek = null;
+    lenis.scrollTo(requested, { immediate: true, force: true });
+    const actual = lenis.actualScroll;
+    // Lenis resets immediate seeks to the native rounded coordinate. Preserve
+    // only its subpixel error so zero-length landmarks stay at frame zero
+    // across media wakes. WebKit truncates rather than rounding to nearest,
+    // including at the document limit. Movement or smooth input releases it.
+    if (requested >= 0 && Math.abs(actual - requested) < 1
+      && lenis.isScrolling !== 'smooth') parkedSeek = { actual, requested };
     wake();
   };
   const motionChanged = () => {
     lenis.options.smoothWheel = !reduced.matches;
     lenis.options.syncTouch = syncTouch && !reduced.matches;
     nativeTouchGesture = false;
-    seek(lenis.actualScroll);
+    seek(lenis.isScrolling === 'smooth' ? lenis.actualScroll : position());
   };
   reduced.addEventListener('change', motionChanged);
   wake();
@@ -78,7 +93,11 @@ export function createStoryScrollSource(onFrame: (position: number, now: number)
       cancel();
       lenis.scrollTo(lenis.actualScroll, { immediate: true, force: true });
     },
-    resume: () => { suspended = false; lenis.resize(); seek(lenis.actualScroll); },
+    resume: () => {
+      suspended = false;
+      const target = lenis.isScrolling === 'smooth' ? lenis.actualScroll : position();
+      lenis.resize(); seek(target);
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;
