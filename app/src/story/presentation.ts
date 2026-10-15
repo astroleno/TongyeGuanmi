@@ -108,8 +108,11 @@ export type SceneModule = {
   Component: ComponentType<SceneComponentProps>;
   staticFallback?: StaticFallbackContract;
   requiredHandles?: readonly string[];
+  /** Compositor evidence required before a continuous-scroll window can render. */
+  scrollReadyHandles?: readonly string[];
   preload(): Promise<ScenePreloadResult> | ScenePreloadResult;
   renderHold(layerRoot: HTMLElement | null): void;
+  renderScrollEntry?(layerRoot: HTMLElement | null, progress: number): void;
   mount?(layer: LayerHandle): Promise<void> | void;
   dispose?(): Promise<void> | void;
 };
@@ -151,6 +154,9 @@ export type SegmentTimelineHandle = {
 };
 
 export type TransitionContext = {
+  sampling?: 'scroll';
+  /** A borrowed surface; the current resource window owns its lifetime. */
+  acquireInkCanvas?: () => HTMLCanvasElement;
   /** Cancels preparation only; a completed timeline owns its playback lifetime. */
   signal?: AbortSignal;
   segment: SpineSegmentNode;

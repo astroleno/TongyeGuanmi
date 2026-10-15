@@ -1,5 +1,6 @@
 import type { Direction } from '../story/types';
 import { MediaPreparationError } from './media-preparation';
+import { deferScrollMediaRequest } from './scroll-media-sampling';
 
 /** Legacy native requests are accepted as paused timeline seeks. */
 export type TimelineVideoMode = 'timeline' | 'native-preferred';
@@ -54,6 +55,9 @@ export type TimelineVideoDriverSnapshot = Readonly<{
   seekPending: boolean;
   nativeFallback: boolean;
   frameReady: boolean;
+  presentedTime?: number;
+  presentedPlayheadTime?: number;
+  presentedGeneration?: number;
 }>;
 
 export type TimelineVideoDriver = Readonly<{
@@ -102,6 +106,7 @@ export const TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS = 0.05;
 const EXACT_TARGET_PRIME_OFFSET_SECONDS = 0.05;
 const EXACT_TARGET_PRIME_SETTLE_DELAY_MS = 50;
 const SEEKED_FRAME_FALLBACK_DELAY_MS = 120;
+const SCROLL_FRAME_PROBE_DELAY_MS = 8;
 const PAUSED_COMPOSITOR_NUDGE_MS = 250;
 const DEFAULT_END_EPSILON_SECONDS = 0.02;
 
@@ -141,7 +146,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   readonly #waiters = new Set<FrameWaiter>();
   #nativeFallback = false;
   #frameReadyGeneration = 0;
+  #scrollFrameHeld = false;
   #readyTime = Number.NaN;
+  #readyPlayheadTime = Number.NaN;
   #frameCallbackId: number | undefined;
   #presentingFrame: DesiredFrame | undefined;
   #seekedFrameFallbackTimer: ReturnType<typeof setTimeout> | undefined;
@@ -228,6 +235,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   drive(input: TimelineVideoDriveInput): TimelineVideoDriverSnapshot {
+    this.#scrollFrameHeld = false;
     if (this.#disposed) {
       return this.snapshot();
     }
@@ -261,6 +269,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   prepareFrame(input: TimelineVideoDriveInput): Promise<TimelineVideoFrameResult> {
+    this.#scrollFrameHeld = false;
     if (this.#disposed) {
       const desired = this.#desiredFrame(input.progress, input);
       return Promise.resolve(frameResult(desired, 'stale'));
@@ -356,7 +365,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         this.#pendingEndpointPrime || this.#primingSeek || this.#inFlightSeek || this.#queuedSeek
       ),
       nativeFallback: this.#nativeFallback,
-      frameReady
+      frameReady,
+      ...(Number.isFinite(this.#readyPlayheadTime) ? { presentedPlayheadTime: this.#readyPlayheadTime } : {}),
+      ...(Number.isFinite(this.#readyTime) ? { presentedTime: this.#readyTime, presentedGeneration: this.#frameReadyGeneration } : {})
     };
   }
 
@@ -405,6 +416,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       }
       this.#cancelFrameCallback();
       delete this.#video.dataset.timelineVideoFrameEvidence;
+      delete this.#video.dataset.timelineVideoSourceTime;
       this.#video.pause();
       this.#resolveAllWaitersAsStale();
     }
@@ -453,8 +465,12 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   #canReusePresentedFrame(desired: DesiredFrame): boolean {
     const readyDistance = Math.abs(this.#readyTime - desired.targetTime);
     const playheadDistance = Math.abs(this.#video.currentTime - desired.targetTime);
-    return readyDistance <= TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS
-      && playheadDistance <= TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS;
+    // A paused scroll endpoint must be the requested frame, not a neighboring
+    // sample relabeled with the endpoint's timestamp. Legacy playback keeps its
+    // wider presentation window for native decoder handoffs.
+    const tolerance = this.#video.closest?.('[data-scroll-platform]')
+      ? SEEK_TOLERANCE_SECONDS : TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS;
+    return readyDistance <= tolerance && playheadDistance <= tolerance;
   }
 
   #frameIsReady(desired: DesiredFrame): boolean {
@@ -570,6 +586,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   #flushQueuedSeek(): void {
+    if (this.#video.closest?.('[data-scroll-platform]') && (this.#scrollFrameHeld || this.#presentingFrame)) return;
     if (this.#disposed || this.#inFlightSeek || !this.#queuedSeek) {
       return;
     }
@@ -683,7 +700,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         ) {
           this.#inFlightSeek = undefined;
         }
-        this.#markFrameReady(frame, 'video-frame-callback');
+        this.#markFrameReady(frame, 'video-frame-callback', metadata?.mediaTime);
         this.#flushQueuedSeek();
       });
       this.#armSeekedFrameFallback(frame);
@@ -704,12 +721,14 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   #armSeekedFrameFallback(frame: DesiredFrame): void {
+    const scrollSampling = Boolean(this.#video.closest?.('[data-scroll-platform]'));
     // A hidden desktop receiver cannot reliably submit a compositor callback.
     // Explicit preparation may instead prove the settled decoded sample by
     // reading it through canvas. Ordinary playback remains callback-driven.
-    const decodedProbe = !frame.allowSeekedFrameFallback
-      && framePreparations.has(this.#video)
-      && Boolean(this.#video.closest?.('[data-stage-layer]'));
+    const decodedProbe = !frame.allowSeekedFrameFallback && (
+      scrollSampling
+      || framePreparations.has(this.#video) && Boolean(this.#video.closest?.('[data-stage-layer]'))
+    );
     if (
       (!frame.allowSeekedFrameFallback && !decodedProbe)
       || this.#disposed
@@ -735,6 +754,17 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       ) {
         return;
       }
+      if (scrollSampling && this.#video.readyState >= 2 && !this.#video.seeking
+        && Math.abs(this.#video.currentTime - frame.targetTime) > TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS) {
+        // Source selection can finish a paused seek at frame zero instead of
+        // its requested time. That settled mismatch cannot prove this frame;
+        // retire the stranded callback and issue the current target again.
+        this.#cancelFrameCallback();
+        this.#inFlightSeek = undefined;
+        this.#scrollFrameHeld = false;
+        this.#scheduleSeek(this.#latest ?? frame);
+        return;
+      }
       if (
         this.#video.readyState < 2
         || this.#video.seeking
@@ -744,7 +774,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
           waiter.generation === frame.generation
           && Math.abs(waiter.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
         ));
-        if (waiting) {
+        if (waiting || scrollSampling && this.#presentingFrame?.generation === frame.generation
+          && Math.abs(this.#presentingFrame.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS) {
           this.#armSeekedFrameFallback(frame);
         }
         return;
@@ -765,7 +796,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       }
       this.#markFrameReady(frame, decodedProbe ? 'decoded-canvas' : 'seeked-fallback');
       this.#flushQueuedSeek();
-    }, SEEKED_FRAME_FALLBACK_DELAY_MS);
+    // Scrub cannot spend 120ms waiting for a callback from a hidden surface.
+    // The earlier probe retains the same decoded-data, settled-seek, identity
+    // and target-time checks; it never promotes a pending seek to ready.
+    }, scrollSampling ? SCROLL_FRAME_PROBE_DELAY_MS : SEEKED_FRAME_FALLBACK_DELAY_MS);
   }
 
   #cancelSeekedFrameFallback(): void {
@@ -783,7 +817,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.#primingCompletionTimer = undefined;
   }
 
-  #markFrameReady(frame: DesiredFrame, evidence: FramePresentationEvidence): void {
+  #markFrameReady(frame: DesiredFrame, evidence: FramePresentationEvidence, sourceTime?: number): void {
     if (frame.generation !== this.#generation) {
       return;
     }
@@ -795,8 +829,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return;
     }
     this.#cancelFrameCallback();
+    const scrollSampling = Boolean(this.#video.closest?.('[data-scroll-platform]'));
+    // Preparation may have nudged native playback to wake the compositor.
+    // Freeze it before recording the physical proof, not in a later promise.
+    if (scrollSampling) this.#video.pause();
+    const newlyPresented = this.#frameReadyGeneration !== frame.generation || this.#readyTime !== frame.targetTime;
     this.#frameReadyGeneration = frame.generation;
     this.#readyTime = frame.targetTime;
+    this.#readyPlayheadTime = this.#video.currentTime;
+    this.#scrollFrameHeld = scrollSampling;
     if (
       this.#pendingEndpointPrime?.generation === frame.generation
       && Math.abs(this.#pendingEndpointPrime.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
@@ -805,6 +846,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
     this.#video.dataset.timelineVideoFrameReady = 'true';
     this.#video.dataset.timelineVideoFrameEvidence = evidence;
+    this.#video.dataset.timelineVideoPresentedTime = frame.targetTime.toFixed(4);
+    this.#video.dataset.timelineVideoPresentedGeneration = String(frame.generation);
+    if (sourceTime !== undefined && Number.isFinite(sourceTime)) this.#video.dataset.timelineVideoSourceTime = sourceTime.toFixed(6);
+    else delete this.#video.dataset.timelineVideoSourceTime;
     delete this.#video.dataset.timelineVideoStaticFallback;
     for (const waiter of [...this.#waiters]) {
       if (
@@ -814,6 +859,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         this.#resolveWaiter(waiter, 'ready');
       }
     }
+    if (newlyPresented) this.#video.dispatchEvent?.(new Event('timelinevideoframe'));
   }
 
   #cancelFrameCallback(): void {
@@ -939,6 +985,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.#cancelFrameCallback();
     delete this.#video.dataset.timelineVideoFrameReady;
     delete this.#video.dataset.timelineVideoFrameEvidence;
+    delete this.#video.dataset.timelineVideoSourceTime;
     this.#video.dataset.timelineVideoFallback = 'true';
     this.#video.dataset.timelineVideoStaticFallback = 'true';
   }
@@ -999,7 +1046,10 @@ export function driveTimelineVideo(
   video: HTMLVideoElement | null | undefined,
   input: TimelineVideoDriveInput
 ): TimelineVideoDriverSnapshot | undefined {
-  return video ? timelineVideoDriverFor(video).drive(input) : undefined;
+  if (!video) return undefined;
+  const driver = timelineVideoDriverFor(video);
+  if (deferScrollMediaRequest(video, () => { driver.drive(input); })) return driver.snapshot();
+  return driver.drive(input);
 }
 
 export function prepareTimelineVideoFrame(
@@ -1082,7 +1132,9 @@ async function runFramePreparation(
             `Frame stalled for ${input.runId}; readyState=${video.readyState}; seeking=${video.seeking}`));
         }
       }, 250);
-      const nudge = input.allowPlaybackNudge === false ? undefined : setTimeout(() => {
+      // Scroll preparation has a settled decoded-frame probe even when hidden.
+      // A native play nudge can resume after the proof and move a parked frame.
+      const nudge = input.allowPlaybackNudge === false || video.closest?.('[data-scroll-platform]') ? undefined : setTimeout(() => {
         if (!trial.signal.aborted) void video.play().catch(() => undefined);
       }, PAUSED_COMPOSITOR_NUDGE_MS);
       try {

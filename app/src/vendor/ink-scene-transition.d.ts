@@ -18,6 +18,7 @@ export type InkBoundaryTransitionOptions = {
   fadeOutStart?: number;
   fadeOutEnd?: number;
   targetImage?: HTMLImageElement | null;
+  sharedCanvas?: HTMLCanvasElement;
 };
 
 export type InkBoundaryTransition = {

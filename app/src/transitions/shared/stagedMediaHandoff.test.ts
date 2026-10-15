@@ -11,6 +11,18 @@ function preparationSignal(): AbortSignal {
 }
 
 describe('staged media handoff', () => {
+  it('resamples every compositor phase in scroll mode with canonical media direction', async () => {
+    const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
+    const renderExit = vi.fn();
+    const transition = createStagedMediaHandoff({ id: 'ttg-lab',
+      target: { prepareFinalHold() {} }, source: { renderExit } });
+    const timeline = await transition.buildTimeline({ ...fixture.context, sampling: 'scroll' });
+    renderExit.mockClear();
+    for (const progress of [.6, .6, .2, .2]) timeline.progress(progress);
+    expect(renderExit).toHaveBeenCalledTimes(4);
+    expect(renderExit.mock.calls.every((call) => call[2].direction === 1)).toBe(true);
+    timeline.dispose();
+  });
   it('separates hidden preparation from the leg-start commit', async () => {
     const fixture = createBackHalfDomContext('ttg-lab', 'ttg-animation', 'lab');
     const commitLegStart = vi.fn();

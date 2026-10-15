@@ -24,7 +24,10 @@ export function isIOSFamilyNavigator(candidate: AlphaVideoNavigator | null | und
 }
 
 export function browserPrefersHevcAlpha(): boolean {
-  return typeof navigator !== 'undefined' && isIOSFamilyNavigator(navigator);
+  if (typeof navigator === 'undefined') return false;
+  return isIOSFamilyNavigator(navigator)
+    || /Macintosh/.test(navigator.userAgent) && /AppleWebKit/.test(navigator.userAgent)
+      && !/Chrome|Chromium|Edg|OPR/.test(navigator.userAgent);
 }
 
 export function orderedAlphaVideoSources(

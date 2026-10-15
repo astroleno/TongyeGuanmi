@@ -1,4 +1,6 @@
 import { semanticBoolean } from '../runtime/semantic-data-attribute';
+import { canCompositeScrollMedia, registerScrollMediaCompositor } from './scroll-media-sampling';
+import { canvasLeaseGuard, getCanvasWebGlContext, renewWindowCanvas, windowOwnsCanvas } from './scroll-canvas-window';
 
 export const PACKED_ALPHA_SOURCE_TYPE = 'video/mp4; codecs="avc1"';
 
@@ -11,6 +13,7 @@ export type PackedAlphaContextRetirement = 'reactivatable' | 'terminal';
 
 export type PackedAlphaVideoCompositor = Readonly<{
   render(): boolean;
+  restoreFrame(): void;
   setActive(active: boolean): void;
   dispose(retirement?: PackedAlphaContextRetirement): void;
 }>;
@@ -32,7 +35,7 @@ function clearPackedAlphaCanvasState(canvas: HTMLCanvasElement): void {
 export function releasePackedAlphaWebGlContext(
   gl: WebGLRenderingContext
 ): void {
-  gl.getExtension('WEBGL_lose_context')?.loseContext();
+  if (!windowOwnsCanvas(gl.canvas as HTMLCanvasElement) && !gl.isContextLost()) gl.getExtension('WEBGL_lose_context')?.loseContext();
 }
 
 export function renewPackedAlphaCanvas(
@@ -41,6 +44,8 @@ export function renewPackedAlphaCanvas(
   clearPackedAlphaCanvasState(canvas);
   canvas.width = 1;
   canvas.height = 1;
+  const leased = renewWindowCanvas(canvas);
+  if (leased) return leased;
   const renewed = canvas.cloneNode(false) as HTMLCanvasElement;
   clearPackedAlphaCanvasState(renewed);
   renewed.width = 1;
@@ -193,7 +198,8 @@ export function createPackedAlphaVideoCompositor(
   options: PackedAlphaVideoOptions
 ): PackedAlphaVideoCompositor {
   const { video, canvas } = options;
-  const gl = canvas.getContext('webgl', {
+  const ownsLease = canvasLeaseGuard(canvas);
+  const gl = getCanvasWebGlContext(canvas, {
     alpha: true,
     antialias: false,
     depth: false,
@@ -208,6 +214,7 @@ export function createPackedAlphaVideoCompositor(
     });
     return {
       render: () => false,
+      restoreFrame: () => undefined,
       setActive: () => undefined,
       dispose: () => {
         delete canvas.dataset.packedAlphaStatus;
@@ -234,11 +241,12 @@ export function createPackedAlphaVideoCompositor(
     let failureContextRetired = false;
     return {
       render: () => false,
+      restoreFrame: () => undefined,
       setActive: () => undefined,
       dispose: (retirement = 'terminal') => {
         if (!failureResourcesDisposed) {
           failureResourcesDisposed = true;
-          clearPackedAlphaCanvasState(canvas);
+          if (ownsLease()) clearPackedAlphaCanvasState(canvas);
         }
         if (retirement === 'terminal' && !failureContextRetired) {
           failureContextRetired = true;
@@ -263,9 +271,14 @@ export function createPackedAlphaVideoCompositor(
   let uploadedTime = Number.NaN;
   let uploadedFrames = -1;
   let uploadedSize = '';
+  let retainedSize = { width: 1, height: 1 };
+  let retainedTexelX = 1;
 
   gl.useProgram(program);
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  // Ink's straight-alpha blending must not affect premultiplied video pixels.
+  gl.disable(gl.BLEND);
+  gl.activeTexture(gl.TEXTURE0);
   gl.bufferData(
     gl.ARRAY_BUFFER,
     new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
@@ -283,7 +296,30 @@ export function createPackedAlphaVideoCompositor(
   gl.uniform1i(packedFrameLocation, 0);
   gl.clearColor(0, 0, 0, 0);
 
+  // The Hero ink pass temporarily borrows this buffer. Restore only the last
+  // proven texture, even when suspended/seeking; do not create frame evidence.
+  const restoreFrame = () => {
+    if (resourcesDisposed || contextLost || !ownsLease()) return;
+    if (canvas.width !== retainedSize.width) canvas.width = retainedSize.width;
+    if (canvas.height !== retainedSize.height) canvas.height = retainedSize.height;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    if (!uploadedSize) return;
+    gl.useProgram(program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.disable(gl.BLEND);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.uniform1i(packedFrameLocation, 0);
+    gl.uniform1f(texelLocation, retainedTexelX);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  };
+
   const render = () => {
+    if (!ownsLease() || !canCompositeScrollMedia(video)) return false;
     if (
       resourcesDisposed
       || contextLost
@@ -295,17 +331,10 @@ export function createPackedAlphaVideoCompositor(
       return false;
     }
 
-    const frameSize = packedAlphaFrameSize(video.videoWidth, video.videoHeight);
-    if (canvas.width !== frameSize.width) {
-      canvas.width = frameSize.width;
-    }
-    if (canvas.height !== frameSize.height) {
-      canvas.height = frameSize.height;
-    }
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clear(gl.COLOR_BUFFER_BIT);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     try {
       const decodedFrames = video.getVideoPlaybackQuality?.().totalVideoFrames ?? -1;
       const size = `${video.videoWidth}:${video.videoHeight}`;
@@ -323,6 +352,8 @@ export function createPackedAlphaVideoCompositor(
       uploadedTime = video.seeking ? Number.NaN : video.currentTime;
       uploadedFrames = decodedFrames;
       uploadedSize = size;
+      retainedSize = packedAlphaFrameSize(video.videoWidth, video.videoHeight);
+      retainedTexelX = 1 / Math.max(2, video.videoWidth);
     } catch {
       canvas.dataset.packedAlphaStatus = 'frame-upload-failed';
       options.onFailure?.({
@@ -330,9 +361,7 @@ export function createPackedAlphaVideoCompositor(
       });
       return false;
     }
-    gl.useProgram(program);
-    gl.uniform1f(texelLocation, 1 / Math.max(2, video.videoWidth));
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    restoreFrame();
     renderedFrames += 1;
     canvas.dataset.packedAlphaStatus = 'ready';
     canvas.dataset.packedAlphaFrameReady = 'true';
@@ -384,7 +413,8 @@ export function createPackedAlphaVideoCompositor(
     animationFrame = 0;
   };
   const clearPresentedFrame = (clearBuffer = true) => {
-    if (clearBuffer && canvas.width > 0 && canvas.height > 0) {
+    if (!ownsLease()) return;
+    if (clearBuffer && ownsLease() && canvas.width > 0 && canvas.height > 0) {
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.flush();
@@ -424,8 +454,10 @@ export function createPackedAlphaVideoCompositor(
     renderAndSchedule();
   }
 
+  const unregisterScrollCompositor = registerScrollMediaCompositor(video, render);
   return {
     render,
+    restoreFrame,
     setActive(nextActive) {
       if (resourcesDisposed || contextLost || active === nextActive) return;
       active = nextActive;
@@ -442,6 +474,7 @@ export function createPackedAlphaVideoCompositor(
     dispose(retirement = 'terminal') {
       if (!resourcesDisposed) {
         resourcesDisposed = true;
+        unregisterScrollCompositor();
         cancelScheduledFrame();
         clearPresentedFrame();
         video.removeEventListener('loadeddata', renderAndSchedule);
@@ -455,7 +488,7 @@ export function createPackedAlphaVideoCompositor(
         gl.deleteProgram(program);
         gl.deleteShader(vertex);
         gl.deleteShader(fragment);
-        clearPackedAlphaCanvasState(canvas);
+        if (ownsLease()) clearPackedAlphaCanvasState(canvas);
       }
       if (retirement === 'terminal' && !contextRetired) {
         contextRetired = true;

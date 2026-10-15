@@ -1,11 +1,19 @@
 import {
   HEVC_ALPHA_SOURCE_TYPE,
   WEBM_ALPHA_SOURCE_TYPE,
+  browserPrefersHevcAlpha,
   isIOSFamilyNavigator,
   orderedAlphaVideoSources
 } from './alpha-video-sources';
 
 describe('alpha video sources', () => {
+  it('prefers HEVC on desktop Safari where VP9 can decode without alpha', () => {
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.5 Safari/605.1.15' });
+    expect(browserPrefersHevcAlpha()).toBe(true);
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/138.0 Safari/537.36' });
+    expect(browserPrefersHevcAlpha()).toBe(false);
+    vi.unstubAllGlobals();
+  });
   it('recognizes iPhone, iPad, iPod, and desktop-mode iPadOS navigators', () => {
     expect(isIOSFamilyNavigator({
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 CriOS/138.0 Mobile/15E148 Safari/604.1'

@@ -161,6 +161,18 @@ describe('clean PhoneAod leaf', () => {
     );
   });
 
+  it.each(['target', 'source'] as const)('preserves incoming paper but releases it for the scroll %s leg', async (leg) => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneAod reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: mount.reports, frameToken: 'scroll:aod', sampling: 'scroll', leg });
+    const invocation = commands.activate({ invocationId: 'scroll:aod', surfaceIds: ['aod-figure-video'], credit: 'direct-muted-autoplay' });
+    await Promise.all(invocation.settlements.flatMap(s => s.status === 'pending' ? [s.settled] : []));
+    expect(host.querySelector('[data-aod-transition]')?.getAttribute('data-aod-exit-active'))
+      .toBe(leg === 'source' ? 'true' : null);
+    await act(async () => root.unmount());
+  });
+
   it('does not let a late prime resolve pause AOD after formal playback starts', async () => {
     let releasePrime!: () => void;
     vi.mocked(HTMLMediaElement.prototype.play).mockImplementationOnce(() => (

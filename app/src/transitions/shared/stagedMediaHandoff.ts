@@ -18,6 +18,7 @@ import type {
 import { MediaPreparationError } from '../../media/media-preparation';
 
 export type StagedMediaRenderContext = Readonly<{
+  sampling?: 'scroll';
   runId: TransitionContext['runId'];
   prepareToken: TransitionContext['prepareToken'];
   direction: Direction;
@@ -176,6 +177,7 @@ function rootsFor(context: TransitionContext, options: StagedMediaHandoffOptions
 
 function renderContext(context: TransitionContext, direction: Direction): StagedMediaRenderContext {
   return {
+    ...(context.sampling ? { sampling: context.sampling } : {}),
     runId: context.runId,
     prepareToken: context.prepareToken,
     direction,
@@ -250,7 +252,9 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
       return;
     }
     const clamped = clamp(value);
-    if (clamped > this.progressValue + 0.0001) {
+    if (this.context.sampling === 'scroll') {
+      this.playbackDirection = 1;
+    } else if (clamped > this.progressValue + 0.0001) {
       this.playbackDirection = 1;
     } else if (clamped < this.progressValue - 0.0001) {
       this.playbackDirection = -1;
@@ -272,7 +276,8 @@ class StagedMediaHandoffTimeline implements SegmentTimelineHandle {
 
     const sourceProgress = range01(clamped, 0, this.stop);
     if (
-      roots.from !== this.renderedSourceRoot
+      this.context.sampling === 'scroll'
+      || roots.from !== this.renderedSourceRoot
       || Math.abs(sourceProgress - this.renderedSourceProgress) > 0.0001
       || this.renderedSourceDirection !== this.playbackDirection
     ) {

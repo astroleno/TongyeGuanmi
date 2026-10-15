@@ -3,6 +3,7 @@ import {
   type InkBoundaryTransition,
   type InkBoundaryTransitionOptions,
 } from '../../vendor/ink-scene-transition.js';
+import { canvasLeaseGuard } from '../../media/scroll-canvas-window';
 import {
   clearHorizontalInkDiagnostics,
   inkFieldOrigin,
@@ -55,6 +56,7 @@ export type InkFieldRendererLifecycleOptions = Readonly<{
   grade?: InkGradePreset | undefined;
   generation?: string;
   targetImage?: HTMLImageElement | null;
+  sharedCanvas?: HTMLCanvasElement;
   onInvalidated?: (failure: InkRendererFailure) => void;
 }>;
 
@@ -186,7 +188,8 @@ export function createInkFieldRenderer(
     transition = createInkBoundaryTransition(canvas, {
       ...resolvedOptions,
       ...(lifecycle.fieldKind ? { fieldKind: lifecycle.fieldKind } : {}),
-      ...(lifecycle.targetImage ? { targetImage: lifecycle.targetImage } : {})
+      ...(lifecycle.targetImage ? { targetImage: lifecycle.targetImage } : {}),
+      ...(lifecycle.sharedCanvas ? { sharedCanvas: lifecycle.sharedCanvas } : {})
     });
   } catch {
     transition = null;
@@ -201,6 +204,8 @@ export function createInkFieldRenderer(
   }
 
   let destroyed = false;
+  const contextCanvas = lifecycle.sharedCanvas ?? canvas;
+  const ownsLease = canvasLeaseGuard(contextCanvas);
   let invalidated = false;
   let failure: InkRendererFailure | null = null;
   const matchesGeneration = () => canvas.dataset[INK_GENERATION] === generation;
@@ -223,7 +228,7 @@ export function createInkFieldRenderer(
     lifecycle.onInvalidated?.(failure);
   };
   const isActive = () => {
-    if (destroyed || invalidated || transition === null) {
+    if (destroyed || invalidated || transition === null || !ownsLease()) {
       return false;
     }
     if (!matchesGeneration()) {
@@ -239,7 +244,7 @@ export function createInkFieldRenderer(
     event.preventDefault();
     invalidate('context-lost');
   };
-  canvas.addEventListener?.('webglcontextlost', onContextLost);
+  contextCanvas.addEventListener?.('webglcontextlost', onContextLost);
   canvas.dataset[INK_RENDERER_ACTIVE] = 'true';
   canvas.dataset[INK_RENDERER_STATUS] = 'active';
 
@@ -272,8 +277,9 @@ export function createInkFieldRenderer(
         return;
       }
       destroyed = true;
-      canvas.removeEventListener?.('webglcontextlost', onContextLost);
+      contextCanvas.removeEventListener?.('webglcontextlost', onContextLost);
       releaseTransition();
+      if (!ownsLease()) return;
       if (matchesGeneration()) {
         canvas.dataset[INK_RENDERER_ACTIVE] = 'false';
         canvas.dataset[INK_RENDERER_STATUS] = 'disposed';

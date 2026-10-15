@@ -6,7 +6,7 @@
 
 .portrait-scroll-spike__scene--pattern {
   background: transparent;
-  color: #211713;
+  color: var(--reading-fg, #211713);
 }
 
 .portrait-scroll-spike__pattern-motion {
@@ -77,7 +77,7 @@
 
 .portrait-scroll-spike__pattern-copy p:first-child {
   margin: 0 0 12px;
-  color: #715b2e;
+  color: var(--reading-fg, #715b2e);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .14em;
@@ -95,7 +95,7 @@
 .portrait-scroll-spike__pattern-copy p:last-child {
   width: min(31em, 88vw);
   margin: 18px 0 0;
-  color: rgba(33, 23, 19, .82);
+  color: var(--reading-fg, rgba(33, 23, 19, .82));
   font-size: 16px;
   line-height: 1.75;
 }

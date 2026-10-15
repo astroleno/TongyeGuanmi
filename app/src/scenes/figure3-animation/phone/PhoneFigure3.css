@@ -4,7 +4,7 @@
 }
 
 .phone-figure3 {
-  --phone-figure3-paper: var(--portrait-reading-paper, #ede4d2);
+  --phone-figure3-paper: var(--portrait-reading-paper, var(--r4-warm-paper));
   --phone-figure3-paper-treatment:
     var(
       --portrait-reading-paper-treatment,

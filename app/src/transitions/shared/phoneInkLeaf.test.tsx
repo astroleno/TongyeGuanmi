@@ -68,7 +68,7 @@ describe('clean phone Ink leaf', () => {
     rendererProbe.rebindGeneration.mockReturnValue(true);
   });
 
-  it('attaches complementary masks to the fixed source and receiver planes', async () => {
+  it.each([undefined, 'scroll'] as const)('attaches complementary masks with the %s viewport host', async (sampling) => {
     depthMaskProbe.committed = false;
     const Leaf = createPhoneInkLeaf({
       segmentId: 'figure2-distance-expand',
@@ -114,7 +114,8 @@ describe('clean phone Ink leaf', () => {
     const current = reportFixture();
     await act(async () => {
       mount.registration()?.commands.rebind({
-        reports: current.reports, frameToken: 'depth:frame:1', transactionId: 'depth'
+        reports: current.reports, frameToken: 'depth:frame:1', transactionId: 'depth',
+        ...(sampling ? { sampling } : {})
       });
       await Promise.resolve();
     });
@@ -125,7 +126,7 @@ describe('clean phone Ink leaf', () => {
     expect(depthMaskProbe.render).toHaveBeenCalledWith(.5, expect.anything());
     expect((await import('./depthThresholdMask')).createDepthThresholdMask)
       .toHaveBeenCalledWith(expect.objectContaining({
-        host: planes,
+        host: sampling === 'scroll' ? host : planes,
         targets: [
           { element: source, polarity: 'conceal' },
           { element: receiver, polarity: 'reveal' }

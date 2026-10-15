@@ -151,6 +151,7 @@ function PhAnimationScene({ registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     const root = rootRef.current;
+    if (root?.closest('[data-scroll-platform]')) return;
     const video = videoRef.current;
     if (video) {
       video.muted = true;

@@ -1,4 +1,5 @@
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react';
+import './chrome.css';
 
 type HarnessRoute = ComponentType;
 

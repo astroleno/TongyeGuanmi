@@ -5,8 +5,8 @@
   display: grid;
   min-block-size: 100svh;
   align-items: center;
-  color: #292919;
-  background: #ede4d2;
+  color: var(--reading-fg, #292919);
+  background: var(--r4-warm-paper);
   padding: max(72px, 12svh) clamp(22px, 6vw, 42px) max(64px, 10svh);
   scroll-margin-top: 0;
 }
@@ -33,7 +33,7 @@
 }
 
 .phone-brand__definition > span {
-  color: #7b6e4b;
+  color: var(--reading-fg, #7b6e4b);
   font-size: .75rem;
   font-weight: 700;
   letter-spacing: .2em;
@@ -51,7 +51,7 @@
 .phone-brand__definition p {
   max-width: 34rem;
   margin: 0;
-  color: #554f40;
+  color: var(--reading-fg, #554f40);
   font-size: 1rem;
   line-height: 1.85;
 }

@@ -85,6 +85,26 @@ export function sampleHeroIntro(progress: number): HeroIntroSample {
   };
 }
 
+/** The authored stagger/blur/rise is sampled, never triggered as a CSS clock. */
+export function renderHeroScrollEntryText(root: HTMLElement | null, progress: number): number {
+  const items = Array.from(root?.querySelectorAll<HTMLElement>('[data-text-reveal-item]') ?? []).map((element) => {
+    const owner = element.closest<HTMLElement>('[data-text-reveal]');
+    const value = (name: string, fallback: number) => Number.parseFloat(owner?.style.getPropertyValue(`--text-reveal-${name}`) ?? '') || fallback;
+    const index = Number(element.dataset.textRevealItem) || 0;
+    return { element, start: HERO_INTRO_DURATION_MS * HERO_TITLE_START_PROGRESS + value('delay', 0) + index * value('stagger', 0),
+      duration: value('duration', 900), blur: value('blur', 0), y: value('y', 0) };
+  });
+  const total = Math.max(HERO_INTRO_DURATION_MS, ...items.map(({ start, duration }) => start + duration));
+  const time = clamp01(progress) * total;
+  for (const { element, start, duration, blur, y } of items) {
+    const p = smoothStep((time - start) / duration);
+    element.style.animation = 'none'; element.style.transition = 'none';
+    element.style.opacity = String(p); element.style.filter = `blur(${blur * (1 - p)}px)`;
+    element.style.transform = `translate3d(0, ${y * (1 - p)}px, 0)`;
+  }
+  return clamp01(time / HERO_INTRO_DURATION_MS);
+}
+
 export function renderHeroProgress(root: HTMLElement | null, progress: number): HeroRenderState {
   const clamped = clamp01(progress);
   const middleIntro = smoothStep(clamped / 0.92);

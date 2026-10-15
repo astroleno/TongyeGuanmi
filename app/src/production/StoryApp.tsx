@@ -9,4 +9,4 @@ export {
   type DesktopStoryShellApi as StoryAppApi,
   type DesktopStoryShellProps as StoryAppProps,
   type DesktopStoryShellSnapshot as StoryAppSnapshot
-} from './desktop/DesktopStoryShell';
+} from './desktop/LegacyDesktopStoryShell';

@@ -99,7 +99,9 @@ class CraneContactTimeline implements SegmentTimelineHandle {
       copyCue: CRANE_CONTACT_COPY_CUE,
       sample: sampleCraneContact,
       render: (progress) => {
-        if (progress > this.renderedProgress + 0.0001) {
+        if (context.sampling === 'scroll') {
+          this.playbackDirection = 1;
+        } else if (progress > this.renderedProgress + 0.0001) {
           this.playbackDirection = 1;
         } else if (progress < this.renderedProgress - 0.0001) {
           this.playbackDirection = -1;

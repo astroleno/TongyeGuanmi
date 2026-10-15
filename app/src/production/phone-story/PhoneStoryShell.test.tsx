@@ -125,7 +125,8 @@ vi.mock('./runtime', () => ({
   })
 }));
 
-vi.mock('./presentation', () => ({
+vi.mock('./presentation', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./presentation')>(),
   runPhoneCleanupSteps: (label: string, steps: readonly (() => void)[]) => {
     const errors: unknown[] = [];
     for (const step of steps) {
@@ -257,7 +258,7 @@ vi.mock('../StoryNav', async () => {
   };
 });
 
-import { PhoneStoryShell } from './PhoneStoryShell';
+import { PhoneStoryShell } from './LegacyPhoneStoryShell';
 import { phoneNativePrewarmScenes } from './manifest';
 import { loadPhoneSceneModule } from './scenes';
 import { loadPhoneTransitionModule } from './transitions';
@@ -575,6 +576,7 @@ beforeEach(() => {
   probe.snapshot = bootSnapshot();
   document.body.replaceChildren();
   delete document.documentElement.dataset.phonePreboot;
+  delete document.documentElement.dataset.phoneReading;
   delete document.documentElement.dataset.storyHydrated;
   delete document.documentElement.dataset.staticReading;
   Object.defineProperty(window, 'matchMedia', {
@@ -595,6 +597,45 @@ beforeEach(() => {
 });
 
 describe('clean PhoneStoryShell ownership', () => {
+  it('synchronizes document scroll ownership across native menu entries, faults, and unmount', () => {
+    const { host, root } = hostRoot();
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+      const engine = connectedEngine();
+      expect(document.documentElement.dataset.phoneReading).toBe('disabled');
+      revealStableStory(engine);
+      for (const [index, sceneId] of (['services', 'education', 'method-top', 'education'] as const).entries()) {
+        act(() => engine.publish(nativeStableSnapshot(sceneId, index + 10)));
+        expect(document.documentElement.dataset.phoneReading).toBe('enabled');
+        expect(host.querySelector('.phone-story__reading-flow')?.hasAttribute('inert')).toBe(false);
+      }
+      act(() => engine.publish({ ...nativeStableSnapshot('education', 19), status: 'faulted', transaction: null,
+        fault: { code: 'presentation-landing-invalid', message: 'test fault', retryable: true } } as PhoneStorySnapshot));
+      expect(document.documentElement.dataset.phoneReading).toBe('disabled');
+      act(() => engine.publish(nativeStableSnapshot('education', 20)));
+      expect(document.documentElement.dataset.phoneReading).toBe('enabled');
+    } finally { act(() => root.unmount()); }
+    expect(document.documentElement.hasAttribute('data-phone-reading')).toBe(false);
+  });
+
+  it('measures the layout viewport independently of old fixed-plane overflow after rotation', () => {
+    const before = Object.getOwnPropertyDescriptor(document.documentElement, 'clientWidth');
+    let width = 390;
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, get: () => width });
+    const { root } = hostRoot();
+    try {
+      act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+      const engine = connectedEngine();
+      width = 360;
+      act(() => window.dispatchEvent(new Event('resize')));
+      expect(engine.hostEvents.at(-1)).toMatchObject({ type: 'viewport', change: 'layout', viewport: { layout: { width: 360 } } });
+    } finally {
+      act(() => root.unmount());
+      if (before) Object.defineProperty(document.documentElement, 'clientWidth', before);
+      else Reflect.deleteProperty(document.documentElement, 'clientWidth');
+    }
+  });
+
   it('does not clamp, freeze, or consume a native boundary gesture before runtime readiness', () => {
     const { host, root } = hostRoot();
     act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
@@ -2000,6 +2041,29 @@ describe('clean PhoneStoryShell ownership', () => {
     if (!(fallback instanceof HTMLButtonElement)) throw new Error('missing direct activation CTA');
     expect(fallback.hidden).toBe(false);
     expect(fallback.disabled).toBe(false);
+    act(() => root.unmount());
+  });
+
+  it('ignores horizontal drags and multi-touch, and requires a fresh single touch after cancellation', () => {
+    const { host, root } = hostRoot();
+    act(() => root.render(<PhoneStoryShell chunkRecovery={chunkRecovery} />));
+    const engine = connectedEngine(); revealStableStory(engine);
+    const story = host.querySelector('.phone-story')!;
+    const touch = (type: string, points: { identifier: number; clientX: number; clientY: number }[]) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'touches', { value: points });
+      act(() => story.dispatchEvent(event)); return event;
+    };
+    const point = (x: number, y: number) => ({ identifier: 7, clientX: x, clientY: y });
+    touch('touchstart', [point(100, 600)]);
+    expect(touch('touchmove', [point(250, 580)]).defaultPrevented).toBe(false);
+    expect(engine.hostEvents.filter(({ type }) => type === 'input')).toHaveLength(0);
+    touch('touchmove', [point(200, 580), { ...point(300, 500), identifier: 8 }]);
+    touch('touchmove', [point(100, 400)]);
+    expect(engine.hostEvents.filter(({ type }) => type === 'input')).toHaveLength(0);
+    touch('touchstart', [point(100, 600)]);
+    expect(touch('touchmove', [point(110, 560)]).defaultPrevented).toBe(true);
+    expect(engine.hostEvents.filter(({ type }) => type === 'input')).toHaveLength(1);
     act(() => root.unmount());
   });
 

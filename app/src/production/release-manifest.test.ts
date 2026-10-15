@@ -61,6 +61,10 @@ const memoryProfiler = readFileSync(
   new URL('../../scripts/profile-r5-process-memory.mjs', import.meta.url),
   'utf8'
 );
+const memoryBrowserHelpers = readFileSync(
+  new URL('../../scripts/r5-scroll-memory.mjs', import.meta.url),
+  'utf8'
+);
 const temporaryDirectories: string[] = [];
 
 function runGit(repoDir: string, ...args: string[]) {
@@ -597,17 +601,19 @@ it('routes deploy builds through the strict release identity gate', () => {
   expect(memoryProfiler).toContain('isBrowserRootCommand(row.command)');
   expect(memoryProfiler).toContain('const pass = samplingSummary.valid');
   expect(memoryProfiler).toContain("proxy: { server: proxyServer, bypass: '127.0.0.1,localhost' }");
-  expect(memoryProfiler).toContain("'figure2-proof',");
-  expect(memoryProfiler).not.toContain("'figure2-proof-opening',");
-  expect(memoryProfiler).not.toContain("'figure2-proof-cards',");
-  expect(memoryProfiler).not.toContain("'figure2-proof-closing',");
+  expect(memoryBrowserHelpers).toContain("'figure2-proof',");
+  expect(memoryBrowserHelpers).not.toContain("'figure2-proof-opening',");
+  expect(memoryBrowserHelpers).not.toContain("'figure2-proof-cards',");
+  expect(memoryBrowserHelpers).not.toContain("'figure2-proof-closing',");
+  expect(memoryProfiler).toContain('createScrollMemoryTraversal(ranges)');
+  expect(memoryProfiler).toContain('page.addInitScript(installScrollMemoryProbe)');
+  expect(memoryBrowserHelpers).toContain('window.__r5ScrollStory');
+  expect(memoryProfiler).not.toContain('__storyApp');
+  expect(memoryProfiler).toContain('sha256(await served.text()) !== identity.draftManifestSha256');
   expect(memoryProfiler).toContain("await devtools.send('HeapProfiler.collectGarbage');");
-  expect(memoryProfiler).toContain(
-    "direction: 'forward-settled', ...(await settledStorySnapshot(page))"
-  );
-  expect(memoryProfiler).toContain(
-    "direction: 'reverse-settled', ...(await settledStorySnapshot(page))"
-  );
+  expect(memoryProfiler).toContain("direction: 'forward-settled'");
+  expect(memoryProfiler).toContain("direction: 'reverse-settled'");
+  expect(memoryProfiler.match(/await settledStorySnapshot\(page, devtools\)/g)).toHaveLength(2);
   expect(memoryProfiler).not.toContain('macOS / Chrome hardware process-tree sample');
 });
 

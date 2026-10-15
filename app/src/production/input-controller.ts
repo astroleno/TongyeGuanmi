@@ -6,8 +6,8 @@ import { createGestureIntentGate } from './gesture-intent-gate';
 import { createPhysicalGestureTracker } from './physical-gesture-tracker';
 import { createReadingEdgeLatch } from './reading-edge-latch';
 import { consumeReadingPixels } from './reading-handoff';
-import { createReadingMotionGovernor } from './reading-motion-governor';
 import { unlockStoryMedia } from './mobile-media-unlock';
+import { createReadingSmoothMotion } from './reading-smooth-motion';
 
 const portraitSpikeEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_PORTRAIT_SPIKE === '1';
 
@@ -34,7 +34,7 @@ export function canScrollNatively(root: HTMLElement | null | undefined, delta: n
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
-  const element = target instanceof HTMLElement ? target : null;
+  const element = typeof HTMLElement !== 'undefined' && target instanceof HTMLElement ? target : null;
   return Boolean(element?.closest('input, textarea, select, [contenteditable="true"]'));
 }
 
@@ -130,7 +130,11 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   const gestureGate = createGestureIntentGate();
   const physicalGesture = createPhysicalGestureTracker();
   const readingEdgeLatch = createReadingEdgeLatch();
-  const readingMotionGovernor = createReadingMotionGovernor();
+  const smooth = createReadingSmoothMotion({
+    requestFrame: (callback) => window.requestAnimationFrame(callback),
+    cancelFrame: (handle) => window.cancelAnimationFrame(handle)
+  });
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
   let observedScope = interactionScope(options.runtime.getState());
   let admittedPhysicalScope: string | undefined;
 
@@ -191,20 +195,20 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
         gestureGate.reset('direction-reversal');
       }
       const hasReadingScrollport = ownsReadingInput && Boolean(readingScrollport(currentLayer));
-      const governedReading = hasReadingScrollport
-        ? readingMotionGovernor.consume({
-            scope: `reading:${currentScene}`,
-            source: normalized.source,
-            pixels: normalized.pixels,
-            viewportHeight: normalized.viewportHeight,
-            newGesture: gesture.newGesture
-          })
-        : { pixels: normalized.pixels, absorbed: false };
-      if (governedReading.absorbed) {
+      const smoothWheel = normalized.source === 'wheel' && !reducedMotion?.matches
+        && typeof window.requestAnimationFrame === 'function';
+      if (smoothWheel && hasReadingScrollport && readingCanScroll(currentLayer, nextDirection)) {
+        const port = readingScrollport(currentLayer)!;
+        smooth.bind({ ownerKey: port, readPosition: () => port.scrollTop,
+          readMax: () => Math.max(0, port.scrollHeight - port.clientHeight),
+          writePosition: (position) => { port.scrollTop = position; } });
+        smooth.push({ deltaPx: normalized.pixels, now: performance.now() });
+        readingEdgeLatch.reset();
         return;
       }
+      smooth.cancel();
       const reading = ownsReadingInput
-        ? consumeReadingPixels({ root: currentLayer, pixels: governedReading.pixels })
+        ? consumeReadingPixels({ root: currentLayer, pixels: normalized.pixels })
         : {
             owned: false,
             direction: nextDirection,
@@ -217,7 +221,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
       if (reading.owned) {
         const edge = readingEdgeLatch.consume({
           scope: `reading:${currentScene}:${nextDirection === 1 ? 'bottom' : 'top'}`,
-          pixels: governedReading.pixels,
+          pixels: normalized.pixels,
           startedAtEdge: reading.startedAtEdge,
           reachedEdgeDuringInput: reading.reachedEdgeDuringInput,
           newGesture: gesture.newGesture
@@ -265,6 +269,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   };
 
   const onWheel = (event: WheelEvent) => {
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || isEditableTarget(event.target)) return;
     dispatch({
       type: 'wheel',
       deltaY: event.deltaY,
@@ -274,6 +279,7 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   };
 
   const onTouchStart = (event: TouchEvent) => {
+    smooth.cancel();
     (options.unlockMedia ?? unlockStoryMedia)();
     previousTouchY = event.touches[0]?.clientY;
     touchStartsNewReadingGesture = true;
@@ -304,13 +310,13 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     gestureGate.reset('gesture-idle');
     readingEdgeLatch.endGesture();
     physicalGesture.end();
-    readingMotionGovernor.reset();
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableTarget(event.target)) {
       return;
     }
+    smooth.cancel();
     dispatch({ type: 'key', key: event.key, viewportHeight: storyViewportHeight() }, event);
   };
 
@@ -322,16 +328,16 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   window.addEventListener('keydown', onKeyDown);
 
   const resetForViewport = () => {
+    smooth.cancel();
     gestureGate.reset('viewport-change');
     readingEdgeLatch.reset();
     physicalGesture.reset();
-    readingMotionGovernor.reset();
   };
   const applyReadingEntry = (entry: ReadingEntryIntent | undefined) => {
+    smooth.cancel();
     gestureGate.reset('entry-position');
     readingEdgeLatch.reset();
     physicalGesture.reset();
-    readingMotionGovernor.reset();
     if (!entry) {
       return;
     }
@@ -349,22 +355,26 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
   window.addEventListener('resize', resetForViewport);
   window.addEventListener('orientationchange', resetForViewport);
   window.addEventListener('story-reading-entry', resetForEntry);
+  window.addEventListener('blur', resetForViewport);
+  window.addEventListener('pagehide', resetForViewport);
+  window.addEventListener('visibilitychange', resetForViewport);
+  reducedMotion?.addEventListener('change', resetForViewport);
   window.visualViewport?.addEventListener('resize', resetForViewport);
   const unsubscribeRuntime = options.runtime.subscribe(() => {
     const snapshot = options.runtime.getState();
     const nextScope = interactionScope(snapshot);
     if (nextScope !== observedScope) {
+      smooth.cancel();
       observedScope = nextScope;
       admittedPhysicalScope = undefined;
       gestureGate.reset('scope-change');
       readingEdgeLatch.reset();
-      readingMotionGovernor.reset();
     }
     if (snapshot.state === 'seeking') {
+      smooth.cancel();
       gestureGate.reset('seek');
       readingEdgeLatch.reset();
       physicalGesture.reset();
-      readingMotionGovernor.reset();
     }
   });
 
@@ -383,11 +393,15 @@ export function attachStoryInput(options: StoryInputControllerOptions): () => vo
     window.removeEventListener('resize', resetForViewport);
     window.removeEventListener('orientationchange', resetForViewport);
     window.removeEventListener('story-reading-entry', resetForEntry);
+    window.removeEventListener('blur', resetForViewport);
+    window.removeEventListener('pagehide', resetForViewport);
+    window.removeEventListener('visibilitychange', resetForViewport);
+    reducedMotion?.removeEventListener('change', resetForViewport);
     window.visualViewport?.removeEventListener('resize', resetForViewport);
     unsubscribeRuntime();
     gestureGate.reset('dispose');
     readingEdgeLatch.reset();
     physicalGesture.reset();
-    readingMotionGovernor.reset();
+    smooth.dispose();
   };
 }

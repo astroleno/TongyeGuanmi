@@ -1,5 +1,6 @@
 import { HORIZONTAL_INK_SOFT_EDGE_HALF_WIDTH_PX } from '../transitions/shared/inkField.ts';
 import { HORIZONTAL_INK_CONTOUR_AMPLITUDE } from '../transitions/shared/horizontalInkContour.ts';
+import { canvasLeaseGuard, getCanvasWebGlContext, windowOwnsCanvas } from '../media/scroll-canvas-window.ts';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const smoothStep = (value) => value * value * (3 - 2 * value);
@@ -36,11 +37,15 @@ export function releaseInkWebGlResources(
   });
   // StrictMode can remount a reusable canvas immediately after cleanup. The
   // normal path releases resources but keeps that context available.
-  if (loseContext) gl.getExtension('WEBGL_lose_context')?.loseContext();
+  if (loseContext && !windowOwnsCanvas(gl.canvas) && !gl.isContextLost()) gl.getExtension('WEBGL_lose_context')?.loseContext();
 }
 
 export function createInkBoundaryTransition(canvas, options = {}) {
   if (!canvas) return null;
+  const drawingCanvas = options.sharedCanvas ?? canvas;
+  const ownsLease = canvasLeaseGuard(drawingCanvas);
+  const output = options.sharedCanvas ? canvas.getContext('2d') : null;
+  if (options.sharedCanvas && !output) return null;
   const fieldKind = ['horizontal', 'radial', 'depth'].includes(options.fieldKind)
     ? options.fieldKind
     : 'radial';
@@ -54,7 +59,7 @@ export function createInkBoundaryTransition(canvas, options = {}) {
   if (targetImage && (!targetImage.complete || !(targetImage.naturalWidth > 0) || !(targetImage.naturalHeight > 0))) {
     return null;
   }
-  const gl = canvas.getContext('webgl', {
+  const gl = getCanvasWebGlContext(drawingCanvas, {
     alpha: true,
     antialias: false,
     depth: false,
@@ -215,6 +220,9 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    // A leased context can previously have uploaded a DOM depth/target image.
+    // Typed-array atlases must not inherit that image's vertical orientation.
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
@@ -285,8 +293,10 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
       height = nextHeight;
       canvas.width = width;
       canvas.height = height;
-      gl.viewport(0, 0, width, height);
     }
+    if (drawingCanvas.width !== width) drawingCanvas.width = width;
+    if (drawingCanvas.height !== height) drawingCanvas.height = height;
+    gl.viewport(0, 0, width, height);
     return cssWidth > 0 && cssHeight > 0;
   };
 
@@ -303,7 +313,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
     depthImage = image;
     image.crossOrigin = 'anonymous';
     image.onload = () => {
-      if (destroyed || image !== depthImage || frame.spec.depthSrc !== depthSource) {
+      if (destroyed || !ownsLease() || image !== depthImage || frame.spec.depthSrc !== depthSource) {
         return;
       }
       gl.activeTexture(gl.TEXTURE0);
@@ -330,6 +340,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, contourTexture);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
@@ -364,7 +375,7 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
 
   return {
     render(frame) {
-      if (destroyed || !frame) return;
+      if (destroyed || !ownsLease() || !frame) return;
       const visibleProgress = clamp(frame.progress ?? 0, 0, 1);
       const fadeIn = smoothStep(clamp(visibleProgress / 0.06, 0, 1));
       const fadeOut = 1 - smoothStep(
@@ -380,6 +391,13 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
 
       gl.clear(gl.COLOR_BUFFER_BIT);
       if (!active) return;
+
+      // Another pass may have changed vertex bindings and alpha blending.
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+      gl.enable(gl.BLEND);
+      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
       const spec = frame.spec;
       const origin = spec.kind === 'radial'
@@ -460,8 +478,13 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
       );
       gl.uniform1f(uniforms.occlusionAlphaMin, frame.occlusion.alphaMin);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (output) {
+        output.clearRect(0, 0, width, height);
+        output.drawImage(drawingCanvas, 0, 0);
+      }
     },
     prewarm(frame) {
+      if (!ownsLease()) return;
       this.render(frame);
       canvas.style.visibility = 'hidden';
       canvas.style.opacity = '0';
@@ -478,7 +501,8 @@ a=max(a,se);a=clamp(a,0.0,1.0);gl_FragColor=vec4(c,a);}
         program,
         shaders: [vertexShader, fragmentShader],
         textures
-      }, loseContext);
+      }, loseContext && !options.sharedCanvas);
+      if (!ownsLease()) return;
       canvas.width = 0;
       canvas.height = 0;
       canvas.style.visibility = 'hidden';

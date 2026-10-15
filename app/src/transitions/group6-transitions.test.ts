@@ -252,7 +252,7 @@ describe('R4 group6 transitions', () => {
       copyY: fixture.toRoot.style.getPropertyValue('--r4-education-y'),
       scrollTop: fixture.toRoot.scrollTop,
       edge: fixture.toRoot.dataset.readingEdge,
-      backgroundOwner: /\.r4-education\s*\{[^}]*#ede4d2;/s.test(stylesheet)
+      backgroundOwner: /\.r4-education\s*\{[^}]*var\(--r4-warm-paper\);/s.test(stylesheet)
     });
 
     timeline.progress(0.99);

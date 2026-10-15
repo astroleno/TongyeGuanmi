@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   PHONE_CORE_LOC_BUDGETS,
   PHONE_CORE_TOTAL_LOC_BUDGET,
+  SCROLL_SHARED_CORE_FILES,
   phoneCleanArchitectureViolations
 } from './verify-phone-clean-architecture.mjs';
 
@@ -13,6 +14,65 @@ const { afterEach, test } = process.env.VITEST
   : await import('node:test');
 
 const temporaryRoots = [];
+
+async function scrollFixture(overrides = {}) {
+  return writeFixture({
+    ...Object.fromEntries(SCROLL_SHARED_CORE_FILES.map((file) => [`src/${file}`, 'export {};\n'])),
+    'src/production/phone-story/LegacyPhoneStoryShell.tsx': validFixtureFiles()['src/production/phone-story/PhoneStoryShell.tsx'],
+    'src/production/phone-story/PhoneStoryShell.tsx': `
+      import { StoryScrollShell } from '../StoryScrollShell';
+      import { createPhoneScrollPlatform } from './scroll-platform';
+      export function PhoneStoryShell() { return StoryScrollShell(createPhoneScrollPlatform); }
+    `,
+    'src/production/phone-story/scroll-platform.tsx': 'export const createPhoneScrollPlatform = () => ({});',
+    'src/production/phone-story/scroll-choreography.ts': 'export const sample = () => 0;',
+    'src/runtime/scroll-story-runtime.ts': 'export function createScrollStoryRuntime() { return {}; }',
+    'src/production/StoryScrollShell.tsx': `
+      import { createScrollStoryRuntime } from '../runtime/scroll-story-runtime';
+      export function StoryScrollShell() { return createScrollStoryRuntime(); }
+    `,
+    ...overrides
+  });
+}
+
+test('accepts one continuous shared authority and keeps the old engine harness-only', async () => {
+  assert.deepEqual(await phoneCleanArchitectureViolations({ appRoot: await scrollFixture() }), []);
+});
+
+test('counts shared continuous files against the unchanged total core budget', async () => {
+  const appRoot = await scrollFixture({ 'src/production/story-scroll-layout.ts': 'export {};\n' + '// budget\n'.repeat(PHONE_CORE_TOTAL_LOC_BUDGET) });
+  assert.match((await phoneCleanArchitectureViolations({ appRoot })).join('\n'), /total TypeScript\/TSX LOC exceeds budget/);
+});
+
+test('rejects a retired authority reconnected from the formal continuous shell', async () => {
+  const appRoot = await scrollFixture({ 'src/production/StoryScrollShell.tsx': `
+    import { createScrollStoryRuntime } from '../runtime/scroll-story-runtime';
+    import { createPhoneStoryRuntime } from './phone-story/runtime';
+    export function StoryScrollShell() { createScrollStoryRuntime(); return createPhoneStoryRuntime; }
+  ` });
+  assert.match((await phoneCleanArchitectureViolations({ appRoot })).join('\n'), /formal continuous graph imports retired story authority/);
+});
+
+test('rejects aliased second continuous factories and an automatic adapter clock', async () => {
+  const appRoot = await scrollFixture({
+    'src/production/rogue.ts': `import { createScrollStoryRuntime as other } from '../runtime/scroll-story-runtime'; other();`,
+    'src/production/phone-story/scroll-platform.tsx': 'export function createPhoneScrollPlatform() { timeline.play(); }'
+  });
+  const failures = (await phoneCleanArchitectureViolations({ appRoot })).join('\n');
+  assert.match(failures, /continuous runtime factory called outside shared shell/);
+  assert.match(failures, /continuous adapter must sample, not autoplay/);
+});
+
+test('rebuilds the symbol program after source edits within the same fixture', async () => {
+  const appRoot = await scrollFixture({ 'src/production/rogue.ts': 'export {};\n' });
+  assert.deepEqual(await phoneCleanArchitectureViolations({ appRoot }), []);
+  await writeFile(path.join(appRoot, 'src/production/rogue.ts'), `
+    import { createScrollStoryRuntime as boot } from '../runtime/scroll-story-runtime';
+    boot();
+  `, 'utf8');
+  assert.match((await phoneCleanArchitectureViolations({ appRoot })).join('\n'),
+    /continuous runtime factory called outside shared shell/);
+});
 
 const validViteConfig = `
   import { defineConfig } from 'vite';
@@ -149,11 +209,10 @@ async function writeFixture(overrides = {}, omitted = []) {
   for (const omittedFile of omitted) {
     delete files[omittedFile];
   }
-  for (const [relative, source] of Object.entries(files)) {
-    const target = path.join(root, relative);
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, source, 'utf8');
-  }
+  const entries = Object.entries(files).map(([relative, source]) => [path.join(root, relative), source]);
+  await Promise.all([...new Set(entries.map(([target]) => path.dirname(target)))]
+    .map((directory) => mkdir(directory, { recursive: true })));
+  await Promise.all(entries.map(([target, source]) => writeFile(target, source, 'utf8')));
   return root;
 }
 
@@ -448,11 +507,12 @@ test('rejects every runtime factory value escape', async () => {
     `
   };
 
-  for (const [label, source] of Object.entries(escapes)) {
-    const found = await violations({
-      [`src/production/${label}-phone-entry.ts`]: source
-    }, { phase: 'cutover' });
-    includes(found, 'runtime factory value escape');
+  // Each module has its own symbol scope. Check all attacks in one fresh graph
+  // and require a file-specific rejection for every one, within the same 5s.
+  const found = await violations(Object.fromEntries(Object.entries(escapes)
+    .map(([label, source]) => [`src/production/${label}-phone-entry.ts`, source])), { phase: 'cutover' });
+  for (const label of Object.keys(escapes)) {
+    includes(found, `src/production/${label}-phone-entry.ts: runtime factory value escape`);
   }
 });
 
@@ -470,8 +530,43 @@ test('does not confuse an unrelated same-named member with the factory symbol', 
   }), []);
 });
 
+test('tracks both factory calls through cyclic assignments', async () => {
+  const found = await violations({
+    'src/production/cyclic-phone-entry.ts': `
+      import { createPhoneStoryRuntime } from './phone-story/runtime';
+      let first, second;
+      first = second;
+      second = first;
+      second = createPhoneStoryRuntime;
+      first(() => undefined);
+      second(() => undefined);
+    `
+  });
+  assert.ok(found.some((violation) => /runtime factory call/.test(violation)));
+  includes(found, 'found 3');
+});
+
+test('tracks renamed namespace exports and factory assignments to parameters', async () => {
+  const found = await violations({
+    'src/production/factory-transport.ts': `
+      export { createPhoneStoryRuntime as launchPhone } from './phone-story/runtime';
+    `,
+    'src/production/indirect-phone-entry.ts': `
+      import * as transport from './factory-transport';
+      import { createPhoneStoryRuntime } from './phone-story/runtime';
+      transport.launchPhone(() => undefined);
+      export function launchWithParameter(boot) {
+        boot = createPhoneStoryRuntime;
+        boot(() => undefined);
+      }
+    `
+  });
+  includes(found, 'found 3');
+  includes(found, 'runtime factory call is allowed only');
+});
+
 test('rejects every external dependency outside each core file allowlist', async () => {
-  for (const specifier of Object.values({
+  const specifiers = Object.values({
     legacyMachine: '../phone/legacy-machine',
     timeline: '../phone/phone-stage-timeline',
     coordinator: '../phone/phone-transition-coordinator',
@@ -479,15 +574,18 @@ test('rejects every external dependency outside each core file allowlist', async
     css: './machine.css',
     qa: './PhoneBrandLabStory',
     bootstrap: '../presentation-shell-loaders'
-  })) {
-    const found = await violations({
-      'src/production/phone-story/machine.ts': `
-        import ${JSON.stringify(specifier)};
+  });
+  const found = await violations({
+    'src/production/phone-story/machine.ts': `
+        ${specifiers.map((specifier) => `import ${JSON.stringify(specifier)};`).join('\n')}
         export function reducePhoneStory(state: unknown) { return state; }
         export function commitStableCandidate(candidate: unknown) { return candidate; }
       `
-    });
-    includes(found, 'machine.ts: forbidden');
+  });
+  for (const specifier of specifiers) {
+    includes(found, specifier === './PhoneBrandLabStory'
+      ? 'machine.ts: forbidden core dependency on PhoneBrandLabStory.tsx'
+      : `machine.ts: forbidden external import dependency ${specifier}`);
   }
 });
 

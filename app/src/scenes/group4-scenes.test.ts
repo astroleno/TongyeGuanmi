@@ -83,7 +83,7 @@ describe('R4 group4 scenes', () => {
       /\.r4-services__row\s*\{[^}]*border-(?:top|bottom)/s
     );
     expect(stylesheet).toMatch(
-      /\.r4-services\s*\{[^}]*background:\s*#ede4d2/s
+      /\.r4-services\s*\{[^}]*background:\s*var\(--r4-warm-paper\)/s
     );
     expect(stylesheet).not.toMatch(
       /\.r4-services__capability-lead h2\s*\{[^}]*max-width:\s*5em/s

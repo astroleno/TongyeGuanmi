@@ -1,3 +1,4 @@
+import { ScrollCanvas } from '../../../media/ScrollCanvas';
 import {
   useCallback,
   useLayoutEffect,
@@ -20,6 +21,7 @@ import type {
 import {
   HERO_RADIAL_INK_FIELD,
   renderHeroProgress,
+  renderHeroScrollEntryText,
   sampleHeroIntro,
   startHeroIntro
 } from '../motion';
@@ -349,6 +351,13 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
           playbackRef.current?.scrub(clamped);
         }
       },
+      renderEntry(progress) {
+        cancelEntrance();
+        renderEntrance(renderHeroScrollEntryText(rootRef.current, progress));
+        entranceStateRef.current = progress >= 1 ? 'completed' : 'idle';
+        const root = rootRef.current;
+        if (root) root.dataset.scrollEntry = String(progress);
+      },
       settle(endpoint) {
         if (endpoint === 0) {
           commandHandle.render(0);
@@ -426,10 +435,13 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
     playbackRef.current = createPhoneFigurePlayback(video, HERO_FIGURE_PACKED_ALPHA_VIDEO);
     introInkRef.current = createRadialInkIntroController({
       canvas: introCanvas,
+      sharedCanvas: canvas,
+      restoreSharedCanvas: () => compositorRef.current?.restoreFrame(),
       revealSurface: back,
       targetImage: back,
       field: HERO_RADIAL_INK_FIELD,
       generation: 'phone-story:hero-intro',
+      deferUntilVisible: Boolean(root.closest('[data-scroll-platform]')),
       viewport: () => ({
         width: root.clientWidth || window.innerWidth,
         height: root.clientHeight || window.innerHeight
@@ -508,7 +520,7 @@ export function PhoneHero({ reports }: PhoneHeroProps) {
         <div ref={figureParallaxRef} className="portrait-scroll-spike__hero-figure-parallax">
           <div className="portrait-scroll-spike__hero-figure-intro">
             <img ref={figurePosterRef} crossOrigin="anonymous" decoding="async" className="portrait-scroll-spike__hero-figure-poster" data-portrait-figure-poster src={HERO_FIGURE_POSTER} alt="" />
-            <canvas ref={figureCanvasRef} className="portrait-scroll-spike__hero-figure" data-portrait-figure-canvas aria-hidden="true" />
+            <ScrollCanvas purpose="packed-alpha" ref={figureCanvasRef} className="portrait-scroll-spike__hero-figure" data-portrait-figure-canvas aria-hidden="true" />
             <video ref={figureVideoRef} className="portrait-scroll-spike__hero-figure-source" data-portrait-figure-video muted playsInline preload="auto" />
           </div>
         </div>

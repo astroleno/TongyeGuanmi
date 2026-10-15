@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+// Historical discrete-gesture/commit contract; not a continuous-scroll proof.
+// Current formal presentation acceptance lives in continuous-scroll.spec.ts.
 import { expect, test } from '@playwright/test';
 import { PNG } from 'pngjs';
 import {
@@ -481,7 +483,7 @@ async function assertDecodedPoster(
 async function assertFormalInkCompositeContribution(
   page: import('@playwright/test').Page,
   segment: CompleteStorySegment,
-  expectedEffectZIndex?: '20' | '70'
+  expectedEffectZIndex?: '20' | '55' | '70'
 ): Promise<void> {
   if (!FORMAL_INK_SEGMENTS.has(segment)) return;
   const selector = `[data-phone-plane="effect"] [data-r4-ink-segment="${segment}"]`;
@@ -1545,7 +1547,8 @@ async function traverseCompleteStoryLeg(
     await sendFrontIntent(page, direction);
   }
   await assertFormalInkCompositeContribution(
-    page, segment, BETWEEN_PLANE_SEGMENTS.has(segment) ? '20' : '70'
+    page, segment, segment === 'figure2-distance-expand' ? '55'
+      : BETWEEN_PLANE_SEGMENTS.has(segment) ? '20' : '70'
   );
   await assertSinglePhoneAuthority(page);
   for (let boundary = 0; boundary < 8; boundary += 1) {

@@ -222,6 +222,25 @@ describe('depth threshold mask', () => {
     expect(host.children).toHaveLength(0);
   });
 
+  it('keeps the opaque mask layer through reversible scroll endpoints and restores it on disposal', async () => {
+    const document = new FakeDocument();
+    const host = new FakeNode(document), source = new FakeNode(document);
+    const mask = createDepthThresholdMask({
+      host: host as unknown as HTMLElement,
+      targets: [{ element: source as unknown as HTMLElement, polarity: 'conceal' }],
+      atlasSrc: '/depth-atlas.webp', runId: 'scroll:1', stableLayer: true,
+      transform: depthTransform
+    })!;
+    await mask.ready;
+    mask.commit();
+    const initial = new Map(source.style.values);
+    mask.render(.6); mask.render(0);
+    expect(source.style.values).toEqual(initial);
+    expect(source.style.getPropertyValue('mask-image')).toBe('url("/depth-atlas.webp")');
+    mask.dispose();
+    expect(source.style.getPropertyValue('mask-image')).toBe('');
+  });
+
   it('does not attach then remove the fully visible endpoint mask during commit', async () => {
     const document = new FakeDocument();
     const host = new FakeNode(document);

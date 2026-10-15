@@ -1,4 +1,4 @@
-import { PhoneStoryShell } from '../../production/phone-story/PhoneStoryShell';
+import { PhoneStoryShell } from '../../production/phone-story/LegacyPhoneStoryShell';
 
 const harnessChunkRecovery = Object.freeze({
   reportRejectedChunk: async () => 'fail-closed' as const,

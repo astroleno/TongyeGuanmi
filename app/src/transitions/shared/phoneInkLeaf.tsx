@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, type ComponentType } from 'react';
+import { ScrollCanvas } from '../../media/ScrollCanvas';
 import type {
   PhoneActivationInvocation,
   PhoneLeafCommandHandle,
@@ -94,7 +95,7 @@ export function createPhoneInkLeaf(
       disposeDepthMask();
       if (!canvas || !options.depthMaskAtlasSrc) return;
       const planes = canvas.closest<HTMLElement>('.phone-story')
-        ?.querySelector<HTMLElement>('.phone-story__planes');
+        ?.querySelector<HTMLElement>('.phone-story__planes, .story-scroll__flow');
       const figure2 = planes?.querySelector<HTMLElement>(
         '[data-r4-scene="figure2-animation"]'
       )?.closest<HTMLElement>('[data-phone-plane]') ?? null;
@@ -103,13 +104,18 @@ export function createPhoneInkLeaf(
       )?.closest<HTMLElement>('[data-phone-plane]') ?? null;
 
       const depthMask = createDepthThresholdMask({
-        host: planes ?? canvas.parentElement ?? canvas,
+        // The continuous document can be dozens of screens tall. Atlas
+        // coordinates belong to the fixed effect viewport, not that document.
+        host: bindingRef.current?.sampling === 'scroll'
+          ? canvas.parentElement ?? canvas
+          : planes ?? canvas.parentElement ?? canvas,
         targets: [
           ...(figure2 ? [{ element: figure2, polarity: 'conceal' as const }] : []),
           ...(proof && proof !== figure2 ? [{ element: proof, polarity: 'reveal' as const }] : [])
         ],
         polarities: ['reveal', 'conceal'],
         atlasSrc: options.depthMaskAtlasSrc,
+        stableLayer: bindingRef.current?.sampling === 'scroll',
         runId
       });
       depthMaskRef.current = depthMask;
@@ -215,7 +221,7 @@ export function createPhoneInkLeaf(
     }, [commands, reports]);
 
     return (
-      <canvas
+      <ScrollCanvas purpose="ink"
         ref={canvasRef}
         className={['r4-ink-transition-canvas', options.canvasClassName ?? '']
           .filter(Boolean).join(' ')}

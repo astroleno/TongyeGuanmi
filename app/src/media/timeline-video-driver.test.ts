@@ -121,6 +121,25 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it.each([[.033333, 0], [2.433333, 1]])('does not relabel a nearby scroll frame %s as endpoint %s', async (previousTime, progress) => {
+    const video = new FakeVideo(); video.duration = 2.5;
+    Object.assign(video, { closest: () => ({}) });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const input = { runId: 'scroll-endpoint', direction: 1 as const,
+      durationFallbackSeconds: 2.5, endSeconds: 2.467, frameRate: 30 };
+    try {
+      const ready = driver.prepareFrame({ ...input, progress: previousTime! / 2.467 });
+      video.completeSeek(); video.presentFrame(); await ready;
+      const writes = video.currentTimeWrites.length;
+      driver.drive({ ...input, progress: progress! });
+      expect(video.currentTimeWrites).toHaveLength(writes + 1);
+      expect(video.currentTime).toBeCloseTo(progress! * 2.467);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.completeSeek(); video.presentFrame();
+      expect(driver.snapshot().frameReady).toBe(true);
+    } finally { driver.dispose(); }
+  });
+
   it.each([1, -1] as const)('does not let a late mismatched frame replace the latest queued seek (%i)', (direction) => {
     const video = new FakeVideo();
     const driver = createTimelineVideoDriver(videoElement(video));
@@ -612,6 +631,82 @@ describe('timeline video driver', () => {
       }
       await expect(readiness).resolves.toMatchObject({ status: 'ready' });
     } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('freezes a preparation nudge before publishing its physical scroll-frame proof', async () => {
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}) });
+    const driver = createTimelineVideoDriver(video as unknown as HTMLVideoElement);
+    driver.drive({ runId: 'scroll', direction: 1, progress: .2, durationFallbackSeconds: 10 });
+    await video.play();
+    video.completeSeek(); video.presentFrame();
+    expect(video.paused).toBe(true);
+    expect(driver.snapshot().presentedPlayheadTime).toBe(video.currentTime);
+    driver.dispose();
+  });
+  it('does not start native playback while a scroll preparation is waiting', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}) });
+    const controller = new AbortController();
+    const ready = prepareTimelineVideoFrame(videoElement(video), {
+      runId: 'paused-scroll-prepare', direction: 1, progress: .5,
+      durationFallbackSeconds: 10, signal: controller.signal
+    });
+    const rejected = expect(ready).rejects.toThrow();
+    try {
+      await vi.advanceTimersByTimeAsync(300);
+      expect(video.playCalls).toBe(0);
+      controller.abort(); await rejected;
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+  it('proves paused scroll samples without compositor callbacks and rejects undecoded samples', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const drawImage = vi.fn();
+    const getImageData = vi.fn();
+    Object.assign(video, {
+      closest: (selector: string) => selector === '[data-scroll-platform]' ? {} : null,
+      ownerDocument: { createElement: () => ({ getContext: () => ({ drawImage, getImageData }) }) }
+    });
+    const driver = timelineVideoDriverFor(videoElement(video));
+    try {
+      driver.drive({ runId: 'scroll:1', direction: 1, progress: .5, durationFallbackSeconds: 10 });
+      await vi.advanceTimersByTimeAsync(32);
+      expect(driver.snapshot().frameReady).toBe(false);
+      expect(drawImage).not.toHaveBeenCalled();
+      // Some paused decoders settle after the first probe without another
+      // seeked event. An active scroll proof must continue probing.
+      video.seeking = false;
+      await vi.advanceTimersByTimeAsync(32);
+      expect(driver.snapshot().frameReady).toBe(true);
+      expect(video.dataset.timelineVideoFrameEvidence).toBe('decoded-canvas');
+      driver.drive({ runId: 'scroll:1', direction: 1, progress: .2, durationFallbackSeconds: 10 });
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.completeSeek();
+      await vi.advanceTimersByTimeAsync(32);
+      expect(driver.snapshot()).toMatchObject({ frameReady: true, generation: 1 });
+      expect(driver.snapshot().targetTime).toBeCloseTo(1.996);
+    } finally { driver.dispose(); vi.useRealTimers(); }
+  });
+  it('reissues a paused scroll seek silently reset by source selection instead of waiting forever', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}) });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'scroll-reset', direction: 1, progress: .5,
+        durationFallbackSeconds: 10, allowSeekedFrameFallback: true });
+      const target = driver.snapshot().targetTime!;
+      video.currentTime = 0; video.seeking = false;
+      await vi.advanceTimersByTimeAsync(8);
+      expect(video.currentTime).toBe(target);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.completeSeek();
+      await vi.advanceTimersByTimeAsync(8);
+      expect(driver.snapshot()).toMatchObject({ frameReady: true, presentedTime: target });
+      expect(video.playCalls).toBe(0);
+    } finally { driver.dispose(); vi.useRealTimers(); }
   });
 
   it('shares prewarm/admission work while cancellation releases only its own lease', async () => {

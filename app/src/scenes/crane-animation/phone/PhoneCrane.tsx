@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { disposeTimelineVideoDriver, driveTimelineVideo } from '../../../media/timeline-video-driver';
 import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
+import { ScrollCanvas } from '../../../media/ScrollCanvas';
 import {
   createPhonePackedAlphaSurface,
   type PhonePackedAlphaSurface,
@@ -168,6 +169,11 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
   }, [stopPairProof, updatePairPresentation]);
 
   const syncPresentedClock = useCallback(() => {
+    if (bindingRef.current?.sampling === 'scroll') {
+      presentedProgressRef.current = progressRef.current;
+      renderPhoneCranePresentation(rootRef.current, progressRef.current, 1);
+      return;
+    }
     const mediaProgress = [figureCanvasRef.current, flockCanvasRef.current].map(
       (canvas, index) => Number(canvas?.dataset.packedAlphaGeneration)
         === surfaceGenerationsRef.current[index]
@@ -563,7 +569,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
                     preload="none"
                     playsInline
                   />
-                  <canvas
+                  <ScrollCanvas purpose="packed-alpha"
                     ref={figureCanvasRef}
                     className="crane-figure-video phone-crane__figure-canvas"
                     data-phone-packed-alpha-canvas="crane-figure"
@@ -583,7 +589,7 @@ export function PhoneCrane({ reports }: PhoneCraneProps) {
                     preload="none"
                     playsInline
                   />
-                  <canvas
+                  <ScrollCanvas purpose="packed-alpha"
                     ref={flockCanvasRef}
                     className="crane-figure-video crane-figure-video--front phone-crane__flock-canvas"
                     data-phone-packed-alpha-canvas="crane-flock"

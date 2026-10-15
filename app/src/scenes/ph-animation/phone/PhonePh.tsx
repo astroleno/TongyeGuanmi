@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { primePhoneNativeVideo } from '../../../media/phone-native-video-prime';
 import { disposeTimelineVideoDriver, driveTimelineVideo } from '../../../media/timeline-video-driver';
+import { ScrollCanvas } from '../../../media/ScrollCanvas';
 import {
   createPhonePackedAlphaSurface,
   type PhonePackedAlphaSurface,
@@ -118,8 +119,11 @@ export function PhonePh({ reports }: PhonePhProps) {
 
   const render = useCallback((rawProgress: number) => {
     const progress = Math.min(1, Math.max(0, rawProgress));
-    if (progress > progressRef.current + .0001) directionRef.current = 1;
-    if (progress < progressRef.current - .0001) directionRef.current = -1;
+    if (bindingRef.current?.sampling === 'scroll') directionRef.current = 1;
+    else {
+      if (progress > progressRef.current + .0001) directionRef.current = 1;
+      if (progress < progressRef.current - .0001) directionRef.current = -1;
+    }
     progressRef.current = progress;
     renderPhonePhPresentation(rootRef.current, progress, directionRef.current);
     if (mediaPhaseRef.current === 'playing' && videoRef.current) {
@@ -395,7 +399,7 @@ export function PhonePh({ reports }: PhonePhProps) {
                     preload="none"
                     playsInline
                   />
-                  <canvas
+                  <ScrollCanvas purpose="packed-alpha"
                     ref={canvasRef}
                     className="ph-layer ph-layer--figure phone-ph__figure-canvas"
                     data-phone-packed-alpha-canvas="ph-figure"

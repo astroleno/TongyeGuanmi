@@ -24,6 +24,12 @@ export function primePhoneNativeVideo(
   video: HTMLVideoElement,
   options: PhoneNativeVideoPrimeOptions = {}
 ): Promise<void> {
+  // Continuous scenes have one paused-seek owner. A legacy play→pause prime
+  // races that owner's first decoded frame, even though playback ends paused.
+  if (video.closest?.('[data-scroll-platform]')) {
+    video.pause();
+    return Promise.resolve();
+  }
   let playback: Promise<void>;
   try {
     playback = Promise.resolve(video.play());

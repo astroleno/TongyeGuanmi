@@ -1,0 +1,84 @@
+html[data-story-scroll], html[data-story-scroll] body, html[data-story-scroll] #root {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+  overscroll-behavior: auto;
+}
+html[data-story-scroll] { overflow-x: clip; overflow-y: auto; scroll-behavior: auto; }
+.story-scroll {
+  --story-height: 100svh;
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  isolation: isolate;
+  background-attachment: fixed;
+}
+.story-scroll__slot { position: relative; width: 100%; }
+.story-scroll.stage { --r4-part-content-width: min(1240px, 90vw); }
+.story-scroll__flow { position: relative; }
+.story-scroll__cover { position: fixed; inset: 0; z-index: 900; background: var(--r4-warm-paper); pointer-events: none; }
+.story-scroll .story-loader { pointer-events: none; }
+.story-scroll .site-nav { z-index: 1100; }
+.story-scroll .phone-story__fault-actions { z-index: 1101; }
+.story-scroll__surface {
+  position: fixed;
+  inset: 0 auto auto 0;
+  width: 100%;
+  min-height: var(--story-height);
+  height: var(--story-height);
+  visibility: hidden;
+  overflow: visible;
+  z-index: 30;
+}
+.story-scroll__surface[data-scroll-reading="true"] { height: auto; place-items: start stretch; }
+.story-scroll__surface[data-scroll-role="target"] { z-index: 20; }
+.story-scroll__effect { position: fixed; inset: 0; height: var(--story-height); pointer-events: none; z-index: 88; }
+.story-scroll[data-scroll-range="figure2-distance-expand"] > .story-scroll__effect { z-index: 71; }
+.story-scroll > .stage-proof-retained-arch { position: fixed; }
+.story-scroll__pending {
+  position: fixed;
+  bottom: max(28px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 10px 18px;
+  border-radius: 24px;
+  color: #292919;
+  background: var(--r4-warm-paper);
+  font-size: 14px;
+  pointer-events: none;
+}
+.story-scroll [data-scroll-reading="true"] [data-reading-scrollport],
+.story-scroll [data-scroll-reading="true"] [data-phone-native-mirror] {
+  position: relative;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  transform: none;
+}
+.story-scroll.phone-story .r4-proof-compound {
+  position: relative;
+  inset: auto;
+  height: calc(var(--story-height) * 3);
+  transform: none;
+}
+.story-scroll.phone-story .r4-proof-panel { height: var(--story-height); min-height: var(--story-height); }
+.story-scroll.phone-story :is(.phone-services__hero, .phone-services__list, .phone-brand__content) { transition: none; }
+.story-scroll [data-scroll-reading="true"] :is(.r4-method, .r4-services, .r4-lab, .r4-education) {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+.story-scroll.phone-story .phone-brand__visual,
+.story-scroll.phone-story .phone-brand__visual > .phone-brand { height: auto; }
+.story-scroll.stage :is(.r4-method__wide, .r4-method__vertical) {
+  min-height: calc(var(--story-height) - 2 * clamp(52px, 7svh, 86px));
+}
+.story-scroll.stage :is(.r4-method__steps-lead, .r4-services__capability-lead, .r4-lab__lead, .r4-education__lead) {
+  top: calc(clamp(48px, 9svh, 96px) + clamp(52px, 7svh, 86px));
+}
+.story-scroll.stage [data-scroll-content="figure2-proof"] {
+  background: radial-gradient(ellipse at 50% 18%, rgba(255, 252, 244, .16), transparent 42rem), var(--r4-warm-paper);
+}

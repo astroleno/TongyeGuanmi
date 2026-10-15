@@ -174,7 +174,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
     const binding = bindingRef.current;
     if (!video || !surface || !binding || generation !== surfaceGenerationRef.current
       || disposedRef.current) return 'stale';
-    const direction = progress >= lastRequestedProgressRef.current ? 1 : -1;
+    const direction = binding.sampling === 'scroll' || progress >= lastRequestedProgressRef.current ? 1 : -1;
     lastRequestedProgressRef.current = progress;
     const result = await prepareTimelineVideoFrame(video, {
       runId: `${binding.frameToken}:aod:${generation}`,
@@ -228,7 +228,7 @@ export function PhoneAod({ reports }: PhoneAodProps) {
     const binding = bindingRef.current;
     const video = videoRef.current;
     if (mediaPhaseRef.current === 'playing' && binding && video) {
-      const direction: 1 | -1 = progress >= lastRequestedProgressRef.current ? 1 : -1;
+      const direction: 1 | -1 = binding.sampling === 'scroll' || progress >= lastRequestedProgressRef.current ? 1 : -1;
       lastRequestedProgressRef.current = progress;
       driveTimelineVideo(video, aodTimelineMediaInput(
         mediaRunTokenRef.current ?? `${binding.frameToken}:aod`, direction, progress
@@ -290,7 +290,9 @@ export function PhoneAod({ reports }: PhoneAodProps) {
         const root = rootRef.current;
         if (root && activatedGeneration > 0) {
           root.dataset.phoneAodPlaybackFrame = 'awaiting';
-          setAodExitActive(root, true);
+          // Preparing the incoming frame is not the AOD exit: its authored
+          // paper backing remains visible while the star map reveals it.
+          setAodExitActive(root, binding?.sampling !== 'scroll' || binding.leg !== 'target');
         }
         const settled = primeAodVideo(video, {
           isCurrent: () => !disposedRef.current

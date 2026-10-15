@@ -22,7 +22,8 @@ describe('viewport background contract', () => {
     const shellRule = rule('.stage-harness-shell');
 
     expect(viewportRule).toContain('height: 100%');
-    expect(viewportRule).toContain('background: #07110e');
+    expect(viewportRule).toContain('background: var(--surface-night)');
+    expect(rule(':root')).toContain('--surface-night: #07110e');
     expect(hydratedRule).toContain('overflow: hidden');
     expect(hydratedRule).toContain('overscroll-behavior: none');
     expect(noJsRule).toContain('overflow: auto');
@@ -33,11 +34,12 @@ describe('viewport background contract', () => {
 
   it('releases the hydrated document only for the Shell-owned native reading corridor', () => {
     expect(phoneStoryStylesheet).toMatch(
-      /html\[data-story-hydrated="true"\]:has\(\.phone-story\[data-phone-reading="enabled"\] \[data-phone-input-owner="native-document"\]\),[\s\S]*?:is\(body, #root\)\s*\{[^}]*height:\s*auto[^}]*overflow:\s*visible[^}]*overscroll-behavior:\s*auto/s
+      /html\[data-story-hydrated="true"\]\[data-phone-reading="enabled"\],[\s\S]*?:is\(body, #root\)\s*\{[^}]*height:\s*auto[^}]*overflow:\s*visible[^}]*overscroll-behavior:\s*auto/s
     );
     expect(phoneStoryStylesheet).toMatch(
-      /html\[data-story-hydrated="true"\]:has\(\.phone-story\[data-phone-reading="enabled"\] \[data-phone-input-owner="native-document"\]\)\s*\{[^}]*overflow-x:\s*hidden[^}]*overflow-y:\s*auto[^}]*overscroll-behavior-y:\s*none/s
+      /html\[data-story-hydrated="true"\]\[data-phone-reading="enabled"\]\s*\{[^}]*overflow-x:\s*hidden[^}]*overflow-y:\s*auto[^}]*overscroll-behavior:\s*auto/s
     );
+    expect(phoneStoryStylesheet).not.toMatch(/html[^\n{]*:has\(/);
   });
 
   it('keeps the canonical Star-map grade identical during transition and hold', () => {

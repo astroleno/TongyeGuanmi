@@ -30,6 +30,7 @@ function createGlProbe(options: Readonly<{
   };
   let shaderIndex = 0;
   const gl = {
+    isContextLost: vi.fn(() => false),
     VERTEX_SHADER: 0x8b31,
     FRAGMENT_SHADER: 0x8b30,
     COMPILE_STATUS: 0x8b81,
@@ -51,6 +52,8 @@ function createGlProbe(options: Readonly<{
     UNSIGNED_BYTE: 0x1401,
     TRIANGLES: 0x0004,
     COLOR_BUFFER_BIT: 0x4000,
+    BLEND: 0x0be2,
+    disable: vi.fn(),
     createShader: vi.fn(() => (
       shaderIndex++ === 0 ? resources.vertex : resources.fragment
     )),
@@ -188,6 +191,35 @@ afterEach(() => {
 });
 
 describe('packed alpha video', () => {
+  it('restores the proven texture after a borrowed ink pass without decoding or changing proof', () => {
+    const probe = createGlProbe();
+    const canvas = new CanvasProbe(probe.gl);
+    const video = new VideoProbe();
+    video.readyState = 2;
+    const onFrame = vi.fn();
+    const compositor = createPackedAlphaVideoCompositor({
+      canvas: canvas as unknown as HTMLCanvasElement,
+      video: video as unknown as HTMLVideoElement, onFrame
+    });
+    compositor.setActive(false);
+    const proof = { ...canvas.dataset };
+    const uploads = probe.spies.texImage2D.mock.calls.length;
+    const proofs = onFrame.mock.calls.length;
+    canvas.width = 390; canvas.height = 844;
+    video.currentTime = 1; video.videoWidth = 3344; video.readyState = 1;
+    probe.spies.bindBuffer.mockClear(); probe.spies.disable.mockClear();
+    compositor.restoreFrame();
+    expect([canvas.width, canvas.height]).toEqual([720, 1280]);
+    expect(probe.spies.bindBuffer).toHaveBeenLastCalledWith(probe.gl.ARRAY_BUFFER, probe.resources.buffer);
+    expect(probe.spies.disable).toHaveBeenCalledWith(probe.gl.BLEND);
+    expect(probe.spies.texImage2D).toHaveBeenCalledTimes(uploads);
+    expect(onFrame).toHaveBeenCalledTimes(proofs);
+    expect(canvas.dataset).toEqual(proof);
+    compositor.dispose();
+    const draws = probe.spies.drawArrays.mock.calls.length;
+    compositor.restoreFrame();
+    expect(probe.spies.drawArrays).toHaveBeenCalledTimes(draws);
+  });
   it('repaints a retained frame without uploading the same video texture again', () => {
     const probe = createGlProbe();
     const canvas = new CanvasProbe(probe.gl);
@@ -227,6 +259,8 @@ describe('packed alpha video', () => {
   it('hard-releases the compositor context when a packed surface retires', () => {
     const probe = createGlProbe();
 
+    retirementContract.releasePackedAlphaWebGlContext(probe.gl);
+    probe.spies.isContextLost.mockReturnValue(true);
     retirementContract.releasePackedAlphaWebGlContext(probe.gl);
 
     expect(probe.spies.getExtension).toHaveBeenCalledWith('WEBGL_lose_context');

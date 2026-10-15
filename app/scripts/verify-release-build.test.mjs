@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   DONOR_MAX_LAZY_LEAF_BYTES,
+  SCROLL_EXECUTION_CORE_MODULES,
   moduleProvenanceViolations
 } from './verify-release-build.mjs';
 
@@ -72,10 +73,33 @@ function includes(found, expected) {
   );
 }
 
+test('requires the complete shared continuous core and excludes retired gesture engines', () => {
+  const report = validProvenance();
+  const shell = report.chunks.find(({ fileName }) => fileName === 'assets/PhoneStoryShell.js');
+  shell.modules = SCROLL_EXECUTION_CORE_MODULES.map((relative) => `app/src/${relative}`).sort();
+  assert.deepEqual(moduleProvenanceViolations(report, { chunkBytes: bytes(), continuousScroll: true }), []);
+  shell.modules = shell.modules.filter((id) => !id.endsWith('/story/scroll-spine.ts'));
+  includes(moduleProvenanceViolations(report, { continuousScroll: true }), 'missing synchronously reachable story/scroll-spine.ts');
+  shell.modules.push('app/src/production/phone-story/runtime.ts'); shell.modules.sort();
+  includes(moduleProvenanceViolations(report, { continuousScroll: true }), 'retired gesture authority');
+});
+
 test('accepts a deterministic modules report with one synchronous core and lazy leaf', () => {
   assert.deepEqual(moduleProvenanceViolations(validProvenance(), {
     chunkBytes: bytes()
   }), []);
+});
+
+test('allows a shared synchronous media sampling scope but rejects a lazy coordinator', () => {
+  const report = validProvenance();
+  const shell = report.chunks.find(({ fileName }) => fileName === 'assets/PhoneStoryShell.js');
+  const leaf = report.chunks.find(({ fileName }) => fileName === 'assets/PhoneHero.js');
+  shell.modules = SCROLL_EXECUTION_CORE_MODULES.filter((id) => !id.endsWith('/scroll-media-sampling.ts')).map((id) => `app/src/${id}`).sort();
+  shell.imports = ['assets/sampling.js']; leaf.imports = ['assets/sampling.js'];
+  report.chunks.push(chunk({ fileName: 'assets/sampling.js', modules: ['app/src/media/scroll-media-sampling.ts'] }));
+  assert.deepEqual(moduleProvenanceViolations(report, { continuousScroll: true }), []);
+  leaf.modules.push('app/src/media/scroll-media-coherence.ts'); leaf.modules.sort();
+  includes(moduleProvenanceViolations(report, { continuousScroll: true }), 'lifecycle authority');
 });
 
 test('rejects a provenance report that omits the phone execution core', () => {

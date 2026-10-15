@@ -2,8 +2,8 @@
   box-sizing: border-box;
   min-height: var(--phone-layout-height, 100vh);
   padding: 0 0 max(72px, calc(env(safe-area-inset-bottom) + 44px));
-  background: #ede4d2;
-  color: #1e211c;
+  background: var(--r4-warm-paper);
+  color: var(--reading-fg, #1e211c);
 }
 
 .phone-method-top__visual,
@@ -38,7 +38,7 @@
 .phone-method-top .portrait-scroll-spike__method-bridge-content > span {
   display: block;
   margin: 0 0 12px;
-  color: #715b2e;
+  color: var(--reading-fg, #715b2e);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .14em;
@@ -48,7 +48,7 @@
   display: grid;
   gap: .22em;
   margin: 0;
-  color: #20251f;
+  color: var(--reading-fg, #20251f);
   font-family: var(--font-traditional);
   font-size: clamp(38px, 10.5vw, 56px);
   font-weight: 600;
@@ -57,7 +57,7 @@
 
 .phone-method-top .portrait-scroll-spike__reading-intro p {
   margin: 22px 0 0;
-  color: rgba(30, 33, 28, .76);
+  color: var(--reading-fg, rgba(30, 33, 28, .76));
   font-size: 17px;
   line-height: 1.8;
 }
@@ -80,7 +80,7 @@
 
 .phone-method-top .portrait-scroll-spike__steps li > span {
   grid-row: span 2;
-  color: #776735;
+  color: var(--reading-fg, #776735);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: .08em;
@@ -95,7 +95,7 @@
 
 .phone-method-top .portrait-scroll-spike__steps p {
   margin: 8px 0 0;
-  color: rgba(30, 33, 28, .74);
+  color: var(--reading-fg, rgba(30, 33, 28, .74));
   font-size: 16px;
   line-height: 1.75;
 }

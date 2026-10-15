@@ -98,6 +98,7 @@ describe('clean PhoneTtg leaf', () => {
     mount.registration()?.commands.render(.5);
     expect(probe.driveFrame).toHaveBeenCalledWith(video, expect.objectContaining({
       progress: .5,
+      frameRate: 30,
       runId: expect.stringContaining('ttg:frame:2')
     }));
     const preparationCount = probe.prepareFrame.mock.calls.length;

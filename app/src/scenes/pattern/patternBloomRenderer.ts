@@ -492,6 +492,15 @@ export class PatternBloomRenderer {
     this.#lastRenderedAt = now;
   }
 
+  /** Deterministic scroll pose: no ambient RAF or elapsed wall-clock state. */
+  renderScrollProgress(progress: number, motionSeconds: number): void {
+    this.setRenderActive(false, false);
+    this.#progress = clamp(progress);
+    this.#rotationProgress = this.#progress;
+    this.#motionElapsedSeconds = Math.max(0, motionSeconds);
+    this.#renderFrame(0);
+  }
+
   destroy(): void {
     if (this.#destroyed) return;
     this.#destroyed = true;

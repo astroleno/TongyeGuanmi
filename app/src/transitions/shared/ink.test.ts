@@ -10,6 +10,7 @@ import type {
 import { verifySegmentTimeline } from '../../story/verifySegmentTimeline';
 import { createInkSegmentTransition, type InkSegmentOptions } from './ink';
 import { InkRendererRunError } from './sceneInk';
+import { createScrollCanvasWindow, type ScrollCanvasLease } from '../../media/scroll-canvas-window';
 
 const inkSource = readFileSync(new URL('./ink.ts', import.meta.url), 'utf8');
 const inkFieldSource = readFileSync(new URL('./inkField.ts', import.meta.url), 'utf8');
@@ -146,6 +147,7 @@ function browserInkCanvas() {
     enableVertexAttribArray: vi.fn(),
     getAttribLocation: vi.fn(() => 0),
     getExtension: vi.fn(() => ({ loseContext })),
+    isContextLost: vi.fn(() => false),
     getProgramParameter: vi.fn(() => true),
     getShaderParameter: vi.fn(() => true),
     getUniformLocation: vi.fn((_program, name: string) => name),
@@ -217,6 +219,87 @@ afterEach(() => {
 });
 
 describe('shared ink transition surface', () => {
+  it('uses the current window canvas instead of allocating a new transition surface', async () => {
+    const from = new FakeElement(), to = new FakeElement(), canvas = new FakeCanvas();
+    const createElement = vi.fn(() => new FakeCanvas());
+    vi.stubGlobal('document', { createElement });
+    const acquireInkCanvas = vi.fn(() => canvas as unknown as HTMLCanvasElement);
+    const transition = createInkSegmentTransition({ id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' }, prepareEndpoints() {} });
+    const timeline = await transition.buildTimeline({
+      segment: { kind: 'segment', id: 'services-ttg', from: 'services', to: 'ttg-animation',
+        policy: { kind: 'snap', chargeThreshold: .1 }, virtualDuration: 1200 },
+      from: layer('services', 'current', from), to: layer('ttg-animation', 'next', to),
+      stage: { getLayer: () => undefined, ensureLayer: () => layer('ttg-animation', 'next', to), releaseLayer() {}, snapshot: () => [] },
+      direction: 1, sampling: 'scroll', runId: 'scroll:1', prepareToken: 'scroll:prepare:1',
+      prefersReducedMotion: false, acquireInkCanvas, reportMilestone() {}
+    });
+    expect(acquireInkCanvas).toHaveBeenCalledOnce();
+    expect(createElement).not.toHaveBeenCalled();
+    expect(timeline.effectCanvases?.()).toEqual([canvas]);
+    timeline.progress(.5); timeline.dispose();
+    expect(canvas.parentElement).toBeNull();
+  });
+  it('cannot draw into or detach a canvas already leased to a newer transition', async () => {
+    const from = new FakeElement(), to = new FakeElement(), nextHost = new FakeElement();
+    const canvas = Object.assign(new FakeCanvas(), { attributes: [] });
+    const doc = { createElement: () => canvas } as unknown as Document;
+    vi.stubGlobal('document', doc);
+    const owner = createScrollCanvasWindow(); owner.configure(1);
+    let lease: ScrollCanvasLease | undefined;
+    const transition = createInkSegmentTransition({ id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' }, prepareEndpoints() {} });
+    const timeline = await transition.buildTimeline({
+      segment: { kind: 'segment', id: 'services-ttg', from: 'services', to: 'ttg-animation',
+        policy: { kind: 'snap', chargeThreshold: .1 }, virtualDuration: 1200 },
+      from: layer('services', 'current', from), to: layer('ttg-animation', 'next', to),
+      stage: { getLayer: () => undefined, ensureLayer: () => layer('ttg-animation', 'next', to), releaseLayer() {}, snapshot: () => [] },
+      direction: 1, sampling: 'scroll', runId: 'scroll:1', prepareToken: 'scroll:prepare:1',
+      prefersReducedMotion: false, acquireInkCanvas() { lease = owner.acquire('ink', doc); return lease.canvas; }, reportMilestone() {}
+    });
+    lease!.release(); const next = owner.acquire('ink', doc); nextHost.append(canvas);
+    canvas.dataset.r4InkProgress = 'new';
+    timeline.progress(.75); timeline.dispose();
+    expect(canvas.parentElement).toBe(nextHost);
+    expect(canvas.dataset.r4InkProgress).toBe('new'); expect(next.current()).toBe(true);
+    next.release(); owner.dispose();
+  });
+  it('reapplies a parked scroll source after asynchronous initialization changes its styles', async () => {
+    const from = new FakeElement(), to = new FakeElement();
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+    const transition = createInkSegmentTransition({ id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' }, prepareEndpoints() {},
+      renderSourceProgress: 'forward', renderSource: (root, progress) => root?.style.setProperty('--pose', String(progress)) });
+    const timeline = await transition.buildTimeline({
+      segment: { kind: 'segment', id: 'services-ttg', from: 'services', to: 'ttg-animation',
+        policy: { kind: 'snap', chargeThreshold: .1 }, virtualDuration: 1200 },
+      from: layer('services', 'current', from), to: layer('ttg-animation', 'next', to),
+      stage: { getLayer: () => undefined, ensureLayer: () => layer('ttg-animation', 'next', to), releaseLayer() {}, snapshot: () => [] },
+      direction: 1, sampling: 'scroll', runId: 'scroll:1', prepareToken: 'scroll:prepare:1', prefersReducedMotion: false, reportMilestone() {}
+    });
+    timeline.progress(.5); from.style.setProperty('--pose', '0'); timeline.progress(.5);
+    expect(from.style.getPropertyValue('--pose')).toBe('0.5'); timeline.dispose();
+  });
+  it('keeps the scroll contour identical across independently prepared runs', async () => {
+    const stage = new FakeElement(), from = new FakeElement(), to = new FakeElement();
+    stage.append(from); stage.append(to);
+    vi.stubGlobal('document', { createElement: () => new FakeCanvas() });
+    const transition = createInkSegmentTransition({ id: 'services-ttg',
+      field: { kind: 'horizontal', direction: 'bottom-to-top', seed: 'services-ttg' }, prepareEndpoints() {} });
+    const poses: string[] = [];
+    for (const sequence of [1, 2]) {
+      const timeline = await transition.buildTimeline({
+        segment: { kind: 'segment', id: 'services-ttg', from: 'services', to: 'ttg-animation',
+          policy: { kind: 'snap', chargeThreshold: .1 }, virtualDuration: 1200 },
+        from: layer('services', 'current', from), to: layer('ttg-animation', 'next', to),
+        stage: { getLayer: () => undefined, ensureLayer: () => layer('ttg-animation', 'next', to), releaseLayer() {}, snapshot: () => [] },
+        direction: 1, sampling: 'scroll', runId: `scroll:${sequence}`, prepareToken: `scroll:prepare:${sequence}`, prefersReducedMotion: false, reportMilestone() {}
+      });
+      timeline.progress(.5); poses.push(String(to.style.clipPath)); timeline.dispose();
+    }
+    expect(poses[0]).toMatch(/^polygon\(/);
+    expect(poses[1]).toBe(poses[0]);
+  });
   it('fails a browser run when WebGL cannot create the production Ink renderer', async () => {
     vi.stubGlobal('WebGLRenderingContext', class WebGLRenderingContext {});
     const stage = new FakeElement();

@@ -43,6 +43,76 @@ afterEach(() => {
 });
 
 describe('radial Ink intro controller', () => {
+  it('retains shared shaders across request, held and presented endpoint samples until window disposal', () => {
+    const controller = createRadialInkIntroController({
+      canvas: new FakeCanvas() as unknown as HTMLCanvasElement,
+      sharedCanvas: new FakeCanvas() as unknown as HTMLCanvasElement,
+      restoreSharedCanvas: vi.fn(), revealSurface: new FakeElement() as unknown as HTMLElement,
+      field: { kind: 'radial', origin: { x: .5, y: .5 }, seed: 'hero-pattern' },
+      generation: 'shared-endpoint', deferUntilVisible: true,
+      viewport: () => ({ width: 390, height: 844 })
+    });
+    // A single coherent RAF may sample desired terminal, previous held pose,
+    // and then accepted terminal. Visual endpoints must not churn resources.
+    for (const progress of [.998, 1, .998, 1, .5, 1, 1]) controller.render(progress);
+    expect(boundaryState.creations).toBe(1);
+    expect(boundaryRenderer.render).toHaveBeenCalledTimes(6);
+    expect(boundaryRenderer.destroy).not.toHaveBeenCalled();
+    controller.dispose();
+    expect(boundaryRenderer.destroy).toHaveBeenCalledOnce();
+    expect(boundaryRenderer.destroy).toHaveBeenCalledWith(false);
+  });
+  it('restores the lender after every ink draw and never probes an output for WebGL on disposal', async () => {
+    const canvas = new FakeCanvas();
+    const shared = new FakeCanvas();
+    const restore = vi.fn();
+    const getContext = vi.fn();
+    Object.assign(canvas, { getContext, isConnected: false });
+    boundaryRenderer.render.mockImplementation(() => expect(restore).toHaveBeenCalledTimes(1));
+    const controller = createRadialInkIntroController({
+      canvas: canvas as unknown as HTMLCanvasElement, sharedCanvas: shared as unknown as HTMLCanvasElement,
+      restoreSharedCanvas: restore, revealSurface: new FakeElement() as unknown as HTMLElement,
+      field: { kind: 'radial', origin: { x: .5, y: .5 }, seed: 'hero-pattern' },
+      generation: 'shared-entry', viewport: () => ({ width: 390, height: 844 })
+    });
+    controller.prewarm(); controller.render(.5);
+    expect(restore).toHaveBeenCalledTimes(2);
+    controller.dispose(); await Promise.resolve();
+    expect(getContext).not.toHaveBeenCalled();
+    expect(boundaryRenderer.destroy).toHaveBeenCalledWith(false);
+  });
+  it('does not allocate a scroll intro for endpoint-only visits but still renders a reversed middle pose', () => {
+    const canvas = new FakeCanvas();
+    const controller = createRadialInkIntroController({
+      canvas: canvas as unknown as HTMLCanvasElement, revealSurface: new FakeElement() as unknown as HTMLElement,
+      field: { kind: 'radial', origin: { x: .5, y: .5 }, seed: 'hero-pattern' },
+      generation: 'scroll-entry', deferUntilVisible: true, viewport: () => ({ width: 390, height: 844 })
+    });
+    controller.prewarm(); controller.render(0); controller.render(1);
+    expect(boundaryState.creations).toBe(0);
+    controller.render(.5);
+    expect(boundaryState.creations).toBe(1);
+    expect(canvas.dataset.heroIntroInkActive).toBe('true');
+  });
+  it('retires only used, detached contexts after the terminal frame', async () => {
+    for (const used of [false, true]) for (const connected of [false, true]) {
+      const canvas = new FakeCanvas();
+      const loseContext = vi.fn();
+      const getContext = vi.fn(() => ({ isContextLost: () => false, getExtension: () => ({ loseContext }) }));
+      Object.assign(canvas, { getContext, isConnected: connected });
+      const controller = createRadialInkIntroController({
+        canvas: canvas as unknown as HTMLCanvasElement,
+        revealSurface: new FakeElement() as unknown as HTMLElement,
+        field: { kind: 'radial', origin: { x: .5, y: .5 }, seed: 'hero-pattern' },
+        generation: 'retirement', viewport: () => ({ width: 1440, height: 900 })
+      });
+      if (used) { controller.render(.5); controller.render(1); }
+      controller.dispose(); controller.dispose();
+      await Promise.resolve();
+      expect(getContext).toHaveBeenCalledTimes(used && !connected ? 1 : 0);
+      expect(loseContext).toHaveBeenCalledTimes(used && !connected ? 1 : 0);
+    }
+  });
   it('keeps Hero radial reveal shader-owned and cleans its canvas lifecycle', () => {
     const canvas = new FakeCanvas();
     const revealSurface = new FakeElement();

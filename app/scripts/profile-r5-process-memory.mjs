@@ -1,4 +1,4 @@
-/* global document, window */
+/* global window */
 import { chromium } from '@playwright/test';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -13,6 +13,15 @@ import {
   R5_PROCESS_MEMORY_SCHEMA_VERSION,
   summarizeProcessSamples
 } from './r5-process-memory-contract.mjs';
+import {
+  createScrollMemoryTraversal,
+  installScrollMemoryProbe,
+  isScrollMemoryPoseReady,
+  readScrollMemorySnapshot,
+  SCROLL_MEMORY_BUDGETS,
+  seekScrollMemoryPose,
+  summarizeScrollMemory
+} from './r5-scroll-memory.mjs';
 
 const execFileAsync = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -21,7 +30,7 @@ const outputPath = process.env.R5_MEMORY_OUTPUT_PATH
   ? path.resolve(repoDir, process.env.R5_MEMORY_OUTPUT_PATH)
   : path.join(
       repoDir,
-      'artifacts/react-refactor/r5-parity-repair-candidate/r5-process-memory.json'
+      'output/performance/r5-scroll-memory.json'
     );
 const archivePath = process.env.R5_MEMORY_ARCHIVE_PATH
   ? path.resolve(repoDir, process.env.R5_MEMORY_ARCHIVE_PATH)
@@ -43,30 +52,7 @@ const environment = {
   runnerClass: process.env.R5_MEMORY_RUNNER_CLASS?.trim() || null,
   proxyServer
 };
-const scenes = [
-  'hero',
-  'pattern',
-  'star-map',
-  'aod-animation',
-  'method-top',
-  'figure2-animation',
-  'figure2-proof',
-  'brand',
-  'figure3-animation',
-  'services',
-  'ttg-animation',
-  'lab',
-  'ph-animation',
-  'education',
-  'crane-animation',
-  'contact'
-];
-const budgets = {
-  peakBrowserTreeRssBytes: 1_500_000_000,
-  peakGpuProcessRssBytes: 512 * 1024 * 1024,
-  peakRendererRssBytes: 1024 * 1024 * 1024,
-  settledHeapFractionOfPeak: 0.9
-};
+const budgets = SCROLL_MEMORY_BUDGETS;
 const settling = {
   idleMs: 5_000,
   heapMeasurement: 'devtools-heap-profiler-collect-garbage'
@@ -172,82 +158,27 @@ async function readBrowserMemory() {
   };
 }
 
-async function storySnapshot(page) {
-  return page.evaluate(() => {
-    const story = window.__storyApp?.snapshot();
-    if (!story) throw new Error('StoryApp diagnostics are unavailable');
-    const memory = performance.memory;
-    const canvases = [...document.querySelectorAll('[data-stage-layer] canvas')];
-    return {
-      ...story,
-      usedJsHeapBytes: memory?.usedJSHeapSize,
-      canvasPixelBytes: canvases.reduce(
-        (total, canvas) => total + canvas.width * canvas.height * 4,
-        0
-      )
-    };
-  });
+async function storySnapshot(page, devtools) {
+  const snapshot = await page.evaluate(readScrollMemorySnapshot);
+  const { usedSize } = await devtools.send('Runtime.getHeapUsage');
+  return { ...snapshot, usedJsHeapBytes: usedSize };
 }
 
-async function settledStorySnapshot(page) {
+async function settledStorySnapshot(page, devtools) {
   await sleep(settling.idleMs);
-  const devtools = await page.context().newCDPSession(page);
+  await devtools.send('HeapProfiler.collectGarbage');
+  return storySnapshot(page, devtools);
+}
+
+async function visitCheckpoint(page, devtools, point) {
+  const goal = await page.evaluate(seekScrollMemoryPose, point);
   try {
-    await devtools.send('HeapProfiler.collectGarbage');
-  } finally {
-    await devtools.detach();
+    await page.waitForFunction(isScrollMemoryPoseReady, goal, { timeout: 30_000 });
+  } catch (error) {
+    const snapshot = await storySnapshot(page, devtools);
+    throw new Error(`memory checkpoint ${JSON.stringify(point)} failed: ${JSON.stringify(snapshot)}`, { cause: error });
   }
-  return storySnapshot(page);
-}
-
-async function waitForHold(page, scene) {
-  await page.waitForFunction((expected) => {
-    const snapshot = window.__storyApp?.snapshot();
-    return snapshot?.phase === 'hold' && snapshot.current === expected;
-  }, scene, { timeout: 30_000 });
-}
-
-async function moveOneHold(page, direction) {
-  const start = (await storySnapshot(page)).current;
-  await page.evaluate((value) => {
-    const current = window.__storyApp?.snapshot().current;
-    const layer = document.querySelector(`[data-stage-layer="${current}"]`);
-    const scrollport = layer?.querySelector('[data-reading-scrollport="true"]')
-      ?? (layer?.matches('[data-reading="true"]') ? layer : null);
-    if (scrollport) {
-      scrollport.scrollTop = value === 1
-        ? Math.max(0, scrollport.scrollHeight - scrollport.clientHeight)
-        : 0;
-    }
-  }, direction);
-  const key = direction === 1 ? 'PageDown' : 'PageUp';
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const before = await storySnapshot(page);
-    if (before.phase === 'hold' && before.current !== start) return before;
-    if (before.phase !== 'hold' && before.phase !== 'staged-paused') {
-      await page.waitForFunction((scene) => {
-        const snapshot = window.__storyApp?.snapshot();
-        return snapshot?.phase === 'staged-paused'
-          || (snapshot?.phase === 'hold' && snapshot.current !== scene);
-      }, start, { timeout: 30_000 });
-      continue;
-    }
-    await page.keyboard.press(key);
-    try {
-      await page.waitForFunction((scene) => {
-        const snapshot = window.__storyApp?.snapshot();
-        return snapshot?.phase === 'staged-paused'
-          || (snapshot?.phase === 'hold' && snapshot.current !== scene);
-      }, start, { timeout: 30_000 });
-    } catch (error) {
-      const current = await storySnapshot(page);
-      throw new Error(
-        `Timed out moving from ${start}: ${JSON.stringify(current)}`,
-        { cause: error }
-      );
-    }
-  }
-  throw new Error(`Story did not leave ${start}`);
+  return { ...goal, ...(await storySnapshot(page, devtools)) };
 }
 
 await mkdir(path.dirname(outputPath), { recursive: true });
@@ -263,80 +194,72 @@ const browser = await chromium.launch({
   ]
 });
 const samples = [];
+const heapSamples = [];
+let devtools;
 let sampling = true;
 let sampleLabel = 'launch';
 const sampleMemory = async () => {
   while (sampling) {
     const sample = await readBrowserMemory();
     if (sample) samples.push({ label: sampleLabel, ...sample });
+    if (devtools) {
+      const { usedSize } = await devtools.send('Runtime.getHeapUsage');
+      heapSamples.push({ label: sampleLabel, usedJsHeapBytes: usedSize });
+    }
     await sleep(250);
   }
 };
-const samplingPromise = sampleMemory();
+let samplingError;
+const samplingPromise = sampleMemory().catch((error) => {
+  samplingError = error;
+  sampling = false;
+});
 
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.addInitScript(installScrollMemoryProbe);
+  devtools = await page.context().newCDPSession(page);
+  if (identity) {
+    const served = await page.request.get(new URL('r5-release-manifest.json', `${baseUrl.replace(/\/$/, '')}/`).href);
+    if (!served.ok() || sha256(await served.text()) !== identity.draftManifestSha256) {
+      throw new Error('served preview manifest does not match the memory evidence identity');
+    }
+  }
   await page.bringToFront();
   await page.goto(baseUrl);
-  await waitForHold(page, 'hero');
-  await page.waitForFunction(() => (
-    window.__storyApp?.snapshot().presentationReady === true
-  ), undefined, { timeout: 15_000 });
-  sampleLabel = 'hold:boot:hero';
-  const holds = [{ direction: 'boot', ...(await storySnapshot(page)) }];
-
-  for (const expected of scenes.slice(1)) {
-    sampleLabel = `transition:forward:${expected}`;
-    process.stdout.write(`forward:${expected}\n`);
-    const snapshot = await moveOneHold(page, 1);
-    if (snapshot.current !== expected) {
-      throw new Error(`Expected ${expected}, received ${snapshot.current}`);
-    }
-    sampleLabel = `hold:forward:${expected}`;
-    holds.push({ direction: 'forward', ...snapshot });
+  await page.waitForFunction(() => window.__r5ScrollStory?.snapshot().view.status === 'ready',
+    undefined, { timeout: 30_000 });
+  const ranges = await page.evaluate(() => window.__r5ScrollStory.index().ranges);
+  const traversal = createScrollMemoryTraversal(ranges);
+  const holds = [];
+  const poses = [];
+  for (const point of traversal.forward) {
+    sampleLabel = `${point.checkpoint}:${point.direction}:${point.rangeId}:${point.progress}`;
+    process.stdout.write(`${sampleLabel}\n`);
+    const snapshot = await visitCheckpoint(page, devtools, point);
+    (point.checkpoint === 'hold' ? holds : poses).push(snapshot);
   }
   sampleLabel = 'settled:forward:contact';
-  holds.push({ direction: 'forward-settled', ...(await settledStorySnapshot(page)) });
+  holds.push({ ...traversal.forward.at(-1), direction: 'forward-settled',
+    ...(await settledStorySnapshot(page, devtools)) });
 
-  for (const expected of [...scenes].reverse().slice(1)) {
-    sampleLabel = `transition:reverse:${expected}`;
-    process.stdout.write(`reverse:${expected}\n`);
-    const snapshot = await moveOneHold(page, -1);
-    if (snapshot.current !== expected) {
-      throw new Error(`Expected reverse ${expected}, received ${snapshot.current}`);
-    }
-    sampleLabel = `hold:reverse:${expected}`;
-    holds.push({ direction: 'reverse', ...snapshot });
+  for (const point of traversal.reverse) {
+    sampleLabel = `${point.checkpoint}:${point.direction}:${point.rangeId}:${point.progress}`;
+    process.stdout.write(`${sampleLabel}\n`);
+    const snapshot = await visitCheckpoint(page, devtools, point);
+    (point.checkpoint === 'hold' ? holds : poses).push(snapshot);
   }
   sampleLabel = 'settled:reverse:hero';
-  holds.push({ direction: 'reverse-settled', ...(await settledStorySnapshot(page)) });
+  holds.push({ ...traversal.reverse.at(-1), direction: 'reverse-settled',
+    ...(await settledStorySnapshot(page, devtools)) });
 
   sampling = false;
   await samplingPromise;
-  const max = (field) => Math.max(0, ...samples.map((sample) => sample[field]));
-  const heapValues = holds.flatMap((hold) => (
-    typeof hold.usedJsHeapBytes === 'number' ? [hold.usedJsHeapBytes] : []
-  ));
-  const peakJsHeapBytes = Math.max(0, ...heapValues);
-  const finalJsHeapBytes = heapValues.at(-1) ?? 0;
-  const actual = {
-    peakBrowserTreeRssBytes: max('totalRssBytes'),
-    peakGpuProcessRssBytes: max('gpuRssBytes'),
-    peakRendererRssBytes: max('rendererRssBytes'),
-    peakJsHeapBytes,
-    finalJsHeapBytes,
-    peakCanvasPixelBytes: Math.max(0, ...holds.map((hold) => hold.canvasPixelBytes)),
-    maxMountedLayers: Math.max(0, ...holds.map((hold) => hold.mountedLayers)),
-    maxWebglCanvasesAtHold: Math.max(0, ...holds.map((hold) => hold.webglCanvases))
-  };
+  if (samplingError) throw new Error('memory sampling failed', { cause: samplingError });
+  const memory = summarizeScrollMemory({ poses, holds, processSamples: samples, heapSamples });
+  const { actual } = memory;
   const samplingSummary = summarizeProcessSamples(samples);
-  const pass = samplingSummary.valid
-    && actual.peakBrowserTreeRssBytes <= budgets.peakBrowserTreeRssBytes
-    && actual.peakGpuProcessRssBytes <= budgets.peakGpuProcessRssBytes
-    && actual.peakRendererRssBytes <= budgets.peakRendererRssBytes
-    && actual.finalJsHeapBytes <= actual.peakJsHeapBytes * budgets.settledHeapFractionOfPeak
-    && actual.maxMountedLayers <= 3
-    && actual.maxWebglCanvasesAtHold <= 1;
+  const pass = samplingSummary.valid && memory.pass;
   const report = {
     schemaVersion: R5_PROCESS_MEMORY_SCHEMA_VERSION,
     kind: R5_PROCESS_MEMORY_RUN_KIND,
@@ -349,9 +272,19 @@ try {
     sampling: samplingSummary,
     budgets,
     settling,
+    interactionModel: 'continuous-scroll',
+    measurement: {
+      heap: 'devtools-runtime-get-heap-usage',
+      mountedLayers: 'resource-bearing scene roots; persistent reading DOM reported separately',
+      chapterCheckpoints: 'real hold ranges use the hold cap; zero-length landmarks are segment frame zero and use the transition cap',
+      webgl: 'weak observation of actual live contexts, including off-DOM shared renderers'
+    },
     actual,
     pass,
+    reasons: [...samplingSummary.reasons, ...memory.reasons],
     holds,
+    poses,
+    heapSamples,
     processSamples: samples
   };
   const reportOutput = `${JSON.stringify(report, null, 2)}\n`;
@@ -368,11 +301,16 @@ try {
     environment,
     sampling: samplingSummary,
     actual,
-    pass
+    pass,
+    reasons: [...samplingSummary.reasons, ...memory.reasons]
   })}\n`);
   if (!pass) process.exitCode = 1;
 } finally {
   sampling = false;
   await samplingPromise;
-  await browser.close();
+  try {
+    await devtools?.detach();
+  } finally {
+    await browser.close();
+  }
 }

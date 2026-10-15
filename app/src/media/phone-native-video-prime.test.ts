@@ -4,6 +4,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { primePhoneNativeVideo } from './phone-native-video-prime';
 
 describe('primePhoneNativeVideo', () => {
+  it('does not briefly play a video owned by continuous scroll', async () => {
+    const host = document.createElement('main'); host.dataset.scrollPlatform = 'phone';
+    const video = document.createElement('video'); host.append(video);
+    const play = vi.spyOn(video, 'play').mockResolvedValue();
+    const pause = vi.spyOn(video, 'pause').mockImplementation(() => undefined);
+    await primePhoneNativeVideo(video);
+    expect(play).not.toHaveBeenCalled(); expect(pause).toHaveBeenCalledOnce();
+  });
   it('does not let a late prime settlement pause a formally playing generation', async () => {
     const video = document.createElement('video');
     const events: string[] = [];

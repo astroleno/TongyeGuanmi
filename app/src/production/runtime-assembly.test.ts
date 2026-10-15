@@ -4,7 +4,7 @@ import { createDirectorRuntime } from '../runtime/director.actor';
 import { SegmentPlayer } from '../story/segment-player';
 import type { SegmentTimelineHandle, TransitionModule } from '../story/types';
 
-const storyAppSource = readFileSync(new URL('./desktop/DesktopStoryShell.tsx', import.meta.url), 'utf8');
+const storyAppSource = readFileSync(new URL('./desktop/LegacyDesktopStoryShell.tsx', import.meta.url), 'utf8');
 
 function timeline(): SegmentTimelineHandle {
   return {
@@ -16,7 +16,7 @@ function timeline(): SegmentTimelineHandle {
   };
 }
 
-describe('production runtime assembly', () => {
+describe('legacy harness runtime assembly', () => {
   it('positions destination reading content inside target readiness before any reveal can start', () => {
     const gateStart = storyAppSource.indexOf('waitForTargetReady:');
     const gateEnd = storyAppSource.indexOf('waitForMediaReady:', gateStart);

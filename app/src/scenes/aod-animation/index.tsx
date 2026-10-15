@@ -1,4 +1,7 @@
+import { useLayoutEffect, useRef } from 'react';
 import type { SceneComponentProps, SceneModule } from '../../story/types';
+import { registerScrollMediaCompositor } from '../../media/scroll-media-sampling';
+import { ScrollCanvas } from '../../media/ScrollCanvas';
 import {
   disposeTimelineVideoDriver,
   driveTimelineVideo,
@@ -149,8 +152,42 @@ export function renderAodAnimationHold(root: HTMLElement | null): void {
 }
 
 export function AodAnimationScene({ registerHandle, packedAlpha = false }: SceneComponentProps & { packedAlpha?: boolean }) {
+  const rootRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (packedAlpha || !root?.closest('[data-scroll-platform]')) return;
+    const video = root.querySelector<HTMLVideoElement>('[data-aod-figure-video]');
+    const canvas = root.querySelector<HTMLCanvasElement>('[data-aod-figure-canvas]');
+    const context = canvas?.getContext('2d');
+    if (!video || !canvas || !context) return;
+    // Chromium can keep an old native video-layer texture after a hidden seek,
+    // even though drawImage reads the exact decoded target. Use the existing
+    // full-resolution canvas only in the atomic scroll presentation phase.
+    const unregister = registerScrollMediaCompositor(video, () => {
+      if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return false;
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      }
+      try {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(video, 0, 0);
+      } catch { return false; }
+      canvas.style.opacity = '1';
+      canvas.style.filter = 'saturate(.95) contrast(1.02)';
+      video.style.opacity = '0';
+      canvas.dataset.scrollVideoMediaTime = String(video.currentTime);
+      return true;
+    });
+    return () => {
+      unregister();
+      canvas.width = canvas.height = 1;
+      canvas.style.removeProperty('opacity'); canvas.style.removeProperty('filter');
+      video.style.removeProperty('opacity'); delete canvas.dataset.scrollVideoMediaTime;
+    };
+  }, [packedAlpha]);
   return (
     <article
+      ref={rootRef}
       className="aod-transition r3-aod-animation"
       data-r3-scene="aod-animation"
       data-aod-transition
@@ -200,7 +237,7 @@ export function AodAnimationScene({ registerHandle, packedAlpha = false }: Scene
                 hevc={AOD_FIGURE_HEVC_ALPHA_SRC}
               />}
             </video>
-            <canvas
+            <ScrollCanvas purpose="packed-alpha"
               className="aod-transition__figure-canvas"
               data-aod-figure-canvas
               aria-hidden="true"

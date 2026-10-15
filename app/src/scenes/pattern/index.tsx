@@ -87,7 +87,8 @@ export function renderPatternProgress(root: HTMLElement | null, progress: number
   root?.setAttribute('data-pattern-progress', clamped.toFixed(4));
   root?.setAttribute('data-pattern-center', `${center.x.toFixed(4)},${center.y.toFixed(4)}`);
   const renderer = (root as PatternRoot | null)?.__r4PatternRenderer;
-  renderer?.setFrameProgress(clamped, rotationProgress);
+  if (root?.closest?.('[data-scroll-platform]')) renderer?.renderScrollProgress(clamped, clamped * 12);
+  else renderer?.setFrameProgress(clamped, rotationProgress);
 
   return {
     progress: clamped,
@@ -132,7 +133,7 @@ function PatternScene({ hidden, registerHandle }: SceneComponentProps) {
     root.__r4PatternRenderer = renderer;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const motionBinding = bindSceneMotion(root, (active) => {
-      renderer.setRenderActive(active, active && !reducedMotion);
+      renderer.setRenderActive(active && !root.closest('[data-scroll-platform]'), active && !reducedMotion && !root.closest('[data-scroll-platform]'));
     });
     motionBindingRef.current = motionBinding;
     motionBinding.setBaseActive(patternMotionEnabled(hidden, reducedMotion));
@@ -192,6 +193,7 @@ export const patternScene: SceneModule = {
   Component: PatternScene,
   renderHold: renderPatternHold,
   requiredHandles: ['copy', 'pattern-texture'],
+  scrollReadyHandles: ['pattern-texture'],
   staticFallback: {
     sectionIds: ['belief'],
     text: PATTERN_COPY

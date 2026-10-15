@@ -118,9 +118,13 @@ export function PhonePattern({ reports }: PhonePatternProps) {
     // Transition frames are reducer-owned for structural phase, but the
     // ambient motion clock must keep running so petal rotation stays
     // continuous through the transition instead of freezing mid-frame.
-    rendererRef.current?.setRenderActive(true, !reducedMotion);
-    rendererRef.current?.setFrameProgress(frame.progress, frame.progress);
-    if (reducedMotion) {
+    const scroll = bindingRef.current?.sampling === 'scroll';
+    if (scroll) rendererRef.current?.renderScrollProgress(frame.progress, frame.progress * 12);
+    else {
+      rendererRef.current?.setRenderActive(true, !reducedMotion);
+      rendererRef.current?.setFrameProgress(frame.progress, frame.progress);
+    }
+    if (reducedMotion && !scroll) {
       rendererRef.current?.renderProgress(frame.progress);
       rendererRef.current?.setRenderActive(false, false);
     }

@@ -21,6 +21,7 @@ export type StarMapRenderState = {
 
 type StarMapPaintController = {
   setActive(active: boolean): void;
+  renderScroll(progress: number): void;
 };
 
 type StarMapRoot = HTMLElement & {
@@ -45,6 +46,10 @@ export function renderStarMapProgress(root: HTMLElement | null, progress: number
   root?.style.setProperty('--r3-star-canvas-opacity', canvasStrength.toFixed(4));
   root?.setAttribute('data-star-map-progress', clamped.toFixed(4));
   root?.setAttribute('data-star-map-copy-opaque', String(copyOpacity === 1));
+  if (root?.closest?.('[data-scroll-platform]')) {
+    const owner = (root.querySelector?.('.r3-star-map') ?? root) as StarMapRoot;
+    owner.__r4StarMapPaintController?.renderScroll(clamped);
+  }
   return { progress: clamped, copyOpacity, canvasStrength };
 }
 
@@ -70,20 +75,28 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
     let motionActive = false;
     let firstFramePainted = false;
     let lastPaintedAt = -Infinity;
+    // Preparation can request a pose before the texture or controller exists.
+    // Keep that clock through first paint, remount and worker fallback.
+    let scrollTime = canvas.closest('[data-scroll-platform]')
+      ? Number(canvas.closest('[data-star-map-progress]')?.getAttribute('data-star-map-progress') ?? 1) * 12000
+      : null;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let reveal: StarFieldReveal | null = null;
     let worker: StarFieldWorkerClient | null = null;
 
     const presented = () => {
       if (disposed) return;
+      const first = !firstFramePainted;
       firstFramePainted = true;
       canvas.classList.add('is-ready');
       canvas.dataset.inkTextureReady = 'true';
       canvas.dataset.inkTextureRevision = String(++revision);
+      if (first) registerHandle?.('star-texture', canvas);
       scheduleLiveBackground();
     };
 
     const paintBackground = (now = performance.now(), force = false) => {
+      now = scrollTime ?? now;
       if (disposed || (!worker && !reveal?.ready) || (!force && now - lastPaintedAt < STAR_MAP_FRAME_INTERVAL_MS)) {
         return false;
       }
@@ -148,8 +161,9 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
       }, () => { if (!disposed) canvas.dataset.starMapBackend = 'failed'; });
     };
     const controller: StarMapPaintController = {
+      renderScroll(progress) { scrollTime = progress * 12000; paintBackground(scrollTime, true); },
       setActive(nextActive) {
-        motionActive = nextActive && !reducedMotion;
+        motionActive = nextActive && !reducedMotion && !canvas.closest('[data-scroll-platform]');
         canvas.dataset.starMapMotionActive = String(motionActive);
         if (!motionActive) {
           cancelAnimationFrame(liveFrame);
@@ -182,6 +196,7 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
 
     return () => {
       disposed = true;
+      registerHandle?.('star-texture', null);
       motionBinding?.dispose();
       if (motionBindingRef.current === motionBinding) {
         motionBindingRef.current = null;
@@ -200,7 +215,7 @@ function StarMapScene({ hidden, role, registerHandle }: SceneComponentProps) {
       delete canvas.dataset.starMapMotionActive;
       delete canvas.dataset.starMapBackend;
     };
-  }, []);
+  }, [registerHandle]);
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -239,6 +254,7 @@ export const starMapScene: SceneModule = {
   Component: StarMapScene,
   renderHold: renderStarMapHold,
   requiredHandles: ['copy', 'star-canvas'],
+  scrollReadyHandles: ['star-texture'],
   staticFallback: {
     sectionIds: ['belief'],
     text: [STAR_MAP_COPY]

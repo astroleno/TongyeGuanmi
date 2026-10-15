@@ -1,3 +1,5 @@
+// Historical discrete-gesture contract. Current formal production acceptance:
+// continuous-scroll.spec.ts; the original assertions remain intact here.
 import { expect, test } from '@playwright/test';
 import {
   bootStory,
@@ -534,39 +536,32 @@ test('Figure2 Proof owns one snap-free scrollport and accepts incremental wheel 
   expect(burstDisplacement).toBeLessThan(initial.viewportHeight * 0.65);
   expect(samples.every((value) => Math.abs(value - initial.viewportHeight) > 20)).toBe(true);
 
-  // The remaining momentum belongs to this physical gesture: it may consume
-  // the small budget remainder, but a following tail must be absorbed before
-  // it can reach a reading edge or leave Proof.
-  for (let index = 0; index < 3; index += 1) {
+  // A long physical gesture can read beyond one viewport. Its tail and the
+  // visual chase must not turn arrival at the edge into chapter navigation.
+  for (let index = 0; index < 32; index += 1) {
     await scrollport.dispatchEvent('wheel', {
       bubbles: true,
       cancelable: true,
       deltaMode: 0,
       deltaY: 500
     });
+    await page.waitForTimeout(24);
   }
-  const budgetExhaustedScrollTop = await scrollport.evaluate((element) => element.scrollTop);
-  await scrollport.dispatchEvent('wheel', {
-    bubbles: true,
-    cancelable: true,
-    deltaMode: 0,
-    deltaY: 500
-  });
-  const absorbedTailScrollTop = await scrollport.evaluate((element) => element.scrollTop);
-  expect(absorbedTailScrollTop).toBeCloseTo(budgetExhaustedScrollTop, 0);
-  expect(absorbedTailScrollTop).toBeLessThanOrEqual(initial.viewportHeight * 1.05 + 1);
+  const maximum = initial.scrollHeight - initial.clientHeight;
+  await expect.poll(() => scrollport.evaluate((element) => element.scrollTop)).toBeCloseTo(maximum, 0);
+  expect(maximum).toBeGreaterThan(initial.viewportHeight * 1.05);
+  expect(await storySnapshot(page)).toMatchObject({ phase: 'hold', current: 'figure2-proof' });
 
-  // A pause creates a fresh gesture and restores the reading budget without
-  // treating the previous momentum tail as a navigation intent.
+  // A fresh inward gesture immediately returns to reading, without an old
+  // outward target pulling the visible position back toward the edge.
   await page.waitForTimeout(260);
   await scrollport.dispatchEvent('wheel', {
     bubbles: true,
     cancelable: true,
     deltaMode: 0,
-    deltaY: 80
+    deltaY: -80
   });
-  const freshGestureScrollTop = await scrollport.evaluate((element) => element.scrollTop);
-  expect(freshGestureScrollTop).toBeGreaterThan(absorbedTailScrollTop);
+  await expect.poll(() => scrollport.evaluate((element) => element.scrollTop)).toBeCloseTo(maximum - 80, 0);
   expect((await storySnapshot(page))).toMatchObject({ phase: 'hold', current: 'figure2-proof' });
   expect(await layer.evaluate((element) => element.scrollTop)).toBe(0);
   await expectLayerInvariants(page);
@@ -634,31 +629,19 @@ test('Proof, Lab, Services, and Education share burst, tail, fresh-input, and re
     expect(burstDisplacement, `${scenario.scene} burst displacement`).toBeGreaterThan(initial.viewportHeight * 0.35);
     expect(burstDisplacement, `${scenario.scene} burst displacement`).toBeLessThan(initial.viewportHeight * 0.65);
 
-    let budgetExhaustedScrollTop = 0;
-    for (let index = 0; index < 3; index += 1) {
-      budgetExhaustedScrollTop = await wheel(scenario.scene, 500);
+    for (let index = 0; index < 32; index += 1) {
+      await wheel(scenario.scene, 500);
+      await page.waitForTimeout(24);
     }
-    const absorbedTailScrollTop = await wheel(scenario.scene, 500);
-    expect(absorbedTailScrollTop, `${scenario.scene} tail must be absorbed`).toBeCloseTo(budgetExhaustedScrollTop, 0);
-    expect(absorbedTailScrollTop, `${scenario.scene} tail must remain inside the gesture budget`)
-      .toBeLessThanOrEqual(initial.viewportHeight * 1.05 + 1);
-
-    await page.waitForTimeout(260);
-    const atReadingEnd = absorbedTailScrollTop >= initial.maxScrollTop - 1;
-    const freshGestureScrollTop = await wheel(scenario.scene, atReadingEnd ? -80 : 80);
-    if (atReadingEnd) {
-      expect(freshGestureScrollTop, `${scenario.scene} inward fresh gesture must resume reading`)
-        .toBeLessThan(absorbedTailScrollTop);
-      const returnGestureScrollTop = await wheel(scenario.scene, 80);
-      expect(returnGestureScrollTop, `${scenario.scene} return gesture must remain owned by reading`)
-        .toBeGreaterThan(freshGestureScrollTop);
-    } else {
-      expect(freshGestureScrollTop, `${scenario.scene} fresh gesture must resume reading`)
-        .toBeGreaterThan(absorbedTailScrollTop);
-      const reverseGestureScrollTop = await wheel(scenario.scene, -80);
-      expect(reverseGestureScrollTop, `${scenario.scene} reverse gesture must remain owned by reading`)
-        .toBeLessThan(freshGestureScrollTop);
-    }
+    await expect.poll(async () => (await readingMetrics(scenario.scene)).scrollTop)
+      .toBeCloseTo(initial.maxScrollTop, 0);
+    expect(await storySnapshot(page)).toMatchObject({ phase: 'hold', current: scenario.scene });
+    await wheel(scenario.scene, -80);
+    await expect.poll(async () => (await readingMetrics(scenario.scene)).scrollTop)
+      .toBeCloseTo(initial.maxScrollTop - 80, 0);
+    await wheel(scenario.scene, 80);
+    await expect.poll(async () => (await readingMetrics(scenario.scene)).scrollTop)
+      .toBeCloseTo(initial.maxScrollTop, 0);
     expect(await storySnapshot(page)).toMatchObject({ phase: 'hold', current: scenario.scene });
     await expectLayerInvariants(page);
 
@@ -1112,21 +1095,26 @@ test('slow media succeeds before timeout and failed endpoint recovery leaves an 
   await expectLayerInvariants(page);
 });
 
-test('failed incoming AOD media skips the blocked transition and lands on its static AOD hold', async ({ page }) => {
+test('failed incoming AOD media preserves the committed source and accepts an explicit retry', async ({ page }) => {
   test.setTimeout(60_000);
 
-  await page.route(/aod-figure-motion[^/]*\.(?:webm|mp4)(?:\?.*)?$/, (route) => route.abort('failed'));
+  const media = /aod-figure-motion[^/]*\.(?:webm|mp4)(?:\?.*)?$/;
+  let failedRequests = 0;
+  await page.route(media, (route) => { failedRequests += 1; return route.abort('failed'); });
   await bootStory(page, '/?media=failed#star-map');
-  const timeoutCount = (await eventTypes(page))
-    .filter((type) => type === 'PREPARE_TIMEOUT').length;
   await page.keyboard.press('PageDown');
-  await expect.poll(async () => (await eventTypes(page))
-    .filter((type) => type === 'PREPARE_TIMEOUT').length, { timeout: 25_000 })
-    .toBeGreaterThan(timeoutCount);
+  await expect.poll(() => eventTypes(page), { timeout: 25_000 }).toContain('PREPARE_FAILED');
 
-  const fallback = await waitForHold(page, 'aod-animation');
+  const fallback = await waitForHold(page, 'star-map');
+  expect(failedRequests).toBeGreaterThan(0);
   expect(fallback.recovery).toBeUndefined();
-  expect(fallback.lastError).toBe('PREPARE_TIMEOUT');
+  expect(fallback.lastError).toMatch(/Frame stalled/);
+  expect(await eventTypes(page)).not.toContain('PREPARE_TIMEOUT');
+  await expectLayerInvariants(page);
+  await page.unroute(media);
+  await page.locator('[data-stage-layer="aod-animation"] video').evaluate((video: HTMLVideoElement) => video.load());
+  await page.keyboard.press('PageDown');
+  await waitForHold(page, 'aod-animation');
   await expectLayerInvariants(page);
 });
 

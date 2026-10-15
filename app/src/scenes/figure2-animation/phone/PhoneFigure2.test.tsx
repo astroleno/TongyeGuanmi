@@ -202,6 +202,21 @@ describe('clean PhoneFigure2 leaf', () => {
     expect(play).not.toHaveBeenCalled();
   });
 
+  it('does not bypass the scroll driver with an endpoint seek during visual sampling', async () => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhoneFigure2 reports={mount.reports} />); });
+    const commands = mount.registration()!.commands;
+    commands.rebind({ reports: mount.reports, frameToken: 'scroll:1',
+      segmentId: 'figure2-distance-expand', stageIndex: 0, direction: 'forward', sampling: 'scroll' });
+    const video = host.querySelector<HTMLVideoElement>('[data-figure2-combined-video]')!;
+    video.currentTime = .45;
+    commands.render(1);
+    expect(video.currentTime).toBe(.45);
+    await act(async () => { root.unmount(); });
+  });
+
   it('pauses at 2.6 seconds for the depth leg and resumes only for the reverse media leg', async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause');

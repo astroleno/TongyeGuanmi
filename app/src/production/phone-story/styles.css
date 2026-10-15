@@ -13,8 +13,10 @@
   position: relative;
 }
 
-html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] [data-phone-input-owner="native-document"]),
-html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] [data-phone-input-owner="native-document"]) :is(body, #root) {
+/* Shell mirrors ownership onto html before paint: WebKit can leave root
+   overflow stale when this depends on a deep descendant :has() selector. */
+html[data-story-hydrated="true"][data-phone-reading="enabled"],
+html[data-story-hydrated="true"][data-phone-reading="enabled"] :is(body, #root) {
   height: auto;
   min-height: 100%;
   /* Only the document scrolls. Nested auto/none roots swallow touch and wheel
@@ -23,10 +25,11 @@ html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] 
   overscroll-behavior: auto;
 }
 
-html[data-story-hydrated="true"]:has(.phone-story[data-phone-reading="enabled"] [data-phone-input-owner="native-document"]) {
+html[data-story-hydrated="true"][data-phone-reading="enabled"] {
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior-y: none;
+  /* Keep the viewport's native default action; edge handoff is input-owned. */
+  overscroll-behavior: auto;
 }
 
 .phone-story__viewport {

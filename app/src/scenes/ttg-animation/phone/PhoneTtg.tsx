@@ -115,7 +115,11 @@ export function releasePhoneTtgVideo(video: HTMLVideoElement | null): void {
   delete video.dataset.phoneTtgEndpointReady;
   delete video.dataset.phoneGroup45FrameReady;
   video.removeAttribute('src');
-  for (const source of video.querySelectorAll('source')) source.removeAttribute('src');
+  for (const source of video.querySelectorAll('source')) {
+    const src = source.getAttribute?.('src');
+    if (src) source.dataset.src = src;
+    source.removeAttribute('src');
+  }
   try {
     video.load();
   } catch {
@@ -174,6 +178,7 @@ function ttgTimelineMediaInput(
     runId,
     direction,
     progress: stableProgress(progress),
+    frameRate: 30,
     durationFallbackSeconds: 2.5,
     startSeconds: 0,
     endSeconds: TTG_FIGURE_END_SECONDS,
@@ -234,8 +239,11 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
 
   const render = useCallback((rawProgress: number) => {
     const progress = stableProgress(rawProgress);
-    if (progress > progressRef.current + .0001) directionRef.current = 1;
-    if (progress < progressRef.current - .0001) directionRef.current = -1;
+    if (bindingRef.current?.sampling === 'scroll') directionRef.current = 1;
+    else {
+      if (progress > progressRef.current + .0001) directionRef.current = 1;
+      if (progress < progressRef.current - .0001) directionRef.current = -1;
+    }
     progressRef.current = progress;
     const frame = phoneTtgFrame(progress);
     renderTtgAnimationProgress(sceneRef.current, progress);
@@ -426,6 +434,14 @@ export function PhoneTtg({ reports }: Readonly<{ reports: PhoneLeafReportPort }>
     if (!mountRoot || !root || !video) return;
     disposedRef.current = false;
     pausedRef.current = false;
+    sceneRef.current = root.querySelector<HTMLElement>('[data-r4-scene="ttg-animation"]');
+    let restored = false;
+    for (const source of video.querySelectorAll('source')) {
+      if (source.dataset.src && !source.getAttribute('src')) {
+        source.src = source.dataset.src; restored = true;
+      }
+    }
+    if (restored) video.load();
     video.muted = true;
     video.loop = false;
     video.playsInline = true;

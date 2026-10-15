@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   PhoneLeafCommandHandle,
   PhoneLeafMountRegistration,
@@ -13,6 +13,7 @@ import type {
 
 const compositorProbe = vi.hoisted(() => ({
   callbacks: [] as Array<() => void>,
+  restoreFrame: vi.fn(),
   setActive: vi.fn()
 }));
 
@@ -26,6 +27,7 @@ vi.mock('../../../media/packed-alpha-video', async () => {
       if (options.onFrame) compositorProbe.callbacks.push(options.onFrame);
       return {
         render: () => true,
+        restoreFrame: compositorProbe.restoreFrame,
         setActive: compositorProbe.setActive,
         dispose: () => undefined
       };
@@ -69,6 +71,7 @@ describe('clean PhoneHero leaf', () => {
   beforeEach(() => {
     compositorProbe.callbacks = [];
     compositorProbe.setActive.mockReset();
+    compositorProbe.restoreFrame.mockReset();
     host = document.createElement('div');
     document.body.replaceChildren(host);
     root = createRoot(host);
@@ -76,6 +79,14 @@ describe('clean PhoneHero leaf', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  });
+
+  afterEach(async () => {
+    // Replacing the DOM alone leaves the prior leaf's media/entrance tasks
+    // alive, so delayed callbacks can call the next test's playback spy.
+    await act(async () => root.unmount());
+    host.remove();
+    vi.restoreAllMocks();
   });
 
   it('commits the canonical fixed Hero topology at progress zero before layout effects', async () => {
@@ -113,7 +124,7 @@ describe('clean PhoneHero leaf', () => {
       ['hero-intro-ink', 'canvas-2d']
     ]);
     expect(Object.keys(registration?.commands ?? {}).sort()).toEqual([
-      'activate', 'dispose', 'pause', 'rebind', 'render', 'setMediaPhase', 'settle'
+      'activate', 'dispose', 'pause', 'rebind', 'render', 'renderEntry', 'setMediaPhase', 'settle'
     ]);
   });
 

@@ -29,6 +29,7 @@ export type TtgRenderState = {
 };
 
 export type TtgMediaRun = {
+  sampling?: 'scroll';
   runId: string;
   direction: 1 | -1;
   reducedMotion?: boolean;
@@ -208,11 +209,15 @@ function driveFigurePlayback(
   if (!section) {
     return;
   }
-  const manager = mediaManagers.get(section);
+  // Scroll sampling has no play/commit-leg event. Its prepared window owns
+  // activation and the media driver owns frame evidence, including cold seeks.
+  const manager = mediaRun.sampling === 'scroll' ? managerFor(section) : mediaManagers.get(section);
   if (
     !manager
-    || manager.activeRunId !== mediaRun.runId
-    || manager.activeDirection !== mediaRun.direction
+    || mediaRun.sampling !== 'scroll' && (
+      manager.activeRunId !== mediaRun.runId
+      || manager.activeDirection !== mediaRun.direction
+    )
   ) {
     return;
   }
@@ -370,6 +375,7 @@ function TtgAnimationScene({ registerHandle }: SceneComponentProps) {
 
   useEffect(() => {
     const root = rootRef.current;
+    if (root?.closest('[data-scroll-platform]')) return;
     const video = videoRef.current;
     const controller = new AbortController();
     if (video) {

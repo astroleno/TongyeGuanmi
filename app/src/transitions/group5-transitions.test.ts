@@ -172,7 +172,7 @@ describe('TTG canonical directional media', () => {
       copyY: fixture.toRoot.style.getPropertyValue('--r4-lab-y'),
       scrollTop: fixture.toRoot.scrollTop,
       edge: fixture.toRoot.dataset.readingEdge,
-      backgroundOwner: /\.r4-lab\s*\{[^}]*#ede4d2;/s.test(stylesheet)
+      backgroundOwner: /\.r4-lab\s*\{[^}]*var\(--r4-warm-paper\);/s.test(stylesheet)
     });
 
     timeline.progress(0.99);

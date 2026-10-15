@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+// Retained for legacy commit-based harnesses, not the shared scroll authority.
 import { PNG } from 'pngjs';
 
 export type PhonePixelPoint = Readonly<{ x: number; y: number }>;
@@ -298,7 +299,7 @@ export async function assertNoIntermediateWhiteOrBlackFrame(
 export async function assertInkIntermediateCompositeContribution(
   page: Page,
   selector: string,
-  expectedEffectZIndex?: '20' | '70'
+  expectedEffectZIndex?: '20' | '55' | '70'
 ): Promise<void> {
   const restoreAnimationFrames = async () => page.evaluate(() => {
     const owner = window as typeof window & {

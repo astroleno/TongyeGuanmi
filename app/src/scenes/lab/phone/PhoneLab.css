@@ -3,9 +3,9 @@
   --phone-lab-y: 0px;
   position: relative;
   isolation: isolate;
-  color: #28291f;
+  color: var(--reading-fg, #28291f);
   /* Brand, Figure3 and Lab are one continuous light-paper chapter. */
-  background: #ede4d2;
+  background: var(--r4-warm-paper);
   padding: 0;
   scroll-margin-top: 0;
 }
@@ -50,7 +50,7 @@
 .phone-lab__eyebrow,
 .phone-lab__row > span {
   margin: 0;
-  color: #657263;
+  color: var(--reading-fg, #657263);
   font-size: .75rem;
   font-weight: 700;
   letter-spacing: .16em;
@@ -68,13 +68,13 @@
 .phone-lab__hero > p {
   max-width: 35rem;
   margin: 0;
-  color: #4f4d40;
+  color: var(--reading-fg, #4f4d40);
   font-size: 1rem;
   line-height: 1.85;
 }
 
 .phone-lab__hero em {
-  color: #3f7167;
+  color: var(--reading-fg, #3f7167);
   font-family: var(--font-traditional, serif);
   font-size: 1.16em;
   font-style: normal;
@@ -111,7 +111,7 @@
 }
 
 .phone-lab__row p {
-  color: #514f42;
+  color: var(--reading-fg, #514f42);
   line-height: 1.75;
 }
 

@@ -34,6 +34,18 @@ export const PHONE_CORE_LOC_BUDGETS = Object.freeze({
 export const PHONE_CORE_TOTAL_LOC_BUDGET = 5775;
 export const PHONE_JS_HARD_CAP_BYTES = 665_600;
 
+// Retired gesture authorities remain testable in the harness, never reachable
+// from the formal entry. Count the replacement's shared files explicitly.
+export const SCROLL_SHARED_CORE_FILES = Object.freeze([
+  'production/StoryScrollShell.tsx', 'production/story-scroll-source.ts',
+  'production/story-scroll-layout.ts', 'production/story-scroll-restoration.ts',
+  'runtime/scroll-story-runtime.ts', 'story/scroll-spine.ts',
+  'media/scroll-media-coherence.ts', 'media/scroll-media-sampling.ts',
+  'media/scroll-canvas-window.ts', 'media/ScrollCanvas.tsx'
+]);
+const scrollCoreNames = ['scroll-platform.tsx', 'scroll-choreography.ts', 'LegacyPhoneStoryShell.tsx'];
+const retiredPhoneAuthorities = new Set(['LegacyPhoneStoryShell.tsx', 'runtime.ts', 'machine.ts']);
+
 const allowedCoreImports = new Map([
   ['protocol.ts', new Set()],
   ['manifest.ts', new Set(['protocol.ts'])],
@@ -80,6 +92,16 @@ const allowedExternalCoreImports = new Map([
     '../../stage/PhoneRetainedFigure2Arch'
   ])],
   ['PhoneBrandLabStory.tsx', new Set()]
+]);
+
+const scrollCoreImports = new Map([
+  ['scroll-platform.tsx', new Set(['manifest.ts', 'presentation.ts', 'scenes.tsx', 'transitions.tsx', 'scroll-choreography.ts'])],
+  ['scroll-choreography.ts', new Set(['manifest.ts'])]
+]);
+const scrollExternalImports = new Map([
+  ['scroll-platform.tsx', new Set(['react', '../StoryScrollShell', '../../runtime/scroll-story-runtime',
+    '../../story/scroll-spine', '../../stage/PhoneRetainedFigure2Arch', '../../media/scroll-media-coherence', '../../media/timeline-video-driver', '../../media/ScrollCanvas', '../../media/scroll-canvas-window'])],
+  ['scroll-choreography.ts', new Set(['../../story/scroll-spine'])]
 ]);
 
 const forbiddenCoreDirectories = new Set([
@@ -143,18 +165,16 @@ async function exists(target) {
 
 async function filesBelow(directory) {
   if (!await exists(directory)) return [];
-  const entries = await readdir(directory);
-  const files = [];
-  for (const entry of entries) {
-    const target = path.join(directory, entry);
-    const info = await stat(target);
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(entries.map(async (entry) => {
+    const target = path.join(directory, entry.name);
+    const info = entry.isFile() || entry.isDirectory() ? entry : await stat(target);
     if (info.isDirectory()) {
-      files.push(...await filesBelow(target));
-    } else {
-      files.push(target);
+      return filesBelow(target);
     }
-  }
-  return files.sort();
+    return [target];
+  }));
+  return files.flat().sort();
 }
 
 function isTypeScript(file) {
@@ -364,22 +384,31 @@ function unwrappedExpression(expression) {
   return current;
 }
 
-function runtimeFactoryUsage(rootSourceFiles) {
-  const rootNames = rootSourceFiles.map((file) => path.resolve(file));
-  const rootSet = new Set(rootNames);
-  const program = ts.createProgram({
-    rootNames,
-    options: {
-      allowJs: true,
-      checkJs: false,
-      jsx: ts.JsxEmit.Preserve,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-      noLib: true,
-      skipLibCheck: true,
-      target: ts.ScriptTarget.Latest
-    }
-  });
+function createArchitectureProgram(rootSourceFiles, sources = []) {
+  const options = {
+    allowJs: true,
+    checkJs: false,
+    jsx: ts.JsxEmit.Preserve,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    noLib: true,
+    skipLibCheck: true,
+    target: ts.ScriptTarget.Latest
+  };
+  const host = ts.createCompilerHost(options);
+  const texts = new Map(sources.map(({ file, source }) => [path.resolve(file), source]));
+  const readSource = host.readFile;
+  const fileExists = host.fileExists;
+  // Keep the AST and symbol checks on the same freshly read source snapshot.
+  // Non-root imports still use TypeScript's ordinary filesystem resolution.
+  host.readFile = (file) => texts.get(path.resolve(file)) ?? readSource(file);
+  host.fileExists = (file) => texts.has(path.resolve(file)) || fileExists(file);
+  return ts.createProgram({ rootNames: rootSourceFiles.map((file) => path.resolve(file)), options, host });
+}
+
+function runtimeFactoryUsage(rootSourceFiles, factoryName = 'createPhoneStoryRuntime',
+  program = createArchitectureProgram(rootSourceFiles)) {
+  const rootSet = new Set(rootSourceFiles.map((file) => path.resolve(file)));
   const checker = program.getTypeChecker();
   const sourceFiles = program.getSourceFiles().filter(
     (sourceFile) => rootSet.has(path.resolve(sourceFile.fileName))
@@ -394,7 +423,7 @@ function runtimeFactoryUsage(rootSourceFiles) {
         && node.name
         && ts.isIdentifier(node.name)
       ) ? node.name : undefined;
-      if (declarationName?.text === 'createPhoneStoryRuntime') {
+      if (declarationName?.text === factoryName) {
         const symbol = checker.getSymbolAtLocation(declarationName);
         if (symbol) factorySymbols.add(canonicalSymbol(checker, symbol));
       }
@@ -416,19 +445,14 @@ function runtimeFactoryUsage(rootSourceFiles) {
     visit(sourceFile);
   }
 
-  const symbolReferencesFactory = (symbol, seen) => {
+  const symbolReferencesFactory = (symbol, seen = new Set()) => {
     const canonical = canonicalSymbol(checker, symbol);
     if (!canonical || seen.has(canonical)) return false;
     if (factorySymbols.has(canonical)) return true;
     seen.add(canonical);
     for (const declaration of canonical.declarations ?? []) {
-      if (
-        ts.isVariableDeclaration(declaration)
-        && declaration.initializer
-        && expressionReferencesFactory(declaration.initializer, seen)
-      ) {
-        return true;
-      }
+      if (ts.isVariableDeclaration(declaration) && declaration.initializer
+        && expressionReferencesFactory(declaration.initializer, seen)) return true;
     }
     return (assignedExpressions.get(canonical) ?? []).some(
       (expression) => expressionReferencesFactory(expression, seen)
@@ -442,7 +466,7 @@ function runtimeFactoryUsage(rootSourceFiles) {
   const syntacticFactoryReference = (expression) => {
     const unwrapped = unwrappedExpression(expression);
     return ts.isIdentifier(unwrapped)
-      && unwrapped.text === 'createPhoneStoryRuntime';
+      && unwrapped.text === factoryName;
   };
 
   const calls = [];
@@ -525,7 +549,7 @@ function runtimeFactoryUsage(rootSourceFiles) {
     const directSymbol = checker.getSymbolAtLocation(propertyNode);
     if (
       directSymbol
-      && symbolReferencesFactory(directSymbol, new Set())
+      && symbolReferencesFactory(directSymbol)
     ) {
       return true;
     }
@@ -538,7 +562,7 @@ function runtimeFactoryUsage(rootSourceFiles) {
       .getProperty(propertyNode.text);
     return Boolean(
       property
-      && symbolReferencesFactory(property, new Set())
+      && symbolReferencesFactory(property)
     );
   };
 
@@ -834,26 +858,14 @@ function storageLineageViolations(sources) {
       ];
 }
 
-function recoveryBoundaryViolations(sources, referenceSources = sources) {
+function recoveryBoundaryViolations(sources, referenceSources = sources, analysisProgram) {
   if (sources.length === 0) {
     return ['cutover is missing an eager phone-core recovery boundary'];
   }
   const rootNames = referenceSources.map(({ file }) => path.resolve(file));
   const boundaryRootSet = new Set(sources.map(({ file }) => path.resolve(file)));
   const referenceRootSet = new Set(rootNames);
-  const program = ts.createProgram({
-    rootNames,
-    options: {
-      allowJs: true,
-      checkJs: false,
-      jsx: ts.JsxEmit.Preserve,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-      noLib: true,
-      skipLibCheck: true,
-      target: ts.ScriptTarget.Latest
-    }
-  });
+  const program = analysisProgram ?? createArchitectureProgram(rootNames);
   const checker = program.getTypeChecker();
   const sourceFiles = program.getSourceFiles()
     .filter((sourceFile) => boundaryRootSet.has(path.resolve(sourceFile.fileName)))
@@ -1948,7 +1960,7 @@ function recoveryBoundaryViolations(sources, referenceSources = sources) {
   return violations;
 }
 
-function controllerRecoveryBoundaryViolations(sources, referenceSources = sources) {
+function controllerRecoveryBoundaryViolations(sources, referenceSources = sources, analysisProgram) {
   const violations = [];
   const loaderEntry = sources.find(({ file }) => (
     slash(file).endsWith('/src/production/presentation-shell-loaders.ts')
@@ -1958,19 +1970,7 @@ function controllerRecoveryBoundaryViolations(sources, referenceSources = source
     return ['cutover is missing the executable phone-core recovery controller'];
   }
   const rootNames = referenceSources.map(({ file }) => path.resolve(file));
-  const program = ts.createProgram({
-    rootNames,
-    options: {
-      allowJs: true,
-      checkJs: false,
-      jsx: ts.JsxEmit.Preserve,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-      noLib: true,
-      skipLibCheck: true,
-      target: ts.ScriptTarget.Latest
-    }
-  });
+  const program = analysisProgram ?? createArchitectureProgram(rootNames);
   const checker = program.getTypeChecker();
   const sourceByPath = new Map(program.getSourceFiles().map((sourceFile) => [
     path.resolve(sourceFile.fileName),
@@ -2248,16 +2248,17 @@ function controllerRecoveryBoundaryViolations(sources, referenceSources = source
   return violations;
 }
 
-async function readSources(files) {
+async function readSources(files, sourceCache) {
   return Promise.all(files.map(async (file) => ({
     file,
-    source: await readFile(file, 'utf8')
+    source: sourceCache?.get(file) ?? await readFile(file, 'utf8')
   })));
 }
 
 export async function phoneCleanArchitectureViolations({
   appRoot = DEFAULT_APP_ROOT,
-  phase = 'harness'
+  phase = 'harness',
+  sourceSnapshot
 } = {}) {
   if (phase !== 'harness' && phase !== 'cutover') {
     return [`unsupported phone architecture phase: ${phase}`];
@@ -2265,21 +2266,29 @@ export async function phoneCleanArchitectureViolations({
 
   const violations = [];
   const srcRoot = path.join(appRoot, 'src');
+  if (sourceSnapshot && sourceSnapshot.sourceDir !== srcRoot) {
+    throw new Error('phone architecture snapshot belongs to a different source root');
+  }
   const productionRoot = path.join(srcRoot, 'production');
   const coreRoot = path.join(productionRoot, 'phone-story');
+  const continuous = await exists(path.join(srcRoot, 'runtime/scroll-story-runtime.ts'));
   const canonicalRuntimeFile = path.resolve(coreRoot, 'runtime.ts');
   const canonicalMachineFile = path.resolve(coreRoot, 'machine.ts');
-  const canonicalShellFile = path.resolve(coreRoot, 'PhoneStoryShell.tsx');
+  const canonicalShellFile = path.resolve(coreRoot, continuous ? 'LegacyPhoneStoryShell.tsx' : 'PhoneStoryShell.tsx');
   const vitePath = path.join(appRoot, 'vite.config.ts');
   const viteSource = await exists(vitePath) ? await readFile(vitePath, 'utf8') : '';
-  const allSourceFiles = (await filesBelow(srcRoot)).filter(isProductionSource);
-  const allSources = await readSources(allSourceFiles);
+  const allSourceFiles = (sourceSnapshot?.files ?? await filesBelow(srcRoot)).filter(isProductionSource);
+  const allSources = await readSources(allSourceFiles, sourceSnapshot?.texts);
+  // All symbol checks use the same roots/options. Reuse only within this call;
+  // later validations must see edits, not a cached compiler/filesystem snapshot.
+  let analysisProgram;
+  const programForAnalysis = () => analysisProgram ??= createArchitectureProgram(allSourceFiles, allSources);
   const allSourceByFile = new Map(
     allSources.map((entry) => [path.resolve(entry.file), entry.source])
   );
   const allParsedByFile = new Map(allSources.map(({ file, source }) => [
     path.resolve(file),
-    sourceFileFor(file, source)
+    sourceSnapshot?.parsed.get(path.resolve(file)) ?? sourceFileFor(file, source)
   ]));
   const allSourceFilesByStem = new Map();
   for (const file of allSourceFiles) {
@@ -2287,8 +2296,10 @@ export async function phoneCleanArchitectureViolations({
     allSourceFilesByStem.set(resolved, resolved);
     allSourceFilesByStem.set(resolved.replace(/\.[^.]+$/, ''), resolved);
   }
-  const allowed = new Set(PHONE_CORE_PRODUCTION_ALLOWLIST);
-  const allCoreFiles = await filesBelow(coreRoot);
+  const allowed = new Set([...PHONE_CORE_PRODUCTION_ALLOWLIST, ...(continuous ? scrollCoreNames : [])]);
+  const allCoreFiles = sourceSnapshot
+    ? sourceSnapshot.files.filter((file) => path.dirname(file) === coreRoot || file.startsWith(`${coreRoot}${path.sep}`))
+    : await filesBelow(coreRoot);
   const coreProductionFiles = allCoreFiles.filter((file) => {
     const relative = slash(path.relative(coreRoot, file));
     if (relative.includes('/__tests__/')) return false;
@@ -2318,7 +2329,7 @@ export async function phoneCleanArchitectureViolations({
         .map((file) => slash(path.relative(coreRoot, file)))
         .filter((relative) => !relative.includes('/'))
     );
-    for (const name of PHONE_CORE_PRODUCTION_ALLOWLIST) {
+    for (const name of allowed) {
       if (!names.has(name)) {
         violations.push(`cutover phone-story is missing allowlisted file ${name}`);
       }
@@ -2331,11 +2342,11 @@ export async function phoneCleanArchitectureViolations({
   }
 
   const coreTypeScriptFiles = coreProductionFiles.filter(isTypeScript);
-  const coreSources = await readSources(coreTypeScriptFiles);
+  const coreSources = await readSources(coreTypeScriptFiles, sourceSnapshot?.texts);
   const sourceByFile = new Map(coreSources.map((entry) => [entry.file, entry.source]));
   const parsedByFile = new Map(coreSources.map(({ file, source }) => [
     file,
-    sourceFileFor(file, source)
+    allParsedByFile.get(path.resolve(file)) ?? sourceFileFor(file, source)
   ]));
   const coreFilesByStem = new Map();
   for (const file of coreTypeScriptFiles) {
@@ -2347,12 +2358,19 @@ export async function phoneCleanArchitectureViolations({
   for (const file of coreTypeScriptFiles) {
     const name = path.basename(file);
     const lines = nonBlankLineCount(sourceByFile.get(file));
-    totalCoreLines += lines;
+    if (!continuous || !retiredPhoneAuthorities.has(name)) totalCoreLines += lines;
     const budget = PHONE_CORE_LOC_BUDGETS[name];
     if (budget !== undefined && lines > budget) {
       violations.push(
         `${name} exceeds non-blank LOC budget: ${lines} > ${budget}`
       );
+    }
+  }
+  if (continuous) {
+    for (const relative of SCROLL_SHARED_CORE_FILES) {
+      const source = allSourceByFile.get(path.resolve(srcRoot, relative));
+      if (source === undefined) violations.push(`continuous core is missing ${relative}`);
+      else totalCoreLines += nonBlankLineCount(source);
     }
   }
   if (totalCoreLines > PHONE_CORE_TOTAL_LOC_BUDGET) {
@@ -2366,7 +2384,9 @@ export async function phoneCleanArchitectureViolations({
   for (const file of coreTypeScriptFiles) {
     const name = path.basename(file);
     const sourceFile = parsedByFile.get(file);
-    const allowedTargets = allowedCoreImports.get(name) ?? new Set();
+    const legacyName = continuous && name === 'LegacyPhoneStoryShell.tsx' ? 'PhoneStoryShell.tsx' : name;
+    const allowedTargets = new Set((continuous ? scrollCoreImports.get(name) : undefined) ?? allowedCoreImports.get(legacyName) ?? []);
+    if (continuous && name === 'PhoneStoryShell.tsx') allowedTargets.add('scroll-platform.tsx');
     for (const imported of moduleImports(sourceFile)) {
       if (imported.syntaxViolation) {
         violations.push(
@@ -2408,7 +2428,9 @@ export async function phoneCleanArchitectureViolations({
           );
         }
       } else {
-        if (!externalCoreImportAllowed(name, imported)) {
+        const scrollExternalAllowed = continuous && (scrollExternalImports.get(name)?.has(imported.specifier)
+          || name === 'PhoneStoryShell.tsx' && imported.specifier === '../StoryScrollShell');
+        if (!scrollExternalAllowed && !externalCoreImportAllowed(legacyName, imported)) {
           violations.push(
             `${name}: forbidden external import dependency ${imported.specifier}`
           );
@@ -2511,12 +2533,12 @@ export async function phoneCleanArchitectureViolations({
   }
 
   const factoryDefinitions = [];
-  const factoryUsage = runtimeFactoryUsage(allSourceFiles);
+  const factoryUsage = runtimeFactoryUsage(allSourceFiles, 'createPhoneStoryRuntime', programForAnalysis());
   const factoryCalls = factoryUsage.calls;
   const reducerDefinitions = [];
   const stableCommitDefinitions = [];
   for (const { file, source } of allSources) {
-    const parsed = sourceFileFor(file, source);
+    const parsed = allParsedByFile.get(path.resolve(file)) ?? sourceFileFor(file, source);
     for (const name of namedDefinitions(parsed, 'createPhoneStoryRuntime')) {
       factoryDefinitions.push({ file, name });
     }
@@ -2609,9 +2631,8 @@ export async function phoneCleanArchitectureViolations({
     path.join(srcRoot, 'transitions')
   ];
   for (const leafRoot of leafRoots) {
-    for (const file of (await filesBelow(leafRoot)).filter(isProductionSource)) {
-      const source = await readFile(file, 'utf8');
-      const parsed = sourceFileFor(file, source);
+    for (const file of allSourceFiles.filter((entry) => entry.startsWith(`${leafRoot}${path.sep}`))) {
+      const parsed = allParsedByFile.get(path.resolve(file));
       for (const imported of moduleImports(parsed)) {
         if (imported.syntaxViolation) {
           violations.push(
@@ -2686,6 +2707,13 @@ export async function phoneCleanArchitectureViolations({
           allSourceFilesByStem
         );
         if (!target) continue;
+        // These separately routed test pages intentionally retain the old
+        // gesture engines. They are not a dependency of either formal shell.
+        if (continuous && slash(target).includes('/src/harness/')) continue;
+        if (continuous && (/\/(?:Legacy(?:Phone|Desktop)StoryShell|input-controller|reading-smooth-motion|gesture-intent-gate)\.[jt]sx?$/.test(slash(target))
+          || [canonicalRuntimeFile, canonicalMachineFile].includes(path.resolve(target)))) {
+          violations.push(`${currentRelative}: formal continuous graph imports retired story authority ${slash(path.relative(srcRoot, target))}`);
+        }
         const nextChain = [...chain, target];
         if (path.resolve(target) === canonicalQaFile) {
           let owner = imported.node.parent;
@@ -2713,6 +2741,36 @@ export async function phoneCleanArchitectureViolations({
   if (propertyMangleViolation(viteSource)) {
     violations.push('vite.config.ts: property-name mangling is forbidden');
   }
+  if (continuous) {
+    const runtimeFile = path.resolve(srcRoot, 'runtime/scroll-story-runtime.ts');
+    const sharedShell = path.resolve(srcRoot, 'production/StoryScrollShell.tsx');
+    let definitions = 0;
+    const scrollUsage = runtimeFactoryUsage(allSourceFiles, 'createScrollStoryRuntime', programForAnalysis());
+    const calls = scrollUsage.calls.length;
+    for (const call of scrollUsage.calls) if (path.resolve(call.file) !== sharedShell) violations.push('continuous runtime factory called outside shared shell');
+    if (scrollUsage.escapes.length) violations.push('continuous runtime factory value escape is forbidden');
+    for (const [file, parsed] of allParsedByFile) {
+      const visit = (node) => {
+        if (ts.isFunctionDeclaration(node) && node.name?.text === 'createScrollStoryRuntime') {
+          definitions += 1;
+          if (file !== runtimeFile) violations.push('continuous runtime factory defined outside shared authority');
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(parsed);
+    }
+    if (definitions !== 1 || calls !== 1) violations.push(`continuous authority must have one factory and one call: ${definitions}/${calls}`);
+    for (const relative of ['runtime/scroll-story-runtime.ts', 'story/scroll-spine.ts', 'production/phone-story/scroll-choreography.ts']) {
+      const parsed = allParsedByFile.get(path.resolve(srcRoot, relative));
+      if (parsed && identifiers(parsed, new Set(['requestAnimationFrame', 'window', 'document', 'Date', 'performance'])).size) {
+        violations.push(`${relative}: continuous position authority must not own a playback clock or DOM`);
+      }
+    }
+    for (const relative of ['production/phone-story/scroll-platform.tsx', 'production/desktop/scroll-platform.tsx']) {
+      const source = allSourceByFile.get(path.resolve(srcRoot, relative)) ?? '';
+      if (/\btimeline\s*\??\.\s*(?:play|reverse)\s*\(/.test(source)) violations.push(`${relative}: continuous adapter must sample, not autoplay`);
+    }
+  }
   violations.push(...provenancePluginViolations(viteSource));
 
   if (phase === 'cutover') {
@@ -2733,13 +2791,14 @@ export async function phoneCleanArchitectureViolations({
     if (ownsControllerRecoveryBoundary) {
       violations.push(...controllerRecoveryBoundaryViolations(
         formalSources,
-        allSources
+        allSources,
+        programForAnalysis()
       ));
     } else {
       violations.push(
         'cutover is missing the executable phone-core recovery controller'
       );
-      violations.push(...recoveryBoundaryViolations(formalSources, allSources));
+      violations.push(...recoveryBoundaryViolations(formalSources, allSources, programForAnalysis()));
       violations.push(...storageLineageViolations(formalSources));
     }
 

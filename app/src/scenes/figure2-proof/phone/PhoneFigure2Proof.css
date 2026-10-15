@@ -6,7 +6,7 @@
   height: calc(var(--phone-visual-height, 100vh) * 3);
   min-height: 0;
   overflow: visible;
-  background: #ede4d2;
+  background: var(--r4-warm-paper);
   transform: translate3d(0, var(--phone-proof-translate-y), 0);
 }
 

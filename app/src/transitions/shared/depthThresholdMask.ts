@@ -147,6 +147,8 @@ export function createDepthThresholdMask(options: {
   runId: string;
   steps?: number;
   transform?: InkDepthTransform;
+  /** Keep the same compositor layer at opaque endpoints during reversible scrub. */
+  stableLayer?: boolean;
 }): DepthThresholdMask | null {
   const { host, targets, atlasSrc } = options;
   const requestedPolarities = [...new Set([
@@ -255,7 +257,7 @@ export function createDepthThresholdMask(options: {
     for (const target of attachedTargets) {
       const fullyVisible = (target.polarity === 'conceal' && progress === 0)
         || (target.polarity === 'reveal' && progress === 1);
-      const masked = !fullyVisible;
+      const masked = !fullyVisible || options.stableLayer === true;
       const previous = targetDiagnostics.get(target.element);
       if (masked) {
         applyManagedMask(target, frame, lastTransform);

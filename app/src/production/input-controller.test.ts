@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDirectorRuntime } from '../runtime/director.actor';
 import { attachStoryInput, canScrollNatively } from './input-controller';
-import { READING_WHEEL_DAMPING } from './reading-motion-governor';
 
 function readingRoot(scrollTop: number) {
   const scrollport = {
@@ -183,7 +182,7 @@ describe('production input reading handoff', () => {
       listener(wheel);
     }
 
-    expect(scrollport.scrollTop).toBe(120 * READING_WHEEL_DAMPING);
+    expect(scrollport.scrollTop).toBe(120);
     expect(preventDefault).toHaveBeenCalledOnce();
     expect(send).not.toHaveBeenCalled();
     detach();

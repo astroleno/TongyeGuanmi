@@ -32,6 +32,14 @@ const phoneExecutionCoreNames = new Set([
   'protocol.ts',
   'runtime.ts'
 ]);
+export const SCROLL_EXECUTION_CORE_MODULES = Object.freeze([
+  'production/phone-story/PhoneStoryShell.tsx', 'production/phone-story/scroll-platform.tsx',
+  'production/phone-story/scroll-choreography.ts', 'production/phone-story/manifest.ts',
+  'production/StoryScrollShell.tsx', 'production/story-scroll-source.ts',
+  'production/story-scroll-layout.ts', 'production/story-scroll-restoration.ts',
+  'runtime/scroll-story-runtime.ts', 'story/scroll-spine.ts',
+  'media/scroll-media-coherence.ts', 'media/scroll-media-sampling.ts'
+]);
 
 function sortedUnique(values) {
   return [...new Set(values)].sort();
@@ -47,8 +55,8 @@ function phoneStoryModule(moduleId) {
 }
 
 function phoneExecutionCoreModule(moduleId) {
-  return phoneStoryModule(moduleId)
-    && phoneExecutionCoreNames.has(path.posix.basename(moduleId));
+  return phoneStoryModule(moduleId) && phoneExecutionCoreNames.has(path.posix.basename(moduleId))
+    || SCROLL_EXECUTION_CORE_MODULES.some((relative) => moduleId.endsWith(`/src/${relative}`));
 }
 
 function phoneLeafModule(moduleId) {
@@ -75,6 +83,9 @@ function generatedCrossChunkPolicyArtifact(value) {
 }
 
 function lazyLifecycleOwner(moduleId) {
+  // A synchronous sampling scope is shared by leaf painters and the coordinator;
+  // it cannot mount, retire, schedule or advance a resource window.
+  if (moduleId.endsWith('/src/media/scroll-media-sampling.ts')) return false;
   const sourceModule = /\.[cm]?[jt]sx?(?:\?|$)/.test(moduleId);
   return sourceModule && (
     phoneExecutionCoreModule(moduleId)
@@ -95,7 +106,8 @@ export function moduleProvenanceViolations(
   provenance,
   {
     chunkBytes = new Map(),
-    viteManifest
+    viteManifest,
+    continuousScroll = false
   } = {}
 ) {
   const violations = [];
@@ -260,8 +272,10 @@ export function moduleProvenanceViolations(
         .filter(Boolean)
         .flatMap((chunk) => chunk.modules)
     );
-    for (const coreName of phoneExecutionCoreNames) {
-      const suffix = `/src/production/phone-story/${coreName}`;
+    const requiredCore = continuousScroll ? SCROLL_EXECUTION_CORE_MODULES
+      : [...phoneExecutionCoreNames].map((name) => `production/phone-story/${name}`);
+    for (const coreName of requiredCore) {
+      const suffix = `/src/${coreName}`;
       if (![...synchronousModules].some((moduleId) => moduleId.endsWith(suffix))) {
         violations.push(
           `phone execution core is missing synchronously reachable ${coreName}`
@@ -269,6 +283,9 @@ export function moduleProvenanceViolations(
       }
     }
     for (const moduleId of synchronousModules) {
+      if (continuousScroll && /\/phone-story\/(?:machine|runtime|presentation|LegacyPhoneStoryShell)\.[jt]sx?$/.test(moduleId)) {
+        violations.push(`formal scroll execution core contains retired gesture authority: ${moduleId}`);
+      }
       if (phoneLeafModule(moduleId)) {
         violations.push(
           `eager phone leaf entered the synchronous execution core: ${moduleId}`
@@ -712,7 +729,8 @@ for (const chunk of Array.isArray(moduleProvenance?.chunks)
 }
 const provenanceViolations = moduleProvenanceViolations(moduleProvenance, {
   chunkBytes: provenanceChunkBytes,
-  viteManifest
+  viteManifest,
+  continuousScroll: true
 });
 assert(
   provenanceViolations.length === 0,

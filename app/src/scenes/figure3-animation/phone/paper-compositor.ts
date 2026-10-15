@@ -1,3 +1,4 @@
+import { canCompositeScrollMedia } from '../../../media/scroll-media-sampling';
 export const PHONE_FIGURE3_PAPER_COLOR = '#ede4d2';
 
 const MAX_CANVAS_PIXEL_RATIO = 2;
@@ -72,6 +73,7 @@ export function paintPhoneFigure3PaperFrame(
   canvas: HTMLCanvasElement,
   paperColor = PHONE_FIGURE3_PAPER_COLOR
 ): boolean {
+  if (!canCompositeScrollMedia(video)) return false;
   if (
     video.readyState < 2
     || video.videoWidth <= 0

@@ -95,6 +95,7 @@ function primeFigure2Video(
   options?: PhoneNativeVideoPrimeOptions
 ): Promise<void> {
   return primePhoneNativeVideo(video, options).then(() => {
+    if (options?.isCurrent?.() === false || options?.phase?.() === 'playing') return;
     try { video.currentTime = endpointSeconds; } catch { /* metadata may still be settling */ }
   });
 }
@@ -153,7 +154,7 @@ export function PhoneFigure2({ reports }: PhoneFigure2Props) {
     }
     const hold = staged && (!isFigure2MediaLeg(binding)
       || binding.direction === 'forward' && binding.stageIndex === 0 && clamped >= .999);
-    if (hold) holdFigure2Media(videoRef.current);
+    if (hold && binding?.sampling !== 'scroll') holdFigure2Media(videoRef.current);
     if (surfaceGenerationRef.current > 0) surfaceRef.current?.probe();
   }, []);
 

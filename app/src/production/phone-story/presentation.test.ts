@@ -927,28 +927,50 @@ describe('phone presentation content, frame, and mount proof', () => {
     )).failure).toBeNull();
   });
 
-  it('re-proves the visible reading copy while its same-scene mirror stays hidden', () => {
+  it('restores stable reading after toolbar geometry is applied without a new plane request', () => {
     const fixture = createStoryFixture();
+    const restoredHeights: string[] = [];
+    Object.assign(fixture.dependencies, { restoreReading: (request?: PhonePlaneRequest) => {
+      expect(request).toBeUndefined();
+      restoredHeights.push(fixture.story.style.getPropertyValue('--phone-visual-height'));
+      return true;
+    } });
+    fixture.presentation.attachRoot(fixture.story);
+    const viewport = planeRequest('brand').viewport;
+    fixture.presentation.refreshStableViewport({ ...viewport, visual: { ...viewport.visual, height: 720 } });
+    expect(restoredHeights).toEqual(['720px']);
+  });
+
+  it.each(['brand', 'services', 'education', 'lab'] as const)(
+    're-proves %s reading without requiring its visual-mirror anchor after foreground restore', (sceneId) => {
+    const fixture = createStoryFixture();
+    let restored = true;
+    Object.assign(fixture.dependencies, { restoreReading: () => restored });
     fixture.presentation.attachRoot(fixture.story);
     fixture.story.setAttribute('data-phone-reading', 'enabled');
-    const attempt = attemptFor('brand', 'recovery', null, null, 2);
-    const { root } = registerScene(fixture, 'brand', attempt);
+    const attempt = attemptFor(sceneId, 'recovery', null, null, 2);
+    const { root } = registerScene(fixture, sceneId, attempt);
     fixture.setStyle(root, computedStyle({ visibility: 'hidden' }));
-    const readingRoot = fakeElement('reading:brand');
-    const content = fakeElement('reading-content:brand', rect(20, 20, 200, 200));
+    const readingRoot = fakeElement(`reading:${sceneId}`);
+    const content = fakeElement(`reading-content:${sceneId}`, rect(20, 20, 200, 200));
     append(fixture.reading, readingRoot); append(readingRoot, content);
-    select(fixture.reading, '[data-phone-reading="brand"]', readingRoot);
-    for (const selector of phoneSceneById('brand').content.selectors) {
+    select(fixture.reading, `[data-phone-reading="${sceneId}"]`, readingRoot);
+    for (const selector of phoneSceneById(sceneId).content.selectors) {
       select(readingRoot, selector, content);
       select(fixture.reading, selector, content);
     }
-    select(readingRoot, phoneSceneById('brand').landing.anchor, readingRoot);
-    select(fixture.reading, phoneSceneById('brand').landing.anchor, readingRoot);
     fixture.setHitStack([content, readingRoot, fixture.reading, fixture.story]);
 
     expect(fixture.presentation.verifyReproject(
-      planeRequest('brand', attempt, 'target')
+      { ...planeRequest(sceneId, attempt, 'target'), readingCommitSequence: 4 }
     ).failure).toBeNull();
+    expect(fixture.presentation.verifyReproject(
+      planeRequest(sceneId, attempt, 'target')
+    ).failure?.code).toBe('presentation-landing-invalid');
+    restored = false;
+    expect(fixture.presentation.verifyReproject({
+      ...planeRequest(sceneId, attempt, 'target'), readingCommitSequence: 4
+    }).failure?.code).toBe('presentation-reading-position-invalid');
   });
 
   it('does not let the registered root substitute for real content evidence', () => {

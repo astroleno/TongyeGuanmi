@@ -94,7 +94,8 @@ export function renderFigure3AnimationProgress(
   if (options.mediaRun) {
     const video = section?.querySelector<HTMLVideoElement>('[data-figure3-alpha-video]');
     if (video && (
-      video.dataset.timelineVideoRun !== options.mediaRun.runId
+      video.closest?.('[data-scroll-platform]')
+      || video.dataset.timelineVideoRun !== options.mediaRun.runId
       || video.dataset.timelineVideoDirection !== String(options.mediaRun.direction)
       || video.dataset.timelineVideoProgress !== progressValue
     )) {

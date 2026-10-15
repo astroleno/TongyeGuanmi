@@ -260,6 +260,12 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash:7].js',
         entryFileNames: 'assets/[name]-[hash:7].js',
         manualChunks(id) {
+          if (id.includes('/src/story/manifest.ts')) {
+            return 'story-manifest';
+          }
+          if (id.includes('/node_modules/lenis/')) {
+            return 'scroll-input';
+          }
           if (id.includes('/src/media/timeline-video-driver.ts')) {
             return 'media-timeline-runtime';
           }

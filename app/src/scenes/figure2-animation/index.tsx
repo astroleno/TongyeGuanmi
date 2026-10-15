@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { ScrollCanvas } from '../../media/ScrollCanvas';
 import {
   disposeTimelineVideoDriver,
   driveTimelineVideo,
@@ -503,7 +504,7 @@ export function Figure2AnimationScene({ registerHandle, packedAlpha }: SceneComp
 
   useEffect(() => {
     const root = rootRef.current;
-    if (root?.dataset.phoneRuntimeOwned === 'true') {
+    if (root?.dataset.phoneRuntimeOwned === 'true' || root?.closest('[data-scroll-platform]')) {
       return () => registerHandle?.(FIGURE2_OPENING_FRAME_HANDLE, null);
     }
     const controller = new AbortController();
@@ -573,7 +574,7 @@ export function Figure2AnimationScene({ registerHandle, packedAlpha }: SceneComp
                     hevc={FIGURE2_HEVC_ALPHA_VIDEO}
                   />}
                 </video>
-                <canvas
+                <ScrollCanvas purpose="packed-alpha"
                   className="r4-figure2__packed-alpha-canvas"
                   data-figure2-packed-alpha-canvas
                   aria-hidden="true"

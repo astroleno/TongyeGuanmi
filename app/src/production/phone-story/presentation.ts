@@ -83,7 +83,7 @@ export type PhoneLeafReportPort = Readonly<{
   reportFailure(failure: PhoneFailure): void;
 }>;
 
-export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken; transactionId?: string; segmentId?: string | null; stageIndex?: number; direction?: 'forward' | 'reverse' | null; leg?: PhoneTransactionLeg }>;
+export type PhoneLeafGenerationBinding = Readonly<{ reports: PhoneLeafReportPort; frameToken: PhoneFrameToken; transactionId?: string; segmentId?: string | null; stageIndex?: number; direction?: 'forward' | 'reverse' | null; leg?: PhoneTransactionLeg; sampling?: 'scroll' }>;
 
 export function createPhoneLeafGenerationBinding(reports: PhoneLeafReportPort, transactionId: string, sequence: number, segmentId: string | null = null, stageIndex?: number, direction?: 'forward' | 'reverse' | null, leg?: PhoneTransactionLeg): PhoneLeafGenerationBinding {
   return Object.freeze({
@@ -115,6 +115,8 @@ export type PhoneLeafCommandHandle = Readonly<{
   activate(command: PhoneLeafActivationCommand): PhoneActivationInvocation;
   setMediaPhase?(command: PhoneMediaPhaseCommand): void;
   render(progress: number): Readonly<{ ownership: PhoneInkOwnership }> | void;
+  /** Absolute opening pose, separate from the outgoing scene choreography. */
+  renderEntry?(progress: number): void;
   settle(endpoint: 0 | 1): Readonly<{ prewarmReusable?: boolean }> | void;
   pause(reason: PhoneLeafPauseReason): void; dispose(reason: PhoneLeafDisposeReason): void;
 }>;
@@ -321,9 +323,31 @@ export type PhonePlaneRequest = Readonly<{
   leg: 'source' | 'target' | 'rollback'; sceneId: PhoneSceneId; planeRevision: number;
   viewport: PhoneViewportSnapshot; required: readonly PhoneEvidenceSlot[];
   progress: number; loaderCovered: boolean; landingAlias?: 'opening' | 'cards' | 'closing' | null;
+  readingCommitSequence?: number;
 }>;
 
 export type PhonePlaneApplyResult = Readonly<{ records: readonly PhoneEvidenceRecord[]; failure: PhoneFailure | null }>;
+
+/** A live node cannot alias another mounted reading chapter. */
+export type PhoneReadingBookmark = Readonly<{ sceneId: string; commitSequence: number; node: HTMLElement; offset: number; edge: 'top' | 'bottom' | null }>;
+export function captureReadingBookmark(root: HTMLElement, sceneId: string, commitSequence: number, owner: Element, viewportHeight: number): PhoneReadingBookmark | null {
+  const node = Array.from(root.querySelectorAll<HTMLElement>('h1, h2, h3, p, li, input, textarea')).find((element) => {
+    const box = element.getBoundingClientRect();
+    return box.height > 0 && box.bottom > 0 && box.top < viewportHeight;
+  });
+  const edge = owner.scrollTop <= 1 ? 'top' : owner.scrollHeight - owner.clientHeight - owner.scrollTop <= 1 ? 'bottom' : null;
+  return node ? { sceneId, commitSequence, node, offset: node.getBoundingClientRect().top, edge } : null;
+}
+export function restoreReadingBookmark(bookmark: PhoneReadingBookmark | null, root: HTMLElement | null, sceneId: string, commitSequence: number, owner: Element): boolean {
+  if (!bookmark || bookmark.sceneId !== sceneId || bookmark.commitSequence !== commitSequence
+    || !bookmark.node.isConnected || !root?.contains(bookmark.node)) return false;
+  const maximum = Math.max(0, owner.scrollHeight - owner.clientHeight), box = bookmark.node.getBoundingClientRect();
+  if (box.height <= 0 || box.width <= 0) return false;
+  const target = bookmark.edge === 'top' ? 0 : bookmark.edge === 'bottom' ? maximum
+    : Math.max(0, Math.min(maximum, owner.scrollTop + box.top - bookmark.offset));
+  owner.scrollTop = target;
+  return Math.abs(owner.scrollTop - target) <= 1;
+}
 
 export type PhoneVisibleCandidateProofRequest = PhonePlaneRequest;
 export type PhoneReprojectProofRequest = PhonePlaneRequest;
@@ -334,6 +358,7 @@ export type PhonePresentationDependencies = Readonly<{
   sampleLayoutViewport(): PhoneLayoutViewport; sampleVisualViewport(): PhoneVisualViewport;
   getComputedStyle(element: HTMLElement, pseudo?: '::before' | '::after'): CSSStyleDeclaration;
   elementsFromPoint(x: number, y: number): readonly HTMLElement[];
+  restoreReading?(request?: PhonePlaneRequest): boolean;
 }>;
 
 export type PhonePresentation = Readonly<{
@@ -366,7 +391,10 @@ export function createPhonePlaneRequest(
     attempt: transaction.attempt, stageIndex: transaction.stageIndex,
     leg: first.leg, sceneId, planeRevision: transaction.planeRevision,
     viewport, required, progress: transaction.progress,
-    loaderCovered: transaction.mode === 'boot' && !hasStableCommit, landingAlias
+    loaderCovered: transaction.mode === 'boot' && !hasStableCommit, landingAlias,
+    ...(transaction.commitIntent === 'reproject' && !transaction.reprojectLanding
+      && stableCommit?.sceneId === sceneId && phoneSceneById(sceneId).plane === 'native'
+      ? { readingCommitSequence: stableCommit.commitSequence } : {})
   }) : null;
 }
 
@@ -755,35 +783,16 @@ export function createPhonePresentation(
     root.setAttribute('data-phone-stable-buffer', sourceBuffer);
   };
 
-  const applyVariables = (
-    request: PhonePlaneRequest,
-    topology: PhoneProjectorTopology
-  ): void => {
-    const { layout, visual } = request.viewport;
-    const variables: readonly [string, string][] = [
-      ['--phone-visual-offset-left', `${visual.offsetLeft}px`],
-      ['--phone-visual-offset-top', `${visual.offsetTop}px`],
-      ['--phone-visual-width', `${visual.width}px`],
-      ['--phone-visual-height', `${visual.height}px`],
-      ['--phone-visual-scale', String(visual.scale)],
-      ['--phone-layout-width', `${layout.width}px`],
-      ['--phone-layout-height', `${layout.height}px`],
-      ['--phone-story-progress', String(request.progress)]
-    ];
-    for (const [property, value] of variables) state.root?.style.setProperty(property, value);
+  const applyVariables = (request: PhonePlaneRequest, topology: PhoneProjectorTopology): void => {
+    applyViewport(request.viewport);
+    state.root?.style.setProperty('--phone-story-progress', String(request.progress));
     state.root?.style.setProperty('--phone-story-coverage', phoneSceneById(request.sceneId).edgeSurface);
-    state.root?.setAttribute('data-phone-orientation', layout.orientation);
     topology.source.setAttribute('data-phone-retained', 'true');
     if (!state.root?.hasAttribute('data-phone-transition-live')) {
       topology.source.style.setProperty('--phone-plane-z', '10');
       topology.receiver.style.setProperty('--phone-plane-z', '30');
-      if (request.leg !== 'target') {
-        topology.source.setAttribute('data-phone-exposed', 'true');
-        topology.receiver.setAttribute('data-phone-exposed', 'false');
-      } else {
-        topology.source.setAttribute('data-phone-exposed', 'false');
-        topology.receiver.setAttribute('data-phone-exposed', 'true');
-      }
+      (request.leg !== 'target' ? topology.source : topology.receiver).setAttribute('data-phone-exposed', 'true');
+      (request.leg === 'target' ? topology.source : topology.receiver).setAttribute('data-phone-exposed', 'false');
     }
     for (const record of state.mounts.values()) {
       record.root?.setAttribute('aria-hidden', 'true');
@@ -795,20 +804,15 @@ export function createPhonePresentation(
     }
   };
 
-  const refreshStableViewport: PhonePresentation['refreshStableViewport'] = (viewport) => {
+  const applyViewport: PhonePresentation['refreshStableViewport'] = (viewport) => {
     const root = state.root;
     if (!root) return;
     const { layout, visual } = viewport;
-    const variables: readonly [string, string][] = [
-      ['--phone-visual-offset-left', `${visual.offsetLeft}px`],
-      ['--phone-visual-offset-top', `${visual.offsetTop}px`],
-      ['--phone-visual-width', `${visual.width}px`],
-      ['--phone-visual-height', `${visual.height}px`],
-      ['--phone-visual-scale', String(visual.scale)],
-      ['--phone-layout-width', `${layout.width}px`],
-      ['--phone-layout-height', `${layout.height}px`]
-    ];
-    for (const [property, value] of variables) root.style.setProperty(property, value);
+    for (const [name, value] of Object.entries(visual)) {
+      const suffix = name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+      root.style.setProperty(`--phone-visual-${suffix}`, `${value}${name === 'scale' ? '' : 'px'}`);
+    }
+    for (const name of ['width', 'height'] as const) root.style.setProperty(`--phone-layout-${name}`, `${layout[name]}px`);
     root.setAttribute('data-phone-orientation', layout.orientation);
   };
 
@@ -818,7 +822,7 @@ export function createPhonePresentation(
     topology: PhoneProjectorTopology
   ): PhonePlaneApplyResult | null => {
     if (!record.root) return presentationFailure(
-      'presentation-mount-missing', 'The current scene mount is unavailable'
+      'presentation-mount-missing', 'Scene mount unavailable'
     );
     const visual = request.viewport.visual;
     const scene = phoneSceneById(request.sceneId);
@@ -829,7 +833,7 @@ export function createPhonePresentation(
       record.root?.querySelector<HTMLElement>(selector) ?? null
     ));
     if (elements.some((element) => !element)) return presentationFailure(
-      'presentation-content-missing', 'A required scene selector is absent from its registered root'
+      'presentation-content-missing', 'Required content is absent from its root'
     );
     const active = request.leg !== 'target' ? topology.source : topology.receiver;
     const activeZ = request.leg !== 'target' ? 10 : 30;
@@ -839,8 +843,8 @@ export function createPhonePresentation(
         || !visibleThroughAncestors(element, record.root, getStyle, !authoredComposite)) {
         return presentationFailure(
           'presentation-content-invisible', nativeReading
-            ? 'Required native scene content is missing or hidden'
-            : 'Required scene content is not visibly intersecting'
+            ? 'Native content is missing or hidden'
+            : 'Required content is outside the viewport'
         );
       }
       const bounds = element.getBoundingClientRect();
@@ -859,13 +863,13 @@ export function createPhonePresentation(
           && containsPoint(layer, bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
       });
       if (hitOccluder || layerOccluder) return presentationFailure(
-        'presentation-content-occluded', 'Required scene content is occluded in the story stack'
+        'presentation-content-occluded', 'Required content is occluded'
       );
     }
     if (authoredComposite && !elements.some((element) => (
       !!element && visibleStyle(getStyle(element))
     ))) return presentationFailure('presentation-content-invisible',
-      'No authored compositor layer is visibly participating');
+      'No compositor layer is visible');
     const pseudoOccludes = layers
       .some((element) => phonePseudoElements.some((pseudo) => {
         const style = getStyle(element, pseudo);
@@ -873,7 +877,7 @@ export function createPhonePresentation(
           && Number.parseInt(style.zIndex, 10) > activeZ;
       }));
     return pseudoOccludes ? presentationFailure(
-      'presentation-content-occluded', 'A pseudo-element occludes the active scene plane'
+      'presentation-content-occluded', 'Pseudo-element occludes the scene'
     ) : null;
   };
 
@@ -920,51 +924,50 @@ export function createPhonePresentation(
   const landingIsVisible = (request: PhonePlaneRequest, record: PhoneMountRecord): boolean => {
     if (!record.root) return false;
     const anchor = phoneSceneById(request.sceneId).landing.anchor;
-    const selector = request.sceneId === 'figure2-proof' ? `[data-r4-proof-panel="${request.landingAlias ?? 'opening'}"]` : anchor.startsWith('#') || anchor.startsWith('[')
+    const selector = request.readingCommitSequence !== undefined
+      && state.root?.getAttribute('data-phone-reading') === 'enabled'
+      ? `[data-phone-reading="${request.sceneId}"]`
+      : request.sceneId === 'figure2-proof' ? `[data-r4-proof-panel="${request.landingAlias ?? 'opening'}"]` : anchor.startsWith('#') || anchor.startsWith('[')
       ? anchor : `[data-phone-landing="${anchor}"]`;
     const element = record.root.matches(selector) ? record.root : record.root.querySelector<HTMLElement>(selector);
     return !!element && intersectsVisualViewport(element, request.viewport.visual)
       && visibleThroughAncestors(element, record.root, getStyle);
   };
 
-  const provePlane = (
-    request: PhonePlaneRequest,
-    fullProof: boolean
-  ): PhonePlaneApplyResult => {
+  const provePlane = (request: PhonePlaneRequest, fullProof: boolean): PhonePlaneApplyResult => {
     if (!requiredIdentityIsValid(request)) return presentationFailure(
-      'presentation-proof-identity-invalid', 'Final proof slots do not share one exact plane identity'
+      'presentation-proof-identity-invalid', 'Proof plane identities differ'
     );
     if (!state.root) return presentationFailure(
-      'presentation-root-missing', 'The route-local presentation root is not attached'
+      'presentation-root-missing', 'Presentation root is not attached'
     );
     const topology = presentationTopology(state.root);
     if (!topology || !validateStack(request, topology)) return presentationFailure(
-      'presentation-stack-invalid', 'The fixed story stacking topology is invalid'
+      'presentation-stack-invalid', 'Invalid story stacking topology'
     );
     const record = findPlaneMount(request);
     if (!record) return presentationFailure(
-      'presentation-mount-missing', 'No current registered mount matches the requested proof leg'
+      'presentation-mount-missing', 'No mount matches this proof leg'
     );
     const readingRoot = state.root.getAttribute('data-phone-reading') === 'enabled' ? topology.reading : null;
     const visibleRecord = readingRoot ? { ...record, root: readingRoot } : record;
     applyVariables(request, topology); if (request.sceneId === 'figure2-proof' && record.root && record.root.parentElement?.getAttribute('data-phone-native-handoff') !== 'active') record.root.style.setProperty('--phone-proof-translate-y', `${(request.landingAlias === 'closing' ? -2 * request.viewport.visual.height : request.landingAlias === 'cards' ? -request.viewport.visual.height : 0).toFixed(2)}px`);
+    if (readingRoot && request.readingCommitSequence !== undefined
+      && !dependencies.restoreReading?.(request)) return presentationFailure(
+      'presentation-reading-position-invalid', 'Reading bookmark restoration failed'
+    );
     if (fullProof || request.required.some(({ kind }) => kind === 'content-visible')) {
       const failure = contentFailure(request, visibleRecord, topology);
       if (failure) return failure;
     }
-    if ((fullProof || request.required.some(({ kind }) => kind === 'frame-visible'))
-      && !frameIsVisible(request, visibleRecord)) return presentationFailure(
-      'presentation-frame-invalid', 'The required prepared frame is not visible in the current plane'
-    );
-    if ((fullProof || request.required.some(({ kind }) => kind === 'coverage-visible'))
-      && !coverageIsVisible(request, topology)) return presentationFailure(
-      'presentation-coverage-invalid', 'The coverage and active plane do not cover all viewport edges'
-    );
-    if ((fullProof || request.required.some(({ kind }) => (
-      kind === 'landing-confirmed' || kind === 'scroll-confirmed'
-    ))) && !landingIsVisible(request, visibleRecord)) return presentationFailure(
-      'presentation-landing-invalid', 'The requested landing is not visibly aligned'
-    );
+    const checks: readonly [readonly string[], () => boolean, string, string][] = [
+      [['frame-visible'], () => frameIsVisible(request, visibleRecord), 'presentation-frame-invalid', 'Prepared frame is not visible'],
+      [['coverage-visible'], () => coverageIsVisible(request, topology), 'presentation-coverage-invalid', 'Viewport edges are not covered'],
+      [['landing-confirmed', 'scroll-confirmed'], () => landingIsVisible(request, visibleRecord), 'presentation-landing-invalid', 'Requested landing is not visible']
+    ];
+    for (const [kinds, verify, code, message] of checks) {
+      if ((fullProof || request.required.some(({ kind }) => kinds.includes(kind))) && !verify()) return presentationFailure(code, message);
+    }
     const records = request.required.map((slot) => Object.freeze({
       slot,
       token: `${request.attempt.transactionId}:plane:${request.planeRevision}:${slot.kind}:${++state.proofSequence}`
@@ -973,7 +976,7 @@ export function createPhonePresentation(
   };
 
   const attachRoot = (root: HTMLElement): (() => void) => {
-    if (state.root) throw new Error('Phone presentation already has an attached root');
+    if (state.root) throw new Error('Presentation root already attached');
     state.root = root;
     const topology = presentationTopology(root);
     topology?.source.setAttribute('data-phone-exposed', 'false');
@@ -989,6 +992,7 @@ export function createPhonePresentation(
     };
   };
 
+  const verify = (request: PhonePlaneRequest) => provePlane(request, true);
   return Object.freeze({
     attachRoot,
     registerLeafMount,
@@ -997,13 +1001,9 @@ export function createPhonePresentation(
     sampleLayoutViewport: dependencies.sampleLayoutViewport,
     sampleVisualViewport: dependencies.sampleVisualViewport,
     verifyPrepared,
-    refreshStableViewport,
+    refreshStableViewport: (viewport: PhoneViewportSnapshot) => { applyViewport(viewport); dependencies.restoreReading?.(); },
     applyPlane: (request: PhonePlaneRequest) => provePlane(request, false),
-    verifyVisibleCandidate: (request: PhoneVisibleCandidateProofRequest) => (
-      provePlane(request, true)
-    ),
-    verifyReproject: (request: PhoneReprojectProofRequest) => provePlane(request, true),
-    verifyRollback: (request: PhoneRollbackProofRequest) => provePlane(request, true)
+    verifyVisibleCandidate: verify, verifyReproject: verify, verifyRollback: verify
   });
 }
 

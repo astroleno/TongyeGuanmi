@@ -12,6 +12,7 @@ function webGlHarness() {
   const texture = {} as WebGLTexture;
   const loseContext = vi.fn();
   const gl = {
+    isContextLost: vi.fn(() => false),
     ARRAY_BUFFER: 1,
     BLEND: 2,
     CLAMP_TO_EDGE: 3,
@@ -106,6 +107,38 @@ function webGlHarness() {
 }
 
 describe('ink WebGL resource lifecycle', () => {
+  it('borrows one GL context, copies its own output and never retires the lender', () => {
+    const { canvas: sharedCanvas, gl, loseContext } = webGlHarness();
+    const output = { clearRect: vi.fn(), drawImage: vi.fn() };
+    const canvas = { width: 0, height: 0, dataset: {}, style: {}, getContext: vi.fn(() => output) } as unknown as HTMLCanvasElement;
+    const transition = createInkBoundaryTransition(canvas, { sharedCanvas });
+    const frame = createInkFieldFrame({ kind: 'radial', origin: { x: .5, y: .5 }, seed: 'borrowed' }, .5, { width: 390, height: 844 });
+    transition?.render(frame);
+    expect(canvas.getContext).toHaveBeenCalledWith('2d');
+    expect(output.drawImage).toHaveBeenLastCalledWith(sharedCanvas, 0, 0);
+    expect([canvas.width, canvas.height, sharedCanvas.width, sharedCanvas.height]).toEqual([390, 844, 390, 844]);
+    sharedCanvas.width = 720; sharedCanvas.height = 1280;
+    gl.bindBuffer.mockClear(); gl.blendFuncSeparate.mockClear();
+    transition?.render(frame);
+    expect([sharedCanvas.width, sharedCanvas.height]).toEqual([390, 844]);
+    expect(gl.bindBuffer).toHaveBeenCalled();
+    expect(gl.blendFuncSeparate).toHaveBeenCalledWith(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    transition?.destroy(true);
+    expect(loseContext).not.toHaveBeenCalled();
+    expect([sharedCanvas.width, sharedCanvas.height]).toEqual([390, 844]);
+    expect(canvas.width).toBe(0);
+  });
+  it('resets DOM-image unpack orientation before uploading atlases on a reused context', () => {
+    const { canvas, gl } = webGlHarness();
+    const targetImage = { complete: true, naturalWidth: 1600, naturalHeight: 900 } as HTMLImageElement;
+    const first = createInkBoundaryTransition(canvas, { fieldKind: 'radial', targetImage });
+    first?.destroy();
+    gl.pixelStorei.mockClear();
+    const second = createInkBoundaryTransition(canvas, { fieldKind: 'horizontal' });
+    expect(gl.pixelStorei).toHaveBeenCalledWith(gl.UNPACK_FLIP_Y_WEBGL, false);
+    expect(gl.pixelStorei.mock.calls.filter(([key]) => key === gl.UNPACK_FLIP_Y_WEBGL).every(([, value]) => value === false)).toBe(true);
+    second?.destroy();
+  });
   it('recreates an active renderer on the same canvas after StrictMode-style cleanup', () => {
     const { canvas, gl, loseContext } = webGlHarness();
     const frame = createInkFieldFrame(
@@ -237,6 +270,13 @@ describe('ink WebGL resource lifecycle', () => {
     expect(gl.deleteProgram).toHaveBeenCalledWith(program);
     expect(gl.deleteShader).toHaveBeenCalledTimes(2);
     expect(gl.getExtension).not.toHaveBeenCalled();
+    expect(loseContext).not.toHaveBeenCalled();
+  });
+
+  it('does not request context loss again after the browser already retired it', () => {
+    const { gl, loseContext } = webGlHarness();
+    gl.isContextLost.mockReturnValue(true);
+    releaseInkWebGlResources(gl as unknown as WebGLRenderingContext, {}, true);
     expect(loseContext).not.toHaveBeenCalled();
   });
 

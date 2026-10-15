@@ -19,6 +19,7 @@ import {
   attachHeroParallax,
   HERO_RADIAL_INK_FIELD,
   renderHeroProgress,
+  renderHeroScrollEntryText,
   sampleHeroIntro,
   sampleHeroScroll,
   startHeroIntro,
@@ -253,6 +254,13 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
     root?.setAttribute('data-hero-title-active', String(sample.titleActive));
   }, []);
 
+  useLayoutEffect(() => {
+    const root = rootRef.current as (HTMLElement & { __r5ScrollEntry?: (progress: number) => void }) | null;
+    if (!root) return;
+    root.__r5ScrollEntry = (progress) => renderIntroSample(sampleHeroIntro(renderHeroScrollEntryText(root, progress)));
+    return () => { delete root.__r5ScrollEntry; };
+  }, [renderIntroSample]);
+
   const registerRoot = useCallback((element: HTMLElement | null) => {
     rootRef.current = element;
     if (!element || role !== 'current') {
@@ -439,6 +447,10 @@ export const heroScene: SceneModule = {
   id: 'hero',
   Component: HeroScene,
   renderHold: renderHeroHold,
+  renderScrollEntry(layer, progress) {
+    const root = layer?.querySelector<HTMLElement>('[data-r4-scene="hero"]') as (HTMLElement & { __r5ScrollEntry?: (progress: number) => void }) | null;
+    root?.__r5ScrollEntry?.(progress);
+  },
   requiredHandles: ['stage', 'intro-ink', 'figure', 'copy'],
   staticFallback: {
     sectionIds: ['home'],

@@ -31,6 +31,7 @@ import {
   clearBoundaryGeometry
 } from './inkOwnership';
 import { createSceneMotionLeaseGroup, type SceneMotionLeaseGroup } from '../../stage/scene-motion';
+import { canvasLeaseGuard } from '../../media/scroll-canvas-window';
 import {
   createHorizontalInkContour,
   type HorizontalInkContour
@@ -182,6 +183,8 @@ function mappedProgress(
 type InkLayerContext = Pick<TransitionContext, 'from' | 'to'>;
 
 function sharedStageHost(context: InkLayerContext): HTMLElement | null {
+  const scrollStage = context.from.element?.closest?.<HTMLElement>('[data-scroll-platform]');
+  if (scrollStage) return scrollStage.querySelector<HTMLElement>('[data-scroll-effect]');
   const fromParent = context.from.element?.parentElement ?? null;
   const toParent = context.to.element?.parentElement ?? null;
   return fromParent && fromParent === toParent ? fromParent : toParent ?? fromParent;
@@ -352,6 +355,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   private disposed?: boolean;
   private animationFrame?: number;
   private canvas!: HTMLCanvasElement | null;
+  private ownsCanvas = () => true;
   private inkRenderer!: InkFieldRenderer | null;
   private readonly fieldSpec: InkFieldSpec;
   private readonly horizontalContour: HorizontalInkContour | null;
@@ -438,12 +442,13 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.horizontalContour = this.fieldSpec.kind === 'horizontal'
       ? createHorizontalInkContour({
           authoredSeed: this.fieldSpec.seed,
-          variationKey: context.runId
+          variationKey: context.sampling === 'scroll' ? context.segment.id : context.runId
         })
       : null;
     const grade = options.grade;
     const reusableSurface = (
       !context.prefersReducedMotion
+      && !context.acquireInkCanvas
       && surfaceHost
       && preparedSurface
       && preparedSurfaceMatches(preparedSurface, this.viewport)
@@ -456,8 +461,9 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       surfaceHost,
       options.id,
       { renderer: 'field', grade, generation },
-      reusableSurface?.[0]
+      context.acquireInkCanvas?.() ?? reusableSurface?.[0]
     );
+    if (this.canvas) this.ownsCanvas = canvasLeaseGuard(this.canvas);
     this.inkRenderer = context.prefersReducedMotion ? null : reusableSurface?.[1]
       ?? createInkFieldRenderer(this.canvas, {
         fieldKind: this.fieldSpec.kind,
@@ -494,7 +500,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
   }
 
   progress(value: number): void {
-    if (this.disposed) {
+    if (this.disposed || !this.ownsCanvas()) {
       return;
     }
     this.assertRendererReady();
@@ -509,7 +515,9 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
       this.canvas.dataset.r4InkRemounts = String(Number(this.canvas.dataset.r4InkRemounts ?? 0) + 1);
     }
     const clamped = clamp(value);
-    if (clamped > this.progressValue + 0.0001) {
+    if (this.context.sampling === 'scroll') {
+      this.playbackDirection = 1;
+    } else if (clamped > this.progressValue + 0.0001) {
       this.playbackDirection = 1;
     } else if (clamped < this.progressValue - 0.0001) {
       this.playbackDirection = -1;
@@ -525,7 +533,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     const toRoot = sceneRoot(liveToElement, this.context.to.scene, this.rootSelector);
     this.endpointOwnership.sync(liveFromElement, liveToElement, { from: fromRoot, to: toRoot });
     this.ensureEndpointsPrepared(fromRoot, toRoot);
-    const motionScenes = this.options.motionScenes ?? [];
+    const motionScenes = this.context.sampling === 'scroll' ? [] : this.options.motionScenes ?? [];
     this.motionLeases.sync([
       {
         key: 'from',
@@ -561,7 +569,8 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     if (
       this.options.renderSource
       && (
-        fromRoot !== this.renderedSourceRoot
+        this.context.sampling === 'scroll'
+        || fromRoot !== this.renderedSourceRoot
         || !Number.isFinite(this.renderedSourceProgress)
         || Math.abs(sourceProgress - this.renderedSourceProgress) > 0.0001
       )
@@ -697,6 +706,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     this.inkRenderer = null;
     this.canvas = null;
     inkRenderer?.destroy();
+    if (!this.ownsCanvas()) { this.endpointOwnership.dispose(); return; }
     canvas?.remove();
     this.elevation?.restore();
     this.liveElevation?.restore();
@@ -787,7 +797,7 @@ class InkSegmentTimeline implements SegmentTimelineHandle {
     to = sceneRoot(liveLayerElement(this.context.to), this.context.to.scene, this.rootSelector),
     stage = liveStageHost(this.context, this.surfaceHost)
   ): InkFieldRoots {
-    return { from, to, stage };
+    return { from, to, stage: stage?.closest?.<HTMLElement>('[data-scroll-platform]') ?? stage };
   }
 
   private replaceManagedSurfaces(

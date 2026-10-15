@@ -203,8 +203,9 @@ export function PhoneStarMap({ reports }: Readonly<{ reports: PhoneLeafReportPor
   const render = useCallback((rawProgress: number) => {
     activeRef.current = true;
     applyProgress(rawProgress);
-    startAmbient();
-  }, [applyProgress, startAmbient]);
+    if (bindingRef.current?.sampling === 'scroll') { stopAmbient(); paint(rawProgress * 12000, true); }
+    else startAmbient();
+  }, [applyProgress, startAmbient, stopAmbient, paint]);
 
   const commands = useMemo(() => {
     const handle: PhoneStarMapMigrationCommands = {

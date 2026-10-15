@@ -13,17 +13,16 @@ function isWithin(target, directory) {
 }
 
 async function filesBelow(directory) {
-  const files = [];
-  for (const entry of await readdir(directory)) {
-    const target = path.join(directory, entry);
-    const info = await stat(target);
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(entries.map(async (entry) => {
+    const target = path.join(directory, entry.name);
+    const info = entry.isFile() || entry.isDirectory() ? entry : await stat(target);
     if (info.isDirectory()) {
-      files.push(...await filesBelow(target));
-    } else if (sourceExtensions.has(path.extname(target))) {
-      files.push(target);
+      return filesBelow(target);
     }
-  }
-  return files.sort();
+    return [target];
+  }));
+  return files.flat().sort();
 }
 
 function sourceFileFor(file, source) {
@@ -33,9 +32,9 @@ function sourceFileFor(file, source) {
   return ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, kind);
 }
 
-function moduleReferences(file, source) {
+function moduleReferences(file, source, parsed) {
   const references = [];
-  const sourceFile = sourceFileFor(file, source);
+  const sourceFile = parsed ?? sourceFileFor(file, source);
   const addSpecifier = (node, expression, kind) => {
     if (expression && ts.isStringLiteralLike(expression)) {
       references.push({ node, specifier: expression.text, kind });
@@ -95,10 +94,10 @@ export function homepageModuleBoundaryViolations(
     'production',
     'portrait-spike'
   );
-  for (const { file, source } of sources) {
+  for (const { file, source, parsed } of sources) {
     const absoluteFile = path.resolve(file);
     const owner = classifyHomepageSource(absoluteFile, absoluteSourceDir);
-    for (const reference of moduleReferences(absoluteFile, source)) {
+    for (const reference of moduleReferences(absoluteFile, source, parsed)) {
       if (reference.syntaxViolation) {
         if (owner !== 'shared') {
           violations.push(
@@ -142,15 +141,24 @@ export function homepageModuleBoundaryViolations(
 
 export async function verifyHomepageModuleBoundaries(root = appDir) {
   const sourceDir = path.join(root, 'src');
-  const files = await filesBelow(sourceDir);
+  const allFiles = await filesBelow(sourceDir);
+  const files = allFiles.filter((file) => sourceExtensions.has(path.extname(file)));
   const sources = await Promise.all(files.map(async (file) => ({
     file,
     source: await readFile(file, 'utf8')
   })));
-  const violations = homepageModuleBoundaryViolations(sources, { sourceDir });
+  // The full inventory retains JS, CSS and unexpected core files for the phone
+  // guard. Only the boundary check filters to its existing TS extensions.
+  const sourceSnapshot = { sourceDir, files: allFiles,
+    texts: new Map(sources.map(({ file, source }) => [file, source])),
+    parsed: new Map(sources.map(({ file, source }) => [file, sourceFileFor(file, source)])) };
+  const violations = homepageModuleBoundaryViolations(sources.map((entry) => ({
+    ...entry, parsed: sourceSnapshot.parsed.get(entry.file)
+  })), { sourceDir });
   for (const violation of await phoneCleanArchitectureViolations({
     appRoot: root,
-    phase: 'cutover'
+    phase: 'cutover',
+    sourceSnapshot
   })) {
     violations.push(`clean phone architecture: ${violation}`);
   }

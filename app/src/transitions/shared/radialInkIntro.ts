@@ -20,6 +20,9 @@ export type CreateRadialInkIntroControllerOptions = Readonly<{
   targetImage?: HTMLImageElement | null;
   field: RadialInkField;
   generation: string;
+  deferUntilVisible?: boolean;
+  sharedCanvas?: HTMLCanvasElement;
+  restoreSharedCanvas?(): void;
   viewport(): Readonly<{ width: number; height: number }>;
 }>;
 
@@ -37,6 +40,7 @@ export function createRadialInkIntroController(
   options: CreateRadialInkIntroControllerOptions
 ): RadialInkIntroController {
   let renderer: InkFieldRenderer | null = null;
+  let usedRenderer = false;
   let disposed = false;
   let settled = false;
   let latestProgress = 1;
@@ -47,7 +51,8 @@ export function createRadialInkIntroController(
     && options.targetImage.naturalHeight > 0
   );
   const ensureRenderer = () => {
-    if (disposed || settled || renderer || !targetReady()) {
+    if (disposed || settled || renderer || !targetReady()
+      || (options.deferUntilVisible && (latestProgress <= .002 || latestProgress >= .999))) {
       return renderer;
     }
     renderer = createInkFieldRenderer(options.canvas, {
@@ -56,8 +61,10 @@ export function createRadialInkIntroController(
       generation: options.generation,
       ...(options.targetImage ? { targetImage: options.targetImage } : {}),
       removeCanvasOnDestroy: false,
-      loseContextOnDestroy: false
+      loseContextOnDestroy: false,
+      ...(options.sharedCanvas ? { sharedCanvas: options.sharedCanvas } : {})
     });
+    usedRenderer ||= Boolean(renderer);
     return renderer;
   };
   const applySurfaceHandoff = (progress: number) => {
@@ -79,7 +86,7 @@ export function createRadialInkIntroController(
     ensureRenderer();
     if (renderer) {
       const frame = frameFor(latestProgress);
-      renderer.render(frame);
+      draw(frame);
       applySurfaceHandoff(frame.progress);
     }
   };
@@ -89,6 +96,15 @@ export function createRadialInkIntroController(
     clamp(progress),
     options.viewport()
   );
+  const draw = (frame: ReturnType<typeof frameFor>, prewarm = false) => {
+    if (!renderer) return;
+    try {
+      if (prewarm) renderer.prewarm(frame);
+      else renderer.render(frame);
+    } finally {
+      options.restoreSharedCanvas?.();
+    }
+  };
   options.targetImage?.addEventListener('load', onTargetLoad);
   clearBoundaryGeometry(options.revealSurface);
   return {
@@ -96,15 +112,19 @@ export function createRadialInkIntroController(
       if (disposed) {
         return;
       }
-      ensureRenderer()?.prewarm(frameFor(0.003));
+      ensureRenderer();
+      draw(frameFor(0.003), true);
     },
     render(progress) {
       if (disposed) {
         return;
       }
       latestProgress = progress;
+      const wasSettled = settled;
+      if (progress < .999) settled = false;
       const frame = frameFor(progress);
-      ensureRenderer()?.render(frame);
+      ensureRenderer();
+      if (!wasSettled || frame.progress < .999) draw(frame);
       applySurfaceHandoff(frame.progress);
       options.canvas.setAttribute(
         'data-hero-intro-ink-active',
@@ -116,8 +136,13 @@ export function createRadialInkIntroController(
       );
       if (frame.progress >= 0.999) {
         settled = true;
-        renderer?.destroy();
-        renderer = null;
+        // Coherent sampling can visit desired=1, held<1, then presented=1
+        // within one RAF. A shared pass belongs to the window, not that pose:
+        // retaining it avoids rebuilding shaders/re-uploading the image here.
+        if (!options.sharedCanvas) {
+          renderer?.destroy();
+          renderer = null;
+        }
       }
     },
     dispose() {
@@ -128,6 +153,13 @@ export function createRadialInkIntroController(
       options.targetImage?.removeEventListener('load', onTargetLoad);
       renderer?.destroy();
       renderer = null;
+      // StrictMode may reuse a still-connected canvas. Only retire the actual
+      // owned context after detach; probing unused canvases creates contexts.
+      if (usedRenderer && !options.sharedCanvas) queueMicrotask(() => {
+        if (options.canvas.isConnected) return;
+        const gl = options.canvas.getContext('webgl');
+        if (gl && !gl.isContextLost()) gl.getExtension('WEBGL_lose_context')?.loseContext();
+      });
       options.canvas.removeAttribute('data-hero-intro-ink-active');
       options.revealSurface.style.removeProperty('--r4-hero-back-ink-opacity');
       clearBoundaryGeometry(options.revealSurface);

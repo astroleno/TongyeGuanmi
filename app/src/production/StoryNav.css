@@ -253,7 +253,7 @@
     background: #040807;
   }
   .site-nav[data-tone="light"][data-menu-open="true"]::before {
-    background: #f4f0e6;
+    background: var(--surface-static);
   }
   .site-nav-track { min-height: var(--nav-h); height: auto; padding: max(9px, env(safe-area-inset-top, 0px)) 14px 9px; gap: 10px; flex-wrap: wrap; }
   .site-nav .brand-mark { width: 28px; height: 28px; border-radius: 5px; }

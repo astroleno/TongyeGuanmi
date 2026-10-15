@@ -165,14 +165,18 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const terminalTransform = figure2DepthTransformForProgress(fromRoot, 1);
     this.depthMask = createDepthThresholdMask({
       host: stage,
-      targets: proofOwnershipSurface
-        ? [{ element: proofOwnershipSurface, polarity: 'reveal' as const }]
-        : [],
+      targets: [
+        ...(proofOwnershipSurface ? [{ element: proofOwnershipSurface, polarity: 'reveal' as const }] : []),
+        ...(context.sampling === 'scroll' && context.from.element
+          ? [{ element: context.from.element, polarity: 'conceal' as const }] : [])
+      ],
+      stableLayer: context.sampling === 'scroll',
       atlasSrc: FIGURE2_DEPTH_MASK_ATLAS,
       runId: context.runId,
       transform: terminalTransform
     });
-    this.inkCanvas = mountTransitionInkCanvas(stage, 'figure2-distance-expand', {
+    const inkHost = stage?.querySelector<HTMLElement>('[data-scroll-effect]') ?? stage;
+    this.inkCanvas = mountTransitionInkCanvas(inkHost, 'figure2-distance-expand', {
       renderer: 'field',
       grade: 'edge-only',
       generation,
@@ -284,7 +288,9 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     }
     this.assertInkRendererReady();
     const clamped = clamp(value);
-    if (clamped > this.progressValue + 0.0001) {
+    if (this.context.sampling === 'scroll') {
+      this.playbackDirection = 1;
+    } else if (clamped > this.progressValue + 0.0001) {
       this.playbackDirection = 1;
     } else if (clamped < this.progressValue - 0.0001) {
       this.playbackDirection = -1;
@@ -302,7 +308,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     const toRoot = sceneRoot(this.context.to.element, 'figure2-proof');
     const figureState = renderFigure2AnimationProgress(fromRoot, intro, {
       proofProgress: 0,
-      videoMode: figure2VideoModeForProofTransition(transition, this.playbackDirection),
+      videoMode: this.context.sampling === 'scroll' ? 'seek' : figure2VideoModeForProofTransition(transition, this.playbackDirection),
       mediaRun: {
         ...(this.mediaRun ?? { runId: this.context.runId }),
         direction: this.playbackDirection,
@@ -440,6 +446,8 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
     }
   }
 
+  prepareScroll(): Promise<void> { return this.armDepthMask(); }
+
   private inkRendererError(): InkRendererRunError {
     return new InkRendererRunError('figure2-distance-expand', this.inkRendererFailure ?? {
       generation: this.inkGeneration,
@@ -570,7 +578,14 @@ export function createFigure2DistanceExpandTransition(options: { delayMs?: () =>
       if (delay > 0) {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
-      return new Figure2DistanceExpandTimeline(context);
+      const timeline = new Figure2DistanceExpandTimeline(context);
+      try {
+        // Continuous sampling has no staged-leg entry callback. Its depth
+        // dependency must be committed before any random position is exposed.
+        if (context.sampling === 'scroll') await timeline.prepareScroll();
+        if (context.signal?.aborted) throw new DOMException('Superseded', 'AbortError');
+        return timeline;
+      } catch (error) { timeline.dispose(); throw error; }
     }
   };
 }

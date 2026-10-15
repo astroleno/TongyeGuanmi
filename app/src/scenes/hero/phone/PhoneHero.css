@@ -4,7 +4,7 @@
   --r4-hero-figure-intro: 1;
   z-index: 2;
   visibility: visible;
-  background: #07110e;
+  background: var(--surface-night);
 }
 
 .portrait-scroll-spike__hero-back-motion,
@@ -194,7 +194,7 @@
   justify-content: center;
   gap: .08em;
   margin: 0;
-  color: rgba(247, 237, 215, .92);
+  color: var(--ink-inverse-primary);
   font-family: var(--font-title);
   font-size: clamp(54px, 17vw, 86px);
   font-weight: 400;
@@ -213,7 +213,7 @@
   gap: .08em;
   width: min(22em, 84vw);
   margin: 0 auto;
-  color: rgba(247, 237, 215, .82);
+  color: var(--ink-inverse-body);
   font-family: var(--font-sans);
   font-size: clamp(15px, 4vw, 18px);
   line-height: 1.5;
@@ -238,7 +238,7 @@
   border: 1px solid rgba(247, 237, 215, .38);
   border-radius: 999px;
   background: rgba(7, 17, 14, .42);
-  color: rgba(247, 237, 215, .82);
+  color: var(--ink-inverse-body);
   font: inherit;
   font-size: 12px;
   letter-spacing: .08em;
@@ -261,7 +261,7 @@
     var(--portrait-readable-bottom-offset, 0px)
     + max(28px, env(safe-area-inset-bottom))
   );
-  color: rgba(247, 237, 215, .68);
+  color: var(--ink-inverse-muted);
   font-size: 13px;
   letter-spacing: .16em;
   will-change: transform, opacity;

@@ -380,8 +380,11 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
 
   const render = useCallback((rawProgress: number) => {
     const progress = clamp(rawProgress);
-    if (progress > progressRef.current + .0001) directionRef.current = 1;
-    if (progress < progressRef.current - .0001) directionRef.current = -1;
+    if (bindingRef.current?.sampling === 'scroll') directionRef.current = 1;
+    else {
+      if (progress > progressRef.current + .0001) directionRef.current = 1;
+      if (progress < progressRef.current - .0001) directionRef.current = -1;
+    }
     progressRef.current = progress;
     const frame = phoneFigure3Frame(progress);
     const root = rootRef.current;
