@@ -77,6 +77,54 @@ export function localCdnRequestURL(requestURL, build, baseURL) {
   return new URL(file.sourcePath, baseURL).href;
 }
 
+// A video source reset may cancel a paused request before the next CDP call.
+// Only a matching, same-session Network cancellation is evidence to retire it;
+// an Invalid InterceptionId message on its own must still fail qualification.
+export function createEgoCdnDrainer(page, build, baseURL, onEvents, observations = []) {
+  const cancelled = new Map();
+  const key = (event, id) => JSON.stringify([event.sessionId ?? null, id]);
+  const accept = events => {
+    onEvents(events);
+    for (const event of events) {
+      if (event.method === 'Network.requestWillBeSent') cancelled.delete(key(event, event.params.requestId));
+      if (event.method === 'Network.loadingFailed' && event.params.canceled === true
+        && event.params.errorText === 'net::ERR_ABORTED') cancelled.set(key(event, event.params.requestId), event.params);
+    }
+    return events.filter(event => event.method === 'Fetch.requestPaused');
+  };
+  return async () => {
+    const pending = accept(await page.events());
+    for (let index = 0; index < pending.length; index++) {
+      const event = pending[index], paused = event.params;
+      const url = localCdnRequestURL(paused.request.url, build, baseURL);
+      const observation = { requestId: paused.requestId, networkId: paused.networkId ?? null,
+        sessionId: event.sessionId ?? null, url: paused.request.url,
+        range: paused.request.headers?.Range ?? paused.request.headers?.range ?? null, status: 'paused' };
+      observations.push(observation);
+      const cancellation = () => paused.networkId ? cancelled.get(key(event, paused.networkId)) : undefined;
+      let proof = cancellation();
+      if (!proof) {
+        try {
+          await page.cdp('Fetch.continueRequest', { requestId: paused.requestId, url });
+          observation.status = 'continued';
+          continue;
+        } catch (error) {
+          observation.error = String(error);
+          if (error.message === 'Invalid InterceptionId.') {
+            // Read the already-queued cancellation once; never retry the CDP
+            // operation or extend any navigation/pose readiness deadline.
+            pending.push(...accept(await page.events()));
+            proof = cancellation();
+          }
+          if (!proof) { observation.status = 'failed'; throw error; }
+        }
+      }
+      observation.status = 'cancelled-before-continue';
+      observation.cancellation = proof;
+    }
+  };
+}
+
 export function validateEgoFrozenManifest(manifest) {
   if (manifest.schemaVersion !== 3 || manifest.sourceDirty !== false || manifest.qualification?.status !== 'pending-memory'
     || !/^[0-9a-f]{40}$/.test(manifest.sourceCommit ?? '') || !/^[0-9a-f]{40}$/.test(manifest.candidateTagObject ?? '')
@@ -138,21 +186,16 @@ async function collectRun(task, page, options, build, environment, expectedRoot,
     measurement: { process: 'ps RSS of the entire shared Ego browser tree, including unrelated pages', navigationIncluded: true,
       cdnTransport: 'owned-page CDP rewrite to byte-verified local preview; original URL and Range headers retained; not public CDN/network qualification',
       viewport: { width: 1440, height: 900, dpr: 1 }, focusEmulation: true },
-    holds: [], poses: [], processSamples: [], heapSamples: [], errors: [], externalBrowserErrors: [],
+    holds: [], poses: [], processSamples: [], heapSamples: [], errors: [], externalBrowserErrors: [], transportEvents: [],
     browserPage: { label: page.label, isolateId: null }, failure: null, pass: false };
   await save(file, run, true);
   let eventState, sampling = false, samplingPromise, samplingError, label = 'entry', loaded = false, heapEnabled = false;
-  const drain = async () => {
-    const events = await page.events();
+  const drain = createEgoCdnDrainer(page, build, options.baseURL, events => {
     if (events.some(event => event.method === 'Page.loadEventFired')) loaded = true;
     eventState = collectScrollBrowserEvents(eventState, events);
-    for (const event of events) if (event.method === 'Fetch.requestPaused') {
-      await page.cdp('Fetch.continueRequest', { requestId: event.params.requestId,
-        url: localCdnRequestURL(event.params.request.url, build, options.baseURL) });
-    }
     run.errors = eventState.errors;
     run.externalBrowserErrors = eventState.externalBrowserErrors;
-  };
+  }, run.transportEvents);
   const wait = async (fn, argument, timeout) => {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
@@ -206,7 +249,7 @@ async function collectRun(task, page, options, build, environment, expectedRoot,
     await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
     await page.cdp('Emulation.setTouchEmulationEnabled', { enabled: false, maxTouchPoints: 1 });
     await page.cdp('Page.bringToFront'); await page.cdp('Emulation.setFocusEmulationEnabled', { enabled: true });
-    await page.cdp('Runtime.enable'); heapEnabled = true; await page.cdp('Log.enable');
+    await page.cdp('Runtime.enable'); heapEnabled = true; await page.cdp('Log.enable'); await page.cdp('Network.enable');
     await page.cdp('Page.enable');
     run.userAgent = await page.evaluate(() => window.navigator.userAgent);
     const init = await page.cdp('Page.addScriptToEvaluateOnNewDocument', { source: `(${installScrollMemoryProbe.toString()})();` });

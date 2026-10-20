@@ -156,4 +156,6 @@ R5_MEMORY_BROWSER_CHANNEL=ego-lite R5_EGO_TASK_SPACE_ID=<authorized-id> R5_EGO_P
 
 为避免在验收前上传新 CDN 对象，只在本任务 Page 的 CDP Fetch 层把清单内精确对象 URL 转接到本地相同字节；原 URL 和 Range 请求保留，不更改构建文件、素材或全局代理。仅使用短调用和有界轮询，避免等待资源的长 evaluate 阻塞请求处理。实际 WebM Range／解码、Canvas 可读及该 Page 的 module Worker 跨域 fetch 已逐字节验证，不需要浏览器级 Target 自动附加；该转接不代表公网 CDN 的可用性／带宽／CORS 已验收，正式发布仍须原不可变上传和 CDN 检查。
 
+媒体源重置可能取消尚未处理的暂停请求。只有该 Page 上相同 session／networkId 的 `Network.loadingFailed(canceled=true, errorText=net::ERR_ABORTED)` 才能证明旧拦截无需继续；保留该证据及每项转接终态，不按 Invalid InterceptionId 文案单独吞错。未知／真正失败仍中止，所有原准备期限与网页异常规则保持不变。
+
 Ego 报告如实记为 `browserChannel: ego-lite`、实际 macOS executable 和 `entire-shared-browser-tree`，不写成 Chrome。1.5GB 整树、512MiB GPU、1GiB renderer、192MiB 页面堆、资源窗口和两轮要求不变。共享环境超限仍失败；正式内存通过也不等于性能、WebKit 或真机资格通过，不会自动切公网。

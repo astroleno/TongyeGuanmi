@@ -2,6 +2,20 @@
 
 更新：2026-10-20。对应已批准的 `2026-10-10-001-refactor-continuous-scroll-story-plan.md`。下文旧日期的通过数量和产物身份仅代表对应历史版本。
 
+## 2026-10-20 再次验证与切换请求（仍未发布）
+
+用户要求“你再验证一下呢，切换”，原验收数值与发布批准继续有效。磁盘本轮初查恢复到约 4.6GiB，Git／远端 main 仍为干净 `de44bda…`，annotated v57 的 tag object `117263b3…`、冻结树 `617f7eeb…` 与 draft SHA `a319b9c8…` 未变，198 个产物文件全部逐字节核验。公网实读仍是 v55／`ef69e06…`，根 302、体验尾斜杠 301、服务／FAQ 200。
+
+原项目验收组 7 已不存在，按用户此前同任务范围的明确重建批准恢复单一项目组 `Tongye v57 release retest 20261020`（当前 ID **6**），不读取／操作其他页面或 profile。原 ID 已失效，不可把当前组与历史同编号组混为一谈。正式 v57 首轮新 Page p2 在 entry 因 `Invalid InterceptionId` 中断，0 hold／0 pose，没有第二轮或合格报告；原始记录为 `/var/folders/4b/c6hnx_fx6sj251cq24qjhmlc0000gn/T/tongye-ego-memory-HrIIhZ/evidence`，整树已观测约 **6.93GB**，192MiB 页面堆预算不能拿来替代整树 1.5GB。独立临时 Ego 实例另行申请批准，不擅自启动、读取常用 profile 或更改阈值。
+
+同组 p2 的协议定位证明：媒体源重置取消已暂停的请求后，旧 `Fetch.requestId` 的 continue 会报同样的 Invalid InterceptionId；同一 session／`networkId` 同时有 `Network.loadingFailed`、`canceled=true`、`net::ERR_ABORTED`（`cancelled-interception-proof-27.json`）。新增 drainer 只凭这组肯定证据退休取消请求；缺证、错 session／ID、真正网络失败、其他协议错误、非冻结 URL 一律仍失败。开启该 Page 的 Network 事件，保留每项请求／Range／终态和取消证据；不重试失效操作，不延长导航、姿态或采样期限，不忽略网站异常。
+
+首个组合能力轮次未等到肯定取消事件，虽然有效视频加载到 readyState 4／Canvas 可读，仍记录 completed=false（`cdn-drainer-integration-28.json`）；随后在相同原期限内先实读肯定取消事件的新轮次，drainer 取消分支与有效视频分支均通过，保留原 HTTPS URL／Range、720×1280、readyState 4 和 Canvas 可读（`cdn-drainer-integration-29.json`）。这些是工具能力检查，不是应用两轮资格。定向 **46/46**、Lint 通过，新增六项覆盖取消证据、未知协议失败、ID 重用及 Range；全量、修复后冻结两轮及公开切换仍待实际结果。
+
+随后在原配置、原断言／时限下完成完整回归 **215 文件／1773 项全部通过**，68.32 秒，退出 0（`unit-full-ego-qualification-04.json`）。架构 83/83、原 module boundary 3.519 秒。此次只修复验收器的肯定取消证据处理；产品画面、媒体、资源及性能预算均未修改。修复后的冻结候选仍需实际两轮，不能借用 v57 的中断或工具能力轮次。
+
+服务器只读复查显示 vhost SHA 已是 `77871e37280e63081ddf97ecf3c0c6563ac460d7e3299bf7d386153353b14a5a`，新增独立 coscroll redirect 与 lubirth include；体验 include 仍是 `c4631c1e…`，`current` 仍为 v55 donor。本轮未修改它们。未来只切体验 include，保留其他配置，并以切换当时重新核验的 vhost SHA 做 CAS，不能用历史 `559c3197…` 覆盖这些变更。
+
 ## 2026-10-20 后续：独立发布器实现与专用组 7 复测（仍未上线）
 
 用户要求继续推进公开发布，不启用 Actions、不放宽门禁；另行批准重建本项目专用 Ego 验收组，实际组为 **7**，仅使用其 p1／p2，未操作其他组、profile 或全局电源设置。证据目录 `/tmp/tongye-native-publish-20261020-P55wTR`。本轮浏览器仍针对前述 Hero 修复普通产物 `afbb09b9…`／清单 `63ea4a8a…`，不是新冻结候选；发布工具变更不改变这份运行时产物身份。
