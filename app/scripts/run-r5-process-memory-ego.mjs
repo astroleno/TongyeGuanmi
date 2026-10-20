@@ -21,6 +21,12 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const identityFields = ['candidate', 'candidateTagObject', 'sourceCommit', 'artifactTreeSha256'];
 
+// Ego rejects an explicitly supplied undefined argument before dispatch. Its
+// no-argument overload must omit the second parameter, unlike Playwright.
+export function evaluateEgoPage(page, fn, argument) {
+  return argument === undefined ? page.evaluate(fn) : page.evaluate(fn, argument);
+}
+
 export function validateEgoMemoryOptions(options) {
   if (!Number.isSafeInteger(options?.taskSpaceId) || options.taskSpaceId <= 0 || !/^p[1-9]\d*$/.test(options.pageLabel ?? '')) {
     throw new Error('An existing, authorized TaskSpace and owned blank Page are required');
@@ -151,7 +157,7 @@ async function collectRun(task, page, options, build, environment, expectedRoot,
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       await drain();
-      if (await page.evaluate(fn, argument)) return;
+      if (await evaluateEgoPage(page, fn, argument)) return;
       await sleep(50);
     }
     throw new Error(`Readiness deadline at ${label}`);

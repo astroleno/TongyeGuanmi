@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isBrowserRootCommand, validateProcessMemoryQualification, validateReleaseMemoryEnvironment } from './r5-process-memory-contract.mjs';
 import { SCROLL_MEMORY_BUDGETS, SCROLL_MEMORY_SCENES, summarizeScrollMemory } from './r5-scroll-memory.mjs';
-import { localCdnRequestURL, summarizeEgoProcessTree, validateEgoFrozenManifest, validateEgoMemoryOptions } from './run-r5-process-memory-ego.mjs';
+import { evaluateEgoPage, localCdnRequestURL, summarizeEgoProcessTree, validateEgoFrozenManifest, validateEgoMemoryOptions } from './run-r5-process-memory-ego.mjs';
 
 const executable = '/Applications/ego lite.app/Contents/MacOS/ego lite';
 const environment = () => ({ platform: 'darwin', arch: 'arm64', osRelease: '24.6.0',
@@ -67,6 +67,21 @@ describe('explicit Ego qualification, not a renamed Chrome diagnostic', () => {
 });
 
 describe('Ego memory transport and sampling boundaries', () => {
+  it('omits absent evaluate arguments and preserves actual JSON arguments', async () => {
+    const calls = [];
+    const page = { evaluate(...args) {
+      if (args.length > 1 && args[1] === undefined) throw new TypeError('argument must be JSON-serializable');
+      calls.push(args); return Promise.resolve(true);
+    } };
+    const callback = () => true;
+    await expect(evaluateEgoPage(page, callback)).resolves.toBe(true);
+    await expect(evaluateEgoPage(page, callback, undefined)).resolves.toBe(true);
+    await expect(evaluateEgoPage(page, callback, null)).resolves.toBe(true);
+    await expect(evaluateEgoPage(page, callback, { progress: 0 })).resolves.toBe(true);
+    expect(calls.map(args => args.length)).toEqual([1, 1, 2, 2]);
+    expect(calls[2][1]).toBeNull();
+    expect(calls[3][1]).toEqual({ progress: 0 });
+  });
   it('sums the complete actual browser tree, including unrelated renderers and descendants', () => {
     const rows = [
       { pid: 1, ppid: 0, rssBytes: 100, command: executable },

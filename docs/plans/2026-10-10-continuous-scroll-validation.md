@@ -41,6 +41,12 @@
 
 Ego 接入后的同版服务器代码在原测试专用目录再次通过 **30 项事务测试及 19 项真实隔离 Nginx HTTP 检查**。活动 vhost 与路由 include 的前后 SHA-256 仍分别为 `559c3197…`、`c4631c1e…`，没有执行公网切换或活动配置重载。
 
+正式入口已提交并推送 main `c511ef7cd16c813f12be1181954f3bfb8067a775`，冻结 annotated v56（tag object `64ea7ca3…`），远端已读回。`release:prepare` 的原 packed-alpha 首帧、媒体、架构、SEO 与包体检查通过；冻结树 `0299bbe9…`、draft SHA `24f7d940…`，CDN enabled、sourceDirty=false、pending-memory。初次命令因本次 shell PATH 没包含现有 ego-browser 而在浏览器调用前退出；修正 PATH 后重新生成独立调用文件，没有安装依赖。
+
+v56 实际首轮新 Page p4 在 entry 处因 Ego API 拒绝 `page.evaluate(fn, undefined)` 而停止，hold／pose 均为 0，没有第二轮，也没有生成 dist 的合格报告。原始失败保留在 `/var/folders/4b/c6hnx_fx6sj251cq24qjhmlc0000gn/T/tongye-ego-memory-nXyJzh/evidence`，整树峰值约 3.59GB 也仍超限，不能改称通过。已定位为调用层缺省参数问题，修正为无参数时真正省略第二实参；新增回归同时检查 undefined、null 与真实 JSON 参数，预算和期限不改。v56 标签不移动，修复后须另冻结新候选重测。
+
+修正后定向 40/40、Lint 通过；同组 p4 的真实 Ego API 四种参数调用均通过（`round-20-evaluate-overloads.mjs`）。随后完整回归 **215 文件／1767 项通过**，297.43 秒，退出 0（`unit-full-ego-qualification-03.json`），没有改原时限。只读诊断在两个本组 Page 均为空白时记录共享整树约 2.28GB／30 个 renderer，未读取其他页面内容，也未剔除任何进程；用户随后确认已手动关闭暂时不用的页面、继续验收。这个确认不是正式采样通过，修复后的冻结两轮仍须实际执行。
+
 ## 2026-10-20 追加：ego-lite 复测与 Hero 视频释放（完整验证受阻，未发布）
 
 用户选择使用现有 ego-lite，不恢复 Chrome／WebKit，并批准新建本项目专用验收标签组。最初持续使用同一组 12，失效后的另行批准与组 6 记录见下文；没有读取其他标签页、选择 profile、安装浏览器、关闭其他任务或删除新目录。用户曾批准本轮临时关闭接电低电量模式并恢复；本机无密码自动提权检查返回需要密码，未执行更改；设置界面自动化也超时，未获得可操作的界面。用户随后选择“暂不调整，先完成其他验证”，因此保持接电 1／电池 0，不继续切换、不索取密码，也不将性能失败全部归因于低电量模式。
