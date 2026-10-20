@@ -20,19 +20,23 @@ function quote(value) {
 const packageArgument = argument('--package');
 const vhostSha = argument('--expected-vhost-sha');
 const includeSha = argument('--expected-include-sha');
+const directAuthorizationSha = argument('--user-directed-authorization-sha');
+if (directAuthorizationSha !== undefined && !/^[0-9a-f]{64}$/.test(directAuthorizationSha)) throw new Error('invalid explicit user-directed authorization SHA');
+const directArgs = directAuthorizationSha ? ['--user-directed-authorization-sha', directAuthorizationSha] : [];
 if (!packageArgument || ![vhostSha, includeSha].every((value) => /^[0-9a-f]{64}$/.test(value ?? ''))) {
   throw new Error('usage: node scripts/deploy-experience-release.mjs --package <directory> --expected-vhost-sha <sha256> --expected-include-sha <sha256> [--check]');
 }
 const packageRoot = path.resolve(packageArgument);
 const transaction = path.join(repo, 'scripts/publish-experience-release.py');
 // No transport, upload or production write before complete local preflight.
-run('python3', [transaction, 'validate', '--package', packageRoot]);
+run('python3', [transaction, 'validate', '--package', packageRoot, ...directArgs]);
 const memory = JSON.parse(await readFile(path.join(packageRoot, 'site/r5-process-memory.json'), 'utf8'));
 const qualification = validateProcessMemoryQualification(memory);
-if (!qualification.valid) throw new Error(`invalid frozen memory qualification: ${qualification.reasons.join('; ')}`);
+if (!directAuthorizationSha && !qualification.valid) throw new Error(`invalid frozen memory qualification: ${qualification.reasons.join('; ')}`);
 const deploy = JSON.parse(await readFile(path.join(packageRoot, 'release-deploy-manifest.json'), 'utf8'));
 if (process.argv.includes('--check')) {
-  process.stdout.write(`${JSON.stringify({ status: 'validated', releaseId: deploy.releaseId, published: false })}\n`);
+  process.stdout.write(`${JSON.stringify({ status: 'validated', releaseId: deploy.releaseId, published: false,
+    publicationMode: deploy.publicationAuthorization?.mode ?? 'qualified' })}\n`);
   process.exit(0);
 }
 const target = process.env.TONGYE_SSH_TARGET?.trim() || 'codex_audit@47.103.120.24';
@@ -48,7 +52,8 @@ run('rsync', ['-az', '-e', ['ssh', ...sshOptions].map(quote).join(' '), `${packa
 run('scp', [...sshOptions, transaction, path.join(repo, 'scripts/upload-cos-release.py'), `${target}:${temporary}/`]);
 const remoteScript = `${temporary}/publish-experience-release.py`;
 const receipt = `${temporary}/nginx-probe.json`;
-const identityArgs = `--expected-vhost-sha ${vhostSha} --expected-include-sha ${includeSha}`;
+const directCommand = directAuthorizationSha ? ` --user-directed-authorization-sha ${directAuthorizationSha}` : '';
+const identityArgs = `--expected-vhost-sha ${vhostSha} --expected-include-sha ${includeSha}${directCommand}`;
 ssh(`sudo -n python3 ${quote(remoteScript)} probe --package ${quote(temporary)} ${identityArgs} --probe-receipt ${quote(receipt)}`);
 // Credentials stay on the release host; objects are immutable and checked by hash.
 const upload = `set -eu; set -a; . /etc/tongye-cdn-cert/secrets.env; . /etc/tongye-release.env; set +a; PYTHONPATH=/opt/tongye-release/python python3 ${quote(temporary + '/upload-cos-release.py')} ${quote(temporary)}`;
@@ -61,7 +66,7 @@ try {
   // A lost SSH reply can occur after the switch. Recover this invocation only,
   // never a pre-existing successful publication with the same release id.
   ssh(`sudo -n python3 ${quote(remoteScript)} apply --package ${quote(temporary)} ${identityArgs} --probe-receipt ${quote(receipt)} --transaction-token ${token}`);
-  ssh(`sudo -n python3 ${quote(remoteScript)} verify --package ${quote(temporary)}`);
+  ssh(`sudo -n python3 ${quote(remoteScript)} verify --package ${quote(temporary)}${directCommand}`);
 } catch (error) {
   try {
     ssh(`sudo -n python3 ${quote(remoteScript)} rollback --release-id ${quote(deploy.releaseId)} --transaction-token ${token}`);
@@ -72,4 +77,5 @@ try {
 }
 // Retain this exact staging/transaction for explicit recovery; never rm a release.
 process.stdout.write(`${JSON.stringify({ releaseId: deploy.releaseId, sourceCommit: deploy.sourceCommit,
-  basePath: '/experience/', httpVerified: true, remoteStaging: temporary })}\n`);
+  basePath: '/experience/', httpVerified: true, remoteStaging: temporary,
+  publicationMode: deploy.publicationAuthorization?.mode ?? 'qualified' })}\n`);

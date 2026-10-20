@@ -75,6 +75,16 @@ sudo -n python3 /www/wwwroot/tongye.me/route-backups/experience-v55-20261019-02/
 
 ## 原生新版的发布边界（2026-10-20，未上线）
 
+### v59 的明确直接发布指令（2026-10-20）
+
+在完整披露 v59 的两轮共享 RSS 超限、双端性能 0/16 和缺失的设备覆盖后，用户继续明确要求“你切换啊。你管 ego-lite 干嘛”，在询问是否按这些已知缺口直接发布之后再次回复“不用啊。你直接切换啊”。本次按该直接发布指令推进 **固定 v59**，不再要求用户处理 Ego；不将该指令扩展到其他候选或未来发布。
+
+独立指令记录 `scripts/authorizations/v59-direct-publication-20261020.json` 绑定 source `c1ee8fd…`、annotated tag object `b8b141c…`、artifact tree `83b30c78…`、原 draft manifest `1b7d486b…` 和三份原始失败证据的精确 SHA。`package-user-directed-v59.mjs` 逐文件核验、拒绝覆盖现存包，保留原 `qualification.status=pending-memory` 和 `pass=false`，不会调用 finalizer 伪造通过。源码应用不重建、不改变 v59 的任何 JS／CSS／素材字节。
+
+现有发布器只有显式提供这一记录的固定 SHA `0721104d84e66c813e5b1a2db98796b05bdc8b776be777b2b44b3ff202c534a8` 才接受该特例；默认路径继续拒绝 pending／失败报告，任意其他记录、候选、产物或被修改的证据均不能使用它。原文件清单、CDN 不可变上传／验证、实际包隔离 Nginx、路由 CAS、旧资源兼容、精确回滚与公网 HTTP 检查仍执行。事务备份永久保存直接指令与失败原件，状态明确记录 `user-directed-with-known-validation-gaps`，不声称原验收已通过。
+
+发布事务 30 项原测试、新增 9 项指令绑定／篡改／默认拒绝／回退测试，以及客户端／根路径保护 13 项全部通过。实际切换结果以服务器事务和公网读回为准，下文的旧标准与历史未发布状态不作追溯改写。
+
 源码现支持 `R5_BASE_PATH=/experience/` 原生构建：路由、手机预启动、恢复清单、图标与 Web App scope 使用同一前缀；未设置时保留根路径开发构建。构建入口不引入另一套路由库或提前导入场景。Canonical 的 WebPage 标识跟随体验路径，组织、全站、服务与 FAQ 的公开身份仍留在原根地址。
 
 发布草稿及打包清单记录 `basePath`；冻结内存资格完成前不得更换构建前缀。原 `scripts/deploy-r5-release.mjs` 只切根站点的 `current`，现会在任何 SSH／上传之前拒绝显式非根路径发布包。上面的 v55 适配脚本也不是新版发布器，不能换一个 release ID 就复用。

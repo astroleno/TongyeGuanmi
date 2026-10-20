@@ -85,3 +85,17 @@ test('requires both inspected configuration identities before reading a package'
   assert.equal(result.status, 1);
   assert.match(result.stderr, /usage:/);
 });
+
+test('an arbitrary direct-publication SHA cannot bypass preflight or reach transport', async () => {
+  const { root, bin } = await fixture('pending');
+  try {
+    const result = spawnSync(process.execPath, [script, '--package', path.join(root, 'package'),
+      '--expected-vhost-sha', 'a'.repeat(64), '--expected-include-sha', 'b'.repeat(64),
+      '--user-directed-authorization-sha', 'c'.repeat(64)], {
+      encoding: 'utf8', timeout: 5000, env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` }
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /exact user-directed v59 receipt/);
+    assert(!`${result.stdout}${result.stderr}`.includes('blocked-test-transport'));
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

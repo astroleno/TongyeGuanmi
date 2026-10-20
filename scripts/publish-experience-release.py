@@ -34,6 +34,11 @@ BASE_SHA = '46609b35907e855e6be6bd8763a9a9b589be1910801e5cd106e537cd3aa67c4f'
 MOUNT_SHA = 'a8c155dc3c2e9f3cf0c8ce276d724a8f80b7757332ddab98ae6ec5d78df81ed8'
 PREDECESSOR_SHA = 'c4631c1e36e173c434ce980ae266723e57c59b90280aa3ac7c7ddeab15d4a321'
 PUBLIC_ORIGIN = 'https://tongye.me'
+# One explicitly directed publication, not a new qualification policy. This
+# exact receipt pins v59 and its unchanged failing evidence; no other release
+# or fabricated pass flag can use this path. Default publication stays strict.
+V59_DIRECT_AUTH_SHA = '0721104d84e66c813e5b1a2db98796b05bdc8b776be777b2b44b3ff202c534a8'
+DIRECT_AUTH_PATH = 'user-directed-publication.json'
 SCROLL_BUDGETS = {'peakBrowserTreeRssBytes': 1500000000, 'peakGpuProcessRssBytes': 512 * 1024 * 1024,
                   'peakRendererRssBytes': 1024 * 1024 * 1024, 'peakJsHeapBytes': 192 * 1024 * 1024,
                   'settledHeapFractionOfPeak': 0.9, 'maxMountedLayers': 3, 'maxWebglCanvasesAtHold': 1,
@@ -177,7 +182,34 @@ def validate_memory(report):
             validate_ego_run(run)
 
 
-def validate_package(package):
+def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
+    if authorization_sha != V59_DIRECT_AUTH_SHA:
+        raise ValueError('direct publication is limited to the exact user-directed v59 receipt')
+    receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
+    if digest(receipt_bytes) != authorization_sha:
+        raise ValueError('direct publication receipt changed')
+    receipt = json.loads(receipt_bytes)
+    descriptor = {'path': DIRECT_AUTH_PATH, 'sha256': authorization_sha, 'mode': receipt['mode'],
+                  'memoryEvidenceSha256': receipt['evidence']['memory']['sha256']}
+    if deploy.get('publicationAuthorization') != descriptor:
+        raise ValueError('direct publication descriptor differs from the explicit receipt')
+    if (deploy['releaseId'] != receipt['releaseId'] or manifest['basePath'] != receipt['basePath']
+            or digest(manifest_bytes) != receipt['identity']['draftManifestSha256']
+            or manifest.get('qualification') != {'status': 'pending-memory', 'memoryEvidence': None}
+            or any(manifest.get(key) != value for key, value in receipt['identity'].items() if key != 'draftManifestSha256')):
+        raise ValueError('direct publication belongs only to the unchanged frozen v59 artifact')
+    for item in receipt['evidence'].values():
+        checked_file(package, item)
+    memory = json.loads(read_regular(package / 'site', 'r5-process-memory.json'))
+    if (memory.get('pass') is not False or memory.get('completedRunCount') != 2
+            or memory.get('identity') != receipt['identity'] or len(memory.get('runs', [])) != 2
+            or any(run.get('pass') is not False or run.get('failure') or run.get('errors')
+                   or len(run.get('holds', [])) != 33 or len(run.get('poses', [])) != 90 for run in memory['runs'])):
+        raise ValueError('direct publication must preserve both complete failing runs')
+    return receipt
+
+
+def validate_package(package, authorization_sha=None):
     """Validate every packaged byte before SSH/upload and again on the server."""
     deploy = json.loads(read_regular(package, 'release-deploy-manifest.json'))
     if deploy.get('schemaVersion') != 1 or deploy.get('basePath') != '/experience/' or deploy.get('siteDirectory') != 'site':
@@ -199,12 +231,18 @@ def validate_package(package):
         raise ValueError('release candidate identity mismatch')
     qualification = manifest.get('qualification', {})
     evidence = qualification.get('memoryEvidence') or {}
-    if qualification.get('status') != 'qualified' or evidence.get('pass') is not True or evidence.get('runCount') != 2 or evidence.get('path') != 'r5-process-memory.json':
-        raise ValueError('release is not qualified by two frozen memory runs')
     memory_bytes = read_regular(site, 'r5-process-memory.json')
     memory = json.loads(memory_bytes)
-    validate_memory(memory)
-    if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not True or memory.get('completedRunCount') != 2 or memory.get('identity') != evidence.get('identity'):
+    if authorization_sha is not None:
+        receipt = validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha)
+        evidence = {'sha256': receipt['evidence']['memory']['sha256'], 'identity': receipt['identity']}
+    else:
+        if qualification.get('status') != 'qualified' or evidence.get('pass') is not True or evidence.get('runCount') != 2 or evidence.get('path') != 'r5-process-memory.json':
+            raise ValueError('release is not qualified by two frozen memory runs')
+        if deploy.get('publicationAuthorization') is not None:
+            raise ValueError('direct publication requires its explicit authorization SHA')
+        validate_memory(memory)
+    if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != 2 or memory.get('identity') != evidence.get('identity'):
         raise ValueError('memory evidence identity mismatch')
     for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:
         if memory.get('identity', {}).get(field) != manifest.get(field):
@@ -380,10 +418,12 @@ def assert_active(record, include_sha):
         raise ValueError('another production change; refusing to overwrite')
 
 
-def apply(package, expected_vhost_sha, expected_include_sha, probe_receipt, transaction_token):
+def apply(package, expected_vhost_sha, expected_include_sha, probe_receipt, transaction_token, authorization_sha=None):
     if not re.fullmatch(r'[0-9a-f]{32}', transaction_token or ''):
         raise ValueError('apply requires a unique transaction token')
-    deploy, manifest, site_names = validate_package(package)
+    deploy, manifest, site_names = validate_package(package, authorization_sha)
+    memory_sha = (deploy['publicationAuthorization']['memoryEvidenceSha256'] if authorization_sha
+                  else manifest['qualification']['memoryEvidence']['sha256'])
     rid = deploy['releaseId']
     with locked():
         original, vhost, legacy = predecessor(expected_vhost_sha, expected_include_sha)
@@ -393,6 +433,7 @@ def apply(package, expected_vhost_sha, expected_include_sha, probe_receipt, tran
         for field, expected in {'releaseId': rid, 'scope': 'isolated-real-nginx', 'status': 'passed',
                                 'releaseManifestSha256': deploy['releaseManifestSha256'],
                                 'vhostSha256': expected_vhost_sha, 'beforeIncludeSha256': expected_include_sha,
+                                'userDirectedAuthorizationSha256': authorization_sha,
                                 'afterIncludeSha256': digest(candidate)}.items():
             if report.get(field) != expected:
                 raise ValueError('isolated nginx probe identity mismatch: ' + field)
@@ -410,6 +451,17 @@ def apply(package, expected_vhost_sha, expected_include_sha, probe_receipt, tran
                   'vhostSha256': digest(vhost), 'beforeIncludeSha256': digest(original), 'afterIncludeSha256': digest(candidate),
                   'rootCurrent': str((SITE / 'current').resolve()), 'releaseManifestSha256': deploy['releaseManifestSha256'],
                   'state': 'prepared'}
+        if authorization_sha:
+            receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
+            if digest(receipt_bytes) != authorization_sha:
+                raise ValueError('direct publication receipt changed before staging')
+            receipt = json.loads(receipt_bytes)
+            atomic_write(backup / DIRECT_AUTH_PATH, receipt_bytes)
+            (backup / 'evidence').mkdir()
+            for name, item in receipt['evidence'].items():
+                atomic_write(backup / 'evidence' / (name + '.json'), checked_file(package, item))
+            record.update(publicationMode=receipt['mode'], userDirectedAuthorizationSha256=authorization_sha,
+                          qualificationStatusUnchanged='pending-memory')
         atomic_write(backup / 'transaction.json', encoded(record))
         target.mkdir(mode=0o755)
         target.chmod(0o755)
@@ -432,7 +484,7 @@ def apply(package, expected_vhost_sha, expected_include_sha, probe_receipt, tran
                 checked_file(target, item)
         if digest((target / 'r5-release-manifest.json').read_bytes()) != deploy['releaseManifestSha256']:
             raise ValueError('copied manifest changed')
-        if digest((target / 'r5-process-memory.json').read_bytes()) != manifest['qualification']['memoryEvidence']['sha256'] or (target / 'release-id.txt').read_bytes() != (rid + '\n').encode():
+        if digest((target / 'r5-process-memory.json').read_bytes()) != memory_sha or (target / 'release-id.txt').read_bytes() != (rid + '\n').encode():
             raise ValueError('copied qualification or release id changed')
         shutil.copyfile(__file__, backup / 'publish-experience-release.py')
         assert_active(record, record['beforeIncludeSha256'])
@@ -558,8 +610,8 @@ def http_checks(origin, deploy, manifest, legacy):
             'completedAt': datetime.now(timezone.utc).isoformat()}
 
 
-def probe(package, expected_vhost_sha, expected_include_sha):
-    deploy, manifest, _ = validate_package(package)
+def probe(package, expected_vhost_sha, expected_include_sha, authorization_sha=None):
+    deploy, manifest, _ = validate_package(package, authorization_sha)
     original, _, legacy = predecessor(expected_vhost_sha, expected_include_sha)
     with tempfile.TemporaryDirectory(prefix='tongye-native-nginx-probe-') as directory:
         root = Path(directory)
@@ -610,6 +662,7 @@ http {{
                     time.sleep(0.05)
             report = http_checks(f'http://127.0.0.1:{port}', deploy, manifest, legacy)
             report.update(scope='isolated-real-nginx', releaseManifestSha256=deploy['releaseManifestSha256'], vhostSha256=expected_vhost_sha,
+                          userDirectedAuthorizationSha256=authorization_sha,
                           beforeIncludeSha256=expected_include_sha,
                           afterIncludeSha256=digest(render_include(deploy, manifest, original, legacy)))
             return report
@@ -622,13 +675,15 @@ http {{
                 process.communicate(timeout=5)
 
 
-def verify(package):
-    deploy, manifest, _ = validate_package(package)
+def verify(package, authorization_sha=None):
+    deploy, manifest, _ = validate_package(package, authorization_sha)
     backup = state_directory(deploy['releaseId'])
     with locked():
         record = json.loads((backup / 'transaction.json').read_bytes())
         if record['state'] != 'applied-awaiting-public-smoke' or record['releaseManifestSha256'] != deploy['releaseManifestSha256']:
             raise ValueError('not the pending published artifact')
+        if record.get('userDirectedAuthorizationSha256') != authorization_sha:
+            raise ValueError('published authorization identity changed')
         assert_active(record, record['afterIncludeSha256'])
         # Recover the exact predecessor inventory without accepting a newer include.
         with (backup / 'include.before.conf').open('rb') as stream:
@@ -657,6 +712,7 @@ if __name__ == '__main__':
     parser.add_argument('--expected-include-sha')
     parser.add_argument('--probe-receipt', type=Path)
     parser.add_argument('--transaction-token')
+    parser.add_argument('--user-directed-authorization-sha')
     args = parser.parse_args()
     if args.action == 'rollback':
         result = rollback(args.release_id, args.transaction_token)
@@ -665,21 +721,21 @@ if __name__ == '__main__':
             parser.error('requires --package')
         package = args.package.absolute()
         if args.action == 'validate':
-            deploy, manifest, _ = validate_package(package)
+            deploy, manifest, _ = validate_package(package, args.user_directed_authorization_sha)
             result = {'releaseId': deploy['releaseId'], 'sourceCommit': manifest['sourceCommit'], 'status': 'validated'}
         elif args.action == 'verify':
-            result = verify(package)
+            result = verify(package, args.user_directed_authorization_sha)
         else:
             if not all(re.fullmatch(r'[0-9a-f]{64}', value or '') for value in [args.expected_vhost_sha, args.expected_include_sha]):
                 parser.error('requires both inspected configuration SHA-256 values')
             if args.probe_receipt is None:
                 parser.error('probe/apply requires --probe-receipt')
             if args.action == 'probe':
-                result = probe(package, args.expected_vhost_sha, args.expected_include_sha)
+                result = probe(package, args.expected_vhost_sha, args.expected_include_sha, args.user_directed_authorization_sha)
                 with args.probe_receipt.open('xb') as stream:
                     stream.write(encoded(result))
                     stream.flush()
                     os.fsync(stream.fileno())
             else:
-                result = apply(package, args.expected_vhost_sha, args.expected_include_sha, args.probe_receipt, args.transaction_token)
+                result = apply(package, args.expected_vhost_sha, args.expected_include_sha, args.probe_receipt, args.transaction_token, args.user_directed_authorization_sha)
     print(json.dumps(result))

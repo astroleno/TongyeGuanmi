@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-20T13:05:47Z",
+  "authority": "The user repeated the direct publication instruction in this conversation after disclosure of the failed and missing checks.",
+  "userInstruction": "不用啊。你直接切换啊",
+  "releaseId": "r5-c1ee8fd",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v59",
+    "candidateTagObject": "b8b141c441bdebc28cb397344de785142e6cd03a",
+    "sourceCommit": "c1ee8fd386d92ee34d408eb0e094fa87ae21de35",
+    "artifactTreeSha256": "83b30c789256bcbe3643cf364f1f491c96915f071de91e59c2aaa33932baf034",
+    "draftManifestSha256": "1b7d486bfb046f840cd65d51e4d2e915fe270cea383b3b4c38bcb1eba08c58d8"
+  },
+  "qualificationStatusUnchanged": "pending-memory",
+  "knownGaps": [
+    "Both frozen runs exceed the original shared-browser-tree and renderer RSS limits; this is not server RSS.",
+    "The desktop and phone-emulated scroll performance matrices are 0/8 each against the original thresholds.",
+    "WebKit and physical-device qualification remain incomplete."
+  ],
+  "evidence": {
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 932915,
+      "sha256": "61b9310c9d4d04a7181cf902fa577de2eb5cc841192853f668a813f55904a939"
+    },
+    "desktopPerformance": {
+      "path": "evidence/desktop-performance.json",
+      "bytes": 1823290,
+      "sha256": "1a79b8fd6d7bf52434bb3a0207b5bec5fd835bd6b7da8e865de3f117478bfee8"
+    },
+    "phonePerformance": {
+      "path": "evidence/phone-performance.json",
+      "bytes": 2633127,
+      "sha256": "8b52dda37d8732eec4a382ba06c6d9d8b43dc24b76d41057be6b943ed4f1339e"
+    }
+  },
+  "nonWaivedChecks": [
+    "Exact frozen candidate tag, source identity and every artifact byte",
+    "Immutable CDN upload and HTTPS, CORS, MIME, cache and Range verification",
+    "Actual-package isolated Nginx probe before changing production",
+    "Compare-and-swap route include; preserve root site and existing routes",
+    "Public HTTP identity and legacy-resource verification; automatic rollback on failure"
+  ],
+  "failedEvidenceMustRemainUnmodified": true,
+  "doesNotGrantPassingQualification": true
+}
