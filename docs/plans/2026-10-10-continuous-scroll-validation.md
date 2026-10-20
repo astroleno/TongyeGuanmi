@@ -2,6 +2,12 @@
 
 更新：2026-10-20。对应已批准的 `2026-10-10-001-refactor-continuous-scroll-story-plan.md`。下文旧日期的通过数量和产物身份仅代表对应历史版本。
 
+## 2026-10-20 21:30：按用户直接指令发布 v59
+
+用户在获知未通过项后明确连续要求直接切换；本次已将固定 `c1ee8fd…`／v59 发布到 `https://tongye.me/experience/`，不是仅推送源码。249 项实际包隔离 Nginx、63 项公开 CDN 响应头及视频 206 Range、249 项切换后公网 HTTP 检查通过；本机独立 curl 读回 source／tag／清单 SHA 与冻结原件完全相同。服务器事务 `native-r5-c1ee8fd` 为 `applied-http-verified`，未触发回滚，原 root donor 及其他路由保留。详见迁移 runbook 的“当前公开版本”及持久事务备份。
+
+发布使用绑定具体产物和失败证据 SHA 的 `user-directed-with-known-validation-gaps` 记录；**没有将两轮共享 RSS 超限、性能 0/16、缺失设备覆盖改写成通过**。清单 `pending-memory` 与原报告 `pass=false` 原样保留，普通发布门禁默认仍拒绝这些结果。本次发布不是后续候选的通用豁免；也不追溯改变下文各轮未发布、失败或中断的结论。
+
 ## 2026-10-20 再次验证与切换请求（仍未发布）
 
 用户要求“你再验证一下呢，切换”，原验收数值与发布批准继续有效。磁盘本轮初查恢复到约 4.6GiB，Git／远端 main 仍为干净 `de44bda…`，annotated v57 的 tag object `117263b3…`、冻结树 `617f7eeb…` 与 draft SHA `a319b9c8…` 未变，198 个产物文件全部逐字节核验。公网实读仍是 v55／`ef69e06…`，根 302、体验尾斜杠 301、服务／FAQ 200。

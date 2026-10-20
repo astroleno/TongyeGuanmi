@@ -1,5 +1,21 @@
 # 旧官网迁移至 /experience/
 
+## 当前公开版本：v59（2026-10-20 21:30，Asia/Shanghai）
+
+`https://tongye.me/experience/` 已切换到原生连续滚动 **v59**，release `r5-c1ee8fd`，应用 source `c1ee8fd386d92ee34d408eb0e094fa87ae21de35`。根地址继续 302 到此入口。公网清单 SHA `1b7d486bfb046f840cd65d51e4d2e915fe270cea383b3b4c38bcb1eba08c58d8`、artifact tree `83b30c789256bcbe3643cf364f1f491c96915f071de91e59c2aaa33932baf034`；独立本机 curl 读回确认 v59，响应头为 `X-Tongye-Experience-Release: r5-c1ee8fd`。
+
+实际包 **249 项隔离 Nginx 检查及 249 项公网 HTTP 检查全部通过**，包括新旧 JS/CSS 字节、MIME、缓存、入口、规范化跳转、服务／FAQ 和 404。63 个 CDN 对象（79,330,671 B）已不可变上传；63 项公开 HTTPS HEAD／长度／MIME／缓存／CORS 与原 1024 B 视频 206 Range 检查通过。最初本机 Node 命中不可达的 198.18 假 IP，未据此放行；改用服务器 Python HTTPS 执行同样的 20 秒期限、6 请求批次和完全相同的断言，检查原件及执行源码已永久归档。
+
+事务状态为 `applied-http-verified`，verifiedAt `2026-10-20T13:30:01.152006+00:00`。活动路由 include SHA 从 `c4631c1e…` 切为 `01567f5ba32d8ecca93ec95a8a4cdf76f132a61ca208e2d74e8f9db0e4b20d71`。Vhost SHA 仍为 `77871e37…`，`current` 仍为固定 v55 donor；其他项目路由、预览及原根资源未改。**原根 `/r5-release-manifest.json` 描述 donor，不是 `/experience/` 当前版本；识别现网应用须读带 `/experience/` 的清单。**
+
+本次是用户明确指令发布，模式 `user-directed-with-known-validation-gaps`。原 `pending-memory`／`pass=false` 及已知性能、设备覆盖缺口全部保留，不把实际发布等同于原验收通过；没有再操作 Ego 或启用 Actions。发布工具 32 项原事务／MIME、9 项指令绑定以及 13 项客户端／根路径保护回归通过。下文旧日期和“未发布”的描述均是对应历史阶段，不是当前线上状态。
+
+持久备份：`/www/wwwroot/tongye.me/route-backups/native-r5-c1ee8fd/`，含前后 include、原始失败证据、直接指令、CDN 检查与执行源码、真实 Nginx 报告、249 项公网报告、事务记录和经过测试的发布／回退脚本。没有触发回滚；需要时使用原 CAS 回退，不覆盖其他后续配置：
+
+```sh
+sudo -n python3 /www/wwwroot/tongye.me/route-backups/native-r5-c1ee8fd/publish-experience-release.py rollback --release-id r5-c1ee8fd
+```
+
 ## 2026-10-19 线上状态与边界
 
 - 旧官网入口：`https://tongye.me/experience/`。
@@ -73,7 +89,7 @@ sudo -n python3 /www/wwwroot/tongye.me/route-backups/experience-v55-20261019-02/
 
 重建适配层仅使用 `scripts/prepare-experience-mount.mjs` 的固定 v55 donor；上线前用 `scripts/probe-experience-nginx.py` 验证真实 Nginx 规则，再使用带预期 vhost 哈希的事务脚本。不得拿这套路径适配脚本绕过任何未来新版的完整发布门禁。
 
-## 原生新版的发布边界（2026-10-20，未上线）
+## 原生新版的发布边界与发布前记录（2026-10-20）
 
 ### v59 的明确直接发布指令（2026-10-20）
 
