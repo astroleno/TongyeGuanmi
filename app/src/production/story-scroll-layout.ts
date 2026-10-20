@@ -83,6 +83,7 @@ export function createStoryScrollLayout(root: HTMLElement, changed: (index: Scro
         surface.inert = !active;
         surface.setAttribute('aria-hidden', String(!active));
         surface.style.opacity = active && role !== 'target' ? '1' : '0';
+        surface.style.pointerEvents = role === 'hold' ? 'auto' : 'none';
         surface.style.clipPath = 'none';
         surface.style.maskImage = 'none';
       }

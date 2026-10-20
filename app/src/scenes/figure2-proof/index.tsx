@@ -50,9 +50,13 @@ export function figure2ProofPanelElement(
 
 export function Figure2ProofScene({
   registerHandle,
+  presentation,
   reading = false
 }: SceneComponentProps & Readonly<{ reading?: boolean }>) {
-  const suffix = reading ? '-reading' : '';
+  // The scroll router owns the public aliases. Matching native IDs would let
+  // the browser's fragment scroll run AFTER our clamped semantic seek and
+  // push the closing panel across the outgoing transition boundary.
+  const suffix = reading ? '-reading' : presentation?.scrollDriven ? '-scroll' : '';
   return (
     <article
       ref={(element) => registerHandle?.('copy', element)}

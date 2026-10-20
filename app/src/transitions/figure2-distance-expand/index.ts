@@ -578,7 +578,12 @@ export function createFigure2DistanceExpandTransition(options: { delayMs?: () =>
       if (delay > 0) {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
+      if (context.signal?.aborted) throw new DOMException('Superseded', 'AbortError');
       const timeline = new Figure2DistanceExpandTimeline(context);
+      const retire = () => timeline.dispose();
+      // A pending depth atlas can outlive this range. Retire synchronously on
+      // abort, before the next scroll position takes ownership of these nodes.
+      context.signal?.addEventListener('abort', retire, { once: true });
       try {
         // Continuous sampling has no staged-leg entry callback. Its depth
         // dependency must be committed before any random position is exposed.
@@ -586,6 +591,7 @@ export function createFigure2DistanceExpandTransition(options: { delayMs?: () =>
         if (context.signal?.aborted) throw new DOMException('Superseded', 'AbortError');
         return timeline;
       } catch (error) { timeline.dispose(); throw error; }
+      finally { context.signal?.removeEventListener('abort', retire); }
     }
   };
 }

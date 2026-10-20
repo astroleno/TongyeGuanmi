@@ -82,6 +82,10 @@ describe('single document scroll geometry', () => {
     layout.paint(layout.locate(restored));
     expect(surface.style.top).toBe('0px'); expect(surface.scrollTop).toBe(1256);
     expect(surface.inert).toBe(false);
+    expect(surface.style.pointerEvents).toBe('none');
+    const hold = layout.getIndex().ranges.find(r => r.id === 'hold:method-top')!;
+    layout.paint(layout.locate(hold.start + 10));
+    expect(surface.inert).toBe(false); expect(surface.style.pointerEvents).toBe('auto');
     expect(root.querySelector<HTMLElement>('[data-scroll-content="hero"]')!.inert).toBe(true);
     layout.dispose(); expect(disconnect).toHaveBeenCalledOnce();
     const count = changed.mock.calls.length; window.dispatchEvent(new Event('resize'));

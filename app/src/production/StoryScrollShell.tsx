@@ -126,7 +126,6 @@ export function StoryScrollShell({ platform, createPlatform, initialHash, scope 
       if (initialized) {
         source?.seek(y);
         const position = locateScrollPosition(index, y);
-        layout.paint(position);
         runtimeRef.current?.sample(position, revision);
       }
     });
@@ -135,7 +134,6 @@ export function StoryScrollShell({ platform, createPlatform, initialHash, scope 
     root.dataset.scrollEntryProgress = String(entrance.current.progress);
     const source = createStoryScrollSource((y, now) => {
       const position = layout.locate(y);
-      layout.paint(position);
       const entry = entrance.current;
       if (y > 0 || root.dataset.scrollReducedMotion === 'true') entry.progress = 1;
       if (!entry.waiting && entry.progress < 1) {
@@ -152,7 +150,7 @@ export function StoryScrollShell({ platform, createPlatform, initialHash, scope 
     sourceRef.current = source;
     const initial = layout.locate(bootAnchor.saved ? remapScrollAnchor(layout.getIndex(), bootAnchor.saved)
       : scrollPositionForHash(layout.getIndex(), bootAnchor.hash, root));
-    const runtime = createScrollStoryRuntime(owners.adapter, initial);
+    const runtime = createScrollStoryRuntime(owners.adapter, initial, layout.paint);
     runtimeRef.current = runtime;
     let stableSequence = 0;
     const unsubscribe = runtime.subscribe(() => {
@@ -173,7 +171,6 @@ export function StoryScrollShell({ platform, createPlatform, initialHash, scope 
       }
       source.seek(y);
       const position = layout.locate(y);
-      layout.paint(position);
       runtime.sample(position, layout.getRevision(), true);
       if (historyMode === 'push') {
         const heading = layout.layer(target as ScrollSceneId)?.querySelector<HTMLElement>('h1, h2');
@@ -207,14 +204,12 @@ export function StoryScrollShell({ platform, createPlatform, initialHash, scope 
     document.addEventListener('visibilitychange', visibility);
     initialized = true;
     source.seek(initial.scroll);
-    layout.paint(initial);
     runtime.connect();
     const diagnostic = window as typeof window & { __r5ScrollStory?: unknown };
     diagnostic.__r5ScrollStory = { snapshot: runtime.diagnostic, navigate: (hash: string) => navigate(hash),
       seek: (y: number) => {
         acceptInput();
         const position = layout.locate(y);
-        layout.paint(position);
         runtime.sample(position, layout.getRevision(), true);
         source.seek(y);
       }, index: layout.getIndex };

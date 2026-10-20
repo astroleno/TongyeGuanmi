@@ -17,7 +17,8 @@ export function scrollPositionForHash(index: ScrollSpine, hash: string, root: HT
   const panel = figure2ProofPanelFromHash(hash);
   const surface = root.querySelector<HTMLElement>(`[data-scroll-content="${scene}"]`);
   const element = panel && surface?.querySelector<HTMLElement>(`[data-r4-proof-panel="${panel}"]`);
-  const offset = element && surface ? element.getBoundingClientRect().top - surface.getBoundingClientRect().top : 0;
+  const offset = element && surface
+    ? element.getBoundingClientRect().top - surface.getBoundingClientRect().top + surface.scrollTop : 0;
   const target = Math.min(range.end, range.start + Math.max(0, offset));
   // Native scrolling can round fractional coordinates into the preceding
   // transition. Keep positive holds inside their half-open interval, including

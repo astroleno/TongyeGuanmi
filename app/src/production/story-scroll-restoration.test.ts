@@ -54,6 +54,17 @@ describe('semantic scroll restoration', () => {
     expect(target).toBe(Math.ceil(range.end) - 1);
     expect(locateScrollPosition(index, target).rangeId).toBe(range.id);
   });
+  it('resolves a Proof alias independently of its outgoing transition scrollTop', () => {
+    const index = createScrollSpine({ viewportHeight: 900, contentHeights: { 'figure2-proof': 2700 } });
+    const root = document.createElement('main');
+    root.innerHTML = '<section data-scroll-content="figure2-proof"><div data-r4-proof-panel="closing"></div></section>';
+    const surface = root.firstElementChild as HTMLElement, node = surface.firstElementChild as HTMLElement;
+    surface.scrollTop = 1800;
+    surface.getBoundingClientRect = () => ({ top: 0 } as DOMRect);
+    node.getBoundingClientRect = () => ({ top: 0 } as DOMRect);
+    const range = index.ranges.find(r => r.id === 'hold:figure2-proof')!;
+    expect(scrollPositionForHash(index, '#figure2-proof-closing', root)).toBe(Math.ceil(range.end) - 1);
+  });
   it('preserves zero-length scene landmarks', () => {
     const index = createScrollSpine({ viewportHeight: 844 });
     const range = index.ranges.find(({ id }) => id === 'hold:brand')!;

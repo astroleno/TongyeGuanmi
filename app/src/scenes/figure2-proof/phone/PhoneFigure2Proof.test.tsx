@@ -2,6 +2,7 @@
 
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   PhoneLeafMountRegistration,
@@ -19,10 +20,11 @@ vi.mock('../index', () => ({
   createElement('section', { 'data-r4-proof-panel': 'cards' }),
   createElement('section', { 'data-r4-proof-panel': 'closing' })),
   figure2ProofScene: {
-    Component: ({ registerHandle }: { registerHandle(name: string, value: HTMLElement | null): void }) =>
+    Component: ({ registerHandle, presentation }: { registerHandle(name: string, value: HTMLElement | null): void; presentation?: { scrollDriven?: boolean } }) =>
       createElement('article', {
         ref: (value: HTMLElement | null) => registerHandle('copy', value),
-        'data-r4-scene': 'figure2-proof', 'data-r4-proof-compound': 'true'
+        'data-r4-scene': 'figure2-proof', 'data-r4-proof-compound': 'true',
+        'data-scroll-driven': String(presentation?.scrollDriven === true)
       }, createElement('section', { id: 'figure2-proof-opening', 'data-r4-proof-panel': 'opening' },
         createElement('h2', { className: 'r4-proof-opening__title' }, '一套可以持续验证的方法')),
       createElement('section', { 'data-r4-proof-panel': 'cards' }),
@@ -45,6 +47,11 @@ function reportFixture() {
 }
 
 describe('clean PhoneFigure2Proof leaf', () => {
+  it('forwards scroll fragment ownership to the shared Proof surface without changing legacy defaults', () => {
+    const { reports } = reportFixture();
+    expect(renderToStaticMarkup(<PhoneFigure2Proof reports={reports} scrollDriven />)).toContain('data-scroll-driven="true"');
+    expect(renderToStaticMarkup(<PhoneFigure2Proof reports={reports} />)).toContain('data-scroll-driven="false"');
+  });
   it('registers one compound root and proves the visible opening post-paint', async () => {
     const frames: FrameRequestCallback[] = [];
     vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {

@@ -85,7 +85,7 @@ export function createPhoneScrollPlatform(host: ScrollPlatformHost): StoryScroll
     let promise = scenePromises.get(scene);
     if (!promise) { promise = loadPhoneSceneModule(scene); scenePromises.set(scene, promise); }
     const Component = use(promise).default;
-    return <Component reports={portFor(scene)} />;
+    return <Component reports={portFor(scene)} scrollDriven />;
   }
   function Effect({ segment }: { segment: ScrollSegmentId }) {
     const Component = use(loadPhoneTransitionModule(segment)).default;

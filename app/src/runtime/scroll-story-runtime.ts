@@ -20,7 +20,8 @@ export type ScrollStoryView = Readonly<{
 }>;
 
 /** Latest-position coordination, with no autoplay clock and no input queue. */
-export function createScrollStoryRuntime(adapter: ScrollStoryAdapter, initial: ScrollPosition) {
+export function createScrollStoryRuntime(adapter: ScrollStoryAdapter, initial: ScrollPosition,
+  paintPosition: (position: ScrollPosition) => void = () => {}) {
   let desired = initial;
   let presented: ScrollPresentedFrame | null = null;
   let intent: ScrollIntent = { generation: 0, epoch: 0, revision: 0, layoutRevision: 0 };
@@ -47,7 +48,9 @@ export function createScrollStoryRuntime(adapter: ScrollStoryAdapter, initial: S
     if (!disposed && !suspended) publish('failed', error instanceof Error ? error.message : String(error));
   };
   const render = () => {
-    if (!preparedWindow || disposed || suspended || view.status === 'failed') return;
+    if (disposed || suspended) return;
+    paintPosition(desired);
+    if (!preparedWindow || view.status === 'failed') return;
     try {
       const frame = preparedWindow.render(desired, intent);
       if (frame && frame.epoch === intent.epoch && frame.revision <= intent.revision
@@ -72,6 +75,10 @@ export function createScrollStoryRuntime(adapter: ScrollStoryAdapter, initial: S
     preparedWindow = null;
     presented = null;
     if (disposed || suspended) return;
+    // Retired timelines may restore their old layer visibility/masks. Transfer
+    // geometry ownership only AFTER that cleanup, before preparing/rendering
+    // the new window (including while its asynchronous resources are pending).
+    paintPosition(desired);
     const controller = new AbortController();
     pending = controller;
     intent = { ...intent, generation: intent.generation + 1 };

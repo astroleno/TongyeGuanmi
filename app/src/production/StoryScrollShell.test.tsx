@@ -2,7 +2,7 @@
 import { act, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { StoryScrollPlatform } from './StoryScrollShell';
+import type { ScrollPlatformHost, StoryScrollPlatform } from './StoryScrollShell';
 import type { ScrollPosition, ScrollSpine } from '../story/scroll-spine';
 const sourceState = vi.hoisted(() => ({ sources: [] as Array<{ disposed: boolean; frame(y: number, now: number): void }> }));
 const loaderState = vi.hoisted(() => ({ props: null as import('./StoryLoader').StoryLoaderProps | null }));
@@ -17,6 +17,46 @@ import { StoryScrollShell } from './StoryScrollShell';
 describe('shared continuous shell lifecycle', () => {
   beforeEach(() => { history.replaceState(null, '', '/'); loaderState.props = null; });
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); sourceState.sources.length = 0; });
+  it('keeps Proof visible and interactive after retiring a partially sampled depth transition', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    vi.stubGlobal('innerHeight', 900);
+    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.dataset.scrollContent === 'figure2-proof' ? 2700 : 900;
+    });
+    const container = document.createElement('div'); document.body.append(container);
+    const root = createRoot(container);
+    const createPlatform = (host: ScrollPlatformHost): StoryScrollPlatform => ({
+      Scene: ({ scene }) => <article>{scene}</article>, dispose() {},
+      adapter: { prepare: async position => ({
+        render: (p, i) => ({ progress: p.progress, epoch: i.epoch, revision: i.revision }), pause() {},
+        dispose() {
+          if (position.segment !== 'figure2-distance-expand') return;
+          const proof = host.layer('figure2-proof')!;
+          proof.style.visibility = 'hidden'; proof.style.opacity = '0';
+          proof.inert = true; proof.style.pointerEvents = 'none';
+        }
+      }) }
+    });
+    try {
+      await act(async () => root.render(<StoryScrollShell platform="desktop" createPlatform={createPlatform} />));
+      const api = (window as unknown as { __r5ScrollStory: {
+        index(): ScrollSpine; seek(y: number): void; snapshot(): { view: { status: string } };
+      } }).__r5ScrollStory;
+      const seek = (id: string, progress: number) => {
+        const range = api.index().ranges.find(r => r.id === id)!;
+        api.seek(range.start + (range.end - range.start) * progress);
+      };
+      await act(async () => seek('figure2-distance-expand', .75));
+      await act(async () => seek('hold:figure2-proof', .5));
+      const proof = container.querySelector<HTMLElement>('[data-scroll-content="figure2-proof"]')!;
+      expect(api.snapshot().view.status).toBe('ready');
+      expect(proof.dataset.scrollRole).toBe('hold');
+      expect(proof.style.visibility).toBe('visible'); expect(proof.style.opacity).toBe('1');
+      expect(proof.inert).toBe(false); expect(proof.style.pointerEvents).toBe('auto');
+    } finally { await act(async () => root.unmount()); container.remove(); }
+  });
   it('restores the cold loader and runs an interruptible Hero entrance on the shared frame owner', async () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));

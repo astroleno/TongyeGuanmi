@@ -44,6 +44,16 @@ function expectIdempotent(render: (root: HTMLElement, progress: number) => unkno
 }
 
 describe('figure2 proof and brand scene renderers', () => {
+  it('leaves public Proof fragments to the scroll router, without native anchor scrolling the same panel again', () => {
+    const markup = renderToStaticMarkup(createElement(figure2ProofScene.Component, {
+      scene: 'figure2-proof', hidden: false, presentation: { scrollDriven: true }
+    }));
+    for (const panel of ['opening', 'cards', 'closing']) {
+      expect(markup).toContain(`data-r4-proof-panel="${panel}"`);
+      expect(markup).not.toContain(`id="figure2-proof-${panel}"`);
+      expect(markup).toContain(`id="figure2-proof-${panel}-scroll"`);
+    }
+  });
   it('keeps renderers idempotent across 0 to 1 to 0 to 1', () => {
     expectIdempotent(renderProofOpeningProgress, 'data-proof-opening-progress');
     expectIdempotent(renderProofCardsProgress, 'data-proof-cards-progress');

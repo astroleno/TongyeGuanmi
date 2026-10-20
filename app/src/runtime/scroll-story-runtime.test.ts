@@ -14,6 +14,27 @@ const window = () => ({
 }) satisfies PreparedScrollWindow;
 
 describe('latest-position story runtime', () => {
+  it('retires the previous surface before painting the next position, including pending and failed windows', async () => {
+    const order: string[] = [];
+    const surface = window();
+    surface.dispose.mockImplementation(() => { order.push('retire'); });
+    surface.render.mockImplementation((p, i) => {
+      order.push('render'); return { progress: p.progress, epoch: i.epoch, revision: i.revision };
+    });
+    const runtime = createScrollStoryRuntime({ prepare: async () => surface }, at('hero-pattern'),
+      p => { order.push(`paint:${p.rangeId}`); });
+    runtime.connect(); await flush();
+    order.length = 0;
+    runtime.sample(at('hold:pattern'));
+    expect(order).toEqual(['retire', 'paint:hold:pattern']);
+    await flush();
+    expect(order.slice(-2)).toEqual(['paint:hold:pattern', 'render']);
+    runtime.reject(new Error('decode failed'));
+    order.length = 0;
+    runtime.sample(at('hold:pattern', .8));
+    expect(order).toEqual(['paint:hold:pattern']);
+    runtime.dispose();
+  });
   it('bounds a decoder stalled after its first valid frame and recovers on retry', async () => {
     vi.useFakeTimers();
     const surface = window();

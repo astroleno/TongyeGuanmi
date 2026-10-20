@@ -54,7 +54,7 @@ export function phoneDiagnosticFailureCode(snapshot: PhoneStorySnapshot): string
   return snapshot.transaction.failure?.code;
 }
 
-export type PhoneSceneLeafProps = Readonly<{ reports: PhoneLeafReportPort }>;
+export type PhoneSceneLeafProps = Readonly<{ reports: PhoneLeafReportPort; scrollDriven?: boolean }>;
 export type PhoneSceneReadingProps = Readonly<{ sceneId: string }>;
 export type PhoneSceneModule<SceneId extends string = string> = Readonly<{
   phoneSceneId: SceneId;

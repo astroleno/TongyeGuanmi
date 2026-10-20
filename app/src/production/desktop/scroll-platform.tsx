@@ -81,7 +81,7 @@ export function createDesktopScrollPlatform(host: ScrollPlatformHost): StoryScro
     }, [scene, module]);
     const Component = module.Component;
     return <Component scene={scene} hidden={false} role="current" copyCueActive
-      presentation={{ heroIntroMode: 'endpoint' }} registerHandle={registerHandle} />;
+      presentation={{ heroIntroMode: 'endpoint', scrollDriven: true }} registerHandle={registerHandle} />;
   }
   function Overlay({ position }: { position: ScrollPosition }) {
     const included = ['figure2-animation', 'figure2-proof'].includes(position.scene)
@@ -145,6 +145,7 @@ export function createDesktopScrollPlatform(host: ScrollPlatformHost): StoryScro
             const segment = storyManifest.nodes.find((node): node is SpineSegmentNode => node.kind === 'segment' && node.id === position.segment);
             if (!segment) throw new Error(`Missing canonical segment ${position.segment}`);
             const module = await loadDesktopTransitionModule(position.segment);
+            if (signal.aborted) throw new DOMException('Superseded', 'AbortError');
             timeline = await module.buildTimeline({ segment, stage,
               from: stage.ensureLayer(position.scene, 'current'), to: stage.ensureLayer(position.target, 'next'),
               direction: 1, runId: `scroll:${preparation}`, prepareToken: `scroll:prepare:${preparation}`,

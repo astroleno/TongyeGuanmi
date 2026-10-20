@@ -22,7 +22,7 @@ export function phoneFigure2ProofFrame(
   return { progress, translateY: -2 * Math.max(1, viewportHeight) * progress };
 }
 
-export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafReportPort }>) {
+export function PhoneFigure2Proof({ reports, scrollDriven = false }: Readonly<{ reports: PhoneLeafReportPort; scrollDriven?: boolean }>) {
   const rootRef = useRef<HTMLElement | null>(null);
   const bindingRef = useRef<PhoneLeafGenerationBinding | null>(null);
   const paintFrameRef = useRef<number | null>(null);
@@ -113,6 +113,7 @@ export function PhoneFigure2Proof({ reports }: Readonly<{ reports: PhoneLeafRepo
       <Figure2ProofSurface
         scene="figure2-proof"
         hidden={false}
+        presentation={{ scrollDriven }}
         registerHandle={registerHandle}
       />
     </div>

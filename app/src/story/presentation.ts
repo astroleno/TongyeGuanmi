@@ -63,6 +63,8 @@ export type HeroIntroMode = 'waiting' | 'running' | 'complete' | 'endpoint';
 
 export type ScenePresentationState = Readonly<{
   heroIntroMode?: HeroIntroMode;
+  /** Semantic hashes are positioned on the document spine, not native nested anchors. */
+  scrollDriven?: boolean;
   reducedMotion?: boolean;
   onHeroIntroComplete?: () => void;
 }>;
