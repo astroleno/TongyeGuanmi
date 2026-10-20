@@ -13,6 +13,14 @@ import {
   validateReleaseMemoryEnvironment
 } from './r5-process-memory-contract.mjs';
 
+if (process.env.R5_MEMORY_BROWSER_CHANNEL === 'ego-lite') {
+  await import('./run-r5-process-memory-ego-cli.mjs');
+  process.exit(0);
+}
+if (process.env.R5_MEMORY_BROWSER_CHANNEL && process.env.R5_MEMORY_BROWSER_CHANNEL !== 'chrome') {
+  throw new Error('unsupported R5_MEMORY_BROWSER_CHANNEL');
+}
+
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
 const profileScript = path.join(appDir, 'scripts/profile-r5-process-memory.mjs');

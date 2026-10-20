@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import fcntl
 import hashlib
 import json
+import math
 import mimetypes
 import os
 from pathlib import Path, PurePosixPath
@@ -33,6 +34,13 @@ BASE_SHA = '46609b35907e855e6be6bd8763a9a9b589be1910801e5cd106e537cd3aa67c4f'
 MOUNT_SHA = 'a8c155dc3c2e9f3cf0c8ce276d724a8f80b7757332ddab98ae6ec5d78df81ed8'
 PREDECESSOR_SHA = 'c4631c1e36e173c434ce980ae266723e57c59b90280aa3ac7c7ddeab15d4a321'
 PUBLIC_ORIGIN = 'https://tongye.me'
+SCROLL_BUDGETS = {'peakBrowserTreeRssBytes': 1500000000, 'peakGpuProcessRssBytes': 512 * 1024 * 1024,
+                  'peakRendererRssBytes': 1024 * 1024 * 1024, 'peakJsHeapBytes': 192 * 1024 * 1024,
+                  'settledHeapFractionOfPeak': 0.9, 'maxMountedLayers': 3, 'maxWebglCanvasesAtHold': 1,
+                  'maxWebglCanvasesInTransition': 2, 'maxVideosAtContact': 4}
+SCROLL_SCENES = ['hero', 'pattern', 'star-map', 'aod-animation', 'method-top', 'figure2-animation',
+                 'figure2-proof', 'brand', 'figure3-animation', 'services', 'ttg-animation', 'lab',
+                 'ph-animation', 'education', 'crane-animation', 'contact']
 
 
 def digest(data):
@@ -80,21 +88,73 @@ def checked_file(root, item, field='path'):
     return data
 
 
+def validate_ego_run(run):
+    if (run.get('interactionModel') != 'continuous-scroll' or run.get('sampleIntervalMs') != 250
+            or run.get('settling', {}).get('idleMs') != 5000 or run.get('budgets') != SCROLL_BUDGETS
+            or run.get('measurement', {}).get('navigationIncluded') is not True
+            or not isinstance(run.get('browserPage', {}).get('isolateId'), str) or not run['browserPage']['isolateId']
+            or run.get('failure') or run.get('errors')):
+        raise ValueError('Ego run changed the original measurement protocol')
+    holds, poses, heaps, samples = (run.get(key, []) for key in ['holds', 'poses', 'heapSamples', 'processSamples'])
+    if len(holds) != 33 or len(poses) != 90 or not heaps:
+        raise ValueError('Ego raw traversal is incomplete')
+    all_poses = poses + holds
+    finite = lambda value: type(value) in [int, float] and math.isfinite(value)
+    for point in all_poses:
+        if (not all(finite(point.get(key)) and point[key] >= 0 for key in ['canvasPixelBytes', 'mountedLayers', 'webglCanvases'])
+                or not isinstance(point.get('videos'), list)
+                or any(video.get('paused') is not True or video.get('seeking') is not False for video in point['videos'])):
+            raise ValueError('Ego resource observations are invalid or decoders are not parked')
+    if any(hold.get('desired', {}).get('kind') != ('segment' if hold.get('measurementPhase') == 'segment-landmark' else 'hold') for hold in holds):
+        raise ValueError('Ego resource phase differs from actual range kind')
+    settled = [hold for hold in holds if hold.get('direction', '').endswith('-settled')]
+    if ([hold.get('scene') for hold in holds if hold.get('direction') in ['boot', 'forward']] != SCROLL_SCENES
+            or [hold.get('scene') for hold in holds if hold.get('direction') == 'reverse'] != list(reversed(SCROLL_SCENES))[1:]
+            or len(settled) != 2 or settled[0].get('scene') != 'contact' or settled[1].get('scene') != 'hero'):
+        raise ValueError('Ego chapter or settled endpoint coverage is incomplete')
+    heap_values = [item.get('usedJsHeapBytes') for item in heaps + all_poses]
+    if not all(finite(value) and value > 0 for value in heap_values):
+        raise ValueError('Ego heap samples are missing or invalid')
+    if any(not finite(sample.get(key)) or sample[key] < 0 for sample in samples for key in ['totalRssBytes', 'gpuRssBytes', 'rendererRssBytes']):
+        raise ValueError('Ego RSS samples are invalid')
+    maximum = lambda rows, field: max([row.get(field, 0) for row in rows] or [0])
+    landmarks = [hold for hold in holds if hold.get('measurementPhase') == 'segment-landmark']
+    actual = {'peakBrowserTreeRssBytes': maximum(samples, 'totalRssBytes'),
+              'peakGpuProcessRssBytes': maximum(samples, 'gpuRssBytes'), 'peakRendererRssBytes': maximum(samples, 'rendererRssBytes'),
+              'peakJsHeapBytes': max(heap_values), 'finalJsHeapBytes': holds[-1]['usedJsHeapBytes'],
+              'peakCanvasPixelBytes': maximum(all_poses, 'canvasPixelBytes'), 'maxMountedLayers': maximum(holds, 'mountedLayers'),
+              'maxWebglCanvasesAtHold': maximum([hold for hold in holds if hold not in landmarks], 'webglCanvases'),
+              'maxWebglCanvasesInTransition': maximum(poses + landmarks, 'webglCanvases'),
+              'maxWebglCanvasesAtLandmark': maximum(landmarks, 'webglCanvases'),
+              'maxVideosAtContact': max([len(hold['videos']) for hold in holds if hold.get('scene') == 'contact'] or [0])}
+    if (actual != run.get('actual') or any(actual[key] > limit for key, limit in SCROLL_BUDGETS.items() if key != 'settledHeapFractionOfPeak')
+            or any(hold['usedJsHeapBytes'] > actual['peakJsHeapBytes'] * 0.9 for hold in settled)
+            or len({sample['browserPid'] for sample in samples}) != 1):
+        raise ValueError('Ego raw whole-tree/resource measurements do not pass original budgets')
+
+
 def validate_memory(report):
     """Fail closed on the original contract, including actual process samples."""
     identity_fields = ['candidate', 'candidateTagObject', 'sourceCommit', 'artifactTreeSha256', 'draftManifestSha256']
     environment = report.get('environment', {})
     if (report.get('schemaVersion') != 3 or report.get('kind') != 'r5-process-memory-qualification'
             or report.get('requiredRunCount') != 2 or report.get('completedRunCount') != 2 or report.get('pass') is not True
-            or environment.get('platform') != 'darwin' or environment.get('browserChannel') != 'chrome'
+            or environment.get('platform') != 'darwin' or environment.get('browserChannel') not in ['chrome', 'ego-lite']
             or environment.get('runnerClass') not in ['github-hosted-macos-14', 'local-macos-hardware']
             or type(environment.get('headless')) is not bool
             or not all(isinstance(environment.get(key), str) and environment[key] for key in ['arch', 'osRelease'])
             or not all(isinstance(report.get('identity', {}).get(key), str) and report['identity'][key] for key in identity_fields)):
         raise ValueError('invalid frozen memory qualification environment or identity')
+    ego = environment.get('browserChannel') == 'ego-lite'
+    if ego and (environment.get('runnerClass') != 'local-macos-hardware' or environment.get('headless') is not False
+                or environment.get('processScope') != 'entire-shared-browser-tree'
+                or not re.fullmatch(r'/(?:Applications|Users/[^/]+/Applications)/ego lite\.app/Contents/MacOS/ego lite', environment.get('browserExecutable', ''))):
+        raise ValueError('invalid frozen memory qualification environment for actual Ego')
     runs = report.get('runs', [])
     if len(runs) != 2 or len({run.get('runId') for run in runs}) != 2:
         raise ValueError('memory qualification requires two distinct runs')
+    if ego and len({run.get('browserPage', {}).get('isolateId') for run in runs}) != 2:
+        raise ValueError('Ego qualification requires two fresh page isolates')
     for run in runs:
         samples = run.get('processSamples', [])
         if (run.get('schemaVersion') != 3 or run.get('kind') != 'r5-process-memory-run' or run.get('pass') is not True
@@ -113,6 +173,8 @@ def validate_memory(report):
             if not any(type(sample.get(prefix + 'ProcessCount')) is int and sample[prefix + 'ProcessCount'] > 0
                        and isinstance(sample.get(prefix + 'RssBytes'), (int, float)) and sample[prefix + 'RssBytes'] > 0 for sample in samples):
                 raise ValueError('memory qualification lacks ' + prefix + ' samples')
+        if ego:
+            validate_ego_run(run)
 
 
 def validate_package(package):

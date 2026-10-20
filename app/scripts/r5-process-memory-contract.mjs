@@ -1,3 +1,5 @@
+import { SCROLL_MEMORY_BUDGETS, summarizeScrollMemory } from './r5-scroll-memory.mjs';
+
 export const R5_PROCESS_MEMORY_SCHEMA_VERSION = 3;
 export const R5_PROCESS_MEMORY_RUN_KIND = 'r5-process-memory-run';
 export const R5_PROCESS_MEMORY_QUALIFICATION_KIND = 'r5-process-memory-qualification';
@@ -15,10 +17,14 @@ const IDENTITY_FIELDS = [
   'draftManifestSha256'
 ];
 
-export function isBrowserRootCommand(command, platform = process.platform) {
+export function isBrowserRootCommand(command, platform = process.platform, channel = 'chrome') {
   if (typeof command !== 'string' || command.includes('--type=')) {
     return false;
   }
+  if (channel === 'ego-lite') {
+    return platform === 'darwin' && /^\/(?:Applications|Users\/[^/]+\/Applications)\/ego lite\.app\/Contents\/MacOS\/ego lite(?:\s|$)/.test(command);
+  }
+  if (channel !== 'chrome') return false;
   if (platform === 'darwin') {
     return /\/Google Chrome(?: for Testing)?(?:\s|$)/.test(command);
   }
@@ -80,8 +86,15 @@ export function validateReleaseMemoryEnvironment(environment) {
   if (!APPROVED_RUNNER_CLASSES.has(environment?.runnerClass)) {
     reasons.push(`unapproved memory runner class ${environment?.runnerClass ?? 'missing'}`);
   }
-  if (environment?.browserChannel !== 'chrome') {
-    reasons.push(`qualification requires the chrome channel, received ${environment?.browserChannel ?? 'unknown'}`);
+  if (!['chrome', 'ego-lite'].includes(environment?.browserChannel)) {
+    reasons.push(`qualification requires chrome or the user-approved ego-lite channel, received ${environment?.browserChannel ?? 'unknown'}`);
+  }
+  if (environment?.browserChannel === 'ego-lite' && (
+    environment.runnerClass !== 'local-macos-hardware' || environment.headless !== false
+    || environment.processScope !== 'entire-shared-browser-tree'
+    || !isBrowserRootCommand(environment.browserExecutable, 'darwin', 'ego-lite')
+  )) {
+    reasons.push('Ego qualification requires its actual macOS executable and the entire shared browser process tree');
   }
   if (typeof environment?.headless !== 'boolean') {
     reasons.push('browser headless mode was not recorded');
@@ -94,7 +107,6 @@ export function validateReleaseMemoryEnvironment(environment) {
   }
   return { valid: reasons.length === 0, reasons };
 }
-
 export function memoryIdentitiesMatch(left, right) {
   return IDENTITY_FIELDS.every((field) => (
     typeof left?.[field] === 'string'
@@ -129,6 +141,21 @@ function validateRun(run) {
   }
   if (run?.pass !== true) {
     reasons.push('run did not pass every memory budget');
+  }
+  if (run?.environment?.browserChannel === 'ego-lite') {
+    if (run.interactionModel !== 'continuous-scroll' || typeof run.browserPage?.isolateId !== 'string'
+      || !run.browserPage.isolateId || run.sampleIntervalMs !== 250 || run.settling?.idleMs !== 5000 || run.measurement?.navigationIncluded !== true
+      || JSON.stringify(run.budgets) !== JSON.stringify(SCROLL_MEMORY_BUDGETS)) {
+      reasons.push('Ego run must preserve the original traversal, sampling, settling and numerical budgets');
+    }
+    try {
+      const measured = summarizeScrollMemory(run);
+      reasons.push(...measured.reasons);
+      if (JSON.stringify(run.actual) !== JSON.stringify(measured.actual)) reasons.push('Ego actuals differ from raw whole-tree/resource observations');
+    } catch {
+      reasons.push('Ego raw traversal observations are incomplete or malformed');
+    }
+    if (run.failure || run.errors?.length || sampling.browserPidCount !== 1) reasons.push('Ego run contains a failure or an unstable browser root');
   }
   return { valid: reasons.length === 0, reasons };
 }
@@ -165,6 +192,10 @@ export function validateProcessMemoryQualification(report) {
   }
   if (runIds.size !== runs.length) {
     reasons.push('qualification runs must have distinct runIds');
+  }
+  if (report?.environment?.browserChannel === 'ego-lite'
+    && new Set(runs.map(run => run.browserPage?.isolateId)).size !== R5_REQUIRED_MEMORY_RUNS) {
+    reasons.push('Ego qualification requires two fresh page isolates');
   }
   const environment = validateReleaseMemoryEnvironment(report?.environment);
   reasons.push(...environment.reasons);

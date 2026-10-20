@@ -15,6 +15,32 @@
 
 原生发布事务代码的通过不等于应用性能、完整内存／双引擎／真机验收完成；公开站点仍是固定 v55。Actions 仍不启用。
 
+### 干净 b5170bd 的完整复跑
+
+独立路由发布器已提交、推送并读回远端 main：`b5170bd838b48bb51b6cf8ae398f741185342aae`。在本项目两个测试 Page 停到 about:blank 后独占完整单测，**213 文件／1750 项全部通过**，144.83 秒（`unit-full-b5170bd.json`）；原架构 fixture 83/83、原 15 秒 module boundary 检查 14.917 秒，未更改任何时限。前面的超时轮次仍保留为失败，不混用通过数。
+
+同一干净提交的 Lint、typecheck、原生 `/experience/` 普通构建及全部原媒体／包体门禁通过。CSS **75,684 B**、desktop JS **515,169 B**、phone JS **617,643 B**；tree `cc6da947e339495971cd59033d6a25b06c1281dde93deb9d482da2b688f83c5a`、清单 SHA `e3ddd4cbe589036e5482576d07bba8bf6944ba7ded2b9a2bed9eca18cd9a2c73`，sourceDirty=false，但 candidate/tag=null、CDN disabled、pending-memory，仍不是冻结候选。
+
+在新 Page p3 用固定 1440×900／DPR 1／前台焦点完成 **33 hold／90 pose**、两个原 5 秒／GC 终点及 80 组进程采样（`memory-clean-b5170bd.json`）。无遍历错误或网站异常；Contact 视频最高 **3**，原上限 4；层数 2、hold GL 1／transition GL 2、GPU 峰值 327,860,224 B、页面堆峰值 132,190,040 B／终点 104,179,464 B 均在原门槛内。这轮支持 Hero 修复后的全路径资源回收，但共享 Ego 整树 **4,089,741,312 B**、renderer 合计 **3,383,099,392 B** 超限，整轮 pass=false，不能当成正式内存资格。
+
+同一干净产物桌面原八段性能采样（`desktop-clean-b5170bd.json`）完整但 **0/8 通过**；空白页 P95 17.4ms，Pattern 50.1ms，全部八段均超 20ms；另有 Figure2／PH／Crane 姿态滞后，PH P95 约 1153ms。各段无 >50ms 长任务，不能因此忽略帧间隔／姿态失败。未改电源模式、数值标准或视觉。
+
+### 正式内存入口改用明确批准的 Ego（采集接口变更，资格待跑）
+
+用户随后明确回复“用 ego-lite”，批准正式两轮采集接入 Ego，全部原上限保留。新增入口和原 coordinator 的显式环境分支；原 Chrome 路径不删除，默认行为不改，Actions 不启用。实际 executable、可见本机 Ego、共享整树 scope、两轮不同 isolate 和冻结身份都单独校验，不能把旧诊断改名为正式报告。
+
+在本组 Page p3 先做请求转接能力检查：首轮长 evaluate 等待其自身暂停的请求，15 秒超时，保留 `cdn-transport-probe.json`，没有把超时改成通过；重新加载同页后，短调用／有界轮询的 `cdn-transport-poll.json` 通过，浏览器仍记录原 HTTPS URL、本地文件字节一致。原生视频检查 `video-transport.json` 通过：保留 `Range: bytes=0-`，720×1280 WebM 达到 readyState=4，Canvas 绘制可读取，不需要提前上传任何 CDN 对象。能力检查不是应用性能或公网 CDN 资格。
+
+首轮定向测试发现 release-manifest 测试 fixture 未复制新增的纯内存汇总依赖，以及根进程正则误接受 shell 包装；已修复依赖组装和真实 executable 边界，未删除断言。修正后原 finalizer／内存契约及新增 Ego／CLI 定向 **39/39** 通过；其中此前一轮的原 5 秒超时仍保留为失败，不改期限。新的完整集合、冻结候选两轮与公网切换尚待后续实际结果。
+
+新增集合首次完整运行有 **214 文件／1764 项通过**，另一个 `PhoneContact.clean.test.tsx` 文件加载时因 `ENOSPC` 失败，没有执行其中两项；整轮退出 1（`unit-full-ego-qualification.json`），不能拼接局部结果称全绿。复查磁盘仅约 147MiB 可用，没有删除其他文件或扩大先前清理批准。后续完整复跑独立记录，不覆盖此失败轮次。
+
+对星图的 Worker fetch 另作同组 p3 的能力验证（`worker-transport.json`）：仅该 Page 的 Fetch 拦截即能捕获其新建 module Worker 的跨域请求，不需要浏览器级 Target 自动附加或全局代理。返回 200、原 HTTPS URL 保留，返回 33,179 B 的 SHA-256 为 `e3ddd4cb…`，与本地普通构建清单完全一致；测试 Worker 已终止，该 Page 返回 about:blank。该能力检查不代替冻结应用遍历或公网 CDN 验证。
+
+不改任何断言／原时限的第二轮完整回归 **215 文件／1766 项全部通过**，125.66 秒，退出 0（`unit-full-ego-qualification-02.json`）；架构 83/83、原 module boundary 6.486 秒。Lint、typecheck、新增服务器事务 30 项和客户端保护／双端预算一致性 8 项也通过。它们验证的是采集／发布工具，不把应用尚未通过的性能与正式两轮内存标为通过。
+
+Ego 接入后的同版服务器代码在原测试专用目录再次通过 **30 项事务测试及 19 项真实隔离 Nginx HTTP 检查**。活动 vhost 与路由 include 的前后 SHA-256 仍分别为 `559c3197…`、`c4631c1e…`，没有执行公网切换或活动配置重载。
+
 ## 2026-10-20 追加：ego-lite 复测与 Hero 视频释放（完整验证受阻，未发布）
 
 用户选择使用现有 ego-lite，不恢复 Chrome／WebKit，并批准新建本项目专用验收标签组。最初持续使用同一组 12，失效后的另行批准与组 6 记录见下文；没有读取其他标签页、选择 profile、安装浏览器、关闭其他任务或删除新目录。用户曾批准本轮临时关闭接电低电量模式并恢复；本机无密码自动提权检查返回需要密码，未执行更改；设置界面自动化也超时，未获得可操作的界面。用户随后选择“暂不调整，先完成其他验证”，因此保持接电 1／电池 0，不继续切换、不索取密码，也不将性能失败全部归因于低电量模式。

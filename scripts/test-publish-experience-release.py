@@ -121,6 +121,30 @@ class NativePublicationTests(unittest.TestCase):
         self.deploy['releaseManifestSha256'] = native.digest(data)
         self.save_deploy()
 
+    def ego_memory(self):
+        environment = self.memory['environment']
+        environment.update(browserChannel='ego-lite', runnerClass='local-macos-hardware', headless=False,
+                           browserExecutable='/Applications/ego lite.app/Contents/MacOS/ego lite',
+                           processScope='entire-shared-browser-tree')
+        def point(scene, direction, heap=100):
+            return {'scene': scene, 'direction': direction, 'desired': {'kind': 'hold'}, 'usedJsHeapBytes': heap,
+                    'canvasPixelBytes': 1000, 'mountedLayers': 2, 'webglCanvases': 1,
+                    'videos': [{'paused': True, 'seeking': False}]}
+        for index, run in enumerate(self.memory['runs']):
+            holds = [point(scene, 'forward' if position else 'boot') for position, scene in enumerate(native.SCROLL_SCENES)]
+            holds += [point('contact', 'forward-settled', 80)]
+            holds += [point(scene, 'reverse') for scene in list(reversed(native.SCROLL_SCENES))[1:]]
+            holds += [point('hero', 'reverse-settled', 80)]
+            poses = [{**point('hero', 'forward'), 'desired': {'kind': 'segment'}, 'webglCanvases': 2} for _ in range(90)]
+            run.update(browserPage={'isolateId': f'fixture-only-{index}'}, interactionModel='continuous-scroll',
+                       sampleIntervalMs=250, settling={'idleMs': 5000}, measurement={'navigationIncluded': True}, budgets=native.SCROLL_BUDGETS,
+                       holds=holds, poses=poses, heapSamples=[{'usedJsHeapBytes': 100}], errors=[], failure=None,
+                       actual={'peakBrowserTreeRssBytes': 3000, 'peakGpuProcessRssBytes': 1000, 'peakRendererRssBytes': 1000,
+                               'peakJsHeapBytes': 100, 'finalJsHeapBytes': 80, 'peakCanvasPixelBytes': 1000,
+                               'maxMountedLayers': 2, 'maxWebglCanvasesAtHold': 1, 'maxWebglCanvasesInTransition': 2,
+                               'maxWebglCanvasesAtLandmark': 0, 'maxVideosAtContact': 1})
+        self.save()
+
     def save_deploy(self):
         (self.package / 'release-deploy-manifest.json').write_bytes(native.encoded(self.deploy))
 
@@ -169,6 +193,28 @@ class NativePublicationTests(unittest.TestCase):
         self.memory['environment']['browserChannel'] = 'ego-lite'
         self.save()
         with self.assertRaisesRegex(ValueError, 'qualification environment'):
+            native.validate_package(self.package)
+
+    def test_explicit_ego_qualification_requires_the_same_raw_budgets_and_two_isolates(self):
+        self.ego_memory()
+        native.validate_package(self.package)
+        self.memory['runs'][1]['browserPage']['isolateId'] = self.memory['runs'][0]['browserPage']['isolateId']
+        self.save()
+        with self.assertRaisesRegex(ValueError, 'two fresh page isolates'):
+            native.validate_package(self.package)
+
+    def test_ego_cannot_hide_shared_browser_rss_behind_a_forged_pass_flag(self):
+        self.ego_memory()
+        self.memory['runs'][0]['processSamples'][0]['totalRssBytes'] = 4_000_000_000
+        self.save()
+        with self.assertRaisesRegex(ValueError, 'raw whole-tree'):
+            native.validate_package(self.package)
+
+    def test_ego_cannot_change_the_budget_or_drop_traversal_points(self):
+        self.ego_memory()
+        self.memory['runs'][0]['poses'].pop()
+        self.save()
+        with self.assertRaisesRegex(ValueError, 'raw traversal is incomplete'):
             native.validate_package(self.package)
 
     def test_corrupt_site_memory_and_cdn_bytes_are_rejected(self):

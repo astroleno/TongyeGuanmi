@@ -83,6 +83,7 @@ function createFixture() {
   mkdirSync(path.join(repoDir, 'dist'), { recursive: true });
   copyFileSync(scriptPath, fixtureScript);
   copyFileSync(memoryContractPath, fixtureMemoryContract);
+  copyFileSync(new URL('../../scripts/r5-scroll-memory.mjs', import.meta.url), path.join(repoDir, 'app/scripts/r5-scroll-memory.mjs'));
   copyFileSync(new URL('../../scripts/release-paths.mjs', import.meta.url), path.join(repoDir, 'app/scripts/release-paths.mjs'));
   writeFileSync(path.join(repoDir, 'dist/index.html'), '<!doctype html>\n', 'utf8');
   writeFileSync(

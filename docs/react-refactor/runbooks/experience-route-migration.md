@@ -88,7 +88,7 @@ sudo -n python3 /www/wwwroot/tongye.me/route-backups/experience-v55-20261019-02/
 沿用已确认的独立路由设计，不更换应用架构或根站点发布器：
 
 - `scripts/deploy-experience-release.mjs`：客户端预检、唯一远端暂存目录、真实隔离 Nginx、不可变 CDN 上传／验证、切换和公网 HTTP 检查；公网检查失败时调用同一事务的回退。`--check` 只做本地检查，不 SSH、不上传。
-- `scripts/publish-experience-release.py`：服务器端 `validate / probe / apply / verify / rollback`。拒绝根路径／dirty／pending-memory／借用其他产物的证据；逐文件及完整 artifact tree、CDN 路径、两轮原内存资格再次核对。保留原 `chrome` 身份约束，不将 Ego 诊断报告改名当合格报告。
+- `scripts/publish-experience-release.py`：服务器端 `validate / probe / apply / verify / rollback`。拒绝根路径／dirty／pending-memory／借用其他产物的证据；逐文件及完整 artifact tree、CDN 路径、两轮原内存资格再次核对。Chrome 路径保留；用户随后明确批准正式采集使用 ego-lite，新增实际 Ego 身份及完整原始观测校验，不将旧 Ego 诊断报告改名当合格报告。
 - `probe` 只运行 loopback 实例，不改活动配置；报告绑定候选清单、原 vhost、原 include 和待切换 include 的哈希。`apply` 必须提供该报告；只替换 include，`current` 和 vhost 始终不改。保存切换中状态，进程在替换前后被中断时仍可显式回退。
 - 首次原生发布只接受已检查的 `experience-v55-20261019-02` 前态。备份在 `route-backups/native-<releaseId>/`；回退恢复的是这个 v55 mount，而不是迁移前根站点。已有目标目录、资源同 URL 异字节、配置并发改动或不匹配的回退前态均拒绝覆盖。
 - 固定保留 donor 全部旧 JS／CSS 的精确 URL，包括 7 个改写过的 JS 覆盖文件；其余新资源落在新不可变目录。若新资源与旧 URL 冲突且字节不同，拒绝发布，不让已打开的 v55 页面加载到错误模块。
@@ -137,3 +137,23 @@ if (!report.passed) process.exitCode = 1;
 Ego 入口额外固定桌面 1440×900／手机模拟 390×844、DPR 1 和页面级焦点模拟，逐帧记录并检查视口／DPR／焦点，避免 CLI 轮次间视口恢复或后台降频混入结果。焦点模拟属于测试调度，不是真实物理输入，不改变全局浏览器或电源设置。Runtime 事件按上下文与导航顺序分类：只有明确属于 `chrome-extension://` 且非默认世界的异常单独保留；网站默认世界、未知来源、日志错误仍失败。不会按错误文案或页面 URL 忽略异常。
 
 报告记录产物清单哈希、实际采样函数哈希、Ego／Chromium 身份和环境；清单在段间及最终采样后再次核对。Browser.getVersion 不可用时如实记录 `null` 和原因，不伪装成另一浏览器。即使八段通过，`releaseQualified`、`memoryQualified` 仍明确为 `false`：共享 Ego 的整棵进程树包含其他标签，不能用本站 renderer RSS 替代原 1.5GB 整树门槛；Ego Chromium 也不能替代 WebKit 或真机证据。公开发布、冻结两轮内存和独立子路径发布事务的原要求不变。
+
+## 用户批准的正式 Ego 内存采集（2026-10-20）
+
+用户明确选择“用 ego-lite”作为正式内存采集环境。该批准不改变数值标准，也不把前述普通构建的诊断报告转为正式报告。Chrome 原路径保留；显式设置 `R5_MEMORY_BROWSER_CHANNEL=ego-lite` 才切到 Ego。
+
+`app/scripts/run-r5-process-memory-ego.mjs` 只使用调用方指定、已批准且仍受控的 TaskSpace，先核验该空间内目标 Page 为 agent 创建且已停在 about:blank，再用两个新 Page／不同 isolate 完整采样；不新建或认领组、不选择 profile、不安装或启动另一浏览器、不关闭用户页面。只有成功完成一轮的自建 Page 才关闭；失去控制或页面错误时停止，不自动新建 Page 恢复。整树计数包含其他标签及所有后代进程，不减基线、不改成只数本站 renderer。
+
+正式入口仍为 `evidence:memory:release`。示例中的组 ID／Page 仅应由当前有效授权填写，先把这个 agent-owned Page 停在 about:blank；不可复制历史失效 ID：
+
+```sh
+R5_MEMORY_BROWSER_CHANNEL=ego-lite R5_EGO_TASK_SPACE_ID=<authorized-id> R5_EGO_PAGE_LABEL=<owned-blank-page> R5_BASE_PATH=/experience/ pnpm -C app run evidence:memory:release
+```
+
+该入口只在 loopback 启动自己的预览并按原 30 秒期限等待，不接管其他服务；退出时只停止自己创建的进程组。所有原始轮次、完整报告和生成的单次调用脚本保留在独立临时证据目录。
+
+每轮仍为原 33 个 hold／90 个中间姿态、250ms 整树／堆采样、两个原 5 秒空闲／GC 终点。采样从导航之前开始，不能漏掉冷准备峰值。必须是干净提交、annotated candidate tag、CDN-enabled pending-memory 清单；采集前后逐文件核验字节、artifact tree、served manifest、Git/tag 与产物身份。两轮必须不同 isolate、同一冻结身份；Node finalizer 与服务器发布器都重算 Ego 原始观测并拒绝超预算、缺段、虚报 pass 或改过的上限。
+
+为避免在验收前上传新 CDN 对象，只在本任务 Page 的 CDP Fetch 层把清单内精确对象 URL 转接到本地相同字节；原 URL 和 Range 请求保留，不更改构建文件、素材或全局代理。仅使用短调用和有界轮询，避免等待资源的长 evaluate 阻塞请求处理。实际 WebM Range／解码、Canvas 可读及该 Page 的 module Worker 跨域 fetch 已逐字节验证，不需要浏览器级 Target 自动附加；该转接不代表公网 CDN 的可用性／带宽／CORS 已验收，正式发布仍须原不可变上传和 CDN 检查。
+
+Ego 报告如实记为 `browserChannel: ego-lite`、实际 macOS executable 和 `entire-shared-browser-tree`，不写成 Chrome。1.5GB 整树、512MiB GPU、1GiB renderer、192MiB 页面堆、资源窗口和两轮要求不变。共享环境超限仍失败；正式内存通过也不等于性能、WebKit 或真机资格通过，不会自动切公网。
