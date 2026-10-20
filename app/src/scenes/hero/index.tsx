@@ -349,11 +349,23 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
     setHeroVideoPlaybackState(video, playbackState);
   }, [hidden, introMode, role]);
 
-  useEffect(() => () => {
-    if (videoRef.current) {
-      disposeTimelineVideoDriver(videoRef.current);
-      setHeroVideoPlaybackState(videoRef.current, 'inactive');
-    }
+  useEffect(() => {
+    // React clears callback refs before passive unmount cleanup. Keep the
+    // actual decoder owner, not the ref that will already have become null.
+    const video = videoRef.current;
+    return () => {
+      if (!video) return;
+      queueMicrotask(() => {
+        // StrictMode replays effects on a still-live node. A retained or
+        // reconnected decoder must not lose the frame its current owner uses.
+        if (video.isConnected) return;
+        disposeTimelineVideoDriver(video);
+        setHeroVideoPlaybackState(video, 'inactive');
+        video.removeAttribute('src');
+        for (const source of video.querySelectorAll('source')) source.removeAttribute('src');
+        video.load();
+      });
+    };
   }, []);
 
   return (
