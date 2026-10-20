@@ -2,6 +2,54 @@
 
 更新：2026-10-20。对应已批准的 `2026-10-10-001-refactor-continuous-scroll-story-plan.md`。下文旧日期的通过数量和产物身份仅代表对应历史版本。
 
+## 2026-10-20 追加：ego-lite 复测与 Hero 视频释放（完整验证受阻，未发布）
+
+用户选择使用现有 ego-lite，不恢复 Chrome／WebKit，并批准新建本项目专用验收标签组。最初持续使用同一组 12，失效后的另行批准与组 6 记录见下文；没有读取其他标签页、选择 profile、安装浏览器、关闭其他任务或删除新目录。用户曾批准本轮临时关闭接电低电量模式并恢复；本机无密码自动提权检查返回需要密码，未执行更改；设置界面自动化也超时，未获得可操作的界面。用户随后选择“暂不调整，先完成其他验证”，因此保持接电 1／电池 0，不继续切换、不索取密码，也不将性能失败全部归因于低电量模式。
+
+### 原采样共用与严格记录
+
+新增 `verify-scroll-scrub-ego.mjs`，与原 runner 共用 `scroll-performance-probe.mjs` 和原 `scroll-performance-metrics.mjs`。提取前后，除新增逐帧视口／DPR／焦点记录外，基线及主采样函数归一化后的 SHA-256 完全一致；10 秒／20%→80%、八代表段、原 20／100／150ms 和零长任务门槛均不变。Ego 导航显式沿用原独立 Playwright runner 的默认 30 秒，ready 30 秒、准备 25 秒，不使用更长收敛预算。
+
+入口不自动创建／认领组、选择 profile 或结束整个持续任务；已有报告拒绝覆盖，原子进度保存保留 ENOSPC 前的完整记录。上下文按事件和导航顺序分类，只有明确隔离的扩展世界异常单独保留；网站默认世界或未知来源仍失败。清单哈希在段间及最后一段后核对，实际采样函数另存哈希；即使测量通过也不授予发布／内存资格。
+
+临时证据目录为 `/tmp/tongye-ego-validation-20261020-nM0mdq`。本轮首先在干净 `f0bad0a36769f83bddd0c5ba91417e33bfbe6a58` 重新完整构建原生子路径普通产物：tree `80ab78938823e01695c8d634f411a7f9faf9e6c135d8592ca5044acfde51e51f`、清单 SHA `6a6fe7abfb0b0e24ea8fd9862646c8f7f59c64723f9536485e8d55c1de18b290`。它不是带标签／CDN 的正式候选，仍为 pending-memory。
+
+在该产物以正式共用入口完成桌面／手机模拟各八段（`shared-runner-desktop.json`、`shared-runner-phone.json`）：16/16 具有完整前台、正确区间／epoch／最终姿态及固定视口／DPR／焦点证据，网站异常为 0；每轮另记录 8 条明确扩展世界异常，没有按错误文案隐藏网站错误。**性能为 0/16 通过**，不是发布资格通过。空白页 P95 为 17.5／17.4ms，Pattern 为 34.4／50ms；桌面另有 TTG、PH、Crane 姿态滞后，手机另有多段滞后或长任务。实际环境为共享的 ego-lite／Chromium，而非 Safari 或真机。
+
+此前临时入口的无焦点采样、手机 Pattern 准备超时和一次报告保存 ENOSPC 均保留；不能用后续视口／焦点修正将原失败改写为通过。只对工具做了单页焦点模拟，没有关闭全局低电量模式或改动其他标签页。
+
+### 两种裁剪试验均未进入生产
+
+在隔离诊断文档中，同一组原始素材和姿态下，发布产物 renderer 与等价 TypeScript 转译版 8/8 的像素差为 0。圆形输出裁剪、整数矩形输出裁剪在桌面 DPR 1 的 35%／50% 都产生最高约 **1.19429%** 的逐 RGBA 差异，超过原 0.5%（`raster-desktop-1.json`、`raster-desktop-rect-1.json`）。保留失败原图，没有提高容差、替换历史黄金图或将视觉不合格试验记为优化；Pattern renderer 源码未改。
+
+### 全段内存诊断发现新的确定性清理缺口
+
+`memory-diagnostic.json` 完成原 **33 个 hold／90 个中间姿态**、正反向及两个原 5 秒空闲／强制 GC 终点，实际 87 组整树与堆采样。峰值整树 **4,539,170,816 B**、renderer 合计 **3,887,153,152 B** 包含共享浏览器的其他页面，不能冒充本站独立 RSS，也不能改成只数本站 renderer 来绕过原门槛。该次页面堆峰值 **203,652,856 B**，高于原 192MiB；后续需用新页面复核，不能把复用调试页面当独立冷实例资格。
+
+资源层数 2、hold GL 1／转场 GL 2 在原上限内，但 Contact 观察到 **5 个**视频源持有：四个 Crane 句柄及一个已脱离文档、仍 `readyState=4`／`currentSrc=figure1…webm` 的 Hero 句柄；forward-settled 强制 GC 后 Hero 仍在。后者是本站资源，不是前述扩展异常，不能忽略。
+
+Hero 的旧卸载逻辑只读取可能已被 React 清空的 `videoRef.current`，并未清空媒体源。修复在 effect 建立时捕获实际节点，微任务中仅释放真正脱离文档的节点：取消 timeline driver、暂停、清空 video／source 的 src 并 load 释放解码器；仍连接的节点不动，保留 StrictMode replay、隐藏但保留的 scene 及反向新节点。新增回归先在旧代码 2/4 失败，修复后四项通过；连同原 Hero 与工具／指标测试 **48/48** 通过。全量单测与新构建、修复后画面／资源复核另记，不在这里预先宣称通过。
+
+新增后应为 213 文件／1750 项。默认单 worker 的完整单测在超过 33 分钟仍未产生最终 JSON 时，由主线程向本次 Vitest 进程发送 SIGINT，退出 130；没有触碰其他任务。中断记录为 `unit-ego-hero-interruption.json`，不计为完整通过，也不将此前 48 项拼成完整结果。同期整机 load 273.65／240.61／202.02，top 记录 113MiB unused（不是可用内存的完整定义），另一次 `memory_pressure -Q` free 31%；这些是环境观测，不足以证明所有问题均由环境造成。未提高任何原测试时限，必要完整复跑仍待完成。
+
+修复前已采集双端共 20 张完整姿态对照图（`hero-visual-before-continued.json`）。首轮 Ego 默认 15 秒导航超时，但文档已提交，后续实读为 complete／ready 后在同页继续取图；首轮零张结果保留，不将它计为冷导航按时通过。下文另记重建组后的修复前后比较。
+
+修复后的完整 Lint、类型检查、原生 `/experience/` 普通构建及全部原包体／媒体／架构门禁通过：CSS **75,684 B**、desktop JS **515,169 B**、phone JS **617,643 B**；desktop 增加 145 B，phone 不变，没有提高任何预算。产物树 **`afbb09b909c7297a137e95622b060e84ea4261fc202bc78dbfaffa0d83d3405d`**，清单 SHA **`63ea4a8a856b384bad92bb363b488314f98d871f6ad79f55d7be9fc285c18c1d`**；sourceCommit 仍为 `f0bad0a…`、sourceDirty=true、candidate/tag=null、CDN disabled、pending-memory。原清单与新清单分别保存在 `native-before-manifest.json`／`native-after-manifest.json`，不得把普通脏工作区构建当成冻结发布候选。
+
+修复后首轮浏览器调用在取得 Page 前返回 `task space not found: 12`；仅按本项目专用组名过滤的只读组清单也为空。该轮没有操作任何应用页面、没有修复后截图或资源遍历（`hero-after-browser-blocked.json`），不记通过。按照 ego-browser 控制边界停止页面操作，已申请重新新建专用组的明确批准，没有擅自建立新组、认领其他组、读取其他标签页或选择 profile。
+
+等待浏览器恢复期间，用相同 Node 26.7.0、同一完整用例集合及单 worker 尝试 `--pool=threads`，以诊断默认 fork 的进程启动开销；只改变本次 CLI 执行池，不改仓库配置、断言、隔离开关、任何原测试／hook 时限或 CI。约 10 分钟后为避免与浏览器复测重叠而中断，退出 130；中断时输出 `verify-phone-clean-architecture.test.mjs` **83 项中 61 通过／22 失败**，文件耗时 578,942ms，失败均包含原 5,000／30,000ms 测试或 10,000ms hook 超时。其余用例没有完整结果，JSON reporter 未产出最终全量报告；保留 `unit-ego-hero-threads-interruption.json` 及本次进程的原生采样 `unit-thread-sample.txt`，不得把这轮或前述默认 fork 的中断改记为通过。构建中的当前生产架构检查虽通过，也不能替代这些带原时限的 fixture 测试。
+
+用户随后明确批准重新新建专用组，实际创建 **6**，没有选择 profile 或操作其他标签。修复后的 `hero-visual-after-recovered.json` 完成桌面 1440×900／手机模拟 390×844、DPR 1 的同一 20 个姿态：Hero、正向 25%／50%／75%、Pattern、Contact、反向及 Hero 重挂。清单身份前后固定，实际网站异常为 0，无框架错误遮罩；双端 Hero 重挂截图已实看。`hero-visual-comparison.json` 使用原逐通道差 >24／全图差 ≤0.5%，额外要求每张有 >100 个墨色像素，**20/20 通过，最大差 0.086111%**；手机十张均逐 RGBA 完全相同。没有改写修复前 PNG、提高容差或将其等同完整浏览器矩阵资格。
+
+随后准备实际菜单→Education→刷新→Logo 回 Hero 时，接口再次在取得 Page 前返回 `task space not found: 6`。该轮没有页面操作，修复后全段资源／新页面堆复测也尚未执行；没有第三次自动新建或认领其他组。Hero 源码与四项单测支持修复逻辑，20 张对照支持画面保持，但 **Contact 持有数是否已从 5 降回 ≤4 仍须实测**，不能预先宣称内存释放资格通过。电源始终保持接电 1／电池 0。
+
+截至上述复测结束，必要完整单测与修复后资源验证尚未通过；当时改动仍在工作区，没有新增 commit／push、发布标签、Nginx／CDN 写入或公网切换。GitHub API 的一次命令行读取发生 TLS 超时，连接器对现有 `f0bad0a…` 仅返回空 statuses，均不构成本轮源码的 CI 通过证据。
+
+用户随后明确批准：先将上述修复与验证工具提交、推送到 `main`，由仓库原有 **R5 Node CI** 补跑完整检查；不创建发布标签、不部署。此批准允许先保存并推送待完整验证的源码，不豁免任何测试、改变 CI 或把本地超时改记为通过。CI 结果须绑定实际推送的 commit；推送成功不等于 CI 或原浏览器／内存发布条件通过。
+
+仍未创建新的发布标签或切换公网；WebKit、真机、冻结身份两轮隔离整树内存及独立原生发布事务的未完成项均保留。
+
 ## 2026-10-20 追加：原生子路径接入与发布阻塞
 
 用户批准 main 提交／推送及按原标准验收后的正式发布，目标仍为 `/experience/`，不是新建轻量首页或恢复旧根站点。当前公网复查仍为 `experience-v55-20261019-02`、donor `r5-ef69e06`；本轮尚未修改 Nginx、`current` 或 CDN，也未创建新的发布标签。

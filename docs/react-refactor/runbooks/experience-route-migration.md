@@ -82,3 +82,33 @@ sudo -n python3 /www/wwwroot/tongye.me/route-backups/experience-v55-20261019-02/
 原生新版仍须完成独立的 `/experience/` 发布事务：新不可变目录、活动路由 include 的比较后切换及精确回退；保留临时根跳转、预览 cookie 隔离、根服务／FAQ，以及旧体验已打开页面按旧哈希延迟加载资源的能力。不能只把 `/experience/assets/` 换成新目录后移除旧覆盖文件或旧 donor。需先验证真实隔离 Nginx，再做公网身份、缓存、MIME、404、书签与浏览器交互复验。
 
 原逐帧画面、性能矩阵、冻结身份两轮内存与适用的真机检查仍是发布条件。源码提交或普通 `build` 通过不等于这些条件已经满足；当前公开站点仍为上文固定 v55。
+
+## ego-lite 验收入口（2026-10-20）
+
+用户已选择使用现有 ego-lite，不安装或恢复 Chrome／WebKit。开发复测可以直接使用 `app/scripts/verify-scroll-scrub-ego.mjs`，不需要 Playwright 或另一台浏览器进程。它与原 `verify-scroll-scrub.mjs` 共用 `scroll-performance-probe.mjs` 和原指标汇总，不维护另一套宽松采样。
+
+先按 ego-browser 的操作边界取得本任务已批准、仍由 agent 控制的 TaskSpace ID 和已有 Page 标签，再在 `ego-browser nodejs` 中调用，例如：
+
+```js
+const { runEgoScrollVerification } = await import(
+  'file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/scripts/verify-scroll-scrub-ego.mjs'
+);
+const report = await runEgoScrollVerification({
+  taskSpaceId: 12, // 历史示例，必须替换为当前批准且有效的组 ID
+  pageLabel: 'p1',
+  platform: 'desktop', // 另一轮使用 phone
+  baseURL: 'http://127.0.0.1:4197/experience/',
+  outputPath: '/tmp/tongye-scroll-ego-20261020-desktop.json'
+});
+if (!report.passed) process.exitCode = 1;
+```
+
+`12` 仅是历史示例，不是通用配置；本轮的组 12 和另经批准新建的组 6 均曾返回找不到组，不能直接复制该 ID 继续运行。每次须核对本任务当前已批准且有效的组。入口不自动新建／认领组、选择 profile、安装依赖或结束调用方的持续任务；用户接管或标签组失效时停止，不通过另一组绕过。报告必须使用仓库外的新绝对路径；已有报告拒绝覆盖，进度采用原子保存，避免空间不足截断上一份完整记录。
+
+采样仍为原八段，每段预定位 20%、连续 10 秒到 80%；保留 P95 ≤20ms、姿态滞后 ≤100ms、停止收敛 ≤150ms、零次 >50ms 长任务及暂停视频、完整前台采样、区间／epoch／最终姿态检查。缺少 LongTasks 能力仍为 `null`／不可测，不能算 0 次通过。
+
+导航显式沿用原独立 Playwright runner 的默认 30 秒，而不是 Ego 包装层的默认 15 秒；ready 仍为 30 秒、逐段准备仍为 25 秒。上述性能数值门槛不变，不能靠延长画面收敛预算消除失败。
+
+Ego 入口额外固定桌面 1440×900／手机模拟 390×844、DPR 1 和页面级焦点模拟，逐帧记录并检查视口／DPR／焦点，避免 CLI 轮次间视口恢复或后台降频混入结果。焦点模拟属于测试调度，不是真实物理输入，不改变全局浏览器或电源设置。Runtime 事件按上下文与导航顺序分类：只有明确属于 `chrome-extension://` 且非默认世界的异常单独保留；网站默认世界、未知来源、日志错误仍失败。不会按错误文案或页面 URL 忽略异常。
+
+报告记录产物清单哈希、实际采样函数哈希、Ego／Chromium 身份和环境；清单在段间及最终采样后再次核对。Browser.getVersion 不可用时如实记录 `null` 和原因，不伪装成另一浏览器。即使八段通过，`releaseQualified`、`memoryQualified` 仍明确为 `false`：共享 Ego 的整棵进程树包含其他标签，不能用本站 renderer RSS 替代原 1.5GB 整树门槛；Ego Chromium 也不能替代 WebKit 或真机证据。公开发布、冻结两轮内存和独立子路径发布事务的原要求不变。
