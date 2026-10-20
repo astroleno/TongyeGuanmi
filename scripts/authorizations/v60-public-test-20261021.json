@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-20T17:20:37Z",
+  "authority": "The user explicitly approved replacing /experience/ with this fix for public testing after disclosure of failed performance and missing formal memory and physical-device qualification.",
+  "userInstruction": "确认，替换后做公网测试",
+  "releaseId": "r5-cb8c17a",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v60",
+    "candidateTagObject": "d1614ef5788312bcc48259a2b4941b3830fa04d2",
+    "sourceCommit": "cb8c17affd9d171a206f19773a9a907cc1f20f1b",
+    "artifactTreeSha256": "80970dd1358c9c144c51172eb5670848f1a90f7ffe1916ee37e18e6b3c24271b",
+    "draftManifestSha256": "978208bd19b5834dbade2a91340db0a09a161bd3d7ba89bd9bad8dd3445425ce"
+  },
+  "qualificationStatusUnchanged": "pending-memory",
+  "knownGaps": [
+    "The precommit fix failed the unchanged continuous-scroll performance thresholds, including a clean-page Pattern recheck.",
+    "No formal process-memory runs have been collected for this exact CDN-enabled /experience/ artifact; previous candidate runs are not borrowed.",
+    "WebKit and physical-device qualification remain incomplete."
+  ],
+  "evidenceScope": "Precommit reports preserve original failures and local functional observations of the same application patch, but are not frozen v60 qualification. The new memory record explicitly declares zero measured runs. Public v60 results are collected after the switch.",
+  "evidence": {
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 758,
+      "sha256": "81e0f2c7c2b4e858bea0e93d936655d80c79576ef348fb444859f40f09b2cc82"
+    },
+    "precommitSummary": {
+      "path": "evidence/precommit-summary.json",
+      "bytes": 4496,
+      "sha256": "c02fcd7005bea7119154692a1d4789d392571284c8cbe6d49216267164606947"
+    },
+    "precommitPerformance": {
+      "path": "evidence/precommit-performance.json",
+      "bytes": 2517296,
+      "sha256": "15f0fa869b572632029d51f6d49ad0ef94c58b234d9f7d3c5ec70daf193a61bd"
+    },
+    "precommitFunctional": {
+      "path": "evidence/precommit-functional.json",
+      "bytes": 4629222,
+      "sha256": "0835e39882d1551ede034ebd2f501dc0d6caa85f9b634672eb72d4d7caf502a9"
+    }
+  },
+  "nonWaivedChecks": [
+    "Exact clean annotated candidate and immutable artifact bytes",
+    "Immutable CDN upload, HTTPS, CORS, MIME, cache and video Range checks",
+    "Actual-package isolated Nginx probe before switching",
+    "Compare-and-swap include, preserving the root site and all v55 and v59 JS/CSS URLs",
+    "Public HTTP identity and exact rollback to the inspected v59 include"
+  ],
+  "failedEvidenceMustRemainUnmodified": true,
+  "doesNotGrantPassingQualification": true,
+  "doesNotAuthorizeFutureCandidates": true
+}

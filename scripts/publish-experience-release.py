@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""First native /experience/ publication; never change the root current symlink.
+"""Native /experience/ publication; never change the root current symlink.
 
-The inspected v55 mount is the only supported predecessor. Package validation,
+Only explicitly pinned predecessors are supported. Package validation,
 isolated real-nginx probing, CAS application and CAS rollback are separate steps.
 No step grants the application its missing browser/performance qualification.
 """
@@ -38,6 +38,15 @@ PUBLIC_ORIGIN = 'https://tongye.me'
 # exact receipt pins v59 and its unchanged failing evidence; no other release
 # or fabricated pass flag can use this path. Default publication stays strict.
 V59_DIRECT_AUTH_SHA = '0721104d84e66c813e5b1a2db98796b05bdc8b776be777b2b44b3ff202c534a8'
+V60_PUBLIC_TEST_AUTH_SHA = 'a4357df7669a362473df1a0344233f3f830b9f88e9224b51aad8c39915ede5ae'
+# The second publication preserves both generations of lazy module URLs. This
+# is not permission to accept arbitrary future predecessors or pending builds.
+NATIVE_PREDECESSORS = {
+    '01567f5ba32d8ecca93ec95a8a4cdf76f132a61ca208e2d74e8f9db0e4b20d71': {
+        'releaseId': 'r5-c1ee8fd',
+        'manifestSha256': '1b7d486bfb046f840cd65d51e4d2e915fe270cea383b3b4c38bcb1eba08c58d8'
+    }
+}
 DIRECT_AUTH_PATH = 'user-directed-publication.json'
 SCROLL_BUDGETS = {'peakBrowserTreeRssBytes': 1500000000, 'peakGpuProcessRssBytes': 512 * 1024 * 1024,
                   'peakRendererRssBytes': 1024 * 1024 * 1024, 'peakJsHeapBytes': 192 * 1024 * 1024,
@@ -183,8 +192,8 @@ def validate_memory(report):
 
 
 def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
-    if authorization_sha != V59_DIRECT_AUTH_SHA:
-        raise ValueError('direct publication is limited to the exact user-directed v59 receipt')
+    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA]:
+        raise ValueError('direct publication requires the exact user-directed v59 receipt or v60 public-test receipt')
     receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
     if digest(receipt_bytes) != authorization_sha:
         raise ValueError('direct publication receipt changed')
@@ -197,10 +206,20 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
             or digest(manifest_bytes) != receipt['identity']['draftManifestSha256']
             or manifest.get('qualification') != {'status': 'pending-memory', 'memoryEvidence': None}
             or any(manifest.get(key) != value for key, value in receipt['identity'].items() if key != 'draftManifestSha256')):
-        raise ValueError('direct publication belongs only to the unchanged frozen v59 artifact')
+        raise ValueError('direct publication belongs only to the unchanged frozen authorized artifact')
     for item in receipt['evidence'].values():
         checked_file(package, item)
     memory = json.loads(read_regular(package / 'site', 'r5-process-memory.json'))
+    if authorization_sha == V60_PUBLIC_TEST_AUTH_SHA:
+        # A declaration of missing evidence is not a synthetic measurement and
+        # can never satisfy validate_memory or the default qualified path.
+        expected = {'schemaVersion': 1, 'kind': 'r5-unmeasured-process-memory', 'status': 'not-measured',
+                    'pass': False, 'requiredRunCount': 2, 'completedRunCount': 0, 'runs': [],
+                    'qualificationGranted': False, 'identity': receipt['identity'],
+                    'reason': 'No formal process-memory runs have been collected for this artifact. Earlier candidates are not evidence for this identity.'}
+        if memory != expected:
+            raise ValueError('public-test memory must explicitly preserve zero measured runs and no qualification')
+        return receipt
     if (memory.get('pass') is not False or memory.get('completedRunCount') != 2
             or memory.get('identity') != receipt['identity'] or len(memory.get('runs', [])) != 2
             or any(run.get('pass') is not False or run.get('failure') or run.get('errors')
@@ -242,7 +261,8 @@ def validate_package(package, authorization_sha=None):
         if deploy.get('publicationAuthorization') is not None:
             raise ValueError('direct publication requires its explicit authorization SHA')
         validate_memory(memory)
-    if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != 2 or memory.get('identity') != evidence.get('identity'):
+    expected_run_count = 0 if authorization_sha == V60_PUBLIC_TEST_AUTH_SHA else 2
+    if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != expected_run_count or memory.get('identity') != evidence.get('identity'):
         raise ValueError('memory evidence identity mismatch')
     for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:
         if memory.get('identity', {}).get(field) != manifest.get(field):
@@ -326,10 +346,16 @@ def locked():
 
 def predecessor(expected_vhost_sha, expected_include_sha):
     original, vhost = INCLUDE.read_bytes(), VHOST.read_bytes()
-    if digest(vhost) != expected_vhost_sha or digest(original) != expected_include_sha or expected_include_sha != PREDECESSOR_SHA:
-        raise ValueError('active configuration changed or is not the inspected v55 mount')
+    if digest(vhost) != expected_vhost_sha or digest(original) != expected_include_sha:
+        raise ValueError('active configuration changed')
     if vhost.decode().count(f'include {INCLUDE};') != 1 or (SITE / 'current').resolve() != SITE / 'releases' / BASE_ID:
         raise ValueError('root site changed')
+    return original, vhost, legacy_assets(expected_include_sha)
+
+
+def legacy_assets(include_sha):
+    if include_sha != PREDECESSOR_SHA and include_sha not in NATIVE_PREDECESSORS:
+        raise ValueError('configuration is not an inspected predecessor')
     base, mount = SITE / 'releases' / BASE_ID, SITE / 'mounts' / MOUNT_ID
     donor_bytes = (base / 'r5-release-manifest.json').read_bytes()
     overlay_bytes = (mount / 'mount-manifest.json').read_bytes()
@@ -350,7 +376,31 @@ def predecessor(expected_vhost_sha, expected_include_sha):
             assets[name] = {**(override or item), 'filename': (mount if override else base) / name, 'override': bool(override)}
     if not set(overrides).issubset(assets):
         raise ValueError('unresolved legacy override')
-    return original, vhost, assets
+    if include_sha in NATIVE_PREDECESSORS:
+        previous = NATIVE_PREDECESSORS[include_sha]
+        root = SITE / 'releases' / previous['releaseId']
+        backup = state_directory(previous['releaseId'])
+        record = json.loads(read_regular(backup, 'transaction.json'))
+        if (record.get('state') != 'applied-http-verified' or record.get('releaseId') != previous['releaseId']
+                or record.get('rootCurrent') != str(base) or record.get('afterIncludeSha256') != include_sha
+                or record.get('beforeIncludeSha256') != PREDECESSOR_SHA
+                or record.get('releaseManifestSha256') != previous['manifestSha256']
+                or digest(read_regular(backup, 'include.before.conf')) != PREDECESSOR_SHA
+                or digest(read_regular(backup, 'include.after.conf')) != include_sha):
+            raise ValueError('native predecessor transaction mismatch')
+        manifest_bytes = read_regular(root, 'r5-release-manifest.json')
+        if digest(manifest_bytes) != previous['manifestSha256']:
+            raise ValueError('native predecessor manifest changed')
+        for item in json.loads(manifest_bytes)['files']:
+            name = safe_name(item['path'])
+            if name.startswith('assets/') and name.endswith(('.js', '.css')):
+                checked_file(root, item)
+                if name in assets:
+                    if item['sha256'] != assets[name]['sha256']:
+                        raise ValueError('native predecessor legacy URL collision')
+                else:
+                    assets[name] = {**item, 'filename': root / name, 'override': False}
+    return assets
 
 
 def content_type(name):
@@ -627,6 +677,12 @@ def probe(package, expected_vhost_sha, expected_include_sha, authorization_sha=N
         (site / 'releases' / BASE_ID).symlink_to(SITE / 'releases' / BASE_ID)
         (site / 'releases' / deploy['releaseId']).symlink_to(package / 'site')
         (site / 'mounts' / MOUNT_ID).symlink_to(SITE / 'mounts' / MOUNT_ID)
+        for item in legacy.values():
+            relative = item['filename'].relative_to(SITE)
+            if relative.parts[0] == 'releases':
+                previous = site / 'releases' / relative.parts[1]
+                if not previous.exists():
+                    previous.symlink_to(SITE / 'releases' / relative.parts[1])
         with socket.socket() as reserved:
             reserved.bind(('127.0.0.1', 0))
             port = reserved.getsockname()[1]
@@ -692,13 +748,9 @@ def verify(package, authorization_sha=None):
         # Recover the exact predecessor inventory without accepting a newer include.
         with (backup / 'include.before.conf').open('rb') as stream:
             before = stream.read()
-        if digest(before) != PREDECESSOR_SHA:
+        if digest(before) != record['beforeIncludeSha256']:
             raise ValueError('predecessor backup changed')
-        donor = json.loads((SITE / 'releases' / BASE_ID / 'r5-release-manifest.json').read_bytes())
-        overlay = json.loads((SITE / 'mounts' / MOUNT_ID / 'mount-manifest.json').read_bytes())
-        overrides = {item['path']: item for item in overlay['assetOverrides']}
-        legacy = {item['path']: {**overrides.get(item['path'], item), 'override': item['path'] in overrides} for item in donor['files']
-                  if item['path'].startswith('assets/') and item['path'].endswith(('.js', '.css'))}
+        legacy = legacy_assets(record['beforeIncludeSha256'])
         report = http_checks(PUBLIC_ORIGIN, deploy, manifest, legacy)
         assert_active(record, record['afterIncludeSha256'])
         atomic_write(backup / 'http-smoke.json', encoded(report))

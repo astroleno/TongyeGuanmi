@@ -1,5 +1,13 @@
 # 旧官网迁移至 /experience/
 
+## v60 公网测试批准与冻结（2026-10-21，尚未切换）
+
+用户在明确获知本次性能未达标、正式内存和真机验收未完成后，确认“替换后做公网测试”。仅将该批准用于冻结的 v60：source `cb8c17affd9d171a206f19773a9a907cc1f20f1b`，annotated tag object `d1614ef5788312bcc48259a2b4941b3830fa04d2`，draft manifest SHA `978208bd19b5834dbade2a91340db0a09a161bd3d7ba89bd9bad8dd3445425ce`，artifact tree `80970dd1358c9c144c51172eb5670848f1a90f7ffe1916ee37e18e6b3c24271b`。
+
+完整单测 215 文件／1797 项、lint、类型检查、packed-alpha 首帧、原生 `/experience/` CDN 构建和原资源／包体预算通过。原始本地失败证据保留；它们不是此 CDN 构建的正式资格。清单保持 `pending-memory`，独立内存文件明确声明 `not-measured`／0 轮／`pass=false`，不伪造测量、不借用 v59 两轮报告。数字门槛不变，普通 qualified 发布路径继续拒绝此包。
+
+新独立批准记录为 `scripts/authorizations/v60-public-test-20261021.json`（SHA `a4357df7669a362473df1a0344233f3f830b9f88e9224b51aad8c39915ede5ae`），不授权未来候选。发布器只额外接受精确固定的 v59 前态，核验其已验证事务、include、清单及逐个旧 JS／CSS 字节；保留 v55 和 v59 的懒加载 URL。实际包仍须通过隔离 Nginx、不可变 CDN、CAS 切换、公网 HTTP 和精确回退检查。以下 v59 是当前线上版本；v60 切换结果另行据实记录。
+
 ## 当前公开版本：v59（2026-10-20 21:30，Asia/Shanghai）
 
 `https://tongye.me/experience/` 已切换到原生连续滚动 **v59**，release `r5-c1ee8fd`，应用 source `c1ee8fd386d92ee34d408eb0e094fa87ae21de35`。根地址继续 302 到此入口。公网清单 SHA `1b7d486bfb046f840cd65d51e4d2e915fe270cea383b3b4c38bcb1eba08c58d8`、artifact tree `83b30c789256bcbe3643cf364f1f491c96915f071de91e59c2aaa33932baf034`；独立本机 curl 读回确认 v59，响应头为 `X-Tongye-Experience-Release: r5-c1ee8fd`。
