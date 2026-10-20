@@ -1,14 +1,36 @@
 # 旧官网迁移至 /experience/
 
-## v60 公网测试批准与冻结（2026-10-21，尚未切换）
+## 当前公开版本：v60（2026-10-21 01:33，Asia/Shanghai）
 
 用户在明确获知本次性能未达标、正式内存和真机验收未完成后，确认“替换后做公网测试”。仅将该批准用于冻结的 v60：source `cb8c17affd9d171a206f19773a9a907cc1f20f1b`，annotated tag object `d1614ef5788312bcc48259a2b4941b3830fa04d2`，draft manifest SHA `978208bd19b5834dbade2a91340db0a09a161bd3d7ba89bd9bad8dd3445425ce`，artifact tree `80970dd1358c9c144c51172eb5670848f1a90f7ffe1916ee37e18e6b3c24271b`。
 
 完整单测 215 文件／1797 项、lint、类型检查、packed-alpha 首帧、原生 `/experience/` CDN 构建和原资源／包体预算通过。原始本地失败证据保留；它们不是此 CDN 构建的正式资格。清单保持 `pending-memory`，独立内存文件明确声明 `not-measured`／0 轮／`pass=false`，不伪造测量、不借用 v59 两轮报告。数字门槛不变，普通 qualified 发布路径继续拒绝此包。
 
-新独立批准记录为 `scripts/authorizations/v60-public-test-20261021.json`（SHA `a4357df7669a362473df1a0344233f3f830b9f88e9224b51aad8c39915ede5ae`），不授权未来候选。发布器只额外接受精确固定的 v59 前态，核验其已验证事务、include、清单及逐个旧 JS／CSS 字节；保留 v55 和 v59 的懒加载 URL。实际包仍须通过隔离 Nginx、不可变 CDN、CAS 切换、公网 HTTP 和精确回退检查。以下 v59 是当前线上版本；v60 切换结果另行据实记录。
+新独立批准记录为 `scripts/authorizations/v60-public-test-20261021.json`（SHA `a4357df7669a362473df1a0344233f3f830b9f88e9224b51aad8c39915ede5ae`），不授权未来候选。发布器只额外接受精确固定的 v59 前态，核验其已验证事务、include、清单及逐个旧 JS／CSS 字节；保留 v55 和 v59 的懒加载 URL。新增及既有发布保护 63 项通过；曾有客户端 fixture 在原 5 秒期限内启动超时，保留失败，不提高期限，改用现有捆绑 Python 3.12 后原 13 项全部通过。
 
-## 当前公开版本：v59（2026-10-20 21:30，Asia/Shanghai）
+`https://tongye.me/experience/` 已实际切换至 release `r5-cb8c17a`。348 项真实隔离 Nginx 与 348 项公网 HTTP 检查通过；63 个 CDN 对象（79,330,671 B）已不可变上传，原 HTTPS HEAD／长度／MIME／缓存／CORS 及 1024 B 视频 Range 检查通过。本机独立 curl 再次读回上述清单 SHA、source 和 `X-Tongye-Experience-Release: r5-cb8c17a`。
+
+事务为 `applied-http-verified`，verifiedAt `2026-10-20T17:33:08.202229+00:00`。路由 include 从 v59 的 `01567f5b…` 切为 `f6d494173450b37a586392763af8b373f628a639a25fe14125acd9de992ffdd4`；本次检查时 vhost SHA `a33d6b8b…` 与固定 v55 `current` 均未改。首次 SSH 在远端暂存步骤断开，未切换路由；确认前态仍为 v59 后重试成功。原 v59 及 v55 文件、CDN 对象和备份未删除、未覆盖。
+
+回滚备份为 `/www/wwwroot/tongye.me/route-backups/native-r5-cb8c17a/`，含完整前后 include、实际包 probe、公网 HTTP 原件、批准记录、原始失败及缺失内存声明、事务和本次发布器。未触发回滚；必要时执行以下 CAS 回退，精确恢复 v59，不是退回 v55：
+
+```sh
+sudo -n python3 /www/wwwroot/tongye.me/route-backups/native-r5-cb8c17a/publish-experience-release.py rollback --release-id r5-cb8c17a
+```
+
+### v60 公网浏览器复测
+
+全部使用现有 ego-lite、真实公网 `/experience/`，无本地资源转接或响应替换。桌面 1440×900／手机模拟 390×844、DPR 1；它不是物理手机或 WebKit 证明。首轮往返各 121 个位置：手机 **121/121**，桌面 **100/121**。桌面失败集中在 `method-bottom-figure2`、`brand-figure3`、`education-crane`、`crane-contact` 的媒体准备；其中另有一张 Crane 图片明确记录 `net::ERR_NETWORK_CHANGED`，不能据此把所有视频超时都归因于网络切换。
+
+两端 Proof opening／cards／closing 共 **6/6**，正文可见且 hold 恢复点击能力；桌面原失败位置另作加载后复测 **21/21**，无网页错误，但不把首轮 21 项失败改判通过。实际点击 CTA、手机菜单、刷新和前后退共 8 项 URL／range／ready 状态检查通过。联系页刷新截图抓在加载遮罩退场阶段，没有追加遮罩隐藏后的截图；该截图不证明遮罩长期卡住，也不作为刷新后最终画面完全验证的证据。初次进入的加载遮罩隐藏检查已在双端主遍历中通过。
+
+原八段 × 双端、每段 20%→80% 连续 10 秒的性能矩阵完整采集，**0/16 达标**。空白页 RAF P95 为 18.4／18.5ms；应用 RAF P95 为约 49.3–51.2ms，Pattern 为桌面 50.1ms／手机 49.4ms，高于原 20ms。桌面 TTG／Crane 另有姿态滞后超标。两端全段视频保持暂停、没有记录到 >50ms LongTask，采样中清单身份不变且网页错误为 0；这些不抵消帧率或滞后失败，不能声称流畅度已解决。
+
+独立本机 HTTP 读回另通过 6 项规范化／www／HTTPS／gzip／入口及清单字节检查，22 个视频的 1024 B Range 全部 206，前缀逐字节哈希与冻结包一致。正式内存仍为 0 轮，真机／WebKit 仍缺失。本项目专用 Ego 组 21 已正常关闭，未操作其他页面或全局电源／代理设置。
+
+本轮原始 JSON、实际截图和每轮执行源在 `/tmp/tongye-v60-public-test-20261021-BAFOQR/`，其中 `public-functional.json` 保留首轮失败，`desktop-failure-recheck.json` 单独保存复测，`public-performance.json` 保存完整未通过矩阵。结论为“已按明确指令发布公网测试版，仍有验证失败”，不是正式合格发布。
+
+## 历史公开版本：v59（2026-10-20 21:30，Asia/Shanghai）
 
 `https://tongye.me/experience/` 已切换到原生连续滚动 **v59**，release `r5-c1ee8fd`，应用 source `c1ee8fd386d92ee34d408eb0e094fa87ae21de35`。根地址继续 302 到此入口。公网清单 SHA `1b7d486bfb046f840cd65d51e4d2e915fe270cea383b3b4c38bcb1eba08c58d8`、artifact tree `83b30c789256bcbe3643cf364f1f491c96915f071de91e59c2aaa33932baf034`；独立本机 curl 读回确认 v59，响应头为 `X-Tongye-Experience-Release: r5-c1ee8fd`。
 
