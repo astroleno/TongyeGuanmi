@@ -79,9 +79,34 @@ sudo -n python3 /www/wwwroot/tongye.me/route-backups/experience-v55-20261019-02/
 
 发布草稿及打包清单记录 `basePath`；冻结内存资格完成前不得更换构建前缀。原 `scripts/deploy-r5-release.mjs` 只切根站点的 `current`，现会在任何 SSH／上传之前拒绝显式非根路径发布包。上面的 v55 适配脚本也不是新版发布器，不能换一个 release ID 就复用。
 
-原生新版仍须完成独立的 `/experience/` 发布事务：新不可变目录、活动路由 include 的比较后切换及精确回退；保留临时根跳转、预览 cookie 隔离、根服务／FAQ，以及旧体验已打开页面按旧哈希延迟加载资源的能力。不能只把 `/experience/assets/` 换成新目录后移除旧覆盖文件或旧 donor。需先验证真实隔离 Nginx，再做公网身份、缓存、MIME、404、书签与浏览器交互复验。
+原生新版需要独立的 `/experience/` 发布事务：新不可变目录、活动路由 include 的比较后切换及精确回退；保留临时根跳转、预览 cookie 隔离、根服务／FAQ，以及旧体验已打开页面按旧哈希延迟加载资源的能力。不能只把 `/experience/assets/` 换成新目录后移除旧覆盖文件或旧 donor。下节已补齐实现，但实际合格候选仍须先验证真实隔离 Nginx，再做公网身份、缓存、MIME、404、书签与浏览器交互复验。
 
 原逐帧画面、性能矩阵、冻结身份两轮内存与适用的真机检查仍是发布条件。源码提交或普通 `build` 通过不等于这些条件已经满足；当前公开站点仍为上文固定 v55。
+
+### 原生发布事务接口（2026-10-20）
+
+沿用已确认的独立路由设计，不更换应用架构或根站点发布器：
+
+- `scripts/deploy-experience-release.mjs`：客户端预检、唯一远端暂存目录、真实隔离 Nginx、不可变 CDN 上传／验证、切换和公网 HTTP 检查；公网检查失败时调用同一事务的回退。`--check` 只做本地检查，不 SSH、不上传。
+- `scripts/publish-experience-release.py`：服务器端 `validate / probe / apply / verify / rollback`。拒绝根路径／dirty／pending-memory／借用其他产物的证据；逐文件及完整 artifact tree、CDN 路径、两轮原内存资格再次核对。保留原 `chrome` 身份约束，不将 Ego 诊断报告改名当合格报告。
+- `probe` 只运行 loopback 实例，不改活动配置；报告绑定候选清单、原 vhost、原 include 和待切换 include 的哈希。`apply` 必须提供该报告；只替换 include，`current` 和 vhost 始终不改。保存切换中状态，进程在替换前后被中断时仍可显式回退。
+- 首次原生发布只接受已检查的 `experience-v55-20261019-02` 前态。备份在 `route-backups/native-<releaseId>/`；回退恢复的是这个 v55 mount，而不是迁移前根站点。已有目标目录、资源同 URL 异字节、配置并发改动或不匹配的回退前态均拒绝覆盖。
+- 固定保留 donor 全部旧 JS／CSS 的精确 URL，包括 7 个改写过的 JS 覆盖文件；其余新资源落在新不可变目录。若新资源与旧 URL 冲突且字节不同，拒绝发布，不让已打开的 v55 页面加载到错误模块。
+
+仅在应用原门禁全部通过、干净提交和 annotated candidate tag 绑定后，使用 `release:package` 生成的新路径合格包。命令参数中的两项 SHA 须在实际切换前重新读取，不能把历史值当成未来值：
+
+```sh
+node scripts/deploy-experience-release.mjs --package <qualified-package> --expected-vhost-sha <inspected-sha256> --expected-include-sha <inspected-sha256> --check
+node scripts/deploy-experience-release.mjs --package <qualified-package> --expected-vhost-sha <inspected-sha256> --expected-include-sha <inspected-sha256>
+```
+
+必要时服务器端显式回退（不调用旧 mount 的根站点回退）：
+
+```sh
+sudo -n python3 /www/wwwroot/tongye.me/route-backups/native-<releaseId>/publish-experience-release.py rollback --release-id <releaseId>
+```
+
+离线事务测试与传输前拒绝测试覆盖身份、字节、原子切换、错误回退及并发保护；`scripts/test-publish-experience-nginx.py` 另用明确标记的临时合成 fixture 检查真实 Nginx 的尾斜杠、哈希、MIME、缓存、404 和旧资源处理。合成 fixture 不是应用发布候选，不能替代实际合格包的强制 probe。脚本、证据和暂存目录不会因成功或失败而删除已有发布或 CDN 对象。
 
 ## ego-lite 验收入口（2026-10-20）
 

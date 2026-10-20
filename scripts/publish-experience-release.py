@@ -1,0 +1,623 @@
+#!/usr/bin/env python3
+"""First native /experience/ publication; never change the root current symlink.
+
+The inspected v55 mount is the only supported predecessor. Package validation,
+isolated real-nginx probing, CAS application and CAS rollback are separate steps.
+No step grants the application its missing browser/performance qualification.
+"""
+import argparse
+import contextlib
+from datetime import datetime, timezone
+import fcntl
+import hashlib
+import json
+import mimetypes
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import socket
+import stat
+import subprocess
+import tempfile
+import time
+import urllib.error
+import urllib.request
+
+SITE = Path('/www/wwwroot/tongye.me')
+VHOST = Path('/www/server/panel/vhost/nginx/html_tongye.me.conf')
+INCLUDE = Path('/www/server/panel/vhost/nginx/tongye-experience-routes.inc')
+BASE_ID = 'r5-ef69e06'
+MOUNT_ID = 'experience-v55-20261019-02'
+BASE_SHA = '46609b35907e855e6be6bd8763a9a9b589be1910801e5cd106e537cd3aa67c4f'
+MOUNT_SHA = 'a8c155dc3c2e9f3cf0c8ce276d724a8f80b7757332ddab98ae6ec5d78df81ed8'
+PREDECESSOR_SHA = 'c4631c1e36e173c434ce980ae266723e57c59b90280aa3ac7c7ddeab15d4a321'
+PUBLIC_ORIGIN = 'https://tongye.me'
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def encoded(value):
+    return (json.dumps(value, indent=2, ensure_ascii=False) + '\n').encode()
+
+
+def safe_name(name):
+    if not isinstance(name, str) or not name or not re.fullmatch(r'[A-Za-z0-9_.\-/]+', name):
+        raise ValueError('unsafe filename')
+    value = PurePosixPath(name)
+    if value.is_absolute() or '..' in value.parts or str(value) != name or name == '.':
+        raise ValueError('unsafe filename: ' + name)
+    return name
+
+
+def release_id(value):
+    if not isinstance(value, str) or not re.fullmatch(r'[a-z0-9][a-z0-9._-]{2,79}', value):
+        raise ValueError('invalid release id')
+    if value == BASE_ID:
+        raise ValueError('cannot overwrite the v55 donor')
+    return value
+
+
+def read_regular(root, name):
+    name = safe_name(name)
+    target = root / name
+    cursor = root
+    for part in PurePosixPath(name).parts:
+        if cursor.is_symlink():
+            raise ValueError('symlink in package path: ' + name)
+        cursor = cursor / part
+    if target.is_symlink() or not target.is_file():
+        raise ValueError('missing regular file: ' + name)
+    return target.read_bytes()
+
+
+def checked_file(root, item, field='path'):
+    data = read_regular(root, item[field])
+    if type(item.get('bytes')) is not int or len(data) != item['bytes'] or digest(data) != item.get('sha256'):
+        raise ValueError('file identity mismatch: ' + item[field])
+    return data
+
+
+def validate_memory(report):
+    """Fail closed on the original contract, including actual process samples."""
+    identity_fields = ['candidate', 'candidateTagObject', 'sourceCommit', 'artifactTreeSha256', 'draftManifestSha256']
+    environment = report.get('environment', {})
+    if (report.get('schemaVersion') != 3 or report.get('kind') != 'r5-process-memory-qualification'
+            or report.get('requiredRunCount') != 2 or report.get('completedRunCount') != 2 or report.get('pass') is not True
+            or environment.get('platform') != 'darwin' or environment.get('browserChannel') != 'chrome'
+            or environment.get('runnerClass') not in ['github-hosted-macos-14', 'local-macos-hardware']
+            or type(environment.get('headless')) is not bool
+            or not all(isinstance(environment.get(key), str) and environment[key] for key in ['arch', 'osRelease'])
+            or not all(isinstance(report.get('identity', {}).get(key), str) and report['identity'][key] for key in identity_fields)):
+        raise ValueError('invalid frozen memory qualification environment or identity')
+    runs = report.get('runs', [])
+    if len(runs) != 2 or len({run.get('runId') for run in runs}) != 2:
+        raise ValueError('memory qualification requires two distinct runs')
+    for run in runs:
+        samples = run.get('processSamples', [])
+        if (run.get('schemaVersion') != 3 or run.get('kind') != 'r5-process-memory-run' or run.get('pass') is not True
+                or not isinstance(run.get('runId'), str) or not run['runId']
+                or run.get('environment') != environment or run.get('sampling', {}).get('valid') is not True
+                or not all(run.get('identity', {}).get(key) == report['identity'][key] for key in identity_fields)
+                or not samples or run.get('sampling', {}).get('sampleCount') != len(samples)):
+            raise ValueError('invalid frozen memory qualification run')
+        for sample in samples:
+            if not (type(sample.get('browserPid')) is int and sample['browserPid'] > 0
+                    and isinstance(sample.get('browserRootRssBytes'), (int, float)) and sample['browserRootRssBytes'] > 0
+                    and isinstance(sample.get('totalRssBytes'), (int, float)) and sample['totalRssBytes'] >= sample['browserRootRssBytes']
+                    and type(sample.get('processCount')) is int and sample['processCount'] > 0):
+                raise ValueError('memory qualification lacks actual browser process samples')
+        for prefix in ['gpu', 'renderer']:
+            if not any(type(sample.get(prefix + 'ProcessCount')) is int and sample[prefix + 'ProcessCount'] > 0
+                       and isinstance(sample.get(prefix + 'RssBytes'), (int, float)) and sample[prefix + 'RssBytes'] > 0 for sample in samples):
+                raise ValueError('memory qualification lacks ' + prefix + ' samples')
+
+
+def validate_package(package):
+    """Validate every packaged byte before SSH/upload and again on the server."""
+    deploy = json.loads(read_regular(package, 'release-deploy-manifest.json'))
+    if deploy.get('schemaVersion') != 1 or deploy.get('basePath') != '/experience/' or deploy.get('siteDirectory') != 'site':
+        raise ValueError('requires a native /experience/ release package')
+    rid = release_id(deploy.get('releaseId'))
+    site = package / 'site'
+    manifest_bytes = read_regular(site, 'r5-release-manifest.json')
+    cdn_bytes = read_regular(site, 'cdn-publish-manifest.json')
+    manifest, cdn = json.loads(manifest_bytes), json.loads(cdn_bytes)
+    if digest(manifest_bytes) != deploy.get('releaseManifestSha256') or digest(cdn_bytes) != deploy.get('cdnManifestSha256'):
+        raise ValueError('package manifest hash mismatch')
+    if manifest.get('schemaVersion') != 3 or manifest.get('basePath') != '/experience/' or manifest.get('sourceDirty') is not False:
+        raise ValueError('release must have a clean, frozen native identity')
+    for field in ['sourceCommit', 'candidateTagObject']:
+        if not re.fullmatch(r'[0-9a-f]{40}', str(manifest.get(field, ''))) or manifest[field] != deploy.get(field):
+            raise ValueError('release identity mismatch: ' + field)
+    candidate = manifest.get('candidate')
+    if not isinstance(candidate, str) or not re.fullmatch(r'react-refactor-r5-(?:parity-repair-)?candidate(?:-v[1-9][0-9]*)?', candidate) or candidate != deploy.get('candidate'):
+        raise ValueError('release candidate identity mismatch')
+    qualification = manifest.get('qualification', {})
+    evidence = qualification.get('memoryEvidence') or {}
+    if qualification.get('status') != 'qualified' or evidence.get('pass') is not True or evidence.get('runCount') != 2 or evidence.get('path') != 'r5-process-memory.json':
+        raise ValueError('release is not qualified by two frozen memory runs')
+    memory_bytes = read_regular(site, 'r5-process-memory.json')
+    memory = json.loads(memory_bytes)
+    validate_memory(memory)
+    if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not True or memory.get('completedRunCount') != 2 or memory.get('identity') != evidence.get('identity'):
+        raise ValueError('memory evidence identity mismatch')
+    for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:
+        if memory.get('identity', {}).get(field) != manifest.get(field):
+            raise ValueError('memory evidence belongs to another artifact: ' + field)
+    if cdn.get('schemaVersion') != 1 or cdn.get('enabled') is not True or cdn.get('releaseId') != rid or cdn.get('sourceCommit') != manifest['sourceCommit']:
+        raise ValueError('CDN release identity mismatch')
+    cdn_files = deploy.get('cdnFiles', [])
+    if [dict((key, value) for key, value in item.items() if key != 'packagePath') for item in cdn_files] != cdn.get('files'):
+        raise ValueError('CDN package inventory mismatch')
+    by_source = {}
+    for item in cdn_files:
+        name = safe_name(item['sourcePath'])
+        channel = item.get('channel')
+        if channel not in ['assets', 'media'] or name in by_source or not name.startswith('assets/') or item.get('objectKey') != f'releases/{rid}/{name}':
+            raise ValueError('invalid CDN object')
+        if item.get('packagePath') != f'cdn/{channel}/{name}':
+            raise ValueError('invalid CDN package path')
+        checked_file(package, item, 'packagePath')
+        by_source[name] = item
+    if deploy.get('cdnFileCount') != len(cdn_files) or deploy.get('cdnTotalBytes') != sum(item['bytes'] for item in cdn_files):
+        raise ValueError('CDN totals mismatch')
+    entries = manifest.get('files', [])
+    names = set()
+    site_names = {'r5-release-manifest.json', 'r5-process-memory.json', 'release-id.txt'}
+    for item in entries:
+        name = safe_name(item['path'])
+        if name in names or name in {'r5-release-manifest.json', 'r5-process-memory.json', 'release-id.txt'}:
+            raise ValueError('duplicate or reserved artifact path')
+        names.add(name)
+        if name in by_source:
+            cdn_item = by_source[name]
+            if (item['bytes'], item['sha256']) != (cdn_item['bytes'], cdn_item['sha256']):
+                raise ValueError('CDN bytes differ from frozen artifact')
+        else:
+            checked_file(site, item)
+            site_names.add(name)
+    if not set(by_source).issubset(names) or not {'index.html', 'cdn-publish-manifest.json'}.issubset(names):
+        raise ValueError('incomplete artifact inventory')
+    tree_sha = digest(json.dumps(entries, separators=(',', ':'), ensure_ascii=False).encode())
+    if tree_sha != manifest.get('artifactTreeSha256') or manifest.get('fileCount') != len(entries) or manifest.get('totalBytes') != sum(item['bytes'] for item in entries):
+        raise ValueError('frozen artifact tree mismatch')
+    actual = set()
+    for target in site.rglob('*'):
+        if target.is_symlink():
+            raise ValueError('symlink in site payload')
+        if target.is_file():
+            actual.add(target.relative_to(site).as_posix())
+    if actual != site_names or read_regular(site, 'release-id.txt') != (rid + '\n').encode():
+        raise ValueError('site payload inventory mismatch')
+    return deploy, manifest, site_names
+
+
+def atomic_write(filename, data, owner=None):
+    handle, temporary = tempfile.mkstemp(prefix='.' + filename.name + '-', dir=filename.parent)
+    try:
+        with os.fdopen(handle, 'wb') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, stat.S_IMODE(owner.st_mode) if owner else 0o644)
+        if owner:
+            os.chown(temporary, owner.st_uid, owner.st_gid)
+        os.replace(temporary, filename)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def command(args):
+    subprocess.run(args, check=True, timeout=45)
+
+
+@contextlib.contextmanager
+def locked():
+    directory = SITE / 'route-backups'
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / '.experience-publish.lock').open('a') as stream:
+        fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield
+
+
+def predecessor(expected_vhost_sha, expected_include_sha):
+    original, vhost = INCLUDE.read_bytes(), VHOST.read_bytes()
+    if digest(vhost) != expected_vhost_sha or digest(original) != expected_include_sha or expected_include_sha != PREDECESSOR_SHA:
+        raise ValueError('active configuration changed or is not the inspected v55 mount')
+    if vhost.decode().count(f'include {INCLUDE};') != 1 or (SITE / 'current').resolve() != SITE / 'releases' / BASE_ID:
+        raise ValueError('root site changed')
+    base, mount = SITE / 'releases' / BASE_ID, SITE / 'mounts' / MOUNT_ID
+    donor_bytes = (base / 'r5-release-manifest.json').read_bytes()
+    overlay_bytes = (mount / 'mount-manifest.json').read_bytes()
+    if digest(donor_bytes) != BASE_SHA or digest(overlay_bytes) != MOUNT_SHA:
+        raise ValueError('v55 predecessor identity mismatch')
+    donor, overlay = json.loads(donor_bytes), json.loads(overlay_bytes)
+    overrides = {item['path']: item for item in overlay['assetOverrides']}
+    for item in overlay['files']:
+        checked_file(mount, item)
+    assets = {}
+    for item in donor['files']:
+        name = safe_name(item['path'])
+        if name.startswith('assets/') and name.endswith(('.js', '.css')):
+            checked_file(base, item)
+            override = overrides.get(name)
+            if override and override['baseSha256'] != item['sha256']:
+                raise ValueError('legacy override donor mismatch')
+            assets[name] = {**(override or item), 'filename': (mount if override else base) / name, 'override': bool(override)}
+    if not set(overrides).issubset(assets):
+        raise ValueError('unresolved legacy override')
+    return original, vhost, assets
+
+
+def content_type(name):
+    return {'.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json',
+            '.webmanifest': 'application/manifest+json', '.html': 'text/html'}.get(Path(name).suffix) or mimetypes.guess_type(name)[0] or 'application/octet-stream'
+
+
+def headers(rid, cache='no-cache', mime=None):
+    prefix = f'        default_type {mime};\n' if mime else ''
+    return prefix + f'''        add_header Cache-Control "{cache}" always;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header X-Tongye-Experience-Release "{rid}" always;
+'''
+
+
+def exact_file(url, filename, rid, cache='no-cache', noindex=False):
+    source = (f'        root {filename.parent};\n        try_files /{filename.name} =404;\n'
+              if url.endswith('/') else f'        alias {filename};\n')
+    extra = '        add_header X-Robots-Tag "noindex, nofollow" always;\n' if noindex else ''
+    return f'    location = {url} {{\n{source}{headers(rid, cache, content_type(filename.name))}{extra}    }}\n'
+
+
+def render_include(deploy, manifest, original, legacy, site=None):
+    site = SITE if site is None else site
+    rid = deploy['releaseId']
+    root = site / 'releases' / rid
+    marker = '    location = /experience {'
+    text = original.decode()
+    if text.count(marker) != 1:
+        raise ValueError('unexpected predecessor root routes')
+    text = text.split(marker)[0] + '# Native experience; root redirect and preview rules above are unchanged.\n'
+    for url, target in [('/experience', '/experience/'), ('/experience/index.html', '/experience/'), ('/experience/brand-lab/', '/experience/brand-lab')]:
+        text += f'    location = {url} {{\n{headers(rid, "no-store")}        return 301 {target}$is_args$args;\n    }}\n'
+    text += exact_file('/experience/', root / 'index.html', rid)
+    text += exact_file('/experience/brand-lab', root / 'index.html', rid, noindex=True)
+    new_assets = {item['path']: item for item in manifest['files'] if item['path'].startswith('assets/')}
+    for name, item in sorted(legacy.items()):
+        if name in new_assets and new_assets[name]['sha256'] != item['sha256']:
+            raise ValueError('legacy asset URL collision: ' + name)
+        filename = site / item['filename'].relative_to(SITE)
+        text += exact_file('/experience/' + name, filename, rid, 'no-cache' if item['override'] else 'public, max-age=31536000, immutable')
+    public_files = {'r5-release-manifest.json', 'release-id.txt', 'manifest.webmanifest', 'manifest.json', 'site.webmanifest',
+                    'favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'og-image.webp'}
+    for name in sorted(public_files):
+        if name in {'r5-release-manifest.json', 'release-id.txt'} or any(item['path'] == name for item in manifest['files']):
+            text += exact_file('/experience/' + name, root / name, rid)
+    text += f'''    location ^~ /experience/assets/ {{
+        alias {root}/assets/;
+{headers(rid, 'public, max-age=31536000, immutable')}    }}
+    location ^~ /experience/ {{
+{headers(rid, 'no-store')}        return 404;
+    }}
+'''
+    return text.encode()
+
+
+def state_directory(rid):
+    return SITE / 'route-backups' / ('native-' + release_id(rid))
+
+
+def assert_active(record, include_sha):
+    if digest(VHOST.read_bytes()) != record['vhostSha256'] or digest(INCLUDE.read_bytes()) != include_sha or str((SITE / 'current').resolve()) != record['rootCurrent']:
+        raise ValueError('another production change; refusing to overwrite')
+
+
+def apply(package, expected_vhost_sha, expected_include_sha, probe_receipt, transaction_token):
+    if not re.fullmatch(r'[0-9a-f]{32}', transaction_token or ''):
+        raise ValueError('apply requires a unique transaction token')
+    deploy, manifest, site_names = validate_package(package)
+    rid = deploy['releaseId']
+    with locked():
+        original, vhost, legacy = predecessor(expected_vhost_sha, expected_include_sha)
+        candidate = render_include(deploy, manifest, original, legacy)
+        probe_bytes = probe_receipt.read_bytes()
+        report = json.loads(probe_bytes)
+        for field, expected in {'releaseId': rid, 'scope': 'isolated-real-nginx', 'status': 'passed',
+                                'releaseManifestSha256': deploy['releaseManifestSha256'],
+                                'vhostSha256': expected_vhost_sha, 'beforeIncludeSha256': expected_include_sha,
+                                'afterIncludeSha256': digest(candidate)}.items():
+            if report.get(field) != expected:
+                raise ValueError('isolated nginx probe identity mismatch: ' + field)
+        if not report.get('checks') or not report.get('completedAt'):
+            raise ValueError('isolated nginx probe is incomplete')
+        target, backup = SITE / 'releases' / rid, state_directory(rid)
+        if target.exists() or target.is_symlink() or backup.exists():
+            raise ValueError('immutable release or transaction already exists')
+        backup.mkdir(mode=0o700)
+        owner = INCLUDE.stat()
+        atomic_write(backup / 'include.before.conf', original)
+        atomic_write(backup / 'include.after.conf', candidate)
+        atomic_write(backup / 'nginx-probe.json', probe_bytes)
+        record = {'releaseId': rid, 'transactionToken': transaction_token, 'sourceCommit': deploy['sourceCommit'], 'basePath': '/experience/',
+                  'vhostSha256': digest(vhost), 'beforeIncludeSha256': digest(original), 'afterIncludeSha256': digest(candidate),
+                  'rootCurrent': str((SITE / 'current').resolve()), 'releaseManifestSha256': deploy['releaseManifestSha256'],
+                  'state': 'prepared'}
+        atomic_write(backup / 'transaction.json', encoded(record))
+        target.mkdir(mode=0o755)
+        target.chmod(0o755)
+        for name in sorted(site_names):
+            destination = target / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            parent = destination.parent
+            while parent != target:
+                parent.chmod(0o755)
+                parent = parent.parent
+            atomic_write(destination, read_regular(package / 'site', name))
+        # Catch a changing staging tree before it can affect the active include.
+        for name in site_names:
+            if (target / name).read_bytes() != read_regular(package / 'site', name):
+                raise ValueError('staged site changed during copying')
+        # Revalidate copied bytes against frozen hashes, not only against source.
+        cdn_sources = {item['sourcePath'] for item in deploy['cdnFiles']}
+        for item in manifest['files']:
+            if item['path'] not in cdn_sources:
+                checked_file(target, item)
+        if digest((target / 'r5-release-manifest.json').read_bytes()) != deploy['releaseManifestSha256']:
+            raise ValueError('copied manifest changed')
+        if digest((target / 'r5-process-memory.json').read_bytes()) != manifest['qualification']['memoryEvidence']['sha256'] or (target / 'release-id.txt').read_bytes() != (rid + '\n').encode():
+            raise ValueError('copied qualification or release id changed')
+        shutil.copyfile(__file__, backup / 'publish-experience-release.py')
+        assert_active(record, record['beforeIncludeSha256'])
+        record['state'] = 'switching'
+        atomic_write(backup / 'transaction.json', encoded(record))
+        try:
+            atomic_write(INCLUDE, candidate, owner)
+            command(['nginx', '-t'])
+            command(['systemctl', 'reload', 'nginx'])
+        except BaseException:
+            assert_active(record, record['afterIncludeSha256'])
+            atomic_write(INCLUDE, original, owner)
+            command(['nginx', '-t'])
+            command(['systemctl', 'reload', 'nginx'])
+            record['state'] = 'rolled-back-after-error'
+            atomic_write(backup / 'transaction.json', encoded(record))
+            raise
+        record['state'] = 'applied-awaiting-public-smoke'
+        atomic_write(backup / 'transaction.json', encoded(record))
+        return record
+
+
+def rollback(rid, transaction_token=None):
+    with locked():
+        backup = state_directory(rid)
+        record = json.loads((backup / 'transaction.json').read_bytes())
+        if transaction_token is not None and transaction_token != record.get('transactionToken'):
+            raise ValueError('rollback belongs to another invocation; refusing to overwrite')
+        if record['state'] in ['rolled-back', 'rolled-back-after-error', 'aborted-before-switch']:
+            assert_active(record, record['beforeIncludeSha256'])
+            return record
+        if record['state'] == 'prepared':
+            assert_active(record, record['beforeIncludeSha256'])
+            record['state'] = 'aborted-before-switch'
+            atomic_write(backup / 'transaction.json', encoded(record))
+            return record
+        if record['state'] not in ['switching', 'applied-awaiting-public-smoke', 'applied-http-verified']:
+            raise ValueError('transaction is not active')
+        active_sha = digest(INCLUDE.read_bytes())
+        allowed = [record['afterIncludeSha256']]
+        if record['state'] == 'switching':
+            allowed.append(record['beforeIncludeSha256'])
+        if active_sha not in allowed:
+            raise ValueError('another production change; refusing to overwrite')
+        assert_active(record, active_sha)
+        original = (backup / 'include.before.conf').read_bytes()
+        if digest(original) != record['beforeIncludeSha256']:
+            raise ValueError('rollback backup changed')
+        atomic_write(INCLUDE, original, INCLUDE.stat())
+        try:
+            command(['nginx', '-t'])
+            command(['systemctl', 'reload', 'nginx'])
+        except BaseException:
+            assert_active(record, record['beforeIncludeSha256'])
+            candidate = (backup / 'include.after.conf').read_bytes()
+            if digest(candidate) != record['afterIncludeSha256']:
+                raise ValueError('rollback rescue backup changed')
+            atomic_write(INCLUDE, candidate, INCLUDE.stat())
+            command(['nginx', '-t'])
+            command(['systemctl', 'reload', 'nginx'])
+            raise
+        record['state'] = 'rolled-back'
+        atomic_write(backup / 'transaction.json', encoded(record))
+        return record
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+        return None
+
+
+def http_checks(origin, deploy, manifest, legacy):
+    checks = []
+    opener = urllib.request.build_opener(NoRedirect)
+
+    def check(url, status=200, sha=None, mime=None, location=None, cache=None, noindex=False):
+        request = urllib.request.Request(origin + url, headers={'Cache-Control': 'no-cache', 'Accept-Encoding': 'identity'})
+        try:
+            response = opener.open(request, timeout=20)
+        except urllib.error.HTTPError as error:
+            response = error
+        with response:
+            body = response.read()
+            if response.status != status or (sha and digest(body) != sha) or (mime and mime not in response.headers.get('Content-Type', '')):
+                raise ValueError(f'HTTP check failed: {url} ({response.status})')
+            if location and not response.headers.get('Location', '').endswith(location):
+                raise ValueError('HTTP redirect mismatch: ' + url)
+            if cache and response.headers.get('Cache-Control') != cache:
+                raise ValueError('HTTP cache mismatch: ' + url)
+            if noindex and response.headers.get('X-Robots-Tag') != 'noindex, nofollow':
+                raise ValueError('HTTP robots mismatch: ' + url)
+            if status == 200 and url.startswith('/experience/') and response.headers.get('X-Tongye-Experience-Release') != deploy['releaseId']:
+                raise ValueError('HTTP release header mismatch: ' + url)
+            checks.append({'path': url, 'status': status, 'sha256': digest(body) if sha else None})
+
+    check('/?from=release-check', 302, location='/experience/?from=release-check')
+    check('/index.html?from=release-check', 302, location='/experience/?from=release-check')
+    for url, target in [('/experience', '/experience/'), ('/experience/index.html', '/experience/'), ('/experience/brand-lab/', '/experience/brand-lab')]:
+        check(url + '?from=release-check', 301, location=target + '?from=release-check')
+    entry = next(item for item in manifest['files'] if item['path'] == 'index.html')
+    check('/experience/', sha=entry['sha256'], mime='text/html', cache='no-cache')
+    check('/experience/brand-lab', sha=entry['sha256'], mime='text/html', cache='no-cache', noindex=True)
+    check('/experience/r5-release-manifest.json', sha=deploy['releaseManifestSha256'], mime='application/json', cache='no-cache')
+    check('/experience/release-id.txt', sha=digest((deploy['releaseId'] + '\n').encode()), mime='text/plain')
+    for item in manifest['files']:
+        if item['path'].startswith('assets/') and item['path'].endswith(('.js', '.css')):
+            old = legacy.get(item['path'])
+            cache = 'no-cache' if old and old.get('override') else 'public, max-age=31536000, immutable'
+            check('/experience/' + item['path'], sha=item['sha256'], mime=content_type(item['path']), cache=cache)
+    for name, item in sorted(legacy.items()):
+        check('/experience/' + name, sha=item['sha256'], mime=content_type(name),
+              cache='no-cache' if item.get('override') else 'public, max-age=31536000, immutable')
+    for item in manifest['files']:
+        if item['path'] in ['manifest.webmanifest', 'manifest.json', 'site.webmanifest', 'favicon.ico', 'favicon.svg',
+                            'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'og-image.webp']:
+            check('/experience/' + item['path'], sha=item['sha256'], mime=content_type(item['path']), cache='no-cache')
+    check('/r5-release-manifest.json', sha=BASE_SHA, mime='application/json')
+    for route in ['/services/', '/faq/']:
+        check(route, mime='text/html')
+    for route in ['/experience/not-found', '/experience/assets/not-found.js', '/experience/mount-manifest.json']:
+        check(route, 404)
+    return {'releaseId': deploy['releaseId'], 'origin': origin, 'status': 'passed', 'checks': checks,
+            'completedAt': datetime.now(timezone.utc).isoformat()}
+
+
+def probe(package, expected_vhost_sha, expected_include_sha):
+    deploy, manifest, _ = validate_package(package)
+    original, _, legacy = predecessor(expected_vhost_sha, expected_include_sha)
+    with tempfile.TemporaryDirectory(prefix='tongye-native-nginx-probe-') as directory:
+        root = Path(directory)
+        os.chmod(root, 0o755)
+        (root / 'logs').mkdir()
+        site = root / 'site'
+        (site / 'releases').mkdir(parents=True)
+        (site / 'mounts').mkdir()
+        (site / 'releases' / BASE_ID).symlink_to(SITE / 'releases' / BASE_ID)
+        (site / 'releases' / deploy['releaseId']).symlink_to(package / 'site')
+        (site / 'mounts' / MOUNT_ID).symlink_to(SITE / 'mounts' / MOUNT_ID)
+        with socket.socket() as reserved:
+            reserved.bind(('127.0.0.1', 0))
+            port = reserved.getsockname()[1]
+        config = root / 'nginx.conf'
+        routes = render_include(deploy, manifest, original, legacy, site).decode()
+        atomic_write(config, f'''pid {root}/nginx.pid;
+error_log {root}/error.log notice;
+events {{ worker_connections 64; }}
+http {{
+    lua_package_path "/www/server/nginx/lib/lua/?.lua;;";
+    include /www/server/nginx/conf/mime.types;
+    access_log off;
+    server {{
+        listen 127.0.0.1:{port};
+        server_name localhost;
+        set $tongye_preview_robots "";
+        root {site}/releases/{BASE_ID};
+{routes}
+        location / {{ try_files $uri $uri/ =404; }}
+    }}
+}}
+'''.encode())
+        args = ['nginx', '-p', str(root) + '/', '-c', str(config)]
+        command(args + ['-t'])
+        process = subprocess.Popen(args + ['-g', 'daemon off; master_process off;'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            deadline = time.monotonic() + 5
+            while True:
+                if process.poll() is not None:
+                    raise RuntimeError(process.communicate()[1].decode())
+                try:
+                    with socket.create_connection(('127.0.0.1', port), timeout=0.2):
+                        break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.05)
+            report = http_checks(f'http://127.0.0.1:{port}', deploy, manifest, legacy)
+            report.update(scope='isolated-real-nginx', releaseManifestSha256=deploy['releaseManifestSha256'], vhostSha256=expected_vhost_sha,
+                          beforeIncludeSha256=expected_include_sha,
+                          afterIncludeSha256=digest(render_include(deploy, manifest, original, legacy)))
+            return report
+        finally:
+            process.terminate()
+            try:
+                process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate(timeout=5)
+
+
+def verify(package):
+    deploy, manifest, _ = validate_package(package)
+    backup = state_directory(deploy['releaseId'])
+    with locked():
+        record = json.loads((backup / 'transaction.json').read_bytes())
+        if record['state'] != 'applied-awaiting-public-smoke' or record['releaseManifestSha256'] != deploy['releaseManifestSha256']:
+            raise ValueError('not the pending published artifact')
+        assert_active(record, record['afterIncludeSha256'])
+        # Recover the exact predecessor inventory without accepting a newer include.
+        with (backup / 'include.before.conf').open('rb') as stream:
+            before = stream.read()
+        if digest(before) != PREDECESSOR_SHA:
+            raise ValueError('predecessor backup changed')
+        donor = json.loads((SITE / 'releases' / BASE_ID / 'r5-release-manifest.json').read_bytes())
+        overlay = json.loads((SITE / 'mounts' / MOUNT_ID / 'mount-manifest.json').read_bytes())
+        overrides = {item['path']: item for item in overlay['assetOverrides']}
+        legacy = {item['path']: {**overrides.get(item['path'], item), 'override': item['path'] in overrides} for item in donor['files']
+                  if item['path'].startswith('assets/') and item['path'].endswith(('.js', '.css'))}
+        report = http_checks(PUBLIC_ORIGIN, deploy, manifest, legacy)
+        assert_active(record, record['afterIncludeSha256'])
+        atomic_write(backup / 'http-smoke.json', encoded(report))
+        record.update(state='applied-http-verified', httpSmokeSha256=digest(encoded(report)), verifiedAt=report['completedAt'])
+        atomic_write(backup / 'transaction.json', encoded(record))
+        return record
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('action', choices=['validate', 'probe', 'apply', 'rollback', 'verify'])
+    parser.add_argument('--package', type=Path)
+    parser.add_argument('--release-id')
+    parser.add_argument('--expected-vhost-sha')
+    parser.add_argument('--expected-include-sha')
+    parser.add_argument('--probe-receipt', type=Path)
+    parser.add_argument('--transaction-token')
+    args = parser.parse_args()
+    if args.action == 'rollback':
+        result = rollback(args.release_id, args.transaction_token)
+    else:
+        if args.package is None:
+            parser.error('requires --package')
+        package = args.package.absolute()
+        if args.action == 'validate':
+            deploy, manifest, _ = validate_package(package)
+            result = {'releaseId': deploy['releaseId'], 'sourceCommit': manifest['sourceCommit'], 'status': 'validated'}
+        elif args.action == 'verify':
+            result = verify(package)
+        else:
+            if not all(re.fullmatch(r'[0-9a-f]{64}', value or '') for value in [args.expected_vhost_sha, args.expected_include_sha]):
+                parser.error('requires both inspected configuration SHA-256 values')
+            if args.probe_receipt is None:
+                parser.error('probe/apply requires --probe-receipt')
+            if args.action == 'probe':
+                result = probe(package, args.expected_vhost_sha, args.expected_include_sha)
+                with args.probe_receipt.open('xb') as stream:
+                    stream.write(encoded(result))
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            else:
+                result = apply(package, args.expected_vhost_sha, args.expected_include_sha, args.probe_receipt, args.transaction_token)
+    print(json.dumps(result))

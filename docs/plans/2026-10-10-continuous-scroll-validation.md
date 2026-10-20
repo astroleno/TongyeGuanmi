@@ -2,6 +2,19 @@
 
 更新：2026-10-20。对应已批准的 `2026-10-10-001-refactor-continuous-scroll-story-plan.md`。下文旧日期的通过数量和产物身份仅代表对应历史版本。
 
+## 2026-10-20 后续：独立发布器实现与专用组 7 复测（仍未上线）
+
+用户要求继续推进公开发布，不启用 Actions、不放宽门禁；另行批准重建本项目专用 Ego 验收组，实际组为 **7**，仅使用其 p1／p2，未操作其他组、profile 或全局电源设置。证据目录 `/tmp/tongye-native-publish-20261020-P55wTR`。本轮浏览器仍针对前述 Hero 修复普通产物 `afbb09b9…`／清单 `63ea4a8a…`，不是新冻结候选；发布工具变更不改变这份运行时产物身份。
+
+- 新增独立原生 `/experience/` 发布器，27 项离线事务及 6 项传输前保护测试通过；旧发布／迁移 Node 10 项、Python 19 项回归通过。服务器真实 loopback Nginx 合成 fixture 的 19 项 HTTP 检查通过，未触碰活动配置；该 fixture 不代替实际应用候选的强制 probe。具体接口、前态保护和回退见迁移 runbook。客户端及服务器都拒绝 pending／dirty／错误身份或不完整的两轮内存报告；旧 v55 资源和根站点不覆盖。没有调用正式 apply／verify、创建发布标签或上传 CDN 对象。
+- 再次运行原架构 fixture：**73/83 通过、10 项原 5000ms 超时**，文件耗时 224,556ms，退出 1；未改断言、原时限或 CI。其后只运行其中 alias／namespace／assignment 用例为 1 通过／82 未选，实测 3258ms；这不撤销原整轮失败，也不计全量通过。
+- 首轮手机诊断因预览未带编译前缀，在读取清单时直接拒绝，页面没有被操作（`phone-performance.json`）。在正确 `/experience/` 预览重新开始完整一轮（`phone-performance-02.json`）：空白页 P95 **17.6ms**，八段均有完整采样但 **0/8 性能通过**；RAF P95 34.3～50ms，TTG 姿态滞后约 152.9ms，Crane 1 次 >50ms 长任务。没有扩大 20／100／150ms 原门槛。
+- 新 Page／不同 isolate 的全遍历（`memory-hero-fixed.json`）在第 10 个 hold／27 个中间姿态之后，于 `services-ttg:0.25` 记录 `MEDIA_PREPARATION_STALLED`、readyState=1／seeking=true；整轮不完整，未到 Contact，不能宣称视频持有上限已通过。共享浏览器整树峰值约 **4.12GB**，包含其他页面，仍不能拿本站 JS 堆峰值约 122.5MB 来替代整树门槛。
+- 同页后续只读诊断见素材已完成加载、场景恢复 ready（`stall-diagnostics.json`／`stall.png`），不是原失败被撤销。实际点击“联系 → 同野观幂首页”，分别原 5 秒空闲／GC 后读资源（`contact-hero-resources.json`）：Contact 1 个已断开 Hero 句柄（readyState=0，但 currentSrc 仍保留旧 URL）；Hero 重挂正常，画面截图已实看。该目标检查不能替代经过 Crane 的全遍历资源计数。
+- 对手机 Pattern→StarMap 做独立 CPU 剖析（`pattern-cpu-profile.json`）：样本以 idle 为主，没有据此认定全部慢帧由 CPU、GPU、低电量模式或环境中的任何单一因素造成；带剖析的测量不计正式性能资格。没有保留任何新的视觉降质试验。
+
+原生发布事务代码的通过不等于应用性能、完整内存／双引擎／真机验收完成；公开站点仍是固定 v55。Actions 仍不启用。
+
 ## 2026-10-20 追加：ego-lite 复测与 Hero 视频释放（完整验证受阻，未发布）
 
 用户选择使用现有 ego-lite，不恢复 Chrome／WebKit，并批准新建本项目专用验收标签组。最初持续使用同一组 12，失效后的另行批准与组 6 记录见下文；没有读取其他标签页、选择 profile、安装浏览器、关闭其他任务或删除新目录。用户曾批准本轮临时关闭接电低电量模式并恢复；本机无密码自动提权检查返回需要密码，未执行更改；设置界面自动化也超时，未获得可操作的界面。用户随后选择“暂不调整，先完成其他验证”，因此保持接电 1／电池 0，不继续切换、不索取密码，也不将性能失败全部归因于低电量模式。
