@@ -2,8 +2,7 @@
 // its pending qualification or its failing evidence; never removes a package.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { constants } from 'node:fs';
-import { copyFile, mkdir, readFile, lstat, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, lstat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,7 +11,7 @@ const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const receiptBytes = await readFile(new URL('./authorizations/v59-direct-publication-20261020.json', import.meta.url));
 const receipt = JSON.parse(receiptBytes), authorizationSha = sha(receiptBytes);
 if (authorizationSha !== '0721104d84e66c813e5b1a2db98796b05bdc8b776be777b2b44b3ff202c534a8') throw new Error('Exact v59 publication receipt required');
-const dist = path.join(repo, 'dist'), target = path.join(repo, '.release', receipt.releaseId);
+const dist = path.join(repo, 'dist'), target = path.join(repo, '.release', receipt.releaseId + '-direct');
 const manifestBytes = await readFile(path.join(dist, 'r5-release-manifest.json')), manifest = JSON.parse(manifestBytes);
 if (sha(manifestBytes) !== receipt.identity.draftManifestSha256 || manifest.sourceDirty !== false
   || manifest.qualification.status !== 'pending-memory') throw new Error('Only the unchanged frozen v59 build can be packaged');
@@ -44,7 +43,10 @@ await mkdir(target);
 const copy = async (source, relative) => {
   const destination = path.join(target, relative);
   await mkdir(path.dirname(destination), { recursive: true });
-  await copyFile(source, destination, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE);
+  // No duplicate media allocation on the full local volume. The immutable
+  // inventory is rechecked against the independent remote copy before upload
+  // and switching; this process never writes the linked input files.
+  await link(source, destination);
 };
 const cdnSources = new Set(cdn.files.map(item => item.sourcePath));
 for (const item of manifest.files) if (!cdnSources.has(item.path)) await copy(path.join(dist, item.path), 'site/' + item.path);
