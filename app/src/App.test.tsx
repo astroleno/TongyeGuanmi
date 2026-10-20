@@ -118,6 +118,18 @@ describe('formal route cutover', () => {
     expect(appRouteForPath('/v47', true)).toBe('not-found');
   });
 
+  it('recognizes only its compiled mount without claiming a future homepage', () => {
+    const base = '/experience/';
+    expect(appRouteForPath(base, false, base)).toBe('formal');
+    expect(appRouteForPath(`${base}index.html`, false, base)).toBe('formal');
+    expect(appRouteForPath(`${base}brand-lab`, false, base)).toBe('brand-lab');
+    expect(appRouteForPath(`${base}missing`, false, base)).toBe('not-found');
+    expect(appRouteForPath('/', false, base)).toBe('not-found');
+    expect(appRouteForPath('/brand-lab', false, base)).toBe('not-found');
+    expect(appRouteForPath('/experience-other/', false, base)).toBe('not-found');
+    expect(appRouteForPath(`${base}harness/hero`, false, base)).toBe('not-found');
+  });
+
   it('disposes the formal authority before the QA route claims the same React root', async () => {
     const host = document.createElement('div');
     document.body.append(host);

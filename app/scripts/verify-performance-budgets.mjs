@@ -2,6 +2,7 @@ import { gzipSync } from 'node:zlib';
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { localReleaseAssetPath } from './release-paths.mjs';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const DEFAULT_APP_ROOT = path.dirname(path.dirname(SCRIPT_PATH));
@@ -114,7 +115,7 @@ export async function verifyPerformanceBudgets({
   }
 
   const resolveDistAsset = (urlPath) => (
-    path.join(distDir, urlPath.replace(/^\//, ''))
+    path.join(distDir, localReleaseAssetPath(urlPath))
   );
   const initialJs = await readFile(resolveDistAsset(scriptMatch[1]));
   const initialCss = await readFile(resolveDistAsset(styleMatch[1]));

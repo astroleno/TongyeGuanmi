@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { arch, release as osRelease, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { releaseBasePath } from './release-paths.mjs';
 import {
   memoryIdentitiesMatch,
   R5_PROCESS_MEMORY_QUALIFICATION_KIND,
@@ -17,7 +18,7 @@ const repoDir = path.dirname(appDir);
 const profileScript = path.join(appDir, 'scripts/profile-r5-process-memory.mjs');
 const host = process.env.R5_PREVIEW_HOST ?? '127.0.0.1';
 const port = process.env.R5_PREVIEW_PORT ?? '4173';
-const baseUrl = `http://${host}:${port}`;
+const baseUrl = `http://${host}:${port}${releaseBasePath()}`;
 const detached = process.platform !== 'win32';
 const outputPath = path.join(repoDir, 'dist/r5-process-memory.json');
 const proxyServer = process.env.R5_MEMORY_PROXY_SERVER?.trim() || null;

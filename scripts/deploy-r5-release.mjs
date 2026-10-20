@@ -172,6 +172,11 @@ if (
 ) {
   throw new Error('release package manifest is invalid');
 }
+// This transaction promotes the root current symlink, not the independently
+// pinned /experience/ route. Refuse a mounted package before any SSH or upload.
+if (deployManifest.basePath !== undefined && deployManifest.basePath !== '/') {
+  throw new Error('root-only deployer cannot publish a subpath release; use its separately qualified routing transaction');
+}
 
 const sshTarget = process.env.TONGYE_SSH_TARGET?.trim() || 'codex_audit@47.103.120.24';
 const sshKey = path.resolve(

@@ -235,7 +235,7 @@ for (const platform of ['desktop', 'phone'] as const) {
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       await page.waitForFunction(() => (window as unknown as { __r5ScrollStory: { snapshot(): { desired: { rangeId: string } } } })
         .__r5ScrollStory.snapshot().desired.rangeId === 'hold:contact');
-      await page.goto('/brand-lab');
+      await page.goto(`${process.env.R5_BASE_PATH || '/'}brand-lab`);
       await expect(page.locator('[data-scroll-platform="phone"]')).toHaveAttribute('data-phone-scope', 'brand-lab');
       await page.waitForFunction(() => (window as unknown as { __r5ScrollStory?: { snapshot(): { view: { status: string } } } })
         .__r5ScrollStory?.snapshot().view.status === 'ready');

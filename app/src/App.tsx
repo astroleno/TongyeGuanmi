@@ -8,6 +8,7 @@ import {
   type ReactNode
 } from 'react';
 import { canUseDOM } from './runtime/browser-guard';
+import { STORY_BASE_PATH, storyLocalPath, storyPath } from './runtime/story-path';
 import {
   initialPresentationFamily,
   type PresentationFamily
@@ -40,7 +41,8 @@ const PhoneBrandLabStory = lazy(async () => {
 
 export type AppRoute = 'formal' | 'brand-lab' | 'harness' | 'not-found';
 
-export function appRouteForPath(pathname: string, allowHarness: boolean): AppRoute {
+export function appRouteForPath(pathname: string, allowHarness: boolean, base = STORY_BASE_PATH): AppRoute {
+  pathname = storyLocalPath(pathname, base) ?? '';
   if (pathname === '/' || pathname === '/index.html') return 'formal';
   if (pathname === '/brand-lab') return 'brand-lab';
   if (pathname.startsWith('/harness/') && allowHarness) return 'harness';
@@ -59,7 +61,7 @@ function NotFound() {
     <main className="route-not-found">
       <p>404</p>
       <h1>页面不存在</h1>
-      <a href="/">返回同野观幂</a>
+      <a href={storyPath()}>返回同野观幂</a>
     </main>
   );
 }
@@ -86,7 +88,7 @@ function PhoneBootstrapUnavailable() {
       <h1>手机故事暂时无法加载</h1>
       <p>启动恢复边界不可用，请手动重新加载。</p>
       <RecoveryActions onReload={() => window.location.reload()} />
-      <a href="/">返回首页</a>
+      <a href={storyPath()}>返回首页</a>
     </main>
   );
 }
@@ -118,7 +120,7 @@ export function PhoneRecoverySurface({
       <h1>手机故事暂时无法加载</h1>
       <p>{snapshot.message}</p>
       <RecoveryActions onReload={() => recovery.manualReload()} />
-      <a href="/">返回首页</a>
+      <a href={storyPath()}>返回首页</a>
     </main>
   );
 }
@@ -162,14 +164,14 @@ class PhoneLazyBoundary extends Component<
 export function App({ chunkRecovery }: Readonly<{
   chunkRecovery: PhoneAppChunkRecovery | null;
 }>) {
-  const path = canUseDOM() ? window.location.pathname : '/';
+  const path = canUseDOM() ? window.location.pathname : storyPath();
   const route = appRouteForPath(path, harnessEnabled);
   const [shellFamily] = useState(initialShellFamily);
   if (route === 'harness') {
     if (!HarnessRouter) return <NotFound />;
     return (
       <Suspense fallback={<main className="route-loading">Loading harness…</main>}>
-        <HarnessRouter path={path} />
+        <HarnessRouter path={storyLocalPath(path) ?? path} />
       </Suspense>
     );
   }

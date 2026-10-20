@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import type { Plugin, Rollup } from 'vite';
 import { renderSeoHead } from './build/seo-head';
-import { SEO_META } from './build/seo-meta';
+import { PUBLIC_PAGES, SEO_META } from './build/seo-meta';
 import { seoPagesPlugin } from './build/seo-plugin';
 import { renderStaticStoryShell, type StaticCopyReference } from './build/static-shell';
 
@@ -35,6 +35,10 @@ const cdnReleasePolicy = JSON.parse(
   readFileSync(new URL('./build/cdn-release-policy.json', import.meta.url), 'utf8')
 ) as CdnReleasePolicy;
 const releaseId = process.env.R5_RELEASE_ID?.trim() ?? '';
+const storyBasePath = process.env.R5_BASE_PATH?.trim() || '/';
+if (!['/', '/experience/'].includes(storyBasePath)) {
+  throw new Error('R5_BASE_PATH must be / or /experience/');
+}
 const requireCdn = process.env.R5_REQUIRE_CDN === '1';
 const assetCdnBase = (process.env.R5_ASSET_CDN_BASE?.trim() || 'https://assets.tongye.me')
   .replace(/\/+$/, '');
@@ -108,7 +112,7 @@ function staticStoryShellPlugin() {
           .replace('__SITE_LANGUAGE__', escapeAttribute(SEO_META.language))
           .replace('__SITE_DESCRIPTION__', escapeAttribute(SEO_META.description))
           .replace('__SITE_TITLE__', escapeAttribute(SEO_META.title))
-          .replace('<!--__SEO_HEAD__-->', renderSeoHead())
+          .replace('<!--__SEO_HEAD__-->', renderSeoHead(SEO_META, { ...PUBLIC_PAGES.home, path: storyBasePath }))
           .replace('<!--__R5_CDN_RUNTIME__-->', releaseId
             ? `<link rel="preconnect" href="${assetCdnBase}" crossorigin><link rel="preconnect" href="${mediaCdnBase}" crossorigin>${cdnRuntime}`
             : cdnRuntime)
@@ -196,6 +200,7 @@ function r5ModuleProvenancePlugin(): Plugin {
 }
 
 export default defineConfig({
+  base: storyBasePath,
   appType: 'mpa',
   worker: {
     format: 'es',
@@ -207,7 +212,7 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_R5_DOCUMENT_BUILD_ID': JSON.stringify(documentBuildId)
   },
-  plugins: [react(), staticStoryShellPlugin(), seoPagesPlugin(), r5ModuleProvenancePlugin()],
+  plugins: [react(), staticStoryShellPlugin(), seoPagesPlugin(storyBasePath), r5ModuleProvenancePlugin()],
   ...(releaseId
     ? {
         experimental: {

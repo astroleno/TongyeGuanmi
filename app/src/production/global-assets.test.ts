@@ -1,10 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+const indexSource = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+const indexHtml = indexSource.replaceAll('%BASE_URL%', '/');
 const styles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 describe('production global assets', () => {
+  it('scopes mount-owned icons and manifests without changing their canonical source', () => {
+    const mounted = indexSource.replaceAll('%BASE_URL%', '/experience/');
+    for (const name of ['favicon.ico', 'apple-touch-icon.png', 'manifest.webmanifest']) {
+      expect(mounted).toContain(`href="/experience/${name}"`);
+    }
+  });
   it('references canonical favicon and title font sources instead of inline placeholders', () => {
     expect(indexHtml).toContain('href="../assets/favicon.svg"');
     expect(indexHtml).toContain('href="/favicon.ico"');

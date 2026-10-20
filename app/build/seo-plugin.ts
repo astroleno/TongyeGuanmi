@@ -5,7 +5,7 @@ import type { Plugin } from 'vite';
 import { PUBLIC_PAGES, SEO_META } from './seo-meta';
 import { renderContentPage, renderLlms, renderNotFound, renderRobots, renderSitemap } from './seo-pages';
 
-export function seoPagesPlugin(): Plugin {
+export function seoPagesPlugin(basePath = '/'): Plugin {
   let development = false;
   const css = readFileSync(new URL('./content-pages.css', import.meta.url), 'utf8');
   const stylesheet = `/content/pages-${createHash('sha256').update(css).digest('hex').slice(0,12)}.css`;
@@ -14,14 +14,14 @@ export function seoPagesPlugin(): Plugin {
     short_name: SEO_META.brandName,
     description: SEO_META.description,
     lang: SEO_META.language,
-    start_url: '/',
-    scope: '/',
+    start_url: basePath,
+    scope: basePath,
     display: 'standalone',
     background_color: '#040807',
     theme_color: '#040807',
     icons: [
-      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
+      { src: `${basePath}icon-192.png`, sizes: '192x192', type: 'image/png' },
+      { src: `${basePath}icon-512.png`, sizes: '512x512', type: 'image/png' }
     ]
   }, null, 2)}\n`;
   const faviconIco = readFileSync(new URL('../../assets/favicon.ico', import.meta.url));
@@ -49,6 +49,15 @@ export function seoPagesPlugin(): Plugin {
   ]);
   const middleware = (req: IncomingMessage, res: ServerResponse, next: () => void, serveSource: boolean) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
+    // Mirror the current public migration entry during local qualification.
+    // A future standalone homepage will remove only this temporary redirect.
+    if (basePath !== '/' && ['/', '/index.html'].includes(url.pathname)) {
+      res.writeHead(302, { Location: `${basePath}${url.search}`, 'Cache-Control': 'no-store' });
+      res.end();
+      return;
+    }
+    const localPath = basePath !== '/' && url.pathname.startsWith(basePath)
+      ? `/${url.pathname.slice(basePath.length)}` : url.pathname;
     const page = [PUBLIC_PAGES.services, PUBLIC_PAGES.faq].find((item) => (
       [item.path, item.path.slice(0, -1), `${item.path}index.html`].includes(url.pathname)
     ));
@@ -57,20 +66,23 @@ export function seoPagesPlugin(): Plugin {
       res.end();
       return;
     }
-    const resource = resources.get(page ? `${page.path}index.html` : url.pathname);
-    if (resource && serveSource) {
-      res.writeHead(url.pathname === '/404.html' ? 404 : 200, {
+    const resourcePath = page ? `${page.path}index.html` : localPath;
+    const resource = resources.get(resourcePath);
+    if (resource && (serveSource || basePath !== '/')) {
+      const body = serveSource ? resource.body
+        : readFileSync(new URL(`../../dist${resourcePath}`, import.meta.url));
+      res.writeHead(localPath === '/404.html' ? 404 : 200, {
         'Content-Type': `${resource.type}${typeof resource.body === 'string' ? '; charset=utf-8' : ''}`,
         'Cache-Control': 'no-cache'
       });
-      res.end(req.method === 'HEAD' ? undefined : resource.body);
+      res.end(req.method === 'HEAD' ? undefined : body);
       return;
     }
     if (page) req.url = `${page.path}index.html${url.search}`;
     // The production server explicitly permits this existing app route as well.
-    if (url.pathname === '/brand-lab' || (
-      (development || process.env.VITE_ENABLE_HARNESS === '1') && url.pathname.startsWith('/harness/')
-    )) req.url = `/index.html${url.search}`;
+    if (localPath === '/brand-lab' || (
+      (development || process.env.VITE_ENABLE_HARNESS === '1') && localPath.startsWith('/harness/')
+    )) req.url = `${basePath}index.html${url.search}`;
     next();
   };
   return {

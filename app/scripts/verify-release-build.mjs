@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { localReleaseAssetPath, releaseBasePath } from './release-paths.mjs';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const appDir = path.dirname(path.dirname(SCRIPT_PATH));
@@ -15,6 +16,7 @@ const titleFontSourcePath = path.join(repoDir, 'assets/fonts/qiji-title-subset.t
 const socialImageSourcePath = path.join(repoDir, 'assets/og-image.webp');
 const releaseId = process.env.R5_RELEASE_ID?.trim() ?? '';
 const requireCdn = process.env.R5_REQUIRE_CDN === '1';
+const storyBasePath = releaseBasePath();
 const assetCdnOrigin = new URL(
   process.env.R5_ASSET_CDN_BASE?.trim() || 'https://assets.tongye.me'
 ).origin;
@@ -503,6 +505,7 @@ function distPathFromHref(href, label) {
       url.origin === 'https://release.invalid',
       `${label} uses unexpected external origin ${url.origin}`
     );
+    pathname = localReleaseAssetPath(href, storyBasePath);
   }
   const relativePath = decodeURIComponent(pathname).replace(/^\/+/, '');
   const target = path.resolve(distDir, relativePath);
@@ -600,10 +603,11 @@ for (const filename of ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', '
 const webManifest = JSON.parse(await readFile(path.join(distDir, 'manifest.webmanifest'), 'utf8'));
 assert(webManifest.name === '同野观幂', 'web manifest name is invalid');
 assert(
-  webManifest.icons?.some((icon) => icon.src === '/icon-192.png' && icon.sizes === '192x192')
-    && webManifest.icons?.some((icon) => icon.src === '/icon-512.png' && icon.sizes === '512x512'),
+  webManifest.icons?.some((icon) => icon.src === `${storyBasePath}icon-192.png` && icon.sizes === '192x192')
+    && webManifest.icons?.some((icon) => icon.src === `${storyBasePath}icon-512.png` && icon.sizes === '512x512'),
   'web manifest icon inventory is invalid'
 );
+assert(webManifest.start_url === storyBasePath && webManifest.scope === storyBasePath, 'web manifest mount scope is invalid');
 const initialCss = stylesheets.join('\n');
 for (const token of ['@font-face', '--font-title:', '--font-sans:', '--font-traditional:']) {
   assert(initialCss.includes(token), `initial stylesheet is missing ${token}`);
@@ -623,12 +627,12 @@ assert(
   html.includes('同野观幂为企业提供 AI 转型咨询、管理层共识、岗位培训、场景共创'),
   'release description is missing'
 );
-assert(html.includes('<link rel="canonical" href="https://tongye.me/">'), 'release canonical link is missing');
+assert(html.includes(`<link rel="canonical" href="https://tongye.me${storyBasePath}">`), 'release canonical link is missing');
 assert(html.includes('<meta property="og:image" content="https://tongye.me/og-image.webp">'), 'release Open Graph image is missing');
 assert(html.includes('<meta property="og:image:width" content="1200">'), 'release Open Graph image width is invalid');
 assert(html.includes('<meta property="og:image:height" content="630">'), 'release Open Graph image height is invalid');
-assert(html.includes('<link rel="manifest" href="/manifest.webmanifest"'), 'release manifest link is missing');
-assert(html.includes('<link rel="apple-touch-icon" href="/apple-touch-icon.png"'), 'release Apple touch icon is missing');
+assert(html.includes(`<link rel="manifest" href="${storyBasePath}manifest.webmanifest"`), 'release manifest link is missing');
+assert(html.includes(`<link rel="apple-touch-icon" href="${storyBasePath}apple-touch-icon.png"`), 'release Apple touch icon is missing');
 assert(html.includes('<meta name="twitter:card" content="summary_large_image">'), 'release Twitter card is missing');
 assert(html.includes('<meta name="robots" content="index,follow,max-image-preview:large'), 'release robots directives are missing');
 assert(html.includes('<html lang="zh-CN">'), 'release language is missing');

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { validateProcessMemoryQualification } from './r5-process-memory-contract.mjs';
+import { releaseBasePath } from './release-paths.mjs';
 
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
@@ -79,6 +80,7 @@ async function readJson(file, label) {
 }
 
 const phase = process.env.R5_RELEASE_MANIFEST_PHASE?.trim() || 'prepare';
+const basePath = releaseBasePath();
 if (phase !== 'prepare' && phase !== 'finalize') {
   throw new Error(`unsupported R5_RELEASE_MANIFEST_PHASE: ${phase}`);
 }
@@ -136,6 +138,7 @@ if (phase === 'prepare') {
     candidateTagObject,
     sourceCommit,
     sourceDirty,
+    basePath,
     artifactTreeSha256: currentArtifactTreeSha256,
     files: entries,
     fileCount: entries.length,
@@ -155,6 +158,7 @@ if (phase === 'prepare') {
     throw new Error('draft release manifest is not pending memory qualification');
   }
   const expectedDraftIdentity = {
+    basePath,
     candidate,
     candidateTagObject,
     sourceCommit,

@@ -72,3 +72,13 @@ sudo -n python3 /www/wwwroot/tongye.me/route-backups/experience-v55-20261019-02/
 4. 重新验证新根入口没有加载旧站 JS/CSS/视频，同时复测旧体验、服务/FAQ、书签、缓存和 404。
 
 重建适配层仅使用 `scripts/prepare-experience-mount.mjs` 的固定 v55 donor；上线前用 `scripts/probe-experience-nginx.py` 验证真实 Nginx 规则，再使用带预期 vhost 哈希的事务脚本。不得拿这套路径适配脚本绕过任何未来新版的完整发布门禁。
+
+## 原生新版的发布边界（2026-10-20，未上线）
+
+源码现支持 `R5_BASE_PATH=/experience/` 原生构建：路由、手机预启动、恢复清单、图标与 Web App scope 使用同一前缀；未设置时保留根路径开发构建。构建入口不引入另一套路由库或提前导入场景。Canonical 的 WebPage 标识跟随体验路径，组织、全站、服务与 FAQ 的公开身份仍留在原根地址。
+
+发布草稿及打包清单记录 `basePath`；冻结内存资格完成前不得更换构建前缀。原 `scripts/deploy-r5-release.mjs` 只切根站点的 `current`，现会在任何 SSH／上传之前拒绝显式非根路径发布包。上面的 v55 适配脚本也不是新版发布器，不能换一个 release ID 就复用。
+
+原生新版仍须完成独立的 `/experience/` 发布事务：新不可变目录、活动路由 include 的比较后切换及精确回退；保留临时根跳转、预览 cookie 隔离、根服务／FAQ，以及旧体验已打开页面按旧哈希延迟加载资源的能力。不能只把 `/experience/assets/` 换成新目录后移除旧覆盖文件或旧 donor。需先验证真实隔离 Nginx，再做公网身份、缓存、MIME、404、书签与浏览器交互复验。
+
+原逐帧画面、性能矩阵、冻结身份两轮内存与适用的真机检查仍是发布条件。源码提交或普通 `build` 通过不等于这些条件已经满足；当前公开站点仍为上文固定 v55。

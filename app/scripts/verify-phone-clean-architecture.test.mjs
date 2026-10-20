@@ -286,6 +286,19 @@ test('rejects broken bindings and policy branches in the executable recovery con
       mainSource
     },
     {
+      expected: 'fetch the release manifest with cache: no-store',
+      recoverySource: recoverySource.replace("storyPath('r5-release-manifest.json')", "storyPath('../r5-release-manifest.json')"),
+      mainSource
+    },
+    {
+      expected: 'fetch the release manifest with cache: no-store',
+      recoverySource: recoverySource.replace(
+        'manifest = await environment.fetchReleaseManifest',
+        "const storyPath = () => '/unrelated.json';\n      manifest = await environment.fetchReleaseManifest"
+      ),
+      mainSource
+    },
+    {
       expected: 'treat navigator.onLine as diagnostic only',
       recoverySource: recoverySource.replace(
         'const deadline = activeDeadlineSignal(environment);',

@@ -1,3 +1,4 @@
+import { storyPath } from '../runtime/story-path';
 import type {
   PhoneChunkRecoveryPort,
   PhoneRejectedChunkFailure,
@@ -239,7 +240,7 @@ export function createPhoneChunkRecoveryController(
     const deadline = activeDeadlineSignal(environment);
     let manifest: unknown;
     try {
-      manifest = await environment.fetchReleaseManifest('/r5-release-manifest.json', {
+      manifest = await environment.fetchReleaseManifest(storyPath('r5-release-manifest.json'), {
         cache: 'no-store',
         signal: deadline.signal
       });

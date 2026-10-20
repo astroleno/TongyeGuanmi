@@ -2119,7 +2119,28 @@ function controllerRecoveryBoundaryViolations(sources, referenceSources = source
     propertyCall(node, 'environment', 'fetchReleaseManifest')
   ));
   const manifestCall = manifestCalls.length === 1 ? manifestCalls[0] : undefined;
-  const manifestUrl = manifestCall?.arguments[0];
+  const manifestUrl = manifestCall?.arguments[0]
+    ? unwrappedExpression(manifestCall.arguments[0]) : undefined;
+  const pathImport = loader.statements.flatMap((statement) => (
+    ts.isImportDeclaration(statement)
+    && ts.isStringLiteralLike(statement.moduleSpecifier)
+    && statement.moduleSpecifier.text === '../runtime/story-path'
+    && statement.importClause?.namedBindings
+    && ts.isNamedImports(statement.importClause.namedBindings)
+      ? statement.importClause.namedBindings.elements.filter((element) => (
+          !element.isTypeOnly && (element.propertyName ?? element.name).text === 'storyPath'
+        )) : []
+  ));
+  const scopedManifestUrl = manifestUrl && ts.isCallExpression(manifestUrl)
+    && ts.isIdentifier(manifestUrl.expression) && pathImport.length === 1
+    && symbolAt(manifestUrl.expression) === symbolAt(pathImport[0].name)
+    && manifestUrl.arguments.length === 1
+    && ts.isStringLiteralLike(manifestUrl.arguments[0])
+    && manifestUrl.arguments[0].text === 'r5-release-manifest.json';
+  const canonicalManifestUrl = manifestUrl && (
+    ts.isStringLiteralLike(manifestUrl) && manifestUrl.text === '/r5-release-manifest.json'
+    || scopedManifestUrl
+  );
   const manifestInit = manifestCall?.arguments[1]
     ? unwrappedExpression(manifestCall.arguments[1])
     : undefined;
@@ -2133,9 +2154,7 @@ function controllerRecoveryBoundaryViolations(sources, referenceSources = source
     ));
   if (
     !manifestCall
-    || !manifestUrl
-    || !ts.isStringLiteralLike(unwrappedExpression(manifestUrl))
-    || unwrappedExpression(manifestUrl).text !== '/r5-release-manifest.json'
+    || !canonicalManifestUrl
     || !noStore
   ) {
     violations.push('cutover recovery must fetch the release manifest with cache: no-store');

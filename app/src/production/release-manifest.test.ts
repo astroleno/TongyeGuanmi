@@ -83,6 +83,7 @@ function createFixture() {
   mkdirSync(path.join(repoDir, 'dist'), { recursive: true });
   copyFileSync(scriptPath, fixtureScript);
   copyFileSync(memoryContractPath, fixtureMemoryContract);
+  copyFileSync(new URL('../../scripts/release-paths.mjs', import.meta.url), path.join(repoDir, 'app/scripts/release-paths.mjs'));
   writeFileSync(path.join(repoDir, 'dist/index.html'), '<!doctype html>\n', 'utf8');
   writeFileSync(
     path.join(repoDir, '.gitignore'),
@@ -240,6 +241,20 @@ it('binds a release manifest to the explicitly supplied annotated candidate and 
     candidateTagObject,
     sourceCommit
   });
+});
+
+it('binds qualification to the compiled story mount and rejects a different finalize mount', () => {
+  const { fixtureScript, repoDir, sourceCommit } = createFixture();
+  runManifest(fixtureScript, repoDir, 'react-refactor-r5-candidate-v3', sourceCommit, {
+    R5_BASE_PATH: '/experience/'
+  });
+  const manifestPath = path.join(repoDir, 'dist/r5-release-manifest.json');
+  const draftOutput = readFileSync(manifestPath, 'utf8');
+  expect(JSON.parse(draftOutput)).toMatchObject({ basePath: '/experience/' });
+  expect(() => runManifest(fixtureScript, repoDir, 'react-refactor-r5-candidate-v3', sourceCommit, {
+    R5_BASE_PATH: '/', R5_RELEASE_MANIFEST_PHASE: 'finalize'
+  })).toThrow(/identity mismatch for basePath/);
+  expect(readFileSync(manifestPath, 'utf8')).toBe(draftOutput);
 });
 
 it('finalizes only passing memory evidence bound to the exact draft manifest identity', () => {

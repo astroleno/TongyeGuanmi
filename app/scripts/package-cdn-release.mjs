@@ -94,6 +94,7 @@ const deployManifest = {
   schemaVersion: 1,
   releaseId: cdn.value.releaseId,
   sourceCommit: release.value.sourceCommit,
+  basePath: release.value.basePath ?? '/',
   candidate: release.value.candidate,
   candidateTagObject: release.value.candidateTagObject,
   releaseManifestSha256: sha256(release.output),

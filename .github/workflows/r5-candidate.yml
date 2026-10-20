@@ -34,5 +34,7 @@ jobs:
         run: |
           python3 scripts/test-prepare-seo-nginx.py
           python3 scripts/test-promote-r5-site.py
+          node --test scripts/test-prepare-experience-mount.mjs scripts/test-deploy-r5-release.mjs
+          python3 scripts/test-apply-experience-mount.py
           bash -n scripts/promote-r5-site.sh
           node --check scripts/deploy-r5-release.mjs

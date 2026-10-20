@@ -6,7 +6,7 @@ test('no-JS HTML exposes core正文, metadata, navigation, and scrollable anchor
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   await expect(page).toHaveTitle('同野观幂｜企业 AI 转型咨询、培训与场景落地');
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://tongye.me/');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `https://tongye.me${process.env.R5_BASE_PATH || '/'}`);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
     'content',
     'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1'

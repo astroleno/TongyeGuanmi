@@ -160,7 +160,8 @@ describe('StoryLoader', () => {
     expect(html).not.toContain('portrait-spike');
     expect(html).toContain("window.matchMedia('(pointer: coarse)').matches");
     expect(html).toContain("window.matchMedia('(hover: none)').matches");
-    expect(html).toContain("location.pathname === '/brand-lab'");
+    expect(html.replaceAll('%BASE_URL%', '/')).toContain("location.pathname === '/brand-lab'");
+    expect(html.replaceAll('%BASE_URL%', '/experience/')).toContain("location.pathname === '/experience/brand-lab'");
     expect(html).toContain("documentElement.dataset.phonePreboot = 'pending'");
     expect(html).toContain("documentElement.style.setProperty('--phone-preboot-surface', '#040807')");
     const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');

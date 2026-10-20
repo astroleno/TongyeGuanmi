@@ -10,6 +10,7 @@ type PrebootInput = Readonly<{
   pointerCoarse?: boolean;
   hoverNone?: boolean;
   navigationType?: 'navigate' | 'reload';
+  basePath?: string;
 }>;
 
 function runPhonePreboot({
@@ -19,9 +20,10 @@ function runPhonePreboot({
   hash = '',
   pointerCoarse = true,
   hoverNone = true,
-  navigationType = 'navigate'
+  navigationType = 'navigate',
+  basePath = '/'
 }: PrebootInput) {
-  const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8').replaceAll('%BASE_URL%', basePath);
   const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1];
   if (!script) throw new Error('phone preboot script was not found');
 
@@ -63,6 +65,11 @@ function runPhonePreboot({
 }
 
 describe('phone preboot ownership', () => {
+  it('scopes the first-art and explicit Brand entry to the compiled mount', () => {
+    expect(runPhonePreboot({width: 390, height: 844, pathname: '/experience/', basePath: '/experience/'}).preload.media).toBe('all');
+    expect(runPhonePreboot({width: 390, height: 844, pathname: '/experience/', hash: '#contact', basePath: '/experience/'}).preload.media).toBe('not all');
+    expect(runPhonePreboot({width: 1440, height: 900, pathname: '/experience/brand-lab', basePath: '/experience/', pointerCoarse: false}).dataset).toEqual({phonePreboot: 'pending'});
+  });
   it('prioritizes Hero art only for a phone home entry', () => {
     expect(runPhonePreboot({ width: 390, height: 844 }).preload.media).toBe('all');
     expect(runPhonePreboot({ width: 390, height: 844, hash: '#contact' }).preload.media).toBe('not all');
