@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { sampleScrollMedia } from '../../media/scroll-media-sampling';
 import {
   PatternBloomRenderer,
   patternFramePhases,
@@ -136,6 +137,27 @@ afterEach(() => {
 });
 
 describe('PatternBloomRenderer', () => {
+  it('draws scroll raster only for an accepted pose and reuses an identical frame without changing its pixels', async () => {
+    const harness = installRendererDom();
+    const renderer = new PatternBloomRenderer(harness.canvas);
+    await renderer.start();
+    sampleScrollMedia('request', () => renderer.renderScrollProgress(.8, 9.6));
+    sampleScrollMedia('hold', () => renderer.renderScrollProgress(.2, 2.4));
+    expect(harness.canvas.dataset.inkTextureRevision).toBeUndefined();
+    sampleScrollMedia('present', () => renderer.renderScrollProgress(.2, 2.4));
+    const revision = harness.canvas.dataset.inkTextureRevision;
+    sampleScrollMedia('present', () => renderer.renderScrollProgress(.2, 2.4));
+    expect(harness.canvas.dataset.inkTextureRevision).toBe(revision);
+    sampleScrollMedia('present', () => renderer.renderScrollProgress(.8, 9.6));
+    expect(Number(harness.canvas.dataset.inkTextureRevision)).toBe(Number(revision) + 1);
+    // A DPR change can keep the same physical dimensions while resize clears
+    // the backing store and changes the authored CSS-pixel camera.
+    Object.assign(window, { devicePixelRatio: 2 });
+    vi.spyOn(harness.canvas, 'getBoundingClientRect').mockReturnValue({ width: 640, height: 360 } as DOMRect);
+    sampleScrollMedia('present', () => renderer.renderScrollProgress(.8, 9.6));
+    expect(Number(harness.canvas.dataset.inkTextureRevision)).toBe(Number(revision) + 2);
+    renderer.destroy();
+  });
   it('uses all five authored layers and the compact 010 flower directions', () => {
     expect(patternLayerIds()).toEqual(['06', '05', '04', '03', '02']);
     expect(patternLayerDirections()).toEqual({ '02': -1, '03': 1, '04': -1 });

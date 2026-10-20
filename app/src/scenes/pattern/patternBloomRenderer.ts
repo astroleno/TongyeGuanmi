@@ -1,3 +1,5 @@
+import { scrollMediaSamplingPhase } from '../../media/scroll-media-sampling';
+
 const DPR_LIMIT = 2;
 const SOURCE_SIZE = 1152;
 const TAU = Math.PI * 2;
@@ -362,6 +364,7 @@ export class PatternBloomRenderer {
   #ringTextureIndex = 0;
   #ringStructuralKey = '';
   #frameRevision = 0;
+  #lastScrollFrame = '';
   #destroyed = false;
   #staticFrameRequested = false;
   #lastFlowerPhase = Number.NaN;
@@ -497,11 +500,16 @@ export class PatternBloomRenderer {
 
   /** Deterministic scroll pose: no ambient RAF or elapsed wall-clock state. */
   renderScrollProgress(progress: number, motionSeconds: number): void {
+    // Decoder-target collection and restoration are not visible commits.
+    // Rebuilding six filtered rings in either phase both wastes raster work
+    // and briefly samples a pose which the media barrier has not accepted.
+    const phase = scrollMediaSamplingPhase();
+    if (phase === 'request' || phase === 'hold') return;
     this.setRenderActive(false, false);
     this.#progress = clamp(progress);
     this.#rotationProgress = this.#progress;
     this.#motionElapsedSeconds = Math.max(0, motionSeconds);
-    this.#renderFrame(0);
+    this.#renderFrame(0, true);
   }
 
   destroy(): void {
@@ -892,12 +900,14 @@ export class PatternBloomRenderer {
     return this.#motionElapsedSeconds + activeElapsed;
   }
 
-  #renderFrame(now = performance.now()): void {
+  #renderFrame(now = performance.now(), scroll = false): void {
     const context = this.#context;
     if (!context || this.#layers.length === 0) {
       return;
     }
     this.#resize();
+    const key = () => `${this.#width}:${this.#height}:${this.#dpr}:${this.#progress}:${this.#motionElapsedSeconds}:${this.#frameRevision}`;
+    if (scroll && this.#lastScrollFrame === key()) return;
     const metrics = this.#getObjectMetrics();
     const motionSeconds = this.#motionElapsed(now);
     const phases = patternFramePhases(this.#progress, motionSeconds);
@@ -914,6 +924,7 @@ export class PatternBloomRenderer {
     this.#frameRevision += 1;
     this.#canvas.dataset.inkTextureReady = 'true';
     this.#canvas.dataset.inkTextureRevision = String(this.#frameRevision);
+    if (scroll) this.#lastScrollFrame = key();
   }
 
   #requestRender(): void {
