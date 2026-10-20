@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { figure2AnimationScene, FIGURE2_INTRO_PLAYBACK_MS } from '../scenes/figure2-animation';
@@ -12,7 +12,7 @@ import {
   figure2VideoModeForProofTransition
 } from './figure2-distance-expand';
 import { createFigure2ProofBrandTransition } from './figure2-proof-brand';
-import { createBackHalfDomContext } from './__fixtures__/back-half.fixture';
+import { createBackHalfDomContext, FakeCanvas } from './__fixtures__/back-half.fixture';
 
 function segment(id: SegmentId): SpineSegmentNode {
   const found = storyManifest.nodes.find(
@@ -39,6 +39,25 @@ const cases: readonly {
 ];
 
 describe('Figure2 proof chain transitions', () => {
+  it('uses the current-window ink lease instead of allocating a second transition canvas', async () => {
+    const fixture = createBackHalfDomContext('figure2-distance-expand', 'figure2-animation', 'figure2-proof');
+    for (const layer of [fixture.fromLayer, fixture.toLayer]) Object.assign(layer.element!, { closest: () => fixture.stage });
+    const canvas = new FakeCanvas() as unknown as HTMLCanvasElement;
+    const acquireInkCanvas = vi.fn(() => canvas);
+    const timeline = await createFigure2DistanceExpandTransition().buildTimeline({ ...fixture.context, acquireInkCanvas });
+    try {
+      expect(acquireInkCanvas).toHaveBeenCalledOnce();
+      expect(timeline.effectCanvases?.()).toContain(canvas);
+      timeline.progress(.25); timeline.progress(.75); timeline.progress(0); timeline.progress(1);
+    } finally { timeline.dispose(); }
+  });
+  it('does not acquire a WebGL lease for a reduced-motion Figure2 fallback', async () => {
+    const fixture = createBackHalfDomContext('figure2-distance-expand', 'figure2-animation', 'figure2-proof');
+    for (const layer of [fixture.fromLayer, fixture.toLayer]) Object.assign(layer.element!, { closest: () => fixture.stage });
+    const acquireInkCanvas = vi.fn(() => new FakeCanvas() as unknown as HTMLCanvasElement);
+    const timeline = await createFigure2DistanceExpandTransition().buildTimeline({ ...fixture.context, acquireInkCanvas, prefersReducedMotion: true });
+    try { expect(acquireInkCanvas).not.toHaveBeenCalled(); } finally { timeline.dispose(); }
+  });
   it('declares one bidirectional Figure2 surface and preserves the staged media gate', () => {
     const markup = renderToStaticMarkup(createElement(figure2AnimationScene.Component, {
       scene: 'figure2-animation',

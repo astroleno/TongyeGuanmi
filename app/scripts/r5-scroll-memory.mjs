@@ -130,9 +130,14 @@ export function installScrollMemoryProbe() {
     sample: () => ({
       canvases: live(canvases),
       webglContexts: live(contexts).filter((gl) => !gl.isContextLost()).length,
-      // A disconnected video with an attached source is still a decoder owner.
-      videos: live(videos).filter((video) => video.isConnected
-        || video.currentSrc || video.getAttribute('src') || video.readyState > 0)
+      // currentSrc may retain a historical URL after remove-source + load().
+      // Exclude only proven unloaded, detached handles: HAVE_NOTHING plus
+      // NETWORK_EMPTY/NO_SOURCE and no attached URL/stream. Loading, decoded,
+      // source-owned and unknown states still count against the original cap.
+      videos: live(videos).filter((video) => video.isConnected || video.readyState !== 0
+        || video.getAttribute('src') || video.srcObject
+        || [...video.querySelectorAll('source')].some(source => source.getAttribute('src'))
+        || ![0, 3].includes(video.networkState))
     })
   };
 }

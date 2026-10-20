@@ -1,5 +1,6 @@
 import { clearBoundaryGeometry } from './inkOwnership';
 import { semanticBoolean } from '../../runtime/semantic-data-attribute';
+import { retireDetachedCanvasContext } from '../../media/scroll-canvas-window';
 import { createInkFieldFrame, type InkFieldSpec } from './inkField';
 import {
   createInkFieldRenderer,
@@ -40,7 +41,6 @@ export function createRadialInkIntroController(
   options: CreateRadialInkIntroControllerOptions
 ): RadialInkIntroController {
   let renderer: InkFieldRenderer | null = null;
-  let usedRenderer = false;
   let disposed = false;
   let settled = false;
   let latestProgress = 1;
@@ -64,7 +64,6 @@ export function createRadialInkIntroController(
       loseContextOnDestroy: false,
       ...(options.sharedCanvas ? { sharedCanvas: options.sharedCanvas } : {})
     });
-    usedRenderer ||= Boolean(renderer);
     return renderer;
   };
   const applySurfaceHandoff = (progress: number) => {
@@ -155,11 +154,7 @@ export function createRadialInkIntroController(
       renderer = null;
       // StrictMode may reuse a still-connected canvas. Only retire the actual
       // owned context after detach; probing unused canvases creates contexts.
-      if (usedRenderer && !options.sharedCanvas) queueMicrotask(() => {
-        if (options.canvas.isConnected) return;
-        const gl = options.canvas.getContext('webgl');
-        if (gl && !gl.isContextLost()) gl.getExtension('WEBGL_lose_context')?.loseContext();
-      });
+      if (!options.sharedCanvas) queueMicrotask(() => retireDetachedCanvasContext(options.canvas));
       options.canvas.removeAttribute('data-hero-intro-ink-active');
       options.revealSurface.style.removeProperty('--r4-hero-back-ink-opacity');
       clearBoundaryGeometry(options.revealSurface);

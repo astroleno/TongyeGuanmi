@@ -181,7 +181,7 @@ class Figure2DistanceExpandTimeline implements SegmentTimelineHandle {
       grade: 'edge-only',
       generation,
       className: 'r4-figure2-proof-ink-canvas'
-    });
+    }, context.prefersReducedMotion ? undefined : context.acquireInkCanvas?.());
     this.inkRenderer = context.prefersReducedMotion ? null : createInkFieldRenderer(this.inkCanvas, {
       fieldKind: 'depth',
       grade: 'edge-only',

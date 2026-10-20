@@ -49,6 +49,7 @@ export function createDesktopScrollPlatform(host: ScrollPlatformHost): StoryScro
     }, []);
     useLayoutEffect(() => {
       const layer = stage.ensureLayer(scene, 'current');
+      const element = layer.element;
       const ready = Promise.resolve(module.preload()).then(() => module.mount?.(layer));
       const entry = { module, handles: handles.current, ready };
       mounted.set(scene, entry);
@@ -56,9 +57,25 @@ export function createDesktopScrollPlatform(host: ScrollPlatformHost): StoryScro
       void ready.then(notify, notify);
       return () => {
         if (mounted.get(scene) === entry) mounted.delete(scene);
-        for (const video of layer.element?.querySelectorAll('video') ?? []) {
+        const videos = [...element?.querySelectorAll('video') ?? []];
+        for (const video of videos) {
           disposeTimelineVideoDriver(video); video.pause();
         }
+        // React's layout cleanup runs before DOM detach. A StrictMode replay
+        // retains connected nodes; a later host getter may already name another
+        // scene owner. Release only the captured, actually detached resources.
+        queueMicrotask(() => {
+          for (const video of videos) {
+            if (video.isConnected) continue;
+            const sources = [...video.querySelectorAll('source')];
+            const loaded = Boolean(video.getAttribute('src') || sources.some(source => source.getAttribute('src'))
+              || video.srcObject || video.readyState > 0);
+            video.removeAttribute('src'); video.removeAttribute('poster');
+            for (const source of sources) source.removeAttribute('src');
+            if (video.srcObject) video.srcObject = null;
+            if (loaded) video.load();
+          }
+        });
         stage.releaseLayer(scene); notify(); host.resourcesChanged(scene);
       };
     }, [scene, module]);

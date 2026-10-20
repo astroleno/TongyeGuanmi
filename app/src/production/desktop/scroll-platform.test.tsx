@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, Suspense } from 'react';
+import { act, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { SceneModule, TransitionContext } from '../../story/types';
@@ -9,6 +9,77 @@ import { createDesktopScrollPlatform } from './scroll-platform';
 import { loadDesktopTransitionModule } from './module-loaders';
 import { canvasLeaseGuard, windowOwnsCanvas } from '../../media/scroll-canvas-window';
 import { createScrollSpine, locateScrollPosition, positionForScrollAnchor } from '../../story/scroll-spine';
+
+function videoSceneFixture() {
+  const container = document.createElement('div'); document.body.append(container);
+  let layer: HTMLElement = container;
+  source.promise = Promise.resolve({ id: 'crane-animation', Component: () => <article><video poster="poster.webp"><source src="motion.webm" type="video/webm" /></video></article>,
+    preload: () => ({ milestones: [] }), renderHold() {} });
+  const platform = createDesktopScrollPlatform({ root: () => container, layer: () => layer,
+    measure() {}, requestWindow() {}, requestRender() {}, resourcesChanged() {} });
+  const root = createRoot(container);
+  return { container, platform, root, replaceLayer: (element: HTMLElement) => { layer = element; } };
+}
+
+it.each(['source', 'direct'] as const)('unloads detached desktop video %s resources on scene unmount', async kind => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  const { container, platform, root } = videoSceneFixture(), Scene = platform.Scene;
+  let unmounted = false;
+  try {
+    await act(async () => root.render(<Suspense><Scene scene="crane-animation" /></Suspense>));
+    const video = container.querySelector('video')!, source = video.querySelector('source')!;
+    if (kind === 'direct') video.src = 'direct.webm';
+    await act(async () => root.unmount()); unmounted = true;
+    expect(pause).toHaveBeenCalled(); expect(load).toHaveBeenCalledOnce();
+    expect(video.hasAttribute('src')).toBe(false);
+    expect(source.hasAttribute('src')).toBe(false); expect(video.hasAttribute('poster')).toBe(false);
+  } finally { if (!unmounted) await act(async () => root.unmount()); platform.dispose(); container.remove(); pause.mockRestore(); load.mockRestore(); vi.unstubAllGlobals(); }
+});
+
+it('keeps connected video sources through StrictMode cleanup and retained rerenders, but releases the old node on re-entry', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  const { container, platform, root } = videoSceneFixture(), Scene = platform.Scene;
+  try {
+    const render = () => <StrictMode><Suspense><Scene scene="crane-animation" /></Suspense></StrictMode>;
+    await act(async () => root.render(render()));
+    const first = container.querySelector('video')!;
+    expect(first.querySelector('source')?.getAttribute('src')).toBe('motion.webm');
+    expect(load).not.toHaveBeenCalled();
+    await act(async () => root.render(render()));
+    expect(container.querySelector('video')).toBe(first); expect(load).not.toHaveBeenCalled();
+    await act(async () => root.render(null));
+    expect(first.querySelector('source')?.hasAttribute('src')).toBe(false);
+    expect(load).toHaveBeenCalledOnce();
+    await act(async () => root.render(render()));
+    const replacement = container.querySelector('video')!;
+    expect(replacement).not.toBe(first);
+    expect(replacement.querySelector('source')?.getAttribute('src')).toBe('motion.webm');
+    expect(load).toHaveBeenCalledOnce();
+  } finally { await act(async () => root.unmount()); platform.dispose(); container.remove(); pause.mockRestore(); load.mockRestore(); vi.unstubAllGlobals(); }
+});
+
+it('cleans the captured scene video, not a replacement returned by the host layer getter', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  const { container, platform, root, replaceLayer } = videoSceneFixture(), Scene = platform.Scene;
+  const replacement = document.createElement('div'), nextVideo = document.createElement('video');
+  nextVideo.src = 'new-owner.webm'; replacement.append(nextVideo); document.body.append(replacement);
+  let unmounted = false;
+  try {
+    await act(async () => root.render(<Suspense><Scene scene="crane-animation" /></Suspense>));
+    const video = container.querySelector('video')!;
+    replaceLayer(replacement);
+    await act(async () => root.unmount()); unmounted = true;
+    expect(video.querySelector('source')?.hasAttribute('src')).toBe(false);
+    expect(nextVideo.getAttribute('src')).toBe('new-owner.webm');
+    expect(pause.mock.instances).not.toContain(nextVideo); expect(load.mock.instances).toEqual([video]);
+  } finally { if (!unmounted) await act(async () => root.unmount()); platform.dispose(); container.remove(); replacement.remove(); pause.mockRestore(); load.mockRestore(); vi.unstubAllGlobals(); }
+});
 
 it('samples the authored Figure2 phase at its active-time position', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);

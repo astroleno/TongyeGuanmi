@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { canvasLeaseGuard, createScrollCanvasWindow, getCanvasWebGlContext, renewWindowCanvas, wasWindowManagedCanvas, windowOwnsCanvas } from './scroll-canvas-window';
+import { canvasLeaseGuard, createScrollCanvasWindow, getCanvasWebGlContext, renewWindowCanvas, retireDetachedCanvasContext, wasWindowManagedCanvas, windowOwnsCanvas } from './scroll-canvas-window';
 
 function context(canvas: HTMLCanvasElement) {
   const loseContext = vi.fn();
@@ -27,6 +27,27 @@ function restorableContext(canvas: HTMLCanvasElement, deferred = false) {
 }
 
 describe('current-window canvas leases', () => {
+  it('retires only a previously allocated, detached standalone context without probing the canvas', () => {
+    const canvas = document.createElement('canvas'), unused = document.createElement('canvas');
+    const lose = context(canvas), get = vi.mocked(canvas.getContext), unusedGet = vi.spyOn(unused, 'getContext');
+    get.mockClear(); document.body.append(canvas);
+    retireDetachedCanvasContext(canvas);
+    expect(lose).not.toHaveBeenCalled();
+    canvas.remove(); retireDetachedCanvasContext(canvas); retireDetachedCanvasContext(canvas);
+    retireDetachedCanvasContext(unused);
+    expect(lose).toHaveBeenCalledOnce();
+    expect(get).not.toHaveBeenCalled(); expect(unusedGet).not.toHaveBeenCalled();
+  });
+  it('leaves a detached window lease to its owner even after its renderer failed', () => {
+    const owner = createScrollCanvasWindow(); owner.configure(1);
+    const lease = owner.acquire('ink', document), lose = context(lease.canvas);
+    retireDetachedCanvasContext(lease.canvas);
+    expect(lose).not.toHaveBeenCalled();
+    expect(owner.snapshot().webglContexts).toBe(1);
+    owner.dispose();
+    retireDetachedCanvasContext(lease.canvas);
+    expect(lose).toHaveBeenCalledOnce();
+  });
   it('releases every GPU resource in reading and restores a weakly held context only inside the next budget', async () => {
     const owner = createScrollCanvasWindow(); owner.configure(1);
     const first = owner.acquire('ink', document), original = first.canvas;

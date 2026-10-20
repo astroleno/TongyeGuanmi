@@ -2,6 +2,7 @@ type Purpose = 'ink' | 'packed-alpha';
 type Entry = { canvas: HTMLCanvasElement; purpose: Purpose; epoch: number; token: object | null; active: boolean; gl: WebGLRenderingContext | null; restoring?: boolean };
 type Retired = { canvas: WeakRef<HTMLCanvasElement>; gl: WeakRef<WebGLRenderingContext>; extension: WeakRef<WEBGL_lose_context>; ready: boolean };
 const entriesByCanvas = new WeakMap<HTMLCanvasElement, Entry>();
+const knownContextsByCanvas = new WeakMap<HTMLCanvasElement, WebGLRenderingContext>();
 const managedCanvases = new WeakSet<HTMLCanvasElement>();
 const retiredByCanvas = new WeakMap<HTMLCanvasElement, Retired>();
 function allowRetiredContextRestore(event: Event) {
@@ -137,6 +138,15 @@ export type ScrollCanvasWindow = ReturnType<typeof createScrollCanvasWindow>;
 export function windowOwnsCanvas(canvas: HTMLCanvasElement): boolean { return entriesByCanvas.has(canvas); }
 /** Includes retired leases: legacy cleanup must not create a context to retire it. */
 export function wasWindowManagedCanvas(canvas: HTMLCanvasElement): boolean { return managedCanvases.has(canvas); }
+/** Failed renderer initialization may allocate GL before returning no renderer.
+ * Retire only a known detached standalone context; never probe an unused canvas
+ * or take a leased context away from its current-window owner. */
+export function retireDetachedCanvasContext(canvas: HTMLCanvasElement): void {
+  if (canvas.isConnected || wasWindowManagedCanvas(canvas)) return;
+  const gl = knownContextsByCanvas.get(canvas);
+  knownContextsByCanvas.delete(canvas);
+  if (gl && !gl.isContextLost()) gl.getExtension('WEBGL_lose_context')?.loseContext();
+}
 export function canvasLeaseGuard(canvas: HTMLCanvasElement): () => boolean {
   const entry = entriesByCanvas.get(canvas), epoch = entry?.epoch;
   return () => !entry || (entry.active && entry.epoch === epoch);
@@ -155,6 +165,7 @@ export function renewWindowCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement 
 export function getCanvasWebGlContext(canvas: HTMLCanvasElement, attributes: WebGLContextAttributes) {
   const entry = entriesByCanvas.get(canvas);
   const gl = canvas.getContext('webgl', entry ? { ...attributes, powerPreference: 'high-performance', preserveDrawingBuffer: false } : attributes);
+  if (gl) knownContextsByCanvas.set(canvas, gl);
   if (entry) entry.gl = gl;
   return gl;
 }

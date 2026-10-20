@@ -371,7 +371,7 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
   return (
     <article ref={registerRoot} className="r4-hero-scene" data-r4-scene="hero">
       <div ref={(element) => registerHandle?.('stage', element)} className="r4-hero-scene__stage">
-        <img ref={backRef} className="r4-hero-scene__back" src={HERO_BACK_IMAGE} alt="" aria-hidden="true" />
+        <img ref={backRef} className="r4-hero-scene__back" crossOrigin="anonymous" src={HERO_BACK_IMAGE} alt="" aria-hidden="true" />
         <canvas
           ref={(element) => {
             introInkCanvasRef.current = element;

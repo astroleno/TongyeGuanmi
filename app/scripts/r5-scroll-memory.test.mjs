@@ -164,6 +164,36 @@ describe('browser memory observation', () => {
     expect(window.__r5MemoryProbe.sample().videos).toEqual([video]);
   });
 
+  it.each([0, 3])('does not mistake historical currentSrc for a decoder after proven unloaded network state %s', networkState => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    installScrollMemoryProbe();
+    const video = document.createElement('video');
+    Object.defineProperties(video, { currentSrc: { value: 'https://assets.tongye.me/retired.webm' }, networkState: { value: networkState } });
+    expect(video.readyState).toBe(0);
+    expect(window.__r5MemoryProbe.sample().videos).toEqual([]);
+    document.body.append(video);
+    expect(window.__r5MemoryProbe.sample().videos).toEqual([video]);
+  });
+
+  it.each([
+    { readyState: 4, networkState: 0 },
+    { readyState: 0, networkState: 1 },
+    { readyState: 0, networkState: 2 },
+    { readyState: 0, networkState: undefined },
+    { readyState: 0, networkState: 3, source: true },
+    { readyState: 0, networkState: 0, direct: true },
+    { readyState: 0, networkState: 0, stream: true }
+  ])('continues counting every decoded, loading, source-owned or unproven detached handle: %j', state => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    installScrollMemoryProbe();
+    const video = document.createElement('video');
+    Object.defineProperties(video, { readyState: { value: state.readyState }, networkState: { value: state.networkState } });
+    if (state.source) { const source = document.createElement('source'); source.src = '/pending.webm'; video.append(source); }
+    if (state.direct) video.src = '/pending.webm';
+    if (state.stream) video.srcObject = {};
+    expect(window.__r5MemoryProbe.sample().videos).toEqual([video]);
+  });
+
   it('reports persistent reading DOM separately but includes leaked inactive media owners', () => {
     window.__r5ScrollStory = { snapshot: readyState };
     window.__r5MemoryProbe = { sample: () => ({ canvases: [], videos: [], webglContexts: 2 }) };

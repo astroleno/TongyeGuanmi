@@ -238,6 +238,7 @@ describe('hero scene renderer', () => {
     expect(markup).toContain('figure1-hevc-alpha.mp4');
     expect(markup.indexOf('figure1.webm')).toBeLessThan(markup.indexOf('figure1-hevc-alpha.mp4'));
     expect(markup).toContain('hero-figure-poster.webp');
+    expect(markup.match(/<img[^>]*class="r4-hero-scene__back"[^>]*>/)?.[0]).toMatch(/crossorigin="anonymous"/i);
     expect(markup).not.toContain('hero-figure-scrub');
   });
 

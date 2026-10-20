@@ -16,6 +16,24 @@
 
 服务器只读复查显示 vhost SHA 已是 `77871e37280e63081ddf97ecf3c0c6563ac460d7e3299bf7d386153353b14a5a`，新增独立 coscroll redirect 与 lubirth include；体验 include 仍是 `c4631c1e…`，`current` 仍为 v55 donor。本轮未修改它们。未来只切体验 include，保留其他配置，并以切换当时重新核验的 vhost SHA 做 CAS，不能用历史 `559c3197…` 覆盖这些变更。
 
+### v58 完整两轮失败与资源释放修复
+
+取消证据修复已提交、推送 `b23068b2a884c357b609ae314041175e969e37b0`，annotated v58 object `06965722b0788667824b0e093eddd49fd11f01b3`；原 `release:prepare` 全部门禁通过。冻结 CDN 产物树 `c1ba51c41da14393c0bde6c8cd0b8a994f1002ddea6d2509ed2f1c509fd685e6`、draft SHA `602acae3d7f1fc3c6996a29b8bd6b7b7905fe22beb47097d1d6cccd12558eb67`。CSS 75,717 B／desktop JS 515,191 B／phone JS 617,625 B，未调预算。
+
+正式共用 coordinator 在新 Page p3、p4／不同 isolate 完成 **每轮 33 hold、90 pose、两个原 5 秒／GC 终点**，网站错误为 0，完整报告为 `v58-memory-30/qualification.json` 及其两个 run。两轮均 **pass=false**：整树峰值分别 5,269,864,448／5,787,615,232 B，renderer 合计 4,549,689,344／4,927,422,464 B 超原限；GPU 345,538,560／345,374,720 B、页面堆峰值约 137.7MB／末端约 104MB、层数 2 在原限内。本站 hold GL **2 > 1**／transition GL **3 > 2**；Contact 视频数首轮 3、第二轮 **11 > 4**。这些资源问题不能全部归咎于共享环境，不准 finalize 或发布。
+
+实际拥有者诊断 `resource-baseline-31/report.json` 用 WeakRef 追踪实际 getContext 返回值，不探测闲置画布，完整正反遍历保留修复前五张 1440×900 原图。它定位到失败的 Hero intro Canvas 卸载后仍持有活 GL，以及 Figure2 特殊转场另建画布、绕过已有 lease。`hero-texture-cors-proof-33.json` 对同一冻结图片实测：未设置 crossOrigin 的 texImage2D 抛 SecurityError；anonymous 版本同像素上传成功、GL error=0。修复仅补 Hero 背景纹理的 anonymous CORS、追踪实际已申请的上下文并在脱离 DOM 后释放（包括初始化失败），不会为清理而申请新上下文，也不夺取 window-managed lease。Figure2 接入既有 acquireInkCanvas 接口，保留原 shader／阶段、曲线、DPR 与遮罩。
+
+桌面 Scene 的 layout cleanup 原来只 pause／取消 driver，没有清空 native source；新增捕获真实场景节点、同步取消 driver，再微任务中仅对已脱离 DOM 的视频清空 URL／poster／source 并 load。StrictMode 重放、保留场景、反向新节点及 host getter 指向的新 owner 均不清理。旧代码上的视频卸载四项断言和初始化失败清理断言已实际失败；Figure2 lease 回归在有效 fixture 下明确 0 次 acquisition 失败（`figure2-pool-red-35.json`），修复后通过。
+
+用户另行明确批准修正视频探针误计，**不变更 4 个上限，也不改判旧记录**。实测 `video-retirement-semantics-32.json` 证明彻底 remove-source／load 后 currentSrc 仍可保留旧 URL，但 readyState=0／networkState=EMPTY 或 NO_SOURCE。新探针仅凭这组肯定卸载状态且无 attached source／srcObject、已脱离 DOM 才不计数；仍连接、已解码、加载中、实际 source 持有及未知状态一律计数。新增九项矩阵先在旧探针 7 项失败，修复后通过；其中 pending source 子节点／stream 的计数比原探针更严格。
+
+上述修复定向 **74/74**、Lint、typecheck 通过；完整原配置／原时限回归 **215 文件／1791 项全部通过**，66.48 秒（`unit-full-resource-cleanup-40.json`）。浏览器新构建／原图对照及新的冻结两轮仍须另跑，不能以这些单测代替。
+
+用户批准尝试现有 Ego 的独立临时实例。仅尝试文档化 named service `tongye-release-20261020`，连接 bootstrap 退出 5；当前工具执行本已 Full Access，不能照泛化报错盲目提权重试。按批准中的“工具不支持就停止”停止本次独立实例尝试（`ego-isolated-instance-attempt-38.json`）；不安装、不读 profile、不操作原有其他标签、不使用未文档化启动参数或剔除共享进程。其余已批准修复和本项目组验证继续，公开版本仍未切换。
+
+随后原生子路径、CDN-enabled 普通构建通过全部原门禁，sourceDirty=true／candidate=null，测试专用 releaseId `r5-local-resource-cleanup-20261020`，没有上传对象。tree `278937e521e669822fb93d05758a0aec68b0e44eccccd6db3044f3745452441a`、manifest SHA `f7d77c91190563c29fe37db33c1472e83cd55bbf57d46037cfcc2537374e03ae`。同组 p5 完成 **121 个原正反路径检查点**（不含两个正式 settled 点，因此不是完整内存资格），实际 **hold GL 1／transition GL 2／Contact 视频 0**，网站错误为 0（`resource-after-41/report.json`）。五张相同量化姿态的修复前后原图 **5/5** 通过：原通道差 >24、全图 ≤0.5%、非空墨色像素 >100，最大差 **0.011497%**，Figure2 75% 和反向 Hero 超阈差为 0（`resource-fidelity-42.json`）；两处画面已实际查看。该结果验证上述释放修复，不代替冻结两轮／性能矩阵或 WebKit／真机要求。
+
 ## 2026-10-20 后续：独立发布器实现与专用组 7 复测（仍未上线）
 
 用户要求继续推进公开发布，不启用 Actions、不放宽门禁；另行批准重建本项目专用 Ego 验收组，实际组为 **7**，仅使用其 p1／p2，未操作其他组、profile 或全局电源设置。证据目录 `/tmp/tongye-native-publish-20261020-P55wTR`。本轮浏览器仍针对前述 Hero 修复普通产物 `afbb09b9…`／清单 `63ea4a8a…`，不是新冻结候选；发布工具变更不改变这份运行时产物身份。

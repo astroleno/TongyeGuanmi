@@ -9,24 +9,29 @@ const boundaryRenderer = vi.hoisted(() => ({
 }));
 const boundaryState = vi.hoisted(() => ({
   creations: 0,
+  failAfterContext: false,
   lostCanvases: new WeakSet<object>()
 }));
 
 vi.mock('../../vendor/ink-scene-transition.js', () => ({
-  createInkBoundaryTransition: vi.fn((canvas: HTMLCanvasElement) => {
+  createInkBoundaryTransition: vi.fn((canvas: HTMLCanvasElement, options?: { sharedCanvas?: HTMLCanvasElement }) => {
     if (boundaryState.lostCanvases.has(canvas)) {
       throw new Error('WebGL context was permanently lost');
     }
     boundaryState.creations += 1;
+    getCanvasWebGlContext(options?.sharedCanvas ?? canvas, {});
+    if (boundaryState.failAfterContext) throw new Error('Target texture upload failed after context allocation');
     boundaryRenderer.canvas = canvas;
     return boundaryRenderer;
   })
 }));
 
 import { createRadialInkIntroController } from './radialInkIntro';
+import { getCanvasWebGlContext } from '../../media/scroll-canvas-window';
 
 beforeEach(() => {
   boundaryState.creations = 0;
+  boundaryState.failAfterContext = false;
   boundaryState.lostCanvases = new WeakSet<object>();
   boundaryRenderer.destroy.mockReset().mockImplementation((loseContext = true) => {
     if (loseContext && boundaryRenderer.canvas) {
@@ -107,11 +112,27 @@ describe('radial Ink intro controller', () => {
         generation: 'retirement', viewport: () => ({ width: 1440, height: 900 })
       });
       if (used) { controller.render(.5); controller.render(1); }
+      getContext.mockClear();
       controller.dispose(); controller.dispose();
       await Promise.resolve();
-      expect(getContext).toHaveBeenCalledTimes(used && !connected ? 1 : 0);
+      expect(getContext).not.toHaveBeenCalled();
       expect(loseContext).toHaveBeenCalledTimes(used && !connected ? 1 : 0);
     }
+  });
+  it('retires a detached context even when renderer initialization failed after allocation', async () => {
+    const canvas = new FakeCanvas(), loseContext = vi.fn();
+    const getContext = vi.fn(() => ({ isContextLost: () => false, getExtension: () => ({ loseContext }) }));
+    Object.assign(canvas, { getContext, isConnected: false });
+    boundaryState.failAfterContext = true;
+    const controller = createRadialInkIntroController({ canvas: canvas as unknown as HTMLCanvasElement,
+      revealSurface: new FakeElement() as unknown as HTMLElement,
+      field: { kind: 'radial', origin: { x: .5, y: .5 }, seed: 'hero-pattern' },
+      generation: 'failed-texture', viewport: () => ({ width: 1440, height: 900 }) });
+    controller.render(.5);
+    expect(canvas.dataset.r4InkRendererStatus).toBe('unavailable');
+    getContext.mockClear(); controller.dispose(); await Promise.resolve();
+    expect(loseContext).toHaveBeenCalledOnce();
+    expect(getContext).not.toHaveBeenCalled();
   });
   it('keeps Hero radial reveal shader-owned and cleans its canvas lifecycle', () => {
     const canvas = new FakeCanvas();
