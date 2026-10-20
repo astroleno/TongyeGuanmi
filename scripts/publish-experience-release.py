@@ -356,7 +356,8 @@ def predecessor(expected_vhost_sha, expected_include_sha):
 def content_type(name):
     return {'.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json',
             '.webmanifest': 'application/manifest+json', '.html': 'text/html',
-            '.ico': 'image/x-icon'}.get(Path(name).suffix) or mimetypes.guess_type(name)[0] or 'application/octet-stream'
+            '.ico': 'image/x-icon', '.webp': 'image/webp', '.png': 'image/png',
+            '.svg': 'image/svg+xml', '.txt': 'text/plain'}.get(Path(name).suffix) or mimetypes.guess_type(name)[0] or 'application/octet-stream'
 
 
 def headers(rid, cache='no-cache', mime=None):

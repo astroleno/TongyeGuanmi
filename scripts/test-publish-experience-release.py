@@ -56,6 +56,8 @@ class NativePublicationTests(unittest.TestCase):
                           'cacheControl': 'public, max-age=31536000, immutable'}
         self.cdn = {'schemaVersion': 1, 'enabled': True, 'releaseId': self.rid, 'sourceCommit': self.commit, 'files': [self.cdn_entry]}
         self.payloads = {'index.html': b'<html>native</html>', 'assets/new.js': b'/* native */', 'favicon.ico': b'\x00\x00\x01\x00fixture-only-icon',
+                         'favicon.svg': b'<svg xmlns="http://www.w3.org/2000/svg"/>',
+                         'icon-192.png': b'fixture-only-png', 'og-image.webp': b'fixture-only-webp',
                          'assets/shared.css': self.old_payloads['assets/shared.css'],
                          'cdn-publish-manifest.json': native.encoded(self.cdn)}
         for name, data in self.payloads.items():
@@ -164,6 +166,13 @@ class NativePublicationTests(unittest.TestCase):
     def test_icon_mime_matches_the_release_hosts_nginx_not_the_python_platform(self):
         with patch.object(native.mimetypes, 'guess_type', return_value=('image/vnd.microsoft.icon', None)):
             self.assertEqual(native.content_type('favicon.ico'), 'image/x-icon')
+
+    def test_static_types_do_not_depend_on_an_old_python_mime_database(self):
+        with patch.object(native.mimetypes, 'guess_type', return_value=(None, None)):
+            for name, expected in {'favicon.ico': 'image/x-icon', 'og-image.webp': 'image/webp',
+                                   'icon-192.png': 'image/png', 'favicon.svg': 'image/svg+xml',
+                                   'release-id.txt': 'text/plain'}.items():
+                self.assertEqual(native.content_type(name), expected)
 
     def test_pending_memory_is_rejected_even_with_matching_package_hash(self):
         self.manifest['qualification']['status'] = 'pending-memory'
