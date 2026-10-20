@@ -85,6 +85,8 @@ sudo -n python3 /www/wwwroot/tongye.me/route-backups/experience-v55-20261019-02/
 
 发布事务 30 项原测试、新增 9 项指令绑定／篡改／默认拒绝／回退测试，以及客户端／根路径保护 13 项全部通过。实际切换结果以服务器事务和公网读回为准，下文的旧标准与历史未发布状态不作追溯改写。
 
+实际包首轮隔离检查发现 favicon.ico 为 HTTP 200 且字节 SHA 正确，但 Python MIME 推断为 `image/vnd.microsoft.icon`，与已配置 Nginx 的 `image/x-icon` 不一致；没有上传 CDN 或切换活动路由。新增回归先复现该失败，再显式匹配服务器 MIME 映射，并把 ICO 加入真实 Nginx fixture。原失败暂存 `/tmp/tongye-experience-r5-c1ee8fd-yMIOXx` 保留；应用产物、图标字节、验收状态与直接发布记录不改。
+
 源码现支持 `R5_BASE_PATH=/experience/` 原生构建：路由、手机预启动、恢复清单、图标与 Web App scope 使用同一前缀；未设置时保留根路径开发构建。构建入口不引入另一套路由库或提前导入场景。Canonical 的 WebPage 标识跟随体验路径，组织、全站、服务与 FAQ 的公开身份仍留在原根地址。
 
 发布草稿及打包清单记录 `basePath`；冻结内存资格完成前不得更换构建前缀。原 `scripts/deploy-r5-release.mjs` 只切根站点的 `current`，现会在任何 SSH／上传之前拒绝显式非根路径发布包。上面的 v55 适配脚本也不是新版发布器，不能换一个 release ID 就复用。

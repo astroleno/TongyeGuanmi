@@ -355,7 +355,8 @@ def predecessor(expected_vhost_sha, expected_include_sha):
 
 def content_type(name):
     return {'.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json',
-            '.webmanifest': 'application/manifest+json', '.html': 'text/html'}.get(Path(name).suffix) or mimetypes.guess_type(name)[0] or 'application/octet-stream'
+            '.webmanifest': 'application/manifest+json', '.html': 'text/html',
+            '.ico': 'image/x-icon'}.get(Path(name).suffix) or mimetypes.guess_type(name)[0] or 'application/octet-stream'
 
 
 def headers(rid, cache='no-cache', mime=None):
@@ -569,7 +570,9 @@ def http_checks(origin, deploy, manifest, legacy):
         with response:
             body = response.read()
             if response.status != status or (sha and digest(body) != sha) or (mime and mime not in response.headers.get('Content-Type', '')):
-                raise ValueError(f'HTTP check failed: {url} ({response.status})')
+                raise ValueError(f'HTTP check failed: {url} ({response.status}); '
+                                 f'sha256={digest(body)} expected={sha}; '
+                                 f'mime={response.headers.get("Content-Type")} expected={mime}')
             if location and not response.headers.get('Location', '').endswith(location):
                 raise ValueError('HTTP redirect mismatch: ' + url)
             if cache and response.headers.get('Cache-Control') != cache:

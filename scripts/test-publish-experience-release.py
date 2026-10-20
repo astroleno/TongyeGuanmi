@@ -55,7 +55,7 @@ class NativePublicationTests(unittest.TestCase):
                           'bytes': len(media), 'sha256': native.digest(media), 'contentType': 'image/webp',
                           'cacheControl': 'public, max-age=31536000, immutable'}
         self.cdn = {'schemaVersion': 1, 'enabled': True, 'releaseId': self.rid, 'sourceCommit': self.commit, 'files': [self.cdn_entry]}
-        self.payloads = {'index.html': b'<html>native</html>', 'assets/new.js': b'/* native */',
+        self.payloads = {'index.html': b'<html>native</html>', 'assets/new.js': b'/* native */', 'favicon.ico': b'\x00\x00\x01\x00fixture-only-icon',
                          'assets/shared.css': self.old_payloads['assets/shared.css'],
                          'cdn-publish-manifest.json': native.encoded(self.cdn)}
         for name, data in self.payloads.items():
@@ -160,6 +160,10 @@ class NativePublicationTests(unittest.TestCase):
         self.assertEqual(manifest['sourceCommit'], self.commit)
         self.assertFalse((self.site / 'releases' / self.rid).exists())
         self.command.assert_not_called()
+
+    def test_icon_mime_matches_the_release_hosts_nginx_not_the_python_platform(self):
+        with patch.object(native.mimetypes, 'guess_type', return_value=('image/vnd.microsoft.icon', None)):
+            self.assertEqual(native.content_type('favicon.ico'), 'image/x-icon')
 
     def test_pending_memory_is_rejected_even_with_matching_package_hash(self):
         self.manifest['qualification']['status'] = 'pending-memory'
