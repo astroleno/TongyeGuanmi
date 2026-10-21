@@ -39,8 +39,8 @@ PUBLIC_ORIGIN = 'https://tongye.me'
 # or fabricated pass flag can use this path. Default publication stays strict.
 V59_DIRECT_AUTH_SHA = '0721104d84e66c813e5b1a2db98796b05bdc8b776be777b2b44b3ff202c534a8'
 V60_PUBLIC_TEST_AUTH_SHA = 'a4357df7669a362473df1a0344233f3f830b9f88e9224b51aad8c39915ede5ae'
-# Disabled until the exact v62 frozen comparison receipt is sealed.
-V62_RELATIVE_AUTH_SHA = '0000000000000000000000000000000000000000000000000000000000000000'
+# Disabled until the exact v63 frozen comparison receipt is sealed.
+V63_RELATIVE_AUTH_SHA = '0000000000000000000000000000000000000000000000000000000000000000'
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {
@@ -199,17 +199,17 @@ def validate_memory(report):
 
 
 def validate_relative_improvement(package, receipt):
-    """The one approved v62 comparison is not a passing qualification."""
+    """The one approved v63 comparison is not a passing qualification."""
     cold = json.loads(read_regular(package, receipt['evidence']['coldComparison']['path']))
     functional = json.loads(read_regular(package, receipt['evidence']['functional']['path']))
-    if cold.get('kind') != 'same-conditions-v60-v62-cold-media-comparison' or cold.get('releaseQualified') is not False or cold.get('failure'):
+    if cold.get('kind') != 'same-conditions-v60-v63-cold-media-comparison' or cold.get('releaseQualified') is not False or cold.get('failure'):
         raise ValueError('relative comparison is incomplete or claims qualification')
-    for version, expected in [('v60', receipt['baselineIdentity']), ('v62', receipt['identity'])]:
+    for version, expected in [('v60', receipt['baselineIdentity']), ('v63', receipt['identity'])]:
         if any(cold.get('identities', {}).get(version, {}).get(key) != value for key, value in expected.items() if key != 'draftManifestSha256'):
             raise ValueError('relative comparison artifact identity changed')
     ranges = ['hero-pattern', 'method-bottom-figure2', 'brand-figure3', 'education-crane', 'crane-contact']
     expected = {(platform, trial, segment, version) for platform in ['desktop', 'phone']
-                for trial in [1, 2] for segment in ranges for version in ['v60', 'v62']}
+                for trial in [1, 2] for segment in ranges for version in ['v60', 'v63']}
     rows = cold.get('results', [])
     if len(rows) != 40 or {(row.get('platform'), row.get('trial'), row.get('rangeId'), row.get('version')) for row in rows} != expected:
         raise ValueError('relative comparison must preserve all forty paired samples')
@@ -219,14 +219,14 @@ def validate_relative_improvement(package, receipt):
     computed = {}
     for platform in ['desktop', 'phone']:
         computed[platform] = {}
-        for version in ['v60', 'v62']:
+        for version in ['v60', 'v63']:
             samples = [row for row in rows if row['platform'] == platform and row['version'] == version]
             times = sorted(row['elapsedMs'] for row in samples)
             computed[platform][version] = {'samples': len(times), 'medianMs': (times[4] + times[5]) / 2,
                 'nearestRankP95Ms': times[9], 'explicitLoadCalls': sum(event.get('type') == 'load-call' for row in samples for event in row.get('mediaEvents', []))}
-    if receipt.get('comparison') != computed or any(computed['desktop']['v62'][key] >= computed['desktop']['v60'][key] for key in ['medianMs', 'nearestRankP95Ms']):
+    if receipt.get('comparison') != computed or any(computed['desktop']['v63'][key] >= computed['desktop']['v60'][key] for key in ['medianMs', 'nearestRankP95Ms']):
         raise ValueError('authorized desktop median and p95 improvement was not demonstrated')
-    if (functional.get('kind') != 'frozen-v62-functional-and-v60-visual-comparison-unshaped-http'
+    if (functional.get('kind') != 'frozen-v63-functional-and-v60-visual-comparison-unshaped-http'
             or functional.get('passed') is not True or functional.get('failure') or functional.get('releaseQualified') is not False):
         raise ValueError('relative publication requires complete frozen functional and visual checks')
     runs = functional.get('functional', [])
@@ -249,7 +249,7 @@ def validate_relative_improvement(package, receipt):
 
 
 def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
-    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V62_RELATIVE_AUTH_SHA]:
+    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA]:
         raise ValueError('direct publication requires an exact pinned user-directed receipt')
     receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
     if digest(receipt_bytes) != authorization_sha:
@@ -267,7 +267,7 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
     for item in receipt['evidence'].values():
         checked_file(package, item)
     memory = json.loads(read_regular(package / 'site', 'r5-process-memory.json'))
-    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V62_RELATIVE_AUTH_SHA]:
+    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA]:
         # A declaration of missing evidence is not a synthetic measurement and
         # can never satisfy validate_memory or the default qualified path.
         expected = {'schemaVersion': 1, 'kind': 'r5-unmeasured-process-memory', 'status': 'not-measured',
@@ -276,7 +276,7 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
                     'reason': 'No formal process-memory runs have been collected for this artifact. Earlier candidates are not evidence for this identity.'}
         if memory != expected:
             raise ValueError('public-test memory must explicitly preserve zero measured runs and no qualification')
-        if authorization_sha == V62_RELATIVE_AUTH_SHA:
+        if authorization_sha == V63_RELATIVE_AUTH_SHA:
             validate_relative_improvement(package, receipt)
         return receipt
     if (memory.get('pass') is not False or memory.get('completedRunCount') != 2
@@ -320,7 +320,7 @@ def validate_package(package, authorization_sha=None):
         if deploy.get('publicationAuthorization') is not None:
             raise ValueError('direct publication requires its explicit authorization SHA')
         validate_memory(memory)
-    expected_run_count = 0 if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V62_RELATIVE_AUTH_SHA] else 2
+    expected_run_count = 0 if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA] else 2
     if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != expected_run_count or memory.get('identity') != evidence.get('identity'):
         raise ValueError('memory evidence identity mismatch')
     for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:

@@ -1,4 +1,4 @@
-"""Offline third-generation successor and exact v62 relative-publication fixtures."""
+"""Offline third-generation successor and exact v63 relative-publication fixtures."""
 import importlib.util
 import json
 from pathlib import Path
@@ -19,17 +19,17 @@ class RelativePublicationTests(unittest.TestCase):
         self.f = self.public.f
         self.receipt = self.public.receipt
         self.receipt['baselineIdentity'] = {**self.receipt['identity'], 'sourceCommit': 'b' * 40}
-        self.cold = {'kind': 'same-conditions-v60-v62-cold-media-comparison', 'releaseQualified': False,
-                     'identities': {'v60': self.receipt['baselineIdentity'], 'v62': self.receipt['identity']}, 'results': []}
+        self.cold = {'kind': 'same-conditions-v60-v63-cold-media-comparison', 'releaseQualified': False,
+                     'identities': {'v60': self.receipt['baselineIdentity'], 'v63': self.receipt['identity']}, 'results': []}
         for platform in ['desktop', 'phone']:
             for trial in [1, 2]:
                 for segment in ['hero-pattern', 'method-bottom-figure2', 'brand-figure3', 'education-crane', 'crane-contact']:
-                    for version in ['v60', 'v62']:
+                    for version in ['v60', 'v63']:
                         self.cold['results'].append({'platform': platform, 'trial': trial, 'rangeId': segment,
-                            'version': version, 'ready': True, 'elapsedMs': (80 if platform == 'desktop' and version == 'v62'
-                                else 101 if platform == 'phone' and version == 'v62' else 100) + trial,
+                            'version': version, 'ready': True, 'elapsedMs': (80 if platform == 'desktop' and version == 'v63'
+                                else 101 if platform == 'phone' and version == 'v63' else 100) + trial,
                             'errors': [], 'mediaEvents': [{'type': 'load-call'}]})
-        self.functional = {'kind': 'frozen-v62-functional-and-v60-visual-comparison-unshaped-http',
+        self.functional = {'kind': 'frozen-v63-functional-and-v60-visual-comparison-unshaped-http',
             'releaseQualified': False, 'passed': True, 'functional': [], 'visual': []}
         for platform in ['desktop', 'phone']:
             self.functional['functional'].append({'platform': platform, 'identity': self.receipt['identity'],
@@ -44,7 +44,7 @@ class RelativePublicationTests(unittest.TestCase):
         self.receipt['comparison'] = {}
         for platform in ['desktop', 'phone']:
             self.receipt['comparison'][platform] = {}
-            for version in ['v60', 'v62']:
+            for version in ['v60', 'v63']:
                 rows = [row for row in self.cold['results'] if row['platform'] == platform and row['version'] == version]
                 times = sorted(row['elapsedMs'] for row in rows)
                 if len(times) == 10:
@@ -60,13 +60,13 @@ class RelativePublicationTests(unittest.TestCase):
         self.public.rebind()
 
     def validate(self):
-        with patch.object(native, 'V62_RELATIVE_AUTH_SHA', self.public.auth):
+        with patch.object(native, 'V63_RELATIVE_AUTH_SHA', self.public.auth):
             return native.validate_package(self.f.package, self.public.auth)
 
     def test_complete_relative_evidence_does_not_grant_default_qualification(self):
         _, manifest, _ = self.validate()
         self.assertEqual(manifest['qualification'], {'status': 'pending-memory', 'memoryEvidence': None})
-        self.assertGreater(self.receipt['comparison']['phone']['v62']['medianMs'], self.receipt['comparison']['phone']['v60']['medianMs'])
+        self.assertGreater(self.receipt['comparison']['phone']['v63']['medianMs'], self.receipt['comparison']['phone']['v60']['medianMs'])
         with self.assertRaisesRegex(ValueError, 'not qualified'):
             native.validate_package(self.f.package)
         self.f.command.assert_not_called()
@@ -79,7 +79,7 @@ class RelativePublicationTests(unittest.TestCase):
 
     def test_false_improvement_claim_is_recomputed_and_rejected(self):
         for row in self.cold['results']:
-            if row['platform'] == 'desktop' and row['version'] == 'v62':
+            if row['platform'] == 'desktop' and row['version'] == 'v63':
                 row['elapsedMs'] = 1000
         self.rebind()
         with self.assertRaisesRegex(ValueError, 'improvement was not demonstrated'):
@@ -122,7 +122,7 @@ class RelativePublicationTests(unittest.TestCase):
 
     def test_relative_transaction_keeps_raw_evidence_and_exact_rollback(self):
         f = self.f
-        with patch.object(native, 'V62_RELATIVE_AUTH_SHA', self.public.auth):
+        with patch.object(native, 'V63_RELATIVE_AUTH_SHA', self.public.auth):
             record = native.apply(f.package, f.vhost_sha, f.include_sha, f.receipt, 'f' * 32, self.public.auth)
             self.assertEqual(record['qualificationStatusUnchanged'], 'pending-memory')
             saved = native.state_directory(f.rid) / 'evidence/coldComparison.json'
