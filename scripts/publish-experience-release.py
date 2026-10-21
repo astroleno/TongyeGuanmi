@@ -64,6 +64,11 @@ NATIVE_PREDECESSORS = {
         'releaseId': 'r5-ba51d44',
         'manifestSha256': 'f128c562a66e1091c0d42c3af7fad0085edb63db00eefefc906731ad6e51c9dc',
         'beforeIncludeSha256': 'a1d77c56bafc83b99a81364c381c07a19634189c725a78e4188bf57bbb745e92'
+    },
+    '64e100361759a410764aee9f8872b693dc5239bb56a53046660e6de9b46695c8': {
+        'releaseId': 'r5-ae7c4ee',
+        'manifestSha256': 'ff3c9543dd5114c4fcbac49d2aabce093b78512dc5ab3f897ce188a646f3dab5',
+        'beforeIncludeSha256': '049b4b973a3dad8fd0e3966cd1b2f2fb2ed971a9c7aa77e0982984d360b69b73'
     }
 }
 DIRECT_AUTH_PATH = 'user-directed-publication.json'
@@ -213,7 +218,6 @@ def validate_memory(report):
 def validate_relative_improvement(package, receipt, candidate_version='v63'):
     """Exact pinned comparisons are not passing qualification."""
     cold = json.loads(read_regular(package, receipt['evidence']['coldComparison']['path']))
-    functional = json.loads(read_regular(package, receipt['evidence']['functional']['path']))
     if cold.get('kind') != f'same-conditions-v60-{candidate_version}-cold-media-comparison' or cold.get('releaseQualified') is not False or cold.get('failure'):
         raise ValueError('relative comparison is incomplete or claims qualification')
     for version, expected in [('v60', receipt['baselineIdentity']), (candidate_version, receipt['identity'])]:
@@ -241,7 +245,13 @@ def validate_relative_improvement(package, receipt, candidate_version='v63'):
     # for this one incremental publication. Original scroll gates are unchanged.
     if receipt.get('comparison') != computed or any(computed['desktop'][candidate_version][key] >= computed['desktop']['v60'][key] for key in ['medianMs', 'explicitLoadCalls']):
         raise ValueError('authorized desktop median and reload improvement was not demonstrated')
-    if (functional.get('kind') != f'frozen-{candidate_version}-functional-and-v60-visual-comparison-unshaped-http'
+    validate_frozen_functional_visual(package, receipt, candidate_version)
+
+
+def validate_frozen_functional_visual(package, receipt, candidate_version, baseline_version='v60'):
+    """Same full traversal, aliases and visual gates for each pinned comparison."""
+    functional = json.loads(read_regular(package, receipt['evidence']['functional']['path']))
+    if (functional.get('kind') != f'frozen-{candidate_version}-functional-and-{baseline_version}-visual-comparison-unshaped-http'
             or functional.get('passed') is not True or functional.get('failure') or functional.get('releaseQualified') is not False):
         raise ValueError('relative publication requires complete frozen functional and visual checks')
     runs = functional.get('functional', [])
@@ -261,6 +271,62 @@ def validate_relative_improvement(package, receipt, candidate_version='v63'):
             or any(row.get('passed') is not True or type(row.get('fraction')) not in [int, float]
                    or not 0 <= row['fraction'] <= .005 or row.get('ink', 0) <= 100 for row in visual)):
         raise ValueError('original frozen visual difference threshold failed')
+
+
+def validate_loading_recovery(package, receipt):
+    """A repaired false failure, not a timing, memory or device qualification."""
+    report = json.loads(read_regular(package, receipt['evidence']['loadingRecovery']['path']))
+    if (report.get('kind') != 'frozen-live-final-transfer-recovery' or report.get('releaseQualified') is not False
+            or report.get('videoFirstByteMs') != 6000 or report.get('frameDeadlineMs') != 19000
+            or report.get('readyDeadlineMs') != 25000 or report.get('failure')):
+        raise ValueError('loading recovery changed the original deadline or controlled first byte')
+    for version, expected in [('v65', receipt['baselineIdentity']), ('v67', receipt['identity'])]:
+        if any(report.get('identities', {}).get(version, {}).get(key) != value for key, value in expected.items() if key != 'draftManifestSha256'):
+            raise ValueError('loading recovery identity mismatch')
+    rows = report.get('results', [])
+    if len(rows) != 4 or {(row.get('version'), row.get('trial')) for row in rows} != {(version, trial) for version in ['v65', 'v67'] for trial in [1, 2]}:
+        raise ValueError('loading recovery requires both paired trials')
+    for row in rows:
+        repaired = row['version'] == 'v67'
+        state = row.get('state', {})
+        if (row.get('ready') is not repaired or row.get('platform') != 'desktop'
+                or row.get('rangeId') != 'education-crane' or row.get('progress') != .25
+                or state.get('viewport') != [1440, 900, 1]
+                or state.get('snapshot', {}).get('view', {}).get('status') != ('ready' if repaired else 'failed')
+                or not any(event.get('readyState') == 0 and event.get('networkState') == 2 for event in row.get('mediaEvents', []))):
+            raise ValueError('genuine loading request and failed/ready state are required')
+        requests = row.get('requests', [])
+        if not requests or any(request.get('bytes', 0) < 0 or not re.fullmatch(r'[0-9a-f]{64}', request.get('bodySha256', '')) for request in requests):
+            raise ValueError('loading recovery requires the real frozen media transport')
+        if repaired:
+            if (row.get('failure') or row.get('errors') or not 6000 <= row.get('elapsedMs', 25000) < 25000
+                    or state.get('broken') or not state.get('videos')
+                    or any(video.get('readyState', 0) < 2 or video.get('paused') is not True
+                           or video.get('seeking') is not False for video in state['videos'])
+                    or not all(request.get('complete') is True and request.get('bytes', 0) > 0
+                               and request.get('headersAt', 0) - request['startedAt'] >= 6000 for request in requests)):
+                raise ValueError('loading recovery needs genuine delayed bytes and parked decoded frames')
+        elif not row.get('failure') or not 0 <= row.get('elapsedMs', 25000) < 6000:
+            raise ValueError('the unchanged early-failure baseline is required')
+    cold = json.loads(read_regular(package, receipt['evidence']['coldComparison']['path']))
+    if (cold.get('kind') != 'same-conditions-v65-v67-cold-media-comparison' or cold.get('releaseQualified') is not False
+            or cold.get('failure') or cold.get('environment', {}).get('latencyMs') != 400
+            or cold['environment'].get('bytesPerChunk') != 16384 or cold['environment'].get('chunkIntervalMs') != 10
+            or cold['environment'].get('targetCacheDisabled') is not True
+            or not cold['environment'].get('powerBefore') or cold['environment']['powerBefore'] != cold['environment'].get('powerAfter')):
+        raise ValueError('healthy cold-media protocol changed')
+    for version, expected in [('v65', receipt['baselineIdentity']), ('v67', receipt['identity'])]:
+        if any(cold.get('identities', {}).get(version, {}).get(key) != value for key, value in expected.items() if key != 'draftManifestSha256'):
+            raise ValueError('healthy cold-media identity mismatch')
+    ranges = ['hero-pattern', 'method-bottom-figure2', 'brand-figure3', 'education-crane', 'crane-contact']
+    expected = {(platform, trial, segment, version) for platform in ['desktop', 'phone']
+                for trial in [1, 2] for segment in ranges for version in ['v65', 'v67']}
+    samples = cold.get('results', [])
+    if (len(samples) != 40 or {(row.get('platform'), row.get('trial'), row.get('rangeId'), row.get('version')) for row in samples} != expected
+            or any(row.get('ready') is not True or row.get('failure') or row.get('errors')
+                   or type(row.get('elapsedMs')) not in [int, float] or not 0 <= row['elapsedMs'] < float('inf') for row in samples)):
+        raise ValueError('all forty healthy cold-media samples are required')
+    validate_frozen_functional_visual(package, receipt, 'v67', 'v65')
 
 
 def validate_receiver_recovery(package, receipt):
