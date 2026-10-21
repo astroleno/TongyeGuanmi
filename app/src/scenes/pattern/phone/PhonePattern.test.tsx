@@ -125,6 +125,22 @@ describe('clean PhonePattern leaf', () => {
     expect(rendererProbe.instances[0]?.setFrameProgress).toHaveBeenLastCalledWith(0.78, 0.78);
   });
 
+  it('binds scroll preparation evidence to the accepted frame owner', async () => {
+    const mount = reportFixture();
+    await act(async () => { root.render(<PhonePattern reports={mount.reports} />); });
+    const accepted = reportFixture();
+    mount.registration()!.commands.rebind({ reports: accepted.reports, frameToken: 'scroll:7:pattern', sampling: 'scroll' });
+    expect(accepted.reports.reportPrepared).not.toHaveBeenCalled();
+    await act(async () => {
+      host.querySelector('img')!.dispatchEvent(new Event('load'));
+      await Promise.resolve(); await Promise.resolve();
+    });
+    expect(accepted.reports.reportPrepared).toHaveBeenCalledWith('pattern-image', expect.objectContaining({
+      ready: true, token: expect.stringMatching(/^scroll:7:pattern:/),
+      detail: { imageDecoded: true, rendererCompositeDrawn: true }
+    }));
+  });
+
   it('settles to the same readable Pattern hold from either direction', async () => {
     const mount = reportFixture();
     await act(async () => { root.render(<PhonePattern reports={mount.reports} />); });

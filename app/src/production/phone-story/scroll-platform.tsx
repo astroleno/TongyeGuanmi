@@ -173,6 +173,13 @@ export function createPhoneScrollPlatform(host: ScrollPlatformHost): StoryScroll
             if (image === arch) image.dataset.scrollDecoded = 'true';
           }));
           if (signal.aborted) throw new DOMException('Superseded', 'AbortError');
+          const pattern = records.find((_record, index) => ids[index] === 'pattern');
+          if (pattern) {
+            // The base <img> can decode before the five-layer Bloom texture
+            // and its first complete composite. Consume the existing owned
+            // leaf proof instead of admitting a partially prepared Pattern.
+            await waitFor(() => { checkFailure(); return pattern.prepared.has('pattern-image') ? true : undefined; }, signal);
+          }
           if (position.segment === 'figure2-distance-expand') {
             await waitFor(() => { checkFailure(); return records[2]?.prepared.has('fx:figure2-distance-expand') ? true : undefined; }, signal);
           }

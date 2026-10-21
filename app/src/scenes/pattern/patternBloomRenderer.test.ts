@@ -137,6 +137,37 @@ afterEach(() => {
 });
 
 describe('PatternBloomRenderer', () => {
+  it('settles a pending static-frame proof when the accepted scroll draw supplies the complete frame', async () => {
+    const harness = installRendererDom();
+    const renderer = new PatternBloomRenderer(harness.canvas);
+    try {
+      await renderer.start();
+      let ready = false;
+      void renderer.prepareStaticFrame().then(() => { ready = true; });
+      sampleScrollMedia('present', () => renderer.renderScrollProgress(.5, 6));
+      await Promise.resolve();
+      expect(harness.canvas.dataset.inkTextureReady).toBe('true');
+      expect(ready).toBe(true);
+    } finally { renderer.destroy(); }
+  });
+
+  it('does not cancel hidden first-frame prewarming when ambient animation is parked', async () => {
+    const harness = installRendererDom();
+    const renderer = new PatternBloomRenderer(harness.canvas);
+    try {
+      await renderer.start();
+      renderer.setRenderActive(true, true);
+      let ready = false;
+      void renderer.prepareStaticFrame().then(() => { ready = true; });
+      renderer.setRenderActive(false, false);
+      for (let frame = 0; frame < 10 && harness.rafCount(); frame++) harness.flushRaf(frame * 50);
+      await Promise.resolve();
+      expect(ready).toBe(true);
+      expect(harness.canvas.dataset.inkTextureReady).toBe('true');
+      expect(harness.rafCount()).toBe(0);
+    } finally { renderer.destroy(); }
+  });
+
   it('draws scroll raster only for an accepted pose and reuses an identical frame without changing its pixels', async () => {
     const harness = installRendererDom();
     const renderer = new PatternBloomRenderer(harness.canvas);

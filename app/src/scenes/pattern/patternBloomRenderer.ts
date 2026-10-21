@@ -488,6 +488,9 @@ export class PatternBloomRenderer {
       window.cancelAnimationFrame(this.#rafId);
       this.#rafId = 0;
     }
+    // Parking ambient motion must not strand an owned first-frame promise.
+    // Hidden texture work still finishes once; it never advances scroll time.
+    if (this.#staticFrameRequested || this.#ringTextureIndex < bloomRings.length) this.#requestRender();
   }
 
   renderProgress(progress: number): void {
@@ -925,6 +928,11 @@ export class PatternBloomRenderer {
     this.#canvas.dataset.inkTextureReady = 'true';
     this.#canvas.dataset.inkTextureRevision = String(this.#frameRevision);
     if (scroll) this.#lastScrollFrame = key();
+    if (this.#staticFrameRequested) {
+      this.#staticFrameRequested = false;
+      this.#resolveReady?.();
+      this.#resolveReady = undefined;
+    }
   }
 
   #requestRender(): void {
@@ -944,11 +952,6 @@ export class PatternBloomRenderer {
         this.#renderFrame(now);
         this.#framePending = false;
         this.#lastRenderedAt = now;
-        if (this.#staticFrameRequested) {
-          this.#staticFrameRequested = false;
-          this.#resolveReady?.();
-          this.#resolveReady = undefined;
-        }
       }
       if (
         (this.#renderActive && (this.#framePending || this.#animateMotion))

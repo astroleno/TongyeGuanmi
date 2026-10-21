@@ -105,7 +105,7 @@ export function PhonePattern({ reports }: PhonePatternProps) {
     reportedGenerationRef.current = generation;
     binding.reports.reportPrepared('pattern-image', {
       kind: 'image-decoded',
-      token: `pattern:prepared:${generation}`,
+      token: binding.sampling === 'scroll' ? `${binding.frameToken}:prepared:${generation}` : `pattern:prepared:${generation}`,
       ready: true,
       detail: { imageDecoded: true, rendererCompositeDrawn: true }
     });
