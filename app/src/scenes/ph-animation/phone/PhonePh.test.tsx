@@ -46,6 +46,17 @@ describe('PhonePh', () => {
     expect(markup).not.toContain('<source');
   });
 
+  it('shares the anonymous foreground request with its CSS alpha matte', () => {
+    const markup = renderToStaticMarkup(createElement(PhonePh, { reports }));
+    const foreground = markup.match(/<img[^>]*class="ph-layer ph-layer--front"[^>]*>/)?.[0];
+    expect(foreground).toBeDefined();
+    expect(foreground).toContain('crossorigin="anonymous"');
+    // Select the CORS mode before choosing the URL, including on old WebKit.
+    expect(foreground!.indexOf('crossorigin=')).toBeLessThan(foreground!.indexOf('src='));
+    expect(markup.match(/class="ph-layer ph-layer--front"/g)).toHaveLength(1);
+    expect(css).toContain('mask: var(--phone-ph-island-source)');
+  });
+
   it('uses stable reduced-motion endpoints in canonical order', () => {
     expect(phonePhPresentationProgress(0.49, true)).toBe(0);
     expect(phonePhPresentationProgress(0.5, true)).toBe(1);
