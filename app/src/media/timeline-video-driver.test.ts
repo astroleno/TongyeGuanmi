@@ -759,6 +759,141 @@ describe('timeline video driver', () => {
     } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
   });
 
+  it.each([false, true])('keeps the final loading transfer inside the original deadline instead of failing before its first byte (%s)', async (failedSelection) => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    video.readyState = 0;
+    Object.assign(video, { networkState: failedSelection ? 3 : 2 });
+    const load = video.load.bind(video);
+    video.load = () => { load(); Object.assign(video, { networkState: 2 }); };
+    const controller = new AbortController();
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'late-first-byte', direction: 1, progress: .5,
+        durationFallbackSeconds: 10, allowPlaybackNudge: false, signal: controller.signal
+      });
+      let rejection: unknown;
+      let settled = false;
+      void pending.then(() => { settled = true; }, error => { rejection = error; });
+      await vi.advanceTimersByTimeAsync(10500);
+      expect(video.loadCalls).toBe(1);
+      expect(rejection).toBeUndefined();
+      expect(settled).toBe(false);
+      video.readyState = 4; Object.assign(video, { networkState: 1 });
+      video.dispatch('loadeddata'); video.completeSeek(); video.presentFrame();
+      await expect(pending).resolves.toMatchObject({ status: 'ready' });
+      expect(video.playCalls).toBe(0);
+    } finally { controller.abort(); disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('still expires a permanently loading final request at the original 19 second deadline', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo(); video.readyState = 0;
+    Object.assign(video, { networkState: 2 });
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'permanent-transfer', direction: 1, progress: 0,
+        durationFallbackSeconds: 10, allowPlaybackNudge: false
+      });
+      let failure: unknown;
+      void pending.catch(error => { failure = error; });
+      await vi.advanceTimersByTimeAsync(18999);
+      expect(failure).toBeUndefined();
+      expect(video.loadCalls).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(pending).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_TIMEOUT' });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('cancels the final active download without waiting for the hard deadline or starting another load', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo(); video.readyState = 0;
+    Object.assign(video, { networkState: 2 });
+    const controller = new AbortController();
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'cancel-final-transfer', direction: 1, progress: 0,
+        durationFallbackSeconds: 10, allowPlaybackNudge: false, signal: controller.signal
+      });
+      void pending.catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(10500);
+      controller.abort();
+      await expect(pending).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+      expect(video.loadCalls).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('reuses one readback surface for successive decoded scroll frames and releases it on retirement', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const context = { drawImage: vi.fn(), getImageData: vi.fn() };
+    const canvas = { width: 0, height: 0, getContext: vi.fn(() => context) };
+    const createElement = vi.fn(() => canvas);
+    Object.assign(video, { closest: () => ({}), ownerDocument: { createElement } });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      for (const progress of [.2, .4, .6]) {
+        driver.drive({ runId: 'probe-reuse', direction: 1, progress, durationFallbackSeconds: 10 });
+        video.completeSeek();
+        await vi.advanceTimersByTimeAsync(8);
+        expect(driver.snapshot().frameReady).toBe(true);
+      }
+      expect(createElement).toHaveBeenCalledTimes(1);
+      expect(canvas.getContext).toHaveBeenCalledExactlyOnceWith('2d', { willReadFrequently: true });
+      expect(context.drawImage).toHaveBeenCalledTimes(3);
+      expect(context.getImageData).toHaveBeenCalledTimes(3);
+      expect(canvas.width).toBe(1); expect(canvas.height).toBe(1);
+    } finally { driver.dispose(); vi.useRealTimers(); }
+    expect(canvas.width).toBe(0); expect(canvas.height).toBe(0);
+  });
+
+  it('does not keep a tainted readback surface or invent proof after a failed pixel read', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    const failed = { width: 1, height: 1, getContext: () => ({
+      drawImage: vi.fn(), getImageData: () => { throw new Error('tainted'); }
+    }) };
+    const read = vi.fn();
+    const valid = { width: 1, height: 1, getContext: () => ({ drawImage: vi.fn(), getImageData: read }) };
+    const createElement = vi.fn().mockReturnValueOnce(failed).mockReturnValue(valid);
+    Object.assign(video, { closest: () => ({}), ownerDocument: { createElement } });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'failed-probe', direction: 1, progress: .2, durationFallbackSeconds: 10 });
+      video.completeSeek(); await vi.advanceTimersByTimeAsync(8);
+      expect(driver.snapshot().frameReady).toBe(false);
+      expect(failed.width).toBe(0); expect(failed.height).toBe(0);
+      driver.drive({ runId: 'valid-probe', direction: 1, progress: .4, durationFallbackSeconds: 10 });
+      video.completeSeek(); await vi.advanceTimersByTimeAsync(8);
+      expect(driver.snapshot().frameReady).toBe(true);
+      expect(read).toHaveBeenCalledOnce();
+      driver.drive({ runId: 'valid-probe', direction: 1, progress: .6, durationFallbackSeconds: 10 });
+      video.completeSeek(); driver.dispose(); await vi.advanceTimersByTimeAsync(8);
+      expect(read).toHaveBeenCalledOnce();
+    } finally { driver.dispose(); vi.useRealTimers(); }
+  });
+
+  it('does not hide a terminal media error behind the remaining download allowance', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo(); video.readyState = 0;
+    Object.assign(video, { networkState: 2 });
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'error-on-final-transfer', direction: 1, progress: 0,
+        durationFallbackSeconds: 10, allowPlaybackNudge: false
+      });
+      void pending.catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(10500);
+      Object.assign(video, { error: { code: 3, message: 'bad media' } });
+      video.dispatch('error');
+      await expect(pending).rejects.toMatchObject({ code: 'MEDIA_ELEMENT_ERROR', message: 'bad media' });
+      expect(video.loadCalls).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
   it('stops a cancelled final lease before any retry can reload the source', async () => {
     vi.useFakeTimers();
     const video = new FakeVideo();

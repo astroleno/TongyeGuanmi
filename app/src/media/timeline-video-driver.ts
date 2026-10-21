@@ -153,6 +153,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   #presentingFrame: DesiredFrame | undefined;
   #seekedFrameFallbackTimer: ReturnType<typeof setTimeout> | undefined;
   #seekedFrameFallbackFrame: DesiredFrame | undefined;
+  #decodedFrameProbe: HTMLCanvasElement | undefined;
+  #decodedFrameContext: CanvasRenderingContext2D | null = null;
   #disposed = false;
 
   readonly #onSeeked = () => {
@@ -392,6 +394,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.#primingSeek = undefined;
     this.#pendingEndpointPrime = undefined;
     this.#cancelPrimingCompletion();
+    this.#disposeDecodedFrameProbe();
     this.#latest = undefined;
     this.#latestInput = undefined;
   }
@@ -787,14 +790,25 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         this.#inFlightSeek = undefined;
       }
       if (decodedProbe) {
-        const canvas = this.#video.ownerDocument.createElement('canvas');
-        canvas.width = canvas.height = 1;
-        const context = canvas.getContext('2d');
+        // One private readback surface per live driver, not a new backing
+        // store/GPU readback allocation for every paused scroll seek. The
+        // decoded-data, physical target and real pixel-read proof stay intact.
+        if (!this.#decodedFrameProbe) {
+          const canvas = this.#video.ownerDocument.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          this.#decodedFrameProbe = canvas;
+          this.#decodedFrameContext = canvas.getContext('2d', { willReadFrequently: true });
+        }
+        const context = this.#decodedFrameContext;
         if (!context) return;
         try {
           context.drawImage(this.#video, 0, 0, 1, 1);
           context.getImageData(0, 0, 1, 1);
-        } catch { return; }
+        } catch {
+          // A tainted or lost surface must not poison a later valid source.
+          this.#disposeDecodedFrameProbe();
+          return;
+        }
       }
       this.#markFrameReady(frame, decodedProbe ? 'decoded-canvas' : 'seeked-fallback');
       this.#flushQueuedSeek();
@@ -810,6 +824,12 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
     this.#seekedFrameFallbackTimer = undefined;
     this.#seekedFrameFallbackFrame = undefined;
+  }
+
+  #disposeDecodedFrameProbe(): void {
+    if (this.#decodedFrameProbe) this.#decodedFrameProbe.width = this.#decodedFrameProbe.height = 0;
+    this.#decodedFrameProbe = undefined;
+    this.#decodedFrameContext = null;
   }
 
   #cancelPrimingCompletion(): void {
@@ -1130,6 +1150,12 @@ async function runFramePreparation(
           buffered?.length ? buffered.end(buffered.length - 1) : 0].join(':');
         if (next !== signature) { signature = next; changedAt = Date.now(); }
         else if (Date.now() - changedAt >= FRAME_PREPARATION_STALL_MS) {
+          // The one allowed reload is already spent. NETWORK_LOADING still
+          // owns a live request (often waiting for its first byte), so a lack
+          // of decoded frames is not a terminal failure yet. Do not discard
+          // that final request at 4s while its existing 19s deadline has time.
+          // Idle/no-source, media errors and cancellation keep failing closed.
+          if ((attempt > 0 || sourceAlreadyFailed) && video.networkState === 2 && !video.error) return;
           trial.abort(new MediaPreparationError('MEDIA_PREPARATION_STALLED',
             `Frame stalled for ${input.runId}; readyState=${video.readyState}; seeking=${video.seeking}`));
         }
