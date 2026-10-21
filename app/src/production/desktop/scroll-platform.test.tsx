@@ -21,6 +21,46 @@ function videoSceneFixture() {
   return { container, platform, root, replaceLayer: (element: HTMLElement) => { layer = element; } };
 }
 
+it.each([2, 3])('does not restart a cold decoder outside the media driver (networkState %i)', async networkState => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  const { container, platform, root } = videoSceneFixture(), Scene = platform.Scene;
+  const controller = new AbortController();
+  let preparation: Promise<unknown> | undefined;
+  try {
+    await act(async () => root.render(<Suspense><Scene scene="hero" /></Suspense>));
+    const video = container.querySelector('video')!;
+    Object.defineProperties(video, { readyState: { value: 0 }, networkState: { value: networkState } });
+    const index = createScrollSpine({ viewportHeight: 900 });
+    const position = locateScrollPosition(index, positionForScrollAnchor(index, { rangeId: 'hold:hero', progress: 0 }));
+    preparation = platform.adapter.prepare(position, { generation: 1, epoch: 1, revision: 1, layoutRevision: 1 }, controller.signal)
+      .catch(error => error);
+    await act(async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); });
+    expect(load).toHaveBeenCalledTimes(networkState === 3 ? 1 : 0);
+  } finally {
+    controller.abort(); await preparation;
+    await act(async () => root.unmount()); platform.dispose(); container.remove(); pause.mockRestore(); load.mockRestore(); vi.unstubAllGlobals();
+  }
+});
+
+it('promotes mounted-window media while independent scene assets are still preparing', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  const { container, platform, root } = videoSceneFixture(), Scene = platform.Scene;
+  let finish!: () => void;
+  source.promise = Promise.resolve({ id: 'crane-animation', Component: () => <video preload="none"><source src="motion.webm" /></video>,
+    preload: () => new Promise<void>(resolve => { finish = resolve; }).then(() => ({ milestones: [] })), renderHold() {} });
+  try {
+    await act(async () => root.render(<Suspense><Scene scene="crane-animation" /></Suspense>));
+    expect(container.querySelector('video')?.preload).toBe('auto');
+    expect(load).not.toHaveBeenCalled();
+  } finally {
+    finish(); await act(async () => root.unmount()); platform.dispose(); container.remove(); pause.mockRestore(); load.mockRestore(); vi.unstubAllGlobals();
+  }
+});
+
 it.each(['source', 'direct'] as const)('unloads detached desktop video %s resources on scene unmount', async kind => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});

@@ -277,6 +277,9 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     if (input.signal?.aborted) {
       return Promise.reject(this.#abortError(input.signal.reason, input.runId));
     }
+    // A source reselect must not inherit preload=none and suspend before its
+    // first sample. Configure before the sole explicit load, not after it.
+    this.#configureElement();
     // Chromium can exhaust <source> candidates after a transient CDN timeout.
     // Retry selection only on an explicit preparation, never on animation ticks.
     if (input.reloadSource || (this.#video.networkState === 3 && this.#video.readyState === 0)) {
@@ -289,7 +292,6 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.#latestInput = exactInput;
     this.#latest = desired;
     this.#writeDiagnostics(desired);
-    this.#configureElement();
     this.#stopNativePlayback();
 
     // Reuse an exact driver-owned proof across a generation handoff. Nearby

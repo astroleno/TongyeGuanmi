@@ -121,6 +121,18 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it('promotes preload before the explicit source-reselection load', async () => {
+    const video = new FakeVideo();
+    video.readyState = 0;
+    Object.assign(video, { networkState: 3, preload: 'none' });
+    const preloadAtLoad: string[] = [];
+    const load = video.load.bind(video);
+    video.load = () => { preloadAtLoad.push((video as FakeVideo & { preload: string }).preload); load(); };
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const pending = driver.prepareFrame({ runId: 'cold-reselection', direction: 1, progress: 0, durationFallbackSeconds: 10 });
+    try { expect(preloadAtLoad).toEqual(['auto']); }
+    finally { driver.dispose(); await pending; }
+  });
   it.each([[.033333, 0], [2.433333, 1]])('does not relabel a nearby scroll frame %s as endpoint %s', async (previousTime, progress) => {
     const video = new FakeVideo(); video.duration = 2.5;
     Object.assign(video, { closest: () => ({}) });

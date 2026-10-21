@@ -136,6 +136,21 @@ describe('hero scene renderer', () => {
     expect(video.paused).toBe(true);
   });
 
+  it('does not let the legacy endpoint or metadata listener seek a scroll-owned decoder', () => {
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}) });
+    video.preload = 'none';
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'terminal');
+    // The shared driver has since positioned the current scroll frame.
+    video.currentTime = .4;
+    video.preload = 'auto';
+    video.listeners.get('loadedmetadata')?.(new Event('loadedmetadata'));
+    expect(video.currentTime).toBe(.4);
+    setHeroVideoPlaybackState(video as unknown as HTMLVideoElement, 'start');
+    expect(video.currentTime).toBe(.4);
+    expect(video.playCount).toBe(0);
+  });
+
   it('prepositions a hidden prev Hero at terminal but restores its authored start after reverse landing', () => {
     expect(heroVideoPlaybackStateForPresentation({
       hidden: true,

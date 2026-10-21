@@ -24,6 +24,16 @@ afterEach(async () => {
 });
 
 describe('Hero decoder ownership at resource-window eviction', () => {
+  it('does not reload again after the scroll platform has already unloaded the detached decoder', async () => {
+    await act(async () => root!.render(createElement(heroScene.Component, props)));
+    const video = host.querySelector('video')!;
+    for (const source of video.querySelectorAll('source')) source.removeAttribute('src');
+    // HAVE_NOTHING and no attached source reproduce the platform's preceding
+    // unload; currentSrc is allowed to retain its historical URL.
+    Object.defineProperty(video, 'currentSrc', { value: '/historical-hero.webm' });
+    await act(async () => root!.render(null));
+    expect(HTMLMediaElement.prototype.load).not.toHaveBeenCalled();
+  });
   it('releases the captured detached node after React has cleared its figure ref', async () => {
     const handle = vi.fn();
     await act(async () => root!.render(createElement(heroScene.Component, { ...props, registerHandle: handle })));

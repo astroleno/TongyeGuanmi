@@ -75,6 +75,9 @@ function bindHeroMetadataResync(video: HeroVideoElement): void {
   }
   video.__r4HeroMetadataBound = true;
   video.addEventListener('loadedmetadata', () => {
+    // The continuous-scroll driver owns both cold-source priming and the
+    // current pose. A legacy seek here can reset readyState during its proof.
+    if (video.closest?.('[data-scroll-platform]')) return;
     const pending = video.__r4HeroPendingTime;
     if (pending === undefined) {
       return;
@@ -97,6 +100,7 @@ function configureHeroVideo(video: HTMLVideoElement): void {
 }
 
 function seekHeroVideo(video: HeroVideoElement, time: number): void {
+  if (video.closest?.('[data-scroll-platform]')) return;
   video.__r4HeroPendingTime = time;
   // Do not make a cold Hero preload choose or seek the full source. The
   // Hero→Pattern transition promotes this element through TimelineVideoDriver
@@ -361,9 +365,12 @@ function HeroScene({ hidden, role, presentation, registerHandle }: SceneComponen
         if (video.isConnected) return;
         disposeTimelineVideoDriver(video);
         setHeroVideoPlaybackState(video, 'inactive');
+        const loaded = Boolean(video.getAttribute('src') || video.srcObject || video.readyState > 0
+          || [...video.querySelectorAll('source')].some(source => source.getAttribute('src')));
         video.removeAttribute('src');
         for (const source of video.querySelectorAll('source')) source.removeAttribute('src');
-        video.load();
+        if (video.srcObject) video.srcObject = null;
+        if (loaded) video.load();
       });
     };
   }, []);

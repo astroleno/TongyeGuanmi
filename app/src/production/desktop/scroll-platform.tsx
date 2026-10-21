@@ -50,6 +50,11 @@ export function createDesktopScrollPlatform(host: ScrollPlatformHost): StoryScro
     useLayoutEffect(() => {
       const layer = stage.ensureLayer(scene, 'current');
       const element = layer.element;
+      // This scene already belongs to the accepted resource window. Start its
+      // native transfer alongside independent image/renderer preparation, not
+      // after it (a cold Pattern can otherwise delay the Hero video entirely).
+      // Changing preload resumes selection without cancelling an active load.
+      for (const video of element?.querySelectorAll('video') ?? []) video.preload = 'auto';
       const ready = Promise.resolve(module.preload()).then(() => module.mount?.(layer));
       const entry = { module, handles: handles.current, ready };
       mounted.set(scene, entry);
@@ -135,8 +140,10 @@ export function createDesktopScrollPlatform(host: ScrollPlatformHost): StoryScro
         signal.addEventListener('abort', release, { once: true });
         try {
           await Promise.all(videos.map(async (video) => {
-            video.preload = 'auto';
-            if (video.readyState < 1) video.load();
+            // The shared driver owns source reselection and its bounded retry.
+            // Calling load here both cancels a cold NETWORK_LOADING transfer
+            // and leaves NETWORK_NO_SOURCE synchronously, causing a second
+            // load inside prepareFrame before selection can even start.
             const result = await prepareTimelineVideoFrame(video, { runId: `scroll:${preparation}`, direction: 1,
               progress: 0, durationFallbackSeconds: 1, startSeconds: 0, mode: 'timeline', signal });
             if (result?.status !== 'ready') throw new Error('当前位置视频帧已失效');
