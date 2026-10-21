@@ -42,6 +42,7 @@ V60_PUBLIC_TEST_AUTH_SHA = 'a4357df7669a362473df1a0344233f3f830b9f88e9224b51aad8
 # This exact receipt alone records the user's relative-improvement instruction.
 V63_RELATIVE_AUTH_SHA = '6b237a250650fd9496dad385cfc0f807992b1ced8e8fab9327434f70ab8f73c1'
 V64_RECEIVER_AUTH_SHA = '6ac63feb93a73f525bcd79746ae674e512ac3a38e5e6e17198e9f4e6a4190b6f'
+V65_IMAGE_AUTH_SHA = '33c6e82af56cf25f0b1e125be351786314cad2ffc0a7f90984bcacd1371bbdff'
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {
@@ -58,6 +59,11 @@ NATIVE_PREDECESSORS = {
         'releaseId': 'r5-ac18611',
         'manifestSha256': '5c093a9f3e0dcfbc1c9ccf5694ef90b685e8d0947006026a72eccc78ce5961cf',
         'beforeIncludeSha256': 'f6d494173450b37a586392763af8b373f628a639a25fe14125acd9de992ffdd4'
+    },
+    '049b4b973a3dad8fd0e3966cd1b2f2fb2ed971a9c7aa77e0982984d360b69b73': {
+        'releaseId': 'r5-ba51d44',
+        'manifestSha256': 'f128c562a66e1091c0d42c3af7fad0085edb63db00eefefc906731ad6e51c9dc',
+        'beforeIncludeSha256': 'a1d77c56bafc83b99a81364c381c07a19634189c725a78e4188bf57bbb745e92'
     }
 }
 DIRECT_AUTH_PATH = 'user-directed-publication.json'
@@ -280,8 +286,47 @@ def validate_receiver_recovery(package, receipt):
             raise ValueError('receiver false-timeout recovery was not demonstrated')
 
 
+def validate_image_recovery(package, receipt):
+    report = json.loads(read_regular(package, receipt['evidence']['imageRecovery']['path']))
+    if (report.get('kind') != 'frozen-once-failed-image-recovery' or report.get('releaseQualified') is not False
+            or report.get('firstImageResponseStatus') != 503 or report.get('readyDeadlineMs') != 25000
+            or report.get('imagePath') != 'assets/hero-middle-CxRnxl.webp' or report.get('failure')):
+        raise ValueError('image recovery changed the original failure or readiness conditions')
+    for version, expected in [('v64', receipt['imageBaselineIdentity']), ('v65', receipt['identity'])]:
+        if any(report.get('identities', {}).get(version, {}).get(key) != value for key, value in expected.items() if key != 'draftManifestSha256'):
+            raise ValueError('image recovery identity mismatch')
+    rows = report.get('results', [])
+    if len(rows) != 4 or {(row.get('version'), row.get('trial')) for row in rows} != {(version, trial) for version in ['v64', 'v65'] for trial in [1, 2]}:
+        raise ValueError('image recovery requires both paired trials')
+    for row in rows:
+        repaired = row['version'] == 'v65'
+        requests = row.get('requests', [])
+        if (row.get('injectionObserved') is not True or row.get('ready') is not repaired
+                or row.get('platform') != 'desktop' or row.get('rangeId') != 'hold:hero' or row.get('progress') != 0
+                or row.get('state', {}).get('viewport') != [1440, 900, 1]
+                or row.get('state', {}).get('snapshot', {}).get('view', {}).get('status') != ('ready' if repaired else 'failed')
+                or len([request for request in requests if request.get('status') == 503 and request.get('injected') is True]) != 1
+                or any(request.get('path') != report['imagePath'] for request in requests)):
+            raise ValueError('failed-image recovery was not demonstrated')
+        failed_before = row.get('failedImagesBefore', [])
+        if (len(failed_before) != 2 or not row.get('failedUri')
+                or any(image.get('complete') is not True or image.get('width') != 0
+                       or image.get('src') != row['failedUri'] for image in failed_before)):
+            raise ValueError('genuine retained failed-image state is missing')
+        if repaired:
+            if (row.get('elapsedMs', 25000) >= 25000 or row.get('state', {}).get('broken')
+                    or not row.get('images') or any(not image.get('complete') or image.get('width', 0) <= 0 for image in row['images'])
+                    or not any(request.get('status') == 200 for request in requests)
+                    or len([image for image in row['images'] if image.get('src') == row['failedUri']]) != 2
+                    or not row.get('state', {}).get('videos') or any(video.get('readyState', 0) < 2
+                        or video.get('paused') is not True or video.get('seeking') is not False for video in row['state']['videos'])):
+                raise ValueError('recovered image or genuine parked frame is missing')
+        elif not row.get('state', {}).get('broken'):
+            raise ValueError('baseline failed-image reproduction is missing')
+
+
 def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
-    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA]:
+    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA]:
         raise ValueError('direct publication requires the exact user-directed v59 receipt, v60 public-test receipt, sealed v63 relative receipt, or sealed v64 receiver-repair receipt')
     receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
     if digest(receipt_bytes) != authorization_sha:
@@ -299,7 +344,7 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
     for item in receipt['evidence'].values():
         checked_file(package, item)
     memory = json.loads(read_regular(package / 'site', 'r5-process-memory.json'))
-    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA]:
+    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA]:
         # A declaration of missing evidence is not a synthetic measurement and
         # can never satisfy validate_memory or the default qualified path.
         expected = {'schemaVersion': 1, 'kind': 'r5-unmeasured-process-memory', 'status': 'not-measured',
@@ -313,6 +358,9 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
         if authorization_sha == V64_RECEIVER_AUTH_SHA:
             validate_relative_improvement(package, receipt, 'v64')
             validate_receiver_recovery(package, receipt)
+        if authorization_sha == V65_IMAGE_AUTH_SHA:
+            validate_relative_improvement(package, receipt, 'v65')
+            validate_image_recovery(package, receipt)
         return receipt
     if (memory.get('pass') is not False or memory.get('completedRunCount') != 2
             or memory.get('identity') != receipt['identity'] or len(memory.get('runs', [])) != 2
@@ -355,7 +403,7 @@ def validate_package(package, authorization_sha=None):
         if deploy.get('publicationAuthorization') is not None:
             raise ValueError('direct publication requires its explicit authorization SHA')
         validate_memory(memory)
-    expected_run_count = 0 if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA] else 2
+    expected_run_count = 0 if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA] else 2
     if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != expected_run_count or memory.get('identity') != evidence.get('identity'):
         raise ValueError('memory evidence identity mismatch')
     for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:

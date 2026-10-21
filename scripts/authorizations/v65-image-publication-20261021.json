@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-21T06:17:40.952Z",
+  "authority": "The user permits a demonstrably better incremental public update. Public v64 revealed a second genuine preparation problem: a native Hero image remained complete but undecodable, even after the video had genuine decoded-canvas proof and a fresh fetch of the exact image bytes decoded successfully. V65 adds one same-URI retry only for the current connected failed image, starts image work alongside video, and retains the final complete-image gate, cancellation guards and all original deadlines. This is corrective incremental publication, not original release qualification.",
+  "userInstruction": "你再迭代一轮呢，主要看看是哪儿的问题，只要比上版好就可以发布到公网啊",
+  "releaseId": "r5-ae7c4ee",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v65",
+    "candidateTagObject": "7b7c07074b778763d7472fe443fc7f94e94f4ea1",
+    "sourceCommit": "ae7c4ee56b94a52a06a9b4c8565002236b2b7dde",
+    "artifactTreeSha256": "f4087ef6520b9ffa9e999653dc57af38418d0c85a7684d9119868cda72a93cbf",
+    "draftManifestSha256": "ff3c9543dd5114c4fcbac49d2aabce093b78512dc5ab3f897ce188a646f3dab5"
+  },
+  "baselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v60",
+    "candidateTagObject": "d1614ef5788312bcc48259a2b4941b3830fa04d2",
+    "sourceCommit": "cb8c17affd9d171a206f19773a9a907cc1f20f1b",
+    "artifactTreeSha256": "80970dd1358c9c144c51172eb5670848f1a90f7ffe1916ee37e18e6b3c24271b",
+    "draftManifestSha256": "978208bd19b5834dbade2a91340db0a09a161bd3d7ba89bd9bad8dd3445425ce"
+  },
+  "publicationCondition": "Exact one-off v65: paired genuine retained-failed-image recovery against current v64, forty healthy cold-media samples against the original v60 task baseline with lower desktop median and fewer explicit video loads, 242 frozen functional checkpoints, six Proof aliases and twelve original-threshold visual comparisons. No original failed or unmeasured gate becomes passing.",
+  "comparison": {
+    "desktop": {
+      "v60": {
+        "samples": 10,
+        "medianMs": 4333,
+        "nearestRankP95Ms": 8827,
+        "explicitLoadCalls": 30
+      },
+      "v65": {
+        "samples": 10,
+        "medianMs": 3254,
+        "nearestRankP95Ms": 5568,
+        "explicitLoadCalls": 6
+      }
+    },
+    "phone": {
+      "v60": {
+        "samples": 10,
+        "medianMs": 3425,
+        "nearestRankP95Ms": 4668,
+        "explicitLoadCalls": 24
+      },
+      "v65": {
+        "samples": 10,
+        "medianMs": 3504.5,
+        "nearestRankP95Ms": 4644,
+        "explicitLoadCalls": 24
+      }
+    }
+  },
+  "comparisonScope": "Fresh documents boot at #method, then first seek to five media ranges; this measures media preparation, not complete page-load time or TTFB. Two counterbalanced trials per platform/version, identical 400ms first-byte latency and 16KiB/10ms local fixture responses, byte-verified frozen artifacts, target HTTP cache disabled, unchanged AC low-power mode. Explicit load-call counts include setup and retirement. This is a small controlled sample, not public CDN or physical-device qualification. The additional immediate-predecessor receiver comparison delays only video first bytes by 3000ms, in counterbalanced paired trials; both versions must actually take the poster fallback. New video frames must arrive within the original single 25000ms pose-readiness cap. This does not measure full homepage loading. The decisive image regression is separately fault-injected: after warming exact Hero, only its two DOM middle-image URLs are replaced with a unique loopback fixture URI serving the identical frozen WebP. Its first request really returns 503. The test observes both real native images complete/naturalWidth=0, then forces layout re-preparation through a 901->900px viewport round trip. The old artifact remains failed; the new artifact reselects the same failed URI and genuinely decodes the original image. Final viewport remains1440x900@1, original single25s readiness cap. This is failed-state recovery, not a claim about whole-homepage cold load latency.",
+  "qualificationStatusUnchanged": "pending-memory",
+  "knownGaps": [
+    "Public v64 first root startup failed the original deadline. Subsequent raw trace eventually showed a genuine decoded video at0 with readyState4 but Hero middle images complete/naturalWidth0; its native error was The source image cannot be decoded. Fresh v64 and v63 full image bodies both matched SHA a0c7c15b2009824fed452e97c08966304e7b7a938c3a7046c0254522b2a1c186 and decoded1672x941. That does not establish the cause of every earlier native-network failure.",
+    "The two preliminary single503 tests allowed the old artifact to recover too. They did not reproduce the retained-failed-DOM condition and are explicitly non-decisive, retained unchanged, not counted as improvements. The decisive test observes real failed native image state before asking either artifact to prepare it.",
+    "Public v64 direct-entry traversal passed desktop121/121 and phone117/121; four phone points share one initial AOD readyState0 stall. Both platforms passed all six Proof aliases and eleven navigation/menu/history/refresh interactions. A separate figure3 WebM ERR_EMPTY_RESPONSE was recorded. The image-only v65 fix does not claim those native-network or phone video failures are solved.",
+    "Cold medians and all tails/load counts are stored in comparison and raw samples. The baseline for these healthy timings is original v60, not v64; there are only two trials per range. No claim that every path or tail improved.",
+    "Frozen visual comparisons preserve channel difference24 and fraction0.005; twelve pass, not every screenshot is pixel-identical. A separate location report identifies small desktop nav/title-edge differences. No layout, font, color, shader, image quality or animation math was changed.",
+    "Original scroll timing thresholds, especially RAFp95<=20ms, remain unchanged and are not declared passing. The full public v65 sixteen-case matrix follows publication; prior failed reports remain unchanged.",
+    "Formal v65 process-memory runs remain zero/not-measured/pass=false and its manifest stays pending-memory. No earlier artifact supplies its qualification. Physical iPhone/Android and WebKit remain unverified.",
+    "All current1736 Vitest assertions and the unchanged88 native architecture assertions pass, with no skips and original5s/15s limits. The image recovery red report retains the two original targeted failures; fourteen focused tests now pass."
+  ],
+  "evidenceScope": "Healthy cold, frozen functional/visual and current units bind exact v65. The image-recovery report deliberately mutates only test DOM image URIs to create an actual native failure; it is not an unmodified visual or cold-start test. Public v64 failures and full-body checks are historical diagnosis. Original media bytes and all631 decoded RGBA frames are unchanged. Public v65 browser/performance checks follow the verified switch.",
+  "evidence": {
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 758,
+      "sha256": "32b560dea3849fb2dd4b563fec33f56e245bfe887b87f4580d4e05017138fa59"
+    },
+    "coldComparison": {
+      "path": "evidence/cold-comparison.json",
+      "bytes": 33962942,
+      "sha256": "147b334d78580be1c911064164f45de07f0461dbb1d631236f14468304eb6236"
+    },
+    "functional": {
+      "path": "evidence/functional-visual.json",
+      "bytes": 4637224,
+      "sha256": "79ab5ab45e193c5d14217df142f452e6eb1ed5ec20a50427f3a397a9e6bca12b"
+    },
+    "imageRecovery": {
+      "path": "evidence/image-recovery.json",
+      "bytes": 2436926,
+      "sha256": "f15ebd41240c9e0b8e94572098c9b1aff077366c1c5a1741683241770b76d3c5"
+    },
+    "nonDecisiveFirst503": {
+      "path": "evidence/non-decisive-first-503.json",
+      "bytes": 2388458,
+      "sha256": "09f6c2174ae7aed92f190b57ccf3566cfcf28d7e1d6383f8b8d5a00a8bb6737e"
+    },
+    "nonDecisiveActive503": {
+      "path": "evidence/non-decisive-active-503.json",
+      "bytes": 2417132,
+      "sha256": "90b800c9537601b946cc3b123215150548bd1eddd063a9c6e83fa8412c08e67d"
+    },
+    "publicRootBeforeRepair": {
+      "path": "evidence/public-root-before-repair.json",
+      "bytes": 597,
+      "sha256": "abfdba5c2cb79661b69c1af92f8fdffe369d5f56e8fe056a3778d14102ebed62"
+    },
+    "publicRootTraceBeforeRepair": {
+      "path": "evidence/public-root-trace-before-repair.json",
+      "bytes": 440841,
+      "sha256": "7868e16afd23176157e8afd4b214d054c3b5dcf756eca50700de4ac81fc53bb6"
+    },
+    "publicFrameReadBeforeRepair": {
+      "path": "evidence/public-frame-read-before-repair.json",
+      "bytes": 2939,
+      "sha256": "9464de66571e6cd41766ae4ef6efebf7c49f0f760845d0174a22e3a092e7e99e"
+    },
+    "publicImageBytesBeforeRepair": {
+      "path": "evidence/public-image-bytes-before-repair.json",
+      "bytes": 31426,
+      "sha256": "1b0e6a1f8a14c5aec4005ee7bad8ea6950e352e4df3fc75c0b7458b11c589365"
+    },
+    "publicDirectBeforeRepair": {
+      "path": "evidence/public-direct-before-repair.json",
+      "bytes": 13934581,
+      "sha256": "f9277fec4f63d54eea5e44b255df45bcb925aec57db70b1c1511be8e72fcaf60"
+    },
+    "unitRed": {
+      "path": "evidence/image-retry-red.json",
+      "bytes": 5728,
+      "sha256": "783401ecf7955f038b42f503ff48da484f58228913cc8f7caa114a4dc9a1dbdf"
+    },
+    "unitGreen": {
+      "path": "evidence/image-retry-green.json",
+      "bytes": 4590,
+      "sha256": "22de2e80953f925949f4665c068fc74288d846805dbf4a04fb8c5776dd751fc3"
+    },
+    "unitRuntime": {
+      "path": "evidence/unit-runtime.json",
+      "bytes": 599914,
+      "sha256": "4a4956ce8277962f7f5bb288726e49c0b52445a38ac7f19c6a657150786953c2"
+    },
+    "unitArchitecture": {
+      "path": "evidence/unit-architecture.json",
+      "bytes": 18443,
+      "sha256": "c8a793f6275bc26095d7ec8a6c35694d0d10f978caaf3cec4ba4ed6e7bb4cc17"
+    },
+    "unitSummary": {
+      "path": "evidence/unit-summary.json",
+      "bytes": 15021,
+      "sha256": "e3fc4192d8d68da8c1f949c1a426db4c69ee6926e7e925199e6b734e579e6e92"
+    },
+    "mediaRemuxProof": {
+      "path": "evidence/lossless-media-proof.json",
+      "bytes": 3744,
+      "sha256": "72ed09b90945b1ba8d850a1bcb43d0ebdb4e4b708cdf9dd20371f76bcbf19643"
+    }
+  },
+  "nonWaivedChecks": [
+    "Exact clean annotated candidate and immutable artifact bytes",
+    "Original visual, readiness, scroll and resource-budget numbers remain unchanged",
+    "Immutable CDN upload, HTTPS, CORS, MIME, cache and1024-byte video Range checks",
+    "Actual-package isolated Nginx probe before switching",
+    "Compare-and-swap include, preserving root and all v55/v59/v60/v63/v64 lazy JS/CSS URLs",
+    "Public HTTP identity and exact rollback to inspected v64 include"
+  ],
+  "failedEvidenceMustRemainUnmodified": true,
+  "doesNotGrantPassingQualification": true,
+  "doesNotAuthorizeFutureCandidates": true,
+  "receiverBaselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v63",
+    "candidateTagObject": "231447c23a0428e82874ba5fc53a8b28c4a99fe6",
+    "sourceCommit": "ac1861109ce612bf3e2c9bce1cee7846ec78f612",
+    "artifactTreeSha256": "ec27f26e60dcd9e89bedb26c0b28021bd772e359a05c40410c352607f04a8209",
+    "draftManifestSha256": "5c093a9f3e0dcfbc1c9ccf5694ef90b685e8d0947006026a72eccc78ce5961cf"
+  },
+  "imageBaselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v64",
+    "candidateTagObject": "6980e0d8542464525e9e349bf5f2829126e925f2",
+    "sourceCommit": "ba51d441f6a3db2cb4d9fb8080f38bb7742736c4",
+    "artifactTreeSha256": "db1d887f844cf95d69d7bbfcd789984ba1c92595aa6fbe2f0910246c6d4edb0b",
+    "draftManifestSha256": "f128c562a66e1091c0d42c3af7fad0085edb63db00eefefc906731ad6e51c9dc"
+  }
+}
