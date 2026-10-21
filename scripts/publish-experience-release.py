@@ -44,7 +44,7 @@ V63_RELATIVE_AUTH_SHA = '6b237a250650fd9496dad385cfc0f807992b1ced8e8fab9327434f7
 V64_RECEIVER_AUTH_SHA = '6ac63feb93a73f525bcd79746ae674e512ac3a38e5e6e17198e9f4e6a4190b6f'
 V65_IMAGE_AUTH_SHA = '33c6e82af56cf25f0b1e125be351786314cad2ffc0a7f90984bcacd1371bbdff'
 V67_LOADING_AUTH_SHA = '17ccc51e38316a30b1be9077d6453236ab2cce7a9c6127ab7216f5a019cbdab6'
-V68_PH_AUTH_SHA = '13443850499da5f56efb01bf14fa34a77f76cfeeaf6675ea5b37427fea0aad08'
+V68_PH_AUTH_SHA = '649860625c1c0976be908ec755b6726a48e218f9424ab3ea81baddced7fc0e10'
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {

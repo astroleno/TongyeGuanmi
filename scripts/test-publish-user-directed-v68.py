@@ -13,7 +13,7 @@ native = fixtures.native
 
 class ActualPhReceiptTests(unittest.TestCase):
     def test_exact_candidate_and_inspected_predecessor_are_not_future_authority(self):
-        raw = Path(__file__).with_name('authorizations').joinpath('v68-ph-cors-publication-20261021.json').read_bytes()
+        raw = Path(__file__).with_name('authorizations').joinpath('v68-ph-cors-publication-20261021-r2.json').read_bytes()
         self.assertEqual(native.digest(raw), native.V68_PH_AUTH_SHA)
         receipt = json.loads(raw)
         self.assertEqual(receipt['identity']['sourceCommit'], '370e09e3f18036fdcd5d8f903005d5cd7f66902c')
