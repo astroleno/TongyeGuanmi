@@ -139,7 +139,29 @@ export function createDesktopScrollPlatform(host: ScrollPlatformHost): StoryScro
         };
         signal.addEventListener('abort', release, { once: true });
         try {
-          await Promise.all(videos.map(async (video) => {
+          const retriedImages = new WeakSet<HTMLImageElement>();
+          const prepareImages = () => Promise.all(sceneIds.flatMap((scene) => [...host.layer(scene)?.querySelectorAll('img') ?? []]).map(async (image) => {
+            const source = image.currentSrc || image.src;
+            const sourceAttribute = image.getAttribute('src');
+            const sourceSet = image.getAttribute('srcset');
+            const decode = async () => {
+              if (typeof image.decode === 'function') await image.decode();
+              if (!image.complete || !image.naturalWidth) throw new Error('当前位置的图片未能解码');
+            };
+            try { await decode(); }
+            catch (error) {
+              // A failed native request remains failed across decode() calls.
+              // Reselect only a proven failed, current image once, preserving
+              // its exact immutable URL and the original preparation deadline.
+              if (signal.aborted || released || !image.isConnected || !source || !image.complete || image.naturalWidth > 0
+                || (image.currentSrc || image.src) !== source || image.getAttribute('src') !== sourceAttribute
+                || image.getAttribute('srcset') !== sourceSet || retriedImages.has(image)) throw error;
+              retriedImages.add(image);
+              image.src = source;
+              await decode();
+            }
+          }));
+          await Promise.all([prepareImages(), Promise.all(videos.map(async (video) => {
             // The shared driver owns source reselection and its bounded retry.
             // Calling load here both cancels a cold NETWORK_LOADING transfer
             // and leaves NETWORK_NO_SOURCE synchronously, causing a second
@@ -147,7 +169,8 @@ export function createDesktopScrollPlatform(host: ScrollPlatformHost): StoryScro
             const result = await prepareTimelineVideoFrame(video, { runId: `scroll:${preparation}`, direction: 1,
               progress: 0, durationFallbackSeconds: 1, startSeconds: 0, mode: 'timeline', signal });
             if (result?.status !== 'ready') throw new Error('当前位置视频帧已失效');
-          }));
+          }))]);
+          if (signal.aborted) throw new DOMException('Superseded', 'AbortError');
           if (position.segment) {
             const segment = storyManifest.nodes.find((node): node is SpineSegmentNode => node.kind === 'segment' && node.id === position.segment);
             if (!segment) throw new Error(`Missing canonical segment ${position.segment}`);
@@ -165,10 +188,10 @@ export function createDesktopScrollPlatform(host: ScrollPlatformHost): StoryScro
               } });
             if (signal.aborted) { timeline.dispose(); throw new DOMException('Superseded', 'AbortError'); }
           }
-          await Promise.all(sceneIds.flatMap((scene) => [...host.layer(scene)?.querySelectorAll('img') ?? []]).map(async (image) => {
-            if (typeof image.decode === 'function') await image.decode();
-            if (!image.complete || !image.naturalWidth) throw new Error('当前位置的图片未能解码');
-          }));
+          // Timeline construction may add images. Retain the final complete
+          // image gate as well as starting independent image work early.
+          await prepareImages();
+          if (signal.aborted) throw new DOMException('Superseded', 'AbortError');
         } catch (error) { release(); throw error; }
         let proved = false;
         coherence = createScrollMediaCoherence(videos);

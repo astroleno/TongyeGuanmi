@@ -21,6 +21,39 @@ function videoSceneFixture() {
   return { container, platform, root, replaceLayer: (element: HTMLElement) => { layer = element; } };
 }
 
+it.each(['recovered', 'permanent', 'aborted'] as const)('retries a proven failed image only once (%s), without replacing its URL', async outcome => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const container = document.createElement('div'); document.body.append(container);
+  source.promise = Promise.resolve({ id: 'hero', Component: () => <img src="https://assets.tongye.me/immutable.webp" alt="" />,
+    preload: () => ({ milestones: [] }), renderHold() {} });
+  const platform = createDesktopScrollPlatform({ root: () => container, layer: () => container,
+    measure() {}, requestWindow() {}, requestRender() {}, resourcesChanged() {} });
+  const root = createRoot(container), Scene = platform.Scene, controller = new AbortController();
+  try {
+    await act(async () => root.render(<Suspense><Scene scene="hero" /></Suspense>));
+    const image = container.querySelector('img')!; let width = 0, calls = 0;
+    Object.defineProperties(image, { complete: { get: () => true }, naturalWidth: { get: () => width } });
+    const decode = vi.fn(async () => {
+      calls++;
+      if (outcome === 'aborted') controller.abort('superseded image');
+      if (outcome === 'recovered' && calls > 1) { width = 1672; return; }
+      throw new DOMException('The source image cannot be decoded.', 'EncodingError');
+    });
+    image.decode = decode;
+    const setter = vi.spyOn(image, 'src', 'set');
+    const index = createScrollSpine({ viewportHeight: 900 });
+    const position = locateScrollPosition(index, positionForScrollAnchor(index, { rangeId: 'hold:hero', progress: 0 }));
+    const preparation = platform.adapter.prepare(position, { generation: 1, epoch: 1, revision: 1, layoutRevision: 1 }, controller.signal);
+    if (outcome === 'recovered') {
+      const ready = await preparation;
+      expect(ready.render(position, { generation: 1, epoch: 1, revision: 1, layoutRevision: 1 })?.progress).toBe(0);
+      ready.dispose();
+    } else await expect(preparation).rejects.toThrow('cannot be decoded');
+    expect(setter.mock.calls).toEqual(outcome === 'aborted' ? [] : [['https://assets.tongye.me/immutable.webp']]);
+    expect(decode.mock.calls.length).toBe(outcome === 'aborted' ? 1 : outcome === 'permanent' ? 2 : 3);
+  } finally { controller.abort(); await act(async () => root.unmount()); platform.dispose(); container.remove(); vi.unstubAllGlobals(); }
+});
+
 it.each([2, 3])('does not restart a cold decoder outside the media driver (networkState %i)', async networkState => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
@@ -59,6 +92,28 @@ it('promotes mounted-window media while independent scene assets are still prepa
   } finally {
     finish(); await act(async () => root.unmount()); platform.dispose(); container.remove(); pause.mockRestore(); load.mockRestore(); vi.unstubAllGlobals();
   }
+});
+
+it('starts image decoding before the independent cold video has a frame', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  const { container, platform, root } = videoSceneFixture(), Scene = platform.Scene;
+  source.promise = Promise.resolve({ id: 'hero', Component: () => <article><video><source src="motion.webm" /></video><img src="still.webp" alt="" /></article>,
+    preload: () => ({ milestones: [] }), renderHold() {} });
+  const controller = new AbortController(); let preparation: Promise<unknown> | undefined;
+  try {
+    await act(async () => root.render(<Suspense><Scene scene="hero" /></Suspense>));
+    const video = container.querySelector('video')!, image = container.querySelector('img')!;
+    Object.defineProperties(video, { readyState: { value: 0 }, networkState: { value: 2 } });
+    Object.defineProperties(image, { complete: { value: true }, naturalWidth: { value: 1672 } });
+    const decode = vi.fn(async () => {}); image.decode = decode;
+    const index = createScrollSpine({ viewportHeight: 900 });
+    const position = locateScrollPosition(index, positionForScrollAnchor(index, { rangeId: 'hold:hero', progress: 0 }));
+    preparation = platform.adapter.prepare(position, { generation: 1, epoch: 1, revision: 1, layoutRevision: 1 }, controller.signal).catch(error => error);
+    await act(async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); });
+    expect(decode).toHaveBeenCalledOnce(); expect(load).not.toHaveBeenCalled();
+  } finally { controller.abort(); await preparation; await act(async () => root.unmount()); platform.dispose(); container.remove(); pause.mockRestore(); load.mockRestore(); vi.unstubAllGlobals(); }
 });
 
 it.each(['source', 'direct'] as const)('unloads detached desktop video %s resources on scene unmount', async kind => {
