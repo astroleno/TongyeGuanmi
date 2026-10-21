@@ -44,9 +44,15 @@ V63_RELATIVE_AUTH_SHA = '6b237a250650fd9496dad385cfc0f807992b1ced8e8fab9327434f7
 V64_RECEIVER_AUTH_SHA = '6ac63feb93a73f525bcd79746ae674e512ac3a38e5e6e17198e9f4e6a4190b6f'
 V65_IMAGE_AUTH_SHA = '33c6e82af56cf25f0b1e125be351786314cad2ffc0a7f90984bcacd1371bbdff'
 V67_LOADING_AUTH_SHA = '17ccc51e38316a30b1be9077d6453236ab2cce7a9c6127ab7216f5a019cbdab6'
+V68_PH_AUTH_SHA = '13443850499da5f56efb01bf14fa34a77f76cfeeaf6675ea5b37427fea0aad08'
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {
+    '96141ee37ae7c6436da89e6b70e0b9f1f19fa0068d0bac52c359af1a41352f56': {
+        'releaseId': 'r5-ab570a1',
+        'manifestSha256': 'beaf7837a77bf4260f38d22cac784454c6c9de58ef8d8d744a6a1328d5c3f9cb',
+        'beforeIncludeSha256': '64e100361759a410764aee9f8872b693dc5239bb56a53046660e6de9b46695c8',
+    },
     '01567f5ba32d8ecca93ec95a8a4cdf76f132a61ca208e2d74e8f9db0e4b20d71': {
         'releaseId': 'r5-c1ee8fd',
         'manifestSha256': '1b7d486bfb046f840cd65d51e4d2e915fe270cea383b3b4c38bcb1eba08c58d8'
@@ -330,6 +336,71 @@ def validate_loading_recovery(package, receipt):
     validate_frozen_functional_visual(package, receipt, 'v67', 'v65')
 
 
+def validate_ph_cors_recovery(package, receipt):
+    """One fixed image request owner, not a relaxed decode or memory gate."""
+    report = json.loads(read_regular(package, receipt['evidence']['phCorsRecovery']['path']))
+    if (report.get('kind') != 'v67-v68-native-ph-image-cors-request-recovery'
+            or report.get('originalPoseDeadlineMs') != 25000 or report.get('viewport') != [390, 844, 1]
+            or report.get('releaseQualified') is not False or report.get('passed') is not True or report.get('failure')):
+        raise ValueError('PH recovery changed the original deadline or qualification')
+    rows = report.get('results', [])
+    if len(rows) != 4 or {(row.get('version'), row.get('trial')) for row in rows} != {(version, trial) for version in ['v67', 'v68'] for trial in [1, 2]}:
+        raise ValueError('PH recovery requires both paired trials')
+    image_sha = '48b3cdade0bdf056ad1fa1fc0843d779138b2c50460947150bb3a8354fef3881'
+    for row in rows:
+        repaired = row['version'] == 'v68'
+        identity = receipt['identity'] if repaired else receipt['baselineIdentity']
+        if any(row.get('identity', {}).get(key) != value for key, value in identity.items() if key != 'draftManifestSha256'):
+            raise ValueError('PH recovery artifact identity mismatch')
+        state, requests = row.get('state', {}), row.get('requests', [])
+        view = state.get('snapshot', {}).get('view', {})
+        desired = state.get('snapshot', {}).get('desired', {})
+        peer = next(item for item in rows if item['trial'] == row['trial'] and item['version'] != row['version'])
+        if (row.get('ready') is not repaired or state.get('platform') != 'phone' or state.get('viewport') != [390, 844, 1]
+                or view.get('status') != ('ready' if repaired else 'failed') or not requests
+                or type(desired.get('progress')) not in [int, float] or not math.isfinite(desired['progress'])
+                or desired.get('rangeId') != 'lab-ph' or desired.get('progress') != peer.get('state', {}).get('snapshot', {}).get('desired', {}).get('progress')
+                or (repaired and (row.get('goal', {}).get('rangeId') != 'lab-ph' or row['goal'].get('requestedProgress') != .5 or row['goal'].get('progress') != desired.get('progress')))
+                or any(not request.get('path', '').startswith('assets/ph_front-alpha-') or request.get('bodySha256') != image_sha for request in requests)):
+            raise ValueError('PH recovery did not preserve the actual image, pose or native failure')
+        complete = lambda request: (request.get('mode') == 'cors' and request.get('bytes') == 484606
+                                    and request.get('complete') is True and not request.get('fault'))
+        if not repaired:
+            if (not any(complete(request) for request in requests)
+                    or not any(request.get('mode') == 'no-cors' and request.get('fault') == 'same-body-prefix-truncated-no-cors'
+                               and request.get('bytes') == 32 and request.get('complete') is False for request in requests)
+                    or not state.get('broken')):
+                raise ValueError('PH baseline must show a real truncated duplicate and complete mask')
+        elif (len(requests) != 1 or not complete(requests[0]) or state.get('broken') or state['snapshot'].get('pending')
+              or row.get('error') or row.get('health', {}).get('errors')
+              or type(row.get('elapsedMs')) not in [int, float] or not 0 <= row['elapsedMs'] < 25000
+              or not state.get('videos') or any(video.get('readyState', 0) < 2 or video.get('paused') is not True
+                  or video.get('seeking') is not False for video in state['videos'])):
+            raise ValueError('PH candidate requires one complete request and parked decoded media')
+    cold = json.loads(read_regular(package, receipt['evidence']['coldComparison']['path']))
+    environment = cold.get('environment', {})
+    if (cold.get('kind') != 'same-conditions-v67-v68-cold-media-comparison' or cold.get('releaseQualified') is not False
+            or cold.get('failure') or environment.get('latencyMs') != 400 or environment.get('bytesPerChunk') != 16384
+            or environment.get('chunkIntervalMs') != 10 or environment.get('targetCacheDisabled') is not True
+            or environment.get('atomicReadinessSnapshot') is not True
+            or not environment.get('powerBefore') or environment['powerBefore'] != environment.get('powerAfter')):
+        raise ValueError('PH healthy cold-media protocol changed')
+    for version, expected in [('v67', receipt['baselineIdentity']), ('v68', receipt['identity'])]:
+        if any(cold.get('identities', {}).get(version, {}).get(key) != value for key, value in expected.items() if key != 'draftManifestSha256'):
+            raise ValueError('PH healthy cold-media identity mismatch')
+    ranges = ['hero-pattern', 'method-bottom-figure2', 'brand-figure3', 'education-crane', 'crane-contact']
+    expected = {(platform, trial, segment, version) for platform in ['desktop', 'phone'] for trial in [1, 2]
+                for segment in ranges for version in ['v67', 'v68']}
+    samples = cold.get('results', [])
+    if (len(samples) != 40 or {(row.get('platform'), row.get('trial'), row.get('rangeId'), row.get('version')) for row in samples} != expected
+            or any(row.get('ready') is not True or row.get('failure') or row.get('errors')
+                   or type(row.get('elapsedMs')) not in [int, float] or not 0 <= row['elapsedMs'] < float('inf') for row in samples)):
+        raise ValueError('all forty PH healthy cold-media samples are required')
+    if any(not isinstance(row.get('videos'), list) or any(video.get('paused') is not True or video.get('seeking') is not False for video in row['videos']) for row in samples):
+        raise ValueError('PH cold-media must atomically observe every decoder parked')
+    validate_frozen_functional_visual(package, receipt, 'v68', 'v67')
+
+
 def validate_receiver_recovery(package, receipt):
     report = json.loads(read_regular(package, receipt['evidence']['receiverRecovery']['path']))
     if (report.get('kind') != 'frozen-delayed-first-frame-receiver-regression' or report.get('releaseQualified') is not False
@@ -393,7 +464,7 @@ def validate_image_recovery(package, receipt):
 
 
 def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
-    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA]:
+    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA]:
         raise ValueError('direct publication requires the exact user-directed v59 receipt, v60 public-test receipt, sealed v63 relative receipt, or sealed v64 receiver-repair receipt')
     receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
     if digest(receipt_bytes) != authorization_sha:
@@ -411,7 +482,7 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
     for item in receipt['evidence'].values():
         checked_file(package, item)
     memory = json.loads(read_regular(package / 'site', 'r5-process-memory.json'))
-    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA]:
+    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA]:
         # A declaration of missing evidence is not a synthetic measurement and
         # can never satisfy validate_memory or the default qualified path.
         expected = {'schemaVersion': 1, 'kind': 'r5-unmeasured-process-memory', 'status': 'not-measured',
@@ -430,6 +501,8 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
             validate_image_recovery(package, receipt)
         if authorization_sha == V67_LOADING_AUTH_SHA:
             validate_loading_recovery(package, receipt)
+        if authorization_sha == V68_PH_AUTH_SHA:
+            validate_ph_cors_recovery(package, receipt)
         return receipt
     if (memory.get('pass') is not False or memory.get('completedRunCount') != 2
             or memory.get('identity') != receipt['identity'] or len(memory.get('runs', [])) != 2
@@ -472,7 +545,7 @@ def validate_package(package, authorization_sha=None):
         if deploy.get('publicationAuthorization') is not None:
             raise ValueError('direct publication requires its explicit authorization SHA')
         validate_memory(memory)
-    expected_run_count = 0 if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA] else 2
+    expected_run_count = 0 if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA] else 2
     if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != expected_run_count or memory.get('identity') != evidence.get('identity'):
         raise ValueError('memory evidence identity mismatch')
     for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:

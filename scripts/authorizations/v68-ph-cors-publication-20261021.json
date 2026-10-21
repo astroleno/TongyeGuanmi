@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-21T09:47:57.504Z",
+  "authority": "Standing user authorization permits an incrementally better public update after exact-candidate validation. The user asks to investigate failures and iterate. This exact candidate removes the duplicate no-cors PH foreground request while keeping the existing anonymous CSS alpha matte and all native readiness, media bytes and original numeric limits. It is not general future permission or missing qualification.",
+  "userInstruction": "你再看看为什么会失败呢？再进行迭代呢；只要比上版好就可以发布到公网啊",
+  "releaseId": "r5-370e09e",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v68",
+    "candidateTagObject": "9d89c6c27a7590a7515e17ec086d93e12f9e4787",
+    "sourceCommit": "370e09e3f18036fdcd5d8f903005d5cd7f66902c",
+    "artifactTreeSha256": "83da9f4477b7233e434ec49c4c9170d5b87e00ce70e521ad6b9bf430864df224",
+    "draftManifestSha256": "a3612cbe7f78555013d8ed81415544fdc093622b18371ab9930a430a32c1060f"
+  },
+  "baselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v67",
+    "candidateTagObject": "d3adaee87e988957d2291eb502a5681ca22cb167",
+    "sourceCommit": "ab570a1fc3d41de5d9a147d4c4f95df0e6d01419",
+    "artifactTreeSha256": "b156a2f58bcd630380ef515934e18674e0ee33f7b9124c91c94e6f074c4413c5",
+    "draftManifestSha256": "beaf7837a77bf4260f38d22cac784454c6c9de58ef8d8d744a6a1328d5c3f9cb"
+  },
+  "publicationCondition": "Only this exact v68: both original25s PH pose trials reproduce genuine Content-Length truncation of the extra no-cors image in the immediate public predecessor v67; v68 must have exactly one complete484606B anonymous request and real decoded parked media. All242 frozen points,6 Proof aliases,12 original-threshold visuals,2 additional PH visuals and40 healthy cold-media samples must pass. No original failed or unmeasured gate is promoted.",
+  "comparison": {
+    "desktop": {
+      "v67": {
+        "samples": 10,
+        "medianMs": 3376,
+        "nearestRankP95Ms": 5552,
+        "explicitLoadCalls": 4
+      },
+      "v68": {
+        "samples": 10,
+        "medianMs": 3383,
+        "nearestRankP95Ms": 7442,
+        "explicitLoadCalls": 4
+      }
+    },
+    "phone": {
+      "v67": {
+        "samples": 10,
+        "medianMs": 3510.5,
+        "nearestRankP95Ms": 4673,
+        "explicitLoadCalls": 26
+      },
+      "v68": {
+        "samples": 10,
+        "medianMs": 3483,
+        "nearestRankP95Ms": 4521,
+        "explicitLoadCalls": 27
+      }
+    }
+  },
+  "comparisonScope": "The same400ms first byte,16KiB/10ms chunks,cache-disabled targets,counterbalanced paired trials and unchanged power settings. Ten samples per platform/version do not prove general homepage,TTFB,tail or universal speed improvement. The decisive image case genuinely truncates only the redundant no-cors request; CSS-mask bytes and all successful image bytes are identical. No ready fields or pixels are fabricated.",
+  "qualificationStatusUnchanged": "pending-memory",
+  "knownGaps": [
+    "Two subsequent QA attempts are excluded: one sampler omitted the native paused field and could never accept readiness; interrupting itsCLI left its separate Ego Node execution running and interfered with the next navigation. Raw partial reports are preserved. The final run records the field,avoids redundant blank navigation,owns itsNode PID,and requires explicit completion of every browser cleanup before another round.",
+    "The first cold-media attempt remains39/40: all20v68 observations passed,onev67 Figure3 sample had product-ready followed by native seeking in a second read. Final paired media checks require the original pose predicate and all paused/nonseeking media in one browser evaluation within the same25s cap; the earlier nonpassing sample is preserved,not reclassified.",
+    "V67 actual public first traversal remains121/121 desktop and108/121 phone. Seven PH-related points share one real foreground-image transfer failure; two Figure2 and four AOD points have separate preparation/convergence failures whose discarded native resources cannot retrospectively prove the pre-error decoder state. These first failures are never rewritten.",
+    "V67 original16-case public scroll matrix now has all16 real measurements but0/16 passing the unchanged gates. RAF P95 remains roughly34-50ms; pose lag and long tasks also fail in some segments. This network-owner fix is not an FPS claim.",
+    "Formal process-memory runs remain0/not-measured/pass=false and the manifest stayspending-memory. Physical iPhone/Android and WebKit qualification remain incomplete.",
+    "The prior first visual failure, excluded orchestration attempts, every public failure and the failed local Node CDN verification remain retained in the protected v67 archive. The current exact candidate must undergo its own public HTTP,root,traversal and original16-case scroll checks after the verified switch.",
+    "Healthy timings and every tail are retained. One smaller foreground request does not imply that every path or percentile is faster. No power,proxy,browser installation,other tabs or unrelated projects are changed."
+  ],
+  "evidence": {
+    "coldExecution": {
+      "path": "evidence/cold-execution-complete.json",
+      "bytes": 275,
+      "sha256": "186f2601d40f70ea671e8e817b27574c5c94a9f2f94b3742b629b030480b2eea"
+    },
+    "overlapExcluded": {
+      "path": "evidence/overlap-excluded.json",
+      "bytes": 794,
+      "sha256": "436cde20cc3806a3720888010aeac95f48d6b7a0de9d21f5914058d096049d96"
+    },
+    "invalidAtomicRaw": {
+      "path": "evidence/invalid-atomic-raw.json",
+      "bytes": 20894571,
+      "sha256": "77ce53fd898527a0bdf1b883678bf364fb14c14e112a023851c47c156b008336"
+    },
+    "overlappedAtomicRaw": {
+      "path": "evidence/overlapped-atomic-raw.json",
+      "bytes": 790985,
+      "sha256": "021db930d05aeb32c4d3983e46b43fc43ad6515103057302a15867e61fd30c0c"
+    },
+    "abortedAtomicProbe": {
+      "path": "evidence/aborted-atomic-probe.json",
+      "bytes": 609,
+      "sha256": "c35472df02aaaaa473f7f2381b98cdcb29c6f82d324d5be94ef81523fe81014d"
+    },
+    "firstColdProbe": {
+      "path": "evidence/first-cold-probe.json",
+      "bytes": 33968204,
+      "sha256": "e87e4eb4d408bd987578662837df2e2cb7c39df87083d97b2b6eb81f7be12acb"
+    },
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 764,
+      "sha256": "78c5fe999d816f2917838be1b4ec28155856b0c725c29111d71cb97a44cd845f"
+    },
+    "phCorsRecovery": {
+      "path": "evidence/ph-cors-recovery.json",
+      "bytes": 4178697,
+      "sha256": "a6999b7e665c49cf5a8054921244b136a7f18a397b96b118286ea24b47f2740f"
+    },
+    "coldComparison": {
+      "path": "evidence/cold-comparison.json",
+      "bytes": 35765653,
+      "sha256": "3783e675d8401b8bc54e03ad13e38e7b1b5828abe4951837e2f3be1acbd63f48"
+    },
+    "functional": {
+      "path": "evidence/functional-visual.json",
+      "bytes": 4641384,
+      "sha256": "3c561f78e4885cb2f4cb5310150369bdd7fcc1534e81e8282f525d7eb96c0971"
+    },
+    "phVisual": {
+      "path": "evidence/ph-visual.json",
+      "bytes": 81009,
+      "sha256": "dcc9e90f583bcb7fe1b72dc553c8dc18d7c3bdb1f7bf7f199e2fdc0563a5b207"
+    },
+    "functionalRaw": {
+      "path": "evidence/functional-raw.json",
+      "bytes": 4601360,
+      "sha256": "b73c432f8a4cf406008a640ab92fa6d38917cb3d64707d241caab687400e9416"
+    },
+    "visualRaw": {
+      "path": "evidence/visual-raw.json",
+      "bytes": 114917,
+      "sha256": "6a95bf7614a634e4b62619896015e627ae37706c3c29bab6df546d517c13aa5f"
+    },
+    "unitSummary": {
+      "path": "evidence/unit-summary.json",
+      "bytes": 14456,
+      "sha256": "a531449507b03688487516ed9bd5bb99b0ee0f59c93f50a3e0ff8c11305ec126"
+    },
+    "unitRuntime": {
+      "path": "evidence/unit-runtime.json",
+      "bytes": 605322,
+      "sha256": "1b088b50810805167003bcac0e828ec587f1ab13332e7090f1a73481d62c1ffe"
+    },
+    "unitArchitecture": {
+      "path": "evidence/unit-architecture.json",
+      "bytes": 18179,
+      "sha256": "8d65f6b3c3a58eb149fefd0d9bdb57c783670ebca4c827e5674fa07a4101639a"
+    },
+    "typecheck": {
+      "path": "evidence/typecheck.json",
+      "bytes": 338,
+      "sha256": "ef50b25af379dad943b30414ff174cef7a5f6d5efaad714dc07e1e565225068c"
+    },
+    "lint": {
+      "path": "evidence/lint.json",
+      "bytes": 315,
+      "sha256": "72f2c8ab4dae1ee3892d54969a0963bc2cada0a911b3b478066db2a4d50cfe3f"
+    },
+    "build": {
+      "path": "evidence/build-result.json",
+      "bytes": 163,
+      "sha256": "28113df84272688331c22d3f0f0ac48c4a0e2ffe9c0f90081cd9430d484ae698"
+    },
+    "unitRed": {
+      "path": "evidence/unit-red.json",
+      "bytes": 3724,
+      "sha256": "a2f81f218da2ec03986c72f3b3f0c4d769a6b85bd18d4870749ee7f21e10da41"
+    },
+    "unitGreen": {
+      "path": "evidence/unit-green.json",
+      "bytes": 7753,
+      "sha256": "f1bb29c3eb9b9cf837eaf5628bcc36ccdf7691968178df3e7b5ac2758da04063"
+    },
+    "publicBeforeRepair": {
+      "path": "evidence/public-v67-first-functional.json",
+      "bytes": 14064606,
+      "sha256": "00de2b457496933d37571709198043fbc81c3dff87dea5a4ad51ec2350df04a0"
+    },
+    "performanceBeforeRepair": {
+      "path": "evidence/public-v67-performance.json",
+      "bytes": 6983226,
+      "sha256": "34b82be8f8caf4c17572132f6930c0a6dcdf25ee3ac5133e0e0af811aba3d537"
+    },
+    "httpBeforeRepair": {
+      "path": "evidence/public-v67-http.json",
+      "bytes": 1130,
+      "sha256": "e411ffc1b7194e2bee6ee40fbd9a52b84a8170f54012d091c5901634aa62d2ad"
+    },
+    "priorArchive": {
+      "path": "evidence/prior-protected-archive.json",
+      "bytes": 423,
+      "sha256": "673b18d4f290024f9245693007e7806b8a98786dc8456e14a85b065f8d4c0db8"
+    }
+  },
+  "evidenceScope": "Only immutable v68 source370e09e and its real paired image request/frame evidence,full original frozen gates and original reports. All63 CDN/media object bytes are unchanged. The authorization is not a passing memory/device/performance report.",
+  "doesNotGrantPassingQualification": true,
+  "doesNotAuthorizeFutureCandidates": true,
+  "nonWaivedChecks": [
+    "Clean exact annotated source and immutable artifact",
+    "Original frame,pose,visual,media/resource and budget numbers",
+    "Immutable upload,HTTPS HEAD/CORS/MIME/length/cache and1024B206Range",
+    "Actual-package isolated Nginx probe",
+    "CAS against inspectedv67 and preservation of allv55/v59/v60/v63/v64/v65/v67 lazy URLs",
+    "Actual public HTTP identity and exact rollback to the inspectedv67 include"
+  ]
+}
