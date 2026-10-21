@@ -1,8 +1,24 @@
 # 旧官网迁移至 /experience/
 
-## v70 公网测试版授权已封存（2026-10-22，Asia/Shanghai）
+## 当前公开版本：v70 公网测试版（2026-10-22 01:16，Asia/Shanghai）
 
-用户新增明确批准：“允许，保留失败记录后发布并公网复测”。精确收据 `scripts/authorizations/v70-callback-publication-20261022.json`，SHA `5e011218bfd8871a349f6433643f06862d212f4e5b13fc778f8a22e0a0a52000`；只覆盖下述冻结 c58c7d9，不授权其他候选，也不授予合格标记。暂存包名为 `r5-c58c7d9-callback-test`；此条是发布前记录，当前实际公网仍是 v69，须以随后真实事务及 HTTP 读回为准。
+用户新增明确批准：“允许，保留失败记录后发布并公网复测”。精确收据 `scripts/authorizations/v70-callback-publication-20261022.json`，SHA `5e011218bfd8871a349f6433643f06862d212f4e5b13fc778f8a22e0a0a52000`；只覆盖下述冻结 c58c7d9，不授权其他候选，也不授予合格标记。应用与 annotated tag 已推送，发布工具提交 `cc801a7` 已推送 main。不可变包为 `.release/r5-c58c7d9-callback-test`，真实远程暂存 `/tmp/tongye-experience-r5-c58c7d9-EySAd1`，没有重新构建或混用其他产物。
+
+实际发布完成：907 项隔离真实 Nginx + 907 项真实公网 HTTP 均通过；63 个对象不可变上传，本机原 Node CDN HEAD／MIME／长度／缓存／CORS 与 1024B 视频 206 Range 检查直接通过，本次不需要等价执行器或代理修改。159 项发布／回滚离线保护断言通过，25 项新保护覆盖完整目标矩阵、真实回调／像素证明和保留失败；先前本地缺 nginx 的失败不改判，由实际完整包的 907 项服务器隔离检查补足。
+
+事务 `applied-http-verified`，verifiedAt `2026-10-21T17:16:25.103410+00:00`；include 为 `d11780dfd3171756802ed92426cc380da6ba74872ee40b8fd0598cdabe9b2ecd`，vhost 与 v55 根 donor 均未改变，旧懒加载模块继续保留。服务器原记录、manifest SHA、当前 include 与根 donor 已独立读回核对。实际入口 `https://tongye.me/experience/` 已为 v70，不再是 v69。
+
+实际公网双端遍历：桌面 121/121、手机视口 121/121，Proof 6/6，菜单／CTA／前后退／联系页刷新 11/11；每端前后公开 manifest 均为 c58c7d9／`6ab24a1f…`，不等同于物理手机资格验证。本轮没有遇到原 25s 姿态准备超时；只是一轮观测，不保证连续多次真实传输故障都能恢复。真实根入口到完整 Hero 就绪分别为 12,713／10,317ms，包含网络、媒体与浏览器交互，不是 TTFB，也不能据此宣称首次加载足够快。桌面记录 2,881、手机 4,143 条同文通信错误，这是原采集器条目数而非已去重的独立故障数；整体功能报告仍 `passed=false`，不能把画面点通过解释为无错误资格通过。
+
+公网原滚动矩阵 16/16 全部取得完整实测，**0/16 达标**。采样／汇总函数 SHA、双端视口、焦点、10s／20%→80%、25s 准备和 15s 调用上限全部不变，资源不替换。15 项 RAF P95 为 34.2–49.9ms；桌面 Crane 则为 1,016.7ms，并伴随姿态滞后 P95 2,014.8ms 和收敛失败。桌面 Figure2／PH 姿态滞后约 130.1／104.8ms，PH 另有一个 >50ms LongTask；手机八项均只失败于原 20ms RAF 门槛，全部视频保持暂停。空白静止约 17.5／17.6ms，主动滚动约 34.2／17.6ms；结合此前应用外也出现约 1,018ms 的控制样本，只能说明共同调度瓶颈存在，不能确定本次 Crane 异常或所有应用卡顿的唯一原因。通信错误仍未精确归因，原失败不改判，不能宣布卡顿已修好。
+
+四个实际公网调用均正常结束。Ego 专用组 2 最后只执行一次 `finish({keep:[]})`，关闭本项目自己的 p1／p2；两个按 PID 和完整路径核对的本项目夹具进程已停止，没有关闭其他页面或进程。未安装浏览器，未更改电源／代理或全局浏览器设置。
+
+194 份原始报告、截图、执行源和失败记录全部保留。完整本地归档为持久制品目录父级的 `qa-evidence-v70-final-20261022-ef812914.tar.gz`（39,340,811B，SHA `396ede64980a5c0941af8b0d7c899091204d5ef2136b6dea0f27e69c31e4ff58`），195 个常规成员（含索引自身）全部逐文件校验长度与 SHA。第一份归档在索引形成后多收录了一份最终读回辅助源，索引覆盖不足的审计原件保留，没有冒充完整索引通过。
+
+最终服务器保护副本使用同一目录 `/www/wwwroot/tongye.me/route-backups/native-r5-c58c7d9/` 下的基础归档 `qa-evidence-v70-20261022-8022117c.tar.gz`（SHA `34e48a06abdf9c15a19623c971eceead36dc6e7c6a04c3d2dfe2fd129c4599c3`）及 104,224B 补充包 `qa-evidence-v70-supplement-20261022-08bf9006.tar.gz`（SHA `5d1f8eb09e3f5272a345265e82027ff6725f94393f9f87c57004a24e6f1c02f4`）。服务器独立解包式流读审计确认两包合计完整覆盖同一 194 文件、195 常规成员，全部长度／SHA 与最终原始索引 `ee6d1a08ac2fbffe11112cd1031d11241091c7affa255c4d0f5b933f5cb560d2` 相同；保护目录另有 `qa-composite-index-v70.json`、`qa-composite-audit-v70.json`、`qa-composite-result-v70.json`，均 0600，不改变任何测试状态。
+
+新增运维风险：归档交付时发现服务器根盘 40G／已用 38G、普通用户可用 **0B**，内核仍有约 1.7GB 保留块。第二份整包 SCP 写入失败，原失败和部分传输文件保留；改用已校验基础包加小型补充包，直接写入保护目录，未放宽数据完整性。重复临时件清理因部分传输内容不匹配预期前缀被原安全校验拒绝，未降低校验或删除文件；未清理旧发布包、素材、历史归档或其他项目。磁盘风险尚未解决，后续发布前需要单独批准清理或扩容。
 
 用户获准重建的专用组 2 中，分八次短调用完成全部 32 项原滚动对照；32 项均保留失败，原采样函数、视口、焦点、期限与数值门槛未变。新旧版都有大量 `Log.entryAdded/source=other` 的同一 `Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist.`。两次功能遍历各有一条、40 项冷加载各有一条同文通信错误：242 个姿态、6 个 Proof 和 40 个原期限内真实暂停媒体就绪检查本身通过，但完整无错误验收没有通过。全部原错误、失败布尔值和逐批次数／哈希保留，不根据措辞猜测并过滤为扩展错误。八项成本诊断的 83→54 拷贝次数受不等 RAF 采样节奏混杂，明确不能作为改进证明。
 
@@ -24,7 +40,7 @@
 
 此次 76 份原始报告、截图、执行源、发布工具草案和索引另保全为 `/www/wwwroot/tongye.me/route-backups/native-r5-81daca0/qa-evidence-v70-interrupted-20261022-a1d1b112.tar.gz`（22,731,379B，SHA `eebbd639b32007b66f4c93348f603f42de5db7e2b87521a7239eee8d5efb5159`），服务器读回一致、0600；仅排除可重建编译缓存 `compiler-tmp`，本地原件仍保留。两个自己创建的冻结夹具进程均已停止；组 70 已消失，错误结束时未调用 finish，也没有关闭其他页面。恢复须基于原冻结产物继续，未执行过的脚本可绑定新获准的专用组；已执行的轮次不重放或覆写。
 
-## 当前公开版本：v69（2026-10-21 20:56，Asia/Shanghai）
+## 历史公开版本：v69（2026-10-21 20:56，Asia/Shanghai）
 
 Release `r5-81daca0`，source `81daca0d36a9219bf41e8f6afd5a768bb7ab9505`，annotated tag object `24eb88bb00108112251146739fd22d7fa182433c`，manifest SHA `a1ee07ea6767650bb9b8a9b3cfacf1ae0f63c5d78b2bf79fef5b0b151a4b8037`，artifact tree `a01a0efacdc4974fb47be5153d13fe9eb14b12da0c1704fab508bc96bf55d92c`。它增加有实际进度判定的活跃 scrub watchdog：仍在原生 seeking／NETWORK_LOADING／缺首帧时，连续 4s 无真实进度才对同源最多重载一次；不是每次滚动都重载，不改 generation、目标、准备阶段或原 20s 收敛期限。真实原媒体 Range 零正文夹具两轮旧 v68 都保持 pending 到原期限，新 v69 分别约 4,462／4,361ms 恢复真实暂停目标帧。
 
