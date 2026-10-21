@@ -41,7 +41,7 @@ V59_DIRECT_AUTH_SHA = '0721104d84e66c813e5b1a2db98796b05bdc8b776be777b2b44b3ff20
 V60_PUBLIC_TEST_AUTH_SHA = 'a4357df7669a362473df1a0344233f3f830b9f88e9224b51aad8c39915ede5ae'
 # This exact receipt alone records the user's relative-improvement instruction.
 V63_RELATIVE_AUTH_SHA = '6b237a250650fd9496dad385cfc0f807992b1ced8e8fab9327434f70ab8f73c1'
-V64_RECEIVER_AUTH_SHA = '0000000000000000000000000000000000000000000000000000000000000000'
+V64_RECEIVER_AUTH_SHA = '6ac63feb93a73f525bcd79746ae674e512ac3a38e5e6e17198e9f4e6a4190b6f'
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {
@@ -282,7 +282,7 @@ def validate_receiver_recovery(package, receipt):
 
 def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
     if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA]:
-        raise ValueError('direct publication requires the exact user-directed v59 receipt, v60 public-test receipt, or sealed v63 relative receipt')
+        raise ValueError('direct publication requires the exact user-directed v59 receipt, v60 public-test receipt, sealed v63 relative receipt, or sealed v64 receiver-repair receipt')
     receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
     if digest(receipt_bytes) != authorization_sha:
         raise ValueError('direct publication receipt changed')

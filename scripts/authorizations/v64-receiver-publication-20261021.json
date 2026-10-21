@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-21T05:20:15.695Z",
+  "authority": "The user explicitly permits an incremental public update when it is demonstrably better than the previous version. The immediately preceding public v63 regresses only when its initial poster wins: both controlled delayed-first-frame trials fail at the unchanged 20s preparation deadline despite fully loaded native video. Frozen v64 repairs the missing receiver request and both trials present a genuine coherent frame in about 3.3–3.5s, with the same 3s transport delay and original readiness/visual/resource limits. This is a corrective incremental update, not complete qualification.",
+  "userInstruction": "你再迭代一轮呢，主要看看是哪儿的问题，只要比上版好就可以发布到公网啊",
+  "releaseId": "r5-ba51d44",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v64",
+    "candidateTagObject": "6980e0d8542464525e9e349bf5f2829126e925f2",
+    "sourceCommit": "ba51d441f6a3db2cb4d9fb8080f38bb7742736c4",
+    "artifactTreeSha256": "db1d887f844cf95d69d7bbfcd789984ba1c92595aa6fbe2f0910246c6d4edb0b",
+    "draftManifestSha256": "f128c562a66e1091c0d42c3af7fad0085edb63db00eefefc906731ad6e51c9dc"
+  },
+  "baselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v60",
+    "candidateTagObject": "d1614ef5788312bcc48259a2b4941b3830fa04d2",
+    "sourceCommit": "cb8c17affd9d171a206f19773a9a907cc1f20f1b",
+    "artifactTreeSha256": "80970dd1358c9c144c51172eb5670848f1a90f7ffe1916ee37e18e6b3c24271b",
+    "draftManifestSha256": "978208bd19b5834dbade2a91340db0a09a161bd3d7ba89bd9bad8dd3445425ce"
+  },
+  "publicationCondition": "Exact one-off v64: paired delayed-receiver recovery against the current public v63, forty cold-media samples against the original v60 task baseline with lower desktop median and explicit load counts, 242 frozen functional checkpoints, six Proof aliases and twelve original-threshold visual comparisons. No original failed or unmeasured gate is promoted to passing.",
+  "comparison": {
+    "desktop": {
+      "v60": {
+        "samples": 10,
+        "medianMs": 4314,
+        "nearestRankP95Ms": 6715,
+        "explicitLoadCalls": 30
+      },
+      "v64": {
+        "samples": 10,
+        "medianMs": 3461.5,
+        "nearestRankP95Ms": 5811,
+        "explicitLoadCalls": 2
+      }
+    },
+    "phone": {
+      "v60": {
+        "samples": 10,
+        "medianMs": 4410,
+        "nearestRankP95Ms": 5738,
+        "explicitLoadCalls": 24
+      },
+      "v64": {
+        "samples": 10,
+        "medianMs": 3390.5,
+        "nearestRankP95Ms": 6482,
+        "explicitLoadCalls": 25
+      }
+    }
+  },
+  "comparisonScope": "Fresh documents boot at #method, then first seek to five media ranges; this measures media preparation, not complete page-load time or TTFB. Two counterbalanced trials per platform/version, identical 400ms first-byte latency and 16KiB/10ms local fixture responses, byte-verified frozen artifacts, target HTTP cache disabled, unchanged AC low-power mode. Explicit load-call counts include setup and retirement. This is a small controlled sample, not public CDN or physical-device qualification. The additional immediate-predecessor receiver comparison delays only video first bytes by 3000ms, in counterbalanced paired trials; both versions must actually take the poster fallback. New video frames must arrive within the original single 25000ms pose-readiness cap. This does not measure full homepage loading.",
+  "qualificationStatusUnchanged": "pending-memory",
+  "knownGaps": [
+    "The immediately preceding public v63 phone traversal has four correlated receiver failures; the unchanged original raw report and the v63/v64 delayed-frame reproduction are retained.",
+    "The first v64 frozen traversal records one phone reverse Figure2 parked-decoder assertion failure: the story reports ready while a background native decoder is still seeking. The final probe requires the original pose predicate AND all videos paused/not-seeking in one poll within the same original 25s deadline. The first failure is not erased or reclassified as passing.",
+    "Cold comparison has only two trials per range/platform/version. Every median, tail, raw timing and load-call count is retained; aggregate improvement does not mean each path or tail improved.",
+    "In this same-round comparison with v60, phone nearest-rank p95 is worse (6482ms versus 5738ms) and its explicit load count is 25 versus 24. Desktop median improves from 4314ms to 3461.5ms and phone median from 4410ms to 3390.5ms; these are not same-round v63 medians.",
+    "The original 20ms RAF-p95 gate failed for all twelve v63 targeted comparisons and its moving blank controls are around 49.7ms. That report is historical diagnosis, not v64 passing evidence. The full original sixteen-case public v64 matrix follows the switch.",
+    "The final v64 artifact has zero formal process-memory runs and remains pending-memory/not-measured/pass=false; prior artifacts are never substituted for its qualification.",
+    "Physical iPhone/Android and WebKit qualification remain incomplete. Fixed-size Ego emulation is not physical-device qualification.",
+    "All current 1732 Vitest and unchanged 88 native architecture assertions pass within their original deadlines, with zero skips; previous failed all-Vitest timeout reports remain unchanged in the preceding release evidence."
+  ],
+  "evidenceScope": "Cold, frozen functional, visual, recovery and unit reports bind this exact v64 artifact. Public v63 failures and v63 performance are historical diagnosis only. The media proof covers unchanged WebM bytes and all 631 decoded RGBA frames. Public v64 browser/performance checks follow the verified switch.",
+  "evidence": {
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 758,
+      "sha256": "8c93ae13b1f95cc31447b2aa76a5509e759aad3e58ecdd2d1cf409564b2e6d85"
+    },
+    "coldComparison": {
+      "path": "evidence/cold-comparison.json",
+      "bytes": 33834215,
+      "sha256": "bef0bff4e09f827faac9029f46bef8f42cb1662746a5b27964bc3b89b244595d"
+    },
+    "functional": {
+      "path": "evidence/functional-visual.json",
+      "bytes": 4583381,
+      "sha256": "eb76741460c84345b2f23f175b60f8d7f793ecd5db32978a85075b3a169eecfa"
+    },
+    "initialFrozenBeforeSettledProbe": {
+      "path": "evidence/initial-frozen-before-settled-probe.json",
+      "bytes": 569250,
+      "sha256": "6d918020486ac0852ceeebbaf8ba799797380aa30d10016b414358777394adda"
+    },
+    "receiverRecovery": {
+      "path": "evidence/receiver-recovery.json",
+      "bytes": 3780533,
+      "sha256": "46c9eb0ef1bb0686b78a3cb00fd63da13460c3641849c62afdb7c954f1f4ee17"
+    },
+    "publicPhoneBeforeRepair": {
+      "path": "evidence/public-phone-before-repair.json",
+      "bytes": 7191779,
+      "sha256": "962251e4db7263122c2288604c1c2723c8b3affbd7b2127ecced7807b20c637d"
+    },
+    "publicDesktopBeforeRepair": {
+      "path": "evidence/public-desktop-before-repair.json",
+      "bytes": 217680,
+      "sha256": "31db3c0c8e2585c287687b65c3003a4174462e2a973ef0263291c0ead3eaf5db"
+    },
+    "performanceBeforeRepair": {
+      "path": "evidence/performance-before-repair.json",
+      "bytes": 3879124,
+      "sha256": "0f1275fb39879a08352c340b8e73974c1eaac259e0f6cb273a7d1c5a06a549ff"
+    },
+    "unitRuntime": {
+      "path": "evidence/unit-runtime.json",
+      "bytes": 598889,
+      "sha256": "b2698bef92ab164b7b1ffad56bdc055ad408320032f399addba9ec7847fde40e"
+    },
+    "unitArchitecture": {
+      "path": "evidence/unit-architecture.json",
+      "bytes": 18435,
+      "sha256": "f70399cc96ad93ccd546b24eac9971ec02b890e71f43b284a9f9925b4cc834cd"
+    },
+    "unitSummary": {
+      "path": "evidence/unit-summary.json",
+      "bytes": 15037,
+      "sha256": "b7da7eea85d855e8172c099dd097af08f43a2105ba46b038518d8322bc4f64ff"
+    },
+    "mediaRemuxProof": {
+      "path": "evidence/lossless-media-proof.json",
+      "bytes": 3744,
+      "sha256": "72ed09b90945b1ba8d850a1bcb43d0ebdb4e4b708cdf9dd20371f76bcbf19643"
+    }
+  },
+  "nonWaivedChecks": [
+    "Exact clean annotated candidate and immutable artifact bytes",
+    "Original visual, readiness, scroll and resource-budget numbers remain unchanged",
+    "Immutable CDN upload, HTTPS, CORS, MIME, cache and 1024-byte video Range checks",
+    "Actual-package isolated Nginx probe before switching",
+    "Compare-and-swap include, preserving the root site and all v55/v59/v60/v63 lazy JS/CSS URLs",
+    "Public HTTP identity and exact rollback to the inspected v63 include"
+  ],
+  "failedEvidenceMustRemainUnmodified": true,
+  "doesNotGrantPassingQualification": true,
+  "doesNotAuthorizeFutureCandidates": true,
+  "receiverBaselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v63",
+    "candidateTagObject": "231447c23a0428e82874ba5fc53a8b28c4a99fe6",
+    "sourceCommit": "ac1861109ce612bf3e2c9bce1cee7846ec78f612",
+    "artifactTreeSha256": "ec27f26e60dcd9e89bedb26c0b28021bd772e359a05c40410c352607f04a8209",
+    "draftManifestSha256": "5c093a9f3e0dcfbc1c9ccf5694ef90b685e8d0947006026a72eccc78ce5961cf"
+  }
+}

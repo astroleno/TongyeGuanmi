@@ -9,6 +9,18 @@ spec = importlib.util.spec_from_file_location('v63_fixtures', Path(__file__).wit
 previous = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(previous)
 native = previous.native
+PRODUCTION_SHA = native.V64_RECEIVER_AUTH_SHA
+
+
+class ProductionReceiverReceiptTests(unittest.TestCase):
+    def test_actual_v64_receipt_is_exact_and_does_not_qualify_future_candidates(self):
+        data = Path(__file__).with_name('authorizations').joinpath('v64-receiver-publication-20261021.json').read_bytes()
+        self.assertEqual(native.digest(data), PRODUCTION_SHA)
+        receipt = json.loads(data)
+        self.assertEqual(receipt['identity']['sourceCommit'], 'ba51d441f6a3db2cb4d9fb8080f38bb7742736c4')
+        self.assertEqual(receipt['receiverBaselineIdentity']['sourceCommit'], 'ac1861109ce612bf3e2c9bce1cee7846ec78f612')
+        self.assertTrue(receipt['doesNotGrantPassingQualification'])
+        self.assertTrue(receipt['doesNotAuthorizeFutureCandidates'])
 
 
 class ReceiverRepairPublicationTests(unittest.TestCase):
