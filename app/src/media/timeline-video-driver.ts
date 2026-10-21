@@ -652,7 +652,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         && this.#presentingFrame?.generation === completed.generation
         && Math.abs(this.#presentingFrame.targetTime - completed.targetTime) <= SEEK_TOLERANCE_SECONDS;
       if (callbackPending) {
-        this.#armSeekedFrameFallback(completed, true);
+        this.#armSeekedFrameFallback(completed);
       } else {
         this.#presentFrame(completed);
       }
@@ -738,7 +738,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
   }
 
-  #armSeekedFrameFallback(frame: DesiredFrame, settled = false): void {
+  #armSeekedFrameFallback(frame: DesiredFrame): void {
     const scrollSampling = Boolean(this.#video.closest?.('[data-scroll-platform]'));
     // A hidden desktop receiver cannot reliably submit a compositor callback.
     // Explicit preparation may instead prove the settled decoded sample by
@@ -755,7 +755,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return;
     }
     if (
-      !settled && this.#seekedFrameFallbackTimer !== undefined
+      this.#seekedFrameFallbackTimer !== undefined
       && this.#seekedFrameFallbackFrame?.generation === frame.generation
       && Math.abs(this.#seekedFrameFallbackFrame.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
     ) {
@@ -763,7 +763,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
     this.#cancelSeekedFrameFallback();
     this.#seekedFrameFallbackFrame = frame;
-    const probe = () => {
+    this.#seekedFrameFallbackTimer = setTimeout(() => {
       this.#seekedFrameFallbackTimer = undefined;
       this.#seekedFrameFallbackFrame = undefined;
       if (
@@ -828,15 +828,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     // Scrub cannot spend 120ms waiting for a callback from a hidden surface.
     // The earlier probe retains the same decoded-data, settled-seek, identity
     // and target-time checks; it never promotes a pending seek to ready.
-    };
-    // seeked already gives a causal settled-data boundary. Prove those pixels
-    // now rather than adding a timer turn (and often a whole display frame)
-    // to every hidden scroll decoder. Unsettled/no-event cases keep the probe.
-    if (settled && scrollSampling && decodedProbe && this.#video.readyState >= 2
-      && !this.#video.seeking
-      && Math.abs(this.#video.currentTime - frame.targetTime) <= TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS) probe();
-    else this.#seekedFrameFallbackTimer = setTimeout(probe,
-      scrollSampling ? SCROLL_FRAME_PROBE_DELAY_MS : SEEKED_FRAME_FALLBACK_DELAY_MS);
+    }, scrollSampling ? SCROLL_FRAME_PROBE_DELAY_MS : SEEKED_FRAME_FALLBACK_DELAY_MS);
   }
 
   #cancelScrollSeekWatch(): void {

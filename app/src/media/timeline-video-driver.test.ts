@@ -183,7 +183,8 @@ describe('timeline video driver', () => {
     } finally { driver.dispose(); vi.useRealTimers(); }
   });
 
-  it('proves a settled scroll seek in its seeked task using the same real pixel read', () => {
+  it('prefers a causal scroll frame callback before paying for a decoded pixel read', async () => {
+    vi.useFakeTimers();
     const video = new FakeVideo(); const read = vi.fn();
     Object.assign(video, { closest: () => ({}), ownerDocument: { createElement: () => ({
       getContext: () => ({ drawImage: vi.fn(), getImageData: read })
@@ -193,11 +194,20 @@ describe('timeline video driver', () => {
       driver.drive({ runId: 'seeked-proof', direction: 1, progress: .4, durationFallbackSeconds: 10 });
       expect(read).not.toHaveBeenCalled(); expect(driver.snapshot().frameReady).toBe(false);
       video.completeSeek();
+      expect(read).not.toHaveBeenCalled();
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.presentFrame();
+      await vi.advanceTimersByTimeAsync(8);
+      expect(read).not.toHaveBeenCalled();
+      expect(video.dataset.timelineVideoFrameEvidence).toBe('video-frame-callback');
+      driver.drive({ runId: 'seeked-proof', direction: 1, progress: .6, durationFallbackSeconds: 10 });
+      video.completeSeek();
+      await vi.advanceTimersByTimeAsync(8);
       expect(read).toHaveBeenCalledOnce();
       expect(driver.snapshot().frameReady).toBe(true);
-      expect(driver.snapshot().presentedTime).toBeCloseTo(3.992);
+      expect(driver.snapshot().presentedTime).toBeCloseTo(5.988);
       expect(video.dataset.timelineVideoFrameEvidence).toBe('decoded-canvas');
-    } finally { driver.dispose(); }
+    } finally { driver.dispose(); vi.useRealTimers(); }
   });
 
   it('promotes preload before the explicit source-reselection load', async () => {
