@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-21T12:48:35.774Z",
+  "authority": "Current explicit user instruction authorizes commit/push main and a demonstrably better public update, keeping every original qualification threshold. This receipt authorizes only the exact frozen v69 artifact and retained evidence, not another candidate or a passing qualification.",
+  "userInstruction": "继续查清鸟群视频分段传输停滞和滚动卡顿的根因并修好，不要放宽验收标准，比这版好就 commit push，再更新公网复测。",
+  "releaseId": "r5-81daca0",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v69",
+    "candidateTagObject": "24eb88bb00108112251146739fd22d7fa182433c",
+    "sourceCommit": "81daca0d36a9219bf41e8f6afd5a768bb7ab9505",
+    "artifactTreeSha256": "a01a0efacdc4974fb47be5153d13fe9eb14b12da0c1704fab508bc96bf55d92c",
+    "draftManifestSha256": "a1ee07ea6767650bb9b8a9b3cfacf1ae0f63c5d78b2bf79fef5b0b151a4b8037"
+  },
+  "baselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v68",
+    "candidateTagObject": "9d89c6c27a7590a7515e17ec086d93e12f9e4787",
+    "sourceCommit": "370e09e3f18036fdcd5d8f903005d5cd7f66902c",
+    "artifactTreeSha256": "83da9f4477b7233e434ec49c4c9170d5b87e00ce70e521ad6b9bf430864df224",
+    "draftManifestSha256": "a3612cbe7f78555013d8ed81415544fdc093622b18371ab9930a430a32c1060f"
+  },
+  "measurementSha256": "afdd948eecdeb47dece1f9900feeca0519443939def1ab222d11c00f1195b415",
+  "driverSources": {
+    "v68": "ec553b50650befaa3a11c2d7c71320cfd3ebcb9937196e1a579ffd6a3edfd7f9",
+    "v69": "0416c2448478a8cba65a27aa2fec90a1ac1c1d831332bd32e98bb4804a641fbd"
+  },
+  "publicationCondition": "The same native reversed flock Range is genuinely body-stalled in both counterbalanced trials. v68 remains pending for the original20s; v69 reloads the same immutable source once and proves the parked target before that same deadline. All242 frozen poses,6 Proof aliases,12 original pixel gates,40 atomic cold cases and32 unchanged original scroll measurements are retained. No failed performance or missing device/memory qualification is promoted.",
+  "comparisons": {
+    "desktop": {
+      "v68": {
+        "measuredScrollCases": 8,
+        "passingOriginalScrollCases": 0,
+        "poseLagP95BySegment": {
+          "hero-pattern": 49.38271604938242,
+          "pattern-star-map": 0,
+          "aod-method-top": 51.282051282050546,
+          "figure2-distance-expand": 65.04065040650413,
+          "figure3-services": 42.73504273504258,
+          "ttg-lab": 64.5161290322586,
+          "ph-education": 62.893081761006286,
+          "crane-contact": 66.66666666666673
+        },
+        "coldMedianMs": 2751.5,
+        "coldNearestRankP95Ms": 5503
+      },
+      "v69": {
+        "measuredScrollCases": 8,
+        "passingOriginalScrollCases": 0,
+        "poseLagP95BySegment": {
+          "hero-pattern": 41.15226337448596,
+          "pattern-star-map": 0,
+          "aod-method-top": 42.73504273504258,
+          "figure2-distance-expand": 65.04065040650366,
+          "figure3-services": 42.73504273504258,
+          "ttg-lab": 64.51612903225768,
+          "ph-education": 62.893081761006286,
+          "crane-contact": 66.66666666666673
+        },
+        "coldMedianMs": 3120,
+        "coldNearestRankP95Ms": 6878
+      }
+    },
+    "phone": {
+      "v68": {
+        "measuredScrollCases": 8,
+        "passingOriginalScrollCases": 0,
+        "poseLagP95BySegment": {
+          "hero-pattern": 35.10619624363757,
+          "pattern-star-map": 0,
+          "aod-method-top": 36.456434560701766,
+          "figure2-distance-expand": 34.678071899204205,
+          "figure3-services": 45.570543200875356,
+          "ttg-lab": 68.79682005809426,
+          "ph-education": 44.71072163104717,
+          "crane-contact": 55.7568999163649
+        },
+        "coldMedianMs": 3490,
+        "coldNearestRankP95Ms": 4717
+      },
+      "v69": {
+        "measuredScrollCases": 8,
+        "passingOriginalScrollCases": 0,
+        "poseLagP95BySegment": {
+          "hero-pattern": 35.10619624363757,
+          "pattern-star-map": 0,
+          "aod-method-top": 45.570543200875356,
+          "figure2-distance-expand": 34.678071899204205,
+          "figure3-services": 54.68465184104987,
+          "ttg-lab": 99.37318452835909,
+          "ph-education": 44.71072163104717,
+          "crane-contact": 48.787287426818594
+        },
+        "coldMedianMs": 3452,
+        "coldNearestRankP95Ms": 4460
+      }
+    }
+  },
+  "qualificationStatusUnchanged": "pending-memory",
+  "knownGaps": [
+    "The network hop responsible for the original zero-body response is not isolated. The repaired application recovery gap is independently reproduced; healthy release-host responses do not disprove the browser stall.",
+    "Original RAF/pose/convergence/long-task standards remain unchanged. The full comparison retains all failures; publication is not an FPS qualification.",
+    "Formal process-memory runs remain0/not-measured/pass=false. Physical iPhone/Android and WebKit qualification are still incomplete.",
+    "Shared Ego Lite and unchanged power/network settings are used. No other user pages, browser installs, proxy or global system settings are changed.",
+    "One original phone Crane measurement invocation exceeded the15s transport safety cap; that incomplete32-case report is retained and not retroactively passed. Both peers are repeated with exactly the original sampler and thresholds,25s preparation and15s invocation cap,while polling completion and servicing protocol requests. Thirty earlier complete cases and the two repeated peers form the final complete32-case matrix. The initial native discovery fixture completed both versions without triggering its fault. It is retained as non-reproducing discovery, not claimed as recovery evidence. Earlier unit failures and every older public failure remain retained."
+  ],
+  "evidence": {
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 758,
+      "sha256": "2d8ce8cbff44730eca919a874698466025cc023cc08021016a91424ec6cebd5c"
+    },
+    "scrubRecovery": {
+      "path": "evidence/scrub-recovery.json",
+      "bytes": 438521,
+      "sha256": "a6a3d2a68eb6962fa6b7fa902d86939c4f19febfd6e52161496cdae150c35864"
+    },
+    "nativeFixture": {
+      "path": "evidence/native-fixture.json",
+      "bytes": 526,
+      "sha256": "5c8fa673e210317bbece3c5e32f3b8885ebc131b49ec4cf01bdf4f22a17e1575"
+    },
+    "nativeExecution": {
+      "path": "evidence/native-execution.json",
+      "bytes": 51,
+      "sha256": "58a600105e094f6aceed774d99c990bd7506a8e893399696b4a25880cbed89c1"
+    },
+    "coldComparison": {
+      "path": "evidence/cold-comparison.json",
+      "bytes": 33663415,
+      "sha256": "affffdf8ee7e8284d124bdf1423873137c9d86736a03cad472b2de76daad92c5"
+    },
+    "coldExecution": {
+      "path": "evidence/cold-execution.json",
+      "bytes": 275,
+      "sha256": "9fe11e2027140d0ee4f8116780863c2b5f3199d507fd80667ad8c0621f84f1d0"
+    },
+    "functional": {
+      "path": "evidence/functional-visual.json",
+      "bytes": 4661450,
+      "sha256": "0b2fa79d98e875f9937a97caf2d4bc4f037c9a3d5a1415352cd0c17d36beb7dc"
+    },
+    "functionalRaw": {
+      "path": "evidence/functional-raw.json",
+      "bytes": 4621757,
+      "sha256": "8348e2313b857593ab65f280b8b173ed1a206f9396af126b982fb79e1a1bbddc"
+    },
+    "visualRaw": {
+      "path": "evidence/visual-raw.json",
+      "bytes": 114892,
+      "sha256": "e133866cafbb4918793b7fb92efe5d0964285636271b757fecd19d1d2cbdf1ab"
+    },
+    "scrollComparison": {
+      "path": "evidence/scroll-comparison.json",
+      "bytes": 37089508,
+      "sha256": "f518bf6105c64e64e59add475d54f5bf230fb397d25ae8fa71799d4af224e126"
+    },
+    "scrollFirstAttempt": {
+      "path": "evidence/scroll-first-attempt.json",
+      "bytes": 35625460,
+      "sha256": "83ee5acb75d67afb2b638a9ba1a6a854c83a2c355610bfda1c7ddd7ae02a0657"
+    },
+    "scrollSupplement": {
+      "path": "evidence/scroll-supplement.json",
+      "bytes": 3025186,
+      "sha256": "96e3e1ab9d5cf111d83ef1ebbaabcfc71e46f2b9f07f1aaad6c0f74e7d3af638"
+    },
+    "unitSummary": {
+      "path": "evidence/unit-summary.json",
+      "bytes": 15327,
+      "sha256": "43a4b4b931758a6c38ab90e7cb334bc968a88c7210f0cb35a6cebc0a22169384"
+    },
+    "unitRuntime": {
+      "path": "evidence/unit-runtime.json",
+      "bytes": 608045,
+      "sha256": "308f0932906d2d182d14dbb0b598810f58315d461dc043ad7fed6a814e3a8356"
+    },
+    "unitArchitecture": {
+      "path": "evidence/unit-architecture.json",
+      "bytes": 18171,
+      "sha256": "e5c25ff9768e93e8ef36a77c819ecc0c2245dd6f15be46f1c9065b42ad3e0b85"
+    },
+    "typecheck": {
+      "path": "evidence/typecheck.json",
+      "bytes": 299,
+      "sha256": "230134662eb87f1b45c271c9a33e58b1c1b54e72d040ba1be7eab1266e0f4caf"
+    },
+    "lint": {
+      "path": "evidence/lint.json",
+      "bytes": 276,
+      "sha256": "1db0057c34c6dbf02ba82613130b7571c9bcb61f60aa29b4f21b4b801bd6b8b4"
+    }
+  },
+  "doesNotGrantPassingQualification": true,
+  "doesNotAuthorizeFutureCandidates": true
+}
