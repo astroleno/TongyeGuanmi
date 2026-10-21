@@ -41,6 +41,7 @@ V59_DIRECT_AUTH_SHA = '0721104d84e66c813e5b1a2db98796b05bdc8b776be777b2b44b3ff20
 V60_PUBLIC_TEST_AUTH_SHA = 'a4357df7669a362473df1a0344233f3f830b9f88e9224b51aad8c39915ede5ae'
 # This exact receipt alone records the user's relative-improvement instruction.
 V63_RELATIVE_AUTH_SHA = '6b237a250650fd9496dad385cfc0f807992b1ced8e8fab9327434f70ab8f73c1'
+V64_RECEIVER_AUTH_SHA = '0000000000000000000000000000000000000000000000000000000000000000'
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {
@@ -52,6 +53,11 @@ NATIVE_PREDECESSORS = {
         'releaseId': 'r5-cb8c17a',
         'manifestSha256': '978208bd19b5834dbade2a91340db0a09a161bd3d7ba89bd9bad8dd3445425ce',
         'beforeIncludeSha256': '01567f5ba32d8ecca93ec95a8a4cdf76f132a61ca208e2d74e8f9db0e4b20d71'
+    },
+    'a1d77c56bafc83b99a81364c381c07a19634189c725a78e4188bf57bbb745e92': {
+        'releaseId': 'r5-ac18611',
+        'manifestSha256': '5c093a9f3e0dcfbc1c9ccf5694ef90b685e8d0947006026a72eccc78ce5961cf',
+        'beforeIncludeSha256': 'f6d494173450b37a586392763af8b373f628a639a25fe14125acd9de992ffdd4'
     }
 }
 DIRECT_AUTH_PATH = 'user-directed-publication.json'
@@ -198,18 +204,18 @@ def validate_memory(report):
             validate_ego_run(run)
 
 
-def validate_relative_improvement(package, receipt):
-    """The one approved v63 comparison is not a passing qualification."""
+def validate_relative_improvement(package, receipt, candidate_version='v63'):
+    """Exact pinned comparisons are not passing qualification."""
     cold = json.loads(read_regular(package, receipt['evidence']['coldComparison']['path']))
     functional = json.loads(read_regular(package, receipt['evidence']['functional']['path']))
-    if cold.get('kind') != 'same-conditions-v60-v63-cold-media-comparison' or cold.get('releaseQualified') is not False or cold.get('failure'):
+    if cold.get('kind') != f'same-conditions-v60-{candidate_version}-cold-media-comparison' or cold.get('releaseQualified') is not False or cold.get('failure'):
         raise ValueError('relative comparison is incomplete or claims qualification')
-    for version, expected in [('v60', receipt['baselineIdentity']), ('v63', receipt['identity'])]:
+    for version, expected in [('v60', receipt['baselineIdentity']), (candidate_version, receipt['identity'])]:
         if any(cold.get('identities', {}).get(version, {}).get(key) != value for key, value in expected.items() if key != 'draftManifestSha256'):
             raise ValueError('relative comparison artifact identity changed')
     ranges = ['hero-pattern', 'method-bottom-figure2', 'brand-figure3', 'education-crane', 'crane-contact']
     expected = {(platform, trial, segment, version) for platform in ['desktop', 'phone']
-                for trial in [1, 2] for segment in ranges for version in ['v60', 'v63']}
+                for trial in [1, 2] for segment in ranges for version in ['v60', candidate_version]}
     rows = cold.get('results', [])
     if len(rows) != 40 or {(row.get('platform'), row.get('trial'), row.get('rangeId'), row.get('version')) for row in rows} != expected:
         raise ValueError('relative comparison must preserve all forty paired samples')
@@ -219,7 +225,7 @@ def validate_relative_improvement(package, receipt):
     computed = {}
     for platform in ['desktop', 'phone']:
         computed[platform] = {}
-        for version in ['v60', 'v63']:
+        for version in ['v60', candidate_version]:
             samples = [row for row in rows if row['platform'] == platform and row['version'] == version]
             times = sorted(row['elapsedMs'] for row in samples)
             computed[platform][version] = {'samples': len(times), 'medianMs': (times[4] + times[5]) / 2,
@@ -227,9 +233,9 @@ def validate_relative_improvement(package, receipt):
     # Ten samples per platform are not a tail-latency qualification. Preserve
     # the p95 verbatim, but require both a lower median and fewer explicit loads
     # for this one incremental publication. Original scroll gates are unchanged.
-    if receipt.get('comparison') != computed or any(computed['desktop']['v63'][key] >= computed['desktop']['v60'][key] for key in ['medianMs', 'explicitLoadCalls']):
+    if receipt.get('comparison') != computed or any(computed['desktop'][candidate_version][key] >= computed['desktop']['v60'][key] for key in ['medianMs', 'explicitLoadCalls']):
         raise ValueError('authorized desktop median and reload improvement was not demonstrated')
-    if (functional.get('kind') != 'frozen-v63-functional-and-v60-visual-comparison-unshaped-http'
+    if (functional.get('kind') != f'frozen-{candidate_version}-functional-and-v60-visual-comparison-unshaped-http'
             or functional.get('passed') is not True or functional.get('failure') or functional.get('releaseQualified') is not False):
         raise ValueError('relative publication requires complete frozen functional and visual checks')
     runs = functional.get('functional', [])
@@ -251,8 +257,31 @@ def validate_relative_improvement(package, receipt):
         raise ValueError('original frozen visual difference threshold failed')
 
 
+def validate_receiver_recovery(package, receipt):
+    report = json.loads(read_regular(package, receipt['evidence']['receiverRecovery']['path']))
+    if (report.get('kind') != 'frozen-delayed-first-frame-receiver-regression' or report.get('releaseQualified') is not False
+            or report.get('videoFirstByteMs') != 3000 or report.get('readyDeadlineMs') != 25000 or report.get('failure')):
+        raise ValueError('receiver recovery changed the original readiness conditions')
+    for version, expected in [('v63', receipt['receiverBaselineIdentity']), ('v64', receipt['identity'])]:
+        if any(report.get('identities', {}).get(version, {}).get(key) != value for key, value in expected.items() if key != 'draftManifestSha256'):
+            raise ValueError('receiver recovery identity mismatch')
+    rows = report.get('results', [])
+    if len(rows) != 4 or {(row.get('version'), row.get('trial')) for row in rows} != {(version, trial) for version in ['v63', 'v64'] for trial in [1, 2]}:
+        raise ValueError('receiver recovery requires both paired trials')
+    for row in rows:
+        expected_ready = row['version'] == 'v64'
+        if (row.get('fallbackObserved') is not True or row.get('ready') is not expected_ready
+                or row.get('platform') != 'phone' or row.get('rangeId') != 'brand-figure3' or row.get('progress') != .25
+                or row.get('state', {}).get('snapshot', {}).get('view', {}).get('status') != ('ready' if expected_ready else 'failed')
+                or row.get('state', {}).get('viewport') != [390, 844, 1]
+                or not row.get('state', {}).get('videos') or any(video.get('readyState', 0) < 2 or video.get('paused') is not True
+                    or video.get('seeking') is not False for video in row['state']['videos'])
+                or (expected_ready and (row.get('elapsedMs', 25000) >= 25000 or row.get('errors') != []))):
+            raise ValueError('receiver false-timeout recovery was not demonstrated')
+
+
 def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
-    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA]:
+    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA]:
         raise ValueError('direct publication requires the exact user-directed v59 receipt, v60 public-test receipt, or sealed v63 relative receipt')
     receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
     if digest(receipt_bytes) != authorization_sha:
@@ -270,7 +299,7 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
     for item in receipt['evidence'].values():
         checked_file(package, item)
     memory = json.loads(read_regular(package / 'site', 'r5-process-memory.json'))
-    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA]:
+    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA]:
         # A declaration of missing evidence is not a synthetic measurement and
         # can never satisfy validate_memory or the default qualified path.
         expected = {'schemaVersion': 1, 'kind': 'r5-unmeasured-process-memory', 'status': 'not-measured',
@@ -281,6 +310,9 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
             raise ValueError('public-test memory must explicitly preserve zero measured runs and no qualification')
         if authorization_sha == V63_RELATIVE_AUTH_SHA:
             validate_relative_improvement(package, receipt)
+        if authorization_sha == V64_RECEIVER_AUTH_SHA:
+            validate_relative_improvement(package, receipt, 'v64')
+            validate_receiver_recovery(package, receipt)
         return receipt
     if (memory.get('pass') is not False or memory.get('completedRunCount') != 2
             or memory.get('identity') != receipt['identity'] or len(memory.get('runs', [])) != 2
@@ -323,7 +355,7 @@ def validate_package(package, authorization_sha=None):
         if deploy.get('publicationAuthorization') is not None:
             raise ValueError('direct publication requires its explicit authorization SHA')
         validate_memory(memory)
-    expected_run_count = 0 if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA] else 2
+    expected_run_count = 0 if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA] else 2
     if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != expected_run_count or memory.get('identity') != evidence.get('identity'):
         raise ValueError('memory evidence identity mismatch')
     for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:

@@ -1,6 +1,36 @@
 # 旧官网迁移至 /experience/
 
-## 当前公开版本：v60（2026-10-21 01:33，Asia/Shanghai）
+## 当前公开版本：v63（2026-10-21 12:28，Asia/Shanghai）
+
+用户本轮明确调整发布条件：“你再迭代一轮呢，主要看看是哪儿的问题，只要比上版好就可以发布到公网啊”。按此条件发布精确冻结的增量版本，不把发布解释为原性能／内存／真机资格通过，也不提高任何原数字门限。
+
+`https://tongye.me/experience/` 已更新到 release `r5-ac18611`，应用 source `ac1861109ce612bf3e2c9bce1cee7846ec78f612`，annotated tag object `231447c23a0428e82874ba5fc53a8b28c4a99fe6`，manifest SHA `5c093a9f3e0dcfbc1c9ccf5694ef90b685e8d0947006026a72eccc78ce5961cf`，artifact tree `ec27f26e60dcd9e89bedb26c0b28021bd772e359a05c40410c352607f04a8209`。根地址仍转到这个入口；不要用根目录的 v55 donor 清单识别当前应用。
+
+这轮定位并修复手机 Figure3 的真实帧证明缺口：初始备用图先胜出时，之后真正画出的滚动中间帧没有上报，导致画面已有解码／合成数据却一直等待至准备超时。现在仅在当前 coherence 已实际绘制、视频有数据且不再 seeking 时证明 Canvas，清除遮挡真实画面的备用图；不把中间帧冒充端点。交接前终止旧端点等待，避免其后台 stall retry 重载已由滚动控制的视频。legacy 端点行为和原 20s／25s 期限不变。两项回归先复现失败，再修复通过。
+
+同时上线此前已提交但未公开的重复 `load()`／旧 Hero 元数据 seek 竞争修复，以及 8 个 WebM 的无损前置 Cues；631 个 RGBA 帧、时间戳与原画质不变。初始 CSS 75,717 B、桌面 JS 516,645 B、手机 JS 619,202 B，原包体门禁通过。
+
+发布前冻结验证：桌面和手机模拟各 121 个正反向位置全部通过，Proof 三个面板双端 6/6，视觉 12/12；11 项像素完全相同，桌面 Hero 仅 1 像素超过原色差阈值，仍在原 0.005 比例内。修复前两个候选复测均在手机反向 Figure3 处失败，原失败报告保留。单元断言覆盖 1,819 项：1,731 项 Vitest 与相同的 88 项原生 `node:test` 均通过，没有跳过断言；原生各案例仍在原 5s／显式 15s 内。首轮全 Vitest 的 3 项时限失败及随后复测失败不改判，单独保留。发布／回滚保护另 77 项通过。
+
+同条件 40 次冷媒体准备均成功：每次新文档先启动在 `#method`，再首次进入五个媒体区间，响应使用逐字节校验的冻结包及相同 400ms 首字节延迟／16KiB 每 10ms，两轮交换版本先后顺序。它测的是媒体准备，不是整个首页加载或 TTFB。桌面中位数 v60 4,106ms → v63 2,743.5ms，观测的显式 `load()`（包含初始化和卸载）32 → 2；手机中位数 3,538ms → 3,396ms，样本不足以证明真机提速。**并非所有位置更快**：桌面 Hero 为 v63 8,047／5,592ms，对应 v60 5,433／4,848ms；桌面 nearest-rank P95 也从 5,433ms 变为 8,047ms。完整尾部数据保留，不把总体中位数改善说成各路径或尾部改善。
+
+原三段 × 双端 × 双版本性能对照仍为 **0/12 达标**，均未通过原 20ms RAF P95；新旧版约 49–51.5ms，移动空白页对照约 49.7ms。v60 手机 Pattern 还出现 1 次 >50ms LongTask；v63 六项未记录到 LongTask。这些观察不证明帧率问题已解决。正式内存仍为 0 轮／`not-measured`／`pass=false`，清单保留 `pending-memory`；WebKit、真实 iPhone／Android 验收仍缺失。
+
+本次只接受精确记录 `scripts/authorizations/v63-relative-publication-20261021.json`（SHA `6b237a250650fd9496dad385cfc0f807992b1ced8e8fab9327434f70ab8f73c1`），核验冻结身份、全部成对样本、整体媒体准备中位数／显式加载减少、完整功能及原视觉门限；不授权未来候选。普通 qualified 路径仍拒绝此未合格包。发布器补齐 v55／v59／v60 三代旧 JS／CSS 的递归字节校验及 URL 兼容，不改原根站点、vhost 或其他项目。
+
+430 项真实隔离 Nginx 检查通过，63 个 CDN 对象（79,330,267 B）不可变上传。本机 Node 在媒体域连接超时后停止，未执行切换；改用发布主机 Python 执行相同 HTTPS HEAD／长度／MIME／31536000 缓存／CORS、20 秒总通过期限、6 请求批次及 1024 B 视频 206 Range 检查，全数通过后才切换，未改全局代理或安装浏览器。检查及执行源已存入备份。
+
+事务状态 `applied-http-verified`，verifiedAt `2026-10-21T04:28:20.667209+00:00`。include 从 v60 的 `f6d49417…` 切为 `a1d77c56bafc83b99a81364c381c07a19634189c725a78e4188bf57bbb745e92`；vhost 仍为 `a33d6b8b…`，`current` 仍是固定 v55 donor。持久备份 `/www/wwwroot/tongye.me/route-backups/native-r5-ac18611/` 保存原始证据、缺失内存声明、前后 include、真实 probe、批准、CDN 复核及发布器。未触发回滚；回退精确恢复 v60：
+
+```sh
+sudo -n python3 /www/wwwroot/tongye.me/route-backups/native-r5-ac18611/publish-experience-release.py rollback --release-id r5-ac18611
+```
+
+公网 HTTP 原件另读回核验 SHA：430 项通过。公网浏览器复测使用同一个项目专用 Ego 组 13、真实 HTTPS，不替换请求或响应。v63 桌面首轮 117/121，反向 Figure2 一次 `readyState=0` 媒体准备失败连带 4 个位置；手机首轮也是 117/121，但原因不同：Brand→Figure3 接收端在慢首帧／poster 胜出后没有新滚动帧请求，视频已 `readyState=4` 仍超时，同一失败连带 4 点。它不是网络失败或验收误计，正在修复接收端请求覆盖，不改期限。两端 Proof 6/6，手机菜单／CTA／前后退／联系页刷新 6/6，桌面前四项导航通过。桌面刷新脚本过早读初始化全局而中止，修正等待后单独复测；不将它记成网站刷新故障。
+
+最初公网脚本还错误请求了刻意不公开的 `cdn-publish-manifest.json`，收到预期 404 后未开始页面遍历。公开资格清单独立读回为本节精确 SHA；测试脚本改为只读公开清单，没有开放内部清单或改动网站。上述失败和脚本原件均保留。全部本轮原件暂存 `/tmp/tongye-relative-release-20261021-7Oo0ru/`，会随公网测试归档。
+
+## 历史公开版本：v60（2026-10-21 01:33，Asia/Shanghai）
 
 用户在明确获知本次性能未达标、正式内存和真机验收未完成后，确认“替换后做公网测试”。仅将该批准用于冻结的 v60：source `cb8c17affd9d171a206f19773a9a907cc1f20f1b`，annotated tag object `d1614ef5788312bcc48259a2b4941b3830fa04d2`，draft manifest SHA `978208bd19b5834dbade2a91340db0a09a161bd3d7ba89bd9bad8dd3445425ce`，artifact tree `80970dd1358c9c144c51172eb5670848f1a90f7ffe1916ee37e18e6b3c24271b`。
 
