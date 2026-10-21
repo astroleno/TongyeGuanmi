@@ -15,8 +15,8 @@ const SOURCE_BYTES = 1_928_281;
 const SOURCE_SHA256 = 'f0e7e56fb83b4ca19d6d8c0bc352d4786d7ab0cff58637482ac2a4c6efd0f079';
 const OUTPUT_BYTES = 118_116;
 const OUTPUT_SHA256 = 'cc3c35d6bf53ed5155aae22c64f1cd50cfc3b8864cbf23295fc0172a2a4b3ca4';
-const CANONICAL_BYTES = 4_429_224;
-const CANONICAL_SHA256 = '708f45223f0cea5af23449d947050a86e5ec1ac959385561fa663ff44da5c37a';
+const CANONICAL_BYTES = 4_429_170;
+const CANONICAL_SHA256 = '4d32ba4a0cda129241ab8135493932268ae9c61addc5a35ff77c33f881a8ae09';
 
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);

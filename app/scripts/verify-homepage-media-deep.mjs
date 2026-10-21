@@ -30,8 +30,8 @@ const SWIFT_ALPHA_CHECK = [
 ].join('\n');
 const FIGURE2_COMBINED_CONTRACT = {
   source: 'assets/figure2-pair-motion.webm',
-  sourceBytes: 4_940_268,
-  sourceSha256: 'a87db407fd39f6977aa0b663ffd16e54929259e6651728997f7c072a33ffaa80',
+  sourceBytes: 4_940_221,
+  sourceSha256: '4366350bbe7c6b1517fa042937bcf7f61b7b8190cece2a50ac59ba8a80511fe6',
   frames: 156,
   seamFrames: [77, 78],
   archivedBytes: 15_926_811,
@@ -89,8 +89,8 @@ const FIGURE2_COMBINED_CONTRACT = {
 };
 const PH_EDGE_SPILL_CONTRACT = {
   source: 'assets/ph-figure-motion.webm',
-  sourceBytes: 2_824_934,
-  sourceSha256: '678f76a40ccffe6cc2f337bfaa6fa66d4af4f6c70b2860695491cc5003147ab1',
+  sourceBytes: 2_824_887,
+  sourceSha256: 'e1ab7ce3aa0a53b520b00540877157a77e6938fcca87ce6e6cd7275ec8c7f25e',
   authority: 'archive/assets/homepage-media/2026-07-16/replaced/ph-figure-motion-original.webm',
   authorityBytes: 2_646_001,
   authoritySha256: '49e23297a26fa0d6cc3862d6c4123e8090c521bafb3fe718de2ca4fc130169d6',
@@ -122,8 +122,8 @@ const AOD_ALPHA_CONTRACT = {
 };
 const HERO_TRIMMED_CONTRACT = {
   source: 'assets/figure1.webm',
-  sourceSha256: 'a472e2f9f62c9cdd447fe78664020e3dad7e0ce37900bb1c4b4e7fb1db379d70',
-  sourceBytes: 2_019_536,
+  sourceSha256: 'b20731da9c4c96b30823d946a92d69ab3f86a39080b8a3ab72e39ec2345a8a71',
+  sourceBytes: 2_019_482,
   authority: path.join(
     repoDir,
     'archive/assets/homepage-media/2026-07-15/replaced/figure1-1080x1920-full-5.042s.webm'
@@ -136,8 +136,8 @@ const HERO_TRIMMED_CONTRACT = {
 };
 const CRANE_FLOCK_VISUAL_CONTRACT = {
   source: 'assets/crane-flock-motion.webm',
-  sourceSha256: '708f45223f0cea5af23449d947050a86e5ec1ac959385561fa663ff44da5c37a',
-  sourceBytes: 4_429_224,
+  sourceSha256: '4d32ba4a0cda129241ab8135493932268ae9c61addc5a35ff77c33f881a8ae09',
+  sourceBytes: 4_429_170,
   correctedFirstFrame: 'archive/assets/homepage-media/2026-07-15/sources/crane-flock-first-frame-corrected.webp',
   authority: path.join(
     repoDir,
@@ -172,8 +172,8 @@ const CRANE_FLOCK_CORRECTED_FRAME_CONTRACT = {
 };
 const CRANE_SINGLE_SOURCE_CONTRACT = {
   source: 'assets/crane-figure-motion.webm',
-  sourceSha256: 'a66a6778bda2a6c2e3fb5241a69ba4f1e4422a1638608f6cc5eba57e8f53c2b9',
-  sourceBytes: 3_218_940,
+  sourceSha256: 'f22be4953e06cad8c4895ea0c9ea5c8e149f48e5314f8bb82a5187844317c980',
+  sourceBytes: 3_218_886,
   authorityRef: 'd4cab484e8f2d8656cf7c7cd0e19c015c7332702',
   authoritySource: 'assets/crane-figure1-transition.webm',
   authoritySha256: '995c0737bda965643175ac4a83aa2fa92cdcffddfa7c69a0c59b884fefabbdec',

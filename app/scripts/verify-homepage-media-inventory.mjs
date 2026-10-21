@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { assertStreamingWebm } from './webm-streaming.mjs';
 import {
   animationHevcAlphaSources,
   animationWebmSources,
@@ -138,6 +139,7 @@ function assertMediaSignature(file, bytes) {
       bytes.subarray(0, 4).toString('hex') === '1a45dfa3',
       `${file} is not a WebM file`
     );
+    assertStreamingWebm(bytes);
   } else if (extension === '.mp4') {
     assert(
       bytes.subarray(4, 8).toString('ascii') === 'ftyp',

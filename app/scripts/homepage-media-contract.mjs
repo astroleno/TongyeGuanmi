@@ -76,52 +76,54 @@ export const frozenHomepageMedia = [
     sha256: 'c0a539b541564ddffad602919370207a6d9d827f540b9f648b3ed036f37e2419'
   },
   {
+    // Native WebM containers have front-loaded Cues. Encoded frames, RGBA
+    // pixels and timestamps retain the authority in webm-streaming.mjs.
     source: 'assets/figure1.webm',
     category: 'hero-animation',
-    bytes: 2019536,
-    sha256: 'a472e2f9f62c9cdd447fe78664020e3dad7e0ce37900bb1c4b4e7fb1db379d70'
+    bytes: 2019482,
+    sha256: 'b20731da9c4c96b30823d946a92d69ab3f86a39080b8a3ab72e39ec2345a8a71'
   },
   {
     source: 'assets/figure2-pair-motion.webm',
     category: 'animation-webm',
-    bytes: 4940268,
-    sha256: 'a87db407fd39f6977aa0b663ffd16e54929259e6651728997f7c072a33ffaa80'
+    bytes: 4940221,
+    sha256: '4366350bbe7c6b1517fa042937bcf7f61b7b8190cece2a50ac59ba8a80511fe6'
   },
   {
     source: 'assets/ph-figure-motion.webm',
     category: 'animation-webm',
-    bytes: 2824934,
-    sha256: '678f76a40ccffe6cc2f337bfaa6fa66d4af4f6c70b2860695491cc5003147ab1'
+    bytes: 2824887,
+    sha256: 'e1ab7ce3aa0a53b520b00540877157a77e6938fcca87ce6e6cd7275ec8c7f25e'
   },
   {
     source: 'assets/ttg-figure-motion.webm',
     category: 'animation-webm',
-    bytes: 2669734,
-    sha256: '3b61c3cbcb88d8fa3ecb14faac694a4092676887a3b4cde90e80ec1bac4b0d79'
+    bytes: 2669680,
+    sha256: '69ad44a8feb20594689ff95ce4acb95e1d3a8dc01f2d5ccdd59136a884e56c31'
   },
   {
     source: 'assets/crane-figure-motion.webm',
     category: 'animation-webm',
-    bytes: 3218940,
-    sha256: 'a66a6778bda2a6c2e3fb5241a69ba4f1e4422a1638608f6cc5eba57e8f53c2b9'
+    bytes: 3218886,
+    sha256: 'f22be4953e06cad8c4895ea0c9ea5c8e149f48e5314f8bb82a5187844317c980'
   },
   {
     source: 'assets/crane-flock-motion.webm',
     category: 'animation-webm',
-    bytes: 4429224,
-    sha256: '708f45223f0cea5af23449d947050a86e5ec1ac959385561fa663ff44da5c37a'
+    bytes: 4429170,
+    sha256: '4d32ba4a0cda129241ab8135493932268ae9c61addc5a35ff77c33f881a8ae09'
   },
   {
     source: 'assets/aod-figure-motion.webm',
     category: 'animation-webm',
-    bytes: 1558857,
-    sha256: '76e7a21f941a2d40e051bd72cb92e8fb1264e21a6765fbac7f8773d2849d8c9c'
+    bytes: 1558810,
+    sha256: '00eff9f26a39c48e04a9935ca6de177b5cc504c3659bd7ac72e0da0052956d1e'
   },
   {
     source: 'assets/figure3-motion.webm',
     category: 'animation-webm',
-    bytes: 1187579,
-    sha256: '610786ba0492be27e30690d321b8cf07c185413de95adccf0b64b964a0dcbaf7'
+    bytes: 1187532,
+    sha256: '24911a28cfef2f8390e3e6da4f126afa8bc76c2c2b24d36f7d9a6a64a297cdaa'
   },
   {
     source: 'assets/figure1-hevc-alpha.mp4',

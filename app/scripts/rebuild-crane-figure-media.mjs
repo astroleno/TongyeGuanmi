@@ -1,14 +1,17 @@
 import { createHash } from 'node:crypto';
-import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
+import { normalizeStreamingWebm } from './webm-streaming.mjs';
 
 const execFileAsync = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoDir = path.dirname(appDir);
+const AUTHORITY_REF = 'd4cab484e8f2d8656cf7c7cd0e19c015c7332702';
+const AUTHORITY_SOURCE = 'assets/crane-figure1-transition.webm';
 const AUTHORITY_SHA256 = '995c0737bda965643175ac4a83aa2fa92cdcffddfa7c69a0c59b884fefabbdec';
 const AUTHORITY_BYTES = 5_637_648;
 const OUTPUT_SHA256 = 'a66a6778bda2a6c2e3fb5241a69ba4f1e4422a1638608f6cc5eba57e8f53c2b9';
@@ -68,12 +71,14 @@ function normalizeWebmTrackUid(bytes) {
   FIXED_TRACK_UID.copy(bytes, tagTargetIndexes[0] + 3);
 }
 
-const authority = argument(
-  '--authority',
-  path.resolve(repoDir, '..', 'TongyeGuanmi', 'assets/crane-figure1-transition.webm')
-);
+const authorityInput = argument('--authority', null);
+// The original file was retired after canonicalization. Use the same frozen
+// local Git object as the deep verifier, not an absent or unrelated checkout.
+const authority = authorityInput ?? `git:${AUTHORITY_REF}:${AUTHORITY_SOURCE}`;
 const output = argument('--output', path.join(repoDir, 'assets/crane-figure-motion.webm'));
-const authorityBytes = await readFile(authority);
+const authorityBytes = authorityInput ? await readFile(authorityInput)
+  : (await execFileAsync('git', ['-C', repoDir, 'show', `${AUTHORITY_REF}:${AUTHORITY_SOURCE}`],
+    { encoding: 'buffer', maxBuffer: AUTHORITY_BYTES + 1024 * 1024 })).stdout;
 assertFrozenFile(authorityBytes, AUTHORITY_BYTES, AUTHORITY_SHA256, 'Crane RGBA authority');
 
 const { stdout: ffmpegVersion } = await execFileAsync('ffmpeg', ['-version'], { encoding: 'utf8' });
@@ -85,12 +90,14 @@ const workDir = await mkdtemp(path.join(tmpdir(), 'tongye-crane-rgba-rebuild-'))
 const candidate = path.join(workDir, 'crane-figure-motion.webm');
 
 try {
+  const authorityPath = authorityInput ?? path.join(workDir, 'crane-authority.webm');
+  if (!authorityInput) await writeFile(authorityPath, authorityBytes, { flag: 'wx' });
   await execFileAsync('ffmpeg', [
     '-y', '-v', 'error',
     '-fflags', '+bitexact',
     '-flags:v', '+bitexact',
     '-c:v', 'libvpx-vp9',
-    '-i', authority,
+    '-i', authorityPath,
     '-vf', 'fps=30,setpts=N/(30*TB)',
     '-map', '0:v:0',
     '-an',
@@ -121,7 +128,7 @@ try {
   normalizeWebmTrackUid(candidateBytes);
   assertFrozenFile(candidateBytes, OUTPUT_BYTES, OUTPUT_SHA256, 'Crane canonical output');
   await writeFile(candidate, candidateBytes);
-  await copyFile(candidate, output);
+  normalizeStreamingWebm('assets/crane-figure-motion.webm', candidate, output);
 } finally {
   await rm(workDir, { recursive: true, force: true });
 }
@@ -130,8 +137,8 @@ process.stdout.write(`${JSON.stringify({
   authority,
   authoritySha256: AUTHORITY_SHA256,
   output,
-  outputSha256: OUTPUT_SHA256,
-  outputBytes: OUTPUT_BYTES,
+  outputSha256: sha256(await readFile(output)),
+  outputBytes: (await readFile(output)).length,
   fps: 30,
   frames: 75,
   rgbaResampling: 'whole-frame',

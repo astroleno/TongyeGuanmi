@@ -1,10 +1,11 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { normalizeStreamingWebm } from './webm-streaming.mjs';
 
 const run = promisify(execFile);
 const appDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -121,7 +122,7 @@ try {
   assertFrozenFile(candidateBytes, OUTPUT_BYTES, OUTPUT_SHA256, 'Crane flock canonical output');
   await writeFile(candidate, candidateBytes);
   await mkdir(path.dirname(output), { recursive: true });
-  await copyFile(candidate, output);
+  normalizeStreamingWebm('assets/crane-flock-motion.webm', candidate, output);
 } finally {
   await rm(workDir, { recursive: true, force: true });
 }
@@ -132,8 +133,8 @@ process.stdout.write(`${JSON.stringify({
   correctedFirstFrame: correctedFrame,
   correctedFirstFrameSha256: CORRECTED_FRAME_SHA256,
   output,
-  outputBytes: OUTPUT_BYTES,
-  outputSha256: OUTPUT_SHA256,
+  outputBytes: (await readFile(output)).length,
+  outputSha256: sha256(await readFile(output)),
   fps: 30,
   frames: FRAME_COUNT,
   replacedFrame: 0,
