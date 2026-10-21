@@ -1,6 +1,16 @@
 # 旧官网迁移至 /experience/
 
-## 待发布验证：v70（2026-10-22 00:04，Asia/Shanghai）
+## v70 公网测试版授权已封存（2026-10-22，Asia/Shanghai）
+
+用户新增明确批准：“允许，保留失败记录后发布并公网复测”。精确收据 `scripts/authorizations/v70-callback-publication-20261022.json`，SHA `5e011218bfd8871a349f6433643f06862d212f4e5b13fc778f8a22e0a0a52000`；只覆盖下述冻结 c58c7d9，不授权其他候选，也不授予合格标记。暂存包名为 `r5-c58c7d9-callback-test`；此条是发布前记录，当前实际公网仍是 v69，须以随后真实事务及 HTTP 读回为准。
+
+用户获准重建的专用组 2 中，分八次短调用完成全部 32 项原滚动对照；32 项均保留失败，原采样函数、视口、焦点、期限与数值门槛未变。新旧版都有大量 `Log.entryAdded/source=other` 的同一 `Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist.`。两次功能遍历各有一条、40 项冷加载各有一条同文通信错误：242 个姿态、6 个 Proof 和 40 个原期限内真实暂停媒体就绪检查本身通过，但完整无错误验收没有通过。全部原错误、失败布尔值和逐批次数／哈希保留，不根据措辞猜测并过滤为扩展错误。八项成本诊断的 83→54 拷贝次数受不等 RAF 采样节奏混杂，明确不能作为改进证明。
+
+独立真实鸟群媒体、两轮反序、相同八个目标的 32 项原生证明全部取得正确暂停目标帧：v69 共 16 次实际拷图，v70 共 14 次；两次确有原生 rVFC 及匹配媒体时间、没有 drawImage／像素读取。只证明该受控等目标工作量节约两次拷图，不推导整体 FPS 达标。原 8ms 真实像素兜底、单次同源 Range 恢复和 20s／25s 期限不变；两轮真实零正文 Range 恢复与原 12 项像素门槛仍通过。未改变应用产物、媒体字节或就绪字段。
+
+精确收据及所有实际原始报告已通过发布器的真实数据预检；正式内存仍 0 轮／`pass=false`，清单仍 `pending-memory`，真机／WebKit 缺口保留。默认合格发布路径继续拒绝本包。新旧失败、早先组消失、控制器 stdin 导致的无浏览器执行尝试和错误封存路径均保留；不存在将中断尝试改判通过。
+
+## 前次中断记录：v70（2026-10-22 00:04，Asia/Shanghai）
 
 应用 source `c58c7d91d79ad3762cc7f6c5770f1167d3e9783e` 与 annotated tag `react-refactor-r5-parity-repair-candidate-v70` 已推送 main；tag object `5bed925517d1b29d07c13448c6c3d87b319f7a78`，冻结 manifest SHA `6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e`，artifact tree `5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6`。仅撤回 v69 强制 seeked 拷图，恢复既有 rVFC 优先／8ms 原像素证明兜底；保留单次同源断流恢复、目标、时限、跨视频一致性与全部原门槛。
 

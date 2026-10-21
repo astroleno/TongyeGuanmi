@@ -1,0 +1,1064 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-21T17:05:50.880Z",
+  "authority": "Current explicit instruction authorizes continuing original-standard validation and publication of the exact demonstrably improved v70 frozen artifact. The user freshly and explicitly approved retaining the newly observed browser communication errors and original FPS failures in this exact public-test publication. No arbitrary future candidate or passing qualification is authorized.",
+  "userInstruction": "继续查清鸟群视频分段传输停滞和滚动卡顿的根因并修好，不要放宽验收标准，比这版好就 commit push，再更新公网复测。允许再次重建，继续验收并发布。允许，保留失败记录后发布并公网复测。",
+  "releaseId": "r5-c58c7d9",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v70",
+    "candidateTagObject": "5bed925517d1b29d07c13448c6c3d87b319f7a78",
+    "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+    "artifactTreeSha256": "5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6",
+    "draftManifestSha256": "6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e"
+  },
+  "baselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v68",
+    "candidateTagObject": "9d89c6c27a7590a7515e17ec086d93e12f9e4787",
+    "sourceCommit": "370e09e3f18036fdcd5d8f903005d5cd7f66902c",
+    "artifactTreeSha256": "83da9f4477b7233e434ec49c4c9170d5b87e00ce70e521ad6b9bf430864df224",
+    "draftManifestSha256": "a3612cbe7f78555013d8ed81415544fdc093622b18371ab9930a430a32c1060f"
+  },
+  "callbackBaselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v69",
+    "candidateTagObject": "24eb88bb00108112251146739fd22d7fa182433c",
+    "sourceCommit": "81daca0d36a9219bf41e8f6afd5a768bb7ab9505",
+    "artifactTreeSha256": "a01a0efacdc4974fb47be5153d13fe9eb14b12da0c1704fab508bc96bf55d92c",
+    "draftManifestSha256": "a1ee07ea6767650bb9b8a9b3cfacf1ae0f63c5d78b2bf79fef5b0b151a4b8037"
+  },
+  "measurementSha256": "afdd948eecdeb47dece1f9900feeca0519443939def1ab222d11c00f1195b415",
+  "driverSources": {
+    "v68": "ec553b50650befaa3a11c2d7c71320cfd3ebcb9937196e1a579ffd6a3edfd7f9",
+    "v70": "6f1b9027df1e6cf95843a9b01c7062c576e57a74cc8e3f518d61a77dcb663e15",
+    "v69": "0416c2448478a8cba65a27aa2fec90a1ac1c1d831332bd32e98bb4804a641fbd"
+  },
+  "publicationCondition": "All242 frozen poses,6 Proof aliases,12 original pixel gates,40 healthy atomic cold cases and32 unchanged original scroll measurements are present. Two genuine native body-stalled Range trials retain bounded same-source recovery inside the original20s. Eight counterbalanced10s scroll-cost diagnostics remain failed with raw errors and unequal cadence; their absolute83/54 counts are NOT used as improvement proof. A separate32-observation native fixed-target comparison proves16/14 actual pixel reads on equal targets using genuine causal callbacks, with no changed pixels or proofs. Failed FPS gates, missing memory and devices remain failures or missing.",
+  "callbackReadbacks": {
+    "v69": 83,
+    "v70": 54
+  },
+  "nativeTargetReadbacks": {
+    "v69": 16,
+    "v70": 14
+  },
+  "retainedDiagnosticPublication": true,
+  "knownBrowserCommunicationErrorsRetained": true,
+  "callbackAbsoluteCountsUsedAsImprovementProof": false,
+  "retainedFunctionalDiagnostics": [
+    {
+      "platform": "desktop",
+      "passed": false,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "85eaa1f8852a2d903f9fafe3c2fd9208e4bd6a2aac5e12f204857df080568f1f"
+    },
+    {
+      "platform": "phone",
+      "passed": false,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "e5a885dc056e18adc16d41be0522b0f2fe82c2e183d1076554254dc053841c76"
+    }
+  ],
+  "retainedScrollDiagnostics": [
+    {
+      "platform": "desktop",
+      "id": "hero-pattern",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval",
+        "longTasks"
+      ],
+      "browserErrorCount": 585,
+      "browserErrorSha256": "d9978edf20dd963b6f3ed22e0a0bf2dee5f695adf85693e4326c9d8faac66aeb"
+    },
+    {
+      "platform": "desktop",
+      "id": "pattern-star-map",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 755,
+      "browserErrorSha256": "1fff3e72366947caa513e0957bf41cf7ac7b1751fb34bf76aaa1926f94e6cf0c"
+    },
+    {
+      "platform": "desktop",
+      "id": "hero-pattern",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 445,
+      "browserErrorSha256": "62e1723ded1e87d5101d1140d0ed3941ff33adad262016f2226c775040d14a8e"
+    },
+    {
+      "platform": "desktop",
+      "id": "pattern-star-map",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 625,
+      "browserErrorSha256": "78685b16395ad9256d817ce260f0ed51cafe4bcfbd13c1e9f52c4dfa1c661dcc"
+    },
+    {
+      "platform": "desktop",
+      "id": "aod-method-top",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 118,
+      "browserErrorSha256": "1c4ab6a9c9beabfecf89df79394ee9c6d79210d3bb22e9be65933aa0cb73bfe4"
+    },
+    {
+      "platform": "desktop",
+      "id": "figure2-distance-expand",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval",
+        "poseLag"
+      ],
+      "browserErrorCount": 1265,
+      "browserErrorSha256": "b1b4b730c98daba7e6a8749a37b4d4f4a7a51a9ed547b2523c070879bb18c195"
+    },
+    {
+      "platform": "desktop",
+      "id": "aod-method-top",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 487,
+      "browserErrorSha256": "edc84bad5f016e9d8265adc1456d41583f524627e6517d7bfe25fd9ecf9b7465"
+    },
+    {
+      "platform": "desktop",
+      "id": "figure2-distance-expand",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval",
+        "poseLag",
+        "longTasks"
+      ],
+      "browserErrorCount": 1109,
+      "browserErrorSha256": "719c968cf0d867129aea16dd7a92854741142439d1f31da9cbe7a41fd9e071f8"
+    },
+    {
+      "platform": "desktop",
+      "id": "figure3-services",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 352,
+      "browserErrorSha256": "0168983f2d9f74d9253880a1d5182b7e5e2306f4a4eed577bbcc37f4a0952402"
+    },
+    {
+      "platform": "desktop",
+      "id": "ttg-lab",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval",
+        "poseLag"
+      ],
+      "browserErrorCount": 575,
+      "browserErrorSha256": "b4c8bddd0362cf12b9b8dc34ff717e8e396621f880f6c6e0652c88cd0f6f6b71"
+    },
+    {
+      "platform": "desktop",
+      "id": "figure3-services",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 253,
+      "browserErrorSha256": "4d99b0981db71effbe34bea233a925b6c1ee246075f8cd7e2f1e43884a493b72"
+    },
+    {
+      "platform": "desktop",
+      "id": "ttg-lab",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval",
+        "poseLag"
+      ],
+      "browserErrorCount": 1158,
+      "browserErrorSha256": "acc6e05d04403c3665720671961235ff5ecb5c7146f94c78e56566607a4855d1"
+    },
+    {
+      "platform": "desktop",
+      "id": "ph-education",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval",
+        "poseLag"
+      ],
+      "browserErrorCount": 234,
+      "browserErrorSha256": "0d93b5a28de08edea2e0f02232c207e44d4d11042dac1922e144b4cfd6258c43"
+    },
+    {
+      "platform": "desktop",
+      "id": "crane-contact",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval",
+        "poseLag",
+        "longTasks"
+      ],
+      "browserErrorCount": 444,
+      "browserErrorSha256": "b15bcd08935ae795b381132a58c1aa0fbf8b2a4bc404436a88070014c585411e"
+    },
+    {
+      "platform": "desktop",
+      "id": "ph-education",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 477,
+      "browserErrorSha256": "0414a0292dcdff4a7193018a9d463eb28ead5ac21bf8ddb0b0cf27bd4fe9a76e"
+    },
+    {
+      "platform": "desktop",
+      "id": "crane-contact",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval",
+        "poseLag"
+      ],
+      "browserErrorCount": 850,
+      "browserErrorSha256": "805e107fa4ea662bf3d63148572d9ac40e8eed1072c7ca517096dc29b2932b89"
+    },
+    {
+      "platform": "phone",
+      "id": "hero-pattern",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 354,
+      "browserErrorSha256": "f892fe76ffca7af4635b4817220542b50214493b81b0dbf551b84f78f2db23f0"
+    },
+    {
+      "platform": "phone",
+      "id": "pattern-star-map",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 629,
+      "browserErrorSha256": "e21fa07c31173306d4affdc8a821fb7f9aa4e3cee63d56888d9a13c92cb56d07"
+    },
+    {
+      "platform": "phone",
+      "id": "hero-pattern",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 213,
+      "browserErrorSha256": "5eb160a69b72d11f6660db5537d65abd426a0358f1e0ca5f612a7e98504965a1"
+    },
+    {
+      "platform": "phone",
+      "id": "pattern-star-map",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 478,
+      "browserErrorSha256": "d8b853c65dc3e2216e4aa97b627a7d6cde307375f191a41fb3b5e4aa0b86adea"
+    },
+    {
+      "platform": "phone",
+      "id": "aod-method-top",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 343,
+      "browserErrorSha256": "e6d26868f11773fe30eb42e19dd256b103ffa0b01cae234850002c8a53524c8b"
+    },
+    {
+      "platform": "phone",
+      "id": "figure2-distance-expand",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 608,
+      "browserErrorSha256": "9c74f6443e8b4de05354873e386c82d08b031ac083bedcf4c17b8c14903e94a6"
+    },
+    {
+      "platform": "phone",
+      "id": "aod-method-top",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 444,
+      "browserErrorSha256": "49598c91abfbf704d8dea8272bfc52ada5928a992c08bbe33f257cf1f708936a"
+    },
+    {
+      "platform": "phone",
+      "id": "figure2-distance-expand",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 886,
+      "browserErrorSha256": "d31094528f6c29424d63f4bdafccfe8fd02f4e4390de806e04a313d7f678d491"
+    },
+    {
+      "platform": "phone",
+      "id": "figure3-services",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 307,
+      "browserErrorSha256": "a30aabc0565a21d62e9c2968b38c95c58559d9c184faadb2ec76a1d03333ffb7"
+    },
+    {
+      "platform": "phone",
+      "id": "ttg-lab",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 533,
+      "browserErrorSha256": "6b6d3f34aba652d322f3022d1fcc5564857bc87c120d11a469b9736c6bd5e70d"
+    },
+    {
+      "platform": "phone",
+      "id": "figure3-services",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval",
+        "poseLag"
+      ],
+      "browserErrorCount": 281,
+      "browserErrorSha256": "0020f097691fa6d549607731961897a7c162c1de911ddf610106a5cc7c296587"
+    },
+    {
+      "platform": "phone",
+      "id": "ttg-lab",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 433,
+      "browserErrorSha256": "ebc9b9c6a202892dc1449cd63ded056c7aeda209dfc2cf045b40f628388901ca"
+    },
+    {
+      "platform": "phone",
+      "id": "ph-education",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 432,
+      "browserErrorSha256": "efb9737c4724e9a40fea7d4eac1dcec5aa6ff95e2c6aba4891e1456939db164d"
+    },
+    {
+      "platform": "phone",
+      "id": "crane-contact",
+      "version": "v70",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 688,
+      "browserErrorSha256": "8f2527a6809cd428f350d61b73f205407f468027143bcbd02bbf999e657d96d4"
+    },
+    {
+      "platform": "phone",
+      "id": "ph-education",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 216,
+      "browserErrorSha256": "e3d5bbe13b5f65f3f200213df311910e1148cd711d0dc7885e67e11ec2cec120"
+    },
+    {
+      "platform": "phone",
+      "id": "crane-contact",
+      "version": "v68",
+      "measured": true,
+      "passed": false,
+      "failedChecks": [
+        "rafInterval"
+      ],
+      "browserErrorCount": 457,
+      "browserErrorSha256": "9127488fb2e4eb42fa54aabea66be6497da8e1be0965d0c2743d4a11535ef067"
+    }
+  ],
+  "comparisons": {
+    "desktop": {
+      "v68": {
+        "measuredScrollCases": 8,
+        "passingOriginalScrollCases": 0,
+        "coldMedianMs": 2398,
+        "coldNearestRankP95Ms": 3882
+      },
+      "v70": {
+        "measuredScrollCases": 8,
+        "passingOriginalScrollCases": 0,
+        "coldMedianMs": 3418.5,
+        "coldNearestRankP95Ms": 7102
+      }
+    },
+    "phone": {
+      "v68": {
+        "measuredScrollCases": 8,
+        "passingOriginalScrollCases": 0,
+        "coldMedianMs": 3519.5,
+        "coldNearestRankP95Ms": 3708
+      },
+      "v70": {
+        "measuredScrollCases": 8,
+        "passingOriginalScrollCases": 0,
+        "coldMedianMs": 3431.5,
+        "coldNearestRankP95Ms": 9494
+      }
+    }
+  },
+  "qualificationStatusUnchanged": "pending-memory",
+  "knownGaps": [
+    "Each of the40 cold readiness observations also retains one identical unattributed communication error. All40 original timed and parked-media readiness checks passed, but zero-console-error qualification did not; none of these errors is removed or retroactively passed.",
+    "Fresh explicit user approval covers the retained communication errors observed in both frozen versions. They are not precisely attributed and are NOT filtered out or reclassified as passing. All32 original scroll measurements and all8 cost diagnostics remain failed. Both functional harness runs also retain one identical unattributed communication error and remain failed overall, while all242 pose checks and6 aliases themselves passed.",
+    "An owned blank active-scroll control also showed about1018ms RAF while idle was about18ms; later controls returned34/50ms. No global power, proxy, browser extension or other page was changed.",
+    "Absolute scroll readback totals83/54 are confounded by unequal RAF cadence and are not causal improvement evidence. Only the equal-target native16/14 observation is used for the local RVFC-first benefit. ",
+    "Ego disconnected after8 complete old-version scroll rows and the original group disappeared. Those rows remain separate incomplete evidence; a fresh complete32 matrix was remeasured in eight short paired-peer invocations under unchanged power, viewport, sampler and deadlines. No interrupted attempt was retroactively passed.",
+    "This is not a blanket scroll/FPS qualification. Original thresholds, samples and failed metrics are retained.",
+    "The exact network hop behind real public zero-body/EMPTY_RESPONSE failures is not isolated. One retry cannot guarantee recovery through consecutive transport outages.",
+    "Formal process-memory0/not-measured/pass=false; physical iPhone/Android and WebKit qualification remain incomplete.",
+    "No other Ego pages, browser installs, proxy or global power settings changed.",
+    "The initial persistent unit run incorrectly inherited build-only environment variables and had4 route assertions plus6 original-deadline timeouts. Its raw report remains failed; only the final entire1759+88 pass is qualifying local evidence. Earlier tmp evidence vanished externally; final source-specific checks and all browser evidence are preserved in the user-provided artifact workspace."
+  ],
+  "evidence": {
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 758,
+      "sha256": "17f3c008ce94c29399c8cddcae95a68740f408a4982a95032f0fc1b965af3f83"
+    },
+    "scrubRecovery": {
+      "path": "evidence/scrub-recovery.json",
+      "bytes": 439892,
+      "sha256": "756f2ba754c59e88c6e56a414cf129f5ea52edcc2235d9d83e9eb16379f1471f"
+    },
+    "nativeFixture": {
+      "path": "evidence/native-fixture.json",
+      "bytes": 525,
+      "sha256": "7324e0565b8c181247f027233a26d8de725156ee57002da9a24177e02412bd32"
+    },
+    "nativeExecution": {
+      "path": "evidence/native-execution.json",
+      "bytes": 51,
+      "sha256": "311a3d7e7b1989001f28fa0787b95fe4db4daf694efc700d53c030b9a3a1c4f3"
+    },
+    "coldComparison": {
+      "path": "evidence/cold-comparison.json",
+      "bytes": 34542800,
+      "sha256": "0213f1ce88569c60e4f64a987f369797c5ab369c98290ab456e889339e994d22"
+    },
+    "coldExecution": {
+      "path": "evidence/cold-execution.json",
+      "bytes": 275,
+      "sha256": "512481f0fd7bcd7c1da7095458e392718d14fca7e2af13516fae5f2d946ca7e5"
+    },
+    "functional": {
+      "path": "evidence/functional-visual.json",
+      "bytes": 4625456,
+      "sha256": "c480cd75f914b793e8a6048c8f23baf33fc932b070937d61c1796a9bc3ae9129"
+    },
+    "functionalRaw": {
+      "path": "evidence/functional-raw.json",
+      "bytes": 4584321,
+      "sha256": "fa4a6b2c1fb92aa26e0ba3ca4bdd9d1fc9049fdae0c64a769595758f538cbaad"
+    },
+    "visualRaw": {
+      "path": "evidence/visual-raw.json",
+      "bytes": 116334,
+      "sha256": "ad0277472d1fa16bc74698415d8df737591b4dde3d3d6348eb5993fcdfb54d65"
+    },
+    "scrollComparison": {
+      "path": "evidence/scroll-comparison.json",
+      "bytes": 59811868,
+      "sha256": "2b67191c720331e755fee5324f68d66a828c3471420f085f5d3aba115c8c2ca2"
+    },
+    "callbackCostComparison": {
+      "path": "evidence/callback-cost-comparison.json",
+      "bytes": 26950725,
+      "sha256": "4e5f8de81a0a8014e06de06ce95b0d24178fe4b82d0ebf89a1380d4feb04cdbf"
+    },
+    "callbackExecution": {
+      "path": "evidence/callback-execution.json",
+      "bytes": 281,
+      "sha256": "0f61e2904aa3bd46e03a0fff73cfb5209b216d1f8bcade5940eb372ef21e027b"
+    },
+    "frozenExecution": {
+      "path": "evidence/frozen-execution.json",
+      "bytes": 38222,
+      "sha256": "720eed6e1871e113aa5e1a8a2741cf5f90142e37617e47bf64622c1ad645d1b9"
+    },
+    "unitSummary": {
+      "path": "evidence/unit-summary.json",
+      "bytes": 15427,
+      "sha256": "a82888dad4514ce25d98b7d07c5a52ea626eeff6c0d7e7bd2604effd2611397a"
+    },
+    "unitRuntime": {
+      "path": "evidence/unit-runtime.json",
+      "bytes": 607531,
+      "sha256": "3f8146ee29b298ef2fb7e0686290ab670969b637d8592ac201638b125a52b58a"
+    },
+    "unitArchitecture": {
+      "path": "evidence/unit-architecture.json",
+      "bytes": 18276,
+      "sha256": "830b4861c268556beb0c5bc7ea855462d9309924ec6d665c022de60a752fed9e"
+    },
+    "typecheck": {
+      "path": "evidence/typecheck.json",
+      "bytes": 413,
+      "sha256": "c1ebcbb7b7d635ce00c9ccd1c8247306071e33dafa1f63d0fd396b6bdf260bc7"
+    },
+    "lint": {
+      "path": "evidence/lint.json",
+      "bytes": 390,
+      "sha256": "5be80681fb28fcfbc671454e32819f842169628ce2751db0c2e56bf4a355b992"
+    },
+    "build": {
+      "path": "evidence/build.json",
+      "bytes": 23257,
+      "sha256": "f7655489961c0043d7001be750139111da0adfd2e5529b2baf67f38656d25877"
+    },
+    "initialUnitFailure": {
+      "path": "evidence/initial-unit-failure.json",
+      "bytes": 626777,
+      "sha256": "549f9972adec44d8d0df21b63f54c867d887225051de7482de262d39c1101b8f"
+    },
+    "initialUnitExplanation": {
+      "path": "evidence/initial-unit-explanation.json",
+      "bytes": 765,
+      "sha256": "db0f50739d7258671f92035f2d1c2d1f54ccb867af4428db24ece1a95b67efda"
+    },
+    "scrollFirstAttempt": {
+      "path": "evidence/scroll-first-attempt.json",
+      "bytes": 13750870,
+      "sha256": "4e759b5c074f40601ec49560cf43b2d324393536a63bd48248e09d4db505240e"
+    },
+    "browserInterruption": {
+      "path": "evidence/browser-interruption.json",
+      "bytes": 711,
+      "sha256": "6f4fecda16105d00ec9a787262e4aadafe440652c4986e54633350e80b4dddfb"
+    },
+    "mediaInventory": {
+      "path": "evidence/media-inventory.json",
+      "bytes": 12642,
+      "sha256": "1a89b230ee867e40683bde3eb4c40fe387e34a0a1f2dd253aaa369d701e5886e"
+    },
+    "scrollChunk1": {
+      "path": "evidence/scroll-chunk-1.json",
+      "bytes": 6538015,
+      "sha256": "9b3bffe5589c45b04c1e4e17b95e69af297e4fb5d8bfd8e6e6dbc1f5c7b31899"
+    },
+    "scrollChunk2": {
+      "path": "evidence/scroll-chunk-2.json",
+      "bytes": 7768064,
+      "sha256": "6af36492d17b0e66b251a040180b9de02af789d1e9a4ce8a13677942a11f7a99"
+    },
+    "scrollChunk3": {
+      "path": "evidence/scroll-chunk-3.json",
+      "bytes": 6470004,
+      "sha256": "aca3ae96984f4ac772b13374701e67c05416c4aaf9d81f472b06709515c8f32c"
+    },
+    "scrollChunk4": {
+      "path": "evidence/scroll-chunk-4.json",
+      "bytes": 6520479,
+      "sha256": "34a2bb91989b3eccd3cc60a796212258fd5a767612698a5fed03e78ba93535d2"
+    },
+    "scrollChunk5": {
+      "path": "evidence/scroll-chunk-5.json",
+      "bytes": 8094792,
+      "sha256": "cf1cc86842b5cea995879515dcc491d635c9cb79d168e2396ec060844de5f508"
+    },
+    "scrollChunk6": {
+      "path": "evidence/scroll-chunk-6.json",
+      "bytes": 8588858,
+      "sha256": "0c76f4e587dc45ddcbed80aadaeda6f8979cef3727a70a517d12c0964478962a"
+    },
+    "scrollChunk7": {
+      "path": "evidence/scroll-chunk-7.json",
+      "bytes": 7618998,
+      "sha256": "b1d5948448b83875bff5fb2e68aa0decec9e8c3d65acf97a2824caada7651558"
+    },
+    "scrollChunk8": {
+      "path": "evidence/scroll-chunk-8.json",
+      "bytes": 8748265,
+      "sha256": "3349f7f4c19d2f03d61bf5683fbe32f423d9dd1cbe11678d52ac867d30d0a0a0"
+    },
+    "callbackRaw1": {
+      "path": "evidence/callback-raw-1.json",
+      "bytes": 11154088,
+      "sha256": "58c5a690b16cb61420c8397125fc02932699b126777b9d48e212b9a0beaec75a"
+    },
+    "callbackRaw2": {
+      "path": "evidence/callback-raw-2.json",
+      "bytes": 15796925,
+      "sha256": "e2c6fad6bf1f36f9bbf8c876a7ccee641d4dfc18f1dcc353ed53326c025214d1"
+    },
+    "nativeCallbackProof": {
+      "path": "evidence/native-callback-proof.json",
+      "bytes": 46704,
+      "sha256": "79180f9ae7cd1222beeb3449b8283f19d2ccd4cd8cb9d8631b192e2cea1a306e"
+    },
+    "nativeCallbackFixture": {
+      "path": "evidence/native-callback-fixture.json",
+      "bytes": 529,
+      "sha256": "8513320e972aecb3aa5bf5b42e00a84bb2ea07a6320f7289cc44eee110e817e2"
+    },
+    "blankControl": {
+      "path": "evidence/blank-control.json",
+      "bytes": 79101,
+      "sha256": "7825d55e3a61431a3967970956f800323ac0fbe703812298c62e7515f75e3bd6"
+    },
+    "callbackBlankControl": {
+      "path": "evidence/callback-blank-control.json",
+      "bytes": 15515,
+      "sha256": "00cab983a01831010af9ca108ace69810c598137800f44460ad0af4b9d5ce4f2"
+    },
+    "controllerFailure": {
+      "path": "evidence/controller-failure.json",
+      "bytes": 596,
+      "sha256": "484b83b269d977e4dfe0f2afd2108aa48e1cc3f4891d698368f151548009fcaf"
+    }
+  },
+  "doesNotGrantPassingQualification": true,
+  "doesNotAuthorizeFutureCandidates": true,
+  "retainedColdDiagnostics": [
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "hero-pattern",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "7770e0b3563419d9e6ac352966165d2cdc15624a28a7b26bd13e0188d76a5da7"
+    },
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "hero-pattern",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "8d9a928f5e85b8797c9b1bc26ceaccad299f1e79ea71d1d174b50e7c964bd260"
+    },
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "method-bottom-figure2",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "4d52f5a44b00f2bfd655baa7e29e0df1bfb075e530dd52d69476e278d8875779"
+    },
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "method-bottom-figure2",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "f5916279356c4f0c4e3189656c7d3a6daab002483509a9597176a37c5cc1d5f5"
+    },
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "brand-figure3",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "9dae631ace066376b5baab20054223440b8d8fa67a5657f8d24cf190e2af0cc7"
+    },
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "brand-figure3",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "5774abe9a8a29c88d3e39ad478661f5100b9644c6e9a8b4c3972586e72d2d0fc"
+    },
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "education-crane",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "9e2b23701d3980da8b9edc5ddb8849e5284cf416ca16f0e22a1b82e34d7dab12"
+    },
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "education-crane",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "e79924d10cdcdffdce06412d9f7a7ccd3f9e85397c6886f10493e9a97e9b9887"
+    },
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "crane-contact",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "33c3da9f5a208cad2cb932bcfee4e6a4ea4fe5bcb752a6b5bb8a7eb34e8b973c"
+    },
+    {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "crane-contact",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "4fd67901945fdeea0af7dd7cdc6ab8f6b9cd78bc75a1d34b1db19d22046d9bb6"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "hero-pattern",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "6e631c78e4d80505ba2aaa95ebbc3221d6b90743e108fa071ea633b7bee8aca7"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "hero-pattern",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "d949f99196696649dfd7fe7191ee66fc0b5119fe00a0b5bdbd0c3be5d7e1e15a"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "method-bottom-figure2",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "6bdcda2fe44aa7fc4a054f2ac299dcf53702a5e0c118d39c6bcbdaa60b0c2fe7"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "method-bottom-figure2",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "3db237767a0b461083a87511a6df000aabfa08e3b467474dcb86a03fa8cdabfb"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "brand-figure3",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "576f29a50bffe026727346df3bd8876eaec4b8bf474d9459f7fb9dcdc6de531d"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "brand-figure3",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "aa0d7ff5ff1ae0da9ef54c7866143c238ffc0e4431fa22b09d9a0f4c395765ff"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "education-crane",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "45d789fab90acbfd597e45302a3235023cb8a8fbf0214a60682acaedc48d769e"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "education-crane",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "3ddf2bbbfff750a855ec2f4266fdf18a3462e117e252b9f916bec5a7374e3d76"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "crane-contact",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "8fdf6a5be6e6f732b879262de112f5c6bcd966bee59f5c7c89455d065d454546"
+    },
+    {
+      "platform": "desktop",
+      "trial": 2,
+      "rangeId": "crane-contact",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "9d7257015e8ffa7f2440c262040ffdb577a9f0ab73b0592b90ef120e2719e29f"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "hero-pattern",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "1b1cd23f17b0278dad266d65830c4d9e9c6bead4fa1e345b4bbfd282fc779f4f"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "hero-pattern",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "8e464c073ecf29fad6cba04ce8134b5f6c0bada3f2de290236d33080ad103124"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "method-bottom-figure2",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "f447a51cd7fc34a2322fab6ac3ff43c0dd860a05e63e18d52a28d51281ac3ba4"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "method-bottom-figure2",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "0de2406c83b2ca4580bedc18baef281627da1fe32d44937de91b850f98332411"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "brand-figure3",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "c92b31511b1022cf7d11a6b9a6da911b01ad9f76bff6adbdf96c867c936d33d0"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "brand-figure3",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "b582dba0203ebd5fd747eb4145b99d8ac568e61fdfcd48662509e359ac595725"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "education-crane",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "25467e6e70844a16c3ec7b9a7c4dd277b05783d38e51f57ab171410f1f7329c1"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "education-crane",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "97a76ece917dbb04731eaff98c78a3c144ad5a2fe2d789beaf0bd787fa047224"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "crane-contact",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "0b63c0bc75b3df73a5c382cdf07393f056aa3ce8306f8d1566adbbda0e2dc2a1"
+    },
+    {
+      "platform": "phone",
+      "trial": 1,
+      "rangeId": "crane-contact",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "ec1288def920538487e685315770643755cfa454f6c93d6f3902c58c0010de1e"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "hero-pattern",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "635717f24161d5d0c337faea1395ef1ae8298550f4d783c77cf7d60db86449ce"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "hero-pattern",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "87003186f0bfbd53e4addd187e74d1cc21ddafde43cbae1a098d5218d47abf45"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "method-bottom-figure2",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "f6048847b7fce06b3b0809c372f6dd0376fe9408f0056f6b877d6d0123581030"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "method-bottom-figure2",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "09735f70e518a0aeb0b463f9f312699616d657cec69296a0de1d4d6bde23531f"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "brand-figure3",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "ffedf6645ecb39d6ca07e110a85e40f2a72db22c55af8e42f0ca4f14a0dce568"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "brand-figure3",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "da09dc6c5a452557f051a02f41997f2fd966d026283e354cc58103dae5f855e8"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "education-crane",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "92e56e8ecdcf5fffd61541833d28f7c7e0537fdaba9b7597a25ffe651d197817"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "education-crane",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "bde366a30911c4af36b4c4f40c43bbd87eb45025cac82d41f0356dc6073c51a5"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "crane-contact",
+      "version": "v70",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "28d9c4aebd58e4d39747f73a8a23350e5249a59b52504e73d77e15291fe99321"
+    },
+    {
+      "platform": "phone",
+      "trial": 2,
+      "rangeId": "crane-contact",
+      "version": "v68",
+      "ready": true,
+      "browserErrorCount": 1,
+      "browserErrorSha256": "cea45d397736273565e18d57ea9db6eedf3a1686dcb0a9381f50e0ef0ef46f5f"
+    }
+  ]
+}

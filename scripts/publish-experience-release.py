@@ -46,9 +46,15 @@ V65_IMAGE_AUTH_SHA = '33c6e82af56cf25f0b1e125be351786314cad2ffc0a7f90984bcacd137
 V67_LOADING_AUTH_SHA = '17ccc51e38316a30b1be9077d6453236ab2cce7a9c6127ab7216f5a019cbdab6'
 V68_PH_AUTH_SHA = '649860625c1c0976be908ec755b6726a48e218f9424ab3ea81baddced7fc0e10'
 V69_SCRUB_AUTH_SHA = 'c03324b007b7f9775b4b4f9966bec6918c35fd44602609149e8ede153b4a6bbd'
+V70_CALLBACK_AUTH_SHA = '5e011218bfd8871a349f6433643f06862d212f4e5b13fc778f8a22e0a0a52000'
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {
+    '30403daf587c3e9d4816650af117728841ca8a4dcdab32c56f15e1d3b4082d17': {
+        'releaseId': 'r5-81daca0',
+        'manifestSha256': 'a1ee07ea6767650bb9b8a9b3cfacf1ae0f63c5d78b2bf79fef5b0b151a4b8037',
+        'beforeIncludeSha256': '2db02d2bbc08b4fbde6e1d05beccbbf0ee9dfedb391b755161133ba7915809cf',
+    },
     '2db02d2bbc08b4fbde6e1d05beccbbf0ee9dfedb391b755161133ba7915809cf': {
         'releaseId': 'r5-370e09e',
         'manifestSha256': 'a3612cbe7f78555013d8ed81415544fdc093622b18371ab9930a430a32c1060f',
@@ -264,19 +270,26 @@ def validate_relative_improvement(package, receipt, candidate_version='v63'):
 def validate_frozen_functional_visual(package, receipt, candidate_version, baseline_version='v60'):
     """Same full traversal, aliases and visual gates for each pinned comparison."""
     functional = json.loads(read_regular(package, receipt['evidence']['functional']['path']))
+    retained = candidate_version == 'v70' and receipt.get('retainedDiagnosticPublication') is True
     if (functional.get('kind') != f'frozen-{candidate_version}-functional-and-{baseline_version}-visual-comparison-unshaped-http'
-            or functional.get('passed') is not True or functional.get('failure') or functional.get('releaseQualified') is not False):
+            or functional.get('passed') is not (False if retained else True) or functional.get('failure') or functional.get('releaseQualified') is not False):
         raise ValueError('relative publication requires complete frozen functional and visual checks')
     runs = functional.get('functional', [])
     if len(runs) != 2 or {run.get('platform') for run in runs} != {'desktop', 'phone'}:
         raise ValueError('both frozen functional platforms are required')
     for run in runs:
-        if (run.get('passed') is not True or run.get('errors') or len(run.get('points', [])) != 121
+        if (run.get('passed') is not (False if retained else True)
+                or (run.get('errors') and not retained) or len(run.get('points', [])) != 121
                 or any(point.get('passed') is not True for point in run['points'])
                 or any(run.get('identity', {}).get(key) != value for key, value in receipt['identity'].items() if key != 'draftManifestSha256')
                 or len(run.get('aliases', [])) != 3 or {alias.get('panel') for alias in run['aliases']} != {'opening', 'cards', 'closing'}
                 or any(alias.get('passed') is not True for alias in run['aliases'])):
             raise ValueError('frozen functional or Proof alias regression')
+    if retained:
+        diagnostics = [{'platform': r['platform'], 'passed': r['passed'], 'browserErrorCount': len(r['errors']),
+                        'browserErrorSha256': digest(encoded(r['errors']))} for r in runs]
+        if receipt.get('retainedFunctionalDiagnostics') != diagnostics or any(not retained_communication_errors(r['errors']) for r in runs):
+            raise ValueError('only the exact retained communication errors are authorized; functional runs stay failed')
     visual = functional.get('visual', [])
     visual_ranges = ['hold:hero', 'hero-pattern', 'pattern-star-map', 'method-bottom-figure2', 'crane-contact', 'figure3-services']
     if (len(visual) != 12 or {(row.get('platform'), row.get('pose', {}).get('rangeId')) for row in visual}
@@ -407,28 +420,28 @@ def validate_ph_cors_recovery(package, receipt):
     validate_frozen_functional_visual(package, receipt, 'v68', 'v67')
 
 
-def validate_scrub_recovery(package, receipt):
+def validate_scrub_recovery(package, receipt, candidate_version='v69'):
     """One sealed recovery comparison; original performance/memory gates stay false."""
     report = json.loads(read_regular(package, receipt['evidence']['scrubRecovery']['path']))
-    if (report.get('kind') != 'v68-v69-native-reverse-range-seek-recovery'
+    if (report.get('kind') != f'v68-{candidate_version}-native-reverse-range-seek-recovery'
             or report.get('originalConvergenceDeadlineMs') != 20000 or report.get('sourceFrameRate') != 30
             or report.get('releaseQualified') is not False or report.get('passed') is not True or report.get('failure')):
         raise ValueError('scrub recovery changed the original deadline or qualification')
-    for version, identity in [('v68', receipt['baselineIdentity']), ('v69', receipt['identity'])]:
+    for version, identity in [('v68', receipt['baselineIdentity']), (candidate_version, receipt['identity'])]:
         if any(report.get('identities', {}).get(version, {}).get(key) != value for key, value in identity.items() if key != 'draftManifestSha256'):
             raise ValueError('scrub artifact identity mismatch')
     fixture = report.get('fixture', {})
     if (fixture.get('assetBytes') != 1341930
             or fixture.get('baselineDriverSha256') != receipt.get('driverSources', {}).get('v68')
-            or fixture.get('candidateDriverSha256') != receipt.get('driverSources', {}).get('v69')
+            or fixture.get('candidateDriverSha256') != receipt.get('driverSources', {}).get(candidate_version)
             or not all(re.fullmatch(r'[0-9a-f]{64}', str(fixture.get(key, '')))
                        for key in ['baselineDriverSha256', 'candidateDriverSha256', 'assetSha256'])):
         raise ValueError('scrub fixture must bind the actual frozen driver sources and media')
     rows = report.get('results', [])
-    if len(rows) != 4 or {(r.get('version'), r.get('trial')) for r in rows} != {(v, t) for v in ['v68', 'v69'] for t in [1, 2]}:
+    if len(rows) != 4 or {(r.get('version'), r.get('trial')) for r in rows} != {(v, t) for v in ['v68', candidate_version] for t in [1, 2]}:
         raise ValueError('scrub recovery needs both paired trials')
     for row in rows:
-        repaired = row['version'] == 'v69'
+        repaired = row['version'] == candidate_version
         state = row.get('final', {})
         video, driver = state.get('video', {}), state.get('driver', {})
         requests = row.get('requests', {}).get('requests', [])
@@ -448,36 +461,183 @@ def validate_scrub_recovery(package, receipt):
             raise ValueError('scrub baseline must retain its actual pending native seek')
     cold = json.loads(read_regular(package, receipt['evidence']['coldComparison']['path']))
     environment = cold.get('environment', {})
-    if (cold.get('kind') != 'same-conditions-v68-v69-cold-media-comparison' or cold.get('releaseQualified') is not False
+    if (cold.get('kind') != f'same-conditions-v68-{candidate_version}-cold-media-comparison' or cold.get('releaseQualified') is not False
             or cold.get('failure') or environment.get('latencyMs') != 400 or environment.get('bytesPerChunk') != 16384
             or environment.get('chunkIntervalMs') != 10 or environment.get('targetCacheDisabled') is not True
             or environment.get('atomicReadinessSnapshot') is not True or not environment.get('powerBefore')
             or environment['powerBefore'] != environment.get('powerAfter')):
         raise ValueError('scrub healthy cold-media protocol changed')
-    for version, identity in [('v68', receipt['baselineIdentity']), ('v69', receipt['identity'])]:
+    for version, identity in [('v68', receipt['baselineIdentity']), (candidate_version, receipt['identity'])]:
         if any(cold.get('identities', {}).get(version, {}).get(key) != value for key, value in identity.items() if key != 'draftManifestSha256'):
             raise ValueError('scrub cold-media identity mismatch')
-    expected = {(p, t, r, v) for p in ['desktop', 'phone'] for t in [1, 2] for v in ['v68', 'v69']
+    expected = {(p, t, r, v) for p in ['desktop', 'phone'] for t in [1, 2] for v in ['v68', candidate_version]
                 for r in ['hero-pattern', 'method-bottom-figure2', 'brand-figure3', 'education-crane', 'crane-contact']}
     samples = cold.get('results', [])
+    retained = candidate_version == 'v70' and receipt.get('retainedDiagnosticPublication') is True
     if (len(samples) != 40 or {(r.get('platform'), r.get('trial'), r.get('rangeId'), r.get('version')) for r in samples} != expected
-            or any(r.get('ready') is not True or r.get('failure') or r.get('errors')
+            or any(r.get('ready') is not True or r.get('failure') or (r.get('errors') and not retained)
                    or type(r.get('elapsedMs')) not in [int, float] or not 0 <= r['elapsedMs'] < float('inf')
                    or not isinstance(r.get('videos'), list)
                    or any(v.get('paused') is not True or v.get('seeking') is not False for v in r['videos']) for r in samples)):
         raise ValueError('all forty atomic healthy scrub samples are required')
+    if retained and (receipt.get('retainedColdDiagnostics') != [retained_cold_diagnostic(r) for r in samples]
+                     or any(not retained_communication_errors(r.get('errors', [])) or r['elapsedMs'] >= 25000 for r in samples)):
+        raise ValueError('all cold communication errors and original readiness deadlines must remain exact')
     performance = json.loads(read_regular(package, receipt['evidence']['scrollComparison']['path']))
     measured = performance.get('results', [])
-    expected_performance = {(p, r, v) for p in ['desktop', 'phone'] for v in ['v68', 'v69']
+    expected_performance = {(p, r, v) for p in ['desktop', 'phone'] for v in ['v68', candidate_version]
                             for r in ['hero-pattern', 'pattern-star-map', 'aod-method-top', 'figure2-distance-expand',
                                       'figure3-services', 'ttg-lab', 'ph-education', 'crane-contact']}
-    if (performance.get('kind') != 'same-original-gates-v68-v69-scroll-comparison'
+    if (performance.get('kind') != f'same-original-gates-v68-{candidate_version}-scroll-comparison'
             or performance.get('releaseQualified') is not False or performance.get('completeMeasurements') is not True
             or performance.get('failure') or performance.get('measurementSha256') != receipt.get('measurementSha256')
             or len(measured) != 32 or {(r.get('platform'), r.get('id'), r.get('version')) for r in measured} != expected_performance
-            or any(r.get('measured') is not True or r.get('failure') or r.get('health', {}).get('errors') for r in measured)):
+            or any(r.get('measured') is not True or r.get('failure')
+                   or (r.get('health', {}).get('errors') and not (candidate_version == 'v70' and receipt.get('retainedDiagnosticPublication') is True)) for r in measured)):
         raise ValueError('all unchanged original scroll measurements are required, including failures')
-    validate_frozen_functional_visual(package, receipt, 'v69', 'v68')
+    validate_frozen_functional_visual(package, receipt, candidate_version, 'v68')
+
+
+def validate_callback_cost_recovery(package, receipt):
+    """A pinned RVFC-first work reduction; never a blanket FPS qualification."""
+    if receipt.get('retainedDiagnosticPublication') is True:
+        return validate_retained_v70_callback_proof(package, receipt)
+    report = json.loads(read_regular(package, receipt['evidence']['callbackCostComparison']['path']))
+    if (report.get('kind') != 'v69-v70-native-proof-readback-cost-comparison'
+            or report.get('releaseQualified') is not False or report.get('pixelsChanged') is not False
+            or report.get('proofsChanged') is not False or report.get('viewport') != [1440, 900, 1]
+            or report.get('originalMeasurementSeconds') != 10 or report.get('outerDeadlineMs') != 15000
+            or report.get('passed') is not True or report.get('failure')):
+        raise ValueError('callback comparison changed original sampling, pixels or qualification')
+    rows = report.get('results', [])
+    expected = {(v, t, r) for v in ['v69', 'v70'] for t in [1, 2] for r in ['ttg-lab', 'crane-contact']}
+    if len(rows) != 8 or {(r.get('version'), r.get('trial'), r.get('id')) for r in rows} != expected:
+        raise ValueError('callback reduction requires all eight counterbalanced samples')
+    totals = {'v69': 0, 'v70': 0}
+    for row in rows:
+        identity = receipt['identity'] if row['version'] == 'v70' else receipt['callbackBaselineIdentity']
+        if any(row.get('identity', {}).get(k) != v for k, v in identity.items() if k != 'draftManifestSha256'):
+            raise ValueError('callback evidence belongs to another artifact')
+        checks = row.get('summary', {}).get('checks', {})
+        samples = row.get('measurement', {}).get('samples', [])
+        calls = row.get('readbackCalls')
+        reads = row.get('costs', {}).get('reads', [])
+        draws = row.get('costs', {}).get('draws', [])
+        if (row.get('measured') is not True or row.get('failure') or row.get('health', {}).get('errors')
+                or type(calls) is not int or calls < 0 or calls != len(reads) or row.get('copyCalls') != len(draws)
+                or len(samples) < 3 or samples[-1].get('time', 0) < 10000
+                or any(checks.get(k) is not True for k in ['completeVisibleSampling', 'videosPaused', 'finalPose', 'fixedViewport', 'focusedSampling'])
+                or any(type(value) not in [int, float] or not 0 <= value < float('inf') for value in reads + draws)):
+            raise ValueError('callback reduction needs real complete samples and parked target frames')
+        totals[row['version']] += calls
+    if report.get('totals') != totals or totals['v70'] >= totals['v69']:
+        raise ValueError('actual readbacks did not decrease')
+
+
+def retained_communication_errors(errors):
+    return all(e.get('method') == 'Log.entryAdded'
+               and e.get('details', {}).get('source') == 'other'
+               and e.get('details', {}).get('level') == 'error'
+               and e.get('details', {}).get('text') == 'Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist.'
+               for e in errors)
+
+
+def retained_cold_diagnostic(row):
+    errors = row.get('errors', [])
+    return {'platform': row['platform'], 'trial': row['trial'], 'rangeId': row['rangeId'], 'version': row['version'],
+            'ready': row['ready'], 'browserErrorCount': len(errors), 'browserErrorSha256': digest(encoded(errors))}
+
+
+def retained_scroll_diagnostic(row):
+    errors = row.get('health', {}).get('errors', [])
+    return {'platform': row['platform'], 'id': row['id'], 'version': row['version'],
+            'measured': row.get('measured'), 'passed': row.get('passed'), 'failedChecks': row.get('failures'),
+            'browserErrorCount': len(errors), 'browserErrorSha256': digest(encoded(errors))}
+
+
+def validate_retained_v70_callback_proof(package, receipt):
+    """The freshly authorized failed-diagnostic release is still unqualified.
+
+    Absolute copies during unequal RAF cadence are NOT an improvement proof.
+    Require equal target counts, real native callbacks and decoded-frame proof.
+    """
+    if (receipt.get('knownBrowserCommunicationErrorsRetained') is not True
+            or receipt.get('callbackAbsoluteCountsUsedAsImprovementProof') is not False
+            or receipt.get('doesNotGrantPassingQualification') is not True):
+        raise ValueError('explicit retained diagnostics and no qualification are required')
+    scroll = json.loads(read_regular(package, receipt['evidence']['scrollComparison']['path']))
+    rows = scroll.get('results', [])
+    if (receipt.get('retainedScrollDiagnostics') != [retained_scroll_diagnostic(r) for r in rows]
+            or any(r.get('passed') is not False or not retained_communication_errors(r.get('health', {}).get('errors', [])) for r in rows)):
+        raise ValueError('original failed scroll metrics and browser errors must remain failed and exact')
+    cost = json.loads(read_regular(package, receipt['evidence']['callbackCostComparison']['path']))
+    samples = cost.get('results', [])
+    expected = {(v, t, segment) for v in ['v69', 'v70'] for t in [1, 2] for segment in ['ttg-lab', 'crane-contact']}
+    if (cost.get('kind') != 'v69-v70-native-proof-readback-cost-comparison'
+            or cost.get('releaseQualified') is not False or cost.get('passed') is not False or cost.get('pixelsChanged') is not False
+            or cost.get('proofsChanged') is not False or cost.get('originalMeasurementSeconds') != 10
+            or cost.get('outerDeadlineMs') != 15000 or cost.get('failure')
+            or len(samples) != 8 or {(r.get('version'), r.get('trial'), r.get('id')) for r in samples} != expected):
+        raise ValueError('all eight original callback diagnostics must remain present')
+    for row in samples:
+        raw = row.get('measurement', {}).get('samples', [])
+        checks = row.get('summary', {}).get('checks', {})
+        identity = receipt['identity'] if row['version'] == 'v70' else receipt['callbackBaselineIdentity']
+        reads, draws = row.get('costs', {}).get('reads', []), row.get('costs', {}).get('draws', [])
+        if (row.get('measured') is not True or row.get('failure') or len(raw) < 3
+                or not retained_communication_errors(row.get('health', {}).get('errors', []))
+                or raw[-1].get('time', 0) < 10000 or row.get('readbackCalls') != len(reads)
+                or row.get('copyCalls') != len(draws)
+                or any(type(v) not in [int, float] or not 0 <= v < float('inf') for v in reads + draws)
+                or any(checks.get(k) is not True for k in ['completeVisibleSampling', 'videosPaused', 'finalPose', 'fixedViewport', 'focusedSampling'])
+                or any(row.get('identity', {}).get(k) != v for k, v in identity.items() if k != 'draftManifestSha256')):
+            raise ValueError('retained callback diagnostics changed original samples or artifact')
+    proof = json.loads(read_regular(package, receipt['evidence']['nativeCallbackProof']['path']))
+    fixture = proof.get('fixture', {})
+    if (proof.get('kind') != 'v69-v70-visible-native-causal-frame-proof'
+            or proof.get('releaseQualified') is not False or proof.get('diagnosticOnly') is not True
+            or proof.get('notOriginalPerformanceQualification') is not True or proof.get('passed') is not True
+            or proof.get('failure') or proof.get('allBrowserCleanupFinished') is not True
+            or proof.get('originalConvergenceDeadlineMs') != 20000 or proof.get('sourceFrameRate') != 30
+            or fixture.get('assetBytes') != 1341930
+            or fixture.get('assetSha256') != '6c82ceeb31ce814e137c880ae41650e5d24df26a202a4af8a3d8a9d60dbeff00'
+            or fixture.get('driverSources') != {v: receipt['driverSources'][v] for v in ['v69', 'v70']}):
+        raise ValueError('native callback proof must use exact original bytes, sources and deadlines')
+    rows = proof.get('results', [])
+    expected = {(v, t, p / 10) for v in ['v69', 'v70'] for t in [1, 2] for p in range(1, 9)}
+    if len(rows) != 32 or {(r.get('version'), r.get('trial'), r.get('progress')) for r in rows} != expected:
+        raise ValueError('all thirty-two target-matched native observations are required')
+    totals, indexed, saved = {'v69': 0, 'v70': 0}, {}, 0
+    for row in rows:
+        state = row.get('snapshot', {})
+        driver, video, calls = state.get('driver', {}), state.get('video', {}), row.get('calls', {})
+        reads, draws, callbacks = calls.get('reads', []), calls.get('draws', []), calls.get('callbacks', [])
+        if (row.get('passed') is not True or row.get('failure') or not 0 <= row.get('elapsedMs', 20000) < 20000
+                or row.get('visible') is not True or row.get('focused') is not True or row.get('viewport') != [1440, 900, 1]
+                or driver.get('frameReady') is not True or driver.get('generation') != 1
+                or driver.get('desiredProgress') != row['progress'] or video.get('readyState', 0) < 2
+                or video.get('paused') is not True or video.get('seeking') is not False or video.get('error') is not None
+                or abs(video.get('time', -1) - driver.get('presentedTime', -2)) > .002
+                or len(reads) != len(draws) or len(reads) not in [0, 1]):
+            raise ValueError('native callback proof needs actual parked, visible, aligned decoded targets')
+        if state.get('proof') == 'video-frame-callback':
+            if (row['version'] != 'v70' or reads or not callbacks
+                    or not any(abs(c.get('mediaTime', -1) - driver['presentedTime']) <= .002 for c in callbacks)):
+                raise ValueError('saved copies require a genuine native callback and zero reads')
+            saved += 1
+        elif state.get('proof') != 'decoded-canvas' or len(reads) != 1:
+            raise ValueError('fallback targets still require actual decoded pixel reads')
+        totals[row['version']] += len(reads)
+        indexed[row['version'], row['trial'], row['progress']] = row
+    for trial in [1, 2]:
+        for p in range(1, 9):
+            old, new = (indexed[v, trial, p / 10] for v in ['v69', 'v70'])
+            if old['snapshot']['driver']['targetTime'] != new['snapshot']['driver']['targetTime']:
+                raise ValueError('native targets changed between frozen peers')
+    if (proof.get('totals') != totals or receipt.get('nativeTargetReadbacks') != totals
+            or totals['v69'] != 16 or totals['v70'] >= totals['v69'] or saved != totals['v69'] - totals['v70']):
+        raise ValueError('target-matched native copies did not actually decrease')
+
 
 
 def validate_receiver_recovery(package, receipt):
@@ -543,7 +703,7 @@ def validate_image_recovery(package, receipt):
 
 
 def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
-    if not authorization_sha or authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA]:
+    if not authorization_sha or authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA, V70_CALLBACK_AUTH_SHA]:
         raise ValueError('direct publication requires the exact user-directed v59 receipt, v60 public-test receipt, sealed v63 relative receipt, or sealed v64 receiver-repair receipt')
     receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
     if digest(receipt_bytes) != authorization_sha:
@@ -561,7 +721,7 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
     for item in receipt['evidence'].values():
         checked_file(package, item)
     memory = json.loads(read_regular(package / 'site', 'r5-process-memory.json'))
-    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA]:
+    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA, V70_CALLBACK_AUTH_SHA]:
         # A declaration of missing evidence is not a synthetic measurement and
         # can never satisfy validate_memory or the default qualified path.
         expected = {'schemaVersion': 1, 'kind': 'r5-unmeasured-process-memory', 'status': 'not-measured',
@@ -584,6 +744,9 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
             validate_ph_cors_recovery(package, receipt)
         if authorization_sha == V69_SCRUB_AUTH_SHA:
             validate_scrub_recovery(package, receipt)
+        if authorization_sha == V70_CALLBACK_AUTH_SHA:
+            validate_scrub_recovery(package, receipt, 'v70')
+            validate_callback_cost_recovery(package, receipt)
         return receipt
     if (memory.get('pass') is not False or memory.get('completedRunCount') != 2
             or memory.get('identity') != receipt['identity'] or len(memory.get('runs', [])) != 2
@@ -626,7 +789,7 @@ def validate_package(package, authorization_sha=None):
         if deploy.get('publicationAuthorization') is not None:
             raise ValueError('direct publication requires its explicit authorization SHA')
         validate_memory(memory)
-    expected_run_count = 0 if authorization_sha is not None and authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA] else 2
+    expected_run_count = 0 if authorization_sha is not None and authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA, V70_CALLBACK_AUTH_SHA] else 2
     if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != expected_run_count or memory.get('identity') != evidence.get('identity'):
         raise ValueError('memory evidence identity mismatch')
     for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:
