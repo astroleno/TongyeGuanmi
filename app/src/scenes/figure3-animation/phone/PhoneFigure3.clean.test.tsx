@@ -126,7 +126,9 @@ describe('clean PhoneFigure3 leaf', () => {
       expect(current.reports.reportPrepared).toHaveBeenCalledWith('figure3-initial-composite',
         expect.objectContaining({ detail: expect.objectContaining({ winner: 'poster-fallback' }) }));
       current.reports.reportFrame.mockClear();
+      const initialDisposals = probe.disposeDriver.mock.calls.length;
       commands.setMediaPhase!({ phase: 'playing', runToken: 'scroll:figure3', direction: 'forward', stageIndex: 0 });
+      expect(probe.disposeDriver).toHaveBeenCalledTimes(initialDisposals + 1);
       commands.render(.75);
       const video = host.querySelector('video')!, canvas = host.querySelector<HTMLCanvasElement>('[data-phone-figure3-paper-canvas]')!;
       video.currentTime = 1.8;

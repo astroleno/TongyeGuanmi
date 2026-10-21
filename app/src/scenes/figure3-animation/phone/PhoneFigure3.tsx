@@ -712,6 +712,12 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
         video.pause();
         return;
       }
+      if (binding.sampling === 'scroll' && initialSurfaceRef.current === 'poster-fallback'
+        && !mediaClockActiveRef.current && video.dataset.scrollMediaCoherent !== 'true') {
+        // Retire the obsolete endpoint waiter before coherence owns this
+        // decoder; its stall retry must not reload an accepted scroll frame.
+        disposeTimelineVideoDriver(video);
+      }
       mediaClockActiveRef.current = true;
       mediaPresentationEnabledRef.current = true;
       render(progressRef.current);
