@@ -421,7 +421,8 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     const frame = phoneFigure3Frame(progress);
     const root = rootRef.current;
     const mediaRun = mediaClockActiveRef.current
-      && bindingRef.current?.segmentId === 'figure3-services'
+      && (bindingRef.current?.sampling === 'scroll'
+        || bindingRef.current?.segmentId === 'figure3-services')
       ? { runId: currentRunId(), direction: directionRef.current } : undefined;
     renderFigure3AnimationProgress(sceneRef.current, progress, mediaRun ? { mediaRun } : undefined);
     if (!root) return;

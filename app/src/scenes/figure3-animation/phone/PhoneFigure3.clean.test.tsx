@@ -97,7 +97,7 @@ describe('clean PhoneFigure3 leaf', () => {
     vi.clearAllMocks();
   });
 
-  it('proves the first coherent scroll draw after the initial poster wins, without inventing endpoint evidence', async () => {
+  it.each(['brand-figure3', 'figure3-services'] as const)('proves the first coherent %s scroll draw after the initial poster wins', async (segmentId) => {
     vi.useFakeTimers();
     let release: (() => void) | undefined;
     let root: ReturnType<typeof createRoot> | undefined;
@@ -111,7 +111,7 @@ describe('clean PhoneFigure3 leaf', () => {
       await act(async () => { root!.render(<PhoneFigure3 reports={mount.reports} />); });
       const current = reportFixture(), commands = mount.registration()!.commands;
       commands.rebind({ reports: current.reports, frameToken: 'scroll:figure3:poster-race',
-        segmentId: 'brand-figure3', sampling: 'scroll' });
+        segmentId, sampling: 'scroll' });
       probe.prepareFrame.mockImplementationOnce(() => new Promise(resolve => {
         release = () => resolve({ status: 'ready', runId: 'scroll:figure3', direction: 1, generation: 1, targetTime: 0 });
       }));
@@ -129,9 +129,12 @@ describe('clean PhoneFigure3 leaf', () => {
       const initialDisposals = probe.disposeDriver.mock.calls.length;
       commands.setMediaPhase!({ phase: 'playing', runToken: 'scroll:figure3', direction: 'forward', stageIndex: 0 });
       expect(probe.disposeDriver).toHaveBeenCalledTimes(initialDisposals + 1);
-      commands.render(.75);
+      expect(probe.renderProgress).toHaveBeenLastCalledWith(expect.any(HTMLElement), 0,
+        expect.objectContaining({ mediaRun: { runId: 'scroll:figure3', direction: 1 } }));
+      const progress = segmentId === 'brand-figure3' ? 0 : .75;
+      commands.render(progress);
       const video = host.querySelector('video')!, canvas = host.querySelector<HTMLCanvasElement>('[data-phone-figure3-paper-canvas]')!;
-      video.currentTime = 1.8;
+      video.currentTime = progress === 0 ? 0 : 1.8;
       video.dataset.scrollMediaCoherent = 'true';
       Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
       Object.defineProperty(video, 'seeking', { configurable: true, value: true });
@@ -148,9 +151,9 @@ describe('clean PhoneFigure3 leaf', () => {
       probe.paint();
       expect(current.reports.reportFrame).toHaveBeenCalledWith('figure3-paper-canvas',
         expect.objectContaining({ token: 'scroll:figure3:poster-race', presented: true,
-          detail: { compositorDrawn: true, progress: .75 } }));
-      expect(canvas.dataset.phoneFigure3PaperEndpoint).toBeUndefined();
-      expect(host.querySelector<HTMLElement>('.phone-figure3')!.dataset.phoneFigure3InitialSurface).toBe('video-scroll-frame');
+          detail: { compositorDrawn: true, progress } }));
+      expect(canvas.dataset.phoneFigure3PaperEndpoint).toBe(progress === 0 ? 'initial' : undefined);
+      expect(host.querySelector<HTMLElement>('.phone-figure3')!.dataset.phoneFigure3InitialSurface).toBe(progress === 0 ? 'video-frame-zero' : 'video-scroll-frame');
       expect(current.reports.reportPrepared).toHaveBeenCalledTimes(1);
       const count = current.reports.reportFrame.mock.calls.length;
       probe.paint();
