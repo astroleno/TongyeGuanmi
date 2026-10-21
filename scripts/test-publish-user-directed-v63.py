@@ -9,9 +9,18 @@ spec = importlib.util.spec_from_file_location('v60_fixtures', Path(__file__).wit
 previous = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(previous)
 native = previous.native
+PRODUCTION_SHA = native.V63_RELATIVE_AUTH_SHA
 
 
 class RelativePublicationTests(unittest.TestCase):
+    def test_actual_v63_receipt_is_pinned_to_the_frozen_comparison_not_future_candidates(self):
+        data = Path(__file__).with_name('authorizations').joinpath('v63-relative-publication-20261021.json').read_bytes()
+        self.assertEqual(native.digest(data), PRODUCTION_SHA)
+        receipt = json.loads(data)
+        self.assertEqual(receipt['identity']['sourceCommit'], 'ac1861109ce612bf3e2c9bce1cee7846ec78f612')
+        self.assertTrue(receipt['doesNotGrantPassingQualification'])
+        self.assertTrue(receipt['doesNotAuthorizeFutureCandidates'])
+
     def setUp(self):
         self.public = previous.PublicTestPublicationTests()
         self.public.setUp()
@@ -28,14 +37,14 @@ class RelativePublicationTests(unittest.TestCase):
                         self.cold['results'].append({'platform': platform, 'trial': trial, 'rangeId': segment,
                             'version': version, 'ready': True, 'elapsedMs': (80 if platform == 'desktop' and version == 'v63'
                                 else 101 if platform == 'phone' and version == 'v63' else 100) + trial,
-                            'errors': [], 'mediaEvents': [{'type': 'load-call'}]})
+                            'errors': [], 'mediaEvents': [] if platform == 'desktop' and version == 'v63' else [{'type': 'load-call'}]})
         self.functional = {'kind': 'frozen-v63-functional-and-v60-visual-comparison-unshaped-http',
             'releaseQualified': False, 'passed': True, 'functional': [], 'visual': []}
         for platform in ['desktop', 'phone']:
             self.functional['functional'].append({'platform': platform, 'identity': self.receipt['identity'],
                 'passed': True, 'errors': [], 'points': [{'passed': True} for _ in range(121)],
                 'aliases': [{'panel': panel, 'passed': True} for panel in ['opening', 'cards', 'closing']]})
-            for segment in ['hold:hero', 'hero-pattern', 'pattern-star-map', 'method-bottom-figure2', 'crane-contact']:
+            for segment in ['hold:hero', 'hero-pattern', 'pattern-star-map', 'method-bottom-figure2', 'crane-contact', 'figure3-services']:
                 self.functional['visual'].append({'platform': platform, 'pose': {'rangeId': segment},
                     'fraction': .001, 'ink': 1000, 'passed': True})
         self.rebind()

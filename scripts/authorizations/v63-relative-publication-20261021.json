@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-21T04:15:48.557Z",
+  "authority": "The user changed the publication condition to allow an incremental public update when it is demonstrably better than the previous version. This exact v63 has a lower controlled desktop media-readiness median and fewer explicit loads, repairs the genuine phone Figure3 proof failure, and passes the complete frozen functional and original visual checks. It is not a claim that every path or original qualification gate improved.",
+  "userInstruction": "你再迭代一轮呢，主要看看是哪儿的问题，只要比上版好就可以发布到公网啊",
+  "releaseId": "r5-ac18611",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v63",
+    "candidateTagObject": "231447c23a0428e82874ba5fc53a8b28c4a99fe6",
+    "sourceCommit": "ac1861109ce612bf3e2c9bce1cee7846ec78f612",
+    "artifactTreeSha256": "ec27f26e60dcd9e89bedb26c0b28021bd772e359a05c40410c352607f04a8209",
+    "draftManifestSha256": "5c093a9f3e0dcfbc1c9ccf5694ef90b685e8d0947006026a72eccc78ce5961cf"
+  },
+  "baselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v60",
+    "candidateTagObject": "d1614ef5788312bcc48259a2b4941b3830fa04d2",
+    "sourceCommit": "cb8c17affd9d171a206f19773a9a907cc1f20f1b",
+    "artifactTreeSha256": "80970dd1358c9c144c51172eb5670848f1a90f7ffe1916ee37e18e6b3c24271b",
+    "draftManifestSha256": "978208bd19b5834dbade2a91340db0a09a161bd3d7ba89bd9bad8dd3445425ce"
+  },
+  "publicationCondition": "Exact one-off v63: complete forty-sample paired cold-media evidence, lower desktop median and fewer explicit load calls, 242 frozen functional checkpoints, six Proof aliases, and twelve visual comparisons within the original 0.005 difference fraction. All tail timings and original failed gates remain visible.",
+  "comparison": {
+    "desktop": {
+      "v60": {
+        "samples": 10,
+        "medianMs": 4106,
+        "nearestRankP95Ms": 5433,
+        "explicitLoadCalls": 32
+      },
+      "v63": {
+        "samples": 10,
+        "medianMs": 2743.5,
+        "nearestRankP95Ms": 8047,
+        "explicitLoadCalls": 2
+      }
+    },
+    "phone": {
+      "v60": {
+        "samples": 10,
+        "medianMs": 3538,
+        "nearestRankP95Ms": 5800,
+        "explicitLoadCalls": 25
+      },
+      "v63": {
+        "samples": 10,
+        "medianMs": 3396,
+        "nearestRankP95Ms": 4674,
+        "explicitLoadCalls": 25
+      }
+    }
+  },
+  "comparisonScope": "Fresh documents boot at #method, then first seek to five media ranges; this measures media preparation, not complete page-load time or TTFB. Two counterbalanced trials per platform/version, identical 400ms first-byte latency and 16KiB/10ms local fixture responses, byte-verified frozen artifacts, target HTTP cache disabled, unchanged AC low-power mode. Explicit load-call counts include setup and retirement. This is a small controlled sample, not public CDN or physical-device qualification.",
+  "qualificationStatusUnchanged": "pending-memory",
+  "knownGaps": [
+    "The controlled desktop Hero samples are slower in v63: 8047/5592ms versus 5433/4848ms in v60. Desktop nearest-rank p95 is 8047ms versus 5433ms. The lower overall median is not a claim that every case or tail improved.",
+    "Original targeted scroll qualification remains failed: v60 and v63 each fail all six cases on the original 20ms RAF-p95 threshold. Active blank controls are about 49.7ms too; this does not prove the site is smooth or rule out all application costs.",
+    "The final artifact has zero formal process-memory runs; its record is explicitly not-measured/pass=false. Prior candidates are not borrowed for qualification.",
+    "Physical iPhone/Android and WebKit qualification remain incomplete.",
+    "Initial failed functional, reverse-reproduction and all-Vitest timeout reports are retained unchanged. The same 88 architecture assertions passed natively within the original 5s/15s limits, together with 1731 current Vitest assertions; none were skipped."
+  ],
+  "evidenceScope": "Frozen v63 runtime and comparison evidence is exact. Earlier failed reports document the reproduced bug, not v63 passing qualification. The lossless media proof covers the unchanged eight remuxed WebM assets and all 631 decoded RGBA frames. Public v63 checks follow the switch.",
+  "evidence": {
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 758,
+      "sha256": "2bc116aba6d19c98e0d21dd5734c39485eadd335390e0e1b720970f9e9ecd1db"
+    },
+    "coldComparison": {
+      "path": "evidence/cold-comparison.json",
+      "bytes": 33811744,
+      "sha256": "ae933ddbab28b058ed0252963809910a18fcef26442f455e1c4940589226e2b2"
+    },
+    "functional": {
+      "path": "evidence/functional-visual.json",
+      "bytes": 567162,
+      "sha256": "76f0557e9734f87d68a357c03fd79431ee7d93fb9098799ad68934971c8e97b8"
+    },
+    "failedFunctionalBeforeFix": {
+      "path": "evidence/failed-functional-before-fix.json",
+      "bytes": 470003,
+      "sha256": "164bd765b170413c8cddda2d6ab1a16caeca08373c2ee9bcad8bd41f8f13b121"
+    },
+    "reverseBeforeFix": {
+      "path": "evidence/reverse-before-fix.json",
+      "bytes": 1019112,
+      "sha256": "7a5dcac0196d062a7165b4f5c844b39e3c1613b41ac264ff2910f1f70f26246b"
+    },
+    "performance": {
+      "path": "evidence/targeted-performance.json",
+      "bytes": 3879124,
+      "sha256": "0f1275fb39879a08352c340b8e73974c1eaac259e0f6cb273a7d1c5a06a549ff"
+    },
+    "unitRuntime": {
+      "path": "evidence/unit-runtime.json",
+      "bytes": 598562,
+      "sha256": "ba4bcc34d101146884ee8cb46722ffea13e6b473bd5d2898618f46bb86381849"
+    },
+    "unitArchitecture": {
+      "path": "evidence/unit-architecture.json",
+      "bytes": 18437,
+      "sha256": "4aa186308c1cdacbd16f63c396335a8ed07922142bed9d2239ea8fd2fb19275e"
+    },
+    "unitSummary": {
+      "path": "evidence/unit-summary.json",
+      "bytes": 14570,
+      "sha256": "84418f445470f2882999c1c0dce1a5fa2a022d07425e16800822ad587f3ba165"
+    },
+    "failedFullUnit": {
+      "path": "evidence/failed-full-unit.json",
+      "bytes": 628450,
+      "sha256": "c6aed129ee8c0ef4425a789a1c1f91ae5afb07b329db18049d67ae4ef5cdcb41"
+    },
+    "mediaRemuxProof": {
+      "path": "evidence/lossless-media-proof.json",
+      "bytes": 3744,
+      "sha256": "72ed09b90945b1ba8d850a1bcb43d0ebdb4e4b708cdf9dd20371f76bcbf19643"
+    }
+  },
+  "nonWaivedChecks": [
+    "Exact clean annotated candidate and immutable artifact bytes",
+    "Original visual, readiness, scroll and resource-budget numbers remain unchanged",
+    "Immutable CDN upload, HTTPS, CORS, MIME, cache and 1024-byte video Range checks",
+    "Actual-package isolated Nginx probe before switching",
+    "Compare-and-swap include, preserving the root site and all v55/v59/v60 lazy JS/CSS URLs",
+    "Public HTTP identity and exact rollback to the inspected v60 include"
+  ],
+  "failedEvidenceMustRemainUnmodified": true,
+  "doesNotGrantPassingQualification": true,
+  "doesNotAuthorizeFutureCandidates": true
+}
