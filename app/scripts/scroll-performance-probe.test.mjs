@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { measureScrollBaseline, measureScrollSegment } from './scroll-performance-probe.mjs';
+import { measureActiveScrollBaseline, measureScrollBaseline, measureScrollSegment } from './scroll-performance-probe.mjs';
 import { summarizeScrollPerformance } from './scroll-performance-metrics.mjs';
 
 function installPage({ supported = true, hidden = false } = {}) {
@@ -23,7 +23,9 @@ function installPage({ supported = true, hidden = false } = {}) {
     constructor() { return observer; }
   }
   vi.stubGlobal('window', window);
-  vi.stubGlobal('document', { hidden, hasFocus: () => true, querySelectorAll: selector => selector === '.story-scroll video' ? [video] : [canvas] });
+  vi.stubGlobal('document', { hidden, hasFocus: () => true,
+    documentElement: { style: { cssText: 'original-html' } }, body: { style: { cssText: 'original-body' } },
+    querySelectorAll: selector => selector === '.story-scroll video' ? [video] : [canvas] });
   vi.stubGlobal('PerformanceObserver', Observer);
   vi.stubGlobal('performance', { now: () => now + 5 });
   vi.stubGlobal('requestAnimationFrame', callback => queueMicrotask(() => { now += 1000 / 60; callback(now); }));
@@ -33,6 +35,22 @@ function installPage({ supported = true, hidden = false } = {}) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('shared original scroll performance sampling', () => {
+  it('adds the same ten-second native scroll to an empty-page control and restores its geometry', async () => {
+    const { window } = installPage();
+    const original = window.scrollY;
+    const result = await measureActiveScrollBaseline();
+    expect(result.durationMs).toBeGreaterThanOrEqual(10000);
+    expect(result.positions[0]).toBe(1800); expect(result.positions.at(-1)).toBe(7200);
+    expect(result.positions.every(Number.isInteger)).toBe(true);
+    expect(window.scrollY).toBe(original);
+    expect(globalThis.document.documentElement.style.cssText).toBe('original-html');
+    expect(globalThis.document.body.style.cssText).toBe('original-body');
+  });
+  it('never changes a real application Page to run the blank control', async () => {
+    const { window } = installPage(); window.location.href = 'https://tongye.me/experience/';
+    await expect(measureActiveScrollBaseline()).rejects.toThrow('blank Page');
+    expect(globalThis.document.body.style.cssText).toBe('original-body');
+  });
   it('keeps the complete ten-second RAF baseline and capability provenance', async () => {
     installPage({ supported: false });
     const result = await measureScrollBaseline();

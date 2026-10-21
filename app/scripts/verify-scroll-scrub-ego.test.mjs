@@ -29,7 +29,7 @@ function healthy(id = 'hero-pattern') {
     final: { desired: { rangeId: id, progress: .8 }, presented: { progress: .8, epoch: 1 }, intent: { epoch: 1 },
       pending: false, view: { status: 'ready', error: null } } };
 }
-async function setup({ drift = false, driftAt = drift ? 3 : null, stop = false } = {}) {
+async function setup({ drift = false, driftAt = drift ? 3 : null, stop = false, slowRaf = false } = {}) {
   const directory = await mkdtemp(path.join(tmpdir(), 'tongye-ego-driver-test-'));
   directories.push(directory);
   let requests = 0;
@@ -46,7 +46,12 @@ async function setup({ drift = false, driftAt = drift ? 3 : null, stop = false }
     events: vi.fn(async () => []),
     evaluate: vi.fn(async (fn, arg) => {
       if (fn.name === 'measureScrollBaseline') return { intervals: [0, 16.7, 16.7], visible: true, longTasksSupported: true };
-      if (fn.name === 'measureScrollSegment') return healthy(arg);
+      if (fn.name === 'measureActiveScrollBaseline') return { intervals: [0, 50, 50], visible: true };
+      if (fn.name === 'measureScrollSegment') {
+        const result = healthy(arg);
+        if (slowRaf) for (const sample of result.samples.slice(1)) sample.interval = 50;
+        return result;
+      }
       if (fn.name === 'seekScrollMemoryPose') return arg;
       return 'Ego test UA';
     })
@@ -64,6 +69,14 @@ afterEach(async () => {
 });
 
 describe('Ego verification boundaries', () => {
+  it('records a slow active blank control without excusing slow application frames', async () => {
+    const { input } = await setup({ slowRaf: true });
+    const report = await runEgoScrollVerification(input);
+    expect(report.activeBlankBaseline.rafIntervalP95).toBe(50);
+    expect(report.results).toHaveLength(8);
+    expect(report.results.every(result => result.failures.includes('rafInterval'))).toBe(true);
+    expect(report.passed).toBe(false);
+  });
   it('requires an explicit existing space, managed page, platform and new external report path', () => {
     expect(validateEgoScrollOptions(options)).toMatchObject({ baseURL: 'http://127.0.0.1:4197/experience', pageLabel: 'p1' });
     for (const invalid of [{ taskSpaceId: 0 }, { taskSpaceId: '12' }, { pageLabel: 'userPage' }, { pageLabel: ['p1'] }, { platform: 'webkit' },

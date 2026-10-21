@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectScrollBrowserEvents } from './scroll-browser-events.mjs';
 import { isScrollMemoryPoseReady, seekScrollMemoryPose } from './r5-scroll-memory.mjs';
-import { measureScrollBaseline, measureScrollSegment } from './scroll-performance-probe.mjs';
+import { measureActiveScrollBaseline, measureScrollBaseline, measureScrollSegment } from './scroll-performance-probe.mjs';
 import { percentile95, SCROLL_PERFORMANCE_SEGMENTS, summarizeScrollPerformance } from './scroll-performance-metrics.mjs';
 
 const repoDir = fileURLToPath(new URL('../../', import.meta.url));
@@ -64,7 +64,7 @@ export async function runEgoScrollVerification(input) {
     baseURL: options.baseURL, taskSpaceId: options.taskSpaceId,
     requestedSegments: [...SCROLL_PERFORMANCE_SEGMENTS],
     measurementSha256: createHash('sha256').update(JSON.stringify([
-      measureScrollBaseline, measureScrollSegment, summarizeScrollPerformance,
+      measureScrollBaseline, measureActiveScrollBaseline, measureScrollSegment, summarizeScrollPerformance,
       summarizeEgoScrollResult, collectScrollBrowserEvents
     ].map(fn => fn.toString()))).digest('hex'),
     releaseQualified: false, memoryQualified: false,
@@ -77,7 +77,7 @@ export async function runEgoScrollVerification(input) {
       host: { platform: process.platform, arch: process.arch, osRelease: release(),
         logicalCpus: cpus().length, loadAtStart: loadavg() }
     },
-    identity: null, baseline: null, errors: [], externalBrowserErrors: [], results: [],
+    identity: null, baseline: null, activeBlankBaseline: null, errors: [], externalBrowserErrors: [], results: [],
     passed: false, measuredPassed: false, failure: null
   };
   // Claim only the new report path; preserve earlier failed rounds. Use atomic
@@ -125,6 +125,10 @@ export async function runEgoScrollVerification(input) {
     await page.goto('about:blank', { timeout: 30000 });
     report.baseline = await page.evaluate(measureScrollBaseline);
     report.baseline.rafIntervalP95 = percentile95(report.baseline.intervals.slice(2));
+    await collect();
+    await save();
+    report.activeBlankBaseline = await page.evaluate(measureActiveScrollBaseline);
+    report.activeBlankBaseline.rafIntervalP95 = percentile95(report.activeBlankBaseline.intervals.slice(2));
     await collect();
     await save();
     await page.goto(`${options.baseURL}/#method`, { timeout: 30000 });

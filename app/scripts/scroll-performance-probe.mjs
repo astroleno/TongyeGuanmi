@@ -18,6 +18,36 @@ export async function measureScrollBaseline() {
     longTasksSupported: typeof PerformanceObserver !== 'undefined' && PerformanceObserver.supportedEntryTypes.includes('longtask') };
 }
 
+/** Diagnose native-scroll scheduling separately from application drawing.
+ * This is an additional control, never a waiver of the original app gates. */
+export async function measureActiveScrollBaseline() {
+  if (window.location.href !== 'about:blank') throw new Error('Active scroll control requires an owned blank Page');
+  const htmlStyle = document.documentElement.style.cssText, bodyStyle = document.body.style.cssText;
+  const originalScroll = window.scrollY, extent = window.innerHeight * 10;
+  const intervals = [], positions = [];
+  let start, previous;
+  try {
+    document.documentElement.style.cssText = 'margin:0;height:auto;overflow:auto;scroll-behavior:auto';
+    document.body.style.cssText = `margin:0;min-height:${extent + window.innerHeight}px;background:#fff;scroll-behavior:auto`;
+    await new Promise(resolve => {
+      const tick = now => {
+        start ??= now; previous ??= now;
+        intervals.push(now - previous); previous = now;
+        window.scrollTo(0, Math.round(extent * (.2 + .6 * Math.min(1, (now - start) / 10000))));
+        positions.push(window.scrollY);
+        if (now - start < 10000) requestAnimationFrame(tick); else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+    return { url: window.location.href, visible: !document.hidden, focused: document.hasFocus(),
+      viewport: { width: window.innerWidth, height: window.innerHeight, dpr: window.devicePixelRatio },
+      intervals, positions, durationMs: previous - start, source: 'blank native scrollTo once per RAF, 20%-80% over 10 seconds' };
+  } finally {
+    document.documentElement.style.cssText = htmlStyle; document.body.style.cssText = bodyStyle;
+    window.scrollTo(0, originalScroll);
+  }
+}
+
 export async function measureScrollSegment(id) {
   const api = window.__r5ScrollStory;
   const range = api.index().ranges.find((range) => range.id === id);
