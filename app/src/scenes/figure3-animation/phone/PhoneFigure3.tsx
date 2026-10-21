@@ -68,8 +68,8 @@ export type PhoneFigure3MediaAction =
   | 'hold-terminal';
 
 export type PhoneFigure3Props = Readonly<{ reports: PhoneLeafReportPort }>;
-type PhoneFigure3InitialSurface = 'preparing' | 'video-frame-zero' | 'poster-fallback';
-type PhoneFigure3PreparedComposite = Exclude<PhoneFigure3InitialSurface, 'preparing'>
+type PhoneFigure3InitialSurface = 'preparing' | 'video-frame-zero' | 'poster-fallback' | 'video-scroll-frame';
+type PhoneFigure3PreparedComposite = Exclude<PhoneFigure3InitialSurface, 'preparing' | 'video-scroll-frame'>
   | 'video-terminal-frame';
 
 function isFigure3Prewarm(binding: PhoneLeafGenerationBinding): boolean {
@@ -367,11 +367,43 @@ export function PhoneFigure3({ reports }: PhoneFigure3Props) {
     if (!video || !binding || disposedRef.current) return;
     const progress = progressRef.current;
     const endpoint = progress <= .001 ? 0 : progress >= .999 ? 1 : null;
+    if (binding.sampling === 'scroll' && video.dataset.scrollMediaCoherent === 'true') {
+      const root = rootRef.current;
+      const canvas = canvasRef.current;
+      if (!root || !canvas || !mediaPresentationEnabledRef.current
+        || video.readyState < 2 || video.seeking
+        || canvas.dataset.phoneFigure3PaperFrame !== 'ready') return;
+      if (endpoint === null && frameSequenceRef.current > 0
+        && initialSurfaceRef.current === 'video-scroll-frame'
+        && !canvas.dataset.phoneFigure3PaperEndpoint) return;
+      // The initial poster can win before frame zero. Coherence later paints
+      // a real interior sample, which must prove this Canvas without claiming
+      // it is an endpoint or leaving the emergency poster over the video.
+      clearFallbackDeadline();
+      fallbackPendingRef.current = false;
+      initialSurfaceRef.current = endpoint === 0 ? 'video-frame-zero' : 'video-scroll-frame';
+      root.dataset.phoneFigure3InitialSurface = initialSurfaceRef.current;
+      root.dataset.phoneFigure3MediaActive = 'true';
+      root.dataset.phoneFigure3PaperCompositor = 'ready';
+      root.dataset.phoneMediaState = 'ready';
+      delete root.dataset.phoneFigure3InitialFallbackReason;
+      if (endpoint === null) delete canvas.dataset.phoneFigure3PaperEndpoint;
+      else {
+        canvas.dataset.phoneFigure3PaperEndpoint = endpoint === 0 ? 'initial' : 'terminal';
+        reportPreparedComposite(binding, endpoint === 0 ? 'video-frame-zero' : 'video-terminal-frame');
+      }
+      if (frameSequenceRef.current === 0) binding.reports.reportFrame('figure3-paper-canvas', {
+        kind: 'frame', token: binding.frameToken, presented: true,
+        frameId: `figure3-paper:${binding.frameToken}:${++frameSequenceRef.current}`,
+        detail: { compositorDrawn: true, progress }
+      });
+      return;
+    }
     if (endpoint === null || !phoneFigure3EndpointIsPresented(
       endpoint, video.currentTime, video.readyState, video.seeking
     )) return;
     commitPresentedFrame(endpoint, progress, binding);
-  }, [commitPresentedFrame]);
+  }, [clearFallbackDeadline, commitPresentedFrame, reportPreparedComposite]);
 
   const currentRunId = useCallback((direction = directionRef.current) => {
     return mediaRunTokenRef.current

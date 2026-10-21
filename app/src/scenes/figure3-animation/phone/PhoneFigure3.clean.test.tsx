@@ -97,6 +97,70 @@ describe('clean PhoneFigure3 leaf', () => {
     vi.clearAllMocks();
   });
 
+  it('proves the first coherent scroll draw after the initial poster wins, without inventing endpoint evidence', async () => {
+    vi.useFakeTimers();
+    let release: (() => void) | undefined;
+    let root: ReturnType<typeof createRoot> | undefined;
+    try {
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+      vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+      const host = document.createElement('div');
+      root = createRoot(host);
+      const mount = reportFixture();
+      await act(async () => { root!.render(<PhoneFigure3 reports={mount.reports} />); });
+      const current = reportFixture(), commands = mount.registration()!.commands;
+      commands.rebind({ reports: current.reports, frameToken: 'scroll:figure3:poster-race',
+        segmentId: 'brand-figure3', sampling: 'scroll' });
+      probe.prepareFrame.mockImplementationOnce(() => new Promise(resolve => {
+        release = () => resolve({ status: 'ready', runId: 'scroll:figure3', direction: 1, generation: 1, targetTime: 0 });
+      }));
+      const invocation = commands.activate({ invocationId: 'scroll:figure3', runToken: 'scroll:figure3',
+        surfaceIds: ['figure3-video'], credit: 'direct-muted-autoplay' });
+      host.querySelector('[data-phone-figure3-paper-poster]')!.dispatchEvent(new Event('load'));
+      await act(async () => {
+        await Promise.resolve();
+        vi.advanceTimersByTime(PHONE_FIGURE3_ENDPOINT_POSTER_FALLBACK_MS);
+        await Promise.all(invocation.settlements.flatMap(s => s.status === 'pending' ? [s.settled] : []));
+      });
+      expect(current.reports.reportPrepared).toHaveBeenCalledWith('figure3-initial-composite',
+        expect.objectContaining({ detail: expect.objectContaining({ winner: 'poster-fallback' }) }));
+      current.reports.reportFrame.mockClear();
+      commands.setMediaPhase!({ phase: 'playing', runToken: 'scroll:figure3', direction: 'forward', stageIndex: 0 });
+      commands.render(.75);
+      const video = host.querySelector('video')!, canvas = host.querySelector<HTMLCanvasElement>('[data-phone-figure3-paper-canvas]')!;
+      video.currentTime = 1.8;
+      video.dataset.scrollMediaCoherent = 'true';
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
+      Object.defineProperty(video, 'seeking', { configurable: true, value: true });
+      probe.paint();
+      expect(current.reports.reportFrame).not.toHaveBeenCalled();
+      Object.defineProperty(video, 'seeking', { configurable: true, value: false });
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 1 });
+      probe.paint();
+      expect(current.reports.reportFrame).not.toHaveBeenCalled();
+      Object.defineProperty(video, 'readyState', { configurable: true, value: 4 });
+      delete canvas.dataset.phoneFigure3PaperFrame;
+      (probe.compositorOptions?.onPresentedFrame as () => void)();
+      expect(current.reports.reportFrame).not.toHaveBeenCalled();
+      probe.paint();
+      expect(current.reports.reportFrame).toHaveBeenCalledWith('figure3-paper-canvas',
+        expect.objectContaining({ token: 'scroll:figure3:poster-race', presented: true,
+          detail: { compositorDrawn: true, progress: .75 } }));
+      expect(canvas.dataset.phoneFigure3PaperEndpoint).toBeUndefined();
+      expect(host.querySelector<HTMLElement>('.phone-figure3')!.dataset.phoneFigure3InitialSurface).toBe('video-scroll-frame');
+      expect(current.reports.reportPrepared).toHaveBeenCalledTimes(1);
+      const count = current.reports.reportFrame.mock.calls.length;
+      probe.paint();
+      commands.pause('outside-closure');
+      probe.paint();
+      expect(current.reports.reportFrame).toHaveBeenCalledTimes(count);
+    } finally {
+      await act(async () => { root?.unmount(); release?.(); await Promise.resolve(); });
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps the Figure3 media source usable through StrictMode effect replay', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
