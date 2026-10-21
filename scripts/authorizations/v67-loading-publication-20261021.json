@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-21T08:24:23.194Z",
+  "authority": "The standing user instruction permits a demonstrably better incremental public update; the latest request asks to investigate failures and iterate again. This one exact artifact repairs a controlled premature loading failure and the newly exposed Pattern complete-frame admission race, preserves original quality/readiness/visual/resource numbers, and grants no missing performance, memory or physical-device qualification.",
+  "userInstruction": "你再迭代一轮呢，主要看看是哪儿的问题，只要比上版好就可以发布到公网啊；你再看看为什么会失败呢？再进行迭代呢",
+  "releaseId": "r5-ab570a1",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v67",
+    "candidateTagObject": "d3adaee87e988957d2291eb502a5681ca22cb167",
+    "sourceCommit": "ab570a1fc3d41de5d9a147d4c4f95df0e6d01419",
+    "artifactTreeSha256": "b156a2f58bcd630380ef515934e18674e0ee33f7b9124c91c94e6f074c4413c5",
+    "draftManifestSha256": "beaf7837a77bf4260f38d22cac784454c6c9de58ef8d8d744a6a1328d5c3f9cb"
+  },
+  "baselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v65",
+    "candidateTagObject": "7b7c07074b778763d7472fe443fc7f94e94f4ea1",
+    "sourceCommit": "ae7c4ee56b94a52a06a9b4c8565002236b2b7dde",
+    "artifactTreeSha256": "f4087ef6520b9ffa9e999653dc57af38418d0c85a7684d9119868cda72a93cbf",
+    "draftManifestSha256": "ff3c9543dd5114c4fcbac49d2aabce093b78512dc5ab3f897ce188a646f3dab5"
+  },
+  "publicationCondition": "Only this exact v67: both 6000ms-first-byte trials fail early in the public predecessor v65 and genuinely recover in v67 within the original 19000ms frame and25000ms pose deadlines; 242 frozen functional points,6 aliases,12 original-threshold visuals,2 fresh phone Pattern entries and all40 healthy cold-media observations must pass. All original failed/unmeasured statuses remain unchanged.",
+  "comparison": {
+    "desktop": {
+      "v65": {
+        "samples": 10,
+        "medianMs": 3253.5,
+        "nearestRankP95Ms": 6644,
+        "explicitLoadCalls": 2
+      },
+      "v67": {
+        "samples": 10,
+        "medianMs": 3250,
+        "nearestRankP95Ms": 4501,
+        "explicitLoadCalls": 5
+      }
+    },
+    "phone": {
+      "v65": {
+        "samples": 10,
+        "medianMs": 3409.5,
+        "nearestRankP95Ms": 3711,
+        "explicitLoadCalls": 26
+      },
+      "v67": {
+        "samples": 10,
+        "medianMs": 3434.5,
+        "nearestRankP95Ms": 4716,
+        "explicitLoadCalls": 25
+      }
+    }
+  },
+  "comparisonScope": "Healthy cold media uses the same original400ms first byte,16KiB/10ms chunks,two counterbalanced trials per version/platform/range and target cache disabled. These timings are small-sample media preparation, not homepage/TTFB or universal speed claims. Phone Pattern now waits for its existing full composite, which v65 could wrongly omit. The decisive first-byte reproduction uses the identical frozen videos and6000ms delay, not relaxed timeouts. Pixel comparison uses the original channel24/fraction.005/ink>100 gates and real complete references; no animation, source pixels or product state is replaced.",
+  "qualificationStatusUnchanged": "pending-memory",
+  "knownGaps": [
+    "The original public v65 first traversal has118/121 desktop and121/121 phone points. Three desktop points share one Crane readyState0 initial failure. This controlled live-network repair does not establish the cause of every historical native-network or decoder failure.",
+    "The first v66 frozen visual comparison has a genuine4.8125% phone Hero-Pattern difference and is not passing. Diagnosis observes ready story state while the Pattern renderer is still loading in both v65 and v66. V67 fixes the owned Pattern proof and pending first-frame promise; its fresh entry is tested separately against a genuinely complete unmodified v65 reference. The failed report is retained.",
+    "One v67 visual attempt and a fresh-entry attempt overlapped on the owned browser page because of a QA orchestration mistake. Their raw timeout/pass results remain unchanged and are excluded; final functional, visual and fresh-entry reports were rerun sequentially.",
+    "The readback comparison preserves original10s scroll sampling and thresholds. It records actual surface allocation and pixel reads as well as timing; it is not formal process-memory evidence and cannot qualify a failed RAF gate.",
+    "Cold media includes every healthy timing,tail and explicit load count; a repaired false failure and full-composite readiness do not imply that every healthy path or percentile is faster.",
+    "Formal process-memory runs remain0/not-measured/pass=false. Physical iPhone/Android and WebKit qualification remain incomplete. No earlier artifact is substituted and no browser is installed.",
+    "The actual public v67 root, traversal and full16-case performance matrix follow the verified switch and must retain any first failure; private fixtures are not public CDN qualification."
+  ],
+  "evidence": {
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 758,
+      "sha256": "dc0ed8862382f6e2d3db3b15d084cbcdee653ae820d15e6f1a0583bc99f6cf49"
+    },
+    "coldComparison": {
+      "path": "evidence/cold-comparison.json",
+      "bytes": 33777561,
+      "sha256": "16b23a558a305638178bb5534389c84c097e8ba05d23a60f9b90a878f4fe503f"
+    },
+    "functional": {
+      "path": "evidence/functional-visual.json",
+      "bytes": 4679042,
+      "sha256": "a46b5ec55303c4d81ed31ebaf7d9b83761171b9fad890b5447f8f1ff2705b88d"
+    },
+    "loadingRecovery": {
+      "path": "evidence/loading-recovery.json",
+      "bytes": 2344571,
+      "sha256": "a447a62903cdabda31ec8424e5e9e328d76c62e7c8eb08aa140219d17262da64"
+    },
+    "freshPattern": {
+      "path": "evidence/fresh-pattern.json",
+      "bytes": 38278,
+      "sha256": "a357af613a55af459f388ab5b709248f19cca03aefe33f47536a12a9564e2c92"
+    },
+    "scrollComparison": {
+      "path": "evidence/scroll-comparison.json",
+      "bytes": 12734073,
+      "sha256": "cebcff443a70ee5a8d3aa0402472f150473ff62451e2cd118f7313fccde9d848"
+    },
+    "functionalRaw": {
+      "path": "evidence/functional-final.json",
+      "bytes": 4639090,
+      "sha256": "c7bcbf4dcd61e9a20a1320ad6aefca35efefdf714256b5ef4889a29f0a439c81"
+    },
+    "visualRaw": {
+      "path": "evidence/visual-final.json",
+      "bytes": 114845,
+      "sha256": "edb6eb7b58063dad28ae6befcbb69fbe0f16b6c09ad46ffbcf02c47811b3dcfb"
+    },
+    "failedV66Visual": {
+      "path": "evidence/failed-v66-visual.json",
+      "bytes": 4595800,
+      "sha256": "dd7aebeff3b503a7137fc29fb3ad1e5a026cade3c234b2d131e337c5fc485fd5"
+    },
+    "patternDiagnosis": {
+      "path": "evidence/pattern-diagnosis.json",
+      "bytes": 66093,
+      "sha256": "ccddfc3bbc6bb44096f29b5c8f23a4fcaf0371ef32c3529b709a8d51d0fa0277"
+    },
+    "completeReference": {
+      "path": "evidence/complete-reference.json",
+      "bytes": 37354,
+      "sha256": "aebdba56e868c3535989b61496ec34688d4d37e3d98648cd9cf338eb93f8f4f9"
+    },
+    "excludedOverlap": {
+      "path": "evidence/overlapping-attempts-excluded.json",
+      "bytes": 478,
+      "sha256": "a675b82ea762678181704c19482cc82a4451fb3de1f45243b883e0acc1de7fa4"
+    },
+    "interruptedVisual": {
+      "path": "evidence/interrupted-v67-visual.json",
+      "bytes": 4636725,
+      "sha256": "d8e8dac42571e4fe8cb90672ce400aefe8b7f379909eaec2506554a85adc5c51"
+    },
+    "publicBeforeRepair": {
+      "path": "evidence/public-before-repair.json",
+      "bytes": 13171981,
+      "sha256": "b071ee0f9f80043e825f3503c352c19b1ab7df13d7611c867351ace2c663839f"
+    },
+    "publicPerformanceBeforeRepair": {
+      "path": "evidence/public-performance-before-repair.json",
+      "bytes": 81716,
+      "sha256": "596a0f003c9b5f8fad1a1cfd92e4e6f9bd51f595cc701d9ab012ca2b5f413399"
+    },
+    "publicNativeTrace": {
+      "path": "evidence/public-native-baseline.json",
+      "bytes": 1795727,
+      "sha256": "5d3de8982a8cf5904ee8aad333dc09b78785e188021c6f753c17112e798b3a1f"
+    },
+    "unitRed": {
+      "path": "evidence/driver-red.json",
+      "bytes": 25198,
+      "sha256": "0873905f8b7e5d909c296e940137c2b0fc2a7a29121ffa248c46472d5e843387"
+    },
+    "patternRed": {
+      "path": "evidence/pattern-red.json",
+      "bytes": 14418,
+      "sha256": "38c4a8aec1cc0828a88a48e3e076d9910c385eb3b3e2b02244dba66856790188"
+    },
+    "unitRuntime": {
+      "path": "evidence/unit-runtime.json",
+      "bytes": 605018,
+      "sha256": "375a59787abad4a3544637e833b2f516bb92f10b0b006f673719d5fbcfa0729b"
+    },
+    "unitArchitecture": {
+      "path": "evidence/unit-architecture.json",
+      "bytes": 18196,
+      "sha256": "eb297d2aa713b48649a081d631c80a8c1b877d7c3e2682296597133432106f6f"
+    },
+    "unitSummary": {
+      "path": "evidence/unit-summary.json",
+      "bytes": 15936,
+      "sha256": "86afc88de002a60c71f073de72697fb1bdf1dbba8ae11e77632f46b78c6b70fa"
+    }
+  },
+  "evidenceScope": "Exact frozen v67 app and current reports; every historical failure, excluded orchestration attempt and public-v65 observation is identified separately. All63 media/CDN object bytes are unchanged. Original numeric gates are not raised.",
+  "doesNotGrantPassingQualification": true,
+  "doesNotAuthorizeFutureCandidates": true,
+  "nonWaivedChecks": [
+    "Exact clean annotated candidate and immutable artifact",
+    "Original frame/readiness/visual/resource limits",
+    "Immutable CDN upload and HTTPS,CORS,MIME,cache,1024-byte206Range checks",
+    "Actual-package isolated Nginx probe",
+    "CAS include and preservation of every inspected v55/v59/v60/v63/v64/v65 lazy asset URL",
+    "Actual public HTTP identity and exact rollback to the inspected v65 include"
+  ]
+}
