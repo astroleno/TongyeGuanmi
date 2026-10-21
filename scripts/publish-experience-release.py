@@ -39,12 +39,19 @@ PUBLIC_ORIGIN = 'https://tongye.me'
 # or fabricated pass flag can use this path. Default publication stays strict.
 V59_DIRECT_AUTH_SHA = '0721104d84e66c813e5b1a2db98796b05bdc8b776be777b2b44b3ff202c534a8'
 V60_PUBLIC_TEST_AUTH_SHA = 'a4357df7669a362473df1a0344233f3f830b9f88e9224b51aad8c39915ede5ae'
+# Disabled until the exact v62 frozen comparison receipt is sealed.
+V62_RELATIVE_AUTH_SHA = '0000000000000000000000000000000000000000000000000000000000000000'
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {
     '01567f5ba32d8ecca93ec95a8a4cdf76f132a61ca208e2d74e8f9db0e4b20d71': {
         'releaseId': 'r5-c1ee8fd',
         'manifestSha256': '1b7d486bfb046f840cd65d51e4d2e915fe270cea383b3b4c38bcb1eba08c58d8'
+    },
+    'f6d494173450b37a586392763af8b373f628a639a25fe14125acd9de992ffdd4': {
+        'releaseId': 'r5-cb8c17a',
+        'manifestSha256': '978208bd19b5834dbade2a91340db0a09a161bd3d7ba89bd9bad8dd3445425ce',
+        'beforeIncludeSha256': '01567f5ba32d8ecca93ec95a8a4cdf76f132a61ca208e2d74e8f9db0e4b20d71'
     }
 }
 DIRECT_AUTH_PATH = 'user-directed-publication.json'
@@ -191,9 +198,59 @@ def validate_memory(report):
             validate_ego_run(run)
 
 
+def validate_relative_improvement(package, receipt):
+    """The one approved v62 comparison is not a passing qualification."""
+    cold = json.loads(read_regular(package, receipt['evidence']['coldComparison']['path']))
+    functional = json.loads(read_regular(package, receipt['evidence']['functional']['path']))
+    if cold.get('kind') != 'same-conditions-v60-v62-cold-media-comparison' or cold.get('releaseQualified') is not False or cold.get('failure'):
+        raise ValueError('relative comparison is incomplete or claims qualification')
+    for version, expected in [('v60', receipt['baselineIdentity']), ('v62', receipt['identity'])]:
+        if any(cold.get('identities', {}).get(version, {}).get(key) != value for key, value in expected.items() if key != 'draftManifestSha256'):
+            raise ValueError('relative comparison artifact identity changed')
+    ranges = ['hero-pattern', 'method-bottom-figure2', 'brand-figure3', 'education-crane', 'crane-contact']
+    expected = {(platform, trial, segment, version) for platform in ['desktop', 'phone']
+                for trial in [1, 2] for segment in ranges for version in ['v60', 'v62']}
+    rows = cold.get('results', [])
+    if len(rows) != 40 or {(row.get('platform'), row.get('trial'), row.get('rangeId'), row.get('version')) for row in rows} != expected:
+        raise ValueError('relative comparison must preserve all forty paired samples')
+    if any(row.get('ready') is not True or row.get('failure') or row.get('errors')
+           or type(row.get('elapsedMs')) not in [int, float] or not 0 <= row['elapsedMs'] < float('inf') for row in rows):
+        raise ValueError('relative cold-media sample failed')
+    computed = {}
+    for platform in ['desktop', 'phone']:
+        computed[platform] = {}
+        for version in ['v60', 'v62']:
+            samples = [row for row in rows if row['platform'] == platform and row['version'] == version]
+            times = sorted(row['elapsedMs'] for row in samples)
+            computed[platform][version] = {'samples': len(times), 'medianMs': (times[4] + times[5]) / 2,
+                'nearestRankP95Ms': times[9], 'explicitLoadCalls': sum(event.get('type') == 'load-call' for row in samples for event in row.get('mediaEvents', []))}
+    if receipt.get('comparison') != computed or any(computed['desktop']['v62'][key] >= computed['desktop']['v60'][key] for key in ['medianMs', 'nearestRankP95Ms']):
+        raise ValueError('authorized desktop median and p95 improvement was not demonstrated')
+    if (functional.get('kind') != 'frozen-v62-functional-and-v60-visual-comparison-unshaped-http'
+            or functional.get('passed') is not True or functional.get('failure') or functional.get('releaseQualified') is not False):
+        raise ValueError('relative publication requires complete frozen functional and visual checks')
+    runs = functional.get('functional', [])
+    if len(runs) != 2 or {run.get('platform') for run in runs} != {'desktop', 'phone'}:
+        raise ValueError('both frozen functional platforms are required')
+    for run in runs:
+        if (run.get('passed') is not True or run.get('errors') or len(run.get('points', [])) != 121
+                or any(point.get('passed') is not True for point in run['points'])
+                or any(run.get('identity', {}).get(key) != value for key, value in receipt['identity'].items() if key != 'draftManifestSha256')
+                or len(run.get('aliases', [])) != 3 or {alias.get('panel') for alias in run['aliases']} != {'opening', 'cards', 'closing'}
+                or any(alias.get('passed') is not True for alias in run['aliases'])):
+            raise ValueError('frozen functional or Proof alias regression')
+    visual = functional.get('visual', [])
+    visual_ranges = ['hold:hero', 'hero-pattern', 'pattern-star-map', 'method-bottom-figure2', 'crane-contact']
+    if (len(visual) != 10 or {(row.get('platform'), row.get('pose', {}).get('rangeId')) for row in visual}
+            != {(platform, segment) for platform in ['desktop', 'phone'] for segment in visual_ranges}
+            or any(row.get('passed') is not True or type(row.get('fraction')) not in [int, float]
+                   or not 0 <= row['fraction'] <= .005 or row.get('ink', 0) <= 100 for row in visual)):
+        raise ValueError('original frozen visual difference threshold failed')
+
+
 def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
-    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA]:
-        raise ValueError('direct publication requires the exact user-directed v59 receipt or v60 public-test receipt')
+    if authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V62_RELATIVE_AUTH_SHA]:
+        raise ValueError('direct publication requires an exact pinned user-directed receipt')
     receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
     if digest(receipt_bytes) != authorization_sha:
         raise ValueError('direct publication receipt changed')
@@ -210,7 +267,7 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
     for item in receipt['evidence'].values():
         checked_file(package, item)
     memory = json.loads(read_regular(package / 'site', 'r5-process-memory.json'))
-    if authorization_sha == V60_PUBLIC_TEST_AUTH_SHA:
+    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V62_RELATIVE_AUTH_SHA]:
         # A declaration of missing evidence is not a synthetic measurement and
         # can never satisfy validate_memory or the default qualified path.
         expected = {'schemaVersion': 1, 'kind': 'r5-unmeasured-process-memory', 'status': 'not-measured',
@@ -219,6 +276,8 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
                     'reason': 'No formal process-memory runs have been collected for this artifact. Earlier candidates are not evidence for this identity.'}
         if memory != expected:
             raise ValueError('public-test memory must explicitly preserve zero measured runs and no qualification')
+        if authorization_sha == V62_RELATIVE_AUTH_SHA:
+            validate_relative_improvement(package, receipt)
         return receipt
     if (memory.get('pass') is not False or memory.get('completedRunCount') != 2
             or memory.get('identity') != receipt['identity'] or len(memory.get('runs', [])) != 2
@@ -261,7 +320,7 @@ def validate_package(package, authorization_sha=None):
         if deploy.get('publicationAuthorization') is not None:
             raise ValueError('direct publication requires its explicit authorization SHA')
         validate_memory(memory)
-    expected_run_count = 0 if authorization_sha == V60_PUBLIC_TEST_AUTH_SHA else 2
+    expected_run_count = 0 if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V62_RELATIVE_AUTH_SHA] else 2
     if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != expected_run_count or memory.get('identity') != evidence.get('identity'):
         raise ValueError('memory evidence identity mismatch')
     for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:
@@ -353,9 +412,13 @@ def predecessor(expected_vhost_sha, expected_include_sha):
     return original, vhost, legacy_assets(expected_include_sha)
 
 
-def legacy_assets(include_sha):
+def legacy_assets(include_sha, visited=None):
     if include_sha != PREDECESSOR_SHA and include_sha not in NATIVE_PREDECESSORS:
         raise ValueError('configuration is not an inspected predecessor')
+    visited = set() if visited is None else visited
+    if include_sha in visited:
+        raise ValueError('native predecessor chain is cyclic')
+    visited = visited | {include_sha}
     base, mount = SITE / 'releases' / BASE_ID, SITE / 'mounts' / MOUNT_ID
     donor_bytes = (base / 'r5-release-manifest.json').read_bytes()
     overlay_bytes = (mount / 'mount-manifest.json').read_bytes()
@@ -378,16 +441,22 @@ def legacy_assets(include_sha):
         raise ValueError('unresolved legacy override')
     if include_sha in NATIVE_PREDECESSORS:
         previous = NATIVE_PREDECESSORS[include_sha]
+        before_sha = previous.get('beforeIncludeSha256', PREDECESSOR_SHA)
         root = SITE / 'releases' / previous['releaseId']
         backup = state_directory(previous['releaseId'])
         record = json.loads(read_regular(backup, 'transaction.json'))
         if (record.get('state') != 'applied-http-verified' or record.get('releaseId') != previous['releaseId']
                 or record.get('rootCurrent') != str(base) or record.get('afterIncludeSha256') != include_sha
-                or record.get('beforeIncludeSha256') != PREDECESSOR_SHA
+                or record.get('beforeIncludeSha256') != before_sha
                 or record.get('releaseManifestSha256') != previous['manifestSha256']
-                or digest(read_regular(backup, 'include.before.conf')) != PREDECESSOR_SHA
+                or digest(read_regular(backup, 'include.before.conf')) != before_sha
                 or digest(read_regular(backup, 'include.after.conf')) != include_sha):
             raise ValueError('native predecessor transaction mismatch')
+        # Retain all explicitly inspected generations, not just the most
+        # recent native files. Each edge, transaction and byte is revalidated;
+        # an unknown ancestor or a cycle cannot broaden this fixed allowlist.
+        if before_sha != PREDECESSOR_SHA:
+            assets = legacy_assets(before_sha, visited)
         manifest_bytes = read_regular(root, 'r5-release-manifest.json')
         if digest(manifest_bytes) != previous['manifestSha256']:
             raise ValueError('native predecessor manifest changed')
