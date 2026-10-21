@@ -11,6 +11,7 @@ type Listener = () => void;
 
 class FakeVideo {
   readonly dataset: Record<string, string> = {};
+  readonly ownerDocument = { createElement: () => ({ width: 0, height: 0, getContext: () => null }) };
   duration = 10;
   readyState = 4;
   currentTimeWrites: number[] = [];
@@ -121,6 +122,84 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it('recovers one body-stalled scroll seek without changing its generation or accepting an unproven frame', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    const input = { runId: 'reverse-flock', direction: -1 as const, progress: .25, durationFallbackSeconds: 10 };
+    try {
+      driver.drive(input); video.readyState = 1;
+      for (let i = 0; i < 17; i++) {
+        await vi.advanceTimersByTimeAsync(250);
+        driver.drive(input); // Repeated scroll wakes must not renew the stall clock.
+      }
+      expect(video.loadCalls).toBe(1);
+      expect(driver.snapshot()).toMatchObject({ generation: 1, frameReady: false });
+      video.readyState = 4; video.dispatch('loadedmetadata');
+      expect(video.currentTime).toBeCloseTo(2.495);
+      video.completeSeek(); video.presentFrame();
+      expect(driver.snapshot()).toMatchObject({ generation: 1, frameReady: true, presentedTime: 2.495 });
+      driver.drive({ ...input, progress: .5 }); video.readyState = 1;
+      await vi.advanceTimersByTimeAsync(9000);
+      expect(video.loadCalls).toBe(1); // One allowance per driver, not per sample/epoch.
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('does not reselect a scroll source while actual download progress continues', async () => {
+    vi.useFakeTimers(); const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'progressing-flock', direction: 1, progress: .4, durationFallbackSeconds: 10 });
+      video.readyState = 1;
+      for (let i = 0; i < 6; i++) { await vi.advanceTimersByTimeAsync(2000); video.dispatch('progress'); }
+      expect(video.loadCalls).toBe(0);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it.each(['dispose', 'error', 'abort'] as const)('cancels a pending scroll recovery on %s', async (reason) => {
+    vi.useFakeTimers(); const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'retiring-flock', direction: 1, progress: .4, durationFallbackSeconds: 10 });
+      video.readyState = 1;
+      if (reason === 'dispose') driver.dispose(); else video.dispatch(reason);
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(video.loadCalls).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { driver.dispose(); vi.useRealTimers(); }
+  });
+
+  it.each([undefined, 1, 3])('never adds animation-tick source reloads to legacy or non-loading media (%s)', async (networkState) => {
+    vi.useFakeTimers(); const video = new FakeVideo();
+    Object.assign(video, { networkState, closest: networkState === undefined ? () => null : () => ({}) });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'not-network-loading', direction: 1, progress: .4, durationFallbackSeconds: 10 });
+      video.readyState = 1; await vi.advanceTimersByTimeAsync(6000);
+      expect(video.loadCalls).toBe(0);
+    } finally { driver.dispose(); vi.useRealTimers(); }
+  });
+
+  it('proves a settled scroll seek in its seeked task using the same real pixel read', () => {
+    const video = new FakeVideo(); const read = vi.fn();
+    Object.assign(video, { closest: () => ({}), ownerDocument: { createElement: () => ({
+      getContext: () => ({ drawImage: vi.fn(), getImageData: read })
+    }) } });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'seeked-proof', direction: 1, progress: .4, durationFallbackSeconds: 10 });
+      expect(read).not.toHaveBeenCalled(); expect(driver.snapshot().frameReady).toBe(false);
+      video.completeSeek();
+      expect(read).toHaveBeenCalledOnce();
+      expect(driver.snapshot().frameReady).toBe(true);
+      expect(driver.snapshot().presentedTime).toBeCloseTo(3.992);
+      expect(video.dataset.timelineVideoFrameEvidence).toBe('decoded-canvas');
+    } finally { driver.dispose(); }
+  });
+
   it('promotes preload before the explicit source-reselection load', async () => {
     const video = new FakeVideo();
     video.readyState = 0;
@@ -870,7 +949,7 @@ describe('timeline video driver', () => {
       expect(driver.snapshot().frameReady).toBe(true);
       expect(read).toHaveBeenCalledOnce();
       driver.drive({ runId: 'valid-probe', direction: 1, progress: .6, durationFallbackSeconds: 10 });
-      video.completeSeek(); driver.dispose(); await vi.advanceTimersByTimeAsync(8);
+      driver.dispose(); video.completeSeek(); await vi.advanceTimersByTimeAsync(8);
       expect(read).toHaveBeenCalledOnce();
     } finally { driver.dispose(); vi.useRealTimers(); }
   });

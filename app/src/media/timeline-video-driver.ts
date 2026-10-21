@@ -34,7 +34,7 @@ export type TimelineVideoDriveInput = Readonly<{
   /** Keep a preparation seek paused; formal playback is issued by the runtime phase command. */
   allowPlaybackNudge?: boolean | undefined;
   signal?: AbortSignal | undefined;
-  /** One bounded preparation retry may reselect a stalled source. Never used by animation ticks. */
+  /** Explicit preparation retry; independent of the bounded active-scroll recovery. */
   reloadSource?: boolean;
 }>;
 
@@ -155,7 +155,14 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   #seekedFrameFallbackFrame: DesiredFrame | undefined;
   #decodedFrameProbe: HTMLCanvasElement | undefined;
   #decodedFrameContext: CanvasRenderingContext2D | null = null;
+  #scrollSeekWatch: ReturnType<typeof setTimeout> | undefined;
+  #scrollSeekChangedAt = 0;
+  #scrollSeekSignature = '';
+  #scrollSeekRetried = false;
+  #scrollSourceReloading = false;
   #disposed = false;
+
+  readonly #onProgress = () => { this.#scrollSeekChangedAt = Date.now(); };
 
   readonly #onSeeked = () => {
     // A surface may seek during loadeddata before our listener runs, lowering
@@ -173,6 +180,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   readonly #onLoadedMetadata = () => {
     this.#reloadingFailedSource = false;
+    this.#scrollSourceReloading = false;
     if (!this.#latest || !this.#latestInput || this.#latest.generation !== this.#generation) {
       return;
     }
@@ -234,6 +242,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     video.addEventListener('loadeddata', this.#onLoadedData);
     video.addEventListener('error', this.#onMediaError);
     video.addEventListener('abort', this.#onMediaAbort);
+    video.addEventListener('progress', this.#onProgress);
   }
 
   drive(input: TimelineVideoDriveInput): TimelineVideoDriverSnapshot {
@@ -262,11 +271,13 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
           this.#scheduleSeek(desired);
         }
       }
+      this.#watchScrollSeek();
       return this.snapshot();
     }
 
     this.#stopNativePlayback();
     this.#scheduleSeek(desired);
+    this.#watchScrollSeek();
     return this.snapshot();
   }
 
@@ -380,6 +391,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return;
     }
     this.#disposed = true;
+    this.#cancelScrollSeekWatch();
     this.#generation += 1;
     this.#stopNativePlayback();
     this.#cancelFrameCallback();
@@ -389,6 +401,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.#video.removeEventListener('loadeddata', this.#onLoadedData);
     this.#video.removeEventListener('error', this.#onMediaError);
     this.#video.removeEventListener('abort', this.#onMediaAbort);
+    this.#video.removeEventListener('progress', this.#onProgress);
     this.#queuedSeek = undefined;
     this.#inFlightSeek = undefined;
     this.#primingSeek = undefined;
@@ -592,7 +605,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   #flushQueuedSeek(): void {
     if (this.#video.closest?.('[data-scroll-platform]') && (this.#scrollFrameHeld || this.#presentingFrame)) return;
-    if (this.#disposed || this.#inFlightSeek || !this.#queuedSeek) {
+    if (this.#disposed || this.#scrollSourceReloading || this.#inFlightSeek || !this.#queuedSeek) {
       return;
     }
     const desired = this.#queuedSeek;
@@ -639,7 +652,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         && this.#presentingFrame?.generation === completed.generation
         && Math.abs(this.#presentingFrame.targetTime - completed.targetTime) <= SEEK_TOLERANCE_SECONDS;
       if (callbackPending) {
-        this.#armSeekedFrameFallback(completed);
+        this.#armSeekedFrameFallback(completed, true);
       } else {
         this.#presentFrame(completed);
       }
@@ -725,7 +738,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
   }
 
-  #armSeekedFrameFallback(frame: DesiredFrame): void {
+  #armSeekedFrameFallback(frame: DesiredFrame, settled = false): void {
     const scrollSampling = Boolean(this.#video.closest?.('[data-scroll-platform]'));
     // A hidden desktop receiver cannot reliably submit a compositor callback.
     // Explicit preparation may instead prove the settled decoded sample by
@@ -742,7 +755,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return;
     }
     if (
-      this.#seekedFrameFallbackTimer !== undefined
+      !settled && this.#seekedFrameFallbackTimer !== undefined
       && this.#seekedFrameFallbackFrame?.generation === frame.generation
       && Math.abs(this.#seekedFrameFallbackFrame.targetTime - frame.targetTime) <= SEEK_TOLERANCE_SECONDS
     ) {
@@ -750,7 +763,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
     this.#cancelSeekedFrameFallback();
     this.#seekedFrameFallbackFrame = frame;
-    this.#seekedFrameFallbackTimer = setTimeout(() => {
+    const probe = () => {
       this.#seekedFrameFallbackTimer = undefined;
       this.#seekedFrameFallbackFrame = undefined;
       if (
@@ -815,7 +828,67 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     // Scrub cannot spend 120ms waiting for a callback from a hidden surface.
     // The earlier probe retains the same decoded-data, settled-seek, identity
     // and target-time checks; it never promotes a pending seek to ready.
-    }, scrollSampling ? SCROLL_FRAME_PROBE_DELAY_MS : SEEKED_FRAME_FALLBACK_DELAY_MS);
+    };
+    // seeked already gives a causal settled-data boundary. Prove those pixels
+    // now rather than adding a timer turn (and often a whole display frame)
+    // to every hidden scroll decoder. Unsettled/no-event cases keep the probe.
+    if (settled && scrollSampling && decodedProbe && this.#video.readyState >= 2
+      && !this.#video.seeking
+      && Math.abs(this.#video.currentTime - frame.targetTime) <= TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS) probe();
+    else this.#seekedFrameFallbackTimer = setTimeout(probe,
+      scrollSampling ? SCROLL_FRAME_PROBE_DELAY_MS : SEEKED_FRAME_FALLBACK_DELAY_MS);
+  }
+
+  #cancelScrollSeekWatch(): void {
+    if (this.#scrollSeekWatch !== undefined) clearTimeout(this.#scrollSeekWatch);
+    this.#scrollSeekWatch = undefined;
+  }
+
+  #watchScrollSeek(): void {
+    // Preparation already owns its one retry and original 19s deadline. This
+    // watchdog covers only an active paused scrub, which previously could
+    // retain a zero-body Range request until the runtime's 20s failure.
+    if (this.#scrollSeekWatch !== undefined || this.#scrollSeekRetried || this.#disposed
+      || this.#nativeFallback || framePreparations.has(this.#video)
+      || !this.#video.closest?.('[data-scroll-platform]') || !this.#video.seeking) return;
+    const signature = () => {
+      const buffered = this.#video.buffered;
+      return [this.#video.readyState, this.#video.seeking, this.#video.currentTime,
+        buffered?.length ? buffered.end(buffered.length - 1) : 0].join(':');
+    };
+    this.#scrollSeekSignature = signature();
+    this.#scrollSeekChangedAt = Date.now();
+    const check = () => {
+      this.#scrollSeekWatch = undefined;
+      if (this.#disposed || this.#nativeFallback || !this.#video.seeking
+        || framePreparations.has(this.#video) || this.#video.error) return;
+      const next = signature();
+      if (next !== this.#scrollSeekSignature) {
+        this.#scrollSeekSignature = next; this.#scrollSeekChangedAt = Date.now();
+      }
+      if (Date.now() - this.#scrollSeekChangedAt >= FRAME_PREPARATION_STALL_MS
+        && this.#video.networkState === 2 && this.#video.readyState < 2) {
+        this.#scrollSeekRetried = true;
+        this.#cancelFrameCallback(); this.#cancelPrimingCompletion();
+        this.#inFlightSeek = this.#primingSeek = this.#pendingEndpointPrime = undefined;
+        this.#queuedSeek = this.#latest;
+        this.#frameReadyGeneration = 0; this.#readyTime = this.#readyPlayheadTime = NaN;
+        this.#scrollFrameHeld = false;
+        delete this.#video.dataset.timelineVideoFrameReady;
+        delete this.#video.dataset.timelineVideoFrameEvidence;
+        delete this.#video.dataset.timelineVideoSourceTime;
+        this.#video.dataset.timelineVideoScrubRetry = '1';
+        this.#configureElement();
+        this.#reloadingFailedSource = this.#scrollSourceReloading = true;
+        // Same source, same latest pose, same generation and same outer
+        // convergence deadline. Coherence still holds every paired lane.
+        try { this.#video.load(); }
+        catch (cause) { this.#failAllWaiters(new MediaPreparationError('MEDIA_SEEK_FAILED', 'scroll source reload failed', { cause })); }
+        return;
+      }
+      this.#scrollSeekWatch = setTimeout(check, 250);
+    };
+    this.#scrollSeekWatch = setTimeout(check, 250);
   }
 
   #cancelSeekedFrameFallback(): void {
@@ -851,6 +924,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       return;
     }
     this.#cancelFrameCallback();
+    this.#cancelScrollSeekWatch();
     const scrollSampling = Boolean(this.#video.closest?.('[data-scroll-platform]'));
     // Preparation may have nudged native playback to wake the compositor.
     // Freeze it before recording the physical proof, not in a later promise.
@@ -995,6 +1069,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   #markStaticFallback(): void {
+    this.#cancelScrollSeekWatch();
+    this.#scrollSourceReloading = this.#reloadingFailedSource = false;
     this.#stopNativePlayback();
     this.#nativeFallback = true;
     this.#frameReadyGeneration = 0;
