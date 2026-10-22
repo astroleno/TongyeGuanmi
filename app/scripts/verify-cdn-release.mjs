@@ -1,5 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createCdnTransport } from './cdn-release-transport.mjs';
+
+const transport = process.argv.find(value => value.startsWith('--transport='))?.slice('--transport='.length) ?? 'fetch';
+const request = createCdnTransport(transport);
 
 const manifestPath = path.resolve(
   process.env.R5_CDN_MANIFEST_PATH?.trim()
@@ -18,7 +22,7 @@ function assert(condition, message) {
 }
 
 async function verifyHead(entry) {
-  const response = await fetch(entry.url, {
+  const response = await request(entry.url, {
     method: 'HEAD',
     headers: { Origin: origin },
     signal: AbortSignal.timeout(20_000)
@@ -44,7 +48,7 @@ for (let index = 0; index < manifest.files.length; index += batchSize) {
 
 const media = manifest.files.find((file) => file.channel === 'media');
 assert(media, 'CDN manifest contains no media object');
-const range = await fetch(media.url, {
+const range = await request(media.url, {
   headers: {
     Origin: origin,
     Range: 'bytes=0-1023'
@@ -62,6 +66,7 @@ process.stdout.write(`${JSON.stringify({
   releaseId: manifest.releaseId,
   fileCount: manifest.fileCount,
   totalBytes: manifest.totalBytes,
+  transport,
   rangeObject: media.url,
   pass: true
 })}\n`);

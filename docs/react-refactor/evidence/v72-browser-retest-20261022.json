@@ -1,0 +1,646 @@
+{
+  "schemaVersion": 1,
+  "kind": "v72-browser-retest-summary",
+  "recordedAt": "2026-10-22T15:33:05.148Z",
+  "candidate": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v72",
+    "candidateTagObject": "e26ca8df4b5845de726ab1cc822fbf4494f20e83",
+    "sourceCommit": "bdbe3fcb6b4910ac504e34e1a1509c93e7bee16d",
+    "artifactTreeSha256": "ac67d406ec252e58d676d42e95434194e4604df0fbf33402d5ccbad210d0dcb4",
+    "draftManifestSha256": "c30e4674e59ce13ea7f0e3f09417cff4989b8de9ca46375f6da197e901abf9ea"
+  },
+  "publicRelease": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v70",
+    "candidateTagObject": "5bed925517d1b29d07c13448c6c3d87b319f7a78",
+    "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+    "artifactTreeSha256": "5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6",
+    "basePath": "/experience/"
+  },
+  "releaseDecision": {
+    "publicationPerformed": false,
+    "qualificationGranted": false,
+    "overallSuperiorityConfirmed": false,
+    "comparison": "mixed",
+    "reason": "Bounded repeated-stall recovery improved, but healthy cold loading regressed in this cohort, both complete desktop traversals aborted, and all original FPS gates remained failed. No exact publication authorization receipt was sealed."
+  },
+  "nativeMedia": {
+    "initial": {
+      "expectedOriginalDeadlineMs": 20000,
+      "candidate": {
+        "attempted": 3,
+        "allOriginalMediaChecksPassed": 3,
+        "physicalFrameReadyWithinOriginalDeadline": 3,
+        "reloads": [
+          2,
+          2,
+          0
+        ],
+        "readyMs": [
+          12851.70000000298,
+          13425.20000000298,
+          4955.20000000298
+        ]
+      },
+      "v70": {
+        "attempted": 3,
+        "allOriginalMediaChecksPassed": 1,
+        "physicalFrameReadyWithinOriginalDeadline": 1,
+        "reloads": [
+          0,
+          0,
+          0
+        ],
+        "readyMs": [
+          null,
+          null,
+          4713.5
+        ]
+      }
+    },
+    "reverse": {
+      "candidate": {
+        "attempted": 8,
+        "allOriginalMediaChecksPassed": 7,
+        "physicalFrameReadyWithinOriginalDeadline": 7,
+        "reloads": [
+          2,
+          2,
+          0,
+          2,
+          2,
+          2,
+          1,
+          1
+        ],
+        "readyMs": [
+          12692.40000000596,
+          12546.09999999404,
+          5537.399999991059,
+          null,
+          14333.5,
+          12839.79999999702,
+          6473.20000000298,
+          6463.100000008941
+        ]
+      },
+      "v70": {
+        "attempted": 8,
+        "allOriginalMediaChecksPassed": 2,
+        "physicalFrameReadyWithinOriginalDeadline": 4,
+        "reloads": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "readyMs": [
+          null,
+          null,
+          14042.70000000298,
+          19755.80000001192,
+          null,
+          null,
+          4409.0999999940395,
+          5531.29999999702
+        ]
+      },
+      "tradeoff": "The six-second response grace can make a single genuinely stalled transfer slower than v70. The outer twenty-second deadline and two-reload ceiling are unchanged."
+    },
+    "slowSupplement": {
+      "candidate": {
+        "attempted": 2,
+        "allOriginalMediaChecksPassed": 2,
+        "physicalFrameReadyWithinOriginalDeadline": 2,
+        "reloads": [
+          0,
+          0
+        ],
+        "readyMs": [
+          5524.0999999940395,
+          5334
+        ]
+      },
+      "v70": {
+        "attempted": 2,
+        "allOriginalMediaChecksPassed": 0,
+        "physicalFrameReadyWithinOriginalDeadline": 2,
+        "reloads": [
+          1,
+          1
+        ],
+        "readyMs": [
+          10074.59999999404,
+          9453.20000000298
+        ]
+      },
+      "originalOutlierStillFailed": "v72/native-4-figure2-candidate.json",
+      "originalOutlierRootCauseProven": false
+    }
+  },
+  "visual": {
+    "points": 12,
+    "passed": 12,
+    "maxChangedPixelFraction": 0.0004506172839506173,
+    "originalGates": {
+      "channelDifference": 24,
+      "maxChangedFraction": 0.005,
+      "minimumInkPixels": 100,
+      "compositorRafs": 2
+    },
+    "transport": "Both frozen artifacts used byte-verified local CDN remapping for pixel isolation; this is not public-network qualification."
+  },
+  "cold": {
+    "attempted": 40,
+    "candidate": {
+      "attempted": 20,
+      "ready": 18
+    },
+    "v70": {
+      "attempted": 20,
+      "ready": 20
+    },
+    "failedCases": [
+      {
+        "rangeId": "method-bottom-figure2",
+        "platform": "desktop",
+        "trial": 1,
+        "version": "candidate",
+        "error": "Error: JavaScript evaluation failed at line 5, column 11: Error: memory checkpoint failed: Frame deadline for scroll:7",
+        "networkErrors": [],
+        "originalScreenshotAvailable": false
+      },
+      {
+        "rangeId": "education-crane",
+        "platform": "desktop",
+        "trial": 1,
+        "version": "candidate",
+        "error": "Error: JavaScript evaluation failed at line 5, column 11: Error: memory checkpoint failed: Frame stalled for scroll:6; readyState=0; seeking=false",
+        "networkErrors": [
+          "Failed to load resource: net::ERR_EMPTY_RESPONSE",
+          "Failed to load resource: net::ERR_EMPTY_RESPONSE",
+          "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
+          "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH"
+        ],
+        "originalScreenshotAvailable": false
+      }
+    ],
+    "followup": {
+      "attempted": 6,
+      "passed": 6,
+      "allAttemptsHaveScreenshots": true,
+      "originalColdAndTraversalFailuresNotReplaced": true,
+      "nativeErrors": []
+    }
+  },
+  "functional": {
+    "original": [
+      {
+        "platform": "desktop",
+        "expectedPoints": 121,
+        "observedPoints": 80,
+        "passedPoints": 79,
+        "notExecutedPoints": 41,
+        "aliases": 0,
+        "navigationChecks": 0,
+        "renderedPassed": false,
+        "passed": false,
+        "errors": 0,
+        "failure": "Error: JavaScript evaluation failed at line 5, column 11: Error: memory checkpoint failed: 当前位置的媒体帧未能收敛，请重试或直接阅读\n    at isScrollMemoryPoseReady (<anonymous>:5:11)\n    at __egoPageEvaluate (<anonymous>:12:3)\n    at <anonymous>:13:9; expression: function isScrollMemoryPoseReady(point) {\\n  const state = window.__r5ScrollStory?.snapshot();\\n  if (state?.view.status === 'failed') {\\n    throw new Error...",
+        "lastPoint": {
+          "checkpoint": "segment",
+          "scene": "ttg-animation",
+          "rangeId": "ttg-lab",
+          "progress": 0.25,
+          "direction": "reverse"
+        }
+      },
+      {
+        "platform": "phone",
+        "expectedPoints": 121,
+        "observedPoints": 121,
+        "passedPoints": 121,
+        "notExecutedPoints": 0,
+        "aliases": 3,
+        "navigationChecks": 6,
+        "renderedPassed": true,
+        "passed": true,
+        "errors": 0,
+        "failure": null,
+        "lastPoint": {
+          "checkpoint": "hold",
+          "scene": "hero",
+          "measurementPhase": "hold",
+          "rangeId": "hold:hero",
+          "progress": 0.5,
+          "direction": "reverse"
+        }
+      }
+    ],
+    "desktopRepeat": {
+      "platform": "desktop",
+      "expectedPoints": 121,
+      "observedPoints": 118,
+      "passedPoints": 113,
+      "notExecutedPoints": 3,
+      "aliases": 0,
+      "navigationChecks": 0,
+      "renderedPassed": false,
+      "passed": false,
+      "errors": 0,
+      "failure": "Error: JavaScript evaluation failed at line 5, column 11: Error: memory checkpoint failed: 当前位置的画面准备超时，请重试或直接阅读\n    at isScrollMemoryPoseReady (<anonymous>:5:11)\n    at __egoPageEvaluate (<anonymous>:12:3)\n    at <anonymous>:13:9; expression: function isScrollMemoryPoseReady(point) {\\n  const state = window.__r5ScrollStory?.snapshot();\\n  if (state?.view.status === 'failed') {\\n    throw new Error...",
+      "lastPoint": {
+        "checkpoint": "segment",
+        "scene": "hero",
+        "rangeId": "hero-pattern",
+        "progress": 0.75,
+        "direction": "reverse"
+      }
+    },
+    "fullDesktopRunPassed": false,
+    "notExecutedDesktopAliasesAndNavigationRetainedAsMissing": true
+  },
+  "scroll": {
+    "measurements": 32,
+    "originalThresholds": {
+      "durationMs": 10000,
+      "preparationMs": 25000,
+      "rafP95Ms": 20,
+      "poseLagP95Ms": 100,
+      "convergenceMs": 150,
+      "longTaskLimitMs": 50,
+      "allowedLongTasks": 0
+    },
+    "allMeasurementRecordsHaveTenSecondSamples": true,
+    "runs": [
+      {
+        "platform": "desktop",
+        "version": "v70",
+        "attempted": 8,
+        "passed": 0,
+        "rafP95RangeMs": [
+          34.29999999998836,
+          83.5
+        ],
+        "ttg": {
+          "id": "ttg-lab",
+          "passed": false,
+          "checks": {
+            "completeVisibleSampling": true,
+            "rafInterval": false,
+            "poseLag": true,
+            "convergence": true,
+            "longTasks": true,
+            "videosPaused": true,
+            "finalPose": true,
+            "fixedViewport": true,
+            "focusedSampling": true
+          },
+          "metrics": {
+            "rafIntervalP95": 34.30000000000291,
+            "poseLagP95": 71.68458781361964,
+            "documentPoseLagP95": 100.35842293906934,
+            "sourceFrameErrorSecondsP95": 0.03370000000000006,
+            "requestedFrameLagSecondsP95": 0.03370000000000006,
+            "allVideosPaused": true,
+            "over50msTasks": 0
+          },
+          "convergenceMs": 33.29999999701977
+        },
+        "browserErrors": 0
+      },
+      {
+        "platform": "desktop",
+        "version": "candidate",
+        "attempted": 8,
+        "passed": 0,
+        "rafP95RangeMs": [
+          34.29999999999927,
+          66.59999999999854
+        ],
+        "ttg": {
+          "id": "ttg-lab",
+          "passed": false,
+          "checks": {
+            "completeVisibleSampling": true,
+            "rafInterval": false,
+            "poseLag": false,
+            "convergence": true,
+            "longTasks": true,
+            "videosPaused": true,
+            "finalPose": true,
+            "fixedViewport": true,
+            "focusedSampling": true
+          },
+          "metrics": {
+            "rafIntervalP95": 51.59999999999127,
+            "poseLagP95": 1211.4695340501792,
+            "documentPoseLagP95": 1311.8279569892468,
+            "sourceFrameErrorSecondsP95": 0.03369999999999984,
+            "requestedFrameLagSecondsP95": 0.06699999999999995,
+            "allVideosPaused": true,
+            "over50msTasks": 0
+          },
+          "convergenceMs": 32
+        },
+        "browserErrors": 0
+      },
+      {
+        "platform": "phone",
+        "version": "candidate",
+        "attempted": 8,
+        "passed": 0,
+        "rafP95RangeMs": [
+          49.80000000000291,
+          50.60000000000582
+        ],
+        "ttg": {
+          "id": "ttg-lab",
+          "passed": false,
+          "checks": {
+            "completeVisibleSampling": true,
+            "rafInterval": false,
+            "poseLag": false,
+            "convergence": true,
+            "longTasks": true,
+            "videosPaused": true,
+            "finalPose": true,
+            "fixedViewport": true,
+            "focusedSampling": true
+          },
+          "metrics": {
+            "rafIntervalP95": 50.30000000000291,
+            "poseLagP95": 198.74636905672003,
+            "documentPoseLagP95": 1047.2404831065592,
+            "sourceFrameErrorSecondsP95": 0.03369999999999984,
+            "requestedFrameLagSecondsP95": 0.06699999999999995,
+            "allVideosPaused": true,
+            "over50msTasks": 0
+          },
+          "convergenceMs": 33.29999999701977
+        },
+        "browserErrors": 0
+      },
+      {
+        "platform": "phone",
+        "version": "v70",
+        "attempted": 8,
+        "passed": 0,
+        "rafP95RangeMs": [
+          49.89999999999418,
+          50.59999999999127
+        ],
+        "ttg": {
+          "id": "ttg-lab",
+          "passed": false,
+          "checks": {
+            "completeVisibleSampling": true,
+            "rafInterval": false,
+            "poseLag": true,
+            "convergence": true,
+            "longTasks": true,
+            "videosPaused": true,
+            "finalPose": true,
+            "fixedViewport": true,
+            "focusedSampling": true
+          },
+          "metrics": {
+            "rafIntervalP95": 50,
+            "poseLagP95": 99.37318452836001,
+            "documentPoseLagP95": 129.94954899862486,
+            "sourceFrameErrorSecondsP95": 0.03369999999999995,
+            "requestedFrameLagSecondsP95": 0.06699999999999995,
+            "allVideosPaused": true,
+            "over50msTasks": 0
+          },
+          "convergenceMs": 30.799999997019768
+        },
+        "browserErrors": 0
+      }
+    ]
+  },
+  "blankControls": {
+    "diagnosticOnly": true,
+    "doesNotWaiveAppFailures": true,
+    "rows": [
+      {
+        "platform": "desktop",
+        "name": "raf",
+        "rafIntervalP95Ms": 18.400000000000034,
+        "passed": true,
+        "logicalCpus": 10,
+        "loadBefore": [
+          24.0859375,
+          19.86767578125,
+          26.48486328125
+        ],
+        "loadAfter": [
+          21.37841796875,
+          19.4267578125,
+          26.2509765625
+        ]
+      },
+      {
+        "platform": "desktop",
+        "name": "native-scroll",
+        "rafIntervalP95Ms": 50.5,
+        "passed": false,
+        "logicalCpus": 10,
+        "loadBefore": [
+          21.37841796875,
+          19.4267578125,
+          26.2509765625
+        ],
+        "loadAfter": [
+          19.38818359375,
+          19.06591796875,
+          26.04296875
+        ]
+      },
+      {
+        "platform": "phone",
+        "name": "raf",
+        "rafIntervalP95Ms": 18.5,
+        "passed": true,
+        "logicalCpus": 10,
+        "loadBefore": [
+          19.38818359375,
+          19.06591796875,
+          26.04296875
+        ],
+        "loadAfter": [
+          18.33203125,
+          18.84912109375,
+          25.88427734375
+        ]
+      },
+      {
+        "platform": "phone",
+        "name": "native-scroll",
+        "rafIntervalP95Ms": 51.899999999999636,
+        "passed": false,
+        "logicalCpus": 10,
+        "loadBefore": [
+          18.33203125,
+          18.84912109375,
+          25.88427734375
+        ],
+        "loadAfter": [
+          20.92919921875,
+          19.3955078125,
+          25.99609375
+        ]
+      }
+    ],
+    "interpretation": "Idle RAF and active native scroll differ even on a blank document. This establishes a shared browser/measurement/host factor, not the exclusive cause of application jank."
+  },
+  "publicSmoke": {
+    "checks": [
+      {
+        "platform": "desktop",
+        "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+        "points": 3,
+        "passed": true,
+        "errors": 0
+      },
+      {
+        "platform": "phone",
+        "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+        "points": 3,
+        "passed": true,
+        "errors": 0
+      }
+    ],
+    "manifestSha256": "6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e",
+    "rootCurrentUnchanged": true,
+    "routeSwitchPerformed": false
+  },
+  "cdn": {
+    "unchangedPayloadsCompared": 63,
+    "allPayloadHashesTypesAndLengthsMatchV70": true,
+    "fetchPassed": false,
+    "curlPassed": false,
+    "fetchFailure": "connect timeout to 198.18.0.107:443",
+    "curlFailure": "SSL connection timeout",
+    "globalNetworkConfigurationUnchanged": true
+  },
+  "tooling": {
+    "checks": [
+      {
+        "name": "publication-original-tests",
+        "passed": true,
+        "exitCode": 0
+      },
+      {
+        "name": "initial-recovery-publication-tests",
+        "passed": true,
+        "exitCode": 0
+      },
+      {
+        "name": "cdn-transport-tests",
+        "passed": true,
+        "exitCode": 0
+      },
+      {
+        "name": "changed-script-lint",
+        "passed": true,
+        "exitCode": 0
+      },
+      {
+        "name": "typecheck",
+        "passed": true,
+        "exitCode": 0
+      },
+      {
+        "name": "deploy-syntax",
+        "passed": true,
+        "exitCode": 0
+      },
+      {
+        "name": "diff-whitespace",
+        "passed": true,
+        "exitCode": 0
+      }
+    ],
+    "realInitialProtocolAccepted": true,
+    "realFailingRoundRejected": true
+  },
+  "productUnitCoverage": {
+    "observedPassingAssertions": 1859,
+    "allAssertionsHavePassingObservation": true,
+    "singleCleanWholeSuiteRunPassed": false,
+    "originalTimeoutFailuresNotRegraded": true
+  },
+  "rootCauseStatus": {
+    "confirmed": [
+      "v70 misses initial loading at frame zero when native seeking never starts; v72 recovered both injected headers-only stalls within the original deadline.",
+      "v70 has one active-scroll reload and misses repeated stalls; v72 physically recovered the four paired double-stall cases with at most two same-source reloads.",
+      "The failed crane cold case recorded ERR_EMPTY_RESPONSE and ERR_CONTENT_LENGTH_MISMATCH on the media path. It is a terminal transport failure, not just a missing frame callback.",
+      "Current media-error handling fails waiters immediately and the active watcher stops on video.error; silent-stall recovery is not proof that terminal network errors recover."
+    ],
+    "unresolved": [
+      "Whether the observed terminal errors originate at the browser/local proxy, CDN edge or origin; the browser connection used 127.0.0.1:7897.",
+      "Why the original five-second Figure2 native case timed out; two timer-instrumented repeats passed but do not regrade it.",
+      "Why long desktop traversals timed out at reverse TTG and then reverse Hero/Pattern while fresh targeted checks passed.",
+      "The exclusive cause of the original historical real-CDN visual difference; the current controlled twelve-point pixel result does not rewrite prior failures."
+    ]
+  },
+  "incompleteRequiredQualification": {
+    "desktopFullTraversal": true,
+    "processMemory": {
+      "requiredRuns": 2,
+      "completedRuns": 0,
+      "browserTreeBudgetBytes": 1500000000
+    },
+    "physicalIPhone": true,
+    "physicalAndroid": true,
+    "webkitAndOldIOS": true,
+    "singleCleanWholeUnitSuiteRunMissing": true
+  },
+  "cleanup": {
+    "requestedByUser": true,
+    "summaryAndFailuresOnlyRetainedInGit": true,
+    "policy": "move task-owned temporary evidence to Trash; do not touch source or release packages",
+    "newScreenshots": 108,
+    "totalScreenshots": 224,
+    "hashVerifiedFilesBeforeCleanup": 555,
+    "hashVerifiedBytesBeforeCleanup": 1096054954,
+    "retentionIndexSha256": "54fb98a8522897e24ca05463eb678d8a037bc4fad17cad56d0ef810ca8e46748",
+    "browser": {
+      "taskSpaceId": 8,
+      "status": "already-absent",
+      "finishCalls": 0
+    },
+    "temporaryFixtureServersStopped": true,
+    "offhostEvidenceBackupCreated": false,
+    "items": [
+      {
+        "label": "source-evidence",
+        "status": "moved-to-trash"
+      },
+      {
+        "label": "duplicate-evidence-backup",
+        "status": "moved-to-trash"
+      },
+      {
+        "label": "earlier-recovered-evidence",
+        "status": "moved-to-trash"
+      },
+      {
+        "label": "offline-guard-fixture",
+        "status": "already-absent"
+      },
+      {
+        "label": "temporary-evidence-archive",
+        "status": "already-absent"
+      }
+    ],
+    "complete": true,
+    "recoverable": true,
+    "trashFolder": "tongye-v72-verification-20261022-AQXPl5",
+    "diskSpaceReleased": false
+  }
+}

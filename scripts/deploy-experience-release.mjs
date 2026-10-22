@@ -21,6 +21,8 @@ const packageArgument = argument('--package');
 const vhostSha = argument('--expected-vhost-sha');
 const includeSha = argument('--expected-include-sha');
 const directAuthorizationSha = argument('--user-directed-authorization-sha');
+const cdnTransport = argument('--cdn-transport') ?? 'fetch';
+if (!['fetch', 'curl'].includes(cdnTransport)) throw new Error('invalid CDN verification transport');
 if (directAuthorizationSha !== undefined && !/^[0-9a-f]{64}$/.test(directAuthorizationSha)) throw new Error('invalid explicit user-directed authorization SHA');
 const directArgs = directAuthorizationSha ? ['--user-directed-authorization-sha', directAuthorizationSha] : [];
 if (!packageArgument || ![vhostSha, includeSha].every((value) => /^[0-9a-f]{64}$/.test(value ?? ''))) {
@@ -58,7 +60,7 @@ ssh(`sudo -n python3 ${quote(remoteScript)} probe --package ${quote(temporary)} 
 // Credentials stay on the release host; objects are immutable and checked by hash.
 const upload = `set -eu; set -a; . /etc/tongye-cdn-cert/secrets.env; . /etc/tongye-release.env; set +a; PYTHONPATH=/opt/tongye-release/python python3 ${quote(temporary + '/upload-cos-release.py')} ${quote(temporary)}`;
 ssh(`sudo -n bash -c ${quote(upload)}`);
-run(process.execPath, [path.join(repo, 'app/scripts/verify-cdn-release.mjs')], {
+run(process.execPath, [path.join(repo, 'app/scripts/verify-cdn-release.mjs'), `--transport=${cdnTransport}`], {
   env: { ...process.env, R5_CDN_MANIFEST_PATH: path.join(packageRoot, 'site/cdn-publish-manifest.json'), R5_SITE_ORIGIN: 'https://tongye.me' }
 });
 const token = randomUUID().replaceAll('-', '');
