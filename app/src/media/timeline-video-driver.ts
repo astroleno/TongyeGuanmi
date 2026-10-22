@@ -850,12 +850,17 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     // Preparation keeps its separate single retry / 19s deadline. Active scrub
     // permits two same-source reloads within one fixed 20s incident, renewed
     // only by an actual frame proof, never by a sample, metadata or a new epoch.
+    // A first frame at time zero can be downloading without ever setting
+    // seeking=true. Observe that unproven transfer too; otherwise a headers-
+    // only response before metadata escapes the same bounded recovery.
+    const waitingForFirstData = this.#latest && !this.#frameIsReady(this.#latest)
+      && this.#video.readyState < 2 && this.#video.networkState === 2;
     if (this.#scrollSeekWatch !== undefined || this.#disposed
       || this.#nativeFallback || framePreparations.has(this.#video)
       || !this.#video.closest?.('[data-scroll-platform]')
       || this.#scrollSeekStartedAt !== undefined
         && Date.now() - this.#scrollSeekStartedAt >= SCROLL_SEEK_RECOVERY_DEADLINE_MS
-      || this.#scrollSeekStartedAt === undefined && !this.#video.seeking) return;
+      || this.#scrollSeekStartedAt === undefined && !this.#video.seeking && !waitingForFirstData) return;
     const bufferedSeconds = () => {
       const buffered = this.#video.buffered;
       let seconds = 0;

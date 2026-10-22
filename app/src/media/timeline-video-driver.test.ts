@@ -122,6 +122,65 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it('recovers an initial zero-frame transfer even when metadata never starts a native seek', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2, readyState: 0, remainSettledOnCurrentTimeWrite: true });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'initial-zero-frame', direction: 1, progress: 0, durationFallbackSeconds: 10 });
+      expect(video.seeking).toBe(false);
+      await vi.advanceTimersByTimeAsync(6250);
+      expect(video.loadCalls).toBe(1);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.readyState = 4; video.dispatch('loadedmetadata'); video.presentFrame(0);
+      expect(driver.snapshot()).toMatchObject({ frameReady: true, targetTime: 0, presentedTime: 0, generation: 1 });
+      expect(video.playCalls).toBe(0);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('keeps the original two-reload and twenty-second limits for a never-decoded initial zero frame', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2, readyState: 0, remainSettledOnCurrentTimeWrite: true });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      for (let i = 0; i < 100; i++) {
+        driver.drive({ runId: 'initial-zero:' + i, direction: 1, progress: 0, durationFallbackSeconds: 10 });
+        await vi.advanceTimersByTimeAsync(250);
+      }
+      expect(video.loadCalls).toBe(2);
+      expect(driver.snapshot().frameReady).toBe(false);
+      await vi.advanceTimersByTimeAsync(40000);
+      expect(video.loadCalls).toBe(2);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('does not cancel healthy five-second metadata for an initial zero frame', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2, readyState: 0, remainSettledOnCurrentTimeWrite: true });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'slow-initial-zero', direction: 1, progress: 0, durationFallbackSeconds: 10 });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(video.loadCalls).toBe(0); expect(driver.snapshot().frameReady).toBe(false);
+      video.readyState = 4; video.dispatch('loadedmetadata'); video.presentFrame(0);
+      expect(driver.snapshot().frameReady).toBe(true);
+      await vi.advanceTimersByTimeAsync(20000); expect(video.loadCalls).toBe(0);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it.each([1, 3])('does not reload a non-loading initial zero frame (%s)', async (networkState) => {
+    vi.useFakeTimers(); const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState, readyState: 0, remainSettledOnCurrentTimeWrite: true });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'non-loading-zero', direction: 1, progress: 0, durationFallbackSeconds: 10 });
+      await vi.advanceTimersByTimeAsync(25000); expect(video.loadCalls).toBe(0);
+    } finally { driver.dispose(); vi.useRealTimers(); }
+  });
+
   it('recovers one body-stalled scroll seek without changing its generation or accepting an unproven frame', async () => {
     vi.useFakeTimers();
     const video = new FakeVideo();
