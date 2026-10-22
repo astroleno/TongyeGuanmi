@@ -130,7 +130,7 @@ describe('timeline video driver', () => {
     const input = { runId: 'reverse-flock', direction: -1 as const, progress: .25, durationFallbackSeconds: 10 };
     try {
       driver.drive(input); video.readyState = 1;
-      for (let i = 0; i < 17; i++) {
+      for (let i = 0; i < 25; i++) {
         await vi.advanceTimersByTimeAsync(250);
         driver.drive(input); // Repeated scroll wakes must not renew the stall clock.
       }
@@ -142,7 +142,145 @@ describe('timeline video driver', () => {
       expect(driver.snapshot()).toMatchObject({ generation: 1, frameReady: true, presentedTime: 2.495 });
       driver.drive({ ...input, progress: .5 }); video.readyState = 1;
       await vi.advanceTimersByTimeAsync(9000);
-      expect(video.loadCalls).toBe(1); // One allowance per driver, not per sample/epoch.
+      expect(video.loadCalls).toBe(2); // A proven recovery, not another sample, starts a new incident.
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('does not cancel a healthy five-second first response or publish an undecoded frame', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'slow-first-response', direction: -1, progress: .4, durationFallbackSeconds: 10 });
+      video.readyState = 1;
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(video.loadCalls).toBe(0);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.readyState = 4;
+      video.completeSeek(); video.presentFrame();
+      expect(driver.snapshot().frameReady).toBe(true);
+      expect(driver.snapshot().presentedTime).toBe(driver.snapshot().targetTime);
+      expect(driver.snapshot().presentedTime).toBeCloseTo(3.992, 10);
+      await vi.advanceTimersByTimeAsync(20000);
+      expect(video.loadCalls).toBe(0);
+      expect(video.paused).toBe(true);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('recovers two consecutive empty responses without resetting the budget on samples or epochs', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      const input = { runId: 'double-empty', direction: -1 as const, progress: .25, durationFallbackSeconds: 10 };
+      driver.drive(input); video.readyState = 1;
+      await vi.advanceTimersByTimeAsync(6250);
+      expect(video.loadCalls).toBe(1);
+      expect(video.seeking).toBe(false); // load() has not even received metadata yet.
+      expect(driver.snapshot().frameReady).toBe(false);
+      driver.drive({ ...input, runId: 'new-epoch', progress: .7 });
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(video.loadCalls).toBe(2);
+      expect(video.dataset.timelineVideoScrubRetry).toBe('2');
+      expect(driver.snapshot()).toMatchObject({ generation: 2, frameReady: false });
+      video.readyState = 4; video.dispatch('loadedmetadata');
+      expect(video.currentTime).toBeCloseTo(6.986);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.completeSeek(); video.presentFrame();
+      expect(driver.snapshot()).toMatchObject({ generation: 2, frameReady: true, presentedTime: 6.986 });
+      expect(video.playCalls).toBe(0);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('keeps two reloads and the original twenty-second window when every response stays empty', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'permanent-empty', direction: 1, progress: .4, durationFallbackSeconds: 10 });
+      video.readyState = 1;
+      for (let i = 0; i < 100; i++) {
+        await vi.advanceTimersByTimeAsync(250);
+        driver.drive({ runId: 'permanent-empty:' + i, direction: i % 2 ? -1 : 1,
+          progress: i % 2 ? .2 : .8, durationFallbackSeconds: 10 });
+      }
+      expect(video.loadCalls).toBe(2);
+      expect(driver.snapshot().frameReady).toBe(false);
+      expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(40000);
+      expect(video.loadCalls).toBe(2);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('does not start a late recovery after a delayed watchdog wakes beyond twenty seconds', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'late-watch', direction: 1, progress: .4, durationFallbackSeconds: 10 });
+      video.readyState = 1;
+      vi.setSystemTime(20000);
+      await vi.advanceTimersByTimeAsync(250);
+      expect(video.loadCalls).toBe(0);
+      expect(driver.snapshot().frameReady).toBe(false);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('retains the four-second inactivity check after transfer progress, with first-response grace', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'body-stall', direction: 1, progress: .4, durationFallbackSeconds: 10 });
+      video.readyState = 1;
+      await vi.advanceTimersByTimeAsync(5000); video.dispatch('progress');
+      expect(video.loadCalls).toBe(0);
+      await vi.advanceTimersByTimeAsync(3999);
+      expect(video.loadCalls).toBe(0);
+      await vi.advanceTimersByTimeAsync(251);
+      expect(video.loadCalls).toBe(1);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('counts buffered hole filling as progress even if the final buffered endpoint is unchanged', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo(); let middleEnd = 1;
+    Object.assign(video, { closest: () => ({}), networkState: 2,
+      buffered: { length: 2, start: (i: number) => i ? 8 : 0,
+        end: (i: number) => i ? 10 : middleEnd } });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'buffered-hole', direction: -1, progress: .4, durationFallbackSeconds: 10 });
+      video.readyState = 1;
+      for (let i = 0; i < 7; i++) { await vi.advanceTimersByTimeAsync(2000); middleEnd += .2; }
+      expect(video.loadCalls).toBe(0);
+      expect(driver.snapshot().frameReady).toBe(false);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('gives a new unbuffered physical seek first-response grace without renewing the incident window', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'metadata-then-range', direction: -1, progress: .4, durationFallbackSeconds: 10 });
+      video.readyState = 1;
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(video.loadCalls).toBe(1);
+      await vi.advanceTimersByTimeAsync(3000);
+      video.advancePlaybackTo(0); // Native load() resets the physical playhead.
+      video.readyState = 1; video.dispatch('loadedmetadata');
+      expect(video.seeking).toBe(true);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(video.loadCalls).toBe(1);
+      video.readyState = 4; video.completeSeek(); video.presentFrame();
+      expect(driver.snapshot().frameReady).toBe(true);
     } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
   });
 

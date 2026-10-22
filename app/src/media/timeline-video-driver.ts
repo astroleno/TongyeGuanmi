@@ -107,6 +107,9 @@ const EXACT_TARGET_PRIME_OFFSET_SECONDS = 0.05;
 const EXACT_TARGET_PRIME_SETTLE_DELAY_MS = 50;
 const SEEKED_FRAME_FALLBACK_DELAY_MS = 120;
 const SCROLL_FRAME_PROBE_DELAY_MS = 8;
+const SCROLL_SEEK_RESPONSE_GRACE_MS = 6000;
+const SCROLL_SEEK_RECOVERY_DEADLINE_MS = 20000;
+const MAX_SCROLL_SEEK_RELOADS = 2;
 const PAUSED_COMPOSITOR_NUDGE_MS = 250;
 const DEFAULT_END_EPSILON_SECONDS = 0.02;
 
@@ -157,8 +160,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   #decodedFrameContext: CanvasRenderingContext2D | null = null;
   #scrollSeekWatch: ReturnType<typeof setTimeout> | undefined;
   #scrollSeekChangedAt = 0;
-  #scrollSeekSignature = '';
-  #scrollSeekRetried = false;
+  #scrollSeekBufferedSeconds = 0;
+  #scrollSeekStartedAt: number | undefined;
+  #scrollSeekAttemptAt = 0;
+  #scrollSeekReloads = 0;
   #scrollSourceReloading = false;
   #disposed = false;
 
@@ -626,6 +631,11 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.#presentFrame(desired);
     try {
       this.#video.currentTime = desired.targetTime;
+      // Metadata can come from cache before an unbuffered Range starts. Give
+      // that physical request its response grace, not another incident budget.
+      if (this.#scrollSeekStartedAt !== undefined && this.#video.readyState < 2) {
+        this.#scrollSeekAttemptAt = Date.now();
+      }
     } catch (cause) {
       this.#inFlightSeek = undefined;
       this.#cancelFrameCallback();
@@ -837,30 +847,42 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   }
 
   #watchScrollSeek(): void {
-    // Preparation already owns its one retry and original 19s deadline. This
-    // watchdog covers only an active paused scrub, which previously could
-    // retain a zero-body Range request until the runtime's 20s failure.
-    if (this.#scrollSeekWatch !== undefined || this.#scrollSeekRetried || this.#disposed
+    // Preparation keeps its separate single retry / 19s deadline. Active scrub
+    // permits two same-source reloads within one fixed 20s incident, renewed
+    // only by an actual frame proof, never by a sample, metadata or a new epoch.
+    if (this.#scrollSeekWatch !== undefined || this.#disposed
       || this.#nativeFallback || framePreparations.has(this.#video)
-      || !this.#video.closest?.('[data-scroll-platform]') || !this.#video.seeking) return;
-    const signature = () => {
+      || !this.#video.closest?.('[data-scroll-platform]')
+      || this.#scrollSeekStartedAt !== undefined
+        && Date.now() - this.#scrollSeekStartedAt >= SCROLL_SEEK_RECOVERY_DEADLINE_MS
+      || this.#scrollSeekStartedAt === undefined && !this.#video.seeking) return;
+    const bufferedSeconds = () => {
       const buffered = this.#video.buffered;
-      return [this.#video.readyState, this.#video.seeking, this.#video.currentTime,
-        buffered?.length ? buffered.end(buffered.length - 1) : 0].join(':');
+      let seconds = 0;
+      for (let i = 0; i < (buffered?.length ?? 0); i++) seconds += buffered.end(i) - buffered.start(i);
+      return seconds;
     };
-    this.#scrollSeekSignature = signature();
-    this.#scrollSeekChangedAt = Date.now();
+    if (this.#scrollSeekStartedAt === undefined) {
+      this.#scrollSeekStartedAt = this.#scrollSeekAttemptAt = this.#scrollSeekChangedAt = Date.now();
+      this.#scrollSeekBufferedSeconds = bufferedSeconds();
+    }
     const check = () => {
       this.#scrollSeekWatch = undefined;
-      if (this.#disposed || this.#nativeFallback || !this.#video.seeking
-        || framePreparations.has(this.#video) || this.#video.error) return;
-      const next = signature();
-      if (next !== this.#scrollSeekSignature) {
-        this.#scrollSeekSignature = next; this.#scrollSeekChangedAt = Date.now();
-      }
-      if (Date.now() - this.#scrollSeekChangedAt >= FRAME_PREPARATION_STALL_MS
+      if (this.#disposed || this.#nativeFallback || this.#scrollSeekStartedAt === undefined
+        || !this.#video.closest?.('[data-scroll-platform]')
+        || framePreparations.has(this.#video) || this.#video.error
+        || Date.now() - this.#scrollSeekStartedAt >= SCROLL_SEEK_RECOVERY_DEADLINE_MS
+        || !this.#video.seeking && !this.#scrollSourceReloading && this.#video.readyState >= 2) return;
+      const next = bufferedSeconds();
+      // A requested playhead or readyState decrease is not downloaded data.
+      // Sum all intervals: a middle hole can fill without moving the last end.
+      if (next > this.#scrollSeekBufferedSeconds) this.#onProgress();
+      this.#scrollSeekBufferedSeconds = next;
+      if (this.#scrollSeekReloads < MAX_SCROLL_SEEK_RELOADS
+        && Date.now() - this.#scrollSeekAttemptAt >= SCROLL_SEEK_RESPONSE_GRACE_MS
+        && Date.now() - this.#scrollSeekChangedAt >= FRAME_PREPARATION_STALL_MS
         && this.#video.networkState === 2 && this.#video.readyState < 2) {
-        this.#scrollSeekRetried = true;
+        this.#scrollSeekReloads++;
         this.#cancelFrameCallback(); this.#cancelPrimingCompletion();
         this.#inFlightSeek = this.#primingSeek = this.#pendingEndpointPrime = undefined;
         this.#queuedSeek = this.#latest;
@@ -869,16 +891,23 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         delete this.#video.dataset.timelineVideoFrameReady;
         delete this.#video.dataset.timelineVideoFrameEvidence;
         delete this.#video.dataset.timelineVideoSourceTime;
-        this.#video.dataset.timelineVideoScrubRetry = '1';
+        this.#video.dataset.timelineVideoScrubRetry = String(this.#scrollSeekReloads);
         this.#configureElement();
         this.#reloadingFailedSource = this.#scrollSourceReloading = true;
+        this.#scrollSeekAttemptAt = this.#scrollSeekChangedAt = Date.now();
         // Same source, same latest pose, same generation and same outer
         // convergence deadline. Coherence still holds every paired lane.
-        try { this.#video.load(); }
-        catch (cause) { this.#failAllWaiters(new MediaPreparationError('MEDIA_SEEK_FAILED', 'scroll source reload failed', { cause })); }
-        return;
+        try { this.#video.load(); this.#scrollSeekBufferedSeconds = bufferedSeconds(); }
+        catch (cause) {
+          this.#failAllWaiters(new MediaPreparationError('MEDIA_SEEK_FAILED', 'scroll source reload failed', { cause }));
+          return;
+        }
       }
-      this.#scrollSeekWatch = setTimeout(check, 250);
+      // load() clears seeking before metadata arrives. Keep observing this
+      // request too; a second zero-body response must not escape the watchdog.
+      if (!this.#disposed && !this.#nativeFallback && this.#scrollSeekStartedAt !== undefined) {
+        this.#scrollSeekWatch = setTimeout(check, 250);
+      }
     };
     this.#scrollSeekWatch = setTimeout(check, 250);
   }
@@ -917,6 +946,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     }
     this.#cancelFrameCallback();
     this.#cancelScrollSeekWatch();
+    this.#scrollSeekStartedAt = undefined;
+    this.#scrollSeekReloads = 0;
     const scrollSampling = Boolean(this.#video.closest?.('[data-scroll-platform]'));
     // Preparation may have nudged native playback to wake the compositor.
     // Freeze it before recording the physical proof, not in a later promise.
