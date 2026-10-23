@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "candidate": "v73",
+  "baseline": "v70",
+  "userInstruction": "允许重建专用验收组，继续补齐冷加载、视觉和滚动复测，不要放宽标准，失败项如实保留。确认比 v70 好就 commit push 到 main，再更新公网复测。",
+  "releaseQualified": false,
+  "publiclyDeployed": false,
+  "applicationSources": {
+    "driverSha256": "707abbd4a3f959e68019c521b29ea870b8bb6703006e612b860c8949a78b0c33",
+    "layoutSha256": "7081190e5cf3847af28dddb6b8c6cc9ca2340af1de9e7690aa5c8390573777ce"
+  },
+  "rootCausesAndRepairs": [
+    "A genuinely truncated native HTTP transfer can report code 4 with PipelineStatus::PIPELINE_ERROR_READ, not NETWORK_ERR. Retry that exact observed read failure inside the unchanged two-reload, 20-second active-scroll budget; generic unsupported/decode errors still fail closed.",
+    "Cold metadata can reset a prematurely assigned seek or correct its fallback duration. Scroll-only seeks now wait for metadata and follow the corrected authored pose; legacy non-scroll fallback behavior remains unchanged.",
+    "A healthy five-second first-byte response was cancelled by four-second preparation inactivity. The first scroll preparation now shares the existing six-second response grace, without increasing its one-reload or 19-second outer deadline.",
+    "All sixteen scene surfaces received unchanged scrollTop writes on ordinary scroll/media frames. Cache only the owned offset, and reassert it on role or measured-offset changes. The fixed twenty-sample unit comparison removes 320 redundant writes."
+  ],
+  "originalStandards": {
+    "nativeRecoveryDeadlineMs": 20000,
+    "maximumActiveReloads": 2,
+    "preparationDeadlineMs": 19000,
+    "maximumPreparationReloads": 1,
+    "visualChannelThreshold": 24,
+    "visualMaxChangedFraction": 0.005,
+    "visualMinimumInkPixels": 100,
+    "visualCompositorRafs": 2,
+    "scrollDurationMs": 10000,
+    "scrollPrepareDeadlineMs": 25000,
+    "scrollRafP95Ms": 20,
+    "scrollPoseLagP95Ms": 100,
+    "scrollConvergenceMs": 150,
+    "scrollLongTaskThresholdMs": 50,
+    "scrollAllowedLongTasks": 0,
+    "requiredFormalMemoryRuns": 2,
+    "browserTreeRssLimitBytes": 1500000000
+  },
+  "localSourceComparison": {
+    "identity": "Ordinary dirty build; not frozen publication qualification. Native fixtures bind the exact driver source and compiler bytes independently.",
+    "initialZero": {"attempted": 6, "candidatePassed": 3, "v70Passed": 1, "candidateRepeatedStallReadyMs": [12237.4, 12212.4], "healthyFiveSecondExtraReloads": 0},
+    "nativeReverse": {"attempted": 16, "candidatePassed": 8, "v70Passed": 2, "candidatePhysicalReadyWithinOriginalDeadline": 8},
+    "tradeoff": "The single-stall control takes about 6.2s versus 4.5s in v70; preserving healthy first-response grace is not free. Both remain inside the original 20s deadline.",
+    "visual": {"attempted": 12, "passed": 12, "maxChangedFraction": 0},
+    "cold": {"attempted": 40, "passed": 40, "candidateReady": 20, "v70Ready": 20},
+    "transport": "Byte-identical local asset/CDN remapping, not public-network qualification or an exclusive CDN/proxy root-cause claim.",
+    "scroll": {
+      "attempted": 32,
+      "passed": 0,
+      "failed": 32,
+      "browserErrors": 0,
+      "desktopTaskSeconds": {"v70": 12.120554, "candidate": 11.252113},
+      "phoneTaskSeconds": {"candidate": 20.726401, "v70": 14.544487},
+      "interpretation": "Desktop task cost decreased in this cohort; phone cost and several pose lags worsened. Blank active-scroll P95 changed from 50ms desktop to 34.4ms phone. Do not claim a stable overall scrolling improvement from this sweep.",
+      "phoneCounterbalancedFollowup": {"attempted": 16, "passed": 0, "v70TaskSeconds": 13.821313, "candidateTaskSeconds": 14.166017, "interpretation": "Reversing the order did not reproduce the original 42% task-cost gap; this cohort differs by about 2.5%, not proof of a stable phone speedup. All original and follow-up FPS failures remain failed."}
+    }
+  },
+  "automatedChecks": {"unit": {"passed": 1880, "failed": 0, "pending": 0, "originalTimeoutsUnchanged": true}, "lint": "passed", "typecheck": "passed", "buildAndOriginalBudgets": "passed ordinary build", "initialPublicationGuardTests": {"passed": 13}, "nativePublicationTests": {"passed": 32}},
+  "priorFailuresRetained": ["Earlier whole-suite architecture timeouts", "Earlier legacy PhoneCrane regression, subsequently fixed with the original test unchanged", "Earlier native fixture and healthy-response failures", "The original v72 cold and traversal failures", "The original 32/32 failed v73 scroll observations"],
+  "pending": ["Clean tagged frozen artifact checks", "Exact public-test authorization sealing", "Public replacement and retest", "Formal memory and physical-device qualification"],
+  "cleanup": {"priorV72TrashPermanentlyDeleted": true, "priorDeletedBlocksKiB": 2144572, "currentRoundRawEvidence": "Retained until validation/publication ends; then remove task-owned screenshots and raw logs as requested, keeping compact honest results in Git."}
+}

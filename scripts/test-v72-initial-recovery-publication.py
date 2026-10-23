@@ -83,5 +83,22 @@ class InitialRecoveryPublicationTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.validate()
 
 
+class V73InitialRecoveryPublicationTests(InitialRecoveryPublicationTests):
+    def setUp(self):
+        super().setUp()
+        for row in self.report['rows']:
+            row['trial'] = row['trial'].replace('v72/', 'v73/')
+
+    def validate(self):
+        publication.validate_v72_initial_recovery(self.root, self.report, self.compiled, 'v73')
+
+    def test_v72_or_future_user_instruction_cannot_authorize_v73(self):
+        for version in ['v73', 'v74']:
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'exact unchanged user instruction'):
+                publication.validate_v72_recovery(self.root, {
+                    'userInstruction': 'publish anything', 'doesNotGrantPassingQualification': True,
+                    'doesNotAuthorizeFutureCandidates': True}, version)
+
+
 if __name__ == '__main__':
     unittest.main()

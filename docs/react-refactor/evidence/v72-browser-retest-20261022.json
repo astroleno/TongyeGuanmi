@@ -603,7 +603,7 @@
   "cleanup": {
     "requestedByUser": true,
     "summaryAndFailuresOnlyRetainedInGit": true,
-    "policy": "move task-owned temporary evidence to Trash; do not touch source or release packages",
+    "policy": "Originally moved only task-owned temporary evidence to Trash. On the user's subsequent explicit instruction, permanently deleted only this exact Trash folder; source, release packages and all other Trash contents were untouched.",
     "newScreenshots": 108,
     "totalScreenshots": 224,
     "hashVerifiedFilesBeforeCleanup": 555,
@@ -619,15 +619,15 @@
     "items": [
       {
         "label": "source-evidence",
-        "status": "moved-to-trash"
+        "status": "permanently-deleted-by-explicit-user-instruction"
       },
       {
         "label": "duplicate-evidence-backup",
-        "status": "moved-to-trash"
+        "status": "permanently-deleted-by-explicit-user-instruction"
       },
       {
         "label": "earlier-recovered-evidence",
-        "status": "moved-to-trash"
+        "status": "permanently-deleted-by-explicit-user-instruction"
       },
       {
         "label": "offline-guard-fixture",
@@ -639,8 +639,10 @@
       }
     ],
     "complete": true,
-    "recoverable": true,
+    "recoverable": false,
     "trashFolder": "tongye-v72-verification-20261022-AQXPl5",
-    "diskSpaceReleased": false
+    "diskSpaceReleased": true,
+    "confirmedAbsentOn": "2026-10-23",
+    "deletedDiskBlocksKiBBeforeRemoval": 2144572
   }
 }

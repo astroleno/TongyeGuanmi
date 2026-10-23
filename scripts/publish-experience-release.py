@@ -49,6 +49,8 @@ V69_SCRUB_AUTH_SHA = 'c03324b007b7f9775b4b4f9966bec6918c35fd44602609149e8ede153b
 V70_CALLBACK_AUTH_SHA = '5e011218bfd8871a349f6433643f06862d212f4e5b13fc778f8a22e0a0a52000'
 # Populated only after the exact v72 reports and explicit user instruction are sealed.
 V72_RECOVERY_AUTH_SHA = '0000000000000000000000000000000000000000000000000000000000000000'
+# A separate exact receipt is required for v73; v72 remains unsealed/failed.
+V73_RECOVERY_AUTH_SHA = None
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {
@@ -709,7 +711,7 @@ def validate_image_recovery(package, receipt):
             raise ValueError('baseline failed-image reproduction is missing')
 
 
-def validate_v72_initial_recovery(package, initial, compiled):
+def validate_v72_initial_recovery(package, initial, compiled, candidate_version='v72'):
     """The original initial-zero transfer deadline and physical-frame proof."""
     initial_rows = initial.get('rows', [])
     initial_cases = [('aod', 'body', 2), ('figure2', 'body', 2), ('aod', 'slow', 0)]
@@ -720,7 +722,7 @@ def validate_v72_initial_recovery(package, initial, compiled):
         raise ValueError('all six native initial-frame comparisons are required')
     for asset, mode, faults in initial_cases:
         for version in ['v70', 'candidate']:
-            rows = [r for r in initial_rows if r.get('trial') == f'v72/initial-{asset}-{mode}-{version}']
+            rows = [r for r in initial_rows if r.get('trial') == f'{candidate_version}/initial-{asset}-{mode}-{version}']
             if len(rows) != 1:
                 raise ValueError('missing initial-frame comparison')
             row = rows[0]
@@ -748,24 +750,30 @@ def validate_v72_initial_recovery(package, initial, compiled):
             checked_file(package / 'evidence', row['screenshot'])
 
 
-def validate_v72_recovery(package, receipt):
-    """Exact v72 relative public test only; no failing observation becomes qualified."""
-    if (receipt.get('userInstruction') != '把浏览器报告和截图重新补齐，不要放宽验收标准，失败项如实保留。确认比 v70 好就 commit push 到 main，再更新公网复测。'
+def validate_v72_recovery(package, receipt, candidate_version='v72'):
+    """Pinned recovery comparisons only; no failing observation becomes qualified."""
+    instructions = {
+        'v72': '把浏览器报告和截图重新补齐，不要放宽验收标准，失败项如实保留。确认比 v70 好就 commit push 到 main，再更新公网复测。',
+        'v73': '允许重建专用验收组，继续补齐冷加载、视觉和滚动复测，不要放宽标准，失败项如实保留。确认比 v70 好就 commit push 到 main，再更新公网复测。',
+    }
+    sources = {'v72': 'd68efda4552047a80849a10f9a91abe3a11cd5c11d69eceee0fcc107cfd31eac',
+               'v73': '707abbd4a3f959e68019c521b29ea870b8bb6703006e612b860c8949a78b0c33'}
+    if (candidate_version not in instructions or receipt.get('userInstruction') != instructions[candidate_version]
             or receipt.get('doesNotGrantPassingQualification') is not True
             or receipt.get('doesNotAuthorizeFutureCandidates') is not True):
-        raise ValueError('v72 needs the explicit unchanged user instruction and retained qualification gaps')
+        raise ValueError('recovery publication needs the exact unchanged user instruction and retained qualification gaps')
     load = lambda key: json.loads(read_regular(package, receipt['evidence'][key]['path']))
     same_identity = lambda actual, expected: all(actual.get(k) == v for k, v in expected.items())
     binding = load('nativeBinding')
     expected_sources = {'v70': '6f1b9027df1e6cf95843a9b01c7062c576e57a74cc8e3f518d61a77dcb663e15',
-                        'candidate': 'd68efda4552047a80849a10f9a91abe3a11cd5c11d69eceee0fcc107cfd31eac'}
+                        'candidate': sources[candidate_version]}
     if (binding.get('passed') is not True or len(binding.get('rows', [])) != 2
             or {r.get('version') for r in binding['rows']} != set(expected_sources)
             or any(r.get('sourceSha256') != expected_sources[r['version']] or r.get('exactMatch') is not True
                    or r.get('compiledSha256') != r.get('servedSha256') for r in binding['rows'])):
                 raise ValueError('native media proof must bind freshly compiled exact v70/v72 source bytes')
     compiled = {r['version']: r['compiledSha256'] for r in binding['rows']}
-    validate_v72_initial_recovery(package, load('initialRecovery'), compiled)
+    validate_v72_initial_recovery(package, load('initialRecovery'), compiled, candidate_version)
     native = load('nativeRecovery')
     trials = native.get('results', [])
     pairs = [('flock', 'empty', 2), ('figure2', 'empty', 2), ('flock', 'slow', 0), ('figure2', 'slow', 0),
@@ -777,7 +785,7 @@ def validate_v72_recovery(package, receipt):
                      'figure2': '4366350bbe7c6b1517fa042937bcf7f61b7b8190cece2a50ac59ba8a80511fe6'}
     for index, (asset, mode, faults) in enumerate(pairs, 1):
         for version in ['v70', 'candidate']:
-            rows = [r for r in trials if r.get('trial') == f'v72/native-{index}-{asset}-{version}']
+            rows = [r for r in trials if r.get('trial') == f'{candidate_version}/native-{index}-{asset}-{version}']
             if len(rows) != 1:
                 raise ValueError('missing counterbalanced native trial')
             row = rows[0]
@@ -876,7 +884,7 @@ def validate_v72_recovery(package, receipt):
 
 
 def validate_direct_publication(package, deploy, manifest, manifest_bytes, authorization_sha):
-    if not authorization_sha or authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA, V70_CALLBACK_AUTH_SHA, V72_RECOVERY_AUTH_SHA]:
+    if not authorization_sha or authorization_sha not in [V59_DIRECT_AUTH_SHA, V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA, V70_CALLBACK_AUTH_SHA, V72_RECOVERY_AUTH_SHA, V73_RECOVERY_AUTH_SHA]:
         raise ValueError('direct publication requires the exact user-directed v59 receipt, v60 public-test receipt, sealed v63 relative receipt, or sealed v64 receiver-repair receipt')
     receipt_bytes = read_regular(package, DIRECT_AUTH_PATH)
     if digest(receipt_bytes) != authorization_sha:
@@ -894,7 +902,7 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
     for item in receipt['evidence'].values():
         checked_file(package, item)
     memory = json.loads(read_regular(package / 'site', 'r5-process-memory.json'))
-    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA, V70_CALLBACK_AUTH_SHA, V72_RECOVERY_AUTH_SHA]:
+    if authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA, V70_CALLBACK_AUTH_SHA, V72_RECOVERY_AUTH_SHA, V73_RECOVERY_AUTH_SHA]:
         # A declaration of missing evidence is not a synthetic measurement and
         # can never satisfy validate_memory or the default qualified path.
         expected = {'schemaVersion': 1, 'kind': 'r5-unmeasured-process-memory', 'status': 'not-measured',
@@ -922,6 +930,8 @@ def validate_direct_publication(package, deploy, manifest, manifest_bytes, autho
             validate_callback_cost_recovery(package, receipt)
         if authorization_sha == V72_RECOVERY_AUTH_SHA:
             validate_v72_recovery(package, receipt)
+        if authorization_sha == V73_RECOVERY_AUTH_SHA:
+            validate_v72_recovery(package, receipt, 'v73')
         return receipt
     if (memory.get('pass') is not False or memory.get('completedRunCount') != 2
             or memory.get('identity') != receipt['identity'] or len(memory.get('runs', [])) != 2
@@ -964,7 +974,7 @@ def validate_package(package, authorization_sha=None):
         if deploy.get('publicationAuthorization') is not None:
             raise ValueError('direct publication requires its explicit authorization SHA')
         validate_memory(memory)
-    expected_run_count = 0 if authorization_sha is not None and authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA, V70_CALLBACK_AUTH_SHA, V72_RECOVERY_AUTH_SHA] else 2
+    expected_run_count = 0 if authorization_sha is not None and authorization_sha in [V60_PUBLIC_TEST_AUTH_SHA, V63_RELATIVE_AUTH_SHA, V64_RECEIVER_AUTH_SHA, V65_IMAGE_AUTH_SHA, V67_LOADING_AUTH_SHA, V68_PH_AUTH_SHA, V69_SCRUB_AUTH_SHA, V70_CALLBACK_AUTH_SHA, V72_RECOVERY_AUTH_SHA, V73_RECOVERY_AUTH_SHA] else 2
     if digest(memory_bytes) != evidence.get('sha256') or memory.get('pass') is not (authorization_sha is None) or memory.get('completedRunCount') != expected_run_count or memory.get('identity') != evidence.get('identity'):
         raise ValueError('memory evidence identity mismatch')
     for field in ['sourceCommit', 'candidateTagObject', 'candidate', 'artifactTreeSha256']:
