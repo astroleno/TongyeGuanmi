@@ -4,14 +4,14 @@
   "baseline": "v70",
   "userInstruction": "允许重建专用验收组，继续补齐冷加载、视觉和滚动复测，不要放宽标准，失败项如实保留。确认比 v70 好就 commit push 到 main，再更新公网复测。",
   "releaseQualified": false,
-  "publiclyDeployed": false,
+  "publiclyDeployed": true,
   "storageIncident": {
     "failure": "ENOSPC while saving frozen cold attempt 14",
     "originalReportPreserved": "13 persisted rows; the interrupted attempt is not promoted to a pass",
     "recovery": "Resumed only the missing matrix cases in a new report, using the same frozen bytes and original deadlines. Later report writes use atomic replacement.",
     "duplicateScreenshotsCoalesced": 307,
     "duplicateLogicalBytes": 150431520,
-    "allScreenshotNamesAndBytesPreserved": true,
+    "allScreenshotNamesAndBytesPreservedDuringCoalescing": true,
     "unrelatedFilesOrOldReleasesRemoved": false,
     "resumedMatrixReady": 40
   },
@@ -1671,15 +1671,45 @@
     "The original 32/32 failed v73 scroll observations"
   ],
   "pending": [
-    "Seal exact authorization and publish",
-    "Public replacement and retest",
+    "Public crane cold-loading deadline remains unresolved; retained as a failure",
     "Original scroll performance gates remain failed",
-    "Formal memory and physical-device qualification"
+    "Post-reboot screenshot collection remains incomplete: native capture and JavaScript observation timed out; failed attempts are retained",
+    "Post-reboot deployment-preflight subprocess checks timed out under their unchanged original five-second limits",
+    "Formal two-run process memory remains unmeasured, 0/2",
+    "Physical iOS and Android remain unmeasured"
   ],
   "cleanup": {
     "priorV72TrashPermanentlyDeleted": true,
     "priorDeletedBlocksKiB": 2144572,
-    "currentRoundRawEvidence": "Retained until validation/publication ends; then remove task-owned screenshots and raw logs as requested, keeping compact honest results in Git."
+    "currentRoundRawEvidence": "Current-round local and remote raw validation materials permanently deleted after compacting and checking the failed results. Source/site/CDN files, release manifests, publication authorization and operational rollback receipts remain intact.",
+    "currentRoundCleanupVerified": true,
+    "localRootsRemoved": 16,
+    "localFilesRemoved": 329,
+    "localLogicalBytesRemoved": 160825667,
+    "localPrimaryRootsRemoved": [
+      "/var/tmp/tongye-v73-public-20261023-vUHN8p",
+      "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/.release/r5-dd2c6cd-public-test/evidence"
+    ],
+    "generatedFixtureRootsRemoved": {
+      "nodePreflight": 11,
+      "pythonPreflight": 3,
+      "selection": "Exact directories from the two recorded post-reboot test runs; ownership, synthetic transport stubs/vhost identities and contained symlinks checked before removal"
+    },
+    "remoteRootsRemoved": [
+      "/tmp/tongye-experience-r5-dd2c6cd-FioTd9/evidence",
+      "/tmp/tongye-v73-nginx-fixture-7M5O8T"
+    ],
+    "remoteAllocatedKiBBeforeDeletion": {
+      "rawEvidence": 784832,
+      "nginxFixture": 264
+    },
+    "rawFilesMovedToTrash": false,
+    "historicalRawScreenshotsRecoverableFromTheseLocations": false,
+    "actualFreedDiskBytesNotClaimed": true,
+    "siteCdnAndAuthorizationPreservedLocally": true,
+    "rollbackTransactionSha256BeforeAndAfter": "0333ea38ee3b870fa478103bcc5638950aeb44e96e0a1afa29e07510c30699a7",
+    "vhostIncludeAndRootCurrentUnchangedAfterRemoteCleanup": true,
+    "republishingLimitation": "Removed raw screenshots and sample logs cannot be used for a new publication check. Regenerate complete evidence before any future qualification; do not infer a passing gate from this compact summary."
   },
   "frozen": {
     "identity": {
@@ -3613,5 +3643,2883 @@
     "sha256": "e06eb3f0d08b6477a4e1742291cc603a5872068298730c590ab199d36e86a976",
     "doesNotGrantPassingQualification": true,
     "doesNotAuthorizeFutureCandidates": true
+  },
+  "publicRetest": {
+    "url": "https://tongye.me/experience/",
+    "transport": "actual public https://tongye.me/experience/; no CDN remapping",
+    "releaseQualified": false,
+    "functional": [
+      {
+        "platform": "desktop",
+        "passed": true,
+        "points": 121,
+        "passedPoints": 121,
+        "unexecutedPoints": 0,
+        "aliases": 3,
+        "interactions": 5,
+        "errors": [],
+        "failure": null,
+        "failedPoints": [],
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "sourceDirty": false,
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        }
+      },
+      {
+        "platform": "phone",
+        "passed": true,
+        "points": 121,
+        "passedPoints": 121,
+        "unexecutedPoints": 0,
+        "aliases": 3,
+        "interactions": 6,
+        "errors": [],
+        "failure": null,
+        "failedPoints": [],
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "sourceDirty": false,
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        }
+      }
+    ],
+    "visual": [
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "hold:hero",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 1278570,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "hero-pattern",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 1273087,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "pattern-star-map",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 116477,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "method-bottom-figure2",
+          "progress": 0.75
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 1295961,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "crane-contact",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 15497,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "figure3-services",
+          "progress": 0.75
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 38237,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "hold:hero",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 326535,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "hero-pattern",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 323700,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "pattern-star-map",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 50914,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "method-bottom-figure2",
+          "progress": 0.75
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 325648,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "crane-contact",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 3872,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "figure3-services",
+          "progress": 0.75
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 11844,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      }
+    ],
+    "cold": [
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "hero-pattern",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 7283,
+        "poseMs": 9066,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "method-bottom-figure2",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 7189,
+        "poseMs": 5845,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "brand-figure3",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 7851,
+        "poseMs": 1810,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "education-crane",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 7373,
+        "poseMs": 10685,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "crane-contact",
+        "version": "candidate",
+        "ready": false,
+        "passed": false,
+        "entryMs": 11818,
+        "failure": "Error: JavaScript evaluation failed at line 5, column 11: Error: memory checkpoint failed: Frame deadline for scroll:8\n    at isScrollMemoryPoseReady (<anonymous>:5:11)\n    at __egoPageEvaluate (<anonymous>:12:3)\n    at <anonymous>:13:9; expression: function isScrollMemoryPoseReady(point) {\\n  const state = window.__r5ScrollStory?.snapshot();\\n  if (state?.view.status === 'failed') {\\n    throw new Error...",
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "hero-pattern",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 9668,
+        "poseMs": 19565,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "method-bottom-figure2",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 8725,
+        "poseMs": 6950,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "brand-figure3",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 9200,
+        "poseMs": 3230,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "education-crane",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 8519,
+        "poseMs": 6391,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "crane-contact",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 9124,
+        "poseMs": 8285,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "hero-pattern",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 10152,
+        "poseMs": 12691,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "method-bottom-figure2",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 9315,
+        "poseMs": 5261,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "brand-figure3",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 9141,
+        "poseMs": 6724,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "education-crane",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 10982,
+        "poseMs": 7414,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      }
+    ],
+    "scroll": [
+      {
+        "label": "public-reboot-scroll-v2-desktop",
+        "platform": "desktop",
+        "source": {
+          "name": "public-reboot-scroll-v2-desktop.json",
+          "bytes": 870245,
+          "sha256": "8fdecc5fddd797a52bdce8bcf2ceba75fba6ed7aeb3329a8b4df94c73d9746aa"
+        },
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "sourceDirty": false,
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "identityAfter": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "sourceDirty": false,
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900,
+          "dpr": 1
+        },
+        "documentTimeOrigin": 1792735732025.2,
+        "measurementSha256": "0a56f7b0ee841a1e6fa4ebcc55138f92d75b93ed10dd7b97827920582d69ab4d",
+        "originalThresholds": {
+          "durationMs": 10000,
+          "preparationMs": 25000,
+          "rafP95Ms": 20,
+          "poseLagP95Ms": 100,
+          "convergenceMs": 150,
+          "longTaskLimitMs": 50,
+          "allowedLongTasks": 0
+        },
+        "environment": {
+          "sharedBrowser": true,
+          "syntheticNativeScroll": true,
+          "physicalDevice": false,
+          "powerSettingsChanged": false,
+          "osRelease": "24.6.0",
+          "loadAtStart": [
+            47.8896484375,
+            72.73046875,
+            64.44677734375
+          ],
+          "pollingMs": 250
+        },
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+        "measured": 8,
+        "passed": 0,
+        "failed": 8,
+        "releaseQualified": false,
+        "browserVersion": null,
+        "browserVersionUnavailable": "Error: 'Browser.getVersion' wasn't found",
+        "observedRuntimeErrors": [],
+        "externalBrowserErrors": [
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 1,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.1",
+                  "preview": {
+                    "type": "object",
+                    "subtype": "error",
+                    "description": "Error: Access to storage is not allowed from this context.",
+                    "overflow": false,
+                    "properties": [
+                      {
+                        "name": "stack",
+                        "type": "string",
+                        "value": "Error: Access to storage is not allowed from this context."
+                      },
+                      {
+                        "name": "message",
+                        "type": "string",
+                        "value": "Access to storage is not allowed from this context."
+                      }
+                    ]
+                  }
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 2,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.2",
+                  "preview": {
+                    "type": "object",
+                    "subtype": "error",
+                    "description": "Error: Access to storage is not allowed from this context.",
+                    "overflow": false,
+                    "properties": [
+                      {
+                        "name": "stack",
+                        "type": "string",
+                        "value": "Error: Access to storage is not allowed from this context."
+                      },
+                      {
+                        "name": "message",
+                        "type": "string",
+                        "value": "Access to storage is not allowed from this context."
+                      }
+                    ]
+                  }
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 3,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.3",
+                  "preview": {
+                    "type": "object",
+                    "subtype": "error",
+                    "description": "Error: Access to storage is not allowed from this context.",
+                    "overflow": false,
+                    "properties": [
+                      {
+                        "name": "stack",
+                        "type": "string",
+                        "value": "Error: Access to storage is not allowed from this context."
+                      },
+                      {
+                        "name": "message",
+                        "type": "string",
+                        "value": "Access to storage is not allowed from this context."
+                      }
+                    ]
+                  }
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 4,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.4",
+                  "preview": {
+                    "type": "object",
+                    "subtype": "error",
+                    "description": "Error: Access to storage is not allowed from this context.",
+                    "overflow": false,
+                    "properties": [
+                      {
+                        "name": "stack",
+                        "type": "string",
+                        "value": "Error: Access to storage is not allowed from this context."
+                      },
+                      {
+                        "name": "message",
+                        "type": "string",
+                        "value": "Access to storage is not allowed from this context."
+                      }
+                    ]
+                  }
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 1,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.1"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 2,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.2"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 3,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.3"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 4,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.4"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 1,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.1"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 2,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.2"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 3,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.3"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 4,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.4"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 1,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.1"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 2,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.2"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 3,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.3"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 4,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-1375940724234911365.15.4"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          }
+        ],
+        "collectionFailures": [
+          {
+            "indexes": [
+              0,
+              1
+            ],
+            "error": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "timestamp": "2026-10-23T06:09:45.102Z"
+          }
+        ],
+        "captureFailures": [
+          {
+            "segment": "aod-method-top",
+            "failure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot"
+          },
+          {
+            "segment": "figure2-distance-expand",
+            "failure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot"
+          },
+          {
+            "segment": "figure3-services",
+            "failure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot"
+          },
+          {
+            "segment": "ttg-lab",
+            "failure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot"
+          },
+          {
+            "segment": "ph-education",
+            "failure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot"
+          },
+          {
+            "segment": "crane-contact",
+            "failure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot"
+          }
+        ],
+        "results": [
+          {
+            "id": "hero-pattern",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "longTasks"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": true,
+              "longTasks": false,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 99.89999999999964,
+              "poseLagP95": 1448.5596707818922,
+              "documentPoseLagP95": 1514.4032921810694,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 1
+            },
+            "convergenceMs": 34.89999999990687,
+            "sampleCount": 141,
+            "lastSampleMs": 10015.9,
+            "resources": {
+              "videos": 1,
+              "canvases": 3
+            },
+            "browserWork": {
+              "LayoutCount": 2,
+              "RecalcStyleCount": 476,
+              "LayoutDuration": 0.001252999999999999,
+              "RecalcStyleDuration": 0.27785099999999996,
+              "ScriptDuration": 0.48111800000000005,
+              "TaskDuration": 1.5782759999999998
+            },
+            "screenshotFailure": null,
+            "screenshot": {
+              "name": "public-reboot-scroll-v2-desktop-hero-pattern.png",
+              "bytes": 1624910,
+              "sha256": "fc0c067f7bfd9122307bac71c191c95c2178b51b7dded09879f29066052af89b",
+              "width": 1440,
+              "height": 900
+            },
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "pattern-star-map",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": true,
+              "convergence": true,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 83.40000000000146,
+              "poseLagP95": 0,
+              "documentPoseLagP95": 86.41975308642063,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33,
+            "sampleCount": 184,
+            "lastSampleMs": 10016.599999999999,
+            "resources": {
+              "videos": 0,
+              "canvases": 3
+            },
+            "browserWork": null,
+            "browserWorkUnavailable": "Node round ended after screenshot timeout; do not reconstruct its CDP task deltas",
+            "originalScreenshotFailure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "screenshotFailure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": true
+          },
+          {
+            "id": "aod-method-top",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7000000000116,
+              "poseLagP95": 2017.094017094017,
+              "documentPoseLagP95": 3034.1880341880337,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 2015.3999999999069,
+            "sampleCount": 11,
+            "lastSampleMs": 10116.700000000012,
+            "resources": {
+              "videos": 1,
+              "canvases": 2
+            },
+            "browserWork": {
+              "LayoutCount": 2,
+              "RecalcStyleCount": 34,
+              "LayoutDuration": 0.0015410000000000003,
+              "RecalcStyleDuration": 0.057512999999999995,
+              "ScriptDuration": 0.09412599999999999,
+              "TaskDuration": 0.30593500000000007
+            },
+            "screenshotFailure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "figure2-distance-expand",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7999999999884,
+              "poseLagP95": 2032.520325203252,
+              "documentPoseLagP95": 3051.490514905149,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 2013,
+            "sampleCount": 11,
+            "lastSampleMs": 10100,
+            "resources": {
+              "videos": 1,
+              "canvases": 2
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 43,
+              "LayoutDuration": 0.0003630000000000005,
+              "RecalcStyleDuration": 0.052823999999999996,
+              "ScriptDuration": 0.05896300000000004,
+              "TaskDuration": 0.2830809999999999
+            },
+            "screenshotFailure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "figure3-services",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7000000000116,
+              "poseLagP95": 2034.1880341880335,
+              "documentPoseLagP95": 3034.1880341880337,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 2015,
+            "sampleCount": 11,
+            "lastSampleMs": 10099.099999999977,
+            "resources": {
+              "videos": 1,
+              "canvases": 0
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 34,
+              "LayoutDuration": 0.0002850000000000001,
+              "RecalcStyleDuration": 0.045064,
+              "ScriptDuration": 0.06573299999999999,
+              "TaskDuration": 0.23049999999999998
+            },
+            "screenshotFailure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "ttg-lab",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1017.1000000000349,
+              "poseLagP95": 2000,
+              "documentPoseLagP95": 3017.9211469534057,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 2011.7000000001863,
+            "sampleCount": 11,
+            "lastSampleMs": 10100.599999999977,
+            "resources": {
+              "videos": 1,
+              "canvases": 0
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 35,
+              "LayoutDuration": 0.00015799999999999972,
+              "RecalcStyleDuration": 0.057224000000000004,
+              "ScriptDuration": 0.09430100000000002,
+              "TaskDuration": 0.275502
+            },
+            "screenshotFailure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "ph-education",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7000000000116,
+              "poseLagP95": 2012.5786163522012,
+              "documentPoseLagP95": 3029.350104821803,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 2011.0999999998603,
+            "sampleCount": 11,
+            "lastSampleMs": 10100,
+            "resources": {
+              "videos": 1,
+              "canvases": 0
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 37,
+              "LayoutDuration": 0.000335,
+              "RecalcStyleDuration": 0.06122799999999999,
+              "ScriptDuration": 0.12035100000000001,
+              "TaskDuration": 0.5011889999999999
+            },
+            "screenshotFailure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "crane-contact",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7999999999302,
+              "poseLagP95": 2014.8148148148146,
+              "documentPoseLagP95": 3037.0370370370374,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 2011.8999999999069,
+            "sampleCount": 11,
+            "lastSampleMs": 10117.5,
+            "resources": {
+              "videos": 2,
+              "canvases": 0
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 35,
+              "LayoutDuration": 0.00018000000000000004,
+              "RecalcStyleDuration": 0.069214,
+              "ScriptDuration": 0.12204899999999999,
+              "TaskDuration": 0.605467
+            },
+            "screenshotFailure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          }
+        ]
+      },
+      {
+        "label": "public-reboot-scroll-v2-phone",
+        "platform": "phone",
+        "source": {
+          "name": "public-reboot-scroll-v2-phone.json",
+          "bytes": 954825,
+          "sha256": "cebcb9632e2b1d576aca3de08fc1c0ee7e7e7227d22694bcc1dba2e4c0a9ee0c"
+        },
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "sourceDirty": false,
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "identityAfter": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "sourceDirty": false,
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "viewport": {
+          "width": 390,
+          "height": 844,
+          "dpr": 1
+        },
+        "documentTimeOrigin": 1792736460394,
+        "measurementSha256": "0a56f7b0ee841a1e6fa4ebcc55138f92d75b93ed10dd7b97827920582d69ab4d",
+        "originalThresholds": {
+          "durationMs": 10000,
+          "preparationMs": 25000,
+          "rafP95Ms": 20,
+          "poseLagP95Ms": 100,
+          "convergenceMs": 150,
+          "longTaskLimitMs": 50,
+          "allowedLongTasks": 0
+        },
+        "environment": {
+          "sharedBrowser": true,
+          "syntheticNativeScroll": true,
+          "physicalDevice": false,
+          "powerSettingsChanged": false,
+          "osRelease": "24.6.0",
+          "loadAtStart": [
+            9.5458984375,
+            18.08056640625,
+            36.47509765625
+          ],
+          "pollingMs": 250
+        },
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+        "measured": 8,
+        "passed": 0,
+        "failed": 8,
+        "releaseQualified": false,
+        "browserVersion": null,
+        "browserVersionUnavailable": "Error: 'Browser.getVersion' wasn't found",
+        "observedRuntimeErrors": [],
+        "externalBrowserErrors": [
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 1,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.1",
+                  "preview": {
+                    "type": "object",
+                    "subtype": "error",
+                    "description": "Error: Access to storage is not allowed from this context.",
+                    "overflow": false,
+                    "properties": [
+                      {
+                        "name": "stack",
+                        "type": "string",
+                        "value": "Error: Access to storage is not allowed from this context."
+                      },
+                      {
+                        "name": "message",
+                        "type": "string",
+                        "value": "Access to storage is not allowed from this context."
+                      }
+                    ]
+                  }
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 2,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.2",
+                  "preview": {
+                    "type": "object",
+                    "subtype": "error",
+                    "description": "Error: Access to storage is not allowed from this context.",
+                    "overflow": false,
+                    "properties": [
+                      {
+                        "name": "stack",
+                        "type": "string",
+                        "value": "Error: Access to storage is not allowed from this context."
+                      },
+                      {
+                        "name": "message",
+                        "type": "string",
+                        "value": "Access to storage is not allowed from this context."
+                      }
+                    ]
+                  }
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 3,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.3",
+                  "preview": {
+                    "type": "object",
+                    "subtype": "error",
+                    "description": "Error: Access to storage is not allowed from this context.",
+                    "overflow": false,
+                    "properties": [
+                      {
+                        "name": "stack",
+                        "type": "string",
+                        "value": "Error: Access to storage is not allowed from this context."
+                      },
+                      {
+                        "name": "message",
+                        "type": "string",
+                        "value": "Access to storage is not allowed from this context."
+                      }
+                    ]
+                  }
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 4,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.4",
+                  "preview": {
+                    "type": "object",
+                    "subtype": "error",
+                    "description": "Error: Access to storage is not allowed from this context.",
+                    "overflow": false,
+                    "properties": [
+                      {
+                        "name": "stack",
+                        "type": "string",
+                        "value": "Error: Access to storage is not allowed from this context."
+                      },
+                      {
+                        "name": "message",
+                        "type": "string",
+                        "value": "Access to storage is not allowed from this context."
+                      }
+                    ]
+                  }
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 1,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.1"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 2,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.2"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 3,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.3"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 4,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.4"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 1,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.1"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 2,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.2"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 3,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.3"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 4,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.4"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 1,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.1"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 2,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.2"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 3,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.3"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          },
+          {
+            "error": {
+              "method": "Runtime.exceptionThrown",
+              "details": {
+                "exceptionId": 4,
+                "text": "Uncaught (in promise)",
+                "lineNumber": 0,
+                "columnNumber": 0,
+                "scriptId": "1",
+                "url": "https://tongye.me/experience/#method",
+                "exception": {
+                  "type": "object",
+                  "subtype": "error",
+                  "className": "Error",
+                  "description": "Error: Access to storage is not allowed from this context.",
+                  "objectId": "-8700553632462137089.15.4"
+                },
+                "executionContextId": 15
+              }
+            },
+            "context": {
+              "id": 15,
+              "origin": "chrome-extension://afpgkkipfdpeaflnpoaffkcankadgjfc",
+              "isDefault": false
+            },
+            "classification": "proven isolated extension world"
+          }
+        ],
+        "collectionFailures": [],
+        "captureFailures": [
+          {
+            "segment": "hero-pattern",
+            "failure": "Error: No native PNG screencast frame received within 5 seconds"
+          },
+          {
+            "segment": "pattern-star-map",
+            "failure": "Error: No native PNG screencast frame received within 5 seconds"
+          },
+          {
+            "segment": "aod-method-top",
+            "failure": "Error: No native PNG screencast frame received within 5 seconds"
+          },
+          {
+            "segment": "figure2-distance-expand",
+            "failure": "Error: No native PNG screencast frame received within 5 seconds"
+          },
+          {
+            "segment": "figure3-services",
+            "failure": "Error: No native PNG screencast frame received within 5 seconds"
+          },
+          {
+            "segment": "ttg-lab",
+            "failure": "Error: No native PNG screencast frame received within 5 seconds"
+          }
+        ],
+        "results": [
+          {
+            "id": "hero-pattern",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7000000000007,
+              "poseLagP95": 1018.0796910654738,
+              "documentPoseLagP95": 2036.1593821309468,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 2031.9000000001397,
+            "sampleCount": 11,
+            "lastSampleMs": 10133.400000000001,
+            "resources": {
+              "videos": 1,
+              "canvases": 4
+            },
+            "browserWork": {
+              "LayoutCount": 3,
+              "RecalcStyleCount": 45,
+              "LayoutDuration": 0.000487,
+              "RecalcStyleDuration": 0.047892,
+              "ScriptDuration": 0.040220000000000006,
+              "TaskDuration": 0.13836400000000004
+            },
+            "screenshotFailure": "Error: No native PNG screencast frame received within 5 seconds",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "pattern-star-map",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": true,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7000000000044,
+              "poseLagP95": 0,
+              "documentPoseLagP95": 2033.9652448657187,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 999.8000000000466,
+            "sampleCount": 11,
+            "lastSampleMs": 10149.099999999999,
+            "resources": {
+              "videos": 0,
+              "canvases": 3
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 34,
+              "LayoutDuration": 0.0001380000000000001,
+              "RecalcStyleDuration": 0.039957000000000006,
+              "ScriptDuration": 0.03600900000000001,
+              "TaskDuration": 0.2018319999999999
+            },
+            "screenshotFailure": "Error: No native PNG screencast frame received within 5 seconds",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "aod-method-top",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence",
+              "longTasks"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": false,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.6999999999971,
+              "poseLagP95": 2032.4462267590234,
+              "documentPoseLagP95": 3044.112285818448,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 1
+            },
+            "convergenceMs": 2030.2999999998137,
+            "sampleCount": 11,
+            "lastSampleMs": 10116.699999999997,
+            "resources": {
+              "videos": 1,
+              "canvases": 2
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 41,
+              "LayoutDuration": 0.00015499999999999997,
+              "RecalcStyleDuration": 0.15444000000000002,
+              "ScriptDuration": 0.192247,
+              "TaskDuration": 0.53
+            },
+            "screenshotFailure": "Error: No native PNG screencast frame received within 5 seconds",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "figure2-distance-expand",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence",
+              "longTasks"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": false,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7000000000116,
+              "poseLagP95": 2017.107848803607,
+              "documentPoseLagP95": 3016.99225523061,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 1
+            },
+            "convergenceMs": 1982.6999999999534,
+            "sampleCount": 11,
+            "lastSampleMs": 10082.300000000003,
+            "resources": {
+              "videos": 1,
+              "canvases": 2
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 58,
+              "LayoutDuration": 0.0002360000000000001,
+              "RecalcStyleDuration": 0.103099,
+              "ScriptDuration": 0.096825,
+              "TaskDuration": 0.338487
+            },
+            "screenshotFailure": "Error: No native PNG screencast frame received within 5 seconds",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "figure3-services",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7000000000116,
+              "poseLagP95": 2032.4462267590216,
+              "documentPoseLagP95": 3034.99817717827,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 2014.7999999998137,
+            "sampleCount": 11,
+            "lastSampleMs": 10132.599999999977,
+            "resources": {
+              "videos": 1,
+              "canvases": 1
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 31,
+              "LayoutDuration": 0.00020200000000000014,
+              "RecalcStyleDuration": 0.083587,
+              "ScriptDuration": 0.09087700000000001,
+              "TaskDuration": 0.267194
+            },
+            "screenshotFailure": "Error: No native PNG screencast frame received within 5 seconds",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "ttg-lab",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": false,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.7000000000116,
+              "poseLagP95": 2033.3282372725891,
+              "documentPoseLagP95": 3034.704173673752,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 2029.3999999999069,
+            "sampleCount": 11,
+            "lastSampleMs": 10100.100000000006,
+            "resources": {
+              "videos": 1,
+              "canvases": 0
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 42,
+              "LayoutDuration": 0.00018900000000000037,
+              "RecalcStyleDuration": 0.09889300000000001,
+              "ScriptDuration": 0.064218,
+              "TaskDuration": 0.25531100000000007
+            },
+            "screenshotFailure": "Error: No native PNG screencast frame received within 5 seconds",
+            "screenshot": null,
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "ph-education",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": true,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1016.6999999999825,
+              "poseLagP95": 2011.9824733971222,
+              "documentPoseLagP95": 3029.1513905034453,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 9.800000000279397,
+            "sampleCount": 14,
+            "lastSampleMs": 10016.600000000035,
+            "resources": {
+              "videos": 1,
+              "canvases": 1
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 33,
+              "LayoutDuration": 0.00039400000000000004,
+              "RecalcStyleDuration": 0.14187999999999998,
+              "ScriptDuration": 0.27090800000000004,
+              "TaskDuration": 0.642343
+            },
+            "screenshotFailure": null,
+            "screenshot": {
+              "name": "public-reboot-scroll-v2-phone-ph-education.png",
+              "bytes": 419344,
+              "sha256": "b12db50fd1dee75846ba3f33a6f4cf3bbec7ad3250e06f7f43fd8177cf80f814",
+              "width": 390,
+              "height": 844
+            },
+            "recoveredOriginalMeasurementWithoutRerun": false
+          },
+          {
+            "id": "crane-contact",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag"
+            ],
+            "unavailable": [],
+            "checks": {
+              "completeVisibleSampling": true,
+              "rafInterval": false,
+              "poseLag": false,
+              "convergence": true,
+              "longTasks": true,
+              "videosPaused": true,
+              "finalPose": true,
+              "fixedViewport": true,
+              "focusedSampling": true
+            },
+            "metrics": {
+              "rafIntervalP95": 1000.7000000000116,
+              "poseLagP95": 1010.59381098411,
+              "documentPoseLagP95": 2014.2180094786743,
+              "sourceFrameErrorSecondsP95": 0.03336700000000015,
+              "requestedFrameLagSecondsP95": 0.16670000000000007,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 75.10000000009313,
+            "sampleCount": 71,
+            "lastSampleMs": 10016.700000000012,
+            "resources": {
+              "videos": 2,
+              "canvases": 2
+            },
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 210,
+              "LayoutDuration": 0.0003259999999999999,
+              "RecalcStyleDuration": 0.644712,
+              "ScriptDuration": 0.635098,
+              "TaskDuration": 1.696822
+            },
+            "screenshotFailure": null,
+            "screenshot": {
+              "name": "public-reboot-scroll-v2-phone-crane-contact.png",
+              "bytes": 422042,
+              "sha256": "36c3fcf9cfffe8bf5b2c65dd0822130af1ca0f5b1ae8d9ae834d09b382ebfd9e",
+              "width": 390,
+              "height": 844
+            },
+            "recoveredOriginalMeasurementWithoutRerun": false
+          }
+        ]
+      }
+    ],
+    "coldTailRecoveredFromToolOutputs": [
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "crane-contact",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "source": "Recorded pre-reboot tool output; original temporary JSON and PNG were lost in the reboot. Timing and wire fields are not reconstructed."
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "hero-pattern",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "source": "Recorded pre-reboot tool output; raw temporary files lost in reboot"
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "method-bottom-figure2",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "source": "Recorded pre-reboot tool output; raw temporary files lost in reboot"
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "brand-figure3",
+        "version": "candidate",
+        "ready": false,
+        "passed": false,
+        "failure": "curl: (16) Error in the HTTP2 framing layer",
+        "failureStage": "Node metadata/identity request, before app navigation",
+        "applicationPoseAttempted": false,
+        "source": "Recorded pre-reboot tool output; raw temporary files lost in reboot"
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "education-crane",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "source": "Recorded pre-reboot tool output; raw temporary files lost in reboot"
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "crane-contact",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "source": "Recorded pre-reboot tool output; raw temporary files lost in reboot"
+      }
+    ],
+    "originalColdSummary": {
+      "observed": 20,
+      "passed": 18,
+      "failed": 2,
+      "permanentRowsSavedBeforeReboot": 14,
+      "tailRowsKnownFromToolOutputs": 6,
+      "rawEvidenceCompleteness": "Original public raw JSON and screenshots were in /tmp and were lost during an unexpected local reboot. The compact pre-reboot rows and recorded tool outcomes remain; no missing timings, samples or screenshots are invented.",
+      "releaseQualified": false
+    },
+    "craneColdFailureDiagnostics": {
+      "platform": "desktop",
+      "trial": 1,
+      "rangeId": "crane-contact",
+      "failure": "Frame deadline for scroll:8",
+      "applicationPreparationDeadlineMs": 19000,
+      "mediaErrorEvents": [],
+      "runtimeErrors": [],
+      "scene": "crane-animation",
+      "target": "contact",
+      "desiredProgress": 0.5,
+      "presented": null,
+      "figure": {
+        "asset": "crane-figure-motion-StyaeB.webm",
+        "readyState": 4,
+        "networkState": 1,
+        "seeking": false,
+        "time": 0,
+        "buffered": [[0, 2.5]],
+        "frameReady": true,
+        "evidence": "decoded-canvas"
+      },
+      "flock": {
+        "asset": "crane-flock-motion-Cxxudu.webm",
+        "readyState": 1,
+        "networkState": 2,
+        "seeking": true,
+        "time": 0.05,
+        "buffered": [[0, 0.252]],
+        "error": null,
+        "frameReady": false,
+        "retryAttributesObserved": false,
+        "responseStatus": 206,
+        "contentRange": "bytes 0-4429169/4429170"
+      },
+      "transportObserved": "Public browser requests used HTTP/1.1 through local proxy 127.0.0.1:7897; TLS setup was about 3 seconds. No browser interception or protocol override was used.",
+      "interpretation": "A genuine silent native seek/partial-stream deadline, unlike the repaired terminal PipelineStatus::PIPELINE_ERROR_READ case. A later original trial passed, but that does not fix or overturn this failure. The snapshot does not establish an exclusive CDN, proxy, disk or application root cause.",
+      "source": "Pre-reboot tool observations; raw report and failure screenshot were lost in the reboot",
+      "resolved": false
+    },
+    "preRebootBrandSupplemental": {
+      "platform": "phone",
+      "rangeId": "brand-figure3",
+      "ready": true,
+      "passed": true,
+      "originalFailureNotReplaced": true,
+      "metadataTransportOnly": "curl --http1.1, same 20-second deadline and exact frozen manifest SHA; browser/CDN transport was not forced or remapped",
+      "source": "Recorded pre-reboot tool output; raw report and screenshot lost in reboot"
+    },
+    "interruptedPreRebootScroll": {
+      "platform": "desktop",
+      "documentTimeOrigin": 1792734232843.3,
+      "observed": 4,
+      "passed": 0,
+      "failed": 4,
+      "unexecuted": 12,
+      "browserErrorsObserved": 0,
+      "source": "Tool outputs only; raw samples, missing convergence values and screenshots were lost in reboot and are not reconstructed",
+      "results": [
+        { "id": "hero-pattern", "passed": false, "rafIntervalP95": 67.60000000000218, "poseLagP95": 995.8847736625512, "documentPoseLagP95": 1078.1893004115225, "over50msTasks": 2, "allVideosPaused": true, "browserTaskSeconds": 2.2540830000000005 },
+        { "id": "pattern-star-map", "passed": false, "rafIntervalP95": 134.20000000000073, "poseLagP95": 0, "documentPoseLagP95": 135.80246913580305, "over50msTasks": 0, "allVideosPaused": true, "browserTaskSeconds": 1.6324640000000006 },
+        { "id": "aod-method-top", "passed": false, "rafIntervalP95": 83.30000000000291, "poseLagP95": 598.290598290599, "documentPoseLagP95": 1017.0940170940167, "over50msTasks": 1, "allVideosPaused": true, "browserTaskSeconds": 2.0020060000000006 },
+        { "id": "figure2-distance-expand", "passed": false, "rafIntervalP95": 82.79999999998836, "poseLagP95": 850.9485094850944, "documentPoseLagP95": 899.7289972899724, "over50msTasks": 0, "allVideosPaused": true, "browserTaskSeconds": 1.8259430000000005 }
+      ]
+    },
+    "rebootInterruption": {
+      "localRebootApproximateLocalTime": "2026-10-23 13:48 Asia/Shanghai",
+      "previousTaskSpace": 24,
+      "previousTaskSpaceConfirmedMissing": true,
+      "previousTemporaryDirectory": "/tmp/tongye-v73-20261022-x0efkW",
+      "temporaryDirectoryClearedBySystem": true,
+      "userAuthorizedReplacementTaskSpace": 6,
+      "newEvidenceDirectory": "/var/tmp/tongye-v73-public-20261023-vUHN8p",
+      "oldFailuresRetained": true,
+      "newScrollCohortDoesNotOverwriteOldFourFailures": true
+    },
+    "storageInterruption": {
+      "failure": "ENOSPC saving public cold attempt 7 screenshot",
+      "persistedColdRows": 6,
+      "originalFailureRetained": true,
+      "missingScreenshotNotBackfilled": true,
+      "secondIncident": "ENOSPC saving public cold attempt 15; 14 previously saved rows were preserved, not truncated",
+      "historicalPrepublicationPngCleanup": {
+        "localFilePathsRemoved": 1828,
+        "logicalBytesRemoved": 1297445596,
+        "scope": "914 prepublication temporary PNG paths and their 914 sealed local package evidence copies, after byte/size/SHA verification. Public screenshots, source, site/CDN files and rollback receipts were not selected.",
+        "notAnActualUniqueDiskBytesClaim": true
+      }
+    }
+  },
+  "deployment": {
+    "url": "https://tongye.me/experience/",
+    "releaseId": "r5-dd2c6cd",
+    "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+    "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da",
+    "transactionToken": "659f077a32e84c3b8a3cd0b57b75eba9",
+    "state": "applied-http-verified",
+    "mode": "user-directed-with-known-validation-gaps",
+    "qualificationStatus": "pending-memory",
+    "verifiedAt": "2026-10-23T05:01:34.242998+00:00",
+    "publicHttpChecksPassed": 989,
+    "isolatedActualHostProbeChecksPassed": 989,
+    "cdnObjectsVerified": 63,
+    "rootCurrentUnchanged": "/www/wwwroot/tongye.me/releases/r5-ef69e06",
+    "vhostSha256": "5fc2a3d75a64b7c7a838414ccecefbd2bd5cd3ce2255e7bd02342e990b859257",
+    "beforeIncludeSha256": "d11780dfd3171756802ed92426cc380da6ba74872ee40b8fd0598cdabe9b2ecd",
+    "afterIncludeSha256": "812e8ee9a1ab65c812198227b8bf49b32aff65e8cad4e11d4fa470fb9660a1fd",
+    "rollbackOperationalRecordsPreserved": "/www/wwwroot/tongye.me/route-backups/native-r5-dd2c6cd",
+    "postRebootReadOnlyVerification": "Exact public manifest SHA, server transaction state, vhost/include SHA and unchanged root current path rechecked on 2026-10-23"
+  },
+  "postRebootSupplemental": {
+    "timestamp": "2026-10-23T06:50:33.829Z",
+    "taskSpaceId": 6,
+    "browser": "ego-lite, shared existing browser; no browser installed",
+    "collectionOutcome": "All 16 requested public scroll observations recorded; native screenshot collection remains incomplete and failed measurements remain failed",
+    "scrollSummary": {
+      "measured": 16,
+      "passed": 0,
+      "failed": 16,
+      "noStableApplicationSpeedupClaim": true,
+      "originalFourPreRebootFailuresStillRetainedSeparately": true
+    },
+    "blankControls": {
+      "initial": {
+        "source": {
+          "name": "public-reboot-blank-control.json",
+          "bytes": 31112,
+          "sha256": "6705afb324bc9e9bfd34fb84de60a6c9509f4de933f5f6aaca0a3d395a352fbd"
+        },
+        "rows": [
+          {
+            "name": "idle",
+            "rafIntervalP95": 17.69999999999891
+          },
+          {
+            "name": "active-native-scroll",
+            "rafIntervalP95": 50.099999999998545
+          }
+        ]
+      },
+      "afterScreenshotTimeouts": {
+        "source": {
+          "name": "public-reboot-capture-control.json",
+          "bytes": 1621,
+          "sha256": "170457a81610ef82ec4ac753f3f4cf9df881102734351cd4417110e95b3699e5"
+        },
+        "activeBlankRafP95": 1016.6999999999998,
+        "visible": true,
+        "focused": true,
+        "viewport": {
+          "width": 1440,
+          "height": 900,
+          "dpr": 1
+        },
+        "nativePng": {
+          "name": "public-reboot-screencast-crane.png",
+          "bytes": 1741814,
+          "sha256": "ad255b874d580ff2b416fef48a9b8976ad21be3d7fa4044d7e4e6c3cd0cb6409",
+          "width": 1440,
+          "height": 900
+        }
+      },
+      "interpretation": "About one-second RAF intervals also occurred after navigating this same owned Page to a blank document with the application removed. This proves a shared scheduling/capture bottleneck in this cohort, not that the site has no performance problems or that the original 20ms gate may be waived.",
+      "lowPowerMode": {
+        "battery": 0,
+        "ac": 1,
+        "source": "read-only pmset -g custom",
+        "changed": false
+      }
+    },
+    "coldFollowups": [
+      {
+        "label": "public-reboot-crane-supplemental",
+        "platform": "desktop",
+        "rangeId": "crane-contact",
+        "timestamp": "2026-10-23T06:26:51.338Z",
+        "source": {
+          "name": "public-reboot-crane-supplemental.json",
+          "bytes": 225889,
+          "sha256": "ae2085576a6b210421454cce29624cb63349dfc3c28b280b1a3ec03798bd3405"
+        },
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "sourceDirty": false,
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "identityAfter": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "sourceDirty": false,
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "originalDeadlinesMs": {
+          "navigation": 30000,
+          "ready": 30000,
+          "prepare": 25000
+        },
+        "ready": true,
+        "measurementPassed": true,
+        "evidenceComplete": false,
+        "completeCasePassed": false,
+        "entryMs": 24514,
+        "poseMs": 14929,
+        "failure": null,
+        "screenshotFailure": "Error: Captured PNG dimensions differ from original standard",
+        "errors": [],
+        "mediaErrors": [],
+        "screenshot": null,
+        "originalFailureNotReplaced": true
+      },
+      {
+        "label": "public-reboot-brand-supplemental",
+        "platform": "phone",
+        "rangeId": "brand-figure3",
+        "timestamp": "2026-10-23T06:28:57.800Z",
+        "source": {
+          "name": "public-reboot-brand-supplemental.json",
+          "bytes": 362266,
+          "sha256": "e966d1f1b0167f3b0bff82114719d1ff04f2917c67d077c5006e3976fdb8ac00"
+        },
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "sourceDirty": false,
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "identityAfter": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "sourceDirty": false,
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "originalDeadlinesMs": {
+          "navigation": 30000,
+          "ready": 30000,
+          "prepare": 25000
+        },
+        "ready": true,
+        "measurementPassed": true,
+        "evidenceComplete": true,
+        "completeCasePassed": true,
+        "entryMs": 17066,
+        "poseMs": 7552,
+        "failure": null,
+        "screenshotFailure": null,
+        "errors": [],
+        "mediaErrors": [],
+        "screenshot": {
+          "name": "public-reboot-brand-supplemental.png",
+          "bytes": 206016,
+          "sha256": "36a15ada7e53b8be726d8b4a0df8aa5ae0c130c30beb6a440cb664e7cc7c0a59",
+          "width": 390,
+          "height": 844
+        },
+        "originalFailureNotReplaced": true
+      }
+    ],
+    "laterPoseScreenshots": [
+      {
+        "platform": "desktop",
+        "source": {
+          "name": "public-reboot-fresh-captures-desktop.json",
+          "bytes": 12112,
+          "sha256": "62a1f4d7d2bec36a943d08d4d057ac1ace00c09a30d1bca44cd67ebeda723404"
+        },
+        "purpose": "Supplemental later public pose screenshots; not original performance instants or replacement pixel-comparison passes",
+        "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da",
+        "requested": 6,
+        "attempted": 2,
+        "imagesSaved": 1,
+        "unexecutedAfterCaptureFailure": 4,
+        "evidenceComplete": false,
+        "observedRuntimeErrors": [],
+        "results": [
+          {
+            "rangeId": "hold:hero",
+            "progress": 0.5,
+            "ready": true,
+            "imageSaved": true,
+            "failure": null,
+            "image": {
+              "name": "public-reboot-fresh-captures-desktop-hold-hero.png",
+              "bytes": 1523754,
+              "sha256": "e9bbfa720dc5f64ea60062c55331938069b59171ec0db9cbefe4141ed9fd8f79",
+              "width": 1440,
+              "height": 900
+            }
+          },
+          {
+            "rangeId": "hero-pattern",
+            "progress": 0.5,
+            "ready": true,
+            "imageSaved": false,
+            "failure": "CdpRequestTimeoutError: CDP request timed out: Page.captureScreenshot",
+            "image": null
+          }
+        ]
+      },
+      {
+        "platform": "phone",
+        "source": {
+          "name": "public-reboot-fresh-captures-phone.json",
+          "bytes": 7299,
+          "sha256": "b2e90fa70f5342096577080224335bffea3c8e7c01b18c8f26765a9bc3278410"
+        },
+        "purpose": "Supplemental later public pose screenshots; not original performance instants or replacement pixel-comparison passes",
+        "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da",
+        "requested": 6,
+        "attempted": 1,
+        "imagesSaved": 0,
+        "unexecutedAfterCaptureFailure": 5,
+        "evidenceComplete": false,
+        "observedRuntimeErrors": [],
+        "results": [
+          {
+            "rangeId": "hold:hero",
+            "progress": 0.5,
+            "ready": true,
+            "imageSaved": false,
+            "failure": "PageEvaluationTimeoutError: page.evaluate timed out after 15000ms while waiting for page JavaScript. The Page is responsive, but the evaluation is still pending and may produce late side effects. Reload or close the Page when that would be unsafe.",
+            "image": null
+          }
+        ]
+      }
+    ],
+    "collectionLimitations": [
+      "Native Page.captureScreenshot repeatedly timed out; fromSurface:false also failed. A separate native PNG screencast produced a 1440x900 crane frame but was not reliable for every subsequent pose. All these are capture failures, not passing visual comparisons.",
+      "The first two phone measurements used an early screencast collector that consumed capture-window events without forwarding them to console-health classification. Measurement-window polling remained active; complete capture-window error coverage cannot be claimed. The later collector forwards all events. This gap is not promoted to a pass.",
+      "The interrupted pattern measurement was recovered from window.__qaPerformance in the same document without rerunning it; its Node CDP work deltas were lost and remain null.",
+      "A later fresh owned Page within the same authorized group could save only one of twelve supplemental pose screenshots before screenshot/JavaScript observation timeouts. It did not recover original pre-reboot screenshots or rerun the original v70 pixel comparison.",
+      "Original public cold failures remain 2/20. Successful later crane or brand followups cannot prove an intermittent failure fixed.",
+      "No physical-device or formal two-run process-memory qualification was performed."
+    ],
+    "postRebootAutomatedChecks": {
+      "applicationSourcesUnchanged": true,
+      "unit1880PassesArePrepublicationEvidenceNotANewWholeSuiteRun": true,
+      "initialAndSourceGuardTests": {
+        "passed": 14,
+        "failed": 0
+      },
+      "luaPathTests": {
+        "passed": 3,
+        "failed": 0
+      },
+      "deploymentPreflightCohorts": [
+        {
+          "attempted": 9,
+          "passed": 4,
+          "failed": 5,
+          "failedAt": "Original Python fixture creation child returned status:null; unchanged 5000ms child deadline"
+        },
+        {
+          "attempted": 9,
+          "passed": 1,
+          "failed": 8,
+          "failedAt": "Original five-second fixture/import/CLI subprocess checks; no timeout or assertion changed"
+        }
+      ],
+      "exactFixtureDiagnostic": {
+        "source": {
+          "name": "post-reboot-original-fixture-diagnostic.json",
+          "bytes": 330,
+          "sha256": "4810896afc3fe20c826bc045d76ce59d691968def0541fd6c7bb7d79d2d34c60"
+        },
+        "timestamp": "2026-10-23T06:41:27.591Z",
+        "originalTimeoutMs": 5000,
+        "exactOriginalFixtureBody": true,
+        "elapsedMs": 7086,
+        "status": null,
+        "signal": "SIGTERM",
+        "error": {
+          "code": "ETIMEDOUT",
+          "message": "spawnSync python3 ETIMEDOUT"
+        },
+        "stderr": "",
+        "mode": "pending",
+        "qualificationGranted": false
+      },
+      "simplePythonStartupDiagnostic": {
+        "elapsedMs": 1688,
+        "status": 0,
+        "executable": "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "originalTimeoutMs": 5000
+      },
+      "allChecksGreenNow": false,
+      "failuresNotOverwrittenByHistoricalPrepublicationPasses": true
+    },
+    "pageRecovery": {
+      "source": {
+        "name": "public-reboot-capture-page-recovery.json",
+        "bytes": 479,
+        "sha256": "8f4081dbceea197cc1d24f9ce979b0a9061f3cc0fe4be6a96292fcb2941fc848"
+      },
+      "timestamp": "2026-10-23T06:30:11.475Z",
+      "reason": "The owned p1 Page repeatedly timed out in native screenshot capture, and a blank-page active-scroll control also measured about one-second RAF intervals. Replace only this owned Page within the same approved TaskSpace after its performance and cold records are saved.",
+      "before": [
+        {
+          "label": "p1",
+          "openedBy": "agent",
+          "targetId": "AA1827CBBE07F470EC86B110506C56B7"
+        }
+      ],
+      "newPage": "p2"
+    },
+    "browserClosure": {
+      "source": {
+        "name": "browser-collection-closure.json",
+        "bytes": 281,
+        "sha256": "3f9f3147b5d577d3ec1742d65f9cfc0a59d0127487423be8c5745f8b8c9a1f63"
+      },
+      "timestamp": "2026-10-23T06:46:25.449Z",
+      "taskSpaceId": 6,
+      "outcome": "All sixteen post-reboot public scroll measurements and two cold followups recorded; screenshot collection failures retained. No passing qualification granted.",
+      "finishRequested": true,
+      "keep": [],
+      "finishConfirmedInToolOutput": true,
+      "keptPages": 0
+    },
+    "applicationReleaseUnchanged": "v73 remains deployed; this continuation changes evidence only, not application code, tags, budgets or production routing",
+    "relativeImprovementBasis": "The already published v73 has native initial-zero recovery 3/3 vs v70 1/3 and reverse original checks 8/8 vs 2/8, with the recorded slower single-stall tradeoff. Public cold/FPS observations do not establish an overall scrolling speedup.",
+    "compactSummaryIntegrityCheck": {
+      "passed": true,
+      "originalScrollAlgorithmsRecomputed": 16,
+      "originalColdRowsChecked": 20,
+      "sourceHashesUnchanged": true,
+      "passingReleaseQualificationGranted": false,
+      "checkedBeforeRawDeletion": true
+    },
+    "cleanupState": "Completed: all sixteen inspected local raw-validation roots and both inspected remote validation roots removed. Compact failed results remain in Git; source/site/CDN files, authorization, release identities and operational rollback receipts remain intact.",
+    "releaseQualified": false
   }
 }
