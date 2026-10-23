@@ -117,6 +117,14 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
+function isTransportFailure(error: MediaError | null | undefined): boolean {
+  // Chromium reports a read failure before demuxer initialization as code 4,
+  // not NETWORK_ERR. Match only its observed pipeline status, never generic
+  // unsupported/invalid media or a decode error that happens to mention I/O.
+  return error?.code === 2 || error?.code === 4
+    && /^PipelineStatus::PIPELINE_ERROR_READ(?::|$)/.test(error.message);
+}
+
 function finiteDuration(video: HTMLVideoElement, fallback: number): number {
   return Number.isFinite(video.duration) && video.duration > 0
     ? video.duration
@@ -205,7 +213,11 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
   };
 
   readonly #onLoadedData = () => {
-    if (!this.#waitingForInitialData || this.#video.readyState < 2) return;
+    if (this.#video.readyState < 2) return;
+    if (!this.#waitingForInitialData) {
+      this.#flushQueuedSeek();
+      return;
+    }
     this.#waitingForInitialData = false;
     // Endpoint preparation can start while the preceding animation seek has
     // lowered readyState. Its seeked event enters this branch, so retire the
@@ -219,8 +231,17 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   readonly #onMediaError = () => {
     this.#reloadingFailedSource = false;
+    // An explicit transport failure will never make more progress on its own.
+    // Use the existing scroll incident budget, not a fresh retry per error or
+    // epoch. Preparation owns its independent one-reload / 19s allowance.
+    if (isTransportFailure(this.#video.error) && !this.#disposed && !this.#nativeFallback
+      && this.#latest && !framePreparations.has(this.#video)
+      && this.#video.closest?.('[data-scroll-platform]') && this.#reloadScrollSource()) {
+      this.#watchScrollSeek();
+      return;
+    }
     const message = this.#video.error?.message || 'media error';
-    this.#failAllWaiters(new MediaPreparationError('MEDIA_ELEMENT_ERROR', message));
+    this.#failAllWaiters(new MediaPreparationError('MEDIA_ELEMENT_ERROR', message, { cause: this.#video.error }));
   };
 
   readonly #onMediaAbort = () => {
@@ -516,15 +537,15 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     error?: Error;
   } {
     if (
-      this.#primingSeek
+      this.#video.readyState === 0 && this.#video.closest?.('[data-scroll-platform]')
+      || this.#primingSeek
       || this.#inFlightSeek
       || (!force && Math.abs(this.#video.currentTime - desired.targetTime) > SEEK_TOLERANCE_SECONDS)
     ) {
       return { started: false };
     }
-    // Metadata can still be unavailable for a cold endpoint preparation. Use
-    // the caller's declared media duration so the start endpoint retains room
-    // for the same cross-frame nudge used after metadata has loaded.
+    // Preserve a declared fallback for streams whose metadata duration is not
+    // finite; source selection itself must finish before assigning a seek.
     const duration = finiteDuration(
       this.#video,
       Math.max(
@@ -610,7 +631,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   #flushQueuedSeek(): void {
     if (this.#video.closest?.('[data-scroll-platform]') && (this.#scrollFrameHeld || this.#presentingFrame)) return;
-    if (this.#disposed || this.#scrollSourceReloading || this.#inFlightSeek || !this.#queuedSeek) {
+    if (this.#disposed || this.#video.readyState === 0 && this.#video.closest?.('[data-scroll-platform]')
+      || this.#scrollSourceReloading || this.#inFlightSeek || !this.#queuedSeek) {
       return;
     }
     const desired = this.#queuedSeek;
@@ -846,6 +868,35 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
     this.#scrollSeekWatch = undefined;
   }
 
+  #reloadScrollSource(): boolean {
+    const now = Date.now();
+    if (this.#scrollSeekReloads >= MAX_SCROLL_SEEK_RELOADS
+      || this.#scrollSeekStartedAt !== undefined
+        && now - this.#scrollSeekStartedAt >= SCROLL_SEEK_RECOVERY_DEADLINE_MS) return false;
+    this.#scrollSeekStartedAt ??= now;
+    this.#scrollSeekReloads++;
+    this.#cancelFrameCallback(); this.#cancelPrimingCompletion();
+    this.#inFlightSeek = this.#primingSeek = this.#pendingEndpointPrime = undefined;
+    this.#queuedSeek = this.#latest;
+    this.#frameReadyGeneration = 0; this.#readyTime = this.#readyPlayheadTime = NaN;
+    this.#scrollFrameHeld = false;
+    delete this.#video.dataset.timelineVideoFrameReady;
+    delete this.#video.dataset.timelineVideoFrameEvidence;
+    delete this.#video.dataset.timelineVideoSourceTime;
+    this.#video.dataset.timelineVideoScrubRetry = String(this.#scrollSeekReloads);
+    this.#configureElement();
+    this.#reloadingFailedSource = this.#scrollSourceReloading = true;
+    this.#scrollSeekAttemptAt = this.#scrollSeekChangedAt = now;
+    // Same source, pose, generation and outer deadline; paired lanes still
+    // need fresh physical proof before the coherence barrier can present.
+    try { this.#video.load(); }
+    catch (cause) {
+      this.#failAllWaiters(new MediaPreparationError('MEDIA_SEEK_FAILED', 'scroll source reload failed', { cause }));
+      return false;
+    }
+    return true;
+  }
+
   #watchScrollSeek(): void {
     // Preparation keeps its separate single retry / 19s deadline. Active scrub
     // permits two same-source reloads within one fixed 20s incident, renewed
@@ -887,26 +938,8 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
         && Date.now() - this.#scrollSeekAttemptAt >= SCROLL_SEEK_RESPONSE_GRACE_MS
         && Date.now() - this.#scrollSeekChangedAt >= FRAME_PREPARATION_STALL_MS
         && this.#video.networkState === 2 && this.#video.readyState < 2) {
-        this.#scrollSeekReloads++;
-        this.#cancelFrameCallback(); this.#cancelPrimingCompletion();
-        this.#inFlightSeek = this.#primingSeek = this.#pendingEndpointPrime = undefined;
-        this.#queuedSeek = this.#latest;
-        this.#frameReadyGeneration = 0; this.#readyTime = this.#readyPlayheadTime = NaN;
-        this.#scrollFrameHeld = false;
-        delete this.#video.dataset.timelineVideoFrameReady;
-        delete this.#video.dataset.timelineVideoFrameEvidence;
-        delete this.#video.dataset.timelineVideoSourceTime;
-        this.#video.dataset.timelineVideoScrubRetry = String(this.#scrollSeekReloads);
-        this.#configureElement();
-        this.#reloadingFailedSource = this.#scrollSourceReloading = true;
-        this.#scrollSeekAttemptAt = this.#scrollSeekChangedAt = Date.now();
-        // Same source, same latest pose, same generation and same outer
-        // convergence deadline. Coherence still holds every paired lane.
-        try { this.#video.load(); this.#scrollSeekBufferedSeconds = bufferedSeconds(); }
-        catch (cause) {
-          this.#failAllWaiters(new MediaPreparationError('MEDIA_SEEK_FAILED', 'scroll source reload failed', { cause }));
-          return;
-        }
+        if (!this.#reloadScrollSource()) return;
+        this.#scrollSeekBufferedSeconds = bufferedSeconds();
       }
       // load() clears seeking before metadata arrives. Keep observing this
       // request too; a second zero-body response must not escape the watchdog.
@@ -940,6 +973,17 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
 
   #markFrameReady(frame: DesiredFrame, evidence: FramePresentationEvidence, sourceTime?: number): void {
     if (frame.generation !== this.#generation) {
+      return;
+    }
+    // Cold metadata can correct a fallback duration while its old seek is
+    // still in flight. That is the SAME authored pose, not a prior scroll
+    // sample to park for presentation. Finish the corrected target now;
+    // otherwise scrollFrameHeld can strand it until another input arrives.
+    if (this.#latest?.progress === frame.progress
+      && Math.abs(this.#latest.targetTime - frame.targetTime) > SEEK_TOLERANCE_SECONDS) {
+      this.#cancelFrameCallback();
+      this.#scrollFrameHeld = false;
+      this.#scheduleSeek(this.#latest);
       return;
     }
     if (
@@ -1240,6 +1284,7 @@ async function runFramePreparation(
   const sourceAlreadyFailed = video.networkState === 3 && video.readyState === 0;
   try {
     for (let attempt = 0; ; attempt++) {
+      const attemptStartedAt = Date.now();
       const trial = new AbortController();
       const abort = () => trial.abort(controller.signal.reason);
       controller.signal.addEventListener('abort', abort, { once: true });
@@ -1254,6 +1299,13 @@ async function runFramePreparation(
           buffered?.length ? buffered.end(buffered.length - 1) : 0].join(':');
         if (next !== signature) { signature = next; changedAt = Date.now(); }
         else if (Date.now() - changedAt >= FRAME_PREPARATION_STALL_MS) {
+          // The first byte has the same response grace as active scrub. A
+          // healthy five-second metadata response must not be cancelled at
+          // four seconds. This spends neither another retry nor more than the
+          // original 19s outer preparation deadline.
+          if (attempt === 0 && !sourceAlreadyFailed && video.readyState === 0
+            && video.networkState === 2 && !video.error && video.closest?.('[data-scroll-platform]')
+            && Date.now() - attemptStartedAt < SCROLL_SEEK_RESPONSE_GRACE_MS) return;
           // The one allowed reload is already spent. NETWORK_LOADING still
           // owns a live request (often waiting for its first byte), so a lack
           // of decoded frames is not a terminal failure yet. Do not discard
@@ -1280,8 +1332,10 @@ async function runFramePreparation(
           }
           throw preparationAbort(controller.signal.reason);
         }
+        const networkFailure = error instanceof MediaPreparationError && error.code === 'MEDIA_ELEMENT_ERROR'
+          && isTransportFailure(error.cause as MediaError | null | undefined);
         if (attempt > 0 || sourceAlreadyFailed || !(error instanceof MediaPreparationError)
-          || error.code !== 'MEDIA_PREPARATION_STALLED') throw error;
+          || error.code !== 'MEDIA_PREPARATION_STALLED' && !networkFailure) throw error;
         // Reset a physically stuck seek once, with the original overall deadline.
         driver.dispose();
         sharedDrivers.delete(video);

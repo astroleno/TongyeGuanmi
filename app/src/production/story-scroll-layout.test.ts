@@ -25,6 +25,25 @@ describe('single document scroll geometry', () => {
     document.body.append(root);
   });
   afterEach(() => { root.remove(); vi.unstubAllGlobals(); });
+  it('does not rewrite parked native scroll offsets on every media wake or same-range sample', () => {
+    const writes = vi.fn();
+    for (const surface of root.querySelectorAll<HTMLElement>('[data-scroll-content]')) {
+      let top = 0;
+      Object.defineProperty(surface, 'scrollTop', { get: () => top,
+        set: (value: number) => { top = value; writes(surface.dataset.scrollContent, value); } });
+    }
+    const layout = createStoryScrollLayout(root, vi.fn()); layout.measure();
+    const range = layout.getIndex().ranges.find(r => r.id === 'hero-pattern')!;
+    layout.paint(layout.locate(range.start + 100));
+    writes.mockClear();
+    for (let i = 0; i < 20; i++) layout.paint(layout.locate(range.start + 100 + i));
+    expect(writes).not.toHaveBeenCalled();
+    // Role handoffs must reassert ownership even when both authored offsets
+    // are zero; a preceding timeline can have changed the native scrollport.
+    layout.paint(layout.locate(range.end + 100));
+    expect(writes).toHaveBeenCalled();
+    layout.dispose();
+  });
   it('keeps the phone Crane duration in initial layout and subsequent measurements', () => {
     root.dataset.scrollPlatform = 'phone';
     const layout = createStoryScrollLayout(root, vi.fn());

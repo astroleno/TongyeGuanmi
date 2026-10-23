@@ -122,6 +122,179 @@ class FakeVideo {
 const videoElement = (video: FakeVideo) => video as unknown as HTMLVideoElement;
 
 describe('timeline video driver', () => {
+  it.each([
+    { code: 2, message: 'connection closed' },
+    { code: 4, message: 'PipelineStatus::PIPELINE_ERROR_READ: FFmpegDemuxer: data source error' }
+  ])('recovers explicit scroll transport errors with the same two-reload incident budget ($code)', async (error) => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      const input = { runId: 'network-error', direction: -1 as const, progress: .4, durationFallbackSeconds: 10 };
+      driver.drive(input); video.readyState = 1;
+      for (let i = 0; i < 3; i++) {
+        Object.assign(video, { error, networkState: 3 });
+        video.dispatch('error');
+        expect(video.loadCalls).toBe(Math.min(i + 1, 2));
+        expect(driver.snapshot().frameReady).toBe(false);
+        Object.assign(video, { error: null, networkState: 2 });
+        if (i < 2) driver.drive({ ...input, runId: 'network-error:' + i });
+      }
+      await vi.advanceTimersByTimeAsync(25000);
+      expect(video.loadCalls).toBe(2);
+      expect(driver.snapshot().nativeFallback).toBe(true);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('requires new physical proof after a scroll network reload and preserves the latest pose', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      const input = { runId: 'network-latest', direction: -1 as const, progress: .2, durationFallbackSeconds: 10 };
+      driver.drive(input); video.completeSeek(); video.presentFrame();
+      driver.drive({ ...input, progress: .7 }); video.readyState = 1;
+      Object.assign(video, { error: { code: 2, message: 'truncated body' } }); video.dispatch('error');
+      expect(video.loadCalls).toBe(1);
+      expect(driver.snapshot()).toMatchObject({ generation: 1, frameReady: false, nativeFallback: false });
+      expect(video.dataset.timelineVideoFrameReady).toBeUndefined();
+      Object.assign(video, { error: null, readyState: 4 }); video.dispatch('loadedmetadata');
+      expect(video.currentTime).toBeCloseTo(6.986);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.completeSeek(); video.presentFrame();
+      expect(driver.snapshot()).toMatchObject({ frameReady: true, generation: 1, presentedTime: 6.986 });
+      expect(video.playCalls).toBe(0);
+    } finally { driver.dispose(); vi.useRealTimers(); }
+  });
+
+  it('does not reload a network error beyond the active incident deadline', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo(); Object.assign(video, { closest: () => ({}), networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'expired-network', direction: -1, progress: .5, durationFallbackSeconds: 10 });
+      vi.setSystemTime(20000);
+      Object.assign(video, { error: { code: 2, message: 'late network error' } }); video.dispatch('error');
+      expect(video.loadCalls).toBe(0); expect(driver.snapshot().nativeFallback).toBe(true);
+    } finally { driver.dispose(); vi.useRealTimers(); }
+  });
+
+  it.each([
+    { code: 2, message: 'connection closed' },
+    { code: 4, message: 'PipelineStatus::PIPELINE_ERROR_READ: FFmpegDemuxer: data source error' }
+  ])('retries a preparation transport error once within the unchanged deadline ($code)', async (error) => {
+    vi.useFakeTimers();
+    const video = new FakeVideo(); Object.assign(video, { readyState: 0, networkState: 2 });
+    const load = video.load.bind(video);
+    video.load = () => { load(); Object.assign(video, { error: null, networkState: 2 }); };
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), { runId: 'cold-network', direction: 1,
+        progress: .5, durationFallbackSeconds: 10, allowPlaybackNudge: false });
+      let rejection: unknown; void pending.catch(error => { rejection = error; });
+      await vi.advanceTimersByTimeAsync(1000);
+      Object.assign(video, { error, networkState: 3 }); video.dispatch('error');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(video.loadCalls).toBe(1); expect(rejection).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(17999);
+      expect(rejection).toBeUndefined(); expect(video.loadCalls).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(pending).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_TIMEOUT' });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it.each([
+    { code: 1, message: 'aborted' },
+    { code: 3, message: 'PipelineStatus::PIPELINE_ERROR_READ: decoder error' },
+    { code: 4, message: 'unsupported source' },
+    { code: 4, message: 'PipelineStatus::DEMUXER_ERROR_COULD_NOT_OPEN: invalid media' }
+  ])('does not classify abort, decode or unsupported sources as transport failures ($code, $message)', async error => {
+    vi.useFakeTimers(); const video = new FakeVideo();
+    Object.assign(video, { readyState: 0, networkState: 2 });
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), { runId: 'fatal-source', direction: 1,
+        progress: .5, durationFallbackSeconds: 10, allowPlaybackNudge: false });
+      void pending.catch(() => undefined);
+      Object.assign(video, { error }); video.dispatch('error');
+      await expect(pending).rejects.toMatchObject({ code: 'MEDIA_ELEMENT_ERROR', cause: error });
+      expect(video.loadCalls).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('does not give a preparation network error another retry after a stall reload', async () => {
+    vi.useFakeTimers(); const video = new FakeVideo(); Object.assign(video, { readyState: 0, networkState: 2 });
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), { runId: 'last-network', direction: 1,
+        progress: .5, durationFallbackSeconds: 10, allowPlaybackNudge: false });
+      void pending.catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(6250);
+      Object.assign(video, { error: { code: 2, message: 'last transfer failed' } }); video.dispatch('error');
+      await expect(pending).rejects.toMatchObject({ code: 'MEDIA_ELEMENT_ERROR' });
+      expect(video.loadCalls).toBe(1); expect(vi.getTimerCount()).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('does not cancel a healthy five-second cold preparation before its first byte', async () => {
+    vi.useFakeTimers(); const video = new FakeVideo(); Object.assign(video, { readyState: 0, networkState: 2, closest: () => ({}) });
+    const controller = new AbortController();
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), { runId: 'healthy-cold-metadata', direction: 1,
+        progress: 0, durationFallbackSeconds: 10, allowPlaybackNudge: false, signal: controller.signal });
+      void pending.catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(video.loadCalls).toBe(0);
+      video.readyState = 4; video.dispatch('loadedmetadata'); video.dispatch('loadeddata');
+      video.completeSeek(); video.completeSeek(); video.presentFrame();
+      await expect(pending).resolves.toMatchObject({ status: 'ready' });
+      expect(video.loadCalls).toBe(0); expect(vi.getTimerCount()).toBe(0);
+    } finally { controller.abort(); disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('does not park an obsolete fallback-duration frame when cold metadata corrects the same pose', () => {
+    const video = new FakeVideo(); Object.assign(video, { closest: () => ({}), duration: NaN, readyState: 1, networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'cold-duration', direction: 1, progress: .5, durationFallbackSeconds: 4.4 });
+      const firstTarget = video.currentTime;
+      video.duration = 5.2; video.readyState = 4; video.dispatch('loadedmetadata');
+      video.completeSeek(); video.presentFrame(firstTarget);
+      expect(video.currentTime).toBeCloseTo(2.59);
+      expect(driver.snapshot().frameReady).toBe(false);
+      video.completeSeek(); video.presentFrame();
+      const target = (5.2 - .02) * .5;
+      expect(driver.snapshot()).toMatchObject({ frameReady: true, targetTime: target, presentedTime: target });
+      expect(video.loadCalls).toBe(0);
+    } finally { driver.dispose(); }
+  });
+
+  it.each(['drive', 'prepare'] as const)('waits for cold metadata before assigning a nonzero %s seek', async kind => {
+    const video = new FakeVideo(); Object.assign(video, { closest: () => ({}), duration: NaN, readyState: 0, networkState: 2 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      const input = { runId: 'metadata-first', direction: 1 as const, progress: .5, durationFallbackSeconds: 4.4 };
+      const pending = kind === 'prepare' ? driver.prepareFrame(input) : undefined;
+      if (kind === 'drive') driver.drive(input);
+      expect(video.currentTimeWrites).toHaveLength(0);
+      video.duration = 5.2; video.readyState = 1; video.dispatch('loadedmetadata');
+      expect(video.currentTimeWrites).toEqual([(5.2 - .02) * .5]);
+      video.readyState = 4; video.completeSeek(); video.presentFrame();
+      expect(driver.snapshot().frameReady).toBe(true);
+      if (pending) await expect(pending).resolves.toMatchObject({ status: 'ready' });
+    } finally { driver.dispose(); }
+  });
+
+  it('retains fallback-duration target assignment for the legacy non-scroll media contract', () => {
+    const video = new FakeVideo(); Object.assign(video, { duration: NaN, readyState: 0 });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      driver.drive({ runId: 'legacy-metadata', direction: 1, progress: .5, frameRate: 30, durationFallbackSeconds: 4.4 });
+      expect(video.currentTimeWrites).toEqual([2.2]);
+      expect(driver.snapshot().frameReady).toBe(false);
+    } finally { driver.dispose(); }
+  });
+
   it('recovers an initial zero-frame transfer even when metadata never starts a native seek', async () => {
     vi.useFakeTimers(); vi.setSystemTime(0);
     const video = new FakeVideo();

@@ -6,6 +6,7 @@ import { captureScrollTextBookmark, remapScrollAnchor, restoreScrollTextBookmark
 export function createStoryScrollLayout(root: HTMLElement, changed: (index: ScrollSpine, restored: number, revision: number) => void) {
   const surfaces = new Map<ScrollSceneId, HTMLElement>();
   const slots = new Map<ScrollSceneId, HTMLElement>();
+  const scrollOffsets = new Map<ScrollSceneId, number>();
   for (const scene of canonicalSceneIds) {
     const slot = root.querySelector<HTMLElement>(`[data-scroll-slot="${scene}"]`);
     const surface = slot?.querySelector<HTMLElement>('[data-scroll-content]');
@@ -69,7 +70,8 @@ export function createStoryScrollLayout(root: HTMLElement, changed: (index: Scro
       if (!surface) continue;
       const active = entry.scene === next.scene || entry.scene === next.target;
       const role = !active ? 'off' : next.kind === 'hold' ? 'hold' : entry.scene === next.scene ? 'source' : 'target';
-      if (surface.dataset.scrollRole !== role) {
+      const roleChanged = surface.dataset.scrollRole !== role;
+      if (roleChanged) {
         surface.dataset.scrollRole = role;
         // Both sides of an ink transition are viewport-sized mask surfaces.
         // Freeze outgoing reading at its bottom inside that viewport; moving
@@ -89,9 +91,16 @@ export function createStoryScrollLayout(root: HTMLElement, changed: (index: Scro
       }
       // A late font/content measurement can change the outgoing bottom pose
       // without changing its role.
-      surface.scrollTop = role === 'source' && scrollReadingScenes.has(entry.scene)
+      const offset = role === 'source' && scrollReadingScenes.has(entry.scene)
         ? entry.contentHeight - height : 0;
-      surface.style.top = '0px';
+      // Setting scrollTop can synchronously flush dirty layout, even when the
+      // requested value is unchanged. Only roles and late measurements change
+      // this owned offset; ordinary RAF/media wakes do not need sixteen writes.
+      if (roleChanged || scrollOffsets.get(entry.scene) !== offset) {
+        surface.scrollTop = offset;
+        scrollOffsets.set(entry.scene, offset);
+      }
+      if (surface.style.top !== '0px') surface.style.top = '0px';
       if (role === 'hold' && index.reducedMotion && scrollReadingScenes.has(entry.scene)) {
         const atBottom = next.readingOffset > entry.contentHeight - height;
         surface.style.position = atBottom ? 'fixed' : 'relative';
