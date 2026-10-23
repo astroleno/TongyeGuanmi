@@ -1,6 +1,7 @@
 """Offline synthetic fixtures; never used as browser qualification evidence."""
 import copy
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -98,6 +99,19 @@ class V73InitialRecoveryPublicationTests(InitialRecoveryPublicationTests):
                 publication.validate_v72_recovery(self.root, {
                     'userInstruction': 'publish anything', 'doesNotGrantPassingQualification': True,
                     'doesNotAuthorizeFutureCandidates': True}, version)
+
+    def test_v72_source_bytes_cannot_be_relabelled_as_v73(self):
+        binding = {'passed': True, 'rows': [
+            {'version': 'v70', 'sourceSha256': '6f1b9027df1e6cf95843a9b01c7062c576e57a74cc8e3f518d61a77dcb663e15',
+             'compiledSha256': '1' * 64, 'servedSha256': '1' * 64, 'exactMatch': True},
+            {'version': 'candidate', 'sourceSha256': 'd68efda4552047a80849a10f9a91abe3a11cd5c11d69eceee0fcc107cfd31eac',
+             'compiledSha256': '2' * 64, 'servedSha256': '2' * 64, 'exactMatch': True}]}
+        (self.root / 'evidence/binding.json').write_text(json.dumps(binding))
+        receipt = {'userInstruction': '允许重建专用验收组，继续补齐冷加载、视觉和滚动复测，不要放宽标准，失败项如实保留。确认比 v70 好就 commit push 到 main，再更新公网复测。',
+                   'doesNotGrantPassingQualification': True, 'doesNotAuthorizeFutureCandidates': True,
+                   'evidence': {'nativeBinding': {'path': 'evidence/binding.json'}}}
+        with self.assertRaisesRegex(ValueError, 'native media proof'):
+            publication.validate_v72_recovery(self.root, receipt, 'v73')
 
 
 if __name__ == '__main__':

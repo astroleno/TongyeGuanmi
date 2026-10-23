@@ -5,6 +5,16 @@
   "userInstruction": "允许重建专用验收组，继续补齐冷加载、视觉和滚动复测，不要放宽标准，失败项如实保留。确认比 v70 好就 commit push 到 main，再更新公网复测。",
   "releaseQualified": false,
   "publiclyDeployed": false,
+  "storageIncident": {
+    "failure": "ENOSPC while saving frozen cold attempt 14",
+    "originalReportPreserved": "13 persisted rows; the interrupted attempt is not promoted to a pass",
+    "recovery": "Resumed only the missing matrix cases in a new report, using the same frozen bytes and original deadlines. Later report writes use atomic replacement.",
+    "duplicateScreenshotsCoalesced": 307,
+    "duplicateLogicalBytes": 150431520,
+    "allScreenshotNamesAndBytesPreserved": true,
+    "unrelatedFilesOrOldReleasesRemoved": false,
+    "resumedMatrixReady": 40
+  },
   "applicationSources": {
     "driverSha256": "707abbd4a3f959e68019c521b29ea870b8bb6703006e612b860c8949a78b0c33",
     "layoutSha256": "7081190e5cf3847af28dddb6b8c6cc9ca2340af1de9e7690aa5c8390573777ce"
@@ -36,25 +46,3572 @@
   },
   "localSourceComparison": {
     "identity": "Ordinary dirty build; not frozen publication qualification. Native fixtures bind the exact driver source and compiler bytes independently.",
-    "initialZero": {"attempted": 6, "candidatePassed": 3, "v70Passed": 1, "candidateRepeatedStallReadyMs": [12237.4, 12212.4], "healthyFiveSecondExtraReloads": 0},
-    "nativeReverse": {"attempted": 16, "candidatePassed": 8, "v70Passed": 2, "candidatePhysicalReadyWithinOriginalDeadline": 8},
+    "initialZero": {
+      "attempted": 6,
+      "candidatePassed": 3,
+      "v70Passed": 1,
+      "candidateRepeatedStallReadyMs": [
+        12237.4,
+        12212.4
+      ],
+      "healthyFiveSecondExtraReloads": 0
+    },
+    "nativeReverse": {
+      "attempted": 16,
+      "candidatePassed": 8,
+      "v70Passed": 2,
+      "candidatePhysicalReadyWithinOriginalDeadline": 8
+    },
     "tradeoff": "The single-stall control takes about 6.2s versus 4.5s in v70; preserving healthy first-response grace is not free. Both remain inside the original 20s deadline.",
-    "visual": {"attempted": 12, "passed": 12, "maxChangedFraction": 0},
-    "cold": {"attempted": 40, "passed": 40, "candidateReady": 20, "v70Ready": 20},
+    "visual": {
+      "attempted": 12,
+      "passed": 12,
+      "maxChangedFraction": 0
+    },
+    "cold": {
+      "attempted": 40,
+      "passed": 40,
+      "candidateReady": 20,
+      "v70Ready": 20
+    },
     "transport": "Byte-identical local asset/CDN remapping, not public-network qualification or an exclusive CDN/proxy root-cause claim.",
     "scroll": {
       "attempted": 32,
       "passed": 0,
       "failed": 32,
       "browserErrors": 0,
-      "desktopTaskSeconds": {"v70": 12.120554, "candidate": 11.252113},
-      "phoneTaskSeconds": {"candidate": 20.726401, "v70": 14.544487},
+      "desktopTaskSeconds": {
+        "v70": 12.120554,
+        "candidate": 11.252113
+      },
+      "phoneTaskSeconds": {
+        "candidate": 20.726401,
+        "v70": 14.544487
+      },
       "interpretation": "Desktop task cost decreased in this cohort; phone cost and several pose lags worsened. Blank active-scroll P95 changed from 50ms desktop to 34.4ms phone. Do not claim a stable overall scrolling improvement from this sweep.",
-      "phoneCounterbalancedFollowup": {"attempted": 16, "passed": 0, "v70TaskSeconds": 13.821313, "candidateTaskSeconds": 14.166017, "interpretation": "Reversing the order did not reproduce the original 42% task-cost gap; this cohort differs by about 2.5%, not proof of a stable phone speedup. All original and follow-up FPS failures remain failed."}
+      "phoneCounterbalancedFollowup": {
+        "attempted": 16,
+        "passed": 0,
+        "v70TaskSeconds": 13.821313,
+        "candidateTaskSeconds": 14.166017,
+        "interpretation": "Reversing the order did not reproduce the original 42% task-cost gap; this cohort differs by about 2.5%, not proof of a stable phone speedup. All original and follow-up FPS failures remain failed.",
+        "rawSummaries": [
+          {
+            "label": "phone-counterbalance-v70",
+            "version": "v70",
+            "platform": "phone",
+            "requested": 8,
+            "measured": 8,
+            "passed": 0,
+            "failure": null,
+            "errors": [],
+            "identity": {
+              "candidate": "react-refactor-r5-parity-repair-candidate-v70",
+              "candidateTagObject": "5bed925517d1b29d07c13448c6c3d87b319f7a78",
+              "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+              "sourceDirty": false,
+              "artifactTreeSha256": "5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6",
+              "manifestSha256": "6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e"
+            },
+            "originalThresholds": {
+              "durationMs": 10000,
+              "preparationMs": 25000,
+              "rafP95Ms": 20,
+              "poseLagP95Ms": 100,
+              "convergenceMs": 150,
+              "longTaskLimitMs": 50,
+              "allowedLongTasks": 0
+            },
+            "results": [
+              {
+                "id": "hero-pattern",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 52.65929436545544,
+                  "documentPoseLagP95": 87.76549060909208,
+                  "sourceFrameErrorSecondsP95": 0.00003300000000017178,
+                  "requestedFrameLagSecondsP95": 0.00003300000000017178,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 32.79999999701977,
+                "sampleCount": 289,
+                "measuredDurationMs": 10001.8,
+                "browserWork": {
+                  "LayoutCount": 0,
+                  "RecalcStyleCount": 702,
+                  "LayoutDuration": 0,
+                  "RecalcStyleDuration": 0.807938,
+                  "ScriptDuration": 0.29612299999999997,
+                  "TaskDuration": 1.384011
+                }
+              },
+              {
+                "id": "pattern-star-map",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 49.5,
+                  "poseLagP95": 0,
+                  "documentPoseLagP95": 46.07688256977512,
+                  "sourceFrameErrorSecondsP95": null,
+                  "requestedFrameLagSecondsP95": null,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 32.30000000447035,
+                "sampleCount": 263,
+                "measuredDurationMs": 10032.399999999998,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 380,
+                  "LayoutDuration": 0.00023900000000000006,
+                  "RecalcStyleDuration": 0.623707,
+                  "ScriptDuration": 0.35092999999999996,
+                  "TaskDuration": 1.264369
+                }
+              },
+              {
+                "id": "aod-method-top",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval",
+                  "convergence"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 54.684651841050794,
+                  "documentPoseLagP95": 100.2551950419243,
+                  "sourceFrameErrorSecondsP95": 0.03336699999999998,
+                  "requestedFrameLagSecondsP95": 0.06666699999999998,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 1050.2000000029802,
+                "sampleCount": 256,
+                "measuredDurationMs": 10082.8,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 518,
+                  "LayoutDuration": 0.00028800000000000006,
+                  "RecalcStyleDuration": 0.8710900000000001,
+                  "ScriptDuration": 0.295963,
+                  "TaskDuration": 1.4767649999999999
+                }
+              },
+              {
+                "id": "figure2-distance-expand",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 52.01710784880354,
+                  "documentPoseLagP95": 86.69517974800682,
+                  "sourceFrameErrorSecondsP95": 0.03336700000000015,
+                  "requestedFrameLagSecondsP95": 0.03336700000000015,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 31.5,
+                "sampleCount": 288,
+                "measuredDurationMs": 10018.599999999999,
+                "browserWork": {
+                  "LayoutCount": 0,
+                  "RecalcStyleCount": 993,
+                  "LayoutDuration": 0,
+                  "RecalcStyleDuration": 1.7943929999999995,
+                  "ScriptDuration": 0.573801,
+                  "TaskDuration": 2.8787760000000002
+                }
+              },
+              {
+                "id": "figure3-services",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 54.68465184104987,
+                  "documentPoseLagP95": 91.14108640174886,
+                  "sourceFrameErrorSecondsP95": 0.03370000000000001,
+                  "requestedFrameLagSecondsP95": 0.06699999999999995,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 33.099999994039536,
+                "sampleCount": 293,
+                "measuredDurationMs": 10033.300000000003,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 294,
+                  "LayoutDuration": 0.00013200000000000017,
+                  "RecalcStyleDuration": 0.5762070000000001,
+                  "ScriptDuration": 0.3971040000000001,
+                  "TaskDuration": 1.2576730000000005
+                }
+              },
+              {
+                "id": "ttg-lab",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 68.79682005809612,
+                  "documentPoseLagP95": 114.66136676349105,
+                  "sourceFrameErrorSecondsP95": 0.03370000000000006,
+                  "requestedFrameLagSecondsP95": 0.06699999999999973,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 49.79999999701977,
+                "sampleCount": 290,
+                "measuredDurationMs": 10001.799999999988,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 581,
+                  "LayoutDuration": 0.00014299999999999903,
+                  "RecalcStyleDuration": 0.9269959999999999,
+                  "ScriptDuration": 0.2737240000000001,
+                  "TaskDuration": 1.5003390000000003
+                }
+              },
+              {
+                "id": "ph-education",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 44.71072163104717,
+                  "documentPoseLagP95": 89.42144326209434,
+                  "sourceFrameErrorSecondsP95": 0.033367000000000036,
+                  "requestedFrameLagSecondsP95": 0.033367000000000036,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 66.5,
+                "sampleCount": 289,
+                "measuredDurationMs": 10000.099999999991,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 292,
+                  "LayoutDuration": 0.00010299999999999893,
+                  "RecalcStyleDuration": 0.5793199999999992,
+                  "ScriptDuration": 0.29508199999999984,
+                  "TaskDuration": 1.1714219999999997
+                }
+              },
+              {
+                "id": "crane-contact",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval",
+                  "longTasks"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 49.89999999999418,
+                  "poseLagP95": 62.72651240591028,
+                  "documentPoseLagP95": 97.57457485363904,
+                  "sourceFrameErrorSecondsP95": 0.03336700000000015,
+                  "requestedFrameLagSecondsP95": 0.03336700000000015,
+                  "allVideosPaused": true,
+                  "over50msTasks": 1
+                },
+                "convergenceMs": 33.19999999552965,
+                "sampleCount": 262,
+                "measuredDurationMs": 10033.199999999997,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 777,
+                  "LayoutDuration": 0.0002660000000000006,
+                  "RecalcStyleDuration": 1.0452650000000006,
+                  "ScriptDuration": 1.1477240000000002,
+                  "TaskDuration": 2.8879579999999994
+                }
+              }
+            ]
+          },
+          {
+            "label": "phone-counterbalance-candidate",
+            "version": "candidate",
+            "platform": "phone",
+            "requested": 8,
+            "measured": 8,
+            "passed": 0,
+            "failure": null,
+            "errors": [],
+            "identity": {
+              "candidate": null,
+              "candidateTagObject": null,
+              "sourceCommit": "e9208ac87b4dff321af7b8ca5dcf70a0f7061b16",
+              "sourceDirty": true,
+              "artifactTreeSha256": "7acd7ee4dc36e17e45a14a5b7f7e5b07e3303836f29326a27848f5a173d41abf",
+              "manifestSha256": "339499b756fa1feb5c52d0db0c95ed9604c29b17c465ee5c5291c6ead788e66d"
+            },
+            "originalThresholds": {
+              "durationMs": 10000,
+              "preparationMs": 25000,
+              "rafP95Ms": 20,
+              "poseLagP95Ms": 100,
+              "convergenceMs": 150,
+              "longTaskLimitMs": 50,
+              "allowedLongTasks": 0
+            },
+            "results": [
+              {
+                "id": "hero-pattern",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 52.65929436545544,
+                  "documentPoseLagP95": 87.76549060909254,
+                  "sourceFrameErrorSecondsP95": 0,
+                  "requestedFrameLagSecondsP95": 0,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 65.70000000298023,
+                "sampleCount": 262,
+                "measuredDurationMs": 10000.7,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 615,
+                  "LayoutDuration": 0.00021900000000000044,
+                  "RecalcStyleDuration": 1.0472139999999999,
+                  "ScriptDuration": 0.42953600000000003,
+                  "TaskDuration": 1.918816
+                }
+              },
+              {
+                "id": "pattern-star-map",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 0,
+                  "documentPoseLagP95": 52.65929436545544,
+                  "sourceFrameErrorSecondsP95": null,
+                  "requestedFrameLagSecondsP95": null,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 33.29999999701977,
+                "sampleCount": 264,
+                "measuredDurationMs": 10016.600000000002,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 381,
+                  "LayoutDuration": 0.00036899999999999954,
+                  "RecalcStyleDuration": 0.5004630000000001,
+                  "ScriptDuration": 0.299685,
+                  "TaskDuration": 1.0230199999999998
+                }
+              },
+              {
+                "id": "aod-method-top",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 54.68465184104895,
+                  "documentPoseLagP95": 82.02697776157527,
+                  "sourceFrameErrorSecondsP95": null,
+                  "requestedFrameLagSecondsP95": null,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 82.79999999701977,
+                "sampleCount": 263,
+                "measuredDurationMs": 10000.099999999999,
+                "browserWork": {
+                  "LayoutCount": 0,
+                  "RecalcStyleCount": 524,
+                  "LayoutDuration": 0,
+                  "RecalcStyleDuration": 0.7831659999999998,
+                  "ScriptDuration": 0.301215,
+                  "TaskDuration": 1.3463539999999998
+                }
+              },
+              {
+                "id": "figure2-distance-expand",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 52.01710784880354,
+                  "documentPoseLagP95": 86.69517974800682,
+                  "sourceFrameErrorSecondsP95": null,
+                  "requestedFrameLagSecondsP95": null,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 31,
+                "sampleCount": 264,
+                "measuredDurationMs": 10016.599999999999,
+                "browserWork": {
+                  "LayoutCount": 0,
+                  "RecalcStyleCount": 895,
+                  "LayoutDuration": 0,
+                  "RecalcStyleDuration": 0.7659889999999998,
+                  "ScriptDuration": 0.3023880000000001,
+                  "TaskDuration": 1.5339079999999994
+                }
+              },
+              {
+                "id": "figure3-services",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval",
+                  "poseLag"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 64.69999999999709,
+                  "poseLagP95": 1020.7801676995985,
+                  "documentPoseLagP95": 1039.0083849799485,
+                  "sourceFrameErrorSecondsP95": 0.03370000000000006,
+                  "requestedFrameLagSecondsP95": 0.03370000000000006,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 48.099999994039536,
+                "sampleCount": 261,
+                "measuredDurationMs": 10218.599999999999,
+                "browserWork": {
+                  "LayoutCount": 0,
+                  "RecalcStyleCount": 266,
+                  "LayoutDuration": 0,
+                  "RecalcStyleDuration": 0.6386780000000001,
+                  "ScriptDuration": 0.6480920000000001,
+                  "TaskDuration": 1.961008999999999
+                }
+              },
+              {
+                "id": "ttg-lab",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 49.89999999999418,
+                  "poseLagP95": 84.08500229322713,
+                  "documentPoseLagP95": 107.01727564592645,
+                  "sourceFrameErrorSecondsP95": 0.03370000000000006,
+                  "requestedFrameLagSecondsP95": 0.06699999999999995,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 33.400000005960464,
+                "sampleCount": 350,
+                "measuredDurationMs": 10034.700000000004,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 701,
+                  "LayoutDuration": 0.0001889999999999982,
+                  "RecalcStyleDuration": 0.981598,
+                  "ScriptDuration": 0.2847200000000001,
+                  "TaskDuration": 1.6319890000000008
+                }
+              },
+              {
+                "id": "ph-education",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 44.71072163104717,
+                  "documentPoseLagP95": 89.42144326209434,
+                  "sourceFrameErrorSecondsP95": null,
+                  "requestedFrameLagSecondsP95": null,
+                  "allVideosPaused": true,
+                  "over50msTasks": 0
+                },
+                "convergenceMs": 66,
+                "sampleCount": 232,
+                "measuredDurationMs": 10000,
+                "browserWork": {
+                  "LayoutCount": 0,
+                  "RecalcStyleCount": 235,
+                  "LayoutDuration": 0,
+                  "RecalcStyleDuration": 0.5148779999999995,
+                  "ScriptDuration": 0.34427399999999997,
+                  "TaskDuration": 1.2588450000000009
+                }
+              },
+              {
+                "id": "crane-contact",
+                "passed": false,
+                "failedChecks": [
+                  "rafInterval",
+                  "poseLag",
+                  "longTasks"
+                ],
+                "unavailable": [],
+                "metrics": {
+                  "rafIntervalP95": 50,
+                  "poseLagP95": 146.3618622804567,
+                  "documentPoseLagP95": 167.2706997490947,
+                  "sourceFrameErrorSecondsP95": 0.03336700000000015,
+                  "requestedFrameLagSecondsP95": 0.06666700000000003,
+                  "allVideosPaused": true,
+                  "over50msTasks": 1
+                },
+                "convergenceMs": 34,
+                "sampleCount": 296,
+                "measuredDurationMs": 10018.099999999991,
+                "browserWork": {
+                  "LayoutCount": 1,
+                  "RecalcStyleCount": 814,
+                  "LayoutDuration": 0.00011900000000000105,
+                  "RecalcStyleDuration": 1.7299449999999998,
+                  "ScriptDuration": 1.2704959999999996,
+                  "TaskDuration": 3.492076000000001
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "rawSummaries": [
+        {
+          "label": "scroll-original-v70-desktop",
+          "version": "v70",
+          "platform": "desktop",
+          "requested": 8,
+          "measured": 8,
+          "passed": 0,
+          "failure": null,
+          "errors": [],
+          "identity": {
+            "candidate": "react-refactor-r5-parity-repair-candidate-v70",
+            "candidateTagObject": "5bed925517d1b29d07c13448c6c3d87b319f7a78",
+            "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+            "sourceDirty": false,
+            "artifactTreeSha256": "5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6",
+            "manifestSha256": "6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e"
+          },
+          "originalThresholds": {
+            "durationMs": 10000,
+            "preparationMs": 25000,
+            "rafP95Ms": 20,
+            "poseLagP95Ms": 100,
+            "convergenceMs": 150,
+            "longTaskLimitMs": 50,
+            "allowedLongTasks": 0
+          },
+          "results": [
+            {
+              "id": "hero-pattern",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag",
+                "longTasks"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 66.60000000000036,
+                "poseLagP95": 164.60905349794294,
+                "documentPoseLagP95": 222.2222222222227,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 1
+              },
+              "convergenceMs": 31.599999994039536,
+              "sampleCount": 224,
+              "measuredDurationMs": 10050.4,
+              "browserWork": {
+                "LayoutCount": 3,
+                "RecalcStyleCount": 696,
+                "LayoutDuration": 0.001177,
+                "RecalcStyleDuration": 0.402052,
+                "ScriptDuration": 0.6607919999999999,
+                "TaskDuration": 1.7443039999999996
+              }
+            },
+            {
+              "id": "pattern-star-map",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 150.09999999999854,
+                "poseLagP95": 0,
+                "documentPoseLagP95": 154.32098765432076,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 116.60000000149012,
+              "sampleCount": 170,
+              "measuredDurationMs": 10133.2,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 178,
+                "LayoutDuration": 0.0004890000000000007,
+                "RecalcStyleDuration": 0.09668100000000002,
+                "ScriptDuration": 0.591579,
+                "TaskDuration": 1.0337619999999998
+              }
+            },
+            {
+              "id": "aod-method-top",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 64.70000000000437,
+                "poseLagP95": 581.1965811965821,
+                "documentPoseLagP95": 1034.1880341880346,
+                "sourceFrameErrorSecondsP95": 0.03370000000000006,
+                "requestedFrameLagSecondsP95": 0.10030000000000006,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33.19999999552965,
+              "sampleCount": 211,
+              "measuredDurationMs": 10035.299999999996,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 224,
+                "LayoutDuration": 0.0007530000000000002,
+                "RecalcStyleDuration": 0.146907,
+                "ScriptDuration": 0.8300440000000002,
+                "TaskDuration": 1.9030669999999992
+              }
+            },
+            {
+              "id": "figure2-distance-expand",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag",
+                "longTasks"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 66.69999999999709,
+                "poseLagP95": 1165.3116531165308,
+                "documentPoseLagP95": 1284.5528455284546,
+                "sourceFrameErrorSecondsP95": 0,
+                "requestedFrameLagSecondsP95": 0.03330000000000011,
+                "allVideosPaused": true,
+                "over50msTasks": 1
+              },
+              "convergenceMs": 13.800000004470348,
+              "sampleCount": 166,
+              "measuredDurationMs": 10016.5,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 264,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.20538200000000006,
+                "ScriptDuration": 0.7568239999999999,
+                "TaskDuration": 1.8433890000000002
+              }
+            },
+            {
+              "id": "figure3-services",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 66.70000000001164,
+                "poseLagP95": 299.145299145299,
+                "documentPoseLagP95": 367.5213675213673,
+                "sourceFrameErrorSecondsP95": 0.00029999999999996696,
+                "requestedFrameLagSecondsP95": 0.03369999999999984,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 67.5,
+              "sampleCount": 201,
+              "measuredDurationMs": 10000.800000000003,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 218,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.13325299999999995,
+                "ScriptDuration": 0.6138370000000002,
+                "TaskDuration": 1.2713470000000004
+              }
+            },
+            {
+              "id": "ttg-lab",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50.80000000000291,
+                "poseLagP95": 301.07526881720435,
+                "documentPoseLagP95": 1017.9211469534044,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 32.100000001490116,
+              "sampleCount": 204,
+              "measuredDurationMs": 10016.5,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 218,
+                "LayoutDuration": 0.0019179999999999996,
+                "RecalcStyleDuration": 0.12455499999999997,
+                "ScriptDuration": 0.5513029999999999,
+                "TaskDuration": 1.389806
+              }
+            },
+            {
+              "id": "ph-education",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50,
+                "poseLagP95": 408.8050314465408,
+                "documentPoseLagP95": 461.21593291404605,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 47.5,
+              "sampleCount": 287,
+              "measuredDurationMs": 10017.399999999994,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 299,
+                "LayoutDuration": 0.0002229999999999975,
+                "RecalcStyleDuration": 0.1544049999999999,
+                "ScriptDuration": 0.6258819999999998,
+                "TaskDuration": 1.384411
+              }
+            },
+            {
+              "id": "crane-contact",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 66.69999999999709,
+                "poseLagP95": 251.8518518518522,
+                "documentPoseLagP95": 303.70370370370324,
+                "sourceFrameErrorSecondsP95": 0.03370000000000006,
+                "requestedFrameLagSecondsP95": 0.06699999999999995,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 66.20000000298023,
+              "sampleCount": 249,
+              "measuredDurationMs": 10000,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 257,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.13273200000000007,
+                "ScriptDuration": 0.8393839999999999,
+                "TaskDuration": 1.5504680000000004
+              }
+            }
+          ]
+        },
+        {
+          "label": "scroll-original-candidate-desktop",
+          "version": "candidate",
+          "platform": "desktop",
+          "requested": 8,
+          "measured": 8,
+          "passed": 0,
+          "failure": null,
+          "errors": [],
+          "identity": {
+            "candidate": null,
+            "candidateTagObject": null,
+            "sourceCommit": "e9208ac87b4dff321af7b8ca5dcf70a0f7061b16",
+            "sourceDirty": true,
+            "artifactTreeSha256": "7acd7ee4dc36e17e45a14a5b7f7e5b07e3303836f29326a27848f5a173d41abf",
+            "manifestSha256": "339499b756fa1feb5c52d0db0c95ed9604c29b17c465ee5c5291c6ead788e66d"
+          },
+          "originalThresholds": {
+            "durationMs": 10000,
+            "preparationMs": 25000,
+            "rafP95Ms": 20,
+            "poseLagP95Ms": 100,
+            "convergenceMs": 150,
+            "longTaskLimitMs": 50,
+            "allowedLongTasks": 0
+          },
+          "results": [
+            {
+              "id": "hero-pattern",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 66.70000000000073,
+                "poseLagP95": 98.76543209876577,
+                "documentPoseLagP95": 156.3786008230451,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 83.20000000298023,
+              "sampleCount": 232,
+              "measuredDurationMs": 10001,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 707,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.390831,
+                "ScriptDuration": 0.5494479999999999,
+                "TaskDuration": 1.4304849999999996
+              }
+            },
+            {
+              "id": "pattern-star-map",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 133.70000000000073,
+                "poseLagP95": 0,
+                "documentPoseLagP95": 148.14814814814818,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 31.399999998509884,
+              "sampleCount": 146,
+              "measuredDurationMs": 10033.300000000003,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 161,
+                "LayoutDuration": 0.00032699999999999743,
+                "RecalcStyleDuration": 0.06241900000000006,
+                "ScriptDuration": 0.3492709999999999,
+                "TaskDuration": 0.6848520000000002
+              }
+            },
+            {
+              "id": "aod-method-top",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50,
+                "poseLagP95": 1068.3760683760684,
+                "documentPoseLagP95": 1102.564102564103,
+                "sourceFrameErrorSecondsP95": 0.03370000000000006,
+                "requestedFrameLagSecondsP95": 0.06700000000000006,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33.099999994039536,
+              "sampleCount": 235,
+              "measuredDurationMs": 10034.200000000004,
+              "browserWork": {
+                "LayoutCount": 2,
+                "RecalcStyleCount": 250,
+                "LayoutDuration": 0.0005730000000000006,
+                "RecalcStyleDuration": 0.176956,
+                "ScriptDuration": 0.9243710000000003,
+                "TaskDuration": 1.9473570000000002
+              }
+            },
+            {
+              "id": "figure2-distance-expand",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50.30000000000291,
+                "poseLagP95": 352.30352303523097,
+                "documentPoseLagP95": 384.82384823848304,
+                "sourceFrameErrorSecondsP95": 0.000300000000000189,
+                "requestedFrameLagSecondsP95": 0.03370000000000006,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 49.79999999701977,
+              "sampleCount": 256,
+              "measuredDurationMs": 10033.299999999996,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 456,
+                "LayoutDuration": 0.0003640000000000032,
+                "RecalcStyleDuration": 0.38713200000000014,
+                "ScriptDuration": 0.6425189999999996,
+                "TaskDuration": 1.918645999999999
+              }
+            },
+            {
+              "id": "figure3-services",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50.400000000001455,
+                "poseLagP95": 102.56410256410294,
+                "documentPoseLagP95": 145.29914529914552,
+                "sourceFrameErrorSecondsP95": 0.03370000000000006,
+                "requestedFrameLagSecondsP95": 0.03370000000000006,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 50.29999999701977,
+              "sampleCount": 252,
+              "measuredDurationMs": 10116.399999999994,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 261,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.145775,
+                "ScriptDuration": 0.5382090000000002,
+                "TaskDuration": 1.2210529999999995
+              }
+            },
+            {
+              "id": "ttg-lab",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50.09999999999127,
+                "poseLagP95": 250.89605734766968,
+                "documentPoseLagP95": 279.56989247311753,
+                "sourceFrameErrorSecondsP95": 0.00029999999999996696,
+                "requestedFrameLagSecondsP95": 0.03369999999999995,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 32.79999999701977,
+              "sampleCount": 285,
+              "measuredDurationMs": 10016.600000000006,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 296,
+                "LayoutDuration": 0.00021800000000000291,
+                "RecalcStyleDuration": 0.16696900000000015,
+                "ScriptDuration": 0.5789029999999995,
+                "TaskDuration": 1.280322
+              }
+            },
+            {
+              "id": "ph-education",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50.09999999999127,
+                "poseLagP95": 796.6457023060796,
+                "documentPoseLagP95": 838.5744234800836,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33.70000000298023,
+              "sampleCount": 262,
+              "measuredDurationMs": 10000,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 276,
+                "LayoutDuration": 0.00036900000000000127,
+                "RecalcStyleDuration": 0.13704899999999998,
+                "ScriptDuration": 0.5506519999999995,
+                "TaskDuration": 1.3742330000000003
+              }
+            },
+            {
+              "id": "crane-contact",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 66.69999999999709,
+                "poseLagP95": 348.1481481481483,
+                "documentPoseLagP95": 400.0000000000004,
+                "sourceFrameErrorSecondsP95": 0.03370000000000001,
+                "requestedFrameLagSecondsP95": 0.06699999999999995,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 32.899999998509884,
+              "sampleCount": 238,
+              "measuredDurationMs": 10033,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 248,
+                "LayoutDuration": 0.0002030000000000018,
+                "RecalcStyleDuration": 0.12945200000000012,
+                "ScriptDuration": 0.7332600000000005,
+                "TaskDuration": 1.3951650000000004
+              }
+            }
+          ]
+        },
+        {
+          "label": "scroll-original-candidate-phone",
+          "version": "candidate",
+          "platform": "phone",
+          "requested": 8,
+          "measured": 8,
+          "passed": 0,
+          "failure": null,
+          "errors": [],
+          "identity": {
+            "candidate": null,
+            "candidateTagObject": null,
+            "sourceCommit": "e9208ac87b4dff321af7b8ca5dcf70a0f7061b16",
+            "sourceDirty": true,
+            "artifactTreeSha256": "7acd7ee4dc36e17e45a14a5b7f7e5b07e3303836f29326a27848f5a173d41abf",
+            "manifestSha256": "339499b756fa1feb5c52d0db0c95ed9604c29b17c465ee5c5291c6ead788e66d"
+          },
+          "originalThresholds": {
+            "durationMs": 10000,
+            "preparationMs": 25000,
+            "rafP95Ms": 20,
+            "poseLagP95Ms": 100,
+            "convergenceMs": 150,
+            "longTaskLimitMs": 50,
+            "allowedLongTasks": 0
+          },
+          "results": [
+            {
+              "id": "hero-pattern",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 49,
+                "poseLagP95": 35.10619624363757,
+                "documentPoseLagP95": 78.98894154818407,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33.29999999701977,
+              "sampleCount": 295,
+              "measuredDurationMs": 10017.599999999999,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 719,
+                "LayoutDuration": 0.00012900000000000064,
+                "RecalcStyleDuration": 0.941012,
+                "ScriptDuration": 0.41796299999999986,
+                "TaskDuration": 1.702661
+              }
+            },
+            {
+              "id": "pattern-star-map",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50.400000000001455,
+                "poseLagP95": 0,
+                "documentPoseLagP95": 52.65929436545544,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 48.70000000298023,
+              "sampleCount": 257,
+              "measuredDurationMs": 10116.900000000001,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 368,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.8892310000000001,
+                "ScriptDuration": 0.5866280000000001,
+                "TaskDuration": 1.8073249999999996
+              }
+            },
+            {
+              "id": "aod-method-top",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 49.69999999999709,
+                "poseLagP95": 45.570543200875356,
+                "documentPoseLagP95": 82.02697776157527,
+                "sourceFrameErrorSecondsP95": 0,
+                "requestedFrameLagSecondsP95": 0,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33.100000001490116,
+              "sampleCount": 292,
+              "measuredDurationMs": 10017.100000000006,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 584,
+                "LayoutDuration": 0.00020999999999999838,
+                "RecalcStyleDuration": 1.512772,
+                "ScriptDuration": 0.495768,
+                "TaskDuration": 2.4097419999999996
+              }
+            },
+            {
+              "id": "figure2-distance-expand",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50,
+                "poseLagP95": 52.01710784880262,
+                "documentPoseLagP95": 86.6951797480059,
+                "sourceFrameErrorSecondsP95": 0.03336700000000015,
+                "requestedFrameLagSecondsP95": 0.06666699999999981,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 16.299999997019768,
+              "sampleCount": 290,
+              "measuredDurationMs": 10000.599999999999,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 1001,
+                "LayoutDuration": 0.00014199999999999977,
+                "RecalcStyleDuration": 1.9352380000000005,
+                "ScriptDuration": 0.6456930000000001,
+                "TaskDuration": 3.106273999999999
+              }
+            },
+            {
+              "id": "figure3-services",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 49.900000000001455,
+                "poseLagP95": 109.36930368209974,
+                "documentPoseLagP95": 182.28217280349958,
+                "sourceFrameErrorSecondsP95": 0.03370000000000006,
+                "requestedFrameLagSecondsP95": 0.03370000000000006,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33.5,
+              "sampleCount": 233,
+              "measuredDurationMs": 10033.299999999996,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 234,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.8569659999999999,
+                "ScriptDuration": 0.6711749999999994,
+                "TaskDuration": 1.9255700000000004
+              }
+            },
+            {
+              "id": "ttg-lab",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag",
+                "longTasks"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50.10000000000582,
+                "poseLagP95": 336.34000917290945,
+                "documentPoseLagP95": 1047.2404831065596,
+                "sourceFrameErrorSecondsP95": 0.03369999999999984,
+                "requestedFrameLagSecondsP95": 0.06699999999999995,
+                "allVideosPaused": true,
+                "over50msTasks": 1
+              },
+              "convergenceMs": 34,
+              "sampleCount": 234,
+              "measuredDurationMs": 10016.600000000006,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 472,
+                "LayoutDuration": 0.0004889999999999999,
+                "RecalcStyleDuration": 1.4605610000000002,
+                "ScriptDuration": 0.38185799999999936,
+                "TaskDuration": 3.322806
+              }
+            },
+            {
+              "id": "ph-education",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50,
+                "poseLagP95": 100.59912366985613,
+                "documentPoseLagP95": 122.95448448537971,
+                "sourceFrameErrorSecondsP95": 0,
+                "requestedFrameLagSecondsP95": 0.033299999999999996,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 32.899999998509884,
+              "sampleCount": 292,
+              "measuredDurationMs": 10032.400000000009,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 293,
+                "LayoutDuration": 0.0002449999999999987,
+                "RecalcStyleDuration": 1.0401130000000007,
+                "ScriptDuration": 0.6313050000000002,
+                "TaskDuration": 2.1559959999999982
+              }
+            },
+            {
+              "id": "crane-contact",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 66.70000000001164,
+                "poseLagP95": 313.6325620295514,
+                "documentPoseLagP95": 397.26791190409875,
+                "sourceFrameErrorSecondsP95": 0.03336700000000015,
+                "requestedFrameLagSecondsP95": 0.03336700000000015,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 47.899999998509884,
+              "sampleCount": 310,
+              "measuredDurationMs": 10283.299999999988,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 798,
+                "LayoutDuration": 0.00021000000000000185,
+                "RecalcStyleDuration": 2.312817000000001,
+                "ScriptDuration": 1.4127390000000002,
+                "TaskDuration": 4.296026999999999
+              }
+            }
+          ]
+        },
+        {
+          "label": "scroll-original-v70-phone",
+          "version": "v70",
+          "platform": "phone",
+          "requested": 8,
+          "measured": 8,
+          "passed": 0,
+          "failure": null,
+          "errors": [],
+          "identity": {
+            "candidate": "react-refactor-r5-parity-repair-candidate-v70",
+            "candidateTagObject": "5bed925517d1b29d07c13448c6c3d87b319f7a78",
+            "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+            "sourceDirty": false,
+            "artifactTreeSha256": "5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6",
+            "manifestSha256": "6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e"
+          },
+          "originalThresholds": {
+            "durationMs": 10000,
+            "preparationMs": 25000,
+            "rafP95Ms": 20,
+            "poseLagP95Ms": 100,
+            "convergenceMs": 150,
+            "longTaskLimitMs": 50,
+            "allowedLongTasks": 0
+          },
+          "results": [
+            {
+              "id": "hero-pattern",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50,
+                "poseLagP95": 43.8827453045465,
+                "documentPoseLagP95": 78.98894154818315,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33,
+              "sampleCount": 269,
+              "measuredDurationMs": 10033.2,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 608,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.7699560000000001,
+                "ScriptDuration": 0.29860999999999993,
+                "TaskDuration": 1.34543
+              }
+            },
+            {
+              "id": "pattern-star-map",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50,
+                "poseLagP95": 0,
+                "documentPoseLagP95": 52.65929436545544,
+                "sourceFrameErrorSecondsP95": null,
+                "requestedFrameLagSecondsP95": null,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 32.600000001490116,
+              "sampleCount": 263,
+              "measuredDurationMs": 10017.5,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 378,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.572969,
+                "ScriptDuration": 0.32034399999999996,
+                "TaskDuration": 1.1950820000000002
+              }
+            },
+            {
+              "id": "aod-method-top",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50,
+                "poseLagP95": 45.570543200875356,
+                "documentPoseLagP95": 82.02697776157527,
+                "sourceFrameErrorSecondsP95": 0.000032999999999949736,
+                "requestedFrameLagSecondsP95": 0.033366999999999924,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 32.69999999552965,
+              "sampleCount": 267,
+              "measuredDurationMs": 10017.600000000002,
+              "browserWork": {
+                "LayoutCount": 0,
+                "RecalcStyleCount": 535,
+                "LayoutDuration": 0,
+                "RecalcStyleDuration": 0.9816209999999999,
+                "ScriptDuration": 0.36356200000000016,
+                "TaskDuration": 1.6633750000000003
+              }
+            },
+            {
+              "id": "figure2-distance-expand",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 49.900000000001455,
+                "poseLagP95": 46.237429198936475,
+                "documentPoseLagP95": 86.69517974800497,
+                "sourceFrameErrorSecondsP95": 0.033367000000000036,
+                "requestedFrameLagSecondsP95": 0.033367000000000036,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 49.19999999552965,
+              "sampleCount": 291,
+              "measuredDurationMs": 10000.899999999994,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 1004,
+                "LayoutDuration": 0.0007259999999999975,
+                "RecalcStyleDuration": 1.8039150000000004,
+                "ScriptDuration": 0.6741130000000002,
+                "TaskDuration": 2.997339
+              }
+            },
+            {
+              "id": "figure3-services",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50,
+                "poseLagP95": 63.79876048122623,
+                "documentPoseLagP95": 100.25519504192522,
+                "sourceFrameErrorSecondsP95": 0.000300000000000189,
+                "requestedFrameLagSecondsP95": 0.03369999999999984,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33.29999999701977,
+              "sampleCount": 295,
+              "measuredDurationMs": 10017.599999999999,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 297,
+                "LayoutDuration": 0.00027500000000000094,
+                "RecalcStyleDuration": 0.8317969999999999,
+                "ScriptDuration": 0.578417,
+                "TaskDuration": 1.7817190000000007
+              }
+            },
+            {
+              "id": "ttg-lab",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval",
+                "poseLag"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 50.099999999998545,
+                "poseLagP95": 168.1700045864552,
+                "documentPoseLagP95": 229.32273352698394,
+                "sourceFrameErrorSecondsP95": 0.03370000000000006,
+                "requestedFrameLagSecondsP95": 0.06700000000000017,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33.399999998509884,
+              "sampleCount": 286,
+              "measuredDurationMs": 10000,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 574,
+                "LayoutDuration": 0.0001480000000000023,
+                "RecalcStyleDuration": 1.2916419999999995,
+                "ScriptDuration": 0.3572280000000001,
+                "TaskDuration": 2.0178569999999993
+              }
+            },
+            {
+              "id": "ph-education",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 34.19999999999709,
+                "poseLagP95": 44.71072163104717,
+                "documentPoseLagP95": 78.24376285433347,
+                "sourceFrameErrorSecondsP95": 0.033366999999999924,
+                "requestedFrameLagSecondsP95": 0.033366999999999924,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 33.399999998509884,
+              "sampleCount": 311,
+              "measuredDurationMs": 10017.5,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 315,
+                "LayoutDuration": 0.00021799999999999944,
+                "RecalcStyleDuration": 0.7288220000000001,
+                "ScriptDuration": 0.507012,
+                "TaskDuration": 1.6195730000000008
+              }
+            },
+            {
+              "id": "crane-contact",
+              "passed": false,
+              "failedChecks": [
+                "rafInterval"
+              ],
+              "unavailable": [],
+              "metrics": {
+                "rafIntervalP95": 34.30000000000291,
+                "poseLagP95": 48.78728742681767,
+                "documentPoseLagP95": 83.63534987454734,
+                "sourceFrameErrorSecondsP95": 0.03336699999999998,
+                "requestedFrameLagSecondsP95": 0.03336699999999998,
+                "allVideosPaused": true,
+                "over50msTasks": 0
+              },
+              "convergenceMs": 34.29999999701977,
+              "sampleCount": 268,
+              "measuredDurationMs": 10015.699999999997,
+              "browserWork": {
+                "LayoutCount": 1,
+                "RecalcStyleCount": 802,
+                "LayoutDuration": 0.00023199999999999957,
+                "RecalcStyleDuration": 0.7709769999999994,
+                "ScriptDuration": 0.833513,
+                "TaskDuration": 1.924112000000001
+              }
+            }
+          ]
+        }
+      ]
     }
   },
-  "automatedChecks": {"unit": {"passed": 1880, "failed": 0, "pending": 0, "originalTimeoutsUnchanged": true}, "lint": "passed", "typecheck": "passed", "buildAndOriginalBudgets": "passed ordinary build", "initialPublicationGuardTests": {"passed": 13}, "nativePublicationTests": {"passed": 32}},
-  "priorFailuresRetained": ["Earlier whole-suite architecture timeouts", "Earlier legacy PhoneCrane regression, subsequently fixed with the original test unchanged", "Earlier native fixture and healthy-response failures", "The original v72 cold and traversal failures", "The original 32/32 failed v73 scroll observations"],
-  "pending": ["Clean tagged frozen artifact checks", "Exact public-test authorization sealing", "Public replacement and retest", "Formal memory and physical-device qualification"],
-  "cleanup": {"priorV72TrashPermanentlyDeleted": true, "priorDeletedBlocksKiB": 2144572, "currentRoundRawEvidence": "Retained until validation/publication ends; then remove task-owned screenshots and raw logs as requested, keeping compact honest results in Git."}
+  "automatedChecks": {
+    "unit": {
+      "passed": 1880,
+      "failed": 0,
+      "pending": 0,
+      "originalTimeoutsUnchanged": true
+    },
+    "lint": "passed",
+    "typecheck": "passed",
+    "buildAndOriginalBudgets": "passed ordinary and clean tagged CDN-enabled release builds; all original caps unchanged",
+    "initialPublicationGuardTests": {
+      "passed": 13
+    },
+    "nativePublicationTests": {
+      "passed": 32
+    }
+  },
+  "priorFailuresRetained": [
+    "Earlier whole-suite architecture timeouts",
+    "Earlier legacy PhoneCrane regression, subsequently fixed with the original test unchanged",
+    "Earlier native fixture and healthy-response failures",
+    "The original v72 cold and traversal failures",
+    "The original 32/32 failed v73 scroll observations"
+  ],
+  "pending": [
+    "Seal exact authorization and publish",
+    "Public replacement and retest",
+    "Original scroll performance gates remain failed",
+    "Formal memory and physical-device qualification"
+  ],
+  "cleanup": {
+    "priorV72TrashPermanentlyDeleted": true,
+    "priorDeletedBlocksKiB": 2144572,
+    "currentRoundRawEvidence": "Retained until validation/publication ends; then remove task-owned screenshots and raw logs as requested, keeping compact honest results in Git."
+  },
+  "frozen": {
+    "identity": {
+      "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+      "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+      "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+      "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+      "draftManifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+    },
+    "baselineIdentity": {
+      "candidate": "react-refactor-r5-parity-repair-candidate-v70",
+      "candidateTagObject": "5bed925517d1b29d07c13448c6c3d87b319f7a78",
+      "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+      "artifactTreeSha256": "5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6",
+      "draftManifestSha256": "6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e"
+    },
+    "releaseQualified": false,
+    "functional": [
+      {
+        "platform": "desktop",
+        "passed": true,
+        "points": 121,
+        "passedPoints": 121,
+        "unexecutedPoints": 0,
+        "aliases": 3,
+        "interactions": 5,
+        "errors": [],
+        "failure": null,
+        "failedPoints": [],
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "sourceDirty": false,
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        }
+      },
+      {
+        "platform": "phone",
+        "passed": true,
+        "points": 121,
+        "passedPoints": 121,
+        "unexecutedPoints": 0,
+        "aliases": 3,
+        "interactions": 6,
+        "errors": [],
+        "failure": null,
+        "failedPoints": [],
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "sourceDirty": false,
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        }
+      }
+    ],
+    "visual": [
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "hold:hero",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 1278563,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "hero-pattern",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 1273073,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "pattern-star-map",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 116477,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "method-bottom-figure2",
+          "progress": 0.75
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 1295961,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "crane-contact",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 15497,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "desktop",
+        "pose": {
+          "rangeId": "figure3-services",
+          "progress": 0.75
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 38237,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "hold:hero",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 326535,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "hero-pattern",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 323700,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "pattern-star-map",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 50914,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "method-bottom-figure2",
+          "progress": 0.75
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 325648,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "crane-contact",
+          "progress": 0.5
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 3873,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      },
+      {
+        "platform": "phone",
+        "pose": {
+          "rangeId": "figure3-services",
+          "progress": 0.75
+        },
+        "passed": true,
+        "fraction": 0,
+        "ink": 11844,
+        "channelThreshold": 24,
+        "maxFraction": 0.005,
+        "minimumInk": 100
+      }
+    ],
+    "cold": [
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "hero-pattern",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2795,
+        "poseMs": 3168,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "hero-pattern",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2192,
+        "poseMs": 4605,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "method-bottom-figure2",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1921,
+        "poseMs": 527,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "method-bottom-figure2",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2221,
+        "poseMs": 558,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "brand-figure3",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1914,
+        "poseMs": 1326,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "brand-figure3",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1989,
+        "poseMs": 494,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "education-crane",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1705,
+        "poseMs": 1559,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "education-crane",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1809,
+        "poseMs": 1357,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "crane-contact",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1917,
+        "poseMs": 1597,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 1,
+        "rangeId": "crane-contact",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1962,
+        "poseMs": 2489,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "hero-pattern",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2341,
+        "poseMs": 3295,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "hero-pattern",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2402,
+        "poseMs": 3796,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "method-bottom-figure2",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2783,
+        "poseMs": 1966,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "method-bottom-figure2",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2500,
+        "poseMs": 1485,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "brand-figure3",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2403,
+        "poseMs": 1175,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "brand-figure3",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1856,
+        "poseMs": 549,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "education-crane",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2451,
+        "poseMs": 1557,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "education-crane",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1657,
+        "poseMs": 2464,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "crane-contact",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1809,
+        "poseMs": 1403,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "desktop",
+        "trial": 2,
+        "rangeId": "crane-contact",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1749,
+        "poseMs": 1399,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "hero-pattern",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2724,
+        "poseMs": 6385,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "hero-pattern",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2596,
+        "poseMs": 1872,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "method-bottom-figure2",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2713,
+        "poseMs": 1358,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "method-bottom-figure2",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 3292,
+        "poseMs": 1210,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "brand-figure3",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2671,
+        "poseMs": 1351,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "brand-figure3",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2658,
+        "poseMs": 1393,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "education-crane",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2015,
+        "poseMs": 844,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "education-crane",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2269,
+        "poseMs": 1396,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "crane-contact",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2615,
+        "poseMs": 2292,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 1,
+        "rangeId": "crane-contact",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2333,
+        "poseMs": 1482,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "hero-pattern",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2243,
+        "poseMs": 1753,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "hero-pattern",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2014,
+        "poseMs": 3546,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "method-bottom-figure2",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1943,
+        "poseMs": 1466,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "method-bottom-figure2",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1982,
+        "poseMs": 972,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "brand-figure3",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1982,
+        "poseMs": 1407,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "brand-figure3",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1984,
+        "poseMs": 369,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "education-crane",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1880,
+        "poseMs": 1330,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "education-crane",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 2653,
+        "poseMs": 1038,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "crane-contact",
+        "version": "candidate",
+        "ready": true,
+        "passed": true,
+        "entryMs": 1952,
+        "poseMs": 1624,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      },
+      {
+        "platform": "phone",
+        "trial": 2,
+        "rangeId": "crane-contact",
+        "version": "v70",
+        "ready": true,
+        "passed": true,
+        "entryMs": 3842,
+        "poseMs": 3157,
+        "failure": null,
+        "errors": [],
+        "mediaErrors": []
+      }
+    ],
+    "scroll": [
+      {
+        "label": "frozen-scroll-v70-desktop",
+        "version": "v70",
+        "platform": "desktop",
+        "requested": 8,
+        "measured": 8,
+        "passed": 0,
+        "failure": null,
+        "errors": [],
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v70",
+          "candidateTagObject": "5bed925517d1b29d07c13448c6c3d87b319f7a78",
+          "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+          "sourceDirty": false,
+          "artifactTreeSha256": "5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6",
+          "manifestSha256": "6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e"
+        },
+        "originalThresholds": {
+          "durationMs": 10000,
+          "preparationMs": 25000,
+          "rafP95Ms": 20,
+          "poseLagP95Ms": 100,
+          "convergenceMs": 150,
+          "longTaskLimitMs": 50,
+          "allowedLongTasks": 0
+        },
+        "results": [
+          {
+            "id": "hero-pattern",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 49.899999999999636,
+              "poseLagP95": 65.84362139917626,
+              "documentPoseLagP95": 98.76543209876483,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33.600000001490116,
+            "sampleCount": 295,
+            "measuredDurationMs": 10032.9,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 895,
+              "LayoutDuration": 0.00048700000000000045,
+              "RecalcStyleDuration": 0.36886100000000005,
+              "ScriptDuration": 0.594541,
+              "TaskDuration": 1.525255
+            }
+          },
+          {
+            "id": "pattern-star-map",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 83.20000000000073,
+              "poseLagP95": 0,
+              "documentPoseLagP95": 80.24691358024712,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 148.80000000447035,
+            "sampleCount": 277,
+            "measuredDurationMs": 10016.7,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 286,
+              "LayoutDuration": 0.00020699999999999972,
+              "RecalcStyleDuration": 0.08121400000000001,
+              "ScriptDuration": 0.5090889999999999,
+              "TaskDuration": 0.9474010000000002
+            }
+          },
+          {
+            "id": "aod-method-top",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag",
+              "convergence",
+              "longTasks"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 66.39999999999418,
+              "poseLagP95": 1034.1880341880337,
+              "documentPoseLagP95": 1068.3760683760684,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.06699999999999995,
+              "allVideosPaused": true,
+              "over50msTasks": 1
+            },
+            "convergenceMs": 1081.9000000059605,
+            "sampleCount": 232,
+            "measuredDurationMs": 10033.3,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 250,
+              "LayoutDuration": 0.00017700000000000007,
+              "RecalcStyleDuration": 0.17400500000000002,
+              "ScriptDuration": 0.789895,
+              "TaskDuration": 1.7415649999999996
+            }
+          },
+          {
+            "id": "figure2-distance-expand",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 65.04065040650413,
+              "documentPoseLagP95": 102.98102981029882,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.06699999999999995,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33.20000000298023,
+            "sampleCount": 297,
+            "measuredDurationMs": 10016.599999999999,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 506,
+              "LayoutDuration": 0.0001799999999999996,
+              "RecalcStyleDuration": 0.17042400000000002,
+              "ScriptDuration": 0.39228299999999994,
+              "TaskDuration": 0.9852210000000001
+            }
+          },
+          {
+            "id": "figure3-services",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.299999999995634,
+              "poseLagP95": 68.37606837606833,
+              "documentPoseLagP95": 102.56410256410201,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.06699999999999995,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 32.400000005960464,
+            "sampleCount": 268,
+            "measuredDurationMs": 10017.099999999999,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 280,
+              "LayoutDuration": 0.00028300000000000027,
+              "RecalcStyleDuration": 0.11195599999999994,
+              "ScriptDuration": 0.3577429999999997,
+              "TaskDuration": 1.2133230000000008
+            }
+          },
+          {
+            "id": "ttg-lab",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 100.35842293906795,
+              "documentPoseLagP95": 129.03225806451627,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.03370000000000006,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33.400000005960464,
+            "sampleCount": 301,
+            "measuredDurationMs": 10016.600000000006,
+            "browserWork": {
+              "LayoutCount": 0,
+              "RecalcStyleCount": 310,
+              "LayoutDuration": 0,
+              "RecalcStyleDuration": 0.13918999999999992,
+              "ScriptDuration": 0.3850549999999999,
+              "TaskDuration": 0.9349419999999995
+            }
+          },
+          {
+            "id": "ph-education",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.40000000000873,
+              "poseLagP95": 62.893081761006286,
+              "documentPoseLagP95": 104.82180293501045,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.03370000000000006,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 32.900000005960464,
+            "sampleCount": 298,
+            "measuredDurationMs": 10050,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 308,
+              "LayoutDuration": 0.00027099999999999867,
+              "RecalcStyleDuration": 0.10977999999999999,
+              "ScriptDuration": 0.3013720000000002,
+              "TaskDuration": 0.757968
+            }
+          },
+          {
+            "id": "crane-contact",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.40000000000873,
+              "poseLagP95": 133.33333333333346,
+              "documentPoseLagP95": 162.9629629629629,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.03370000000000006,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 132.5,
+            "sampleCount": 268,
+            "measuredDurationMs": 10016.699999999997,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 282,
+              "LayoutDuration": 0.00029000000000000206,
+              "RecalcStyleDuration": 0.10385899999999992,
+              "ScriptDuration": 0.46807200000000027,
+              "TaskDuration": 0.9438180000000003
+            }
+          }
+        ]
+      },
+      {
+        "label": "frozen-scroll-candidate-desktop",
+        "version": "candidate",
+        "platform": "desktop",
+        "requested": 8,
+        "measured": 8,
+        "passed": 0,
+        "failure": null,
+        "errors": [],
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "sourceDirty": false,
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "originalThresholds": {
+          "durationMs": 10000,
+          "preparationMs": 25000,
+          "rafP95Ms": 20,
+          "poseLagP95Ms": 100,
+          "convergenceMs": 150,
+          "longTaskLimitMs": 50,
+          "allowedLongTasks": 0
+        },
+        "results": [
+          {
+            "id": "hero-pattern",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 51,
+              "poseLagP95": 98.76543209876577,
+              "documentPoseLagP95": 164.60905349794248,
+              "sourceFrameErrorSecondsP95": 0.0413,
+              "requestedFrameLagSecondsP95": 0.08299999999999996,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 14.700000002980232,
+            "sampleCount": 260,
+            "measuredDurationMs": 10016.7,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 795,
+              "LayoutDuration": 0.0002270000000000015,
+              "RecalcStyleDuration": 0.46633100000000005,
+              "ScriptDuration": 0.6390739999999999,
+              "TaskDuration": 1.6137070000000002
+            }
+          },
+          {
+            "id": "pattern-star-map",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 82.5,
+              "poseLagP95": 0,
+              "documentPoseLagP95": 80.24691358024712,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 117.29999999701977,
+            "sampleCount": 257,
+            "measuredDurationMs": 10015.600000000002,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 267,
+              "LayoutDuration": 0.00021000000000000185,
+              "RecalcStyleDuration": 0.11689300000000002,
+              "ScriptDuration": 0.7682570000000002,
+              "TaskDuration": 1.3099759999999998
+            }
+          },
+          {
+            "id": "aod-method-top",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.30000000000291,
+              "poseLagP95": 51.28205128205147,
+              "documentPoseLagP95": 85.47008547008517,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.03370000000000006,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 66,
+            "sampleCount": 284,
+            "measuredDurationMs": 10000.799999999996,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 295,
+              "LayoutDuration": 0.0001470000000000013,
+              "RecalcStyleDuration": 0.16443200000000002,
+              "ScriptDuration": 0.4572219999999998,
+              "TaskDuration": 1.0772620000000002
+            }
+          },
+          {
+            "id": "figure2-distance-expand",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.30000000000291,
+              "poseLagP95": 102.98102981029882,
+              "documentPoseLagP95": 151.7615176151769,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.06700000000000017,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33,
+            "sampleCount": 297,
+            "measuredDurationMs": 10033.399999999994,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 505,
+              "LayoutDuration": 0.00036500000000000074,
+              "RecalcStyleDuration": 0.2776780000000001,
+              "ScriptDuration": 0.5616020000000002,
+              "TaskDuration": 1.3064179999999999
+            }
+          },
+          {
+            "id": "figure3-services",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.30000000000291,
+              "poseLagP95": 51.28205128205147,
+              "documentPoseLagP95": 85.47008547008609,
+              "sourceFrameErrorSecondsP95": 0.03369999999999995,
+              "requestedFrameLagSecondsP95": 0.03369999999999995,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 67.20000000298023,
+            "sampleCount": 268,
+            "measuredDurationMs": 10000,
+            "browserWork": {
+              "LayoutCount": 0,
+              "RecalcStyleCount": 277,
+              "LayoutDuration": 0,
+              "RecalcStyleDuration": 0.107715,
+              "ScriptDuration": 0.3218160000000001,
+              "TaskDuration": 0.8280370000000001
+            }
+          },
+          {
+            "id": "ttg-lab",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.30000000000291,
+              "poseLagP95": 71.68458781362057,
+              "documentPoseLagP95": 100.35842293906842,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.06699999999999995,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 65.20000000298023,
+            "sampleCount": 297,
+            "measuredDurationMs": 10000.899999999994,
+            "browserWork": {
+              "LayoutCount": 0,
+              "RecalcStyleCount": 306,
+              "LayoutDuration": 0,
+              "RecalcStyleDuration": 0.12184499999999998,
+              "ScriptDuration": 0.3354020000000002,
+              "TaskDuration": 0.8148270000000011
+            }
+          },
+          {
+            "id": "ph-education",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.30000000000291,
+              "poseLagP95": 73.37526205450733,
+              "documentPoseLagP95": 104.82180293501045,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.03370000000000006,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 66.90000000596046,
+            "sampleCount": 297,
+            "measuredDurationMs": 10000.199999999997,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 308,
+              "LayoutDuration": 0.0005879999999999982,
+              "RecalcStyleDuration": 0.11109100000000005,
+              "ScriptDuration": 0.2879859999999992,
+              "TaskDuration": 0.7862609999999997
+            }
+          },
+          {
+            "id": "crane-contact",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 437.03703703703763,
+              "documentPoseLagP95": 481.4814814814809,
+              "sourceFrameErrorSecondsP95": 0.03369999999999995,
+              "requestedFrameLagSecondsP95": 0.06699999999999995,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33,
+            "sampleCount": 279,
+            "measuredDurationMs": 10016.800000000003,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 294,
+              "LayoutDuration": 0.0007500000000000007,
+              "RecalcStyleDuration": 0.14522600000000008,
+              "ScriptDuration": 0.8930860000000003,
+              "TaskDuration": 1.5903019999999994
+            }
+          }
+        ]
+      },
+      {
+        "label": "frozen-scroll-candidate-phone",
+        "version": "candidate",
+        "platform": "phone",
+        "requested": 8,
+        "measured": 8,
+        "passed": 0,
+        "failure": null,
+        "errors": [],
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+          "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+          "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+          "sourceDirty": false,
+          "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+          "manifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+        },
+        "originalThresholds": {
+          "durationMs": 10000,
+          "preparationMs": 25000,
+          "rafP95Ms": 20,
+          "poseLagP95Ms": 100,
+          "convergenceMs": 150,
+          "longTaskLimitMs": 50,
+          "allowedLongTasks": 0
+        },
+        "results": [
+          {
+            "id": "hero-pattern",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 52.65929436545544,
+              "documentPoseLagP95": 87.76549060909208,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 32.80000000447035,
+            "sampleCount": 267,
+            "measuredDurationMs": 10033.3,
+            "browserWork": {
+              "LayoutCount": 2,
+              "RecalcStyleCount": 605,
+              "LayoutDuration": 0.0008909999999999994,
+              "RecalcStyleDuration": 1.3947990000000001,
+              "ScriptDuration": 0.5811930000000001,
+              "TaskDuration": 2.433751
+            }
+          },
+          {
+            "id": "pattern-star-map",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.20000000000073,
+              "poseLagP95": 0,
+              "documentPoseLagP95": 39.49447077409296,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 32.79999999701977,
+            "sampleCount": 269,
+            "measuredDurationMs": 10033.3,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 388,
+              "LayoutDuration": 0.00010500000000000093,
+              "RecalcStyleDuration": 0.6872130000000003,
+              "ScriptDuration": 0.4150330000000002,
+              "TaskDuration": 1.4510889999999996
+            }
+          },
+          {
+            "id": "aod-method-top",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 54.68465184104987,
+              "documentPoseLagP95": 82.02697776157527,
+              "sourceFrameErrorSecondsP95": 0.033367000000000036,
+              "requestedFrameLagSecondsP95": 0.23336699999999988,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33,
+            "sampleCount": 283,
+            "measuredDurationMs": 10016.599999999999,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 568,
+              "LayoutDuration": 0.00015799999999999842,
+              "RecalcStyleDuration": 1.122245,
+              "ScriptDuration": 0.433894,
+              "TaskDuration": 1.9333900000000002
+            }
+          },
+          {
+            "id": "figure2-distance-expand",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.299999999995634,
+              "poseLagP95": 34.678071899204205,
+              "documentPoseLagP95": 80.91550109813883,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33.100000001490116,
+            "sampleCount": 297,
+            "measuredDurationMs": 10033.300000000003,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 1024,
+              "LayoutDuration": 0.0002489999999999992,
+              "RecalcStyleDuration": 1.0485130000000003,
+              "ScriptDuration": 0.4648650000000001,
+              "TaskDuration": 1.9072110000000002
+            }
+          },
+          {
+            "id": "figure3-services",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 54.68465184104987,
+              "documentPoseLagP95": 91.14108640174979,
+              "sourceFrameErrorSecondsP95": 0.03369999999999995,
+              "requestedFrameLagSecondsP95": 0.06699999999999995,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33.20000000298023,
+            "sampleCount": 298,
+            "measuredDurationMs": 10033.300000000003,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 299,
+              "LayoutDuration": 0.00039000000000000146,
+              "RecalcStyleDuration": 0.5695199999999998,
+              "ScriptDuration": 0.41858100000000054,
+              "TaskDuration": 1.273854
+            }
+          },
+          {
+            "id": "ttg-lab",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 68.79682005809426,
+              "documentPoseLagP95": 99.37318452836001,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.06699999999999995,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33.100000001490116,
+            "sampleCount": 298,
+            "measuredDurationMs": 10016.599999999991,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 597,
+              "LayoutDuration": 0.0001830000000000026,
+              "RecalcStyleDuration": 0.6991209999999999,
+              "ScriptDuration": 0.2077460000000002,
+              "TaskDuration": 1.1477119999999985
+            }
+          },
+          {
+            "id": "ph-education",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 49,
+              "poseLagP95": 44.71072163104717,
+              "documentPoseLagP95": 78.24376285433347,
+              "sourceFrameErrorSecondsP95": 0.033367000000000036,
+              "requestedFrameLagSecondsP95": 0.033367000000000036,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 65.39999999850988,
+            "sampleCount": 269,
+            "measuredDurationMs": 10001,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 273,
+              "LayoutDuration": 0.0001559999999999999,
+              "RecalcStyleDuration": 0.7117260000000005,
+              "ScriptDuration": 0.5308670000000006,
+              "TaskDuration": 1.676654000000001
+            }
+          },
+          {
+            "id": "crane-contact",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 49,
+              "poseLagP95": 48.78728742681952,
+              "documentPoseLagP95": 83.63534987454827,
+              "sourceFrameErrorSecondsP95": 0.033366999999999924,
+              "requestedFrameLagSecondsP95": 0.033366999999999924,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 16.399999998509884,
+            "sampleCount": 308,
+            "measuredDurationMs": 10000,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 908,
+              "LayoutDuration": 0.00016100000000000142,
+              "RecalcStyleDuration": 1.0668930000000003,
+              "ScriptDuration": 1.0609409999999997,
+              "TaskDuration": 2.560506
+            }
+          }
+        ]
+      },
+      {
+        "label": "frozen-scroll-v70-phone",
+        "version": "v70",
+        "platform": "phone",
+        "requested": 8,
+        "measured": 8,
+        "passed": 0,
+        "failure": null,
+        "errors": [],
+        "identity": {
+          "candidate": "react-refactor-r5-parity-repair-candidate-v70",
+          "candidateTagObject": "5bed925517d1b29d07c13448c6c3d87b319f7a78",
+          "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+          "sourceDirty": false,
+          "artifactTreeSha256": "5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6",
+          "manifestSha256": "6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e"
+        },
+        "originalThresholds": {
+          "durationMs": 10000,
+          "preparationMs": 25000,
+          "rafP95Ms": 20,
+          "poseLagP95Ms": 100,
+          "convergenceMs": 150,
+          "longTaskLimitMs": 50,
+          "allowedLongTasks": 0
+        },
+        "results": [
+          {
+            "id": "hero-pattern",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 52.65929436545544,
+              "documentPoseLagP95": 78.98894154818407,
+              "sourceFrameErrorSecondsP95": 0.04163300000000003,
+              "requestedFrameLagSecondsP95": 0.04163300000000003,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33.20000000298023,
+            "sampleCount": 294,
+            "measuredDurationMs": 10016.6,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 711,
+              "LayoutDuration": 0.00015500000000000236,
+              "RecalcStyleDuration": 0.924699,
+              "ScriptDuration": 0.41473499999999996,
+              "TaskDuration": 1.7044370000000002
+            }
+          },
+          {
+            "id": "pattern-star-map",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.39999999999782,
+              "poseLagP95": 0,
+              "documentPoseLagP95": 39.49447077409296,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 32.70000000298023,
+            "sampleCount": 269,
+            "measuredDurationMs": 10033.300000000001,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 390,
+              "LayoutDuration": 0.00022699999999999804,
+              "RecalcStyleDuration": 0.74161,
+              "ScriptDuration": 0.478097,
+              "TaskDuration": 1.7979949999999998
+            }
+          },
+          {
+            "id": "aod-method-top",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 45.570543200875356,
+              "documentPoseLagP95": 82.02697776157434,
+              "sourceFrameErrorSecondsP95": 0,
+              "requestedFrameLagSecondsP95": 0,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 32.5,
+            "sampleCount": 297,
+            "measuredDurationMs": 10016.600000000002,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 594,
+              "LayoutDuration": 0.0002620000000000018,
+              "RecalcStyleDuration": 0.8885260000000001,
+              "ScriptDuration": 0.35479300000000014,
+              "TaskDuration": 1.5625069999999992
+            }
+          },
+          {
+            "id": "figure2-distance-expand",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 49.900000000001455,
+              "poseLagP95": 52.017107848804464,
+              "documentPoseLagP95": 98.25453704774002,
+              "sourceFrameErrorSecondsP95": 0.0333669999999997,
+              "requestedFrameLagSecondsP95": 0.06669999999999998,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 16.5,
+            "sampleCount": 304,
+            "measuredDurationMs": 10000,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 1047,
+              "LayoutDuration": 0.00021099999999999938,
+              "RecalcStyleDuration": 1.4633750000000005,
+              "ScriptDuration": 0.5541559999999999,
+              "TaskDuration": 2.536536999999999
+            }
+          },
+          {
+            "id": "figure3-services",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval",
+              "poseLag"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 51,
+              "poseLagP95": 601.5311702515477,
+              "documentPoseLagP95": 1039.0083849799485,
+              "sourceFrameErrorSecondsP95": 0.03370000000000001,
+              "requestedFrameLagSecondsP95": 0.067,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 63.400000005960464,
+            "sampleCount": 254,
+            "measuredDurationMs": 10017.100000000006,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 263,
+              "LayoutDuration": 0.0003470000000000001,
+              "RecalcStyleDuration": 0.7120769999999998,
+              "ScriptDuration": 0.6876100000000003,
+              "TaskDuration": 1.794618999999999
+            }
+          },
+          {
+            "id": "ttg-lab",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 50,
+              "poseLagP95": 68.79682005809518,
+              "documentPoseLagP95": 99.37318452836001,
+              "sourceFrameErrorSecondsP95": 0.03370000000000006,
+              "requestedFrameLagSecondsP95": 0.03370000000000006,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 33,
+            "sampleCount": 265,
+            "measuredDurationMs": 10016.699999999997,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 532,
+              "LayoutDuration": 0.0002899999999999986,
+              "RecalcStyleDuration": 0.7083499999999994,
+              "ScriptDuration": 0.22679599999999978,
+              "TaskDuration": 1.2060809999999993
+            }
+          },
+          {
+            "id": "ph-education",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.30000000000291,
+              "poseLagP95": 44.71072163104717,
+              "documentPoseLagP95": 89.42144326209434,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 66.19999999552965,
+            "sampleCount": 240,
+            "measuredDurationMs": 10000.899999999994,
+            "browserWork": {
+              "LayoutCount": 0,
+              "RecalcStyleCount": 242,
+              "LayoutDuration": 0,
+              "RecalcStyleDuration": 0.6158719999999995,
+              "ScriptDuration": 0.4579449999999996,
+              "TaskDuration": 1.3726459999999996
+            }
+          },
+          {
+            "id": "crane-contact",
+            "passed": false,
+            "failedChecks": [
+              "rafInterval"
+            ],
+            "unavailable": [],
+            "metrics": {
+              "rafIntervalP95": 34.30000000000291,
+              "poseLagP95": 48.787287426819056,
+              "documentPoseLagP95": 83.63534987454734,
+              "sourceFrameErrorSecondsP95": null,
+              "requestedFrameLagSecondsP95": null,
+              "allVideosPaused": true,
+              "over50msTasks": 0
+            },
+            "convergenceMs": 32.80000000447035,
+            "sampleCount": 268,
+            "measuredDurationMs": 10000.600000000006,
+            "browserWork": {
+              "LayoutCount": 1,
+              "RecalcStyleCount": 800,
+              "LayoutDuration": 0.00030000000000000165,
+              "RecalcStyleDuration": 0.8014320000000001,
+              "ScriptDuration": 0.8677669999999997,
+              "TaskDuration": 2.3824200000000015
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "nativeTransferReadErrors": [
+    {
+      "trial": "native-34",
+      "kind": "prepare",
+      "asset": "ttg",
+      "driverSourceSha256": "707abbd4a3f959e68019c521b29ea870b8bb6703006e612b860c8949a78b0c33",
+      "driverCompiledSha256": "affbd8d8b878446769b790c79ed25606bb2c5e9e6a8f944da2c44bd2946ef65e",
+      "elapsedMs": 2168.4000000003725,
+      "reloads": 1,
+      "readyState": 4,
+      "seeking": false,
+      "paused": true,
+      "physicalTime": 1.24,
+      "frameEvidence": "decoded-canvas",
+      "frameReady": "true",
+      "nativeFallback": "false",
+      "errors": [
+        {
+          "name": "error",
+          "at": 3195.100000000093,
+          "readyState": 0,
+          "networkState": 3,
+          "seeking": false,
+          "time": 0,
+          "error": {
+            "code": 4,
+            "message": "PipelineStatus::PIPELINE_ERROR_READ: FFmpegDemuxer: data source error"
+          }
+        }
+      ]
+    },
+    {
+      "trial": "native-35",
+      "kind": "active",
+      "asset": "figure2",
+      "driverSourceSha256": "707abbd4a3f959e68019c521b29ea870b8bb6703006e612b860c8949a78b0c33",
+      "driverCompiledSha256": "affbd8d8b878446769b790c79ed25606bb2c5e9e6a8f944da2c44bd2946ef65e",
+      "elapsedMs": 1487.5,
+      "reloads": 1,
+      "readyState": 4,
+      "seeking": false,
+      "paused": true,
+      "physicalTime": 2.59,
+      "frameEvidence": "decoded-canvas",
+      "frameReady": "true",
+      "nativeFallback": "false",
+      "errors": [
+        {
+          "name": "error",
+          "at": 2593.3000000002794,
+          "readyState": 0,
+          "networkState": 3,
+          "seeking": false,
+          "time": 0,
+          "error": {
+            "code": 4,
+            "message": "PipelineStatus::PIPELINE_ERROR_READ: FFmpegDemuxer: data source error"
+          }
+        }
+      ]
+    }
+  ],
+  "earlierFailedUnitRuns": [
+    {
+      "name": "unit-stable.json",
+      "total": 1878,
+      "failed": 6,
+      "success": false,
+      "failures": [
+        {
+          "file": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/scripts/verify-homepage-module-boundaries.test.mjs",
+          "name": "the repository passes the cutover homepage boundary",
+          "status": "failed",
+          "firstMessage": "Error: STACK_TRACE_ERROR\n    at task (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:638:27)\n    at Object.<anonymous> (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:662:16)",
+          "fullMessageSha256": "11c653a7a231d479ee2b62d03498ed981aef46a051ed15373ac3ab6d4dd763f5"
+        },
+        {
+          "file": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/scripts/verify-phone-clean-architecture.test.mjs",
+          "name": "rejects runtime factory calls anywhere in non-test src",
+          "status": "failed",
+          "firstMessage": "Error: STACK_TRACE_ERROR\n    at task (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:638:27)\n    at Object.<anonymous> (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:662:16)",
+          "fullMessageSha256": "ef26da9887776a38e7b24caafe58888ee23d580705bd848f6a8bf1752f4517e7"
+        },
+        {
+          "file": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/scripts/verify-phone-clean-architecture.test.mjs",
+          "name": "rejects non-literal imports and every CommonJS-style core import",
+          "status": "failed",
+          "firstMessage": "Error: STACK_TRACE_ERROR\n    at task (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:638:27)\n    at Object.<anonymous> (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:662:16)",
+          "fullMessageSha256": "edfd60944ba5ceb33f69e4148ac3d002aed5e63e38992dc131c5a27181969f84"
+        },
+        {
+          "file": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/scripts/verify-phone-clean-architecture.test.mjs",
+          "name": "rejects leaves importing runtime and runtime importing a visual leaf",
+          "status": "failed",
+          "firstMessage": "Error: STACK_TRACE_ERROR\n    at task (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:638:27)\n    at Object.<anonymous> (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:662:16)",
+          "fullMessageSha256": "73373c1b32d6d4906fe462e5b8ad2d9a8d6dae1a8797d41416bf4efea0f3cf5e"
+        },
+        {
+          "file": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/scripts/verify-phone-clean-architecture.test.mjs",
+          "name": "fails closed on non-literal and CommonJS imports in leaf and formal graphs",
+          "status": "failed",
+          "firstMessage": "Error: STACK_TRACE_ERROR\n    at task (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:638:27)\n    at Object.<anonymous> (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:662:16)",
+          "fullMessageSha256": "d2c1ed40d2c143320726adc7d338ef84838f3f3892830e92730f8f4d49a26dd3"
+        },
+        {
+          "file": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/src/scenes/crane-animation/phone/PhoneCrane.clean.test.tsx",
+          "name": "clean PhoneCrane leaf coalesces intermediate playhead samples onto the authored 30fps source frames",
+          "status": "failed",
+          "firstMessage": "AssertionError: expected false to be true // Object.is equality\n    at /Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/src/scenes/crane-animation/phone/PhoneCrane.clean.test.tsx:481:72\n    at file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20",
+          "fullMessageSha256": "4627835ebddf2a14890f2c6551d4c80f72831911dc330b844d2db887a687023a"
+        }
+      ]
+    },
+    {
+      "name": "unit-final.json",
+      "total": 1880,
+      "failed": 2,
+      "success": false,
+      "failures": [
+        {
+          "file": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/scripts/verify-homepage-module-boundaries.test.mjs",
+          "name": "the repository passes the cutover homepage boundary",
+          "status": "failed",
+          "firstMessage": "Error: STACK_TRACE_ERROR\n    at task (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:638:27)\n    at Object.<anonymous> (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:662:16)",
+          "fullMessageSha256": "11c653a7a231d479ee2b62d03498ed981aef46a051ed15373ac3ab6d4dd763f5"
+        },
+        {
+          "file": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/scripts/verify-phone-clean-architecture.test.mjs",
+          "name": "follows literal worker URL modules and rejects shadowed or computed URLs",
+          "status": "failed",
+          "firstMessage": "Error: STACK_TRACE_ERROR\n    at task (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:638:27)\n    at Object.<anonymous> (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:662:16)",
+          "fullMessageSha256": "434bfb3ff67331ecfa2c490caf5c9a8d51fecdfcd5de535cbba84e77112db92d"
+        }
+      ]
+    },
+    {
+      "name": "unit-timeout-retest.json",
+      "total": 88,
+      "failed": 1,
+      "success": false,
+      "failures": [
+        {
+          "file": "/Users/aitoshuu/Documents/GitHub/TongyeGuanmi/app/scripts/verify-homepage-module-boundaries.test.mjs",
+          "name": "the repository passes the cutover homepage boundary",
+          "status": "failed",
+          "firstMessage": "Error: STACK_TRACE_ERROR\n    at task (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:638:27)\n    at Object.<anonymous> (file:///Users/aitoshuu/Documents/GitHub/TongyeGuanmi/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:662:16)",
+          "fullMessageSha256": "11c653a7a231d479ee2b62d03498ed981aef46a051ed15373ac3ab6d4dd763f5"
+        }
+      ]
+    }
+  ],
+  "releaseTooling": {
+    "offlinePublicationTestsPassed": 150,
+    "initialAndSourceGuardTestsPassed": 14,
+    "luaPathTestsPassed": 3,
+    "realNginxFixtureChecksPassed": 23,
+    "localNginxFailure": "Local nginx is absent; the actual release-host integration fixture was run instead, not skipped.",
+    "firstRemoteFixtureFailure": "The probe hardcoded Lua 0.10.24 libraries while the release host uses ngx_lua 0.10.29R2. This failure remains recorded.",
+    "repair": "The isolated probe reads and validates the actual production lua_package_path, preserving library order without editing global configuration or disabling Lua.",
+    "baselineCdn": {
+      "releaseId": "r5-c58c7d9",
+      "objects": 63,
+      "transport": "curl",
+      "passed": true
+    },
+    "ci": "No GitHub Actions run was returned for the pushed frozen source commit; older CI success is not evidence for this commit."
+  },
+  "publicationAuthorization": {
+    "sha256": "e06eb3f0d08b6477a4e1742291cc603a5872068298730c590ab199d36e86a976",
+    "doesNotGrantPassingQualification": true,
+    "doesNotAuthorizeFutureCandidates": true
+  }
 }

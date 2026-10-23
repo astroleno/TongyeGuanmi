@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "kind": "r5-user-directed-publication",
+  "mode": "user-directed-with-known-validation-gaps",
+  "recordedAt": "2026-10-23T04:51:55.505Z",
+  "authority": "The current user explicitly authorizes a v70-relative public-test publication, not passing performance/memory/device qualification or arbitrary future releases.",
+  "userInstruction": "允许重建专用验收组，继续补齐冷加载、视觉和滚动复测，不要放宽标准，失败项如实保留。确认比 v70 好就 commit push 到 main，再更新公网复测。",
+  "releaseId": "r5-dd2c6cd",
+  "basePath": "/experience/",
+  "identity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v73",
+    "candidateTagObject": "709d237099c5a9661a73d55d2cf5945bf9570d00",
+    "sourceCommit": "dd2c6cdb3b01c55b235cf838615d15023af5c5ea",
+    "artifactTreeSha256": "5530d104b0b7a05f147edc4198b7e2712f8beb680a2481c5f2fbfeb3e004ac86",
+    "draftManifestSha256": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da"
+  },
+  "baselineIdentity": {
+    "candidate": "react-refactor-r5-parity-repair-candidate-v70",
+    "candidateTagObject": "5bed925517d1b29d07c13448c6c3d87b319f7a78",
+    "sourceCommit": "c58c7d91d79ad3762cc7f6c5770f1167d3e9783e",
+    "artifactTreeSha256": "5c8293816b8483879001bc76a05a9633fa402ec9d4ee8d333bb342f132493af6",
+    "draftManifestSha256": "6ab24a1ff643438f880f2723902310ab69cc7829af5caeddd5486f6dd212fd1e"
+  },
+  "doesNotGrantPassingQualification": true,
+  "doesNotAuthorizeFutureCandidates": true,
+  "evidence": {
+    "nativeBinding": {
+      "path": "evidence/native-binding.json",
+      "bytes": 843,
+      "sha256": "9c55c8850c105960c0d497fcdfe54cc05a70341af0c57ed253169ede5da595c1"
+    },
+    "initialRecovery": {
+      "path": "evidence/initial-recovery.json",
+      "bytes": 45103,
+      "sha256": "2f42b4ecaf152443de74aee9af682c6bd1766013aa50590e98b2f722b0e47300"
+    },
+    "nativeRecovery": {
+      "path": "evidence/native-recovery.json",
+      "bytes": 275452,
+      "sha256": "f6177a59488149cd71f1f2898210c01365c66e351bb3e35a612e3e96c393a6be"
+    },
+    "functional": {
+      "path": "evidence/functional.json",
+      "bytes": 2569222,
+      "sha256": "e315183b6273a3bf7906a24306c48ebd9873a3266dec5300b41f13e467cdd935"
+    },
+    "visual": {
+      "path": "evidence/visual.json",
+      "bytes": 1114406,
+      "sha256": "d121ebf01d6281c4fa2277354807c4294b2f3a90ab8622fdb045a76132be3342"
+    },
+    "coldComparison": {
+      "path": "evidence/cold-comparison.json",
+      "bytes": 13230958,
+      "sha256": "1a1e391c888eb0f13a98ed95000a0be28c61dc146b60afd88b837191f4d2f5e7"
+    },
+    "scrollComparison": {
+      "path": "evidence/scroll-comparison.json",
+      "bytes": 15092098,
+      "sha256": "2fc67e7544d4f769a3153d9d2dc021ba2682a85aa3f7db606f3d93e1f1150ffd"
+    },
+    "retentionIndex": {
+      "path": "evidence/retention-index.json",
+      "bytes": 190603,
+      "sha256": "c520435f581385b85ca7e6e5aeba88969146ee4d15411f3752282420774b3df6"
+    },
+    "memory": {
+      "path": "site/r5-process-memory.json",
+      "bytes": 758,
+      "sha256": "5106ef5997d13e223fb184590fdde90d5301093a2a92899e5e31f6319db364b3"
+    }
+  },
+  "improvement": "Initial unbuffered recovery 3/3 versus 1/3 and original native reverse checks 8/8 versus 2/8. Fewer unchanged layout writes. Original FPS failures remain failed; cold control is not a public-network qualification.",
+  "knownGaps": [
+    "Original scroll gates remain failed",
+    "Formal two-run process memory is unmeasured, 0/2",
+    "Physical iOS and Android are unmeasured",
+    "Controlled local transport does not identify the exclusive cause of public CDN/proxy failures"
+  ],
+  "retainedPriorFailures": true
+}

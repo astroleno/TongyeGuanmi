@@ -50,7 +50,7 @@ V70_CALLBACK_AUTH_SHA = '5e011218bfd8871a349f6433643f06862d212f4e5b13fc778f8a22e
 # Populated only after the exact v72 reports and explicit user instruction are sealed.
 V72_RECOVERY_AUTH_SHA = '0000000000000000000000000000000000000000000000000000000000000000'
 # A separate exact receipt is required for v73; v72 remains unsealed/failed.
-V73_RECOVERY_AUTH_SHA = None
+V73_RECOVERY_AUTH_SHA = 'e06eb3f0d08b6477a4e1742291cc603a5872068298730c590ab199d36e86a976'
 # The second publication preserves both generations of lazy module URLs. This
 # is not permission to accept arbitrary future predecessors or pending builds.
 NATIVE_PREDECESSORS = {
@@ -1387,9 +1387,24 @@ def http_checks(origin, deploy, manifest, legacy):
             'completedAt': datetime.now(timezone.utc).isoformat()}
 
 
+def production_lua_package_path(config_path=Path('/www/server/nginx/conf/nginx.conf')):
+    """Mirror the release host's actual library order; never edit its config."""
+    matches = re.findall(r'(?m)^[ \t]*lua_package_path[ \t]+"([^"\r\n]+)"[ \t]*;', config_path.read_text())
+    if len(matches) != 1:
+        raise ValueError('one explicit production lua_package_path is required for the isolated probe')
+    value = matches[0]
+    parts = value.split(';')
+    if (parts[-2:] != ['', ''] or not parts[:-2]
+            or any(not re.fullmatch(r'/www/server/nginx/[A-Za-z0-9_./-]+/\?\.lua', item)
+                   or '..' in PurePosixPath(item).parts for item in parts[:-2])):
+        raise ValueError('unsupported production Lua library path; do not guess or disable Lua loading')
+    return value
+
+
 def probe(package, expected_vhost_sha, expected_include_sha, authorization_sha=None):
     deploy, manifest, _ = validate_package(package, authorization_sha)
     original, _, legacy = predecessor(expected_vhost_sha, expected_include_sha)
+    lua_path = production_lua_package_path()
     with tempfile.TemporaryDirectory(prefix='tongye-native-nginx-probe-') as directory:
         root = Path(directory)
         os.chmod(root, 0o755)
@@ -1415,7 +1430,7 @@ def probe(package, expected_vhost_sha, expected_include_sha, authorization_sha=N
 error_log {root}/error.log notice;
 events {{ worker_connections 64; }}
 http {{
-    lua_package_path "/www/server/nginx/lib/lua/?.lua;;";
+    lua_package_path "{lua_path}";
     include /www/server/nginx/conf/mime.types;
     access_log off;
     server {{
@@ -1444,7 +1459,7 @@ http {{
                         raise
                     time.sleep(0.05)
             report = http_checks(f'http://127.0.0.1:{port}', deploy, manifest, legacy)
-            report.update(scope='isolated-real-nginx', releaseManifestSha256=deploy['releaseManifestSha256'], vhostSha256=expected_vhost_sha,
+            report.update(scope='isolated-real-nginx', luaPackagePath=lua_path, releaseManifestSha256=deploy['releaseManifestSha256'], vhostSha256=expected_vhost_sha,
                           userDirectedAuthorizationSha256=authorization_sha,
                           beforeIncludeSha256=expected_include_sha,
                           afterIncludeSha256=digest(render_include(deploy, manifest, original, legacy)))
