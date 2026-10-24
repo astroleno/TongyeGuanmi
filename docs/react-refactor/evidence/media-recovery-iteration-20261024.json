@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-24",
+  "kind": "source-iteration-diagnostics-not-release-qualification",
+  "sourceCommit": "0760a59e7a51133307b5ce1da2e3c2ce1004c101",
+  "sourceChanges": [
+    "954c326: preserve bounded recovery during pending native source selection and buffered decode stalls",
+    "0760a59: skip terminal intro viewport reads without changing pixels or reversal"
+  ],
+  "applicationSources": {
+    "app/src/media/timeline-video-driver.ts": "0a43e6f4d8b53f1fa7c57970ff4b5310024533140792a06d6208c0f25f264e1e",
+    "app/src/transitions/shared/radialInkIntro.ts": "3e1f7b38a78a615b7f422204da858ae4e3a68fd153279597fbd52318606589cc"
+  },
+  "releaseQualified": false,
+  "publicationEvidenceComplete": false,
+  "publiclyDeployed": false,
+  "publicVersionUnchanged": "v73 / r5-dd2c6cd",
+  "publicManifestSha256Expected": "f2fccc4982ce312db8f7a90539087d0bc1b55dc74c869ce35afd8e8af822e6da",
+  "scope": {
+    "architecture": "Existing continuous-scroll, paused seeks, exact decoded proof and paired-media coherence retained",
+    "design": "No artwork, quality, camera, authored timings or layout changes",
+    "browser": "User-specified shared Ego Lite; task space 5; no Chrome or Playwright installation",
+    "devices": "Desktop 1440x900@1 and phone emulation 390x844@1, not physical-device qualification",
+    "comparison": "Frozen v73 site versus local source build; v70 and v73 native driver fixtures",
+    "networkCaveat": "Frozen site uses its existing public CDN; local candidate uses byte-identical local source media. This is not a public cold-network speed comparison.",
+    "systemSettingsChanged": false,
+    "otherUserTabsOperated": false
+  },
+  "originalStandardsUnchanged": {
+    "preparationDeadlineMs": 19000,
+    "maximumPreparationReloads": 1,
+    "activeRecoveryDeadlineMs": 20000,
+    "maximumActiveReloads": 2,
+    "responseGraceMs": 6000,
+    "inactivityMs": 4000,
+    "scrollDurationMs": 10000,
+    "scrollPreparationDeadlineMs": 25000,
+    "scrollRafP95Ms": 20,
+    "scrollPoseLagP95Ms": 100,
+    "scrollConvergenceMs": 150,
+    "longTaskThresholdMs": 50,
+    "allowedLongTasks": 0,
+    "visualChannelThreshold": 24,
+    "visualMaxChangedFraction": 0.005,
+    "visualMinimumDarkPixelsExclusive": 100,
+    "visualCompositorRafs": 2,
+    "formalMemoryRunsRequired": 2,
+    "browserTreeRssLimitBytes": 1500000000
+  },
+  "rootCauses": [
+    "Immediately after src/load selection, Chromium can report NETWORK_NO_SOURCE before its next native task. Capturing that transient state as an exhausted source incorrectly spends the only preparation reload. Yield one task before that classification; a persistently exhausted selection retains the previous cap.",
+    "A native paused seek can remain HAVE_METADATA/seeking at prime .05 despite buffered coverage and ongoing tiny transfer progress. Those progress events previously kept resetting transfer inactivity without producing a frame. Observe the covered, physically unchanged seek independently; use only the existing retry after the existing response grace.",
+    "A settled radial intro already skipped drawing, but still read the viewport on every scroll/media wake. Skip only that redundant terminal measurement; surface handoff and reversed middle-pose measurement remain active."
+  ],
+  "nativeFixtures": {
+    "method": "Real native video requests to a task-owned HTTP Range server using the unchanged crane-flock WebM and transpiled source drivers; no mocked video readiness",
+    "v73": [
+      { "case": "partial stream stops, progress .5", "outcome": "MEDIA_PREPARATION_TIMEOUT", "elapsedMs": 19022.6, "reloadObserved": false, "readyState": 1, "seeking": true },
+      { "case": "tiny byte trickle stalls buffered prime at .05", "outcome": "MEDIA_PREPARATION_TIMEOUT", "elapsedMs": 19005.1, "reloadObserved": false, "readyState": 1, "seeking": true },
+      { "case": "partial stream with a successful native Range seek, progress .5", "outcome": "ready", "elapsedMs": 390.3 }
+    ],
+    "v70": [
+      { "case": "partial stream stops, progress .5", "outcome": "MEDIA_PREPARATION_STALLED", "elapsedMs": 4252.6, "note": "Failed despite a decoded frame at 1.24; do not describe this as a 19s transport timeout. Metadata duration changes were already corrected by v73." },
+      { "case": "tiny byte trickle stalls buffered prime at .05", "outcome": "MEDIA_PREPARATION_TIMEOUT", "elapsedMs": 19003.9, "reloadObserved": false }
+    ],
+    "candidate": [
+      { "case": "partial stream stops, progress .5", "outcome": "ready", "elapsedMs": 4570.7, "preparationReloads": 1, "evidence": "decoded-canvas", "readyState": 4, "seeking": false, "targetTime": 1.223 },
+      { "case": "partial stream with a successful native Range seek, progress .5", "outcome": "ready", "elapsedMs": 87.2, "preparationReloads": 0, "evidence": "decoded-canvas" },
+      { "case": "tiny byte trickle stalls buffered prime at .05", "outcome": "ready", "elapsedMs": 6099.9, "preparationReloads": 1, "evidence": "decoded-canvas", "readyState": 4, "seeking": false, "targetTime": 0 },
+      { "case": "healthy immediate response", "outcome": "ready", "elapsedMs": 432.8, "preparationReloads": 0 },
+      { "case": "healthy five-second first-byte delay", "outcome": "ready", "elapsedMs": 5135.1, "preparationReloads": 0, "evidence": "decoded-canvas" },
+      { "case": "permanent trickle on every selection", "outcome": "MEDIA_PREPARATION_TIMEOUT", "elapsedMs": 19002.8, "preparationReloads": 1, "recovered": false, "note": "Intentional unrecoverable fault: failure is retained; this verifies the original deadline and retry cap, not successful recovery." }
+    ],
+    "limitation": "These reproduce application recovery gaps, not an exclusive cause of the historical public CDN/proxy interruption. They do not establish that every intermittent public transfer failure is fixed."
+  },
+  "automatedChecks": {
+    "firstFullAttempt": {
+      "passed": false,
+      "testFilesPassed": 67,
+      "testFilesFailed": 151,
+      "assertionsCollected": 599,
+      "assertionsPassed": 550,
+      "assertionsFailed": 49,
+      "confirmedCauses": [
+        "ENOSPC creating/loading fixtures during the run; available disk space fluctuated without a task-issued broad cleanup",
+        "One integration assertion sampled before the newly deferred native selection task; it now awaits one zero-delay task before the unchanged load-count assertion, without increasing its test timeout"
+      ],
+      "notReclassifiedByLaterPass": true
+    },
+    "completeRerun": { "assertions": 1887, "passed": 1887, "failed": 0, "skipped": 0 },
+    "typecheck": "passed",
+    "lint": "passed",
+    "firstBuild": { "passed": false, "error": "TS5033 ENOSPC writing incremental build metadata" },
+    "buildRetry": "passed with original architecture, media, SEO and bundle checks",
+    "bundleBytes": { "initialJs": 196104, "initialCss": 75673, "desktopJs": 520060, "phoneJs": 622238, "largestLazyJs": 45576 },
+    "bundleBudgetsChanged": false,
+    "newRegressionCoverage": "Pending native selection, deferred cancellation, buffered active recovery cap, buffered preparation stall, progressing unbuffered transfer, healthy buffered seek and settled-intro reversal"
+  },
+  "renderedChecks": {
+    "functional": { "passed": 76, "total": 76, "perPlatformPerVersion": 19, "includes": "All 15 canonical segments plus four return positions" },
+    "applicationConsoleErrors": 0,
+    "isolatedExtensionErrors": 20,
+    "extensionClassification": "Original collector requires a proven non-default chrome-extension execution context; no page errors were excluded by wording alone",
+    "screenshotsCaptured": 24,
+    "screenshotsManuallyInspected": ["candidate desktop Hero-Pattern", "candidate desktop Crane", "candidate phone Hero-Pattern", "candidate phone Crane"],
+    "visual": {
+      "passed": 12,
+      "total": 12,
+      "darkPixelRule": "All RGB channels below 180; original >100 dark-pixel nonblank requirement retained",
+      "phoneChangedPixels": [0, 0, 0, 0, 0, 0],
+      "desktopChangedPixels": [1, 1, 0, 134, 149, 0],
+      "poseOrder": ["hold:hero .5", "hero-pattern .5", "pattern-star-map .5", "method-bottom-figure2 .75", "crane-contact .5", "figure3-services .75"],
+      "largestChangedFraction": 0.00011496913580246914,
+      "note": "Small desktop differences remain within the original .005 gate; do not claim byte-identical output or silently replace the threshold."
+    }
+  },
+  "scrollComparison": {
+    "method": "Original 10s scroll probe and summarizer; no CPU profiler during these sweeps; per-Hero viewport getter counts are diagnostic instrumentation",
+    "releaseQualificationCoverageComplete": false,
+    "scope": "Two focus segments on both platforms, v73 versus candidate; eight sweeps, not the full release sweep",
+    "passed": 0,
+    "total": 8,
+    "commonFailure": "rafInterval",
+    "activeBlankRafP95Ms": { "desktop": 34.4, "phone": 34.3 },
+    "rows": [
+      { "version": "v73", "platform": "desktop", "segment": "hero-pattern", "rafP95Ms": 49.4, "poseLagP95Ms": 49.382716, "heroViewportReads": 1596 },
+      { "version": "candidate", "platform": "desktop", "segment": "hero-pattern", "rafP95Ms": 50, "poseLagP95Ms": 49.382716, "heroViewportReads": 470 },
+      { "version": "v73", "platform": "desktop", "segment": "pattern-star-map", "rafP95Ms": 66.6, "poseLagP95Ms": 0 },
+      { "version": "candidate", "platform": "desktop", "segment": "pattern-star-map", "rafP95Ms": 66.7, "poseLagP95Ms": 0 },
+      { "version": "v73", "platform": "phone", "segment": "hero-pattern", "rafP95Ms": 50, "poseLagP95Ms": 52.659294 },
+      { "version": "candidate", "platform": "phone", "segment": "hero-pattern", "rafP95Ms": 50, "poseLagP95Ms": 52.659294 },
+      { "version": "v73", "platform": "phone", "segment": "pattern-star-map", "rafP95Ms": 49.8, "poseLagP95Ms": 0 },
+      { "version": "candidate", "platform": "phone", "segment": "pattern-star-map", "rafP95Ms": 49.8, "poseLagP95Ms": 0 }
+    ],
+    "allOtherOriginalMeasuredChecksPassed": true,
+    "over50msTasks": 0,
+    "conclusion": "Repeated viewport work is reduced, but no stable overall FPS improvement is established. Blank scrolling also fails; this is not a waiver or proof that site rendering is innocent."
+  },
+  "publicStartupDiagnostics": {
+    "version": "v73, not this candidate",
+    "initialDesktop": { "fcpMs": 2652, "lcpCandidateObservedMs": 5484, "runtimeReadyMs": 7454.2, "loaderRemovedMs": 8254.8, "loadEventMs": 4305.6 },
+    "profiledDesktop": { "runtimeReadyMs": 5372.9, "loaderRemovedMs": 8341.9 },
+    "profiledPhone": { "fcpMs": 1660, "runtimeReadyMs": 3866.1, "loaderRemovedMs": 5386.7 },
+    "interpretation": "Earlier navigation/check completion times are not white-screen or LCP measurements. Timing varies with network/cache and profiling. Actual entry includes first-party shader compilation, media preparation and the retained authored loader sequence.",
+    "lcpQualified": false,
+    "publicStartupImprovementClaimed": false
+  },
+  "review": {
+    "reviewer": "correctness",
+    "independent": false,
+    "findings": [],
+    "residual_risks": ["Old iOS and physical device native task ordering not verified", "Permanent/slow unbuffered public transfers can still fail at the original deadline"],
+    "testing_gaps": ["Complete release scrolling sweep", "Two formal memory runs", "Physical iPhone/Android", "New committed candidate has not been published or publicly retested"]
+  },
+  "cleanup": {
+    "completedAt": "2026-10-24T02:39:14.551Z",
+    "taskSpace": 5,
+    "taskSpaceFinishedOnce": true,
+    "keptPages": 0,
+    "taskServersStopped": true,
+    "removedRoot": "/var/tmp/tongye-v74-investigation-20261024-nfuNmo",
+    "filesPermanentlyRemoved": 61,
+    "screenshotsPermanentlyRemoved": 24,
+    "logicalBytesRemoved": 28380724,
+    "inventorySha256": "eda12bece473b6f80d2e9df73c3a22fd6da59487ea79e44dcca2d22eafa30c55",
+    "recoverable": false,
+    "preserved": "Source, diagnostic build, all existing release packages, source media, remote rollback records and this compact failure-preserving summary",
+    "publicationWarning": "Raw screenshots, profiles and reports were deleted per the user's standing cleanup request. This compact summary alone cannot seal a future release; required fresh publication evidence must be regenerated."
+  }
+}
