@@ -48,6 +48,24 @@ afterEach(() => {
 });
 
 describe('radial Ink intro controller', () => {
+  it('does not remeasure a settled terminal pose but still measures and draws on reversal', () => {
+    const viewport = vi.fn(() => ({ width: 1440, height: 900 }));
+    const controller = createRadialInkIntroController({
+      canvas: new FakeCanvas() as unknown as HTMLCanvasElement,
+      revealSurface: new FakeElement() as unknown as HTMLElement,
+      field: { kind: 'radial', origin: { x: .5, y: .5 }, seed: 'hero-pattern' },
+      generation: 'settled-measurement', viewport
+    });
+    try {
+      controller.render(1);
+      expect(viewport).toHaveBeenCalledOnce();
+      for (let i = 0; i < 20; i++) controller.render(1);
+      expect(viewport).toHaveBeenCalledOnce();
+      controller.render(.5);
+      expect(viewport).toHaveBeenCalledTimes(2);
+      expect(boundaryRenderer.render.mock.lastCall?.[0]).toMatchObject({ progress: .5 });
+    } finally { controller.dispose(); }
+  });
   it('retains shared shaders across request, held and presented endpoint samples until window disposal', () => {
     const controller = createRadialInkIntroController({
       canvas: new FakeCanvas() as unknown as HTMLCanvasElement,

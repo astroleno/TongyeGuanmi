@@ -118,22 +118,24 @@ export function createRadialInkIntroController(
       if (disposed) {
         return;
       }
-      latestProgress = progress;
+      latestProgress = clamp(progress);
       const wasSettled = settled;
-      if (progress < .999) settled = false;
-      const frame = frameFor(progress);
+      if (latestProgress < .999) settled = false;
       ensureRenderer();
-      if (!wasSettled || frame.progress < .999) draw(frame);
-      applySurfaceHandoff(frame.progress);
+      // A settled endpoint already handed its pixels to the DOM. It never
+      // redraws, so measuring the viewport here can only flush unrelated style
+      // writes on every scroll/media wake. Reversals still measure and draw.
+      if (!wasSettled || latestProgress < .999) draw(frameFor(latestProgress));
+      applySurfaceHandoff(latestProgress);
       options.canvas.setAttribute(
         'data-hero-intro-ink-active',
         semanticBoolean(
-          frame.progress > 0.002
-          && frame.progress < 0.999
+          latestProgress > 0.002
+          && latestProgress < 0.999
           && Boolean(renderer?.isActive())
         )
       );
-      if (frame.progress >= 0.999) {
+      if (latestProgress >= 0.999) {
         settled = true;
         // Coherent sampling can visit desired=1, held<1, then presented=1
         // within one RAF. A shared pass belongs to the window, not that pose:
