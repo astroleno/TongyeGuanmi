@@ -125,6 +125,26 @@ function isTransportFailure(error: MediaError | null | undefined): boolean {
     && /^PipelineStatus::PIPELINE_ERROR_READ(?::|$)/.test(error.message);
 }
 
+/** Bytes arriving do not prove that an already buffered seek can decode. */
+function watchBufferedScrollSeek(video: HTMLVideoElement): () => boolean {
+  let playhead = Number.NaN;
+  let changedAt = Date.now();
+  return () => {
+    const time = video.currentTime;
+    const buffered = video.buffered;
+    let covered = false;
+    if (video.seeking && video.readyState < 2 && video.closest?.('[data-scroll-platform]')) {
+      for (let i = 0; i < (buffered?.length ?? 0); i++) {
+        if (buffered.start(i) <= time && buffered.end(i) >= time + TIMELINE_VIDEO_PRESENTATION_TOLERANCE_SECONDS) {
+          covered = true; break;
+        }
+      }
+    }
+    if (!covered || time !== playhead) { playhead = time; changedAt = Date.now(); return false; }
+    return Date.now() - changedAt >= FRAME_PREPARATION_STALL_MS;
+  };
+}
+
 function finiteDuration(video: HTMLVideoElement, fallback: number): number {
   return Number.isFinite(video.duration) && video.duration > 0
     ? video.duration
@@ -922,6 +942,7 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       this.#scrollSeekStartedAt = this.#scrollSeekAttemptAt = this.#scrollSeekChangedAt = Date.now();
       this.#scrollSeekBufferedSeconds = bufferedSeconds();
     }
+    const bufferedSeekStalled = watchBufferedScrollSeek(this.#video);
     const check = () => {
       this.#scrollSeekWatch = undefined;
       if (this.#disposed || this.#nativeFallback || this.#scrollSeekStartedAt === undefined
@@ -934,9 +955,10 @@ class TimelineVideoDriverImpl implements TimelineVideoDriver {
       // Sum all intervals: a middle hole can fill without moving the last end.
       if (next > this.#scrollSeekBufferedSeconds) this.#onProgress();
       this.#scrollSeekBufferedSeconds = next;
+      const seekStalled = bufferedSeekStalled();
       if (this.#scrollSeekReloads < MAX_SCROLL_SEEK_RELOADS
         && Date.now() - this.#scrollSeekAttemptAt >= SCROLL_SEEK_RESPONSE_GRACE_MS
-        && Date.now() - this.#scrollSeekChangedAt >= FRAME_PREPARATION_STALL_MS
+        && (seekStalled || Date.now() - this.#scrollSeekChangedAt >= FRAME_PREPARATION_STALL_MS)
         && this.#video.networkState === 2 && this.#video.readyState < 2) {
         if (!this.#reloadScrollSource()) return;
         this.#scrollSeekBufferedSeconds = bufferedSeconds();
@@ -1281,8 +1303,15 @@ async function runFramePreparation(
     'MEDIA_PREPARATION_TIMEOUT', `Frame deadline for ${input.runId}`
   )), FRAME_PREPARATION_DEADLINE_MS);
   let driver = timelineVideoDriverFor(video);
-  const sourceAlreadyFailed = video.networkState === 3 && video.readyState === 0;
   try {
+    // Native load()/src selection resumes after the invoking task. During that
+    // interval Chromium also reports NETWORK_NO_SOURCE, without a media error.
+    // Let that pending selection run before deciding it already spent recovery.
+    // A genuinely exhausted selection remains NO_SOURCE and keeps its old cap.
+    if (video.networkState === 3 && video.readyState === 0 && !video.error) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+    const sourceAlreadyFailed = video.networkState === 3 && video.readyState === 0;
     for (let attempt = 0; ; attempt++) {
       const attemptStartedAt = Date.now();
       const trial = new AbortController();
@@ -1291,6 +1320,7 @@ async function runFramePreparation(
       if (controller.signal.aborted) abort();
       let signature = '';
       let changedAt = Date.now();
+      const bufferedSeekStalled = watchBufferedScrollSeek(video);
       const progress = () => { changedAt = Date.now(); };
       video.addEventListener('progress', progress);
       const watch = setInterval(() => {
@@ -1298,7 +1328,9 @@ async function runFramePreparation(
         const next = [video.readyState, video.currentTime, video.seeking,
           buffered?.length ? buffered.end(buffered.length - 1) : 0].join(':');
         if (next !== signature) { signature = next; changedAt = Date.now(); }
-        else if (Date.now() - changedAt >= FRAME_PREPARATION_STALL_MS) {
+        const seekStalled = bufferedSeekStalled()
+          && Date.now() - attemptStartedAt >= SCROLL_SEEK_RESPONSE_GRACE_MS;
+        if (seekStalled || Date.now() - changedAt >= FRAME_PREPARATION_STALL_MS) {
           // The first byte has the same response grace as active scrub. A
           // healthy five-second metadata response must not be cancelled at
           // four seconds. This spends neither another retry nor more than the

@@ -528,6 +528,29 @@ describe('timeline video driver', () => {
     } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
   });
 
+  it('bounds a buffered active-scroll decoder stall to two reloads and one twenty-second incident', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { closest: () => ({}), networkState: 2,
+      buffered: { length: 1, start: () => 0, end: () => 10 } });
+    const driver = createTimelineVideoDriver(videoElement(video));
+    try {
+      const input = { runId: 'buffered-active-seek', direction: 1 as const, progress: .4, durationFallbackSeconds: 10 };
+      driver.drive(input); video.readyState = 1;
+      for (let i = 0; i < 24; i++) {
+        await vi.advanceTimersByTimeAsync(1000); video.dispatch('progress');
+        if (video.readyState === 0) {
+          video.advancePlaybackTo(0); // Native load() resets the physical playhead.
+          video.readyState = 1; video.dispatch('loadedmetadata');
+        }
+        driver.drive(input);
+        expect(video.loadCalls).toBeLessThanOrEqual(2);
+        expect(driver.snapshot().frameReady).toBe(false);
+      }
+      expect(video.loadCalls).toBe(2);
+    } finally { driver.dispose(); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
   it.each(['dispose', 'error', 'abort'] as const)('cancels a pending scroll recovery on %s', async (reason) => {
     vi.useFakeTimers(); const video = new FakeVideo();
     Object.assign(video, { closest: () => ({}), networkState: 2 });
@@ -1388,6 +1411,119 @@ describe('timeline video driver', () => {
       await rejection;
       expect(video.loadCalls).toBe(0);
     } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('does not spend recovery on a pending native source selection before its first task runs', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo(); video.readyState = 0;
+    Object.assign(video, { networkState: 3, closest: () => ({}) });
+    const load = video.load.bind(video);
+    video.load = () => { load(); Object.assign(video, { networkState: 2 }); };
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'pending-native-selection', direction: 1, progress: .5,
+        durationFallbackSeconds: 10, allowPlaybackNudge: false
+      });
+      void pending.catch(() => undefined);
+      // Native resource selection resumes after the caller's current task;
+      // NETWORK_NO_SOURCE alone is not a completed failed selection.
+      queueMicrotask(() => {
+        Object.assign(video, { networkState: 2 });
+        video.readyState = 1; video.dispatch('loadedmetadata');
+      });
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(video.loadCalls).toBe(0);
+      await vi.advanceTimersByTimeAsync(4250);
+      expect(video.loadCalls).toBe(1);
+      expect(video.dataset.timelineVideoRetry).toBe('1');
+      video.readyState = 4; video.dispatch('loadeddata'); video.completeSeek(); video.presentFrame();
+      await expect(pending).resolves.toMatchObject({ status: 'ready', targetTime: 4.99 });
+    } finally { disposeTimelineVideoDriver(videoElement(video)); await vi.advanceTimersByTimeAsync(0); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('cancels a deferred initial source selection without starting a load or leaking its deadline', async () => {
+    vi.useFakeTimers();
+    const video = new FakeVideo(); video.readyState = 0;
+    Object.assign(video, { networkState: 3, closest: () => ({}) });
+    const controller = new AbortController();
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'cancel-pending-selection', direction: 1, progress: 0,
+        durationFallbackSeconds: 10, signal: controller.signal
+      });
+      const rejected = expect(pending).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_ABORTED' });
+      controller.abort(); await rejected;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(video.loadCalls).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); vi.useRealTimers(); }
+  });
+
+  it('recovers one buffered scroll seek that never decodes despite continuous transfer events', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { networkState: 2, closest: () => ({}),
+      buffered: { length: 1, start: () => 0, end: () => .194 } });
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'buffered-prime-stall', direction: 1, progress: 0,
+        durationFallbackSeconds: 10, allowPlaybackNudge: false
+      });
+      void pending.catch(() => undefined);
+      video.readyState = 1; // The endpoint's .05 prime is physically stuck.
+      for (let i = 0; i < 5; i++) {
+        await vi.advanceTimersByTimeAsync(1000); video.dispatch('progress');
+        expect(video.loadCalls).toBe(0);
+      }
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(video.loadCalls).toBe(1);
+      expect(video.dataset.timelineVideoRetry).toBe('1');
+      video.readyState = 4; video.dispatch('loadeddata'); video.completeSeek();
+      video.presentFrame(); video.completeSeek(); video.presentFrame();
+      await vi.advanceTimersByTimeAsync(100);
+      await expect(pending).resolves.toMatchObject({ status: 'ready', targetTime: 0 });
+    } finally { disposeTimelineVideoDriver(videoElement(video)); await vi.advanceTimersByTimeAsync(0); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('does not mistake a progressing unbuffered scroll seek for a buffered decoder stall', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { networkState: 2, closest: () => ({}),
+      buffered: { length: 1, start: () => 0, end: () => .194 } });
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'unbuffered-transfer', direction: 1, progress: .5,
+        durationFallbackSeconds: 10, allowPlaybackNudge: false
+      });
+      const rejection = expect(pending).rejects.toMatchObject({ code: 'MEDIA_PREPARATION_TIMEOUT' });
+      video.readyState = 1;
+      for (let i = 0; i < 6; i++) {
+        await vi.advanceTimersByTimeAsync(3000); video.dispatch('progress');
+        expect(video.loadCalls).toBe(0);
+      }
+      await vi.advanceTimersByTimeAsync(1000);
+      await rejection;
+      expect(video.loadCalls).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
+  });
+
+  it('lets a healthy buffered scroll seek finish inside response grace without reloading', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    const video = new FakeVideo();
+    Object.assign(video, { networkState: 2, closest: () => ({}),
+      buffered: { length: 1, start: () => 0, end: () => 10 } });
+    try {
+      const pending = prepareTimelineVideoFrame(videoElement(video), {
+        runId: 'healthy-buffered-seek', direction: 1, progress: .5,
+        durationFallbackSeconds: 10, allowPlaybackNudge: false
+      });
+      video.readyState = 1;
+      for (let i = 0; i < 5; i++) { await vi.advanceTimersByTimeAsync(1000); video.dispatch('progress'); }
+      expect(video.loadCalls).toBe(0);
+      video.readyState = 4; video.completeSeek(); video.presentFrame();
+      await expect(pending).resolves.toMatchObject({ status: 'ready' });
+      expect(video.loadCalls).toBe(0);
+    } finally { disposeTimelineVideoDriver(videoElement(video)); expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); }
   });
 
   it('counts failed source reselection against the same single reload allowance', async () => {

@@ -69,7 +69,12 @@ it.each([2, 3])('does not restart a cold decoder outside the media driver (netwo
     const position = locateScrollPosition(index, positionForScrollAnchor(index, { rangeId: 'hold:hero', progress: 0 }));
     preparation = platform.adapter.prepare(position, { generation: 1, epoch: 1, revision: 1, layoutRevision: 1 }, controller.signal)
       .catch(error => error);
-    await act(async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); });
+    await act(async () => {
+      for (let i = 0; i < 12; i++) await Promise.resolve();
+      // Source selection owns the next native task before NO_SOURCE can be
+      // classified as exhausted. Keep the same load-count assertion below.
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
     expect(load).toHaveBeenCalledTimes(networkState === 3 ? 1 : 0);
   } finally {
     controller.abort(); await preparation;
